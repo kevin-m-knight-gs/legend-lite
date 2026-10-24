@@ -76,6 +76,11 @@ export function setGrouping<D extends GridDraft>(draft: D, rows: readonly string
  *  once, and each it did not have a dimension of the grid. Unpivoted, the grid has no pivot headers: a sort of one (the
  *  header menu's) goes with them, as the grid's rows would be sorted by a column they do not have. */
 export function setPivot<D extends GridDraft>(draft: D, pivotOn: readonly string[]): D {
+  // as a top N is refused on a pivot (grid-commands.ts topN), a pivot is refused under a top N: else a grid reaches a
+  // state no command makes again, which an undo cannot put back (grid-between.ts)
+  if (pivotOn.length > 0 && draft.snapshot.topN !== undefined) {
+    throw new CubeRefusal("a pivot's figures are its values' columns, and a top N ranks the grid's rows or groups: take the top N off first");
+  }
   checkGroupable(draft, pivotOn, draft.snapshot.pivotOn, 'the pivot');
   const columns = allColumns(draft);
   const sorts = pivotOn.length > 0 ? draft.snapshot.sorts : draft.snapshot.sorts.filter((x) => columns.includes(x.column));

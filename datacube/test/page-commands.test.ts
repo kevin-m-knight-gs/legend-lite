@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { followCube } from '../src/chart-spec.ts';
 import { cubeOpenedAgain, type CubeDocument, type CubeSource, type FrameSource } from '../src/cube-document.ts';
 import { tiles } from '../src/layout/bands.ts';
 import {
@@ -57,6 +58,14 @@ describe('ids and titles: one allocator, after every id the page has held', () =
     refused(() => added(forgetful, 'grid-2'), /'grid-2' is an id the page has held already/);
   });
 
+  // 2026-10-24, found by the undo's random walks: a grid made 'Grid 3' was a page no rename put back
+  it('a grid made named what it is numbered keeps no title of its own, as a rename to it leaves none', () => {
+    const made = apply({ kind: 'addGrid', id: 'grid-3', document: trades.cubes[0]!.cube, sheet: 'sheet-1', near: null, title: 'Grid 3', columns: null }).page;
+    assert.deepEqual(view(made, 'grid-3'), { id: 'grid-3', kind: 'grid', cube: 'grid-3' });
+    const named = apply({ kind: 'addGrid', id: 'grid-3', document: trades.cubes[0]!.cube, sheet: 'sheet-1', near: null, title: 'Orders', columns: null }).page;
+    assert.equal((view(named, 'grid-3') as { title?: string }).title, 'Orders');
+  });
+
   it('a command that makes a tile carries the id it was given, as applied (what a live channel replays)', () => {
     const { draft: d, applied } = applyPageCommands(draft(), [
       { kind: 'addSheet', name: 'More' },
@@ -70,10 +79,14 @@ describe('ids and titles: one allocator, after every id the page has held', () =
 });
 
 describe('each command gives the page the screen\'s rules give it', () => {
-  it('a new chart goes beside its grid, titled by its number, of its grid\'s cube', () => {
+  it('a new chart goes beside its grid, titled by its number, of its grid\'s cube, following it from the start', () => {
     const spec = (view(trades, 'chart') as ChartView).spec;
     const page = apply({ kind: 'addChart', near: 'grid-2', spec, title: null, columns: null }).page;
-    assert.deepEqual(view(page, 'chart-3'), { id: 'chart-3', kind: 'chart', cube: 'grid-2', title: 'Chart 3', spec });
+    // a spec made for another grid (chart's, of grid) is regrouped as grid-2 is, as the next change of grid-2 would
+    // regroup it (D19: a live chart is always where following leaves it)
+    const followed = followCube(spec, { ...trades.cubes.find((c) => c.id === 'grid-2')!.cube.query, epoch: 0 });
+    assert.notDeepEqual(followed, spec, "grid-2 aggregates qty otherwise: the chart's value follows it");
+    assert.deepEqual(view(page, 'chart-3'), { id: 'chart-3', kind: 'chart', cube: 'grid-2', title: 'Chart 3', spec: followed });
     assert.deepEqual(tiles(sheet(page, 'sheet-2').layout), ['grid-2', 'chart-3']);
     refused(() => apply({ kind: 'addChart', near: 'chart', spec, title: null, columns: null }), /a chart is of a grid/);
   });
@@ -287,6 +300,8 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'addText', id: 'text-1', sheet: 'sheet-1', text: '# Sales', title: null, columns: null },
     { kind: 'setText', tile: 'text-1', text: 'Up **3%**' },
     { kind: 'followGrid', chart: 'chart', grid: 'grid-2' },
+    { kind: 'detach', chart: 'chart', cube: 'grid-9', document: trades.cubes[0]!.cube },
+    { kind: 'detach', chart: 'chart', cube: 'grid-9', document: trades.cubes[0]!.cube, copy: { table: 'snap_9', label: 'Snap 09:00', takenAt: '2026-10-24T09:00:00.000Z', rowCount: 3 } },
     { kind: 'select', chart: 'chart', conditions: [{ kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' }] },
     { kind: 'moveTile', tile: 'chart', sheet: 'sheet-2', columns: null },
     { kind: 'stack', tiles: ['grid', 'chart'] },
@@ -469,6 +484,20 @@ describe("a cube changed by a page command, its live charts following it (follow
     const after = applyPageCommand(draftOf(trades), { kind: 'rebuilt', cube: cube.id, source: now }).draft.page;
     assert.deepEqual(after.cubes.find((c) => c.id === cube.id)!.cube.query.rows, ['desk']);
     assert.equal(chartOf(after, 'chart').spec.x, 'desk');
+  });
+
+  it("a detached chart's cube reads the copy its detach carries, or its live rows without one (the D19 audit's W2 limit, closed)", () => {
+    const copy = { table: 'snap_9', label: 'Snap 09:00', takenAt: '2026-10-24T09:00:00.000Z', rowCount: 3 };
+    const detached = apply({ kind: 'removeTile', tile: 'grid-2' }).page;
+    const document = detached.cubes.find((c) => c.id === 'grid-2')!.cube;
+    const snapped = applyPageCommands(draft(detached), [{ kind: 'detach', chart: 'chart-2', cube: 'grid-2', document, copy }]).draft.page;
+    assert.deepEqual(snapped.copies?.['grid-2'], copy, 'the kept cube reads the copy');
+    const same = applyPageCommands(draft(snapped), [{ kind: 'detach', chart: 'chart-2', cube: 'grid-2', document }]).draft.page;
+    assert.deepEqual(same.copies?.['grid-2'], copy, 'the field absent: the copy as it is (a detach saying nothing of it un-snaps nothing)');
+    const live = applyPageCommands(draft(snapped), [{ kind: 'detach', chart: 'chart-2', cube: 'grid-2', document, copy: null }]).draft.page;
+    assert.equal(live.copies?.['grid-2'], undefined, 'null: its live rows, the copy let go');
+    assert.deepEqual(readPageCommand({ kind: 'detach', chart: 'chart-2', cube: 'grid-2', document, copy: null }), { kind: 'detach', chart: 'chart-2', cube: 'grid-2', document, copy: null });
+    assert.throws(() => readPageCommand({ kind: 'detach', chart: 'chart-2', cube: 'grid-2', document, copy: { table: 'x' } }), /copy|takenAt|label|rowCount/);
   });
 
   it("a detached chart has no grid to follow: made to follow, refused in DataCube's words, as the screen's pill is off (B8)", () => {

@@ -219,7 +219,7 @@ describe('each command gives what the screen\'s own edit gives', () => {
     refused(() => applyGridCommand(d, { kind: 'calculate', level: 'row', column: { ...double, name: 'qty' } }), /qty/);
   });
 
-  it('a top N set, replaced and taken off; refused on a pivot, whose figures are its values\' columns', () => {
+  it('a top N set, replaced and taken off; refused on a pivot, whose figures are its values\' columns, and a pivot under it', () => {
     const top = applyGridCommand(d, { kind: 'topN', topN: { by: 'notional', n: 10 } });
     assert.deepEqual(top.snapshot.topN, { by: 'notional', n: 10 });
     assert.deepEqual(applyGridCommand(top, { kind: 'topN', topN: { by: 'qty', n: 3, bottom: true } }).snapshot.topN,
@@ -227,6 +227,10 @@ describe('each command gives what the screen\'s own edit gives', () => {
     assert.equal('topN' in applyGridCommand(top, { kind: 'topN', topN: null }).snapshot, false);
     const pivoted = { ...d, snapshot: { ...d.snapshot, pivotOn: ['region'] } };
     refused(() => applyGridCommand(pivoted, { kind: 'topN', topN: { by: 'notional', n: 10 } }), /take the pivot off first/);
+    // the other way round (2026-10-24, found by the undo's random walks: a pivot set under a top N was a state no command
+    // makes again)
+    refused(() => applyGridCommand(top, { kind: 'pivot', columns: ['region'] }), /take the top N off first/);
+    assert.deepEqual(applyGridCommand(top, { kind: 'pivot', columns: [] }).snapshot.pivotOn, [], 'no pivot is no pivot');
   });
 
   it('a group opened and closed is the tree the chevron leaves; Collapse All the menu\'s (G1, G2)', () => {
@@ -393,11 +397,15 @@ describe('a command read from JSON is the same command, and what DataCube does n
     { kind: 'calculate', level: 'group', column: { name: 'smallest', childAggregate: { fn: 'min', of: 'notional' }, kind: 'measure' } },
     { kind: 'calculate', level: 'row', column: { ...double, name: 'each', unnest: true } },
     { kind: 'editCalculated', name: 'double', level: 'group', column: { ...double, name: 'twice' } },
+    // in its place: before another of its level (an undo's: D19)
+    { kind: 'calculate', level: 'row', column: { ...double, name: 'first' }, before: 'double' },
+    { kind: 'editCalculated', name: 'double', level: 'row', column: double, before: 'twice' },
     { kind: 'removeCalculated', name: 'double' },
     { kind: 'open', path: ['EMEA', null], open: true },
     { kind: 'collapseAll' },
     { kind: 'expandAll' },
     { kind: 'topN', topN: { by: 'notional', n: 3, bottom: true } },
+    { kind: 'tree', open: [['EMEA'], ['EMEA', 'FX']], showTotals: true, expandTo: 1, closed: [['AMER']] },
   ];
 
   it('every kind, through JSON and back', () => {

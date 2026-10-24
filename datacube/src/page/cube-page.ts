@@ -218,6 +218,8 @@ export interface CubePageOptions {
    * after them and after every one on the board now (page-ids.ts nextPageId).
    */
   readonly taken: () => readonly string[];
+  /** The tag of the ids this board's tiles are made under (page-ids.ts nextPageId), or undefined: plain ids. */
+  readonly idTag?: () => string | undefined;
   /** A grid's cube document, as its page names it, for the command that carries one (`addGrid`):
    *  undefined when it cannot say its source. Absent, the grid's own (a cube alone's board: named as the cube is). */
   readonly documentOf?: (grid: string) => CubeDocument | undefined;
@@ -439,7 +441,7 @@ export class CubePage {
   #nextId(kind: 'grid' | 'chart' | 'text' | 'sheet'): string {
     const board = [...this.#sheets.map((s) => s.id), ...this.#grids.keys(), ...this.#charts.keys(), ...this.#kept.keys(),
       ...this.#unavailable.keys(), ...this.#pending.keys(), ...this.#texts.keys()];
-    return nextPageId([...this.#options.taken(), ...board], kind);
+    return nextPageId([...this.#options.taken(), ...board], kind, this.#options.idTag?.());
   }
 
   /** A page edit told as its commands, one step named `label` (onPageEdit: applied, and the board put at what it makes),
@@ -570,10 +572,10 @@ export class CubePage {
    * step is said so once it has done.
    */
   sync(to: PageViews & { readonly cubes?: PageDocument['cubes'] }, from: PageViews, remake: Remake,
-    unopened: (cube: string) => string | undefined = () => undefined, theirs = false): void {
+    unopened: (cube: string) => string | undefined = () => undefined, theirs = false, refilter = true): void {
     this.#syncing = true;
     try {
-      this.#synced(to, from, remake, unopened, theirs);
+      this.#synced(to, from, remake, unopened, theirs, refilter);
     } finally {
       this.#syncing = false;
     }
@@ -584,7 +586,7 @@ export class CubePage {
   }
 
   #synced(to: PageViews & { readonly cubes?: PageDocument['cubes'] }, from: PageViews, remake: Remake,
-    unopened: (cube: string) => string | undefined, theirs: boolean): void {
+    unopened: (cube: string) => string | undefined, theirs: boolean, refilter = true): void {
     const wanted = new Map(to.views.map((v) => [v.id, v]));
     const known = new Set(from.views.map((v) => v.id));
     const sheetFor = new Map(to.sheets.flatMap((s) => tiles(s.layout).map((t) => [t, s.id] as const)));
@@ -603,7 +605,7 @@ export class CubePage {
         this.#place(spec);
       }
       // tiles the page held and the step does not: charts first (a grid would take its following ones, or detach them)
-      for (const id of [...this.#charts.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropChart(id, theirs);
+      for (const id of [...this.#charts.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropChart(id, theirs, refilter);
       for (const id of [...this.#grids.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropGrid(id);
       for (const id of [...this.#unavailable.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropUnavailable(id);
       for (const id of [...this.#texts.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropText(id);
@@ -631,7 +633,10 @@ export class CubePage {
       // is replaced by the one made again, and its detached charts follow it once more
       for (const view of to.views) {
         if (view.kind !== 'grid' || this.#grids.has(view.id) || this.#unavailable.has(view.id)) continue;
-        const make = remake(view.id);
+        // from the cube the page `to` holds for it, when it says one (a keeper's step or put-back: the grid as the page
+        // has it, not as this screen last saw it -- a grid made again under the id its keeper gave it started from the
+        // screen's state, its sent commands then applied twice: the D19 audit's fourth round, 3)
+        const make = remake(view.id, to.cubes?.find((c) => c.id === view.cube)?.cube);
         if (!make) throw new Error(`grid ${view.id} cannot be made again: its maker is gone`);
         const kept = this.#kept.get(view.id);
         this.#kept.delete(view.id);
@@ -651,7 +656,7 @@ export class CubePage {
       for (const view of to.views) {
         if (view.kind !== 'chart' || this.#charts.has(view.id) || this.#unavailable.has(view.id)) continue;
         if (!this.#grids.has(view.cube) && !this.#kept.has(view.cube)) {
-          const make = remake(view.cube);
+          const make = remake(view.cube, to.cubes?.find((c) => c.id === view.cube)?.cube);
           if (!make) throw new Error(`chart ${view.id} cannot be opened again: grid ${view.cube}'s maker is gone`);
           this.keepGrid(view.cube, make);
         }
@@ -1578,12 +1583,12 @@ export class CubePage {
 
   /** A chart off the board: its selection off its grid's filter as the step took it off (`theirs`: another editor's,
    *  followed, not told), a grid kept only for it let go. */
-  #dropChart(id: string, theirs = false): void {
+  #dropChart(id: string, theirs = false, refilter = true): void {
     const chart = this.#charts.get(id);
     if (!chart) return;
     // its selection off its grid as the step that took it off the board took it off the grid's filter (the page's
-    // unselected)
-    if (chart.link.grid !== null && chart.conditions.length > 0) this.#sourceOf(chart.link).unselected(chart.conditions, theirs);
+    // unselected) -- unless the grid is put back whole by its caller (a converge's put-back: PageApp.putBack)
+    if (refilter && chart.link.grid !== null && chart.conditions.length > 0) this.#sourceOf(chart.link).unselected(chart.conditions, theirs);
     chart.panel.dispose();
     this.#charts.delete(id);
     this.#take(id);
