@@ -110,12 +110,15 @@ statistics · a 192×14 progress box · the planner's word ("local").
 
 ### 3. The page's ≡ menu, grouped by purpose
 
-1. **New Page** (was Create ▸ Blank Page), **Open…**, **Save**, **Save As…**, **Share…**, **Export ▸**
-2. **Create ▸**: Data Source…, Sheet, Text Box, then Association…, Data Space…
-3. **Undo**, **Redo**
-4. **✓ Edit Layout**, **Arrange…**
-5. **View ▸**: Generated Pure & SQL…, Keyboard Shortcuts…, Hide the Bar
-6. **Settings…** (the page's, or one per grid from the grid's right-click — not the first grid's)
+In the order of the menus' shared skeleton (below, "The menus"):
+
+1. **New Page** (was Create ▸ Blank Page), **Open…**, **Save**, **Save As…**, **Share…**, **Export Page File…** (one
+   entry until a second format arrives)
+2. **Undo *step***, **Redo *step***
+3. **Edit Layout ✓**, **Arrange…**
+4. **Create ▸**: Data Source…, Sheet, Text Box, then Association…, Data Space…
+5. **Settings…**: the app's, not the first grid's (a grid's own window is its Properties…)
+6. **View ▸**: Show the Bar ✓, Generated Pure & SQL…, Keyboard Shortcuts…
 
 ### 4. The page's title bar
 
@@ -143,12 +146,99 @@ statistics · a 192×14 progress box · the planner's word ("local").
 - **The columns panel:** pivot leaves folded under their measure by default (found 3).
 - **One icon set,** inline SVG at one weight, for the tile head, the status bar and the bars (found 4).
 
+## The menus: one design language, two scopes
+
+The user, 2026-10-24: the page's ≡ and a grid's right-click are different and stay different, but should share a
+design language -- not converge. Today there are five menus (the page's ≡, a grid's right-click, a chart's or KPI's
+right-click, a sheet tab's right-click; a text tile has none), each with its own habits.
+
+### What differs, on purpose
+
+- **The page's ≡ is the page's scope:** the file (new, open, save, share, export), the sheets and the layout, the
+  page's history, the app's settings. It never lists what is done to a column or a grid.
+- **A right-click is the scope of what is under the pointer:** the cell and its column first, then its grid, then the
+  tile it sits in. It never lists the file (save, open).
+
+### What they share
+
+**1. One skeleton, in one order.** Each menu uses the sections its scope has, always in this order, a line between:
+
+| # | Section | The page's ≡ | A grid's right-click | A chart's, a KPI's, a text tile's |
+|---|---|---|---|---|
+| 1 | Out: what leaves the app | New Page, Open…, Save, Save As…, Share…, Export | Export ▸, Email ▸ | -- |
+| 2 | Edit: history and copies | Undo *step*, Redo *step* | Edit ▸ (Undo *step*, Redo *step*, copies) | -- |
+| 3 | The data | -- | Sort ▸, Filter ▸, Pivot ▸, Join ▸, Extended Columns ▸ | Show Grid |
+| 4 | The look | Edit Layout ✓, Arrange… | Resize ▸, Pin ▸, Hide *column*, Conditional Formatting ▸ | -- |
+| 5 | Create ▸ | Data Source…, Sheet, Text Box, ─ Association…, Data Space… | Data Source…, Copy of This Grid, Visualization, Text Box | the same as the grid's |
+| 6 | Its window | Settings… (the app's) | Properties… | Properties… (a chart's, today Options...); Edit Text… |
+| 7 | View ▸: how it is shown, and where | Show the Bar ✓, Generated Pure & SQL…, Keyboard Shortcuts… | Expand All, Collapse All, ─ Show Controls ✓, Keyboard Shortcuts…, ─ Move to Sheet ▸, Remove from Page | Maximise ✓, ─ Move to Sheet ▸, Remove from Page |
+
+A sheet tab's right-click is the same shape at its size: Rename…, Move Left, Move Right, ─ Delete Sheet.
+
+**2. The same words for the same things, in every menu.**
+
+- **Shared entries:** Create ▸, View ▸, Export ▸, Undo/Redo, Move to Sheet ▸, Remove from Page, Keyboard Shortcuts…,
+  Data Source…, Properties….
+- **A scope's own window is "Properties…".** Today it is "Properties..." on a grid and "Options..." on a chart, and
+  "Settings..." on the page opens the *first grid's* settings. "Settings…" becomes the app's alone, in the page's ≡.
+- **Remove and Delete mean different things.** Remove takes a thing off the page and can be undone (Remove from Page,
+  for every tile; today a chart says "Remove"). Delete destroys it (Delete Sheet; today "Delete").
+
+**3. The same marks.**
+
+- **"…" means the entry opens a window or asks for more,** and is always the one character "…". Today 8 entries use
+  "..." and 12 use "…".
+- **▸ means a submenu,** and a submenu has two entries or more. Today the page's Export ▸ and View ▸ have one each:
+  until a second arrives, the entry stands alone ("Export Page File…").
+- **✓ means a state that is on.** A toggle keeps one label and shows its state, rather than flipping its words:
+  Edit Layout ✓, Show Controls ✓, Data Bars ✓, a chart's Properties… ✓ while its pane is open. Today "Hide Controls" /
+  "Show Controls" and "Data Bars" / "Remove Data Bars" flip.
+- **A line separates sections, and sets apart a destructive entry,** which comes last in its group: Remove from Page,
+  Delete Sheet, New Page (which replaces this one).
+- **Shortcuts are shown right-aligned** where one exists: Undo Ctrl+Z, Copy Ctrl+C, Properties… Ctrl+E, Save Ctrl+S.
+  MenuItem has no field for one today.
+
+**4. The same rules.**
+
+- **Title Case for commands** (Copy Selected Cells, Add New Column…). Sentence case only where an entry is a value
+  rather than a command (a column's name, "% of parent row total").
+- **An entry that cannot apply here is shown disabled, with why on hover, never left out** (the grid's rule since
+  P2-211). It is left out only where the host can never offer it: no pages service, no Open….
+- **An entry names its target when the menu could act on more than one:** Hide notional, Copy Column notional, Undo
+  Sort by notional.
+- **At most two levels of submenu** (Conditional Formatting ▸ Color Scales ▸ is the deepest), and about a dozen
+  entries at the top.
+
+### The two menus, after
+
+```
+The page's ≡                              A grid's right-click (its order as people know it)
+New Page                                  Export ▸
+Open…                                     Email ▸
+Save                         Ctrl+S       Edit ▸   Undo Sort by notional  Ctrl+Z ...
+Save As…                                  ─────────
+Share…                                    Sort ▸
+Export Page File…                         Filter ▸
+─────────                                 Pivot ▸
+Undo Move tile               Ctrl+Z       Join ▸ (on a page of several grids)
+Redo                                      Extended Columns ▸
+─────────                                 ─────────
+Edit Layout                  ✓            Resize ▸
+Arrange…                                  Pin ▸
+─────────                                 Hide notional
+Create ▸                                  Conditional Formatting ▸
+─────────                                 ─────────
+Settings…                                 Create ▸
+View ▸                                    Properties…                 Ctrl+E
+                                          View ▸
+```
+
 ## Suggested order
 
 | Wave | What | Why first |
 |---|---|---|
 | 1 | The example-switch bug; the chart options pane closes (×, Escape, click outside) and never clips; the status bar's idle box, labels and error chip; the tile's always-visible chrome cut to the title and what is unusual | Each is small, each is felt on every page |
-| 2 | View mode vs Edit Layout; one right-click shape for every tile; the page menu regrouped; the title bar (name, tabs, the lone grid's state) | Structural, touches every tile |
+| 2 | View mode vs Edit Layout; the menus' design language (the skeleton, words, marks and rules above) for every menu; the title bar (name, tabs, the lone grid's state) | Structural, touches every tile and every menu |
 | 3 | The options pane docked at the page's edge; grouped text columns; the columns panel; one icon set | Larger design work |
 
 Screenshots of each state (the start page, the chart examples and the gallery's KPI dashboard, the chart options at
