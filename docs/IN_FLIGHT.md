@@ -136,7 +136,8 @@ with the compiler's plan/execution split**, in this order:
    **Now (2026-10-24, the user): BI and Excel parity** (`docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md`, branch
    `claude/datacube-bi-parity`): the grid against Excel, the pivot's analysis, formats, a page as a dashboard, then
    Pure as the semantic layer (the class tree, measures declared in the model as functions over a class's instances --
-   steps 5 and 7 above brought forward). `datacube/` only; the core asks (its §5: a user aggregate over class
+   steps 5 and 7 above brought forward). `datacube/` only -- but for one step of Studio's `query/demo/verify.mjs`
+   (2026-10-24: the cube's Show Controls moved under its right-click's View ▸, which that step clicks); the core asks (its §5: a user aggregate over class
    instances in groupBy, units, a date range relation, tagged values in the metamodel tables, constraints in
    projections, `orElse`, a data space as a query entry) are recorded there for the compiler line, not edited here.
    Pushed to the branch so far: P1 (the grid's Excel quick wins) and P2's Filter Values window, date ranges relative
