@@ -25,6 +25,7 @@ import pandas as pd
 
 import legend_lite as ll
 from legend_lite import _headless, _home, _json, _pool, datacube
+from legend_lite.keeper import page_hash
 from legend_lite import page as page_module
 from legend_lite._types import plain_type
 
@@ -1865,7 +1866,7 @@ class Live(Paged):
         # the grids' commands, in order, as DataCube's screen builds them -- a change by no command opens it again
         page, grid, _ = self.built()
         tab = ll.show(page, browser=False)
-        since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
+        since = lambda v: {k: x for k, x in self.get(f'/page.json?page={page._key}&since={v}')[1].items() if k != 'hash'}
         at = self.version(page)
         self.assertEqual(since(at), {'version': at, 'commands': []})
         page.sheet('More')
@@ -1902,7 +1903,7 @@ class Live(Paged):
         # (rebuilt: P11)
         page, grid, _ = self.built()
         tab = ll.show(page, browser=False)
-        since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
+        since = lambda v: {k: x for k, x in self.get(f'/page.json?page={page._key}&since={v}')[1].items() if k != 'hash'}
         at = self.version(page)
         with self.assertRaises(ValueError):
             page.grid(trades(), name='refused', rows=['nope'])
@@ -2000,7 +2001,8 @@ class Live(Paged):
         self.assertEqual(self.get(f'/page.json?page={page._key}')[1]['page']['sheets'][0]['name'], 'Renamed in DataCube')
         ll.show(page, browser=False)
         self.assertEqual(self.get(f'/page.json?page={page._key}')[1], {'version': self.version(page), 'page': page.to_dict(),
-                                                                  'held': ['chart-1', 'grid-1', 'sheet-1']})
+                                                                  'held': ['chart-1', 'grid-1', 'sheet-1'],
+                                                                  'hash': page_hash(datacube._session.keeper.current(page._key)[1])})
 
     def test_shown_again_and_closed_and_shown_again(self):
         page, grid, _ = self.built()
@@ -2018,8 +2020,18 @@ class Live(Paged):
         self.assertEqual(self.version(page), at)
         renamed = [page_edit(kind='renamePage', name='Renamed there')]
         self.assertEqual(self.said(page, renamed, version=0), 409)
-        self.assertEqual(self.settled(page, renamed, version=at - 1), (200, {'version': at + 1, 'combined': True, 'renamed': {}}))
-        self.assertEqual(self.settled(page, renamed, version=at + 1), (200, {'version': at + 1, 'combined': False, 'renamed': {}}))
+        status, combined = self.settled(page, renamed, version=at - 1)
+        self.assertEqual((status, combined['version'], combined['combined'], combined['renamed']), (200, at + 1, True, {}))
+        # what the writer converges by: the steps it had not seen, then its own as applied -- together, what moved the
+        # page since the version it wrote at
+        self.assertEqual([c['page']['kind'] for c in combined['edits']], ['renamePage'], 'its edits as applied')
+        self.assertEqual(self.get(f'/page.json?page={page._key}&since={at - 1}')[1]['commands'], combined['since'] + combined['edits'])
+        status, plain = self.settled(page, renamed, version=at + 1)
+        self.assertEqual((status, plain['version'], plain['combined'], plain['renamed']), (200, at + 1, False, {}))
+        self.assertEqual(sorted(plain), ['combined', 'hash', 'renamed', 'version'], 'nothing to converge on: no since, no edits')
+        # the page's hash with every answer (W17): what the page open on it must hash to
+        self.assertEqual(plain['hash'], page_hash(datacube._session.keeper.current(page._key)[1]))
+        self.assertEqual(self.get(f'/page.json?page={page._key}')[1]['hash'], plain['hash'])
         self.assertEqual(page.name, 'Renamed there')
 
     def test_a_frozen_chart_left_without_its_grid_follows_its_frame(self):
@@ -2040,7 +2052,9 @@ class Live(Paged):
         at = self.version(page)
         stale = [page_edit(kind='renameSheet', sheet=page.sheets[0].id, name='Of the page before')]
         page.sheet('More')
-        self.assertEqual(self.settled(page, stale, version=at), (200, {'version': at + 2, 'combined': True, 'renamed': {}}))
+        status, combined = self.settled(page, stale, version=at)
+        self.assertEqual((status, combined['version'], combined['combined'], combined['renamed']), (200, at + 2, True, {}))
+        self.assertEqual([c['page']['kind'] for c in combined['since']], ['addSheet'], "what moved the page meanwhile: Python's sheet")
         self.assertEqual([s.name for s in page.sheets], ['Of the page before', 'More'])
         at = self.version(page)
         page.remove(grid)
@@ -2086,7 +2100,7 @@ class Live(Paged):
         page, grid, _ = self.built()
         other = page.grid(desks(), name='desks')
         ll.show(page, browser=False)
-        since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
+        since = lambda v: {k: x for k, x in self.get(f'/page.json?page={page._key}&since={v}')[1].items() if k != 'hash'}
         theirs = [page_edit(kind='renameSheet', sheet=page.sheets[0].id, name='Renamed in DataCube')]
         page._enter()
         try:
@@ -2639,7 +2653,7 @@ class Snapped(Paged):
         grid = page.grid(trades(), name='trades')
         tab = ll.show(page, browser=False)
         try:
-            since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
+            since = lambda v: {k: x for k, x in self.get(f'/page.json?page={page._key}&since={v}')[1].items() if k != 'hash'}
             at = self.get(f'/version.json?page={page._key}')[1]['version']
             grid.snap()
             moved = since(at)

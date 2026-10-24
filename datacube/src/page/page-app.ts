@@ -180,6 +180,9 @@ export class PageApp {
   #syncing = false;
   /** Each grid the page let go, by its id: its maker, and where it was when it went -- made again by an undo. */
   readonly #gone = new Map<string, { readonly make: GridMaker; readonly start: GridStart }>();
+  /** Grids whose maker moved to a new id (#renamed) while their tile was still on the board: when the tile drops, the
+   *  old id keeps nothing (another editor's tile may come under it). */
+  readonly #movedAway = new Set<string>();
   #name: string;
   #disposed = false;
   /** The grid whose status bar holds the host's readout. */
@@ -1058,16 +1061,7 @@ export class PageApp {
       this.#page.say(`Cannot ${way} ${moved.label}: ${moved.dead}`);
       return;
     }
-    for (const [was, now] of Object.entries(moved.renamed)) {
-      // a grid brought back under a new id is made again by the maker that made it -- let go (#gone), or still here,
-      // kept off the board for a detached chart (#grids) -- and known from now by the id it was given
-      const live = this.#grids.get(was);
-      const gone = live ? { make: live.make, start: startOf(live.grid) } : this.#gone.get(was);
-      if (gone !== undefined) {
-        this.#gone.delete(was);
-        this.#gone.set(now, gone);
-      }
-    }
+    this.#renamed(moved.renamed);
     // a tile the page could not open, brought back: kept as saved, under the id its cube was given (its document is the
     // one kept, under the id it had)
     for (const c of moved.applied) {
@@ -1087,6 +1081,61 @@ export class PageApp {
     this.#page.say(`${way === 'undo' ? 'Undone' : 'Redone'}: ${moved.label}.`);
   }
 
+  /** Ids given out afresh for this page's (planned -> given): a grid known here under the old id is known from now by
+   *  the new -- made again by the maker that made it, let go (#gone) or still here, kept off the board for a detached
+   *  chart (#grids) -- and a kept-as-saved tile's document follows too. */
+  #renamed(renamed: Readonly<Record<string, string>>): void {
+    for (const [was, now] of Object.entries(renamed)) {
+      const live = this.#grids.get(was);
+      const gone = live ? { make: live.make, start: startOf(live.grid) } : this.#gone.get(was);
+      if (gone !== undefined) {
+        this.#gone.delete(was);
+        this.#gone.set(now, gone);
+      }
+      if (live) this.#movedAway.add(was);
+      const unopened = this.#unopened.get(was);
+      if (unopened !== undefined && !this.#unopened.has(now)) this.#unopened.set(now, unopened);
+    }
+  }
+
+  /**
+   * THE KEEPER'S IDS (docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): the ids the page's keeper gave out afresh for ids
+   * given out here (its write made again on top of another editor's: planned -> given), followed by what knows them --
+   * the grids' makers and kept documents (#renamed) and every step of the history (page-state.ts rename), so an undo
+   * names the tile as the keeper has it.
+   */
+  renamedBy(renamed: Readonly<Record<string, string>>): void {
+    if (Object.keys(renamed).length === 0) return;
+    this.#renamed(renamed);
+    this.#state.rename(renamed);
+  }
+
+  /**
+   * THE PAGE PUT BACK AT ITS KEEPER'S (docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2, step 1 of a converge): the board put
+   * at `page` -- a tile taken off here made again by its maker, one added here let go, kept to be made again (#gone) --
+   * and the state kept there with the ids exactly `held` (the ids given out here since, which the keeper never held under
+   * those names, given back); the history kept. The grids' own states are left as they are: the caller puts each the
+   * keeper's steps changed back by its own commands.
+   */
+  putBack(page: PageDocument, held: readonly string[]): void {
+    if (this.#disposed) return;
+    const from = this.#state.draft.page;
+    this.#syncTo(page, from);
+    this.#state.putBack({ page, held });
+  }
+
+  /** Commands of the page's own made again (a converge's step 5: pending edits, renamed), by the one function and told,
+   *  no new step of the history (their steps are in it already). Refused in their words: false, nothing changed. */
+  reapply(commands: readonly PageCommand[], label: string): boolean {
+    if (this.#disposed) return false;
+    return this.#edit({ label, commands, step: false });
+  }
+
+  /** Whether a grid is known here by `id` -- on the board, or let go and kept to be made again by its maker. */
+  knows(id: string): boolean {
+    return this.#grids.has(id) || this.#gone.has(id);
+  }
+
   /** A grid made again, by the maker that made it, starting where it was (on the board, kept, or let go) -- or, a
    *  `document` given, as it says (a detached chart's query as a step holds it), over the same source. */
   #remake(id: string, document?: CubeDocument): ((host: HTMLElement, options: SpawnOptions) => PageGrid) | undefined {
@@ -1104,9 +1153,11 @@ export class PageApp {
     const live = new Set(this.cubes);
     for (const [id, { grid, make }] of [...this.#grids]) {
       if (live.has(id)) continue;
+      this.#grids.delete(id);
+      // its maker moved to the id its keeper gave it (#renamed): nothing kept under the old one
+      if (this.#movedAway.delete(id)) continue;
       // let go: kept to be made again by an undo, starting where it was
       this.#gone.set(id, { make, start: startOf(grid) });
-      this.#grids.delete(id);
     }
     this.#paintEmpty();
     this.#onGridChange();

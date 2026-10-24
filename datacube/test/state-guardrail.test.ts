@@ -136,7 +136,7 @@ const BOARD_SITES: Record<string, string | readonly [string, number]> = {
 };
 
 /** Every place a page's state changes, by its owner: the commands' step is page-commands.ts's (applyToState). */
-const PAGE_STATE = /(this\.#state(?:\.(?:keep|begin|step|undo|redo)\(| = )|\bstate\.(?:keep|begin|step)\()/g;
+const PAGE_STATE = /(this\.#state(?:\.(?:keep|begin|step|undo|redo|putBack|rename)\(| = )|\bstate\.(?:keep|begin|step)\()/g;
 const STATE_SITES: Record<string, Record<string, string>> = {
   'src/page/page-app.ts': {
     'constructor:this.#state = ': 'a page made',
@@ -148,6 +148,11 @@ const STATE_SITES: Record<string, Record<string, string>> = {
     // 2026-10-24 (D19 W13): the page they made kept, the history kept with it -- a step is commands, applied to the page
     // as it is now (page-state.ts), so another editor's change is no reason to let the history go
     'follow:this.#state.keep(': "another editor's commands, applied by the rules: the page they made, kept (no step: theirs)",
+    // 2026-10-24 (D19 W7, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): a screen converging on its keeper's page -- put back
+    // at the page as the keeper had it (the ids given out here since given back), its history kept and renamed as the
+    // keeper renamed the ids (live-converge.ts)
+    'putBack:this.#state.putBack(': "the keeper's page at the version shown, put back under the screen (a converge's step 1), the history kept",
+    'renamedBy:this.#state.rename(': "the ids the keeper gave out afresh, followed by every step of the history",
     'setTitle:this.#state.keep(': "the page's name, its host's (no step): N1, a page opened named",
     'onChange:this.#state.keep(': "what its owners change (a grid's own edits), no step",
     '#move:this.#state.undo(': 'Undo (N2, S4)',

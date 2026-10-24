@@ -165,6 +165,23 @@ companions. The keeper never holds a selected chart whose grid's filter lacks th
 
 **Save** on a served page writes first (`flush`), then saves the page on screen, which is the keeper's (H-5).
 
+**As built (slice 3, 2026-10-24).** The converge is one function, `live-converge.ts convergeOn`, which DataCube's app
+and the tests call with the page, its grids and how another editor's grid is opened; step 1 is `PageApp.putBack` (the
+board by `#syncTo`, the state by `PageState.putBack`, the history kept) after `PageApp.renamedBy` (the makers, the kept
+documents and the history follow the keeper's renames; a renamed grid's old id keeps nothing when its tile drops);
+step 5 is the screen's `reapply(pending, touched)`: a page's and a touched grid's pending edits through the ordinary
+edit path, one on a grid the steps left alone told again only. A history step's `layout`, applied to the page as it
+is now, keeps the tiles the step did not know -- `page-between.ts applyOne` by `page-rebase.ts rearranged`, the
+keeper's own rule for a writer's arrangement made again on top -- so an undo past another editor's added tile is not
+dead. One telling schedule (F97) is built as a write that waits while a grid's change is in flight (`LiveScreen.busy`;
+`flush` waits too, up to ten seconds), not as a reordering of what is told: the keeper never sees a half-gesture, and
+the telling code stays as it was. `flush(inQueue)` runs in the channel's own queue when a follow calls it (a follow runs
+there already; queued behind itself it would wait for ever). The hash is SHA-256 over the canonical JSON (keys in code
+point order, compact, numbers their own digits: `page-hash.ts`, Python's `_json.canonical`), computed synchronously in
+the tab (held to the platform's digest by page-hash.test.ts), so a write's answer and its check are one turn; a second
+mismatch before a write hashes alike is said and opens nothing (no reopen loop). `GET /page.json` carries the hash too,
+and a follow checks it.
+
 **Reopen** survives for exactly two causes, each said: a `rebuilt` (the host re-read a cube over its source as it is
 now: no follower applies one, live-follow.ts 65-66; and the frame's model changed) and a write from further back than
 the keeper keeps. A frame that moved WITH the page is followed by commands, then every grid over it refreshed, as a

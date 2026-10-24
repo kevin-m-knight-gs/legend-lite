@@ -1,267 +1,369 @@
-// THE TAB'S SIDE OF THE PAGE KEEPER (src/app/live-channel.ts; docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): the edits
-// made on screen written as commands, as applied there, never the page (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4) --
-// an undo or a redo the commands between (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W3, W4), and nothing else; what the
-// screen does while following the other editor never taken for its own; writes and follows one at a time, in order -- a
-// follow told while a write is on its way waits for it, and sees the version it made; a write the keeper made another
-// page of opening the page as the keeper made it; a refused one opening it too, its words said. And a real page
-// (PageApp, its grids CubeApps over a gated engine) writing to a keeper that applies its edits by DataCube's one rule
-// (page-rebase.ts), on top of the other editor's: both editors' changes on the page it ends with; its undo made again
-// on top of the other editor's write as any edit is.
+// THE TAB'S SIDE OF THE PAGE KEEPER (src/app/live-channel.ts; docs/DATACUBE_PAGE_KEEPER_2026_10_20.md;
+// docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): the edits made on screen written as commands, as applied there, never the
+// page (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4) -- an undo or a redo the commands between (W3, W4), and nothing
+// else; what the screen does while following the other editor never taken for its own; writes and follows one at a
+// time, in order -- a follow told while a write is on its way waits for it, and sees the version it made. A write the
+// keeper made another page of has the screen CONVERGE, without a read and without a reopen (W7): back at the page as
+// the keeper had it, the other editor's steps since, its own as the keeper applied them, its pending edits made again,
+// renamed; a refused write converges the same way over what moved the page since (W8), the refusal said; the keeper's
+// hash checked at every answer (W17), the one message that must never show said if it ever differs; a flush writes
+// what is pending once the screen is quiet (F90, F97, H-5). And a real page (PageApp, its grids CubeApps over a gated
+// engine) on a keeper that applies its edits by DataCube's one rule (test/fake-keeper.ts), converging on top of the
+// other editor's write: both editors' changes on the page it ends with, its undo made again on top as any edit is.
 
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { CubeApp } from '../src/app.ts';
-import { applyToSnapshot, DEFAULT_CONFIGURATION } from '../src/config.ts';
-import { configurationOf, treeOf, writeCube, type FileSource } from '../src/cube-document.ts';
-import { fold } from '../src/cube-state.ts';
-import { applyGridCommands } from '../src/grid-commands.ts';
-import { LiveChannel, type LiveScreen } from '../src/app/live-channel.ts';
-import type { LiveCommand, LivePage, LiveWrite } from '../src/app/services.ts';
-import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
+import type { FileSource } from '../src/cube-document.ts';
+import { HASH_MISMATCH, LiveChannel, type Converge, type LiveScreen } from '../src/app/live-channel.ts';
+import { convergeOn } from '../src/app/live-converge.ts';
+import type { LiveCommand } from '../src/app/services.ts';
+import { idsOf } from '../src/page-commands.ts';
 import { PageApp, type GridMaker } from '../src/page/page-app.ts';
-import type { PageDocument } from '../src/page-document.ts';
-import { rebaseEdits, type GridApplier } from '../src/page-rebase.ts';
-import type { CubeSnapshot } from '../src/snapshot.ts';
+import { pageToJson, type PageDocument } from '../src/page-document.ts';
+import { canonicalJson, pageHash } from '../src/page-hash.ts';
+import { rebaseEdits } from '../src/page-rebase.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
+import { applyGridToCube, FakeKeeper } from './fake-keeper.ts';
 import { corpus } from './fixtures/pages/make.ts';
 
 const trades = (await corpus())['trades.page.json']!;
-const renamed = (page: PageDocument, name: string): PageDocument => ({ ...page, name });
-
-/** A promise held until the test settles it. */
-function held<T>(): { promise: Promise<T>; resolve: (v: T) => void; reject: (e: unknown) => void } {
-  let resolve!: (v: T) => void;
-  let reject!: (e: unknown) => void;
-  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
-  return { promise, resolve, reject };
+/** `edits` made on screen `s`: applied to its page by the keeper's own rule (page-rebase.ts), and told to the channel. */
+async function made(s: Screen, channel: LiveChannel, ...edits: LiveCommand[]): Promise<void> {
+  const page = s.now!;
+  s.now = (await rebaseEdits({ page, held: idsOf(page) }, edits, applyGridToCube)).page;
+  for (const e of edits) channel.edit(e);
+  channel.changed();
 }
+const kinds = (edits: readonly LiveCommand[]): string[] => edits.map((e) => ('grid' in e ? `${e.grid}:${e.command.kind}` : e.page.kind));
 
-type Answer = { readonly version: number; readonly combined: boolean };
-
-/** An editor (the keeper's host) that records each write and answers it as the test says. */
-class Editor implements LivePage {
-  readonly writes: { at: number; edits: readonly LiveCommand[] }[] = [];
-  answers: (() => Promise<Answer>)[] = [];
-  read(): never { throw new Error('not read here'); }
-  changes(): never { throw new Error('not followed here'); }
-  report(at: number, write: LiveWrite): Promise<Answer> {
-    this.writes.push({ at, ...write });
-    const answer = this.answers.shift();
-    return answer ? answer() : Promise.resolve({ version: at + 1, combined: false });
-  }
+/** A screen showing `start`, which the test changes: a perfect one, whose converge makes exactly the page its keeper's
+ *  steps and its own make (the keeper's rule, page-rebase.ts), and which records what it was told. */
+interface Screen extends LiveScreen {
+  now: PageDocument | undefined;
+  busyNow: boolean;
+  channel?: LiveChannel;
+  readonly reopened: string[];
+  readonly said: string[];
+  readonly converged: Converge[];
+  readonly reapplied: LiveCommand[][];
 }
-
-/** A screen showing `page`, which the test changes; what reopening it did, and each refusal it was told. */
-function screen(start: PageDocument): LiveScreen & { now: PageDocument | undefined; reopened: number; refused: string[] } {
-  const s = {
+function screen(start: PageDocument): Screen {
+  const s: Screen = {
     now: start as PageDocument | undefined,
-    reopened: 0,
-    refused: [] as string[],
+    busyNow: false,
+    reopened: [],
+    said: [],
+    converged: [],
+    reapplied: [],
     page: () => s.now,
-    reopen: async (refused?: string) => {
-      s.reopened += 1;
-      if (refused !== undefined) s.refused.push(refused);
+    busy: () => s.busyNow,
+    converge: async (on) => {
+      s.converged.push(on);
+      const made = await rebaseEdits({ page: on.confirmed, held: on.held }, [...on.since, ...on.edits], applyGridToCube);
+      s.now = made.page;
+      return { page: made.page, touched: new Set([...on.since, ...on.edits].flatMap((e) => ('grid' in e ? [e.grid] : []))) };
     },
+    // the pending edits made again: on this screen each is applied to its page (a grid the steps left alone shows it
+    // still: here, the page is the keeper's, so it is applied too) and told again
+    reapply: async (pending) => {
+      s.reapplied.push([...pending]);
+      s.now = (await rebaseEdits({ page: s.now!, held: idsOf(s.now!) }, pending, applyGridToCube)).page;
+      for (const e of pending) s.channel?.edit(e);
+    },
+    reopen: async (why) => { s.reopened.push(why); },
+    say: (text) => { s.said.push(text); },
   };
   return s;
 }
 
-/** Every timer due by now fired, and the channel's queue drained. */
+/** Every timer due by now fired, and the channel's queue drained -- twice, for a write that a write's own answer schedules
+ *  (a converge's pending edits, told again and written next). */
 async function written(channel: LiveChannel): Promise<void> {
-  await new Promise((r) => setTimeout(r, 5));
-  await channel.idle();
+  for (let round = 0; round < 2; round += 1) {
+    await new Promise((r) => setTimeout(r, 5));
+    await channel.idle();
+  }
+}
+
+/** A channel over `keeper`, opened at the keeper's page. */
+function opened(keeper: FakeKeeper): { channel: LiveChannel; s: Screen } {
+  const s = screen(keeper.page);
+  const channel = new LiveChannel(keeper, s, 0);
+  s.channel = channel;
+  channel.opened(keeper.version, keeper.page, keeper.held);
+  return { channel, s };
 }
 
 describe('the channel', () => {
-  it('writes the edits made on screen, as applied there -- never the page -- and then has none pending', async () => {
-    const editor = new Editor();
-    const s = screen(trades);
-    const channel = new LiveChannel(editor, s, 0);
-    channel.opened(1);
-    channel.edit({ page: { kind: 'renamePage', name: 'Here' } });
-    s.now = renamed(trades, 'Here');
-    channel.changed();
+  it('writes the edits made on screen, as applied there -- never the page -- and then has none pending; its confirmed page moves with each', async () => {
+    const keeper = new FakeKeeper(trades);
+    const { channel, s } = opened(keeper);
+    await made(s, channel, { page: { kind: 'renamePage', name: 'Here' } });
     await written(channel);
-    assert.deepEqual(editor.writes, [{ at: 1, edits: [{ page: { kind: 'renamePage', name: 'Here' } }] }]);
+    assert.deepEqual(keeper.written, [{ edits: [{ page: { kind: 'renamePage', name: 'Here' } }] }]);
     assert.equal(channel.shown, 2);
-    channel.edit({ grid: 'grid', command: { kind: 'group', rows: ['desk'] } });
-    s.now = renamed(trades, 'Here, grouped');
-    channel.changed();
+    assert.equal(channel.confirmed?.name, 'Here', 'confirmed: the page as it was sent');
+    assert.deepEqual(channel.pending, []);
+    await made(s, channel, { grid: 'grid', command: { kind: 'group', rows: ['desk'] } });
     await written(channel);
-    assert.deepEqual(editor.writes[1]!.edits, [{ grid: 'grid', command: { kind: 'group', rows: ['desk'] } }], 'only the new edit');
+    assert.deepEqual(keeper.written[1]!.edits, [{ grid: 'grid', command: { kind: 'group', rows: ['desk'] } }], 'only the new edit');
+    assert.deepEqual([s.reopened, s.converged.length], [[], 0], 'at its version each time: nothing to converge on');
   });
 
   it('writes an undo or a redo as the commands between, an edit like any (D19 W3, W4), and a change no command made, never', async () => {
-    const editor = new Editor();
-    const s = screen(trades);
-    const channel = new LiveChannel(editor, s, 0);
-    channel.opened(1);
+    const keeper = new FakeKeeper(trades);
+    const { channel, s } = opened(keeper);
     // a change no edit was told for: nothing written (the page is never sent)
-    s.now = renamed(trades, 'No command');
+    s.now = { ...trades, name: 'No command' };
     channel.changed();
     await written(channel);
-    assert.equal(editor.writes.length, 0, 'no page written whole for a change no command made');
-    channel.edit({ page: { kind: 'renameSheet', sheet: 'sheet-1', name: 'Here' } });
-    s.now = { ...trades, sheets: trades.sheets.map((x) => (x.id === 'sheet-1' ? { ...x, name: 'Here' } : x)) };
-    channel.changed();
+    assert.equal(keeper.written.length, 0, 'no page written whole for a change no command made');
+    s.now = trades;
+    await made(s, channel, { page: { kind: 'renameSheet', sheet: 'sheet-1', name: 'Here' } });
     await written(channel);
     // undone: the page tells the commands that take the step back (page-state.ts), which are its edit as any other
     const before = trades.sheets.find((x) => x.id === 'sheet-1')!.name ?? null;
-    channel.edit({ page: { kind: 'renameSheet', sheet: 'sheet-1', name: before } });
-    s.now = trades;
-    channel.changed();
+    await made(s, channel, { page: { kind: 'renameSheet', sheet: 'sheet-1', name: before } });
     await written(channel);
-    assert.deepEqual(editor.writes, [
-      { at: 1, edits: [{ page: { kind: 'renameSheet', sheet: 'sheet-1', name: 'Here' } }] },
-      { at: 2, edits: [{ page: { kind: 'renameSheet', sheet: 'sheet-1', name: before } }] },
+    assert.deepEqual(keeper.written, [
+      { edits: [{ page: { kind: 'renameSheet', sheet: 'sheet-1', name: 'Here' } }] },
+      { edits: [{ page: { kind: 'renameSheet', sheet: 'sheet-1', name: before } }] },
     ], 'the undo written as its commands, never the page whole');
+    assert.deepEqual(keeper.page, trades);
   });
 
   it('takes nothing the screen does while following the other editor for its own', async () => {
-    const editor = new Editor();
-    const s = screen(trades);
-    const channel = new LiveChannel(editor, s, 0);
-    channel.opened(1);
+    const keeper = new FakeKeeper(trades);
+    const { channel, s } = opened(keeper);
     await channel.following(async () => {
       channel.shown = undefined;
       // the other editor's command, applied: the screen tells it, and changes
       channel.edit({ page: { kind: 'renamePage', name: 'Python' } });
-      s.now = renamed(trades, 'Python');
+      s.now = { ...trades, name: 'Python' };
       channel.changed();
     });
-    channel.shown = 2;
+    keeper.pythonWrites([{ kind: 'renamePage', name: 'Python' }]);
+    s.now = keeper.page;
+    channel.opened(keeper.version, keeper.page, keeper.held);
     channel.changed();
     await written(channel);
-    assert.equal(editor.writes.length, 0, 'nothing of its own to write -- Python\'s change never written back as the screen\'s');
+    assert.equal(keeper.written.length, 0, 'nothing of its own to write -- Python\'s change never written back as the screen\'s');
     // and an edit of its own after: written alone
-    channel.edit({ page: { kind: 'renamePage', name: 'Mine' } });
-    s.now = renamed(trades, 'Mine');
-    channel.changed();
+    await made(s, channel, { page: { kind: 'renamePage', name: 'Mine' } });
     await written(channel);
-    assert.deepEqual(editor.writes.map((w) => w.edits), [[{ page: { kind: 'renamePage', name: 'Mine' } }]]);
+    assert.deepEqual(keeper.written.map((w) => w.edits), [[{ page: { kind: 'renamePage', name: 'Mine' } }]]);
   });
 
   it("keeps the person's own grid edit told while following the other editor, and writes it (the S1 audit's 2)", async () => {
-    const editor = new Editor();
-    const s = screen(trades);
-    const channel = new LiveChannel(editor, s, 0);
-    channel.opened(1);
-    const grid = trades.views.find((v) => v.kind === 'grid')!.id;
+    const keeper = new FakeKeeper(trades);
+    const { channel, s } = opened(keeper);
     await channel.following(async () => {
       channel.shown = undefined;
       // the person's own change, landing while the other editor's commands are followed (a grid tells none of the
       // other editor's: CubeApp.applyGridCommands)
-      channel.edit({ grid, command: { kind: 'group', rows: ['desk'] } });
-      s.now = renamed(trades, 'regrouped on screen');
-      channel.changed();
+      await made(s, channel, { grid: 'grid', command: { kind: 'group', rows: ['desk'] } });
     });
-    channel.shown = 2;
+    channel.shown = 1;
     channel.changed();
     await written(channel);
-    assert.deepEqual(editor.writes.map((w) => w.edits), [[{ grid, command: { kind: 'group', rows: ['desk'] } }]]);
+    assert.deepEqual(keeper.written.map((w) => w.edits), [[{ grid: 'grid', command: { kind: 'group', rows: ['desk'] } }]]);
   });
 
-  // (the browser harness: such a write, made behind a page Python had moved, had the page opened again in place of
-  // following Python's command)
   it('writes nothing when nothing was made on screen since it opened', async () => {
-    const editor = new Editor();
-    const s = screen(trades);
-    const channel = new LiveChannel(editor, s, 0);
-    channel.opened(1);
+    const keeper = new FakeKeeper(trades);
+    const { channel } = opened(keeper);
     // the page as it opened, changed again by nothing (a view landing, a saved page put back settling)
     channel.changed();
     channel.changed();
     await written(channel);
-    assert.equal(editor.writes.length, 0);
+    assert.equal(keeper.written.length, 0);
   });
 
   it('runs a follow told while a write is on its way after it, at the version the write made', async () => {
-    const editor = new Editor();
-    const answer = held<Answer>();
-    editor.answers.push(() => answer.promise);
-    const s = screen(trades);
-    const channel = new LiveChannel(editor, s, 0);
-    channel.opened(1);
-    channel.edit({ page: { kind: 'renamePage', name: 'Here' } });
-    s.now = renamed(trades, 'Here');
-    channel.changed();
+    const keeper = new FakeKeeper(trades);
+    keeper.hold = true;
+    const { channel, s } = opened(keeper);
+    await made(s, channel, { page: { kind: 'renamePage', name: 'Here' } });
     await new Promise((r) => setTimeout(r, 5));
-    assert.equal(editor.writes.length, 1, 'the write is on its way');
+    assert.equal(keeper.written.length, 1, 'the write is on its way');
     const started: (number | undefined)[] = [];
     // the version notice of that very write arrives first
     const follow = channel.enqueue(async () => { started.push(channel.shown); });
     await new Promise((r) => setTimeout(r, 5));
     assert.deepEqual(started, [], 'not while the write is on its way');
-    answer.resolve({ version: 2, combined: false });
+    keeper.release();
     await follow;
     assert.deepEqual(started, [2], 'after it, at the version it made: its own write is never taken for the other editor\'s');
   });
 
-  it('opens the page as the keeper made it when its edits were made again on top', async () => {
-    const editor = new Editor();
-    editor.answers.push(async () => ({ version: 3, combined: true }));
-    const s = screen(trades);
-    const channel = new LiveChannel(editor, s, 0);
-    channel.opened(1);
-    channel.edit({ page: { kind: 'renamePage', name: 'Here' } });
-    s.now = renamed(trades, 'Here');
-    channel.changed();
+  it('converges on a write the keeper made again on top of the other editor\'s, without a reopen (W7)', async () => {
+    const keeper = new FakeKeeper(trades);
+    const { channel, s } = opened(keeper);
+    // the other editor writes first (a sheet of its own): the edit made here next is against a version the page has
+    // moved on from
+    keeper.pythonWrites([{ kind: 'addSheet', name: 'From Python' }]);
+    await made(s, channel, { page: { kind: 'renameSheet', sheet: 'sheet-1', name: 'Mine' } });
     await written(channel);
-    assert.equal(s.reopened, 1);
-    assert.equal(channel.shown, undefined, 'at no version until the page is opened again');
+    assert.deepEqual(s.reopened, [], 'no reopen');
+    assert.equal(s.converged.length, 1);
+    const on = s.converged[0]!;
+    assert.deepEqual(on.confirmed, trades, 'from the page as the keeper had it at the version shown');
+    assert.deepEqual(kinds(on.since), ['addSheet'], "the other editor's steps since");
+    assert.deepEqual(on.edits, [{ page: { kind: 'renameSheet', sheet: 'sheet-1', name: 'Mine' } }], 'its own, as the keeper applied them');
+    assert.deepEqual(on.renamed, {});
+    assert.equal(channel.shown, 3, 'at the version the write made');
+    assert.deepEqual(channel.confirmed, keeper.page, 'confirmed: the page as the keeper has it now');
+    assert.deepEqual(s.now, keeper.page, 'the screen shows what the keeper has: both editors\' changes');
+    assert.deepEqual(s.said, []);
   });
 
-  it("says what it drops: a change made while a write the keeper made again on top was on its way (the S4 audit's 7)", async () => {
-    const editor = new Editor();
-    const answer = held<Answer>();
-    editor.answers.push(() => answer.promise);
-    const s = screen(trades);
-    const channel = new LiveChannel(editor, s, 0);
-    channel.opened(1);
-    channel.edit({ page: { kind: 'renamePage', name: 'Here' } });
-    s.now = renamed(trades, 'Here');
-    channel.changed();
+  it('an id the keeper gave out afresh: the pending edits made again under the new id and written next (W7, step 5)', async () => {
+    const keeper = new FakeKeeper(trades);
+    const { channel, s } = opened(keeper);
+    keeper.pythonWrites([{ kind: 'addSheet', id: 'sheet-3', name: 'Theirs' }]);
+    keeper.hold = true;
+    await made(s, channel, { page: { kind: 'addSheet', id: 'sheet-3', name: 'Mine' } });
     await new Promise((r) => setTimeout(r, 5));
-    // made while the write is on its way
-    channel.edit({ page: { kind: 'renamePage', name: 'Meanwhile' } });
-    answer.resolve({ version: 3, combined: true });
-    await channel.idle();
-    assert.equal(s.reopened, 1);
-    assert.deepEqual(s.refused, ['a change made while the page was written was made on a page its keeper no longer has']);
+    // made while the write is on its way: on the sheet under the id given here, and on a grid
+    await made(s, channel, { page: { kind: 'renameSheet', sheet: 'sheet-3', name: 'Mine, renamed' } }, { grid: 'grid', command: { kind: 'group', rows: ['desk'] } });
+    keeper.release();
+    await written(channel);
+    assert.deepEqual(s.reopened, []);
+    assert.deepEqual(s.converged[0]!.renamed, { 'sheet-3': 'sheet-4' });
+    assert.deepEqual(kinds(s.converged[0]!.edits), ['addSheet']);
+    assert.equal((s.converged[0]!.edits[0] as { page: { id?: string } }).page.id, 'sheet-4', 'its edit as the keeper applied it: under the id it gave');
+    // the pending edits made again, the page's renamed, and told again: written next (the queue drained, they are)
+    assert.deepEqual(s.reapplied, [[{ page: { kind: 'renameSheet', sheet: 'sheet-4', name: 'Mine, renamed' } }, { grid: 'grid', command: { kind: 'group', rows: ['desk'] } }]]);
+    assert.deepEqual(kinds(keeper.written.at(-1)!.edits), ['renameSheet', 'grid:group'], 'told again, written next');
+    assert.deepEqual(channel.pending, []);
+    assert.equal(keeper.page.sheets.find((x) => x.id === 'sheet-4')?.name, 'Mine, renamed');
+    assert.deepEqual(s.now, keeper.page);
   });
 
-  it('opens the page as the keeper has it after a refused write, its words said -- never writing the screen\'s whole', async () => {
-    const editor = new Editor();
-    editor.answers.push(async () => { throw new Error('409: chart-9 is no longer on the page'); });
-    const s = screen(trades);
-    const channel = new LiveChannel(editor, s, 0);
-    channel.opened(1);
-    channel.edit({ page: { kind: 'renamePage', name: 'Here' } });
-    s.now = renamed(trades, 'Here');
+  it('a pending edit on a grid the keeper\'s steps touched is made again through the ordinary path', async () => {
+    const keeper = new FakeKeeper(trades);
+    const { channel, s } = opened(keeper);
+    // Python regrouped the grid: a grid edit of its own, a step the keeper kept
+    keeper.pythonWrites([{ kind: 'renameTile', tile: 'grid', title: 'Theirs' }]);
+    keeper.steps.set(keeper.version, [...keeper.steps.get(keeper.version)!, { grid: 'grid', command: { kind: 'group', rows: ['region'] } }]);
+    keeper.page = (await rebaseEdits({ page: keeper.page, held: keeper.held }, [{ grid: 'grid', command: { kind: 'group', rows: ['region'] } }], applyGridToCube)).page;
+    keeper.hold = true;
+    await made(s, channel, { page: { kind: 'renamePage', name: 'Mine' } });
+    await new Promise((r) => setTimeout(r, 5));
+    await made(s, channel, { grid: 'grid', command: { kind: 'sorts', sorts: [{ column: 'desk', direction: 'asc' }] } });
+    keeper.release();
+    await written(channel);
+    assert.deepEqual(s.reopened, []);
+    assert.deepEqual(s.reapplied, [[{ grid: 'grid', command: { kind: 'sorts', sorts: [{ column: 'desk', direction: 'asc' }] } }]], 'made again: the grid was put back and moved');
+    assert.deepEqual(kinds(keeper.written.at(-1)!.edits), ['grid:sorts'], 'told again, written next');
+    assert.deepEqual(s.now, keeper.page);
+  });
+
+  it('converges after a refused write, over what moved the page since -- its words said, nothing of the refused edit written again (W8)', async () => {
+    const keeper = new FakeKeeper(trades);
+    const { channel, s } = opened(keeper);
+    // the other editor took the grid off: an edit of it made here no longer applies there
+    keeper.pythonWrites([{ kind: 'removeTile', tile: 'grid-2' }]);
+    await made(s, channel, { grid: 'grid-2', command: { kind: 'group', rows: ['desk'] } });
+    await written(channel);
+    assert.deepEqual(s.reopened, []);
+    assert.equal(s.said.length, 1);
+    assert.match(s.said[0]!, /not kept: .*grid-2 is no longer on the page/);
+    assert.deepEqual(keeper.changesAsked, [1], 'what moved the page since the version shown, asked');
+    assert.deepEqual([kinds(s.converged[0]!.since), s.converged[0]!.edits], [['removeTile'], []], "the other editor's steps, none of its own");
+    assert.equal(channel.shown, 2);
+    assert.deepEqual(s.now, keeper.page);
     channel.changed();
     await written(channel);
-    assert.deepEqual([s.reopened, s.refused], [1, ['409: chart-9 is no longer on the page']]);
+    assert.equal(keeper.written.length, 1, 'nothing of the refused edit written again');
+  });
+
+  it('opens the page again, said, when the keeper no longer keeps the steps it would converge by', async () => {
+    const keeper = new FakeKeeper(trades);
+    const { channel, s } = opened(keeper);
+    // a page loaded whole in Python (N1): no steps for its version
+    keeper.pythonLoads({ ...trades, name: 'Loaded' });
+    await made(s, channel, { page: { kind: 'renameSheet', sheet: 'sheet-1', name: 'Mine' } });
+    await written(channel);
+    assert.equal(s.reopened.length, 1);
+    assert.match(s.reopened[0]!, /further than its keeper keeps/);
     assert.equal(channel.shown, undefined, 'at no version until the page is opened again');
-    channel.opened(2);
+    assert.deepEqual(s.converged, []);
+  });
+
+  it('says what it drops with a reopen: a change made meanwhile (H-11)', async () => {
+    const keeper = new FakeKeeper(trades);
+    keeper.hold = true;
+    const { channel, s } = opened(keeper);
+    keeper.pythonLoads({ ...trades, name: 'Loaded' });
+    await made(s, channel, { page: { kind: 'renamePage', name: 'Here' } });
+    await new Promise((r) => setTimeout(r, 5));
+    await made(s, channel, { page: { kind: 'renamePage', name: 'Meanwhile' } });
+    keeper.release();
+    await channel.idle();
+    assert.equal(s.reopened.length, 1);
+    assert.match(s.reopened[0]!, /1 change made here meanwhile was not kept/);
+  });
+
+  it('checks the keeper\'s hash at every answer: a page that differs is the one message that must never show, and opens the page again once (W17)', async () => {
+    const keeper = new FakeKeeper(trades);
+    const { channel, s } = opened(keeper);
+    channel.edit({ page: { kind: 'renamePage', name: 'Here' } });
+    // the screen holds another page than it sent (a bug elsewhere: the hash says so)
+    s.now = { ...trades, name: 'Elsewhere' };
     channel.changed();
     await written(channel);
-    assert.equal(editor.writes.length, 1, 'nothing of the refused edit written again');
+    assert.deepEqual(s.reopened, [HASH_MISMATCH]);
+    assert.equal(channel.shown, undefined);
+    // opened again, and still differing: said, no second reopen (no loop)
+    channel.opened(keeper.version, keeper.page, keeper.held);
+    channel.edit({ page: { kind: 'renamePage', name: 'Again' } });
+    s.now = { ...trades, name: 'Elsewhere again' };
+    channel.changed();
+    await written(channel);
+    assert.equal(s.reopened.length, 1, 'no second reopen');
+    assert.deepEqual(s.said, [HASH_MISMATCH]);
+    // a write that hashes alike clears it
+    s.now = keeper.page;
+    await made(s, channel, { page: { kind: 'renamePage', name: 'Right' } });
+    await written(channel);
+    assert.equal(channel.shown, keeper.version);
+    assert.equal(pageHash(s.now), pageHash(keeper.page));
+  });
+
+  it('waits for the screen to be quiet before a write (F97), and a flush writes what is pending once it is (F90, H-5)', async () => {
+    const keeper = new FakeKeeper(trades);
+    const { channel, s } = opened(keeper);
+    s.busyNow = true;
+    await made(s, channel, { page: { kind: 'renamePage', name: 'Here' } });
+    await written(channel);
+    assert.equal(keeper.written.length, 0, 'a gesture in flight: its commands are written together once it has landed');
+    const flushed = channel.flush();
+    await new Promise((r) => setTimeout(r, 40));
+    assert.equal(keeper.written.length, 0, 'the flush waits for it too');
+    s.busyNow = false;
+    await flushed;
+    assert.equal(keeper.written.length, 1);
+    assert.equal(channel.shown, 2);
+    assert.deepEqual(channel.pending, []);
   });
 
   it('writes nothing once stopped, nor while at no version', async () => {
-    const editor = new Editor();
+    const keeper = new FakeKeeper(trades);
     const s = screen(trades);
-    const channel = new LiveChannel(editor, s, 0);
+    const channel = new LiveChannel(keeper, s, 0);
     channel.changed();
     await written(channel);
-    channel.opened(1);
+    channel.opened(1, trades, idsOf(trades));
     channel.stop();
-    s.now = renamed(trades, 'Too late');
+    s.now = { ...trades, name: 'Too late' };
     channel.changed();
     await written(channel);
-    assert.equal(editor.writes.length, 0);
+    assert.equal(keeper.written.length, 0);
   });
 });
 
@@ -288,7 +390,10 @@ beforeEach(() => {
 });
 
 let page: PageApp | undefined;
+/** Every channel a test made: stopped with it, so no write of its own fires into the next test's page. */
+const channels: LiveChannel[] = [];
 afterEach(async () => {
+  for (const c of channels.splice(0)) c.stop();
   await settle();
   page?.dispose();
   page = undefined;
@@ -299,166 +404,163 @@ const file = (name: string): FileSource => ({
   columns: SNAPSHOT.columns.map((c) => ({ name: c.name, type: c.type })),
 });
 
-/** A grid's commands applied to its saved cube as headless gridApply applies them (headless/grid.ts applied: the
- *  commands, the settings laid on the query, folded as the state lands, written as the screen writes it) -- no planner:
- *  what a run alone adds (column types) is no command's. */
-const applyGrid: GridApplier = async (_page, cube, _id, commands) => {
-  const snapshot = { ...cube.query, source: SNAPSHOT.source, epoch: 0 } as CubeSnapshot;
-  const d = applyGridCommands({ snapshot, config: configurationOf(cube), tree: treeOf(cube) }, commands);
-  const landed = fold({ snapshot: applyToSnapshot(d.snapshot, d.config), configuration: d.config, tree: d.tree });
-  return writeCube({
-    name: cube.name, source: cube.source, snapshot: landed.snapshot, configuration: landed.configuration, tree: landed.tree,
-    ...(cube.unknown ? { unknown: cube.unknown } : {}),
+/** A real page on a keeper: its grids CubeApps told to the channel, the page's commands too, converging by the one
+ *  rule (live-converge.ts) as DataCube's app does. */
+function realPage(): { cubes: Map<string, CubeApp>; over: (name: string) => GridMaker; channelOf: (keeper: FakeKeeper) => { channel: LiveChannel; reopened: string[]; said: string[]; atReopen: () => PageDocument | undefined } } {
+  const cubes = new Map<string, CubeApp>();
+  let channel: LiveChannel | undefined;
+  const over = (name: string): GridMaker => (gridHost, spawned, start) => {
+    const made = new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
+      engine, planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
+      configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
+      ...spawned,
+      // as DataCube's app wires a grid on a page another editor serves
+      onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
+    });
+    if (spawned.id !== undefined) cubes.set(spawned.id, made);
+    return made;
+  };
+  // this test's own page, held by the closures below (never the module's `page`, which the next test's replaces)
+  const app = new PageApp({
+    host, title: 'Q3', empty: (slot) => { slot.textContent = 'empty'; },
+    onChange: () => channel?.changed(),
+    onPageCommand: (command) => channel?.edit({ page: command }),
   });
-};
-
-/** A keeper as Python's is (keeper.py settle): a write's edits applied by DataCube's rule to the page as it is -- made
- *  again on top when it moved on since -- and what they make kept. */
-class Keeper implements LivePage {
-  version = 1;
-  held: string[];
-  /** Each write. */
-  readonly written: LiveWrite[] = [];
-  page: PageDocument;
-  constructor(page: PageDocument) {
-    this.page = page;
-    this.held = idsOf(page);
-  }
-  read(): never { throw new Error('opened by the test'); }
-  changes(): never { throw new Error('followed by the test'); }
-  /** Another editor (Python) writes commands it made at the version now. */
-  pythonWrites(commands: readonly PageCommand[]): void {
-    const done = applyPageCommands({ page: this.page, held: this.held }, commands);
-    this.page = done.draft.page;
-    this.held = [...done.draft.held];
-    this.version += 1;
-  }
-  async report(at: number, write: LiveWrite): Promise<Answer> {
-    this.written.push(write);
-    const done = await rebaseEdits({ page: this.page, held: this.held }, write.edits, applyGrid);
-    const combined = at !== this.version || Object.keys(done.renamed).length > 0;
-    this.page = done.page;
-    this.held = [...done.held];
-    this.version += 1;
-    return { version: this.version, combined };
-  }
+  page = app;
+  const channelOf = (keeper: FakeKeeper): { channel: LiveChannel; reopened: string[]; said: string[]; atReopen: () => PageDocument | undefined } => {
+    const reopened: string[] = [];
+    const said: string[] = [];
+    /** The page on screen as a reopen found it (the page the keeper's hash was compared with). */
+    let atReopen: PageDocument | undefined;
+    const now = (): PageDocument | undefined => app.document(app.title || 'Q3', undefined, true);
+    channel = new LiveChannel(keeper, {
+      page: now,
+      busy: () => [...cubes.values()].some((c) => c.busy),
+      converge: (on) => convergeOn(on, {
+        page: app,
+        grid: (id) => cubes.get(id),
+        pageNow: now,
+        // a grid the other editor added: made as a saved page's are, over the source its document says (the fixture's
+        // grids start alike: SNAPSHOT)
+        open: async (document) => ({ make: over(document.source.name) }),
+        frameVersion: () => undefined,
+      }),
+      reapply: async (pending, touched) => {
+        for (const edit of pending) {
+          if ('page' in edit) app.reapply([edit.page], 'made again');
+          else if (!touched.has(edit.grid)) channel!.edit(edit);
+          else await cubes.get(edit.grid)?.edit([edit.command], 'made again');
+        }
+      },
+      reopen: async (why) => {
+        reopened.push(why);
+        atReopen = now();
+        // the page as the keeper has it, opened again whole (datacube-app.ts openLive)
+        const makers = new Map<string, GridMaker>();
+        for (const c of keeper.page.cubes) makers.set(c.id, over(c.cube.source.name));
+        await channel!.following(async () => {
+          app.restore(keeper.page, makers, keeper.held);
+          await app.ready();
+          await settle();
+        });
+        channel!.opened(keeper.version, keeper.page, keeper.held);
+      },
+      say: (text) => { said.push(text); },
+    }, 0);
+    channels.push(channel);
+    channel.opened(keeper.version, keeper.page, keeper.held);
+    return { channel, reopened, said, atReopen: () => atReopen };
+  };
+  return { cubes, over, channelOf };
 }
 
 describe('a real page and its keeper', () => {
-  it('writes its grids\' and its own edits as commands, which the keeper makes again on top of the other editor\'s', async () => {
-    const cubes = new Map<string, CubeApp>();
-    let channel: LiveChannel | undefined;
-    const over = (name: string): GridMaker => (gridHost, spawned, start) => {
-      const made = new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
-        engine, planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
-        configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
-        ...spawned,
-        // as DataCube's app wires a grid on a page another editor serves
-        onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
-      });
-      if (spawned.id !== undefined) cubes.set(spawned.id, made);
-      return made;
-    };
-    page = new PageApp({
-      host, title: 'Q3', empty: (slot) => { slot.textContent = 'empty'; },
-      onChange: () => channel?.changed(),
-      onPageCommand: (command) => channel?.edit({ page: command }),
-    });
-    const a = page.addGrid(over('trades.csv'));
-    page.addGrid(over('desks.csv'));
+  it('writes its grids\' and its own edits as commands, which the keeper makes again on top of the other editor\'s, and converges: no reopen', async () => {
+    const { cubes, over, channelOf } = realPage();
+    const a = page!.addGrid(over('trades.csv'));
+    page!.addGrid(over('desks.csv'));
     await settle();
-    const keeper = new Keeper(page.document('Q3')!);
-    const makers = new Map<string, GridMaker>();
-    channel = new LiveChannel(keeper, {
-      page: () => page!.document('Q3', undefined, true),
-      reopen: async () => {
-        // the page as the keeper made it, opened again whole (datacube-app.ts openLive)
-        for (const v of keeper.page.views) if (v.kind === 'grid' && !makers.has(v.id)) makers.set(v.id, over(`${v.id}.csv`));
-        await channel!.following(async () => {
-          page!.restore(keeper.page, makers);
-          await page!.ready();
-          await settle();
-        });
-        channel!.opened(keeper.version);
-      },
-    }, 0);
-    channel.opened(keeper.version);
+    const keeper = new FakeKeeper(page!.document('Q3')!);
+    const { channel, reopened, said } = channelOf(keeper);
     // the other editor writes first: a sheet of its own, so the edits made here next are made against a version the
     // page has moved on from
     keeper.pythonWrites([{ kind: 'addSheet', name: 'From Python' }]);
 
     // edits on screen: a grid regrouped (as its own edits are applied), a grid added to the page
     assert.equal(await cubes.get(a)!.edit([{ kind: 'group', rows: ['desk'] }], 'Group'), null);
-    const added = page.addGrid(over('more.csv'));
+    const added = page!.addGrid(over('more.csv'));
     await settle();
     await written(channel);
     await settle();
 
     // its edits were commands, not the page whole -- the grid's group as its grid made it, the grid added as the page
-    // made it -- and the keeper made them again on top
+    // made it -- and the keeper made them again on top; the screen converged on what it made
     const told = keeper.written[0]!;
-    assert.ok('edits' in told, 'written as commands');
-    assert.deepEqual(told.edits.map((e) => ('grid' in e ? `${e.grid}:${e.command.kind}` : e.page.kind)), [`${a}:group`, 'addGrid']);
+    assert.deepEqual(kinds(told.edits), [`${a}:group`, 'addGrid']);
     assert.equal(keeper.version, 3, 'kept, made again on top of the other editor\'s');
-    const kinds = (keeper.page.views.filter((v) => v.kind === 'grid').length);
-    assert.equal(kinds, 3, 'the grid added here is on the page');
+    assert.deepEqual([reopened, said], [[], []], 'converged: no reopen, nothing refused');
+    assert.equal(channel.shown, 3);
+    assert.equal(keeper.page.views.filter((v) => v.kind === 'grid').length, 3, 'the grid added here is on the page');
     assert.ok(keeper.page.sheets.some((s) => s.name === 'From Python'), "the other editor's sheet is on the page");
-    const grouped = keeper.page.cubes.find((c) => c.id === a)!.cube.query.rows;
-    assert.deepEqual(grouped, ['desk'], 'the grid regrouped here is regrouped on the page');
-    // and the page on screen is the keeper's
-    const now = page.document('Q3', undefined, true)!;
+    assert.deepEqual(keeper.page.cubes.find((c) => c.id === a)!.cube.query.rows, ['desk'], 'the grid regrouped here is regrouped on the page');
+    // and the page on screen is the keeper's, to the hash
+    const now = page!.document('Q3', undefined, true)!;
     assert.deepEqual(now.sheets.map((s) => s.name ?? null), keeper.page.sheets.map((s) => s.name ?? null));
     assert.deepEqual(now.views.map((v) => v.id).sort(), keeper.page.views.map((v) => v.id).sort());
     assert.ok(now.views.some((v) => v.id === added), 'the grid added here, under its id');
+    assert.equal(pageHash(now), pageHash(keeper.page), 'one page (W17)');
+    assert.equal(page!.undoLabel, 'Add Grid', 'its history kept through the converge');
+  });
+
+  it('converges on an id the keeper gave out afresh: the tile made again under the keeper\'s id, by its own maker, its history following', async () => {
+    const { over, channelOf } = realPage();
+    page!.addGrid(over('trades.csv'));
+    await settle();
+    const keeper = new FakeKeeper(page!.document('Q3')!);
+    const { channel, reopened, said, atReopen } = channelOf(keeper);
+    // the other editor adds a grid under the next id meanwhile; the one added here takes the same id
+    const theirs = 'grid-2';
+    keeper.pythonWrites([{ kind: 'addGrid', id: theirs, document: keeper.page.cubes[0]!.cube, sheet: 'sheet-1', near: null, title: 'Theirs', columns: null }]);
+    const mine = page!.addGrid(over('mine.csv'));
+    assert.equal(mine, theirs, 'the same id given on both sides');
+    await settle();
+    await written(channel);
+    await settle();
+    assert.deepEqual(JSON.parse(canonicalJson(pageToJson(atReopen() ?? page!.document('Q3', undefined, true)!))), JSON.parse(canonicalJson(pageToJson(keeper.page))), 'one page, as content');
+    assert.deepEqual(reopened, []);
+    assert.equal(keeper.page.views.filter((v) => v.kind === 'grid').length, 3);
+    const given = keeper.steps.get(keeper.version)!.flatMap((e) => ('page' in e && e.page.kind === 'addGrid' && e.page.id !== undefined ? [e.page.id] : []))[0];
+    assert.ok(given !== undefined && given !== theirs, `given out afresh: ${given}`);
+    assert.deepEqual([...page!.grids].sort(), keeper.page.views.filter((v) => v.kind === 'grid').map((v) => v.id).sort(), 'the screen has the keeper\'s tiles, under its ids');
+    assert.equal(page!.document('Q3')!.views.find((v) => v.id === theirs)?.title, 'Theirs');
+    assert.equal(pageHash(page!.document('Q3', undefined, true)!), pageHash(keeper.page), 'one page (W17)');
+    // the step that added the grid here names the tile as the keeper has it
+    assert.equal(page!.undoLabel, 'Add Grid', 'its history kept through the converge');
+    page!.undo();
+    await settle();
+    assert.deepEqual(said, [], 'nothing said: the step applied');
+    const status = host.querySelector('.dc-page-status, .dc-status')?.textContent ?? '';
+    assert.deepEqual([...page!.grids].sort(), keeper.page.views.filter((v) => v.kind === 'grid' && v.id !== given).map((v) => v.id).sort(),
+      `undone: the grid made here gone, the other editor's kept (undo now: ${page!.undoLabel}, redo: ${page!.redoLabel}, status: ${status}, keeper: ${keeper.page.views.map((v) => v.id).join(',')}, reopened: ${reopened.join('; ')})`);
   });
 
   it('writes its undo as the commands between, which the keeper makes again on top of another editor\'s write (D19 W3, W4)', async () => {
-    const cubes = new Map<string, CubeApp>();
-    let channel: LiveChannel | undefined;
-    const over = (name: string): GridMaker => (gridHost, spawned, start) => {
-      const made = new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
-        engine, planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
-        configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
-        ...spawned,
-        onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
-      });
-      if (spawned.id !== undefined) cubes.set(spawned.id, made);
-      return made;
-    };
-    page = new PageApp({
-      host, title: 'Q3', empty: (slot) => { slot.textContent = 'empty'; },
-      onChange: () => channel?.changed(),
-      onPageCommand: (command) => channel?.edit({ page: command }),
-    });
-    const a = page.addGrid(over('trades.csv'));
+    const { cubes, over, channelOf } = realPage();
+    const a = page!.addGrid(over('trades.csv'));
     await settle();
-    const keeper = new Keeper(page.document('Q3')!);
-    const refused: string[] = [];
-    channel = new LiveChannel(keeper, {
-      page: () => page!.document('Q3', undefined, true),
-      reopen: async (why) => {
-        if (why !== undefined) refused.push(why);
-        await channel!.following(async () => {
-          page!.restore(keeper.page, new Map([[a, over('trades.csv')]]), keeper.held);
-          await page!.ready();
-          await settle();
-        });
-        channel!.opened(keeper.version);
-      },
-    }, 0);
-    channel.opened(keeper.version);
-    const sheets = (): number => page!.document('Q3', undefined, true)!.sheets.length;
-    const kinds = (w: LiveWrite): string[] => w.edits.map((e) => ('grid' in e ? `${e.grid}:${e.command.kind}` : e.page.kind));
+    const keeper = new FakeKeeper(page!.document('Q3')!);
+    const { channel, reopened, said } = channelOf(keeper);
+    const sheets = (): number => page!.document(page!.title || 'Q3', undefined, true)!.sheets.length;
 
     // a sheet added, written as its command; undone, written as the command that takes the sheet off, and kept
     (host.querySelector('.dc-sheet-add') as HTMLElement).click();
     await settle();
     await written(channel);
     assert.equal(sheets(), 2);
-    page.undo();
+    page!.undo();
     await settle();
     await written(channel);
-    assert.deepEqual(keeper.written.map(kinds), [['addSheet'], ['removeSheet']], 'the undo is its commands, never the page whole');
+    assert.deepEqual(keeper.written.map((w) => kinds(w.edits)), [['addSheet'], ['removeSheet']], 'the undo is its commands, never the page whole');
     assert.equal(keeper.page.sheets.length, 1, 'the keeper keeps the page as the undo left it');
     // a grid's undo too (G12): its group undone, told as the grouping before it (grid-between.ts)
     const rows = (): readonly string[] => keeper.page.cubes.find((c) => c.id === a)!.cube.query.rows;
@@ -469,23 +571,26 @@ describe('a real page and its keeper', () => {
     await cubes.get(a)!.undo();
     await settle();
     await written(channel);
-    assert.deepEqual(keeper.written.slice(2).map((w) => kinds(w)[0]), [`${a}:group`, `${a}:group`]);
+    assert.deepEqual(keeper.written.slice(2).map((w) => kinds(w.edits)[0]), [`${a}:group`, `${a}:group`]);
     assert.deepEqual(rows(), grouped, 'the group undone on the page');
 
-    // the other editor writes; the undo here, made behind it, is made again on top as any edit is: both stand
+    // the other editor writes; the undo here, made behind it, is made again on top as any edit is: both stand, the screen
+    // converged on both
     (host.querySelector('.dc-sheet-add') as HTMLElement).click();
     await settle();
     await written(channel);
     assert.equal(keeper.page.sheets.length, 2);
     keeper.pythonWrites([{ kind: 'renamePage', name: 'From Python' }]);
-    page.undo();
+    page!.undo();
     await settle();
     await written(channel);
     await settle();
-    assert.deepEqual(refused, [], 'nothing refused: an undo behind another editor\'s write is an edit behind it');
-    assert.deepEqual(kinds(keeper.written.at(-1)!), ['removeSheet']);
+    assert.deepEqual([reopened, said], [[], []], 'nothing refused, nothing reopened: an undo behind another editor\'s write is an edit behind it');
+    assert.deepEqual(kinds(keeper.written.at(-1)!.edits), ['removeSheet']);
     assert.equal(keeper.page.name, 'From Python', "the other editor's write stands");
     assert.equal(keeper.page.sheets.length, 1, 'and the undo, made again on top of it');
     assert.equal(sheets(), 1, 'the screen is the keeper\'s page');
+    assert.equal(page!.title, 'From Python', 'renamed as the other editor renamed it');
+    assert.equal(pageHash(page!.document(page!.title, undefined, true)!), pageHash(keeper.page), 'one page (W17)');
   });
 });

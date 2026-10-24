@@ -98,13 +98,16 @@ interface Entry {
 // the "nature" entries were wrong. F71. And L8_KINDS 1 -> 0: Python's measure is made by the steps a person makes it by
 // (grid-measures.ts measureCommands: `column`, or `calculate` and `column`), the `measures` kind deleted -- a page open
 // on it is told what a person's steps tell. F72
+// 2026-10-24 (D19 W7, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): L1_ROUTES 5 -> 7 -- the two grid routes of a screen
+// converging on its keeper's page (live-converge.ts): a touched grid put back at the keeper's cube by its own commands,
+// and the keeper's steps applied to it (the other editor's as theirs, the screen's own as said).
 // 2026-10-24 (D19 W19, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §3): L8_KINDS 0 -> 1 -- `detach`, the page command an
 // undo tells to put a chart back on the cube it read (the inverse of Show Grid on a detached chart, and of a detached
 // chart's removal: page-between.ts). Python has no history of its own, so nothing of Python's makes one; its generated
 // builder page_detach stands, and the keeper applies one a tab writes. The one entry says so; it leaves when Python
 // gains a history, never otherwise.
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
+  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 7, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
   L8_KINDS: 1, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
 };
 
@@ -160,6 +163,9 @@ const L1_ROUTES: Record<string, Entry> = {
   'src/page/page-app.ts:follow:followLive': { items: [], why: "following another editor's going live" },
   'src/app/datacube-app.ts:openSaved:followSnap': { items: [], why: 'N1: a saved page opened, its copies as it says' },
   'src/app/datacube-app.ts:applyGrid:applyGridCommands': { items: [], why: "another editor's commands, applied" },
+  // 2026-10-24 (D19 W7, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): a screen converging on its keeper's page
+  'src/app/live-converge.ts:convergeOn:applyGridCommands': { items: [], why: "a converge: a grid the keeper's steps touched put back at the keeper's cube at the version shown, by its own commands (gridBetween), as another editor's" },
+  'src/app/live-converge.ts:applyGrid:applyGridCommands': { items: [], why: "a converge: the other editor's grid commands applied as theirs, the screen's own sent ones as said (told already)" },
 };
 
 /** Every call of a listed gap, by where it is called from: a new gesture reaching an old gap is a new entry. */
@@ -496,6 +502,8 @@ const SCREEN_OWN_MAKERS: Record<string, string> = {
   moveToSheetCommands: "a tile dropped on another sheet's tab, or on New Sheet (Python makes the sheet, then moves tiles onto it)",
   selectionRefilters: "the tab's page undo and redo: a step brought back puts its charts' selections back on their grids (G8); Python's page has no undo",
   rebuiltCommands: "the tab opening the page Python serves: a cube it opened over the host's frames as they are now told back (P11); Python's own reopening tells its rebuilt as it reopens (_current)",
+  // 2026-10-24 (D19 W3, W7)
+  gridBetween: "the commands between two states of a grid: the tab's own history (an undo or a redo told as the commands between: state-owner.ts toward) and its converge (a touched grid put back at the keeper's cube: live-converge.ts); Python's grid has no history",
 };
 
 /** A call's arguments: the text between `(` at `open` and its closing `)`, strings and nesting skipped. */
@@ -1086,7 +1094,7 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   + 'R1 R2 R3 R4 R5 R6 R7 R8 '
   // 2026-10-24, D19 (D24): the single writer's client side, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §7, each closed by
   // the slice that builds it
-  + 'W1 W2 W3 W4 W5 W13 W18 W19 ').split(' ').filter((item) => item !== '');
+  + 'W1 W2 W3 W4 W5 W6 W7 W8 W9 W10 W11 W12 W13 W14 W16 W17 W18 W19 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {

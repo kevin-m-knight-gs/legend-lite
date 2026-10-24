@@ -1117,6 +1117,55 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   gesture but an undo tells it -- closed D19 slice 2: page-between.test.ts (the three cases, and every walk), page-commands.test.ts,
   one-api-gestures.test.ts (a detached chart shown in a grid of its own, undone), cube-page-shell.test.ts (D7's Show Grid
   steps, F11), one-api-ledger.test.ts (`L8_KINDS`: Python makes none)
+- [x] **W6** the write's answer carries what the writer converges by: `Settled` gains `since` (the other editors' steps
+  between the writer's version and the one before its own, or None), `edits` (the writer's as applied) and `hash`
+  (keeper.py `page_hash`: SHA-256 of the page's canonical JSON, `_json.canonical`); the engine's 200 carries `hash`
+  always and `since`, `edits` when combined; `GET /page.json` carries `hash` too; the tab reads them (python-host.ts
+  `livePage`, services.ts `LiveSettled`, `LiveRead`, `LiveMoved`) -- closed D19 slice 3: test_keeper.py (Settle),
+  test_page.py (Live: a stale write's since and edits are what moved the page since; the hash with every answer),
+  test_engine.py, live-follow.test.ts (the host's answers read, a page said with no hash refused)
+- [x] **W7** the tab converges on a combined write without a read and without a reopen (live-channel.ts; live-converge.ts
+  `convergeOn`, the one rule DataCube's app and the tests use): the screen put back at the page as the keeper had it at
+  the version shown (PageApp.putBack: the board by `#syncTo`, the ids given out here since given back, the history kept),
+  the keeper's renames followed (PageApp.renamedBy: the grids' makers, the kept documents, every step of the history;
+  a renamed grid's old id keeps nothing when its tile drops), each grid the keeper's steps touched put back at the
+  keeper's cube by its own commands (`gridBetween`, as another editor's), the other editors' steps applied as theirs,
+  the screen's own as the keeper applied them (a grid's as steps said; a grid added here made again under the keeper's
+  id by its own maker: PageApp.knows), then the pending edits made again, renamed (`LiveScreen.reapply`: a page's and a
+  touched grid's through the ordinary edit path, told again; one on a grid the steps left alone told again only); a
+  history step's layout applied to the page as it is now keeps the tiles the step did not know (page-between.ts
+  `applyOne` by page-rebase.ts `rearranged`, the keeper's own rule) -- closed D19 slice 3: live-channel.test.ts (the
+  channel: a combined write converged, an id given out afresh with pending edits made again under it, a touched grid's
+  pending edit made again; a real page: converging on top of the other editor's write, on an id given out afresh, its
+  history following), datacube-app-live.test.ts
+- [x] **W8** a refused write converges the same way, over what moved the page since (`changes(shown)`), the refusal said;
+  the page whole (past what the keeper keeps) opens it again, said -- closed D19 slice 3: live-channel.test.ts
+- [x] **W9** one write per gesture: the channel writes only once the screen is quiet (no grid's change in flight:
+  `LiveScreen.busy`), so a gesture's page commands and its grid's are written together once they have all landed, and the
+  keeper never holds a selected chart whose grid's filter lacks the selection (F97) -- closed D19 slice 3 in this form
+  (the write waits for the gesture, in place of reordering what is told): live-channel.test.ts (waits for the screen to
+  be quiet before a write)
+- [x] **W10** a follow writes what is pending first and waits for the screen to be quiet (`LiveChannel.flush(true)`, in
+  the channel's own queue: datacube-app.ts followLive; F90) -- closed D19 slice 3: live-channel.test.ts (a flush writes
+  once quiet), datacube-app-live.test.ts (a follow after the flush)
+- [x] **W11** Save on a served page writes first (datacube-app.ts saveTo: `channel.flush()`), then saves the page on
+  screen, which is the keeper's (H-5) -- closed D19 slice 3: the one call, held by the channel's flush test
+  (live-channel.test.ts); no app-level Save test on a served page (the harness drives none)
+- [x] **W12** no edit dropped unsaid before any reopen (H-11): a reopen says how many changes made meanwhile were not kept;
+  the two reopen causes that remain (a `rebuilt`, a write from further back than the keeper keeps), a converge that could
+  not be made, and the hash mismatch are each said -- closed D19 slice 3: live-channel.test.ts (says what it drops; the
+  page opened again when the keeper no longer keeps the steps), datacube-app.ts `reopen`
+- [x] **W14** `rebaseEdits` applies a grid's run of consecutive commands in one `applyGrid` call (one open, one compile
+  per run), the same reduce, refused whole, each edit listed as applied -- closed D19 slice 3: page-rebase.test.ts
+- [x] **W16** a frame moved with the page is followed by its commands, then every grid over the frame refreshed, as a
+  frame that moved alone is (live-follow.ts `followBy` loses its `open` arm; datacube-app.ts `followed`) -- closed D19
+  slice 3: live-follow.test.ts
+- [x] **W17** the hash check at every write's answer and every follow (page-hash.ts: SHA-256 over the canonical JSON,
+  computed here, synchronously, held to the platform's digest; keeper.py `page_hash` the same over `_json.canonical`); a
+  mismatch is the one message that must never show (live-channel.ts `HASH_MISMATCH`): the page is opened again as the
+  keeper has it and the status line says so, once -- a second mismatch before a write hashes alike is said and opens
+  nothing (no reopen loop) -- closed D19 slice 3: page-hash.test.ts, live-channel.test.ts (the channel; a real page's
+  converge hashing to the keeper's), datacube-app-live.test.ts (a follow's hash)
 
 ## 5. The steps
 

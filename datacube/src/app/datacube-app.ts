@@ -37,7 +37,7 @@ import {
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
-import { joinInputOf, type PageCommand } from '../page-commands.ts';
+import { idsOf, joinInputOf, type PageCommand } from '../page-commands.ts';
 import type { JoinAsk } from './join-flow.ts';
 import { JOIN_SOURCE, joinMenu } from './join-menu.ts';
 import type { PageModelRef } from '../page-model.ts';
@@ -52,7 +52,9 @@ import type { SectionId } from '../ui/source-picker.ts';
 import { makeWindow, type WindowSpec } from '../ui/window.ts';
 import type { Sample, Services, Versions } from './services.ts';
 import { applyLive, followBy } from './live-follow.ts';
-import { LiveChannel } from './live-channel.ts';
+import { HASH_MISMATCH, LiveChannel, type Converge, type Converged } from './live-channel.ts';
+import { convergeOn } from './live-converge.ts';
+import { pageHash } from '../page-hash.ts';
 import { pageSources, picksSources, type Chosen, type GridPlace, type Opened, type SignedIn } from './sources.ts';
 import { lazily } from '../lazily.ts';
 
@@ -657,14 +659,48 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       channel = new LiveChannel(live.page, {
         // the page as it is, its own name with it ('' unnamed: D11)
         page: () => pageNow(page.title, true),
-        reopen: async (refused) => {
-          const why = await openLive();
-          if (why !== undefined) sayResting({ text: `not following the page: ${why}`, warn: true });
-          // a write its keeper refused: what was made here is not the page, said
-          else if (refused !== undefined) sayResting({ text: `not kept: ${refused} -- the page is as its keeper has it`, warn: true });
+        busy: () => [...madeCubes.values()].some((cube) => cube.busy),
+        converge: (on) => converge(on),
+        reapply: async (pending, touched) => {
+          for (const edit of pending) {
+            if ('page' in edit) {
+              if (!page.reapply([edit.page], 'made again')) sayResting({ text: `not kept: ${edit.page.kind} no longer applies to the page as its keeper has it`, warn: true });
+              continue;
+            }
+            // a grid the keeper's steps left alone shows the edit still: told again only
+            if (!touched.has(edit.grid)) {
+              channel?.edit(edit);
+              continue;
+            }
+            const cube = madeCubes.get(edit.grid);
+            const refused = cube === undefined ? `no grid ${edit.grid} here` : await cube.edit([edit.command], 'made again');
+            if (refused !== null) sayResting({ text: `not kept: ${refused}`, warn: true });
+          }
         },
+        // the two reopens that remain, a converge that could not be made, and the message that must never show
+        // (live-channel.ts HASH_MISMATCH), each said
+        reopen: async (why) => {
+          const failed = await openLive();
+          if (failed !== undefined) sayResting({ text: `not following the page: ${failed}`, warn: true });
+          else sayResting({ text: `opened again as its keeper has it: ${why}`, warn: true });
+        },
+        say: (text) => sayResting({ text, warn: true }),
       });
       undo.push(() => channel?.stop());
+    }
+    /** The screen converged on its keeper's page (live-converge.ts; docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): the
+     *  page, its grids, how a grid another editor added is opened, and the frames, handed to the one rule. */
+    function converge(on: Converge): Promise<Converged> {
+      return convergeOn(on, {
+        page,
+        grid: (id) => madeCubes.get(id),
+        pageNow: () => pageNow(page.title, true),
+        open: (document, grid, several) => sources.reopened(document, undefined, several, page.model?.tables[grid], true),
+        frameVersion: (frame) => sources.frameVersion(frame),
+      }).then((converged) => {
+        onCubeView?.();
+        return converged;
+      });
     }
     function liveChanged(): void {
       if (notFollowed === undefined) channel?.changed();
@@ -886,6 +922,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const { store } = pages;
       const refused = page.saveRefusal();
       if (refused) throw new Error(refused);
+      // on a page another editor serves: what is pending written first, so the page saved is its keeper's (H-5)
+      await channel?.flush();
       const doc = pageNow(name);
       if (!doc) throw new Error('This page cannot be saved yet: a grid on it does not know its source.');
       // the record by DataCube's one rule (pageSaving: Python's save() and save_as() ask it too): over the saved page it
@@ -1420,7 +1458,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         if (page.sheets.includes(shown)) page.showSheet(shown);
       };
       await (channel ? channel.following(open) : open());
-      channel?.opened(said.version);
+      channel?.opened(said.version, said.page, said.held);
       // a cube opened again over its host's frames as they are now, another than the keeper's (a frame changed in place
       // since the keeper last opened it): told as its `rebuilt`, the cube as the screen writes it (P11)
       const opened = taken.length > 0 ? pageNow(said.page.name, true) : undefined;
@@ -1449,6 +1487,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // the channel this follow writes through: none once the page is left (D1)
       const through = channel;
       if (!editor || !through || through.shown === undefined) return openLive();
+      // what is pending here written first, the screen waited for to be quiet (a gesture in flight lands and is told): a
+      // follow never meets an un-rebased edit on screen, and another editor's removal never lands under a gesture still
+      // running (F90; docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2)
+      await through.flush(true);
+      if (left || disposed) return undefined;
+      if (through.shown === undefined) return openLive();
       const at = through.shown;
       let moved: Awaited<ReturnType<typeof editor.changes>>;
       try {
@@ -1489,6 +1533,15 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       });
       if (!applied) return openLive();
       through.shown = moved.version;
+      // the page as the keeper has it now (what the commands made here), and its hash checked (W17): the two editors
+      // never hold two pages
+      through.opened(moved.version, pageNow(page.title, true), [...new Set([...(through.confirmed ? idsOf(through.confirmed) : []), ...idsOf(pageNow(page.title, true)!)])]);
+      const mine = pageHash(pageNow(page.title, true)!);
+      if (mine !== moved.hash) {
+        const failed = await openLive();
+        sayResting({ text: failed !== undefined ? `not following the page: ${failed}` : `opened again as its keeper has it: ${HASH_MISMATCH}`, warn: true });
+        return undefined;
+      }
       // the page as it is now, written once it settles: Python's page is what is on screen
       liveChanged();
       return undefined;
@@ -1530,11 +1583,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         if (channel?.shown === undefined) return openLive();
         // each step below waits: the app taken down meanwhile (a notebook's cell run again) goes no further
         // a page moved: by its commands, or -- a frame moved with it -- opened again, every grid reading its frame now
+        // a page moved: by its commands; a frame that moved with it is then read again by every grid over it, below (W16)
         const shown = channel?.shown;
         if (shown !== undefined && now.version !== undefined && now.version !== shown) {
-          const how = followBy(now, shown, (frame) => sources.frameVersion(frame));
-          if (how === 'commands') return followLive();
-          if (how === 'open') return openLive();
+          if (followBy(now, shown, (frame) => sources.frameVersion(frame)) === 'commands') {
+            const why = await followLive();
+            if (why !== undefined || disposed) return why;
+          }
         }
         for (const [frame, version] of Object.entries(now.frames)) {
           if (disposed) return undefined;

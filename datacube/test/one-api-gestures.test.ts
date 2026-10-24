@@ -25,7 +25,8 @@ import { applyToSnapshot, DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { fold } from '../src/cube-state.ts';
 import { configurationOf, cubeCopied, cubeToJson, treeOf, writeCube, type FileSource } from '../src/cube-document.ts';
 import { applyGridCommands, GRID_COMMAND_KINDS } from '../src/grid-commands.ts';
-import { LiveChannel } from '../src/app/live-channel.ts';
+import { LiveChannel, type LiveScreen } from '../src/app/live-channel.ts';
+import { pageHash } from '../src/page-hash.ts';
 import type { LivePage, LiveWrite } from '../src/app/services.ts';
 import { applyPageCommand, idsOf, PAGE_COMMAND_KINDS } from '../src/page-commands.ts';
 import { pageToJson, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
@@ -59,10 +60,23 @@ const editor: LivePage = {
   read: () => { throw new Error('not opened here'); },
   changes: () => { throw new Error('not followed here'); },
   report: async (at, write) => {
-    writes.push({ at, write, screen: onScreen() });
-    return { version: at + 1, combined: false };
+    const screen = onScreen();
+    writes.push({ at, write, screen });
+    // at its version: the page as the screen sent it is the keeper's, and hashes so (W17)
+    return { version: at + 1, combined: false, renamed: {}, hash: pageHash(screen) };
   },
 };
+
+/** The screen as the channel sees it here: the page, never busy (each gesture is settled before its write), converging
+ *  and reopening never (a write at its version) -- said so when one would. */
+const screenOf = (): LiveScreen => ({
+  page: onScreen,
+  busy: () => false,
+  converge: async () => { throw new Error('not converged here: every write is at its version'); },
+  reapply: async () => {},
+  reopen: async (why) => { throw new Error(`not reopened here: ${why}`); },
+  say: () => {},
+});
 
 const pg = (): PageApp => {
   assert.ok(page, 'the test made a page');
@@ -837,7 +851,7 @@ describe('L2, L3: every gesture told as commands that replay to the page it made
   it('a page left alone writes nothing (the control)', async () => {
     await twoGrids();
     await drawn();
-    channel = new LiveChannel(editor, { page: onScreen, reopen: async () => {} }, 0);
+    channel = new LiveChannel(editor, screenOf(), 0);
     channel.opened(1);
     await drawn();
     await channel.idle();
@@ -848,7 +862,7 @@ describe('L2, L3: every gesture told as commands that replay to the page it made
     it(g.name, async () => {
       const ids = await g.setUp();
       await drawn();
-      channel = new LiveChannel(editor, { page: onScreen, reopen: async () => {} }, 0);
+      channel = new LiveChannel(editor, screenOf(), 0);
       channel.opened(1);
       const before = onScreen();
       // quiet first: what the set-up started has settled, and nothing is written before the gesture
@@ -902,7 +916,7 @@ describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy a
     // a group of the grid copied open first: the copy starts with none open, as a new grid does
     chevron(a);
     await drawn();
-    channel = new LiveChannel(editor, { page: onScreen, reopen: async () => {} }, 0);
+    channel = new LiveChannel(editor, screenOf(), 0);
     channel.opened(1);
     await drawn();
     await channel.idle();
@@ -926,7 +940,7 @@ describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy a
     const { a } = await twoGrids();
     assert.equal(await cubes.get(a)!.edit([{ kind: 'group', rows: ['desk'] }, { kind: 'configure', patch: { initialExpandToLevel: 1 } }], 'Level'), null);
     await drawn();
-    channel = new LiveChannel(editor, { page: onScreen, reopen: async () => {} }, 0);
+    channel = new LiveChannel(editor, screenOf(), 0);
     channel.opened(1);
     await drawn();
     await channel.idle();
@@ -949,7 +963,7 @@ describe("A chart's mark clicked selects it by the one rule Python's chart.selec
   it('the refilter and select the click tells are what chartPick makes of the mark named by its value', async () => {
     const ids = await withChart();
     await drawn();
-    channel = new LiveChannel(editor, { page: onScreen, reopen: async () => {} }, 0);
+    channel = new LiveChannel(editor, screenOf(), 0);
     channel.opened(1);
     await drawn();
     await channel.idle();

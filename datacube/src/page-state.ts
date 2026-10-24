@@ -26,7 +26,7 @@
 // No DOM: every rule here is tested alone (test/page-state.test.ts).
 
 import { applyPlanned, pageBetween } from './page-between.ts';
-import type { PageCommand, PageDraft } from './page-commands.ts';
+import { idsOf, type PageCommand, type PageDraft } from './page-commands.ts';
 import { renamedCommand } from './page-rebase.ts';
 import { CubeRefusal } from './snapshot.ts';
 import { DEFAULT_HISTORY_LIMIT } from './state-owner.ts';
@@ -84,6 +84,13 @@ export class PageState {
   /** The page as its owners have it now, with no step of its own. */
   keep(draft: PageDraft): void {
     this.#draft = { page: draft.page, held: grown(this.#draft.held, draft.held) };
+  }
+
+  /** The page put back at `draft` as its keeper has it, the ids it holds exactly `draft.held` (a screen converging on
+   *  its keeper's page, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2 step 1: the ids given out here since the version
+   *  shown, which the keeper never held under those names, given back); its history kept. */
+  putBack(draft: PageDraft): void {
+    this.#draft = { page: draft.page, held: [...new Set([...draft.held, ...idsOf(draft.page)])] };
   }
 
   /** The last step undone: its inverse applied to the page as it is now (undefined: none to undo). */

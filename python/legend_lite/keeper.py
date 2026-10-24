@@ -31,11 +31,14 @@ then on, let go when nothing reads it any more (``HOLDS``: each kind kept alike,
 from __future__ import annotations
 
 import copy
+import hashlib
 import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
+
+from . import _json
 
 # how many versions back a page keeps the edits of: a page open on an older one opens the page again
 STEPS_KEPT = 64
@@ -66,11 +69,24 @@ class Refused(Exception):
 @dataclass(frozen=True)
 class Settled:
     """A write kept: the page's version now; whether the keeper made another page of it than the writer's -- its edits
-    made again on top of a page that had moved on, or an id given out afresh (the writer then takes the page as the keeper
-    has it); and each id they gave out that was given out afresh."""
+    made again on top of a page that had moved on, or an id given out afresh (the writer then converges on the page as the
+    keeper has it: docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2); each id they gave out that was given out afresh; what the
+    writer needs to converge without a read -- ``since``, the other editors' steps between the version it wrote at and the
+    version before its own (None when one was moved by no command, or is no longer kept), and ``edits``, its own as the
+    keeper applied them (made again on top, renamed) -- and ``hash``, the page's now (``page_hash``), which the writer's own
+    page must hash to (W17)."""
     version: int
     combined: bool
     renamed: Mapping[str, str]
+    since: list[Any] | None = None
+    edits: list[Any] = field(default_factory=list)
+    hash: str = ''
+
+
+def page_hash(doc: Mapping[str, Any]) -> str:
+    """The hash every editor checks a page by (W17): SHA-256 of the page's canonical JSON (_json.canonical: compact, keys
+    in code point order, numbers their own digits), as DataCube's page-hash.ts computes it of the page it shows."""
+    return hashlib.sha256(_json.canonical(doc).encode('utf-8')).hexdigest()
 
 
 @dataclass
@@ -93,6 +109,8 @@ class _Kept:
     followers: dict[str, tuple[int, float]] = field(default_factory=dict)
     # shown somewhere (a tab, a notebook widget): what an open page may read and write
     served: bool = False
+    # the page's hash (page_hash), kept with each version: what an open page checks its own by (W17)
+    hash: str = ''
 
 
 # combine(page, held, edits, known): DataCube's pageRebase as the host asks it -- the page and the ids it has held now, a
@@ -122,7 +140,8 @@ class PageKeeper:
         kept_reads = _reads(reads)
         with self._lock:
             ids = sorted(set(held))
-            self._pages[key] = _Kept(1, copy.deepcopy(doc), kept_reads, ids, {1: None}, {1: ids}, {1: _holds(kept_reads)})
+            self._pages[key] = _Kept(1, copy.deepcopy(doc), kept_reads, ids, {1: None}, {1: ids}, {1: _holds(kept_reads)},
+                                     hash=page_hash(doc))
             self._have_read(kept_reads)
         return 1
 
@@ -156,6 +175,12 @@ class PageKeeper:
             kept = self._pages.get(key)
             return [] if kept is None else list(kept.held)
 
+    def hash_of(self, key: str) -> str:
+        """The page's hash now (page_hash), or '' when the page is not kept."""
+        with self._lock:
+            kept = self._pages.get(key)
+            return '' if kept is None else kept.hash
+
     def write(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], edits: list[Any] | None,
               held: list[str]) -> int:
         """The page made ``doc`` (reading what ``reads`` says), moved there from version ``base`` by ``edits`` (None: whole):
@@ -174,6 +199,7 @@ class PageKeeper:
                 return kept.version
             kept.version += 1
             kept.doc = kept_doc
+            kept.hash = page_hash(kept_doc)
             kept.reads = kept_reads
             kept.steps[kept.version] = kept_edits
             kept.helds[kept.version] = list(kept.held)
@@ -217,7 +243,13 @@ class PageKeeper:
             except Stale:
                 continue
             renamed = dict(said['renamed'])
-            return Settled(version, at != base or bool(renamed), renamed)
+            with self._lock:
+                kept = self._pages[key]
+                # the other editors' steps the writer has not seen: from the version it wrote at to the one before its own
+                moved = [kept.steps.get(v) for v in range(base + 1, at + 1)]
+                since = None if any(m is None for m in moved) else [c for m in moved for c in m or []]
+                page_hash_now = kept.hash
+            return Settled(version, at != base or bool(renamed), renamed, since, list(said['edits']), page_hash_now)
         raise Refused('the page kept changing where it is open while this change was made: make it again')
 
     def restore(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], held: list[str]) -> int:

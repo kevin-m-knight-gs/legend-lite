@@ -1650,21 +1650,28 @@ class Engine:
             version, commands = self.keeper.changes(name, int(since))
             if commands is not None:
                 return Answer(200, 'application/json',
-                              _json.dumps({'version': version, 'commands': commands}).encode('utf-8'))
+                              _json.dumps({'version': version, 'commands': commands,
+                                           'hash': self.keeper.hash_of(name)}).encode('utf-8'))
             kept = self.keeper.current(name) or kept
-        # every id it has held with it: an open page gives none of them out again (B12)
+        # every id it has held with it: an open page gives none of them out again (B12); its hash, which the page open on
+        # it checks its own by (W17)
         return Answer(200, 'application/json', _json.dumps({'version': kept[0], 'page': kept[1],
-                                                            'held': self.keeper.held(name)}).encode('utf-8'))
+                                                            'held': self.keeper.held(name),
+                                                            'hash': self.keeper.hash_of(name)}).encode('utf-8'))
 
     def _page_said(self, query: str, body: str) -> Answer:
         """AN OPEN PAGE'S WRITE (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4: the host applies the commands): ``{"edits"}``,
         the edits it made at the version it is at -- an undo or a redo among them, as the commands between
         (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W5: no page is written whole) -- which the page's keeper has DataCube
         apply to the page as it is now and keeps what they make (keeper.py ``settle``). Every frame the page then reads
-        is one this engine serves. ``{"version", "combined", "renamed"}``: the page's version now, whether the keeper
-        made another page than the writer's (its edits made again on top, or an id given out afresh: the page then
-        opens what the keeper made), each id given out afresh. Refused -- an edit that does not apply there, a frame not
-        served -- 409, and the page opens what the keeper has. Copies no page reads any more are let go."""
+        is one this engine serves. ``{"version", "combined", "renamed", "hash"}``: the page's version now, whether the
+        keeper made another page than the writer's (its edits made again on top, or an id given out afresh), each id
+        given out afresh, and the page's hash (keeper.py ``page_hash``: what the writer's own page must hash to, W17);
+        combined, ``since`` (the other editors' steps between the writer's version and the one before its own, or null:
+        one was moved by no command, or is no longer kept) and ``edits`` (the writer's as applied) too, so the writer
+        converges without a read (docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2). Refused -- an edit that does not apply
+        there, a frame not served -- 409, and the writer converges on what the keeper has. Copies no page reads any more
+        are let go."""
         asked = parse_qs(query)
         name = asked.get('page', [''])[0]
         version = asked.get('version', [''])[0]
@@ -1694,8 +1701,12 @@ class Engine:
             # a failure of the library's, said as one (as the API's are) -- never taken for a refusal or a page not served
             return _said(500, f'{type(failure).__name__}: {failure}')
         self.sweep()
-        return Answer(200, 'application/json', json.dumps({'version': settled.version, 'combined': settled.combined,
-                                                           'renamed': settled.renamed}).encode('utf-8'))
+        answer: dict[str, Any] = {'version': settled.version, 'combined': settled.combined, 'renamed': settled.renamed,
+                                  'hash': settled.hash}
+        if settled.combined:
+            answer['since'] = settled.since
+            answer['edits'] = settled.edits
+        return Answer(200, 'application/json', _json.dumps(answer).encode('utf-8'))
 
     def _followed(self, name: str, asked: Mapping[str, list[str]], at: str) -> Answer | None:
         """A PAGE OPEN ON ``name`` SAYS WHERE IT IS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17): ``follower``, the id it

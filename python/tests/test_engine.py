@@ -25,6 +25,7 @@ import pyarrow.ipc
 
 import legend_lite as ll
 from legend_lite.engine import Engine, NativePlanner, WebServer
+from legend_lite.keeper import page_hash
 from legend_lite._home import THIS_USER, locked
 
 GROUP = "->filter(x|$x.qty > 5)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())"
@@ -1006,7 +1007,7 @@ class Page(Cube):
         self.assertEqual(self.serve_page('q3', self.DOC), 1)
         status, content_type, body = self.get('/page.json?page=q3', auth)
         self.assertEqual((status, content_type), (200, 'application/json'))
-        self.assertEqual(json.loads(body), {'version': 1, 'page': self.DOC, 'held': []})
+        self.assertEqual(json.loads(body), {'version': 1, 'page': self.DOC, 'held': [], 'hash': page_hash(self.DOC)})
         self.assertEqual(json.loads(self.get('/version.json?page=q3', auth)[2]), {'version': 1, 'frames': {'trades': 0}})
         # its frame changed: the frame's version moves, the page's not
         self.server.engine.changed('trades')
@@ -1022,7 +1023,8 @@ class Page(Cube):
         # before; a page open at version v asks since=v: the commands while every version since has them, else the page
         auth = {'Authorization': self.server.authorization}
         engine = self.server.engine
-        asked = lambda since: json.loads(self.get(f'/page.json?page=q3&since={since}', auth)[2])
+        # what moved it since, its hash left aside (W17: the keeper's hash with every answer, checked elsewhere)
+        asked = lambda since: {k: v for k, v in json.loads(self.get(f'/page.json?page=q3&since={since}', auth)[2]).items() if k != 'hash'}
         self.serve_page('q3', self.DOC)
         self.assertEqual(asked(1), {'version': 1, 'commands': []}, 'nothing moved it')
         self.assertEqual(asked(0), {'version': 1, 'page': self.DOC, 'held': []},

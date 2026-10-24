@@ -110,7 +110,7 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
  * moved there by the other writer) placed as adding places one; one it knew that is no longer there (taken off or moved
  * away) left out -- so the other writer's tiles keep their sheet, and neither writer's arrangement is refused for them.
  */
-function rearranged(command: PageCommand, page: PageDocument): PageCommand {
+export function rearranged(command: PageCommand, page: PageDocument): PageCommand {
   if (command.kind !== 'layout' && command.kind !== 'arrange') return command;
   const sheet = page.sheets.find((s) => s.id === command.sheet);
   if (sheet === undefined) return command;
@@ -157,18 +157,24 @@ export async function rebaseEdits(draft: PageDraft, edits: readonly PageEdit[], 
   const applied: PageEdit[] = [];
   // each page filter the writer made, by its name for it: set again, it is set where it was made
   const filters = new Set<string>();
-  for (const edit of edits) {
+  for (let i = 0; i < edits.length;) {
+    const edit = edits[i]!;
     if ('grid' in edit) {
       const grid = named(edit.grid, renamed);
       const view = d.page.views.find((v) => v.id === grid);
       if (view === undefined || view.kind !== 'grid') throw new CubeRefusal(`${grid} is no longer on the page`);
       const held = d.page.cubes.find((c) => c.id === view.cube);
       if (held === undefined) throw new CubeRefusal(`${grid} shows no cube the page holds`);
-      // the cube as the grid's edit leaves it, its charts following it (page-commands.ts followedPage: V1, V2)
-      d = { ...d, page: followedPage(withCube(d.page, view.cube, await applyGrid(d.page, held.cube, view.cube, [edit.command])), view.cube, d.page) };
-      applied.push({ grid, command: edit.command });
+      // the grid's run of commands (an undo's few, a gesture's), applied in one call -- one open of its cube, one compile
+      // (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W14) -- the same reduce, refused whole, each listed as applied
+      const run: GridCommand[] = [];
+      for (let c = edits[i]; c !== undefined && 'grid' in c && named(c.grid, renamed) === grid; c = edits[++i]) run.push(c.command);
+      // the cube as the grid's edits leave it, its charts following it (page-commands.ts followedPage: V1, V2)
+      d = { ...d, page: followedPage(withCube(d.page, view.cube, await applyGrid(d.page, held.cube, view.cube, run)), view.cube, d.page) };
+      for (const command of run) applied.push({ grid, command });
       continue;
     }
+    i += 1;
     let command = rearranged(renamedCommand(edit.page, renamed), d.page);
     const mine = edit.page.kind === 'setPageFilter' ? edit.page.id : undefined;
     const filter = mine !== undefined && known !== undefined && !known.includes(mine) && !filters.has(mine);

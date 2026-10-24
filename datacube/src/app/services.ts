@@ -293,27 +293,56 @@ export interface LiveWrite {
   readonly edits: readonly LiveCommand[];
 }
 
+/** The page as its keeper says it is now: at its version, with every id it has held (none is given out again: B12), and
+ *  its hash (page-hash.ts: what the page open on it must hash to, W17). */
+export interface LiveRead {
+  readonly version: number;
+  readonly page: PageDocument;
+  readonly held: readonly string[];
+  readonly hash: string;
+}
+
+/** What moved the page since a version: its editors' commands, in order, and the hash of the page they make. */
+export interface LiveMoved {
+  readonly version: number;
+  readonly commands: readonly LiveCommand[];
+  readonly hash: string;
+}
+
+/**
+ * A write settled by the page's keeper (keeper.py Settled; docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2, §4): the page's
+ * version now; whether the keeper made another page than the screen's (`combined`: it had moved on meanwhile, or an id
+ * was given out afresh); each id given out afresh (the screen's name -> the keeper's); the keeper's page's hash, which
+ * the screen's must hash to once it has converged (W17); and, combined, what the screen needs to converge without a
+ * read: `since`, the other editors' steps between the version it wrote at and the one before its own (null: one was
+ * moved by no command, or is no longer kept -- the page is then read again), and `edits`, its own as the keeper
+ * applied them (made again on top, renamed).
+ */
+export interface LiveSettled {
+  readonly version: number;
+  readonly combined: boolean;
+  readonly renamed: Readonly<Record<string, string>>;
+  readonly hash: string;
+  readonly since?: readonly LiveCommand[] | null;
+  readonly edits?: readonly LiveCommand[];
+}
+
 /** A page another editor serves: read as it is now, and told what it is now. */
 export interface LivePage {
-  /** The page as the editor says it is now, at its version, with every id it has held (none is given out again: B12);
-   *  refused with the editor's reason. */
-  read(): Promise<{ readonly version: number; readonly page: PageDocument; readonly held: readonly string[] }>;
+  /** The page as the editor says it is now; refused with the editor's reason. */
+  read(): Promise<LiveRead>;
   /**
    * What moved the page since version `since` (the one open): the commands its editors made, in order -- or, when it
-   * keeps none for a version since (a page born or restored whole, a version long gone), the page as it is now.
+   * keeps none for a version since (a page born whole, a version long gone), the page as it is now.
    */
-  changes(since: number): Promise<
-    | { readonly version: number; readonly commands: readonly LiveCommand[] }
-    | { readonly version: number; readonly page: PageDocument; readonly held: readonly string[] }>;
+  changes(since: number): Promise<LiveMoved | LiveRead>;
   /**
    * A write against the version on screen, settled by the page's keeper (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): its
-   * edits applied by DataCube's one rule to the page as the keeper has it, and what they make kept -- or a restore, kept
-   * whole at that version. Its version from then on -- the same, when it changed nothing -- and whether the keeper made
-   * another page than the screen's (the page had moved on, or an id was given out afresh: the screen then opens the
-   * page as the keeper made it). Refused in the keeper's words (an edit that does not apply there, a restore made
-   * against a version moved on from): nothing kept.
+   * edits applied by DataCube's one rule to the page as the keeper has it, and what they make kept (LiveSettled).
+   * Refused in the keeper's words (an edit that does not apply there, a write from further back than it keeps): nothing
+   * kept, and the screen converges on the page as the keeper has it.
    */
-  report(version: number, write: LiveWrite): Promise<{ readonly version: number; readonly combined: boolean }>;
+  report(version: number, write: LiveWrite): Promise<LiveSettled>;
 }
 
 // ------------------------------------------------------------------------------------------------------- the queries

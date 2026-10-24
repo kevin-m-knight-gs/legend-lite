@@ -24,7 +24,7 @@ import pandas as pd
 import legend_lite as ll
 from legend_lite import _json, datacube
 from legend_lite import keeper as keeper_module
-from legend_lite.keeper import PageKeeper, Refused, Stale
+from legend_lite.keeper import PageKeeper, Refused, Stale, page_hash
 
 # how many interleavings, and of how many steps: the seed of a failure is printed, so it can be run alone (a long soak:
 # LEGEND_LITE_KEEPER_SEEDS=500)
@@ -219,6 +219,11 @@ class Settle(unittest.TestCase):
         keeper.write('p', 1, {'n': 'theirs'}, NOTHING, [{'page': 'y'}], ['sheet-3'])
         settled = keeper.settle('p', 1, [{'page': 'x'}])
         self.assertEqual((settled.version, settled.combined, dict(settled.renamed)), (3, True, {'sheet-3': 'sheet-4'}))
+        # what the writer converges on (docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): the other's steps it had not seen,
+        # its own as applied, and the hash of the page now
+        self.assertEqual((settled.since, settled.edits), ([{'page': 'y'}], [{'page': 'x, as applied'}]))
+        self.assertEqual(settled.hash, page_hash({'n': 'both'}))
+        self.assertEqual(keeper.hash_of('p'), settled.hash)
         self.assertEqual(asked, [({'n': 'theirs'}, ['sheet-1', 'sheet-3'], [{'page': 'x'}], ['sheet-1'])],
                          'on the page as it is, every id it holds -- and the ids it held at the writer\'s version')
         self.assertEqual(keeper.current('p'), (3, {'n': 'both'}))
@@ -238,6 +243,7 @@ class Settle(unittest.TestCase):
         settled = keeper.settle('p', 1, [{'page': 'x'}])
         self.assertEqual([a[0] for a in asked], [{'n': 'theirs'}, {'n': 'third'}])
         self.assertEqual((settled.version, keeper.current('p')[1]), (4, {'n': 'on the third'}))
+        self.assertEqual(settled.since, [{'page': 'y'}, {'page': 'z'}], "both writes it had not seen, in order")
 
     def test_refused_when_its_edits_do_not_apply_or_the_host_refuses_what_they_make(self):
         combine, _ = self.combining([{'problems': ['grid-2 is no longer on the page']},
@@ -256,10 +262,14 @@ class Settle(unittest.TestCase):
         keeper.keep('p', {'n': 0}, NOTHING, [])
         self.assertEqual(keeper.restore('p', 1, {'n': 'undone'}, NOTHING, ['grid-1']), 2)
         self.assertEqual(keeper.changes('p', 1), (2, None), 'whole: an open page opens it again')
+        self.assertEqual(keeper.hash_of('p'), page_hash({'n': 'undone'}), 'the hash of every version, a whole one too')
         keeper.write('p', 2, {'n': 'moved'}, NOTHING, [{'page': 'y'}], [])
         with self.assertRaisesRegex(Refused, 'undone or redone'):
             keeper.restore('p', 2, {'n': 'undone again'}, NOTHING, [])
         self.assertEqual(keeper.current('p'), (3, {'n': 'moved'}), 'nothing kept')
+        made = {'page': {'n': 'x on moved'}, 'held': [], 'edits': [{'page': 'x'}], 'renamed': {}, 'reads': NOTHING}
+        keeper.combine = self.combining([made])[0]
+        self.assertIsNone(keeper.settle('p', 1, [{'page': 'x'}]).since, 'a version between moved by no command: nothing to converge by')
 
     def test_a_write_from_further_back_than_it_keeps_is_refused(self):
         from legend_lite.keeper import STEPS_KEPT

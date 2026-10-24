@@ -106,6 +106,30 @@ describe('edits made again on top of a page that moved on', () => {
     assert.ok(placed.includes('grid-3') && placed.includes('grid-4'), `both grids placed: ${placed.join(', ')}`);
   });
 
+  it("a grid's run of consecutive commands is applied in one call, each listed as applied, refused whole (W14)", async () => {
+    const { apply, asked } = applier();
+    const run: PageEdit[] = [
+      { grid: 'grid', command: { kind: 'group', rows: ['desk'] } },
+      { grid: 'grid', command: { kind: 'group', rows: ['region'] } },
+      { page: { kind: 'renamePage', name: 'Between' } },
+      { grid: 'grid', command: { kind: 'group', rows: ['desk', 'region'] } },
+      { grid: 'grid-2', command: { kind: 'group', rows: ['desk'] } },
+    ];
+    const done = await rebaseEdits(draft(trades), run, apply);
+    assert.deepEqual(asked.map((a) => a.id), ['grid', 'grid', 'grid-2'], 'one call per run: the two groups of grid together, then the one after the page command, then grid-2');
+    assert.deepEqual(done.edits, run, 'each edit listed as applied, in order');
+    assert.deepEqual([rows(done.page, 'grid'), rows(done.page, 'grid-2')], [['desk', 'region'], ['desk']]);
+    // one command of a run refused refuses them all: nothing of the run applied
+    const refusing: GridApplier = async (page, cube, id, commands) => {
+      if (commands.some((c) => c.kind === 'sorts')) throw new CubeRefusal('no sorts here');
+      return apply(page, cube, id, commands);
+    };
+    await assert.rejects(rebaseEdits(draft(trades), [
+      { grid: 'grid', command: { kind: 'group', rows: ['desk'] } },
+      { grid: 'grid', command: { kind: 'sorts', sorts: [] } },
+    ], refusing), /no sorts here/);
+  });
+
   it('one that no longer applies refuses them all, in DataCube\'s words', async () => {
     const theirs = made(trades, [{ kind: 'removeTile', tile: 'chart' }]).page;
     await assert.rejects(rebaseEdits(draft(theirs), [

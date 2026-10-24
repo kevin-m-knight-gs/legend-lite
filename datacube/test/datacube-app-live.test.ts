@@ -9,12 +9,14 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { openDataCube } from '../src/app/datacube-app.ts';
-import type { LivePage } from '../src/app/services.ts';
+import type { LivePage, LiveRead } from '../src/app/services.ts';
 import { pageNew } from '../src/headless/page.ts';
 import { gridCopyOf, readPage, type PageDocument } from '../src/page-document.ts';
 import { applyPageCommands, idsOf } from '../src/page-commands.ts';
 import type { LiveWrite } from '../src/app/services.ts';
 import { corpus } from './fixtures/pages/make.ts';
+import { FakeKeeper } from './fake-keeper.ts';
+import { pageHash } from '../src/page-hash.ts';
 import { GateEngine, StubPlanner } from './cube-fixture.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { cubeToJson, writeCube } from '../src/cube-document.ts';
@@ -33,21 +35,23 @@ const settle = (): Promise<void> => new Promise((done) => { setTimeout(done, 0);
 /** Python's page before its first grid (`ll.Page('Q3')` shown): a page of no grid, as pageNew makes one. */
 const EMPTY: PageDocument = readPage(JSON.parse((JSON.parse(pageNew('Q3')) as { page: string }).page), { empty: true });
 
-/** The editor Python is, as the tab sees it: what it is asked, and what it answers, the test's to say. */
-class Editor implements LivePage {
-  reads = 0;
-  readonly changesAsked: number[] = [];
-  /** The answer to the next read: the page at version 1, or a failure. */
-  read: LivePage['read'] = async () => {
-    this.reads += 1;
-    return { version: 1, page: EMPTY, held: ['sheet-1'] };
-  };
-  changes: LivePage['changes'] = async (since) => {
+/** The editor Python is, as the tab sees it (test/fake-keeper.ts: a keeper applying a write's edits by DataCube's rule,
+ *  answering the hash of the page it keeps): what it is asked, and what it answers, the test's to say -- a move says the
+ *  next version and no command, unless the test says otherwise. */
+class Editor extends FakeKeeper {
+  constructor(page: PageDocument = EMPTY, held: readonly string[] = ['sheet-1']) {
+    super(page, held);
+  }
+
+  override async changes(since: number): ReturnType<FakeKeeper['changes']> {
     this.changesAsked.push(since);
-    return { version: since + 1, commands: [] };
-  };
-  report: LivePage['report'] = async (at) => ({ version: at, combined: false });
+    return { version: since + 1, commands: [], hash: pageHash(this.page) };
+  }
 }
+
+/** The page as the keeper has it, read: at version 1, with every id it holds and its hash. */
+const readOf = async (page: PageDocument, held: readonly string[] = idsOf(page), version = 1): Promise<LiveRead> =>
+  ({ version, page, held, hash: pageHash(page) });
 
 let dom: JSDOM;
 
@@ -147,12 +151,12 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     const page = applyPageCommands({ page: EMPTY, held: idsOf(EMPTY) }, [
       { kind: 'addSheet', id: 'sheet-2', name: 'Second' },
     ]).draft.page;
-    const editor = new Editor();
-    editor.read = async () => ({ version: 1, page, held: idsOf(page) });
+    const editor = new Editor(page, idsOf(page));
     const written: LiveWrite[] = [];
+    const settled = editor.report.bind(editor);
     editor.report = async (at, write) => {
       written.push(write);
-      return { version: at + 1, combined: false };
+      return settled(at, write);
     };
     await opened(editor);
     await settle();
@@ -220,10 +224,8 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     const grid = trades.views.find((v) => v.kind === 'grid')!;
     const model = { project: 'p:q', workspace: 'datacube', package: 'p', tables: {}, revision: 'r1', classes: { [grid.cube]: 'p::domain::Trade' } };
     const page: PageDocument = { ...trades, model };
-    editor.read = async () => {
-      editor.reads += 1;
-      return { version: 1, page, held: idsOf(page) };
-    };
+    editor.page = page;
+    editor.held = idsOf(page);
     const asked: unknown[][] = [];
     const alerts: string[] = [];
     dom.window.alert = (m?: unknown) => { alerts.push(String(m)); };
@@ -293,7 +295,7 @@ describe("New ▸ Blank Page while a follow is on its way (the S4 audit's 4)", (
     blankPage();
     assert.equal(app.unwatched(), true, 'left: watched no more');
     // Python added a sheet: its command is Python's page's, never the tab's own
-    asked.resolve({ version: 2, commands: [{ page: { kind: 'addSheet', id: 'sheet-2', name: 'Added in Python' } }] });
+    asked.resolve({ version: 2, commands: [{ page: { kind: 'addSheet', id: 'sheet-2', name: 'Added in Python' } }], hash: pageHash(EMPTY) });
     await settle();
     await settle();
     assert.match(app.text(), /a page of this tab's own: the page Python serves is left as it was/);
@@ -308,7 +310,7 @@ describe("New ▸ Blank Page while a follow is on its way (the S4 audit's 4)", (
     const reading = held<Awaited<ReturnType<LivePage['read']>>>();
     editor.changes = async (since) => {
       editor.changesAsked.push(since);
-      return { version: 2, page: EMPTY, held: ['sheet-1'] };
+      return readOf(EMPTY, ['sheet-1'], 2);
     };
     editor.read = () => {
       editor.reads += 1;
@@ -320,7 +322,7 @@ describe("New ▸ Blank Page while a follow is on its way (the S4 audit's 4)", (
     blankPage();
     // the page as Python has it now: a grid over a frame this tab cannot open -- opening it would say so
     const trades = (await corpus())['trades.page.json']!;
-    reading.resolve({ version: 2, page: trades, held: [] });
+    reading.resolve(await readOf(trades, [], 2));
     await settle();
     await settle();
     assert.match(app.text(), /a page of this tab's own: the page Python serves is left as it was/);
@@ -335,11 +337,11 @@ describe("New ▸ Blank Page while a follow is on its way (the S4 audit's 4)", (
     const trades = (await corpus())['trades.page.json']!;
     editor.changes = async (since) => {
       editor.changesAsked.push(since);
-      return { version: 2, page: trades, held: [] };
+      return readOf(trades, [], 2);
     };
     editor.read = async () => {
       editor.reads += 1;
-      return { version: 2, page: trades, held: [] };
+      return readOf(trades, [], 2);
     };
     app.moved(2);
     await settle();
@@ -359,14 +361,13 @@ describe("a snapped grid whose copy is not read here (the S7 audit's G-3)", () =
     const grid = trades.views.find((v) => v.kind === 'grid')!;
     const copy = gridCopyOf({ table: 'snap_1', rowCount: 9, takenAt: new Date('2026-10-20T14:02:00Z'), label: 'Snap 14:02' });
     const page: PageDocument = { ...trades, copies: { [grid.cube]: copy } };
-    editor.read = async () => {
-      editor.reads += 1;
-      return { version: 1, page, held: idsOf(page) };
-    };
+    editor.page = page;
+    editor.held = idsOf(page);
     const written: LiveWrite[] = [];
+    const settled = editor.report.bind(editor);
     editor.report = async (at, write) => {
       written.push(write);
-      return { version: at + 1, combined: false };
+      return settled(at, write);
     };
     await opened(editor, async () => ({ version: 0, model: '', runtime: '', source: { _type: 'packageableElementPtr', fullPath: 'trades' } }));
     await settle();
@@ -384,14 +385,13 @@ describe("the ids the page has held, read with it (B12: the S4 audit's 5)", () =
     const editor = new Editor();
     const trades = (await corpus())['trades.page.json']!;
     // the page as Python's keeper has it: every id it has held, sheet-9 among them (made and taken off in Python)
-    editor.read = async () => {
-      editor.reads += 1;
-      return { version: 1, page: trades, held: ['chart', 'chart-2', 'grid', 'grid-2', 'sheet-1', 'sheet-2', 'sheet-9'] };
-    };
+    editor.page = trades;
+    editor.held = ['chart', 'chart-2', 'grid', 'grid-2', 'sheet-1', 'sheet-2', 'sheet-9'];
     const written: unknown[] = [];
+    const settled = editor.report.bind(editor);
     editor.report = async (at, write) => {
       written.push(write);
-      return { version: at + 1, combined: false };
+      return settled(at, write);
     };
     await opened(editor, async () => ({ version: 0, model: '', runtime: '', source: { _type: 'packageableElementPtr', fullPath: 'trades' } }));
     await settle();

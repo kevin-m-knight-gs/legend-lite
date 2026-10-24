@@ -22,7 +22,7 @@ import { tiles } from './layout/bands.ts';
 import { applyPageCommand, idsOf, nextPageId, takenIds, type PageCommand, type PageDraft } from './page-commands.ts';
 import type { CubeDocument } from './cube-document.ts';
 import type { ChartView, PageDocument, PageSheet, PageView } from './page-document.ts';
-import { renamedCommand } from './page-rebase.ts';
+import { rearranged, renamedCommand } from './page-rebase.ts';
 import { CubeRefusal, sameValue } from './snapshot.ts';
 
 /** What of a page the commands between two states cover (above). */
@@ -43,7 +43,10 @@ function makes(page: PageDocument, command: PageCommand): boolean {
  */
 function applyOne(draft: PageDraft, planned: PageCommand, renamed: Map<string, string>, fresh: boolean):
   { readonly draft: PageDraft; readonly applied: PageCommand } {
-  let command = renamedCommand(planned, renamed);
+  // a sheet's arrangement as the plan has it, the tiles on that sheet now that the plan did not know placed as adding
+  // places one (page-rebase.ts rearranged: the keeper's rule for a writer's layout made again on top) -- an undo past
+  // another editor's added tile keeps that tile on its sheet
+  let command = rearranged(renamedCommand(planned, renamed), draft.page);
   const making = makes(draft.page, command);
   if (fresh && making && (command as { readonly id?: string }).id !== undefined) {
     const { id: _held, ...rest } = command as PageCommand & { id?: string };

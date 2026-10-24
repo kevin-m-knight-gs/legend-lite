@@ -26,17 +26,13 @@ export interface LiveTarget {
 }
 
 /**
- * How a move of the editor's page is followed: by its commands; by opening it again when a frame moved with it (a grid
- * the commands add would read the frame as it is now while the others read it as it was: all read it again together);
- * or, the page not moved, by its frames alone.
+ * How a move of the editor's page is followed: by its commands (a frame that moved with it is read again by every grid
+ * over it once they are applied: docs/DATACUBE_LIVE_EDITING_2026_10_24.md W16, the `open` arm gone), or, the page not
+ * moved, by its frames alone.
  */
-export function followBy(now: Versions, shown: number, frameVersion: (frame: string) => number | undefined): 'commands' | 'open' | 'frames' {
-  if (now.version === undefined || now.version === shown) return 'frames';
-  const framesMoved = Object.entries(now.frames).some(([frame, version]) => {
-    const read = frameVersion(frame);
-    return read !== undefined && read !== version;
-  });
-  return framesMoved ? 'open' : 'commands';
+export function followBy(now: Versions, shown: number, frameVersion: (frame: string) => number | undefined): 'commands' | 'frames' {
+  void frameVersion;
+  return now.version === undefined || now.version === shown ? 'frames' : 'commands';
 }
 
 /** The editor's commands, in order: refused (thrown) when one does not apply here, the page then to be opened again. */

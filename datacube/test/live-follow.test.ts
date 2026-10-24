@@ -47,10 +47,10 @@ const page = (c: PageCommand): LiveCommand => ({ page: c });
 const grid = (id: string, c: GridCommand): LiveCommand => ({ grid: id, command: c });
 
 describe('how a move of the page is followed', () => {
-  it('by its commands; opened again when a frame moved with it; by its frames when the page did not move', () => {
+  it('by its commands, a frame that moved with it read again after them (W16); by its frames when the page did not move', () => {
     const read = (f: string): number | undefined => ({ trades: 3 } as Record<string, number>)[f];
     assert.equal(followBy({ version: 5, frames: { trades: 3 } }, 4, read), 'commands');
-    assert.equal(followBy({ version: 5, frames: { trades: 4 } }, 4, read), 'open', 'a frame moved with the page');
+    assert.equal(followBy({ version: 5, frames: { trades: 4 } }, 4, read), 'commands', 'a frame moved with the page: its commands, then the frame');
     assert.equal(followBy({ version: 5, frames: { desks: 9 } }, 4, read), 'commands', 'a frame the page never read');
     assert.equal(followBy({ version: 4, frames: { trades: 4 } }, 4, read), 'frames');
   });
@@ -113,7 +113,7 @@ describe("Python's commands read as the page reads them", () => {
 
   it("a calculated column's lambda keeps its exact numbers; an added grid's cube too", async () => {
     // (the phase 3 audit's 2) 12.30 stays 12.30, an integer past 2^53 every digit
-    const text = `{"version": 3, "commands": [{"grid": "grid-1", "command": {"kind": "calculate", "level": "row", "column":
+    const text = `{"version": 3, "hash": "h", "commands": [{"grid": "grid-1", "command": {"kind": "calculate", "level": "row", "column":
       {"name": "scaled", "lambda": {"_type": "lambda", "parameters": [], "body": [{"_type": "decimal", "value": 12.30},
       {"_type": "integer", "value": 1180591620717411303424}]}}}}]}`;
     const moved = await livePage(link(text), 'q3').changes(2);
@@ -127,9 +127,12 @@ describe("Python's commands read as the page reads them", () => {
   });
 
   it('the page as it is now when the engine says the page, with the ids it has held; a command of no page and no grid refused', async () => {
-    const said = await livePage(link(`{"version": 7, "page": ${pageToJson(trades)}, "held": ["grid", "grid-9"]}`), 'q3').changes(2);
+    const said = await livePage(link(`{"version": 7, "page": ${pageToJson(trades)}, "held": ["grid", "grid-9"], "hash": "h"}`), 'q3').changes(2);
     assert.ok('page' in said && said.version === 7 && said.page.name === trades.name);
     assert.deepEqual(said.held, ['grid', 'grid-9'], 'the ids the keeper holds, read with the page (B12)');
+    assert.equal(said.hash, 'h', "the keeper's hash, read with the page (W17)");
+    // a page said with no hash is no page the keeper serves either
+    await assert.rejects(livePage(link(`{"version": 7, "page": ${pageToJson(trades)}, "held": []}`), 'q3').changes(2), /no hash of the page/);
     // a page said with no ids held is no page the keeper serves: refused, never taken as holding none
     await assert.rejects(livePage(link(`{"version": 7, "page": ${pageToJson(trades)}}`), 'q3').changes(2), /no ids the page has held/);
     await assert.rejects(livePage(link('{"version": 3, "commands": [{"nope": 1}]}'), 'q3').changes(2), /a command of no page and no grid/);
@@ -145,7 +148,7 @@ describe('a page open on Python\'s says who it is and the version it shows (docs
       baseUrl: 'http://engine',
       fetch: (async (url: string) => {
         urls.push(url.replace('http://engine/', ''));
-        return new Response(url.includes('version.json') ? '{"version": 4, "frames": {}}' : '{"version": 4, "commands": [], "combined": false}');
+        return new Response(url.includes('version.json') ? '{"version": 4, "frames": {}}' : '{"version": 4, "commands": [], "combined": false, "renamed": {}, "hash": "h"}');
       }) as unknown as typeof fetch,
     };
     return { link, urls };
