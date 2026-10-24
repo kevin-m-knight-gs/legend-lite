@@ -31,11 +31,11 @@ export const WAREHOUSE = process.env.WAREHOUSE
 export async function openWarehouseTable(page) {
   if (!WAREHOUSE) throw new Error('no WAREHOUSE');
   if (!(await page.locator('.dc-titlebar-menu').isVisible())) {
-    await page.evaluate(() => window.__dataCube.change((s) => ({ ...s, configuration: { ...s.configuration, showTitleBar: true } })));
+    await page.evaluate(() => window.__dataCube.edit([{ kind: 'configure', patch: { showTitleBar: true } }], 'title bar'));
     await page.locator('.dc-titlebar-menu').waitFor({ timeout: 10_000 });
   }
   await page.click('.dc-titlebar-menu');
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
@@ -58,7 +58,7 @@ export async function openWarehouseTable(page) {
     await page.locator('.dc-titlebar-toggle').waitFor({ timeout: 60_000 });
     await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, null, { timeout: 60_000 });
     await page.click('.dc-titlebar-toggle');
-    await page.waitForFunction(() => window.__dataCube?.controller.snaps.state.mode === 'snapped'
+    await page.waitForFunction(() => document.querySelector('.dc-titlebar-toggle')?.classList.contains('dc-on')
       && !window.__dataCube.busy, null, { timeout: 60_000 });
   }
 }

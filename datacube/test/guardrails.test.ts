@@ -459,7 +459,9 @@ describe('nothing is built and left unreachable', () => {
     // check above while leaving the feature just as unreachable.
     for (const call of [
       'buildMenu(',
-      'applyMenuAction(',
+      // the menu's query entries reach the cube as grid commands (2026-10-18, the command program's stage 1), each its
+      // gesture (2026-10-22, S8: app.ts makes menuGesture's gesture, grid-gestures.ts gridGesture)
+      'menuGesture(',
       'heatColour(',
       'columnRange(',
       // every export format, and the one model they all read (export-model.ts, 2026-09-29)
@@ -474,7 +476,10 @@ describe('nothing is built and left unreachable', () => {
       'drillLambda(',
       'selectionStats(',
       'writeCube(',
-      'availableDimensions(',
+      // named dimensions used (2026-10-23, the user: the grid's menu button and its Dimensions ▸ went): from Properties ▸
+      // Dimensions' Group Rows by, through the view.dimension gesture, which asks availableDimensions itself
+      // (grid-gestures.ts) -- the app's own call of it went with the menu
+      'this.#useDimension(',
       'new CubeEditor(',
       'new FilterEditor(',
       'new PivotPanel(',

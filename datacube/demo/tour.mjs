@@ -147,10 +147,9 @@ async function burger(label) {
   }
   await item.click();
 }
-/** The first grid's own menu (Undo, Redo, Export, Properties): in its tile's header beside other tiles. */
+/** The first grid's Edit ▸ entry (Undo, Redo), from its right-click: its menu button went (the user, 2026-10-23). */
 async function gridMenu(label) {
-  await page.locator(`${FIRST} .dc-tile-menu, .dc-tile-menu`).first().click();
-  await entry(label).click();
+  await cellMenu(['Edit', label]);
   await settle();
 }
 /** A row group (`zone` rows) or pivot (columns) of the first grid taken off by its chip's ×, never an editing grid's. */
@@ -160,13 +159,18 @@ async function takeOff(zone, column) {
     .first().locator('.dc-chip-remove').click();
   await settle();
 }
-/** A chart's Dynamic / Frozen / Detached pill, and its right-click menu. */
+/** A chart's Dynamic / Pinned / Frozen / Detached pill, and its right-click menu. */
 const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`);
+/** A chart put in a state as a person does: its pill clicked, the state picked from the menu it opens. */
+async function choose(id, state) {
+  await pill(id).click();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state} \u2014 `) }) })
+    .first().click();
+}
 async function chartMenu(id, label) {
   await page.locator(`[data-tile="${id}"] .dc-chart-tile`).click({ button: 'right' });
   await entry(label).click();
 }
-const tileButton = (id, text) => page.locator(`[data-tile="${id}"] .dc-tile-actions > button:visible`, { hasText: text }).first();
 /** A field of a form by its label, scoped. */
 const field = (scope, label) => scope.locator(`.dc-field:has(> .dc-field-label:text-is(${JSON.stringify(label)}))`).first();
 
@@ -312,8 +316,8 @@ try {
   });
 
   let chart;
-  await step('Insert > Visualization: a chart that follows the grid', async () => {
-    await cellMenu(['Insert', 'Visualization']);
+  await step('Create > Visualization: a chart that follows the grid', async () => {
+    await cellMenu(['Create', 'Visualization']);
     await settle();
     await drawn();
     const list = await charts();
@@ -335,15 +339,15 @@ try {
     return `${fn} of ${column} -> ${next} of ${column}`;
   });
 
-  await step('Two values of one column: frozen, a second value added, made Dynamic again -- both kept', async (shot) => {
+  await step('Two values of one column: pinned, a second value added, made Dynamic again -- both kept', async (shot) => {
     if (!chart) throw new Error('no chart');
     // grouped by one column only, nothing pivoted: a split draws one value per series, so values are added unsplit
     const grid = await snapshot();
     for (const column of grid.pivotOn.toReversed()) await takeOff('columns', column);
     for (const column of grid.rows.slice(1).toReversed()) await takeOff('rows', column);
-    await pill(chart.id).click();
+    await choose(chart.id, 'Pinned');
     await settle();
-    if ((await pill(chart.id).textContent()) !== 'Frozen') throw new Error(`the pill says ${await pill(chart.id).textContent()}`);
+    if ((await pill(chart.id).textContent()) !== 'Pinned') throw new Error(`the pill says ${await pill(chart.id).textContent()}`);
     const [column, fn] = (await charts()).find((c) => c.id === chart.id).y[0];
     const other = fn === 'min' ? 'max' : 'min';
     await chartMenu(chart.id, 'Options...');
@@ -359,7 +363,7 @@ try {
     // Options... again puts the form away
     await chartMenu(chart.id, 'Options...');
     await form.waitFor({ state: 'hidden' });
-    await pill(chart.id).click();
+    await choose(chart.id, 'Dynamic');
     await settle();
     await drawn();
     const now = (await charts()).find((c) => c.id === chart.id);
@@ -372,25 +376,33 @@ try {
     return `following: ${now.y.map(([c, f]) => `${f} of ${c}`).join(' and ')}`;
   });
 
-  await step('Open in grid, then Update untouched: the chart is unchanged', async (shot) => {
+  await step('Show Grid on a frozen chart: a grid of its own grouping it follows, the same values', async (shot) => {
     if (!chart) throw new Error('no chart');
-    await pill(chart.id).click();
+    await choose(chart.id, 'Pinned');
     await settle();
     const before = (await charts()).find((c) => c.id === chart.id);
     const rowsBefore = (await snapshot()).rows;
-    await chartMenu(chart.id, 'Open in grid');
-    const editing = page.locator(`[data-tile="edit-${chart.id}"]`);
-    await editing.locator('.dc-row').first().waitFor({ timeout: 30_000 });
+    const gridOf = () => page.evaluate((id) => window.__dataPage.views().views.find((v) => v.id === id)?.cube, chart.id);
+    const was = await gridOf();
+    await chartMenu(chart.id, 'Show Grid');
     await settle();
-    await shot(page, 'the editing grid');
-    await tileButton(`edit-${chart.id}`, `Update ${chart.title}`).click();
+    const own = await gridOf();
+    if (!own || own === was) throw new Error(`the chart reads ${own}, as before`);
+    const shown = page.locator(`[data-tile="${own}"]`);
+    await shown.locator('.dc-row').first().waitFor({ timeout: 30_000 });
     await settle();
+    await shot(page, 'its own grid');
     const after = (await charts()).find((c) => c.id === chart.id);
-    if (!same(after.y, before.y)) throw new Error(`Update changed the values: ${JSON.stringify(before.y)} -> ${JSON.stringify(after.y)}`);
-    if (await editing.count()) throw new Error('the editing grid is still open');
+    if (after.frozen) throw new Error('the chart does not follow its grid');
+    if (!same(after.y, before.y)) throw new Error(`Show Grid changed the values: ${JSON.stringify(before.y)} -> ${JSON.stringify(after.y)}`);
     if (!same((await snapshot()).rows, rowsBefore)) throw new Error('the cube\'s grid changed');
-    await shot(page, 'updated');
-    return `still ${after.y.map(([c, f]) => `${f} of ${c}`).join(' and ')}`;
+    // the page's Undo takes the step back: the chart frozen on the cube's grid again, its grid gone
+    await page.evaluate(() => window.__dataPage.undo());
+    await settle();
+    if (await shown.count()) throw new Error('undone, its grid is still on the page');
+    if ((await gridOf()) !== was) throw new Error('undone, the chart reads another grid');
+    await shot(page, 'undone');
+    return `following ${own}: still ${after.y.map(([c, f]) => `${f} of ${c}`).join(' and ')}; undone, back on ${was}`;
   });
 
   await step('Undo and Redo on the grid', async (shot) => {

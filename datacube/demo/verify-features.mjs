@@ -541,14 +541,25 @@ async function burger(label) {
   await settle();
 }
 /**
- * The first GRID's own menu: Undo, Redo, Export, Properties, Ad Hoc Analysis -- in the page bar's strip while the grid
- * is alone on the page, in its tile's header beside other tiles.
+ * An entry of the first GRID's right-click, through its submenus: Edit ▸ Undo and Redo, Properties... -- its menu button
+ * went (the user, 2026-10-23: the right-click has all it had).
  */
 async function gridMenu(label) {
-  await page.locator('.dc-tile-menu').first().click();
+  await reset();
+  await page.evaluate(() => {
+    const sc = document.querySelector('.dc-scroller');
+    if (sc) sc.scrollLeft = 0;
+  });
+  await page.locator('.dc-row').first().locator('.dc-cell').first().click({ button: 'right', timeout: 8000 });
   await page.waitForSelector('.dc-menu', { timeout: 5000 });
   await pickEntry(label);
   await settle();
+}
+/** Ad Hoc Analysis, started from Properties ▸ Dimensions (the user, 2026-10-23: no menu entry of its own). */
+async function startAdHoc() {
+  await gridMenu('Properties...');
+  await page.locator('.dc-editor-tab', { hasText: 'Dimensions' }).click();
+  await page.locator('.dc-dimension-adhoc button', { hasText: 'Start Ad Hoc Analysis' }).click();
 }
 
 // -- load ---------------------------------------------------------------
@@ -606,7 +617,7 @@ async function openThroughPicker(file) {
   }
   // in place of the page: New ▸ Blank Page, then "Add a data source"
   await page.click('.dc-titlebar-menu');
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
@@ -616,6 +627,39 @@ async function openThroughPicker(file) {
 }
 /** The harness's source: its file, or the same sample as a warehouse's table, live there. */
 const openSource = () => (WAREHOUSE ? openWarehouseTable(page) : openThroughPicker(DATA));
+/**
+ * THE SOURCE'S OWN ROWS, read from the file the run opened: the oracle a check compares a grid's figures with -- by its
+ * own reading, not by asking the grid (whose way of running a query is no part of its API). The columns named, each its
+ * cells as text, an empty one null. A warehouse run has no file to read.
+ */
+async function fileRows(names) {
+  if (WAREHOUSE) throw new Error('this check reads the source file: a warehouse run has none');
+  const cells = (line) => {
+    const out = [];
+    let cell = '';
+    let quoted = false;
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      if (quoted) {
+        if (ch === '"' && line[i + 1] === '"') { cell += '"'; i += 1; } else if (ch === '"') quoted = false; else cell += ch;
+      } else if (ch === '"') quoted = true;
+      else if (ch === ',') { out.push(cell); cell = ''; } else cell += ch;
+    }
+    out.push(cell);
+    return out;
+  };
+  const [head, ...lines] = (await readFile(DATA, 'utf8')).replace(/\r/g, '').trim().split('\n');
+  const header = cells(head);
+  const rows = lines.map(cells);
+  return {
+    columns: names.map((name) => {
+      const at = header.indexOf(name);
+      if (at < 0) throw new Error(`the source file has no ${name} (${header.join(', ')})`);
+      return { name, values: rows.map((r) => (r[at] === '' || r[at] === undefined ? null : r[at])) };
+    }),
+  };
+}
+
 async function freshCube() {
   // AFTER THE FIRST, A FRESH CUBE, NOT A FRESH PAGE: the file opened again, as a person would,
   // gives a new cube with the default configuration -- what a check that asks for a clean one
@@ -1938,7 +1982,7 @@ try {
   });
 
   await check('copy a column to the clipboard', async () => {
-    await menu(['Copy', /^Column .* as Plain Text$/], { requery: false });
+    await menu(['Edit', /^Copy Column /], { requery: false });
     // the copy is asynchronous (the clipboard API is a promise): read until it lands
     let text = '';
     for (const until = Date.now() + 5_000; Date.now() < until && !text.trim(); await frames(page)) {
@@ -2023,10 +2067,8 @@ try {
   /** Turn a General Properties checkbox on or off, by its label. */
   const setGeneralCheck = async (label, on) => {
     await reset();
-    // the grid's own menu (its Properties), in the page bar's strip while it is alone
-    await page.locator('.dc-tile-menu').first().click();
-    await page.waitForSelector('.dc-menu', { timeout: 10_000 });
-    await pickEntry('Properties...');
+    // the grid's Properties..., from its right-click
+    await gridMenu('Properties...');
     await settle();
     await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
       .click();
@@ -2048,10 +2090,8 @@ try {
   /** Turn "keep grouped columns in the grid" on or off. */
   const setKeepGrouped = async (on) => {
     await reset();
-    // the grid's own menu (its Properties), in the page bar's strip while it is alone
-    await page.locator('.dc-tile-menu').first().click();
-    await page.waitForSelector('.dc-menu', { timeout: 10_000 });
-    await pickEntry('Properties...');
+    // the grid's Properties..., from its right-click
+    await gridMenu('Properties...');
     await settle();
     await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
       .click();
@@ -3303,10 +3343,8 @@ try {
     try {
       await addWindow({ name: 'run_qty', level: 'measure', fn: 'sum', of: 'quantity',
         partition: ['region'], order: [{ column: 'trade_id', direction: 'asc' }], frame: 'running' });
-      const result = await page.evaluate(async () => {
+      const result = await page.evaluate(async (raw) => {
         const app = window.__dataCube;
-        const c = app.controller;
-        const raw = (await c.runQuery(await c.parse(`${(await c.print({ _type: 'lambda', parameters: [], body: [app.snapshot.source.query] })).trim()}->select(~[trade_id, region, quantity])`), app.snapshot)).rows;
         const col = (t, n) => t.columns.find((x) => x.name === n).values;
         const ids = col(raw, 'trade_id'); const regions = col(raw, 'region'); const qty = col(raw, 'quantity');
         const order = ids.map((_v, i) => i).sort((a, b) => Number(ids[a]) - Number(ids[b]));
@@ -3329,7 +3367,7 @@ try {
           if (!same) bad.push(`trade ${id}: ${g} vs ${w}`);
         });
         return { compared: gotIds.length, raw: ids.length, bad: bad.slice(0, 3), nbad: bad.length };
-      });
+      }, await fileRows(['trade_id', 'region', 'quantity']));
       if (result.compared < 100) throw new Error(`only ${result.compared} rows to compare`);
       if (result.nbad) throw new Error(`${result.nbad} wrong: ${result.bad.join('; ')}`);
       return `${result.compared} rows on screen, each equal to the running sum of ${result.raw} raw rows`;
@@ -3392,7 +3430,7 @@ try {
       const opened = await statusNow();
       await page.locator('.dc-row[aria-expanded=false] .dc-chevron').first().click();
       await settle(opened);
-      const result = await page.evaluate(async () => {
+      const result = await page.evaluate(async (raw) => {
         const v = window.__dataCube.view;
         const col = (t, n) => t.columns.find((x) => x.name === n)?.values ?? null;
         const notional = col(v.rows, 'notional');
@@ -3403,9 +3441,6 @@ try {
         const region = rows.find((r) => r.level === 1 && rows.some((x) => x.level === 2 && x.path[0] === r.path[0]));
         const desks = rows.filter((x) => x.level === 2 && x.path[0] === region.path[0]);
         // The trades' own minimum per desk, from the raw rows.
-        const app = window.__dataCube;
-        const c = app.controller;
-        const raw = (await c.runQuery(await c.parse(`${(await c.print({ _type: 'lambda', parameters: [], body: [app.snapshot.source.query] })).trim()}->select(~[region, desk, notional])`), app.snapshot)).rows;
         const rr = col(raw, 'region'); const rd = col(raw, 'desk'); const rn = col(raw, 'notional');
         const minTrade = new Map();
         rr.forEach((r, i) => {
@@ -3421,7 +3456,7 @@ try {
           desks: desks.map((d) => ({ desk: d.path[1], weakest: weakest[d.i], trade: minTrade.get(String(d.path[1])) })),
           truncated: v.truncated.length,
         };
-      });
+      }, await fileRows(['region', 'desk', 'notional']));
       if (result.error) throw new Error(result.error);
       const near = (a, b) => Math.abs(Number(a) - Number(b)) <= 1e-6 * Math.max(1, Math.abs(Number(b)));
       const smallestDesk = Math.min(...result.deskTotals.map(Number));
@@ -4980,7 +5015,7 @@ try {
     }).first();
     const enter = async () => {
       await freshCube();
-      await gridMenu('Ad Hoc Analysis');
+      await startAdHoc();
       await page.waitForFunction(() => {
         const a = window.__dataCube?.adhoc;
         return a && !a.busy && a.view;
@@ -5006,7 +5041,7 @@ try {
       if (!on) throw new Error(`no low-cardinality dimension in ${dims}`);
       await menu(['Pivot', /^Vertical Pivot on/], { col: await needCol(on) });
       const cubeRows = (await state()).rows.length;
-      await gridMenu('Ad Hoc Analysis');
+      await startAdHoc();
       await page.waitForFunction(() => {
         const a = window.__dataCube?.adhoc;
         return a && !a.busy && a.view;
@@ -5114,7 +5149,7 @@ try {
   // LAST: it turns the page into a board, which every check above assumes it is not.
   await check('New > Source: an example opens as a grid of its own, at the row limit, said "the first 1,000 of N"', async () => {
     await page.click('.dc-titlebar-menu');
-    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
     await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Data Source\u2026")') }).click();
     await page.locator('.dc-picker').waitFor({ timeout: 5000 });
     await page.locator('.dc-picker-tab[data-section="examples"]').click();
@@ -5140,7 +5175,7 @@ try {
   await check('New > Data Source > Saved queries: a data space query opens as a grid, its enumeration as names', async () => {
     const pick = async () => {
       await page.click('.dc-titlebar-menu');
-      await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+      await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
       await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Data Source\u2026")') }).click();
       await page.locator('.dc-picker').waitFor({ timeout: 5000 });
       await page.locator('.dc-picker-tab[data-section="saved"]').click();

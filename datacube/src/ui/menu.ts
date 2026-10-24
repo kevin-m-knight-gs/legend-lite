@@ -34,11 +34,9 @@
 import type { MemberPath } from '../adhoc/state.ts';
 import type {
   CubeSnapshot,
-  FilterNode,
   FilterOperator,
   FilterValue,
   SortDirection,
-  SortSpec,
 } from '../snapshot.ts';
 import type { CalcStage } from '../calc.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
@@ -47,8 +45,7 @@ import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
 import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, rowColumns } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 import { takesOperator } from '../offers.ts';
-import { addSort, setGrouping, setPivot, setSorts } from '../grid-edits.ts';
-import type { CubeConfiguration } from '../config.ts';
+import { gestureTakes, isGridGesture, type GestureArgs, type GridGestureName } from '../grid-gestures.ts';
 
 /**
  * A pivoted column's name is a PATH -- `2021__|__notional` -- and a
@@ -69,6 +66,9 @@ export interface MenuContext {
   readonly isRowDimension?: boolean;
   /** Whether a selection exists, which gates the copy entries. */
   readonly hasSelection?: boolean;
+  /** Whether the grid has a step to undo, and one to redo: Edit ▸ Undo and Redo, disabled without. */
+  readonly canUndo?: boolean;
+  readonly canRedo?: boolean;
   /** Whether any group is currently open, which gates Collapse All. */
   readonly hasExpanded?: boolean;
   /** Whether the column under the pointer already has a heatmap. */
@@ -133,6 +133,37 @@ export interface MenuContext {
   readonly fixedWidth?: boolean;
   /** The cube's controls are hidden (the grid alone): the last entry brings them back. */
   readonly controlsHidden?: boolean;
+  /**
+   * A grid on a page of sheets: Tile ▸ Move to Sheet's entries (each other sheet, then a new one), or `locked` -- the
+   * page locked, the entry offered disabled. Absent off such a page.
+   */
+  readonly sheets?: readonly MenuItem[] | 'locked';
+  /** A grid on a page of its own: Tile ▸ Remove from Page. */
+  readonly canRemove?: boolean;
+  /**
+   * The host's Join ▸ on the column clicked (the user, 2026-10-23): a quick join to each grid sharing a column, the
+   * other ways, the window. Absent where the grid cannot be joined.
+   */
+  readonly join?: readonly MenuItem[];
+  /** The host's own Create ▸ entries (Class…, Association…, Data Space…), after the grid's. */
+  readonly create?: readonly MenuItem[];
+  /** Whether a data source can be opened beside the grid: Create ▸ Data Source…. */
+  readonly canOpenSource?: boolean;
+}
+
+/**
+ * CREATE ▸, the same in every menu -- the right-click, a grid's own menu, the title bar's (the user, 2026-10-23: "Insert"
+ * became "Create", one word for all three): a grid over another source, a copy of this one, a chart of it; then, a line
+ * above them, the host's (Class…, Association…, Data Space…).
+ */
+export function createItems(o: { readonly source: boolean; readonly host: readonly MenuItem[]; readonly disabled?: boolean }): MenuItem[] {
+  const off = o.disabled === true ? { disabled: true } : {};
+  return [
+    ...(o.source ? [{ id: 'source.new' as const, label: 'Data Source\u2026', ...off }] : []),
+    { id: 'grid.new', label: 'Copy of This Grid', ...off },
+    { id: 'chart.plot', label: 'Visualization', ...off },
+    ...o.host.map((h, i) => (i === 0 ? { ...h, separated: true } : h)),
+  ];
 }
 
 /**
@@ -155,9 +186,10 @@ export type MenuActionId =
   /**
    * A HOST's own entry, which must be prefixed.
    *
-   * The cube's ids stay a closed union, so `applyMenuAction` and the
-   * dispatch in app.ts remain exhaustive over them and
-   * `menu-ids.test.ts` can still tell a dead entry from a live one.
+   * The cube's ids stay a closed union, so the dispatch in app.ts -- a
+   * grid's gesture by its id (menuGesture), the rest by their cases --
+   * covers them, and `menu-ids.test.ts` can still tell a dead entry
+   * from a live one.
    * A host adds items to the title bar menu and gets them back
    * through `onHostMenu`; the prefix is what keeps the two sets from
    * ever being confused for one another.
@@ -214,12 +246,14 @@ export type MenuActionId =
   | 'page.blank'
   // the page's layouts (ui/layout-picker.ts), and edit or view mode (nothing moves)
   | 'page.arrange'
-  // a grid on a page of its own, taken off it from its own menu
+  // a grid on a page of its own, taken off it from its right-click's Tile ▸
   | 'grid.remove'
   // a page of its own as a file (page/page-app.ts)
   | 'page.export'
   | 'page.undoLayout'
   | 'page.redoLayout'
+  | 'page.undo'
+  | 'page.redo'
   | 'page.editLayout'
   | 'view.properties'
   // the cube's controls hidden or shown, the grid alone (setControlsHidden)
@@ -246,14 +280,11 @@ export type MenuActionId =
   // change and not a column operation: what is on SCREEN. It left the
   // grid's menu by the user's direction (2026-09-25); a folded title
   // bar leaves a lip that restores it.
-  // Host-level entries, which live in the title bar's menu rather
-  // than the grid's. DataCube reserves that menu for the embedding
-  // application the same way.
-  | 'view.dimension'
+  // The grid's history, in the title bar's menu and the right-click's Edit ▸, and the
+  // title bar's Settings.
   | 'view.undo'
   | 'view.redo'
   | 'view.settings'
-  | 'view.adhoc'
   | 'adhoc.zoomNext'
   | 'adhoc.zoomAll'
   | 'adhoc.zoomBottom'
@@ -277,9 +308,10 @@ export interface MenuItem {
   readonly label: string;
   /**
    * A host's entry: where it goes -- the main menu's file group (the default), its View, its
-   * top-level data entries, or the status bar's planner readout (`plane`: where the planner runs).
+   * top-level data entries, its Create ▸ (Class…, Association…, Data Space…), or the status bar's planner readout
+   * (`plane`: where the planner runs).
    */
-  readonly section?: 'file' | 'view' | 'data' | 'plane';
+  readonly section?: 'file' | 'view' | 'data' | 'create' | 'plane';
   /** Column the action applies to, when it is column-specific. */
   readonly column?: string;
   readonly direction?: SortDirection;
@@ -307,6 +339,8 @@ export interface MenuItem {
   readonly showAs?: ShowAsKind;
   /** A line above it: what follows is apart from what precedes (New ▸ Blank Page, which replaces everything). */
   readonly separated?: boolean;
+  /** Said on hover: why a disabled entry is off (Show Grid on a cube on its own). */
+  readonly hint?: string;
 }
 
 export interface MenuGroup {
@@ -462,28 +496,33 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
   const isHorizontal = column ? s.pivotOn.includes(column) : false;
   const groupable = column !== undefined && ctx.canGroup !== false;
 
-  // ---- Export / Copy ----------------------------------------------
+  // ---- Export / Edit ----------------------------------------------
+  // EDIT ▸ where Copy ▸ was (the user, 2026-10-23: "change it to Edit with undo/redo and copy"): the grid's own Undo
+  // and Redo -- its menu's, before the grid's menu button went -- then its copies, as plain text
   push('', [
     { label: 'Export', submenu: exportItems(ctx.canSaveCube === true) },
     { label: 'Email', submenu: emailItems(ctx.canEmail === true) },
     {
-      label: 'Copy',
+      label: 'Edit',
       submenu: [
+        { id: 'view.undo', label: 'Undo', disabled: ctx.canUndo !== true },
+        { id: 'view.redo', label: 'Redo', disabled: ctx.canRedo !== true },
         {
           id: 'copy.selection',
-          label: 'Selected Cells as Plain Text',
+          label: 'Copy Selected Cells',
           disabled: !ctx.hasSelection,
+          separated: true,
         },
         {
           id: 'copy.rows',
-          label: 'Selected Rows as Plain Text',
+          label: 'Copy Selected Rows',
           disabled: !ctx.hasSelection,
         },
         {
           id: 'copy.column',
           label: column
-            ? `Column ${columnLabel(column, ctx.totalLabel)} as Plain Text`
-            : 'Selected Column as Plain Text',
+            ? `Copy Column ${columnLabel(column, ctx.totalLabel)}`
+            : 'Copy Column',
           disabled: !column,
           ...(column ? { column } : {}),
         },
@@ -535,6 +574,8 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       ],
     },
     { label: 'Filter', submenu: filterSubmenu(ctx) },
+    // JOIN, beside Filter (the user, 2026-10-23): the host's -- a quick join to each grid sharing a column, the window
+    ctx.join !== undefined && ctx.join.length > 0 ? { label: 'Join', submenu: ctx.join } : null,
     {
       label: 'Pivot',
       submenu: [
@@ -740,16 +781,10 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     },
   ]);
 
-  // INSERT sits beside Properties, as plot and treemap did: a chart or another grid is a view OF
-  // the cube rather than an operation ON a column. A treemap is one of the chart's types now
-  // (the user, 2026-09-30); the grid starts as this one is (page/cube-page.ts).
-  push('', [{
-    label: 'Insert',
-    submenu: [
-      { id: 'chart.plot', label: 'Visualization' },
-      { id: 'grid.new', label: 'Copy of Grid' },
-    ],
-  }]);
+  // CREATE sits beside Properties, as Insert did: a chart, another grid, a class is made OF the cube rather than an
+  // operation ON a column (createItems: the same in every menu). A treemap is one of the chart's types (the user,
+  // 2026-09-30); a copy starts as this grid is (page/cube-page.ts).
+  push('', [{ label: 'Create', submenu: createItems({ source: ctx.canOpenSource === true, host: ctx.create ?? [] }) }]);
 
   push('', [{
     id: 'view.properties',
@@ -760,8 +795,17 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
   // LAST, after every entry people know by its place (the user: the right-click order stays as it
   // is): the one switch for the cube's controls -- title bar, drag zones, columns panel, status
   // bar -- hidden together for the grid alone, and the way back. The right-click menu is the only
-  // way back (the user, 2026-10-01: "right click only").
-  push('', [{ id: 'view.controls', label: ctx.controlsHidden ? 'Show Controls' : 'Hide Controls' }]);
+  // way back (the user, 2026-10-01: "right click only"). On a page, TILE ▸ holds it with what is
+  // done to the grid's tile -- onto another sheet, off the page (the user, 2026-10-23: the grid's
+  // menu button gone, "nested with Hide Controls and Move to Sheet").
+  const controls: MenuItem = { id: 'view.controls', label: ctx.controlsHidden ? 'Show Controls' : 'Hide Controls' };
+  const tile: MenuItem[] = [
+    controls,
+    ...(ctx.sheets === undefined ? []
+      : [{ label: 'Move to Sheet', ...(ctx.sheets === 'locked' ? { disabled: true } : { submenu: ctx.sheets }) }]),
+    ...(ctx.canRemove === true ? [{ id: 'grid.remove' as const, label: 'Remove from Page', separated: true }] : []),
+  ];
+  push('', [tile.length > 1 ? { label: 'Tile', submenu: tile } : controls]);
 
   return groups;
 }
@@ -818,95 +862,20 @@ export function menuItems(groups: readonly MenuGroup[]): MenuItem[] {
   return groups.flatMap((g) => walk(g.items));
 }
 
-// -- applying an action to the snapshot -------------------------------
+// -- an entry as its gesture -------------------------------------------
 
 /**
- * Apply a menu action, returning a NEW snapshot.
- *
- * Actions that change nothing return the snapshot unchanged by
- * identity, so a caller can skip a refresh rather than re-running the
- * same query. Sorts and pivots are set by grid-edits.ts, the one way a
- * grid's are set (`config`: the grid's, which says a column's kind);
- * an action its offers refuse throws its words (CubeRefusal).
+ * The grid's gesture a menu entry makes (grid-gestures.ts: its id the gesture's name, the one Python's grid.gesture
+ * takes) and what the entry carries of what the gesture takes -- the column under it, an operator and its value -- or
+ * null: an entry that is the screen's own (a column measured, a window opened), layout, clipboard or export. What the
+ * gesture means is grid-gestures.ts's: an entry that would change nothing makes no command there, one its offers refuse
+ * is refused when applied, in their words (CubeRefusal).
  */
-export function applyMenuAction(
-  s: CubeSnapshot,
-  item: MenuItem,
-  config: CubeConfiguration,
-): CubeSnapshot {
-  const col = item.column;
-  const without = <T>(xs: readonly T[], p: (x: T) => boolean): T[] =>
-    xs.filter((x) => !p(x));
-  const draft = { snapshot: s, config };
-  const sorted = (sorts: readonly SortSpec[]): CubeSnapshot => setSorts(draft, sorts).snapshot;
-  const rows = (names: readonly string[]): CubeSnapshot => setGrouping(draft, names).snapshot;
-  const pivotOn = (names: readonly string[]): CubeSnapshot => setPivot(draft, names).snapshot;
-
-  switch (item.id) {
-    case 'sort.asc':
-    case 'sort.desc':
-      return col
-        ? sorted([{ column: col, direction: item.direction ?? 'asc' }])
-        : s;
-    case 'sort.addAsc':
-    case 'sort.addDesc':
-      return col ? addSort(draft, col, item.direction ?? 'asc').snapshot : s;
-    case 'sort.clearColumn':
-      return col
-        ? sorted(without(s.sorts, (x) => x.column === col))
-        : s;
-    case 'sort.clearAll':
-      return sorted([]);
-
-    case 'filter.add': {
-      // ADDS to the filter rather than replacing it, which is what
-      // "Add Filter" says and what makes the entry usable twice in
-      // a row. The new condition joins the existing tree with AND;
-      // an OR is the filter editor's job.
-      if (!col || !item.operator) return s;
-      const condition: FilterNode = {
-        kind: 'condition',
-        column: col,
-        operator: item.operator,
-        ...(item.value !== undefined ? { value: item.value } : {}),
-      };
-      const filter: FilterNode = s.filter
-        ? s.filter.kind === 'and'
-          ? { kind: 'and', children: [...s.filter.children, condition] }
-          : { kind: 'and', children: [s.filter, condition] }
-        : condition;
-      return { ...s, filter };
-    }
-
-    case 'filter.clearAll': {
-      const { filter: _drop, ...rest } = s;
-      return rest;
-    }
-
-    case 'pivot.vertical':
-      return col ? rows([col]) : s;
-    case 'pivot.addVertical':
-      return col && !s.rows.includes(col)
-        ? rows([...s.rows, col])
-        : s;
-    case 'pivot.removeVertical':
-      return col ? rows(without(s.rows, (x) => x === col)) : s;
-    case 'pivot.clearVertical':
-      return rows([]);
-
-    case 'pivot.horizontal':
-      return col ? pivotOn([col]) : s;
-    case 'pivot.addHorizontal':
-      return col && !s.pivotOn.includes(col)
-        ? pivotOn([...s.pivotOn, col])
-        : s;
-    case 'pivot.removeHorizontal':
-      return col ? pivotOn(without(s.pivotOn, (x) => x === col)) : s;
-    case 'pivot.clearHorizontal':
-      return pivotOn([]);
-
-    default:
-      // Layout, copy and export actions do not touch the query.
-      return s;
-  }
+export function menuGesture(item: MenuItem): { readonly name: GridGestureName; readonly args: GestureArgs } | null {
+  if (!isGridGesture(item.id)) return null;
+  const carried: Record<string, unknown> = { column: item.column, operator: item.operator, value: item.value };
+  return {
+    name: item.id,
+    args: Object.fromEntries(gestureTakes(item.id).flatMap((k) => (carried[k] !== undefined ? [[k, carried[k]]] : []))),
+  };
 }

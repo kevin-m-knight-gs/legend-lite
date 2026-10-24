@@ -148,9 +148,9 @@ async function shape() {
   const before = await statusNow();
   await page.evaluate(async () => {
     const app = window.__dataCube;
-    await app.change((s) => ({
-      ...s, snapshot: { ...s.snapshot, rows: ['region'], sorts: [{ column: 'notional', direction: 'desc' }] },
-    }));
+    const refused = await app.edit([{ kind: 'group', rows: ['region'] },
+      { kind: 'sorts', sorts: [{ column: 'notional', direction: 'desc' }] }], 'shape');
+    if (refused !== null) throw new Error(refused);
   });
   await landed(before);
 }
@@ -216,10 +216,10 @@ try {
     const out = await page.evaluate(async () => {
       const app = window.__dataCube;
       const was = app.snapshot.rows.join(',');
-      const o = await app.change((s) => ({ ...s, snapshot: { ...s.snapshot, rows: ['desk'] } }));
-      return `${o.kind} (rows ${was} -> ${app.snapshot.rows.join(',')})`;
+      const refused = await app.edit([{ kind: 'group', rows: ['desk'] }], 'group');
+      return `${refused ?? 'applied'} (rows ${was} -> ${app.snapshot.rows.join(',')})`;
     });
-    // `change` resolves once the view has LANDED: no need to watch the status line (3 regions
+    // `edit` resolves once the view has LANDED: no need to watch the status line (3 regions
     // regrouped as 3 desks can read exactly as before, and the wait never ended)
     if (!/^applied/.test(out)) throw new Error(`the change did not land: ${out}`);
     await page.waitForFunction(() => document.title.startsWith('\u2022'), undefined, { timeout: 10_000 })
@@ -233,8 +233,8 @@ try {
     await page.locator('.dc-save').waitFor({ state: 'detached', timeout: 30_000 });
     if ((await title()).startsWith('\u2022')) throw new Error(`still marked after saving: ${await title()}`);
     // A PRESENTATION change runs no query (Leg B): it is a change all the same
-    const pinned = await page.evaluate(async () => (await window.__dataCube.change((s) => ({ ...s,
-      configuration: { ...s.configuration, columns: { ...s.configuration.columns, desk: { pinned: 'left' } } } }))).kind);
+    const pinned = await page.evaluate(async () => (await window.__dataCube.edit(
+      [{ kind: 'configure', patch: { columns: { desk: { pinned: 'left' } } } }], 'pin')) ?? 'applied');
     if (pinned !== 'applied') throw new Error(`the pin did not apply: ${pinned}`);
     await page.waitForFunction(() => document.title.startsWith('\u2022'), undefined, { timeout: 10_000 })
       .catch(async () => { throw new Error(`a pin (no query) did not mark it: ${await title()}`); });
@@ -373,8 +373,8 @@ try {
     await landed(before);
     // Insert > Visualization, from a cell's right-click menu: the page gets a board, the chart beside the grid
     await page.locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("Visualization"))').first().click();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create"))').first().hover();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create")) .dc-menu-item:has(> .dc-menu-label:text-is("Visualization"))').first().click();
     await page.locator('[data-tile^="chart-"]').first().waitFor({ timeout: 20_000 });
     const layout = await page.evaluate(() => JSON.stringify(window.__dataPage.views().sheets));
     const { url } = await copyLink();
@@ -481,11 +481,11 @@ try {
 
   // A PAGE OF ITS OWN (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §6): several sources on one page, every grid alike --
   // the first one removable -- and the page saved and reopened as one thing.
-  /** Insert > `what` (Visualization, Copy of Grid), from a cell's right-click menu in the grid `tile`. */
+  /** Create > `what` (Visualization, Copy of This Grid), from a cell's right-click menu in the grid `tile`. */
   const insertIn = async (tile, what) => {
     await page.locator(`[data-tile="${tile}"] .dc-row`).nth(1).locator('.dc-cell').nth(1).click({ button: 'right' });
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
-    await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create"))').first().hover();
+    await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Create")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
   };
   const chartOf = (tile) => insertIn(tile, 'Visualization');
   /** Reload, open the saved page `name`, and wait for its grids `grids` to show rows. */
@@ -594,8 +594,8 @@ try {
     return `${heads.join(' and ')}; not marked as changed`;
   });
 
-  await check('Copy of Grid, then Save: the copy is saved with the page and reopens over the same source', async () => {
-    await insertIn('grid-1', 'Copy of Grid');
+  await check('Copy of This Grid, then Save: the copy is saved with the page and reopens over the same source', async () => {
+    await insertIn('grid-1', 'Copy of This Grid');
     await page.locator('[data-tile="grid-3"] .dc-row').first().waitFor({ timeout: 60_000 });
     await saveAs('With a copy');
     const doc = await page.evaluate(() => window.__dataPage.document('With a copy'));
@@ -615,7 +615,9 @@ try {
     const chart = page.locator('[data-tile^="chart-"]').first();
     await chart.waitFor({ timeout: 20_000 });
     const id = await chart.getAttribute('data-tile');
+    // pinned through its pill's menu (Dynamic / Pinned / Frozen): a chart that keeps its grouping outlives its grid
     await chart.locator('.dc-tile-actions .dc-titlebar-toggle').click();
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: /^Pinned \u2014 / }) }).first().click();
     await page.locator('[data-tile="grid-2"] .dc-tile-remove').click();
     await page.locator('[data-tile="grid-2"]').waitFor({ state: 'detached', timeout: 10_000 });
     const pill = () => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`).textContent();
@@ -646,8 +648,9 @@ try {
     const chart = page.locator('[data-tile^="chart-"]').first();
     await chart.waitFor({ timeout: 20_000 });
     const chartId = await chart.getAttribute('data-tile');
-    // the grid onto a new sheet, from its own menu: its chart stays on the first
-    await page.locator('[data-tile="grid-1"] .dc-tile-menu').click();
+    // the grid onto a new sheet, from its right-click's Tile ▸ Move to Sheet: its chart stays on the first
+    await page.locator('[data-tile="grid-1"] .dc-row .dc-cell').first().click({ button: 'right' });
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Tile"))').first().hover();
     const moveTo = '.dc-menu-item:has(> .dc-menu-label:text-is("Move to Sheet"))';
     await page.locator(moveTo).first().hover();
     await page.locator(`${moveTo} .dc-menu-item:has(> .dc-menu-label:text-is("New Sheet"))`).first().click();

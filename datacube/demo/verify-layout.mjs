@@ -1,7 +1,7 @@
 // A PAGE ARRANGED BY HAND, in a real browser (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §3.6): the demo's grid, two
 // charts and a copy of the grid laid out as bands -- placed beside the tile they came from, a preset previewed and
 // applied, tiles dragged onto a tile's edge and between bands, a drag cancelled, a divider and a band's edge dragged,
-// the page fitting its window, a tile maximised, the keyboard, Undo Layout, the page locked, and the window narrowed
+// the page fitting its window, a tile maximised, the keyboard, the page's Undo, the page locked, and the window narrowed
 // and widened -- with the browser's own long-task timing while a tile is dragged: nothing inside a tile re-lays out until
 // it is let go (§3.4), so no drag has a task over 100 ms, nor more than one over 50 ms. (A re-layout during a drag
 // comes again on each move of the pointer: a pattern of long tasks, or one very long. One task a little over 50 ms is
@@ -111,11 +111,11 @@ async function titleMenu(label) {
   await page.locator(`.dc-menu [role^="menuitem"]:has(> .dc-menu-label:text-is("${label}"))`).first().click();
 }
 
-/** Right-click > Insert > `what`, on a cell of the grid in `scope`. */
+/** Right-click > Create > `what`, on a cell of the grid in `scope`. */
 async function insert(what, scope) {
   await page.locator(scope).first().locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
-  await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
-  await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
+  await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create"))').first().hover();
+  await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Create")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
   await settle();
 }
 
@@ -125,22 +125,24 @@ try {
   await settle();
 
   let ids = {};
-  await check('a new tile goes beside the tile it came from while each stays readable, else in a band below', async () => {
+  // the user, 2026-10-23: a tile added to a page of one grid goes under it, not beside it -- charts in a row of their own
+  // under their grid, a new grid in a band of its own
+  await check('a chart goes in a row under the grid it charts, the charts side by side; a new grid in a band below them', async () => {
     // the page's first grid is grid-1: every grid on a page is numbered alike
     await insert('Visualization', '.dc-app');
     await insert('Visualization', tile('grid-1'));
-    await insert('Copy of Grid', tile('grid-1'));
+    await insert('Copy of This Grid', tile('grid-1'));
     await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 20_000 });
     await settle();
     const all = await page.locator('.dc-band-tile').evaluateAll((els) => els.map((e) => e.dataset.tile));
     const charts = all.filter((id) => id.startsWith('chart-'));
     ids = { grid: 'grid-1', a: charts[0], b: charts[1], copy: 'grid-2' };
     const b = await boxes();
-    if (!(b[ids.a].y === b[ids.grid].y && b[ids.b].y === b[ids.grid].y && b[ids.a].x > b[ids.grid].x && b[ids.b].x > b[ids.a].x)) {
-      throw new Error(`the charts are not beside the grid: ${JSON.stringify(b)}`);
+    if (!(b[ids.a].y >= b[ids.grid].y + b[ids.grid].h && b[ids.b].y === b[ids.a].y && b[ids.b].x > b[ids.a].x)) {
+      throw new Error(`the charts are not side by side under the grid: ${JSON.stringify(b)}`);
     }
-    if (!(b[ids.copy].y > b[ids.grid].y + b[ids.grid].h)) throw new Error(`the copy is not below: ${JSON.stringify(b)}`);
-    return `${ids.a} and ${ids.b} beside the grid (three at 1400px), ${ids.copy} below`;
+    if (!(b[ids.copy].y >= b[ids.a].y + b[ids.a].h)) throw new Error(`the copy is not below the charts: ${JSON.stringify(b)}`);
+    return `${ids.a} and ${ids.b} side by side under the grid, ${ids.copy} below them`;
   });
 
   await check('Arrange... previews 2 x 2 while pointed at, the page as it was when the pointer leaves, and applies it on a click', async () => {
@@ -281,16 +283,17 @@ try {
     if (!same(await boxes(), before)) throw new Error('not as it was');
   });
 
-  await check('a focused tile swaps with its neighbour on an arrow key; Undo Layout puts it back', async () => {
+  await check('a focused tile swaps with its neighbour on an arrow key; the page\'s Undo puts it back', async () => {
     const before = await boxes();
     await page.locator(tile(ids.b)).focus();
     await page.keyboard.press('ArrowLeft');
     await settle();
     const swapped = await boxes();
     if (!(swapped[ids.b].x < swapped[ids.grid].x)) throw new Error(`not swapped: ${JSON.stringify(swapped)}`);
-    await titleMenu('Undo Layout');
+    // the page's Undo names its step (docs/DATACUBE_PAGE_STATE_2026_10_18.md)
+    await titleMenu('Undo Layout Change');
     await settle();
-    if (!same(await boxes(), before)) throw new Error('Undo Layout did not put it back');
+    if (!same(await boxes(), before)) throw new Error('the page\'s Undo did not put it back');
   });
 
   await check('Edit Layout unticked locks the page: no handles, and a drag moves nothing', async () => {

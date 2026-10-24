@@ -1,6 +1,6 @@
 // The board's charts in a real browser (plan B1, revised 2026-09-30): charts follow the grid until
-// frozen; Open in grid edits a frozen chart's grouping in a grid of its own beside it, leaving the
-// cube's grid alone, and Update writes it back -- drawn by real ECharts on the demo page.
+// frozen; Show Grid shows a frozen chart in a grid of its own grouping beside it, which it follows from
+// then on, leaving the cube's grid alone (D7) -- drawn by real ECharts on the demo page.
 //
 //   bazel run //datacube:verify_charts            (SHOTS=<dir> also saves a screenshot)
 
@@ -54,7 +54,6 @@ async function settle() {
 const charts = () => page.evaluate(() => window.__dataPage.views().views.filter((v) => v.kind === 'chart')
   .map((v) => ({ id: v.id, title: v.title, pinned: v.spec.frozen === true, x: v.spec.x, split: v.spec.split ?? null })));
 const rows = () => page.evaluate(() => [...window.__dataCube.snapshot.rows]);
-const button = (id, text) => page.locator(`[data-tile="${id}"] .dc-tile-actions > button:visible`, { hasText: text }).first();
 /** Every chart tile has drawn a canvas with something on it. */
 async function drawn() {
   await page.waitForFunction(() => [...document.querySelectorAll('[data-tile^="chart-"]')]
@@ -67,29 +66,40 @@ try {
   await settle();
   const before = await rows();
 
-  /** Right-click > Insert > `what` (Visualization or Copy of Grid), on a cell of the grid in `scope`. */
+  /** Right-click > Create > `what` (Visualization or Copy of This Grid), on a cell of the grid in `scope`. */
   /** The page's first grid: every grid on a page is numbered alike, the first grid-1. */
   const FIRST = '[data-tile="grid-1"]';
   const insert = async (what, scope = `${FIRST}, .dc-app`) => {
     await page.locator(scope).first().locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
-    await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create"))').first().hover();
+    await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Create")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
     await settle();
   };
   const addChart = async () => {
     await insert('Visualization');
     await drawn();
   };
-  /** A chart's Dynamic / Frozen / Detached pill. */
+  /** A chart's Dynamic / Pinned / Frozen / Detached pill. */
   const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`);
+  /** A chart put in a state as a person does: its pill clicked, the state picked from the menu it opens. */
+  const choose = async (id, state) => {
+    await pill(id).click();
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state} \u2014 `) }) })
+      .first().click();
+    await page.waitForFunction(([c, s]) => document.querySelector(`[data-tile="${c}"] .dc-tile-actions .dc-titlebar-toggle`)?.textContent === s,
+      [id, state], { timeout: 5_000 });
+  };
   /** A chart's right-click menu entry. */
   const chartMenu = async (id, label) => {
     await page.locator(`[data-tile="${id}"] .dc-chart-tile`).click({ button: 'right' });
     await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("${label}"))`).first().click();
   };
-  /** The cube's own row-group zone, not an editing grid's. */
-  const mainChip = (column) => page.locator(`.dc-zone-rows .dc-chip[data-column="${column}"] .dc-chip-remove`)
-    .filter({ hasNot: page.locator('xpath=ancestor::*[starts-with(@data-tile, "edit-")]') }).first();
+  /** The cube's own row-group zone: the first grid's, not another grid's. */
+  const mainChip = (column) => page.locator(FIRST).locator(`.dc-zone-rows .dc-chip[data-column="${column}"] .dc-chip-remove`).first();
+  /** The grid a chart reads, by the page's views. */
+  const gridOf = (chart) => page.evaluate((id) => window.__dataPage.views().views.find((v) => v.id === id)?.cube, chart);
+  /** The page's Undo: the last step of the page's history taken back. */
+  const undo = async () => { await page.evaluate(() => window.__dataPage.undo()); await settle(); };
 
   await check('two charts both follow the grid, badged, and a pivot changes both', async () => {
     await addChart();
@@ -100,9 +110,9 @@ try {
     return list.map((c) => `${c.title}: ${c.x} by ${c.split}`).join('; ');
   });
 
-  await check('Freeze keeps one chart\'s grouping while the other follows a pivot', async () => {
+  await check('Pinned keeps one chart\'s grouping while the other follows a pivot', async () => {
     const [a, b] = await charts();
-    await pill(a.id).click();
+    await choose(a.id, 'Pinned');
     await settle();
     await mainChip(before[1]).click();
     await settle();
@@ -112,31 +122,38 @@ try {
     return `frozen keeps ${a.split}; following now ${nb.split}`;
   });
 
-  await check('Open in grid edits the chart in a grid of its own; the cube\'s grid stays; Update writes it back', async () => {
+  await check('Show Grid shows a frozen chart in a grid of its own grouping that it follows; the cube\'s grid stays; undone, as it was', async () => {
     const frozen = (await charts()).find((c) => c.pinned);
     const rowsBefore = await rows();
-    await chartMenu(frozen.id, 'Open in grid');
-    const editing = page.locator(`[data-tile="edit-${frozen.id}"]`);
-    await editing.locator('.dc-row').first().waitFor({ timeout: 20_000 });
+    const was = await gridOf(frozen.id);
+    await chartMenu(frozen.id, 'Show Grid');
     await settle();
-    const chipsIn = () => editing.locator('.dc-zone-rows').first().locator('.dc-chip').evaluateAll((els) => els.map((e) => e.dataset.column));
+    const own = await gridOf(frozen.id);
+    if (!own || own === was) throw new Error(`the chart reads ${own}, as before`);
+    const shown = page.locator(`[data-tile="${own}"]`);
+    await shown.locator('.dc-row').first().waitFor({ timeout: 20_000 });
+    await settle();
+    const chipsIn = () => shown.locator('.dc-zone-rows').first().locator('.dc-chip').evaluateAll((els) => els.map((e) => e.dataset.column));
     const want = [frozen.x, ...(frozen.split ? [frozen.split] : [])];
-    if (JSON.stringify(await chipsIn()) !== JSON.stringify(want)) throw new Error(`editing grid grouped ${await chipsIn()}, want ${want}`);
+    if (JSON.stringify(await chipsIn()) !== JSON.stringify(want)) throw new Error(`its grid grouped ${await chipsIn()}, want ${want}`);
     if (JSON.stringify(await rows()) !== JSON.stringify(rowsBefore)) throw new Error('the cube\'s grid changed');
-    if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath('charts-editing.png') }); }
-    // re-group in the editing grid, then update the chart
-    await editing.locator(`.dc-zone-rows .dc-chip[data-column="${frozen.split}"] .dc-chip-remove`).first().click();
-    await editing.locator(`.dc-zone-rows .dc-chip[data-column="${frozen.split}"]`).first().waitFor({ state: 'detached' });
-    await button(`edit-${frozen.id}`, `Update ${frozen.title}`).click();
+    if ((await charts()).find((c) => c.id === frozen.id).pinned) throw new Error('the chart does not follow its grid');
+    if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath('charts-show-grid.png') }); }
+    // it follows its grid: regrouped there, it regroups
+    await shown.locator(`.dc-zone-rows .dc-chip[data-column="${frozen.split}"] .dc-chip-remove`).first().click();
+    await shown.locator(`.dc-zone-rows .dc-chip[data-column="${frozen.split}"]`).first().waitFor({ state: 'detached' });
     await settle();
     const after = (await charts()).find((c) => c.id === frozen.id);
-    if (!after.pinned || after.split !== null) throw new Error(`the chart is ${JSON.stringify(after)}`);
-    if (await editing.count()) throw new Error('the editing grid is still open');
-    if (JSON.stringify(await rows()) !== JSON.stringify(rowsBefore)) throw new Error('the cube\'s grid changed');
-    return `${frozen.title} updated to ${after.x}, no split; the cube's grid still ${rowsBefore.join(' > ')}`;
+    if (after.split !== null) throw new Error(`the chart did not follow its grid: ${JSON.stringify(after)}`);
+    // the page's Undo takes the whole step back: its grid gone, the chart frozen on the cube's grid as it was
+    await undo();
+    const back = (await charts()).find((c) => c.id === frozen.id);
+    if (!back.pinned || back.split !== frozen.split || (await gridOf(frozen.id)) !== was) throw new Error(`undone, the chart is ${JSON.stringify(back)}`);
+    if (await shown.count()) throw new Error('undone, its grid is still on the page');
+    return `${frozen.title} shown in ${own} by ${want.join(' > ')}, following it; undone, frozen again; the cube's grid still ${rowsBefore.join(' > ')}`;
   });
 
-  await check('Column Properties > Aggregation: a following chart plots its column at it, a frozen one keeps its own; Open in grid and Update keep the frozen one\'s', async () => {
+  await check('Column Properties > Aggregation: a following chart plots its column at it, a frozen one keeps its own; Show Grid keeps the frozen one\'s', async () => {
     // a grid's aggregates are its columns' Aggregation (docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.5)
     const values = () => page.evaluate(() => window.__dataPage.views().views.filter((v) => v.kind === 'chart')
       .map((v) => ({ id: v.id, title: v.title, pinned: v.spec.frozen === true, y: v.spec.y.map((m) => [m.column, m.fn]) })));
@@ -164,23 +181,24 @@ try {
     if (JSON.stringify(frozenNow.y) !== JSON.stringify(frozen.y)) {
       throw new Error(`the frozen chart changed: ${JSON.stringify(frozen.y)} -> ${JSON.stringify(frozenNow.y)}`);
     }
-    // Open in grid: the editing grid opens on the frozen chart's own values; an untouched Update keeps them
-    await chartMenu(frozen.id, 'Open in grid');
-    const editing = page.locator(`[data-tile="edit-${frozen.id}"]`);
-    await editing.locator('.dc-row').first().waitFor({ timeout: 20_000 });
+    // Show Grid: the grid of its own grouping carries the frozen chart's own values, so following it, it plots them
+    await chartMenu(frozen.id, 'Show Grid');
     await settle();
-    await button(`edit-${frozen.id}`, `Update ${frozen.title}`).click();
+    const own = page.locator(`[data-tile="${await gridOf(frozen.id)}"]`);
+    await own.locator('.dc-row').first().waitFor({ timeout: 20_000 });
     await settle();
-    const updated = (await values()).find((c) => c.id === frozen.id);
-    if (JSON.stringify(updated.y) !== JSON.stringify(frozen.y)) {
-      throw new Error(`Update changed the frozen chart's values: ${JSON.stringify(frozen.y)} -> ${JSON.stringify(updated.y)}`);
+    const shown = (await values()).find((c) => c.id === frozen.id);
+    if (shown.pinned || JSON.stringify(shown.y) !== JSON.stringify(frozen.y)) {
+      throw new Error(`Show Grid changed the chart's values: ${JSON.stringify(frozen.y)} -> ${JSON.stringify(shown.y)}`);
     }
-    return `following: ${next} of ${column}; frozen kept ${JSON.stringify(frozen.y)}, through Open in grid and Update`;
+    // undone: the page as it was, for the checks after
+    await undo();
+    return `following: ${next} of ${column}; frozen kept ${JSON.stringify(frozen.y)}, and through Show Grid`;
   });
 
-  await check('Insert > Grid adds a grid tile of its own; its Insert > Chart charts it; removing it detaches a frozen chart', async () => {
+  await check('Create > Copy of This Grid adds a grid tile of its own; its Create > Visualization charts it; removing it detaches a frozen chart', async () => {
     const tilesBefore = await page.locator('[data-tile^="chart-"]').count();
-    await insert('Copy of Grid', FIRST);
+    await insert('Copy of This Grid', FIRST);
     // the copy: a grid beside the first, every grid on the page alike
     const grid = page.locator('[data-tile^="grid-"]:not([data-tile="grid-1"])').first();
     await grid.locator('.dc-row').first().waitFor({ timeout: 20_000 });
@@ -192,7 +210,7 @@ try {
     await drawn();
     const ids = await page.locator('[data-tile^="chart-"]').evaluateAll((els) => els.map((e) => e.dataset.tile));
     const [frozenId, followingId] = ids.slice(-2);
-    await pill(frozenId).click();
+    await choose(frozenId, 'Pinned');
     if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath('grids.png') }); }
     await page.locator(`[data-tile="${gridId}"] .dc-tile-remove`).click();
     await settle();
@@ -217,9 +235,13 @@ try {
     // a target of 1: the total is above it, which is good
     await fieldNamed('Target:').locator('input').fill('1');
     await fieldNamed('Target:').locator('input').dispatchEvent('change');
+    // a stat tile (2026-10-23): the difference from the target coloured good or bad, then in words; a meter of it
     const target = page.locator(`[data-tile="${id}"] .dc-kpi-target`);
     await target.waitFor({ timeout: 20_000 });
-    if (!(await target.getAttribute('class')).includes('dc-kpi-good')) throw new Error(`the target says ${await target.textContent()}, not good`);
+    const delta = target.locator('.dc-kpi-delta');
+    const said = `${await delta.textContent()} ${await target.locator('.dc-kpi-words').textContent()}`;
+    if (!(await delta.getAttribute('class')).includes('dc-kpi-good')) throw new Error(`the target says ${said}, not good`);
+    if (!(await page.locator(`[data-tile="${id}"] .dc-kpi-meter.dc-kpi-good`).count())) throw new Error('no meter of the target, good');
     // its trend by the grid's first row group: a line drawn under the number
     const across = await fieldNamed('Trend by:').locator('option').nth(1).getAttribute('value');
     await fieldNamed('Trend by:').locator('select').selectOption(across);
@@ -227,12 +249,13 @@ try {
     const saved = await page.evaluate((c) => window.__dataPage.views().views.find((v) => v.id === c)?.spec, id);
     if (saved.mark !== 'kpi' || saved.options.target !== 1 || saved.x !== across) throw new Error(`saved as ${JSON.stringify(saved)}`);
     if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath('kpi.png') }); }
-    return `${id}: ${value}, ${await target.textContent()}, its trend by ${across}`;
+    return `${id}: ${value}, ${said}, its trend by ${across}`;
   });
 
   // THE EXAMPLE PAGES (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3): each opened from Open…'s Examples, over the
   // sales sample it makes itself; on each of its sheets every chart draws -- batch 2's, then batch 3's kinds
-  for (const [example, marker, least] of [['charts-dashboard', 'c-bars', 20], ['charts-kinds', 'k-lollipop', 20]]) {
+  // the gallery too (the user, 2026-10-23): one of each kind, every sheet fitting its window
+  for (const [example, marker, least] of [['charts-gallery', 'g-bar', 32], ['charts-dashboard', 'c-bars', 20], ['charts-kinds', 'k-lollipop', 20]]) {
     await check(`the example page ${example} opens from Open…, and every chart on every sheet draws`, async () => {
       await page.click('.dc-titlebar-menu');
       const open = page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Open\u2026"))').first();
