@@ -255,6 +255,29 @@ describe('a page of its own', () => {
     assert.deepEqual(told.flatMap((c) => (c.kind === 'addSheet' ? [c.id] : [])), ['sheet-10']);
   });
 
+  it("held while its channel converges (D19, the audit's 5): a gesture does nothing, neither applied nor told; released, it works again", async () => {
+    const told: PageCommand[] = [];
+    newPage({ onPageCommand: (c) => told.push(c) });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    const sheets = (): number => page.document('Q3')!.sheets.length;
+    page.hold();
+    assert.equal(page.held, true);
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    assert.equal(sheets(), 1, 'nothing applied');
+    assert.deepEqual(told.filter((c) => c.kind === 'addSheet'), [], 'nothing told');
+    page.undo();
+    await settle();
+    assert.equal(page.document('Q3')!.views.length, 1, 'nothing moves');
+    page.release();
+    assert.equal(page.held, false);
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    assert.equal(sheets(), 2, 'released: applied');
+    assert.equal(told.filter((c) => c.kind === 'addSheet').length, 1, 'and told');
+  });
+
   it('a frozen chart whose grid is removed keeps reading that grid, kept off the board; saved, and reopened detached', async () => {
     newPage();
     const a = page.addGrid(over('trades.csv'));

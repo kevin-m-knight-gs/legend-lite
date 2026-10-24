@@ -46,9 +46,12 @@ export interface Converge {
   readonly sent?: PageDocument;
 }
 
-/** The page converged: the page on screen then, before any pending edit is made again -- the keeper's page. */
+/** The page converged: the page on screen then, before any pending edit is made again -- the keeper's page -- and the
+ *  grids whose history started again (another editor's steps touched them: their pending edits are new steps when made
+ *  again; every other grid's are no step, their steps being in its history still). */
 export interface Converged {
   readonly page: PageDocument;
+  readonly restarted: ReadonlySet<string>;
 }
 
 /** The screen a channel writes from and converges. */
@@ -62,8 +65,10 @@ export interface LiveScreen {
    *  refused here), and the page is then opened again. */
   converge(on: Converge): Promise<Converged>;
   /** Pending edits made again (step 5 of a converge), renamed as the keeper renamed the ids, through the ordinary edit
-   *  path, so each is told again and written next; one that no longer applies is dropped and said (H-11). */
-  reapply(pending: readonly LiveCommand[]): Promise<void>;
+   *  path, so each is told again and written next; one that no longer applies is dropped and said (H-11). A grid's is a
+   *  new step of its history only where that history started again (`restarted`); elsewhere its step is in it still
+   *  (CubeApp.edit `again`). */
+  reapply(pending: readonly LiveCommand[], restarted: ReadonlySet<string>): Promise<void>;
   /** The page as its keeper has it, opened again whole, and why, said: the two causes that remain (a `rebuilt`, a write
    *  from further back than the keeper keeps), a converge that could not be made, or the hash mismatch. */
   reopen(why: string): Promise<void>;
@@ -208,7 +213,9 @@ export class LiveChannel {
       // at its version: the page as it was sent is the keeper's
       this.shown = said.version;
       const held = this.#confirmed?.held ?? [];
-      if (sentPage !== undefined) this.#confirmed = { page: sentPage, held: grown(held, makerIds(write.edits)) };
+      // the page as sent is the keeper's; none to be had (a grid that cannot say its source): nothing to converge from
+      // until the next is, so a converge meanwhile opens the page again, said (the D19 audit's second round, 7)
+      this.#confirmed = sentPage === undefined ? undefined : { page: sentPage, held: grown(held, makerIds(write.edits)) };
       await this.#checked(sentPage, said.hash);
       return;
     }
@@ -286,7 +293,7 @@ export class LiveChannel {
     // sent edits gave out (the screen's: told again, so they are written next)
     const map = new Map(Object.entries(on.renamed));
     const again = pending.map((p): LiveCommand => ('page' in p ? { page: renamedCommand(p.page, map) } : { grid: map.get(p.grid) ?? p.grid, command: p.command }));
-    if (again.length > 0) await this.#screen.reapply(again);
+    if (again.length > 0) await this.#screen.reapply(again, converged.restarted);
     if (this.#edits.length > 0) this.changed();
     return true;
   }

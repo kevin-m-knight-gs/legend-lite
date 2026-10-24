@@ -667,14 +667,14 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         page: () => pageNow(page.title, true),
         busy: () => [...madeCubes.values()].some((cube) => cube.busy),
         converge: (on) => converge(on),
-        reapply: async (pending) => {
+        reapply: async (pending, restarted) => {
           for (const edit of pending) {
             if ('page' in edit) {
               if (!page.reapply([edit.page], 'made again')) sayResting({ text: `not kept: ${edit.page.kind} no longer applies to the page as its keeper has it`, warn: true });
               continue;
             }
             const cube = madeCubes.get(edit.grid);
-            const refused = cube === undefined ? `no grid ${edit.grid} here` : await cube.edit([edit.command], 'made again');
+            const refused = cube === undefined ? `no grid ${edit.grid} here` : await cube.edit([edit.command], 'made again', { again: !restarted.has(edit.grid) });
             if (refused !== null) sayResting({ text: `not kept: ${refused}`, warn: true });
           }
         },

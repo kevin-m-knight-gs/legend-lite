@@ -80,7 +80,9 @@ function randomEdit(rand: () => number, d: PageDraft, n: number): [string, PageC
       // onto the cube it reads detached (its document changed), or a cube of its own under a new id, or -- refused -- a grid's
       const detached = grids.every((g) => g.cube !== chart.cube);
       const cube = detached && rand() < 0.4 ? chart.cube : rand() < 0.2 ? pick(grids).cube : nextPageId(takenIds(d), 'grid');
-      return [`detach ${chart.id}`, { kind: 'detach', chart: chart.id, cube, document: pick(page.cubes).cube }];
+      // at times with a copy for the cube (a detached chart's cube snapped: no grid snaps for it)
+      const copy = rand() < 0.4 ? { copy: { ...SNAP, table: `snap_d${n}` } } : {};
+      return [`detach ${chart.id}`, { kind: 'detach', chart: chart.id, cube, document: pick(page.cubes).cube, ...copy }];
     }],
     ['select', () => (charts.length === 0 ? [`add sheet ${n}`, { kind: 'addSheet', name: `Tab ${n}` }]
       : [`select ${n}`, { kind: 'select', chart: pick(charts).id, conditions: rand() < 0.3 ? [] : [EMEA] }])],
@@ -246,18 +248,30 @@ describe('the commands between two pages take one to the other', () => {
   });
 });
 
-describe('known limit (W2, the D19 audit): a detached chart over a snapped kept cube', () => {
-  it('removed and brought back, comes back over the cube live: no command sets a copy on a cube no grid shows', () => {
-    const snapped = applyPageCommands(draft(trades), [{ kind: 'snap', grid: 'grid-2', copy: SNAP }]).draft.page;
-    const detached = applyPageCommands(draft(snapped), [{ kind: 'removeTile', tile: 'grid-2' }]).draft.page;
-    const chart = detached.views.find((v) => v.kind === 'chart' && v.cube === 'grid-2');
-    assert.ok(chart, 'a frozen chart over grid-2 stays, detached, over the kept cube');
-    assert.ok(detached.copies?.['grid-2'], 'the kept cube keeps its copy');
+describe("a detached chart over a snapped kept cube (W2; the D19 audit's limit, closed: detach carries the copy)", () => {
+  const snapped = applyPageCommands(draft(trades), [{ kind: 'snap', grid: 'grid-2', copy: SNAP }]).draft.page;
+  const detached = applyPageCommands(draft(snapped), [{ kind: 'removeTile', tile: 'grid-2' }]).draft.page;
+  const chart = detached.views.find((v): v is ChartView => v.kind === 'chart' && v.cube === 'grid-2')!;
+
+  it('removed and brought back, reads the copy again: the detach the diff plans carries it', () => {
+    assert.ok(detached.copies?.['grid-2'], 'the kept cube keeps its copy when its grid goes');
     const gone = applyPageCommands(draft(detached), [{ kind: 'removeTile', tile: chart.id }]).draft.page;
-    const made = applyPlanned(draft(gone), pageBetween(gone, detached, 'history'), true);
-    const diffs = differing(canonical(made.draft.page, 'history'), canonical(renamedPage(detached, made.renamed), 'history'));
-    // the one difference the diff cannot take back: the copy (`snap` is a grid's command, and no grid shows the cube)
-    assert.ok(diffs.length > 0 && diffs.every((d) => d.startsWith('copies')), `only the copy differs: ${diffs.join('; ')}`);
-    assert.deepEqual(made.draft.page.copies ?? {}, {}, 'the chart brought back reads its cube live');
+    assert.equal(gone.copies?.['grid-2'], undefined, 'the copy goes with the last chart that read the cube');
+    const back = pageBetween(gone, detached, 'history');
+    const planned = back.find((c) => c.kind === 'detach');
+    assert.deepEqual(planned && 'copy' in planned ? planned.copy : undefined, SNAP, 'the detach carries the copy the cube read');
+    const made = applyPlanned(draft(gone), back, true);
+    assert.deepEqual(differing(canonical(made.draft.page, 'history'), canonical(renamedPage(detached, made.renamed), 'history')), [], 'one page, the copy too');
+  });
+
+  it('snapped or live again where it has no grid: the chart put on its cube again with the copy as `to` has it', () => {
+    // the copy let go (to: the cube live), then taken again (to: the cube snapped) -- detach both ways, no refusal
+    const { copies: _snapped, ...live } = detached;
+    const toLive = pageBetween(detached, live, 'history');
+    assert.deepEqual(toLive.map((c) => c.kind), ['detach']);
+    assert.deepEqual(canonical(applyPlanned(draft(detached), toLive, false).draft.page, 'history'), canonical(live, 'history'));
+    const toSnapped = pageBetween(live, detached, 'history');
+    assert.deepEqual(toSnapped.map((c) => c.kind), ['detach']);
+    assert.deepEqual(canonical(applyPlanned(draft(live), toSnapped, false).draft.page, 'history'), canonical(detached, 'history'));
   });
 });

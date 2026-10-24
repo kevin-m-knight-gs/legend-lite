@@ -1083,9 +1083,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   honoured ids (src/page-between.ts); a live chart follows its grid from the start (`addChart`, as every later change
   follows it) -- closed D19 slice 1: page-between.test.ts (three corpus pages, 120 walks each of every page command kind,
   every pair of states both ways, both scopes; an undo of a grid removal; what no command makes refused in words),
-  page-commands.test.ts. Known limit (the D19 audit, 2026-10-24): a detached chart over a snapped kept cube, removed and
-  brought back, comes back over the cube live -- no command sets a copy on a cube no grid shows; pinned in
-  page-between.test.ts
+  page-commands.test.ts. The D19 audit's W2 limit (2026-10-24), closed the same day: a detached chart over a snapped
+  kept cube, removed and brought back, came back over the cube live, no command setting a copy on a cube no grid shows;
+  `detach` carries the copy now (`copy?`: set, or none for its live rows; Python's `page_detach(copy=)` generated), the
+  diff plans it wherever it plans a `detach` and where a kept cube's copy changes -- page-between.test.ts (the walk
+  detaches with a copy at times; the case itself), page-commands.test.ts
 - [x] **W3** the grid's undo produced by commands (state-owner.ts `toward`: the history's states are what this kind's own
   commands make), told as the commands between the state before and the one landed (`StateRules.between`:
   `gridBetween`), by `onCommand` as a change is; T3 ends (a change landing with an undo is told with it) -- closed D19
@@ -1113,7 +1115,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   (2026-10-24): a converge put every touched grid back at the confirmed cube as another editor's change, so the tab's
   own combined write restarted its grid's history; now a grid only this screen's edits changed is put back at its sent
   cube with its history kept (`keepHistory`), and only a grid the keeper's steps, the refused batch or a rename touch
-  starts again -- live-channel.test.ts (the follow's grid keeps its undo)
+  starts again -- live-channel.test.ts (the follow's grid keeps its undo). The second round (below): a grid whose cube
+  a PAGE step of the keeper's changes starts again too; the grids kept are put back after the steps, at their sent
+  cube, their pending edits made again as no new step (`CubeApp.edit` `again`), so an undo never goes forward
 - [x] **W18** H-13 closed by W5: an undo is judged by every rule a write is (its commands applied by `rebaseEdits`, its
   ids held) -- closed D19 slice 2 with W5
 - [x] **W19** `detach {chart, cube, document}`, the page command that makes a detached chart reachable (a chart over a
@@ -1122,7 +1126,7 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   it and taken off, then `detach`); `pageBetween` total over detached charts; Python's `page_detach` generated; no
   gesture but an undo tells it -- closed D19 slice 2: page-between.test.ts (the three cases, and every walk), page-commands.test.ts,
   one-api-gestures.test.ts (a detached chart shown in a grid of its own, undone), cube-page-shell.test.ts (D7's Show Grid
-  steps, F11), one-api-ledger.test.ts (`L8_KINDS`: Python makes none)
+  steps, F11), one-api-ledger.test.ts (`L8_KINDS`: Python makes none); `copy?` added 2026-10-24 (W2's row)
 - [x] **W6** the write's answer carries what the writer converges by: `Settled` gains `since` (the other editors' steps
   between the writer's version and the one before its own, or None), `edits` (the writer's as applied) and `hash`
   (keeper.py `page_hash`: SHA-256 of the page's canonical JSON, `_json.canonical`); the engine's 200 carries `hash`
@@ -2068,6 +2072,32 @@ confirmed ids shrinking across a follow (6, LOW; gone with 2). Declared, not bui
 is dropped by `edit()` as the other editor's (5, LOW; pre-existing, now visible as the never-show message), and W2's
 known limit. The audit also found no deadlock in the channel's queue, every ledger move dated and justified, and two
 doc nits (fixed: the note's `SCREEN_OWN_MAKERS` line, the guardrail's N2 wording).
+
+**The audit's second round (2026-10-24, on the commit that fixed the first: an agent that wrote none of it, with
+reproductions over the commit's own harness).** It found one regression and three defects in that commit, two older
+ones, and one design point; all but the design point are fixed the same day, each with a test in live-channel.test.ts
+that fails without the fix. (1, a regression) a grid only this screen's edits changed was put back at its SENT cube,
+but a PAGE step of the keeper's can change a grid's cube too -- a selected chart's removal takes its selection off its
+grid's filter -- and the two editors then held two pages, silently: the converge now applies the keeper's page steps to
+the confirmed page, purely, and any grid whose cube they change starts again (put back at the confirmed cube, the
+steps replayed). (2) the hash was read while a grid's change was still in flight (a chart's removal refilters its grid
+asynchronously; `page.ready()` waits for grids to open, not to settle), so the check could pass on a state passing: the
+converge waits for every grid to be quiet before it reads the page. (3) `keepHistory` with two or more pending edits
+on one grid recorded each again on top of its old step, and an undo went forward: a pending grid edit is made again as
+no new step (`CubeApp.edit(..., { again: true })`, its step being in the history still), a restarted grid's as new
+steps (`Converged.restarted`). (4, older) a grid added here with an edit pending at a combined write was remade from
+its current state, pending and all, so the screen held more than the keeper and reopened: the grids kept are now put
+back at their sent cube after the steps, remade or not. (6, older) a put-back synced the board as the person's own, so
+a chart taken off by the keeper recorded a step on its grid: it syncs as the keeper's. (7, older) a write that could
+not say its page left the confirmed page stale: it is none until the next write, and a converge meanwhile opens the
+page again, said. (5, design, kept) a second mismatch in a row keeps the page as opened rather than reopening again --
+the one reopen loop guard -- so a page that systematically differs is said, not chased; W17's row says so. The gesture
+during the converge itself (the first audit's 5), declared then, is built too: the page is held through a converge
+(`PageApp.hold`), a gesture meanwhile doing nothing, neither applied nor told, as a locked page's Undo does nothing --
+page-app.test.ts, live-channel.test.ts. And the second audit verified what held: a `rebuilt` step still reopens, the
+frame-moved check still applies, the saved-name bookkeeping runs only on a follow that succeeded, writes and follows
+are serialized in the channel's queue, the keeper's hash is read with the write everywhere, and the first round's
+tests fail without their fixes.
 
 **The full local gate (`//gates:local`, 2026-10-24, in the cloud session after `tools/cloud-distdir.sh`).** 405 passed,
 11 failed: eight `initdb refuses root` (the seven core Postgres tests and `verify_app_test`: the container runs as root,

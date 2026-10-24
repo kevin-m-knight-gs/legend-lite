@@ -957,8 +957,11 @@ export class CubeApp {
    * told to its host (onCommand). The refusal, in the commands' words or the planner's, or null. What a host or a test
    * edits the grid by: no change reaches its state but by a command (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md, G11).
    */
-  edit(commands: readonly GridCommand[], label: string): Promise<string | null> {
-    return this.#apply(commands, label);
+  edit(commands: readonly GridCommand[], label: string, options: { readonly again?: boolean } = {}): Promise<string | null> {
+    // `again`: a pending edit made again after a converge put the grid back (live-converge.ts): told, as any edit, but
+    // no new step of the history -- its step is in it already (the D19 audit's second round, 3: recorded twice, an undo
+    // went forward)
+    return this.#apply(commands, label, options.again === true ? false : undefined);
   }
 
   // -- the cube's state, read ----------------------------------------------
@@ -1006,8 +1009,8 @@ export class CubeApp {
    * screen's controls offer only what its rules allow; a command they refuse is said, in their words, and changes
    * nothing. A host is told each command the cube kept (onCommand). The refusal, its words or the planner's, or null.
    */
-  async #apply(commands: readonly GridCommand[], label: string): Promise<string | null> {
-    const { refused, outcome } = await this.#applyCommands(commands, label);
+  async #apply(commands: readonly GridCommand[], label: string, record?: boolean): Promise<string | null> {
+    const { refused, outcome } = await this.#applyCommands(commands, label, 'mine', record);
     return refused ?? refusal(outcome);
   }
 
@@ -1035,7 +1038,7 @@ export class CubeApp {
    *  are that editor's own already, never told back to it (T4) -- or (`said`) the person's own that a page step of
    *  theirs told already: a step of its history, told nothing. */
   async #applyCommands(commands: readonly GridCommand[], label: string,
-    by: 'mine' | 'theirs' | 'said' = 'mine'): Promise<{ refused: string | null; outcome: Outcome }> {
+    by: 'mine' | 'theirs' | 'said' = 'mine', record: boolean = by !== 'theirs'): Promise<{ refused: string | null; outcome: Outcome }> {
     let refused: string | null = null;
     // judged on the state the person sees (the change in flight's, else the committed one): a presentation change is
     // laid over the committed state too, and one that state cannot take (a setting of the column the change in flight
@@ -1055,7 +1058,7 @@ export class CubeApp {
           else if (s === this.#owner.committed) applying.onCommitted = false;
           return s;
         }
-      }, { label, record: by !== 'theirs' });
+      }, { label, record });
     } finally {
       this.#applying = null;
     }

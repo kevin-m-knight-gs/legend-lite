@@ -357,8 +357,19 @@ lock (`_write`), and the engine's answers read version, steps and hash under one
 only this screen's edits changed is put back at its SENT cube with its history kept (`Converge.sent`, `keepHistory`),
 so W13 holds as written: a grid's history starts again only when another editor edits that grid. §2's "a follow never
 meets an un-rebased edit on screen" is true by construction now: the edit is on screen, and the follow puts the board
-back before it checks. Declared: a gesture during the converge itself is still the other editor's to `edit()`
-(the audit's 5, pre-existing); W2's known limit (a detached chart over a snapped kept cube comes back live).
+back before it checks. Then both of what that round declared were built the same day: the page is held through a
+converge (`PageApp.hold`: a gesture meanwhile does nothing, neither applied nor told, as a locked page's Undo does
+nothing), and `detach` carries the kept cube's copy (`copy?`), so the diff is total over a detached chart's snapped
+cube. A second audit, of the commit that fixed the first round, found a regression in it -- a page step of the
+keeper's can change a grid's cube (a selected chart's removal refilters its grid), which the sent-cube put-back missed
+-- and that the hash was read while a grid's refilter was still in flight, that pending edits made again were recorded
+twice, that a grid added here with a pending edit was remade pending and all, that a put-back synced as the person's
+own, and that a write with no page to say left the confirmed page stale; each fixed with its test (the plan's As built,
+D19, "the audit's second round"). The converge as it stands: the keeper's page steps applied to the confirmed page,
+purely, name every grid they change; those, the ones the keeper's grid steps, the refused batch or a rename touch, are
+put back at the confirmed cube before the steps and start again; every other grid an edit of this screen's changed is
+put back at its SENT cube after the steps, its history kept, its pending edits made again as no new step; every grid's
+change in flight is waited for before the page is hashed.
 
 ## 7. Items (the register's W)
 

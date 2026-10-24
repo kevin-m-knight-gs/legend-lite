@@ -21,7 +21,7 @@
 import { tiles } from './layout/bands.ts';
 import { applyPageCommand, idsOf, nextPageId, takenIds, type PageCommand, type PageDraft } from './page-commands.ts';
 import type { CubeDocument } from './cube-document.ts';
-import type { ChartView, PageDocument, PageSheet, PageView } from './page-document.ts';
+import type { ChartView, GridCopy, PageDocument, PageSheet, PageView } from './page-document.ts';
 import { rearranged, renamedCommand } from './page-rebase.ts';
 import { CubeRefusal, sameValue } from './snapshot.ts';
 
@@ -119,11 +119,17 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     if (document === undefined) throw new CubeRefusal(`a chart reads ${cube}, which the page does not hold`);
     return document;
   };
+  // the copy a kept cube reads in `to` (a detached chart's: carried by `detach`, which has no grid to snap for it)
+  const copyIn = (page: PageDocument, cube: string): GridCopy | undefined => (page.copies ?? {})[cube];
+  const detachOnto = (v: ChartView): PageCommand => {
+    const copy = copyIn(to, v.cube);
+    return { kind: 'detach', chart: v.id, cube: v.cube, document: keptIn(to, v.cube), ...(copy ? { copy } : {}) };
+  };
   const detachNeeded = (v: ChartView): boolean => {
     const here = cur().views.find((x) => x.id === n(v.id)) as ChartView | undefined;
     if (here === undefined) return false;
     const kept = cur().cubes.find((c) => c.id === n(v.cube))?.cube;
-    return here.cube !== n(v.cube) || !sameValue(kept, keptIn(to, v.cube));
+    return here.cube !== n(v.cube) || !sameValue(kept, keptIn(to, v.cube)) || !sameValue(copyIn(cur(), n(v.cube)), copyIn(to, v.cube));
   };
   const detachedIn = (page: PageDocument, v: ChartView): boolean => gridShowing(page, v.cube) === undefined;
   // a chart's spec and title as `to` has them: set when `from`'s differ (the step changed them: an undo puts them back as
@@ -146,7 +152,7 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
         later.add(v.id);
         continue;
       }
-      if (detachNeeded(v)) emit({ kind: 'detach', chart: v.id, cube: v.cube, document: keptIn(to, v.cube) });
+      if (detachNeeded(v)) emit(detachOnto(v));
     } else {
       const simGrid = cur().views.find((x) => x.id === n(grid.id));
       if (here.cube !== (simGrid?.cube ?? v.cube)) emit({ kind: 'followGrid', chart: v.id, grid: grid.id });
@@ -177,7 +183,7 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
   //     and title
   for (const v of to.views) {
     if (v.kind !== 'chart' || !later.has(v.id) || !detachedIn(to, v) || !cur().views.some((x) => x.id === n(v.id))) continue;
-    if (detachNeeded(v)) emit({ kind: 'detach', chart: v.id, cube: v.cube, document: keptIn(to, v.cube) });
+    if (detachNeeded(v)) emit(detachOnto(v));
     specAndTitle(v);
   }
 
@@ -203,7 +209,7 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
       near = made;
     }
     emit({ kind: 'addChart', id: v.id, near, spec: v.spec, title: v.title, columns: null });
-    emit({ kind: 'detach', chart: v.id, cube: v.cube, document });
+    emit(detachOnto(v));
     if (made !== undefined) emit({ kind: 'removeTile', tile: made });
     specAndTitle(v);
   }
@@ -261,8 +267,13 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     const want = (to.copies ?? {})[theirs];
     if (want !== undefined && sameValue(want, copy)) continue;
     const grid = gridShowing(cur(), cube);
-    // a kept cube's copy (a detached chart's) stays as it is: no grid is there to go live or snap again
-    if (grid === undefined) throw new CubeRefusal(`'${cube}' reads a copy and no grid shows it: nothing can go live or snap for it`);
+    if (grid === undefined) {
+      // a kept cube's copy (a detached chart's): no grid to go live or snap for it -- its chart put on the cube again,
+      // the copy as `to` has it (detach carries the copy); a cube `to` does not hold went with its chart (5)
+      const chart = to.views.find((x): x is ChartView => x.kind === 'chart' && x.cube === theirs);
+      if (chart !== undefined && !sameValue(copyIn(cur(), cube), copyIn(to, theirs))) emit(detachOnto(chart));
+      continue;
+    }
     emit({ kind: 'live', grid: grid.id });
   }
   for (const [cube, copy] of Object.entries(to.copies ?? {})) {

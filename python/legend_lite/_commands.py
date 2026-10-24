@@ -142,8 +142,9 @@ def page_follow_grid(*, chart: Any, grid: Any) -> dict[str, Any]:
     return {'kind': 'followGrid', 'chart': chart, 'grid': grid}
 
 
-def page_detach(*, chart: Any, cube: Any, document: Any) -> dict[str, Any]:
-    return {'kind': 'detach', 'chart': chart, 'cube': cube, 'document': document}
+def page_detach(*, chart: Any, cube: Any, document: Any, copy: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'detach', 'chart': chart, 'cube': cube, 'document': document,
+            **({} if copy is _ABSENT else {'copy': copy})}
 
 
 def page_select(*, chart: Any, conditions: Any) -> dict[str, Any]:

@@ -29,6 +29,9 @@ import { rebaseEdits } from '../src/page-rebase.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
 import { applyGridToCube, FakeKeeper } from './fake-keeper.ts';
 import { corpus } from './fixtures/pages/make.ts';
+import * as echarts from 'echarts/core';
+import '../src/ui/page-filter-bar.ts';
+import type { FilterNode } from '../src/snapshot.ts';
 
 const trades = (await corpus())['trades.page.json']!;
 /** `edits` made on screen `s`: applied to its page by the keeper's own rule (page-rebase.ts), and told to the channel. */
@@ -65,7 +68,7 @@ function screen(start: PageDocument): Screen {
       s.converged.push(on);
       const made = await rebaseEdits({ page: on.confirmed, held: on.held }, [...on.since, ...on.edits], applyGridToCube);
       s.now = made.page;
-      return { page: made.page };
+      return { page: made.page, restarted: new Set([...on.since, ...on.edits].flatMap((e) => ('grid' in e ? [e.grid] : []))) };
     },
     // the pending edits made again: on this screen each is applied to its page (a grid the steps left alone shows it
     // still: here, the page is the keeper's, so it is applied too) and told again
@@ -406,7 +409,7 @@ const file = (name: string): FileSource => ({
 
 /** A real page on a keeper: its grids CubeApps told to the channel, the page's commands too, converging by the one
  *  rule (live-converge.ts) as DataCube's app does. */
-function realPage(): { cubes: Map<string, CubeApp>; over: (name: string) => GridMaker; channelOf: (keeper: FakeKeeper) => { channel: LiveChannel; reopened: string[]; said: string[]; atReopen: () => PageDocument | undefined } } {
+function realPage(hooks: { readonly grid?: (id: string) => void } = {}): { cubes: Map<string, CubeApp>; over: (name: string) => GridMaker; channelOf: (keeper: FakeKeeper) => { channel: LiveChannel; reopened: string[]; said: string[]; atReopen: () => PageDocument | undefined } } {
   const cubes = new Map<string, CubeApp>();
   let channel: LiveChannel | undefined;
   const over = (name: string): GridMaker => (gridHost, spawned, start) => {
@@ -438,17 +441,18 @@ function realPage(): { cubes: Map<string, CubeApp>; over: (name: string) => Grid
       busy: () => [...cubes.values()].some((c) => c.busy),
       converge: (on) => convergeOn(on, {
         page: app,
-        grid: (id) => cubes.get(id),
+        // `hooks.grid`: a test's own doing while the converge asks for a grid (inside the page's hold)
+        grid: (id) => { hooks.grid?.(id); return cubes.get(id); },
         pageNow: now,
         // a grid the other editor added: made as a saved page's are, over the source its document says (the fixture's
         // grids start alike: SNAPSHOT)
         open: async (document) => ({ make: over(document.source.name) }),
         frameVersion: () => undefined,
       }),
-      reapply: async (pending) => {
+      reapply: async (pending, restarted) => {
         for (const edit of pending) {
           if ('page' in edit) app.reapply([edit.page], 'made again');
-          else await cubes.get(edit.grid)?.edit([edit.command], 'made again');
+          else await cubes.get(edit.grid)?.edit([edit.command], 'made again', { again: !restarted.has(edit.grid) });
         }
       },
       reopen: async (why) => {
@@ -472,6 +476,127 @@ function realPage(): { cubes: Map<string, CubeApp>; over: (name: string) => Grid
   };
   return { cubes, over, channelOf };
 }
+
+const tileEl = (id: string): HTMLElement => host.querySelector(`[data-tile="${id}"]`) as HTMLElement;
+const labelOf = (el: HTMLElement | null): string => el?.querySelector('.dc-menu-label')?.textContent ?? el?.textContent ?? '';
+/** A chart made over a grid's tile, as a person makes one: a cell's menu, Create > Visualization. */
+async function chartOver(gridTile: string): Promise<string> {
+  const before = new Set(page!.views().views.filter((v) => v.kind === 'chart').map((v) => v.id));
+  (tileEl(gridTile).querySelector('.dc-row .dc-cell') as HTMLElement)
+    .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  await settle();
+  const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
+    .find((el) => labelOf(el) === 'Visualization' && labelOf(el.parentElement!.closest('.dc-menu-item') as HTMLElement) === 'Create');
+  assert.ok(item, 'Create > Visualization');
+  item.click();
+  await settle();
+  const chart = [...host.querySelectorAll<HTMLElement>('[data-tile^="chart-"]')].map((t) => t.dataset['tile']!).find((id) => !before.has(id));
+  assert.ok(chart, 'a chart on the page');
+  return chart;
+}
+
+describe("a real page and its keeper: the D19 audit's second round", () => {
+  it("a page step of the other editor's that changes a grid's cube restarts that grid: a selected chart removed while the grid's whole filter is set here (1)", async () => {
+    const { cubes, over, channelOf } = realPage();
+    const a = page!.addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOver(a);
+    await settle();
+    // a mark clicked: its condition on the chart's selection, and on a's filter
+    echarts.getInstanceByDom(tileEl(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!.trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    await settle();
+    const before = page!.document('Q3', undefined, true)!;
+    const sel = before.cubes.find((c) => c.id === a)!.cube.query.filter as FilterNode | undefined;
+    assert.ok(sel !== undefined, "the mark is on the grid's filter");
+    const keeper = new FakeKeeper(before);
+    const { channel, reopened, said } = channelOf(keeper);
+    // the other editor removes the chart (its selection comes off a's filter: a page step that changes a's cube); here,
+    // still at the version before, a's whole filter is set -- the selection and a condition more, as the filter editor
+    // writes it -- and written on top
+    keeper.pythonWrites([{ kind: 'removeTile', tile: chart }]);
+    const more: FilterNode = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' };
+    const whole: FilterNode = { kind: 'and', children: [sel, more] } as FilterNode;
+    assert.equal(await cubes.get(a)!.edit([{ kind: 'filter', filter: whole }], 'Filter'), null);
+    await settle();
+    await written(channel);
+    await settle();
+    // the keeper: the selection off, then the whole filter set -- the whole filter; the screen the same, to the hash,
+    // with the grid put back at the confirmed cube and the steps replayed (not left at the filter as sent, which the
+    // chart's removal would then refilter)
+    assert.equal(keeper.combinedCount, 1);
+    assert.deepEqual([reopened, said], [[], []]);
+    const now = page!.document('Q3', undefined, true)!;
+    assert.deepEqual(now.cubes.find((c) => c.id === a)!.cube.query.filter, keeper.page.cubes.find((c) => c.id === a)!.cube.query.filter, "a's filter is the keeper's");
+    assert.equal(pageHash(now), pageHash(keeper.page), 'one page (W17)');
+  });
+
+  it("two edits pending at a follow: made again as no new step, so the grid's history has each once and an undo never goes forward (3)", async () => {
+    const { cubes, over, channelOf } = realPage();
+    const a = page!.addGrid(over('trades.csv'));
+    await settle();
+    const keeper = new FakeKeeper(page!.document('Q3')!);
+    const { channel, reopened, said } = channelOf(keeper);
+    const g = cubes.get(a)!;
+    const state = (): string => `rows=${JSON.stringify(g.snapshot.rows)} sorts=${JSON.stringify(g.snapshot.sorts.map((x) => x.column))}`;
+    const initial = state();
+    keeper.pythonWrites([{ kind: 'addSheet', name: 'From Python' }]);
+    const moved = await keeper.changes(channel.shown!);
+    assert.ok('commands' in moved);
+    // the follow queued behind a gate, so both edits are pending when it runs (as edits made while the keeper is asked)
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    let followed = false;
+    const run = channel.enqueue(async () => { await gate; followed = await channel.follow(moved); });
+    assert.equal(await g.edit([{ kind: 'group', rows: ['desk'] }], 'Group'), null);
+    await settle();
+    assert.equal(await g.edit([{ kind: 'sorts', sorts: [{ column: 'desk', direction: 'asc' }] }], 'Sort'), null);
+    await settle();
+    assert.equal(channel.pending.length, 2, 'two pending');
+    const edited = state();
+    release();
+    await run;
+    assert.equal(followed, true);
+    await written(channel);
+    await settle();
+    assert.deepEqual([reopened, said], [[], []]);
+    assert.equal(pageHash(page!.document('Q3', undefined, true)!), pageHash(keeper.page), 'one page (W17)');
+    assert.equal(state(), edited, 'the pending edits are on the grid');
+    // its history: the sort, then the group, then nothing -- each state once, never a step forward
+    const trace: string[] = [state()];
+    for (let i = 0; i < 6 && g.canUndo; i += 1) {
+      await g.undo();
+      await settle();
+      trace.push(state());
+    }
+    assert.deepEqual(trace, [edited, `rows=["desk"] sorts=[]`, initial], `the undo trace: ${trace.join(' -> ')}`);
+  });
+
+  it('a grid added here, grouped in a write the keeper holds and sorted meanwhile, converges on the keeper\'s page: no reopen (4)', async () => {
+    const { cubes, over, channelOf } = realPage();
+    page!.addGrid(over('trades.csv'));
+    await settle();
+    const keeper = new FakeKeeper(page!.document('Q3')!);
+    const { channel, reopened, said } = channelOf(keeper);
+    keeper.pythonWrites([{ kind: 'addSheet', name: 'From Python' }]);
+    keeper.hold = true;
+    const added = page!.addGrid(over('more.csv'));
+    assert.equal(await cubes.get(added)!.edit([{ kind: 'group', rows: ['desk'] }], 'Group'), null);
+    await settle();
+    assert.equal(keeper.written.length, 1, 'the write is on its way, held');
+    assert.equal(await cubes.get(added)!.edit([{ kind: 'sorts', sorts: [{ column: 'desk', direction: 'asc' }] }], 'Sort'), null);
+    await settle();
+    assert.equal(channel.pending.length, 1, 'the sort pending');
+    keeper.release();
+    await written(channel);
+    await settle();
+    await written(channel);
+    await settle();
+    assert.deepEqual([reopened, said], [[], []], 'converged: the grid made again from where it was, then put back at its sent cube, the sort made again');
+    const now = page!.document('Q3', undefined, true)!;
+    assert.equal(pageHash(now), pageHash(keeper.page), 'one page (W17)');
+    assert.deepEqual(keeper.page.cubes.find((c) => c.id === added)!.cube.query.sorts.map((x) => x.column), ['desk'], 'the sort written');
+  });
+});
 
 describe('a real page and its keeper', () => {
   it("a refused write's grid edits are put back too: the grid at the keeper's cube, one page to the hash, no reopen (the D19 audit's 1)", async () => {
@@ -501,6 +626,39 @@ describe('a real page and its keeper', () => {
     assert.deepEqual([...page!.grids], [a], 'b is gone, as the other editor took it off');
     assert.equal(channel.shown, keeper.version);
     assert.deepEqual(channel.pending, [], 'nothing of the refused batch pending');
+  });
+
+  it("a gesture while the page converges does nothing: the board is its keeper's to put back and replay (the D19 audit's 5)", async () => {
+    let during = 0;
+    const { cubes, over, channelOf } = realPage({ grid: () => {
+      // the converge asks for a touched grid (step 1, the page held): a person clicks New Sheet meanwhile
+      (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+      during += 1;
+    } });
+    const a = page!.addGrid(over('trades.csv'));
+    await settle();
+    const keeper = new FakeKeeper(page!.document('Q3')!);
+    const { channel, reopened, said } = channelOf(keeper);
+    const sheets = (): number => page!.document('Q3', undefined, true)!.sheets.length;
+    // the other editor renames the page; the grid grouped here meanwhile is written on top (combined), the converge
+    // putting the grid back -- the gesture lands inside it
+    keeper.pythonWrites([{ kind: 'renamePage', name: 'Theirs' }]);
+    assert.equal(await cubes.get(a)!.edit([{ kind: 'group', rows: ['desk'] }], 'Group'), null);
+    await written(channel);
+    await settle();
+    assert.ok(during >= 1, 'the gesture was made while the page was held');
+    assert.deepEqual([reopened, said], [[], []]);
+    assert.equal(sheets(), 1, 'the gesture did nothing: no sheet');
+    assert.deepEqual(channel.pending.filter((e) => 'page' in e), [], 'nothing of it told');
+    assert.equal(pageHash(page!.document(page!.title, undefined, true)!), pageHash(keeper.page), 'one page (W17), under the name the other editor gave it');
+    assert.equal(page!.held, false, 'released after the converge');
+    // and the same click once the page is released: applied, told, written
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    await written(channel);
+    await settle();
+    assert.equal(sheets(), 2);
+    assert.equal(keeper.page.sheets.length, 2, 'written');
   });
 
   it("a follow is a converge: an edit made while the keeper was asked is kept, made again after the steps and written next (the D19 audit's 2)", async () => {

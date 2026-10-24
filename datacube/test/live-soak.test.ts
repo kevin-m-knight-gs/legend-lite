@@ -24,6 +24,8 @@ import { pageHash } from '../src/page-hash.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
 import { FakeKeeper } from './fake-keeper.ts';
 import { differing } from './page-same.ts';
+import * as echarts from 'echarts/core';
+import '../src/ui/page-filter-bar.ts';
 
 const SEEDS = Number(process.env['LEGEND_LITE_SOAK_SEEDS'] ?? '6');
 /** One seed run alone (LEGEND_LITE_SOAK_SEED=4), its steps logged. */
@@ -123,10 +125,10 @@ class Tab {
         open: async (document) => ({ make: over(document.source.name) }),
         frameVersion: () => undefined,
       }),
-      reapply: async (pending) => {
+      reapply: async (pending, restarted) => {
         for (const edit of pending) {
           if ('page' in edit) this.page.reapply([edit.page], 'made again');
-          else await this.cubes.get(edit.grid)?.edit([edit.command], 'made again');
+          else await this.cubes.get(edit.grid)?.edit([edit.command], 'made again', { again: !restarted.has(edit.grid) });
         }
       },
       reopen: async (why) => {
@@ -202,13 +204,66 @@ async function quiet(all: readonly Tab[], keeper: FakeKeeper): Promise<void> {
   throw new Error(`never quiet: ${all.map((t) => `${t.name} at v${t.channel.shown ?? '?'} with ${t.channel.pending.length} pending`).join(', ')}, the keeper at v${keeper.version}`);
 }
 
+const tileOf = (tab: Tab, id: string): HTMLElement | null => tab.host.querySelector(`[data-tile="${id}"]`);
+const labelOf = (el: HTMLElement | null): string => el?.querySelector('.dc-menu-label')?.textContent ?? el?.textContent ?? '';
+/** The charts on a tab's board. */
+const chartsOf = (tab: Tab): string[] => tab.page.views().views.filter((v) => v.kind === 'chart').map((v) => v.id);
+
+/** A chart made over a grid's tile as a person makes one (a cell's menu, Create > Visualization): its id, or undefined. */
+async function chartOver(tab: Tab, grid: string): Promise<string | undefined> {
+  const before = new Set(chartsOf(tab));
+  const cell = tileOf(tab, grid)?.querySelector('.dc-row .dc-cell') as HTMLElement | null;
+  if (!cell) return undefined;
+  cell.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  await settle();
+  const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
+    .find((el) => labelOf(el) === 'Visualization' && labelOf(el.parentElement!.closest('.dc-menu-item') as HTMLElement) === 'Create');
+  if (!item) return undefined;
+  item.click();
+  await settle();
+  return chartsOf(tab).find((id) => !before.has(id));
+}
+
+/** A mark of a chart clicked (its condition on the chart's selection, and on its grid's filter): false when it has
+ *  not drawn. */
+function clickMark(tab: Tab, chart: string): boolean {
+  const el = tileOf(tab, chart)?.querySelector<HTMLElement>('[_echarts_instance_]');
+  const instance = el ? echarts.getInstanceByDom(el) : undefined;
+  if (!instance) return false;
+  instance.trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+  return true;
+}
+
 /** One edit on a tab, as a person makes one: its kind, or undefined when there was none to make. */
 async function gesture(tab: Tab, rand: () => number, n: number): Promise<string | undefined> {
   const grids = tab.page.grids;
   const sheets = tab.page.sheets;
   const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]!;
-  const choice = Math.floor(rand() * 9);
+  const choice = Math.floor(rand() * 12);
   switch (choice) {
+    case 9: {
+      // a chart over a grid, as its menu makes one (its selection, when a mark is clicked, is on the grid's filter: a
+      // page step of the other editor's that takes it off changes the grid's cube -- the audit's second round, 1)
+      if (grids.length === 0) return undefined;
+      const chart = await chartOver(tab, pick(grids));
+      return chart === undefined ? undefined : 'addChart';
+    }
+    case 10: {
+      const charts = chartsOf(tab);
+      if (charts.length === 0) return undefined;
+      if (!clickMark(tab, pick(charts))) return undefined;
+      await settle();
+      return 'clickMark';
+    }
+    case 11: {
+      const charts = chartsOf(tab);
+      if (charts.length === 0) return undefined;
+      const remove = tileOf(tab, pick(charts))?.querySelector('.dc-tile-remove') as HTMLElement | null;
+      if (!remove) return undefined;
+      remove.click();
+      await settle();
+      return 'removeChart';
+    }
     case 0:
     case 1: {
       if (grids.length === 0) return undefined;
@@ -283,11 +338,16 @@ async function gesture(tab: Tab, rand: () => number, n: number): Promise<string 
 function pythonEdit(keeper: FakeKeeper, rand: () => number, n: number): string {
   const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]!;
   const grids = keeper.page.views.filter((v) => v.kind === 'grid');
-  const choice = Math.floor(rand() * 4);
+  const charts = keeper.page.views.filter((v): v is Extract<typeof v, { kind: 'chart' }> => v.kind === 'chart');
+  const choice = Math.floor(rand() * 6);
   let command: PageCommand;
   if (choice === 0) command = { kind: 'addSheet', name: `Python ${n}` };
   else if (choice === 1) command = { kind: 'renamePage', name: `Named in Python ${n}` };
   else if (choice === 2 && grids.length > 0) command = { kind: 'renameTile', tile: pick(grids).id, title: `Titled in Python ${n}` };
+  // a chart taken off by the other editor: a page step that changes its grid's cube when a mark was clicked on it
+  else if (choice === 3 && charts.length > 0) command = { kind: 'removeTile', tile: pick(charts).id };
+  // a chart made by the other editor, as one of the page's charts is (page.chart in Python)
+  else if (choice === 4 && charts.length > 0 && grids.length > 0) command = { kind: 'addChart', near: pick(grids).id, spec: pick(charts).spec, title: null, columns: null };
   else if (grids.length > 1) command = { kind: 'removeTile', tile: pick(grids).id };
   else command = { kind: 'addSheet', name: `Python ${n}` };
   keeper.pythonWrites([command]);

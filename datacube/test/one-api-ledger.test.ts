@@ -149,7 +149,9 @@ const L1_THEN: Record<string, Entry> = {
 };
 /** The allowed calls' exact text: a change beside the commands added there is a new gap, not a quiet edit. */
 const THEN_TEXT: Record<string, string> = {
-  '#apply:#applyCommands': 'const { refused, outcome } = await this.#applyCommands(commands, label);',
+  // 2026-10-24 (D19, the audit's second round, 3): a pending edit made again after a converge is told, and recorded as no
+  // new step (`again`: its step is in the history still) -- the record flag passed through, the path the same
+  '#apply:#applyCommands': "const { refused, outcome } = await this.#applyCommands(commands, label, 'mine', record);",
   // 2026-10-22 (the S7 confirmation audit's third round's 1): what a page step of the person's own said already is a
   // recorded step of the grid's history, told nothing ('said'); another editor's, neither ('theirs')
   'applyGridCommands:#applyCommands': "const { refused, outcome } = await this.#applyCommands(commands, label, own ? 'said' : 'theirs');",
@@ -167,7 +169,7 @@ const L1_ROUTES: Record<string, Entry> = {
   'src/app/datacube-app.ts:openSaved:followSnap': { items: [], why: 'N1: a saved page opened, its copies as it says' },
   // 2026-10-24 (D19 W7, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): a screen converging on its keeper's page -- and,
   // since the audit's 2, following it: a follow is a converge with no edits of its own (live-channel.ts follow)
-  'src/app/live-converge.ts:convergeOn:applyGridCommands': { items: [], why: "a converge: a grid the keeper's steps touched, the refused batch named or a rename touched put back at the keeper's cube at the version shown, by its own commands (gridBetween), as another editor's; a grid only this screen's edits changed put back at its sent cube, its history kept (keepHistory)" },
+  'src/app/live-converge.ts:putBack:applyGridCommands': { items: [], why: "a converge: a grid the keeper's steps touched, the refused batch named, a rename touched or a page step of the keeper's changed put back at the confirmed cube before the steps, by its own commands (gridBetween), as another editor's; a grid only this screen's edits changed put back at its sent cube after them, its history kept (keepHistory) -- the one put-back, 2026-10-24" },
   'src/app/live-converge.ts:applyGrid:applyGridCommands': { items: [], why: "a converge: the other editor's grid commands applied as theirs, the screen's own sent ones as said (told already)" },
 };
 

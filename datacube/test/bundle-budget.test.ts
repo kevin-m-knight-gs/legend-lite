@@ -505,8 +505,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  their styles, and the headline format the grid's formatter writes -- the drawing itself is the chart chunk's).
  *  Measured 332,006.
  *  332,500 -> 341,000 (2026-10-24, D19 in its full form: the two total diffs, the converge and the page hash, as the
- *  grid-only page's note of the same date says; for the user's sign-off, D9). Measured 340,482. */
-const WIDGET_BUDGET = 341_000;
+ *  grid-only page's note of the same date says; for the user's sign-off, D9). Measured 340,482.
+ *  341,000 -> 341,500 (2026-10-24, the D19 audit's second round: the converge applies the keeper's page steps to the
+ *  confirmed page to find the grids they change, and waits for every grid's change in flight before the hash; the page
+ *  held through it). Measured 341,063. */
+const WIDGET_BUDGET = 341_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

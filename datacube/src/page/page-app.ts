@@ -183,6 +183,8 @@ export class PageApp {
   /** Grids whose maker moved to a new id (#renamed) while their tile was still on the board: when the tile drops, the
    *  old id keeps nothing (another editor's tile may come under it). */
   readonly #movedAway = new Set<string>();
+  /** How many converges hold the page (hold/release). */
+  #held = 0;
   #name: string;
   #disposed = false;
   /** The grid whose status bar holds the host's readout. */
@@ -682,6 +684,25 @@ export class PageApp {
     this.#options.onChange?.();
   }
 
+  /**
+   * The page HELD while its channel converges on its keeper's page (live-converge.ts; docs/DATACUBE_LIVE_EDITING_2026_10_24.md
+   * §2): the board is being put back and replayed, so a gesture meanwhile does nothing -- neither applied nor told, as a
+   * locked page's Undo does nothing -- rather than land on a board that is neither the keeper's nor kept (the D19
+   * audit's 5). Held and released in pairs; the converge's own moves (putBack, follow, renamedBy, reapply after the
+   * release) are not gestures.
+   */
+  hold(): void {
+    this.#held += 1;
+  }
+
+  release(): void {
+    this.#held = Math.max(0, this.#held - 1);
+  }
+
+  get held(): boolean {
+    return this.#held > 0;
+  }
+
   /** The page's layout editable (tiles move, dividers drag) or locked (view mode); a shared page opens locked. */
   setLayoutEditing(editing: boolean): void {
     this.#page.setEditing(editing);
@@ -931,6 +952,8 @@ export class PageApp {
    * as applied told, and the board put at the page they make (`#syncTo`). True when applied.
    */
   #edit(edit: PageEdit): boolean {
+    // held: the board is its keeper's to put back (hold); nothing applied, nothing told
+    if (this.#held > 0) return false;
     const from = this.#state.draft.page;
     let applied: PageCommand[];
     try {
@@ -1052,8 +1075,8 @@ export class PageApp {
    * now by the one it was given. A step whose target is gone (another editor's removal since) is dead: dropped, said.
    */
   #move(way: 'undo' | 'redo'): void {
-    // a locked page: nothing moves
-    if (!this.#page.editing || this.#disposed) return;
+    // a locked page, or one held while its channel converges: nothing moves
+    if (!this.#page.editing || this.#disposed || this.#held > 0) return;
     const from = this.#state.draft.page;
     const moved = way === 'undo' ? this.#state.undo() : this.#state.redo();
     if (!moved) return;
@@ -1120,7 +1143,8 @@ export class PageApp {
   putBack(page: PageDocument, held: readonly string[]): void {
     if (this.#disposed) return;
     const from = this.#state.draft.page;
-    this.#syncTo(page, from);
+    // the keeper's page: a chart taken off by it is no step of its grid's history (the D19 audit's second round, 6)
+    this.#syncTo(page, from, new Map(), true);
     this.#state.putBack({ page, held });
   }
 
