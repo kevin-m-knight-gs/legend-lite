@@ -272,8 +272,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  page's total diffs (grid-between.ts, page-between.ts: undo and redo as the commands between), the converge on the
  *  keeper's page (live-converge.ts, the rebase's rearranging and renaming it shares), and the page hash checked at every
  *  write (page-hash.ts: a synchronous SHA-256 over the canonical JSON). The note said this budget would move if the
- *  diffs pushed it over, with the number, for the user's sign-off (D9). Measured 331,197. */
-const BUDGET = 332_000;
+ *  diffs pushed it over, with the number, for the user's sign-off (D9). Measured 331,197.
+ *  332,000 -> 333,500 (2026-10-24, the D19 audit's fourth round: pending and refused page steps counted for the put-back,
+ *  a pending maker made again under a fresh id and a colliding pending grid moved first, a grid made again from the
+ *  page's own cube, every way of changing a grid refused while its page converges, a refused batch's steps off the
+ *  history, another editor's filter-moving run applied a command at a time; for the user's sign-off, D9). Measured
+ *  332,801. */
+const BUDGET = 333_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -366,8 +371,10 @@ const BUDGET = 332_000;
  *  grid-only page's note of the same date says; for the user's sign-off, D9). Measured 321,768.
  *  322,500 -> 323,000 (2026-10-24, the D19 audit's third round: the page and its grids held while the converge runs (a
  *  gesture meanwhile is refused in words), a detach's copy said in the page command, a grid remade by the converge
- *  restarted; for the user's sign-off, D9). Measured 322,567. */
-const ENGINE_BUDGET = 323_000;
+ *  restarted; for the user's sign-off, D9). Measured 322,567.
+ *  323,000 -> 324,000 (2026-10-24, the D19 audit's fourth round -- the grid-only page's note of the same date; for the
+ *  user's sign-off, D9). Measured 323,385. */
+const ENGINE_BUDGET = 324_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -511,8 +518,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  grid-only page's note of the same date says; for the user's sign-off, D9). Measured 340,482.
  *  341,000 -> 341,500 (2026-10-24, the D19 audit's second round: the converge applies the keeper's page steps to the
  *  confirmed page to find the grids they change, and waits for every grid's change in flight before the hash; the page
- *  held through it). Measured 341,063. */
-const WIDGET_BUDGET = 341_500;
+ *  held through it). Measured 341,063.
+ *  341,500 -> 342,500 (2026-10-24, the D19 audit's fourth round -- the grid-only page's note of the same date; for the
+ *  user's sign-off, D9). Measured 342,085. */
+const WIDGET_BUDGET = 342_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

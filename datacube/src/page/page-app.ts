@@ -41,8 +41,9 @@ import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.t
 import type { QueryLens } from '../runner.ts';
 import { CubeRefusal, sameValue, type FilterNode } from '../snapshot.ts';
 import {
-  applyPageCommands, applyToState, idsOf, selectionRefilters, takenIds, type PageCommand, type PageDraft,
+  applyPageCommands, applyToState, idsOf, nextPageId, selectionRefilters, takenIds, type PageCommand, type PageDraft,
 } from '../page-commands.ts';
+import { applyPlanned } from '../page-between.ts';
 import { pageCommand } from '../page-gestures.ts';
 import { PageState } from '../page-state.ts';
 import { givenName } from '../page-names.ts';
@@ -973,7 +974,8 @@ export class PageApp {
    * has them (a grid it makes opens with them), a grid it makes made by its maker -- the one that made it, or `makers`'
    * (another editor's) -- and each grid's lens given it again.
    */
-  #syncTo(to: PageDocument, from: PageDocument, makers: ReadonlyMap<string, GridMaker> = new Map(), theirs = false, refilter = true): void {
+  #syncTo(to: PageDocument, from: PageDocument, makers: ReadonlyMap<string, GridMaker> = new Map(), theirs = false, refilter = true,
+    fromDocument = false): void {
     // its name as the step has it (a renamePage: its editor's, or another's)
     if (to.name !== this.#name) {
       this.#name = to.name;
@@ -986,7 +988,11 @@ export class PageApp {
     try {
       this.#page.sync({ views: to.views, sheets: to.sheets, cubes: to.cubes }, { views: from.views, sheets: from.sheets }, (grid, document) => {
         const make = makers.get(grid);
-        return this.#remake(grid, document) ?? (make ? this.#maker(make, undefined, false) : undefined);
+        // another editor's grid (`theirs`, a maker given): theirs, never made again from a maker this page keeps under
+        // that id (a refused or undone addition's); `fromDocument`: made again from the cube `to` holds for it (its
+        // keeper's step or put-back); else from where it was when it was let go (a step of this page's own, B12)
+        if (theirs && make) return this.#maker(make, undefined, false);
+        return this.#remake(grid, fromDocument ? document : undefined) ?? (make ? this.#maker(make, undefined, false) : undefined);
       }, (cube) => this.#unopenedWhy(cube), theirs, refilter);
     } finally {
       this.#syncing = false;
@@ -1041,13 +1047,16 @@ export class PageApp {
    * to the page as it is). Refused in the commands' words (CubeRefusal) when they do not apply here -- a tile closed
    * meanwhile, an id given since -- with nothing changed.
    */
-  async follow(commands: readonly PageCommand[], makers: ReadonlyMap<string, GridMaker>): Promise<void> {
+  async follow(commands: readonly PageCommand[], makers: ReadonlyMap<string, GridMaker>, own = false): Promise<void> {
     if (this.#disposed) return;
     const from = this.#state.draft.page;
     const made = applyPageCommands(this.#state.draft, commands).draft;
     const to = made.page;
-    // its name too (a page renamed in Python), by #syncTo: the host reads it back (`title`)
-    this.#syncTo(to, from, makers, true);
+    // its name too (a page renamed in Python), by #syncTo: the host reads it back (`title`); `own`: this screen's own
+    // sent commands made again as the keeper applied them (a converge's step 3), so a chart's removal takes its selection
+    // off its grid as the person's own did -- a step of that grid's, not another editor's that restarts its history (the
+    // D19 audit's fourth round, 6); each grid made again from the cube the commands' page holds for it
+    this.#syncTo(to, from, makers, !own, true, true);
     // the page the commands made, whole -- the ids it has held, its cubes -- kept, its history with it (W13: an undo
     // past the other editor's change applies this page's own inverse to the page as it is; a step whose target that
     // change took is dead when it is undone) -- before the grids read their rows where the commands say, so an edit made
@@ -1140,21 +1149,61 @@ export class PageApp {
    * those names, given back); the history kept. The grids' own states are left as they are: the caller puts each the
    * keeper's steps changed back by its own commands.
    */
-  putBack(page: PageDocument, held: readonly string[]): void {
+  putBack(page: PageDocument, held: readonly string[], makers: ReadonlyMap<string, GridMaker> = new Map(), refused: readonly PageCommand[] = []): void {
     if (this.#disposed) return;
     const from = this.#state.draft.page;
+    // a refused batch's page steps were never the keeper's page: no step of this one either -- left in the history, an
+    // undo of a refused addition would take off whatever the keeper gave that id to since (the faulted soak, seed 27)
+    this.#state.dropSteps(refused);
     // the keeper's page: a chart taken off by it is no step of its grid's history (the D19 audit's second round, 6),
     // and its selection is not taken off its grid here -- the grid is put back at the keeper's cube by its own commands
-    // (live-converge.ts), and a refilter would start its history again (the third round, 2)
-    this.#syncTo(page, from, new Map(), true, false);
+    // (live-converge.ts), and a refilter would start its history again (the third round, 2); a grid of it this page
+    // cannot make again (its maker moved to the id an undo brought it back under) is opened by `makers`', from its cube
+    this.#syncTo(page, from, makers, true, false, true);
     this.#state.putBack({ page, held });
   }
 
   /** Commands of the page's own made again (a converge's step 5: pending edits, renamed), by the one function and told,
-   *  no new step of the history (their steps are in it already). Refused in their words: false, nothing changed. */
-  reapply(commands: readonly PageCommand[], label: string): boolean {
-    if (this.#disposed) return false;
-    return this.#edit({ label, commands, step: false });
+   *  no new step of the history (their steps are in it already). One that makes a tile under an id another editor gave
+   *  out meanwhile makes it under a fresh one (page-between.ts applyPlanned, the keeper's own rule), and what knows the
+   *  old id -- its maker, its history's steps -- follows (the D19 audit's fourth round, 2: dropped before, and the step
+   *  left in the history then took the OTHER editor's tile off on Undo). The ids given afresh (planned -> given), or
+   *  false: refused in the commands' words, nothing changed. */
+  reapply(commands: readonly PageCommand[], label: string): Readonly<Record<string, string>> | false {
+    if (this.#disposed || this.#held > 0) return false;
+    const from = this.#state.draft.page;
+    let done: ReturnType<typeof applyPlanned>;
+    try {
+      done = applyPlanned(this.#state.draft, commands, true);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#refused(e);
+      return false;
+    }
+    void label;
+    this.renamedBy(done.renamed);
+    this.#state.keep(done.draft);
+    for (const command of done.applied) this.#options.onPageCommand?.(command);
+    this.#syncTo(this.#state.draft.page, from);
+    return done.renamed;
+  }
+
+  /** Grids this page is making (added here, not yet its keeper's) whose ids another editor gave out meanwhile, moved to
+   *  fresh ids before the keeper's steps are followed -- so the other editor's tile is opened as theirs, never made from
+   *  this page's maker, and this page's is made again under its new id (the D19 audit's fourth round, 2, the grid's
+   *  case). `avoid`: ids the steps to follow give out. The ids moved (was -> now). */
+  renamePending(ids: readonly string[], avoid: readonly string[]): Readonly<Record<string, string>> {
+    const renamed: Record<string, string> = {};
+    const taken = [...takenIds(this.#state.draft), ...avoid];
+    for (const id of ids) {
+      const kind = id.replace(/-\d+$/, '');
+      if (kind !== 'grid' && kind !== 'chart' && kind !== 'sheet') continue;
+      const now = nextPageId(taken, kind);
+      taken.push(now);
+      renamed[id] = now;
+    }
+    this.renamedBy(renamed);
+    return renamed;
   }
 
   /** Whether a grid is known here by `id` -- on the board, or let go and kept to be made again by its maker. */

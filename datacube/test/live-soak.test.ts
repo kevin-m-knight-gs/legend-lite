@@ -23,14 +23,22 @@ import type { PageDocument } from '../src/page-document.ts';
 import { pageHash } from '../src/page-hash.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
 import { FakeKeeper } from './fake-keeper.ts';
+import type { LiveCommand } from '../src/app/services.ts';
+import { openCube } from '../src/cube-document.ts';
 import { differing } from './page-same.ts';
 import * as echarts from 'echarts/core';
 import '../src/ui/page-filter-bar.ts';
 
-const SEEDS = Number(process.env['LEGEND_LITE_SOAK_SEEDS'] ?? '6');
+/** Seeds per run: 24 in CI (2026-10-24, the gaps after the third audit: 6 before; three tabs and the keeper's faults
+ *  since, about 45 s on a desk, the test `medium`), more by hand (the forty-seed runs that found seeds 10, 17, 25 and
+ *  27 of this file's history). */
+const SEEDS = Number(process.env['LEGEND_LITE_SOAK_SEEDS'] ?? '24');
 /** One seed run alone (LEGEND_LITE_SOAK_SEED=4), its steps logged. */
 const ONLY = process.env['LEGEND_LITE_SOAK_SEED'] === undefined ? undefined : Number(process.env['LEGEND_LITE_SOAK_SEED']);
-const STEPS = 14;
+/** Steps per seed; LEGEND_LITE_SOAK_STEPS=300 is a long session's worth, run alone. */
+const STEPS = Number(process.env['LEGEND_LITE_SOAK_STEPS'] ?? '14');
+/** The keeper's faults (a write it never sees, an answer lost) in the mix; LEGEND_LITE_SOAK_FAULTS=0 leaves them out. */
+const FAULTS = process.env['LEGEND_LITE_SOAK_FAULTS'] !== '0';
 
 /** How two pages differ, for a failure's message: each path that differs, with both sides. */
 function unlike(ours: PageDocument, theirs: PageDocument): string {
@@ -54,7 +62,7 @@ let engine: GateEngine;
 const tabs: Tab[] = [];
 
 beforeEach(() => {
-  dom = new JSDOM('<!doctype html><div id="a"></div><div id="b"></div>');
+  dom = new JSDOM('<!doctype html><div id="a"></div><div id="b"></div><div id="c"></div>');
   const g = globalThis as unknown as Record<string, unknown>;
   g['window'] = dom.window;
   g['document'] = dom.window.document;
@@ -118,13 +126,24 @@ class Tab {
     this.channel = new LiveChannel(keeper, {
       page: now,
       busy: () => [...this.cubes.values()].some((c) => c.busy),
-      converge: (on) => convergeOn(on, {
-        page: this.page,
-        grid: (id) => this.cubes.get(id),
-        pageNow: now,
-        open: async (document) => ({ make: over(document.source.name) }),
-        frameVersion: () => undefined,
-      }),
+      converge: async (on) => {
+        // the seed run alone: each converge's inputs, and the state against the screen before and after
+        const k = (es: readonly LiveCommand[]): string[] => es.map((e) => ('page' in e ? `page:${e.page.kind}` : `${e.grid}:${e.command.kind}`));
+        if (ONLY !== undefined) console.log(`# ${this.name} converges: since ${JSON.stringify(k(on.since))} edits ${JSON.stringify(k(on.edits))} refused ${JSON.stringify(k(on.refused))} pending ${JSON.stringify(k(on.pending))} renamed ${JSON.stringify(on.renamed)}; state vs screen: ${unlike(this.page.state.page, this.shown()) || 'same'}`);
+        const out = await convergeOn(on, {
+          page: this.page,
+          grid: (id) => this.cubes.get(id),
+          pageNow: now,
+          // another editor's grid: over the source its document says, at the cube it says (as the app opens one)
+          open: async (document) => ({ make: (gridHost, spawned, start) => {
+            const opened = openCube(document, document.source as never, SNAPSHOT.columns);
+            return over(document.source.name)(gridHost, spawned, start ?? { snapshot: opened.snapshot, configuration: opened.configuration, tree: opened.tree });
+          } }),
+          frameVersion: () => undefined,
+        });
+        if (ONLY !== undefined) console.log(`# ${this.name} converged; restarted ${JSON.stringify([...out.restarted])}; state vs screen: ${unlike(this.page.state.page, this.shown()) || 'same'}`);
+        return out;
+      },
       reapply: async (pending, restarted) => {
         for (const edit of pending) {
           if ('page' in edit) this.page.reapply([edit.page], 'made again');
@@ -400,25 +419,35 @@ describe('two tabs and Python on one page, interleaved at random, hold one page 
       tabs.push(first);
       const second = new Tab('b', dom.window.document.getElementById('b') as unknown as HTMLElement, keeper);
       tabs.push(second);
+      // a third tab (2026-10-24, the gaps after the third audit): three editors and Python, so two tabs converge on the
+      // same move while the third writes
+      const third = new Tab('c', dom.window.document.getElementById('c') as unknown as HTMLElement, keeper);
+      tabs.push(third);
       await first.open();
       await second.open();
-      const all = [first, second];
+      await third.open();
+      const all = [first, second, third];
       let where = `seed ${seed}`;
       try {
       for (let step = 0; step < STEPS; step += 1) {
         where = `seed ${seed}, step ${step}`;
         // the keeper slow to answer, at random: writes made meanwhile combine, or are made again on top
         keeper.hold = rand() < 0.4;
-        const who = Math.floor(rand() * 5);
+        // the keeper out of reach for one write (the tab converges on what moved, nothing of the write kept), or a
+        // write kept whose answer is lost (the tab converges, its edit coming back as the keeper's step)
+        const fault = rand();
+        if (FAULTS && fault < 0.05) keeper.unreachable = 1;
+        keeper.loseAnswer = FAULTS && fault >= 0.05 && fault < 0.15;
+        const who = Math.floor(rand() * 7);
         let kind: string | undefined;
         if (who === 0) kind = `python:${pythonEdit(keeper, rand, step)}`;
         else {
-          const tab = who % 2 === 1 ? first : second;
+          const tab = all[(who - 1) % all.length]!;
           kind = await gesture(tab, rand, step);
           if (kind !== undefined) kind = `${tab.name}:${kind}`;
         }
         if (kind !== undefined) made[kind] = (made[kind] ?? 0) + 1;
-        if (ONLY !== undefined) console.log(`# ${where}: ${kind ?? '(nothing)'}${keeper.hold ? ', keeper held' : ''}, keeper at v${keeper.version}`);
+        if (ONLY !== undefined) console.log(`# ${where}: ${kind ?? '(nothing)'}${keeper.hold ? ', keeper held' : ''}, keeper at v${keeper.version}; ${all.map((t) => `${t.name} at v${t.channel.shown ?? '?'} pending ${t.channel.pending.length}`).join(', ')}`);
         if (rand() < 0.5) {
           // a quiet point: everything written, followed, and compared
           await quiet(all, keeper);
@@ -444,9 +473,11 @@ describe('two tabs and Python on one page, interleaved at random, hold one page 
       refused += keeper.refusedCount;
       first.dispose();
       second.dispose();
+      third.dispose();
       tabs.splice(0);
     }
-    assert.ok(combined > 0, 'some write was made again on top of another editor\'s (else this proved nothing about converging)');
+    // (one seed run alone may have no combined write: the claim is the run's)
+    if (ONLY === undefined) assert.ok(combined > 0, 'some write was made again on top of another editor\'s (else this proved nothing about converging)');
     assert.ok(Object.keys(made).length >= 6, `every kind of edit was tried somewhere: ${JSON.stringify(made)}`);
     console.log(`# soak: ${SEEDS} seeds, ${combined} writes combined, ${refused} refused, edits ${JSON.stringify(made)}`);
   });

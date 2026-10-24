@@ -52,10 +52,20 @@ export async function applyLive(commands: readonly LiveCommand[], target: LiveTa
     for (let c = commands[i]; c && 'grid' in c && c.grid === grid; c = commands[++i]) run.push(c.command);
     // a grid closed here -- kept off the board for a detached chart, or gone -- is no grid Python's command is for
     if (!target.grids().includes(grid)) throw new Error(`grid ${grid} was closed on this page`);
-    const refused = await target.applyGrid(grid, run);
-    if (refused !== null) throw new Error(refused);
+    // a run that moves the grid's filter twice is applied a command at a time: a chart's selection is judged where the
+    // filter moves (page-commands.ts followedPage, the keeper's rule, step by step), and a run applied as one change
+    // shows the filter where it ends -- back where it began after a mark's refilter and the undo of it, the selection
+    // the keeper took off still here (the long soak, 2026-10-24: seed 3, step 165)
+    const runs = run.filter((c) => MOVES_FILTER.has(c.kind)).length >= 2 ? run.map((c) => [c]) : [run];
+    for (const one of runs) {
+      const refused = await target.applyGrid(grid, one);
+      if (refused !== null) throw new Error(refused);
+    }
   }
 }
+
+/** The grid commands that move its filter. */
+const MOVES_FILTER = new Set<GridCommand['kind']>(['filter', 'addFilter', 'refilter']);
 
 /** A run of page commands: each grid they add made by the host's maker for its cube, then the page put at them. */
 async function followPage(run: readonly PageCommand[], target: LiveTarget): Promise<void> {

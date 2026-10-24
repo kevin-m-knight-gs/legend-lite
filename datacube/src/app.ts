@@ -99,6 +99,11 @@ import type { HeatmapSpec } from './style.ts';
 import { TreeState, parsePathKey, pathKey, type TreeRow } from './tree.ts';
 import { CubeStateOwner, type ChangeOptions, type CubeState, type OwnerEvent, type Outcome } from './cube-state.ts';
 
+/** What a grid says while its page converges on its keeper's (hold): every way of changing it is refused with this --
+ *  a command, an undo or redo, Properties applied, a snap or going live (the D19 audit's third round's 1; its fourth
+ *  round's 4: the hold covered #apply alone). */
+const CATCHING_UP = 'the page is catching up with its keeper: a moment';
+
 /** What of the cube's state a host reads: never a way to change it (that is a command's: CubeApp.edit). */
 export type CubeStateView = Pick<CubeStateOwner, 'busy' | 'historyDepth'>;
 import { ColumnEditor, type ColumnEditorStart, type ColumnPreview } from './ui/column-editor.ts';
@@ -1031,7 +1036,7 @@ export class CubeApp {
    */
   async #apply(commands: readonly GridCommand[], label: string, record?: boolean): Promise<string | null> {
     if (this.#held > 0) {
-      const why = 'the page is catching up with its keeper: a moment';
+      const why = CATCHING_UP;
       this.#status(why, 'warn');
       return why;
     }
@@ -1053,7 +1058,9 @@ export class CubeApp {
     // back and took the edit before it away); `keepHistory`: its keeper's put-back of this grid for a converge's hash
     // check (live-converge.ts), no other editor having touched it, its pending edits made again after -- no step, and
     // the history stays (W13: it starts again only when another editor edits this grid)
-    if (why === null && !own && !keepHistory) this.#owner.clearHistory();
+    // ... and a change that changed nothing restarts nothing (the fourth round's 6: this screen's own chart removal,
+    // replayed, took a condition already off and wiped the grid's history for it)
+    if (why === null && !own && !keepHistory && outcome.kind !== 'nothing') this.#owner.clearHistory();
     return why;
   }
 
@@ -3553,6 +3560,10 @@ export class CubeApp {
     // snapshot, configuration, tree, chrome -- repaints from what was on
     // screen. The commands apply again to the cube as it is when they are
     // sent, not as it was before the compile.
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return false;
+    }
     const { refused, outcome } = await this.#applyCommands(commands, 'Properties');
     return refused === null && (outcome.kind === 'applied' || outcome.kind === 'nothing');
   }
@@ -4014,6 +4025,11 @@ export class CubeApp {
       this.#paintSnap = paint;
       this.#planeToggle = () => snap.click();
       snap.addEventListener('click', () => {
+        // held while the page converges: the plane is the keeper's to put back, nothing moves
+        if (this.#held > 0) {
+          this.#status(CATCHING_UP, 'warn');
+          return;
+        }
         snap.disabled = true;
         // moved (its page tells it), or refused (nothing moved)
         const done = (moved: boolean): void => {
@@ -4286,6 +4302,10 @@ export class CubeApp {
    * throws: an engine outage is a refusal, said, not an unhandled promise.
    */
   async #undo(): Promise<void> {
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return;
+    }
     if (this.#adhoc) {
       await this.#adhoc.undo();
       return;
@@ -4294,6 +4314,10 @@ export class CubeApp {
   }
 
   async #redo(): Promise<void> {
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return;
+    }
     if (this.#adhoc) {
       await this.#adhoc.redo();
       return;

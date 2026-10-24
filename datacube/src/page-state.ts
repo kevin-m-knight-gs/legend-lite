@@ -28,7 +28,7 @@
 import { applyPlanned, pageBetween } from './page-between.ts';
 import { idsOf, type PageCommand, type PageDraft } from './page-commands.ts';
 import { renamedCommand } from './page-rebase.ts';
-import { CubeRefusal } from './snapshot.ts';
+import { CubeRefusal, sameValue } from './snapshot.ts';
 import { DEFAULT_HISTORY_LIMIT } from './state-owner.ts';
 
 /** A step of the page's history: what it was called, the commands that made it, and the ones that take it back. */
@@ -125,6 +125,15 @@ export class PageState {
 
   /** Every step's commands renamed as `renamed` says (planned -> given): an id given out afresh here (a tile brought
    *  back) or by the keeper (a write made again on top), so a later move names the tile as it is now. */
+  /** The steps whose every forward command is one of `commands` dropped, from the past and the future: a refused
+   *  batch's, which never made the keeper's page (a converge's put-back, live-converge.ts). */
+  dropSteps(commands: readonly PageCommand[]): void {
+    if (commands.length === 0) return;
+    const refused = (s: PageStep): boolean => s.forward.length > 0 && s.forward.every((c) => commands.some((r) => sameValue(r, c)));
+    this.#past = this.#past.filter((s) => !refused(s));
+    this.#future = this.#future.filter((s) => !refused(s));
+  }
+
   rename(renamed: Readonly<Record<string, string>>): void {
     const map = new Map(Object.entries(renamed));
     if (map.size === 0) return;

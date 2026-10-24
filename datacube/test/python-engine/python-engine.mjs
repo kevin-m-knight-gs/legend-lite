@@ -820,6 +820,37 @@ try {
   await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label', { hasText: /^Undo / }) }).first().click();
   await oneHeld('Undo in the first tab: the rename undone on the page in all three',
     (sheets, inPython) => sheets.startsWith(`${firstSheet}|`) && inPython[0] !== 'Two tabs');
+  // A GRID GESTURE AGAINST PYTHON'S STEP ON THE SAME GRID (W13: that grid's history starts again; the converge puts it
+  // back at the keeper's cube and replays the tab's edit on top): the second tab sorts the first grid while Python
+  // regroups it; the tab's write (500 ms after the gesture, live-channel.ts WRITE_AFTER) lands on top of Python's and
+  // combines; both tabs converge on Python's page, the grid grouped as Python left it and sorted as the tab did
+  const gridOf = (t) => t.evaluate(() => ({ rows: window.__dataCube.snapshot.rows, sorts: window.__dataCube.snapshot.sorts.map((x) => x.column) }));
+  await secondTab.evaluate(() => window.__dataCube.edit([{ kind: 'sorts', sorts: [{ column: 'desk', direction: 'asc' }] }], 'Sort'));
+  await python('py-page-regroup');
+  await oneHeld("the second tab's sort and Python's regroup of the same grid at once: one page in all three", () => true);
+  const gridsNow = await Promise.all(bothTabs.map(gridOf));
+  const sortedRegrouped = gridsNow.every((g) => g.rows.join() === 'region' && g.sorts.join() === 'desk');
+  console.log(`${sortedRegrouped ? 'ok  ' : 'FAIL'} the grid in both tabs: Python's grouping (region) and the second tab's sort (desk) ${JSON.stringify(gridsNow)}`);
+  if (!sortedRegrouped) failed = true;
+  // A WRITE REFUSED IN A BROWSER (W8): both tabs take the chart off at once (its title bar's Remove); the keeper keeps
+  // the first removal and refuses the second, whose tile is gone, and that tab converges on what moved the page since,
+  // the refusal said -- no reopen, the chart gone in all three, and no tab left saying it is catching up
+  let refusals = 0;
+  for (const t of bothTabs) t.on('response', (r) => { if (r.status() === 409 && r.request().method() === 'POST' && new URL(r.url()).pathname === '/page.json') refusals += 1; });
+  // (the chart is on the first sheet, which each tab shows first; the tile's Remove is quiet until the tile is pointed
+  // at -- app.css .dc-tile:hover -- so each tab points first)
+  await Promise.all(bothTabs.map(async (t) => {
+    await t.locator('.dc-sheet-tab', { hasText: firstSheet }).click();
+    await t.locator('[data-tile="chart-1"]').hover();
+    await t.locator('[data-tile="chart-1"] .dc-tile-remove').click({ force: true });
+  }));
+  await oneHeld('both tabs take the chart off at once: one write refused, both tabs at Python\'s page, the chart gone', () => true);
+  const chartGone = (await tabsShow(() => document.querySelector('[data-tile="chart-1"]') === null)).every(Boolean);
+  console.log(`${refusals >= 1 && chartGone ? 'ok  ' : 'FAIL'} one of the two removals refused (${refusals} refused), the chart gone in both tabs`);
+  if (!(refusals >= 1 && chartGone)) failed = true;
+  const catchingUp = (await tabsShow(() => /catching up with its keeper/.test(document.body.innerText))).some(Boolean);
+  console.log(`${catchingUp ? 'FAIL' : 'ok  '} neither tab is left saying it is catching up with its keeper`);
+  if (catchingUp) failed = true;
   await secondTab.close();
 
   // D1 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P10): New > Blank Page on the page Python serves puts a page of the

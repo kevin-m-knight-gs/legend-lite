@@ -22,13 +22,17 @@
 import { configurationOf, type CubeDocument } from '../cube-document.ts';
 import { gridBetween } from '../grid-between.ts';
 import type { GridCommand } from '../grid-commands.ts';
-import { applyPageCommands } from '../page-commands.ts';
+import { applyPageCommands, followedPage } from '../page-commands.ts';
 import type { PageDocument } from '../page-document.ts';
 import type { GridMaker, PageApp } from '../page/page-app.ts';
 import { sameValue, type CubeSnapshot } from '../snapshot.ts';
 import { treeOf } from '../cube-document.ts';
 import { applyLive, type LiveTarget } from './live-follow.ts';
 import type { Converge, Converged } from './live-channel.ts';
+import type { LiveCommand } from './services.ts';
+
+/** The page commands that make a tile, by kind (page-rebase.ts MAKERS). */
+const MAKERS = new Set(['addSheet', 'addGrid', 'addChart']);
 
 /** A grid on the page, as the converge needs it: its state, and its commands applied as another editor's or its own. */
 export interface ConvergeGrid {
@@ -82,8 +86,18 @@ export async function convergeOn(on: Converge, deps: ConvergeDeps): Promise<Conv
 /** How long a grid's change in flight is waited for before the page is hashed (the channel's QUIET_AT_MOST). */
 const QUIET_AT_MOST = 10_000;
 
+/** The id a command that makes a tile gives out, if any. */
+const madeId = (c: LiveCommand): string | undefined => ('page' in c && MAKERS.has(c.page.kind) ? (c.page as { readonly id?: string }).id : undefined);
+
 async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => void): Promise<Converged> {
   const { page } = deps;
+  // 0. a grid this screen is making (pending) under an id the keeper's steps give out to another editor's tile (both
+  //    planned the same next id over the same page), or that the keeper gave one of this screen's sent makers: moved to
+  //    a fresh id first, so the other's tile is opened as theirs and this one made again under its new id (the D19
+  //    audit's fourth round, 2); the pending commands are renamed by it too (`renamed`, back to the channel)
+  const given = new Set([...on.since, ...on.edits].flatMap((c) => { const id = madeId(c); return id === undefined ? [] : [id]; }).concat(Object.values(on.renamed)));
+  const colliding = on.pending.flatMap((c) => { const id = madeId(c); return id !== undefined && given.has(id) && 'page' in c && c.page.kind === 'addGrid' ? [id] : []; });
+  const renamed = colliding.length === 0 ? {} : page.renamePending(colliding, [...given]);
   page.renamedBy(on.renamed);
   // each grid as it is now: one made again by a step (let go by the put-back, remade by its own maker) is a new grid
   // whose history starts again, its pending edits then steps of it (the D19 audit's third round, 3)
@@ -104,12 +118,52 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
     const view = p.views.find((v) => v.id === id);
     return view === undefined ? undefined : p.cubes.find((c) => c.id === view.cube)?.cube;
   };
+  // a cube as its grid holds it: less its name, which is the page's (page-document.ts writePageOf: "the page's name is
+  // each cube's too") -- so a page renamed by another editor is no change of any grid's, and restarts no history (W13;
+  // the fourth round's test, 2026-10-24: a rename made every grid whole)
+  const gridsOwn = (c: CubeDocument | undefined): Omit<CubeDocument, 'name'> | undefined => {
+    if (c === undefined) return undefined;
+    const { name: _page, ...own } = c;
+    return own;
+  };
+  const sameCube = (a: CubeDocument | undefined, b: CubeDocument | undefined): boolean => sameValue(gridsOwn(a), gridsOwn(b));
   if (pageSteps.length > 0) {
     try {
       const after = applyPageCommands({ page: on.confirmed, held: on.held }, pageSteps).draft.page;
-      for (const id of touched) if (!sameValue(cubeIn(on.confirmed, id), cubeIn(after, id))) whole.add(id);
+      for (const id of touched) if (!sameCube(cubeIn(on.confirmed, id), cubeIn(after, id))) whole.add(id);
     } catch {
       for (const id of touched) whole.add(id);
+    }
+  }
+  // ... and those whose cube a page step of the REFUSED batch changed on this screen when the batch was made (a chart's
+  // removal takes its selection off its grid's filter: refused with its batch -- the keeper out of reach, another edit
+  // of the batch not applying -- the grid shows the removal's effect still, and no grid command names it), found the
+  // same way, over every grid here; a refused step that does not apply there: every grid here (the faulted soak,
+  // 2026-10-24: seed 10, a chart's removal the keeper never saw)
+  const refusedSteps = on.refused.flatMap((e) => ('page' in e ? [e.page] : []));
+  if (refusedSteps.length > 0) {
+    const here = new Set([...page.grids, ...touched]);
+    try {
+      const after = applyPageCommands({ page: on.confirmed, held: on.held }, refusedSteps).draft.page;
+      for (const id of here) if (!sameCube(cubeIn(on.confirmed, id), cubeIn(after, id))) whole.add(id);
+    } catch {
+      for (const id of here) whole.add(id);
+    }
+    for (const id of whole) touched.add(id);
+  }
+  // ... and those whose cube a page step PENDING here changed (made on top of the sent page, after the write went: a
+  // selected chart removed while a write was on its way): found the same way, over the sent page; only this screen's
+  // edits changed them, so they join `touched` -- put back at the sent cube after the steps, the pending step made
+  // again on it (the D19 audit's fourth round, 1: left alone, the grid lacked the condition the confirmed cube holds)
+  const pendingSteps = on.pending.flatMap((e) => ('page' in e ? [e.page] : []));
+  if (pendingSteps.length > 0) {
+    const base = on.sent ?? on.confirmed;
+    const here = new Set([...page.grids, ...touched]);
+    try {
+      const after = applyPageCommands({ page: base, held: on.held }, pendingSteps).draft.page;
+      for (const id of here) if (!sameCube(cubeIn(base, id), cubeIn(after, id))) touched.add(id);
+    } catch {
+      for (const id of here) touched.add(id);
     }
   }
   // the grids only this screen's edits changed: put back at the sent cube (a follow sent nothing: the confirmed one)
@@ -134,16 +188,43 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
   };
   // 1. the board back at the keeper's page at the version shown; each grid whose history starts again back at its
   //    confirmed cube
-  page.putBack(ownCubes.size === 0 ? on.confirmed : { ...on.confirmed, cubes: on.confirmed.cubes.map((c) => (ownCubes.has(c.id) ? { id: c.id, cube: ownCubes.get(c.id)! } : c)) }, on.held);
+  let back = on.confirmed;
+  if (ownCubes.size > 0) {
+    // the sent cube in place of the confirmed one, and the charts over it following it (their spec regrouped as the cube
+    // is, a selection its filter no longer holds taken off: page-commands.ts followedPage, the one rule a grid's change
+    // moves its charts by) -- so the state agrees with the screen, where the charts followed the gesture as it was made
+    // (the three-tab soak, 2026-10-24: seed 17, the charts' x in the state still the confirmed grouping)
+    back = { ...back, cubes: back.cubes.map((c) => (ownCubes.has(c.id) ? { id: c.id, cube: ownCubes.get(c.id)! } : c)) };
+    for (const cube of ownCubes.keys()) back = followedPage(back, cube, on.confirmed);
+  }
+  // a grid of the keeper's page this page cannot make again (its maker moved to the id an undo brought it back under,
+  // its removal written and not landed) is opened from its cube, as another editor's is (the three-tab soak, seed 25)
+  const makers = new Map<string, GridMaker>();
+  for (const view of back.views) {
+    if (view.kind !== 'grid' || page.grids.includes(view.id) || page.knows(view.id)) continue;
+    const cube = back.cubes.find((c) => c.id === view.cube)?.cube;
+    const opened = cube === undefined ? undefined : await deps.open(cube, view.id, false);
+    if (opened !== undefined) makers.set(view.id, opened.make);
+  }
+  page.putBack(back, on.held, makers, on.refused.flatMap((e) => ('page' in e ? [e.page] : [])));
+  // the grids the put-back made again, held before anything is awaited (the fourth round, 5)
+  holdGrids();
   for (const id of whole) await putBack(id, false);
   const target = (isOwn: boolean): LiveTarget => ({
     grids: () => page.grids,
     cubes: () => page.cubes.length,
-    follow: (commands, makers: ReadonlyMap<string, GridMaker>) => page.follow(commands, makers),
+    // the grids a step adds are held as they appear (the fourth round, 5); this screen's own steps made again as its
+    // own (the fourth round, 6)
+    follow: async (commands, makers: ReadonlyMap<string, GridMaker>) => {
+      await page.follow(commands, makers, isOwn);
+      holdGrids();
+    },
     applyGrid: async (grid, commands) => deps.grid(grid)?.applyGridCommands(commands, isOwn ? 'made again' : 'Python', isOwn) ?? `no grid ${grid} here`,
     // a grid added here, made again under the id the keeper gave it, is made by its own maker (PageApp.knows), never
-    // opened again from its source; another editor's is opened as a saved page's are
-    open: async (document, grid, several) => (page.knows(grid)
+    // opened again from its source; another editor's is opened as a saved page's are -- always, even under an id this
+    // page once gave out (a refused or undone addition's, kept for an undo): the keeper never held that one (the
+    // faulted soak, 2026-10-24: seed 27, another editor's grid made over this page's source)
+    open: async (document, grid, several) => (isOwn && page.knows(grid)
       ? { make: () => { throw new Error(`${grid} is made again by its own maker`); } }
       : deps.open(document, grid, several)),
     frameVersion: deps.frameVersion,
@@ -165,7 +246,7 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
   // 4. the page on screen now
   const now = deps.pageNow();
   if (now === undefined) throw new Error('the page cannot say what it is');
-  return { page: now, restarted: new Set([...whole, ...remade].filter((id) => touched.has(id))) };
+  return { page: now, restarted: new Set([...whole, ...remade].filter((id) => touched.has(id))), renamed };
 }
 
 /** A cube document as a grid's draft, over the grid's source (what a run alone adds, the column types, is no part). */

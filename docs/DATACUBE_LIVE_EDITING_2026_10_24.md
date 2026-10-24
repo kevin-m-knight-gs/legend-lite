@@ -376,7 +376,16 @@ refiltering its grid (the grid is put back whole; the refilter wiped its history
 new grid, restarted, its pending edits steps of its new history; `detach` leaves a copy it says nothing of as it is.
 And §6's mutation pass was run by hand (each fix reverted against the channel suite and the chart soak): it found the
 second round's regression test blind to its own bug and the soak's mark clicks too rare, both sharpened; every mutant
-is killed since (the plan's As built, D19, "the audit's third round").
+is killed since (the plan's As built, D19, "the audit's third round"). A fourth round (on the third's fixes), the
+soak widened to three tabs with the keeper's faults in, and a 300-step session together found eleven more, every one an
+interaction of the put-back with a pending edit, a rename or a refusal: pending and refused page steps that change a
+grid's cube now count for the put-back; a pending maker colliding with an id the keeper gave out is made again under a
+fresh id (the history following), a pending grid maker moved before the steps are followed; a grid made again starts
+from the cube the page holds for it; every way of changing a grid is refused while its page converges, and the grids
+the put-back makes again are held as they appear; a sent page step is made again as the screen's own; a refused batch's
+steps come off the history; another editor's grid is never made from a maker this page keeps; a run of another
+editor's commands that moves a grid's filter twice is applied a command at a time, as the keeper judges it (the plan's
+As built, D19, "the audit's fourth round").
 
 ## 7. Items (the register's W)
 

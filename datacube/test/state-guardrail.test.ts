@@ -136,7 +136,8 @@ const BOARD_SITES: Record<string, string | readonly [string, number]> = {
 };
 
 /** Every place a page's state changes, by its owner: the commands' step is page-commands.ts's (applyToState). */
-const PAGE_STATE = /(this\.#state(?:\.(?:keep|begin|step|undo|redo|putBack|rename)\(| = )|\bstate\.(?:keep|begin|step)\()/g;
+// (dropSteps joined 2026-10-24: a refused batch's steps off the history, the D19 audit's fourth round)
+const PAGE_STATE = /(this\.#state(?:\.(?:keep|begin|step|undo|redo|putBack|rename|dropSteps)\(| = )|\bstate\.(?:keep|begin|step)\()/g;
 const STATE_SITES: Record<string, Record<string, string>> = {
   'src/page/page-app.ts': {
     'constructor:this.#state = ': 'a page made',
@@ -153,6 +154,12 @@ const STATE_SITES: Record<string, Record<string, string>> = {
     // keeper renamed the ids (live-converge.ts)
     'putBack:this.#state.putBack(': "the keeper's page at the version shown, put back under the screen (a converge's step 1), the history kept",
     'renamedBy:this.#state.rename(': "the ids the keeper gave out afresh, followed by every step of the history",
+    // 2026-10-24 (the D19 audit's fourth round, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md As built): a refused batch's
+    // page steps never made the keeper's page, so their steps come off the history at the put-back (an undo of a refused
+    // addition took the OTHER editor's tile under that id off); the pending edits made again after a converge apply by
+    // the planned rule (page-between.ts applyPlanned: a fresh id when the keeper gave the planned one out), no step
+    'putBack:this.#state.dropSteps(': "a refused batch's steps off the history: they never made the keeper's page",
+    'reapply:this.#state.keep(': "the pending edits made again after a converge (their steps are in the history already), by the planned rule: an id given out meanwhile gives way to a fresh one",
     'setTitle:this.#state.keep(': "the page's name, its host's (no step): N1, a page opened named",
     'onChange:this.#state.keep(': "what its owners change (a grid's own edits), no step",
     '#move:this.#state.undo(': 'Undo (S4; D19 W4: the step\'s inverse commands, told)',

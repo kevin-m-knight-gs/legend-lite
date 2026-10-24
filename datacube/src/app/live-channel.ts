@@ -52,6 +52,8 @@ export interface Converge {
 export interface Converged {
   readonly page: PageDocument;
   readonly restarted: ReadonlySet<string>;
+  /** Pending makers the converge moved to fresh ids (was -> now): their ids were given out meanwhile. */
+  readonly renamed?: Readonly<Record<string, string>>;
 }
 
 /** The screen a channel writes from and converges. */
@@ -237,6 +239,9 @@ export class LiveChannel {
    */
   follow(moved: LiveMoved): Promise<boolean> {
     if (this.#stopped) return Promise.resolve(false);
+    // nothing moved since the version shown (a poll stale by the time its work ran: a write combined meanwhile moved the
+    // version shown past it): nothing to converge on, and no hold for it (the D19 audit's fourth round, 7)
+    if (moved.commands.length === 0 && moved.version === this.shown) return Promise.resolve(true);
     return this.#converge(moved.version, moved.hash, { since: moved.commands, edits: [], renamed: {}, refused: [] });
   }
 
@@ -291,7 +296,7 @@ export class LiveChannel {
     if (!(await this.#checked(converged.page, hash, pending))) return false;
     // its pending edits made again on the page as the keeper has it, each renamed as the keeper renamed the ids its
     // sent edits gave out (the screen's: told again, so they are written next)
-    const map = new Map(Object.entries(on.renamed));
+    const map = new Map([...Object.entries(on.renamed), ...Object.entries(converged.renamed ?? {})]);
     const again = pending.map((p): LiveCommand => ('page' in p ? { page: renamedCommand(p.page, map) } : { grid: map.get(p.grid) ?? p.grid, command: p.command }));
     if (again.length > 0) await this.#screen.reapply(again, converged.restarted);
     if (this.#edits.length > 0) this.changed();

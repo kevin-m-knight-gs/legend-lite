@@ -47,6 +47,12 @@ export class FakeKeeper implements LivePage {
   readonly #held: (() => void)[] = [];
   /** How many versions back the keeper keeps its steps (keeper.py STEPS_KEPT). */
   keeps = 64;
+  /** The keeper unreachable: how many of the next writes fail before it sees them (the browser's fetch rejecting). */
+  unreachable = 0;
+  /** How many of the next asks for what moved fail the same way. */
+  changesFail = 0;
+  /** The next write's answer lost: the keeper keeps the write, the tab hears a failure. */
+  loseAnswer = false;
 
   constructor(page: PageDocument, held: readonly string[] = idsOf(page)) {
     this.page = page;
@@ -60,6 +66,10 @@ export class FakeKeeper implements LivePage {
 
   /** What moved the page since `since`: its steps when every version since kept them, else the page whole. */
   async changes(since: number): Promise<LiveMoved | LiveRead> {
+    if (this.changesFail > 0) {
+      this.changesFail -= 1;
+      throw new TypeError('fetch failed');
+    }
     this.changesAsked.push(since);
     const moved = this.#since(since, this.version);
     if (moved === null) return this.read();
@@ -89,6 +99,10 @@ export class FakeKeeper implements LivePage {
   }
 
   async report(at: number, write: LiveWrite): Promise<LiveSettled> {
+    if (this.unreachable > 0) {
+      this.unreachable -= 1;
+      throw new TypeError('fetch failed');
+    }
     this.written.push(write);
     if (this.hold) await new Promise<void>((r) => { this.#held.push(r); });
     // as keeper.py settle: the page as it is now taken, the edits applied to it, and what they make kept only when the
@@ -112,6 +126,11 @@ export class FakeKeeper implements LivePage {
       this.version += 1;
       this.steps.set(this.version, done.edits);
       const hash = pageHash(this.page);
+      if (this.loseAnswer) {
+        // kept, but the answer never reaches the tab
+        this.loseAnswer = false;
+        throw new TypeError('fetch failed');
+      }
       if (!combined) return { version: this.version, combined, renamed: done.renamed, hash };
       return { version: this.version, combined, renamed: done.renamed, hash, since: this.#since(at, before), edits: done.edits };
     }

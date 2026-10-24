@@ -608,7 +608,10 @@ export class CubePage {
       // is replaced by the one made again, and its detached charts follow it once more
       for (const view of to.views) {
         if (view.kind !== 'grid' || this.#grids.has(view.id) || this.#unavailable.has(view.id)) continue;
-        const make = remake(view.id);
+        // from the cube the page `to` holds for it, when it says one (a keeper's step or put-back: the grid as the page
+        // has it, not as this screen last saw it -- a grid made again under the id its keeper gave it started from the
+        // screen's state, its sent commands then applied twice: the D19 audit's fourth round, 3)
+        const make = remake(view.id, to.cubes?.find((c) => c.id === view.cube)?.cube);
         if (!make) throw new Error(`grid ${view.id} cannot be made again: its maker is gone`);
         const kept = this.#kept.get(view.id);
         this.#kept.delete(view.id);
@@ -628,7 +631,7 @@ export class CubePage {
       for (const view of to.views) {
         if (view.kind !== 'chart' || this.#charts.has(view.id) || this.#unavailable.has(view.id)) continue;
         if (!this.#grids.has(view.cube) && !this.#kept.has(view.cube)) {
-          const make = remake(view.cube);
+          const make = remake(view.cube, to.cubes?.find((c) => c.id === view.cube)?.cube);
           if (!make) throw new Error(`chart ${view.id} cannot be opened again: grid ${view.cube}'s maker is gone`);
           this.keepGrid(view.cube, make);
         }

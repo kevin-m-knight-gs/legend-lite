@@ -2126,6 +2126,53 @@ round's commit by one pre-existing test of cube-page-shell.test.ts (`the layouts
 the page's first Arrange..., and that first dynamic import outlasted `settle()`'s twenty ticks on the Windows runner;
 every test that opens the layouts now waits for them, bounded (cube-fixture's `shown`).
 
+**The audit's fourth round (2026-10-24, on the third's fixes), the faulted three-tab soak, and the long session.** The
+user asked whether the program was bulletproof enough to build on; the honest answer was that three rounds in a row had
+each found defects, so a fourth round was run with "nothing to fix" as its exit, and the soak was widened at the same
+time. Neither came back clean. The fourth auditor found six defects (two HIGH) and reproduced four against a real page:
+(1) a PENDING page step that changes a grid's cube (a selected chart removed while a write was on its way) was not put
+back -- the grid lacked the condition the confirmed cube holds, the hash differed, the page reopened and the removal
+was dropped; now the pending page steps are applied to the sent page purely and the grids they change join the own
+put-back; (2) a pending maker whose planned id another editor's tile got meanwhile was dropped at the reapply (its id
+"held already"), and its step left in the history then took the OTHER editor's tile off on Undo; now `PageApp.reapply`
+makes it again under a fresh id (page-between.ts `applyPlanned`, the keeper's own rule) and the history follows the
+rename, and a pending GRID maker that collides is moved to a fresh id before the keeper's steps are followed
+(`renamePending`, the converge's step 0, the renames back to the channel through `Converged.renamed`); (3) a grid the
+keeper renamed was made again from the screen's current state, not the keeper's `addGrid` document, so a non-idempotent
+sent command (a header sort) applied twice; now a page's sync makes a grid again from the cube the page holds for it;
+(4) a grid's undo and redo, Properties and the snap toggle bypassed the hold; now every way of changing a grid is
+refused while its page converges; (5) the grids the put-back made again, and those a step added, were unheld until after
+step 3; now held as they appear; (6) this screen's own chart removal, replayed as its sent edit, wiped an untouched
+grid's history (a no-op refilter applied as another editor's cleared it); now a sent page step is made again as the
+screen's own, and a change that changed nothing restarts nothing; and (7, LOW) a poll stale by the time its work ran
+converged on nothing, holds and all; now a follow with nothing moved since the version shown does nothing. The
+three-tab soak (a third tab, and the keeper's faults: a write it never sees, an answer lost, in the mix) found four
+more in its first forty seeds: a REFUSED batch's page step that changed a grid's cube was not put back either (seed 10:
+the same hole as the auditor's 1, for the refused batch); a grid only this screen's edits changed was put back at its
+sent cube but its charts' specs in the page's state stayed the confirmed grouping (seed 17: the state now follows the
+own cubes, page-commands.ts `followedPage`); a grid brought back by an undo took its old maker to its new id, and a
+converge that still needed the old id had none (seed 25: a grid of the keeper's page this page cannot make again is
+opened from its cube, as another editor's is); and a refused addition's id lingered as a maker the page "knows", so
+another editor's grid under that id was made from this page's maker over this page's source (seed 27: another
+editor's grid is never made from a maker this page keeps, and a refused batch's steps come off the history --
+PageState `dropSteps` -- so an undo of a refused addition never takes off what the keeper gave that id to since). A
+test-only finding beside them: the two harnesses opened another editor's grid from its source alone, at the fixture's
+default cube, never the document's (fixed in both). The long session (300 steps, one seed) found one more: another
+editor's mark on a chart and the grid's undo of its refilter, followed in ONE move, left the selection the keeper took
+off (the keeper judges a chart's selection where the filter moves, step by step; a run applied as one change shows the
+filter where it ends); now a run that moves the grid's filter twice is applied a command at a time (live-follow.ts).
+Every one of these has a test that failed before its fix (live-channel.test.ts, "the D19 audit's fourth round",
+tests 1-10, and "a real page and its keeper"). The soak runs 24 seeds in CI now (6 before; `medium`), three tabs, the
+faults in; forty seeds with and without faults and three 300-step sessions pass by hand. Beside the round, a page
+rename by another editor counted as a change of every grid's cube (each cube's `name` is the page's) and restarted
+every edited grid's history (W13); the converge compares cubes less the page's name now. Open, LOW, for the user: a
+pending chart removal made again after a converge records its grid's unselect as a step once more (the grid was put
+back at its sent cube, which holds the condition), so one Undo lands on a like state; and the words a tab says on a
+lost answer ("not kept") when the keeper kept the write. **What this round says about the program:** the defects are
+all interactions of the converge's own/whole put-back with pending edits, renames and refusals; each is small, each has
+its test, and the soak now reaches them, but four rounds finding defects is not a foundation proved sound. The user's
+question stands answered: not bulletproof yet; the next round, with the soak as it now is, decides.
+
 **The full local gate (`//gates:local`, 2026-10-24, in the cloud session after `tools/cloud-distdir.sh`).** 405 passed,
 11 failed: eight `initdb refuses root` (the seven core Postgres tests and `verify_app_test`: the container runs as root,
 docs/CLOUD_SESSIONS.md; CI runs as a user) and `browser_guard_test` (the proxy's certificate on extensions.duckdb.org:
