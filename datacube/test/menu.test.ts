@@ -137,23 +137,22 @@ describe('buildMenu', () => {
   });
 
   // the user, 2026-10-23: the grid's menu button gone, its Move to Sheet and Remove from Page under Tile ▸; 2026-10-24:
-  // the controls' switch moved to View ▸
-  it('on a page, ends with Tile ▸ after View ▸: Move to Sheet, Remove from Page', () => {
-    const last = (ctx: Partial<Parameters<typeof buildMenu>[0]>) => {
+  // both in View ▸, after the controls' switch -- no Tile ▸
+  it('on a page, View ▸ ends with what is done to the tile: Move to Sheet, Remove from Page', () => {
+    const view = (ctx: Partial<Parameters<typeof buildMenu>[0]>) => {
       const items = buildMenu({ snapshot: CUBE, column: 'desk', ...ctx }).flatMap((g) => g.items);
-      return items[items.length - 1]!;
+      assert.equal(items.at(-1)?.label, 'View', 'View ▸ last; no Tile ▸');
+      return items.at(-1)!.submenu ?? [];
     };
+    const tail = (items: readonly MenuItem[]) => items.slice(4).map((i) => `${i.separated ? '| ' : ''}${i.label}${i.disabled ? ' [off]' : ''}`);
     const sheets: MenuItem[] = [{ id: 'sheet.to.s2', label: 'Sheet 2' }, { id: 'sheet.toNew', label: 'New Sheet', separated: true }];
-    const both = last({ sheets, canRemove: true });
-    assert.equal(both.label, 'Tile');
-    assert.deepEqual(both.submenu?.map((i) => `${i.separated ? '| ' : ''}${i.label}${i.disabled ? ' [off]' : ''}`),
-      ['Move to Sheet', '| Remove from Page']);
-    assert.equal(both.submenu?.[0]?.submenu, sheets, 'Move to Sheet: the other sheets, then a new one');
-    assert.equal(both.submenu?.[1]?.id, 'grid.remove');
-    assert.deepEqual(last({ sheets: 'locked' }).submenu?.map((i) => `${i.label}${i.disabled ? ' [off]' : ''}`),
-      ['Move to Sheet [off]'], 'locked: offered, disabled, nothing under it');
-    assert.deepEqual(last({ canRemove: true }).submenu?.map((i) => `${i.separated ? '| ' : ''}${i.label}`), ['Remove from Page']);
-    assert.equal(last({}).label, 'View', 'off a page: no Tile ▸');
+    const both = view({ sheets, canRemove: true });
+    assert.deepEqual(tail(both), ['| Move to Sheet', 'Remove from Page']);
+    assert.equal(both[4]?.submenu, sheets, 'Move to Sheet: the other sheets, then a new one');
+    assert.equal(both[5]?.id, 'grid.remove');
+    assert.deepEqual(tail(view({ sheets: 'locked' })), ['| Move to Sheet [off]'], 'locked: offered, disabled, nothing under it');
+    assert.deepEqual(tail(view({ canRemove: true })), ['| Remove from Page']);
+    assert.deepEqual(tail(view({})), [], 'off a page: nothing of a tile');
   });
 
   it('disables Email when the host cannot send it', () => {

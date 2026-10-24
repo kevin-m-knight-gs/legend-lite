@@ -521,7 +521,7 @@ describe('a page of its own', () => {
       return [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')];
     };
     const onCell = await hold(tile(id).querySelector('.dc-row .dc-cell') as HTMLElement);
-    assert.ok(['Edit', 'Create', 'Tile'].every((l) => onCell.some((i) => label(i) === l)), onCell.map(label).join(' | '));
+    assert.ok(['Edit', 'Create', 'View', 'Move to Sheet'].every((l) => onCell.some((i) => label(i) === l)), onCell.map(label).join(' | '));
     const onTab = await hold(bar().querySelector('.dc-sheet-tab') as HTMLElement);
     assert.ok(onTab.some((i) => /^Rename/.test(label(i))), `the tab's own menu: ${onTab.map(label).join(' | ')}`);
   });

@@ -901,11 +901,16 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
   }]);
 
   // LAST, after every entry people know by its place (the user: the right-click order stays as it is): VIEW ▸, how the
-  // grid is shown rather than what it holds (the user, 2026-10-24: one bucket, the menu shorter) -- its groups all open
-  // or all closed; the one switch for the cube's controls (title bar, drag zones, columns panel, status bar), hidden
-  // together for the grid alone, and the way back: the right-click menu is the only way back (the user, 2026-10-01:
-  // "right click only"); the keyboard's shortcuts. On a page, TILE ▸ after it holds what is done to the grid's tile --
-  // onto another sheet, off the page (the user, 2026-10-23: the grid's menu button gone).
+  // grid is shown and where (the user, 2026-10-24: one bucket, the menu shorter) -- its groups all open or all closed;
+  // the one switch for the cube's controls (title bar, drag zones, columns panel, status bar), hidden together for the
+  // grid alone, and the way back: the right-click menu is the only way back (the user, 2026-10-01: "right click only");
+  // the keyboard's shortcuts; and on a page, what is done to the grid's tile -- onto another sheet, off the page (once
+  // Tile ▸, the user, 2026-10-23: the grid's menu button gone).
+  const tile: MenuItem[] = [
+    ...(ctx.sheets === undefined ? []
+      : [{ label: 'Move to Sheet', ...(ctx.sheets === 'locked' ? { disabled: true } : { submenu: ctx.sheets }) }]),
+    ...(ctx.canRemove === true ? [{ id: 'grid.remove' as const, label: 'Remove from Page' }] : []),
+  ];
   push('', [{
     label: 'View',
     submenu: [
@@ -914,15 +919,9 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       { id: 'tree.collapseAll', label: 'Collapse All', disabled: !ctx.hasExpanded },
       { id: 'view.controls', label: ctx.controlsHidden ? 'Show Controls' : 'Hide Controls', separated: true },
       { id: 'view.shortcuts', label: 'Keyboard Shortcuts...' },
+      ...tile.map((item, i) => (i === 0 ? { ...item, separated: true } : item)),
     ],
   }]);
-  const tile: MenuItem[] = [
-    ...(ctx.sheets === undefined ? []
-      : [{ label: 'Move to Sheet', ...(ctx.sheets === 'locked' ? { disabled: true } : { submenu: ctx.sheets }) }]),
-    ...(ctx.canRemove === true
-      ? [{ id: 'grid.remove' as const, label: 'Remove from Page', ...(ctx.sheets !== undefined ? { separated: true } : {}) }] : []),
-  ];
-  if (tile.length > 0) push('', [{ label: 'Tile', submenu: tile }]);
 
   return groups;
 }
