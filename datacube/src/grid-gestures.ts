@@ -17,7 +17,7 @@ import { availableDimensions, drillDown, drillUp, useDimension, type Dimension }
 import type { GridCommand } from './grid-commands.ts';
 import { headerSortCommand, type SortedHeader } from './header-sort.ts';
 import {
-  CubeRefusal, isPivotTotalColumn, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode, type FilterOperator, type FilterValue,
+  CubeRefusal, isPivotTotalColumn, readTopN, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode, type FilterOperator, type FilterValue,
 } from './snapshot.ts';
 import type { RowPath } from './tree.ts';
 import { dateRangeConditions, type DateRange } from './date-ranges.ts';
@@ -59,6 +59,8 @@ export type GridGestureArgs = {
   readonly 'filter.set': { readonly filter: FilterNode | null };
   readonly 'filter.values': { readonly column: string; readonly values: readonly (FilterValue | null)[] | null };
   readonly 'filter.dateRange': { readonly column: string; readonly range: DateRange };
+  readonly 'filter.topN': { readonly column: string; readonly n: number; readonly bottom?: boolean };
+  readonly 'filter.topNOff': Nothing;
   readonly 'chart.refilter': { readonly remove: readonly FilterNode[]; readonly add: readonly FilterNode[] };
   readonly 'pivot.vertical': Column; readonly 'pivot.addVertical': Column; readonly 'pivot.removeVertical': Column;
   readonly 'pivot.clearVertical': Nothing;
@@ -241,6 +243,12 @@ const GESTURES = {
       return replaced(g.snapshot, column, values === null ? [] : [keptCondition(column, values as (FilterValue | null)[])]);
     },
   },
+  // TOP OR BOTTOM N by the column (snapshot.ts TopN): the menu's Top 10 and Bottom 10, Python's grid.top
+  'filter.topN': {
+    args: ['column', 'n', 'bottom?'],
+    make: (_g, a) => [{ kind: 'topN', topN: readTopN({ by: columnOf(a), n: a['n'], ...(a['bottom'] === true ? { bottom: true } : {}) }) }],
+  },
+  'filter.topNOff': { args: [], make: (g) => (g.snapshot.topN === undefined ? [] : [{ kind: 'topN', topN: null }]) },
   // A DATE RANGE relative to when the query runs (date-ranges.ts): from its start to its end, in place of the column's
   // own conditions
   'filter.dateRange': {

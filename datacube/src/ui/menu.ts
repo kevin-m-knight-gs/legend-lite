@@ -261,6 +261,8 @@ export type MenuActionId =
   | 'view.shortcuts'
   | 'filter.valueList'
   | 'filter.dateRange'
+  | 'filter.topN'
+  | 'filter.topNOff'
   // the cube's controls hidden or shown, the grid alone (setControlsHidden)
   | 'view.controls'
   // Upstream's Copy > Selected Rows, Resize > Minimize and Size to Fit,
@@ -344,6 +346,9 @@ export interface MenuItem {
   readonly showAs?: ShowAsKind;
   /** A date range relative to today (Filter ▸ Date Range ▸, date-ranges.ts). */
   readonly range?: DateRange;
+  /** A top N's N, and whether it is the bottom's (Filter ▸ Top 10). */
+  readonly n?: number;
+  readonly bottom?: boolean;
   /** A line above it: what follows is apart from what precedes (New ▸ Blank Page, which replaces everything). */
   readonly separated?: boolean;
   /** Said on hover: why a disabled entry is off (Show Grid on a cube on its own). */
@@ -873,6 +878,21 @@ function filterSubmenu(ctx: MenuContext): MenuItem[] {
       })) });
     }
   }
+  // TOP OR BOTTOM N by a measure -- a grouped grid's groups, each parent's own -- or by a flat grid's number; never a
+  // pivot's (its figures are its values' columns)
+  const s = ctx.snapshot;
+  const rankable = column !== undefined && ctx.pivotBase === undefined && s.pivotOn.length === 0
+    && (s.rows.length > 0 ? ctx.isMeasure === true : isNumeric(type));
+  if (rankable) {
+    const named = columnLabel(column, ctx.totalLabel);
+    items.push(
+      { id: 'filter.topN', label: `Top 10 by ${named}`, column, n: 10 },
+      { id: 'filter.topN', label: `Bottom 10 by ${named}`, column, n: 10, bottom: true },
+    );
+  }
+  if (s.topN !== undefined) {
+    items.push({ id: 'filter.topNOff', label: `Clear ${s.topN.bottom ? 'Bottom' : 'Top'} ${s.topN.n}` });
+  }
   items.push(
     { id: 'filter.column', label: 'Filters...' },
     {
@@ -902,7 +922,9 @@ export function menuItems(groups: readonly MenuGroup[]): MenuItem[] {
  */
 export function menuGesture(item: MenuItem): { readonly name: GridGestureName; readonly args: GestureArgs } | null {
   if (!isGridGesture(item.id)) return null;
-  const carried: Record<string, unknown> = { column: item.column, operator: item.operator, value: item.value, range: item.range };
+  const carried: Record<string, unknown> = {
+    column: item.column, operator: item.operator, value: item.value, range: item.range, n: item.n, bottom: item.bottom,
+  };
   return {
     name: item.id,
     args: Object.fromEntries(gestureTakes(item.id).flatMap((k) => (carried[k] !== undefined ? [[k, carried[k]]] : []))),

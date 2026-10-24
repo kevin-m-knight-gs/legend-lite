@@ -214,6 +214,26 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
   });
 });
 
+describe('Filter ▸ Top 10 and Bottom 10', () => {
+  const filterOf = (ctx: Parameters<typeof buildMenu>[0]) => submenu(ctx, 'Filter');
+  it('by a grouped grid\'s measure, or a flat grid\'s number; never a pivot\'s; Clear when one is set', () => {
+    const UNPIVOTED = { ...CUBE, pivotOn: [] };
+    const grouped = filterOf({ snapshot: UNPIVOTED, column: 'notional', columnType: 'Float', isMeasure: true });
+    const tops = grouped.filter((i) => i.id === 'filter.topN');
+    assert.deepEqual(tops.map((i) => i.label), ['Top 10 by notional', 'Bottom 10 by notional']);
+    assert.deepEqual(menuGesture(tops[1]!), { name: 'filter.topN', args: { column: 'notional', n: 10, bottom: true } });
+    // a dimension of a grouped grid is no rank
+    assert.equal(filterOf({ snapshot: UNPIVOTED, column: 'region', columnType: 'String' }).some((i) => i.id === 'filter.topN'), false);
+    // a flat grid's number is
+    const flat = { ...UNPIVOTED, rows: [] };
+    assert.equal(filterOf({ snapshot: flat, column: 'notional', columnType: 'Float' }).some((i) => i.id === 'filter.topN'), true);
+    assert.equal(filterOf({ snapshot: CUBE, column: 'notional', columnType: 'Float', isMeasure: true })
+      .some((i) => i.id === 'filter.topN'), false, 'a pivot\'s figures are its values\' columns');
+    assert.deepEqual(filterOf({ snapshot: { ...CUBE, topN: { by: 'notional', n: 10, bottom: true } } })
+      .filter((i) => i.id === 'filter.topNOff').map((i) => i.label), ['Clear Bottom 10']);
+  });
+});
+
 describe('applying an entry to the grid (its gesture)', () => {
   const SORTED: CubeSnapshot = {
     ...CUBE, sorts: [{ column: 'region', direction: 'asc' }, { column: 'desk', direction: 'desc' }, { column: 'notional', direction: 'asc' }],

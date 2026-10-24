@@ -2,6 +2,7 @@
 // database's answer to value-filter.ts's question -- a search, (Select All), a tick box per value; OK keeps the ticked
 // ones (the grid's 'filter.values' gesture, value-filter.ts's rule). The window decides nothing: it shows and it ticks.
 
+import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import type { FilterValue } from '../snapshot.ts';
 
 /** One value offered: what it filters by (null: the blanks), the words it shows, how many rows have it. */
@@ -84,7 +85,7 @@ export function valueList(doc: Document, o: ValueListOptions): HTMLElement {
   if (o.cut) {
     const note = doc.createElement('span');
     note.className = 'dc-value-cut';
-    note.textContent = `The first ${o.values.length.toLocaleString()} values`;
+    note.textContent = `The first ${o.values.length.toLocaleString(UI_LOCALE)} values`;
     foot.append(note);
   }
   const ok = doc.createElement('button');

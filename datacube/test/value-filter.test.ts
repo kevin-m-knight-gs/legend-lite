@@ -1,11 +1,12 @@
 // The value list's rule (src/value-filter.ts) and the date ranges' (src/date-ranges.ts): the conditions a choice makes,
-// the column's own conditions it replaces, and the question asked of the database (query.ts columnValuesLambda).
+// the column's own conditions it replaces, and the question asked of the database (query.ts columnValuesLambda); and a
+// top N's ranking (query.ts levelRelation) -- each as the compiler prints it.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { DATE_RANGES, dateRangeConditions } from '../src/date-ranges.ts';
-import { columnValuesLambda } from '../src/query.ts';
+import { columnValuesLambda, levelLambda } from '../src/query.ts';
 import { CubeRefusal, isRelativeDate, relativeDateWords, type FilterNode, type QuerySnapshot } from '../src/snapshot.ts';
 import { cellFilterValue, filterWithout, keptCondition, ownConditions } from '../src/value-filter.ts';
 import { variable } from '../../pure-protocol/src/index.ts';
@@ -109,5 +110,25 @@ describe("a date range's ends, as the compiler writes them: the database's date 
     assert.equal(isRelativeDate({ relative: 'today', startOf: 'fortnight' }), false);
     assert.equal(isRelativeDate({ relative: 'today', offset: 1.5, unit: 'DAYS' }), false);
     assert.equal(isRelativeDate({ relative: 'today', extra: 1 }), false);
+  });
+});
+
+describe('top or bottom N: ranked by the database after the grouping', () => {
+  const s: QuerySnapshot = {
+    source: { query: variable('trades') },
+    columns: [{ name: 'region', type: 'String' }, { name: 'desk', type: 'String' }, { name: 'notional', type: 'Float' }],
+    derived: [], rows: ['region', 'desk'], pivotOn: [], sorts: [], epoch: 1,
+    measures: [{ name: 'notional', column: 'notional', fn: 'sum' }],
+    topN: { by: 'notional', n: 2 },
+  };
+
+  it('each level ranks its parent\'s groups, ties kept, and keeps N; the grand total is not ranked', async () => {
+    const level = await print(levelLambda(s, { level: 2, parent: ['EMEA'] }));
+    assert.ok(level.includes('->groupBy(~[region, desk], ~[notional:x|$x.notional:y|$y->sum()])'
+      + '->extend(over([~notional->descending()]), ~[__all__topN:{p, w, r|$p->rank($w, $r)}])'
+      + '->filter(x|$x.__all__topN <= 2)->sort('), level);
+    assert.doesNotMatch(await print(levelLambda(s, { level: 0, parent: [] })), /topN/, 'the grand total');
+    assert.match(await print(levelLambda({ ...s, topN: { by: 'notional', n: 3, bottom: true } }, { level: 1, parent: [] })),
+      /~notional->ascending\(\).*<= 3/, 'the bottom: the smallest first');
   });
 });

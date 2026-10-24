@@ -1377,6 +1377,20 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, 'a date range is today'):
             grid.filter_date_range('day', 'someday')
 
+    def test_the_top_n_groups_by_a_measure_are_ranked_by_the_database_each_parents_own(self):
+        # grid.top: the menu's Top 10 / Bottom 10 (DataCube's snapshot.ts TopN, the filter.topN gesture)
+        page = ll.Page('Ranked')
+        grid = page.grid(trades(), name='ranked_trades', rows=['region'], measures={'notional': 'sum'})
+        grid.top(1, 'notional')
+        self.assertEqual(groups_of(grid.view(), 'notional'), {'AMER': 250.0}, 'AMER 250 over EMEA 175.5')
+        self.assertEqual(page._commands[-1], {'kind': 'topN', 'topN': {'by': 'notional', 'n': 1}})
+        grid.top(1, 'notional', bottom=True)
+        self.assertEqual(groups_of(grid.view(), 'notional'), {'EMEA': 175.5})
+        grid.top(None)
+        self.assertEqual(groups_of(grid.view(), 'notional'), {'EMEA': 175.5, 'AMER': 250.0})
+        with self.assertRaisesRegex(ValueError, 'whole number from 1'):
+            grid.top(0, 'notional')
+
     def test_copy_of_grid_is_a_grid_of_its_own_beside_it_starting_as_it_is(self):
         # (K10) grid.copy: Copy of Grid -- the copy's cube by DataCube's one rule (cube-document.ts cubeCopied), the one
         # the screen's copy writes (one-api-gestures.test.ts holds the two the same)

@@ -516,6 +516,14 @@ class Grid(Tile):
         month" shows last month whenever it is opened."""
         return self._gesture('filter.dateRange', {'column': column, 'range': range})
 
+    def top(self, n: int | None, by: str | None = None, *, bottom: bool = False) -> Grid:
+        """The top ``n`` rows by ``by`` -- a grouped grid's groups at each level, each parent's own -- the largest first,
+        or the smallest with ``bottom`` (the menu's Top 10 and Bottom 10; DataCube's snapshot.ts TopN): ties kept, the
+        rest left out, the database ranking them. ``None`` takes it off."""
+        if n is None:
+            return self._apply([_commands.grid_top_n(top_n=None)])
+        return self._gesture('filter.topN', {'column': by, 'n': n, **({'bottom': True} if bottom else {})})
+
     def sort(self, column: str, direction: str = 'asc') -> Grid:
         """A sort, after those it has, as the header menu's Add Ascending and Add Descending add one (grid-edits.ts
         addSort: a sort it had of ``column`` taken first; one it has already changes nothing): ``column`` (one of the

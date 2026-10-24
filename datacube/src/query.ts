@@ -649,6 +649,17 @@ function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: Pivo
   for (const d of snapshot.groupDerived ?? []) {
     if (!d.childAggregate) rel = extendDerived(rel, d, levelWindow);
   }
+  // TOP OR BOTTOM N (snapshot.ts TopN): ranked by the database after the grouping and the group-level columns -- each
+  // parent's groups, as a level's rows are its parent's; a flat grid's rows -- ties kept, the rest left out. Never the
+  // grand total's one row, a pivot's, or the detail rows under the deepest groups.
+  const top = snapshot.topN;
+  const ranked = grouping ? groupCols.length > 0 : snapshot.rows.length === 0;
+  if (top !== undefined && ranked && !grandTotal && !pivoting) {
+    // machinery (grid/columns.ts isMachinery): never shown -- named here, as the module loads before columns.ts's prefix
+    const TOP_N_RANK = `${WINDOW_ALL_PREFIX}topN`;
+    rel = extendWindow(rel, TOP_N_RANK, { fn: 'rank', partition: [], order: [{ column: top.by, direction: top.bottom ? 'asc' : 'desc' }] });
+    rel = rel.filter(lambda(['x'], fn('lessThanEqual', property(variable('x'), TOP_N_RANK), lit.integer(top.n))));
+  }
 
   if (ordered && !isSingleRow(snapshot, groupCols, grandTotal)) {
     const sorts = totalOrderSorts(snapshot, groupCols).filter((x) => produced === null || produced.has(x.column));

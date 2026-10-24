@@ -545,6 +545,29 @@ export function isRelativeDate(v: unknown): v is RelativeDate {
   return !moved || (Number.isInteger(o['offset']) && (RELATIVE_UNITS as readonly unknown[]).includes(o['unit']));
 }
 
+/** Top or bottom N (CubeSnapshot.topN). */
+export interface TopN {
+  /** The column ranked by: a measure, a group-level column, or (a flat grid's) any column. */
+  readonly by: string;
+  /** How many: a whole number from 1. */
+  readonly n: number;
+  /** The smallest, not the largest. */
+  readonly bottom?: boolean;
+}
+
+/** A top N read from JSON, or refused in words. */
+export function readTopN(raw: unknown): TopN {
+  const o = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : undefined;
+  if (o === undefined || typeof o['by'] !== 'string' || o['by'] === '') {
+    throw new CubeRefusal(`a top N is {by, n[, bottom]}, by a column, not ${JSON.stringify(raw)}`);
+  }
+  const odd = Object.keys(o).filter((k) => !['by', 'n', 'bottom'].includes(k));
+  if (odd.length > 0) throw new CubeRefusal(`a top N takes by, n and bottom, not ${odd.join(', ')}`);
+  if (!Number.isInteger(o['n']) || (o['n'] as number) < 1) throw new CubeRefusal(`a top N's n is a whole number from 1, not ${JSON.stringify(o['n'])}`);
+  if (o['bottom'] !== undefined && typeof o['bottom'] !== 'boolean') throw new CubeRefusal('a top N is the largest, or the smallest (bottom: true)');
+  return { by: o['by'], n: o['n'] as number, ...(o['bottom'] === true ? { bottom: true } : {}) };
+}
+
 export interface FilterGroup {
   readonly kind: 'and' | 'or';
   readonly children: readonly FilterNode[];
@@ -598,6 +621,12 @@ export interface CubeSnapshot {
    */
   readonly groupDerived?: readonly DerivedColumn[];
   readonly filter?: FilterNode;
+  /**
+   * TOP OR BOTTOM N (Excel's Top 10, Tableau's Top N): the N rows -- a grouped grid's groups at each level, each
+   * parent's own -- with the largest (the smallest, `bottom`) value of `by`, ties kept (a rank); the rest left out.
+   * The database ranks them (query.ts), after the grouping and the group-level columns.
+   */
+  readonly topN?: TopN;
   /** Row dimensions, outermost first. These become the group-by. */
   readonly rows: readonly string[];
   /** Column dimensions. Empty means a flat (non-pivoted) result. */

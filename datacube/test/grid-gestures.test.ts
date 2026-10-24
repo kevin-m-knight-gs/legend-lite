@@ -190,6 +190,18 @@ describe('the value list and date ranges: a column\'s own conditions replaced', 
   });
 });
 
+describe('top or bottom N', () => {
+  it('by the column, the largest or the smallest; taken off when set', () => {
+    assert.deepEqual(gridGesture('filter.topN', grid(), { column: 'notional', n: 10 }),
+      [{ kind: 'topN', topN: { by: 'notional', n: 10 } }]);
+    assert.deepEqual(gridGesture('filter.topN', grid(), { column: 'notional', n: 5, bottom: true }),
+      [{ kind: 'topN', topN: { by: 'notional', n: 5, bottom: true } }]);
+    assert.deepEqual(gridGesture('filter.topNOff', grid({ topN: { by: 'notional', n: 5 } }), {}), [{ kind: 'topN', topN: null }]);
+    assert.deepEqual(gridGesture('filter.topNOff', grid(), {}), [], 'none to take off');
+    refused(() => gridGesture('filter.topN', grid(), { column: 'notional', n: 2.5 }), /whole number from 1/);
+  });
+});
+
 describe('what a gesture is given', () => {
   it('named by text (a menu entry, Python), an argument it does not take, or one it needs and is not given, is refused in words', () => {
     refused(() => gridGestureGiven('column.pinLeft', grid(), { column: 'desk', side: 'left' }), /'column.pinLeft' takes column, not side/);

@@ -800,6 +800,19 @@ const GESTURES: readonly Gesture[] = [
     },
   },
   {
+    // Filter > Top 10 by a measure: a topN command, as Python's grid.top builds one
+    name: 'the top 10 groups by a measure',
+    setUp: twoGrids,
+    make: ({ a }) => {
+      escape();
+      contextMenu([...tile(a!).querySelectorAll<HTMLElement>('.dc-row .dc-cell')].find((c) => c.dataset['column'] === 'notional')
+        ?? assert.fail('no notional cell'));
+      const item = entry('Top 10 by notional');
+      assert.ok(item, 'Top 10 offered');
+      item.click();
+    },
+  },
+  {
     name: 'a grid added while the page bar is folded',
     setUp: async () => { const g = await twoGrids(); pg().setBarFolded(true); await settle(); return g; },
     make: ({ a }) => { pg().addGrid(over('desks.csv'), { near: a! }); },

@@ -18,9 +18,10 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { operandKind } from './filter-operators.ts';
 import {
   AGGREGATE_FNS, CHILD_AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, SORT_DIRECTIONS, WINDOW_FUNCTIONS, isJsonValue,
-  isPivotTotalColumn, isRelativeDate, pivotTotalColumn, withCalculated, withoutConditions,
+  isPivotTotalColumn, isRelativeDate, pivotTotalColumn, readTopN, withCalculated, withoutConditions,
   type AggregateFn, type ChildAggregate, type ColumnKind, type DerivedColumn, type FilterNode, type FilterOperator,
-  type FilterValue, type Measure, type SortDirection, type SortSpec, type WindowFrame, type WindowFunction, type WindowSpec,
+  type FilterValue, type Measure, type SortDirection, type SortSpec, type TopN, type WindowFrame, type WindowFunction,
+  type WindowSpec,
 } from './snapshot.ts';
 import { TREE_COLUMN } from './treeview.ts';
 import { isDetailPath, type RowPath, type TreeState } from './tree.ts';
@@ -74,11 +75,14 @@ export type GridCommand =
   /** Every group closed, the expand level's too (the menu's Collapse All). */
   | { readonly kind: 'collapseAll' }
   /** Every group above the detail rows open, as an Excel pivot's Expand Entire Field (the menu's Expand All). */
-  | { readonly kind: 'expandAll' };
+  | { readonly kind: 'expandAll' }
+  /** The top or bottom N rows or groups by a column (snapshot.ts TopN: the menu's Top 10, Python's grid.top); null
+   *  takes it off. */
+  | { readonly kind: 'topN'; readonly topN: TopN | null };
 
 export const GRID_COMMAND_KINDS = [
   'group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort', 'column', 'configure', 'filter', 'addFilter',
-  'refilter', 'calculate', 'editCalculated', 'removeCalculated', 'open', 'collapseAll', 'expandAll',
+  'refilter', 'calculate', 'editCalculated', 'removeCalculated', 'open', 'collapseAll', 'expandAll', 'topN',
 ] as const satisfies readonly GridCommand['kind'][];
 
 /** Each grid command's fields, by kind: what readGridCommand takes, and what Python's generated builders write (D17). */
@@ -87,7 +91,7 @@ export const GRID_COMMAND_FIELDS = {
   clickSort: ['column', 'first', 'chained'], clickTreeSort: ['chained'], column: ['name', 'change'], configure: ['patch'],
   filter: ['filter'], addFilter: ['condition'], refilter: ['remove', 'add'], calculate: ['level', 'column'],
   editCalculated: ['name', 'level', 'column'], removeCalculated: ['name'], open: ['path', 'open'],
-  collapseAll: [], expandAll: [],
+  collapseAll: [], expandAll: [], topN: ['topN'],
 } as const satisfies CommandFields<GridCommand>;
 // every field of every kind listed: a field the list leaves out is a type error naming it
 const gridFieldsWhole: [MissingFields<GridCommand, typeof GRID_COMMAND_FIELDS>] extends [never] ? true
@@ -172,6 +176,14 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
       return { ...draft, tree: shownTree(draft).collapseAll() };
     case 'expandAll':
       return { ...draft, tree: shownTree(draft).expandAll(draft.snapshot.rows.length) };
+    case 'topN': {
+      const { topN: _was, ...rest } = draft.snapshot;
+      if (command.topN === null) return { ...draft, snapshot: rest };
+      if (draft.snapshot.pivotOn.length > 0) {
+        throw new CubeRefusal("a top N ranks the grid's rows or groups; a pivot's figures are its values' columns: take the pivot off first");
+      }
+      return { ...draft, snapshot: { ...rest, topN: command.topN } };
+    }
   }
 }
 
@@ -668,6 +680,9 @@ export function readGridCommand(given: unknown): GridCommand {
     case 'expandAll':
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind };
+    case 'topN':
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
+      return { kind, topN: o['topN'] === null ? null : readTopN(o['topN']) };
     default:
       throw new CubeRefusal(`'${kind}' is not a grid's command: ${GRID_COMMAND_KINDS.join(', ')}`);
   }

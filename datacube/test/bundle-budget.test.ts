@@ -271,8 +271,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  323,500 -> 325,500 (2026-10-24, the BI and Excel parity program's P1, docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md:
  *  the grid's Ctrl+Arrow, Ctrl+A and mouse drag selection, the rows behind a cell as a grid of their own with their
  *  caption, Expand All, the keyboard shortcuts' list and window, pinned columns' offsets, copies headed as exports
- *  are). Measured 325,228. */
-const BUDGET = 325_500;
+ *  are). Measured 325,228.
+ *  325,500 -> 329,000 (2026-10-24, the program's P2: the Filter Values window -- a column's values with their counts, a
+ *  search, (Select All) -- the date ranges relative to today, Top and Bottom N, and the menu entries that offer them).
+ *  Measured 328,453. */
+const BUDGET = 329_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -362,8 +365,9 @@ const BUDGET = 325_500;
  *  the tile's lines and the headline format the grid's formatter writes -- the notebook widget's note of the same
  *  date). Measured 313,533.
  *  314,000 -> 315,500 (2026-10-24, the BI and Excel parity program's P1 -- the grid's note of the same date). Measured
- *  315,361. */
-const ENGINE_BUDGET = 315_500;
+ *  315,361.
+ *  315,500 -> 319,000 (2026-10-24, the program's P2 -- the grid's note of the same date). Measured 318,756. */
+const ENGINE_BUDGET = 319_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -504,8 +508,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  their styles, and the headline format the grid's formatter writes -- the drawing itself is the chart chunk's).
  *  Measured 332,006.
  *  332,500 -> 334,500 (2026-10-24, the BI and Excel parity program's P1 -- the grid's note of the same date). Measured
- *  334,149. */
-const WIDGET_BUDGET = 334_500;
+ *  334,149.
+ *  334,500 -> 338,000 (2026-10-24, the program's P2 -- the grid's note of the same date). Measured 337,670. */
+const WIDGET_BUDGET = 338_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

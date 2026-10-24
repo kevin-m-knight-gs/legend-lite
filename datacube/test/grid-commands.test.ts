@@ -219,6 +219,16 @@ describe('each command gives what the screen\'s own edit gives', () => {
     refused(() => applyGridCommand(d, { kind: 'calculate', level: 'row', column: { ...double, name: 'qty' } }), /qty/);
   });
 
+  it('a top N set, replaced and taken off; refused on a pivot, whose figures are its values\' columns', () => {
+    const top = applyGridCommand(d, { kind: 'topN', topN: { by: 'notional', n: 10 } });
+    assert.deepEqual(top.snapshot.topN, { by: 'notional', n: 10 });
+    assert.deepEqual(applyGridCommand(top, { kind: 'topN', topN: { by: 'qty', n: 3, bottom: true } }).snapshot.topN,
+      { by: 'qty', n: 3, bottom: true });
+    assert.equal('topN' in applyGridCommand(top, { kind: 'topN', topN: null }).snapshot, false);
+    const pivoted = { ...d, snapshot: { ...d.snapshot, pivotOn: ['region'] } };
+    refused(() => applyGridCommand(pivoted, { kind: 'topN', topN: { by: 'notional', n: 10 } }), /take the pivot off first/);
+  });
+
   it('a group opened and closed is the tree the chevron leaves; Collapse All the menu\'s (G1, G2)', () => {
     const shown = { ...draft({ rows: ['region', 'desk'] }), tree: TreeState.empty().withExpandTo(1) };
     const opened = applyGridCommand(shown, { kind: 'open', path: ['EMEA', 'FX'], open: true });
@@ -387,6 +397,7 @@ describe('a command read from JSON is the same command, and what DataCube does n
     { kind: 'open', path: ['EMEA', null], open: true },
     { kind: 'collapseAll' },
     { kind: 'expandAll' },
+    { kind: 'topN', topN: { by: 'notional', n: 3, bottom: true } },
   ];
 
   it('every kind, through JSON and back', () => {
@@ -401,6 +412,8 @@ describe('a command read from JSON is the same command, and what DataCube does n
     refused(() => readGridCommand({ kind: 'open', path: ['EMEA'] }), /open is true or false/);
     refused(() => readGridCommand({ kind: 'collapseAll', path: [] }), /a 'collapseAll' command takes nothing more, not path/);
     refused(() => readGridCommand({ kind: 'expandAll', level: 2 }), /'expandAll' command takes nothing more, not level/);
+    refused(() => readGridCommand({ kind: 'topN', topN: { by: 'notional', n: 0 } }), /a top N's n is a whole number from 1/);
+    refused(() => readGridCommand({ kind: 'topN', topN: { by: 'notional', n: 2, top: true } }), /a top N takes by, n and bottom, not top/);
     refused(() => readGridCommand({ kind: 'editCalculated', name: 'double', level: 'cell', column: double }), /'row' or 'group'/);
     refused(() => readGridCommand({ kind: 'removeCalculated', name: 7 }), /the calculated column's name is text/);
     refused(() => readGridCommand({ kind: 'group', row: ['region'] }), /a 'group' command takes rows, not row/);

@@ -71,6 +71,7 @@ const EVERY: Required<CubeSnapshot> = {
   pivotSort: { desk: 'desc' },
   pivotTotal: { placement: 'left', functions: { notional: 'max' } },
   keepGroupedColumns: true,
+  topN: { by: 'notional', n: 5, bottom: true },
   leafCount: true,
   childCount: true,
   sorts: [{ column: 'region', direction: 'desc' }],
