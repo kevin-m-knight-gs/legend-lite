@@ -315,7 +315,9 @@ public final class SqlParity {
             }
             if (t.kind() == SqlLexer.Kind.IDENT && CLAUSE_WORDS.contains(t.text().toLowerCase(Locale.ROOT))) {
                 inFrom.pop();
-                inFrom.push(false);
+                // (DELETE's USING lists tables as FROM does, a comma before each after the first: PR #67's second
+                // review, 2026-10-24; a join's USING is followed by its column list)
+                inFrom.push(t.is("using") && at(tokens, i + 1).kind() != SqlLexer.Kind.LPAREN);
                 continue;
             }
             if (i == 0) {

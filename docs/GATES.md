@@ -11947,6 +11947,26 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-24 — writes: PR #67's second review, Cypher's SET as Neo4j groups it and the `#SQL` write path probed
+
+Branch `claude/keen-noether-v5mis0`, `main` merged in (the DataCube PRs #64, #68-#71; no conflict); the record is
+`docs/PR67_REVIEW_2026_10_22.md` §6.
+- **Cypher:** a SET written in Neo4j's groups (measured: a run of one variable's property items reads the graph before
+  it, any other item after the items before it); every variable naming a written element read again after a write;
+  rows where one row writes what another reads refused by name as the statement runs (the corpus's one FAIL gone); a
+  native store whose ids are no key refuses CREATE and MERGE. Six lite cases snapped from the local Neo4j.
+- **`#SQL`:** an independent reviewer's 15 findings, each reproduced as a `dml.yaml` case snapped from Postgres 16 (31
+  cases: 13 BUG, 9 FAIL, 4 ERROR before the fixes): UPDATE ... FROM and DELETE ... USING read at one level; each
+  written value cast to its column's type as Postgres assigns it; RETURNING's clause rules and its snapshot before the
+  write; varchar(n); ON CONFLICT DO UPDATE's key once, its key compared as stored, `excluded` as the target's alias;
+  Postgres's assignment casts and VALUES typing; an ORDER BY of an output name; the harness's USING list.
+- **The lanes,** in update mode: Cypher (5,081 cases) DuckDB and Postgres PASS 4267, BOTH_ERROR 766, REFUSED 48; the
+  native store PASS 4297, BOTH_ERROR 771, REFUSED 13; no FAIL, no openCypher TCK case moved. `#SQL` write cases (87)
+  on both lanes: PASS 56, BOTH_ERROR 21, REFUSED 10; no FAIL, BUG or ERROR; no earlier case moved but
+  `insert_returning_every_column` (PASS to REFUSED: a column the INSERT does not write).
+- **The write stack** on DuckDB, H2 and Postgres 16: `SqlWrites*` (ON CONFLICT's new checks), `StoreWrites*`,
+  `WritePlans*`, `ClassWritesExecutionTest`, `CypherWritePlansTest`, `CypherDomainWrites*`; the translator's 608 tests.
+
 ## 2026-10-22 — writes: PR #67's review, fourteen findings fixed before its first CI run
 
 Branch `claude/keen-noether-v5mis0`; the record is `docs/PR67_REVIEW_2026_10_22.md` (two independent reviews, every

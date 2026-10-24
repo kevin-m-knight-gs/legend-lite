@@ -1798,6 +1798,55 @@
 {"id":"lite/dml/update_returning_a_rounded_value#check","columns":["id","salary"],"rows":[["i1","d50250.00"],["i2","d60300.50"],["i3","d75000.75"],["i4","d80000.25"],["i5","d95000.00"],["i6","d55000.00"],["i7","d70000.00"],["i8",null],["i9","d45000.00"],["i10","d120000.00"]]}
 {"id":"lite/dml/delete_returning_star","columns":["id","val","nullable_val","unicode_val","empty_val"],"rows":[["i1","shello","sworld","shéllo","s"],["i2","sWORLD","stest","s日本語","s"]]}
 {"id":"lite/dml/delete_returning_star#check","columns":["id"],"rows":[["i3"],["i4"],["i5"],["i6"],["i7"],["i8"],["i9"],["i10"]]}
+{"id":"lite/dml/delete_using_an_ambiguous_column","error":{"state":"42702","message":"ERROR: column reference \"id\" is ambiguous"}}
+{"id":"lite/dml/update_from_an_ambiguous_set_value","error":{"state":"42702","message":"ERROR: column reference \"name\" is ambiguous"}}
+{"id":"lite/dml/update_from_an_ambiguous_condition","error":{"state":"42702","message":"ERROR: column reference \"id\" is ambiguous"}}
+{"id":"lite/dml/delete_using_the_targets_alias","error":{"state":"42712","message":"ERROR: table name \"o\" specified more than once"}}
+{"id":"lite/dml/update_from_the_target_table_again","error":{"state":"42712","message":"ERROR: table name \"persons\" specified more than once"}}
+{"id":"lite/dml/delete_using_a_subquery_reading_the_target","error":{"state":"42P01","message":"ERROR: invalid reference to FROM-clause entry for table \"orders\""}}
+{"id":"lite/dml/update_from_a_subquery_reading_the_target","error":{"state":"42P01","message":"ERROR: invalid reference to FROM-clause entry for table \"p\""}}
+{"id":"lite/dml/delete_using_a_qualified_condition","columns":["count"],"rows":[["i2"]]}
+{"id":"lite/dml/delete_using_a_qualified_condition#check","columns":["id"],"rows":[["i1"],["i2"],["i3"],["i5"],["i6"],["i7"],["i8"],["i10"]]}
+{"id":"lite/dml/update_a_numeric_quotient_into_an_integer","columns":["count"],"rows":[["i10"]]}
+{"id":"lite/dml/update_a_numeric_quotient_into_an_integer#check","columns":["id","age"],"rows":[["i1","i8"],["i2","i6"],["i3","i9"],["i4","i7"],["i5","i11"],["i6","i8"],["i7",null],["i8","i13"],["i9","i6"],["i10","i10"]]}
+{"id":"lite/dml/insert_an_average_into_an_integer","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_an_average_into_an_integer#check","columns":["id","int_val"],"rows":[["i972","i3"]]}
+{"id":"lite/dml/update_a_numeric_quotient_into_a_numeric","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/update_a_numeric_quotient_into_a_numeric#check","columns":["id","salary"],"rows":[["i1","d1.01"]]}
+{"id":"lite/dml/insert_a_double_into_a_numeric","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_a_double_into_a_numeric#check","columns":["id","salary"],"rows":[["i951","d1.01"]]}
+{"id":"lite/dml/update_a_double_of_many_digits_into_a_numeric","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/update_a_double_of_many_digits_into_a_numeric#check","columns":["id","numeric_val"],"rows":[["i1","d123456789012.12300"]]}
+{"id":"lite/dml/insert_a_double_tie_into_an_integer","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_a_double_tie_into_an_integer#check","columns":["id","int_val","small_val"],"rows":[["i950","i2","i-2"]]}
+{"id":"lite/dml/insert_a_numeric_tie_into_an_integer","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_a_numeric_tie_into_an_integer#check","columns":["id","int_val","small_val"],"rows":[["i949","i3","i-3"]]}
+{"id":"lite/dml/delete_returning_an_aggregate","error":{"state":"42803","message":"ERROR: aggregate functions are not allowed in RETURNING"}}
+{"id":"lite/dml/update_returning_a_window","error":{"state":"42P20","message":"ERROR: window functions are not allowed in RETURNING"}}
+{"id":"lite/dml/insert_returning_a_set_returning_function","error":{"state":"0A000","message":"ERROR: set-returning functions are not allowed in RETURNING"}}
+{"id":"lite/dml/update_returning_a_subquery_of_its_table","columns":["id","n"],"rows":[["i1","i0"]]}
+{"id":"lite/dml/update_returning_a_subquery_of_its_table#check","columns":["id","age"],"rows":[["i1","i1"]]}
+{"id":"lite/dml/insert_returning_a_subquery_of_its_table","columns":["n"],"rows":[["i0"]]}
+{"id":"lite/dml/insert_returning_a_subquery_of_its_table#check","columns":["id","val"],"rows":[["i1","sa"]]}
+{"id":"lite/dml/insert_text_longer_than_its_varchar","error":{"state":"22001","message":"ERROR: value too long for type character varying(50)"}}
+{"id":"lite/dml/insert_trailing_spaces_past_its_varchar","columns":["n"],"rows":[["i50"]]}
+{"id":"lite/dml/insert_trailing_spaces_past_its_varchar#check","columns":["id","n"],"rows":[["i6003","i50"]]}
+{"id":"lite/dml/insert_an_integer_into_text","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_an_integer_into_text#check","columns":["id","val"],"rows":[["i952","s5"]]}
+{"id":"lite/dml/update_a_timestamp_from_a_date","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/update_a_timestamp_from_a_date#check","columns":["id","ts"],"rows":[["i1","s2023-01-15 00:00:00"]]}
+{"id":"lite/dml/insert_values_of_mixed_numbers","columns":["count"],"rows":[["i3"]]}
+{"id":"lite/dml/insert_values_of_mixed_numbers#check","columns":["id","int_val"],"rows":[["i2001","i1"],["i2002","i3"],["i2003","i7"]]}
+{"id":"lite/dml/insert_text_into_an_integer","error":{"state":"42804","message":"ERROR: column \"int_val\" is of type integer but expression is of type character varying"}}
+{"id":"lite/dml/insert_a_distinct_literal","error":{"state":"42804","message":"ERROR: column \"int_val\" is of type integer but expression is of type text"}}
+{"id":"lite/dml/insert_a_literal_under_a_with","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_a_literal_under_a_with#check","columns":["id","int_val"],"rows":[["i967","i5"]]}
+{"id":"lite/dml/insert_a_literal_after_a_star","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_a_literal_after_a_star#check","columns":["id","person_id","status"],"rows":[["i2001","i1","sz"]]}
+{"id":"lite/dml/insert_select_ordered_by_an_output_name","columns":["count"],"rows":[["i2"]]}
+{"id":"lite/dml/insert_select_ordered_by_an_output_name#check","columns":["id","status"],"rows":[["i2001","sALICE"],["i2002","sBOB"]]}
+{"id":"lite/dml/delete_using_two_tables","columns":["count"],"rows":[["i4"]]}
+{"id":"lite/dml/delete_using_two_tables#check","columns":["id"],"rows":[["i1"],["i2"],["i3"],["i4"],["i8"],["i10"]]}
 {"id":"lite/functions/sqrt_exp_ln_log","columns":["id","r","e","l","g"],"rows":[["i1","f6.48074069840786","f2.718281828459045","f1.1447290411851783","f9.99999999995657"],["i4","f46340.950001051984","f1.4302079958348105E55","f0.586504231825119","f18.964889726830815"],["i6","f1.0","f2.718281828459045","f-2.3025850929940455","f0.0"],["i8","f10.0","f5.184705528587072E21","f4.605070180987758","f6.0"],["i9","f2.6457513110645907","f1096.6331584284585","f0.804719860706232","f1.6901960800285136"]]}
 {"id":"lite/functions/trigonometry","columns":["id","s","c","a","a2","d","r"],"rows":[["i1","f2.65358979335273E-6","f-0.9999999999964793","f1.2626270115493434","f1.0038844392054265","f179.9998479605043","f0.05483108924772866"],["i2","f-0.41078295757034533","f-0.9117331636886747","f-1.2182826870594876","f-0.9364716864758501","f-155.74597153482142","f-0.04744293599111146"],["i3","f0.0","f1.0","f0.0","f0.0","f0.0","f0.0"],["i4","f0.974369171621577","f-0.22495492302566278","f1.063153208903525","f0.7321774709735704","f103.00022748978945","f0.03137566353538367"],["i5",null,null,null,null,null,null],["i6","f0.09983341664682815","f0.9950041652780258","f0.09966865249116204","f0.049958395721942765","f5.729577951308232","f0.0017453292519943296"],["i7","f-0.09983341664682815","f0.9950041652780258","f-0.09966865249116204","f-0.049958395721942765","f-5.729577951308232","f-0.0017453292519943296"],["i8","f-0.5149633680424761","f0.8572121846861193","f1.5607956601082313","f1.5507969934215662","f5729.004993513101","f1.7451547190691301"],["i9","f0.7867478831110827","f-0.617274467656188","f1.1502623285940459","f0.8410691200121956","f128.11737369581797","f0.039026783805069604"],["i10","f-9.999999999833334E-6","f0.99999999995","f-9.999999999666668E-6","f-4.999999999958334E-6","f-5.729577951308233E-4","f-1.7453292519943297E-7"]]}
 {"id":"lite/functions/pi_and_cbrt","columns":["id","c","p"],"rows":[["i1","f3.4760266448864496","f3.141592653589793"],["i2","f-2.1544346900318834","f-402.1238596594935"],["i3","f0.0","f0.0"],["i4","f1290.1591548920912","f398.98226700590374"],["i5",null,null],["i6","f1.0","f3.141592653589793"],["i7","f-1.0","f-3.141592653589793"],["i8","f4.641588833612778","f157.07963267948966"],["i9","f1.9129311827723894","f21.991148575128552"],["i10","f-9.996665554937861","f-311.01767270538954"]]}

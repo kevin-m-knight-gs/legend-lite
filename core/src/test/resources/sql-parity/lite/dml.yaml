@@ -171,3 +171,103 @@ tests:
   - id: delete_returning_star
     sql: "DELETE FROM strings WHERE id <= 2 RETURNING *"
     check: "SELECT id FROM strings ORDER BY id"
+  # PR #67's second review (2026-10-24): the write path probed against Postgres 16. UPDATE ... FROM and DELETE ...
+  # USING name the target and the items at one level
+  - id: delete_using_an_ambiguous_column
+    sql: "DELETE FROM orders USING persons WHERE id = 1"
+    check: "SELECT count(*) AS n FROM orders"
+  - id: update_from_an_ambiguous_set_value
+    sql: "UPDATE persons SET name = name FROM departments d WHERE d.id = persons.dept_id"
+    check: "SELECT id, name FROM persons ORDER BY id"
+  - id: update_from_an_ambiguous_condition
+    sql: "UPDATE persons SET age = 1 FROM departments d WHERE id = 1"
+    check: "SELECT id, age FROM persons ORDER BY id"
+  - id: delete_using_the_targets_alias
+    sql: "DELETE FROM orders o USING persons o WHERE o.id = 1"
+    check: "SELECT count(*) AS n FROM orders"
+  - id: update_from_the_target_table_again
+    sql: "UPDATE persons SET age = 1 FROM persons WHERE persons.id = 1"
+    check: "SELECT id, age FROM persons ORDER BY id"
+  - id: delete_using_a_subquery_reading_the_target
+    sql: "DELETE FROM orders USING (SELECT 1 AS x FROM persons p WHERE p.id = orders.person_id AND p.active) s"
+    check: "SELECT id FROM orders ORDER BY id"
+  - id: update_from_a_subquery_reading_the_target
+    sql: "UPDATE persons p SET age = x.n FROM (SELECT count(*) AS n FROM orders o WHERE o.person_id = p.id) x"
+    check: "SELECT id, age FROM persons ORDER BY id"
+  - id: delete_using_a_qualified_condition
+    sql: "DELETE FROM orders USING persons p WHERE p.id = orders.person_id AND p.active = false"
+    check: "SELECT id FROM orders ORDER BY id"
+  # a value written as the column holds it: a numeric quotient, an average, a double
+  - id: update_a_numeric_quotient_into_an_integer
+    sql: "UPDATE persons SET age = age / 4.0"
+    check: "SELECT id, age FROM persons ORDER BY id"
+  - id: insert_an_average_into_an_integer
+    sql: "INSERT INTO numbers (id, int_val) SELECT 972, avg(x) FROM (VALUES (2), (3)) AS v(x)"
+    check: "SELECT id, int_val FROM numbers WHERE id = 972"
+  - id: update_a_numeric_quotient_into_a_numeric
+    sql: "UPDATE persons SET salary = 2.01 / 2 WHERE id = 1"
+    check: "SELECT id, salary FROM persons WHERE id = 1"
+  - id: insert_a_double_into_a_numeric
+    sql: "INSERT INTO persons (id, salary) VALUES (951, CAST(1.005 AS double precision))"
+    check: "SELECT id, salary FROM persons WHERE id = 951"
+  - id: update_a_double_of_many_digits_into_a_numeric
+    sql: "UPDATE numbers SET numeric_val = CAST(123456789012.123456 AS double precision) WHERE id = 1"
+    check: "SELECT id, numeric_val FROM numbers WHERE id = 1"
+  - id: insert_a_double_tie_into_an_integer
+    sql: "INSERT INTO numbers (id, int_val, small_val) VALUES (950, CAST(2.5 AS double precision), CAST(-2.5 AS double precision))"
+    check: "SELECT id, int_val, small_val FROM numbers WHERE id = 950"
+  - id: insert_a_numeric_tie_into_an_integer
+    sql: "INSERT INTO numbers (id, int_val, small_val) VALUES (949, 2.5, -2.5)"
+    check: "SELECT id, int_val, small_val FROM numbers WHERE id = 949"
+  # RETURNING: no aggregate, window or set-returning function; its subqueries read the table before the write
+  - id: delete_returning_an_aggregate
+    sql: "DELETE FROM orders WHERE status = 'pending' RETURNING count(*)"
+    check: "SELECT count(*) AS n FROM orders"
+  - id: update_returning_a_window
+    sql: "UPDATE persons SET age = 1 WHERE id <= 3 RETURNING id, row_number() OVER (ORDER BY id) AS rn"
+    check: "SELECT id, age FROM persons WHERE id <= 3 ORDER BY id"
+  - id: insert_returning_a_set_returning_function
+    sql: "INSERT INTO empty_table (id, val) VALUES (1, 'a') RETURNING id, generate_series(1, 2) AS g"
+    check: "SELECT id, val FROM empty_table"
+  - id: update_returning_a_subquery_of_its_table
+    sql: "UPDATE persons SET age = 1 WHERE id = 1 RETURNING id, (SELECT count(*) FROM persons p2 WHERE p2.age = 1) AS n"
+    check: "SELECT id, age FROM persons WHERE id = 1"
+  - id: insert_returning_a_subquery_of_its_table
+    sql: "INSERT INTO empty_table (id, val) VALUES (1, 'a') RETURNING (SELECT count(*) FROM empty_table) AS n"
+    check: "SELECT id, val FROM empty_table"
+  # varchar(n): longer text is Postgres's error, unless what passes n is spaces (cut away)
+  - id: insert_text_longer_than_its_varchar
+    sql: "INSERT INTO orders (id, status) VALUES (953, repeat('x', 60))"
+    check: "SELECT id, length(status) AS n FROM orders WHERE id = 953"
+  - id: insert_trailing_spaces_past_its_varchar
+    sql: "INSERT INTO orders (id, status) VALUES (6003, 'abc                                                            ') RETURNING length(status) AS n"
+    check: "SELECT id, length(status) AS n FROM orders WHERE id = 6003"
+  # Postgres's assignment casts
+  - id: insert_an_integer_into_text
+    sql: "INSERT INTO strings (id, val) VALUES (952, 5)"
+    check: "SELECT id, val FROM strings WHERE id = 952"
+  - id: update_a_timestamp_from_a_date
+    sql: "UPDATE dates SET ts = d WHERE id = 1"
+    check: "SELECT id, ts FROM dates WHERE id = 1"
+  - id: insert_values_of_mixed_numbers
+    sql: "INSERT INTO numbers (id, int_val) VALUES (2001, 1), (2002, 2.5), (2003, '7')"
+    check: "SELECT id, int_val FROM numbers WHERE id > 2000 ORDER BY id"
+  - id: insert_text_into_an_integer
+    sql: "INSERT INTO numbers (id, int_val) SELECT 973, name FROM persons WHERE id = 1"
+    check: "SELECT id, int_val FROM numbers WHERE id = 973"
+  # an INSERT's source's literals, typed where Postgres types them
+  - id: insert_a_distinct_literal
+    sql: "INSERT INTO numbers (id, int_val) SELECT DISTINCT 966, '5'"
+    check: "SELECT id, int_val FROM numbers WHERE id = 966"
+  - id: insert_a_literal_under_a_with
+    sql: "INSERT INTO numbers (id, int_val) WITH x AS (SELECT 1 AS a) SELECT 967, '5' FROM x"
+    check: "SELECT id, int_val FROM numbers WHERE id = 967"
+  - id: insert_a_literal_after_a_star
+    sql: "INSERT INTO orders (person_id, id, status) SELECT *, 'z' FROM (SELECT 1 AS a, 2001 AS b) s"
+    check: "SELECT id, person_id, status FROM orders WHERE id = 2001"
+  - id: insert_select_ordered_by_an_output_name
+    sql: "INSERT INTO orders (id, status) SELECT id + 2000, upper(name) FROM persons ORDER BY upper LIMIT 2"
+    check: "SELECT id, status FROM orders WHERE id > 2000 ORDER BY id"
+  - id: delete_using_two_tables
+    sql: "DELETE FROM orders USING persons p, departments d WHERE p.id = orders.person_id AND d.id = p.dept_id AND d.name = 'Sales'"
+    check: "SELECT id FROM orders ORDER BY id"

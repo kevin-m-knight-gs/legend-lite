@@ -359,21 +359,23 @@ public final class SpecCompiler {
 
     /** {@code query} with each of its statements that is a Cypher statement updating the graph replaced by that
      *  statement's program (docs/WRITES_DESIGN_2026_10_18.md §5: the staged rows' lets, the writes, the rows last;
-     *  {@link CypherIslands#statements}), and likewise each {@code #SQL{...}#} statement that returns the rows it
-     *  writes ({@link SqlIslands#statements}), as a lambda of the query's parameters; a query of none as it is. */
+     *  {@link CypherIslands#statements}), and likewise each {@code #SQL{...}#} statement that writes a table in more
+     *  than one statement ({@link SqlIslands#isProgram}, {@link SqlIslands#statements}), as a lambda of the query's
+     *  parameters; a query of none as it is. */
     private ValueSpecification withIslandPrograms(ValueSpecification query) {
         List<ValueSpecification> body = query instanceof com.legend.protocol.spec.LambdaFunction lf ? lf.body()
                 : List.of(query);
         if (body.stream().noneMatch(s -> s instanceof com.legend.protocol.spec.SqlIsland si
-                && (CypherIslands.updates(si) || SqlIslands.returnsRows(si)))) {
+                && (CypherIslands.updates(si) || SqlIslands.isProgram(si)))) {
             return query;
         }
         List<ValueSpecification> out = new ArrayList<>();
         for (ValueSpecification stmt : body) {
             if (stmt instanceof com.legend.protocol.spec.SqlIsland si && CypherIslands.updates(si)) {
                 out.addAll(CypherIslands.statements(si, ctx));
-            } else if (stmt instanceof com.legend.protocol.spec.SqlIsland si && SqlIslands.returnsRows(si)) {
-                // a #SQL{...}# statement that returns the rows it writes (RETURNING; the writes design's leg 4)
+            } else if (stmt instanceof com.legend.protocol.spec.SqlIsland si && SqlIslands.isProgram(si)) {
+                // a #SQL{...}# statement written in several statements (RETURNING, the writes design's leg 4; an ON
+                // CONFLICT DO UPDATE's check of its keys, PR #67's second review)
                 out.addAll(SqlIslands.statements(si, source -> typer.synth(source, Env.empty()), ctx));
             } else {
                 out.add(stmt);

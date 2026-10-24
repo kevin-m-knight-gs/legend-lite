@@ -85,6 +85,24 @@ class SqlWritesExecutionTest {
                         + " n WHERE n.ID = i.ID"), name);
                 assertEquals(List.of("2|two|20", "3|z|31", "5|five|50"), items(c), name);
             }
+            // PR #67's second review (2026-10-24), as Postgres 16 answers: DO UPDATE's rows each of their key once
+            // (DuckDB's MERGE had applied both); a key compared as the column holds it (2.4 is 2, which the table
+            // holds); the target named as the proposed rows, ambiguous
+            List<String> before = items(c);
+            Exception twice = assertThrows(Exception.class, () -> count(backend, c, "INSERT INTO " + ITEM
+                    + " (ID, NAME) VALUES (2, 'x'), (2, 'y') ON CONFLICT (ID) DO UPDATE SET NAME = EXCLUDED.NAME"),
+                    name);
+            assertEquals(before, items(c), name + ": " + twice.getMessage());
+            assertEquals(0L, count(backend, c, "INSERT INTO " + ITEM + " (ID, NAME) VALUES (2.4, 'x')"
+                    + " ON CONFLICT (ID) DO NOTHING"), name);
+            assertEquals(before, items(c), name);
+            assertEquals(1L, count(backend, c, "INSERT INTO " + ITEM + " (ID, NAME) VALUES (3.4, 'q')"
+                    + " ON CONFLICT (ID) DO UPDATE SET NAME = EXCLUDED.NAME"), name);
+            assertTrue(items(c).contains("3|q|31"), name + ": " + items(c));
+            Exception excluded = assertThrows(Exception.class, () -> count(backend, c, "INSERT INTO " + ITEM
+                    + " AS excluded (ID, NAME) VALUES (2, 'n') ON CONFLICT (ID) DO UPDATE SET NAME = excluded.NAME"),
+                    name);
+            assertTrue(String.valueOf(excluded.getMessage()).contains("ambiguous"), excluded.getMessage());
         }
     }
 

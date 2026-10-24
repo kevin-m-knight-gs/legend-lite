@@ -60,12 +60,12 @@ final class SqlIslands {
         }
     }
 
-    /** Whether {@code island} is a {@code #SQL{...}#} statement that writes a table and returns the rows it wrote
-     *  (RETURNING; the writes design's leg 4, 2026-10-20): a program of statements ({@link #statements}), as a Cypher
-     *  statement that updates the graph is. */
-    static boolean returnsRows(SqlIsland island) {
+    /** Whether {@code island} is a {@code #SQL{...}#} statement that writes a table in more than one statement (one
+     *  with RETURNING, the writes design's leg 4, 2026-10-20; an ON CONFLICT DO UPDATE, PR #67's second review,
+     *  2026-10-24): a program of statements ({@link #statements}), as a Cypher statement that updates the graph is. */
+    static boolean isProgram(SqlIsland island) {
         return island.language().equals(SqlIsland.SQL) && island.profile() == null
-                && SqlToPure.returnsRows(island.sql(), dialect(island));
+                && SqlToPure.isProgram(island.sql(), dialect(island));
     }
 
     /** The statements a {@code #SQL{...}#} statement that returns the rows it writes means (the staged rows' let, the
