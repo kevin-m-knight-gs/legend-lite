@@ -339,7 +339,7 @@ Status: **Have**, **Partial**, **Missing**. Where: **DC** (DataCube alone, `data
 | Relative dates: last N days/weeks/months, this/last month/quarter/year, YTD/QTD/MTD | Excel date filters, Power BI relative date slicer | **Built 2026-10-24** (Filter > Date Range, eighteen ranges; their ends the database's) | DC | M | P2 |
 | A measure over two columns: corr, covariance, weighted average, max by, min by | DAX, Excel | Missing in the UI (core supports them) | DC | M | P2 |
 | Distinct count, count of blanks | Excel | Check | DC | S | P2 |
-| Groups (bucket members by hand) and sets | Tableau groups and sets, Power BI groups | Missing | DC (a `case` calculated column, Pure) | M | P3 |
+| Groups (bucket members by hand) and sets | Tableau groups and sets, Power BI groups | **Built 2026-10-24** for groups (`snapshot.ts ValueGroups`, query.ts groupsLambda): a column's values ticked and named into groups in the Group Values window (Extended Columns ▸), the rest under a name or, on a text column, as themselves; its expression built at query time from the Filter Values window's own test, so the database does the bucketing; Edit Groups reopens it; Python's `grid.group_values`. Sets (a member in or out, by a condition) later | DC (a `case` calculated column, Pure) | M | P3 |
 | Fixed-grain aggregates (Tableau FIXED/INCLUDE/EXCLUDE) | Tableau LOD | **Partial 2026-10-24**: a measure at its parent's or the grand total's grain (`DerivedColumn.grain`, joined in the level's query); grain by any chosen keys is P5 | DC (a join to the measure at the coarser grain) | L | P5 |
 
 ### 4.3 Conditional formatting and number formats

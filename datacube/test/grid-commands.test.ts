@@ -438,10 +438,10 @@ describe('a command read from JSON is the same command, and what DataCube does n
     refused(() => readGridCommand(calc({ name: 'x', lambda: 42 })), /lambda is the protocol's/);
     refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, kind: 'bogus' })), /a column's kind is/);
     refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, window: {} })),
-      /a calculated column is one of a lambda, a window, a child aggregate, a grain or a related property, not lambda and window/);
-    refused(() => readGridCommand(calc({ name: 'x' })), /a calculated column is one of a lambda, a window, a child aggregate, a grain or a related property, not none/);
+      /a calculated column is one of a lambda, a window, a child aggregate, a grain, a related property or value groups, not lambda and window/);
+    refused(() => readGridCommand(calc({ name: 'x' })), /a calculated column is one of a lambda, a window, a child aggregate, a grain, a related property or value groups, not none/);
     refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, colour: 'red' })),
-      /a calculated column from JSON takes name, lambda, window, childAggregate, grain, related, unnest, kind, type, not colour/);
+      /a calculated column from JSON takes name, lambda, window, childAggregate, grain, related, groups, unnest, kind, type, not colour/);
     // a measure at a grain: its measure, and its parent's or the grand total's
     const grain = (g: unknown): unknown => ({ kind: 'calculate', level: 'group', column: { name: 'g', grain: g } });
     assert.deepEqual(readGridCommand(grain({ of: 'notional', at: 'all' })),

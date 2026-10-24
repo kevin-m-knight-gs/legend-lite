@@ -143,6 +143,21 @@ class Grids(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'has an exponent, which DataCube does not read'):
             grid.format_code('pnl', '0.00E+00')
 
+    def test_a_columns_values_gathered_into_named_groups(self):
+        # Tableau's groups (DataCube's snapshot.ts ValueGroups, through the column.calculate gesture the Group Values
+        # window sends): a dimension the grid groups by, its rest under a name or as itself; refused in DataCube's words
+        import pandas as pd
+        frame = pd.DataFrame({'desk': ['FX', 'Rates', 'EQ', 'FX'], 'year': [2024, 2025, 2026, 2026], 'qty': [1, 2, 3, 4]})
+        grid = self.page.grid(frame, name='trades_groups')
+        grid.group_values('desk', {'Macro': ['FX', 'Rates']}).group('desk_group')
+        self.assertEqual(groups(grid.view(), 'qty'), {'Macro': 7, 'EQ': 3})
+        grid.group_values('year', {'Recent': [2025, 2026]}, other='Earlier', name='era').group('era')
+        self.assertEqual(groups(grid.view(), 'qty'), {'Recent': 9, 'Earlier': 1})
+        with self.assertRaisesRegex(ValueError, 'year is Integer: its values in no group need a name'):
+            grid.group_values('year', {'Recent': [2026]}, name='era2')
+        with self.assertRaisesRegex(ValueError, 'are in A and B: a value is in one group'):
+            grid.group_values('desk', {'A': ['FX'], 'B': ['FX']}, name='twice')
+
     def test_a_grid_exports_as_its_export_menu_makes_the_file(self):
         # the screen's own core (export-render.ts), run headless: each format DataCube's Export menu offers, with the
         # grid's formats (a sum past a thousand, written with its separator where a person reads it) and its heatmap

@@ -790,6 +790,7 @@ export function derivedReads(d: DerivedColumn): Set<string> {
   }
   if (d.childAggregate) out.add(d.childAggregate.of);
   if (d.grain) out.add(d.grain.of);
+  if (d.groups) out.add(d.groups.of);
   return out;
 }
 

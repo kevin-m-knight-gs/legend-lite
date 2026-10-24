@@ -1229,6 +1229,35 @@ describe('the app', () => {
     assert.match(field.querySelector('.dc-rule-problem')?.textContent ?? '', /has an exponent, which DataCube does not read/);
   });
 
+  it('Group Values: its values ticked and named into a group, the rest as themselves, made as the calculate command', async () => {
+    // the grid's grouping, region, has no header of its own: the window opened as its menu entry opens it
+    await app.openGroupValues('region');
+    const win = root.querySelector('.dc-group-values') as HTMLElement;
+    const items = [...win.querySelectorAll('.dc-value-item')] as HTMLElement[];
+    assert.deepEqual(items.map((i) => i.textContent), ['EMEA', 'AMER']);
+    (items[0]!.querySelector('input') as HTMLInputElement).click();
+    const name = win.querySelector('.dc-group-name') as HTMLInputElement;
+    name.value = 'Europe';
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'Group Selected') as HTMLButtonElement).click();
+    assert.deepEqual([...win.querySelectorAll('.dc-group-words')].map((w) => w.textContent), ['Europe: EMEA']);
+    assert.equal(win.querySelector('.dc-value-item input')?.hasAttribute('disabled'), true, "a grouped value is its group's");
+    // a name taken: the gesture's words said in the window, which stays open, and nothing made
+    const column = win.querySelector('.dc-group-column') as HTMLInputElement;
+    column.value = 'desk';
+    const made = commands.filter((c) => c.kind === 'calculate').length;
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'OK') as HTMLButtonElement).click();
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.match(win.querySelector('.dc-group-problem')?.textContent ?? '', /desk/);
+    assert.ok(win.isConnected, 'the window stays open');
+    assert.equal(commands.filter((c) => c.kind === 'calculate').length, made);
+    column.value = 'region_group';
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'OK') as HTMLButtonElement).click();
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.ok(!win.isConnected, 'made, the window closes');
+    assert.deepEqual(commands.filter((c) => c.kind === 'calculate').at(-1), { kind: 'calculate', level: 'row',
+      column: { name: 'region_group', groups: { of: 'region', groups: [{ name: 'Europe', values: ['EMEA'] }] }, kind: 'dimension' } });
+  });
+
   it('keeps several windows open at once, as upstream\'s layout', () => {
     app.openEditor();
     app.openFilters();

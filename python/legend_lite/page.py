@@ -694,6 +694,17 @@ class Grid(Tile):
             raise ValueError('; '.join(said['problems']))
         return self._kept(said, 3)
 
+    def group_values(self, column: str, groups: dict, other: str | None = None, *, name: str | None = None) -> Grid:
+        """A column gathering ``column``'s values by hand into named groups -- ``{'Macro': ['FX', 'Rates'], 'Equity':
+        ['EQ']}``, ``None`` among a group's values the blanks -- the rest named ``other`` or, on a text column, left as
+        themselves (Tableau's groups; the header menu's Group Values; DataCube's snapshot.ts ValueGroups, its expression
+        built at query time): a dimension the grid groups, filters and charts by. Named ``<column>_group`` unless ``name``
+        says. Refused in DataCube's words: a value in two groups, a number column's rest unnamed, a name taken."""
+        made = {'of': column, 'groups': [{'name': k, 'values': list(v)} for k, v in groups.items()],
+                **({'other': other} if other is not None else {})}
+        return self._gesture('column.calculate', {'level': 'row', 'column': {'name': name or f'{column}_group', 'groups': made,
+                                                                             'kind': 'dimension'}})
+
     def related(self, path: str, aggregate: str | None = None, *, name: str | None = None) -> Grid:
         """A related class's property as a column of a grid over a class (DataCube's class tree: class-tree.ts, headless
         gridRelated) -- ``path`` from the class, dotted (``'customer.region'``), each hop a class-typed property or an

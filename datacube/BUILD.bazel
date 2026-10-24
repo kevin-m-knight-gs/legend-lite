@@ -518,6 +518,7 @@ _HEADLESS_TESTS = [
     "treeview",
     "type-columns",
     "value-filter",
+    "value-groups",
     "values",
     "warehouse-session",
     "window",

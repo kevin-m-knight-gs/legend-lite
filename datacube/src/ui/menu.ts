@@ -78,6 +78,10 @@ export interface MenuContext {
   readonly hasExpanded?: boolean;
   /** Whether the column under the pointer already has a heatmap. */
   readonly hasHeatmap?: boolean;
+  /** The column under the pointer is one of the grid's rows' columns, whose values Group Values gathers. */
+  readonly groupable?: boolean;
+  /** The column under the pointer gathers another's values into groups (snapshot.ts ValueGroups): Edit Groups. */
+  readonly groupsColumn?: boolean;
   /** The column under the pointer's conditional formats (Conditional Formatting ▸). */
   readonly conditional?: ConditionalFacts;
   /** What a pivot total's header is named (Properties' Pivot Statistic Column Name), when it is renamed. */
@@ -299,6 +303,8 @@ export type MenuActionId =
   | 'calc.bins'
   | 'calc.showAs'
   | 'calc.related'
+  | 'calc.groupValues'
+  | 'calc.editGroups'
   | 'calc.modelMeasure'
   | 'calc.edit'
   | 'calc.delete'
@@ -796,11 +802,15 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           : []),
         ...presetItems(ctx, column, named),
         ...relatedItems(ctx),
+        // Group Values: a column's values gathered by hand into named groups, a column of its own; its groups edited again
+        ...(column !== undefined && ctx.groupsColumn
+          ? [{ id: 'calc.editGroups' as const, label: `Edit Groups of ${named}...`, column }]
+          : column !== undefined && ctx.groupable ? [{ id: 'calc.groupValues' as const, label: `Group Values of ${named}...`, column }] : []),
         ...modelMeasureItems(ctx),
         ...(column !== undefined && ctx.calcStage !== undefined
           ? [
             // a related column is the class tree's (Add Related Column), never a formula to edit
-            ...(ctx.relatedColumn ? [] : [{ id: 'calc.edit' as const, label: `Edit Column ${named}...`, column }]),
+            ...(ctx.relatedColumn || ctx.groupsColumn ? [] : [{ id: 'calc.edit' as const, label: `Edit Column ${named}...`, column }]),
             { id: 'calc.delete' as const, label: `Delete Column ${named}`,
               column },
           ]

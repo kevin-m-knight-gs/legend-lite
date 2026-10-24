@@ -293,8 +293,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  339,500 -> 342,500 (2026-10-24, P3's Excel number format codes and date patterns: format-code.ts reads a code into
  *  its sections and writes a cell by it -- in the grid's formatter, which writes every cell at once, so at startup --
  *  with its colour, the Properties' Format Code field and its judging on configure and on a saved page's open).
- *  Measured 342,025. */
-const BUDGET = 342_500;
+ *  Measured 342,025.
+ *  342,500 -> 343,500 (2026-10-24, P3's groups of a column's values: ValueGroups read, judged and planned (grid-commands,
+ *  query), the menu's Group Values and Edit Groups, the window's opening -- the window itself a chunk of its own,
+ *  fetched with the first one opened (ui/group-values.ts)). Measured 342,844. */
+const BUDGET = 343_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -390,8 +393,9 @@ const BUDGET = 342_500;
  *  320,500 -> 323,000 (2026-10-24, P5's class tree, step 1 -- the grid's note of the same date). Measured 322,762.
  *  323,000 -> 325,000 (2026-10-24, P5's step 2, model measures -- the grid's note of the same date). Measured 324,518.
  *  325,000 -> 330,000 (2026-10-24, P3's conditional formats -- the grid's note of the same date). Measured 329,866.
- *  330,000 -> 333,000 (2026-10-24, P3's format codes -- the grid's note of the same date). Measured 332,665. */
-const ENGINE_BUDGET = 333_000;
+ *  330,000 -> 333,000 (2026-10-24, P3's format codes -- the grid's note of the same date). Measured 332,665.
+ *  333,000 -> 334,500 (2026-10-24, P3's groups of values -- the grid's note of the same date). Measured 333,810. */
+const ENGINE_BUDGET = 334_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -538,8 +542,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  339,500 -> 342,000 (2026-10-24, P5's class tree, step 1 -- the grid's note of the same date). Measured 341,696.
  *  342,000 -> 344,000 (2026-10-24, P5's step 2, model measures -- the grid's note of the same date). Measured 343,433.
  *  344,000 -> 349,000 (2026-10-24, P3's conditional formats -- the grid's note of the same date). Measured 348,827.
- *  349,000 -> 352,000 (2026-10-24, P3's format codes -- the grid's note of the same date). Measured 351,631. */
-const WIDGET_BUDGET = 352_000;
+ *  349,000 -> 352,000 (2026-10-24, P3's format codes -- the grid's note of the same date). Measured 351,631.
+ *  352,000 -> 353,500 (2026-10-24, P3's groups of values -- the grid's note of the same date). Measured 352,770. */
+const WIDGET_BUDGET = 353_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

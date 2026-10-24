@@ -4,6 +4,7 @@
 // command from a click, Python from a call; neither holds a rule of its own, so the two cannot make one edit two ways.
 // No DOM, no planner: what needs the compiler (a calculated column's parse) is done before the command is built.
 
+import { familyOf } from '../../engine-client/src/types.ts';
 import { nameProblem } from './calc.ts';
 import { readColorScale, readDataBar, readIconSet, readRule } from './conditional.ts';
 import { readFormatCode } from './format-code.ts';
@@ -21,10 +22,12 @@ import { operandKind } from './filter-operators.ts';
 import {
   AGGREGATE_FNS, CHILD_AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, GRAIN_ATS, PATH_AGGREGATES, SORT_DIRECTIONS,
   WINDOW_FUNCTIONS, isJsonValue,
-  isPivotTotalColumn, isRelativeDate, pivotTotalColumn, readTopN, withCalculated, withoutConditions,
+  isPivotTotalColumn, isRelativeDate, rowColumns, pivotTotalColumn, readTopN, withCalculated, withoutConditions,
   type AggregateFn, type ChildAggregate, type ColumnKind, type DerivedColumn, type Grain, type RelatedPath, type FilterNode, type FilterOperator,
   type FilterValue, type Measure, type SortDirection, type SortSpec, type TopN, type WindowFrame, type WindowFunction,
   type WindowSpec,
+  type CubeSnapshot,
+  type ValueGroups,
 } from './snapshot.ts';
 import { TREE_COLUMN } from './treeview.ts';
 import { isDetailPath, type RowPath, type TreeState } from './tree.ts';
@@ -149,10 +152,12 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
       if (command.column.related !== undefined && command.level !== 'row') {
         throw new CubeRefusal(`'${command.column.name}' is a related class's property: a row-level column, projected with the class's own`);
       }
+      groupsProblem(draft.snapshot, command.level, command.column);
       return { ...draft, snapshot: withCalculated(draft.snapshot, undefined, command.level, command.column) };
     }
     case 'editCalculated': {
       calculatedNamed(draft, command.name);
+      groupsProblem(draft.snapshot, command.level, command.column);
       const problem = nameProblem(draft.snapshot, command.level, command.column.name, command.name);
       if (problem !== null) throw new CubeRefusal(problem);
       const renamed = command.column.name !== command.name;
@@ -587,6 +592,57 @@ function relatedFrom(v: unknown): RelatedPath {
   return { path, ...(aggregate !== undefined ? { aggregate: aggregate as RelatedPath['aggregate'] & string } : {}) };
 }
 
+/** Value groups judged against the grid (snapshot.ts ValueGroups): a row-level column, of a column of its rows, its
+ *  values in no group named where they are no text (an if's branches one type). */
+function groupsProblem(s: CubeSnapshot, level: string, column: DerivedColumn): void {
+  const g = column.groups;
+  if (g === undefined) return;
+  if (level !== 'row') throw new CubeRefusal(`'${column.name}' groups a column's values: a row-level column, before the grouping`);
+  const of = rowColumns(s).find((c) => c.name === g.of);
+  if (of === undefined) throw new CubeRefusal(`'${g.of}' is no column of the grid's rows (${rowColumns(s).map((c) => c.name).join(', ')})`);
+  if (g.other === undefined && of.type !== undefined && familyOf(of.type) !== 'text') {
+    throw new CubeRefusal(`${g.of} is ${of.type}: its values in no group need a name (other), a group's name being text`);
+  }
+}
+
+/** A column's values gathered into named groups (snapshot.ts ValueGroups) read from JSON, or why not: a group of no
+ *  values, a name twice, a value in two groups. Which column it gathers is the grid's to judge (the calculate command). */
+function groupsFrom(v: unknown): ValueGroups {
+  if (!isObject(v)) throw new CubeRefusal(`value groups are {of, groups: [{name, values}], other?}, not ${JSON.stringify(v)}`);
+  fields(v, 'groups', ['of', 'groups', 'other'], 'value groups');
+  const of = textFrom(v['of'], 'the column the groups gather');
+  const given = v['groups'];
+  if (!Array.isArray(given) || given.length === 0) throw new CubeRefusal(`value groups have at least one group, each {name, values}, not ${JSON.stringify(given)}`);
+  const seen = new Map<string, string>();
+  const names = new Set<string>();
+  const groups = given.map((g) => {
+    if (!isObject(g)) throw new CubeRefusal(`a group is {name, values}, not ${JSON.stringify(g)}`);
+    fields(g, 'group', ['name', 'values'], 'a group');
+    const name = textFrom(g['name'], "a group's name").trim();
+    if (name === '') throw new CubeRefusal("a group's name is some text, not blank");
+    if (names.has(name)) throw new CubeRefusal(`two groups are named ${name}: a name is one group's`);
+    names.add(name);
+    const values = g['values'];
+    if (!Array.isArray(values) || values.length === 0) throw new CubeRefusal(`the group ${name} holds at least one value`);
+    return {
+      name,
+      values: values.map((x) => {
+        const value = x === null ? null : filterValueFrom(x);
+        const key = JSON.stringify(value);
+        const had = seen.get(key);
+        if (had !== undefined) throw new CubeRefusal(`${value === null ? 'the blanks' : JSON.stringify(value)} are in ${had} and ${name}: a value is in one group`);
+        seen.set(key, name);
+        return value;
+      }),
+    };
+  });
+  const other = v['other'];
+  if (other !== undefined && (typeof other !== 'string' || other.trim() === '')) {
+    throw new CubeRefusal(`the name of the values in no group is some text, not ${JSON.stringify(other)}`);
+  }
+  return { of, groups, ...(other !== undefined ? { other: (other as string).trim() } : {}) };
+}
+
 /**
  * A calculated column read from JSON, as the screen's column editor and its presets make one: a formula (its lambda the
  * protocol's, its body the planner's to judge; exploded, each row repeated per element), a window column (Show As: a
@@ -595,14 +651,14 @@ function relatedFrom(v: unknown): RelatedPath {
  * type; or why not.
  */
 function calculatedFrom(v: unknown): DerivedColumn {
-  if (!isObject(v)) throw new CubeRefusal(`a calculated column is {name, lambda | window | childAggregate | grain | related, ...}, not ${JSON.stringify(v)}`);
-  fields(v, 'column', ['name', 'lambda', 'window', 'childAggregate', 'grain', 'related', 'unnest', 'kind', 'type'], 'a calculated column from JSON');
-  const shapes = (['lambda', 'window', 'childAggregate', 'grain', 'related'] as const).filter((k) => v[k] !== undefined);
+  if (!isObject(v)) throw new CubeRefusal(`a calculated column is {name, lambda | window | childAggregate | grain | related | groups, ...}, not ${JSON.stringify(v)}`);
+  fields(v, 'column', ['name', 'lambda', 'window', 'childAggregate', 'grain', 'related', 'groups', 'unnest', 'kind', 'type'], 'a calculated column from JSON');
+  const shapes = (['lambda', 'window', 'childAggregate', 'grain', 'related', 'groups'] as const).filter((k) => v[k] !== undefined);
   if (shapes.length !== 1) {
-    throw new CubeRefusal(`a calculated column is one of a lambda, a window, a child aggregate, a grain or a related property, not ${shapes.join(' and ') || 'none'}`);
+    throw new CubeRefusal(`a calculated column is one of a lambda, a window, a child aggregate, a grain, a related property or value groups, not ${shapes.join(' and ') || 'none'}`);
   }
   if (v['unnest'] !== undefined && typeof v['unnest'] !== 'boolean') throw new CubeRefusal(`unnest is true or false, not ${JSON.stringify(v['unnest'])}`);
-  if (v['unnest'] === true && shapes[0] !== 'lambda') throw new CubeRefusal("explode is a formula's: a window, a child aggregate, a grain or a related property is not exploded");
+  if (v['unnest'] === true && shapes[0] !== 'lambda') throw new CubeRefusal("explode is a formula's: a window, a child aggregate, a grain, a related property or value groups are not exploded");
   const lambda = v['lambda'];
   if (lambda !== undefined && (!isObject(lambda) || lambda['_type'] !== 'lambda' || !Array.isArray(lambda['body']))) {
     throw new CubeRefusal(`a calculated column's lambda is the protocol's {_type: 'lambda', body, parameters}, not ${JSON.stringify(lambda)}`);
@@ -614,6 +670,7 @@ function calculatedFrom(v: unknown): DerivedColumn {
     ...(v['childAggregate'] !== undefined ? { childAggregate: childAggregateFrom(v['childAggregate']) } : {}),
     ...(v['grain'] !== undefined ? { grain: grainFrom(v['grain']) } : {}),
     ...(v['related'] !== undefined ? { related: relatedFrom(v['related']) } : {}),
+    ...(v['groups'] !== undefined ? { groups: groupsFrom(v['groups']) } : {}),
     ...(v['unnest'] !== undefined ? { unnest: v['unnest'] as boolean } : {}),
     ...(v['kind'] !== undefined ? { kind: kindFrom(v['kind']) } : {}),
     ...(v['type'] !== undefined ? { type: textFrom(v['type'], "a calculated column's type") } : {}),

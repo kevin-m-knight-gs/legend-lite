@@ -311,3 +311,33 @@ describe("the model's measures added to a class's grid, planned and run", () => 
     assert.equal(draft.config.columns?.['grossNotional']?.format?.kind, 'currency');
   });
 });
+
+// A column's values gathered by hand into named groups (snapshot.ts ValueGroups; query.ts groupsLambda): planned and run,
+// a grid grouped by the groups as by any column -- a number column's rest named, a text column's left as itself.
+describe("a column's values gathered into named groups, planned and run", () => {
+  const level = async (s: QuerySnapshot): Promise<Map<unknown, number>> => {
+    const t = await engine.run((await planner.plan(levelLambda(s, { level: 1, parent: [] }))).sql, 0);
+    const at = (name: string): readonly unknown[] => t.columns.find((c) => c.name === name)!.values;
+    const keys = at(s.rows[0]!);
+    return new Map(keys.map((k, i) => [k ?? null, Number(at('notional')[i])]));
+  };
+  const trades = (derived: QuerySnapshot['derived'], rows: string[]): QuerySnapshot => ({
+    source: { query: classRelation('files::trades::Trade', ['tradeId', 'notional']) },
+    columns: [{ name: 'tradeId', type: 'Integer', kind: 'dimension' }, { name: 'notional', type: 'Float', kind: 'measure' }],
+    derived, rows, pivotOn: [], sorts: [], epoch: 1,
+  });
+
+  it("a number column's values: the big trades a group, the rest under its name", async () => {
+    const by = await level(trades([{ name: 'size', groups: { of: 'tradeId', groups: [{ name: 'Big', values: [10, 11] }], other: 'Rest' }, kind: 'dimension', type: 'String' }], ['size']));
+    // trades 10 and 11: 100 + 250; 12 and 13: 50 + 75
+    assert.deepEqual([by.get('Big'), by.get('Rest'), by.size], [350, 125, 2]);
+  });
+
+  it("a related column's text: EMEA named Europe, AMER as itself, a trade with no customer blank", async () => {
+    const by = await level(trades([
+      { name: 'customer_region', related: { path: ['customer', 'region'] }, kind: 'dimension', type: 'String' },
+      { name: 'zone', groups: { of: 'customer_region', groups: [{ name: 'Europe', values: ['EMEA'] }] }, kind: 'dimension', type: 'String' },
+    ], ['zone']));
+    assert.deepEqual([by.get('Europe'), by.get('AMER'), by.get(null), by.size], [350, 50, 75, 3]);
+  });
+});

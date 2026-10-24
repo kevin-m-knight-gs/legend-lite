@@ -2128,6 +2128,8 @@ export class CubeApp {
           : {}),
         ...(column !== undefined ? calcStageOf(this.#shown, column) : {}),
         ...(column !== undefined && this.#shown.derived.some((d) => d.name === column && d.related !== undefined) ? { relatedColumn: true } : {}),
+        ...(column !== undefined && this.#shown.derived.some((d) => d.name === column && d.groups !== undefined) ? { groupsColumn: true } : {}),
+        ...(column !== undefined && rowColumns(this.#shown).some((c) => c.name === column) ? { groupable: true } : {}),
         ...(related.length > 0 ? { related } : {}),
         ...(measures.length > 0 ? { modelMeasures: measures.map((m) => ({ name: m.name, path: m.path, ...(m.doc !== undefined ? { doc: m.doc } : {}) })) } : {}),
         ...facts,
@@ -2275,6 +2277,12 @@ export class CubeApp {
         return;
       case 'calc.related':
         if (item.related) void this.#addRelated(item.related);
+        return;
+      case 'calc.groupValues':
+        if (column) void this.openGroupValues(column);
+        return;
+      case 'calc.editGroups':
+        if (column) void this.openGroupValues(column, column);
         return;
       case 'calc.modelMeasure':
         if (item.measure) void this.#addModelMeasure(item.measure);
@@ -2643,6 +2651,54 @@ export class CubeApp {
         onOk: (keep) => {
           close();
           void this.#gestureGiven('filter.values', { column, values: keep }, `filter ${named}`);
+        },
+        onCancel: close,
+      }));
+    }, { replace: true });
+  }
+
+  /**
+   * THE GROUP VALUES WINDOW of `column` (Extended Columns ▸ Group Values of X..., Tableau's groups): its values as the
+   * Filter Values window lists them, ticked and named into groups; OK makes the column (`column.calculate`) or, editing
+   * the groups column `editing`, remakes it (`column.editCalculated`). Refused, the gesture's words are said in the
+   * window, which stays open. The window is a chunk of its own, fetched with the first one opened.
+   */
+  async openGroupValues(column: string, editing?: string): Promise<void> {
+    const view = this.#view;
+    if (!view) return;
+    const s = view.snapshot;
+    const was = editing !== undefined ? s.derived.find((d) => d.name === editing)?.groups : undefined;
+    const of = was?.of ?? column;
+    const type = rowColumns(s).find((c) => c.name === of)?.type;
+    let offered: ResultTable;
+    try {
+      ({ rows: offered } = await this.#controller.runQuery(columnValuesLambda(s, of), s));
+    } catch (error: unknown) {
+      if (!this.#disposed) this.#reportFailure(error);
+      return;
+    }
+    if (this.#disposed) return;
+    const raw = (offered.columns.find((c) => c.name === of)?.values ?? []).slice(0, MAX_FILTER_VALUES);
+    const values = raw.map((v) => {
+      const value = cellFilterValue(v, type);
+      return { value, label: value === null ? '(Blank)' : this.#formatters.format(v, this.#formats[of], type), rows: '' };
+    });
+    // the window a chunk of its own, fetched with the first one opened
+    const { groupValues } = await lazily(() => import('./ui/group-values.ts'));
+    if (this.#disposed) return;
+    let suggested = `${of}_group`;
+    for (let i = 2; editing === undefined && nameProblem(this.#snapshot, 'row', suggested) !== null; i += 1) suggested = `${of}_group_${i}`;
+    this.#showOverlay(editing !== undefined ? 'Edit Groups' : 'Group Values', (host, close) => {
+      host.replaceChildren(groupValues(this.#doc, {
+        column: of, values, ...(was ? { groups: was } : {}), name: editing ?? suggested,
+        // the gesture judges it (the command's rules); refused, the words are said in the window, which stays open
+        onOk: async (name, groups) => {
+          const made: DerivedColumn = { name, groups, kind: 'dimension' };
+          const refused = editing !== undefined
+            ? await this.#gesture('column.editCalculated', { name: editing, level: 'row', column: made }, `groups ${name}`)
+            : await this.#gesture('column.calculate', { level: 'row', column: made }, `groups ${name}`);
+          if (refused === null) close();
+          return refused;
         },
         onCancel: close,
       }));
@@ -3495,6 +3551,11 @@ export class CubeApp {
     // a related column is the class tree's (Add Related Column), never a formula: its editor would open on none
     if (editing !== undefined && this.#snapshot.derived.some((d) => d.name === editing && d.related !== undefined)) {
       this.#status(`${editing} is a related column: delete it and add another from Add Related Column`, 'warn');
+      return;
+    }
+    // a groups column is its groups', edited in their window, never a formula
+    if (editing !== undefined && this.#snapshot.derived.some((d) => d.name === editing && d.groups !== undefined)) {
+      void this.openGroupValues(editing, editing);
       return;
     }
     const key = editing !== undefined

@@ -41,8 +41,9 @@ import {
   type RelativeStart,
   type SortSpec,
   type WindowSpec,
+  type ValueGroups,
 } from './snapshot.ts';
-import { filterWithout, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
+import { filterWithout, keptCondition, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
 import type { GroupKey, RowPath } from './tree.ts';
 import { ROOT_COLUMN, WINDOW_ALL_PREFIX } from './grid/columns.ts';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
@@ -230,8 +231,23 @@ interface LevelWindow {
 }
 
 /** A calculated column appended to `rel`: an expression over the row, or a window. */
-function extendDerived(rel: Relation, d: DerivedColumn, level?: LevelWindow): Relation {
+/**
+ * A VALUE-GROUPS COLUMN'S EXPRESSION (snapshot.ts ValueGroups): each group's values tested as the Filter Values window
+ * tests them (value-filter.ts keptCondition: the blanks by isEmpty), its name where they hold, in order; the rest
+ * `other`, or the value itself. Each literal typed by its column (`typeOf`), as a filter's is.
+ */
+export function groupsLambda(g: ValueGroups, typeOf: TypeOf = () => undefined): Lambda {
+  const otherwise: ValueSpecification = g.other !== undefined ? lit.string(g.other) : ref('x', g.of);
+  return lambda(['x'], g.groups.reduceRight<ValueSpecification>((rest, group) =>
+    fn('if', filterNode(keptCondition(g.of, group.values), 'x', typeOf), lambda([], lit.string(group.name)), lambda([], rest)), otherwise));
+}
+
+function extendDerived(rel: Relation, d: DerivedColumn, level?: LevelWindow, typeOf?: TypeOf): Relation {
   if (d.related) throw new Error(`'${d.name}' is projected with the class's own properties (relatedSource), never extended`);
+  if (d.groups) {
+    if (level) throw new CubeRefusal(`'${d.name}' groups a column's values: a row-level column, before the grouping`);
+    return rel.extend([derive(d.name, groupsLambda(d.groups, typeOf))]);
+  }
   if (d.grain) {
     throw new CubeRefusal(`'${d.name}' is a measure at its parent's or the grand total's grain: a group-level column, after the grouping`);
   }
@@ -342,7 +358,8 @@ export function extendWindow(rel: Relation, name: string, w: WindowSpec): Relati
 /** The source with the cube's row-stage calculated columns: what step 0 types, and every query of the cube starts from. */
 export function sourceWithDerived(s: QuerySnapshot): Relation {
   let rel = from(relatedSource(s));
-  for (const d of s.derived) if (!d.related) rel = extendDerived(rel, d);
+  const typeOf: TypeOf = (c) => columnType(s, c);
+  for (const d of s.derived) if (!d.related) rel = extendDerived(rel, d, undefined, typeOf);
   return rel;
 }
 

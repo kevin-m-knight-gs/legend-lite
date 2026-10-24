@@ -384,6 +384,17 @@ export interface Grain {
   readonly at: GrainAt;
 }
 
+/**
+ * A COLUMN'S VALUES GATHERED BY HAND INTO NAMED GROUPS (Tableau's groups, Power BI's groups): each group's values (null:
+ * the blanks), as the Filter Values window lists them; the rest named `other`, or -- on a text column -- left as
+ * themselves. A row-level column (query.ts groupsLambda), so a grid groups, filters and charts by it as by any other.
+ */
+export interface ValueGroups {
+  readonly of: string;
+  readonly groups: readonly { readonly name: string; readonly values: readonly (FilterValue | null)[] }[];
+  readonly other?: string;
+}
+
 export interface DerivedColumn {
   readonly name: string;
   /**
@@ -400,6 +411,8 @@ export interface DerivedColumn {
   readonly grain?: Grain;
   /** A related class's property instead, projected with the class's own (row stage only): see `RelatedPath`. */
   readonly related?: RelatedPath;
+  /** A column's values gathered into named groups instead (row stage only): see `ValueGroups`. */
+  readonly groups?: ValueGroups;
   /**
    * EXPLODE: `lambda` yields a collection, and each row is repeated once per element, the
    * element being this column (`lateral(x|<collection>->flatten(~name))`, upstream Pure's
@@ -894,6 +907,7 @@ export function totalOrderSorts(
 function renamedWindow(d: DerivedColumn, one: (n: string) => string): DerivedColumn {
   if (d.childAggregate) return { ...d, childAggregate: { ...d.childAggregate, of: one(d.childAggregate.of) } };
   if (d.grain) return { ...d, grain: { ...d.grain, of: one(d.grain.of) } };
+  if (d.groups) return { ...d, groups: { ...d.groups, of: one(d.groups.of) } };
   const w = d.window;
   if (!w) return d;
   return {

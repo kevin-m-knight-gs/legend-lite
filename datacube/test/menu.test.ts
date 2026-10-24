@@ -774,3 +774,15 @@ describe('Conditional Formatting ▸: data bars, colour scales, icon sets, one-c
     assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: { ...none, rules: 1 } }).at(-1)?.disabled, false);
   });
 });
+
+describe('Group Values: a column of its values gathered by hand into groups (snapshot.ts ValueGroups)', () => {
+  const extended = (ctx: Parameters<typeof buildMenu>[0]): readonly MenuItem[] =>
+    menuItems(buildMenu(ctx)).find((i) => i.label === 'Extended Columns')?.submenu ?? [];
+  it("offered on a column of the grid's rows; a groups column's groups edited again, never as a formula", () => {
+    assert.ok(extended({ snapshot: CUBE, column: 'desk', groupable: true }).some((i) => i.id === 'calc.groupValues' && i.column === 'desk'));
+    assert.ok(!extended({ snapshot: CUBE, column: 'desk' }).some((i) => i.id === 'calc.groupValues'), 'no row column, no groups');
+    const groups = extended({ snapshot: CUBE, column: 'desk', calcStage: 'row', groupable: true, groupsColumn: true });
+    assert.ok(groups.some((i) => i.id === 'calc.editGroups'));
+    assert.ok(!groups.some((i) => i.id === 'calc.groupValues' || i.id === 'calc.edit'));
+  });
+});
