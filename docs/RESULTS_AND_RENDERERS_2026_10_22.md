@@ -256,3 +256,29 @@ exact-digits code stays: in-query `toString` (kind A) and the judges (kind C) st
    expression (about 5 KB) for Pure's text. LEAN could instead take the database's own text there, as a register row
    per database -- a query's answer would then differ by database, which LEGACY never allows. Not decided; built
    only on a measured product cost (2026-10-23's view: rare in product queries, and no fact in the plan for it yet).
+
+   **Measured 2026-10-24** (the user asked for a cheap, widely available printf-style standard for LEAN, and doubted
+   that Snowflake has no 17-digit formatter; the Snowflake lane ran a probe, not committed, over 1,946 doubles):
+   Snowflake's format models accept any picture width, but a FLOAT reaches them as a SIXTEEN-digit decimal.
+   `TO_VARCHAR(x, '9.9999999999999999EEEE')`, the 18- and 20-position pictures, `TM9`, `TME` and `TO_JSON` all print
+   the same sixteen digits (a wider picture pads blanks, or a literal 0 under a `0` picture), correctly rounded at
+   sixteen for every normal double (8 ties half up; the subnormals flushed), and 566 of the 1,946 do not read back as
+   the same double (0.30000000000000004 prints 0.3; 185.46332835263038 prints 185.4633283526304). A fifteen-position
+   picture is double-rounded from those sixteen digits (91 differ from a correctly rounded `%.15g`), and an `EEEE`
+   picture's exponent has two digits (`E+##` from 1e100). A seventeenth digit exists only through a DECFLOAT cast:
+   seventeen real digits, and every text that parsed read back (1,438 of 1,438), but the run-time cast pre-rounds to
+   eighteen digits and double-rounds 80 of them (1948878528.8944077 prints ...078, 1/3 prints ...332), it prints
+   seventeen digits always (0.1 as 1.0000000000000001E-01: a shortest search over 15, 16 and 17 is still needed), and
+   it throws on NaN and the infinities, which kills the statement. So no one-call formatter on Snowflake writes a
+   double's shortest or seventeen digits; the exact-digits expression is what losslessness costs there. The other
+   printf-class formatters measured earlier: SQLite's `printf('%!.17g')` is correctly rounded and is the dialect's
+   shortest search today; BigQuery's `FORMAT('%.17g')` is not (630 of 1,837 wrong, 2026-10-21), so BigQuery also
+   takes the exact decimal (BIGNUMERIC). MariaDB's and DuckDB's casts, Postgres's and H2's text, ClickHouse's and
+   Trino's are the shortest digits already.
+
+   **Proposed D7 (for the user):** LEAN's Float text, where a query computes it (kind A), is the shortest round-trip
+   decimal in Pure's layout: the database's own text where its cast writes it, the exact-digits expression where it
+   does not (Snowflake and BigQuery, measured). The same SQL for both renderers, so the plan needs no renderer fact
+   for it. No 15- or 16-digit standard: it would make the lossless engines lossy by design, and Snowflake's own
+   fifteen is double-rounded. The lean-at-all-costs alternative -- Snowflake's sixteen digits (`TME`, laid out) as a
+   register row for that one database -- stays available if a measured product cost ever asks for it.
