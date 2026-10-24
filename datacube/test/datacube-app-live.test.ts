@@ -257,9 +257,9 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
   describe("a grid's right-click Join ▸, on every page", () => {
     /** The page's one grid right-clicked: its Join ▸'s entries, each its label, whether greyed, and its hint. */
     async function joinMenuOf(host: Record<string, unknown>, engine: Record<string, unknown> = {}): Promise<(string | null | undefined)[][]> {
-      const editor = new Editor();
+      // the keeper holds the page (test/fake-keeper.ts): a read made to say another would leave the tab converging on it
       const trades = (await corpus())['trades.page.json']!;
-      editor.read = () => readOf(trades);
+      const editor = new Editor(trades, idsOf(trades));
       await opened(editor, async () => ({ version: 0, model: '', runtime: '', source: { _type: 'packageableElementPtr', fullPath: 'trades' } }), host, engine);
       for (let i = 0; i < 5; i += 1) await settle();
       const doc = dom.window.document;
