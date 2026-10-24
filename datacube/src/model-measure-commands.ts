@@ -10,6 +10,7 @@ import { collection, fn, lambda, property, variable, type Lambda, type ValueSpec
 import { className, relatedName, relatedProblem, type ClassTree } from './class-tree.ts';
 import type { ColumnFormat } from './format.ts';
 import type { GridCommand } from './grid-commands.ts';
+import { readFormatCode } from './format-code.ts';
 import type { ModelMeasure } from './model-measures.ts';
 import { CubeRefusal, rowColumns, type AggregateFn, type CubeSnapshot, type RelatedPath } from './snapshot.ts';
 
@@ -195,13 +196,22 @@ function isToMany(tree: ClassTree, cls: string, path: readonly string[]): boolea
 }
 
 /**
- * A MEASURE'S FORMAT TAG (an Excel number format: `$#,##0`, `0.00%`, `#,##0.0`) as a DataCube column format: a
- * percentage by its `%`, a currency by its `$`, `€` or `£`, else a number, its places the zeros after its point. A code
- * this reads no more of -- a scale, a colour, sections -- is left to the column's own (undefined), never guessed at.
+ * A MEASURE'S FORMAT TAG (an Excel number format: `$#,##0`, `0.00%`, `#,##0.0,,"M"`) as a DataCube column format: a
+ * plain one as the format its Properties would set -- a percentage by its `%`, a currency by its `$`, `€` or `£`, else a
+ * number, its places the zeros after its point -- and any other the code itself (format-code.ts), its sections,
+ * scaling and colours as Excel's; one DataCube does not draw left to the column's own (undefined), never guessed at.
  */
 export function formatOfCode(code: string): ColumnFormat | undefined {
   const m = /^([$€£]?)#?,?#*0(?:\.(0+))?(%?)$/.exec(code.trim());
-  if (m === null) return undefined;
+  if (m === null) {
+    try {
+      readFormatCode(code);
+      return { kind: 'number', code };
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return undefined;
+    }
+  }
   const decimals = m[2]?.length ?? 0;
   if (m[3] === '%') return { kind: 'percent', decimals };
   const currency = m[1] === '$' ? 'USD' : m[1] === '€' ? 'EUR' : m[1] === '£' ? 'GBP' : undefined;

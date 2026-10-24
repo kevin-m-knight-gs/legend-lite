@@ -19,7 +19,7 @@ import {
   coloursFor, highlightBand, isAlternateRow, mergeAppearance, valueState,
   type CellAppearance, type GridAppearance, type TextAlign, type UnderlineVariant,
 } from './style.ts';
-import type { FontCase } from './format.ts';
+import { codeColour, type ColumnFormat, type FontCase } from './format.ts';
 import type { TreeRow } from './tree.ts';
 import { TREE_COLUMN, treeHeaderText } from './treeview.ts';
 
@@ -130,6 +130,8 @@ export interface ExportSource {
   readonly columnAppearance?: Readonly<Record<string, CellAppearance>>;
   /** A cell's heatmap colour, as the grid asks for it: (leaf, row, value). */
   readonly cellBackground?: (leaf: LeafColumn, row: number, value: Scalar) => string | null;
+  /** The columns' formats, by name: a format code's section colour (format.ts codeColour). */
+  readonly formats?: Readonly<Record<string, ColumnFormat>>;
   /** A cell's conditional formats, as the grid asks for them (conditional.ts). */
   readonly cellDecoration?: (leaf: LeafColumn, row: number, value: Scalar) => CellDecoration | null;
 }
@@ -198,7 +200,7 @@ export function exportTable(source: ExportSource): ExportTable {
       // and a conditional format's over it, as the grid draws them: a rule's colours, a bar, an icon
       const deco = c.redacted || c.tree || !source.cellDecoration ? null : source.cellDecoration(leaf, r, v);
       const bg = deco?.rule?.background ?? heat ?? background ?? (kind === 'total' ? GRID_LOOK.totalBackground : banded);
-      const fg = deco?.rule?.foreground ?? foreground;
+      const fg = deco?.rule?.foreground ?? (c.redacted ? null : codeColour(v, source.formats?.[leaf.name], c.type)) ?? foreground;
       return {
         ...(c.redacted ? { color: '#a3a3a3', italic: true } : fg ? { color: fg } : {}),
         ...(bg ? { background: bg } : {}),

@@ -36,7 +36,7 @@ import {
   setHeaderDrag,
 } from '../ui/pivot-panel.ts';
 import type { ColumnFormat, FormatterCache } from '../format.ts';
-import { DEFAULT_FORMAT } from '../format.ts';
+import { DEFAULT_FORMAT, codeColour } from '../format.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import {
   bounds,
@@ -1331,6 +1331,9 @@ export class DataGrid {
           for (const [k, v] of Object.entries(onScreen(cellStyle(appearance, value, type)))) {
             cell.style.setProperty(k, v);
           }
+          // a format code's section colour (`[Red]`), as Excel draws it
+          const coded = codeColour(value, this.#options.formats?.[leaf.name], type);
+          if (coded) cell.style.color = coded;
 
           // After the value colours, so a heatmap wins over the
           // normal/negative background it would otherwise fight.

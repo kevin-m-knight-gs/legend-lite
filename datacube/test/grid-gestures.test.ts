@@ -226,7 +226,7 @@ describe('what a gesture is given', () => {
     const pivoted: CubeSnapshot = { ...CUBE, pivotOn: ['year'] };
     assert.deepEqual(GRID_GESTURES.filter((n) => gestureReadsView(n, pivoted, { column: '2021__|__notional' })),
       ['header.sort', 'column.minimizeAll', 'heatmap.add', 'heatmap.remove', 'format.dataBar', 'format.colorScale', 'format.iconSet',
-        'format.addRule', 'format.clear']);
+        'format.addRule', 'format.code', 'format.clear']);
     // a grid not pivoted, a column of the grid's own, a pivot's total: no view to read, the grid not run for it
     assert.equal(gestureReadsView('heatmap.add', CUBE, { column: 'notional' }), false);
     assert.equal(gestureReadsView('heatmap.add', pivoted, { column: 'notional' }), false);
@@ -269,5 +269,20 @@ describe("conditional formats (conditional.ts): on what a heatmap is on", () => 
   it("on a pivoted column's measure, so every value's column has it", () => {
     assert.deepEqual(gridGesture('format.iconSet', grid({ pivotOn: ['year'] }), { column: '2021__|__notional', set: 'arrows' }),
       [{ kind: 'configure', patch: { columns: { notional: { iconSet: { set: 'arrows' } } } } }]);
+  });
+});
+
+describe("an Excel number format code on a column (format-code.ts)", () => {
+  it('set beside its other format settings, judged as given, taken off by null', () => {
+    const patch = (columns: unknown): unknown[] => [{ kind: 'configure', patch: { columns } }];
+    assert.deepEqual(gridGesture('format.code', grid(), { column: 'notional', code: '#,##0.0,,"M"' }),
+      patch({ notional: { format: { kind: 'auto', code: '#,##0.0,,"M"' } } }));
+    const formatted = withColumns({ notional: { format: { kind: 'number', decimals: 2, code: '0.0%' } } });
+    assert.deepEqual(gridGesture('format.code', grid({}, formatted), { column: 'notional', code: null }),
+      patch({ notional: { format: { kind: 'number', decimals: 2 } } }), 'its other settings kept');
+    assert.deepEqual(gridGesture('format.code', grid({}, withColumns({ notional: { format: { kind: 'auto', code: '0' } } })), { column: 'notional', code: null }),
+      patch({ notional: { format: null } }), 'nothing left: the format taken off');
+    assert.deepEqual(gridGesture('format.code', grid({}, formatted), { column: 'notional', code: '0.0%' }), [], 'the code it has');
+    refused(() => gridGesture('format.code', grid(), { column: 'notional', code: '[>100]0' }), /\[>100\] \(a condition or an elapsed time\)/);
   });
 });

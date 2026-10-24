@@ -42,6 +42,7 @@ import type { CellAppearance, ColourSet } from '../style.ts';
 import {
   DATA_BAR, ICON_SET_LABELS, ICON_SET_NAMES, RULE_STYLES, readRule, ruleLabel, type FormatRule, type IconSetName, type RuleOp,
 } from '../conditional.ts';
+import { readFormatCode } from '../format-code.ts';
 import type { PinPlacement } from '../grid/columns.ts';
 import {
   badge,
@@ -380,6 +381,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
           )
         : doc.createElement('span'),
     ),
+    codeField(doc, format.code, (code) => patchFormat({ code }), () => ctx.refresh()),
     field(
       doc,
       'Missing Value Format:',
@@ -798,6 +800,27 @@ function conditionalFields(doc: Document, c: ColumnConfiguration, patch: (change
         (v) => { style = v ?? 'lightRed'; }),
       button(doc, 'Add Rule', add), said),
   ];
+}
+
+/** Excel's number format code (format-code.ts): written, judged as it is set -- a code DataCube does not draw said
+ *  beside it, never kept. */
+function codeField(doc: Document, code: string | undefined, set: (code: string | undefined) => void, refresh: () => void): HTMLElement {
+  const said = doc.createElement('span');
+  said.className = 'dc-rule-problem';
+  const input = textInput(doc, code, (given) => {
+    if (given !== undefined) {
+      try {
+        readFormatCode(given);
+      } catch (e) {
+        if (!(e instanceof CubeRefusal)) throw e;
+        said.textContent = e.message;
+        return;
+      }
+    }
+    set(given);
+    refresh();
+  }, { placeholder: '#,##0.00;[Red](#,##0.00)', width: 220 });
+  return field(doc, 'Format Code:', input, said);
 }
 
 function fieldColour(

@@ -33,6 +33,7 @@ import {
   toJson as protocolJson,
   type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
+import { readFormatCode } from './format-code.ts';
 import {
   applyToSnapshot, DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, fromSnapshot, REQUIRED_SETTINGS, type CubeConfiguration,
 } from './config.ts';
@@ -332,6 +333,18 @@ export function readCube(input: string | unknown): CubeDocument {
   // a setting every grid has is never unset: no writer writes its null (a cleared one is its default again)
   const unset = Object.keys(REQUIRED_SETTINGS).find((k) => configuration[k] === null);
   if (unset !== undefined) throw new CubeDocumentError(`'configuration.${unset}' is null: every grid has that setting`);
+  // a column's format code, judged as when it was set: a page the grid could not draw is refused on open
+  for (const [name, c] of Object.entries(isObject(configuration['columns']) ? configuration['columns'] : {})) {
+    const code = isObject(c) && isObject(c['format']) ? c['format']['code'] : undefined;
+    if (code === undefined) continue;
+    try {
+      if (typeof code !== 'string') throw new CubeRefusal(`a format code is text, not ${JSON.stringify(code)}`);
+      readFormatCode(code);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      throw new CubeDocumentError(`'configuration.columns.${name}.format.code': ${e.message}`);
+    }
+  }
 
   return {
     kind: CUBE_KIND,

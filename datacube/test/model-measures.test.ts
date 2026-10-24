@@ -87,12 +87,14 @@ describe("the model's measures: functions of a class's instances stereotyped BI.
     assert.equal(measuresOf(MEASURES, () => ['m::Trade'], 'm::BigTrade').length, MEASURES.length, "a supertype's measures are the class's too");
   });
 
-  it('an excel format code as a column format, or none: never a guess', () => {
+  it('an excel format code as a column format, the code itself, or none: never a guess', () => {
     assert.deepEqual(formatOfCode('$#,##0'), { kind: 'currency', currency: 'USD', decimals: 0 });
     assert.deepEqual(formatOfCode('0.00%'), { kind: 'percent', decimals: 2 });
     assert.deepEqual(formatOfCode('#,##0.0'), { kind: 'number', decimals: 1 });
-    assert.equal(formatOfCode('#,##0,,"M"'), undefined);
-    assert.equal(formatOfCode('[Red]0'), undefined);
+    // any other code DataCube draws, kept whole; one it does not, left to the column's own
+    assert.deepEqual(formatOfCode('#,##0,,"M"'), { kind: 'number', code: '#,##0,,"M"' });
+    assert.deepEqual(formatOfCode('[Red]0'), { kind: 'number', code: '[Red]0' });
+    assert.equal(formatOfCode('[>100]0'), undefined);
   });
 });
 

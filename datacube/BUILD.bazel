@@ -452,6 +452,7 @@ _HEADLESS_TESTS = [
     "cube-document",
     # a grid edit as a value (docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md)
     "cypher-spike",
+    "format-code",
     "grid-commands",
     # a grid's and a page's gestures as their commands (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8)
     "grid-gestures",

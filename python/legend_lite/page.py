@@ -451,6 +451,13 @@ class Grid(Tile):
         'bold'}`` (``format.addRule``; DataCube's conditional.ts judges it, in its words)."""
         return self._gesture('format.addRule', {'column': column, 'rule': {'when': when, 'style': style}})
 
+    def format_code(self, column: str, code: str | None) -> Grid:
+        """``column``'s values written by an Excel number format code -- ``'#,##0.0,,"M"'``, ``'0.0%'``,
+        ``'$#,##0;[Red]($#,##0)'``, ``'dd mmm yyyy'`` -- its sections (positive; negative; zero; text) and colours as
+        Excel's; ``None`` takes it off. Judged by DataCube's format-code.ts, in its words (the gesture ``format.code``);
+        the Excel export writes the code itself."""
+        return self._gesture('format.code', {'column': column, 'code': code})
+
     def clear_formats(self, column: str) -> Grid:
         """``column``'s conditional formats taken off -- its colour scale, data bars, icons and rules -- as Conditional
         Formatting ▸ Clear Formatting from Column (``format.clear``)."""

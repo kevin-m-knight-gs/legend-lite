@@ -1212,6 +1212,23 @@ describe('the app', () => {
     });
   });
 
+  it("a format code writes and colours the column as Excel would; Properties' Format Code refuses one it cannot draw", async () => {
+    await app.applyGridCommands([{ kind: 'configure', patch: { columns: { notional: { format: { kind: 'auto', code: '[Blue]#,##0.0,"k"' } } } } }], 'code');
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    const cells = [...root.querySelectorAll('.dc-row .dc-cell[data-column="notional"]')] as HTMLElement[];
+    assert.deepEqual(cells.map((c) => [c.textContent, c.style.color]).filter(([t]) => t !== ''),
+      [['0.6k', 'rgb(0, 0, 255)'], ['0.4k', 'rgb(0, 0, 255)']]);
+    rightClick('.dc-th[data-column="notional"]');
+    pick('Properties...');
+    const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
+    const field = [...win.querySelectorAll('.dc-field')].find((f) => f.querySelector('.dc-field-label')?.textContent === 'Format Code:') as HTMLElement;
+    const input = field.querySelector('input') as HTMLInputElement;
+    assert.equal(input.value, '[Blue]#,##0.0,"k"');
+    input.value = '0.0E+00';
+    input.dispatchEvent(new dom.window.Event('change'));
+    assert.match(field.querySelector('.dc-rule-problem')?.textContent ?? '', /has an exponent, which DataCube does not read/);
+  });
+
   it('keeps several windows open at once, as upstream\'s layout', () => {
     app.openEditor();
     app.openFilters();

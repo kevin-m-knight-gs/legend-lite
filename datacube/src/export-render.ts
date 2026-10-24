@@ -204,6 +204,7 @@ export function renderExport(kind: ExportKind, o: ExportOf): ExportedFile {
     appearance: o.config.appearance,
     columnAppearance: toColumnAppearance(o.config),
     cellBackground: o.cellBackground,
+    formats: o.formats,
     ...(o.cellDecoration ? { cellDecoration: o.cellDecoration } : {}),
   });
   const doc = { formatters: o.formatters, formats: o.formats, ...(o.page ? { page: o.page } : {}) };

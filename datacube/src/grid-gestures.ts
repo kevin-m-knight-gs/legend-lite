@@ -22,6 +22,7 @@ import {
 import type { RowPath } from './tree.ts';
 import { DATA_BAR, readColorScale, readIconSet, readRule, type FormatRuleGiven, type IconSetName } from './conditional.ts';
 import type { HeatmapSpec } from './style.ts';
+import { readFormatCode } from './format-code.ts';
 import { dateRangeConditions, type DateRange } from './date-ranges.ts';
 import { keptCondition, ownConditions } from './value-filter.ts';
 import { TREE_COLUMN } from './treeview.ts';
@@ -84,6 +85,7 @@ export type GridGestureArgs = {
   readonly 'format.iconSet': Column & { readonly set: IconSetName | null; readonly reverse?: boolean };
   readonly 'format.addRule': Column & { readonly rule: FormatRuleGiven };
   readonly 'format.clear': Column;
+  readonly 'format.code': Column & { readonly code: string | null };
   readonly 'view.chrome': { readonly showDragZones?: boolean; readonly showTitleBar?: boolean };
   readonly 'tree.open': { readonly path: RowPath; readonly open: boolean };
   readonly 'tree.collapseAll': Nothing;
@@ -388,6 +390,18 @@ const GESTURES = {
     }),
   },
   'format.addRule': { args: ['column', 'rule'], view: pivotedLeaf, make: (g, a) => addRule(g, columnOf(a), a['rule']) },
+  // an Excel number format code on the column (format-code.ts), judged here; null takes it off
+  'format.code': {
+    args: ['column', 'code'], view: pivotedLeaf,
+    make: (g, a) => {
+      const name = presentedOn(g, columnOf(a));
+      const given = a['code'];
+      if (given !== null && typeof given !== 'string') throw new CubeRefusal(`a format code is text, not ${JSON.stringify(given)}`);
+      if (given !== null) readFormatCode(given);
+      const { code: _old, ...rest } = columnConfig(g.config, name).format ?? { kind: 'auto' as const };
+      return patched(g, name, { format: given === null ? (Object.keys(rest).length > 1 || rest.kind !== 'auto' ? rest : null) : { ...rest, code: given } });
+    },
+  },
   'format.clear': {
     args: ['column'], view: pivotedLeaf,
     make: (g, a) => patched(g, presentedOn(g, columnOf(a)), { heatmap: null, dataBar: null, iconSet: null, rules: null }),

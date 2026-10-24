@@ -6,6 +6,7 @@
 
 import { nameProblem } from './calc.ts';
 import { readColorScale, readDataBar, readIconSet, readRule } from './conditional.ts';
+import { readFormatCode } from './format-code.ts';
 import { fieldNames, type CommandFields, type MissingFields } from './command-fields.ts';
 import {
   APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, columnConfig, renameColumnConfig, withConfiguration,
@@ -350,8 +351,13 @@ function configured<D extends GridDraft>(draft: D, given: SettingsPatch): D {
       throw new CubeRefusal(`${name}'s excludedFromPivot is true or false, not ${JSON.stringify(excludedFromPivot)}`);
     }
     // conditional formats (conditional.ts): each as its reader takes it, or refused in its words
-    const { heatmap, dataBar, iconSet, rules } = presentation as Record<string, unknown>;
+    const { heatmap, dataBar, iconSet, rules, format } = presentation as Record<string, unknown>;
     try {
+      const code = isObject(format) ? format['code'] : undefined;
+      if (code !== undefined && code !== null) {
+        if (typeof code !== 'string') throw new CubeRefusal(`a format code is text, not ${JSON.stringify(code)}`);
+        readFormatCode(code);
+      }
       if (heatmap !== undefined && heatmap !== null) readColorScale(heatmap);
       if (dataBar !== undefined && dataBar !== null) readDataBar(dataBar);
       if (iconSet !== undefined && iconSet !== null) readIconSet(iconSet);

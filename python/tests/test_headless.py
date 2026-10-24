@@ -126,6 +126,23 @@ class Grids(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'count is a whole number from 1, not 0'):
             grid.highlight('qty', {'op': 'top', 'count': 0})
 
+    def test_a_format_code_writes_the_column_as_excel_would(self):
+        # Excel's number format codes (DataCube's format-code.ts, through the gesture format.code): the grid's text, a
+        # section's colour in the HTML export, the code itself in the workbook; refused in DataCube's words
+        import pandas as pd
+        frame = pd.DataFrame({'desk': ['A', 'B'], 'pnl': [1_250_000.0, -40_000.0]})
+        grid = self.page.grid(frame, name='trades_codes')
+        grid.format_code('pnl', '#,##0.0,,"M";[Red](#,##0.0,,"M")')
+        self.assertEqual(grid._cube['configuration']['columns']['pnl']['format'], {'kind': 'auto', 'code': '#,##0.0,,"M";[Red](#,##0.0,,"M")'})
+        html = grid.export('html')
+        self.assertIn('1.3M', html)
+        self.assertIn('(0.0M)', html)
+        self.assertRegex(html.lower(), 'color:#ff0000')
+        grid.format_code('pnl', None)
+        self.assertNotIn('pnl', grid._cube['configuration'].get('columns', {}))
+        with self.assertRaisesRegex(ValueError, 'has an exponent, which DataCube does not read'):
+            grid.format_code('pnl', '0.00E+00')
+
     def test_a_grid_exports_as_its_export_menu_makes_the_file(self):
         # the screen's own core (export-render.ts), run headless: each format DataCube's Export menu offers, with the
         # grid's formats (a sum past a thousand, written with its separator where a person reads it) and its heatmap
