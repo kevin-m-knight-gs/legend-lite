@@ -712,7 +712,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   in As built) — the S4 audit's 5
 - [x] **F24** a write made more than STEPS_KEPT versions behind is refused, where before S4 it was made again on top —
   closed S4, declared: the keeper keeps the ids each version held only as far back as it keeps its steps, and a write
-  from further back cannot be told what it knew (test_keeper.py, pinned) — the S4 audit's 6
+  from further back cannot be told what it knew (test_keeper.py, pinned) — the S4 audit's 6. Lifted 2026-10-24 by the
+  middle version: a write needs nothing of its version now (each editor's ids are its own), so one from any version the
+  page had is made again on top
 - [x] **F25** an undo or a redo that lands while the tab follows the other editor is not written; edits made while a
   write is on its way are dropped when the keeper makes another page of it — closed S4: the dropped edits are said
   (live-channel.ts; live-channel.test.ts); the undo while following declared (the channel takes nothing done while
@@ -2181,6 +2183,11 @@ the session's, not the code's) are the environment's; two were this program's an
 user's sign-off (D9): the grid-only page 323,500 -> 332,000 (measured 331,197), the engine page 314,000 -> 322,500
 (measured 321,768), the notebook module 332,500 -> 341,000 (measured 340,482) -- the two total diffs, the converge and
 the synchronous SHA-256, about 8 KB gzipped each.
+
+**The middle version (2026-10-24, the user's decision on `docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md`).**
+Unique ids under each tab's tag (nothing renamed: the keeper refuses an id the page holds), the keeper answering a
+combined write with its page and the screen set to it in one pass (the six-step converge, the `since=` follow and the
+keeper's steps gone), and write ids taken once, a lost answer resolved by asking. Its As built is that note's §8.
 
 **Next.** The PR; the GATES entry at landing.
 

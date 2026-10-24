@@ -1,7 +1,9 @@
 # DataCube live editing, redesigned: one store, the keeper's state, the screen a projection
 
 **Status:** proposal for the user's decision, 2026-10-24. Written after the fourth audit round of D19
-(`docs/DATACUBE_LIVE_EDITING_2026_10_24.md`, PR #71) still found defects. Nothing here is built.
+(`docs/DATACUBE_LIVE_EDITING_2026_10_24.md`, PR #71) still found defects. **The user chose the middle version the same
+day** -- unique ids, the keeper answering with its page, write ids -- and it is built (§8). The full design (the store,
+undo at the keeper, patches) is not built; it stays the plan if the middle version proves short.
 
 **The decision asked:** replace D19's converge with the architecture below (§3), in the phases of §6, or keep
 patching the current one. The recommendation is to replace it. §7 lists the product decisions that come with it.
@@ -331,3 +333,66 @@ A to C give the correctness. D and E make it clean.
    editor's change shows the planner's words in that grid, since it cannot be refused after the fact.
 6. **Shared view state.** Open groups (`tree`) are shared through the page today. This design keeps that. Say if
    they should become per-tab.
+
+## 8. As built: the middle version (2026-10-24)
+
+The user's decision: the three changes that remove the root causes R1 (ids renamed after the fact) and R2 (a six-step
+converge that replays what widgets do), plus a write id for the lost answer -- without the store or undo at the keeper.
+
+**Unique ids, nothing renamed.** Each page open live gets a tag (`page-ids.ts idTag`: `t` and five base-36 letters at
+random), and every id it makes is `kind-<tag>-n`, `n` after every held id of the kind (`nextPageId`); Python, the one
+editor without a tag, keeps `kind-n`. A tab names what a person makes before it applies it (`page-between.ts
+namedUnder`, `PageApp.#named`); an undo bringing a tile back gives it a fresh id under the tag (B12 stays: the review's
+resurrection rule was not adopted). The keeper renames nothing: a command making an id the page holds is refused in
+words (`'sheet-3' is an id the page has held already`). Gone: the keeper's `renamed`, `rebaseEdits`' `known` ids and its
+renaming, `PageApp.renamedBy` and `renamePending`, Python's `_renamed` and `_regiven`. Renaming stays only inside a tab's
+own history, where an undo's fresh id is followed by the later steps (`PageState.rename`).
+
+**The keeper answers with its page; the screen is set to it.** A write's answer is `{version, hash}`, and `page` and
+`held` when the keeper made another page than the tab sent. A follow reads the page whole (`page.json`); the `since=`
+route, the keeper's per-version steps and `keeper.changes` / `moved` are gone. The converge (`live-converge.ts`) is one
+pass inside the channel's `following`: the page and its grids held; each grid the board and the keeper's page both have
+set to its cube there by its own commands (`gridBetween`); the board put at the keeper's page (`PageApp.putBack`), a grid
+of another editor's opened from its cube; any grid still off set again; each grid's rows where the keeper's page says
+(its copy, or its live rows: `CubeApp.followSnap`, `followLive`); every grid's change in flight waited for; the page read
+and checked against the keeper's hash; the pending edits made again. Another editor's change reaches a page by this
+alone: `PageApp.follow`, which replayed the editor's commands, is gone, and its tests go through the converge
+(`test/theirs.ts`). A grid's history restarts when another
+editor changed its cube (its cube there differs from the one this screen last knew there, the page's name aside) or the
+refused batch touched it (W13). **A change of behaviour the user should know:** when another editor changes a grid at
+the same moment you edit it, that grid's undo history starts again after your edit.
+
+**Write ids.** Each write carries `{writer, seq}` (the writer random per channel). The keeper takes each once, checked
+under its lock as the write is kept (`keeper.py _write`), and a read by a writer answers `taken`, the last of its writes
+kept, read with the page under one lock. A 409 is a refusal (`LiveRefused`); any other failure means the answer never
+came, and the tab asks: taken, the screen is set to the page, which holds it; not taken, its edits go back in front of
+the pending ones. A read that says no `taken` is no keeper's answer and is refused in words (no default).
+
+**What else moved.** A write from any version the page had is made again on top now (F24's limit, a write more than 64
+versions behind refused, is lifted: nothing the keeper needs from that version remains); a write at a version the page
+never had, 0 among them, is refused. Python's side is storage and wire only -- the keeper's write ids and the answer
+with the page -- and net smaller (138 lines added, 168 removed); every combining rule is DataCube's, asked headless.
+
+**Found while building.** Seed 31 of the three-tab soak: a chart put on the board over its grid before the grid reached
+the keeper's cube followed the grid's grouping here (`followCube`), not the keeper's. Fixed by setting the grids first,
+then the board. And, found answering the user's question on the ledger: the converge set the page's copies but not its
+grids', so another editor's snap left the grid here live and the page opened again (said); the copy step above fixes
+it, held by page-app.test.ts's snap test through the converge. The guards moved by the change, each with a dated note:
+`L1_ROUTES` 6 -> 5; the state guardrail's `renamedBy` and `follow` pins removed.
+
+**The one API ledger's five routes (`L1_ROUTES`), each a place outside a grid that changes it through its public
+methods, every one accounted for (no open item):** a chart's click refilters its grid (`cube-page.ts #select`, a command
+told to the keeper); a saved page opened reads its snapped grids' copies (`datacube-app.ts openSaved`, an open, not an
+edit); and the converge's three -- each grid at its cube on the keeper's page by its own commands, another editor's snap
+followed, another's going live followed (`live-converge.ts`). They stay: each is either a command or the screen being
+set to what the keeper already holds.
+
+**Evidence.** The datacube node suites (the channel 45, follow 5, rebase 14, app-live 12, gestures 61, page-state 10,
+page-between 8); the soak by hand at 60 seeds with faults, 30 without, and 12 sessions of 40 steps; `//python:engine_test`
+(255, the keeper's convergence soak with two open pages under their own tags among them); the guards; and
+`//gates:local`: 408 passed and 9 failed, every one the container's -- the eight Postgres targets, which refuse root and
+pass run as an unprivileged user (`tools/postgres/as_unprivileged.sh`, docs/CLOUD_SESSIONS.md), and `browser_guard_test`
+(the proxy's certificate on extensions.duckdb.org). A first run met the disk allowance (an IO error and two browser
+timeouts, gone once space was freed) and the import list the new test helper changed (regenerated); the bundle budgets
+held unmoved.
+

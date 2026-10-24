@@ -37,7 +37,7 @@ import {
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
-import { joinInputOf, type PageCommand } from '../page-commands.ts';
+import { idTag, joinInputOf, type PageCommand } from '../page-commands.ts';
 import type { JoinAsk } from './join-flow.ts';
 import { JOIN_SOURCE, joinMenu } from './join-menu.ts';
 import type { PageModelRef } from '../page-model.ts';
@@ -662,6 +662,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // at the version it was made at); and followed as its other editor changes it (below). A page of no grid is a page too.
     const live = services.live;
     if (live?.page) {
+      // the ids this page makes are this tab's own while the page is its keeper's (page-ids.ts nextPageId): no other
+      // editor of it makes the same, and nothing is given out afresh (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md)
+      page.idTag = idTag();
       channel = new LiveChannel(live.page, {
         // the page as it is, its own name with it ('' unnamed: D11)
         page: () => pageNow(page.title, true),
@@ -689,15 +692,20 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       });
       undo.push(() => channel?.stop());
     }
-    /** The screen converged on its keeper's page (live-converge.ts; docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): the
-     *  page, its grids, how a grid another editor added is opened, and the frames, handed to the one rule. */
+    /** The screen put at its keeper's page (live-converge.ts; docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md): the
+     *  page, its grids, and how a grid another editor added is opened, handed to the one rule. */
     function converge(on: Converge): Promise<Converged> {
       return convergeOn(on, {
         page,
         grid: (id) => madeCubes.get(id),
         pageNow: () => pageNow(page.title, true),
-        open: (document, grid, several) => sources.reopened(document, undefined, several, page.model?.tables[grid], true),
-        frameVersion: (frame) => sources.frameVersion(frame),
+        // left while a grid of the keeper's page was opened (New ▸ Blank Page, Open…): nothing of it lands on the page
+        // of this tab's own (the S4 audit's 4)
+        open: async (document, grid, several) => {
+          const opened = await sources.reopened(document, undefined, several, page.model?.tables[grid], true);
+          if (left) throw new Error("the page Python serves was left: nothing of it lands on this tab's own");
+          return opened;
+        },
       }).then((converged) => {
         onCubeView?.();
         return converged;
@@ -717,6 +725,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       left = true;
       channel?.stop();
       channel = undefined;
+      page.idTag = undefined;
       unwatch?.();
       const said = "a page of this tab's own: the page Python serves is left as it was";
       sayResting({ text: said, warn: false });
@@ -1494,23 +1503,19 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       await through.flush(true);
       if (left || disposed) return undefined;
       if (through.shown === undefined) return openLive();
-      const at = through.shown;
-      let moved: Awaited<ReturnType<typeof editor.changes>>;
+      let now: Awaited<ReturnType<typeof editor.read>>;
       try {
-        moved = await editor.changes(at);
+        now = await editor.read();
       } catch {
         return openLive();
       }
       // left while it was asked (New ▸ Blank Page, Open…): the page on screen is this tab's own (the S4 audit's 4)
       if (left) return undefined;
-      if (!('commands' in moved)) return openLive();
       const wasChanged = dirty();
-      // the other editor's commands applied as a converge with no edits of the screen's own (live-channel.ts follow,
-      // live-converge.ts: the board put back at the keeper's page at the version shown, an edit made here while the
-      // keeper was asked taken off and made again after, the steps applied as the other editor's, the hash checked --
-      // W17, said once -- the pending edits made again); not followed: the page was opened again, said (the channel's
-      // reopen is openLive)
-      const followed = await through.follow(moved);
+      // the screen put at the keeper's page (live-channel.ts follow, live-converge.ts: an edit made here while the keeper
+      // was asked kept and made again after, the hash checked -- W17, said once); not followed: the page was opened
+      // again, said (the channel's reopen is openLive)
+      const followed = await through.follow(now);
       if (left || disposed || !followed) return undefined;
       // the editor's page is the page now, as opening it again made it: its name (a rename in Python), and -- unless
       // the person had changed it here -- "changed since saved" from here
@@ -1564,7 +1569,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         // a page moved: by its commands; a frame that moved with it is then read again by every grid over it, below (W16)
         const shown = channel?.shown;
         if (shown !== undefined && now.version !== undefined && now.version !== shown) {
-          if (followBy(now, shown, (frame) => sources.frameVersion(frame)) === 'commands') {
+          if (followBy(now, shown) === 'page') {
             const why = await followLive();
             if (why !== undefined || disposed) return why;
           }

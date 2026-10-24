@@ -36,16 +36,10 @@ const settle = (): Promise<void> => new Promise((done) => { setTimeout(done, 0);
 const EMPTY: PageDocument = readPage(JSON.parse((JSON.parse(pageNew('Q3')) as { page: string }).page), { empty: true });
 
 /** The editor Python is, as the tab sees it (test/fake-keeper.ts: a keeper applying a write's edits by DataCube's rule,
- *  answering the hash of the page it keeps): what it is asked, and what it answers, the test's to say -- a move says the
- *  next version and no command, unless the test says otherwise. */
+ *  answering the hash of the page it keeps): what it is asked, and what it answers, the test's to say. */
 class Editor extends FakeKeeper {
   constructor(page: PageDocument = EMPTY, held: readonly string[] = ['sheet-1']) {
     super(page, held);
-  }
-
-  override async changes(since: number): ReturnType<FakeKeeper['changes']> {
-    this.changesAsked.push(since);
-    return { version: since + 1, commands: [], hash: pageHash(this.page) };
   }
 }
 
@@ -143,7 +137,7 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     assert.doesNotMatch(app.text(), /a page of this tab's own/);
     app.moved(2);
     await settle();
-    assert.deepEqual(editor.changesAsked, [1], 'its move followed, by the commands since the version shown');
+    assert.equal(editor.reads, 2, "its move followed: the keeper's page read (the middle version)");
   });
 
   it("a page of no grid yet is shown as its keeper has it: its name, its sheets, the ids it holds (the S7 audit's H-1)", async () => {
@@ -170,7 +164,7 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     await new Promise((done) => { setTimeout(done, 700); });
     const added = written.flatMap((w) => ('edits' in w ? w.edits : [])).flatMap((e) => ('page' in e && e.page.kind === 'addSheet' ? [e.page] : []));
     assert.equal(added.length, 1, 'the sheet added, written to its keeper');
-    assert.equal(added[0]!.id, 'sheet-3', 'never an id its keeper held');
+    assert.match(added[0]!.id ?? '', /^sheet-t[a-z0-9]{5}-3$/, "never an id its keeper held: after them, under this tab's tag");
   });
 
   it("the empty page's Add a data source adds to the page Python serves, as New ▸ Data Source… does (the S7 confirmation audit's H2-6)", async () => {
@@ -256,6 +250,7 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     const editor = new Editor();
     const app = await opened(editor);
     assert.equal(app.shown(), 1, 'opened at version 1');
+    editor.version = 2;
     app.moved(2);
     await settle();
     assert.equal(app.shown(), 2, 'followed to version 2');
@@ -281,37 +276,35 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
 });
 
 describe("New ▸ Blank Page while a follow is on its way (the S4 audit's 4)", () => {
-  it('its commands, answered once the page is left, land nothing: the page is the tab\'s own, said', async () => {
+  it('its page, answered once the page is left, lands nothing: the page is the tab\'s own, said', async () => {
     const editor = new Editor();
-    const asked = held<Awaited<ReturnType<LivePage['changes']>>>();
-    editor.changes = (since) => {
-      editor.changesAsked.push(since);
+    const app = await opened(editor);
+    const asked = held<Awaited<ReturnType<LivePage['read']>>>();
+    let asks = 0;
+    editor.read = () => {
+      asks += 1;
       return asked.promise;
     };
-    const app = await opened(editor);
     app.moved(2);
     await settle();
-    assert.deepEqual(editor.changesAsked, [1], 'asked what moved it');
+    assert.equal(asks, 1, "the keeper's page asked");
     blankPage();
     assert.equal(app.unwatched(), true, 'left: watched no more');
-    // Python added a sheet: its command is Python's page's, never the tab's own
-    asked.resolve({ version: 2, commands: [{ page: { kind: 'addSheet', id: 'sheet-2', name: 'Added in Python' } }], hash: pageHash(EMPTY) });
+    // Python added a sheet: its page is Python's, never the tab's own
+    const added = { ...EMPTY, sheets: [...EMPTY.sheets, { id: 'sheet-2', name: 'Added in Python', layout: EMPTY.sheets[0]!.layout }] } as PageDocument;
+    asked.resolve(await readOf(added, ['sheet-1', 'sheet-2'], 2));
     await settle();
     await settle();
     assert.match(app.text(), /a page of this tab's own: the page Python serves is left as it was/);
     assert.doesNotMatch(app.text(), /not following the page|Added in Python/);
-    assert.equal(editor.reads, 1, 'the page Python serves never opened again over the tab\'s own');
+    assert.equal(asks, 1, 'the page Python serves never read again over the tab\'s own');
   });
 
   it('the page Python serves, read once the page is left, is not opened over the tab\'s own', async () => {
     const editor = new Editor();
     const app = await opened(editor);
-    // Python's move says its page (no commands since): it is read again, and the read is on its way
+    // Python's move: its page is read, and the read is on its way
     const reading = held<Awaited<ReturnType<LivePage['read']>>>();
-    editor.changes = async (since) => {
-      editor.changesAsked.push(since);
-      return readOf(EMPTY, ['sheet-1'], 2);
-    };
     editor.read = () => {
       editor.reads += 1;
       return reading.promise;
@@ -335,10 +328,6 @@ describe("New ▸ Blank Page while a follow is on its way (the S4 audit's 4)", (
     const app = await opened(editor, () => framed.promise);
     // Python's move says its page, a grid over a frame: opening it waits for the frame
     const trades = (await corpus())['trades.page.json']!;
-    editor.changes = async (since) => {
-      editor.changesAsked.push(since);
-      return readOf(trades, [], 2);
-    };
     editor.read = async () => {
       editor.reads += 1;
       return readOf(trades, [], 2);
@@ -400,7 +389,8 @@ describe("the ids the page has held, read with it (B12: the S4 audit's 5)", () =
     await new Promise((done) => { setTimeout(done, 700); });
     const added = written.flatMap((w) => ((w as { edits?: { page?: { kind: string; id?: string } }[] }).edits ?? []))
       .flatMap((e) => (e.page?.kind === 'addSheet' ? [e.page.id] : []));
-    assert.deepEqual(added, ['sheet-10'], 'past every id the page has held: sheet-3 would be one Python holds as sheet-9 is not');
+    assert.equal(added.length, 1);
+    assert.match(added[0] ?? '', /^sheet-t[a-z0-9]{5}-10$/, "past every id the page has held, under this tab's tag: sheet-3 would be one Python holds as sheet-9 is not");
   });
 });
 

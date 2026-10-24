@@ -216,6 +216,8 @@ export interface CubePageOptions {
    * after them and after every one on the board now (page-ids.ts nextPageId).
    */
   readonly taken: () => readonly string[];
+  /** The tag of the ids this board's tiles are made under (page-ids.ts nextPageId), or undefined: plain ids. */
+  readonly idTag?: () => string | undefined;
   /** A grid's cube document, as its page names it, for the command that carries one (`addGrid`):
    *  undefined when it cannot say its source. Absent, the grid's own (a cube alone's board: named as the cube is). */
   readonly documentOf?: (grid: string) => CubeDocument | undefined;
@@ -425,7 +427,7 @@ export class CubePage {
   #nextId(kind: 'grid' | 'chart' | 'sheet'): string {
     const board = [...this.#sheets.map((s) => s.id), ...this.#grids.keys(), ...this.#charts.keys(), ...this.#kept.keys(),
       ...this.#unavailable.keys(), ...this.#pending.keys()];
-    return nextPageId([...this.#options.taken(), ...board], kind);
+    return nextPageId([...this.#options.taken(), ...board], kind, this.#options.idTag?.());
   }
 
   /** A page edit told as its commands, one step named `label` (onPageEdit: applied, and the board put at what it makes),

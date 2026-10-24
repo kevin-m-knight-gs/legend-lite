@@ -30,6 +30,7 @@ import { getInstanceByDom } from 'echarts/core';
 
 import * as cube from './cube-fixture.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
+import { theirs } from './theirs.ts';
 import { differing, sameButIds } from './page-same.ts';
 
 /** jsdom has no canvas: a 2D context that draws nothing, so ECharts can mount (as chart-tiles.test.ts does). */
@@ -1328,7 +1329,7 @@ describe('what is looked at survives an edit: the board put at the page keeps it
     await anEdit('Scrolled');
     assert.equal(board.scrollTop, 120, 'scrolled where it was');
     tile(chart).focus();
-    await pg().follow([{ kind: 'renameSheet', sheet: pg().sheets[0]!, name: 'Followed' }], new Map());
+    await theirs(pg(), [{ kind: 'renameSheet', sheet: pg().sheets[0]!, name: 'Followed' }], new Map());
     assert.equal(dom.window.document.activeElement, tile(chart), "another editor's edit: focus where it was");
     tile(a).querySelector<HTMLButtonElement>('.dc-tile-maximise')!.click();
     assert.ok(board.classList.contains('dc-bands-maximised'));
@@ -1338,7 +1339,7 @@ describe('what is looked at survives an edit: the board put at the page keeps it
 
   it("the tile a stack shows in front: its tab's, never the saved page's first", async () => {
     const { a, chart } = await aPage();
-    await pg().follow([{ kind: 'stack', tiles: [a, chart] }], new Map());
+    await theirs(pg(), [{ kind: 'stack', tiles: [a, chart] }], new Map());
     const shows = (id: string): boolean => !tile(id).hidden;
     assert.ok(shows(a) && !shows(chart), 'stacked: the first in front');
     const tab = [...host.querySelectorAll<HTMLElement>('.dc-tile-tab')].find((t) => t.dataset['tab'] === chart && !(t.closest('.dc-tile-tabs') as HTMLElement).hidden)!;
@@ -1588,7 +1589,7 @@ describe("the S3 audit's findings: a page of its own", () => {
     await togglePill(chart);
     const b = pg().addGrid(over('orders.csv'), { near: a });
     await settle();
-    await pg().follow([{ kind: 'layout', sheet: pg().sheets[0]!, layout: { kind: 'bands', fit: true, bands: [
+    await theirs(pg(), [{ kind: 'layout', sheet: pg().sheets[0]!, layout: { kind: 'bands', fit: true, bands: [
       { height: 1, node: { split: 'row', parts: [{ node: { tile: a }, size: 0.7 }, { node: { tile: chart }, size: 0.3 }] } },
       { height: 1, node: { tile: b } },
     ] } }], new Map());
@@ -1664,7 +1665,7 @@ describe("the S3 audit's findings: a page of its own, again", () => {
     told.length = 0;
     pressOn(b);
     // the other editor renames the page while the tile is held
-    await pg().follow([{ kind: 'renamePage', name: 'Q4' }], new Map());
+    await theirs(pg(), [{ kind: 'renamePage', name: 'Q4' }], new Map());
     letGoOn(b, a, 'middle');
     await settle();
     assert.deepEqual(told.map((c) => c.kind), ['stack'], `the drop landed: told as its stack (${JSON.stringify(told)})`);
@@ -1724,7 +1725,7 @@ describe("the S3 audit's findings: a page of its own, again", () => {
     newPage();
     pg().addGrid(over('trades.csv'));
     await settle();
-    await pg().follow([{ kind: 'addSheet', id: 'sheet-5', name: 'Briefly' }, { kind: 'removeSheet', sheet: 'sheet-5' }], new Map());
+    await theirs(pg(), [{ kind: 'addSheet', id: 'sheet-5', name: 'Briefly' }, { kind: 'removeSheet', sheet: 'sheet-5' }], new Map());
     assert.ok(pg().state.held.includes('sheet-5'), 'held');
     (host.querySelector('.dc-sheet-add') as HTMLElement).click();
     await settle();

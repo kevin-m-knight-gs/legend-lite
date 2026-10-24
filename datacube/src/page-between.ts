@@ -31,6 +31,33 @@ export type PageScope = 'history' | 'whole';
 /** The commands that make a tile or a sheet: their id is theirs to give out afresh. */
 const MAKERS = new Set<PageCommand['kind']>(['addSheet', 'addGrid', 'addChart']);
 
+/** The kind of id a making command gives out. */
+function kindMade(command: PageCommand): 'grid' | 'chart' | 'sheet' | 'filter' {
+  switch (command.kind) {
+    case 'addSheet': return 'sheet';
+    case 'addGrid': return 'grid';
+    case 'addChart': return 'chart';
+    default: return 'filter';
+  }
+}
+
+/**
+ * `commands` as an editor tagged `tag` makes them (page-ids.ts nextPageId): each that makes something and names no id
+ * given one under the tag, after every id `draft` holds and each given before it -- so no other editor makes the same,
+ * and the keeper takes it as given (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version). No tag: as
+ * they are (the command gives its own).
+ */
+export function namedUnder(draft: PageDraft, commands: readonly PageCommand[], tag: string | undefined): readonly PageCommand[] {
+  if (tag === undefined) return commands;
+  const taken = [...takenIds(draft)];
+  return commands.map((c) => {
+    if (!(MAKERS.has(c.kind) || c.kind === 'setPageFilter') || (c as { readonly id?: string }).id !== undefined) return c;
+    const id = nextPageId(taken, kindMade(c), tag);
+    taken.push(id);
+    return { ...c, id } as PageCommand;
+  });
+}
+
 /** Whether `command` makes something under an id of its own: a tile, a sheet, or a page filter the page has not. */
 function makes(page: PageDocument, command: PageCommand): boolean {
   if (MAKERS.has(command.kind)) return true;
@@ -41,7 +68,7 @@ function makes(page: PageDocument, command: PageCommand): boolean {
  * One planned command applied to `draft`: renamed as the ones before it were (`renamed`, which it extends), its id
  * given afresh when `fresh` and it makes something. The page after, and the command as applied.
  */
-function applyOne(draft: PageDraft, planned: PageCommand, renamed: Map<string, string>, fresh: boolean):
+function applyOne(draft: PageDraft, planned: PageCommand, renamed: Map<string, string>, fresh: boolean, tag?: string):
   { readonly draft: PageDraft; readonly applied: PageCommand } {
   // a sheet's arrangement as the plan has it, the tiles on that sheet now that the plan did not know placed as adding
   // places one (page-rebase.ts rearranged: the keeper's rule for a writer's layout made again on top) -- an undo past
@@ -50,7 +77,8 @@ function applyOne(draft: PageDraft, planned: PageCommand, renamed: Map<string, s
   const making = makes(draft.page, command);
   if (fresh && making && (command as { readonly id?: string }).id !== undefined) {
     const { id: _held, ...rest } = command as PageCommand & { id?: string };
-    command = rest as PageCommand;
+    // given out afresh: under the making editor's tag when it has one (page-ids.ts nextPageId), else by the command
+    command = (tag === undefined ? rest : { ...rest, id: nextPageId(takenIds(draft), kindMade(command), tag) }) as PageCommand;
   }
   const one = applyPageCommand(draft, command);
   const wanted = (planned as { readonly id?: string }).id;
@@ -65,13 +93,13 @@ function applyOne(draft: PageDraft, planned: PageCommand, renamed: Map<string, s
  * planned ids are honoured (a page converging on the keeper's, whose ids these are), refused by the command's own rule
  * where one is held. The page after, the commands as applied, and each planned id given out afresh (planned -> given).
  */
-export function applyPlanned(draft: PageDraft, commands: readonly PageCommand[], fresh: boolean):
+export function applyPlanned(draft: PageDraft, commands: readonly PageCommand[], fresh: boolean, tag?: string):
   { readonly draft: PageDraft; readonly applied: PageCommand[]; readonly renamed: Readonly<Record<string, string>> } {
   let d = draft;
   const renamed = new Map<string, string>();
   const applied: PageCommand[] = [];
   for (const planned of commands) {
-    const one = applyOne(d, planned, renamed, fresh);
+    const one = applyOne(d, planned, renamed, fresh, tag);
     d = one.draft;
     applied.push(one.applied);
   }

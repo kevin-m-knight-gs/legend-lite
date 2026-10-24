@@ -309,9 +309,11 @@ class Session(unittest.TestCase):
         return page, datacube._session.engine()
 
     def written(self, engine, page, write, version=None):
-        """An open page's write, as the tab sends it -- ``{edits}`` -- at the version the keeper has now, unless given."""
+        """An open page's write, as the tab sends it -- ``{edits, writer, seq}``: what it holds, with the write's id
+        (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md) -- at the version the keeper has now, unless given."""
         version = datacube._session.keeper.current(page._key)[0] if version is None else version
-        return engine._page_said(f'page={page._key}&version={version}', json.dumps(write))
+        self._seq = getattr(self, '_seq', 0) + 1
+        return engine._page_said(f'page={page._key}&version={version}', json.dumps({**write, 'writer': 'tab-1', 'seq': self._seq}))
 
 
 class HostApplies(Session):

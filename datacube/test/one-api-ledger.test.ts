@@ -109,8 +109,10 @@ interface Entry {
 // 2026-10-24 (D19, the independent audit's 2): L1_ROUTES 7 -> 6 -- the app's own follow route is gone: a follow is the
 // channel's converge (live-channel.ts follow; live-converge.ts applies the other editor's steps), so an edit made while
 // the keeper was asked is kept and made again, never dropped.
+// 2026-10-24 (the middle version, docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md): L1_ROUTES 6 -> 5 -- the converge's
+// put-back and its replay of the other editor's steps are one route: each grid set to its cube on the keeper's page.
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
+  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
   L8_KINDS: 1, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
 };
 
@@ -164,13 +166,16 @@ const ROUTE_FILES = (f: string): boolean => f.startsWith('src/') && f.endsWith('
   && f !== 'src/state-owner.ts' && !f.startsWith('src/adhoc/') && !f.startsWith('src/headless/');
 const L1_ROUTES: Record<string, Entry> = {
   'src/page/cube-page.ts:#select:refilter': { items: [], why: "a chart's mark clicked, or its chip: the grid's refilter command, told beside the page's select (page-filters.ts chartPicked, Python's chartPick's rule); a chart removed or moved by a step is no click: its grid follows the step (ChartSource.unselected)" },
-  'src/page/page-app.ts:follow:followSnap': { items: [], why: "following another editor's snap" },
-  'src/page/page-app.ts:follow:followLive': { items: [], why: "following another editor's going live" },
+  // 2026-10-24 (the middle version): another editor's snap and going live followed by the converge, which sets each grid's
+  // rows where the keeper's page says -- PageApp.follow, which replayed the editor's commands, is gone
+  'src/app/live-converge.ts:converging:followSnap': { items: [], why: "a converge: another editor's snap, its copy read from its host (the page writes a grid's copy from the grid, §18.8)" },
+  'src/app/live-converge.ts:converging:followLive': { items: [], why: "a converge: another editor's going live, the grid's live rows again" },
   'src/app/datacube-app.ts:openSaved:followSnap': { items: [], why: 'N1: a saved page opened, its copies as it says' },
   // 2026-10-24 (D19 W7, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): a screen converging on its keeper's page -- and,
   // since the audit's 2, following it: a follow is a converge with no edits of its own (live-channel.ts follow)
-  'src/app/live-converge.ts:putBack:applyGridCommands': { items: [], why: "a converge: a grid the keeper's steps touched, the refused batch named, a rename touched or a page step of the keeper's changed put back at the confirmed cube before the steps, by its own commands (gridBetween), as another editor's; a grid only this screen's edits changed put back at its sent cube after them, its history kept (keepHistory) -- the one put-back, 2026-10-24" },
-  'src/app/live-converge.ts:applyGrid:applyGridCommands': { items: [], why: "a converge: the other editor's grid commands applied as theirs, the screen's own sent ones as said (told already)" },
+  // 2026-10-24 (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version): the six-step converge's two
+  // routes (putBack, applyGrid) are one -- the screen set to the keeper's page whole, each grid at its cube there
+  'src/app/live-converge.ts:gridsAtTarget:applyGridCommands': { items: [], why: "a converge: each grid set to its cube on the keeper's page by its own commands (gridBetween), before the board is set (a chart placed over it follows the grid as the keeper has it) and again after it, its history kept when no other editor changed it (keepHistory), started again when one did or the refused batch touched it (W13)" },
 };
 
 /** Every call of a listed gap, by where it is called from: a new gesture reaching an old gap is a new entry. */

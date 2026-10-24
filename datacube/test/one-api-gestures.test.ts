@@ -58,12 +58,11 @@ const told = new Set<string>();
 /** The page's other editor (Python's host): each write recorded and taken. */
 const editor: LivePage = {
   read: () => { throw new Error('not opened here'); },
-  changes: () => { throw new Error('not followed here'); },
   report: async (at, write) => {
     const screen = onScreen();
     writes.push({ at, write, screen });
     // at its version: the page as the screen sent it is the keeper's, and hashes so (W17)
-    return { version: at + 1, combined: false, renamed: {}, hash: pageHash(screen) };
+    return { version: at + 1, hash: pageHash(screen) };
   },
 };
 

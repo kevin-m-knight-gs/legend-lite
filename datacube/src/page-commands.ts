@@ -175,7 +175,7 @@ export interface PageApplied {
 
 // ---------------------------------------------------------------- ids and titles (page-ids.ts: the screen's too)
 
-export { chartTitle, gridTitle, nextPageId } from './page-ids.ts';
+export { chartTitle, gridTitle, idTag, nextPageId } from './page-ids.ts';
 
 // ---------------------------------------------------------------- applying
 
@@ -233,7 +233,7 @@ const withSheet = (page: PageDocument, id: string, change: (s: PageSheet) => Pag
 /**
  * The ids no command may give out: every one the page has held, its cubes' (a cube kept for a detached chart has no
  * view of its own: its id is taken all the same), and its filters' while it has them, whatever `held` lost (a page
- * opened again holds its tiles' ids only). page-rebase.ts asks it too, before a writer's id is given out on top.
+ * opened again holds its tiles' ids only). page-between.ts asks it too, as it names a tab's commands under its tag.
  */
 export function takenIds(draft: PageDraft): string[] {
   return [...draft.held, ...draft.page.cubes.map((c) => c.id), ...(draft.page.filters ?? []).map((f) => f.id)];
@@ -246,7 +246,7 @@ function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'ch
   const taken = takenIds(draft);
   if (given === undefined) return nextPageId(taken, kind);
   if (taken.includes(given)) throw new CubeRefusal(`'${given}' is an id the page has held already`);
-  if (!new RegExp(`^${kind}-\\d+$`).test(given)) throw new CubeRefusal(`a ${kind}'s id is ${kind}-N, not '${given}'`);
+  if (!new RegExp(`^${kind}-(?:[a-z][a-z0-9]*-)?\\d+$`).test(given)) throw new CubeRefusal(`a ${kind}'s id is ${kind}-N or ${kind}-<tag>-N, not '${given}'`);
   return given;
 }
 

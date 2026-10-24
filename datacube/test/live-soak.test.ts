@@ -122,6 +122,8 @@ class Tab {
       onChange: () => this.channel.changed(),
       onPageCommand: (command) => this.channel.edit({ page: command }),
     });
+    // each tab's ids its own (page-ids.ts nextPageId), as the app tags a page open on a keeper
+    this.page.idTag = `t${name}`;
     const now = (): PageDocument | undefined => this.page.document(this.page.title || keeper.page.name, undefined, true);
     this.channel = new LiveChannel(keeper, {
       page: now,
@@ -129,7 +131,7 @@ class Tab {
       converge: async (on) => {
         // the seed run alone: each converge's inputs, and the state against the screen before and after
         const k = (es: readonly LiveCommand[]): string[] => es.map((e) => ('page' in e ? `page:${e.page.kind}` : `${e.grid}:${e.command.kind}`));
-        if (ONLY !== undefined) console.log(`# ${this.name} converges: since ${JSON.stringify(k(on.since))} edits ${JSON.stringify(k(on.edits))} refused ${JSON.stringify(k(on.refused))} pending ${JSON.stringify(k(on.pending))} renamed ${JSON.stringify(on.renamed)}; state vs screen: ${unlike(this.page.state.page, this.shown()) || 'same'}`);
+        if (ONLY !== undefined) console.log(`# ${this.name} converges: to views ${on.target.views.map((v) => v.id).join(',')} refused ${JSON.stringify(k(on.refused))} pending ${JSON.stringify(k(on.pending))}; state vs screen: ${unlike(this.page.state.page, this.shown()) || 'same'}`);
         const out = await convergeOn(on, {
           page: this.page,
           grid: (id) => this.cubes.get(id),
@@ -139,7 +141,6 @@ class Tab {
             const opened = openCube(document, document.source as never, SNAPSHOT.columns);
             return over(document.source.name)(gridHost, spawned, start ?? { snapshot: opened.snapshot, configuration: opened.configuration, tree: opened.tree });
           } }),
-          frameVersion: () => undefined,
         });
         if (ONLY !== undefined) console.log(`# ${this.name} converged; restarted ${JSON.stringify([...out.restarted])}; state vs screen: ${unlike(this.page.state.page, this.shown()) || 'same'}`);
         return out;
@@ -178,18 +179,15 @@ class Tab {
     this.channel.opened(this.keeper.version, this.keeper.page, this.keeper.held);
   }
 
-  /** The keeper's moves since the version shown followed, as the app follows them (datacube-app.ts followLive): what
-   *  is pending written first, the screen quiet, then the commands applied as the other editor's. */
+  /** The keeper's page followed, as the app follows it (datacube-app.ts followLive): what is pending written first, the
+   *  screen quiet, then the screen put at the keeper's page, read whole (live-channel.ts follow): one that cannot be
+   *  set, or a hash that differs, opens the page again -- a reopen, counted. */
   follow(): Promise<void> {
     return this.channel.enqueue(async () => {
       await this.channel.flush(true);
       const at = this.channel.shown;
       if (at === undefined || at === this.keeper.version) return;
-      const moved = await this.keeper.changes(at);
-      if (!('commands' in moved)) throw new Error(`${this.name}: the keeper said the page whole: nothing to follow by`);
-      // the keeper's steps as a converge with no edits of this tab's own (live-channel.ts follow): a command that does
-      // not apply here, or a hash that differs, opens the page again -- a reopen, counted
-      await this.channel.follow(moved);
+      await this.channel.follow(await this.keeper.read());
     });
   }
 
@@ -404,7 +402,7 @@ describe('two tabs and Python on one page, interleaved at random, hold one page 
           const what = write.edits.map((e) => ('page' in e ? `page:${e.page.kind}` : `${e.grid}:${e.command.kind}`)).join(' ');
           try {
             const said = await report(at, write);
-            console.log(`# write at v${at} [${what}] -> v${said.version}${said.combined ? ' combined' : ''} renamed ${JSON.stringify(said.renamed)}; keeper views ${keeper.page.views.map((v) => v.id).join(',')} sheets ${keeper.page.sheets.map((v) => v.id).join(',')}; since ${JSON.stringify(said.since?.map((e) => ('page' in e ? `page:${e.page.kind}` : `${e.grid}:${e.command.kind}`)))}`);
+            console.log(`# write at v${at} [${what}] #${write.seq} -> v${said.version}${said.page ? ' combined' : ''}; keeper views ${keeper.page.views.map((v) => v.id).join(',')} sheets ${keeper.page.sheets.map((v) => v.id).join(',')}`);
             return said;
           } catch (e) {
             console.log(`# write at v${at} [${what}] -> refused: ${e instanceof Error ? e.message : String(e)}`);

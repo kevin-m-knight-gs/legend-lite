@@ -9,18 +9,21 @@ page itself. The keeper has DataCube apply them to the page as it is now (``comb
 writer's version there is nothing to combine; at one the page has moved on from they are made again on top) and keeps
 what they make; edits that do not apply there are refused (``Refused``), nothing kept. So the page is what the commands
 make, the two editors never hold two pages, and neither keeps a rule of its own for combining them. One write is a page
-whole: a RESTORE (an undo or a redo, the plan's N2; a page loaded, N1), taken only at the version it was made at.
+whole: a RESTORE (a page loaded, the plan's N1), taken only at the version it was made at. A write that leaves the page
+as it was is no new version.
 
-Each version keeps the edits that moved the page to it (a page's, or a grid's with its tile's id), or none -- a page
-restored whole -- so a page open at an older version follows by the edits since, or opens the page again; and the ids
-the page had held then (what a write made at it knew). A write that leaves the page as it was is no new version.
+THE MIDDLE VERSION (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md): every id an edit makes is its editor's own (a
+tab's under its tag, page-ids.ts nextPageId), so the keeper renames nothing; a write it made another page of is answered
+with that page, which the writer's screen is set to in one step; a page open on it follows by reading it whole; and each
+tab's write carries its id (``writer``, ``seq``), taken once -- a write whose answer was lost is resolved by asking which
+of its writes the keeper took (``snapshot``), never by sending it again blind.
 
 EACH COPY IS THE KEEPER'S ONCE A PAGE READS IT (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17): a snap's copy is its
 maker's until a page the keeper keeps reads it -- its maker lets it go when it never lands (``has_read``) -- and from then
 on goes only when nothing reads it any more (``letting_go``): no page as it is, and no page open on one at a version that
 reads it, or any version since. Each open page says the version it shows (``follow``), as it asks and writes; one that
 says nothing for ``FOLLOWED_FOR`` seconds (its tab closed, its machine asleep) keeps nothing. So a page open somewhere
-that has not followed yet still reads its copies, and follows by the commands since (the keeper's known limit 6).
+that has not followed yet still reads its copies until it reads the page as it is (the keeper's known limit 6).
 
 AND SO IS EACH FILE (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X3, D14): a page's file read into a table, by the hash of its
 bytes, and a remote file mounted as a view, by its URL -- what DataCube says a page reads beside its copies (headless
@@ -40,8 +43,9 @@ from typing import Any
 
 from . import _json
 
-# how many versions back a page keeps the edits of: a page open on an older one opens the page again
-STEPS_KEPT = 64
+# how many versions back a page keeps what each read (its copies, files and remote files): a page open on an older one
+# holds none of them past it (it follows by reading the page whole: docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md)
+READS_KEPT = 64
 # how many times a write is made again on top of a page that keeps moving before it is refused (each makes it again on
 # the page as it is then: only a writer that keeps losing the race to another meets it)
 COMBINED_AT_MOST = 64
@@ -68,19 +72,20 @@ class Refused(Exception):
 
 @dataclass(frozen=True)
 class Settled:
-    """A write kept: the page's version now; whether the keeper made another page of it than the writer's -- its edits
-    made again on top of a page that had moved on, or an id given out afresh (the writer then converges on the page as the
-    keeper has it: docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2); each id they gave out that was given out afresh; what the
-    writer needs to converge without a read -- ``since``, the other editors' steps between the version it wrote at and the
-    version before its own (None when one was moved by no command, or is no longer kept), and ``edits``, its own as the
-    keeper applied them (made again on top, renamed) -- and ``hash``, the page's now (``page_hash``), which the writer's own
-    page must hash to (W17)."""
+    """A write kept: the page's version now; whether the keeper made another page of it than the writer's (its edits made
+    again on top of a page that had moved on, or a write it had taken already); ``hash``, the page's at that version
+    (``page_hash``), which the writer's own page must hash to (W17); and, combined, the page the keeper made and every id
+    it has held -- read with the version, under one lock -- which the writer's screen is set to
+    (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version)."""
     version: int
     combined: bool
-    renamed: Mapping[str, str]
-    since: list[Any] | None = None
-    edits: list[Any] = field(default_factory=list)
     hash: str = ''
+    page: dict[str, Any] | None = None
+    held: list[str] | None = None
+
+
+class _Taken(Exception):
+    """A write its writer sent before, taken already: applied once."""
 
 
 def page_hash(doc: Mapping[str, Any]) -> str:
@@ -97,11 +102,6 @@ class _Kept:
     reads: dict[str, list[str]]
     # every id the page has held: none is given out again
     held: list[str]
-    # the edits that moved the page to each version kept, or None: born or restored whole
-    steps: dict[int, list[Any] | None] = field(default_factory=dict)
-    # the ids the page had held at each version kept: what a write made at it knew (a page filter it made, told from one
-    # another writer made since under the same id: H3)
-    helds: dict[int, list[str]] = field(default_factory=dict)
     # what the page read at each version kept that its host holds (HOLDS: its copies, files, remote files): what a page
     # open at that version, or following past it, reads
     holds: dict[int, dict[str, list[str]]] = field(default_factory=dict)
@@ -111,12 +111,13 @@ class _Kept:
     served: bool = False
     # the page's hash (page_hash), kept with each version: what an open page checks its own by (W17)
     hash: str = ''
+    # the last write taken from each writer (a tab's id: its write's number), so one sent again is applied once
+    taken: dict[str, int] = field(default_factory=dict)
 
 
-# combine(page, held, edits, known): DataCube's pageRebase as the host asks it -- the page and the ids it has held now, a
-# writer's edits, the ids the page had held at the version they were made at -- {page, held, edits, renamed, reads}, or
-# {problems}
-Combine = Callable[[dict[str, Any], list[str], list[Any], list[str]], dict[str, Any]]
+# combine(page, held, edits): DataCube's pageRebase as the host asks it -- the page and the ids it has held now, a
+# writer's edits -- {page, held, edits, reads}, or {problems}
+Combine = Callable[[dict[str, Any], list[str], list[Any]], dict[str, Any]]
 # admit(reads): the host's own refusal of a page its edits make (what it reads: a frame the host does not serve), or None
 Admit = Callable[[Mapping[str, list[str]]], str | None]
 
@@ -139,8 +140,7 @@ class PageKeeper:
         """A page kept from now on (a new Python page), at version 1."""
         kept_reads = _reads(reads)
         with self._lock:
-            ids = sorted(set(held))
-            self._pages[key] = _Kept(1, copy.deepcopy(doc), kept_reads, ids, {1: None}, {1: ids}, {1: _holds(kept_reads)},
+            self._pages[key] = _Kept(1, copy.deepcopy(doc), kept_reads, sorted(set(held)), {1: _holds(kept_reads)},
                                      hash=page_hash(doc))
             self._have_read(kept_reads)
         return 1
@@ -181,62 +181,64 @@ class PageKeeper:
             kept = self._pages.get(key)
             return '' if kept is None else kept.hash
 
-    def write(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], edits: list[Any] | None,
-              held: list[str]) -> int:
-        """The page made ``doc`` (reading what ``reads`` says), moved there from version ``base`` by ``edits`` (None: whole):
-        its new version -- or, the page no longer at ``base``, ``Stale``. A document the page has already is no new
-        version. A page not kept is a ``KeyError``. What the keeper takes from its editors is ``settle``'s and
-        ``restore``'s; this is theirs."""
-        return self._write(key, base, doc, reads, edits, held)[0]
+    def write(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], held: list[str]) -> int:
+        """The page made ``doc`` (reading what ``reads`` says), at version ``base``: its new version -- or, the page no
+        longer at ``base``, ``Stale``. A document the page has already is no new version. A page not kept is a
+        ``KeyError``. What the keeper takes from its editors is ``settle``'s and ``restore``'s; this is theirs."""
+        return self._write(key, base, doc, reads, held)[0]
 
-    def _write(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], edits: list[Any] | None,
-               held: list[str]) -> tuple[int, str]:
-        """``write``, and the hash of the page at the version it answers -- read with it, under the lock: another writer
-        may move the page before the caller reads anything else (the D19 audit's 3)."""
+    def _write(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], held: list[str],
+               writer: str | None = None, seq: int = 0) -> tuple[int, str, dict[str, Any], list[str]]:
+        """``write``, and the page at the version it answers -- its hash, its document (the keeper's own: read it, never
+        change it) and every id it has held -- read with it, under the lock: another writer may move the page before the
+        caller reads anything else (the D19 audit's 3). ``writer``'s write ``seq`` taken with it; one taken already is
+        ``_Taken``, nothing written (two sends of one write, made again on top at once, keep it once)."""
         kept_doc = copy.deepcopy(doc)
-        kept_edits = None if edits is None else copy.deepcopy(edits)
         kept_reads = _reads(reads)
         with self._lock:
             kept = self._pages[key]
+            if writer is not None and kept.taken.get(writer, 0) >= seq:
+                raise _Taken()
             if kept.version != base:
                 raise Stale(kept.version)
             kept.held = sorted(set(kept.held) | set(held) | set(kept_reads['ids']))
+            if writer is not None:
+                kept.taken[writer] = seq
             if kept_doc == kept.doc and kept_reads == kept.reads:
-                return kept.version, kept.hash
+                return kept.version, kept.hash, kept.doc, list(kept.held)
             kept.version += 1
             kept.doc = kept_doc
             kept.hash = page_hash(kept_doc)
             kept.reads = kept_reads
-            kept.steps[kept.version] = kept_edits
-            kept.helds[kept.version] = list(kept.held)
             kept.holds[kept.version] = _holds(kept_reads)
             self._have_read(kept_reads)
-            for old in [v for v in kept.steps if v <= kept.version - STEPS_KEPT]:
-                del kept.steps[old]
-                kept.helds.pop(old, None)
-                kept.holds.pop(old, None)
-            version, written_hash = kept.version, kept.hash
+            for old in [v for v in kept.holds if v <= kept.version - READS_KEPT]:
+                del kept.holds[old]
+            wrote = kept.version, kept.hash, kept.doc, list(kept.held)
         if self.on_write is not None:
-            self.on_write(key, version)
-        return version, written_hash
+            self.on_write(key, wrote[0])
+        return wrote
 
-    def settle(self, key: str, base: int, edits: list[Any], admit: Admit | None = None) -> Settled:
+    def settle(self, key: str, base: int, edits: list[Any], admit: Admit | None = None, writer: str | None = None,
+               seq: int = 0) -> Settled:
         """A WRITE, SETTLED (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4, H1): ``edits``, made by a writer at version
         ``base``, applied by DataCube to the page as it is now (``combine``: headless pageRebase -- at ``base`` nothing to
         combine, past it made again on top) and what they make kept -- or ``Refused``: one does not apply there, in
-        DataCube's words, or the host refuses the page they make (``admit``), nothing kept. The ids the page holds from
-        then on are the ones the commands gave out (H3)."""
+        DataCube's words, or the host refuses the page they make (``admit``), nothing kept. Every id they make is their
+        editor's own, so none is renamed (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md). ``writer``'s write
+        ``seq`` (a tab's) is taken once: sent again, it is answered with the page as it is now, which holds it."""
         if self.combine is None:
             raise Refused('this page keeps no rule to apply its edits by')
         for _ in range(COMBINED_AT_MOST):
             with self._lock:
                 kept = self._pages[key]
                 at, now, now_held = kept.version, kept.doc, list(kept.held)
-                known = kept.helds.get(base) if base <= at else None
-            if known is None:
-                raise Refused('the page changed where it is open, further than it keeps, while this change was made: make it '
-                              'again')
-            said = self.combine(now, now_held, edits, known)
+                taken = writer is not None and kept.taken.get(writer, 0) >= seq
+            if taken:
+                return self._taken(key)
+            if not 1 <= base <= at:
+                raise Refused(f'the page is at version {at}, not {base}: it is shown as it is now')
+            said = self.combine(now, now_held, edits)
             if 'problems' in said:
                 raise Refused('the page changed where it is open while this change was made: ' + '; '.join(said['problems'])
                               if at != base else '; '.join(said['problems']))
@@ -245,54 +247,42 @@ class PageKeeper:
                 if refused is not None:
                     raise Refused(refused)
             try:
-                version, written_hash = self._write(key, at, said['page'], said['reads'], said['edits'], said['held'])
+                version, written_hash, doc, held = self._write(key, at, said['page'], said['reads'], said['held'], writer, seq)
             except Stale:
                 continue
-            renamed = dict(said['renamed'])
-            with self._lock:
-                kept = self._pages[key]
-                # the other editors' steps the writer has not seen: from the version it wrote at to the one before its own
-                # (a version's steps never change once written; pruned, they are None: the writer opens the page again)
-                moved = [kept.steps.get(v) for v in range(base + 1, at + 1)]
-                since = None if any(m is None for m in moved) else [c for m in moved for c in m or []]
-            # the hash of the page the writer's own version has -- never of a later one another wrote meanwhile (the
-            # D19 audit's 3: the page open on it checks its own against it)
-            return Settled(version, at != base or bool(renamed), renamed, since, list(said['edits']), written_hash)
+            except _Taken:
+                return self._taken(key)
+            # the page the writer's own version has -- never a later one another wrote meanwhile (the D19 audit's 3: the
+            # page open on it checks its own against its hash)
+            if at == base:
+                return Settled(version, False, written_hash)
+            return Settled(version, True, written_hash, doc, held)
         raise Refused('the page kept changing where it is open while this change was made: make it again')
 
-    def restore(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], held: list[str]) -> int:
-        """A PAGE WRITTEN WHOLE (the plan's N1, N2: a page loaded, an undo or a redo) -- the one write that is no commands --
-        kept only at the version it was made at: its version from then on; else ``Refused``, nothing kept (the page
-        moved on: the writer opens it as it is)."""
-        try:
-            return self.write(key, base, doc, reads, None, held)
-        except Stale:
-            raise Refused('the page changed where it is open while this was undone or redone: it is shown as it is now') from None
-
-    def changes(self, key: str, since: int) -> tuple[int, list[Any] | None]:
-        """What moved the page since version ``since``: its version now, and the edits since, in order -- or None, when
-        a version since was moved by no command or is no longer kept (the page is then opened again)."""
-        version, commands, _hash = self.moved(key, since)
-        return version, commands
-
-    def moved(self, key: str, since: int) -> tuple[int, list[Any] | None, str]:
-        """``changes``, with the hash of the page at the version answered -- the three read under one lock, so the hash is
-        never of a later version another writer made meanwhile (the D19 audit's 3)."""
+    def _taken(self, key: str) -> Settled:
+        """A write taken already, answered as one the keeper made another page of: the page as it is now, which holds it."""
         with self._lock:
             kept = self._pages[key]
-            if since > kept.version:
-                return kept.version, None, kept.hash
-            moved = [kept.steps.get(v) for v in range(since + 1, kept.version + 1)]
-            if any(m is None for m in moved):
-                return kept.version, None, kept.hash
-            return kept.version, [c for m in moved for c in m or []], kept.hash
+            return Settled(kept.version, True, kept.hash, kept.doc, list(kept.held))
 
-    def snapshot(self, key: str) -> tuple[int, dict[str, Any], list[str], str] | None:
-        """The page whole, as a page opening on it is answered: its version, its document (the keeper's own: read it, never
-        change it), every id it has held, and its hash -- the four under one lock -- or None."""
+    def restore(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], held: list[str]) -> int:
+        """A PAGE WRITTEN WHOLE (the plan's N1: a page loaded) -- the one write that is no commands -- kept only at the
+        version it was made at: its version from then on; else ``Refused``, nothing kept (the page moved on: the writer
+        opens it as it is)."""
+        try:
+            return self.write(key, base, doc, reads, held)
+        except Stale:
+            raise Refused('the page changed where it is open while this was loaded: it is shown as it is now') from None
+
+    def snapshot(self, key: str, writer: str | None = None) -> tuple[int, dict[str, Any], list[str], str, int] | None:
+        """The page whole, as a page open on it reads it: its version, its document (the keeper's own: read it, never
+        change it), every id it has held, its hash, and the last write taken from ``writer`` (0: none, or no writer) --
+        the five under one lock, so a write taken is in the page read with it -- or None."""
         with self._lock:
             kept = self._pages.get(key)
-            return None if kept is None else (kept.version, kept.doc, list(kept.held), kept.hash)
+            if kept is None:
+                return None
+            return kept.version, kept.doc, list(kept.held), kept.hash, 0 if writer is None else kept.taken.get(writer, 0)
 
     def serve(self, key: str, served: bool) -> None:
         """The page shown somewhere, or shown nowhere any more (no page is open on it then)."""

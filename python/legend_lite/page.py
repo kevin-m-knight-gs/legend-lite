@@ -1277,8 +1277,6 @@ class Page:
         self._unserved: list[dict[str, Any]] | None = []
         # each handle given, by its kind and id: the same object each time it is asked for
         self._handles: dict[tuple[type[Any], str], Any] = {}
-        # the ids the last commit gave out afresh, old to new (its edits made again on top of an open page's write)
-        self._regiven: dict[str, str] = {}
         # every id the page has held, as its keeper has them (DataCube's: pageReads): none is given out again, so no
         # handle meets a new tile under its old one's id
         self._ids: set[str] = set(self._session.keeper.held(self._key_name))
@@ -1356,7 +1354,8 @@ class Page:
         version its call started at, settled by the page's keeper as every editor's write is (keeper.py ``settle``):
         DataCube applies them to the page as it is now (headless pageRebase) and the keeper keeps what they make -- the
         page this call made, when it had not moved on; else the commands made again on top, the page then taken as the
-        keeper has it, a handle of a tile or a sheet whose id was given out afresh following it. One that no longer
+        keeper has it (every id an edit makes is its editor's own, so no handle is renamed:
+        docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md). One that no longer
         applies there (a tile closed there) is refused in words, nothing changed. A page loaded (N1) is written whole, a
         restore, at the version it was made at."""
         keeper = self._session.keeper
@@ -1369,7 +1368,7 @@ class Page:
                 if refused is not None:
                     raise Refused(refused)
                 settled = Settled(keeper.restore(self._key_name, self._version, self._document, reads,
-                                                 sorted(self._ids | set(reads['ids']))), False, {})
+                                                 sorted(self._ids | set(reads['ids']))), False)
             else:
                 # admitted as a tab's write is, by the frames this host serves (Frames.unadmitted: the S7 audit's Y-10)
                 settled = keeper.settle(self._key_name, self._version, self._unserved, self._session.frames.unadmitted)
@@ -1379,24 +1378,11 @@ class Page:
         self._dirty = False
         self._unserved = []
         if settled.combined:
-            self._renamed(settled.renamed)
             # the keeper's page, the open page's write and this change on top of it
             self._version = 0
             self._pull()
         else:
             self._version = settled.version
-
-    def _renamed(self, renamed: Mapping[str, str]) -> None:
-        """Each handle of a tile or a sheet whose id was given out afresh (its change made again on top of the page as it
-        was then), under its new one."""
-        self._regiven = {**self._regiven, **renamed}
-        # every handle that moves taken off first: in a chain (sheet-2 -> sheet-3, sheet-3 -> sheet-4) each goes where its
-        # own new id says, never onto another's place (the S2 audit's 6, F4)
-        moving = [(key, self._handles.pop(key)) for key in [k for k in self._handles if k[1] in renamed]]
-        for (kind, old), handle in moving:
-            handle._id = renamed[old]
-            self._handles[(kind, renamed[old])] = handle
-        self._ids.update(renamed.values())
 
     # -- the page's model (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4): its classes, into a project ----------------------
 
@@ -2004,11 +1990,8 @@ class Page:
         applied = [_plain(c) for c in said['commands']]
         self._page_commands.extend(applied)
         self._note([{'page': c} for c in applied])
-        self._regiven = {}
         self._changed()
-        # an id a command made, given out afresh as the write was made again on top of an open page's (_renamed): the
-        # caller's handle is made under the id the page gives it, never the one taken
-        return [{**c, 'id': self._regiven.get(c['id'], c['id'])} if isinstance(c.get('id'), str) else c for c in applied]
+        return applied
 
     def _note(self, commands: list[dict[str, Any]]) -> None:
         """Commands that changed the page, for a page open on it to apply (``_changed`` serves them)."""

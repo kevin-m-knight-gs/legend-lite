@@ -51,14 +51,14 @@ import { readCube } from '../cube-document.ts';
 import type { JoinHow, JoinSide } from '../join-how.ts';
 import type { JoinSummaryCounts } from '../join.ts';
 import { PlanAndRun, QueryFailure } from '../runner.ts';
-import { readGridCommand } from '../grid-commands.ts';
 import type { InferredModel } from '../infer.ts';
 import type { S3Credentials } from '../remote.ts';
 import { fileParts, type UploadResult } from '../upload.ts';
 import type {
-  BrowserService, DatabaseService, FrameModel, LiveCommand, LivePage, LiveRead, LiveWrite, ModelHomeService, PageService, Plane, PlaneService, PlaneWord,
+  BrowserService, DatabaseService, FrameModel, LivePage, LiveRead, LiveWrite, ModelHomeService, PageService, Plane, PlaneService, PlaneWord,
   QueryService, Services, Versions, WarehouseService, HostCopy, HostOpened,
 } from '../app/services.ts';
+import { LiveRefused } from '../app/services.ts';
 import type { CatalogObject, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
 import type { QueryReader } from '../../../query-store/src/index.ts';
 import { SessionExpired } from '../../../engine-client/src/warehouse-session.ts';
@@ -667,62 +667,35 @@ export function livePage(link: PythonLink, key: string, follower?: string): Live
     // a page of no grid too: one written live is a page (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md, known limit 5)
     return { version, page: readPage(said.page, { empty: true }), held, hash: hashOf(plain) };
   };
-  /** Commands as the engine wrote them (an answer's `field`), each read by its own reader: a grid added's cube and a
-   *  calculated column's lambda from the answer's exact numbers (12.30 kept, an integer past 2^53 every digit) -- the
-   *  rest as the screen holds its own commands. */
-  const readCommands = async (text: string, field: string): Promise<LiveCommand[]> => {
-    const plain = (JSON.parse(text) as Record<string, unknown>)[field];
-    if (!Array.isArray(plain)) throw new Error(`the engine said no ${field}`);
-    const exact = (fromJson(text) as Record<string, Record<string, Record<string, unknown>>[]>)[field]!;
-    const { EXACT_FIELD, readPageCommand } = await lazily(() => import('../page-commands.ts'));
-    return plain.map((c, i): LiveCommand => {
-      const o = c as { page?: Record<string, unknown>; grid?: unknown; command?: unknown };
-      if (o.page !== undefined) {
-        const exactField = EXACT_FIELD[o.page['kind'] as keyof typeof EXACT_FIELD];
-        return { page: readPageCommand(exactField === undefined ? o.page : { ...o.page, [exactField]: exact[i]!['page']![exactField] }) };
-      }
-      if (typeof o.grid !== 'string') throw new Error(`the engine said a command of no page and no grid: ${JSON.stringify(c)}`);
-      const command = o.command as Record<string, unknown> | null;
-      const column = command?.['kind'] === 'calculate' ? command['column'] as Record<string, unknown> | null : null;
-      return {
-        grid: o.grid,
-        command: readGridCommand(column && typeof column === 'object'
-          ? { ...command, column: { ...column, lambda: (exact[i]!['command'] as Record<string, Record<string, unknown>>)['column']!['lambda'] } }
-          : command),
-      };
-    });
-  };
   return {
-    read: async () => read(await asked(link, at)),
-    // what moved it since (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md), each command by its own reader; the page's rules
-    // fetched with the first commands
-    changes: async (since) => {
-      const text = await asked(link, `${at}&since=${since}${as}`);
-      const plain = JSON.parse(text) as { version: number; commands?: unknown[]; hash?: unknown };
-      if (plain.commands === undefined) return read(text);
-      return { version: plain.version, commands: await readCommands(text, 'commands'), hash: hashOf(plain) };
+    read: async (writer?: string) => {
+      const text = await asked(link, `${at}${as}${writer === undefined ? '' : `&writer=${encodeURIComponent(writer)}`}`);
+      const page = read(text);
+      if (writer === undefined) return page;
+      // asked by a writer: the last of its writes the keeper took (0: none), never left unsaid
+      const taken = (JSON.parse(text) as { taken?: unknown }).taken;
+      if (typeof taken !== 'number' || !Number.isSafeInteger(taken)) throw new Error("the engine said not which of this page's writes it took");
+      return { ...page, taken };
     },
     report: async (version: number, write: LiveWrite) => {
       const answer = await link.fetch(`${link.baseUrl}/${at}&version=${version}${as}`, {
         method: 'POST',
         headers: { ...headers(link), 'Content-Type': 'application/json' },
-        // its edits as DataCube writes them (a grid's cube, a calculated column's, its numbers exact)
-        body: `{"edits":[${write.edits.map((e) => toJson(e)).join(',')}]}`,
+        // its edits as DataCube writes them (a grid's cube, a calculated column's, its numbers exact), and its id
+        body: `{"edits":[${write.edits.map((e) => toJson(e)).join(',')}],"writer":${JSON.stringify(write.writer)},"seq":${write.seq}}`,
       });
-      if (!answer.ok) throw new Error(`the engine refused the page: ${answer.status} ${await answer.text()}`);
+      // refused, in the keeper's words: nothing kept (any other failure is no refusal: the keeper is asked)
+      if (answer.status === 409) throw new LiveRefused(await answer.text());
+      if (!answer.ok) throw new Error(`the engine answered ${answer.status}: ${await answer.text()}`);
       const text = await answer.text();
-      const said = JSON.parse(text) as { version?: unknown; combined?: unknown; renamed?: unknown; hash?: unknown; since?: unknown; edits?: unknown };
+      const said = JSON.parse(text) as { version?: unknown; hash?: unknown; page?: unknown };
       if (typeof said.version !== 'number' || !Number.isSafeInteger(said.version)) throw new Error('the engine said no version of the page');
-      const renamed = said.renamed;
-      if (typeof renamed !== 'object' || renamed === null || Object.values(renamed).some((v) => typeof v !== 'string')) {
-        throw new Error('the engine said no ids given out afresh');
+      // the keeper made another page than this one sent: that page, which the screen is put at
+      if (said.page !== undefined && said.page !== null) {
+        const page = read(text);
+        return { version: said.version, hash: hashOf(said), page: page.page, held: page.held };
       }
-      const combined = said.combined === true;
-      return {
-        version: said.version, combined, renamed: renamed as Record<string, string>, hash: hashOf(said),
-        // combined: what the screen converges on (docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2)
-        ...(combined ? { since: said.since === null ? null : await readCommands(text, 'since'), edits: await readCommands(text, 'edits') } : {}),
-      };
+      return { version: said.version, hash: hashOf(said) };
     },
   };
 }

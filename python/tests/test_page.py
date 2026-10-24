@@ -85,6 +85,22 @@ class Paged(unittest.TestCase):
         else:
             os.environ['LEGEND_LITE_SITE'] = self._site
 
+    def writes(self, page):
+        """Every write ``page``'s keeper settles from here on, as the edits it was -- Python's own and an open page's
+        (keeper.py settle: the host applies the commands, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4) -- as ``since(v)``:
+        the page's version now, and the edits of each write that moved it past ``v``, in order."""
+        keeper = datacube._session.keeper
+        written = []
+        settle = keeper.settle
+
+        def settling(key, base, edits, *rest, **named):
+            settled = settle(key, base, edits, *rest, **named)
+            written.append((settled.version, copy.deepcopy(edits)))
+            return settled
+        keeper.settle = settling
+        return lambda at: {'version': keeper.current(page._key)[0],
+                           'commands': [e for version, edits in written if version > at for e in edits]}
+
     def built(self):
         page = ll.Page('Q3 review')
         grid = page.grid(trades(), name='trades', rows=['region'], measures={'notional': 'sum'},
@@ -1828,10 +1844,13 @@ class Live(Paged):
         return status, (settled['version'] if status == 200 else None)
 
     def settled(self, page, edits, version=None):
-        """As ``said``: the answer's status, and the answer whole (``{version, combined, renamed}``; refused, its words)."""
+        """As ``said``: the answer's status, and the answer whole (``{version, hash}``, and ``page`` and ``held`` when the
+        keeper made another page of it; refused, its words). Each write with its id, as the tab's: its writer, its
+        number (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md)."""
         version = datacube._session.engine().page_versions(page._key)['version'] if version is None else version
+        self._seq = getattr(self, '_seq', 0) + 1
         answer = datacube._session.engine().answer('POST', '/page.json', f'page={page._key}&version={version}',
-                                                   _json.dumps({'edits': edits}))
+                                                   _json.dumps({'edits': edits, 'writer': 'tab-1', 'seq': self._seq}))
         return answer.status, (json.loads(answer.body) if answer.status == 200 else answer.body.decode('utf-8'))
 
     def version(self, page):
@@ -1861,12 +1880,12 @@ class Live(Paged):
         tab.close()
         self.assertEqual(self.get(f'/page.json?page={page._key}')[0], 404)
 
-    def test_a_change_in_python_is_served_as_the_commands_it_was_which_a_page_open_on_it_applies(self):
-        # (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md) a page open at version v asks what moved it since: the page's and
-        # the grids' commands, in order, as DataCube's screen builds them -- a change by no command opens it again
+    def test_a_change_in_python_is_written_as_the_commands_it_was(self):
+        # (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md; S4) a change in Python is written to its keeper as the page's and the
+        # grids' commands, in order, as DataCube's screen builds them
         page, grid, _ = self.built()
         tab = ll.show(page, browser=False)
-        since = lambda v: {k: x for k, x in self.get(f'/page.json?page={page._key}&since={v}')[1].items() if k != 'hash'}
+        since = self.writes(page)
         at = self.version(page)
         self.assertEqual(since(at), {'version': at, 'commands': []})
         page.sheet('More')
@@ -1903,7 +1922,7 @@ class Live(Paged):
         # (rebuilt: P11)
         page, grid, _ = self.built()
         tab = ll.show(page, browser=False)
-        since = lambda v: {k: x for k, x in self.get(f'/page.json?page={page._key}&since={v}')[1].items() if k != 'hash'}
+        since = self.writes(page)
         at = self.version(page)
         with self.assertRaises(ValueError):
             page.grid(trades(), name='refused', rows=['nope'])
@@ -1952,6 +1971,7 @@ class Live(Paged):
         # once -- no read, its handles still good
         page, grid, chart = self.built()
         ll.show(page, browser=False)
+        since = self.writes(page)
         open_now = [page_edit(kind='renameSheet', sheet=page.sheets[0].id, name='Renamed in DataCube'),
                     grid_edit(grid, kind='group', rows=['desk']), page_edit(kind='removeTile', tile=chart.id)]
         at = self.version(page)
@@ -1968,8 +1988,7 @@ class Live(Paged):
         served = self.get(f'/page.json?page={page._key}')[1]
         self.assertEqual(served['page']['sheets'][0]['name'], 'Renamed in DataCube')
         self.assertEqual(served['page']['cubes'][0]['cube']['query']['rows'], ['desk'])
-        moved = self.get(f'/page.json?page={page._key}&since={at + 1}')[1]
-        self.assertEqual([c['grid'] for c in moved['commands']], [grid.id])
+        self.assertEqual([c['grid'] for c in since(at + 1)['commands']], [grid.id])
         # a write that changes nothing (an undo and its redo: the commands between, both ways) is no new version
         self.assertEqual(self.wrote(page, [grid_edit(grid, kind='group', rows=['region']), grid_edit(grid, kind='group', rows=['desk'])]),
                          (200, at + 2))
@@ -1977,20 +1996,20 @@ class Live(Paged):
     def test_a_tile_closed_in_datacube_and_brought_back_there_is_a_new_tile_never_its_old_handles(self):
         page, grid, chart = self.built()
         ll.show(page, browser=False)
-        # DataCube closed the chart, and later undid that: its undo adds a chart again, planned under the id the chart
-        # had -- which the page has held, so it is given out afresh (B12), the undo told the rename
+        # DataCube closed the chart, and later undid that: its undo adds a chart again under a fresh id of its own, under
+        # its tab's tag (B12: an id the page has held is never given out again -- docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md,
+        # the middle version: nothing is renamed)
         self.assertEqual(self.said(page, [page_edit(kind='removeTile', tile=chart.id)]), 200)
         self.assertEqual(page.charts, [])
-        status, settled = self.settled(page, [page_edit(
-            kind='addChart', id=chart.id, near=grid.id, title='new there', columns=None,
-            spec={'version': 2, 'mark': 'pie', 'y': [{'column': 'notional', 'fn': 'sum'}], 'options': {}})])
-        self.assertEqual(status, 200, settled)
-        self.assertEqual((settled['combined'], list(settled['renamed'])), (True, [chart.id]))
-        fresh = settled['renamed'][chart.id]
-        self.assertNotEqual(fresh, chart.id)
+        added = lambda id: [page_edit(kind='addChart', id=id, near=grid.id, title='new there', columns=None,
+                                      spec={'version': 2, 'mark': 'pie', 'y': [{'column': 'notional', 'fn': 'sum'}], 'options': {}})]
+        status, why = self.settled(page, added(chart.id))
+        self.assertEqual(status, 409, 'its old id, which the page has held: refused in words, never given out afresh')
+        self.assertIn(f"'{chart.id}' is an id the page has held already", why)
+        self.assertEqual(self.said(page, added('chart-ta-2')), 200)
         with self.assertRaisesRegex(ValueError, 'no longer on its page'):
             chart.title = 'the old chart'
-        self.assertEqual((page.charts[0].id, page.charts[0].title), (fresh, 'new there'))
+        self.assertEqual((page.charts[0].id, page.charts[0].title), ('chart-ta-2', 'new there'))
 
     def test_a_page_opening_on_it_opens_it_as_it_is_now(self):
         page, _, _ = self.built()
@@ -2011,8 +2030,9 @@ class Live(Paged):
         # shown again in another tab: the page as it is, its version the same
         ll.show(page, browser=False)
         self.assertEqual(self.version(page), at)
-        # closed everywhere and shown again: the keeper kept it as it was, its steps too -- a tab still at its version
-        # writes it, one behind has its edits made again on top (combined), one further back than it keeps is refused
+        # closed everywhere and shown again: the keeper kept it as it was -- a tab still at its version writes it, one
+        # behind has its edits made again on top (combined, answered with the page they made), one at a version the page
+        # never had is refused
         for view in list(datacube._session.pages):
             view.close()
         del first
@@ -2021,14 +2041,14 @@ class Live(Paged):
         renamed = [page_edit(kind='renamePage', name='Renamed there')]
         self.assertEqual(self.said(page, renamed, version=0), 409)
         status, combined = self.settled(page, renamed, version=at - 1)
-        self.assertEqual((status, combined['version'], combined['combined'], combined['renamed']), (200, at + 1, True, {}))
-        # what the writer converges by: the steps it had not seen, then its own as applied -- together, what moved the
-        # page since the version it wrote at
-        self.assertEqual([c['page']['kind'] for c in combined['edits']], ['renamePage'], 'its edits as applied')
-        self.assertEqual(self.get(f'/page.json?page={page._key}&since={at - 1}')[1]['commands'], combined['since'] + combined['edits'])
+        self.assertEqual((status, combined['version'], combined['page']['name']), (200, at + 1, 'Renamed there'))
+        # what the writer's screen is set to (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md): the page the keeper
+        # made, every id it has held, and its hash
+        self.assertEqual(combined['page'], datacube._session.keeper.current(page._key)[1])
+        self.assertEqual(combined['held'], datacube._session.keeper.held(page._key))
         status, plain = self.settled(page, renamed, version=at + 1)
-        self.assertEqual((status, plain['version'], plain['combined'], plain['renamed']), (200, at + 1, False, {}))
-        self.assertEqual(sorted(plain), ['combined', 'hash', 'renamed', 'version'], 'nothing to converge on: no since, no edits')
+        self.assertEqual((status, plain['version']), (200, at + 1))
+        self.assertEqual(sorted(plain), ['hash', 'version'], 'the writer\'s own page: nothing to set its screen to')
         # the page's hash with every answer (W17): what the page open on it must hash to
         self.assertEqual(plain['hash'], page_hash(datacube._session.keeper.current(page._key)[1]))
         self.assertEqual(self.get(f'/page.json?page={page._key}')[1]['hash'], plain['hash'])
@@ -2053,8 +2073,9 @@ class Live(Paged):
         stale = [page_edit(kind='renameSheet', sheet=page.sheets[0].id, name='Of the page before')]
         page.sheet('More')
         status, combined = self.settled(page, stale, version=at)
-        self.assertEqual((status, combined['version'], combined['combined'], combined['renamed']), (200, at + 2, True, {}))
-        self.assertEqual([c['page']['kind'] for c in combined['since']], ['addSheet'], "what moved the page meanwhile: Python's sheet")
+        self.assertEqual((status, combined['version']), (200, at + 2))
+        self.assertEqual([s.get('name') for s in combined['page']['sheets']], ['Of the page before', 'More'],
+                         "the page the keeper made: Python's sheet, and the write on top")
         self.assertEqual([s.name for s in page.sheets], ['Of the page before', 'More'])
         at = self.version(page)
         page.remove(grid)
@@ -2084,8 +2105,14 @@ class Live(Paged):
                               json.dumps({'restore': page.to_dict()}))
         self.assertEqual(whole.status, 400)
         self.assertIn('never the page whole', whole.body.decode('utf-8'))
-        self.assertEqual(engine.answer('POST', '/page.json', 'page=nope&version=1', '{"edits": []}').status, 404)
-        self.assertEqual(engine.answer('POST', '/page.json', f'page={page._key}', '{"edits": []}').status, 400)
+        write = '{"edits": [], "writer": "tab-1", "seq": 1}'
+        self.assertEqual(engine.answer('POST', '/page.json', 'page=nope&version=1', write).status, 404)
+        self.assertEqual(engine.answer('POST', '/page.json', f'page={page._key}', write).status, 400)
+        # a write says its id: its writer and its number (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md)
+        for unsaid in ('{"edits": []}', '{"edits": [], "writer": "a b", "seq": 1}', '{"edits": [], "writer": "tab-1", "seq": 0}',
+                       '{"edits": [], "writer": "tab-1", "seq": true}'):
+            self.assertEqual(engine.answer('POST', '/page.json', f'page={page._key}&version={self.version(page)}', unsaid).status,
+                             400, unsaid)
         # its numbers exact both ways: a calculated column's 12.30 is 12.30 in Python after the open page's write, which
         # DataCube applied to the page holding it
         page.grids[0].calculate('scaled', '$x.notional->toOne() * 12.30D')
@@ -2100,7 +2127,7 @@ class Live(Paged):
         page, grid, _ = self.built()
         other = page.grid(desks(), name='desks')
         ll.show(page, browser=False)
-        since = lambda v: {k: x for k, x in self.get(f'/page.json?page={page._key}&since={v}')[1].items() if k != 'hash'}
+        since = self.writes(page)
         theirs = [page_edit(kind='renameSheet', sheet=page.sheets[0].id, name='Renamed in DataCube')]
         page._enter()
         try:
@@ -2127,38 +2154,27 @@ class Live(Paged):
             page._leave(failed=True)
         self.assertEqual(page.grids, [other])
 
-    def test_a_sheet_made_while_the_open_page_made_one_is_handled_under_the_id_the_page_gives_it(self):
-        # (found by the keeper's soak at 60 seeds) the open page wrote a sheet under the id Python's next one takes: made
-        # again on top, Python's is given out afresh -- and its handle is made under that id, not the one taken
+    def test_a_sheet_made_while_the_open_page_made_one_each_keeps_its_own_id(self):
+        # (found by the keeper's soak at 60 seeds; docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version)
+        # the open page wrote a sheet at the number Python's next one takes: under its tab's tag, so each keeps its own
+        # id, nothing renamed -- Python's handle is the sheet it made
         page, grid, _ = self.built()
         ll.show(page, browser=False)
         page._enter()
         try:
-            taken = f"sheet-{1 + max(int(i.split('-')[1]) for i in page._ids if i.startswith('sheet-'))}"
+            n = 1 + max(int(i.split('-')[-1]) for i in page._ids if i.startswith('sheet-'))
+            theirs = f'sheet-ta-{n}'
             version = datacube._session.engine().page_versions(page._key)['version']
-            answer = datacube._session.engine().answer('POST', '/page.json', f'page={page._key}&version={version}',
-                                                       _json.dumps({'edits': [{'page': {'kind': 'addSheet', 'id': taken, 'name': 'There'}}]}))
+            answer = datacube._session.engine().answer('POST', '/page.json', f'page={page._key}&version={version}', _json.dumps(
+                {'edits': [{'page': {'kind': 'addSheet', 'id': theirs, 'name': 'There'}}], 'writer': 'tab-1', 'seq': 1}))
             self.assertEqual(answer.status, 200, answer.body.decode('utf-8'))
             mine = page.sheet('Mine')
         finally:
             page._leave(failed=False)
         sheets = {s['id']: s.get('name') for s in page.to_dict()['sheets']}
-        self.assertEqual(sheets.get(taken), 'There')
-        self.assertNotEqual(mine.id, taken)
-        self.assertEqual(sheets.get(mine.id), 'Mine', 'the handle is the sheet the page gave it')
+        self.assertEqual((sheets.get(theirs), mine.id, sheets.get(f'sheet-{n}')), ('There', f'sheet-{n}', 'Mine'))
         mine.name = 'Mine, renamed'
-        self.assertEqual({s['id']: s.get('name') for s in page.to_dict()['sheets']}[taken], 'There', "the open page's sheet untouched")
-
-    def test_handles_given_out_afresh_in_a_chain_each_follow_their_own_new_id(self):
-        # (the S2 audit's 6, F4) a write that made two sheets, made again on top of a page that took the first one's id:
-        # the first moves to the second's id and the second to the next -- each handle under its own, none lost
-        page, _, _ = self.built()
-        first, second = page.sheet('First'), page.sheet('Second')
-        was = (first.id, second.id)
-        page._renamed({was[0]: was[1], was[1]: 'sheet-90'})
-        self.assertEqual((first.id, second.id), (was[1], 'sheet-90'))
-        self.assertIs(page._handles[(type(first), was[1])], first)
-        self.assertIs(page._handles[(type(second), 'sheet-90')], second)
+        self.assertEqual({s['id']: s.get('name') for s in page.to_dict()['sheets']}[theirs], 'There', "the open page's sheet untouched")
 
     def test_a_cube_opened_again_while_the_open_page_wrote_is_its_command_made_again_on_that_write(self):
         # (P11) a cube opened again over a frame whose columns moved is its command, rebuilt: made again on top of the
@@ -2648,12 +2664,12 @@ class Snapped(Paged):
         finally:
             tab.close()
 
-    def test_shown_a_snap_and_going_live_are_served_as_the_pages_commands(self):
+    def test_shown_a_snap_and_going_live_are_written_as_the_pages_commands(self):
         page = ll.Page('Snaps')
         grid = page.grid(trades(), name='trades')
         tab = ll.show(page, browser=False)
         try:
-            since = lambda v: {k: x for k, x in self.get(f'/page.json?page={page._key}&since={v}')[1].items() if k != 'hash'}
+            since = self.writes(page)
             at = self.get(f'/version.json?page={page._key}')[1]['version']
             grid.snap()
             moved = since(at)

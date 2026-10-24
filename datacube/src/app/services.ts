@@ -287,60 +287,55 @@ export type LiveCommand =
 /**
  * What a page open on screen writes to the page's keeper (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4): the edits made
  * on screen at the version it is at, each a command, which the keeper applies -- an undo or a redo among them, as the
- * commands between (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W5: no page is written whole).
+ * commands between (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W5: no page is written whole). Each write has an id, its
+ * writer's (one per channel) and its number there, from 1: the keeper applies it once however often it is sent, so a
+ * write whose answer was lost is asked about, never taken for refused (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md,
+ * the middle version).
  */
 export interface LiveWrite {
   readonly edits: readonly LiveCommand[];
+  readonly writer: string;
+  readonly seq: number;
 }
 
 /** The page as its keeper says it is now: at its version, with every id it has held (none is given out again: B12), and
- *  its hash (page-hash.ts: what the page open on it must hash to, W17). */
+ *  its hash (page-hash.ts: what the page open on it must hash to, W17); asked by a writer, the number of the last of its
+ *  writes the keeper took (`taken`, 0: none). */
 export interface LiveRead {
   readonly version: number;
   readonly page: PageDocument;
   readonly held: readonly string[];
   readonly hash: string;
-}
-
-/** What moved the page since a version: its editors' commands, in order, and the hash of the page they make. */
-export interface LiveMoved {
-  readonly version: number;
-  readonly commands: readonly LiveCommand[];
-  readonly hash: string;
+  readonly taken?: number;
 }
 
 /**
- * A write settled by the page's keeper (keeper.py Settled; docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2, §4): the page's
- * version now; whether the keeper made another page than the screen's (`combined`: it had moved on meanwhile, or an id
- * was given out afresh); each id given out afresh (the screen's name -> the keeper's); the keeper's page's hash, which
- * the screen's must hash to once it has converged (W17); and, combined, what the screen needs to converge without a
- * read: `since`, the other editors' steps between the version it wrote at and the one before its own (null: one was
- * moved by no command, or is no longer kept -- the page is then read again), and `edits`, its own as the keeper
- * applied them (made again on top, renamed).
+ * A write settled by the page's keeper (keeper.py Settled): the page's version now and its hash, which the screen's
+ * must hash to (W17) -- and, when the keeper made another page than the screen sent (it had moved on meanwhile, the
+ * edits made again on top), that page and every id it has held, which the screen is put at
+ * (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version).
  */
 export interface LiveSettled {
   readonly version: number;
-  readonly combined: boolean;
-  readonly renamed: Readonly<Record<string, string>>;
   readonly hash: string;
-  readonly since?: readonly LiveCommand[] | null;
-  readonly edits?: readonly LiveCommand[];
+  readonly page?: PageDocument;
+  readonly held?: readonly string[];
 }
+
+/** A write the page's keeper refused, in its words: an edit that does not apply where the page now is, the host refusing
+ *  what it makes, a write from further back than it keeps. Nothing of it was kept. Any other failure of a write is no
+ *  refusal: its answer never came, and the keeper is asked whether it took it. */
+export class LiveRefused extends Error {}
 
 /** A page another editor serves: read as it is now, and told what it is now. */
 export interface LivePage {
-  /** The page as the editor says it is now; refused with the editor's reason. */
-  read(): Promise<LiveRead>;
-  /**
-   * What moved the page since version `since` (the one open): the commands its editors made, in order -- or, when it
-   * keeps none for a version since (a page born whole, a version long gone), the page as it is now.
-   */
-  changes(since: number): Promise<LiveMoved | LiveRead>;
+  /** The page as the editor says it is now, and -- asked by `writer` -- the last of its writes the keeper took; refused
+   *  with the editor's reason. */
+  read(writer?: string): Promise<LiveRead>;
   /**
    * A write against the version on screen, settled by the page's keeper (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): its
    * edits applied by DataCube's one rule to the page as the keeper has it, and what they make kept (LiveSettled).
-   * Refused in the keeper's words (an edit that does not apply there, a write from further back than it keeps): nothing
-   * kept, and the screen converges on the page as the keeper has it.
+   * Refused in the keeper's words (LiveRefused): nothing kept, and the screen is put at the page as the keeper has it.
    */
   report(version: number, write: LiveWrite): Promise<LiveSettled>;
 }

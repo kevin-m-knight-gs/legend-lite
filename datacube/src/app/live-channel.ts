@@ -1,22 +1,20 @@
 // THE TAB'S SIDE OF THE PAGE KEEPER (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md; docs/DATACUBE_LIVE_EDITING_2026_10_24.md
-// §2): a page another editor serves (Python's `ll.Page`), open here. One copy of the page is kept by the host; this
-// screen writes it against the version it is at, with the edits it made there, each a command
-// (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4) -- an undo or a redo the commands between (W5) -- and the host applies
-// them by DataCube's one rule to the page as it has it. The screen holds three things: CONFIRMED, the page as the
-// keeper has it at the version shown; SENT, the edits of the write on its way; PENDING, the edits made since. A write
-// answered at its version moves `shown` and nothing on screen. A write the keeper made another page of (it had moved
-// on meanwhile, or an id was given out afresh) has the screen CONVERGE without a read and without a reopen (W7): back
-// at confirmed, the other editors' steps since (`since`) applied as theirs, its own as the keeper applied them
-// (`edits`, renamed) as its own, then its pending edits made again, renamed, so they are told and written next. A
-// refused write converges the same way over what moved the page since (W8), the refusal said. The keeper's hash is
-// checked at every answer (W17): a mismatch is the one message that must never show, and opens the page again. A follow
-// writes what is pending first (`flush`) and waits for the screen to be quiet (F90). Writes and follows run one at a
-// time, in order.
+// §2; docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version): a page another editor serves (Python's
+// `ll.Page`), open here. One copy of the page is kept by the host; this screen writes it against the version it is at,
+// with the edits it made there, each a command (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4) -- an undo or a redo the
+// commands between (W5) -- and the host applies them by DataCube's one rule to the page as it has it. Every write has an
+// id (this channel's, and its number): the keeper applies it once. The screen holds CONFIRMED, the page as the keeper has
+// it at the version shown, and PENDING, the edits made since the last write was sent. A write answered at its version
+// moves `shown` and nothing on screen. Every other answer -- the keeper made another page of the write (it had moved on
+// meanwhile), refused it in words, or its answer never came and the keeper took it, or did not -- and every follow end
+// the same way: the screen is put at the keeper's page, which the answer or a read carries (live-converge.ts), the
+// keeper's hash checked (W17: a mismatch is the one message that must never show, and opens the page again), and the
+// pending edits made again, so they are told and written next. A follow writes what is pending first (`flush`) and waits
+// for the screen to be quiet (F90). Writes and follows run one at a time, in order.
 
 import type { PageDocument } from '../page-document.ts';
 import { pageHash } from '../page-hash.ts';
-import { renamedCommand } from '../page-rebase.ts';
-import type { LiveCommand, LiveMoved, LivePage, LiveWrite } from './services.ts';
+import { LiveRefused, type LiveCommand, type LivePage, type LiveRead, type LiveSettled, type LiveWrite } from './services.ts';
 
 /** How long a change waits to settle before it is written (a drag, a typed name: one write, ms). */
 export const WRITE_AFTER = 500;
@@ -29,31 +27,26 @@ const QUIET_AT_MOST = 10_000;
 /** The message that must never show (W17): the two editors held two pages. */
 export const HASH_MISMATCH = 'the page here differed from its keeper\'s: opened again as its keeper has it';
 
-/** What the screen converges on (§2): the page as the keeper had it at the version shown, with the ids it held; the
- *  other editors' steps since; the screen's own sent edits as the keeper applied them; each id given out afresh; the
- *  edits made here meanwhile, not yet written (pending): the grids they changed are put back too, so the page on
- *  screen is the keeper's, to the hash, before they are made again (the soak's second catch, live-soak.test.ts); the
- *  batch the keeper refused, if any (its grids put back too, nothing of it made again: the audit's 1); and the page as
- *  it was sent (a grid no other editor touched is put back at its sent cube, its history kept: the audit's 4). */
+/** What the screen is put at: the keeper's page as it is now (`target`) with every id it has held; the page this screen
+ *  last knew the keeper to hold, with what it sent (`base`: a grid whose cube there is the one on `target` was changed by
+ *  no other editor, and keeps its history -- W13); the batch the keeper refused, if any (its grids' history starts
+ *  again, its page steps come off the page's history); and the edits made here meanwhile, not yet written (pending),
+ *  made again after the screen is at `target`. */
 export interface Converge {
-  readonly confirmed: PageDocument;
+  readonly target: PageDocument;
   readonly held: readonly string[];
-  readonly since: readonly LiveCommand[];
-  readonly edits: readonly LiveCommand[];
-  readonly renamed: Readonly<Record<string, string>>;
-  readonly pending: readonly LiveCommand[];
+  readonly base: PageDocument;
   readonly refused: readonly LiveCommand[];
-  readonly sent?: PageDocument;
+  readonly pending: readonly LiveCommand[];
 }
 
-/** The page converged: the page on screen then, before any pending edit is made again -- the keeper's page -- and the
- *  grids whose history started again (another editor's steps touched them: their pending edits are new steps when made
- *  again; every other grid's are no step, their steps being in its history still). */
+/** The screen at the keeper's page: the page on screen then, before any pending edit is made again -- the keeper's
+ *  page -- and the grids whose history started again (another editor changed them, the refused batch touched them, or
+ *  they were made again: their pending edits are new steps when made again; every other grid's are no step, their steps
+ *  being in its history still). */
 export interface Converged {
   readonly page: PageDocument;
   readonly restarted: ReadonlySet<string>;
-  /** Pending makers the converge moved to fresh ids (was -> now): their ids were given out meanwhile. */
-  readonly renamed?: Readonly<Record<string, string>>;
 }
 
 /** The screen a channel writes from and converges. */
@@ -63,19 +56,26 @@ export interface LiveScreen {
   /** A grid's change is in flight (its query not answered yet): a write waits for it, so a gesture's commands are written
    *  together once they have all landed (F97), and a follow meets no gesture still running (F90). */
   busy(): boolean;
-  /** The screen converged on its keeper's page (§2, steps 1-4), inside `following`: throws when it cannot (a command
-   *  refused here), and the page is then opened again. */
+  /** The screen put at the keeper's page (live-converge.ts), inside `following`: throws when it cannot, and the page is
+   *  then opened again. */
   converge(on: Converge): Promise<Converged>;
-  /** Pending edits made again (step 5 of a converge), renamed as the keeper renamed the ids, through the ordinary edit
-   *  path, so each is told again and written next; one that no longer applies is dropped and said (H-11). A grid's is a
-   *  new step of its history only where that history started again (`restarted`); elsewhere its step is in it still
-   *  (CubeApp.edit `again`). */
+  /** Pending edits made again, through the ordinary edit path, so each is told again and written next; one that no
+   *  longer applies is dropped and said (H-11). A grid's is a new step of its history only where that history started
+   *  again (`restarted`); elsewhere its step is in it still (CubeApp.edit `again`). */
   reapply(pending: readonly LiveCommand[], restarted: ReadonlySet<string>): Promise<void>;
-  /** The page as its keeper has it, opened again whole, and why, said: the two causes that remain (a `rebuilt`, a write
-   *  from further back than the keeper keeps), a converge that could not be made, or the hash mismatch. */
+  /** The page as its keeper has it, opened again whole, and why, said: a `rebuilt`, the keeper out of reach, a screen
+   *  that could not be put at the keeper's page, or the hash mismatch. */
   reopen(why: string): Promise<void>;
   /** Said in the status line: a write refused (its words), pending edits dropped. */
   say(text: string): void;
+}
+
+/** A writer's id: twelve letters and digits, at random -- one per channel, so its writes are its own at the keeper. */
+function writerId(): string {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const bytes = new Uint8Array(12);
+  globalThis.crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => alphabet[b % alphabet.length]).join('');
 }
 
 export class LiveChannel {
@@ -94,6 +94,9 @@ export class LiveChannel {
   /** A hash mismatch was met and the page opened again: a second, before a write hashes alike, is said once more and
    *  opens nothing (the page as the keeper has it is on screen already: no reopen loop). */
   #mismatched = false;
+  /** This channel's writer id, and the number of its last write (each write's id: the keeper applies it once). */
+  readonly #writer = writerId();
+  #seq = 0;
   readonly #editor: LivePage;
   readonly #screen: LiveScreen;
   readonly #after: number;
@@ -196,22 +199,24 @@ export class LiveChannel {
       this.changed();
       return;
     }
-    const write: LiveWrite = { edits: this.#edits };
+    this.#seq += 1;
+    const write: LiveWrite = { edits: this.#edits, writer: this.#writer, seq: this.#seq };
     this.#edits = [];
     const sentPage = this.#screen.page();
-    let said: Awaited<ReturnType<LivePage['report']>>;
+    let said: LiveSettled;
     try {
       said = await this.#editor.report(at, write);
     } catch (e) {
-      // refused -- an edit that does not apply where the page now is, the host refusing what it makes, a write from
-      // further back than the keeper keeps -- or the editor gone: the sent batch is not the page's, said, and the screen
-      // converges on the keeper's page by what moved it since (W8)
       if (this.#stopped || this.shown !== at) return;
-      await this.#refused(at, e instanceof Error ? e.message : String(e), write.edits, sentPage);
+      const why = e instanceof Error ? e.message : String(e);
+      // refused, in the keeper's words: nothing of it kept, said, and the screen put at the keeper's page; any other
+      // failure is no refusal -- the answer never came, and the keeper is asked whether it took the write
+      if (e instanceof LiveRefused) await this.#refused(why, write.edits);
+      else await this.#unanswered(why, write, sentPage);
       return;
     }
     if (this.shown !== at || this.#stopped) return;
-    if (!said.combined) {
+    if (said.page === undefined) {
       // at its version: the page as it was sent is the keeper's
       this.shown = said.version;
       const held = this.#confirmed?.held ?? [];
@@ -221,57 +226,71 @@ export class LiveChannel {
       await this.#checked(sentPage, said.hash);
       return;
     }
-    if (said.since === null || said.since === undefined || said.edits === undefined) {
-      // a version between was moved by no command, or is no longer kept: the one remaining reopen of this kind, said
-      await this.#reopen('the page moved further than its keeper keeps the steps of');
-      return;
-    }
-    await this.#converge(said.version, said.hash, { since: said.since, edits: said.edits, renamed: said.renamed, refused: [] }, sentPage);
+    // the keeper made another page of it (another editor's write landed first): the screen put at that page
+    await this.#converge(said.version, said.hash, { target: said.page, held: said.held ?? [], refused: [] }, sentPage);
   }
 
   /**
-   * THE KEEPER'S STEPS SINCE THE VERSION SHOWN FOLLOWED (datacube-app.ts followLive, after its flush): a converge with no
-   * edits of the screen's own -- the board put back at the confirmed page, an edit made here since the flush (while the
-   * keeper was asked) taken off and made again after, the steps applied as the other editors', the hash checked (W17,
-   * a mismatch said once), the pending edits made again -- so a follow never drops an edit unsaid (the audit's 2) and
-   * never reopens on a mismatch twice over. True when the screen holds the keeper's page; false when it was opened
-   * again, said.
+   * THE KEEPER'S PAGE FOLLOWED (datacube-app.ts followLive, after its flush): the screen put at it, as at any answer --
+   * an edit made here meanwhile kept, made again after, the hash checked (W17, a mismatch said once) -- so a follow never
+   * drops an edit unsaid (the audit's 2). Nothing moved since the version shown (a poll stale by the time its work ran):
+   * nothing to do. False when the page was opened again instead (said).
    */
-  follow(moved: LiveMoved): Promise<boolean> {
+  follow(now: LiveRead): Promise<boolean> {
     if (this.#stopped) return Promise.resolve(false);
-    // nothing moved since the version shown (a poll stale by the time its work ran: a write combined meanwhile moved the
-    // version shown past it): nothing to converge on, and no hold for it (the D19 audit's fourth round, 7)
-    if (moved.commands.length === 0 && moved.version === this.shown) return Promise.resolve(true);
-    return this.#converge(moved.version, moved.hash, { since: moved.commands, edits: [], renamed: {}, refused: [] });
+    if (now.version === this.shown) return Promise.resolve(true);
+    return this.#converge(now.version, now.hash, { target: now.page, held: now.held, refused: [] });
   }
 
-  /** A write refused: the screen converges on the keeper's page by what moved it since the version shown (W8), the
-   *  refusal said; the refused batch's grids are put back too (nothing of it is made again); the page whole (past what
-   *  the keeper keeps) opens it again. */
-  async #refused(at: number, why: string, refused: readonly LiveCommand[], sent: PageDocument | undefined): Promise<void> {
+  /** A write refused: said, nothing of it made again, and the screen put at the keeper's page as it is now (W8). */
+  async #refused(why: string, refused: readonly LiveCommand[]): Promise<void> {
     this.#screen.say(`not kept: ${why} -- the page is as its keeper has it`);
-    let moved: Awaited<ReturnType<LivePage['changes']>>;
+    let now: LiveRead;
     try {
-      moved = await this.#editor.changes(at);
+      now = await this.#editor.read(this.#writer);
     } catch (e) {
       await this.#reopen(e instanceof Error ? e.message : String(e));
       return;
     }
-    if (this.#stopped || this.shown !== at) return;
-    if (!('commands' in moved)) {
-      await this.#reopen('the page moved further than its keeper keeps the steps of');
-      return;
-    }
-    await this.#converge(moved.version, moved.hash, { since: moved.commands, edits: [], renamed: {}, refused }, sent);
+    if (this.#stopped) return;
+    await this.#converge(now.version, now.hash, { target: now.page, held: now.held, refused });
   }
 
-  /** The screen converged on the keeper's page at `version` (§2): steps 1-4 by the screen, inside following; then its
-   *  hash checked against the keeper's (W17); then the pending edits made again, renamed (step 5). True when the screen
-   *  holds the keeper's page; false when it was opened again instead, said. */
-  async #converge(version: number, hash: string, on: Omit<Converge, 'confirmed' | 'held' | 'pending' | 'sent'>,
-    sent?: PageDocument): Promise<boolean> {
-    const confirmed = this.#confirmed;
-    if (confirmed === undefined) {
+  /** A write whose answer never came (the keeper out of reach, the answer lost on the way): the keeper asked whether it
+   *  took it. Taken: the screen put at the keeper's page, which holds it. Not: its edits pending again, in front of the
+   *  ones made since, so they are made again on the keeper's page and written next -- nothing said, nothing lost. The
+   *  keeper still out of reach: the page opened again, said. */
+  async #unanswered(why: string, write: LiveWrite, sentPage: PageDocument | undefined): Promise<void> {
+    let now: LiveRead;
+    try {
+      now = await this.#editor.read(this.#writer);
+    } catch (e) {
+      this.#edits = [...write.edits, ...this.#edits];
+      await this.#reopen(`its keeper did not answer: ${why}; ${e instanceof Error ? e.message : String(e)}`);
+      return;
+    }
+    if (this.#stopped) return;
+    if (now.taken === undefined) {
+      // asked by this writer, the keeper says which of its writes it took: an answer that does not is no keeper's
+      this.#edits = [...write.edits, ...this.#edits];
+      await this.#reopen(`its keeper did not answer: ${why}; it said not whether it took the write`);
+      return;
+    }
+    if (now.taken >= write.seq) {
+      await this.#converge(now.version, now.hash, { target: now.page, held: now.held, refused: [] }, sentPage);
+      return;
+    }
+    this.#edits = [...write.edits, ...this.#edits];
+    await this.#converge(now.version, now.hash, { target: now.page, held: now.held, refused: [] });
+  }
+
+  /** The screen put at the keeper's page at `version` (live-converge.ts), inside following; then its hash checked against
+   *  the keeper's (W17); then the pending edits made again. `base`: the page as this screen last sent it, or -- none
+   *  sent -- the confirmed one. True when the screen holds the keeper's page; false when it was opened again instead,
+   *  said. */
+  async #converge(version: number, hash: string, on: Omit<Converge, 'base' | 'pending'>, sent?: PageDocument): Promise<boolean> {
+    const base = sent ?? this.#confirmed?.page;
+    if (base === undefined) {
       await this.#reopen('the page it converges from is not known here');
       return false;
     }
@@ -280,25 +299,19 @@ export class LiveChannel {
     this.shown = undefined;
     let converged: Converged;
     try {
-      converged = await this.following(() => this.#screen.converge({
-        confirmed: confirmed.page, held: confirmed.held, pending, ...(sent === undefined ? {} : { sent }), ...on,
-      }));
+      converged = await this.following(() => this.#screen.converge({ ...on, base, pending }));
     } catch (e) {
+      // stopped meanwhile (the page left, the app taken down): nothing opened again
+      if (this.#stopped) return false;
       await this.#reopen(`${e instanceof Error ? e.message : String(e)}${dropped(pending)}`);
       return false;
     }
     if (this.#stopped) return false;
-    this.#confirmed = {
-      page: converged.page,
-      held: grown(confirmed.held, [...makerIds(on.since), ...makerIds(on.edits), ...Object.values(on.renamed)]),
-    };
+    this.#confirmed = { page: on.target, held: on.held };
     this.shown = version;
     if (!(await this.#checked(converged.page, hash, pending))) return false;
-    // its pending edits made again on the page as the keeper has it, each renamed as the keeper renamed the ids its
-    // sent edits gave out (the screen's: told again, so they are written next)
-    const map = new Map([...Object.entries(on.renamed), ...Object.entries(converged.renamed ?? {})]);
-    const again = pending.map((p): LiveCommand => ('page' in p ? { page: renamedCommand(p.page, map) } : { grid: map.get(p.grid) ?? p.grid, command: p.command }));
-    if (again.length > 0) await this.#screen.reapply(again, converged.restarted);
+    // its pending edits made again on the page as the keeper has it (the screen's: told again, so they are written next)
+    if (pending.length > 0) await this.#screen.reapply(pending, converged.restarted);
     if (this.#edits.length > 0) this.changed();
     return true;
   }

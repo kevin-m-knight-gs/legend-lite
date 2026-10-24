@@ -60,6 +60,9 @@ export class PageState {
   /** The steps undone, the last undone last. */
   #future: PageStep[] = [];
   readonly #limit: number;
+  /** The tag of the ids this page makes (page-ids.ts nextPageId): a tile an undo brings back is given its new id under
+   *  it, so no other editor makes the same (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version). */
+  tag: string | undefined;
 
   constructor(draft: PageDraft, limit = DEFAULT_HISTORY_LIMIT) {
     this.#draft = draft;
@@ -112,7 +115,7 @@ export class PageState {
   #move(step: PageStep, plan: readonly PageCommand[], onto: PageStep[]): PageMoved | PageDead {
     let done: ReturnType<typeof applyPlanned>;
     try {
-      done = applyPlanned(this.#draft, plan, true);
+      done = applyPlanned(this.#draft, plan, true, this.tag);
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       return { label: step.label, dead: e.message };
@@ -123,8 +126,6 @@ export class PageState {
     return { label: step.label, applied: done.applied, renamed: done.renamed };
   }
 
-  /** Every step's commands renamed as `renamed` says (planned -> given): an id given out afresh here (a tile brought
-   *  back) or by the keeper (a write made again on top), so a later move names the tile as it is now. */
   /** The steps whose every forward command is one of `commands` dropped, from the past and the future: a refused
    *  batch's, which never made the keeper's page (a converge's put-back, live-converge.ts). */
   dropSteps(commands: readonly PageCommand[]): void {
@@ -134,6 +135,8 @@ export class PageState {
     this.#future = this.#future.filter((s) => !refused(s));
   }
 
+  /** Every step's commands renamed as `renamed` says (planned -> given): an id given out afresh here (a tile brought
+   *  back as a new tile, B12), so a later move names the tile as it is now. */
   rename(renamed: Readonly<Record<string, string>>): void {
     const map = new Map(Object.entries(renamed));
     if (map.size === 0) return;

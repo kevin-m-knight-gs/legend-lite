@@ -146,14 +146,13 @@ const STATE_SITES: Record<string, Record<string, string>> = {
     // as it starts, its first grid made, with no history behind it
     'started:this.#state = ': 'a page as it starts: its first grid made, no step to undo',
     'restore:this.#state = ': 'a saved page put back',
-    // 2026-10-24 (D19 W13): the page they made kept, the history kept with it -- a step is commands, applied to the page
-    // as it is now (page-state.ts), so another editor's change is no reason to let the history go
-    'follow:this.#state.keep(': "another editor's commands, applied by the rules: the page they made, kept (no step: theirs)",
+    // (follow:this.#state.keep went 2026-10-24 with PageApp.follow, the middle version: another editor's change reaches
+    // the page by the converge's put-back alone, below, its history kept -- docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md)
     // 2026-10-24 (D19 W7, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): a screen converging on its keeper's page -- put back
-    // at the page as the keeper had it (the ids given out here since given back), its history kept and renamed as the
-    // keeper renamed the ids (live-converge.ts)
-    'putBack:this.#state.putBack(': "the keeper's page at the version shown, put back under the screen (a converge's step 1), the history kept",
-    'renamedBy:this.#state.rename(': "the ids the keeper gave out afresh, followed by every step of the history",
+    // at the page as the keeper has it, its history kept (live-converge.ts). renamedBy went the same day (the middle
+    // version, docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md): every id an edit makes is its editor's own, so the
+    // keeper renames none and no step follows a rename of the keeper's
+    'putBack:this.#state.putBack(': "the keeper's page, put back under the screen (a converge's board), the history kept",
     // 2026-10-24 (the D19 audit's fourth round, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md As built): a refused batch's
     // page steps never made the keeper's page, so their steps come off the history at the put-back (an undo of a refused
     // addition took the OTHER editor's tile under that id off); the pending edits made again after a converge apply by
