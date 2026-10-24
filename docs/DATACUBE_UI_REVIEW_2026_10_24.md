@@ -96,14 +96,14 @@ statistics · a 192×14 progress box · the planner's word ("local").
 - **Everything else on hover or focus,** and on touch when the tile is tapped (a selected tile shows its head's
   controls until another is tapped): the state menu, ⊞, ⤢, ×, ✎.
 - **View mode (Edit Layout off) is the reading mode:** no ×, no ⊞, no drag zones, no columns strip, a thin status bar;
-  Edit Layout brings them back. The page menu's ✓ Edit Layout already exists; it becomes the switch for this.
+  Edit Layout brings them back. The page menu's Edit Layout already exists; it becomes the switch for this.
 - **One right-click shape for every tile:** Options… (or Properties… for a grid), then the kind's own entries, then
   View ▸ Maximise, Move to Sheet ▸, Remove — the grid's, the chart's, the KPI's and the text tile's alike.
 
 ### 2. The chart options panel: a pane that closes
 
-- **A heading with a ×**, Escape closes it, a click on the page outside it closes it; Options… shows checked while
-  open.
+- **A heading with a ×**, Escape closes it, a click on the page outside it closes it. Options… only opens it (or
+  brings it forward): it is no longer a toggle.
 - **Out of the chart it edits:** a pane docked at the page's right edge (Power BI's Format pane, the grid's own
   Properties pattern), the chart left whole beside it and its marks highlighted — or, at least, a popover anchored to
   the tile that may overflow it and scrolls within the window, so a small tile never clips it.
@@ -115,10 +115,10 @@ In the order of the menus' shared skeleton (below, "The menus"):
 1. **New Page** (was Create ▸ Blank Page), **Open…**, **Save**, **Save As…**, **Share…**, **Export Page File…** (one
    entry until a second format arrives)
 2. **Undo *step***, **Redo *step***
-3. **Edit Layout ✓**, **Arrange…**
+3. **Edit Layout** (**Done Editing Layout** while on), **Arrange…**
 4. **Create ▸**: Data Source…, Sheet, Text Box, then Association…, Data Space…
 5. **Settings…**: the app's, not the first grid's (a grid's own window is its Properties…)
-6. **View ▸**: Show the Bar ✓, Generated Pure & SQL…, Keyboard Shortcuts…
+6. **View ▸**: Hide the Bar (Show the Bar while hidden), Generated Pure & SQL…, Keyboard Shortcuts…
 
 ### 4. The page's title bar
 
@@ -168,10 +168,10 @@ right-click, a sheet tab's right-click; a text tile has none), each with its own
 | 1 | Out: what leaves the app | New Page, Open…, Save, Save As…, Share…, Export | Export ▸, Email ▸ | -- |
 | 2 | Edit: history and copies | Undo *step*, Redo *step* | Edit ▸ (Undo *step*, Redo *step*, copies) | -- |
 | 3 | The data | -- | Sort ▸, Filter ▸, Pivot ▸, Join ▸, Extended Columns ▸ | Show Grid |
-| 4 | The look | Edit Layout ✓, Arrange… | Resize ▸, Pin ▸, Hide *column*, Conditional Formatting ▸ | -- |
+| 4 | The look | Edit Layout / Done Editing Layout, Arrange… | Resize ▸, Pin ▸, Hide *column*, Conditional Formatting ▸ | -- |
 | 5 | Create ▸ | Data Source…, Sheet, Text Box, ─ Association…, Data Space… | Data Source…, Copy of This Grid, Visualization, Text Box | the same as the grid's |
 | 6 | Its window | Settings… (the app's) | Properties… | Properties… (a chart's, today Options...); Edit Text… |
-| 7 | View ▸: how it is shown, and where | Show the Bar ✓, Generated Pure & SQL…, Keyboard Shortcuts… | Expand All, Collapse All, ─ Show Controls ✓, Keyboard Shortcuts…, ─ Move to Sheet ▸, Remove from Page | Maximise ✓, ─ Move to Sheet ▸, Remove from Page |
+| 7 | View ▸: how it is shown, and where | Hide/Show the Bar, Generated Pure & SQL…, Keyboard Shortcuts… | Expand All, Collapse All, ─ Hide/Show Controls, Keyboard Shortcuts…, ─ Move to Sheet ▸, Remove from Page | Maximise / Restore, ─ Move to Sheet ▸, Remove from Page |
 
 A sheet tab's right-click is the same shape at its size: Rename…, Move Left, Move Right, ─ Delete Sheet.
 
@@ -190,9 +190,13 @@ A sheet tab's right-click is the same shape at its size: Rename…, Move Left, M
   "..." and 12 use "…".
 - **▸ means a submenu,** and a submenu has two entries or more. Today the page's Export ▸ and View ▸ have one each:
   until a second arrives, the entry stands alone ("Export Page File…").
-- **✓ means a state that is on.** A toggle keeps one label and shows its state, rather than flipping its words:
-  Edit Layout ✓, Show Controls ✓, Data Bars ✓, a chart's Properties… ✓ while its pane is open. Today "Hide Controls" /
-  "Show Controls" and "Data Bars" / "Remove Data Bars" flip.
+- **An on/off toggle says what it will do, and flips** (the user, 2026-10-24: a missing ✓ is not clear -- an
+  unchecked toggle looks like any other entry): Hide Controls / Show Controls, Hide the Bar / Show the Bar, Edit Layout
+  / Done Editing Layout, Maximise / Restore, Add Data Bars / Remove Data Bars, Values First in Column Headers / Measures
+  First in Column Headers. Today Edit Layout and Measures First in Column Headers carry a ✓ instead, and Data Bars has
+  no verb.
+- **✓ marks the current pick among several**, never an on/off: a chart's Dynamic / Pinned / Frozen, the sheet shown
+  in the sheet list, the icon set chosen, Pin Left / Pin Right.
 - **A line separates sections, and sets apart a destructive entry,** which comes last in its group: Remove from Page,
   Delete Sheet, New Page (which replaces this one).
 - **Shortcuts are shown right-aligned** where one exists: Undo Ctrl+Z, Copy Ctrl+C, Properties… Ctrl+E, Save Ctrl+S.
@@ -223,7 +227,7 @@ Export Page File…                         Filter ▸
 Undo Move tile               Ctrl+Z       Pivot ▸
 Redo                                      Extended Columns ▸
 ─────────                                 ─────────
-Edit Layout                  ✓            Resize ▸
+Edit Layout                               Resize ▸
 Arrange…                                  Pin ▸
 ─────────                                 Hide notional
 Create ▸                                  Conditional Formatting ▸
