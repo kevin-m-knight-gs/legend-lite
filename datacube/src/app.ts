@@ -300,6 +300,8 @@ export interface CubeAppBaseOptions {
    */
   readonly onChart?: () => void;
   readonly onNewGrid?: () => void;
+  /** A grid on a page: its Create ▸ Text Box goes to the page, as `onNewGrid` does. */
+  readonly onText?: () => void;
   /**
    * ANOTHER SOURCE, for New ▸ Source…: the host asks the person which (its source picker) and
    * answers what reads it, or undefined when they chose nothing. Absent: no New ▸ Source….
@@ -2332,6 +2334,9 @@ export class CubeApp {
       case 'chart.plot':
         void this.openChart();
         return;
+      case 'text.new':
+        void this.newText();
+        return;
       case 'source.new':
         void this.newSource();
         return;
@@ -2821,6 +2826,15 @@ export class CubeApp {
     if (restore) this.#pageChanged();
   }
 
+  /** Create ▸ Text Box: a text tile on the page, beside this grid (page/cube-page.ts `addText`). */
+  async newText(): Promise<void> {
+    if (this.#options.onText) {
+      this.#options.onText();
+      return;
+    }
+    (await this.#ensurePage())?.addText();
+  }
+
   /** Another grid on the page, starting as this one is (page/cube-page.ts `addGrid`). */
   async newGrid(): Promise<void> {
     if (this.#options.onNewGrid) {
@@ -3048,7 +3062,7 @@ export class CubeApp {
   #boardSeen(page: CubePage, idsOf: (page: PageDocument) => string[]): PageDraft {
     const cube = this.cubeDocument('');
     const views = page.views((grid) => (grid === 'grid' ? PAGE_CUBE : grid));
-    const others = [...new Set(views.views.map((v) => v.cube))].filter((id) => id !== PAGE_CUBE).flatMap((id) => {
+    const others = [...new Set(views.views.flatMap((v) => (v.cube === undefined ? [] : [v.cube])))].filter((id) => id !== PAGE_CUBE).flatMap((id) => {
       const doc = page.documentOf(id);
       return doc ? [{ id, cube: doc }] : [];
     });
@@ -3087,12 +3101,12 @@ export class CubeApp {
 
   /**
    * What the cube shows around itself, as a saved page keeps it: the grid, each chart (its
-   * title, spec, and the mark it filters to) and the layout. A cube with no charts is a page
-   * of its grid alone, the whole board.
+   * title, spec, and the mark it filters to), each text tile and the layout. A cube with no
+   * charts and no text tiles is a page of its grid alone, the whole board.
    */
   pageViews(): PageViews {
     const page = this.#page?.page;
-    if (!page || page.charts === 0) return startingViews({ id: 'grid', cube: PAGE_CUBE });
+    if (!page || page.charts + page.texts === 0) return startingViews({ id: 'grid', cube: PAGE_CUBE });
     return page.views();
   }
 
@@ -3122,9 +3136,9 @@ export class CubeApp {
     return this.#page?.page.editing ?? true;
   }
 
-  /** Put a saved page's views back around the cube: its charts, their titles, its layout. */
+  /** Put a saved page's views back around the cube: its charts and text tiles, their titles, its layout. */
   async restoreViews(page: PageViews): Promise<void> {
-    if (!page.views.some((v) => v.kind === 'chart')) return;
+    if (!page.views.some((v) => v.kind !== 'grid')) return;
     (await this.#ensurePage())?.restore(page);
     // a saved page put back is no edit: the board's state keeps it as it is
     this.#pageChanged();
@@ -3220,7 +3234,7 @@ export class CubeApp {
   /** The board as an export carries it: each tile where it is, each chart as its picture; none without charts. */
   #exportPage(): ExportPage | undefined {
     const page = this.#page?.page;
-    if (page) return page.charts > 0 ? page.exportPage() : undefined;
+    if (page) return page.charts + page.texts > 0 ? page.exportPage() : undefined;
     // a grid on a page of its own: the page's, this grid its table
     return this.#options.exportPage?.();
   }

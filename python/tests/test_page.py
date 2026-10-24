@@ -769,6 +769,23 @@ class Document(Paged):
         # a chart can plot it, as any column
         grid.chart('line', x='region', y=[('margin', 'average')])
 
+    def test_a_text_tile_titles_and_notes_a_page(self):
+        # Power BI's text box: a page's title or a note, in DataCube's small Markdown (page-text.ts), by the commands its
+        # menus send (addText, setText), saved and reopened as it is; refused in DataCube's words
+        page, grid, _ = self.built()
+        note = page.text('# Q3 sales\n\nBy **desk**.', title='Notes')
+        self.assertEqual((note.id, note.text, note.title), ('text-1', '# Q3 sales\n\nBy **desk**.', 'Notes'))
+        self.assertIn(note, page.texts)
+        self.assertIs(note.sheet, grid.sheet)
+        note.text = 'Updated'
+        self.assertEqual(next(v for v in page.to_dict()['views'] if v['id'] == 'text-1')['text'], 'Updated')
+        with self.assertRaisesRegex(ValueError, 'a text tile has words: its text is blank'):
+            note.text = '   '
+        other = page.sheet('More').text('Second sheet')
+        self.assertEqual(other.sheet.name, 'More')
+        page.remove(other)
+        self.assertNotIn(other, page.texts)
+
     def test_a_grid_is_edited_as_datacubes_screen_edits_it_and_refused_in_its_words(self):
         # grouping, pivot, Column Properties and sorts by the one module the screen's panels, header menu and drag zones
         # call (grid-commands.ts, headless gridApply: docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md), the grid compiled as

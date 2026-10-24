@@ -180,7 +180,7 @@ def _tagged(value: Any) -> Any:
 
 @_operations
 class Tile:
-    """A tile of a page (a grid or a chart): its view in the page's document, by its id."""
+    """A tile of a page (a grid, a chart or a text): its view in the page's document, by its id."""
 
     _kind = ''
 
@@ -1242,6 +1242,25 @@ class Chart(Tile):
 
 
 @_operations
+class Text(Tile):
+    """A text tile: a page's title, a note beside a chart -- its words in DataCube's small Markdown (``# `` a heading,
+    ``**bold**``, ``*italic*``, ``- `` or ``1. `` a list, ``[words](https://...)`` a link; DataCube's page-text.ts),
+    drawn as text, never as HTML."""
+
+    _kind = 'text'
+
+    @property
+    def text(self) -> str:
+        return self._view['text']
+
+    @text.setter
+    def text(self, text: str) -> None:
+        _ = self._view
+        # by the command the tile's editor sends (page-commands.ts setText), judged by DataCube in its words: blank, too
+        # long, not text
+        self._page._apply_page([_commands.page_set_text(tile=self._id, text=text)])
+
+
 class Sheet:
     """A sheet of a page: a whole screen of tiles, in places -- each a tile, or a stack of tiles shown one at a time --
     laid out in bands, each band's places side by side (``layout``, ``arrange``, ``layout_from``)."""
@@ -1290,6 +1309,13 @@ class Sheet:
     def tiles(self) -> list[Tile]:
         """Its tiles in reading order, a stack's in its tabs' order."""
         return [self._page._tile_of(t) for t in self._page._tiles(self._doc['layout'])]
+
+    def text(self, text: str, *, title: str | None = None) -> Text:
+        """A text tile on this sheet, a band of its own at its bottom (``title``: its own; None, numbered), as the
+        menus' Create ▸ Text Box adds one (page-commands.ts addText) -- its words judged by DataCube, in its words."""
+        _ = self._doc
+        applied = self._page._apply_page([_commands.page_add_text(sheet=self._id, text=text, title=title, columns=None)])
+        return self._page._tile(applied[0]['id'], Text)
 
     def add(self, *tiles: Tile) -> Sheet:
         """Puts ``tiles`` on this sheet, each at its bottom, from the sheet it was on, as the screen's Move to Sheet
@@ -1592,6 +1618,15 @@ class Page:
     def charts(self) -> list[Chart]:
         return [self._tile(v['id'], Chart) for v in self._doc['views'] if v['kind'] == 'chart']
 
+    @property
+    def texts(self) -> list[Text]:
+        return [self._tile(v['id'], Text) for v in self._doc['views'] if v['kind'] == 'text']
+
+    def text(self, text: str, *, title: str | None = None, sheet: Sheet | None = None) -> Text:
+        """A text tile -- a title, a note -- on ``sheet`` (None: the first), a band of its own at its bottom
+        (``Sheet.text``)."""
+        return (sheet if sheet is not None else self.sheets[0]).text(text, title=title)
+
     # -- building ------------------------------------------------------------------------------------------------------
 
     def grid(self, frame: Any = None, *, file: str | Path | None = None, remote: str | None = None,
@@ -1786,7 +1821,7 @@ class Page:
         them."""
         strays = [t for t in tiles if not isinstance(t, Tile)]
         if strays:
-            raise ValueError(f'a stack is of tiles (grids and charts), not {", ".join(repr(t) for t in strays)}')
+            raise ValueError(f'a stack is of tiles (grids, charts and texts), not {", ".join(repr(t) for t in strays)}')
         if any(t._page is not self for t in tiles):
             raise ValueError('the tiles of a stack are of this page')
         for t in tiles:
@@ -2178,7 +2213,7 @@ class Page:
 
     def _tile_of(self, id: str) -> Tile:
         view = next(v for v in self._doc['views'] if v['id'] == id)
-        return self._tile(id, Grid if view['kind'] == 'grid' else Chart)
+        return self._tile(id, {'grid': Grid, 'chart': Chart, 'text': Text}[view['kind']])
 
     def _sheet(self, id: str) -> Sheet:
         return self._tile(id, Sheet)

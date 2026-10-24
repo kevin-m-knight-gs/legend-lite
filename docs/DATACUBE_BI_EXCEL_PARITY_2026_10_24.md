@@ -370,7 +370,7 @@ Status: **Have**, **Partial**, **Missing**. Where: **DC** (DataCube alone, `data
 
 | Feature | Reference | Status | Where | Size | Phase |
 |---|---|---|---|---|---|
-| Text, title and image tiles | Power BI, Tableau | Missing (grid and chart tiles only) | DC (a page view kind) | S | P4 |
+| Text, title and image tiles | Power BI, Tableau | **Built 2026-10-24** for text (`page-text.ts`, a `text` page view): Create ▸ Text Box in every menu adds a text tile, edited in place (double-click; OK or Ctrl+Enter, Escape), its words in a small Markdown -- headings, **bold**, *italic*, `code`, lists, http(s) links -- drawn as text, never HTML; page commands `addText`, `setText` (Python's `page.text`, `sheet.text`, `Text.text`); saved, merged with Python's edits, exported to HTML and PDF (not yet into the workbook). Images later | DC (a page view kind) | S | P4 |
 | Slicer tiles: list, dropdown, buttons, range, date (relative) | Power BI slicers, Excel slicers and timelines | Partial: a filter bar for class grids | DC | M | P4 |
 | Filter controls reaching relation grids (not only classes) | Power BI | Missing | DC | M | P4 |
 | Page parameters with controls | Tableau parameters, Power BI what-if | Missing | both (§3.7) | L | P4 |

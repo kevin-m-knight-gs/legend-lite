@@ -116,7 +116,7 @@ export function toHtml(table: ExportTable, options: RichExportOptions = {}): str
   const layout = (grid: string): string => (page ? `<div class="page" style="grid-template-columns:repeat(${page.cols},minmax(0,1fr))">
 ${page.tiles.map((t) => `<section class="tile" style="grid-column:${t.x + 1} / span ${t.w};grid-row:${t.y + 1} / span ${t.h}">
 <h2>${escapeXml(t.title)}</h2>
-${t.kind === 'grid' ? grid : t.picture
+${t.kind === 'grid' ? grid : t.kind === 'text' ? t.text?.html ?? '' : t.picture
     ? `<img alt="${escapeXml(t.title)}" width="${t.picture.width}" height="${t.picture.height}" src="data:image/png;base64,${base64(t.picture.png)}">`
     : '<p class="note">(this chart had not drawn)</p>'}
 </section>`).join('\n')}

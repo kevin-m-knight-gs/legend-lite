@@ -147,7 +147,8 @@ with the compiler's plan/execution split**, in this order:
    and step 2, measures declared in the model (`datacube/src/model-measures.ts`: Add Model Measure, Python's
    `grid.model_measure`); P3's conditional formats (`datacube/src/conditional.ts`: data bars, a three-colour scale,
    icon sets, rules), Excel's number format codes and date patterns (`datacube/src/format-code.ts`) and a column's
-   values grouped by hand (`ValueGroups`) -- the doc's §4 rows say which.
+   values grouped by hand (`ValueGroups`); P4's text tiles (`datacube/src/page-text.ts`, a `text` page view) -- the doc's §4
+   rows say which.
    **Step 1 landed 2026-10-10 (fe7961b7b; run 38090412797; GATES "Compile once, plan many").** **Step 2's first
    landing, Create a Class…, landed 2026-10-11 (0cee56761; run 38109599876; GATES "Create a Class…")** -- no file
    touched beyond the announced list. **Step 2's second landing, Create an Association… and Create a Data Space…,

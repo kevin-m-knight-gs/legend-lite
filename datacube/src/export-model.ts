@@ -272,12 +272,15 @@ export interface ExportPage {
 
 export interface ExportTile {
   readonly id: string;
-  readonly kind: 'grid' | 'chart';
+  readonly kind: 'grid' | 'chart' | 'text';
   readonly title: string;
   readonly x: number;
   readonly y: number;
   readonly w: number;
   readonly h: number;
+  /** A text tile's words as the board drew them (page-text.ts): its HTML -- every word escaped, as drawn -- and a line
+   *  a paragraph, heading or list item, for an export that writes text. */
+  readonly text?: { readonly html: string; readonly lines: readonly string[] };
   /** A chart's picture (absent when it has not drawn, or could not be read). */
   readonly picture?: {
     readonly width: number;

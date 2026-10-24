@@ -1807,3 +1807,24 @@ describe("the S3 audit's findings: a cube alone", () => {
     }
   });
 });
+
+describe('a text tile on a cube alone: its own board made for it, saved with the page and put back', () => {
+  beforeEach(setUpCube);
+  afterEach(cube.tearDown);
+
+  it('Create ▸ Text Box makes the board, the text tile on it; restored on a cube with no chart, it is back', async () => {
+    await cube.app.newText();
+    await settle();
+    const views = cube.app.pageViews();
+    const text = views.views.find((v) => v.kind === 'text');
+    assert.deepEqual(text, { id: 'text-1', kind: 'text', text: 'Double-click to write here.' });
+    assert.ok(!views.views.some((v) => v.kind === 'chart'), 'no chart: a text tile alone beside the grid');
+    // a page whose views are its grid and a text tile: put back, as a page with a chart is
+    const config = cube.app.configuration;
+    await cube.remount({ configuration: config });
+    await cube.app.restoreViews(views);
+    await settle();
+    assert.deepEqual(cube.app.pageViews().views.find((v) => v.kind === 'text'), text);
+    assert.ok(tile('text-1'), 'its tile on the board');
+  });
+});
