@@ -167,6 +167,10 @@ export class FlowCanvas {
   readonly #toolbar: HTMLElement;
   readonly #run: HTMLButtonElement;
   readonly #tidy: HTMLButtonElement;
+  readonly #undo: HTMLButtonElement;
+  readonly #redo: HTMLButtonElement;
+  /** Where the pointer is over the canvas, in the window's units: where a paste goes. */
+  #pointer: { x: number; y: number } | undefined;
   /** The canvas's zoom (the screen's, never the page's): its boxes drawn at this size, and the level said between − and +. */
   #zoom = 1;
   readonly #zoomLevel: HTMLButtonElement;
@@ -277,6 +281,11 @@ export class FlowCanvas {
     };
     this.#run = tool('dc-flow-run', '▶ Run', 'Run every box, left to right, and count the rows each gives', () => this.#board.options.onRun?.());
     this.#tidy = tool('dc-flow-tidy', 'Tidy Up', 'Place every box a column after the boxes it reads, level with them', () => this.#board.options.onTidy?.());
+    // the page's own Undo and Redo, each saying what it would undo or redo
+    this.#undo = tool('dc-flow-undo', '↶', 'Undo (Ctrl+Z)', () => this.#board.options.onUndo?.(false));
+    this.#redo = tool('dc-flow-redo', '↷', 'Redo (Ctrl+Shift+Z)', () => this.#board.options.onUndo?.(true));
+    this.#undo.setAttribute('aria-label', 'Undo');
+    this.#redo.setAttribute('aria-label', 'Redo');
     // ZOOM: − and + a level each, the level itself back to its own size, Fit all of it in view; Ctrl+wheel too
     const zoomOut = tool('dc-flow-zoom', '−', 'Zoom out (Ctrl+wheel)', () => this.#zoomBy(-1));
     this.#zoomLevel = tool('dc-flow-zoom dc-flow-zoom-level', '100%', 'Its own size', () => this.#setZoom(1));
@@ -284,7 +293,9 @@ export class FlowCanvas {
     const fit = tool('dc-flow-zoom', 'Fit', 'Every box in view', () => this.#fit());
     zoomOut.setAttribute('aria-label', 'Zoom out');
     zoomIn.setAttribute('aria-label', 'Zoom in');
-    this.#toolbar.append(this.#run, this.#tidy, zoomOut, this.#zoomLevel, zoomIn, fit);
+    this.#toolbar.append(this.#run, this.#tidy, this.#undo, this.#redo, zoomOut, this.#zoomLevel, zoomIn, fit);
+    // what Undo and Redo would do read again as the pointer comes to them
+    this.#toolbar.addEventListener('pointerenter', () => this.#paintHistory());
     this.#canvas.addEventListener('wheel', (e) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
@@ -313,6 +324,9 @@ export class FlowCanvas {
     main.append(top, this.#split, this.#results);
     host.prepend(this.#palette, main);
     this.#canvas.addEventListener('keydown', (e) => this.#onCanvasKey(e));
+    // where the pointer is over the canvas: where Ctrl+V pastes
+    this.#canvas.addEventListener('pointermove', (e) => { this.#pointer = { x: e.clientX, y: e.clientY }; });
+    this.#canvas.addEventListener('pointerleave', () => { this.#pointer = undefined; });
     // A FILE DROPPED from the desktop: an Input over it, as the picker opens one
     const files = (e: DragEvent): boolean => this.#board.editing && (e.dataTransfer?.types ?? []).includes('Files');
     this.#canvas.addEventListener('dragover', (e) => {
@@ -395,13 +409,30 @@ export class FlowCanvas {
     this.#hint.hidden = layout.boxes.length > 0 || !editing;
     // Run on a locked page too: it changes nothing of the page's
     const running = board.running;
-    this.#toolbar.hidden = layout.boxes.length === 0;
+    const history = this.#paintHistory();
+    // an empty canvas has no tools but Undo and Redo, while there is something to undo or redo
+    this.#toolbar.hidden = layout.boxes.length === 0 && history.undo === undefined && history.redo === undefined;
     this.#tidy.hidden = !editing || layout.boxes.length < 2;
     this.#run.disabled = running !== undefined;
     this.#run.textContent = running === undefined ? '▶ Run' : `Running ${Math.min(running.done + 1, running.of)} of ${running.of}…`;
     this.#paintLog();
     this.#paintResults();
     this.#paintSettings();
+  }
+
+  /** Undo and Redo as the page has them now: each on while it has a step, its title the step's name; neither on a
+   *  locked page. */
+  #paintHistory(): { readonly undo?: string | undefined; readonly redo?: string | undefined } {
+    const editing = this.#board.editing;
+    const history = editing ? this.#board.options.history?.() ?? {} : {};
+    for (const [button, label, word, keys] of [
+      [this.#undo, history.undo, 'Undo', 'Ctrl+Z'], [this.#redo, history.redo, 'Redo', 'Ctrl+Shift+Z'],
+    ] as const) {
+      button.hidden = !editing;
+      button.disabled = label === undefined;
+      button.title = label === undefined ? `Nothing to ${word.toLowerCase()}` : `${word} ${label} (${keys})`;
+    }
+    return history;
   }
 
   /** A box scrolled into view (the canvas scrolls in its zoomed size). */
@@ -596,7 +627,7 @@ export class FlowCanvas {
   }
 
   /** A box's place to be made at a point of the window: its middle there, in the canvas's own units. */
-  #pointAt(ev: PointerEvent): FlowPoint {
+  #pointAt(ev: { readonly clientX: number; readonly clientY: number }): FlowPoint {
     const r = this.#plane.getBoundingClientRect();
     const x = (ev.clientX - r.left) / this.#zoom - BOX_WIDTH / 2;
     const y = (ev.clientY - r.top) / this.#zoom - BOX_HEIGHT / 2;
@@ -717,6 +748,7 @@ export class FlowCanvas {
     head.addEventListener('pointerdown', (e) => this.#startNote(id, root, e));
     root.addEventListener('keydown', (e) => {
       if (e.target !== root || !this.#board.editing) return;
+      if (this.#copied(id, e)) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         this.#board.options.onRemove?.(id);
@@ -911,6 +943,7 @@ export class FlowCanvas {
       o.onDuplicate?.(id);
       return;
     }
+    if (this.#copied(id, e)) return;
     const step = e.shiftKey ? BIG_STEP : STEP;
     const by: Readonly<Record<string, readonly [number, number]>> = {
       ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step],
@@ -933,12 +966,31 @@ export class FlowCanvas {
       this.#selectLine(undefined);
       return;
     }
-    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z') return;
+    if (!(e.ctrlKey || e.metaKey)) return;
     const target = e.target as HTMLElement | null;
-    // a field (a box being renamed) keeps its own undo
-    if (target?.tagName === 'INPUT') return;
+    // a field (a box being renamed, a note's words) keeps its own undo and its own clipboard
+    if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+    const key = e.key.toLowerCase();
+    if (key === 'v' && this.#board.editing && this.#board.options.onPaste) {
+      e.preventDefault();
+      this.#board.options.onPaste(this.#pointer !== undefined ? this.#pointAt({ clientX: this.#pointer.x, clientY: this.#pointer.y }) : undefined);
+      return;
+    }
+    if (key !== 'z') return;
     e.preventDefault();
     this.#board.options.onUndo?.(e.shiftKey);
+  }
+
+  /** Ctrl+C on a box or a note, or Ctrl+X (and it taken off): told, and true. */
+  #copied(id: string, e: KeyboardEvent): boolean {
+    const key = e.key.toLowerCase();
+    if (!(e.ctrlKey || e.metaKey) || (key !== 'c' && key !== 'x')) return false;
+    if (key === 'x' && !this.#board.editing) return false;
+    e.preventDefault();
+    // its own: the canvas's Ctrl+V is the canvas's
+    e.stopPropagation();
+    this.#board.options.onCopy?.(id, key === 'x');
+    return true;
   }
 
   /** A box renamed in place: its name a field until Enter (or leaving it) says it, or Escape keeps the old one. */

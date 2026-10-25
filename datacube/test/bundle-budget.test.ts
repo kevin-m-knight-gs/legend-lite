@@ -465,8 +465,11 @@ const BUDGET = 369_500;
  *  356,500 -> 357,000 (2026-10-25, the flow mode's comments -- the grid-only page's note of the same date). Measured
  *  356,556.
  *  357,000 -> 357,500 (2026-10-25, the flow mode's DateTime -- the grid-only page's note of the same date). Measured
- *  357,399. */
-const ENGINE_BUDGET = 357_500;
+ *  357,399.
+ *  357,500 -> 358,000 (2026-10-25, the flow mode's copy and paste and its toolbar's Undo and Redo: the page keeps what
+ *  a box's Ctrl+C copied and pastes it as one step, and tells the canvas what Undo and Redo would do; the buttons and
+ *  the keys the canvas's chunk). Measured 357,632. */
+const ENGINE_BUDGET = 358_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

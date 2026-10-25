@@ -235,6 +235,8 @@ export interface CubePageOptions {
   readonly documentOf?: (grid: string) => CubeDocument | undefined;
   /** Ctrl+Z (Ctrl+Shift+Z: `redo`) on a tile's frame: the page's own undo (a page of its own); absent, Undo Layout. */
   readonly onUndo?: (redo: boolean) => void;
+  /** What the page's Undo and Redo would undo and redo now, by name: a flow's Undo and Redo say it. */
+  readonly history?: () => { readonly undo?: string | undefined; readonly redo?: string | undefined };
   /**
    * What a chart's click on a mark of grid `grid` is decided on (page-filters.ts chartPicked): the grid's source -- on a
    * grid over a class, the conditions on its properties are a page filter (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
@@ -385,6 +387,8 @@ export class CubePage {
   readonly #grids = new Map<string, GridTile>();
   /** The text tiles (page-text.ts): each one's words as the page has them, its body, whether its editor is open. */
   readonly #texts = new Map<string, TextTile>();
+  /** What a flow's Ctrl+C kept to paste: a box's cube, or a note's words. */
+  #clipboard: { readonly document: CubeDocument } | { readonly text: string } | undefined;
   /** A flow's boxes not shown, by id: documents, no grid made for them until one is (`#showBox`). */
   readonly #boxes = new Map<string, ClosedBox>();
   /** The boxes whose grids are being made (their sources opening), each once. */
@@ -537,11 +541,14 @@ export class CubePage {
         this.#options.onChange();
       },
       onUndo: (redo) => this.#options.onUndo?.(redo),
+      ...(this.#options.history ? { history: this.#options.history } : {}),
       onFile: (file) => this.#options.onFile?.(file, id),
       documentOf: (tile) => this.#boxes.get(tile)?.document ?? this.documentOf(tile),
       onTidy: () => this.#options.onTidy?.(id),
       onRun: () => void this.#runFlow(id),
       onDuplicate: (tile) => this.#duplicateBox(id, tile),
+      onCopy: (tile, cut) => this.#copyBox(tile, cut),
+      onPaste: (at) => this.#pasteBox(id, at),
     });
     board.setEditing(this.#editing);
     const sheet: FlowSheet = { kind: 'flow', id, name, host, board };
@@ -778,6 +785,41 @@ export class CubePage {
     if (document === undefined) return;
     const near = liveGrids(document.source)[0] ?? tile;
     this.#tell('Duplicate Box', pageCommand('addGrid', { document, sheet, near, title: null, columns: null }));
+    this.#options.onChange();
+  }
+
+  /**
+   * A BOX COPIED (Ctrl+C on it, Ctrl+X to cut it: docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): its cube as the page has it
+   * -- reading what it reads -- or a note's words, kept by the page to paste on any of its flows; cut, taken off as its ×
+   * takes it (its own step). The page's alone: what a box reads is a grid of this page.
+   */
+  #copyBox(tile: string, cut: boolean): void {
+    const sheet = this.#sheetOf(tile);
+    if (sheet?.kind !== 'flow') return;
+    const text = this.#texts.get(tile);
+    const document = text === undefined ? this.#boxes.get(tile)?.document ?? this.documentOf(tile) : undefined;
+    if (text !== undefined) this.#clipboard = { text: text.text };
+    else if (document !== undefined) this.#clipboard = { document };
+    else return;
+    const name = sheet.board.title(tile) ?? tile;
+    if (cut) this.#removeTile(tile);
+    sheet.board.say(`${cut ? 'Cut' : 'Copied'}: ${name}.`);
+  }
+
+  /** WHAT WAS COPIED, PASTED on flow `sheet` (Ctrl+V): a box of its cube, at `at` (else after the first box it reads),
+   *  or a note of its words -- one step, Paste Box; a box whose input is no longer on the page refused, as any is. */
+  #pasteBox(sheet: string, at: FlowPoint | undefined): void {
+    const clip = this.#clipboard;
+    if (clip === undefined) return;
+    const place = (tile: string): PageCommand[] => (at !== undefined ? [pageCommand('placeBox', { tile, x: at.x, y: at.y })] : []);
+    if ('text' in clip) {
+      const id = this.#nextId('text');
+      this.#tell('Paste Comment', pageCommand('addText', { id, sheet, text: clip.text, title: null, columns: null }), ...place(id));
+    } else {
+      const id = this.#nextId('grid');
+      const near = liveGrids(clip.document.source)[0] ?? null;
+      this.#tell('Paste Box', pageCommand('addGrid', { id, document: clip.document, sheet, near, title: null, columns: null }), ...place(id));
+    }
     this.#options.onChange();
   }
 
@@ -1444,10 +1486,10 @@ export class CubePage {
       }),
       // its own changes are the page's: "changed since saved" re-reads the page
       cube.on('change', () => {
-        // a flow's box shown draws what its grid now does (flow-boxes.ts boxSays)
+        this.#options.onChange();
+        // a flow's box shown draws what its grid now does (flow-boxes.ts boxSays), and its Undo the change the page kept
         const sheet = this.#sheetOf(id);
         if (sheet?.kind === 'flow') sheet.board.repaint();
-        this.#options.onChange();
       }),
       // where its rows are is the page's too: its copies (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8)
       // its own snap or going live told as the page's command (the copy it now reads, or none)

@@ -627,6 +627,16 @@ canvas's corner, and Ctrl+wheel around the pointer -- the screen's, never the pa
 the pointer's way across the window in the canvas's own units (110 pixels at 110%, 100 of the canvas). The palette lays
 its tools two by two under their headings, so the whole of it fits a window's height. Tested by the harness.
 
+**Built, Undo and Redo, copy and paste** (`layout/flow-canvas.ts` `#paintHistory`, `#copied`, `page/cube-page.ts`
+`#copyBox`, `#pasteBox`): the page's own Undo and Redo on the canvas's toolbar, each titled with the step it would undo or
+redo ("Undo Paste Box") and off while there is none -- the page's history, the same as Ctrl+Z's. Ctrl+C on a box keeps
+its cube (reading what it reads), on a note its words; Ctrl+X cuts it (its removal, its own step, its readers frozen as
+any removal freezes them); Ctrl+V on the canvas pastes it where the pointer is, else after the box it reads -- one step,
+Paste Box (Paste Comment), on any flow of the page. A copy is the page's alone: a box reads grids of its own page, so a
+paste on another page would read nothing (a page's whole flow carried between pages is M7's "flows from other pages").
+Tested by the harness (a Formula copied and pasted at the pointer, reading what it reads; undone and redone by the
+buttons).
+
 ### M5 and M6, first steps (2026-10-25)
 
 **Built, record counts and Run** (`layout/flow-board.ts` `counted`, `count`, `layout/flow-canvas.ts`, `page/cube-page.ts`

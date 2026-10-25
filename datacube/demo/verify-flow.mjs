@@ -104,7 +104,7 @@ const emptyCanvasPoint = () => page.evaluate(() => {
   for (let y = c.bottom - 30; y > c.top + 60; y -= 24) {
     for (let x = c.left + 100; x < c.right - 100; x += 24) {
       const hit = document.elementsFromPoint(x, y);
-      if (hit.some((e) => e.closest?.('.dc-flow-box, .dc-flow-toolbar') || e.classList?.contains('dc-flow-hit'))) continue;
+      if (hit.some((e) => e.closest?.('.dc-flow-box, .dc-flow-note, .dc-flow-toolbar') || e.classList?.contains('dc-flow-hit'))) continue;
       return { x, y, canvasX: x - document.querySelector('.dc-flow-plane').getBoundingClientRect().left };
     }
   }
@@ -600,6 +600,31 @@ try {
   const written = await page.evaluate((id) => window.__dataPage.document('x').views.find((v) => v.id === id), noteId);
   check(written?.kind === 'text' && /Big trades only/.test(written.text), `a text tile of the page: ${JSON.stringify(written)}`);
   await page.screenshot({ path: outPath('flow-comment.png') });
+
+  // COPY AND PASTE (M7): the Formula copied, pasted where the pointer is -- a box of its cube, reading what it reads
+  const beforePaste = (await boxes()).map((b) => b.id);
+  await page.locator(`.dc-flow-box[data-tile="${formula.id}"]`).focus();
+  await page.keyboard.press('Control+c');
+  const pasteAt = await emptyCanvasPoint();
+  await page.mouse.move(pasteAt.x, pasteAt.y);
+  await page.locator('.dc-flow-canvas').focus();
+  await page.keyboard.press('Control+v');
+  await boxCount(beforePaste.length + 1);
+  const pasted = await added(beforePaste);
+  check(pasted.tool === 'formula' && pasted.says === 'fee', `a copy of the Formula: ${JSON.stringify(pasted)}`);
+  check(await readsOf(pasted.id) === await readsOf(formula.id), 'reading what it reads');
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Paste Box', 'one step: Paste Box');
+  const pastedAt = await page.evaluate((id) => window.__dataPage.document('x').sheets.find((s) => s.layout.kind === 'flow').layout.boxes.find((b) => b.tile === id), pasted.id);
+  check(Math.abs(pastedAt.x + 92 - pasteAt.canvasX) <= 2, `placed where the pointer was: its middle at ${pastedAt.x + 92}, the pointer at ${pasteAt.canvasX}`);
+
+  // UNDO AND REDO on the canvas's toolbar, each saying its step
+  check(await page.locator('.dc-flow-undo').getAttribute('title') === 'Undo Paste Box (Ctrl+Z)', 'Undo says what it undoes');
+  await page.locator('.dc-flow-undo').click();
+  await boxCount(beforePaste.length);
+  check(await page.locator('.dc-flow-redo').getAttribute('title') === 'Redo Paste Box (Ctrl+Shift+Z)', 'undone by its button; Redo says it');
+  await page.locator('.dc-flow-redo').click();
+  await boxCount(beforePaste.length + 1);
+  check(await page.locator('.dc-flow-redo').isDisabled(), 'redone; nothing left to redo');
 
   // THE PALETTE'S FIND: its tools narrowed to what is typed
   await page.fill('.dc-flow-find', 'join');

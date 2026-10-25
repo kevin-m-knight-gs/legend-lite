@@ -39,8 +39,10 @@ export interface FlowBoardOptions {
   /** A line into box `tile` on `side` taken off, or its settings' Freeze: the caller freezes it -- it reads a copy of what
    *  it read (setInput, a copy: FL6). */
   readonly onFreeze?: (tile: string, side: InputSide) => void;
-  /** Ctrl+Z (Shift for redo) on the canvas: the page's own undo. */
+  /** Ctrl+Z (Shift for redo) on the canvas, or its Undo and Redo: the page's own undo. */
   readonly onUndo?: (redo: boolean) => void;
+  /** What the page's Undo and Redo would undo and redo now, by name (undefined: nothing): the canvas's Undo and Redo. */
+  readonly history?: () => { readonly undo?: string | undefined; readonly redo?: string | undefined };
   /** A file dropped onto the canvas (from the desktop): the caller adds an Input box over it. */
   readonly onFile?: (file: File) => void;
   /** Tidy Up (the canvas's button): the caller places every box by the flow's own rule (page-gestures.ts tidyCommands). */
@@ -49,6 +51,11 @@ export interface FlowBoardOptions {
   readonly onRun?: () => void;
   /** Duplicate (Ctrl+D on a box, or its menu): the caller adds a copy of it, reading what it reads. */
   readonly onDuplicate?: (id: string) => void;
+  /** Ctrl+C on a box or a note (Ctrl+X: `cut`, and taken off the page): the caller keeps a copy of it to paste. */
+  readonly onCopy?: (id: string, cut: boolean) => void;
+  /** Ctrl+V on the canvas: the caller adds what it copied last, at `at` (where the pointer is), else after the box it
+   *  reads. */
+  readonly onPaste?: (at: FlowPoint | undefined) => void;
   /** Each box's cube document as the page has it: what it does, and the boxes it reads (the lines into it). */
   readonly documentOf?: (id: string) => CubeDocument | undefined;
 }

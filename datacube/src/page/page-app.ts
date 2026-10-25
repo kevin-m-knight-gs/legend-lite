@@ -996,6 +996,7 @@ export class PageApp {
       // any grid it made: one the board waits to place too
       documentOf: (grid) => this.#grids.get(grid)?.grid.cubeDocument(this.#name),
       onUndo: (redo) => (redo ? this.redo() : this.undo()),
+      history: () => ({ undo: this.undoLabel, redo: this.redoLabel }),
       // a chart's click decided on its grid's source and the page's filters (page-filters.ts chartPicked)
       pickOn: (grid) => ({ source: this.grid(grid)?.cubeSource, filters: this.#filters }),
       // a flow's box shown: its grid made by the host over the page as it is now

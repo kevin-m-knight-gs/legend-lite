@@ -4482,6 +4482,11 @@
 .dc-flow-act:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
 .dc-flow-act[hidden] { display: none; }
 .dc-flow-zoom { min-width: 26px; padding: 0 8px; }
+/* Undo and Redo, a pair: off while there is no step to undo or redo */
+.dc-flow-undo, .dc-flow-redo { min-width: 26px; padding: 0 8px; font-size: 14px; }
+.dc-flow-undo { margin-left: 6px; }
+.dc-flow-undo:disabled, .dc-flow-redo:disabled { cursor: default; opacity: 0.45; box-shadow: none; }
+.dc-flow-undo:disabled:hover, .dc-flow-redo:disabled:hover { border-color: var(--dc-line); color: var(--dc-muted-strong); }
 .dc-flow-zoom-level { min-width: 52px; font-variant-numeric: tabular-nums; }
 .dc-flow-run { color: var(--dc-active); border-color: color-mix(in srgb, var(--dc-active) 45%, transparent); }
 .dc-flow-run:disabled { cursor: progress; opacity: 0.8; }
