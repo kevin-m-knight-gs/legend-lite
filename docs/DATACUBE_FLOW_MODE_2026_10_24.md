@@ -81,7 +81,10 @@ with all"). The options not taken are in §7, so the reasons are kept.
 
 - **FL13. The first version writes no tables.** Its outputs are the Cache box, Snap and the grid's exports. F1 (`write`
   into a table: create, replace, append, merge by key) is built in core in parallel, as a slice of core's own line, not
-  inside DataCube's. Output boxes come when it lands.
+  inside DataCube's. Output boxes come when it lands. *Since (2026-10-25): the writes line landed store writes on main
+  (`docs/WRITES_DESIGN_2026_10_18.md` legs 2 and 7: `write`, `update`, `delete` and `merge` over a store table on
+  DuckDB, H2 and Postgres, and write plans run by the model-free runner), so F1 is no longer waited for; Output boxes
+  are the roadmap's M6 (§5).*
 - **FL14. Transpose is composed, not a new native.** One `select` per chosen column (the keys, that column renamed to a
   name and a value), the selections concatenated. It runs on every database and needs no core change. The value
   columns must share a type; where they do not, the compiler refuses in its words, and a cast is offered.
@@ -171,9 +174,12 @@ a port shows its rows in the results pane.
 ### 3.5 New command kinds ship whole
 
 Each new command kind (a live input, freeze and unfreeze, a box's place, a check's mode) ships with its apply rule, its
-JSON reader and writer, its rebase arm, a UI producer, a Python builder and a parity row (One API rule 6). Each one
-raises `L8_KINDS` in `datacube/test/one-api-ledger.test.ts`, which needs the user's dated sign-off when it is built
-(D9).
+JSON reader and writer, its rebase arm, a UI producer, a Python builder and a parity row (One API rule 6). The ledger
+L8 in `datacube/test/one-api-ledger.test.ts` enforces it: a kind the screen or Python does not make, or a source kind
+Python cannot read and add, fails the build. Its lists (`L8_KINDS`, `L8_SOURCES`) are the gaps, so a kind shipped
+whole adds nothing to them; an entry there is a gap left, which only the user's dated sign-off allows (D9).
+*(Corrected 2026-10-25: this said every new kind raised `L8_KINDS`.)* A new source kind also joins `PYTHON_ADDS`,
+the headless function by which Python adds a grid over it, with its test.
 
 ---
 
@@ -294,30 +300,113 @@ How to read the status column:
 
 ---
 
-## 5. Order
+## 5. Roadmap: simple first, then built up (2026-10-25)
 
-1. **Now, beside D19 (FL16):**
-   - the live input, freeze and unfreeze, and ports, as page and grid commands, each whole (§3.5);
-   - Transpose, composed (FL14);
-   - in core, F1, as core's own slice (FL13).
-2. **After D19: the flow sheet** (`kind: 'flow'`, FL4): boxes and lines drawn from the page document, the results pane,
-   boxes marked with the compiler's reason, auto-layout.
-3. **The palette:** each tool makes a one-tool grid (FL5), grouped as Alteryx groups them; ports on the canvas (FL7);
-   counts after a run; results-pane gestures that add a box (FL9).
-4. **Cross Tab with its cast and checks** (FL2, FL3, FL8); the Cache box (FL10); Profile, text to columns, sample, the
-   cleansing presets.
-5. **Import Pure and the Pure box** (FL12).
-6. **When F1 lands:** Output boxes; then runs and schedules (F3).
+D19 landed on main (neema2/legend-lite#71), so FL16's wait is over and the canvas can start. The user's three rules
+for all of it (2026-10-25):
+
+1. **Reuse DataCube's logic and APIs**, so there is one set of rules, never a second.
+2. **The API stays separate from the UI**: every gesture a command, applied by the one function, the same from Python.
+3. **Close to Alteryx's experience, features and workflow**, but nicer, more modern and sleeker.
+
+Every milestone ends usable: something a person does from start to finish, saved, shared, and the same from Python.
+
+### M1. A first flow: an Input, five tools, Browse
+
+- **What a person does:** adds a Flow sheet; drops a file onto it, or picks any DataCube source, as an Input; adds
+  Filter, Formula, Select, Sort and Summarize after it; clicks any box to see its rows; saves, reopens and shares it.
+- **The canvas:** boxes and lines. A tool is dragged from the palette onto the canvas, onto a box's output, or onto a
+  line to insert it there. Boxes move, are deleted, and every step undoes and redoes.
+- **Settings:** each box's in the pane on the right, made of DataCube's own editors: the filter editor (Filter), the
+  column editor (Formula), the shown columns (Select), the sorts (Sort), the grouping and its measures (Summarize).
+- **Results:** the selected box's rows below the canvas, as a full DataCube, live: there is no Run button. Only the
+  shown box queries; every other box is a document, not a running grid (demand-driven work).
+- **Types:** each box says its output columns as it is connected; a box the compiler refuses is red, in its words.
+- **Underneath:** the `rows` source (a grid over another grid's rows, §3.1) with live inputs; the `flow` layout kind
+  (FL4); a box with no running grid until it is shown.
+- **Not yet:** joins, ports, writes.
+- **Done when:** a browser harness builds Input, Filter, Formula and Summarize by drag and drop alone, previews each
+  box, saves, reopens and shares the flow; Python builds the same flow and reads the same rows.
+
+### M2. Combine: Join, Union and ports
+
+- Join with its L, J and R ports; Union of any number of inputs; Append Fields; Find Replace; Fuzzy Match.
+- Ports (FL7): Filter's False, and Unique with its Duplicates.
+- Live or frozen inputs, with Freeze and Unfreeze (FL6).
+- **Nicer than Alteryx:** join keys suggested with their reasons, and what a join will do counted before it is
+  applied (join.ts `suggestedKeys` and join-open.ts `summaryCounts`, both built).
+- **Done when:** two inputs are joined, each port is browsed, and an edit upstream reaches the join and every box after
+  it.
+
+### M3. Prepare and parse
+
+- Preparation: Sample, Random % Sample, Record ID, Tile, Multi-Row Formula, Running Total, Multi-Field Formula, Data
+  Cleansing, Imputation, Date Filter.
+- Parse: Text To Columns, RegEx, DateTime, JSON Parse.
+- Most are presets of the calculated columns and window columns DataCube has (§4).
+- **Done when:** each tool has a harness case over a fixture, its rows checked.
+
+### M4. Reshape
+
+- Cross Tab, with Load values, the cast, its check and the check's mode (FL2, FL3, FL8); Transpose, composed (FL14).
+- The check modes on screen: amber and red boxes, Add to the cast.
+- **Done when:** a Cross Tab whose data gains a value is marked in a preview and refused by a run in refuse mode.
+
+### M5. Understand the data
+
+- Profile on any box or port: the count, empties, distinct values and top values (§17.6).
+- Record counts on lines after a run (FL7); results-pane gestures that add a box (FL9); a box's Pure and SQL shown;
+  charts on any box.
+
+### M6. Output and run
+
+- **Output Data to a table:** create, replace, append and merge by key, on the store writes now on main (FL13's note).
+- The Cache box (FL10); the grid's exports from any box.
+- **Run:** the whole flow in order, with a run log; check modes enforced (FL8); a dry run (the plan and row counts,
+  nothing written).
+- **Done when:** a flow writes a table in one transaction, and a failed check writes nothing and says why.
+
+### M7. Big flows
+
+- Comments and containers that collapse, auto-layout, a minimap, search, a command palette, copy and paste of boxes,
+  keyboard operation, accessible announcements.
+- Import Pure and the Pure box (FL12).
+
+### M8. Production (platform work)
+
+- Schedules and run history (F3); parameters and analytic apps (F5); standard macros (a sub-flow as a function with
+  parameters); Dynamic Input; FL15's Python box, if asked for.
+
+### What makes it nicer than Alteryx, all the way through
+
+- No Run to see data: every box previews live, computed in the database.
+- Types and the compiler's errors live, as boxes are connected and settings typed.
+- Every box is a full DataCube: pivot, chart or export at any step.
+- Undo for everything, a share link for every flow, the flow as diffable Pure.
+- The same flow from Python, by the same commands.
+- One design language (`docs/DATACUBE_UI_REVIEW_2026_10_24.md`), dark mode, the keyboard first.
+
+### M1's own steps, each a commit with its tests
+
+1. **The `rows` source and live inputs in the cube document:** read and written; resolved against the page (a cycle
+   refused, a missing grid said); its leaves; the order a page opens its grids in.
+2. **Its base query** over the host's tables, on the tab and on Python's host (headless), and the L8 source rows.
+3. **The `flow` layout kind** and its page commands: a box placed, moved and removed; every reader of a layout taught
+   it.
+4. **The canvas**, the palette, the settings pane and the results pane.
+5. **The five tools' settings.**
+6. **Python's methods**, by the names agreed (D6).
+7. **The browser harness** and a tour step.
 
 ---
 
 ## 6. Still open
 
-1. **F1's scheduling:** which session builds it in core, and when (FL13 says in parallel, as core's slice).
-2. **Whether legend-pure has an `unpivot`.** Nothing in this repository shows one, and no legend-pure checkout was in
+1. **Whether legend-pure has an `unpivot`.** Nothing in this repository shows one, and no legend-pure checkout was in
    the session that wrote this. If it has one, Transpose uses it instead of being composed (FL14).
-3. **`L8_KINDS`:** each new command kind's raise is signed off, dated, when it is built (D9).
-4. **Python's method names** for flows are put to the user before they are built (D6).
+2. **Python's method names** for flows, put to the user before they are built (D6), at M1's step 6.
+3. **An Output box in the tab:** the tab plans with its WebAssembly planner and runs on its own DuckDB; whether its
+   runner takes a write plan's `Update` and `Sequence` nodes is to be read before M6.
 
 ---
 
