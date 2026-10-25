@@ -490,43 +490,83 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
   beforeEach(setUpPage);
   afterEach(tearDownPage);
 
-  // the user, 2026-10-25 (docs/DATACUBE_UI_REVIEW_2026_10_24.md §2): a pane that closes -- Options... (Properties… since) was a toggle, and
-  // the pane had no way out of its own
-  it('Properties… opens the chart\'s options or brings them forward; their \u00d7, Escape and a press elsewhere put them away', async () => {
+  // the user, 2026-10-25 (docs/DATACUBE_UI_REVIEW_2026_10_24.md §2): the options a window like the grid's Properties --
+  // "make sure the chart dialog opens near the chart but not covering, and not half off the screen when open"
+  it("Properties… opens the chart's options as a window beside it, among the page's windows; again brings it forward; its \u00d7 and Escape put it away", async () => {
     newPage();
     const a = pg().addGrid(over('trades.csv'));
     await settle();
     const chart = await chartOf(a);
-    const form = (): HTMLElement => tile(chart).querySelector('.dc-chartpanel-form') as HTMLElement;
+    const win = (): HTMLElement | null => host.querySelector<HTMLElement>('.dc-chart-options');
     const options = (): void => chartMenu(chart).find((i) => label(i) === 'Properties…')!.click();
     const press = (on: Element): boolean => on.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true }));
-    assert.equal(form().hidden, true, 'a chart on the page starts without its form');
+    const placed = (w: HTMLElement): number[] => ['left', 'top', 'width', 'height'].map((k) => parseFloat(w.style.getPropertyValue(k)));
+    // where the chart is on the screen, which jsdom does not lay out (its window 1024 x 768)
+    const body = tile(chart).querySelector<HTMLElement>('.dc-chart-tile')!;
+    Object.defineProperty(body, 'getBoundingClientRect', {
+      value: () => ({ left: 100, top: 120, right: 500, bottom: 420, width: 400, height: 300, x: 100, y: 120, toJSON: () => ({}) }),
+      configurable: true,
+    });
+    assert.equal(win(), null, 'a chart on the page starts without its options');
     options();
-    assert.equal(form().hidden, false);
+    const w = win()!;
+    assert.ok(w, 'open');
+    // the page's windows' frame, where its grids' windows float -- not in its tile, which clipped it and heard its keys
+    assert.equal(w.parentElement, pg().root, "among the page's windows");
+    assert.ok(!tile(chart).contains(w));
+    assert.ok(w.classList.contains('dc-app-overlay') && w.classList.contains('dc-window-fixed'));
+    assert.ok(w.querySelector('.dc-overlay-head.dc-window-handle'), 'dragged by its title bar');
+    assert.equal(w.querySelectorAll('.dc-window-grip').length, 8, 'resized from any edge');
+    const name = tile(chart).querySelector('.dc-tile-title')!.textContent!;
+    assert.equal(w.getAttribute('aria-label'), `Properties \u2014 ${name}`, 'titled by its chart');
+    assert.equal(w.querySelector('.dc-overlay-close')!.getAttribute('aria-label'), `Close Properties \u2014 ${name}`);
+    assert.equal(dom.window.document.activeElement, w, 'the focus in it');
+    // beside the chart, to its right, its top level with it: not over it, on the screen; above the page's windows
+    assert.deepEqual(placed(w), [508, 120, 280, 560]);
+    assert.ok(Number(w.style.zIndex) > 20);
     options();
-    assert.equal(form().hidden, false, 'Properties… again brings them forward, never away');
-    assert.equal(form().querySelector('.dc-chartpanel-form-title')?.textContent, 'Options');
-    // its ×
-    (form().querySelector('.dc-chartpanel-form-close') as HTMLButtonElement).click();
-    assert.equal(form().hidden, true, 'its \u00d7 put them away');
-    // a press in them keeps them; one anywhere else puts them away
-    options();
-    press(form().querySelector('.dc-chartpanel-form-body') ?? form());
-    assert.equal(form().hidden, false, 'a press in them');
+    assert.equal(host.querySelectorAll('.dc-chart-options').length, 1, 'Properties… again brings it forward, never a second');
+    assert.equal(win(), w);
+    // a window, not a popover: a press elsewhere keeps it
     press(tile(a));
-    assert.equal(form().hidden, true, 'a press on another tile');
-    // Escape, in them -- and on the chart's tile, where the board keeps the focus after Properties…
+    assert.equal(win(), w, 'a press on another tile');
+    // made wider by its right edge, put away by its ×, and opened again at the size it was left
+    const east = w.querySelector('.dc-window-e')!;
+    const drag = (type: string, x: number): boolean =>
+      east.dispatchEvent(new dom.window.PointerEvent(type, { pointerId: 1, button: 0, clientX: x, clientY: 200, bubbles: true }));
+    drag('pointerdown', 788);
+    drag('pointermove', 828);
+    drag('pointerup', 828);
+    (w.querySelector('.dc-overlay-close') as HTMLButtonElement).click();
+    assert.equal(win(), null, 'its \u00d7 put it away');
+    // the chart moved meanwhile, to the screen's right edge: it opens at its left now, at its new width
+    Object.defineProperty(body, 'getBoundingClientRect', {
+      value: () => ({ left: 600, top: 120, right: 1016, bottom: 420, width: 416, height: 300, x: 600, y: 120, toJSON: () => ({}) }),
+      configurable: true,
+    });
     options();
-    form().dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    assert.equal(form().hidden, true, 'Escape');
+    assert.deepEqual(placed(win()!), [600 - 8 - 320, 120, 320, 560], 'beside where the chart is now, as wide as it was left');
+    // Escape typed in a field of it is the field's; in it, it puts it away
+    await settle();
+    const field = win()!.querySelector<HTMLElement>('select, input');
+    assert.ok(field, 'its fields painted');
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    assert.ok(win(), 'Escape in a field');
+    win()!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    assert.equal(win(), null, 'Escape');
+    // its chart removed from the page: it goes too
     options();
-    tile(chart).dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    assert.equal(form().hidden, true, 'Escape on its tile');
+    chartMenu(chart);
+    const remove = menuItems().find((i) => label(i) === 'Remove from Page')!;
+    remove.click();
+    await settle();
+    assert.equal(host.querySelector('[data-tile="' + chart + '"]'), null, 'the chart removed');
+    assert.equal(win(), null, 'its options with it');
   });
 
-  it("the options in a shadow root (marimo's page): a press in them keeps them; Escape on a filled chart puts them away first; closed, the focus on its tile", async () => {
+  it("the options in a shadow root (marimo's page): in it with the page; a press in them keeps them; put away, the focus on its tile; a filled chart is its tile's Escape, not theirs", async () => {
     // the 2026-10-25 audit: the document's listeners saw the root's host as every press's target -- each press in the
-    // options put them away; Escape on a filled tile filled it no more and left the options where it had been
+    // options put them away
     const shell = dom.window.document.createElement('div');
     dom.window.document.body.append(shell);
     const shadow = shell.attachShadow({ mode: 'open' });
@@ -536,30 +576,65 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     const a = pg().addGrid(over('trades.csv'));
     await settle();
     const chart = await chartOf(a);
-    const form = (): HTMLElement => tile(chart).querySelector('.dc-chartpanel-form') as HTMLElement;
+    const win = (): HTMLElement | null => host.querySelector<HTMLElement>('.dc-chart-options');
     const options = (): void => chartMenu(chart).find((i) => label(i) === 'Properties…')!.click();
     const escape = (on: Element): void => {
       on.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true, cancelable: true }));
     };
     options();
-    const field = form().querySelector<HTMLElement>('select, input') ?? form();
+    assert.equal(win()!.getRootNode(), shadow, 'in the shadow root, with the page');
+    await settle();
+    const field = win()!.querySelector<HTMLElement>('select, input')!;
     field.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true, composed: true }));
-    assert.equal(form().hidden, false, 'a press in them, in a shadow root');
+    assert.ok(win(), 'a press in them, in a shadow root');
     // put away with the focus in them: the focus on the chart's tile, never the body
-    form().focus();
-    (form().querySelector('.dc-chartpanel-form-close') as HTMLButtonElement).click();
-    assert.equal(form().hidden, true);
+    win()!.focus();
+    (win()!.querySelector('.dc-overlay-close') as HTMLButtonElement).click();
+    assert.equal(win(), null);
     assert.equal(shadow.activeElement, tile(chart), "the focus on the chart's tile");
-    // a filled chart: Escape puts its options away, and only the next fills it no more
+    // a filled chart: Escape on its tile fills it no more, and leaves its window -- which its own Escape puts away
     options();
     tile(chart).querySelector<HTMLButtonElement>('.dc-tile-maximise')!.click();
     const board = host.querySelector<HTMLElement>('.dc-sheet')!;
     assert.ok(board.classList.contains('dc-bands-maximised'));
     escape(tile(chart));
-    assert.equal(form().hidden, true, 'the options put away first');
-    assert.ok(board.classList.contains('dc-bands-maximised'), 'still filling the page');
-    escape(tile(chart));
-    assert.equal(board.classList.contains('dc-bands-maximised'), false, 'the next Escape: back to the page');
+    assert.equal(board.classList.contains('dc-bands-maximised'), false, 'back to the page');
+    assert.ok(win(), 'its options still open');
+    escape(win()!);
+    assert.equal(win(), null, 'their own Escape');
+  });
+
+  it("the options close when their chart leaves the screen's page (its sheet left): watched, as the browser does", async () => {
+    // jsdom has no ResizeObserver: one that is told by hand, as a browser's is when a tile's sheet is hidden
+    const watching: { told: () => void; on: Element[] }[] = [];
+    (dom.window as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
+      readonly #me: { told: () => void; on: Element[] };
+      constructor(told: () => void) {
+        this.#me = { told, on: [] };
+        watching.push(this.#me);
+      }
+      observe(on: Element): void { this.#me.on.push(on); }
+      disconnect(): void { watching.splice(watching.indexOf(this.#me), 1); }
+    };
+    // the one watching the chart's tile (its grid's own watch their own)
+    const theirs = (): { told: () => void; on: Element[] }[] =>
+      watching.filter((w) => w.on.includes(tile(chart).querySelector('.dc-chart-tile')!));
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    const body = tile(chart).querySelector<HTMLElement>('.dc-chart-tile')!;
+    let box = { left: 100, top: 120, right: 500, bottom: 420, width: 400, height: 300 };
+    Object.defineProperty(body, 'getBoundingClientRect', { value: () => ({ ...box, x: box.left, y: box.top, toJSON: () => ({}) }), configurable: true });
+    assert.equal(theirs().length, 0, 'not watched while they are closed');
+    chartMenu(chart).find((i) => label(i) === 'Properties…')!.click();
+    assert.equal(theirs().length, 1, 'its tile watched while they are open');
+    theirs()[0]!.told();
+    assert.ok(host.querySelector('.dc-chart-options'), 'its tile resized: still open');
+    box = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
+    theirs()[0]!.told();
+    assert.equal(host.querySelector('.dc-chart-options'), null, 'its tile with no box (its sheet hidden): put away');
+    assert.equal(theirs().length, 0, 'and watched no more');
   });
 
   it("is in the menus' one order: Show Grid, Create ▸, Properties…, then View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page", async () => {
@@ -1219,7 +1294,8 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     await drawn();
     chartMenu(chart).find((i) => label(i) === 'Properties…')!.click();
     await settle();
-    const across = [...tile(chart).querySelectorAll<HTMLElement>('.dc-field')]
+    // its options' window, among the page's windows
+    const across = [...host.querySelectorAll<HTMLElement>('.dc-chart-options .dc-field')]
       .find((f) => f.querySelector('.dc-field-label')?.textContent === 'Across:')?.querySelector('select');
     assert.ok(across, "the form's Across");
     const labelBefore = pg().undoLabel;
@@ -1424,13 +1500,13 @@ describe('what is looked at survives an edit: the board put at the page keeps it
     const { chart } = await aPage();
     chartMenu(chart).find((i) => label(i) === 'Properties…')!.click();
     await settle();
-    const form = (): HTMLElement => tile(chart).querySelector<HTMLElement>('.dc-chartpanel-form')!;
-    assert.equal(form().hidden, false);
+    const open = (): boolean => host.querySelector('.dc-chart-options') !== null;
+    assert.ok(open());
     await anEdit('Renamed');
-    assert.equal(form().hidden, false, 'its options still open');
+    assert.ok(open(), 'its options still open');
     await togglePill(chart);
     await showGrid(chart);
-    assert.equal(form().hidden, false, 'still open after its grid of its own was made');
+    assert.ok(open(), 'still open after its grid of its own was made');
   });
 
   it("a maximised tile, the board's scroll and the tile with focus", async () => {

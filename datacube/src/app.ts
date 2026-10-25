@@ -147,7 +147,7 @@ import {
 import { MenuView } from './ui/menu-view.ts';
 import { chromeIcon, paintState, stateButton, toolIcon, type ToolIcon } from './ui/tile-icons.ts';
 import { longPressMenus } from './ui/long-press.ts';
-import { makeWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
+import { makeWindow, raiseWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
 import {
   PivotPanel,
   currentHeaderDrag,
@@ -452,11 +452,6 @@ export interface CubeEvents {
    *  tells it, as its snap or live command. Told before `plane`. */
   readonly moved: readonly [];
 }
-
-/** The z-index windows start from, above the cube's own layers. */
-const WINDOW_Z_BASE = 20;
-/** The top of each window host's stack of windows (`CubeApp#raise`). */
-const windowStack = new WeakMap<HTMLElement, number>();
 
 /**
  * Which cube on a document a keystroke from OUTSIDE every cube belongs to: the one last
@@ -3055,6 +3050,8 @@ export class CubeApp {
     body.append(...parts);
     const page = new CubePage({
       host,
+      // a chart's options float where this cube's windows do
+      windowHost: this.#options.windowHost ?? root,
       grid: { element: body, source: this.chartSource(), head: this.#tileHeadEl, state: this.#tileStateEl,
         ...(this.tileAbout() !== undefined ? { about: this.tileAbout()! } : {}) },
       onChange: () => this.#pageChanged(),
@@ -4210,12 +4207,9 @@ export class CubeApp {
 
   /** Put a window above every other. */
   #raise(win: HTMLElement): void {
-    // one stack per place windows float: several cubes sharing a `windowHost` share it too,
-    // so the window touched last is on top whichever cube opened it
-    const host = this.#options.windowHost ?? this.#els.root;
-    const top = (windowStack.get(host) ?? WINDOW_Z_BASE) + 1;
-    windowStack.set(host, top);
-    win.style.zIndex = String(top);
+    // one stack per place windows float (ui/window.ts raiseWindow): several cubes sharing a `windowHost` share it,
+    // and so do the page's charts' options, so the window touched last is on top whoever opened it
+    raiseWindow(win, this.#options.windowHost ?? this.#els.root);
   }
 
   /** Close one window, by its title. */
@@ -4597,8 +4591,9 @@ export class CubeApp {
       { label: '', items: host('data') },
       { label: '', items: this.#undoItems() },
       { label: '', items: [...host('file'), ...this.#outputItems()] },
-      { label: '', items: [...submenu('View', [...this.#viewItems(), ...host('view')])] },
-      { label: '', items: [{ id: 'view.settings', label: 'Settings…' }] },
+      // HOW IT IS SHOWN, and the app's Settings… -- this browser's, not this grid's Properties (the user, 2026-10-25:
+      // under View, as the page's ≡ has them)
+      { label: '', items: submenu('View', [...this.#viewItems(), ...host('view'), { id: 'view.settings', label: 'Settings…' }]) },
     ];
     return groups.filter((g) => g.items.length > 0);
   }

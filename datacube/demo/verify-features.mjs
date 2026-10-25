@@ -3582,12 +3582,14 @@ try {
       return '2 new windows together; Edit opens the column, Reset restores it';
     });
 
-  await check('Settings: from the title bar, and Row Buffer draws more rows', async () => {
+  await check('Settings: from the title bar\'s View, and Row Buffer draws more rows', async () => {
     await reset();
     await flatten();
     const drawn = () => page.locator('.dc-row').count();
     const before = await drawn();
     await page.click('.dc-titlebar-menu');
+    // under View (the user, 2026-10-25)
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("View"))').first().hover();
     await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Settings…"))').click();
     await page.waitForSelector('[data-window="Settings"] .dc-settings', { timeout: 5000 });
     const groups = await page.locator('.dc-settings-group').allTextContents();
@@ -3599,6 +3601,8 @@ try {
     const after = await drawn();
     // Back to the defaults, through the same window.
     await page.click('.dc-titlebar-menu');
+    // under View (the user, 2026-10-25)
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("View"))').first().hover();
     await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Settings…"))').click();
     await page.locator('.dc-settings-restore').click();
     await page.locator('.dc-settings-ok').click();

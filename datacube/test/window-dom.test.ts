@@ -64,3 +64,91 @@ describe('a window in the DOM', () => {
     assert.equal(el.style.width, '333px');
   });
 });
+
+// A chart's options (the user, 2026-10-25): a window kept on the screen -- never half off it, however it is dragged,
+// resized, or the browser's window shrinks.
+describe('a window kept on the screen (viewport)', () => {
+  let dom: JSDOM;
+  let el: HTMLElement;
+  let head: HTMLElement;
+  // jsdom's window: 1024 x 768
+  const W = 1024;
+  const H = 768;
+
+  beforeEach(() => {
+    dom = new JSDOM('<!doctype html><body><div id="c"></div></body>');
+    const container = dom.window.document.getElementById('c') as HTMLElement;
+    el = dom.window.document.createElement('div');
+    head = dom.window.document.createElement('div');
+    el.append(head);
+    container.append(el);
+  });
+
+  const pointer = (on: Element, type: string, x: number, y: number): void => {
+    on.dispatchEvent(new dom.window.PointerEvent(type, { pointerId: 1, button: 0, clientX: x, clientY: y, bubbles: true }));
+  };
+  const placed = (): number[] => ['left', 'top', 'width', 'height'].map((k) => parseFloat(el.style.getPropertyValue(k)));
+
+  it('fixed, at its spec in the screen\'s coordinates, moved onto the screen if asked to start off it', () => {
+    makeWindow(el, head, el.parentElement!, { viewport: true, spec: { x: 900, y: 700, width: 280, height: 400 } });
+    assert.ok(el.classList.contains('dc-window-fixed'));
+    assert.deepEqual(placed(), [W - 280, H - 400, 280, 400]);
+  });
+
+  it('dragged, all of it stays on the screen -- not a title bar\'s worth', () => {
+    makeWindow(el, head, el.parentElement!, { viewport: true, spec: { x: 100, y: 100, width: 280, height: 400 } });
+    pointer(head, 'pointerdown', 110, 110);
+    pointer(head, 'pointermove', 2000, 2000);
+    pointer(head, 'pointerup', 2000, 2000);
+    assert.deepEqual(placed(), [W - 280, H - 400, 280, 400]);
+    pointer(head, 'pointerdown', 110, 110);
+    pointer(head, 'pointermove', -2000, -2000);
+    pointer(head, 'pointerup', -2000, -2000);
+    assert.deepEqual(placed().slice(0, 2), [0, 0]);
+  });
+
+  it('resized, the dragged edge stops at the screen\'s edge and the opposite one stays put', () => {
+    makeWindow(el, head, el.parentElement!, { viewport: true, spec: { x: 600, y: 100, width: 280, height: 400 }, minWidth: 100, minHeight: 100 });
+    const east = el.querySelector('.dc-window-e')!;
+    pointer(east, 'pointerdown', 880, 300);
+    pointer(east, 'pointermove', 5000, 300);
+    pointer(east, 'pointerup', 5000, 300);
+    assert.deepEqual(placed(), [600, 100, W - 600, 400]);
+    const north = el.querySelector('.dc-window-n')!;
+    pointer(north, 'pointerdown', 700, 100);
+    pointer(north, 'pointermove', 700, -500);
+    pointer(north, 'pointerup', 700, -500);
+    assert.deepEqual(placed(), [600, 0, W - 600, 500], 'its bottom where it was');
+  });
+
+  it('the browser\'s window shrinks: moved back onto it, told; closed (its signal), it listens no more', () => {
+    const told: unknown[] = [];
+    const closing = new AbortController();
+    makeWindow(el, head, el.parentElement!, {
+      viewport: true, spec: { x: 700, y: 300, width: 280, height: 400 }, signal: closing.signal, onChange: (spec) => told.push(spec),
+    });
+    Object.defineProperty(dom.window, 'innerWidth', { value: 800, configurable: true });
+    Object.defineProperty(dom.window, 'innerHeight', { value: 600, configurable: true });
+    dom.window.dispatchEvent(new dom.window.Event('resize'));
+    assert.deepEqual(placed(), [520, 200, 280, 400]);
+    assert.deepEqual(told, [{ x: 520, y: 200, width: 280, height: 400 }]);
+    closing.abort();
+    Object.defineProperty(dom.window, 'innerWidth', { value: 400, configurable: true });
+    dom.window.dispatchEvent(new dom.window.Event('resize'));
+    assert.equal(told.length, 1, 'closed: no more');
+  });
+
+  it('lands where its spec says on the screen inside an ancestor that frames fixed elements (a transform)', () => {
+    // the frame's corner at (40, 30) on the screen: what jsdom cannot lay out, said by the element's own box
+    Object.defineProperty(el, 'getBoundingClientRect', {
+      value: () => {
+        const left = parseFloat(el.style.left) + 40;
+        const top = parseFloat(el.style.top) + 30;
+        return { left, top, right: left, bottom: top, width: 0, height: 0, x: left, y: top, toJSON: () => ({}) };
+      },
+      configurable: true,
+    });
+    makeWindow(el, head, el.parentElement!, { viewport: true, spec: { x: 100, y: 100, width: 280, height: 400 } });
+    assert.deepEqual(placed().slice(0, 2), [60, 70]);
+  });
+});

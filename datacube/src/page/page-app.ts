@@ -922,6 +922,8 @@ export class PageApp {
   #newBoard(): CubePage {
     return new CubePage({
       host: this.#boardHost,
+      // a chart's options float where the grids' windows do (datacube-app.ts windowHost: page.root)
+      windowHost: this.#root,
       onChange: () => {
         // a chart removed takes its click's filter with it (page-document.ts filtersFor); a chart or a grid come or
         // gone changes what each grid's lens is -- not while a page is restored, its charts not yet on the board
@@ -1429,16 +1431,15 @@ export class PageApp {
         { id: 'text.new' as const, label: 'Text Box' },
         ...this.#hostItems('create').map((h, i) => (i === 0 ? { ...h, separated: true } : h)),
       ]) },
-      // THE APP'S WINDOW, and how the page is shown
-      { label: '', items: [
+      // HOW THE PAGE IS SHOWN, and the app's Settings… with its Keyboard Shortcuts… -- this browser's, how every grid is
+      // drawn, not one grid's Properties (the user, 2026-10-25: under View, not a top-level entry)
+      { label: '', items: submenu('View', [
+        // only ever Hide: folded, the ≡ folds away with the bar, and its lip shows it again (the 2026-10-25 audit)
+        { id: 'page.bar', label: 'Hide the Bar' },
+        ...this.#hostItems('view'),
+        { id: 'view.shortcuts', label: 'Keyboard Shortcuts…', ...off(noGrid) },
         { id: 'view.settings', label: 'Settings…', ...off(noGrid) },
-        ...submenu('View', [
-          // only ever Hide: folded, the ≡ folds away with the bar, and its lip shows it again (the 2026-10-25 audit)
-          { id: 'page.bar', label: 'Hide the Bar' },
-          ...this.#hostItems('view'),
-          { id: 'view.shortcuts', label: 'Keyboard Shortcuts…', ...off(noGrid) },
-        ]),
-      ] },
+      ]) },
     ];
     return groups.filter((g) => g.items.length > 0);
   }

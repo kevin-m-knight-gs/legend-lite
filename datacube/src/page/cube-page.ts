@@ -167,6 +167,8 @@ export interface SpawnedGrid {
 export interface CubePageOptions {
   /** Where the board goes. */
   readonly host: HTMLElement;
+  /** Where the page's windows float, above its tiles: a chart's options among its grids' windows. Default: `host`. */
+  readonly windowHost?: HTMLElement;
   /**
    * The cube's own grid, when the board is a cube's (a CubeApp alone): its first tile, not removable -- the cube is the
    * host's. A page of its own has none: every grid is added alike.
@@ -1355,6 +1357,9 @@ export class CubePage {
       // a detached chart has no grid's filter to put a click on
       onPick: (mark) => { if (link.grid !== null) this.#select(id, mark); },
       formOpen: false,
+      // its options a window among the page's windows, titled by its tile's name
+      windowHost: this.#options.windowHost ?? this.#options.host,
+      title: () => this.title(id) ?? chartTitle(id),
     });
     // its states offered, the one it is in checked, each said in a line
     pill.addEventListener('click', () => {
@@ -1378,7 +1383,7 @@ export class CubePage {
       const way = spec === null ? null : showGridWay(spec, link.grid !== null);
       const refused = way === 'own' ? this.#ownGridRefusal() : null;
       this.#menuFor = (item) => {
-        // opens its properties, or brings them forward: their ×, Escape or a press elsewhere puts them away
+        // opens its properties' window beside it, or brings it forward: its × or Escape puts it away
         if (item.id === 'tile.properties') panel.openForm();
         if (item.id === 'tile.grid') this.#showGrid(id);
         this.#onTileCreate(id, link.grid, item);

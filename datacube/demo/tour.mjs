@@ -351,7 +351,7 @@ try {
     const [column, fn] = (await charts()).find((c) => c.id === chart.id).y[0];
     const other = fn === 'min' ? 'max' : 'min';
     await chartMenu(chart.id, 'Properties…');
-    const form = page.locator(`[data-tile="${chart.id}"] .dc-chartpanel-form`);
+    const form = page.locator('.dc-chart-options');
     await form.locator('.dc-chartpanel-add').click();
     const second = () => form.locator('.dc-chartpanel-measure').first();
     await field(second(), 'Value 2:').locator('select').selectOption(column);
@@ -361,7 +361,7 @@ try {
     if (!same(frozen.y, [[column, fn], [column, other]])) throw new Error(`the frozen chart plots ${JSON.stringify(frozen.y)}`);
     await shot(page, 'frozen, two values');
     // its × puts the options away (Properties… only opens them: the user, 2026-10-25)
-    await form.locator('.dc-chartpanel-form-close').click();
+    await form.locator('.dc-overlay-close').click();
     await form.waitFor({ state: 'hidden' });
     await choose(chart.id, 'Dynamic');
     await settle();

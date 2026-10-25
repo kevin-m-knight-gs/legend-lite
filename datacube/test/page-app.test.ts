@@ -1326,7 +1326,7 @@ describe("the page's ≡, grouped by purpose (docs/DATACUBE_UI_REVIEW_2026_10_24
     ...o,
   });
 
-  it('what leaves the app, the history, the layout, Create ▸, then the app\'s Settings… and View ▸', async () => {
+  it('what leaves the app, the history, the layout, Create ▸, then View ▸ with the app\'s Settings…', async () => {
     sitePage();
     page.addGrid(over('trades.csv'));
     await settle();
@@ -1335,10 +1335,11 @@ describe("the page's ≡, grouped by purpose (docs/DATACUBE_UI_REVIEW_2026_10_24
       'Undo Add Grid', 'Redo', '─',
       'Done Editing Layout', 'Arrange…', '─',
       'Create', '─',
-      'Settings…', 'View',
+      'View',
     ]);
     assert.deepEqual(under('Create'), ['Data Source…', 'Sheet', 'Text Box', 'Association…']);
-    assert.deepEqual(under('View'), ['Hide the Bar', 'Generated Pure & SQL…', 'Keyboard Shortcuts…']);
+    // the app's Settings… under View, beside its Keyboard Shortcuts… (the user, 2026-10-25): this browser's, not a grid's
+    assert.deepEqual(under('View'), ['Hide the Bar', 'Generated Pure & SQL…', 'Keyboard Shortcuts…', 'Settings…']);
   });
 
   it('New Page asks the host for a new page; Export Page File… writes the page, one entry', async () => {

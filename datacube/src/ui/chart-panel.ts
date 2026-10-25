@@ -1,11 +1,12 @@
 // The chart window: a chart of the cube, and the options that shape it.
 //
-// Left, the options (mark, what goes across, what is plotted and how it is
-// aggregated, the split, orientation, stacking, order, how many, labels,
-// legend); right, the chart. The chart follows the cube: its query is the
-// cube's own, regrouped (`chart-spec.ts`), so a filter added to the grid
-// narrows the chart, and a click on a mark (a bar, a slice, a cell) adds
-// that mark's values to the cube's filter.
+// The chart, and beside it on asking, a window of its options (mark, what
+// goes across, what is plotted and how it is aggregated, the split,
+// orientation, stacking, order, how many, labels, legend). The chart
+// follows the cube: its query is the cube's own, regrouped
+// (`chart-spec.ts`), so a filter added to the grid narrows the chart, and a
+// click on a mark (a bar, a slice, a cell) adds that mark's values to the
+// cube's filter.
 
 import {
   axisName,
@@ -43,6 +44,7 @@ import type { CubeSnapshot, FilterNode } from '../snapshot.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { lazily } from '../lazily.ts';
 import { chromeIcon } from './tile-icons.ts';
+import { besideWindow, makeWindow, raiseWindow } from './window.ts';
 
 /** The kinds with an axis of categories or time across, whose pointer a page's other charts follow (a crosshair). */
 const CROSSHAIRED: ReadonlySet<ChartMark> = new Set(['bar', 'line', 'area', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto']);
@@ -54,6 +56,9 @@ let mapsRegistered = false;
 
 /** How long a click on a chart that drills waits for a second click (a double-click drills instead of filtering). */
 const DOUBLE_CLICK_MS = 250;
+
+/** The options' window: a column of fields, as tall as the screen lets it be (`besideWindow` makes it smaller to fit). */
+const CHART_WINDOW = { width: 280, height: 560, minWidth: 220, minHeight: 200 } as const;
 
 export interface ChartPanelOptions {
   /** The cube as it is NOW (the chart follows it). */
@@ -80,6 +85,10 @@ export interface ChartPanelOptions {
   readonly onSpec?: () => void;
   /** What the grid shows now: a treemap draws exactly that, not a query of its own. */
   readonly shown?: () => GridShown | null;
+  /** Where its options' window floats -- the page's windows' place, above its tiles; else in the chart's own element. */
+  readonly windowHost?: HTMLElement;
+  /** Its name as its tile says it: its options' window's title. */
+  readonly title?: () => string;
 }
 
 export class ChartPanel {
@@ -87,16 +96,19 @@ export class ChartPanel {
   readonly #doc: Document;
   readonly #options: ChartPanelOptions;
   #spec: ChartSpec | null;
-  #form!: HTMLElement;
-  /** The options' fields, under their heading and ×: what the form (ui/chart-form.ts) paints. */
-  #formBody!: HTMLElement;
+  /** Its options' window, while it is open (`openForm`). */
+  #window: HTMLElement | null = null;
+  /** The window's body: what the form (ui/chart-form.ts) paints. */
+  #formBody: HTMLElement | null = null;
+  /** Lets the open window's listeners go when it closes. */
+  #closing: AbortController | null = null;
+  /** The size a person left its window at: its next opening's. */
+  #size: { width: number; height: number } | null = null;
   #canvas!: HTMLElement;
   #status!: HTMLElement;
   /** A drilled chart's path, above it (batch 2 item 10). */
   #crumbs!: HTMLElement;
   #clickTimer: ReturnType<typeof setTimeout> | undefined;
-  /** The spec changed while the form was closed: painted when it is next shown. */
-  #formStale = false;
   /** What the options form (ui/chart-form.ts) reads and changes. */
   readonly #formHost: FormHost = ((panel: ChartPanel): FormHost => ({
     get doc() { return panel.#doc; },
@@ -175,124 +187,124 @@ export class ChartPanel {
   }
 
   /**
-   * THE OPTIONS, OPEN (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §2): over the page beside the chart --
-   * to its right where there is room, else its left, else over it -- above everything but a menu, and as tall as the
-   * window lets them, so a small tile never clips them. Their ×, Escape, or a press anywhere else puts them away; Options...
-   * again brings them forward (it was a toggle, and put them away as often as it showed them).
+   * THE OPTIONS, A WINDOW (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §2): the page's windows' own title
+   * bar, x and grips (app.ts #showOverlay, ui/window.ts makeWindow), floating where the page's windows float, above its
+   * tiles. It opens BESIDE ITS CHART, NOT OVER IT, AND WHOLLY ON THE SCREEN (ui/window.ts besideWindow) -- each time, as
+   * the chart may have moved; the size a person gave it kept -- and stays on the screen however it is dragged. Its x or
+   * Escape puts it away; Properties... again brings it forward. A popover before, it went at every press elsewhere.
    */
   openForm(): void {
-    const form = this.#form;
-    if (form.hidden) {
-      form.hidden = false;
-      if (this.#formStale) this.#paintForm();
-      this.#listen(true);
+    const open = this.#window;
+    if (open) {
+      this.#retitle(open);
+      raiseWindow(open, this.#windowHost);
+      open.focus({ preventScroll: true });
+      return;
     }
-    this.#placeForm();
-    form.focus({ preventScroll: true });
+    const doc = this.#doc;
+    const view = doc.defaultView;
+    if (view === null) return;
+    const host = this.#windowHost;
+    const win = doc.createElement('div');
+    // outside the cube it does not inherit the cube's type and colours, so it carries them (app.ts #showOverlay)
+    win.className = 'dc-app-overlay dc-app-floating dc-chart-options';
+    win.tabIndex = -1;
+    win.setAttribute('role', 'dialog');
+    const head = doc.createElement('div');
+    head.className = 'dc-overlay-head';
+    const title = doc.createElement('span');
+    title.className = 'dc-chart-options-title';
+    const close = doc.createElement('button');
+    close.type = 'button';
+    close.className = 'dc-overlay-close';
+    close.append(chromeIcon(doc, 'close'));
+    close.addEventListener('click', () => this.closeForm());
+    head.append(title, close);
+    const body = doc.createElement('div');
+    body.className = 'dc-overlay-body dc-chartpanel-form';
+    win.append(head, body);
+    host.append(win);
+    this.#window = win;
+    this.#formBody = body;
+    this.#retitle(win);
+    const closing = new AbortController();
+    this.#closing = closing;
+    makeWindow(win, head, host, {
+      viewport: true,
+      spec: besideWindow(this.#root.getBoundingClientRect(), { width: view.innerWidth, height: view.innerHeight },
+        { ...CHART_WINDOW, ...this.#size }),
+      minWidth: CHART_WINDOW.minWidth,
+      minHeight: CHART_WINDOW.minHeight,
+      signal: closing.signal,
+      onChange: (spec) => { this.#size = { width: spec.width, height: spec.height }; },
+    });
+    // touched, it comes to the front of the page's windows
+    win.addEventListener('pointerdown', () => raiseWindow(win, host));
+    // Escape puts it away -- not one typed in a field, where it is the field's (the page's windows' rule, app.ts)
+    win.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if ((event.target as Element | null)?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      event.preventDefault();
+      this.closeForm();
+    });
+    // its chart off the page (its sheet left, moved to another, removed): it goes too (the 2026-10-25 audit)
+    const Watch = (view as Window & { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
+    if (Watch) {
+      const watch = new Watch(() => {
+        const at = this.#root.getBoundingClientRect();
+        if (!this.#root.isConnected || (at.width === 0 && at.height === 0)) this.closeForm();
+      });
+      watch.observe(this.#root);
+      closing.signal.addEventListener('abort', () => watch.disconnect());
+    }
+    raiseWindow(win, host);
+    this.#paintForm();
+    win.focus({ preventScroll: true });
   }
 
   /** The options put away -- the focus, when it was in them, back on their chart's tile (the 2026-10-25 audit: it fell
    *  to the body). */
   closeForm(): void {
-    if (this.#form.hidden) return;
-    const root = this.#form.getRootNode() as Document | ShadowRoot;
-    const focused = root.activeElement !== null && this.#form.contains(root.activeElement);
-    this.#form.hidden = true;
-    this.#listen(false);
+    const win = this.#window;
+    if (!win) return;
+    const root = win.getRootNode() as Document | ShadowRoot;
+    const focused = root.activeElement !== null && win.contains(root.activeElement);
+    this.#shut();
     if (focused) this.#root.closest<HTMLElement>('[tabindex]')?.focus({ preventScroll: true });
   }
 
   /** Whether the options are open. */
   get formOpen(): boolean {
-    return !this.#form.hidden;
+    return this.#window !== null;
   }
 
-  /** What an event happened on: inside a shadow root (marimo's page), its own element, not the root's host (the 2026-10-25
-   *  audit: every press in the options was outside them there, and put them away). */
-  #targetOf(event: Event): Element | null {
-    return (event.composedPath()[0] ?? event.target) as Element | null;
+  /** Where its options' window floats: the page's windows' place, else its own. */
+  get #windowHost(): HTMLElement {
+    return this.#options.windowHost ?? this.#root;
   }
 
-  /** A press outside the options (or a menu over them) puts them away. */
-  readonly #onPressAway = (event: Event): void => {
-    const target = this.#targetOf(event);
-    if (target !== null && (this.#form.contains(target) || target.closest?.('.dc-menu'))) return;
-    this.closeForm();
-  };
-
-  /**
-   * Escape puts them away -- not one meant for another window, nor typed in a field elsewhere. (The board keeps the
-   * focus on a chart's tile, not in it: "in its chart" missed the Escape a person presses after Options....) Heard before
-   * the tile's own keys (capture): Escape on a filled tile puts the options away first, and only the next fills it no
-   * more (the 2026-10-25 audit: the tile went back, the options stayed where it had been).
-   */
-  readonly #onKey = (event: KeyboardEvent): void => {
-    if (event.key !== 'Escape' || event.defaultPrevented) return;
-    const target = this.#targetOf(event);
-    if (target !== null && !this.#form.contains(target)) {
-      if (target.closest?.('.dc-menu, .dc-app-overlay, .hostwin, .dc-picker, .dc-layout-picker, [role="dialog"]')) return;
-      if (target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
-    }
-    event.preventDefault();
-    this.closeForm();
-  };
-
-  /** The page scrolled, the window or the chart's tile changed: the options stay beside their chart -- put away once it
-   *  is not on the page (its sheet left, moved to another: the 2026-10-25 audit). */
-  readonly #onMove = (): void => {
-    const at = this.#root.getBoundingClientRect();
-    if (!this.#root.isConnected || (at.width === 0 && at.height === 0)) this.closeForm();
-    else this.#placeForm();
-  };
-
-  /** Watching the chart's tile change size (filled, back, a divider dragged), while the options are open. */
-  #watch: ResizeObserver | null = null;
-
-  #listen(on: boolean): void {
-    const doc = this.#doc;
-    const view = doc.defaultView;
-    if (on) {
-      doc.addEventListener('pointerdown', this.#onPressAway, true);
-      doc.addEventListener('keydown', this.#onKey, true);
-      doc.addEventListener('scroll', this.#onMove, true);
-      view?.addEventListener('resize', this.#onMove);
-      const Watch = (view as (Window & { ResizeObserver?: typeof ResizeObserver }) | null)?.ResizeObserver;
-      if (Watch) {
-        this.#watch = new Watch(this.#onMove);
-        this.#watch.observe(this.#root);
-      }
-    } else {
-      doc.removeEventListener('pointerdown', this.#onPressAway, true);
-      doc.removeEventListener('keydown', this.#onKey, true);
-      doc.removeEventListener('scroll', this.#onMove, true);
-      view?.removeEventListener('resize', this.#onMove);
-      this.#watch?.disconnect();
-      this.#watch = null;
-    }
+  /** The window's title: whose properties, by its chart's name as its tile says it now. */
+  #retitle(win: HTMLElement): void {
+    const title = `Properties \u2014 ${this.#options.title?.() ?? 'Chart'}`;
+    win.setAttribute('aria-label', title);
+    win.querySelector('.dc-chart-options-title')!.textContent = title;
+    const close = win.querySelector<HTMLElement>('.dc-overlay-close')!;
+    close.title = 'Close (Escape)';
+    close.setAttribute('aria-label', `Close ${title}`);
   }
 
-  /** Where the open options go: beside the chart, inside the window (app.css .dc-chartpanel-form, fixed). */
-  #placeForm(): void {
-    const form = this.#form;
-    const view = this.#doc.defaultView;
-    if (form.hidden || view === null) return;
-    const at = this.#root.getBoundingClientRect();
-    const margin = 8;
-    const width = Math.min(280, Math.max(0, view.innerWidth - 2 * margin));
-    const room = view.innerWidth - margin;
-    const left = at.right + margin + width <= room ? at.right + margin
-      : at.left - margin - width >= margin ? at.left - margin - width
-        : Math.max(margin, Math.min(at.left, room - width));
-    const top = Math.max(margin, Math.min(at.top, view.innerHeight - margin - 240));
-    form.style.left = `${Math.round(left)}px`;
-    form.style.top = `${Math.round(top)}px`;
-    form.style.width = `${Math.round(width)}px`;
-    form.style.maxHeight = `${Math.round(Math.max(120, view.innerHeight - top - margin))}px`;
+  /** Its window gone, its listeners with it. */
+  #shut(): void {
+    this.#closing?.abort();
+    this.#closing = null;
+    this.#window?.remove();
+    this.#window = null;
+    this.#formBody = null;
   }
 
   dispose(): void {
     this.#disposed = true;
-    this.#listen(false);
+    this.#shut();
     clearTimeout(this.#timer);
     clearTimeout(this.#clickTimer);
     this.#inflight?.abort();
@@ -308,27 +320,6 @@ export class ChartPanel {
     const doc = this.#doc;
     this.#root.replaceChildren();
     this.#root.classList.add('dc-chartpanel');
-    this.#form = doc.createElement('div');
-    this.#form.className = 'dc-chartpanel-form';
-    this.#form.tabIndex = -1;
-    this.#form.setAttribute('role', 'dialog');
-    this.#form.setAttribute('aria-label', 'Chart options');
-    const head = doc.createElement('div');
-    head.className = 'dc-chartpanel-form-head';
-    const title = doc.createElement('span');
-    title.className = 'dc-chartpanel-form-title';
-    title.textContent = 'Options';
-    const close = doc.createElement('button');
-    close.type = 'button';
-    close.className = 'dc-chartpanel-form-close';
-    close.append(chromeIcon(doc, 'close'));
-    close.title = 'Close the options (Escape)';
-    close.setAttribute('aria-label', 'Close the options');
-    close.addEventListener('click', () => this.closeForm());
-    head.append(title, close);
-    this.#formBody = doc.createElement('div');
-    this.#formBody.className = 'dc-chartpanel-form-body';
-    this.#form.append(head, this.#formBody);
     const right = doc.createElement('div');
     right.className = 'dc-chartpanel-main';
     this.#canvas = doc.createElement('div');
@@ -342,10 +333,9 @@ export class ChartPanel {
     this.#crumbs.setAttribute('aria-label', 'Drill path');
     this.#crumbs.hidden = true;
     right.append(this.#crumbs, this.#canvas, this.#status);
-    this.#root.append(this.#form, right);
-    this.#form.hidden = true;
+    this.#root.append(right);
+    this.#paintCrumbs();
     if (this.#options.formOpen !== false) this.openForm();
-    this.#paintForm();
   }
 
   #set(change: ChartChange, redrawForm = false): void {
@@ -366,18 +356,16 @@ export class ChartPanel {
 
   /**
    * The options form (ui/chart-form.ts): fetched the first time it is shown -- a grid alone, or a chart whose options
-   * stay closed, never downloads it -- and painted again whenever the spec changes while it is shown.
+   * stay closed, never downloads it -- painted as its window opens, and again whenever the spec changes while it is
+   * open.
    */
   #paintForm(): void {
     this.#paintCrumbs();
-    if (this.#form.hidden) {
-      this.#formStale = true;
-      return;
-    }
-    this.#formStale = false;
+    if (this.#formBody === null) return;
     void lazily(() => import('./chart-form.ts')).then(({ paintChartForm }) => {
-      if (this.#disposed || this.#form.hidden) return;
-      paintChartForm(this.#formHost, this.#formBody);
+      const body = this.#formBody;
+      if (this.#disposed || body === null) return;
+      paintChartForm(this.#formHost, body);
     });
   }
 

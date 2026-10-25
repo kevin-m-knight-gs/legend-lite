@@ -38,6 +38,14 @@ export interface WindowOptions {
   readonly spec?: WindowSpec | undefined;
   /** Called whenever a drag or resize finishes. */
   readonly onChange?: (spec: WindowSpec) => void;
+  /**
+   * Kept on the screen rather than in its container: fixed to the browser's window, its spec in the window's own
+   * coordinates, and wholly inside it however it is dragged, resized, or the browser's window shrinks -- a window placed
+   * beside something on the page (a chart's options: `besideWindow`), never half off the screen.
+   */
+  readonly viewport?: boolean;
+  /** Its listeners let go (a window on the screen listens to the browser's window resizing): when it closes. */
+  readonly signal?: AbortSignal;
 }
 
 /** DataCube's own figures (DataCubeLayoutService). */
@@ -55,6 +63,104 @@ type Edge = (typeof EDGES)[number];
 
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.min(Math.max(v, lo), hi);
+
+/** The z-index windows start from, above a cube's own layers. */
+export const WINDOW_Z_BASE = 20;
+/** The top of each window host's stack of windows (`raiseWindow`). */
+const windowStack = new WeakMap<HTMLElement, number>();
+
+/**
+ * Put a window above every other floating in `host`. One stack per place windows float: several cubes sharing a host
+ * share it, and so does a chart's options window, so the window touched last is on top whoever opened it.
+ */
+export function raiseWindow(win: HTMLElement, host: HTMLElement): void {
+  const top = (windowStack.get(host) ?? WINDOW_Z_BASE) + 1;
+  windowStack.set(host, top);
+  win.style.zIndex = String(top);
+}
+
+/** A box on the screen, in the browser window's coordinates (a DOMRect's four sides). */
+export interface ScreenBox {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
+/** The gap between a window and the box it is beside, and between it and the screen's edge. */
+export const BESIDE_GAP = 8;
+
+/**
+ * Where a window goes beside `box` (a chart), on a `screen` of that size: NEXT TO IT, NOT OVER IT, AND WHOLLY ON THE
+ * SCREEN (the user, 2026-10-25). To its right where the window fits, else its left, else below it, else above it, at
+ * the size wanted; where none fits, on the side with the most room, made smaller to fit it (never under its minimum);
+ * where even that cannot be -- the box fills the screen -- over the box on the side with the most room. Always inside
+ * the screen: the window no bigger than the screen, its edges `BESIDE_GAP` in from it.
+ */
+export function besideWindow(
+  box: ScreenBox,
+  screen: { readonly width: number; readonly height: number },
+  wanted: { readonly width: number; readonly height: number; readonly minWidth: number; readonly minHeight: number },
+): WindowSpec {
+  const gap = BESIDE_GAP;
+  const width = Math.max(0, Math.min(wanted.width, screen.width - 2 * gap));
+  const height = Math.max(0, Math.min(wanted.height, screen.height - 2 * gap));
+  const xIn = (x: number, w = width): number => clamp(x, gap, Math.max(gap, screen.width - gap - w));
+  const yIn = (y: number, h = height): number => clamp(y, gap, Math.max(gap, screen.height - gap - h));
+  // the room on each side of the box, between it and the screen's edge, gaps taken
+  const room = {
+    right: screen.width - gap - (box.right + gap),
+    left: box.left - gap - gap,
+    below: screen.height - gap - (box.bottom + gap),
+    above: box.top - gap - gap,
+  };
+  type Side = keyof typeof room;
+  const across = (side: Side): boolean => side === 'right' || side === 'left';
+  // on the screen whatever the box's place: one scrolled half off it still has its window wholly on it
+  const at = (side: Side, w: number, h: number): WindowSpec => {
+    const x = side === 'right' ? box.right + gap : side === 'left' ? box.left - gap - w : box.left;
+    const y = side === 'below' ? box.bottom + gap : side === 'above' ? box.top - gap - h : box.top;
+    return { x: xIn(x, w), y: yIn(y, h), width: w, height: h };
+  };
+  const sides: readonly Side[] = ['right', 'left', 'below', 'above'];
+  const fits = sides.find((side) => room[side] >= (across(side) ? width : height));
+  if (fits !== undefined) return at(fits, width, height);
+  // the side with the most room, the window made smaller to it -- where it can be, still at its minimum
+  const roomiest = [...sides].sort((a, b) => room[b] - room[a]);
+  const smaller = roomiest.find((side) => room[side] >= (across(side) ? wanted.minWidth : wanted.minHeight));
+  if (smaller !== undefined) {
+    return across(smaller) ? at(smaller, room[smaller], height) : at(smaller, width, room[smaller]);
+  }
+  // nowhere beside it: over the box, on the side with the most room
+  return at(roomiest[0]!, width, height);
+}
+
+/**
+ * `spec` kept wholly inside a screen of that size: no bigger than it, moved back onto it (a window on the screen,
+ * after the browser's window shrank).
+ */
+export function onScreen(spec: WindowSpec, screen: { readonly width: number; readonly height: number }): WindowSpec {
+  const width = Math.min(spec.width, screen.width);
+  const height = Math.min(spec.height, screen.height);
+  return {
+    x: clamp(spec.x, 0, Math.max(0, screen.width - width)),
+    y: clamp(spec.y, 0, Math.max(0, screen.height - height)),
+    width,
+    height,
+  };
+}
+
+/** A resized `spec` cut at the screen's edges: the edge dragged stops there, the opposite one stays put. */
+function cutToScreen(spec: WindowSpec, screen: { readonly width: number; readonly height: number }): WindowSpec {
+  const x = Math.max(0, spec.x);
+  const y = Math.max(0, spec.y);
+  return {
+    x,
+    y,
+    width: Math.min(spec.x + spec.width, screen.width) - x,
+    height: Math.min(spec.y + spec.height, screen.height) - y,
+  };
+}
 
 /**
  * Fit a window to its container.
@@ -128,22 +234,36 @@ export function makeWindow(
   // scrollbar to accommodate a window that was supposed to float
   // over it.
   el.classList.add('dc-window');
+  const view = doc.defaultView!;
+  const screen = (): { width: number; height: number } => ({ width: view.innerWidth, height: view.innerHeight });
+  // ON THE SCREEN: fixed, its spec the browser window's coordinates. Where an ancestor makes itself the fixed element's
+  // frame instead (a transform, a filter), the frame's corner is measured and taken off, so the window still lands where
+  // its spec says on the screen.
+  let origin = { x: 0, y: 0 };
+  if (options.viewport) {
+    el.classList.add('dc-window-fixed');
+    el.style.left = '0px';
+    el.style.top = '0px';
+    const corner = el.getBoundingClientRect();
+    origin = { x: corner.left, y: corner.top };
+  }
   const box = container.getBoundingClientRect();
   // A container with no layout yet -- jsdom, or a hidden parent --
   // would otherwise produce a zero-sized window that nothing can
   // grab. Fall back to the wanted size and let the first real layout
   // sort it out.
-  const bounds = {
+  const bounds = options.viewport ? screen() : {
     width: box.width || (options.width ?? WINDOW_WIDTH) + WINDOW_OFFSET * 2,
     height: box.height || (options.height ?? WINDOW_HEIGHT) + WINDOW_OFFSET * 2,
   };
 
   let spec = options.spec ?? fitWindow(bounds, options);
+  if (options.viewport) spec = onScreen(spec, bounds);
 
   const place = (next: WindowSpec): void => {
     spec = next;
-    el.style.left = `${next.x}px`;
-    el.style.top = `${next.y}px`;
+    el.style.left = `${next.x - origin.x}px`;
+    el.style.top = `${next.y - origin.y}px`;
     el.style.width = `${next.width}px`;
     el.style.height = `${next.height}px`;
   };
@@ -168,14 +288,21 @@ export function makeWindow(
     const live = container.getBoundingClientRect();
 
     const move = (e: PointerEvent): void => {
+      const x = from.x + (e.clientX - startX);
+      const y = from.y + (e.clientY - startY);
+      // on the screen, all of it stays on the screen
+      if (options.viewport) {
+        place(onScreen({ ...from, x, y }, screen()));
+        return;
+      }
       // At least a title bar's worth stays reachable: a window
       // dragged fully outside cannot be dragged back.
       const maxX = Math.max(0, live.width - 40);
       const maxY = Math.max(0, live.height - 24);
       place({
         ...from,
-        x: clamp(from.x + (e.clientX - startX), -(from.width - 40), maxX),
-        y: clamp(from.y + (e.clientY - startY), 0, maxY),
+        x: clamp(x, -(from.width - 40), maxX),
+        y: clamp(y, 0, maxY),
       });
     };
     const up = (): void => {
@@ -206,7 +333,8 @@ export function makeWindow(
       const move = (e: PointerEvent): void => {
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
-        place(resize(from, edge, dx, dy, minWidth, minHeight));
+        const next = resize(from, edge, dx, dy, minWidth, minHeight);
+        place(options.viewport ? cutToScreen(next, screen()) : next);
       };
       const up = (): void => {
         grip.removeEventListener('pointermove', move);
@@ -220,6 +348,18 @@ export function makeWindow(
       grip.addEventListener('pointercancel', up);
     });
     el.appendChild(grip);
+  }
+
+  // the browser's window shrank: a window on the screen moved back onto it, made smaller if it must be
+  if (options.viewport) {
+    const keep = (): void => {
+      place(onScreen(spec, screen()));
+      settle();
+    };
+    view.addEventListener('resize', keep);
+    // let go by hand, not by `addEventListener`'s own signal: that takes only its window's AbortSignal, and the caller's
+    // may be another realm's (a test's page)
+    options.signal?.addEventListener('abort', () => view.removeEventListener('resize', keep), { once: true });
   }
 
   return spec;

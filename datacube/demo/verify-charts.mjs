@@ -226,7 +226,20 @@ try {
     await addChart();
     const id = await page.locator('[data-tile^="chart-"]').last().getAttribute('data-tile');
     await chartMenu(id, 'Properties…');
-    const form = page.locator(`[data-tile="${id}"] .dc-chartpanel-form`);
+    const form = page.locator('.dc-chart-options');
+    // a window beside its chart, not over it, wholly on the screen (the user, 2026-10-25: "near the chart but not
+    // covering, and not half off the screen")
+    await form.waitFor();
+    const placed = await page.evaluate((chart) => {
+      const win = document.querySelector('.dc-chart-options').getBoundingClientRect();
+      const at = document.querySelector(`[data-tile="${chart}"] .dc-chart-tile`).getBoundingClientRect();
+      const box = (r) => [r.left, r.top, r.right, r.bottom].map(Math.round);
+      return { win: box(win), chart: box(at), screen: [innerWidth, innerHeight] };
+    }, id);
+    const [wl, wt, wr, wb] = placed.win;
+    const [cl, ct, cr, cb] = placed.chart;
+    if (wl < 0 || wt < 0 || wr > placed.screen[0] || wb > placed.screen[1]) throw new Error(`its options' window is off the screen: ${JSON.stringify(placed)}`);
+    if (wl < cr && wr > cl && wt < cb && wb > ct) throw new Error(`its options' window covers the chart: ${JSON.stringify(placed)}`);
     const fieldNamed = (label) => form.locator(`.dc-field:has(> .dc-field-label:text-is("${label}"))`);
     await fieldNamed('Chart:').locator('select').selectOption('kpi');
     await page.locator(`[data-tile="${id}"] .dc-kpi-value`).waitFor({ timeout: 20_000 });
@@ -249,7 +262,10 @@ try {
     const saved = await page.evaluate((c) => window.__dataPage.views().views.find((v) => v.id === c)?.spec, id);
     if (saved.mark !== 'kpi' || saved.options.target !== 1 || saved.x !== across) throw new Error(`saved as ${JSON.stringify(saved)}`);
     if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath('kpi.png') }); }
-    return `${id}: ${value}, ${said}, its trend by ${across}`;
+    // its x puts the window away
+    await form.locator('.dc-overlay-close').click();
+    await form.waitFor({ state: 'detached' });
+    return `${id}: ${value}, ${said}, its trend by ${across}; its options beside it at ${placed.win.join(',')}, the chart at ${placed.chart.join(',')}`;
   });
 
   // THE EXAMPLE PAGES (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3): each opened from Open…'s Examples, over the

@@ -175,6 +175,27 @@ chart: to its right if there is room, else to its left, else over it. They sit a
 menus, as tall as the window allows, so a small tile never clips them. The pane docked at the page's edge is still to
 come.
 
+**Built 2026-10-25, the window** (the user: "a floating dialog like Properties and filters", opening "near the chart
+but not covering, and not half off the screen"). It replaces the popover, and the docked pane and "Focus to edit" are
+no longer planned. A chart's Properties… opens its options as a window with the grid windows' own frame: a title bar
+it is dragged by, titled "Properties — *the chart's name*", a ×, and eight resize grips (`ui/chart-panel.ts`
+`openForm`, `ui/window.ts` `makeWindow`). It floats where the page's grid windows float and shares their stack, so the
+window touched last is on top.
+
+- **Where it opens** (`ui/window.ts` `besideWindow`): to the chart's right where it fits, else its left, else below,
+  else above. Where no side fits at its size, it is made smaller to fit the side with the most room. It covers the
+  chart only when no side has room even for its minimum size, as with a chart filling the screen. It is placed beside
+  the chart every time it opens, because the chart may have moved; the size a person left it at is kept.
+- **Never off the screen:** it is fixed to the browser's window and kept wholly inside it, however it is dragged or
+  resized, and when the browser's window shrinks (`viewport`).
+- **How it closes:** its × or Escape closes it (not Escape typed in a field, as with the page's other windows). A
+  press elsewhere leaves it open, as with any window, and Properties… again brings it forward. It also closes when its
+  chart leaves the page: the chart removed, or its sheet hidden.
+
+Tested in `test/window.test.ts` (placement), `test/window-dom.test.ts` (kept on the screen),
+`test/cube-page-shell.test.ts` ("a chart's right-click menu") and, in a browser, `demo/verify-charts.mjs` (the KPI
+check: the window neither covers its chart nor leaves the screen).
+
 ### 3. The page's ≡ menu, grouped by purpose
 
 In the order of the menus' shared skeleton (below, "The menus"):
@@ -184,8 +205,8 @@ In the order of the menus' shared skeleton (below, "The menus"):
 2. **Undo *step***, **Redo *step***
 3. **Edit Layout** (**Done Editing Layout** while on), **Arrange…**
 4. **Create ▸**: Data Source…, Sheet, Text Box, then Association…, Data Space…
-5. **Settings…**: the app's, not the first grid's (a grid's own window is its Properties…)
-6. **View ▸**: Hide the Bar (Show the Bar while hidden), Generated Pure & SQL…, Keyboard Shortcuts…
+5. **View ▸**: Hide the Bar (Show the Bar while hidden), Generated Pure & SQL…, Keyboard Shortcuts…, Settings… (the
+   app's, not the first grid's; a grid's own window is its Properties…)
 
 **Built 2026-10-25** (`page/page-app.ts` `#menuGroups`, tested in `test/page-app.test.ts` "the page's ≡, grouped by
 purpose"). An entry that cannot apply is greyed with why on hover: Arrange… and Sheet "Edit Layout first", Settings… and
@@ -402,9 +423,11 @@ The marks and words are now the same in every menu:
 chart, Copy of This Grid and Visualization act on the grid the chart reads; on a text box, or on a chart whose grid is
 gone, they are offered disabled and say why. Data Source… and Text Box are placed beside the tile.
 
-"Settings…" stays in the page's ≡: its four settings (Debug Mode, Reload, Max History Stack Size, Row Buffer) are the
-app's, apply to every grid on the page at once and are kept by the host, so a tab in one grid's Properties would
-mislead. Only the way it opens goes through the first grid.
+"Settings…" stays in the page's ≡, not in a grid's Properties: its four settings (Debug Mode, Reload, Max History Stack
+Size, Row Buffer) are the app's, apply to every grid on the page at once and are kept by the host for this browser, so a
+tab in one grid's Properties would mislead. Only the way it opens goes through the first grid. **Moved under View ▸,
+2026-10-25** (the user), beside Keyboard Shortcuts…, in the page's ≡ and in a lone grid's title-bar ≡ alike
+(`page/page-app.ts`, `app.ts`; tested in `test/page-app.test.ts` and `test/shell.test.ts`).
 
 ### The two menus, after
 
@@ -425,8 +448,8 @@ Arrange…                                  Pin ▸
 ─────────                                 Hide notional
 Create ▸                                  Conditional Formatting ▸
 ─────────                                 ─────────
-Settings…                                 Create ▸
-View ▸                                    Properties…                 Ctrl+E
+View ▸ (… Keyboard Shortcuts…, Settings…) Create ▸
+                                          Properties…                 Ctrl+E
                                           View ▸
 ```
 
@@ -443,9 +466,10 @@ View ▸                                    Properties…                 Ctrl+E
 (§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2); the example-switch bug fixed (found 1); the status bar's error as a chip; the title bar (§4); the columns panel (found 3); the menus' marks and words (step 1
 of the menus); one icon set for the page's chrome (found 4). Grouped text columns (found 2) kept as they
 are (the user). Built since: Create ▸ on a chart's and a text box's right-click; the tree carets drawn; files in the
-text box, step 1 (§8); then the branch's deep audit and its fixes (above, and the notes in each section). Open: the
-chart options' place (docked, in its tile, or Focus to edit -- the user's choice); Settings… (kept in the page's ≡ for
-now); a closed group's row count. Known and left: a join being opened when the page Python serves is left keeps the
+text box, step 1 (§8); then the branch's deep audit and its fixes (above, and the notes in each section). Then the
+chart options as a window beside their chart (§2), and Settings… under View ▸ (§3). Decided, nothing to build: a
+group's row count shows only once the group is open ("AMER (5)", "500+" past the most rows), never on a closed group
+(the user, 2026-10-25). Known and left: a join being opened when the page Python serves is left keeps the
 table it borrowed from a grid until the tab closes (rare; no test reaches it cheaply).
 
 Screenshots of each state (the start page, the chart examples and the gallery's KPI dashboard, the chart options at

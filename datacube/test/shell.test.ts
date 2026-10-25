@@ -217,7 +217,7 @@ function app(options: Partial<ConstructorParameters<typeof CubeApp>[2]> = {}): {
 }
 
 describe('the app', () => {
-  it("offers New first in the title bar's menu (the user, 2026-10-01), then Undo and Redo, and Settings… last", async () => {
+  it("offers New first in the title bar's menu (the user, 2026-10-01), then Undo and Redo, and View ▸ last, Settings… in it", async () => {
     const { app: cube } = app();
     await cube.open();
     click(root.querySelector('.dc-titlebar-menu'));
@@ -225,7 +225,13 @@ describe('the app', () => {
     const labels = [...dom.window.document.querySelectorAll('.dc-menu > .dc-menu-item > .dc-menu-label, .dc-menu > * > .dc-menu-item > .dc-menu-label')]
       .map((l) => l.textContent);
     assert.deepEqual(labels.slice(0, 3), ['Create', 'Undo', 'Redo']);
-    assert.equal(labels[labels.length - 1], 'Settings…');
+    // the app's Settings… under View, as the page's ≡ has them (the user, 2026-10-25): this browser's, not the grid's
+    assert.equal(labels[labels.length - 1], 'View');
+    assert.ok(!labels.includes('Settings…'), 'no longer an entry of its own');
+    const view = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
+      .find((i) => i.querySelector(':scope > .dc-menu-label')?.textContent === 'View')!;
+    const under = [...view.querySelectorAll(':scope > .dc-submenu > .dc-menu-item > .dc-menu-label')].map((l) => l.textContent);
+    assert.equal(under[under.length - 1], 'Settings…');
   });
 
   // the user, 2026-10-23: a Join ▸ on the right-click, beside Filter -- the host's entries, picked inside the submenu

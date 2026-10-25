@@ -1071,6 +1071,12 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
   overflow: auto;
 }
 
+/* A window kept on the screen (ui/window.ts `viewport`): fixed to the browser's window, never in the page's flow nor
+   clipped by a tile -- a chart's options, beside it however the page scrolls. */
+.dc-app-overlay.dc-window.dc-window-fixed {
+  position: fixed;
+}
+
 /* The title bar is the handle, so it says so. `grab` while resting
    and the browser's own `grabbing` once the pointer is down. */
 .dc-window-handle {
@@ -2837,7 +2843,7 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-lib-unsaved[hidden] { display: none; }
 .dc-lib-ask { white-space: pre-line; }
 
-/* The chart window (ui/chart-panel.ts): options left, the chart right.
+/* The chart (ui/chart-panel.ts); its options are a window of their own (.dc-chart-options).
    The --dc-chart-* tokens are the dataviz reference palette (light); the
    renderer reads them (chart-render.ts themeOf), since canvas cannot. */
 .dc-chartpanel {
@@ -2859,42 +2865,12 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 
 .dc-overlay-body.dc-chartpanel { padding: 0; }
 
-.dc-chartpanel-form {
-  flex: 0 0 220px;
-  overflow: auto;
-  border-right: 1px solid var(--dc-line);
-}
-/* moved into by the keyboard, it says so (the 2026-10-25 audit: the one cue was taken away) */
-.dc-chartpanel-form:focus:not(:focus-visible) { outline: none; }
-.dc-chartpanel-form:focus-visible { outline: 2px solid var(--dc-active); outline-offset: -2px; }
-.dc-chartpanel-form-body { padding: 0 var(--dc-pad-2) var(--dc-pad-2); }
-/* its heading and its ×, kept in sight as its fields scroll */
-.dc-chartpanel-form-head {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--dc-pad-1) var(--dc-pad-1) var(--dc-pad-1) var(--dc-pad-2);
-  background: var(--dc-bg);
-  border-bottom: 1px solid var(--dc-line);
-  margin-bottom: var(--dc-pad-2);
-}
-.dc-chartpanel-form-title { font-weight: 600; color: var(--dc-muted-strong); }
-.dc-chartpanel-form-close {
-  width: 22px;
-  height: 22px;
-  border: 0;
-  border-radius: var(--dc-radius-sm);
-  background: transparent;
-  color: var(--tw-neutral-500);
-  font: inherit;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-}
-.dc-chartpanel-form-close:hover { background: var(--tw-neutral-200); color: var(--tw-neutral-800, #262626); }
+/* A CHART'S OPTIONS, A WINDOW (ui/chart-panel.ts openForm): the page's windows' frame, title bar, x and grips, kept
+   on the screen beside its chart (ui/window.ts besideWindow). Moved into by the keyboard, it says so (the 2026-10-25
+   audit: the one cue was taken away). */
+.dc-chart-options:focus:not(:focus-visible) { outline: none; }
+.dc-chart-options:focus-visible { outline: 2px solid var(--dc-active); outline-offset: -2px; }
+.dc-chart-options-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* a narrow column: each label above its control, the control full width */
 .dc-chartpanel-form .dc-field {
@@ -3359,7 +3335,6 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 
 .dc-chart-tile { display: flex; }
 .dc-chart-tile .dc-chartpanel { flex: 1 1 auto; min-width: 0; }
-.dc-chart-tile .dc-chartpanel-form[hidden] { display: none; }
 
 .dc-chartpanel-status[hidden] { display: none; }
 .dc-chartpanel-hint { margin: var(--dc-pad-2) 0 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
@@ -3380,18 +3355,6 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
   color: var(--dc-muted-strong); font-size: var(--dc-text-sm-size); font-weight: 600;
 }
 
-/* IN A TILE THE OPTIONS FLOAT OVER THE PAGE, beside their chart (chart-panel.ts #placeForm sets where and how tall):
-   above the tiles and windows, under a menu. They floated inside the tile, clipped by it -- a KPI's left a sliver
-   (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §2). */
-.dc-chart-tile .dc-chartpanel { position: relative; }
-.dc-chart-tile .dc-chartpanel-form {
-  position: fixed;
-  z-index: 30;
-  border: 1px solid var(--dc-line);
-  border-radius: var(--dc-radius-sm);
-  background: var(--dc-bg);
-  box-shadow: var(--dc-popup-shadow);
-}
 
 /* THE RECEIPT: what answered the view, as the engine that ran it said. */
 /* its i, as the tools are (above); a warehouse's or an engine's answer in sky */
