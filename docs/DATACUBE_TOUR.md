@@ -37,6 +37,7 @@ Nothing is lost by its being manual. Each check it makes is also made by a per-p
 | Grid edits and charts | `verify_charts_test` |
 | Saving and sharing | `verify_cubes_test` |
 | Undo, sorts and calculated columns | `verify_features_test` |
+| A flow, built, saved and shared | `verify_flow_test` |
 
 The tour's job is the pictures, and running the flows in order on one page.
 
@@ -74,7 +75,11 @@ Each step is one section of the gallery. A step's line says what the check found
     read.
 15. **The example page `charts-dashboard`.** Every chart on every sheet draws. There is one picture per sheet.
 16. **The example page `charts-kinds`.** As for 15.
-17. **No page errors on the way.**
+17. **A flow.** Create ▸ Flow, then from the palette an Input (the examples' trades), a Filter after it (notional over
+    500,000, set in the settings pane, where the grid's own Filter window is docked), and a Summarize after that
+    (region, in Properties' Row Groups, docked). There are two pictures: the Filter being set, and the flow with its
+    Summarize shown, a row per region below (`docs/DATACUBE_FLOW_MODE_2026_10_24.md` M1).
+18. **No page errors on the way.**
 
 ## When a step fails
 

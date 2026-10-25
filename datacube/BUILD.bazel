@@ -1790,6 +1790,7 @@ _HARNESSES = [
     "verify-engine",
     "verify-engine-differential",
     "verify-features",
+    "verify-flow",
     "verify-join",
     "verify-layout",
     "verify-page",
@@ -1815,6 +1816,9 @@ _BROWSER_TESTS = {
     # Create a Class… (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.7): two classes of two grids, in the page's SDLC
     "verify-class": "large",
     "verify-cubes": "large",
+    # a flow built by drag and drop alone, each box set and previewed, saved, reopened and shared
+    # (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1)
+    "verify-flow": "large",
     # Join… (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.5): two files joined, what it will do said first, saved and reopened
     "verify-join": "large",
     "verify-layout": "large",

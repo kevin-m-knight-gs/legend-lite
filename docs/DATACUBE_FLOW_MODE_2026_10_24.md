@@ -505,6 +505,17 @@ grid over another grid's rows (or a join) carries its input's literals as the pr
 edit threw; the keys are written exactly now (`cube-state.ts`, `toJson`). Checked in the running app, both themes:
 Input, Filter (notional over 500,000), Summarize by region after it, each box shown again with its settings.
 
+**Built in step 7, the browser harness and a tour step** (`datacube/demo/verify-flow.mjs`, `//datacube:verify_flow_test`;
+`demo/tour.mjs` step 17): Create ▸ Flow; an Input dragged onto the canvas (the examples' trades, 5,000 rows), a Filter
+dragged onto it (notional over 500,000 set in the docked Filter window: 2,404 rows), a Formula onto the Filter (`fee`,
+in the docked column editor: the same rows, the column in them), a Summarize onto the Formula (region, in Properties'
+Row Groups: a row per region); each box shown again, its rows as before, only the shown box's grid made; a box moved by
+hand and the move undone; the flow saved, the tab reloaded and the flow opened again from Open… (each box as it was,
+none opened until shown, the last box's rows as before); and shared, the link opening the same flow in a fresh tab.
+With the Python tests of step 3 (`test_page.py Flows`, `Flowed`), M1's "done when" holds. Found on the way: the column
+editor's sections shrank below their content in a short window, the preview's heading over its own builder's buttons
+(`app.css` `.dc-xc-main > *`).
+
 **Not yet, said:** an undo of a box's removal brings it back as a new tile, and the boxes after it keep reading its copy until Unfreeze (M2) links them
 again (an undo is the page's structure: page-between.ts leaves the cubes of the grids both pages have as they are); a
 chart or a text box of a box's rows (refused, said: they go on a board sheet); a tool added from the tab on a page

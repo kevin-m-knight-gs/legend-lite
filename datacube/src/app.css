@@ -3959,6 +3959,9 @@
 .dc-xc-kind-hint { font-size: 11px; line-height: 14px; color: var(--tw-neutral-500); font-weight: 400; }
 
 .dc-xc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 14px 18px; overflow-y: auto; }
+/* each section its own height, the column scrolling: in a short window (a flow's settings pane, a window resized short)
+   a shrunk section spilled over the next, the preview's heading over its own builder's buttons (2026-10-25) */
+.dc-xc-main > * { flex-shrink: 0; }
 .dc-xc-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .dc-xc-label {
   display: block;

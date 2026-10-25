@@ -511,6 +511,40 @@ try {
     });
   }
 
+  // A FLOW (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1): its boxes from the palette, each set in the settings pane by the
+  // grid's own window docked there, its rows below; verify_flow_test builds one by drag and drop and saves and shares it
+  await step('A flow: Create > Flow, an Input, a Filter after it, a Summarize after that', async (shot) => {
+    await burger('Flow');
+    await page.locator('.dc-flow-palette').waitFor({ timeout: 20_000 });
+    await page.click('.dc-flow-tool[data-tool="input"]');
+    await page.click('.dc-picker-nav button:has-text("Examples")');
+    await page.locator('.dc-picker-card').first().click();
+    await page.click('.dc-picker-choice-actions button:has-text("Open")');
+    await page.waitForFunction(() => document.querySelectorAll('.dc-flow-box').length === 1, null, { timeout: 60_000 });
+    await settle();
+    await page.click('.dc-flow-tool[data-tool="filter"]');
+    await page.locator('.dc-flow-dock > .dc-app-overlay[data-window="Filters"]').waitFor({ timeout: 20_000 });
+    await page.locator('.dc-flow-dock button', { hasText: 'Create New Filter' }).click();
+    await page.locator('.dc-flow-dock .dc-filter-column').first().selectOption('notional');
+    await page.locator('.dc-flow-dock .dc-filter-op').first().selectOption('greaterThan');
+    const n = page.locator('.dc-flow-dock .dc-filter-number').first();
+    await n.fill('500000');
+    await n.press('Enter');
+    await shot(page, 'the Filter set in the settings pane');
+    await page.locator('.dc-flow-dock button', { hasText: /^OK$/ }).click();
+    await settle();
+    await page.click('.dc-flow-tool[data-tool="summarize"]');
+    await page.locator('.dc-flow-dock > .dc-app-overlay[data-window="Properties"]').waitFor({ timeout: 20_000 });
+    await page.locator('.dc-flow-dock .dc-selector-box').first().locator('.dc-selector-row', { hasText: /^region$/ }).first().click();
+    await page.locator('.dc-flow-dock .dc-selector-move').first().click();
+    await page.locator('.dc-flow-dock button', { hasText: /^OK$/ }).click();
+    await settle();
+    const says = await page.locator('.dc-flow-box .dc-flow-says').allTextContents();
+    await shot(page, 'the flow, its Summarize shown');
+    if (says.length !== 3 || !/500000/.test(says[1] ?? '') || says[2] !== 'by region') throw new Error(`the boxes say ${says.join(' | ')}`);
+    return says.join(' → ');
+  });
+
   await step('No page errors on the way', async () => {
     if (pageErrors.length) throw new Error(pageErrors.slice(0, 3).join(' | '));
     return 'none';

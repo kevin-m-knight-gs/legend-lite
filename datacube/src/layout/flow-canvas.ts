@@ -578,7 +578,7 @@ export class FlowCanvas {
         const open = d.createElement('button');
         open.type = 'button';
         open.className = 'dc-picker-button dc-primary';
-        open.textContent = `Set the ${FLOW_TOOLS[said.tool].name.toLowerCase()}`;
+        open.textContent = 'Open its settings';
         open.addEventListener('click', () => this.#board.options.onSelect?.(id, editor));
         parts.push(open);
       } else if (said.tool === 'browse') {
