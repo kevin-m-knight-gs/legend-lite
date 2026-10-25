@@ -18,6 +18,24 @@ export interface FlowBox {
   readonly x: number;
   readonly y: number;
   readonly frame?: Frame;
+  /** A box that writes its rows to a file (an Output: Alteryx's Output Data, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6),
+   *  when it is told to and when the flow runs. A grid's only. */
+  readonly output?: Output;
+}
+
+/** Where an Output box writes its rows: a file of a format, by its name (no folder: where it lands is its host's -- the
+ *  browser's downloads, Python's folder). */
+export interface Output {
+  readonly format: 'csv';
+  readonly name: string;
+}
+
+/** What is wrong with an Output, if anything: a name with no folder in it, of its format's own ending. */
+export function outputProblem(o: Output): string | undefined {
+  if (o.format !== 'csv') return `an output is a CSV file, not ${JSON.stringify(o.format)}`;
+  if (o.name.trim() === '' || /[\\/]/.test(o.name)) return `an output is a file's name with no folder in it, not ${JSON.stringify(o.name)}`;
+  if (!o.name.toLowerCase().endsWith('.csv')) return `a CSV output's name ends .csv, not ${JSON.stringify(o.name)}`;
+  return undefined;
 }
 
 /** A container's size on the canvas; folded (`collapsed`), its head alone is drawn and the boxes in it are not. The boxes
@@ -94,7 +112,7 @@ export function moveBox(flow: Flow, tile: string, x: number, y: number, frame?: 
       if (b.tile !== tile) return b;
       // its frame given, else the one it has (null: none)
       const kept = frame === undefined ? b.frame : frame === null ? undefined : framed(frame);
-      return { tile, x: Math.round(x), y: Math.round(y), ...(kept !== undefined ? { frame: kept } : {}) };
+      return { tile, x: Math.round(x), y: Math.round(y), ...(kept !== undefined ? { frame: kept } : {}), ...(b.output !== undefined ? { output: b.output } : {}) };
     }),
   };
 }
@@ -117,6 +135,21 @@ export function framedBy(flow: Flow, container: string, size: { readonly w: numb
   if (c === undefined || f === undefined) return [];
   return flow.boxes.filter((b) => b.tile !== container && b.frame === undefined
     && b.x >= c.x && b.y >= c.y + FRAME_HEAD && b.x + size.w <= c.x + f.w && b.y + size.h <= c.y + f.h).map((b) => b.tile);
+}
+
+/** A box set to write its rows (`output`), or no longer (null). Refused when it is no box of the flow, or the output is
+ *  not one (outputProblem). */
+export function setOutput(flow: Flow, tile: string, output: Output | null): Flow {
+  if (!flow.boxes.some((b) => b.tile === tile)) throw new FlowRefusal(`'${tile}' is no box of this flow`);
+  const problem = output === null ? undefined : outputProblem(output);
+  if (problem !== undefined) throw new FlowRefusal(problem);
+  return {
+    boxes: flow.boxes.map((b) => {
+      if (b.tile !== tile) return b;
+      const { output: _was, ...rest } = b;
+      return output === null ? rest : { ...rest, output: { format: output.format, name: output.name.trim() } };
+    }),
+  };
 }
 
 /** A box taken off the canvas; a tile the flow does not have leaves it as it is. */
@@ -184,6 +217,8 @@ export function flowProblems(flow: Flow): string[] {
     if (!Number.isInteger(b.x) || !Number.isInteger(b.y) || b.x < 0 || b.y < 0) {
       problems.push(`'${b.tile}' is at (${b.x}, ${b.y}): a box's place is two whole numbers, neither below zero`);
     }
+    const out = b.output === undefined ? undefined : outputProblem(b.output);
+    if (out !== undefined) problems.push(`'${b.tile}': ${out}`);
     const f = b.frame;
     if (f !== undefined && (frameProblem(f) !== undefined || !Number.isInteger(f.w) || !Number.isInteger(f.h))) {
       problems.push(`'${b.tile}'s frame is ${f.w} by ${f.h}: a frame is two whole numbers, at least ${FRAME_MIN.w} by ${FRAME_MIN.h}`);

@@ -267,6 +267,15 @@ class Grid(Tile):
         self._page._apply_page([_commands.page_place_box(tile=self._id, x=x, y=y)])
         return self
 
+    def output(self, name: str | None) -> Grid:
+        """This box writes its rows to the CSV file ``name`` -- a flow's Output (page-commands.ts setOutput;
+        docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every row, the columns it shows, each time its flow runs
+        (``flow.run(folder)``) -- or, None, no longer. A name with a folder in it, or not ending .csv, and a grid on a
+        board, refused in DataCube's words."""
+        given = None if name is None else {'format': 'csv', 'name': name}
+        self._page._apply_page([_commands.page_set_output(grid=self.id, output=given)])
+        return self
+
     def relink(self, input: Grid, side: str = 'input', port: str | None = None) -> Grid:
         """Its rows read live from grid ``input`` of its page from now on -- a line drawn on its flow from that box's
         output (page-commands.ts setInput; docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) -- its query as it is, the grid then
@@ -1462,6 +1471,31 @@ class Sheet:
         if commands:
             page._apply_page(commands, 'a tidy')
         return self
+
+    def run(self, folder: str | Path) -> list[Path]:
+        """The flow run as the canvas's Run runs it, its Outputs written (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): each
+        box that writes a file (``grid.output(name)``) writes every one of its rows -- the columns it shows, those the box
+        after it reads -- to ``folder``/its name, as CSV. The files written, in the order of the flow's boxes. A board
+        has no Outputs: refused."""
+        layout = self._doc['layout']
+        if layout.get('kind') != 'flow':
+            raise ValueError(f'{self!r} is a board: a flow runs its Outputs')
+        out = Path(folder)
+        out.mkdir(parents=True, exist_ok=True)
+        doc = self._page._doc
+        written: list[Path] = []
+        for box in layout['boxes']:
+            target = box.get('output')
+            if target is None:
+                continue
+            view = next(v for v in doc['views'] if v['id'] == box['tile'])
+            cube = next(c for c in doc['cubes'] if c['id'] == view['cube'])['cube']
+            hidden = {n for n, c in (cube.get('configuration', {}).get('columns') or {}).items() if isinstance(c, dict) and c.get('hidden')}
+            rows = self._page._tile(box['tile'], Grid).to_pandas()
+            path = out / target['name']
+            rows[[c for c in rows.columns if c not in hidden]].to_csv(path, index=False)
+            written.append(path)
+        return written
 
     def grid(self, frame: Any = None, **given: Any) -> Grid:
         """A grid on this sheet, as ``page.grid(..., sheet=this)`` adds one: on a flow, a box -- after ``input``, the box

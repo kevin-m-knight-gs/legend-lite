@@ -106,6 +106,16 @@ export function showGridCommands(chart: string, grid: string, spec: ChartSpec): 
 }
 
 /**
+ * AN OUTPUT MADE ON A FLOW (the palette's Output, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): box `grid` set to write a CSV
+ * named after what it reads (`reads`, its input's name): that name without its own ending, the characters a file's name
+ * cannot hold made _, then " out.csv". Python names the file it gives grid.output itself.
+ */
+export function outputCommand(grid: string, reads: string): PageCommand {
+  const base = reads.replace(/\.[A-Za-z0-9]+$/, '').replace(/[^A-Za-z0-9 _.-]+/g, '_').trim();
+  return pageCommand('setOutput', { grid, output: { format: 'csv', name: `${base === '' ? 'output' : base} out.csv` } });
+}
+
+/**
  * TIDY UP (docs/DATACUBE_FLOW_MODE_2026_10_24.md M7; the canvas's button and Python's flow.tidy(), headless pageGesture):
  * flow sheet `sheet`'s boxes placed by the flow's own rule (layout/flow.ts arranged) -- each a column after the boxes it
  * reads -- told as its layout whole, or nothing when they are there already. Refused in words: no flow sheet of the page.

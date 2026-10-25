@@ -14,7 +14,7 @@ import {
 import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, type Bands, type Preset,
 } from './layout/bands.ts';
-import { EMPTY_FLOW, FlowRefusal, moveBox, placeAfter, removeBox, type Flow, type Frame } from './layout/flow.ts';
+import { EMPTY_FLOW, FlowRefusal, moveBox, placeAfter, removeBox, setOutput, type Flow, type Frame, type Output } from './layout/flow.ts';
 import {
   PageDocumentError, keptFor, layoutTiles, readGridCopy, readLayout, unnamedLabel, writePageOf, type ChartView, type FlowLayout,
   type GridCopy, type GridView, type PageDocument, type PageLayout, type PageSheet, type PageView, type TextView,
@@ -166,6 +166,9 @@ export type PageCommand =
   /** A join's how, whole (a flow's Join or Union box set again by the Join window: docs/DATACUBE_FLOW_MODE_2026_10_24.md
    *  M2): its inputs as they are, its columns read again when it opens (cube-document.ts cubeOpenedAgain). */
   | { readonly kind: 'setJoin'; readonly grid: string; readonly how: JoinHow }
+  /** A flow's box set to write its rows to a file (an Output, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6: when told to,
+   *  and when the flow runs), or (null) no longer. */
+  | { readonly kind: 'setOutput'; readonly grid: string; readonly output: Output | null }
   /** The page's model made by its first model action (Create a Class…, a Data Space): its project, DataCube's workspace
    *  in it, the package its classes go in (modelMade, above). */
   | { readonly kind: 'modelInto'; readonly project: string; readonly workspace: string; readonly package: string }
@@ -178,7 +181,7 @@ export const PAGE_COMMAND_KINDS = [
   'renamePage', 'savedAs', 'addSheet', 'addFlow', 'placeBox', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid',
   'addChart', 'setChart',
   'addText', 'setText', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter',
-  'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'modelInto', 'modelPin', 'modelKeep',
+  'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setOutput', 'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
 /** Each page command's fields, by kind (`?` one it may leave out): what readPageCommand takes, and what Python's generated
@@ -191,7 +194,7 @@ export const PAGE_COMMAND_FIELDS = {
   setText: ['tile', 'text'], followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
-  removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how'],
+  removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how'], setOutput: ['grid', 'output'],
   modelInto: ['project', 'workspace', 'package'], modelPin: ['revision'], modelKeep: ['cube', 'tables', 'class'],
 } as const satisfies CommandFields<PageCommand>;
 // every field of every kind listed: a field the list leaves out is a type error naming it
@@ -802,6 +805,16 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
         cubes: page.cubes.map((c) => (c.id === held.id ? { id: c.id, cube: { ...c.cube, source: { ...source, how: command.how } } } : c)),
       }));
     }
+    case 'setOutput': {
+      const view = viewNamed(page, command.grid);
+      if (view.kind !== 'grid') throw new CubeRefusal(`'${command.grid}' is ${kindWords(view)}: an output is a grid's rows`);
+      const sheet = sheetOf(page, command.grid);
+      const layout = sheet?.layout;
+      if (sheet === undefined || layout?.kind !== 'flow') throw new CubeRefusal(`'${command.grid}' is no box of a flow: an output is a flow's`);
+      const had = layout.boxes.find((b) => b.tile === command.grid)?.output;
+      if (sameValue(had ?? null, command.output)) throw new CubeRefusal(`'${command.grid}' ${command.output === null ? 'writes no file' : `writes ${command.output.name} already`}`);
+      return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => setOutput(layout, command.grid, command.output)) })));
+    }
     case 'modelInto':
       return done(rewritten({ ...page, model: modelMade(page.model, command.project, command.workspace, command.package) }, {}));
     case 'modelPin':
@@ -1135,6 +1148,14 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'setJoin':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, grid: text(o['grid'], 'a grid'), how: readJoinHow(o['how']) };
+    case 'setOutput': {
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      const out = o['output'];
+      if (out !== null && (!isObject(out) || out['format'] !== 'csv' || typeof out['name'] !== 'string' || Object.keys(out).some((k) => k !== 'format' && k !== 'name'))) {
+        throw new CubeRefusal(`an output is {format: 'csv', name}, or null, not ${JSON.stringify(out)}`);
+      }
+      return { kind, grid: text(o['grid'], 'a grid'), output: out === null ? null : { format: 'csv', name: out['name'] as string } };
+    }
     case 'modelInto':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, project: text(o['project'], "a page model's project"), workspace: text(o['workspace'], "a page model's workspace"),

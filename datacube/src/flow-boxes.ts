@@ -18,7 +18,7 @@ import type { ColumnEditorStart } from './ui/column-editor.ts';
 import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
-export type FlowTool = 'input' | 'textInput' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
+export type FlowTool = 'input' | 'textInput' | 'output' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile'
   | 'datetime' | 'cleanse' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment' | 'container';
 
@@ -26,6 +26,7 @@ export type FlowTool = 'input' | 'textInput' | 'join' | 'union' | 'filter' | 'fo
 export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: FlowGroup; readonly does: string }>> = {
   input: { name: 'Input', group: 'in', does: 'rows from a file, a table, a class or a saved query' },
   textInput: { name: 'Text Input', group: 'in', does: 'a small table of your own, typed in or pasted from a sheet' },
+  output: { name: 'Output', group: 'in', does: 'its input\'s rows written to a CSV file, now and each time the flow runs' },
   join: { name: 'Join', group: 'join', does: 'two inputs joined on their keys: Left above, Right below' },
   union: { name: 'Union', group: 'join', does: 'the rows of two inputs, one under the other, columns by name' },
   filter: { name: 'Filter', group: 'prepare', does: 'the rows that meet its conditions' },
@@ -54,7 +55,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'textInput', 'filter', 'formula', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse',
+  'input', 'textInput', 'output', 'filter', 'formula', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse',
   'join', 'union', 'textToColumns', 'regex', 'summarize', 'crosstab', 'runningTotal', 'comment', 'container',
 ];
 

@@ -225,7 +225,7 @@ How to read the status column:
 | Text Input | Built (2026-10-25) | A small table typed in or pasted from a sheet, written as a CSV file: an Input over it, as a file dropped on the canvas is. Pure's `#TDS` literal remains the way to keep one in a model |
 | Browse | Built | The results pane: the selected box's or port's grid |
 | Output Data (to a table) | Core, after v1 | `write` to a store table throws "not yet implemented" (`core/.../lowering/Lowerer.java:3295`): F1, built in core in parallel (FL13) |
-| Output Data (to a file) | Built | The grid's exports, for the rows shown. The whole result streamed is A5 of the BI and ETL plan |
+| Output Data (to a file) | Built (2026-10-25) | An Output box: its input's every row (the columns it shows) streamed from the database and written as CSV, by Write now and each time the flow runs; Python's `grid.output(name)` and `flow.run(folder)`. The grid's exports still write the rows shown |
 | Data Stream In / Out | Step | The Cache box (FL10), on Snap |
 | Date Time Now | Built | `now()` and `today()` in a Formula |
 | Directory | Out | It lists a file system, which is no relation a database holds |
@@ -738,6 +738,21 @@ what its rows are made of (the box and every box it reads: the board's `chain`),
 in place, out of sight, so its rows are not asked again when Rows comes back. A pivoted box is refused in words (its
 columns are its values). Tested by `flow-sheet.test.ts` (its question, its reading) and the harness (the Input's
 profile: 5,000 rows, region 3 values from AMER to EMEA, notional's smallest and largest; its rows again).
+
+**Built, Output** (`layout/flow.ts` `Output`, `setOutput`; `page-commands.ts` `setOutput`; `page-gestures.ts`
+`outputCommand`; `layout/flow-canvas.ts` `#paintOutput`; `page/cube-page.ts` `#writeBox`; `app.ts` `writeOutput`):
+Alteryx's Output Data, the flow's end -- a box whose place on the flow says it writes its rows to a CSV file, by its name
+(no folder: where a file lands is its host's -- the browser's downloads, Python's folder). The palette's Output (under
+In and Out) dropped on a box is a box after it that writes "<what it reads> out.csv", in the step that adds it; its
+settings name the file again (Set Output), Write now writes it, Write no file makes it a box that writes none. Writing
+is every row the box gives -- the columns it shows, the rows the box after it reads -- streamed from the database a chunk
+at a time, each chunk written as CSV (export.ts `toCsv`, the grid's own raw export) and let go; Run writes each Output
+after counting it, its log saying so. A new command, `setOutput`, shipped whole: its reader, its rebase, its round trip,
+the ledgers (a person's typed name passed through; the palette's default name a page gesture's), and Python --
+`grid.output('big trades.csv')`, then `flow.run(folder)` writes each Output's rows there and gives back the files. Tested
+by `page-commands.test.ts`, Python's `test_outputs_written_when_the_flow_runs` (the file read back, a hidden column left
+out, the refusals, saved and loaded) and the harness (the palette's Output, named again, Write now's file read back: its
+head row and its 503 rows; Run writes it too, its log saying it wrote it).
 
 **Built, a Filter's False** (FL7; `cube-document.ts` `LiveInput.port`, `live-inputs.ts` `gridInput`'s port,
 `layout/flow-canvas.ts`): a live input may name a box's port -- `{grid, port: 'false'}`, its False: the same query with

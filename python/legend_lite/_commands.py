@@ -18,7 +18,7 @@ PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'addFlow', '
                                'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText',
                                'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout',
                                'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin',
-                               'modelInto', 'modelPin', 'modelKeep',)
+                               'setOutput', 'modelInto', 'modelPin', 'modelKeep',)
 
 
 def grid_group(*, rows: Any) -> dict[str, Any]:
@@ -224,6 +224,10 @@ def page_set_input(*, grid: Any, side: Any, input: Any) -> dict[str, Any]:
 
 def page_set_join(*, grid: Any, how: Any) -> dict[str, Any]:
     return {'kind': 'setJoin', 'grid': grid, 'how': how}
+
+
+def page_set_output(*, grid: Any, output: Any) -> dict[str, Any]:
+    return {'kind': 'setOutput', 'grid': grid, 'output': output}
 
 
 def page_model_into(*, project: Any, workspace: Any, package: Any) -> dict[str, Any]:

@@ -2714,6 +2714,33 @@ class Flows(Paged):
         again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
         self.assertEqual(next(g for g in again.grids if g.id == top.id).input.id, big.id)
 
+    def test_outputs_written_when_the_flow_runs(self):
+        # M6: a box set to write a CSV file (setOutput) writes every row, the columns it shows, when its flow runs
+        page, flow, _source, big = self.flowed()
+        big.configure({'columns': {'pnl': {'hidden': True}}})
+        big.output('big trades.csv')
+        box = next(b for b in self.boxes(page, flow) if b['tile'] == big.id)
+        self.assertEqual(box['output'], {'format': 'csv', 'name': 'big trades.csv'})
+        with tempfile.TemporaryDirectory() as folder:
+            written = flow.run(folder)
+            self.assertEqual([p.name for p in written], ['big trades.csv'])
+            back = pd.read_csv(written[0])
+            self.assertEqual(sorted(back.columns), ['desk', 'notional', 'region'])
+            self.assertEqual(sorted(back['notional']), [100.0, 250.0])
+        with self.assertRaisesRegex(ValueError, 'ends .csv'):
+            big.output('big.xlsx')
+        with self.assertRaisesRegex(ValueError, 'no folder in it'):
+            big.output('out/big.csv')
+        with self.assertRaisesRegex(ValueError, 'writes big trades.csv already'):
+            big.output('big trades.csv')
+        again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
+        self.assertEqual(next(b for b in next(s for s in again.to_dict()['sheets'] if s['id'] == flow.id)['layout']['boxes']
+                              if b['tile'] == big.id)['output']['name'], 'big trades.csv')
+        big.output(None)
+        self.assertNotIn('output', next(b for b in self.boxes(page, flow) if b['tile'] == big.id))
+        with self.assertRaisesRegex(ValueError, 'is a board'):
+            page.sheets[0].run('.')
+
     def test_a_container_frames_boxes(self):
         # M7: a comment with a frame is a container (Alteryx's Tool Container): its size kept by a move, folded or not;
         # a grid is never framed; a frame too small refused; taken off, a comment again

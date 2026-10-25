@@ -73,6 +73,11 @@ export function columnsLambda(rows: ValueSpecification): Lambda {
   return from(rows).limit(0).lambda();
 }
 
+/** A box's rows, the columns given alone (its shown ones: what an Output writes), in their order. */
+export function rowsLambda(rows: ValueSpecification, columns: readonly string[]): Lambda {
+  return from(rows).select(columns).lambda();
+}
+
 /** The profile read back off its question's one row (`table`): refused in words when the answer is not that row. */
 export function profileOf(table: ResultTable, columns: readonly ProfiledColumn[]): Profile {
   const value = (name: string): Scalar | undefined => {

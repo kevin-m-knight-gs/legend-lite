@@ -167,6 +167,8 @@ export interface SpawnedGrid {
   readonly view?: { readonly rows: { readonly rowCount: number }; readonly totalRows?: number } | null;
   /** Its rows' profile (a flow's box's Profile: profile.ts), asked of the database when it is shown. */
   profile?(): Promise<Profile>;
+  /** Its rows -- every one, the columns it shows -- written to a CSV file named `name` (a flow's Output). */
+  writeOutput?(name: string): Promise<void>;
 }
 
 export interface CubePageOptions {
@@ -547,6 +549,11 @@ export class CubePage {
       },
       onContainer: (at, frame) => this.#addContainer(id, at, frame),
       onEditText: (tile) => this.editText(tile),
+      onOutput: (tile, output) => {
+        this.#tell(output === null ? 'Write No File' : 'Set Output', pageCommand('setOutput', { grid: tile, output }));
+        this.#options.onChange();
+      },
+      onWrite: (tile) => this.#writeBox(tile),
       onSelect: (tile, editor) => void this.#showBox(tile, editor),
       onRemove: (tile) => this.#removeTile(tile),
       onRemoveMany: (tiles) => this.#removeTiles(tiles),
@@ -787,8 +794,19 @@ export class CubePage {
           await this.#opening.get(id)?.catch(() => undefined);
           // its log: its rows, how long it took, or why it was refused
           const rows = board.count(id);
-          const refused = board.refusal(id);
-          logged.push({ id, ms: Math.round(performance.now() - t0), ...(rows !== undefined ? { rows } : {}), ...(refused !== undefined ? { refused } : {}) });
+          let refused = board.refusal(id);
+          // an Output writes its file, its rows counted
+          const out = board.layout.boxes.find((b) => b.tile === id)?.output;
+          let wrote: string | undefined;
+          if (out !== undefined && refused === undefined) {
+            const why = await this.#writeBox(id);
+            if (why === null) wrote = out.name;
+            else refused = `could not write ${out.name}: ${why}`;
+          }
+          logged.push({
+            id, ms: Math.round(performance.now() - t0), ...(rows !== undefined ? { rows } : {}), ...(refused !== undefined ? { refused } : {}),
+            ...(wrote !== undefined ? { wrote } : {}),
+          });
         }
         board.setRunning({ done: i + 1, of: order.length });
       }
@@ -796,6 +814,27 @@ export class CubePage {
       board.setLog({ at: new Date(), ms: Math.round(performance.now() - started), boxes: logged });
     } finally {
       board.setRunning(undefined);
+    }
+  }
+
+  /** AN OUTPUT WRITTEN (its Write now, a Run: docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): the box shown, its grid made,
+   *  every row it gives written to its file -- or why not, in words. */
+  async #writeBox(tile: string): Promise<string | null> {
+    const sheet = this.#sheetOf(tile);
+    if (sheet?.kind !== 'flow') return `${tile} is no box of a flow`;
+    const output = sheet.board.layout.boxes.find((b) => b.tile === tile)?.output;
+    if (output === undefined) return `${tile} writes no file`;
+    if (this.#grids.get(tile)?.added === undefined) {
+      await this.#showBox(tile);
+      await this.#opening.get(tile)?.catch(() => undefined);
+    }
+    const grid = this.#grids.get(tile)?.added?.cube;
+    if (grid?.writeOutput === undefined) return sheet.board.refusal(tile) ?? 'its rows could not be read';
+    try {
+      await grid.writeOutput(output.name);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
     }
   }
 

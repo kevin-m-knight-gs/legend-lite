@@ -853,6 +853,35 @@ try {
   await page.waitForFunction((t) => document.querySelector(`.dc-flow-box[data-tile="${t}"]`)?.hidden === false, formula.id);
   check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Unfold Container', 'unfolded: its boxes again');
 
+  // AN OUTPUT (M6), dragged onto the Filter: it writes a CSV named after what it reads; named again; Write now hands over
+  // every row it gives (the file read back); Run writes it too, said in its log
+  const beforeOut = (await boxes()).map((b) => b.id);
+  await page.locator('.dc-flow-canvas').evaluate((c) => { c.scrollLeft = 0; c.scrollTop = 0; });
+  await drag('output', filter.id);
+  await boxCount(beforeOut.length + 1);
+  const outBox = await added(beforeOut);
+  check(outBox.tool === 'output' && /^→ .+ out\.csv$/.test(outBox.says), `an Output box: ${JSON.stringify(outBox)}`);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Add Output', 'one step: Add Output');
+  await page.locator(`.dc-flow-box[data-tile="${outBox.id}"]`).focus();
+  await page.keyboard.press('Enter');
+  const outName = page.locator('.dc-flow-output-name');
+  await outName.waitFor({ timeout: 10_000 });
+  await outName.fill('big trades.csv');
+  await outName.press('Enter');
+  await page.waitForFunction((t) => document.querySelector(`.dc-flow-box[data-tile="${t}"] .dc-flow-says`)?.textContent === '→ big trades.csv', outBox.id);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Set Output', 'named again, one step: Set Output');
+  const [outFile] = await Promise.all([page.waitForEvent('download', { timeout: 60_000 }), page.locator('.dc-flow-output-write').click()]);
+  const csvText = (await import('node:fs')).readFileSync(await outFile.path(), "utf8");
+  const csvLines = csvText.replace(/^\uFEFF/, '').trimEnd().split(/\r\n/);
+  check(outFile.suggestedFilename() === "big trades.csv", `its file: ${outFile.suggestedFilename()}`);
+  check(csvLines[0].startsWith('trade_id,trade_date,') && csvLines.length === fewer + 1, `every row it gives, its head first: ${csvLines.length - 1} rows, ${csvLines[0].slice(0, 40)}`);
+  await page.locator('.dc-flow-output-said', { hasText: 'Wrote big trades.csv' }).waitFor({ timeout: 10_000 });
+  const [ranOut] = await Promise.all([page.waitForEvent('download', { timeout: 180_000 }), page.locator('.dc-flow-run').click()]);
+  check(ranOut.suggestedFilename() === 'big trades.csv', 'Run writes it too');
+  await page.waitForFunction(() => /Run$/.test(document.querySelector('.dc-flow-run')?.textContent ?? ''), undefined, { timeout: 180_000 });
+  check(/wrote big trades\.csv/.test(await page.locator('.dc-flow-log').textContent() ?? ''), 'its log says it wrote it');
+  await page.locator('.dc-flow-log-close').click();
+
   // THE PALETTE'S FIND: its tools narrowed to what is typed
   await page.fill('.dc-flow-find', 'join');
   const visible = await page.locator('.dc-flow-tool:visible').evaluateAll((els) => els.map((e) => e.dataset.tool));

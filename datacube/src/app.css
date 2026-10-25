@@ -4860,6 +4860,19 @@
 }
 .dc-flow-inputs[hidden] { display: none; }
 .dc-flow-input { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* an Output's settings: the file it writes, Write now, Write no file, and what writing said */
+.dc-flow-output {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px var(--dc-pad-2);
+  border-bottom: 1px solid var(--dc-line-faint);
+}
+.dc-flow-output[hidden] { display: none; }
+.dc-flow-output-name { width: 16em; }
+.dc-flow-output-said { color: var(--dc-muted); font-size: 12px; }
 .dc-flow-input-side { color: var(--dc-muted); font-size: 12px; }
 .dc-flow-input > .dc-select { min-width: 10em; max-width: 22em; }
 .dc-flow-dock { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }

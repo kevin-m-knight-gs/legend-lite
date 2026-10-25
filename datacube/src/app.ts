@@ -55,7 +55,7 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
 import type { HostSnap, SnapTarget } from './cube.ts';
-import { exportFileName, toClipboard, toEml } from './export.ts';
+import { exportFileName, toClipboard, toCsv, toEml } from './export.ts';
 import {
   ALERT_WINDOW,
   CODE_CHECK_WINDOW,
@@ -3686,6 +3686,32 @@ export class CubeApp {
       .map((c) => ({ name: c.name, type: c.type }));
     const answer = await this.#controller.runQuery(profileLambda(rows, columns), s);
     return profileOf(answer.rows, columns);
+  }
+
+  /**
+   * THE GRID'S ROWS WRITTEN TO A FILE (a flow's Output, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every row at its finest
+   * level, the columns it shows -- the rows the box after it reads -- streamed from the database a chunk at a time, each
+   * chunk written as CSV (export.ts toCsv: its raw values, a field quoted where it must be) and let go, the file handed
+   * to the person as `name`. Refused in words for a pivoted grid, or a page with no way to hand a file over.
+   */
+  async writeOutput(name: string): Promise<void> {
+    const download = this.#options.download;
+    if (!download) throw new Error('this page has no way to hand a file over');
+    const s = this.#snapshot;
+    if (s.pivotOn.length > 0) throw new CubeRefusal('a pivoted grid\'s columns are its values: take its pivot off to write it');
+    const { columnsLambda, rowsLambda } = await lazily(() => import('./profile.ts'));
+    const rows = classLambda(s).body[0]!;
+    const typed = await this.#controller.runQuery(columnsLambda(rows), s);
+    const shown = typed.rows.columns.filter((c) => columnConfig(this.#config, c.name).hidden !== true).map((c) => c.name);
+    const query = shown.length === typed.rows.columns.length ? classLambda(s) : rowsLambda(rows, shown);
+    const parts: string[] = [];
+    await this.#controller.streamQuery(query, s, (chunk) => {
+      const text = toCsv(chunk, { bom: parts.length === 0 });
+      // its head row written once, with the file's first chunk
+      parts.push(parts.length === 0 ? text : text.slice(text.indexOf('\r\n') + 2));
+    });
+    if (parts.length === 0) parts.push(toCsv({ columns: shown.map((n) => ({ name: n, values: [] })), rowCount: 0, epoch: 0, elapsedMs: 0 } as never));
+    download(name, 'text/csv', parts.join(''));
   }
 
   /** A FLOW'S UNIQUE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): a row of each key, its first in an order -- a row

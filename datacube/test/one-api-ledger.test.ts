@@ -513,6 +513,8 @@ const PASS_THROUGH: Record<string, string> = {
   // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2, a flow's lines)
   setInput: "the box a line was drawn from, the box and side it was let go on (or a box's settings' Input picked), or none -- Freeze, a line taken off; setInput judges it (a cycle, a side the source has not) and makes the copy",
   setJoin: "the join a flow's Join box's window made (ui/join-dialog.ts, as the board's Join… makes one), its Right with it when it changed; setJoin judges it",
+  // 2026-10-25 (the flow mode's Output, M6)
+  setOutput: "the file name typed in an Output's settings, or none (its Write no file); setOutput judges it",
 };
 /** Functions that make commands a screen file calls and no headless function asks, each the screen's own (2026-10-22,
  *  S8): a person's input passed through, a form's edits, the board's hand or a tab's drag. */
@@ -527,6 +529,8 @@ const SCREEN_OWN_MAKERS: Record<string, string> = {
   selectionRefilters: "the tab's page undo and redo: a step brought back puts its charts' selections back on their grids (G8); Python's page has no undo",
   rebuiltCommands: "the tab opening the page Python serves: a cube it opened over the host's frames as they are now told back (P11); Python's own reopening tells its rebuilt as it reopens (_current)",
   // 2026-10-24 (D19 W3, W7)
+  // 2026-10-25 (the flow mode's Output, M6)
+  outputCommand: "the palette's Output named after the box it reads, in the step that adds it; Python's grid.output is given its file's name",
   gridBetween: "the commands between two states of a grid: the tab's own history (an undo or a redo told as the commands between: state-owner.ts toward) and its converge (a touched grid put back at the keeper's cube: live-converge.ts); Python's grid has no history",
 };
 

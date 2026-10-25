@@ -56,7 +56,7 @@ const ZOOMS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5] as const;
 
 /** Each palette group's heading. */
 const GROUP_WORDS: Readonly<Record<FlowGroup, string>> = {
-  in: 'In', prepare: 'Prepare', join: 'Join', parse: 'Parse', transform: 'Transform', docs: 'Notes',
+  in: 'In and Out', prepare: 'Prepare', join: 'Join', parse: 'Parse', transform: 'Transform', docs: 'Notes',
 };
 
 /** Where a box's output is on its right edge, from its top: a Filter's True above its False (Alteryx's T and F), any
@@ -93,6 +93,7 @@ const lineKey = (end: LineEnd): string => `${end.tile}:${end.side}`;
 const ICONS: Readonly<Record<FlowTool, string>> = {
   input: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v8c0 1.1-2.2 2-5 2s-5-.9-5-2zM3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 8c0 1.1 2.2 2 5 2s5-.9 5-2',
   textInput: 'M2 2.5h12v11H2zM2 6h12M6.5 2.5v11M8.5 9.5h4M8.5 11.5h2.5',
+  output: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v5M3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 4v8c0 1.1 2.2 2 5 2M10 11.5h5M13 9.5l2 2-2 2',
   cleanse: 'M10 2l4 4-6.5 6.5H3.5V8.5zM8 4l4 4M2 14.5h12',
   textToColumns: 'M2 4.5h12M2 8h4M10 8h4M2 11.5h4M10 11.5h4M8 6v8',
   regex: 'M4 2.5v6M1.5 4l5 3M6.5 4l-5 3M10 2.5l-2 11M14 2.5l-2 11M8.5 9.5H14',
@@ -196,6 +197,9 @@ export class FlowCanvas {
   /** The settings' inputs: a box's Input (a join's Left and Right), each a box of the flow or a frozen copy. */
   readonly #inputs: HTMLElement;
   #inputsKey = '';
+  /** The settings' Output: the file a box writes, Write now, and Write no file -- an Output box's. */
+  readonly #outputStrip: HTMLElement;
+  #outputKey = '';
   /** Each comment drawn, as a note: its card, by its tile's id. */
   readonly #notes = new Map<string, HTMLElement>();
   /** A box's menu (a right-click), made the first time, and what its entry picked does. */
@@ -306,7 +310,8 @@ export class FlowCanvas {
     settingsHead.append(this.#settingsTitle);
     this.#settingsEmpty = el('div', 'dc-flow-settings-empty');
     this.#inputs = el('div', 'dc-flow-inputs');
-    this.#settings.append(settingsHead, this.#inputs, board.dock, this.#settingsEmpty);
+    this.#outputStrip = el('div', 'dc-flow-output');
+    this.#settings.append(settingsHead, this.#inputs, this.#outputStrip, board.dock, this.#settingsEmpty);
     // the canvas on its stage, its own tools at its corner, over it as it scrolls
     const stage = el('div', 'dc-flow-stage');
     this.#toolbar = el('div', 'dc-flow-toolbar');
@@ -787,7 +792,7 @@ export class FlowCanvas {
       go.type = 'button';
       const name = this.#board.layout.boxes.some((x) => x.tile === b.id) ? this.#nameOf(b.id, this.#said(b.id)?.tool ?? 'browse') : b.id;
       go.append(el('span', 'dc-flow-log-name', name),
-        el('span', 'dc-flow-log-rows', b.refused ?? (b.rows === undefined ? '' : `${b.rows.toLocaleString(UI_LOCALE)} ${b.rows === 1 ? 'row' : 'rows'}`)),
+        el('span', 'dc-flow-log-rows', b.refused ?? `${b.rows === undefined ? '' : `${b.rows.toLocaleString(UI_LOCALE)} ${b.rows === 1 ? 'row' : 'rows'}`}${b.wrote !== undefined ? `, wrote ${b.wrote}` : ''}`),
         el('span', 'dc-flow-log-ms', seconds(b.ms)));
       go.title = b.refused ?? `Show ${name}`;
       go.addEventListener('click', () => {
@@ -1143,6 +1148,16 @@ export class FlowCanvas {
   /** What a box does, as it is drawn: its document's (boxSays) -- or, added as a tool and doing nothing yet, that tool,
    *  not set yet. */
   #said(id: string): BoxSays | undefined {
+    const out = this.#board.layout.boxes.find((b) => b.tile === id)?.output;
+    const own = this.#ownSaid(id);
+    // an Output: the file it writes, what its grid does besides after it
+    if (out !== undefined && own !== undefined) {
+      return { tool: 'output', also: own.tool === 'browse' || own.tool === 'output' ? own.also : [own.tool, ...own.also], says: `→ ${out.name}` };
+    }
+    return own;
+  }
+
+  #ownSaid(id: string): BoxSays | undefined {
     const doc = this.#board.options.documentOf?.(id);
     if (doc === undefined) return undefined;
     const said = boxSays(doc);
@@ -1765,6 +1780,7 @@ export class FlowCanvas {
     const clicked = this.#clicked !== undefined && this.#board.layout.boxes.some((b) => b.tile === this.#clicked) ? this.#clicked : undefined;
     const id = this.#board.shown ?? clicked;
     this.#paintInputs(id);
+    this.#paintOutput(id);
     const said = id === undefined ? undefined : this.#said(id);
     const name = id === undefined ? undefined : this.#nameOf(id, said?.tool ?? 'browse');
     const editor = said ? TOOL_EDITORS[said.tool] : undefined;
@@ -1810,6 +1826,68 @@ export class FlowCanvas {
       }
     }
     this.#settingsEmpty.replaceChildren(...parts);
+  }
+
+  /** THE SETTINGS' OUTPUT (M6): the CSV file an Output box writes, named here (Enter, or leaving the field); Write now
+   *  writes it (its rows streamed from the database); Write no file makes it a box that writes none. */
+  #paintOutput(id: string | undefined): void {
+    const out = id === undefined ? undefined : this.#board.layout.boxes.find((b) => b.tile === id)?.output;
+    const key = JSON.stringify([id, out, this.#board.editing]);
+    if (key === this.#outputKey) return;
+    this.#outputKey = key;
+    this.#outputStrip.hidden = out === undefined;
+    if (id === undefined || out === undefined) {
+      this.#outputStrip.replaceChildren();
+      return;
+    }
+    const d = this.#doc;
+    const label = d.createElement('label');
+    label.className = 'dc-flow-input';
+    const words = d.createElement('span');
+    words.className = 'dc-flow-input-side';
+    words.textContent = 'Writes';
+    const name = d.createElement('input');
+    name.className = 'dc-picker-input dc-flow-output-name';
+    name.value = out.name;
+    name.disabled = !this.#board.editing;
+    name.setAttribute('aria-label', 'The CSV file it writes');
+    const said = d.createElement('span');
+    said.className = 'dc-flow-output-said';
+    said.setAttribute('role', 'status');
+    const tell = (): void => {
+      const now = name.value.trim();
+      if (now === out.name) return;
+      if (!now.toLowerCase().endsWith('.csv')) {
+        said.textContent = 'A CSV file\'s name ends .csv';
+        return;
+      }
+      this.#board.options.onOutput?.(id, { format: 'csv', name: now });
+    };
+    name.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') tell();
+      if (e.key === 'Escape') name.value = out.name;
+    });
+    name.addEventListener('change', tell);
+    label.append(words, name);
+    const write = d.createElement('button');
+    write.type = 'button';
+    write.className = 'dc-picker-button dc-primary dc-flow-output-write';
+    write.textContent = 'Write now';
+    write.title = 'Its rows written to the file now -- every row, from the database; Run writes it too';
+    write.addEventListener('click', () => void (async () => {
+      write.disabled = true;
+      said.textContent = 'Writing…';
+      const refused = await (this.#board.options.onWrite?.(id) ?? Promise.resolve('this page writes no file'));
+      said.textContent = refused ?? `Wrote ${out.name}`;
+      write.disabled = false;
+    })());
+    const stop = d.createElement('button');
+    stop.type = 'button';
+    stop.className = 'dc-picker-button dc-quiet';
+    stop.textContent = 'Write no file';
+    stop.hidden = !this.#board.editing;
+    stop.addEventListener('click', () => this.#board.options.onOutput?.(id, null));
+    this.#outputStrip.replaceChildren(label, write, stop, said);
   }
 
   #startSide(e: PointerEvent): void {

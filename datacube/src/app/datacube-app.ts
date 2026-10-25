@@ -1362,7 +1362,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     flowTool = (tool, after, sheet, now, editor, into, port, at) => {
       void (async () => {
         const shown = placed;
-        const { pageCommand } = await lazily(() => import('../page-gestures.ts'));
+        const { outputCommand, pageCommand } = await lazily(() => import('../page-gestures.ts'));
         // let go at a point of the canvas: the box made there, in the same step
         const placedAt = at === undefined ? {} : { after: (id: string) => [pageCommand('placeBox', { tile: id, x: at.x, y: at.y })] };
         if (tool === 'input') {
@@ -1410,13 +1410,18 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           await opened.discard?.();
           return;
         }
+        // an Output writes a CSV named after the box it reads, set in the same step (M6)
+        const writes = tool === 'output'
+          ? (id: string) => [outputCommand(id, live.name)] : undefined;
         const box = page.addGrid(opened.make, {
           near: after,
           ...placedAt,
           ...(into !== undefined ? {
             label: 'Insert Box',
-            after: (id: string) => [pageCommand('setInput', { grid: into.tile, side: into.side, input: { grid: id } })],
-          } : {}),
+            after: (id: string) => [
+              ...(placedAt.after?.(id) ?? []), pageCommand('setInput', { grid: into.tile, side: into.side, input: { grid: id } }), ...(writes?.(id) ?? []),
+            ],
+          } : writes !== undefined ? { label: 'Add Output', after: (id: string) => [...(placedAt.after?.(id) ?? []), ...writes(id)] } : {}),
         });
         // drawn as the tool it was added as, and its settings docked in the flow's settings pane: what the tool is for
         page.boxAddedAs(box, tool);
@@ -1851,3 +1856,4 @@ function appWindows(container: HTMLElement): AppWindows {
     },
   };
 }
+
