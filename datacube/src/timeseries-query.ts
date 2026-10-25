@@ -37,6 +37,8 @@ export const TS_DATE = '__ts_date';
 export const TS_VALUE = '__ts_value';
 export const TS_LOWER = '__ts_lower';
 export const TS_UPPER = '__ts_upper';
+/** A band's width, upper less lower: the database's, so the drawing stacks the band's fill on its lower edge. */
+export const TS_WIDTH = '__ts_width';
 export const TS_SPLIT = '__ts_split';
 /** How many of the grid's rows each period's value was taken from: more than one, for a series of no instrument, is said. */
 export const TS_ROWS = '__ts_rows';
@@ -93,6 +95,7 @@ interface Built {
   readonly value: string;
   readonly lower?: string;
   readonly upper?: string;
+  readonly width?: string;
   readonly split?: string;
   readonly unit: TsUnit;
   readonly rows?: string;
@@ -281,7 +284,8 @@ class Writer {
 }
 
 /** The value a node computes: its column's name, a number, or two columns (a band). */
-type Value = { readonly column: string } | { readonly number: number } | { readonly lower: string; readonly upper: string };
+type Value = { readonly column: string } | { readonly number: number }
+  | { readonly lower: string; readonly upper: string; readonly width: string };
 
 function asOperand(v: Value): ValueSpecification {
   if ('number' in v) return Number.isInteger(v.number) ? lit.integer(v.number) : float(v.number);
@@ -460,10 +464,9 @@ function call(w: Writer, e: Extract<TsExpr, { kind: 'call' }>): Value {
       const k = float(n('k'));
       const mean = w.ramped(w.window('mean', 'average', R(a), Writer.frame(size)), a, size);
       const sd = w.std(a, size);
-      return {
-        lower: w.row('lower', op('minus', one(mean), op('times', k, one(sd)))),
-        upper: w.row('upper', op('plus', one(mean), op('times', k, one(sd)))),
-      };
+      const lower = w.row('lower', op('minus', one(mean), op('times', k, one(sd))));
+      const upper = w.row('upper', op('plus', one(mean), op('times', k, one(sd))));
+      return { lower, upper, width: w.row('width', op('minus', one(upper), one(lower))) };
     }
     case 'rsi': {
       const a = arg(0);
@@ -584,9 +587,9 @@ function seriesRelation(s: CubeSnapshot, ts: TimeseriesSpec, series: TsSeries, f
   for (const [key, name] of byName) w.bases.set(key, name);
   const top = write(w, expr);
   let unit = unitOf(expr);
-  let built: { value: string; lower?: string; upper?: string };
+  let built: { value: string; lower?: string; upper?: string; width?: string };
   if ('lower' in top) {
-    built = { value: top.upper, lower: top.lower, upper: top.upper };
+    built = { value: top.upper, lower: top.lower, upper: top.upper, width: top.width };
   } else {
     let value = columnOf(w, top, 'value');
     // compare: every LEVEL from one start -- a return, a volatility, a z-score drawn as it is
@@ -622,6 +625,7 @@ export function seriesQuery(src: TsSource, ts: TimeseriesSpec, series: TsSeries,
     derive(TS_VALUE, row(col(b.value))),
     ...(b.lower !== undefined ? [derive(TS_LOWER, row(col(b.lower)))] : []),
     ...(b.upper !== undefined ? [derive(TS_UPPER, row(col(b.upper)))] : []),
+    ...(b.width !== undefined ? [derive(TS_WIDTH, row(col(b.width)))] : []),
     ...(b.split !== undefined ? [derive(TS_SPLIT, row(col(b.split)))] : []),
   ];
   const kept = [...out.map((c) => c.name), ...(b.rows !== undefined ? [b.rows] : [])];
@@ -765,4 +769,25 @@ export function readsAnchor(ts: TimeseriesSpec, series: TsSeries): boolean {
 /** The type of the period column of a tile: what a date the viewer passes back is written as. */
 export function periodTypeOf(s: CubeSnapshot, ts: TimeseriesSpec): string {
   return periodOf(ts, typeIn(s, ts.date)).type;
+}
+
+/** The most values the instrument picker lists. */
+export const KEY_VALUES_LIMIT = 2000;
+
+/**
+ * THE VALUES OF A COLUMN, to pick an instrument from (close[...]): each once, in order, at most KEY_VALUES_LIMIT, from
+ * the grid's rows as the chart reads them -- the database's distinct values, as the grid's Filter Values window asks
+ * them.
+ */
+export function keyValuesQuery(src: TsSource, column: string): Lambda {
+  const s = src.snapshot;
+  const typeOf = (c: string): string | undefined => typeIn(s, c);
+  let rel = sourceWithDerived(s);
+  const conditions: ValueSpecification[] = [fn('isNotEmpty', col(column))];
+  if (src.filter) conditions.push(filterNode(src.filter, 'x', typeOf));
+  rel = rel.filter(row(and(...conditions)))
+    .groupBy([column], [agg('__ts_n', row(lit.integer(1)), lambda(['y'], fn('count', variable('y'))))])
+    .sort([asc(column)])
+    .limit(KEY_VALUES_LIMIT);
+  return rel.select([column]).lambda();
 }
