@@ -13,7 +13,7 @@
 
 import type { BandTile } from './band-board.ts';
 import { EMPTY_FLOW, placeAfter, removeBox, type Flow } from './flow.ts';
-import { isLive, type CubeDocument, type CubeInput, type InputSide } from '../cube-document.ts';
+import { isLive, type CubeDocument, type CubeInput, type InputPort, type InputSide } from '../cube-document.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import { lazily } from '../lazily.ts';
@@ -31,10 +31,11 @@ export interface FlowBoardOptions {
   /** A tool of the palette picked -- clicked, after the box shown, or dropped on a box, after it; dropped on the canvas,
    *  after none; dropped on a line, after the box it comes out of and `into` the box it goes into, on that side, which
    *  reads the new box from then on: the caller adds a box of it. */
-  readonly onTool?: (tool: FlowTool, after: string | undefined, editor: StepEditor | undefined, into?: LineEnd) => void;
+  readonly onTool?: (tool: FlowTool, after: string | undefined, editor: StepEditor | undefined, into?: LineEnd, port?: InputPort,
+    at?: FlowPoint) => void;
   /** A line drawn by hand from box `from`'s output into box `tile`'s input on `side` (docs/DATACUBE_FLOW_MODE_2026_10_24.md
    *  M2): the caller links it (setInput, live). */
-  readonly onConnect?: (tile: string, side: InputSide, from: string) => void;
+  readonly onConnect?: (tile: string, side: InputSide, from: string, port?: InputPort) => void;
   /** A line into box `tile` on `side` taken off, or its settings' Freeze: the caller freezes it -- it reads a copy of what
    *  it read (setInput, a copy: FL6). */
   readonly onFreeze?: (tile: string, side: InputSide) => void;
@@ -50,6 +51,12 @@ export interface FlowBoardOptions {
   readonly onDuplicate?: (id: string) => void;
   /** Each box's cube document as the page has it: what it does, and the boxes it reads (the lines into it). */
   readonly documentOf?: (id: string) => CubeDocument | undefined;
+}
+
+/** A point of a flow's canvas, in its own units: where a tool or a line was let go, the box made there placed at it. */
+export interface FlowPoint {
+  readonly x: number;
+  readonly y: number;
 }
 
 /** Where a line goes in: the box, and the side of it (a join's left or right, any other box's one input). */

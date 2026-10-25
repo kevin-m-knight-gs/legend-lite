@@ -15,9 +15,9 @@ import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { fn } from '../../../pure-protocol/src/index.ts';
 import { CubeApp, type CubeAppQuerySource } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
-import { gridCapped, type CubeDocument, type RowsSource } from '../cube-document.ts';
+import { gridCapped, type CubeDocument, type InputPort, type RowsSource } from '../cube-document.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
-import type { LineEnd } from '../layout/flow-board.ts';
+import type { FlowPoint, LineEnd } from '../layout/flow-board.ts';
 import { gridInput } from '../live-inputs.ts';
 import { handleKey } from '../file-handles.ts';
 import { Latest, TabWork, mayLeave } from '../host.ts';
@@ -386,7 +386,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
    *  open sources. */
   let openBox: ((box: string, document: CubeDocument, now: PageDocument) => Promise<GridMaker | undefined>) | undefined;
   let flowTool: ((tool: FlowTool, after: string | undefined, sheet: string, now: PageDocument, editor: StepEditor | undefined,
-    into?: LineEnd) => void) | undefined;
+    into?: LineEnd, port?: InputPort, at?: FlowPoint) => void) | undefined;
   let flowFile: ((file: File) => void) | undefined;
   let flowJoinBox: ((box: string, sheet: string, now: PageDocument) => void) | undefined;
   /** JOIN… (§17.5): grid `cube` joined to another of the page -- in the tab, where a grid reads tables of its database; by
@@ -522,7 +522,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     ...(picks || services.pages ? { onBlankPage: () => blankPage?.({ asked: true }) } : {}),
     // a flow's box shown, over the page as it is now; a tool of its palette added
     openBox: (box, document, now) => openBox?.(box, document, now) ?? Promise.resolve(undefined),
-    onFlowTool: (tool, after, sheet, now, editor, into) => flowTool?.(tool, after, sheet, now, editor, into),
+    onFlowTool: (tool, after, sheet, now, editor, into, port, at) => flowTool?.(tool, after, sheet, now, editor, into, port, at),
     onFlowFile: (file) => flowFile?.(file),
     onFlowJoin: (box, sheet, now) => flowJoinBox?.(box, sheet, now),
     onChange: () => {
@@ -1359,12 +1359,15 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // `after` -- a grid over that box's rows, read live -- over the tables that box's grid reads when it is shown. Dropped
     // on a line, the box that line went into reads the new one, told in the same step (docs/DATACUBE_FLOW_MODE_2026_10_24.md
     // M2): one undo takes the box off and the line back
-    flowTool = (tool, after, sheet, now, editor, into) => {
+    flowTool = (tool, after, sheet, now, editor, into, port, at) => {
       void (async () => {
         const shown = placed;
+        const { pageCommand } = await lazily(() => import('../page-gestures.ts'));
+        // let go at a point of the canvas: the box made there, in the same step
+        const placedAt = at === undefined ? {} : { after: (id: string) => [pageCommand('placeBox', { tile: id, x: at.x, y: at.y })] };
         if (tool === 'input') {
           const make = await picker?.('add');
-          if (make !== undefined && placed === shown) page.addGrid(make);
+          if (make !== undefined && placed === shown) page.addGrid(make, placedAt);
           return;
         }
         if (after === undefined) {
@@ -1375,7 +1378,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           await joinOnFlow({ cube: after, tool, sheet, now, ...(into !== undefined ? { into } : {}) });
           return;
         }
-        const live: RowsSource = { _type: 'rows', name: gridInput(now, after).name, input: { grid: after }, columns: [] };
+        // over its rows, or (`port`) a Filter's False: the rows its condition leaves out (FL7)
+        const live: RowsSource = {
+          _type: 'rows', name: gridInput(now, after, [], port).name, input: { grid: after, ...(port !== undefined ? { port } : {}) }, columns: [],
+        };
         const tables = sources.place(after)?.tables;
         const opened = await sources.openedBox(live, now, { capped: gridCapped(now.cubes.length + 1), ...(tables ? { tables } : {}) });
         if (opened === undefined) return;
@@ -1383,9 +1389,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           await opened.discard?.();
           return;
         }
-        const { pageCommand } = await lazily(() => import('../page-gestures.ts'));
         const box = page.addGrid(opened.make, {
           near: after,
+          ...placedAt,
           ...(into !== undefined ? {
             label: 'Insert Box',
             after: (id: string) => [pageCommand('setInput', { grid: into.tile, side: into.side, input: { grid: id } })],

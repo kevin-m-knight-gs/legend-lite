@@ -9,7 +9,7 @@ import { fieldNames, type CommandFields, type MissingFields } from './command-fi
 import { followCube, readChart, type ChartSpec } from './chart-spec.ts';
 import {
   CubeDocumentError, cubeOpenedAgain, inputOn, isLive, readCube, readCubeInput, readCubeSource, withInputOn, type CubeDocument,
-  type CubeInput, type CubeSource, type InputSide, type JoinInput,
+  type CubeInput, type CubeSource, type InputPort, type InputSide, type JoinInput,
 } from './cube-document.ts';
 import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, type Bands, type Preset,
@@ -390,7 +390,8 @@ function withoutTile(page: PageDocument, tile: string): PageDocument {
   // a grid others read live: each of them reads a copy of what it was from now on (docs/DATACUBE_FLOW_MODE_2026_10_24.md
   // FL6), so no link is left to a grid the page no longer has
   if (view.kind === 'grid' && next.cubes.some((c) => liveGrids(c.cube.source).includes(view.id))) {
-    const copy = gridInput(next, view.id);
+    const page0 = next;
+    const copy = (port: InputPort | undefined): JoinInput => gridInput(page0, view.id, [], port);
     next = {
       ...next,
       cubes: next.cubes.map((c) => (liveGrids(c.cube.source).includes(view.id)
@@ -768,7 +769,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const was = inputOn(source, command.side);
       let input: CubeInput;
       if (command.input !== null) input = command.input;
-      else if (isLive(was)) input = gridInput(page, was.grid);
+      else if (isLive(was)) input = gridInput(page, was.grid, [], was.port);
       else throw new CubeRefusal(`'${command.grid}' reads a copy already: it is frozen`);
       if (sameValue(was, input)) throw new CubeRefusal(`'${command.grid}' reads ${isLive(input) ? `'${input.grid}'` : 'that copy'} already`);
       const next = rewritten(page, {

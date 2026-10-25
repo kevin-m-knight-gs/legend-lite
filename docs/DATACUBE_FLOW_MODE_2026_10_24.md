@@ -625,7 +625,19 @@ dropped by an edit up its chain) and the harness (Run: each box counted -- the I
 both). Still to come: a run's log (each box's time and what it said), and Run on a page Python serves counting by
 Python's engine without showing each box.
 
-**Still open in M2:** ports with several outputs (FL7: a Filter's False, a Unique's Duplicates), a Union of more than
+**Built, a Filter's False** (FL7; `cube-document.ts` `LiveInput.port`, `live-inputs.ts` `gridInput`'s port,
+`layout/flow-canvas.ts`): a live input may name a box's port -- `{grid, port: 'false'}`, its False: the same query with
+its filter turned round, the rows of its input its condition does not hold for (a row its condition is unknown for, a
+null compared, is in neither, as SQL's NOT says). Resolved, frozen (a removal's copy of the port, not the rows), relinked
+and diffed by the same rules as any input; refused in words for a box with no filter. A Filter box draws its True above
+its False (T and F, as Alteryx's anchors); a line drawn from F links the box let go on to the False, and the settings'
+Input offers each Filter's True and False. **A line let go on the canvas, away from every box, makes a Browse of the
+rows it came out with, where it was let go** -- and a tool dropped on the canvas lands where it is let go too (a
+`placeBox` in the same step). Python: `grid.relink(box, port='false')`. Tested by `flow-sheet.test.ts`, `live-inputs`,
+Python's `Flows` and the harness (the Filter's F drawn onto the canvas: a Browse of the 4,497 rows it leaves out, made
+where it was let go).
+
+**Still open in M2:** ports with several outputs besides a Filter's (FL7: a Unique's Duplicates), a Union of more than
 two inputs, Append Fields, Find Replace and Fuzzy Match; and the board's own Join… making live joins too (FL6's "new
 joins are live": the flow's are; the board's still copies, as Python's `page.join` of two board grids).
 

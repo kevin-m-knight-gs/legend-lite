@@ -4499,6 +4499,8 @@
   font-variant-numeric: tabular-nums;
 }
 .dc-flow-count[hidden] { display: none; }
+/* a Filter's: its True rows, above its T port, clear of its F */
+.dc-flow-box[data-tool='filter'] > .dc-flow-count { top: calc(30% - 20px); }
 /* the palette's find field: its tools narrowed to what it holds */
 .dc-flow-find {
   grid-column: 1 / -1;
@@ -4638,7 +4640,22 @@
   background: var(--dc-bg);
 }
 .dc-flow-port-in { left: -5px; }
-.dc-flow-port-out { right: -5px; cursor: crosshair; transition: transform 100ms ease, border-color 100ms ease; }
+.dc-flow-port-out { right: -5px; cursor: crosshair; transition: transform 100ms ease, border-color 100ms ease; font-size: 0; }
+/* a Filter's outputs: its True above its False (Alteryx's T and F), each a port a line is drawn from */
+.dc-flow-port-false { display: none; }
+.dc-flow-box[data-tool='filter'] > .dc-flow-port-out {
+  width: 12px;
+  height: 12px;
+  margin-top: -7px;
+  right: -7px;
+  top: 30%;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  color: var(--dc-muted);
+}
+.dc-flow-box[data-tool='filter'] > .dc-flow-port-false { display: block; top: 70%; }
 .dc-flow-port-out:hover { transform: scale(1.4); border-color: var(--dc-active); background: var(--dc-selected-bg); }
 .dc-flow-view .dc-flow-port-out { cursor: inherit; }
 .dc-flow-view .dc-flow-port-out:hover { transform: none; border-color: var(--dc-line-strong); background: var(--dc-bg); }

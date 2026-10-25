@@ -86,8 +86,11 @@ describe('a grid over another grid\'s rows, as its cube writes it', () => {
       (e: unknown) => e instanceof CubeDocumentError && /another grid's rows has no name/.test(e.message));
     assert.throws(() => read({ _type: 'rows', name: 'a', input: { grid: 'grid-1' } }), /another grid's rows has no columns/);
     assert.throws(() => read({ _type: 'rows', name: 'a', columns: COLUMNS }), /another grid's rows has no input/);
-    assert.throws(() => read({ _type: 'rows', name: 'a', input: { grid: 'grid-1', port: 'false' }, columns: COLUMNS }),
-      /a live input is its grid alone, not port/);
+    // a port is a Filter's False alone (FL7, docs/DATACUBE_FLOW_MODE_2026_10_24.md M2: read since 2026-10-25)
+    assert.throws(() => read({ _type: 'rows', name: 'a', input: { grid: 'grid-1', port: 'true' }, columns: COLUMNS }),
+      /a live input's port is a Filter's 'false', not "true"/);
+    assert.throws(() => read({ _type: 'rows', name: 'a', input: { grid: 'grid-1', at: 1 }, columns: COLUMNS }),
+      /a live input is its grid alone, and its port, not at/);
     assert.throws(() => read({ _type: 'rows', name: 'a', input: { grid: 'chart-1' }, columns: COLUMNS }),
       /a live input names a grid of its page \('grid-3'\), not "chart-1"/);
     assert.throws(() => read({ _type: 'rows', name: 'a', input: { name: '', source: FILE }, columns: COLUMNS }),

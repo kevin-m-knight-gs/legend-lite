@@ -267,14 +267,16 @@ class Grid(Tile):
         self._page._apply_page([_commands.page_place_box(tile=self._id, x=x, y=y)])
         return self
 
-    def relink(self, input: Grid, side: str = 'input') -> Grid:
+    def relink(self, input: Grid, side: str = 'input', port: str | None = None) -> Grid:
         """Its rows read live from grid ``input`` of its page from now on -- a line drawn on its flow from that box's
         output (page-commands.ts setInput; docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) -- its query as it is, the grid then
         opened over ``input`` as it is now (what changed said, as a load says it). ``side``: a join's ``'left'`` or
-        ``'right'``. Refused in DataCube's words: a grid that reads no other grid's rows, one that would read its own."""
+        ``'right'``. ``port='false'``: a Filter's False, the rows its condition leaves out (FL7). Refused in DataCube's
+        words: a grid that reads no other grid's rows, one that would read its own, a False of a grid with no filter."""
         _ = self._view, input._view
+        given = {'grid': input._id, **({'port': port} if port is not None else {})}
         with self._page._batch():
-            self._page._apply_page([_commands.page_set_input(grid=self._id, side=side, input={'grid': input._id})], 'a relink')
+            self._page._apply_page([_commands.page_set_input(grid=self._id, side=side, input=given)], 'a relink')
             self._page._current(self._view['cube'], 3)
         return self
 

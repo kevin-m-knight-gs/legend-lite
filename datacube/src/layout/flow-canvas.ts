@@ -23,8 +23,8 @@
 
 import { BOX_HEIGHT, BOX_WIDTH, MARGIN, type Flow } from './flow.ts';
 import type { FlowBoardState } from './flow-board.ts';
-import type { LineEnd } from './flow-board.ts';
-import type { InputSide } from '../cube-document.ts';
+import type { FlowPoint, LineEnd } from './flow-board.ts';
+import type { InputPort, InputSide } from '../cube-document.ts';
 import { boxInputs, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowTool } from '../flow-boxes.ts';
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { gridTitle } from '../page-ids.ts';
@@ -55,6 +55,10 @@ const ZOOMS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5] as const;
 const GROUP_WORDS: Readonly<Record<'in' | 'prepare' | 'join' | 'transform', string>> = {
   in: 'In', prepare: 'Prepare', join: 'Join', transform: 'Transform',
 };
+
+/** Where a box's output is on its right edge, from its top: a Filter's True above its False (Alteryx's T and F), any
+ *  other box's in the middle. */
+const outY = (filter: boolean, port: InputPort | undefined): number => (!filter ? BOX_HEIGHT / 2 : port === 'false' ? BOX_HEIGHT * 0.7 : BOX_HEIGHT * 0.3);
 
 /** A side's name, as a port and the settings say it. */
 const SIDE_WORDS: Readonly<Record<InputSide, string>> = { input: 'Input', left: 'Left', right: 'Right' };
@@ -142,8 +146,9 @@ export class FlowCanvas {
   /** The line selected (clicked), which Delete takes off; and the one a dragged tool is over. */
   #line: LineEnd | undefined;
   #lineTarget: LineEnd | undefined;
-  /** The line being drawn from a box's output, as the pointer has it (the plane's units), and the side it would go into. */
-  #wire: { readonly from: string; x: number; y: number; to?: LineEnd } | undefined;
+  /** The line being drawn from a box's output (its port), as the pointer has it (the plane's units), and the side it
+   *  would go into. */
+  #wire: { readonly from: string; readonly port?: InputPort; x: number; y: number; to?: LineEnd } | undefined;
   /** A selected line's ×, at its middle. */
   readonly #unlink: HTMLButtonElement;
   /** The settings' inputs: a box's Input (a join's Left and Right), each a box of the flow or a frozen copy. */
@@ -491,8 +496,11 @@ export class FlowCanvas {
       }
       // let go on a box: after it; on a line: between its boxes; on the canvas: after none; anywhere else: nothing
       if (over !== undefined) this.#board.options.onTool?.(tool, over, editor);
-      else if (line !== undefined) this.#board.options.onTool?.(tool, this.#fromOf(line), editor, line);
-      else if (ev && this.#onCanvas(ev.clientX, ev.clientY)) this.#board.options.onTool?.(tool, undefined, editor);
+      else if (line !== undefined) {
+        const from = this.#fromOf(line);
+        this.#board.options.onTool?.(tool, from?.grid, editor, line, from?.port);
+      }
+      else if (ev && this.#onCanvas(ev.clientX, ev.clientY)) this.#board.options.onTool?.(tool, undefined, editor, undefined, undefined, this.#pointAt(ev));
     });
   }
 
@@ -506,6 +514,14 @@ export class FlowCanvas {
     for (const heading of this.#palette.querySelectorAll<HTMLElement>('.dc-flow-group')) {
       heading.hidden = PALETTE.every((t) => FLOW_TOOLS[t].group !== heading.dataset['group'] || this.#tools.get(t)!.hidden);
     }
+  }
+
+  /** A box's place to be made at a point of the window: its middle there, in the canvas's own units. */
+  #pointAt(ev: PointerEvent): FlowPoint {
+    const r = this.#plane.getBoundingClientRect();
+    const x = (ev.clientX - r.left) / this.#zoom - BOX_WIDTH / 2;
+    const y = (ev.clientY - r.top) / this.#zoom - BOX_HEIGHT / 2;
+    return { x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)) };
   }
 
   /** The box under a point of the window, if one is. */
@@ -548,10 +564,13 @@ export class FlowCanvas {
     const into = port('dc-flow-port-in');
     const left = port('dc-flow-port-in dc-flow-port-left', 'L');
     const right = port('dc-flow-port-in dc-flow-port-right', 'R');
-    // its output: pressed and dragged onto another box, a line linking them
-    const out = port('dc-flow-port-out');
+    // its output: pressed and dragged onto another box, a line linking them -- a Filter's True, and its False below it
+    const out = port('dc-flow-port-out', 'T');
     out.title = 'Drag onto another box to link it here';
     out.addEventListener('pointerdown', (e) => this.#startWire(id, out, e));
+    const outFalse = port('dc-flow-port-out dc-flow-port-false', 'F');
+    outFalse.title = 'Its False: the rows its condition leaves out. Drag onto another box to link it here';
+    outFalse.addEventListener('pointerdown', (e) => this.#startWire(id, outFalse, e, 'false'));
     const glyph = doc.createElement('span');
     glyph.className = 'dc-flow-icon';
     const text = doc.createElement('div');
@@ -572,7 +591,7 @@ export class FlowCanvas {
       e.stopPropagation();
       this.#board.options.onRemove?.(id);
     });
-    root.append(into, left, right, glyph, text, count, remove, out);
+    root.append(into, left, right, glyph, text, count, remove, out, outFalse);
     const drawn: Drawn = { root, icon: glyph, name, says, count, remove, key: '', renaming: false };
     root.addEventListener('pointerdown', (e) => this.#startBox(id, drawn, e));
     root.addEventListener('keydown', (e) => this.#onBoxKey(id, drawn, e));
@@ -652,7 +671,7 @@ export class FlowCanvas {
     if (doc === undefined) return undefined;
     const said = boxSays(doc);
     const added = this.#board.addedAs(id);
-    return said.tool === 'browse' && added !== undefined ? { tool: added, also: [], says: 'not set yet' } : said;
+    return said.tool === 'browse' && added !== undefined && added !== 'browse' ? { tool: added, also: [], says: 'not set yet' } : said;
   }
 
   /** What a box is called on the canvas: the name a person gave it, else its tool's (a flow never says "grid"). */
@@ -827,10 +846,15 @@ export class FlowCanvas {
     return doc === undefined ? [] : boxInputs(doc);
   }
 
-  /** The box a line comes out of. */
-  #fromOf(line: LineEnd): string | undefined {
+  /** The box a line comes out of, and its port. */
+  #fromOf(line: LineEnd): { readonly grid: string; readonly port?: InputPort } | undefined {
     const i = this.#inputsOf(line.tile).find((x) => x.side === line.side);
-    return i !== undefined && 'grid' in i ? i.grid : undefined;
+    return i !== undefined && 'grid' in i ? { grid: i.grid, ...(i.port !== undefined ? { port: i.port } : {}) } : undefined;
+  }
+
+  /** Whether a box is drawn as a Filter: its True and False outputs. */
+  #isFilter(id: string): boolean {
+    return this.#said(id)?.tool === 'filter';
   }
 
   /**
@@ -851,7 +875,7 @@ export class FlowCanvas {
         const a = at.get(input.grid);
         if (!a) continue;
         const x1 = a.x + BOX_WIDTH;
-        const y1 = a.y + BOX_HEIGHT / 2;
+        const y1 = a.y + outY(this.#isFilter(input.grid), input.port);
         const x2 = box.x;
         const y2 = box.y + portY(input.side);
         lines.push({ end: { tile: box.tile, side: input.side }, d: curve(x1, y1, x2, y2), mid: { x: (x1 + x2) / 2, y: (y1 + y2) / 2 } });
@@ -860,7 +884,7 @@ export class FlowCanvas {
     const w = this.#wire;
     const wire = w === undefined ? undefined : (() => {
       const a = at.get(w.from);
-      return a === undefined ? undefined : curve(a.x + BOX_WIDTH, a.y + BOX_HEIGHT / 2, w.x, w.y);
+      return a === undefined ? undefined : curve(a.x + BOX_WIDTH, a.y + outY(this.#isFilter(w.from), w.port), w.x, w.y);
     })();
     // a line selected or marked that is gone (its box taken off, linked elsewhere) is let go
     const keys = new Set(lines.map((l) => lineKey(l.end)));
@@ -935,7 +959,7 @@ export class FlowCanvas {
 
   /** Where a line let go at a point of the window goes in: the box under it that reads another's rows -- a join's left
    *  or right by the half it is let go on -- never `from` itself, nor a box that reads `from` already on that side. */
-  #endAt(from: string, x: number, y: number): LineEnd | undefined {
+  #endAt(from: string, x: number, y: number, port?: InputPort): LineEnd | undefined {
     const tile = this.#boxAt(x, y);
     if (tile === undefined || tile === from) return undefined;
     const inputs = this.#inputsOf(tile);
@@ -943,13 +967,13 @@ export class FlowCanvas {
     const r = this.#boxes.get(tile)!.root.getBoundingClientRect();
     const side: InputSide = inputs.length === 1 ? inputs[0]!.side : (y - r.top < r.height / 2 ? 'left' : 'right');
     const now = inputs.find((i) => i.side === side);
-    if (now !== undefined && 'grid' in now && now.grid === from) return undefined;
+    if (now !== undefined && 'grid' in now && now.grid === from && now.port === port) return undefined;
     return { tile, side };
   }
 
-  /** A line drawn from box `from`'s output: it follows the pointer, and let go on a box that reads another's rows, links
-   *  it (onConnect). */
-  #startWire(from: string, port: HTMLElement, e: PointerEvent): void {
+  /** A line drawn from box `from`'s output (`which`: its False): it follows the pointer, and let go on a box that reads
+   *  another's rows, links it (onConnect); let go on the canvas, a box of its rows there (a Browse). */
+  #startWire(from: string, port: HTMLElement, e: PointerEvent, which?: InputPort): void {
     if (e.button !== 0 || !this.#board.editing) return;
     e.preventDefault();
     e.stopPropagation();
@@ -958,24 +982,29 @@ export class FlowCanvas {
       const r = this.#plane.getBoundingClientRect();
       return { x: (ev.clientX - r.left) / this.#zoom, y: (ev.clientY - r.top) / this.#zoom };
     };
-    this.#wire = { from, ...plane(e) };
+    this.#wire = { from, ...(which !== undefined ? { port: which } : {}), ...plane(e) };
     this.#host.classList.add('dc-flow-wiring');
     this.#own(port, e, (ev) => {
       const w = this.#wire;
       if (w === undefined) return;
-      const to = this.#endAt(from, ev.clientX, ev.clientY);
+      const to = this.#endAt(from, ev.clientX, ev.clientY, which);
       this.#mark(to?.tile);
       // drawn to the port it would go into, else to the pointer
       const box = to === undefined ? undefined : this.#placed(this.#board.layout).boxes.find((b) => b.tile === to.tile);
       Object.assign(w, box !== undefined && to !== undefined ? { x: box.x, y: box.y + portY(to.side), to } : { ...plane(ev), to: undefined });
       this.#paintLines(this.#placed(this.#board.layout));
-    }, (apply) => {
+    }, (apply, ev) => {
       const to = this.#wire?.to;
       this.#wire = undefined;
       this.#host.classList.remove('dc-flow-wiring');
       this.#mark(undefined);
       this.#paintLines(this.#placed(this.#board.layout));
-      if (apply && to !== undefined) this.#board.options.onConnect?.(to.tile, to.side, from);
+      if (!apply) return;
+      if (to !== undefined) this.#board.options.onConnect?.(to.tile, to.side, from, which);
+      // let go on the canvas, away from any box: a box of the rows it came out with
+      else if (ev !== undefined && this.#boxAt(ev.clientX, ev.clientY) === undefined && this.#onCanvas(ev.clientX, ev.clientY)) {
+        this.#board.options.onTool?.('browse', from, undefined, undefined, which, this.#pointAt(ev));
+      }
     });
   }
 
@@ -1011,7 +1040,11 @@ export class FlowCanvas {
     const boxes = this.#board.layout.boxes.map((b) => b.tile);
     const readers = id === undefined || inputs.length === 0 ? new Set<string>()
       : readersOf(id, boxes, (b) => this.#board.options.documentOf?.(b));
-    const offered = boxes.filter((b) => b !== id && !readers.has(b)).map((b) => ({ id: b, name: this.#nameOf(b, this.#said(b)?.tool ?? 'browse') }));
+    // each box of the flow, and a Filter's False besides
+    const offered = boxes.filter((b) => b !== id && !readers.has(b)).flatMap((b) => {
+      const name = this.#nameOf(b, this.#said(b)?.tool ?? 'browse');
+      return this.#isFilter(b) ? [{ id: b, name: `${name} (True)` }, { id: b, name: `${name} (False)`, port: 'false' as const }] : [{ id: b, name }];
+    });
     const key = JSON.stringify([id, inputs, offered, this.#board.editing]);
     if (key === this.#inputsKey) return;
     this.#inputsKey = key;
@@ -1033,13 +1066,19 @@ export class FlowCanvas {
         o.selected = on;
         return o;
       };
-      for (const o of offered) pick.append(option(o.name, `grid:${o.id}`, 'grid' in input && input.grid === o.id));
+      for (const o of offered) {
+        const port = 'port' in o ? o.port : undefined;
+        pick.append(option(o.name, `grid:${o.id}${port !== undefined ? `:${port}` : ''}`, 'grid' in input && input.grid === o.id && input.port === port));
+      }
       // a copy: what it reads when frozen -- or, live, Freeze: a copy of what it reads now
       pick.append(option('frozen' in input ? `A frozen copy of ${input.frozen}` : 'Freeze: a copy of its rows now', 'frozen', 'frozen' in input));
       pick.addEventListener('change', () => {
         const v = pick.value;
         if (v === 'frozen') this.#board.options.onFreeze?.(id!, input.side);
-        else this.#board.options.onConnect?.(id!, input.side, v.slice('grid:'.length));
+        else {
+          const [grid, port] = v.slice('grid:'.length).split(':');
+          this.#board.options.onConnect?.(id!, input.side, grid!, port === 'false' ? 'false' : undefined);
+        }
       });
       row.append(words, pick);
       return row;

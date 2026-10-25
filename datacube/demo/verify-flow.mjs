@@ -88,7 +88,7 @@ const readsOf = (id) => page.evaluate((tile) => {
   const doc = window.__dataPage.document('x');
   const view = doc.views.find((v) => v.id === tile);
   const source = doc.cubes.find((c) => c.id === view.cube).cube.source;
-  const side = (i) => ('grid' in i ? i.grid : 'copy');
+  const side = (i) => ('grid' in i ? (i.port ? `${i.grid}:${i.port}` : i.grid) : 'copy');
   return source._type === 'rows' ? side(source.input) : source._type === 'join' ? [side(source.left), side(source.right)] : null;
 }, id);
 /** The middle of the line into `tile`, in the window's points. */
@@ -98,6 +98,18 @@ const lineMiddle = (tile) => page.evaluate((t) => {
   const r = document.querySelector('.dc-flow-plane').getBoundingClientRect();
   return { x: r.left + p.x, y: r.top + p.y };
 }, tile);
+/** A point of the window on the canvas, away from every box, port and line: where a line let go makes a box. */
+const emptyCanvasPoint = () => page.evaluate(() => {
+  const c = document.querySelector('.dc-flow-canvas').getBoundingClientRect();
+  for (let y = c.bottom - 30; y > c.top + 60; y -= 24) {
+    for (let x = c.left + 100; x < c.right - 100; x += 24) {
+      const hit = document.elementsFromPoint(x, y);
+      if (hit.some((e) => e.closest?.('.dc-flow-box, .dc-flow-toolbar') || e.classList?.contains('dc-flow-hit'))) continue;
+      return { x, y, canvasX: x - document.querySelector('.dc-flow-plane').getBoundingClientRect().left };
+    }
+  }
+  throw new Error('no empty place on the canvas');
+});
 /** A box shown, its rows once they have come. */
 async function show(id) {
   await page.locator(`.dc-flow-box[data-tile="${id}"]`).click();
@@ -215,7 +227,7 @@ try {
   // A LINE DRAWN by hand: from the Input's output onto the Formula, which reads the Input from then on -- one step, undone
   // (the canvas scrolled back to its start: a box added was scrolled into view, the Input's port under the palette)
   await page.locator('.dc-flow-canvas').evaluate((c) => { c.scrollLeft = 0; c.scrollTop = 0; });
-  const outPort = await page.locator(`.dc-flow-box[data-tile="${input.id}"] .dc-flow-port-out`).boundingBox();
+  const outPort = await page.locator(`.dc-flow-box[data-tile="${input.id}"] .dc-flow-port-out:not(.dc-flow-port-false)`).boundingBox();
   const onto = await page.locator(`.dc-flow-box[data-tile="${formula.id}"]`).boundingBox();
   await page.mouse.move(outPort.x + outPort.width / 2, outPort.y + outPort.height / 2);
   await page.mouse.down();
@@ -464,6 +476,25 @@ try {
   check(await page.locator('.dc-flow-dock [role="tab"][aria-selected="true"]').getAttribute('data-tab') === 'Horizontal Pivots',
     'Properties at its column labels (its column pivots)');
   await page.screenshot({ path: outPath('flow-tools.png') });
+
+  // A FILTER'S FALSE (FL7): a line from its F port let go on the canvas -- a Browse of the rows its condition leaves out
+  await page.locator('.dc-flow-canvas').evaluate((c) => { c.scrollLeft = 0; c.scrollTop = 0; });
+  const beforeFalse = (await boxes()).map((b) => b.id);
+  await page.locator(`.dc-flow-box[data-tile="${filter.id}"]`).scrollIntoViewIfNeeded();
+  const fPort = await page.locator(`.dc-flow-box[data-tile="${filter.id}"] .dc-flow-port-false`).boundingBox();
+  const freeSpot = await emptyCanvasPoint();
+  await page.mouse.move(fPort.x + fPort.width / 2, fPort.y + fPort.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(freeSpot.x, freeSpot.y, { steps: 12 });
+  await page.mouse.up();
+  await boxCount(beforeFalse.length + 1);
+  const leftOut = await added(beforeFalse);
+  check(leftOut.tool === 'browse' && await readsOf(leftOut.id) === `${filter.id}:false`, `a Browse of the Filter's False: ${JSON.stringify(leftOut)}, ${await readsOf(leftOut.id)}`);
+  await settled();
+  check(await resultRows() === all - fewer, `the rows it leaves out: ${all} - ${fewer}`);
+  const leftAt = await page.evaluate((id) => window.__dataPage.document('x').sheets.find((s) => s.layout.kind === 'flow').layout.boxes.find((b) => b.tile === id), leftOut.id);
+  check(Math.abs(leftAt.x + 92 - freeSpot.canvasX) <= 2, `made where its line was let go: (${leftAt.x}, ${leftAt.y}), its middle at ${freeSpot.canvasX}`);
+  await page.screenshot({ path: outPath('flow-false.png') });
 
   // TIDY UP (M7): a box pushed out of place, then every box a column after the boxes it reads -- one step; then a box's
   // menu, Duplicate

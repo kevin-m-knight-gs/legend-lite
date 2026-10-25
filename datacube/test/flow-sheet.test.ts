@@ -13,7 +13,7 @@ import { add, NEW_SHEET } from '../src/layout/bands.ts';
 import {
   BOX_HEIGHT, BOX_WIDTH, EMPTY_FLOW, FlowRefusal, GAP_X, GAP_Y, MARGIN, arranged, flowProblems, moveBox, placeAfter, removeBox,
 } from '../src/layout/flow.ts';
-import { liveGrids } from '../src/live-inputs.ts';
+import { liveGrids, resolvedSource } from '../src/live-inputs.ts';
 import { applyPageCommand, idsOf, readPageCommand, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import {
   boxCubes, layoutTiles, pageToJson, readPage, unnamedLabel, writePageOf, PageDocumentError, type PageDocument,
@@ -306,6 +306,31 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
     assert.deepEqual(filed.notes, ['1 new column since this cube was saved, hidden: desk']);
   });
 
+  it("reads a Filter's False port (FL7): its input's rows its condition does not hold for; refused with no filter", () => {
+    const d = apply(FLOW(), { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3', port: 'false' } });
+    const live = sourceOf(d.page, 'grid-4');
+    assert.deepEqual(live._type === 'rows' ? live.input : undefined, { grid: 'grid-3', port: 'false' });
+    assert.deepEqual(liveGrids(live), ['grid-3']);
+    // resolved: the Filter's query, its condition turned round
+    const read = resolvedSource(d.page, live, 'grid-4');
+    const filter = read._type === 'rows' && !isLive(read.input) ? read.input.query.filter : undefined;
+    assert.deepEqual(filter, { kind: 'not', child: { kind: 'condition', column: 'notional', operator: 'greaterThan', value: 100 } });
+    // frozen when the Filter goes: a copy of its False, not its rows
+    const gone = apply(d, { kind: 'removeTile', tile: 'grid-3' }).page;
+    const frozen = sourceOf(gone, 'grid-4');
+    assert.equal(frozen._type === 'rows' && !isLive(frozen.input) ? frozen.input.query.filter?.kind : undefined, 'not');
+    // a box with no filter has no False
+    refused(() => apply(FLOW(), { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-2', port: 'false' } }),
+      /'grid-2' has no filter: its False port leaves no row out/);
+    assert.deepEqual(readPageCommand({ kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3', port: 'false' } }),
+      { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3', port: 'false' } });
+    assert.throws(() => readPageCommand({ kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3', port: 'true' } }),
+      /a live input's port is a Filter's 'false', not "true"/);
+    assert.deepEqual(renamedCommand({ kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3', port: 'false' } }, new Map([['grid-3', 'grid-9']])),
+      { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-9', port: 'false' } });
+    assert.deepEqual(boxInputs(d.page.cubes.find((c) => c.id === 'grid-4')!.cube), [{ side: 'input', grid: 'grid-3', port: 'false' }]);
+  });
+
   it("sets a Join box's join again (setJoin): its inputs as they are, undone by the commands between", () => {
     const join: CubeSource = {
       _type: 'join', name: 'trades ⋈ trades', left: { grid: 'grid-3' }, right: { grid: 'grid-4' }, columns: COLUMNS,
@@ -330,7 +355,7 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
       { kind: 'setInput', grid: 'grid-5', side: 'right', input: null },
     ]) assert.deepEqual(readPageCommand(JSON.parse(JSON.stringify(c))), c);
     assert.throws(() => readPageCommand({ kind: 'setInput', grid: 'grid-3', side: 'top', input: null }), /its input, or a join's left or right, not "top"/);
-    assert.throws(() => readPageCommand({ kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2', x: 1 } }), /a live input is its grid alone, not x/);
+    assert.throws(() => readPageCommand({ kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2', x: 1 } }), /a live input is its grid alone, and its port, not x/);
     const renamed = new Map([['grid-2', 'grid-8'], ['grid-3', 'grid-7']]);
     assert.deepEqual(renamedCommand({ kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2' } }, renamed),
       { kind: 'setInput', grid: 'grid-7', side: 'input', input: { grid: 'grid-8' } });

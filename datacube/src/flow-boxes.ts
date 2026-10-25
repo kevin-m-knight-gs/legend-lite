@@ -5,7 +5,9 @@
 //
 // PURE: no DOM, no planner. The tools a person adds from the palette are here too, by the words the canvas shows.
 
-import { inputCube, inputOn, inputSides, isLive, type CubeDocument, type InputSide, type JoinInput } from './cube-document.ts';
+import {
+  inputCube, inputOn, inputSides, isLive, type CubeDocument, type InputPort, type InputSide, type JoinInput,
+} from './cube-document.ts';
 import { joinWords } from './join-words.ts';
 import { conditionWords } from './page-filters.ts';
 import type { DerivedColumn } from './snapshot.ts';
@@ -138,14 +140,14 @@ function hiddenColumns(cube: CubeDocument): string[] {
  *  a box's one input, a join's left and right -- and the box it reads there live, or the name of the copy it reads
  *  (frozen: FL6). The line into it, and its settings' Input. */
 export type BoxInput =
-  | { readonly side: InputSide; readonly grid: string }
+  | { readonly side: InputSide; readonly grid: string; readonly port?: InputPort }
   | { readonly side: InputSide; readonly frozen: string };
 
 /** A box's inputs, from its cube document: none for an Input (it reads a source of its own). */
 export function boxInputs(cube: CubeDocument): BoxInput[] {
   return inputSides(cube.source).map((side) => {
     const input = inputOn(cube.source, side);
-    return isLive(input) ? { side, grid: input.grid } : { side, frozen: copyName(input) };
+    return isLive(input) ? { side, grid: input.grid, ...(input.port !== undefined ? { port: input.port } : {}) } : { side, frozen: copyName(input) };
   });
 }
 

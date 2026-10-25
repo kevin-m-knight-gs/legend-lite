@@ -542,7 +542,13 @@ try {
     const says = await page.locator('.dc-flow-box .dc-flow-says').allTextContents();
     await shot(page, 'the flow, its Summarize shown');
     if (says.length !== 3 || !/500000/.test(says[1] ?? '') || says[2] !== 'by region') throw new Error(`the boxes say ${says.join(' | ')}`);
-    return says.join(' → ');
+    // Run (M5): each box shown in turn, its rows counted beside its output
+    await page.click('.dc-flow-run');
+    await page.waitForFunction(() => /Run$/.test(document.querySelector('.dc-flow-run')?.textContent ?? '')
+      && document.querySelectorAll('.dc-flow-count:not([hidden])').length === 3, null, { timeout: 120_000 });
+    const counts = await page.locator('.dc-flow-count').allTextContents();
+    await shot(page, 'the flow run, each box counted');
+    return `${says.join(' → ')}; counted ${counts.join(', ')}`;
   });
 
   await step('No page errors on the way', async () => {

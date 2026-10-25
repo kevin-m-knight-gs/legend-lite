@@ -2678,6 +2678,10 @@ class Flows(Paged):
         self.assertEqual(sorted(top.to_pandas()['notional']), [250.0])
         with self.assertRaisesRegex(ValueError, 'a relink: .*reads its own rows'):
             big.relink(top)
+        # a Filter's False (FL7): the rows its condition leaves out
+        top.relink(big, port='false')
+        self.assertEqual(sorted(top.to_pandas()['notional']), [75.5, 100.0])
+        top.relink(big)
         with self.assertRaisesRegex(ValueError, 'a freeze: .*reads no other grid: it has no input'):
             source.freeze()
         # saved and loaded: the link kept

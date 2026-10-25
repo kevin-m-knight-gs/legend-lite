@@ -34,7 +34,7 @@ import { MenuView } from '../ui/menu-view.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
-import { FlowBoard, type LineEnd } from '../layout/flow-board.ts';
+import { FlowBoard, type FlowPoint, type LineEnd } from '../layout/flow-board.ts';
 import { liveGrids } from '../live-inputs.ts';
 import { EMPTY_FLOW, flowTiles } from '../layout/flow.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
@@ -52,7 +52,7 @@ import {
 } from '../page-gestures.ts';
 import { chartTitle, gridTitle, nextPageId, textTitle } from '../page-ids.ts';
 import type { PageCommand } from '../page-commands.ts';
-import type { CubeDocument, CubeSource } from '../cube-document.ts';
+import type { CubeDocument, CubeSource, InputPort } from '../cube-document.ts';
 import type { GridCopy, PageDocument } from '../page-document.ts';
 import { sameValue, withoutConditions, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
@@ -252,7 +252,8 @@ export interface CubePageOptions {
   /** A tool of a flow's palette picked: a box of it added to flow `sheet`, after box `after` (none: on its own), its
    *  settings (`editor`) opened once it is shown -- dropped on a line, `into` the box that line goes into, which reads
    *  the new box from then on. */
-  readonly onTool?: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined, into?: LineEnd) => void;
+  readonly onTool?: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined, into?: LineEnd,
+    port?: InputPort, at?: FlowPoint) => void;
   /** A flow's Join or Union box's settings asked for (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): the Join window over its
    *  inputs, opened by the page's owner -- a window over the page, never docked. */
   readonly onJoinBox?: (box: string, sheet: string) => void;
@@ -523,10 +524,10 @@ export class CubePage {
         if (this.#saved(tile)) this.#tell('Rename Tile', pageCommand('renameTile', { tile, title }));
         this.#options.onChange();
       },
-      onTool: (tool, after, editor, into) => this.#options.onTool?.(tool, after, id, editor, into),
+      onTool: (tool, after, editor, into, port, at) => this.#options.onTool?.(tool, after, id, editor, into, port, at),
       // a line drawn, taken off, or set in a box's settings: what the box reads (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
-      onConnect: (tile, side, from) => {
-        this.#tell('Link Box', pageCommand('setInput', { grid: tile, side, input: { grid: from } }));
+      onConnect: (tile, side, from, port) => {
+        this.#tell('Link Box', pageCommand('setInput', { grid: tile, side, input: { grid: from, ...(port !== undefined ? { port } : {}) } }));
         this.#options.onChange();
       },
       onFreeze: (tile, side) => {

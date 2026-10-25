@@ -206,10 +206,15 @@ export interface RowsSource {
   readonly columns: readonly { readonly name: string; readonly type: string }[];
 }
 
-/** A LIVE INPUT (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL6): the grid of this id on the same page, as it is now. */
+/** A LIVE INPUT (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL6): the grid of this id on the same page, as it is now -- or one
+ *  of its ports (FL7): `false`, the rows its filter leaves out (a Filter's False output). */
 export interface LiveInput {
   readonly grid: string;
+  readonly port?: InputPort;
 }
+
+/** A grid's output besides its rows (FL7): a Filter's False -- its input's rows its condition does not hold for. */
+export type InputPort = 'false';
 
 /** An input of a grid over another's rows: live (the grid on the page), or frozen (what a grid was: a join's input). */
 export type CubeInput = LiveInput | JoinInput;
@@ -562,12 +567,15 @@ function readRowsSource(s: Record<string, unknown>): RowsSource {
 /** An input (`what`, as said), live -- `{grid}`, a grid of its page -- or frozen, a copy of what a grid was. */
 function readInput(i: Record<string, unknown>, what: string): CubeInput {
   if (!('grid' in i)) return readFrozenInput(i, what);
-  const extra = Object.keys(i).filter((k) => k !== 'grid');
-  if (extra.length > 0) throw new CubeDocumentError(`a live input is its grid alone, not ${extra.join(', ')}`);
+  const extra = Object.keys(i).filter((k) => k !== 'grid' && k !== 'port');
+  if (extra.length > 0) throw new CubeDocumentError(`a live input is its grid alone, and its port, not ${extra.join(', ')}`);
   if (typeof i['grid'] !== 'string' || !idShape('grid').test(i['grid'])) {
     throw new CubeDocumentError(`a live input names a grid of its page ('grid-3'), not ${JSON.stringify(plain(i['grid']) ?? null)}`);
   }
-  return { grid: i['grid'] };
+  if (i['port'] !== undefined && i['port'] !== 'false') {
+    throw new CubeDocumentError(`a live input's port is a Filter's 'false', not ${JSON.stringify(plain(i['port']) ?? null)}`);
+  }
+  return i['port'] === 'false' ? { grid: i['grid'], port: 'false' } : { grid: i['grid'] };
 }
 
 /** An input read from JSON (a page command's: setInput), refused in words as a cube's own reader refuses it. */

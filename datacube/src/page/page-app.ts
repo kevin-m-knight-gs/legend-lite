@@ -47,7 +47,7 @@ import { pageCommand, tidyCommands } from '../page-gestures.ts';
 import { PageState } from '../page-state.ts';
 import { givenName } from '../page-names.ts';
 import type { PageModelRef } from '../page-model.ts';
-import { configurationOf, openCube, type CubeDocument, type CubeSource } from '../cube-document.ts';
+import { configurationOf, openCube, type CubeDocument, type CubeSource, type InputPort } from '../cube-document.ts';
 import type { GridCopy } from '../page-document.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import type { CubeConfiguration } from '../config.ts';
@@ -57,7 +57,7 @@ import type { GridCommand } from '../grid-commands.ts';
 import { lazily } from '../lazily.ts';
 import { longPressMenus } from '../ui/long-press.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
-import type { LineEnd } from '../layout/flow-board.ts';
+import type { FlowPoint, LineEnd } from '../layout/flow-board.ts';
 
 /** What the page needs of a grid on it (a CubeApp in a tile). */
 export interface PageGrid extends SpawnedGrid {
@@ -157,7 +157,7 @@ export interface PageAppOptions {
   /** A tool of a flow's palette picked: a box of it on flow `sheet`, after box `after` (none: on its own), made by the
    *  host over the page as it is now -- its settings (`editor`) opened on its grid once it is made (PageGrid.openStep). */
   readonly onFlowTool?: (tool: FlowTool, after: string | undefined, sheet: string, page: PageDocument, editor: StepEditor | undefined,
-    into?: LineEnd) => void;
+    into?: LineEnd, port?: InputPort, at?: FlowPoint) => void;
   /** A file dropped onto a flow's canvas: an Input box over it, opened by the host as its picker opens a file. */
   readonly onFlowFile?: (file: File) => void;
   /** A flow's Join or Union box's settings asked for: the Join window over its inputs, opened by the host over the page
@@ -1015,8 +1015,8 @@ export class PageApp {
         if (commands.length > 0 && this.#edit({ label: 'Tidy Up', commands })) this.#options.onChange?.();
       },
       ...(this.#options.onFlowTool ? {
-        onTool: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined, into?: LineEnd) =>
-          this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page, editor, into),
+        onTool: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined, into?: LineEnd, port?: InputPort,
+          at?: FlowPoint) => this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page, editor, into, port, at),
       } : {}),
     });
   }
