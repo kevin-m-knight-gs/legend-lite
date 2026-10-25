@@ -510,8 +510,9 @@ _HEADLESS_TESTS = [
     "page-gestures",
     # a text tile's words read, and written by an export (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md P4)
     "page-text",
-    # a timeseries tile's spec read and its expressions parsed (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md)
+    # a timeseries tile's spec read and its expressions parsed, and its drawing (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md)
     "timeseries-spec",
+    "timeseries-option",
     # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
     "cube-round-trip",
     "cube-state",
