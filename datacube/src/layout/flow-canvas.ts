@@ -55,7 +55,7 @@ const ZOOMS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5] as const;
 
 /** Each palette group's heading. */
 const GROUP_WORDS: Readonly<Record<FlowGroup, string>> = {
-  in: 'In', prepare: 'Prepare', join: 'Join', transform: 'Transform', docs: 'Notes',
+  in: 'In', prepare: 'Prepare', join: 'Join', parse: 'Parse', transform: 'Transform', docs: 'Notes',
 };
 
 /** Where a box's output is on its right edge, from its top: a Filter's True above its False (Alteryx's T and F), any
@@ -72,6 +72,9 @@ const lineKey = (end: LineEnd): string => `${end.tile}:${end.side}`;
 const ICONS: Readonly<Record<FlowTool, string>> = {
   input: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v8c0 1.1-2.2 2-5 2s-5-.9-5-2zM3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 8c0 1.1 2.2 2 5 2s5-.9 5-2',
   textInput: 'M2 2.5h12v11H2zM2 6h12M6.5 2.5v11M8.5 9.5h4M8.5 11.5h2.5',
+  cleanse: 'M10 2l4 4-6.5 6.5H3.5V8.5zM8 4l4 4M2 14.5h12',
+  textToColumns: 'M2 4.5h12M2 8h4M10 8h4M2 11.5h4M10 11.5h4M8 6v8',
+  regex: 'M4 2.5v6M1.5 4l5 3M6.5 4l-5 3M10 2.5l-2 11M14 2.5l-2 11M8.5 9.5H14',
   join: 'M6 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9M10 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9',
   union: 'M2.5 3h11v4h-11zM2.5 9h11v4h-11z',
   recordId: 'M6 2.5L4.5 13.5M11.5 2.5L10 13.5M2.5 6h11M2 10.5h11',

@@ -246,7 +246,7 @@ How to read the status column:
 | Unique (Unique, Duplicates) | Step | `removeDuplicatesBy`; the Duplicates port (§3.3) |
 | Record ID | Built | A window column: `rowNumber` |
 | Tile | Built | A window column: `ntile` |
-| Data Cleansing | Step | Presets of calculated columns: `trim`, `toUpper`, `toLower`, `replace`, `regexpReplace`, empties to a value (§17.6) |
+| Data Cleansing | Built (2026-10-25) | Calculated columns, a `<column>_clean` each: empties made blank (`coalesce`), punctuation out and repeated spaces one (`regexpReplace`), `trim`, `toUpper` / `toLower` (§17.6). In place, as Alteryx's, needs a relation `rename` |
 | Imputation | Step | A preset: `coalesce` with the column's average, median or a value |
 | Date Filter | Built | The filter, on a date column |
 | Generate Rows | Later | Core has no relation that makes rows from a rule; needs a design |
@@ -269,9 +269,9 @@ How to read the status column:
 
 | Tool | Status | How |
 |---|---|---|
-| Text To Columns (to columns) | Step | `splitPart`, one calculated column per part |
+| Text To Columns (to columns) | Built (2026-10-25) | `splitPart`, one calculated column per part |
 | Text To Columns (to rows) | Step | `split`, then Expand |
-| RegEx | Step | `regexpExtract`, `regexpReplace`, `regexpLike` in a Formula, offered as one tool |
+| RegEx | Built (2026-10-25) | `regexpLike` (Match), `regexpReplace` (Replace), `regexpExtract`'s first (Extract), one tool. Tokenize (each match a row) is Expand's, later |
 | DateTime | Step | `parseDate` and `formatDate` in a Formula, offered as one tool |
 | JSON Parse | Built | JSON fields (`datacube/src/ui/json-fields.ts`) and Expand |
 | XML Parse | Out | No XML function in the platform |
@@ -598,7 +598,23 @@ day, week, month, quarter or year -- the grid's own By Day/Week/... preset (`gri
 `grid.grain` asks), in a window of its own ("Date Period") docked in the settings pane, fetched with the first. A box
 says what it takes to what ("trade_date by month"), read off its column's expression by its shape -- the preset's, or
 the same expression typed into a Formula -- never by its name. Tested by `flow-sheet.test.ts` and the harness (its
-column in its rows). Still to come in M3: Unique, the parse tools as Formula presets, Data Cleansing, Imputation.
+column in its rows).
+
+**Built, the text tools** (`text-tools.ts`, `ui/text-tool-form.ts`, `app.ts` `#openTextTool`): Text To Columns (a text
+column split on a delimiter into its first N parts, `<name>_1`..`<name>_N`), RegEx (a pattern over a text column: Match,
+a true/false column; Replace, each match replaced; Extract, its first match -- `first`, so a value with no match is
+empty: `toOne` made DuckDB refuse the "FX" desk that has none, found by the harness) and Data Cleansing (text columns
+tidied, a `<column>_clean` each: empties blank, punctuation out, repeated spaces one, the ends trimmed, the case
+changed). Each is the calculated columns DataCube has, added in one step as the column editor's Add adds one, in a
+window docked in the settings pane; Parse is a palette group of its own. A box says what it does from its columns'
+expressions by their shape (`textToolOf`: "book split on ' '", "/^[A-Z][a-z]+/ of desk", "region cleansed") -- the same
+expression typed into a Formula draws the same. Python asks the same rule (`text-tool-columns.ts` `textToolCommands`,
+through headless `gridPreset`): `grid.split(column, delimiter, parts)`, `grid.regex(column, pattern, mode)`,
+`grid.cleanse(columns, ...)`. A part a value has not got, and a pattern it does not match, are empty (`splitPart`'s
+`String[0..1]`, `first` of the matches). Tested by `flow-sheet.test.ts` (the expressions, the words, the refusals),
+Python's `test_text_tools_as_a_flow_box_adds_them` (the values DuckDB computes) and the harness (each tool set in its
+window, its columns planned and run on DuckDB). Still to come in M3:
+Unique, Imputation, the DateTime tool's parse and format.
 
 ### M7's first steps (2026-10-25)
 

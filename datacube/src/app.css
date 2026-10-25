@@ -4458,6 +4458,7 @@
 [data-group='in'] > .dc-flow-icon { --dc-flow-tone: var(--tw-green-700); }
 [data-group='join'] > .dc-flow-icon { --dc-flow-tone: var(--tw-amber-500); }
 [data-group='transform'] > .dc-flow-icon { --dc-flow-tone: var(--tw-orange-500); }
+[data-group='parse'] > .dc-flow-icon { --dc-flow-tone: #8b5cf6; }
 
 .dc-flow-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 /* the canvas and, beside it, the settings pane (Alteryx's Configuration window): its width the divider's */
@@ -4949,3 +4950,10 @@
 }
 .dc-text-input-add-column:hover { border-style: solid; color: var(--dc-active); }
 .dc-text-input-add-row { margin: 8px 0 4px; }
+
+/* ---- a flow's text tools (ui/text-tool-form.ts): Text To Columns, RegEx, Data Cleansing, in the Sample form's style ---- */
+.dc-text-tool-field { display: flex; flex-direction: column; gap: 4px; max-width: 340px; }
+.dc-text-tool-field[hidden] { display: none; }
+.dc-text-tool-delimiter { width: 5em; }
+.dc-text-tool-columns { display: flex; flex-wrap: wrap; gap: 6px 14px; max-height: 140px; overflow-y: auto; }
+.dc-text-tool-check { display: inline-flex; align-items: center; gap: 6px; color: var(--dc-muted-strong); }

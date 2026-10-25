@@ -565,6 +565,38 @@ try {
   check(await page.locator('.dc-flow-results .dc-th[data-column="trade_date_month"]').count() > 0, 'its column in its rows: trade_date_month');
   check(await resultRows() === fewer, 'its input\'s rows, each kept');
 
+  // THE TEXT TOOLS (M3), each dragged onto the Filter, set in its window docked, its columns planned and run
+  const textStep = async (tool, window, set, expect) => {
+    const before = (await boxes()).map((b) => b.id);
+    await drag(tool, filter.id);
+    await boxCount(before.length + 1);
+    const made = await added(before);
+    await docked(window);
+    await set(page.locator('.dc-flow-dock'));
+    await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+    await settled();
+    const box = (await boxes()).find((b) => b.id === made.id);
+    const refused = await page.locator('.dc-flow-dock .dc-sample-status').textContent().catch(() => '');
+    check(box?.tool === tool && box.says === expect.says, `a ${window} box: ${JSON.stringify(box)}${refused ? `, refused: ${refused}` : ''}`);
+    for (const c of expect.columns) {
+      check(await page.locator(`.dc-flow-results .dc-th[data-column="${c}"]`).count() > 0, `its column ${c} in its rows`);
+    }
+    check(await resultRows() === fewer, `${window}: its input's rows, each kept`);
+  };
+  await textStep('textToColumns', 'Text To Columns', async (w) => {
+    await w.locator('.dc-text-tool-column').selectOption('book');
+    await w.locator('.dc-text-tool-delimiter').fill(' ');
+  }, { says: "book split on ' '", columns: ['book_1', 'book_2'] });
+  await textStep('regex', 'RegEx', async (w) => {
+    await w.locator('.dc-text-tool-column').selectOption('desk');
+    await w.locator('.dc-text-tool-pattern').fill('^[A-Z][a-z]+');
+    await w.locator('.dc-text-tool-mode').selectOption('extract');
+  }, { says: '/^[A-Z][a-z]+/ of desk', columns: ['desk_extracted'] });
+  await textStep('cleanse', 'Data Cleansing', async (w) => {
+    await w.locator('.dc-text-tool-check', { hasText: 'region' }).locator('input').check();
+    await w.locator('.dc-text-tool-case').selectOption('lower');
+  }, { says: 'region cleansed', columns: ['region_clean'] });
+
   // ZOOM (M7): a level up, a box dragged as far across the window moves less on the canvas; back to its own size
   await page.locator('.dc-flow-zoom', { hasText: '+' }).click();
   check(await page.locator('.dc-flow-zoom-level').textContent() === '110%', 'zoomed in a level: 110%');

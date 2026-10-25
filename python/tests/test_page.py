@@ -1588,6 +1588,30 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, 'bins are a width or a count, one of them'):
             grid.bins('notional')
 
+    def test_text_tools_as_a_flow_box_adds_them(self):
+        # (M3) grid.split, grid.regex, grid.cleanse: a flow's Text To Columns, RegEx and Data Cleansing, by the one rule
+        # its windows ask (text-tool-columns.ts textToolCommands), computed by the database
+        names = pd.DataFrame({'who': ['  Ana  Diaz', 'ben ross!', None], 'code': ['FX-1', 'IR-22', 'CR']})
+        page = ll.Page('Text tools')
+        grid = page.grid(names, name='names')
+        grid.split('code', '-', 2)
+        grid.regex('code', '[0-9]+', 'extract')
+        grid.regex('code', '^FX', name='is_fx')
+        grid.cleanse(['who'], blanks=True, punctuation=True, spaces=True, case='upper')
+        # an empty value None, however the frame holds it
+        rows = [{k: None if pd.isna(v) else v for k, v in r.items()} for r in grid.to_pandas().sort_values('code').to_dict('records')]
+        # a part a value has not got, empty (splitPart's String[0..1]); a pattern it does not match, empty
+        self.assertEqual([(r['code_1'], r['code_2']) for r in rows], [('CR', None), ('FX', '1'), ('IR', '22')])
+        self.assertEqual([r['code_extracted'] for r in rows], [None, '1', '22'])
+        self.assertEqual([r['is_fx'] for r in rows], [False, True, False])
+        self.assertEqual([r['who_clean'] for r in rows], ['', 'ANA DIAZ', 'BEN ROSS'])
+        with self.assertRaisesRegex(ValueError, 'it splits on a delimiter: type one'):
+            grid.split('code', '', 2)
+        with self.assertRaisesRegex(ValueError, 'its mode is match, replace or extract, not "find"'):
+            grid.regex('code', 'x', 'find')
+        with self.assertRaisesRegex(ValueError, 'pick what to do to them'):
+            grid.cleanse(['who'], trim=False)
+
     def test_a_named_dimension_is_used_and_drilled(self):
         # (K6) grid.dimension, grid.drill, grid.drill_up: a dimension of the grid's configuration (the Dimensions tab's),
         # by dimensions.ts's own rules (useDimension, drillDown, drillUp), as the group command the Rows zone builds

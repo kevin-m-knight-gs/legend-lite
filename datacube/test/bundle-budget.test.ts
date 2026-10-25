@@ -345,8 +345,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  tool (calc-presets.ts grainOf), the window that sets it opened by its step, docked; the form a chunk of its own,
  *  ui/date-form.ts). Measured 369,121.
  *  369,500 -> 370,000 (2026-10-25, the flow mode's Text Input: the palette's tool and the step that adds an Input over the
- *  table typed in; the window a chunk of its own, ui/text-input-dialog.ts). Measured 369,521. */
-const BUDGET = 370_000;
+ *  table typed in; the window a chunk of its own, ui/text-input-dialog.ts). Measured 369,521.
+ *  370,000 -> 370,500 (2026-10-25, the flow mode's text tools -- Text To Columns, RegEx, Data Cleansing: the three windows
+ *  opened by their steps and docked; their columns' rule (text-tool-columns.ts), the windows (ui/text-tool-form.ts) and
+ *  the box words (text-tools.ts) chunks of their own, none fetched at startup). Measured 370,114. */
+const BUDGET = 370_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -470,8 +473,10 @@ const BUDGET = 370_000;
  *  357,399.
  *  357,500 -> 358,000 (2026-10-25, the flow mode's copy and paste and its toolbar's Undo and Redo: the page keeps what
  *  a box's Ctrl+C copied and pastes it as one step, and tells the canvas what Undo and Redo would do; the buttons and
- *  the keys the canvas's chunk). Measured 357,632. */
-const ENGINE_BUDGET = 358_000;
+ *  the keys the canvas's chunk). Measured 357,632.
+ *  358,000 -> 358,500 (2026-10-25, the flow mode's text tools -- the grid-only page's note of the same date). Measured
+ *  358,355. */
+const ENGINE_BUDGET = 358_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -653,8 +658,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  379,000 -> 380,000 (2026-10-25, the flow mode's DateTime -- the grid-only page's note of the same date). Measured
  *  379,446.
  *  380,000 -> 380,500 (2026-10-25, the flow mode's Text Input -- the grid-only page's note of the same date; the table's
- *  window's styles among them). Measured 380,187. */
-const WIDGET_BUDGET = 380_500;
+ *  window's styles among them). Measured 380,187.
+ *  380,500 -> 381,000 (2026-10-25, the flow mode's text tools -- the grid-only page's note of the same date; their
+ *  windows' styles and the Parse group's colour among them). Measured 380,836. */
+const WIDGET_BUDGET = 381_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

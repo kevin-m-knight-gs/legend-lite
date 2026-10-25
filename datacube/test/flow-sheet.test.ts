@@ -23,7 +23,9 @@ import { tidyCommands } from '../src/page-gestures.ts';
 import { applyPlanned, pageBetween } from '../src/page-between.ts';
 import { CubeRefusal, type DerivedColumn } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
-import { accessor, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
+import { accessor, fn, lambda, lit, property, variable } from '../../pure-protocol/src/index.ts';
+import { textToolOf } from '../src/text-tools.ts';
+import { textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
 import { grainColumn, grainOf } from '../src/calc-presets.ts';
 import { pastedCells, tableCsv, tableProblem } from '../src/ui/text-input-dialog.ts';
 
@@ -180,6 +182,48 @@ describe('what a box says it does (flow-boxes.ts boxSays): its query, never a fi
     const of = (id: string) => chain.cubes.find((c) => c.id === id)?.cube;
     assert.deepEqual([...readersOf('grid-2', ['grid-2', 'grid-3', 'grid-4'], of)].sort(), ['grid-3', 'grid-4']);
     assert.deepEqual([...readersOf('grid-4', ['grid-2', 'grid-3', 'grid-4'], of)], []);
+  });
+});
+
+describe('the text tools (text-tools.ts): calculated columns, read back off their expressions', () => {
+  const said = (derived: DerivedColumn[]) => boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived })));
+  const body = (d: DerivedColumn) => JSON.stringify(d.lambda?.body[0]);
+
+  it('Text To Columns: a column a part, counted from 1 by name and from 0 by splitPart; the box says the split once', () => {
+    const parts = textToolColumns({ kind: 'split', column: 'book', delimiter: ' ', parts: 3, name: 'book' });
+    assert.deepEqual(parts.map((p) => p.name), ['book_1', 'book_2', 'book_3']);
+    assert.equal(body(parts[2]!), JSON.stringify(fn('splitPart', property(variable('x'), 'book'), lit.string(' '), lit.integer(2))));
+    assert.deepEqual(said(parts), { tool: 'textToColumns', also: [], says: "book split on ' '" });
+  });
+
+  it('RegEx: a match, a replacement or the first match, each over the column itself', () => {
+    const one = (mode: 'match' | 'replace' | 'extract') => textToolColumns({ kind: 'regex', column: 'desk', pattern: '^[A-Z]', mode, replacement: '?', name: 'd' })[0]!;
+    assert.deepEqual(said([one('match')]), { tool: 'regex', also: [], says: 'desk matches /^[A-Z]/' });
+    assert.deepEqual(said([one('replace')]), { tool: 'regex', also: [], says: '/^[A-Z]/ replaced in desk' });
+    assert.deepEqual(said([one('extract')]), { tool: 'regex', also: [], says: '/^[A-Z]/ of desk' });
+    assert.match(body(one('extract')), /"function":"first".*"function":"regexpExtract"/);
+  });
+
+  it("Data Cleansing: a chain of its own functions over each column, in its order; a Formula's other functions none of it", () => {
+    const clean = textToolColumns({ kind: 'cleanse', columns: ['region', 'desk'], cleansing: { blanks: true, punctuation: true, trim: true, letterCase: 'lower' } });
+    assert.deepEqual(clean.map((c) => c.name), ['region_clean', 'desk_clean']);
+    assert.match(body(clean[0]!), /^\{"_type":"func","function":"toLower","parameters":\[\{"_type":"func","function":"trim"/);
+    assert.deepEqual(said(clean), { tool: 'cleanse', also: [], says: 'region cleansed, desk cleansed' });
+    // a replacement of its own pattern is a cleansing; of any other, a RegEx
+    const spaces = textToolColumns({ kind: 'cleanse', columns: ['desk'], cleansing: { spaces: true } });
+    assert.equal(textToolOf(spaces[0]!)?.tool, 'cleanse');
+    // a function no text tool makes, a Formula's
+    const other = { name: 'n', lambda: lambda(['x'], fn('length', fn('toOne', property(variable('x'), 'desk')))) };
+    assert.equal(textToolOf(other), undefined);
+    assert.deepEqual(said([other]), { tool: 'formula', also: [], says: 'n' });
+  });
+
+  it('refuses settings that make no column, in words', () => {
+    assert.equal(textToolProblem({ kind: 'split', column: 'a', delimiter: '', parts: 2, name: 'a' }), 'it splits on a delimiter: type one');
+    assert.equal(textToolProblem({ kind: 'split', column: 'a', delimiter: ',', parts: 0, name: 'a' }), 'it makes from 1 to 50 columns');
+    assert.equal(textToolProblem({ kind: 'regex', column: 'a', pattern: '', mode: 'match', name: 'a' }), 'it needs a pattern');
+    assert.equal(textToolProblem({ kind: 'cleanse', columns: ['a'], cleansing: {} }), 'pick what to do to them');
+    assert.throws(() => textToolColumns({ kind: 'cleanse', columns: [], cleansing: { trim: true } }), /pick a column to cleanse/);
   });
 });
 

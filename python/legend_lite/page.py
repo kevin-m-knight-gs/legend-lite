@@ -828,6 +828,32 @@ class Grid(Tile):
         return self._preset({'kind': 'bins', 'column': column, 'bins': {
             **({'width': width} if width is not None else {}), **({'count': count} if count is not None else {})}})
 
+    def split(self, column: str, delimiter: str, parts: int, *, name: str | None = None) -> Grid:
+        """The text ``column`` split on ``delimiter`` into its first ``parts`` parts, a new column each -- a flow's Text
+        To Columns (DataCube's code: text-tool-columns.ts textToolCommands) -- named ``<name>_1`` ... ``<name>_<parts>``
+        (``name`` the column's own by default); a value with fewer parts has its last columns empty."""
+        return self._preset({'kind': 'split', 'column': column, 'delimiter': delimiter, 'parts': parts,
+                             'name': column if name is None else name})
+
+    def regex(self, column: str, pattern: str, mode: str = 'match', *, replacement: str | None = None,
+              name: str | None = None) -> Grid:
+        """A regular expression over the text ``column``, a new column -- a flow's RegEx: ``'match'``, whether its value
+        matches (true or false); ``'replace'``, its value with each match replaced by ``replacement``; ``'extract'``,
+        the first part it matches (empty where none does). Named ``name``, else ``<column>_matches``,
+        ``<column>_replaced`` or ``<column>_extracted``, as its window names it."""
+        said = {'match': 'matches', 'replace': 'replaced', 'extract': 'extracted'}.get(mode, mode)
+        return self._preset({'kind': 'regex', 'column': column, 'pattern': pattern, 'mode': mode,
+                             **({'replacement': replacement} if replacement is not None else {}),
+                             'name': f'{column}_{said}' if name is None else name})
+
+    def cleanse(self, columns: Sequence[str], *, blanks: bool = False, punctuation: bool = False, spaces: bool = False,
+                trim: bool = True, case: str | None = None) -> Grid:
+        """The text ``columns`` tidied, a ``<column>_clean`` each -- a flow's Data Cleansing: empty values made blank
+        (``blanks``), punctuation taken out, repeated spaces made one (``spaces``), the ends trimmed (``trim``), the
+        letters made ``'upper'`` or ``'lower'`` case."""
+        return self._preset({'kind': 'cleanse', 'columns': list(columns), 'blanks': blanks, 'punctuation': punctuation,
+                             'spaces': spaces, 'trim': trim, **({'letterCase': case} if case is not None else {})})
+
     def dimension(self, name: str) -> Grid:
         """Grouped by the named dimension ``name``'s first level (its configuration's ``dimensions``: a name and its
         columns, coarsest first), as Properties' Dimensions tab's Group Rows by uses one (the gesture

@@ -157,7 +157,8 @@ import {
   ColumnsToolPanel,
   type ColumnsPanelChild,
 } from './ui/columns-panel.ts';
-import { isTemporal, isVariant } from '../../engine-client/src/types.ts';
+import { familyOf, isTemporal, isVariant } from '../../engine-client/src/types.ts';
+import type { TextTool } from './text-tools.ts';
 import { lazily } from './lazily.ts';
 
 
@@ -459,7 +460,10 @@ const windowStack = new WeakMap<HTMLElement, number>();
 
 /** The windows that set a cube -- Properties, the Filter window, a calculated column's editor -- which dock where a host
  *  docks them (CubeAppOptions.dock); every other window floats. */
-const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Date Period' || key.startsWith('column:');
+/** The text tools' windows, by the tool each sets (text-tools.ts). */
+const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
+const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Date Period'
+  || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
  * Which cube on a document a keystroke from OUTSIDE every cube belongs to: the one last
@@ -3619,6 +3623,9 @@ export class CubeApp {
       case 'datetime':
         void this.#openDate();
         return;
+      case 'text':
+        void this.#openTextTool(editor.kind);
+        return;
       // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
       case 'join':
         return;
@@ -3654,6 +3661,23 @@ export class CubeApp {
           throw e;
         }
       },
+      close,
+    }));
+  }
+
+  /** A FLOW'S TEXT TOOL (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): Text To Columns, RegEx or Data Cleansing -- the
+   *  calculated columns text-tools.ts makes, added in one step, each as the column editor's Add adds one -- in a window
+   *  of its own (ui/text-tool-form.ts, fetched with the first). */
+  async #openTextTool(kind: TextTool['kind']): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ textToolForm }, { textToolCommands }] = await Promise.all([
+      lazily(() => import('./ui/text-tool-form.ts')), lazily(() => import('./text-tool-columns.ts')),
+    ]);
+    const label = TEXT_TOOL_WINDOWS[kind];
+    this.#showOverlay(label, (host, close) => textToolForm(host, {
+      kind,
+      columns: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'text').map((c) => c.name),
+      apply: (tool) => this.#apply(textToolCommands(tool), label),
       close,
     }));
   }

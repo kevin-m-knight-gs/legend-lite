@@ -9,6 +9,7 @@ import {
   inputCube, inputOn, inputSides, isLive, type CubeDocument, type InputPort, type InputSide, type JoinInput,
 } from './cube-document.ts';
 import { grainOf } from './calc-presets.ts';
+import { textToolOf, type TextTool } from './text-tools.ts';
 import { joinWords } from './join-words.ts';
 import { conditionWords } from './page-filters.ts';
 import type { DerivedColumn } from './snapshot.ts';
@@ -17,7 +18,7 @@ import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
 export type FlowTool = 'input' | 'textInput' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'sample' | 'recordId' | 'multiRow' | 'tile'
-  | 'datetime' | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment';
+  | 'datetime' | 'cleanse' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
 export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: FlowGroup; readonly does: string }>> = {
@@ -34,6 +35,9 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   multiRow: { name: 'Multi-Row', group: 'prepare', does: 'a column of the row before or after each one' },
   tile: { name: 'Tile', group: 'prepare', does: 'each row put in one of a number of equal buckets, by an order' },
   datetime: { name: 'DateTime', group: 'prepare', does: 'a date taken to its day, week, month, quarter or year' },
+  cleanse: { name: 'Data Cleansing', group: 'prepare', does: 'text tidied: blanks, punctuation, spaces, its case' },
+  textToColumns: { name: 'Text To Columns', group: 'parse', does: 'a text column split on a delimiter, a column a part' },
+  regex: { name: 'RegEx', group: 'parse', does: 'a pattern over text: whether it matches, its matches replaced or taken out' },
   runningTotal: { name: 'Running Total', group: 'transform', does: 'a column\'s total so far, row by row' },
   summarize: { name: 'Summarize', group: 'transform', does: 'a row per group, its measures beside its keys' },
   crosstab: { name: 'Cross Tab', group: 'transform', does: 'a column\'s values made columns across, a row per group' },
@@ -41,13 +45,13 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   comment: { name: 'Comment', group: 'docs', does: 'a note on the canvas, in words of your own' },
 };
 
-/** A palette group (Alteryx's: In/Out, Preparation, Join, Transform, Documentation). */
-export type FlowGroup = 'in' | 'prepare' | 'join' | 'transform' | 'docs';
+/** A palette group (Alteryx's: In/Out, Preparation, Join, Parse, Transform, Documentation). */
+export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'docs';
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'textInput', 'filter', 'formula', 'select', 'sort', 'sample', 'recordId', 'multiRow', 'tile', 'datetime', 'join', 'union', 'summarize',
-  'crosstab', 'runningTotal', 'comment',
+  'input', 'textInput', 'filter', 'formula', 'select', 'sort', 'sample', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'join',
+  'union', 'textToColumns', 'regex', 'summarize', 'crosstab', 'runningTotal', 'comment',
 ];
 
 /**
@@ -64,6 +68,8 @@ export type StepEditor =
   | { readonly window: 'sample' }
   /** The DateTime window (ui/date-form.ts): a date column taken to its period, the grid's own period preset. */
   | { readonly window: 'datetime' }
+  /** A text tool's window (ui/text-tool-form.ts): Text To Columns, RegEx or Data Cleansing (text-tools.ts). */
+  | { readonly window: 'text'; readonly kind: TextTool['kind'] }
   /** The Join window (ui/join-dialog.ts), over the box's two inputs: a Join's, a Union's (its Append). Opened when asked,
    *  never by a click on the box -- a window over the page, not docked. */
   | { readonly window: 'join' };
@@ -77,6 +83,9 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   crosstab: { window: 'properties', tab: 'Horizontal Pivots' },
   sample: { window: 'sample' },
   datetime: { window: 'datetime' },
+  cleanse: { window: 'text', kind: 'cleanse' },
+  textToColumns: { window: 'text', kind: 'split' },
+  regex: { window: 'text', kind: 'regex' },
   // a window column, started as the tool's (snapshot.ts WindowSpec): the person picks its order, its column
   recordId: { window: 'column', start: { name: 'RecordID', window: { fn: 'rowNumber', partition: [], order: [] } } },
   multiRow: { window: 'column', start: { name: 'Previous', window: { fn: 'lag', partition: [], order: [], offset: 1 } } },
@@ -111,7 +120,8 @@ export function boxSays(cube: CubeDocument): BoxSays {
     const tool = columnTool(d);
     const last = steps.at(-1);
     const said = columnWords(d);
-    if (last?.tool === tool) last.says = `${last.says}, ${said}`;
+    // a tool's columns said once each way: a split's parts are one split
+    if (last?.tool === tool) last.says = last.says.split(', ').includes(said) ? last.says : `${last.says}, ${said}`;
     else steps.push({ tool, says: said });
   }
   if (q.filter !== undefined) steps.push({ tool: 'filter', says: conditionWords(q.filter) });
@@ -131,17 +141,19 @@ export function boxSays(cube: CubeDocument): BoxSays {
  *  a bucket, a running total), any other a Formula's. */
 function columnTool(d: DerivedColumn): FlowTool {
   const w = d.window;
-  if (w === undefined) return grainOf(d) !== undefined ? 'datetime' : 'formula';
+  if (w === undefined) return grainOf(d) !== undefined ? 'datetime' : textToolOf(d)?.tool ?? 'formula';
   if (w.fn === 'rowNumber') return 'recordId';
   if (w.fn === 'lag' || w.fn === 'lead') return 'multiRow';
   if (w.fn === 'ntile') return 'tile';
   return w.frame === 'running' ? 'runningTotal' : 'formula';
 }
 
-/** A calculated column, as its box says it: its name -- a period's, what it takes to what (`trade_date by month`). */
+/** A calculated column, as its box says it: its name -- a period's, what it takes to what (`trade_date by month`); a
+ *  text tool's, what it does to which (text-tools.ts textToolOf: `desk split on ','`). */
 function columnWords(d: DerivedColumn): string {
   const grain = grainOf(d);
-  return grain === undefined ? d.name : `${grain.column} by ${grain.grain}`;
+  if (grain !== undefined) return `${grain.column} by ${grain.grain}`;
+  return textToolOf(d)?.says ?? d.name;
 }
 
 /** The columns a cube's configuration hides (Column Properties' Hide): what a Select box leaves out. */
