@@ -29,6 +29,7 @@ import {
   boxInputs, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowGroup, type FlowTool,
 } from '../flow-boxes.ts';
 import { rowSampleOf } from '../row-sample.ts';
+import { checksOf, checkWords, failingChecks } from '../checks.ts';
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import type { Profile } from '../profile.ts';
 import { gridTitle } from '../page-ids.ts';
@@ -126,6 +127,7 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   output: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v5M3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 4v8c0 1.1 2.2 2 5 2M10 11.5h5M13 9.5l2 2-2 2',
   cleanse: 'M10 2l4 4-6.5 6.5H3.5V8.5zM8 4l4 4M2 14.5h12',
   impute: 'M2 3h12v10H2zM2 6.5h12M2 10h12M6 3v10M10 6.5v3.5M10.5 8.2h3',
+  test: 'M8 1.8l5.5 2v4c0 3.3-2.4 5.6-5.5 6.4C4.9 13.4 2.5 11.1 2.5 7.8v-4zM5.3 8l1.9 1.9 3.6-3.8',
   dateFilter: 'M2 3.5h9v8H2zM2 6h9M4.5 2v3M8.5 2v3M10 9.5h5l-2 2.5v2.5l-1-1v-1.5z',
   textToColumns: 'M2 4.5h12M2 8h4M10 8h4M2 11.5h4M10 11.5h4M8 6v8',
   regex: 'M4 2.5v6M1.5 4l5 3M6.5 4l-5 3M10 2.5l-2 11M14 2.5l-2 11M8.5 9.5H14',
@@ -274,6 +276,9 @@ export class FlowCanvas {
   readonly #commandList: HTMLElement;
   #commandsFound: readonly Command[] = [];
   #commandAt = 0;
+  /** Each Test box's checks found failing (their words) the last time its rows landed, for what its rows were made of
+   *  then (its chain) and how many views its grid had landed: kept while it is not shown (#testOf). */
+  readonly #tested = new Map<string, { readonly chain: string; readonly viewed: number; readonly of: number; readonly failing: readonly string[] }>();
   /** What the live region was told of each box last (#announce): its name and what it reads. */
   #told: ReadonlyMap<string, { readonly name: string; readonly reads: string }> | undefined;
   /** The toolbar's buttons a command presses, by what it is called. */
@@ -976,9 +981,15 @@ export class FlowCanvas {
     };
     const head = el('div', 'dc-flow-log-head');
     const refused = log.boxes.filter((b) => b.refused !== undefined).length;
+    // a Test's result, as its rows landed in the run
+    const tests = new Map(log.boxes.flatMap((b) => {
+      const t = this.#board.layout.boxes.some((x) => x.tile === b.id) ? this.#testOf(b.id) : undefined;
+      return t === undefined ? [] : [[b.id, t] as const];
+    }));
+    const failing = [...tests.values()].filter((t) => t.failing.length > 0).length;
     const seconds = (ms: number): string => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toLocaleString(UI_LOCALE, { maximumFractionDigits: 1 })} s`);
     head.append(el('span', 'dc-flow-log-title', `Ran ${log.boxes.length} ${log.boxes.length === 1 ? 'box' : 'boxes'} in ${seconds(log.ms)}`
-      + (refused > 0 ? `, ${refused} refused` : '')));
+      + (refused > 0 ? `, ${refused} refused` : '') + (failing > 0 ? `, ${failing} ${failing === 1 ? 'test' : 'tests'} failing` : '')));
     const close = el('button', 'dc-flow-log-close', '×') as HTMLButtonElement;
     close.type = 'button';
     close.setAttribute('aria-label', 'Close the run log');
@@ -989,14 +1000,16 @@ export class FlowCanvas {
     head.append(close);
     const list = el('ol', 'dc-flow-log-list');
     for (const b of log.boxes) {
-      const item = el('li', `dc-flow-log-item${b.refused !== undefined ? ' dc-flow-log-refused' : ''}`);
+      const tested = tests.get(b.id);
+      const item = el('li', `dc-flow-log-item${b.refused !== undefined ? ' dc-flow-log-refused' : ''}${tested !== undefined && tested.failing.length > 0 ? ' dc-flow-log-failing' : ''}`);
       const go = el('button', 'dc-flow-log-box') as HTMLButtonElement;
       go.type = 'button';
       const name = this.#board.layout.boxes.some((x) => x.tile === b.id) ? this.#nameOf(b.id, this.#said(b.id)?.tool ?? 'browse') : b.id;
       go.append(el('span', 'dc-flow-log-name', name),
-        el('span', 'dc-flow-log-rows', b.refused ?? `${b.rows === undefined ? '' : `${b.rows.toLocaleString(UI_LOCALE)} ${b.rows === 1 ? 'row' : 'rows'}`}${b.wrote !== undefined ? `, wrote ${b.wrote}` : ''}`),
+        el('span', 'dc-flow-log-rows', b.refused ?? (tested !== undefined ? FlowCanvas.#testWords(tested)
+          : `${b.rows === undefined ? '' : `${b.rows.toLocaleString(UI_LOCALE)} ${b.rows === 1 ? 'row' : 'rows'}`}${b.wrote !== undefined ? `, wrote ${b.wrote}` : ''}`)),
         el('span', 'dc-flow-log-ms', seconds(b.ms)));
-      go.title = b.refused ?? `Show ${name}`;
+      go.title = b.refused ?? (tested !== undefined && tested.failing.length > 0 ? tested.failing.join('\n') : `Show ${name}`);
       go.addEventListener('click', () => {
         if (this.#board.layout.boxes.some((x) => x.tile === b.id)) this.#select(b.id);
       });
@@ -1380,6 +1393,36 @@ export class FlowCanvas {
     return title === undefined || title === gridTitle(id) ? FLOW_TOOLS[tool].name : title;
   }
 
+  /**
+   * A TEST BOX'S RESULT (FL8, checks.ts) for what its rows are made of now: how many checks it has and the words of those
+   * its row says fail -- read off its grid's first row once it lands for that, kept after; undefined before (a Test not
+   * shown since it changed, nor run).
+   */
+  #testOf(id: string): { readonly of: number; readonly failing: readonly string[] } | undefined {
+    const doc = this.#board.options.documentOf?.(id);
+    const checks = doc === undefined ? undefined : checksOf(doc.query);
+    if (checks === undefined) return undefined;
+    const chain = this.#board.chain(id);
+    const viewed = this.#board.viewed(id);
+    const had = this.#tested.get(id);
+    if (had?.chain === chain && had.viewed === viewed) return had;
+    // its rows landed for what it is now (its count is for its chain): read, while its grid is there
+    const row = this.#board.count(id) !== undefined ? this.#board.options.firstRowOf?.(id) : undefined;
+    if (row !== undefined) {
+      const failing = failingChecks(checks, row).map((f) => `${checkWords(f.check)}: ${f.rows.toLocaleString(UI_LOCALE)} ${f.rows === 1 ? 'row fails' : 'rows fail'}`);
+      const now = { chain, viewed, of: checks.length, failing };
+      this.#tested.set(id, now);
+      return now;
+    }
+    return had?.chain === chain ? had : undefined;
+  }
+
+  /** A Test's result in a few words: how many of its checks fail, or that every one passes. */
+  static #testWords(t: { readonly of: number; readonly failing: readonly string[] }): string {
+    return t.failing.length > 0 ? `${t.failing.length} of ${t.of} ${t.of === 1 ? 'check fails' : 'checks fail'}`
+      : `${t.of === 1 ? 'its check passes' : `all ${t.of} checks pass`}`;
+  }
+
   #paintBox(id: string, drawn: Drawn): void {
     const said = this.#said(id);
     const tool = said?.tool ?? 'browse';
@@ -1394,7 +1437,8 @@ export class FlowCanvas {
     const frozen = inputs.flatMap((i) => ('frozen' in i ? [i.frozen] : []));
     const counted = this.#board.count(id);
     const outs = this.#outsOf(id);
-    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted, inputs.length, outs]);
+    const tested = tool === 'test' ? this.#testOf(id) : undefined;
+    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted, inputs.length, outs, tested]);
     if (key === drawn.key) return;
     drawn.key = key;
     drawn.root.dataset['tool'] = tool;
@@ -1419,16 +1463,21 @@ export class FlowCanvas {
     drawn.root.classList.toggle('dc-flow-shown', shown);
     drawn.root.classList.toggle('dc-flow-refused', refused !== undefined);
     drawn.root.classList.toggle('dc-flow-frozen', frozen.length > 0);
+    // a Test's result, once its rows have landed: its failing checks said, the box marked
+    drawn.root.classList.toggle('dc-flow-failing', tested !== undefined && tested.failing.length > 0);
+    drawn.root.classList.toggle('dc-flow-passing', tested !== undefined && tested.failing.length === 0);
     drawn.root.setAttribute('aria-pressed', String(shown));
     const frozenWords = frozen.length > 0 ? `Frozen: reads a copy of what ${frozen.join(' and ')} was` : undefined;
     drawn.root.setAttribute('aria-label', `${name}: ${refused ?? says}${frozenWords !== undefined ? `. ${frozenWords}` : ''}`);
     // what it hands on: its columns, as its document says them (no query run for it)
-    drawn.root.title = refused ?? [frozenWords, columns.length > 0 ? `${columns.length} columns out: ${columns.join(', ')}` : undefined]
+    drawn.root.title = refused ?? [frozenWords, tested !== undefined ? [FlowCanvas.#testWords(tested), ...tested.failing].join('\n') : undefined,
+      columns.length > 0 ? `${columns.length} columns out: ${columns.join(', ')}` : undefined]
       .filter((t) => t !== undefined).join('\n');
     drawn.icon.replaceChildren(icon(this.#doc, tool));
     if (!drawn.renaming) drawn.name.textContent = name;
-    drawn.says.textContent = says;
-    drawn.says.title = says;
+    // a Test says its result, once known; its checks beside it
+    drawn.says.textContent = tested !== undefined ? FlowCanvas.#testWords(tested) : says;
+    drawn.says.title = tested !== undefined ? [says, ...tested.failing].join('\n') : says;
     // its rows when its grid ran last (Run, or shown), while its chain is as it was then
     drawn.count.hidden = counted === undefined;
     drawn.count.textContent = counted === undefined ? '' : counted.toLocaleString(UI_LOCALE);

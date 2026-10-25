@@ -164,8 +164,12 @@ export interface SpawnedGrid {
   cubeDocument?(name: string): CubeDocument | undefined;
   /** The window that sets a flow's step (flow-boxes.ts TOOL_EDITORS), opened -- docked where its options dock it. */
   openStep?(editor: StepEditor): void;
-  /** Its view as it landed last: its rows, and a flat grid's total when the row cap cut them -- a flow's box's count. */
-  readonly view?: { readonly rows: { readonly rowCount: number }; readonly totalRows?: number } | null;
+  /** Its view as it landed last: its rows, and a flat grid's total when the row cap cut them -- a flow's box's count, and
+   *  a Test box's counts (its columns' first values). */
+  readonly view?: {
+    readonly rows: { readonly rowCount: number; readonly columns: readonly { readonly name: string; readonly values: readonly unknown[] }[] };
+    readonly totalRows?: number;
+  } | null;
   /** Its rows' profile (a flow's box's Profile: profile.ts), asked of the database when it is shown. */
   profile?(): Promise<Profile>;
   /** Its rows -- every one, the columns it shows -- written to a CSV file named `name` (a flow's Output). */
@@ -597,6 +601,11 @@ export class CubePage {
       profileOf: (tile) => {
         const grid = this.#grids.get(tile)?.added?.cube;
         return grid?.profile === undefined ? Promise.reject(new Error(`${tile} is not shown`)) : grid.profile();
+      },
+      firstRowOf: (tile) => {
+        const v = this.#grids.get(tile)?.added?.cube.view;
+        if (v === undefined || v === null || v.rows.rowCount === 0) return undefined;
+        return (column) => v.rows.columns.find((c) => c.name === column)?.values[0];
       },
       codeOf: (tile) => {
         const grid = this.#grids.get(tile)?.added?.cube;

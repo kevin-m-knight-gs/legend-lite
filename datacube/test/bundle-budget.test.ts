@@ -757,8 +757,12 @@ const EXAMPLE_BUDGET = 4_000;
  *  notes of the same date; a Union's numbered ports and its settings' rows among the styles). Measured 391,082.
  *  391,500 -> 392,500 (2026-10-25, the flow mode's Code view, Create Samples and command palette: a grid's last query
  *  printed (app.ts code, copyText) at startup; the Code view's, the palette's and the two-output ports' styles among the
- *  module's; their code the canvas's chunk). Measured 391,532. */
-const WIDGET_BUDGET = 392_500;
+ *  module's; their code the canvas's chunk). Measured 391,532.
+ *  392,500 -> 393,500 (2026-10-25, the flow mode's Date Filter and Test: the Date Filter's rule and read-back and its
+ *  window's opener -- the grid-only page's note of the same date -- the Test's opener (app.ts #openTest) and a grid's
+ *  first row read (page/cube-page.ts firstRowOf); a Test's marks and its window's styles; its rule, its window and its
+ *  marks' code chunks of their own). Measured 392,624. */
+const WIDGET_BUDGET = 393_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

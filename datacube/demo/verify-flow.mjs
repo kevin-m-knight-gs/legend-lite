@@ -861,6 +861,38 @@ try {
   await settled();
   check((await boxes()).find((b) => b.id === dateFiltered.id)?.says === 'trade_date: Last 12 Months', 'set again: a range relative to today');
 
+  // A TEST (FL8), dragged onto the Filter: its trade ids repeat none, its notionals within bounds -- each check's failing
+  // rows counted by the database, its box marked by what its row says; set again, passing
+  const beforeTest = (await boxes()).map((b) => b.id);
+  await drag('test', filter.id);
+  await boxCount(beforeTest.length + 1);
+  const tested = await added(beforeTest);
+  await docked('Test');
+  const firstCheck = page.locator('.dc-flow-dock .dc-test-check').first();
+  await firstCheck.locator('.dc-test-column').selectOption('trade_id');
+  await firstCheck.locator('.dc-test-kind').selectOption('unique');
+  await page.locator('.dc-flow-dock .dc-test-add').click();
+  const secondCheck = page.locator('.dc-flow-dock .dc-test-check').nth(1);
+  await secondCheck.locator('.dc-test-kind').selectOption('between');
+  await secondCheck.locator('.dc-test-column').selectOption('notional');
+  await secondCheck.locator('.dc-test-min').fill('0');
+  await secondCheck.locator('.dc-test-max').fill('950000');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  check(await resultRows() === 1, 'its one row: its counts');
+  await page.waitForFunction((t) => document.querySelector(`.dc-flow-box[data-tile="${t}"]`)?.classList.contains('dc-flow-failing'), tested.id, { timeout: 10_000 });
+  const testSays = await page.locator(`.dc-flow-box[data-tile="${tested.id}"] .dc-flow-says`).textContent();
+  check(testSays === '1 of 2 checks fail', `its result said: ${testSays}`);
+  await page.screenshot({ path: outPath('flow-test.png') });
+  await page.locator('.dc-flow-settings button', { hasText: 'Open its settings' }).click();
+  await docked('Test');
+  check(await page.locator('.dc-flow-dock .dc-test-check').count() === 2, 'set again: its two checks as they are');
+  await page.locator('.dc-flow-dock .dc-test-check').nth(1).locator('.dc-test-off').click();
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  await page.waitForFunction((t) => document.querySelector(`.dc-flow-box[data-tile="${t}"]`)?.classList.contains('dc-flow-passing'), tested.id, { timeout: 10_000 });
+  check(await page.locator(`.dc-flow-box[data-tile="${tested.id}"] .dc-flow-says`).textContent() === 'its check passes', 'its one check passes');
+
   // A DATETIME (M3), dragged onto the Filter: its trade dates taken to their month, in its window docked
   const beforeDate = (await boxes()).map((b) => b.id);
   await drag('datetime', filter.id);

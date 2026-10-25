@@ -466,7 +466,7 @@ const windowStack = new WeakMap<HTMLElement, number>();
  *  docks them (CubeAppOptions.dock); every other window floats. */
 /** The text tools' windows, by the tool each sets (text-tools.ts). */
 const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
-const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation' || key === 'Date Filter'
+const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation' || key === 'Date Filter' || key === 'Test'
   || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize' || key === 'Find Replace'
   || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
@@ -3640,6 +3640,9 @@ export class CubeApp {
       case 'dateFilter':
         void this.#openDateFilter();
         return;
+      case 'test':
+        void this.#openTest();
+        return;
       case 'multiField':
         void this.#openMultiField();
         return;
@@ -3789,6 +3792,34 @@ export class CubeApp {
     });
     if (parts.length === 0) parts.push(toCsv({ columns: shown.map((n) => ({ name: n, values: [] })), rowCount: 0, epoch: 0, elapsedMs: 0 } as never));
     download(name, 'text/csv', parts.join(''));
+  }
+
+  /** A FLOW'S TEST (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL8, Alteryx's Test): its checks of its input's rows -- no
+   *  empty value, no value repeated, a number within bounds -- each counted by the database as the rows failing it
+   *  (checks.ts, the rule Python's grid.test asks), in a window of its own (ui/test-form.ts). Both fetched with the first. */
+  async #openTest(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ testForm }, { checkCommands, checksOf, testColumns }] = await Promise.all([
+      lazily(() => import('./ui/test-form.ts')), lazily(() => import('./checks.ts')),
+    ]);
+    const s = this.#snapshot;
+    const checks = checksOf(s);
+    // the columns it reads: its own (a test set again) left out
+    const own = new Set(checks === undefined ? [] : testColumns(checks));
+    const columns = rowColumns(s).filter((c) => !own.has(c.name));
+    this.#showOverlay('Test', (host, close) => testForm(host, {
+      columns: columns.map((c) => ({ name: c.name, number: familyOf(c.type) === 'numeric' })),
+      checks: checks ?? [],
+      apply: async (next) => {
+        try {
+          return await this.#apply(checkCommands(this.#snapshot, next), 'Test');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
   }
 
   /** A FLOW'S DATE FILTER (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's): a date column's rows in a range -- one

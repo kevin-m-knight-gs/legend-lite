@@ -1710,6 +1710,28 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, 'it counts its rows already'):
             counted.count_records()
 
+    def test_rows_checked_as_a_test_box_checks_them(self):
+        # (FL8) grid.test: a flow's Test (checks.ts checkCommands) -- one row, each check's failing rows counted by the
+        # database: an empty region, a repeated id, a notional outside its bounds
+        page = ll.Page('Test')
+        frame = pd.DataFrame({'id': [1, 2, 2, 3], 'region': ['EMEA', None, 'APAC', 'EMEA'], 'notional': [10.0, 500.0, 2500.0, 20.0]})
+        grid = page.grid(frame, name='checked')
+        grid.test([{'kind': 'notEmpty', 'column': 'region'}, {'kind': 'unique', 'column': 'id'},
+                   {'kind': 'between', 'column': 'notional', 'min': 0, 'max': 1000}])
+        # its row: its counts (the grid read itself, its hidden columns beside them: a box after it reads the counts alone)
+        counts = lambda *names: (lambda row: {k: int(row[k]) for k in names})(grid.to_pandas().to_dict('records')[0])
+        self.assertEqual(len(grid.to_pandas()), 1)
+        self.assertEqual(counts('Rows', 'region_empty', 'id_repeated', 'notional_outside'),
+                         {'Rows': 4, 'region_empty': 1, 'id_repeated': 1, 'notional_outside': 1})
+        # set again: its checks the new ones, every row passing
+        grid.test([{'kind': 'notEmpty', 'column': 'id'}, {'kind': 'between', 'column': 'id', 'min': 1}])
+        self.assertEqual(counts('Rows', 'id_empty', 'id_outside'), {'Rows': 4, 'id_empty': 0, 'id_outside': 0})
+        self.assertNotIn('region_empty', grid.to_pandas().columns, 'its old checks taken off')
+        with self.assertRaisesRegex(ValueError, "'region' is String: only a number is checked within bounds"):
+            grid.test([{'kind': 'between', 'column': 'region', 'min': 1}])
+        with self.assertRaisesRegex(ValueError, 'holds whole numbers: bound it by whole numbers'):
+            grid.test([{'kind': 'between', 'column': 'id', 'min': 0.5}])
+
     def test_rows_summarised_as_a_flow_box_summarises_them(self):
         # (M1) grid.summarize: a flow's Summarize (summarize.ts summarizeCommands) -- a row of each group, each column
         # aggregated as it is told, every other left out; the database groups and aggregates

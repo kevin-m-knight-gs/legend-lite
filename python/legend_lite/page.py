@@ -983,6 +983,15 @@ class Grid(Tile):
         every other column hidden, so the box after it reads the count alone. The database counts."""
         return self._preset({'kind': 'countRecords', 'name': name})
 
+    def test(self, checks: Sequence[Mapping[str, Any]]) -> Grid:
+        """Checks of its rows -- a flow's Test (DataCube's code: checks.ts checkCommands): each
+        ``{'kind': 'notEmpty' | 'unique', 'column': c}`` or ``{'kind': 'between', 'column': c, 'min': lo, 'max': hi}``
+        (a bound left out: none that side) -- its one row then counting, by the database, the rows that fail each:
+        ``<column>_empty``, ``<column>_repeated``, ``<column>_outside``, beside ``Rows``, every column it read hidden. A
+        check of a column it has not, a bound of a column that is no number, or bounds the wrong way round, refused in
+        DataCube's words. Set again, its checks replace the ones it had."""
+        return self._preset({'kind': 'test', 'checks': [dict(c) for c in checks]})
+
     def multi_field(self, columns: Sequence[str], expression: str, *, suffix: str = '_new', in_place: bool = False) -> Grid:
         """One ``expression`` over each of ``columns`` -- a flow's Multi-Field Formula (DataCube's code:
         multi-field-columns.ts multiFieldCommands): Pure over ``$v``, each column's value in turn (``'$v->toOne()->trim()'``, ``'$v->toOne() *

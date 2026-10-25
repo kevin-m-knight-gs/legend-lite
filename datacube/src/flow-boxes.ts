@@ -18,6 +18,7 @@ import { retypesOf } from './select-columns.ts';
 import { imputedOf } from './impute.ts';
 import { findReplaceOf } from './find-replace.ts';
 import { countRecordsOf } from './count-records.ts';
+import { checksOf, checkWords } from './checks.ts';
 import { multiFieldOf, type MultiFieldColumn } from './multi-field.ts';
 import { dateToolOf } from './date-tools.ts';
 import { conditionWords, datesKept, datesKeptWords } from './page-filters.ts';
@@ -28,7 +29,7 @@ import type { ColumnEditorStart } from './ui/column-editor.ts';
 import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
-export type FlowTool = 'input' | 'textInput' | 'output' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'dateFilter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
+export type FlowTool = 'input' | 'textInput' | 'output' | 'test' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'dateFilter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile'
   | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'countRecords' | 'crosstab' | 'transpose' | 'browse'
   | 'comment' | 'container';
@@ -38,6 +39,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   input: { name: 'Input', group: 'in', does: 'rows from a file, a table, a class or a saved query' },
   textInput: { name: 'Text Input', group: 'in', does: 'a small table of your own, typed in or pasted from a sheet' },
   output: { name: 'Output', group: 'in', does: 'its input\'s rows written to a CSV file, now and each time the flow runs' },
+  test: { name: 'Test', group: 'in', does: 'checks of its input\'s rows: no empty value, no value repeated, numbers within bounds' },
   join: { name: 'Join', group: 'join', does: 'two inputs joined on their keys: Left above, Right below' },
   union: { name: 'Union', group: 'join', does: 'the rows of two inputs or more, one under another, columns by name: a line let go on it adds one' },
   appendFields: { name: 'Append Fields', group: 'join', does: 'each row of one input beside every row of another: a small table\'s values on each' },
@@ -74,7 +76,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'textInput', 'output', 'browse', 'filter', 'dateFilter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
+  'input', 'textInput', 'output', 'test', 'browse', 'filter', 'dateFilter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
   'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'comment', 'container',
 ];
 
@@ -94,6 +96,8 @@ export type StepEditor =
   | { readonly window: 'impute' }
   /** The Date Filter window (ui/date-filter-form.ts): a date column, and the range of its dates kept. */
   | { readonly window: 'dateFilter' }
+  /** The Test window (ui/test-form.ts): its checks, each of a column. */
+  | { readonly window: 'test' }
   /** The Unique window (ui/unique-form.ts): the columns a key is, and the order a key's first row is first in. */
   | { readonly window: 'unique' }
   /** The Multi-Field Formula window (ui/multi-field-form.ts): its columns, its expression over each one's value. */
@@ -119,6 +123,7 @@ export type StepEditor =
 export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   filter: { window: 'filters' },
   dateFilter: { window: 'dateFilter' },
+  test: { window: 'test' },
   formula: { window: 'column' },
   multiField: { window: 'multiField' },
   transpose: { window: 'transpose' },
@@ -173,6 +178,9 @@ export function boxSays(cube: CubeDocument): BoxSays {
   if (source._type !== 'rows') return { tool: 'input', also: [], says: source.name };
   const q = cube.query;
   const steps: { tool: FlowTool; says: string }[] = [];
+  // a Test: its checks' failing rows counted, a column of one value grouped by (checks.ts) -- its own, all of it
+  const checks = checksOf(q);
+  if (checks !== undefined) return { tool: 'test', also: [], says: checks.map(checkWords).join(', ') };
   // Count Records: a column of one value grouped by, a 1 for each row summed (count-records.ts) -- its own, all of it
   const counted = countRecordsOf(q);
   if (counted !== undefined) return { tool: 'countRecords', also: [], says: `its rows counted: ${counted.name}` };

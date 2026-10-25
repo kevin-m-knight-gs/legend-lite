@@ -4900,6 +4900,7 @@
 .dc-flow-log-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dc-flow-log-rows, .dc-flow-log-ms { color: var(--dc-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dc-flow-log-refused .dc-flow-log-rows { color: var(--tw-red-600); white-space: normal; }
+.dc-flow-log-failing .dc-flow-log-rows { color: var(--tw-amber-700, #b45309); }
 /* a flow's Sample (ui/sample-form.ts): its first or last rows, in the order of a column */
 .dc-sample { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
 .dc-sample-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -4908,6 +4909,14 @@
 .dc-sample [hidden] { display: none !important; }
 .dc-sample-seed { width: 64px; }
 .dc-sample-n { width: 6em; }
+/* a Test's result, once its rows have landed: amber with the checks it fails, its words green when every one passes */
+.dc-flow-box.dc-flow-failing { border-color: var(--tw-amber-500, #f59e0b); box-shadow: 0 0 0 1px var(--tw-amber-500, #f59e0b); }
+.dc-flow-box.dc-flow-failing .dc-flow-says { color: var(--tw-amber-700, #b45309); }
+.dc-flow-box.dc-flow-passing .dc-flow-says { color: var(--tw-green-600, #16a34a); }
+/* a Test's checks: a row each, and Add a check below them */
+.dc-test-checks { display: flex; flex-direction: column; gap: 6px; }
+.dc-test-check .dc-sample-n[hidden] { display: none; }
+.dc-test-add { align-self: flex-start; }
 /* a Date Filter's two days, asked only when it keeps the days between them */
 .dc-date-filter-days[hidden] { display: none; }
 .dc-sample-hint { margin: 0; color: var(--dc-muted); font-size: 12px; max-width: 52ch; }

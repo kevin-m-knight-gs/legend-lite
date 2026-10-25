@@ -304,7 +304,7 @@ How to read the status column:
 | Tool | Status | How |
 |---|---|---|
 | Comment, Tool Container | Step | The flow sheet's own state (§3.4) |
-| Test | Later | Checks as boxes (not null, unique, in range, row count), compiled to SQL, each with its mode (FL8; track C5) |
+| Test | Built, a first slice | Checks as a box (no empty value, no value repeated, a number within bounds), counted by the database; modes (FL8) and a row-count check later |
 | Block Until Done | Later | Run order, from runs and schedules (F3) |
 | Message | Later | The run's log |
 | Base 64 Encoder | Built | `encodeBase64` in a Formula |
@@ -819,6 +819,25 @@ had replaced, so already, a day that is none, a first after the last, both or ne
 and the days read back, the box's words, a filter of any other shape a Filter's), Python's date range test (between two
 days, a range, refused) and the harness (a Date Filter over the Filter's trades: 2023's, its T and F, set again to the
 last 12 months).
+
+**Built, Test** (FL8's checks, a first slice; `checks.ts`, `ui/test-form.ts`, `app.ts` `#openTest`,
+`layout/flow-canvas.ts` `#testOf`; 2026-10-25): Alteryx's Test tool, as a box (In and Out, after Output). Its window
+lists its checks, a row each -- a column with no empty value, a column no value of which repeats, a number column within
+bounds (its smallest, its largest, or both; an empty value fails no bound) -- added and taken off. Its query is Count
+Records' way: a column of one value its rows are grouped by, and for each check a column of 1 for each row that fails it
+(a repeat found by a row number among its value's rows), summed, beside a count of its rows; every column it read
+hidden. So its one row is each check's failing rows, counted by the database -- `region_empty`, `trade_id_repeated`,
+`notional_outside`, `Rows`. Read back by rebuilding each check by the rule that made it and comparing it whole
+(`checksOf`), never by its name alone; set again, its own columns are taken off first in the same step. Once its rows
+land for what it is now (shown, or the flow run), the canvas reads its row (`firstRowOf`, the box's grid's) and marks
+the box: amber, saying "1 of 2 checks fail" with each failing check and its rows in its title, or its words green when
+every check passes; the result is kept for what its rows are made of (its chain), so it shows after another box is
+shown, and a run's log says it ("2 tests failing"). A check's mode (warn or refuse, a run stopping on a refusal) and a
+row-count check are next. Python: `grid.test([{'kind': 'notEmpty', 'column': ...}, ...])`, its row by `to_pandas`.
+Tested by `flow-sheet.test.ts` (the counts made and read back whole, one bound, set again, which fail, refusals, read
+from JSON), Python's `test_rows_checked_as_a_test_box_checks_them` (over DuckDB: an empty region, a repeated id, a
+notional outside its bounds, each 1; set again, passing) and the harness (a Test over the Filter: its trade ids unique,
+its notionals to 950,000 -- one of two failing, marked; set again, passing).
 
 **The example flow's Reshape sheet** (`examples/prep-flow.ts`): a second sheet showing the tools that reshape rows over the
 same orders -- the two biggest orders of each region (a Sample: last 2 of each region by revenue), their columns chosen

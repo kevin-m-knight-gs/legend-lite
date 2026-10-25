@@ -44,6 +44,7 @@ import { accessor, collection, fn, lambda, lit, property, variable } from '../..
 import { textToolOf } from '../src/text-tools.ts';
 import { readTextTool, textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
 import { grainColumn, grainOf } from '../src/calc-presets.ts';
+import { CHECKS_COLUMN, checkCommands, checksOf, checkWords, failingChecks, readChecks, testColumns, type Check } from '../src/checks.ts';
 import { DATE_RANGES, dateRangeConditions, datesBetweenConditions } from '../src/date-ranges.ts';
 import { datesKept } from '../src/page-filters.ts';
 import { pastedCells, tableCsv, tableProblem } from '../src/ui/text-input-dialog.ts';
@@ -285,6 +286,49 @@ describe('Unique (unique.ts): a row number per key, its first kept, the number h
     assert.equal((uniqueCommands(taken, { keys: ['region'] })[0] as { column: DerivedColumn }).column.name, 'UniqueRow_2');
     assert.deepEqual(readUnique({ kind: 'unique', keys: ['region'], by: 'notional' }), { keys: ['region'], by: { column: 'notional', direction: 'asc' } });
     assert.throws(() => readUnique({ kind: 'unique', keys: 'region' }), /its keys are a list of column names/);
+  });
+});
+
+describe("a Test (checks.ts): each check's failing rows counted by the database, in one row", () => {
+  const typed = { ...rawRows(accessor('local::DB', 'trades'), COLUMNS) };
+  const apply = (s: CubeSnapshot, commands: readonly unknown[]): CubeSnapshot =>
+    applyGridCommands({ snapshot: s, config: DEFAULT_CONFIGURATION }, commands as never).snapshot;
+  const checks: Check[] = [
+    { kind: 'notEmpty', column: 'region' }, { kind: 'unique', column: 'region' }, { kind: 'between', column: 'notional', min: 0, max: 1000 },
+  ];
+
+  it('makes a count of each check, grouped by a column of one value, every column it read hidden; read back whole', () => {
+    const commands = checkCommands(typed, checks);
+    const s = apply(typed, commands);
+    assert.deepEqual(s.rows, [CHECKS_COLUMN]);
+    assert.deepEqual(checksOf(s), checks);
+    assert.deepEqual(testColumns(checks), ['region_empty', 'region_repeated', 'region__row', 'notional_outside', 'Rows', 'ChecksAll']);
+    const hidden = (commands.at(-1) as unknown as { patch: { columns: Record<string, unknown> } }).patch.columns;
+    assert.deepEqual(Object.keys(hidden), ['region', 'notional', 'ChecksAll', 'region__row']);
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived: s.derived, rows: s.rows }))),
+      { tool: 'test', also: [], says: 'region has no empty value, region repeats no value, notional from 0 to 1000' });
+    // a bound on one side alone, read back
+    const atMost = apply(typed, checkCommands(typed, [{ kind: 'between', column: 'notional', max: -5 }]));
+    assert.deepEqual(checksOf(atMost), [{ kind: 'between', column: 'notional', max: -5 }]);
+    assert.equal(checkWords({ kind: 'between', column: 'notional', min: 2 }), 'notional at least 2');
+    // set again: its own columns taken off first, its checks the new ones
+    const again = apply(s, checkCommands(s, [{ kind: 'notEmpty', column: 'notional' }]));
+    assert.deepEqual(checksOf(again), [{ kind: 'notEmpty', column: 'notional' }]);
+    assert.deepEqual(again.derived.map((d) => d.name), ['notional_empty', 'Rows', 'ChecksAll']);
+  });
+
+  it('says which checks fail, by the counts its row has; refuses in words', () => {
+    const counts: Record<string, number> = { region_empty: 2, region_repeated: 0, notional_outside: 1 };
+    assert.deepEqual(failingChecks(checks, (c) => counts[c]).map((f) => [f.check.kind, f.rows]), [['notEmpty', 2], ['between', 1]]);
+    refused(() => checkCommands(typed, []), /a test checks something: add a check/);
+    refused(() => checkCommands(typed, [{ kind: 'notEmpty', column: 'nope' }]), /the grid has no column 'nope'/);
+    refused(() => checkCommands(typed, [{ kind: 'between', column: 'region', min: 1 }]), /'region' is String: only a number is checked within bounds/);
+    refused(() => checkCommands(typed, [{ kind: 'between', column: 'notional' }]), /its smallest, its largest, or both/);
+    refused(() => checkCommands(typed, [{ kind: 'between', column: 'notional', min: 5, max: 1 }]), /its smallest is above its largest/);
+    refused(() => checkCommands(typed, [checks[0]!, checks[0]!]), /'region' is checked that way twice/);
+    assert.deepEqual(readChecks({ kind: 'test', checks: [{ kind: 'between', column: 'notional', min: 1 }] }), [{ kind: 'between', column: 'notional', min: 1 }]);
+    refused(() => readChecks({ kind: 'test', checks: [{ kind: 'unique', column: 'region', min: 1 }] }), /a unique check takes no min/);
+    refused(() => readChecks({ kind: 'test', checks: [{ kind: 'sometimes', column: 'region' }] }), /a check is notEmpty, unique, between/);
   });
 });
 
