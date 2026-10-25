@@ -21,9 +21,10 @@ import {
 import { renamedCommand, rearranged } from '../src/page-rebase.ts';
 import { tidyCommands } from '../src/page-gestures.ts';
 import { applyPlanned, pageBetween } from '../src/page-between.ts';
-import { CubeRefusal } from '../src/snapshot.ts';
+import { CubeRefusal, type DerivedColumn } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
-import { accessor } from '../../pure-protocol/src/index.ts';
+import { accessor, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
+import { grainColumn, grainOf } from '../src/calc-presets.ts';
 
 const COLUMNS = [{ name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }];
 const FILE: FileSource = {
@@ -152,6 +153,17 @@ describe('what a box says it does (flow-boxes.ts boxSays): its query, never a fi
     // a Top N, as a Sample says it: its first (smallest) or last rows by a column
     assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, topN: { by: 'notional', n: 5, bottom: true } }))),
       { tool: 'sample', also: [], says: 'first 5 by notional' });
+  });
+
+  it("a date taken to its period says a DateTime, by its expression's shape: the preset's or one typed so", () => {
+    const said = (derived: DerivedColumn[]) => boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived })));
+    assert.deepEqual(said([grainColumn('trade_date', 'month', 'trade_date_month')]), { tool: 'datetime', also: [], says: 'trade_date by month' });
+    assert.deepEqual(said([grainColumn('trade_date', 'day', 'd'), grainColumn('settle', 'year', 'y')]),
+      { tool: 'datetime', also: [], says: 'trade_date by day, settle by year' });
+    // the same function over anything but the row's own column, a Formula's
+    const other = { name: 'odd', lambda: lambda(['x'], fn('firstDayOfMonth', fn('toOne', property(variable('y'), 'trade_date')))) };
+    assert.deepEqual(said([other]), { tool: 'formula', also: [], says: 'odd' });
+    assert.equal(grainOf(grainColumn('trade_date', 'quarter', 'q'))?.grain, 'quarter');
   });
 
   it("a box's inputs, live or a copy named as the box it copies; the boxes that read it, through others", () => {

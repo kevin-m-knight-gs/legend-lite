@@ -77,6 +77,7 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   sample: 'M2.5 3h11M2.5 6.5h11M2.5 10h4M2.5 13h4M10 10.5l1.5 1.5 2.5-3',
   multiRow: 'M2 3.5h8M2 8h8M2 12.5h8M12.5 5.5l2 2.5-2 2.5',
   tile: 'M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z',
+  datetime: 'M2.5 3.5h11v10h-11zM2.5 6.5h11M5.5 2v3M10.5 2v3M5 9h1.5M7.5 9H9M10 9h1.5M5 11h1.5M7.5 11H9',
   runningTotal: 'M2 13l4-4.5 3 2.5 5-6.5M10.5 4.5H14V8',
   crosstab: 'M2 2.5h12v11H2zM2 6.5h12M6 2.5v11',
   comment: 'M2.5 2.5h11v8h-6l-3 3v-3h-2zM5 5.5h6M5 8h4',

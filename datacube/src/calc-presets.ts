@@ -66,6 +66,26 @@ export function grainColumn(column: string, grain: TimeGrain, name = grainName(c
   return { name, lambda: row(fn(GRAIN_FUNCTION[grain], one(column))), kind: 'dimension' };
 }
 
+/**
+ * The period a column takes a date to, if it is one (grainColumn's shape, by the function it calls -- whoever wrote
+ * it: the preset, Python's grid.grain, or a person typing `$x.d->toOne()->firstDayOfMonth()`), and the column it takes.
+ * A flow's DateTime box is drawn by it (flow-boxes.ts).
+ */
+export function grainOf(d: DerivedColumn): { readonly column: string; readonly grain: TimeGrain } | undefined {
+  const param = d.lambda?.parameters[0]?.name;
+  const body = d.lambda?.body;
+  if (param === undefined || body?.length !== 1) return undefined;
+  const call = body[0]!;
+  if (call._type !== 'func' || call.parameters.length !== 1) return undefined;
+  const grain = (Object.keys(GRAIN_FUNCTION) as TimeGrain[]).find((g) => GRAIN_FUNCTION[g] === call.function);
+  const toOne = call.parameters[0]!;
+  if (grain === undefined || toOne._type !== 'func' || toOne.function !== 'toOne' || toOne.parameters.length !== 1) return undefined;
+  const read = toOne.parameters[0]!;
+  if (read._type !== 'property' || read.parameters.length !== 1) return undefined;
+  const owner = read.parameters[0]!;
+  return owner._type === 'var' && owner.name === param ? { column: read.property, grain } : undefined;
+}
+
 /** One period of each grain, as the compiler's `adjust` takes it: how many of which DurationUnit. */
 const GRAIN_STEP: Readonly<Record<TimeGrain, readonly [number, string]>> = {
   day: [1, 'DAYS'], week: [7, 'DAYS'], month: [1, 'MONTHS'], quarter: [3, 'MONTHS'], year: [1, 'YEARS'],

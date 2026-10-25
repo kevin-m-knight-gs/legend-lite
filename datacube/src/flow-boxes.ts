@@ -8,6 +8,7 @@
 import {
   inputCube, inputOn, inputSides, isLive, type CubeDocument, type InputPort, type InputSide, type JoinInput,
 } from './cube-document.ts';
+import { grainOf } from './calc-presets.ts';
 import { joinWords } from './join-words.ts';
 import { conditionWords } from './page-filters.ts';
 import type { DerivedColumn } from './snapshot.ts';
@@ -16,7 +17,7 @@ import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
 export type FlowTool = 'input' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'sample' | 'recordId' | 'multiRow' | 'tile'
-  | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment';
+  | 'datetime' | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
 export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: FlowGroup; readonly does: string }>> = {
@@ -31,6 +32,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   recordId: { name: 'Record ID', group: 'prepare', does: 'a number for each row, in an order it is given' },
   multiRow: { name: 'Multi-Row', group: 'prepare', does: 'a column of the row before or after each one' },
   tile: { name: 'Tile', group: 'prepare', does: 'each row put in one of a number of equal buckets, by an order' },
+  datetime: { name: 'DateTime', group: 'prepare', does: 'a date taken to its day, week, month, quarter or year' },
   runningTotal: { name: 'Running Total', group: 'transform', does: 'a column\'s total so far, row by row' },
   summarize: { name: 'Summarize', group: 'transform', does: 'a row per group, its measures beside its keys' },
   crosstab: { name: 'Cross Tab', group: 'transform', does: 'a column\'s values made columns across, a row per group' },
@@ -43,8 +45,8 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'transform' | 'docs';
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'filter', 'formula', 'select', 'sort', 'sample', 'recordId', 'multiRow', 'tile', 'join', 'union', 'summarize', 'crosstab',
-  'runningTotal', 'comment',
+  'input', 'filter', 'formula', 'select', 'sort', 'sample', 'recordId', 'multiRow', 'tile', 'datetime', 'join', 'union', 'summarize',
+  'crosstab', 'runningTotal', 'comment',
 ];
 
 /**
@@ -59,6 +61,8 @@ export type StepEditor =
   | { readonly window: 'properties'; readonly tab: EditorTab }
   /** The Sample window (ui/sample-form.ts): the grid's Top N, said as its first or last rows by a column. */
   | { readonly window: 'sample' }
+  /** The DateTime window (ui/date-form.ts): a date column taken to its period, the grid's own period preset. */
+  | { readonly window: 'datetime' }
   /** The Join window (ui/join-dialog.ts), over the box's two inputs: a Join's, a Union's (its Append). Opened when asked,
    *  never by a click on the box -- a window over the page, not docked. */
   | { readonly window: 'join' };
@@ -71,6 +75,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   summarize: { window: 'properties', tab: 'Vertical Pivots' },
   crosstab: { window: 'properties', tab: 'Horizontal Pivots' },
   sample: { window: 'sample' },
+  datetime: { window: 'datetime' },
   // a window column, started as the tool's (snapshot.ts WindowSpec): the person picks its order, its column
   recordId: { window: 'column', start: { name: 'RecordID', window: { fn: 'rowNumber', partition: [], order: [] } } },
   multiRow: { window: 'column', start: { name: 'Previous', window: { fn: 'lag', partition: [], order: [], offset: 1 } } },
@@ -104,8 +109,9 @@ export function boxSays(cube: CubeDocument): BoxSays {
   for (const d of q.derived) {
     const tool = columnTool(d);
     const last = steps.at(-1);
-    if (last?.tool === tool) last.says = `${last.says}, ${d.name}`;
-    else steps.push({ tool, says: d.name });
+    const said = columnWords(d);
+    if (last?.tool === tool) last.says = `${last.says}, ${said}`;
+    else steps.push({ tool, says: said });
   }
   if (q.filter !== undefined) steps.push({ tool: 'filter', says: conditionWords(q.filter) });
   if (q.topN !== undefined) steps.push({ tool: 'sample', says: `${q.topN.bottom === true ? 'first' : 'last'} ${q.topN.n} by ${q.topN.by}` });
@@ -124,11 +130,17 @@ export function boxSays(cube: CubeDocument): BoxSays {
  *  a bucket, a running total), any other a Formula's. */
 function columnTool(d: DerivedColumn): FlowTool {
   const w = d.window;
-  if (w === undefined) return 'formula';
+  if (w === undefined) return grainOf(d) !== undefined ? 'datetime' : 'formula';
   if (w.fn === 'rowNumber') return 'recordId';
   if (w.fn === 'lag' || w.fn === 'lead') return 'multiRow';
   if (w.fn === 'ntile') return 'tile';
   return w.frame === 'running' ? 'runningTotal' : 'formula';
+}
+
+/** A calculated column, as its box says it: its name -- a period's, what it takes to what (`trade_date by month`). */
+function columnWords(d: DerivedColumn): string {
+  const grain = grainOf(d);
+  return grain === undefined ? d.name : `${grain.column} by ${grain.grain}`;
 }
 
 /** The columns a cube's configuration hides (Column Properties' Hide): what a Select box leaves out. */

@@ -549,6 +549,22 @@ try {
   check(sampled?.tool === 'sample' && sampled.says === 'first 5 by trade_id', `a Sample box: ${JSON.stringify(sampled)}`);
   check(await resultRows() === 5, 'its first five rows');
 
+  // A DATETIME (M3), dragged onto the Filter: its trade dates taken to their month, in its window docked
+  const beforeDate = (await boxes()).map((b) => b.id);
+  await drag('datetime', filter.id);
+  await boxCount(beforeDate.length + 1);
+  const dated = await added(beforeDate);
+  await docked('Date Period');
+  check(await page.locator('.dc-flow-dock .dc-date-column option').count() > 0, 'its window offers the date columns');
+  await page.locator('.dc-flow-dock .dc-date-column').selectOption('trade_date');
+  await page.locator('.dc-flow-dock .dc-date-grain').selectOption('month');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  const monthly = (await boxes()).find((b) => b.id === dated.id);
+  check(monthly?.tool === 'datetime' && monthly.says === 'trade_date by month', `a DateTime box: ${JSON.stringify(monthly)}`);
+  check(await page.locator('.dc-flow-results .dc-th[data-column="trade_date_month"]').count() > 0, 'its column in its rows: trade_date_month');
+  check(await resultRows() === fewer, 'its input\'s rows, each kept');
+
   // ZOOM (M7): a level up, a box dragged as far across the window moves less on the canvas; back to its own size
   await page.locator('.dc-flow-zoom', { hasText: '+' }).click();
   check(await page.locator('.dc-flow-zoom-level').textContent() === '110%', 'zoomed in a level: 110%');

@@ -157,7 +157,7 @@ import {
   ColumnsToolPanel,
   type ColumnsPanelChild,
 } from './ui/columns-panel.ts';
-import { isVariant } from '../../engine-client/src/types.ts';
+import { isTemporal, isVariant } from '../../engine-client/src/types.ts';
 import { lazily } from './lazily.ts';
 
 
@@ -459,7 +459,7 @@ const windowStack = new WeakMap<HTMLElement, number>();
 
 /** The windows that set a cube -- Properties, the Filter window, a calculated column's editor -- which dock where a host
  *  docks them (CubeAppOptions.dock); every other window floats. */
-const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key.startsWith('column:');
+const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Date Period' || key.startsWith('column:');
 
 /**
  * Which cube on a document a keystroke from OUTSIDE every cube belongs to: the one last
@@ -3616,6 +3616,9 @@ export class CubeApp {
       case 'sample':
         void this.#openSample();
         return;
+      case 'datetime':
+        void this.#openDate();
+        return;
       // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
       case 'join':
         return;
@@ -3632,6 +3635,25 @@ export class CubeApp {
       now: this.#snapshot.topN,
       apply: (column, n, last) => this.#gesture('filter.topN', { column, n, ...(last ? {} : { bottom: true }) }, 'Sample'),
       clear: () => this.#gesture('filter.topNOff', {}, 'Sample'),
+      close,
+    }));
+  }
+
+  /** A FLOW'S DATETIME (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): a date column taken to its period -- the grid's own
+   *  By Day/Week/... preset (grid-presets.ts), in a window of its own (ui/date-form.ts, fetched with the first). */
+  async #openDate(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const { dateForm } = await lazily(() => import('./ui/date-form.ts'));
+    this.#showOverlay('Date Period', (host, close) => dateForm(host, {
+      columns: rowColumns(this.#snapshot).filter((c) => isTemporal(c.type)).map((c) => c.name),
+      apply: async (column, grain) => {
+        try {
+          return await this.#apply(presetCommands(this.#snapshot, { kind: 'grain', column, grain }), 'Date Period');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
       close,
     }));
   }

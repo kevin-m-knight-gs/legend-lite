@@ -340,8 +340,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  367,500 -> 368,000 (2026-10-25, the flow mode's Sample: a grid's Sample window opened by its step, docked; the form
  *  a chunk of its own, ui/sample-form.ts). Measured 367,587.
  *  368,000 -> 368,500 (2026-10-25, the flow mode's comments: a text tile on a flow placed as a box is, drawn as a note,
- *  left alone by Tidy Up and Run; the note's drawing the canvas's chunk). Measured 368,285. */
-const BUDGET = 368_500;
+ *  left alone by Tidy Up and Run; the note's drawing the canvas's chunk). Measured 368,285.
+ *  368,500 -> 369,500 (2026-10-25, the flow mode's DateTime: a period column read off its expression to say a box's
+ *  tool (calc-presets.ts grainOf), the window that sets it opened by its step, docked; the form a chunk of its own,
+ *  ui/date-form.ts). Measured 369,121. */
+const BUDGET = 369_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -460,8 +463,10 @@ const BUDGET = 368_500;
  *  356,000 -> 356,500 (2026-10-25, the flow mode's False port: a live input's port read and resolved, a box made where
  *  its tool or line was let go). Measured 356,148.
  *  356,500 -> 357,000 (2026-10-25, the flow mode's comments -- the grid-only page's note of the same date). Measured
- *  356,556. */
-const ENGINE_BUDGET = 357_000;
+ *  356,556.
+ *  357,000 -> 357,500 (2026-10-25, the flow mode's DateTime -- the grid-only page's note of the same date). Measured
+ *  357,399. */
+const ENGINE_BUDGET = 357_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -488,8 +493,11 @@ const ENGINE_BUDGET = 357_000;
  *  301,000 -> 303,000 (2026-10-18, chart batch 5, the roadmap run's phase 6): the ECharts code a first chart shares with
  *  the maps' chunk is a file of its own (three files compress less well than two), and the drawing grew with batches 4
  *  and 5's words; the measure counts only the chunks a first chart fetches (one only batch 3's kinds and the maps share
- *  is theirs). Measured 302,497. */
-const CHART_BUDGET = 303_000;
+ *  is theirs). Measured 302,497.
+ *  303,000 -> 303,500 (2026-10-25, the flow mode's DateTime): no chart code changed -- the chunks a first chart fetches
+ *  name the main bundle's exports and its files, and those moved with the grid-only page's note of the same date.
+ *  Measured 303,003. */
+const CHART_BUDGET = 303_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -636,8 +644,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  378,000 -> 378,500 (2026-10-25, the flow mode's run log: its panel's styles; its drawing the canvas's chunk). Measured
  *  378,157.
  *  378,500 -> 379,000 (2026-10-25, the flow mode's comments -- the grid-only page's note of the same date; a note's
- *  styles among them). Measured 378,609. */
-const WIDGET_BUDGET = 379_000;
+ *  styles among them). Measured 378,609.
+ *  379,000 -> 380,000 (2026-10-25, the flow mode's DateTime -- the grid-only page's note of the same date). Measured
+ *  379,446. */
+const WIDGET_BUDGET = 380_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -591,8 +591,14 @@ its column in its rows; a Cross Tab's Properties docked at Column Labels).
 **Built, Sample** (`ui/sample-form.ts`, `app.ts` `#openSample`): a box's first or last rows in the order of a column --
 the grid's own Top N (`filter.topN`), said as a sample is ("Keep the first 5 rows, in the order of trade_id"; ties kept,
 as the Top N keeps them), in a window of its own docked in the settings pane, fetched with the first. A box with a Top N
-says "first 5 by trade_id". Tested by the harness (its five rows). Still to come in M3: Unique, the parse tools as
-Formula presets, Data Cleansing, Imputation.
+says "first 5 by trade_id". Tested by the harness (its five rows).
+
+**Built, DateTime** (`ui/date-form.ts`, `app.ts` `#openDate`, `calc-presets.ts` `grainOf`): a date column taken to its
+day, week, month, quarter or year -- the grid's own By Day/Week/... preset (`grid-presets.ts`, the one rule Python's
+`grid.grain` asks), in a window of its own ("Date Period") docked in the settings pane, fetched with the first. A box
+says what it takes to what ("trade_date by month"), read off its column's expression by its shape -- the preset's, or
+the same expression typed into a Formula -- never by its name. Tested by `flow-sheet.test.ts` and the harness (its
+column in its rows). Still to come in M3: Unique, the parse tools as Formula presets, Data Cleansing, Imputation.
 
 ### M7's first steps (2026-10-25)
 
