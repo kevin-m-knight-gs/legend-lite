@@ -1122,6 +1122,21 @@ try {
     console.log(`  the second view showed: ${(await cut.evaluate(() => document.getElementById('b').innerText)).slice(0, 300)}`);
     failed = true;
   }
+
+  // A TIMESERIES OF TWO GRIDS ON A PAGE PYTHON SERVES (the timeseries review's A7, docs/TIMESERIES_REVIEW_2026_10_25.md:
+  // the host's half of a combined series ran in no test): built with ll.Page, opened in a tab -- its one series reading
+  // both grids together through Python (python-host.ts together: join.json, headless joinTogether), planned and run by
+  // Python where the rows are -- its line drawn, its latest value the database's (102 - 4.2), none refused
+  engine.stdin.write('py-ts\n');
+  const tsBuilt = await nextLine();
+  if (!tsBuilt.startsWith('done py-ts ')) throw new Error(`the engine did not build the timeseries page: ${tsBuilt}`);
+  await tabbed.goto(JSON.parse(tsBuilt.slice('done py-ts '.length)));
+  await seen('a timeseries of two grids on a page Python serves: read together by Python, its line drawn, its latest value the database\'s',
+    () => {
+      const t = document.querySelector('[data-tile^="timeseries-"] .dc-ts');
+      return t !== null && t.querySelector('.dc-ts-chart canvas') !== null && t.querySelector('.dc-ts-failed') === null
+        && t.querySelector('.dc-ts-banner.dc-ts-bad') === null && /97\.8/.test(t.querySelector('.dc-ts-legend')?.textContent ?? '');
+    });
 } finally {
   closing = true;
   await browser?.close();

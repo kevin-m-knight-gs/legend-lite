@@ -868,7 +868,10 @@ type HostAbility = 'rows' | 'pages' | 'model' | 'class' | 'join' | 'warehouse' |
 
 /** A test, `file::name`: a test file of DataCube's (under test/) or the tab's libraries' and the title of one of its
  *  `it`s, `describe`s, browser `check`s or conformance runs, or a Python test file (under ../python/tests/) and one of
- *  its test methods. */
+ *  its test methods. 2026-10-25 (the timeseries review's A7, docs/TIMESERIES_REVIEW_2026_10_25.md: the code a `both:`
+ *  vouched for ran in no test it named): also a browser harness's check -- one of demo/'s browser tests' `check`s on
+ *  the tab (demo/verify-charts.mjs, //datacube:verify_charts_test), and the Python engine's harness's `seen`s
+ *  (test/python-engine/python-engine.mjs, //datacube:python_engine_test) -- where a whole page runs it end to end. */
 type Proof = string;
 
 /**
@@ -929,11 +932,17 @@ const HOST_ABILITIES: Readonly<Record<HostAbility, {
     kind: 'shared',
     tab: ['test/join-open.test.ts::a join opened over one model, its rows from DuckDB',
       "test/host-join-flow.test.ts::Join… on a host's page: each of the window's answers the host's (B11)",
-      'test/timeseries-queries.test.ts::a series combining two grids, planned over one model of their tables (§5.2)'],
+      'test/timeseries-queries.test.ts::a series combining two grids, planned over one model of their tables (§5.2)',
+      // 2026-10-25 (the timeseries review's A7): a series of two grids drawn on a page of the tab's -- tabSources,
+      // openTogether, the tab's planner and database -- in the timeseries gallery, every tile drawn
+      'demo/verify-charts.mjs::opens from Open…, and every timeseries on every sheet draws'],
     python: ['../python/tests/test_headless.py::test_two_frames_joined_as_the_tabs_join_joins_them',
       '../python/tests/test_page.py::test_a_tab_on_the_page_asks_python_each_of_its_join_windows_answers',
       // 2026-10-25 (the timeseries tile): grids read together over one model of Python's tables (join.json together)
-      '../python/tests/test_page.py::test_a_tab_on_the_page_asks_python_to_read_a_timeseries_grids_together'],
+      '../python/tests/test_page.py::test_a_tab_on_the_page_asks_python_to_read_a_timeseries_grids_together',
+      // and on a page Python serves, built with ll.Page: python-host.ts together, join.json, headless joinTogether, run
+      // by Python (the timeseries review's A7)
+      'test/python-engine/python-engine.mjs::a timeseries of two grids on a page Python serves'],
   },
   // a driver each (the tab's, Python's), held to one recorded corpus of the warehouse's calls
   warehouse: {
@@ -992,7 +1001,7 @@ function proved(proof: Proof): string | undefined {
   const lines = SOURCES.read(file).split('\n');
   const found = file.endsWith('.py')
     ? lines.some((l) => l.trimStart().startsWith(`def ${name}(`))
-    : lines.some((l) => /\b(?:it|describe|check|conformance)\(/.test(l) && l.replace(/\\'/g, "'").includes(name));
+    : lines.some((l) => /\b(?:it|describe|check|conformance|seen)\(/.test(l) && l.replace(/\\'/g, "'").includes(name));
   return found ? undefined : `${proof}: no test of that name in it`;
 }
 
@@ -1018,7 +1027,9 @@ describe("L12: every branch on the host, with what the other host does there", (
     const used = new Set(Object.values(HOST_BRANCHES).flatMap((e) => (e.ability ? [e.ability] : [])));
     for (const [ability, a] of Object.entries(HOST_ABILITIES)) {
       if (!used.has(ability as HostAbility)) problems.push(`${ability}: an ability no branch is a way to`);
-      if (a.tab.length === 0 || a.tab.some((p) => !p.startsWith('test/'))) problems.push(`${ability}: proved on the tab by DataCube's tests`);
+      if (a.tab.length === 0 || a.tab.some((p) => !p.startsWith('test/') && !/^demo\/verify-[a-z-]+\.mjs::/.test(p))) {
+        problems.push(`${ability}: proved on the tab by DataCube's tests`);
+      }
       if (!a.python.some((p) => p.startsWith('../python/tests/'))) problems.push(`${ability}: proved on the Python host by Python's own tests`);
       if (a.kind === 'two' && (a.parity ?? []).length === 0) problems.push(`${ability}: two implementations, and no test holds them to one result`);
       for (const p of [...a.tab, ...a.python, ...(a.parity ?? [])]) {
