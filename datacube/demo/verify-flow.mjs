@@ -211,6 +211,15 @@ try {
   const summed = (await boxes()).find((b) => b.id === summary.id);
   check(summed?.tool === 'summarize' && summed.says === 'by region', `the Summarize says its groups: ${JSON.stringify(summed)}`);
   check(groups > 0 && groups < 10, `a row per region: ${groups}`);
+  // its Chart (M5): its rows drawn -- a chart of its regions -- its options a click away; then its rows again
+  await page.locator('.dc-flow-mode[data-mode="chart"]').click();
+  await page.locator('.dc-flow-chart .dc-chartpanel-chart canvas, .dc-flow-chart .dc-chartpanel-chart svg').first().waitFor({ timeout: 60_000 });
+  check(await page.locator('.dc-flow-results .dc-flow-chart-options').isVisible(), 'its chart\'s Options beside the title');
+  check(JSON.stringify(await page.locator('.dc-flow-mode.dc-chosen:visible').allTextContents()) === '["Chart"]',
+    `Chart the one chosen: ${await page.locator('.dc-flow-mode.dc-chosen:visible').allTextContents()}`);
+  await page.screenshot({ path: outPath('flow-chart.png') });
+  await page.locator('.dc-flow-mode[data-mode="rows"]').click();
+  check(await page.locator('.dc-flow-chart').count() === 0 && await resultRows() === groups, 'its rows again, the chart taken down');
   check(await lineCount() === 3, 'a line into each box after the first');
 
   // EACH BOX PREVIEWED, the one shown before closed: only the shown box has a grid

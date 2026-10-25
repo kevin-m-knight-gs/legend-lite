@@ -19,6 +19,12 @@ import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import type { Profile } from '../profile.ts';
 import { lazily } from '../lazily.ts';
 
+/** A box's chart as its results pane holds it: its options shown or hidden, and taken down. */
+export interface FlowChart {
+  toggleForm(): void;
+  dispose(): void;
+}
+
 export interface FlowBoardOptions {
   /** A box let go at (`x`, `y`) by hand -- its drag, or its arrow keys: the caller tells its place (placeBox). */
   readonly onMove?: (id: string, x: number, y: number) => void;
@@ -74,6 +80,9 @@ export interface FlowBoardOptions {
   readonly onCopy?: (ids: readonly string[], cut: boolean) => void;
   /** The shown box's Profile (its results pane's): its columns summarised, asked of the database (profile.ts). */
   readonly profileOf?: (id: string) => Promise<Profile>;
+  /** The shown box's Chart (its results pane's): its rows drawn by its grid's chart panel, mounted into `host` (the
+   *  caller's, which holds the panel: the canvas fetches no chart code) -- its options shown and hidden, and taken down. */
+  readonly chartOf?: (id: string, host: HTMLElement) => FlowChart;
   /** Ctrl+V on the canvas: the caller adds what it copied last, at `at` (where the pointer is), else after the box it
    *  reads. */
   readonly onPaste?: (at: FlowPoint | undefined) => void;

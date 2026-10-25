@@ -587,6 +587,22 @@ export class CubePage {
         const grid = this.#grids.get(tile)?.added?.cube;
         return grid?.profile === undefined ? Promise.reject(new Error(`${tile} is not shown`)) : grid.profile();
       },
+      // its rows drawn as a chart tile draws its grid's (a mark clicked filters nothing: a box's query is its step)
+      chartOf: (tile, host) => {
+        const grid = this.#grids.get(tile)?.added?.cube;
+        if (grid === undefined) throw new Error(`${tile} is not shown`);
+        const source = (): ChartSource => grid.chartSource();
+        const panel = new ChartPanel(host, {
+          snapshot: () => source().snapshot,
+          run: (query, snapshot, signal) => source().run(query, snapshot, signal),
+          label: (value, column, type, headline) => source().format(value, column, type, headline),
+          unit: (column) => source().unit?.(column),
+          shown: () => source().shown(),
+          onPick: () => undefined,
+          formOpen: false,
+        });
+        return { toggleForm: () => { panel.toggleForm(); }, dispose: () => panel.dispose() };
+      },
       onPaste: (at) => this.#pasteBox(id, at),
     });
     board.setEditing(this.#editing);

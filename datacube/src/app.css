@@ -4966,7 +4966,11 @@
 .dc-flow-mode.dc-chosen { background: var(--dc-selected-bg); color: var(--dc-active); font-weight: 600; }
 /* a box's profile: a row a column, how filled it is a bar */
 /* the shown box's grid kept in place, out of sight, while its profile is shown */
-.dc-flow-results-body.dc-flow-profiling > :not(.dc-flow-profile) { display: none !important; }
+.dc-flow-results-body.dc-flow-profiling > :not(.dc-flow-profile):not(.dc-flow-chart) { display: none !important; }
+/* a box's chart in the results pane: the chart panel filling it, its options beside the chart when shown */
+.dc-flow-chart { display: flex; flex: 1; min-height: 220px; height: 100%; }
+.dc-flow-chart-host { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.dc-flow-chart-host > .dc-chartpanel { flex: 1; min-width: 0; }
 .dc-flow-profile { height: 100%; overflow: auto; padding: 10px 14px; box-sizing: border-box; }
 .dc-flow-profile-wait { color: var(--dc-muted); padding: 8px 0; }
 .dc-flow-profile-refused { color: var(--tw-red-600); }

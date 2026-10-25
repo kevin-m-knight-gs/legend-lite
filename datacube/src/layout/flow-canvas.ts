@@ -22,7 +22,7 @@
 // the two boxes.
 
 import { BOX_HEIGHT, BOX_WIDTH, CONTAINER_FRAME, FRAME_HEAD, FRAME_MIN, MARGIN, framedBy, type Flow, type FlowBox, type Frame } from './flow.ts';
-import type { FlowBoardState } from './flow-board.ts';
+import type { FlowBoardState, FlowChart } from './flow-board.ts';
 import type { FlowPoint, LineEnd, RunLog } from './flow-board.ts';
 import type { InputPort, InputSide } from '../cube-document.ts';
 import {
@@ -188,7 +188,10 @@ export class FlowCanvas {
   readonly #headActions: HTMLElement;
   /** The results pane's Rows and Profile, and which it shows (the screen's): the box's grid, or its columns summarised. */
   readonly #modes: HTMLElement;
-  #mode: 'rows' | 'profile' = 'rows';
+  #mode: 'rows' | 'profile' | 'chart' = 'rows';
+  /** The shown box's chart, while the results pane draws it: for which box and chain, and the panel mounted. */
+  #charted: { readonly key: string; readonly chart: FlowChart } | undefined;
+  readonly #chartView: HTMLElement;
   /** The profile asked for, by the box and what its rows are made of (its chain): its answer, or why there is none. */
   #profiled: { readonly key: string; readonly answer?: Profile; readonly refused?: string } | undefined;
   readonly #profileView: HTMLElement;
@@ -432,10 +435,11 @@ export class FlowCanvas {
     this.#headActions = el('div', 'dc-flow-results-actions');
     this.#modes = el('div', 'dc-flow-modes');
     this.#modes.setAttribute('role', 'tablist');
-    this.#modes.setAttribute('aria-label', 'Rows or profile');
+    this.#modes.setAttribute('aria-label', 'Rows, profile or chart');
     for (const [mode, label, title] of [
       ['rows', 'Rows', 'Its rows, as its grid shows them'],
       ['profile', 'Profile', 'Each column summarised: its values, its different values, its smallest and largest'],
+      ['chart', 'Chart', 'Its rows drawn: a chart of what it groups by, its options a click away'],
     ] as const) {
       const b = doc.createElement('button');
       b.type = 'button';
@@ -451,6 +455,7 @@ export class FlowCanvas {
       this.#modes.append(b);
     }
     this.#profileView = el('div', 'dc-flow-profile');
+    this.#chartView = el('div', 'dc-flow-chart');
     this.#head.append(this.#headTitle, this.#modes, this.#headActions);
     this.#body = el('div', 'dc-flow-results-body');
     this.#empty = el('div', 'dc-flow-results-empty');
@@ -1754,15 +1759,28 @@ export class FlowCanvas {
       this.#modes.hidden = true;
       this.#body.classList.remove('dc-flow-profiling');
       this.#profileView.remove();
+      this.#unchart();
       return;
     }
     this.#headTitle.textContent = this.#nameOf(id!, this.#said(id!)?.tool ?? 'browse');
-    this.#modes.hidden = this.#board.options.profileOf === undefined;
+    const { profileOf, chartOf } = this.#board.options;
+    this.#modes.hidden = profileOf === undefined && chartOf === undefined;
     for (const b of this.#modes.querySelectorAll<HTMLElement>('.dc-flow-mode')) {
       const on = b.dataset['mode'] === this.#mode;
       b.classList.toggle('dc-chosen', on);
       b.setAttribute('aria-selected', String(on));
+      b.hidden = (b.dataset['mode'] === 'profile' && profileOf === undefined) || (b.dataset['mode'] === 'chart' && chartOf === undefined);
     }
+    if (this.#mode === 'chart' && chartOf !== undefined) {
+      // its grid kept where it is, out of sight, as the Profile keeps it; its chart beside it
+      this.#body.classList.add('dc-flow-profiling');
+      this.#profileView.remove();
+      if (!this.#body.contains(tile.element)) this.#body.replaceChildren(tile.element);
+      if (!this.#body.contains(this.#chartView)) this.#body.append(this.#chartView);
+      this.#paintChart(id!, chartOf);
+      return;
+    }
+    this.#unchart();
     if (this.#mode === 'profile' && this.#board.options.profileOf !== undefined) {
       // its grid kept where it is, out of sight, so its rows are not asked again when it comes back
       this.#body.classList.add('dc-flow-profiling');
@@ -1780,6 +1798,39 @@ export class FlowCanvas {
     if (actions.some((a, i) => this.#headActions.children[i] !== a) || this.#headActions.children.length !== actions.length) {
       this.#headActions.replaceChildren(...actions);
     }
+  }
+
+  /**
+   * THE SHOWN BOX'S CHART (M5): its rows drawn by its grid's chart panel (the caller's: the canvas fetches no chart code),
+   * a chart of what it groups by as DataCube starts one -- mounted once for what its rows are made of now, and again when
+   * that changes; its Options beside the pane's title.
+   */
+  #paintChart(id: string, chartOf: NonNullable<FlowBoardState['options']['chartOf']>): void {
+    const key = `${id}|${this.#board.chain(id)}`;
+    if (this.#charted?.key !== key) {
+      // another box's, or its rows made otherwise since: taken down, the view kept
+      this.#charted?.chart.dispose();
+      this.#charted = undefined;
+      const host = this.#doc.createElement('div');
+      host.className = 'dc-flow-chart-host';
+      this.#chartView.replaceChildren(host);
+      this.#charted = { key, chart: chartOf(id, host) };
+    }
+    const options = this.#doc.createElement('button');
+    options.type = 'button';
+    options.className = 'dc-picker-button dc-quiet dc-flow-chart-options';
+    options.textContent = 'Options';
+    options.title = 'Its kind, its columns and its look';
+    options.addEventListener('click', () => this.#charted?.chart.toggleForm());
+    this.#headActions.replaceChildren(options);
+  }
+
+  /** The chart taken down, out of the pane. */
+  #unchart(): void {
+    this.#charted?.chart.dispose();
+    this.#charted = undefined;
+    this.#chartView.replaceChildren();
+    this.#chartView.remove();
   }
 
   /**

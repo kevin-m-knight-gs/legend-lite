@@ -525,8 +525,11 @@ const BUDGET = 377_500;
  *  hands on (box-columns.ts inPlaceCommand, inPlaceOf, read at startup through live-inputs.ts), the Profile asking its
  *  measures' correlations (app.ts); the tools and the matrix's drawing their chunks). Measured 364,174.
  *  365,000 -> 365,500 (2026-10-25, the flow mode's Summarize window and a Join's L and R -- the grid-only page's notes of
- *  the same date). Measured 365,150. */
-const ENGINE_BUDGET = 365_500;
+ *  the same date). Measured 365,150.
+ *  365,500 -> 366,000 (2026-10-25, the flow mode's Find Replace and a box's Chart: the Find Replace window's opener
+ *  (app.ts) and the page's chart of a box (page/cube-page.ts chartOf, its ChartPanel the page's own already); the
+ *  window, the rule and the results pane's drawing chunks of their own). Measured 365,531. */
+const ENGINE_BUDGET = 366_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

@@ -223,7 +223,7 @@ How to read the status column:
 |---|---|---|
 | Input Data | Built | A grid's sources: a file, a remote file, a warehouse table, a class, a saved query, a frame |
 | Text Input | Built (2026-10-25) | A small table typed in or pasted from a sheet, written as a CSV file: an Input over it, as a file dropped on the canvas is. Pure's `#TDS` literal remains the way to keep one in a model |
-| Browse | Built | The results pane: the selected box's or port's grid |
+| Browse | Built | The results pane: the selected box's grid, its Profile, its Chart |
 | Output Data (to a table) | Core, after v1 | `write` to a store table throws "not yet implemented" (`core/.../lowering/Lowerer.java:3295`): F1, built in core in parallel (FL13) |
 | Output Data (to a file) | Built (2026-10-25) | An Output box: its input's every row (the columns it shows) streamed from the database and written as CSV, by Write now and each time the flow runs; Python's `grid.output(name)` and `flow.run(folder)`. The grid's exports still write the rows shown |
 | Data Stream In / Out | Step | The Cache box (FL10), on Snap |
@@ -935,6 +935,15 @@ what its rows are made of (the box and every box it reads: the board's `chain`),
 in place, out of sight, so its rows are not asked again when Rows comes back. A pivoted box is refused in words (its
 columns are its values). Tested by `flow-sheet.test.ts` (its question, its reading) and the harness (the Input's
 profile: 5,000 rows, region 3 values from AMER to EMEA, notional's smallest and largest; its rows again).
+
+**Built, a box's Chart** (`layout/flow-canvas.ts` `#paintChart`, `layout/flow-board.ts` `chartOf`, `page/cube-page.ts`;
+2026-10-25): the results pane's third view, beside Rows and Profile -- the shown box's rows drawn by its grid's own
+chart panel (`ui/chart-panel.ts`, a chart tile's: a chart of what it groups by as DataCube starts one, its kind, columns
+and look in its Options, beside the pane's title). Its panel is the page's to make (`chartOf`), so the canvas's chunk
+fetches no chart code and ECharts comes with the first chart, as on a board. Mounted once for what its rows are made of
+(the board's `chain`), again when that changes, taken down when Rows or Profile is chosen; the grid kept in place, out of
+sight, as the Profile keeps it. A mark clicked filters nothing: a box's query is its step. Tested by the harness (a
+Summarize's regions drawn, its Options beside the title; its rows again, the chart taken down).
 
 **Built, Output** (`layout/flow.ts` `Output`, `setOutput`; `page-commands.ts` `setOutput`; `page-gestures.ts`
 `outputCommand`; `layout/flow-canvas.ts` `#paintOutput`; `page/cube-page.ts` `#writeBox`; `app.ts` `writeOutput`):
