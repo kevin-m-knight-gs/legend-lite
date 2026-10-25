@@ -319,8 +319,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  source and plane in words in its status bar, a lone grid's state in its sheet's tab, ⤢/⤡). Measured 357,039.
  *  357,500 -> 358,500 (2026-10-25, the grid's status bar the user signed off: Properties, Filter, Add Column and Join as
  *  drawn icons (ui/tile-icons.ts toolIcon), its rows or groups in words, a chip each for what is true of it, the receipt
- *  an i, a thin bar on the grid's top edge while a query runs -- app.ts #renderStatusBar). Measured 358,056. */
-const BUDGET = 358_500;
+ *  an i, a thin bar on the grid's top edge while a query runs -- app.ts #renderStatusBar). Measured 358,056.
+ *  358,500 -> 359,500 (2026-10-25, the text box as a Markdown editor the user chose: its reader, drawing and editor
+ *  stay a chunk of their own (page-text.ts); what the page carries is their styles -- tables, code, quotes, tasks, the
+ *  toolbar, the preview (app.css) -- and an export's lines of each new block (cube-page.ts textLines)). Measured
+ *  358,640. */
+const BUDGET = 359_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -588,8 +592,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  363,000 -> 365,000 (2026-10-25, the UI waves: a measure's numbers right-aligned, the page's ≡ grouped by purpose and
  *  the one tile header -- the grid-only page's notes of the same date). Measured 364,708.
  *  365,000 -> 366,500 (2026-10-25, the grid's status bar -- the grid-only page's note of the same date). Measured
- *  365,932. */
-const WIDGET_BUDGET = 366_500;
+ *  365,932.
+ *  366,500 -> 367,500 (2026-10-25, the text box as a Markdown editor -- the grid-only page's note of the same date).
+ *  Measured 366,944. */
+const WIDGET_BUDGET = 367_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
