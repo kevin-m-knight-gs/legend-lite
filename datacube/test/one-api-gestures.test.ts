@@ -202,7 +202,8 @@ function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
 }
 
 /** A grid over daily prices (a date, an instrument, a close): what a timeseries reads. Its engine answers every query
- *  with the same two days of one instrument, its columns the grid's. */
+ *  with the same two days of one instrument, its columns the grid's -- and a series' dates and values beside them, so
+ *  a timeseries' line is drawn and its legend has a chip to click (a grid reads the columns it asked for). */
 const PRICES: CubeSnapshot = {
   source: { query: element('prices') },
   columns: [{ name: 'symbol', type: 'String' }, { name: 'day', type: 'StrictDate' }, { name: 'close', type: 'Float' }],
@@ -215,6 +216,8 @@ class PricesGate extends GateEngine {
         { name: 'symbol', type: 'String', values: ['AAA', 'AAA'] },
         { name: 'day', type: 'StrictDate', values: ['2024-01-02', '2024-01-03'] },
         { name: 'close', type: 'Float', values: [100, 101] },
+        { name: '__ts_date', type: 'StrictDate', values: ['2024-01-02', '2024-01-03'] },
+        { name: '__ts_value', type: 'Float', values: [100, 101] },
       ],
       rowCount: 2, epoch, elapsedMs: 1,
     };
@@ -247,6 +250,17 @@ async function withTimeseries(): Promise<{ a: string; b: string; series: string 
   return { ...g, series: bar.closest<HTMLElement>('[data-tile]')!.dataset['tile']! };
 }
 
+/** A timeseries tile of one grid of prices, `a`, with a second grid of prices beside it, `c`, to read. */
+async function withTwoPrices(): Promise<{ a: string; c: string; series: string }> {
+  newPage();
+  const a = pg().addGrid(overPrices());
+  const c = pg().addGrid(overPrices(), { near: a });
+  await settle();
+  gridMenuItem(a, 'Timeseries').click();
+  const bar = await shown<HTMLElement>(host, '[data-tile^="timeseries-"] .dc-ts-bar .dc-ts-range');
+  return { a, c, series: bar.closest<HTMLElement>('[data-tile]')!.dataset['tile']! };
+}
+
 /** A page of two grids, `a` over trades, `b` over orders beside it. */
 async function twoGrids(): Promise<{ a: string; b: string }> {
   newPage();
@@ -270,6 +284,51 @@ async function editorOf(text: string): Promise<HTMLTextAreaElement> {
   return area;
 }
 const contextMenu = (el: Element): void => { el.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true })); };
+
+// -- a timeseries tile, as a person works it (ui/timeseries-view.ts): its toolbar, legend, series editor and settings --
+
+/** A select of a timeseries tile -- its toolbar's, its editor's or its settings' -- by its accessible name. */
+function tsSelect(series: string, name: string): HTMLSelectElement {
+  const s = tile(series).querySelector<HTMLSelectElement>(`select[aria-label="${name}"]`);
+  assert.ok(s, `${series} offers ${name}`);
+  return s;
+}
+/** A button of a timeseries tile, by what it says. */
+function tsButton(series: string, text: string): HTMLButtonElement {
+  const b = [...tile(series).querySelectorAll<HTMLButtonElement>('button')].find((x) => x.textContent === text);
+  assert.ok(b, `${series} offers ${text} (it offers ${[...tile(series).querySelectorAll('button')].map((x) => x.textContent).join(' | ')})`);
+  return b;
+}
+const choose = (s: HTMLSelectElement, value: string): void => {
+  s.value = value;
+  s.dispatchEvent(new dom.window.Event('change'));
+};
+const typed = (input: HTMLInputElement, value: string): void => {
+  input.value = value;
+  input.dispatchEvent(new dom.window.Event('input'));
+};
+/** Its first line's legend chip, once the database's answer is drawn. */
+const chipOf = (series: string): Promise<HTMLElement> => shown<HTMLElement>(tile(series), '.dc-ts-chip:not(.dc-ts-failed)');
+/** The series editor of its first line, opened as its chip's double-click opens it. */
+async function editorOfLine(series: string): Promise<void> {
+  (await chipOf(series)).dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+  await shown(tile(series), '.dc-ts-pop input[aria-label="Expression"]');
+}
+const expression = (series: string): HTMLInputElement => tile(series).querySelector<HTMLInputElement>('.dc-ts-pop input[aria-label="Expression"]')!;
+/** A source row of its settings (open), by its place. */
+const sourceRow = (series: string, i: number): HTMLElement => [...tile(series).querySelectorAll<HTMLElement>('.dc-ts-pop .dc-ts-row')]
+  .filter((r) => r.querySelector('.dc-ts-alias'))[i]!;
+
+/** Each sheet tab at its own place along the bar (jsdom lays nothing out): tab i from x = 100 + 100i, 80 wide. */
+function placeTabs(): void {
+  [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')].forEach((t, i) => {
+    const left = 100 + 100 * i;
+    t.getBoundingClientRect = () => ({ left, right: left + 80, top: 0, bottom: 20, x: left, y: 0, width: 80, height: 20, toJSON: () => ({}) });
+  });
+}
+const pointer = (el: Element, type: string, x: number, y: number): void => {
+  el.dispatchEvent(new dom.window.PointerEvent(type, { pointerId: 1, clientX: x, clientY: y, button: 0, bubbles: true }));
+};
 
 async function drawn(): Promise<void> {
   await new Promise((r) => setTimeout(r, 200));
@@ -583,6 +642,154 @@ const GESTURES: readonly Gesture[] = [
     make: ({ series }) => {
       [...tile(series!).querySelectorAll<HTMLButtonElement>('.dc-ts-range')].find((b) => b.textContent === '1Y')!.click();
     },
+  },
+  // every other change of a timeseries tile (the review's A8, docs/TIMESERIES_REVIEW_2026_10_25.md), made as a person
+  // makes it -- its toolbar, its legend, its series editor, its settings, its tile -- each told as the page's commands
+  // (setTimeseries: its spec by the tile's one rule, timeseries-edit.ts editTimeseries, which Python's Timeseries methods
+  // ask too: headless timeseriesEdit), and undone
+  { name: 'a timeseries frequency picked in its toolbar', setUp: withTimeseries, make: ({ series }) => choose(tsSelect(series!, 'Frequency'), 'week') },
+  // a first tile of many instruments' prices compares them rebased (timeseries-expr.ts firstPlot): its % change picked
+  { name: 'a timeseries compared as its % change in its toolbar', setUp: withTimeseries, make: ({ series }) => choose(tsSelect(series!, 'Compare'), 'percent') },
+  { name: 'a timeseries main pane put on a log scale in its toolbar', setUp: withTimeseries, make: ({ series }) => tsButton(series!, 'Log').click() },
+  { name: "a timeseries' statistics shown from its toolbar", setUp: withTimeseries, make: ({ series }) => tsButton(series!, 'Stats').click() },
+  { name: 'a timeseries line hidden from its legend', setUp: withTimeseries, make: async ({ series }) => { (await chipOf(series!)).click(); } },
+  {
+    name: 'a timeseries series added in its editor',
+    setUp: withTimeseries,
+    make: async ({ series }) => {
+      tsButton(series!, '+ Series').click();
+      await shown(tile(series!), '.dc-ts-pop input[aria-label="Expression"]');
+      typed(expression(series!), 'mean(close, 5)');
+      tsButton(series!, 'OK').click();
+    },
+  },
+  {
+    name: 'a timeseries series edited in its editor',
+    setUp: withTimeseries,
+    make: async ({ series }) => {
+      await editorOfLine(series!);
+      typed(expression(series!), 'close * 2');
+      tsButton(series!, 'OK').click();
+    },
+  },
+  {
+    name: 'a timeseries series removed in its editor',
+    setUp: withTimeseries,
+    make: async ({ series }) => {
+      await editorOfLine(series!);
+      tsButton(series!, 'Remove').click();
+    },
+  },
+  {
+    name: "a timeseries source's instrument column changed in its settings",
+    setUp: withTimeseries,
+    make: ({ series }) => {
+      tsButton(series!, 'Settings').click();
+      choose(tsSelect(series!, 'Instrument column'), '');
+    },
+  },
+  {
+    name: 'a timeseries reading another grid, from its settings',
+    setUp: withTwoPrices,
+    make: ({ series, c }) => {
+      tsButton(series!, 'Settings').click();
+      choose(tsSelect(series!, 'Read another grid'), c!);
+    },
+  },
+  {
+    name: 'a timeseries letting a grid go, in its settings',
+    setUp: async () => {
+      const g = await withTwoPrices();
+      tsButton(g.series, 'Settings').click();
+      choose(tsSelect(g.series, 'Read another grid'), g.c);
+      await drawn();
+      return g;
+    },
+    make: ({ series }) => {
+      sourceRow(series!, 1).querySelector<HTMLButtonElement>('.dc-ts-close')!.click();
+    },
+  },
+  {
+    name: "a timeseries' legend turned off in its settings",
+    setUp: withTimeseries,
+    make: ({ series }) => {
+      tsButton(series!, 'Settings').click();
+      const legend = [...tile(series!).querySelectorAll<HTMLLabelElement>('.dc-ts-pop label.dc-ts-check')].find((l) => l.textContent === 'Legend')!;
+      legend.querySelector('input')!.click();
+    },
+  },
+  {
+    name: 'a timeseries level annotated in its settings',
+    setUp: withTimeseries,
+    make: ({ series }) => {
+      tsButton(series!, 'Settings').click();
+      choose(tsSelect(series!, 'Kind'), 'level');
+      tile(series!).querySelector<HTMLInputElement>('.dc-ts-pop input[aria-label="Value"]')!.value = '101';
+      tsButton(series!, 'Add').click();
+    },
+  },
+  {
+    name: "a timeseries' annotation taken off in its settings",
+    setUp: async () => {
+      const g = await withTimeseries();
+      tsButton(g.series, 'Settings').click();
+      choose(tsSelect(g.series, 'Kind'), 'level');
+      tile(g.series).querySelector<HTMLInputElement>('.dc-ts-pop input[aria-label="Value"]')!.value = '101';
+      tsButton(g.series, 'Add').click();
+      await drawn();
+      return g;
+    },
+    make: ({ series }) => {
+      const row = [...tile(series!).querySelectorAll<HTMLElement>('.dc-ts-pop .dc-ts-row')].find((r) => r.textContent?.startsWith('Level 101'))!;
+      row.querySelector<HTMLButtonElement>('.dc-ts-close')!.click();
+    },
+  },
+  { name: 'a timeseries tile removed', setUp: withTimeseries, make: ({ series }) => removeTile(series!) },
+  {
+    name: 'a timeseries tile dragged onto another sheet',
+    setUp: async () => {
+      const g = await withTimeseries();
+      (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+      await settle();
+      // its own sheet shown again (a new sheet is shown as it is added), as a click on its tab shows it
+      const tab = tabOf('prices.csv');
+      tab.dispatchEvent(new dom.window.PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 0 }));
+      tab.dispatchEvent(new dom.window.PointerEvent('pointerup', { bubbles: true, button: 0, clientX: 0 }));
+      await drawn();
+      return g;
+    },
+    make: async ({ series }) => {
+      placeTabs();
+      const head = tile(series!).querySelector<HTMLElement>('.dc-tile-head')!;
+      pointer(head, 'pointerdown', 600, 300);
+      pointer(head, 'pointermove', 240, 10);
+      pointer(head, 'pointerup', 240, 10);
+      await settle();
+    },
+  },
+  {
+    name: 'a timeseries change undone',
+    setUp: async () => {
+      const g = await withTimeseries();
+      choose(tsSelect(g.series, 'Frequency'), 'week');
+      await drawn();
+      return g;
+    },
+    make: () => pg().undo(),
+  },
+  {
+    // the review's G4: its grid removed, its cube kept for it; the tile removed, the cube let go; the removal undone,
+    // the tile back on that very cube -- its addTimeseries carrying the cube (`kept`), read by the host as sent
+    name: 'a timeseries tile removed after the grid it reads, undone',
+    setUp: async () => {
+      const g = await withTimeseries();
+      await removeTile(g.a);
+      await drawn();
+      await removeTile(g.series);
+      await drawn();
+      return g;
+    },
+    make: () => pg().undo(),
   },
   {
     name: 'a text tile edited in place',
@@ -961,8 +1168,11 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
  *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it.
  *  2026-10-24 (BI parity P4, text tiles): 51 -> 53, a text box added and a text tile edited in place.
  *  2026-10-25 (the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7): 53 -> 55, a timeseries added and
- *  its range picked in its toolbar. */
-const GESTURES_AT_LEAST = 55;
+ *  its range picked in its toolbar.
+ *  2026-10-25 (the timeseries review's A8, docs/TIMESERIES_REVIEW_2026_10_25.md): 55 -> 73, every other change of a
+ *  timeseries tile -- its toolbar's, its legend's, its series editor's, its settings', its tile's -- an undo of one, and
+ *  the undo of a tile's removal after its grid's (G4). */
+const GESTURES_AT_LEAST = 73;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

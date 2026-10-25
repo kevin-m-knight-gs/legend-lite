@@ -544,6 +544,61 @@ function callArguments(text: string, open: number): string {
  *  -- what the gesture would decide, decided before it (the S8 review's blind spot: `zones.set` given `[...rows, c]`). */
 const DECIDED = /\[\s*\.\.\.|\.(?:filter|map|flatMap|concat|slice|splice|reduce|sort|toSorted|reverse|includes|indexOf|find)\(|this\.#(?:snapshot|config|shown|view|owner)\b/;
 
+// -- every change of a timeseries tile, its viewer's and Python's ----------------------------------------------------
+
+/**
+ * The changes of a timeseries tile (timeseries-edit.ts TsChange) one side makes and the other makes by another change of
+ * the same rule (editTimeseries), each with what that is -- so a change made on one side only is decided, never missed
+ * (the review's A8, docs/TIMESERIES_REVIEW_2026_10_25.md, 2026-10-25). The viewer has a control per slot; Python's
+ * options() tells several slots at once, each whole.
+ */
+const TS_CHANGE_ONE_SIDE: Record<string, { readonly other: string; readonly slot?: string }> = {
+  grain: { other: "the viewer's Frequency; Python's options(grain=...), the slots change", slot: 'grain' },
+  range: { other: "the viewer's ranges and Settings' dates; Python's options(range=...)", slot: 'range' },
+  view: { other: "the viewer's Compare, Stats and Settings' toggles, a key each; Python's options(view=...), the view whole", slot: 'view' },
+  pane: { other: "the viewer's Log and Settings' panes, a pane each; Python's options(panes=...), the panes whole", slot: 'panes' },
+  slots: { other: "Python's options(**slots), several slots at once; the viewer sets each by its own change (grain, range, view, pane, annotate)" },
+};
+
+describe("every change of a timeseries tile, made by its viewer and by Python's Timeseries, or listed (the review's A8)", () => {
+  const edit = SOURCES.read('src/timeseries-edit.ts');
+  const kinds = unionKinds(edit, 'TsChange');
+  const viewer = codeLines(SOURCES.read('src/ui/timeseries-view.ts')).join('\n');
+  const python = pythonCode(SOURCES.read(`${PY}/page.py`));
+  const start = python.indexOf('class Timeseries(');
+  const timeseries = python.slice(start, python.indexOf('\nclass ', start + 1));
+  // the viewer's changes: each an edit (its #edit, or editTimeseries over its spec); Python's, each a change its
+  // Timeseries methods tell (its _edit)
+  const byViewer = new Set([...viewer.matchAll(/(?:#edit\(|editTimeseries\(this\.#spec, )\{ kind: '([a-z]+)'/g)].map((m) => m[1]!));
+  const byPython = new Set([...timeseries.matchAll(/\{'kind': '([a-z]+)'/g)].map((m) => m[1]!));
+
+  it('the change kinds are read where they are made', () => {
+    assert.ok(kinds.length >= 13 && kinds.includes('plot') && kinds.includes('slots'), `TsChange's kinds: ${kinds.join(', ')}`);
+    assert.ok(byViewer.has('plot') && byViewer.has('range'), `the viewer's: ${[...byViewer].join(', ')}`);
+    assert.ok(byPython.has('plot') && byPython.has('source'), `Python's: ${[...byPython].join(', ')}`);
+  });
+
+  it('each change made by both, or listed with what the other side makes instead -- which its rule takes', () => {
+    const problems: string[] = [];
+    for (const k of kinds) {
+      const both = byViewer.has(k) && byPython.has(k);
+      const one = TS_CHANGE_ONE_SIDE[k];
+      if (!byViewer.has(k) && !byPython.has(k)) problems.push(`${k}: made by neither side`);
+      else if (both && one) problems.push(`${k}: both make it now -- take it off the list`);
+      else if (!both && !one) problems.push(`${k}: made by ${byViewer.has(k) ? 'the viewer' : 'Python'} alone -- make it on the other side, or list it with what it makes instead`);
+    }
+    for (const k of Object.keys(TS_CHANGE_ONE_SIDE)) if (!kinds.includes(k)) problems.push(`${k}: no such change`);
+    // what a viewer-only change is made by on Python's side: a slot the slots change lays (editTimeseries's 'slots' arm)
+    const arm = edit.slice(edit.indexOf("case 'slots':"), edit.indexOf('return next;', edit.indexOf("case 'slots':")));
+    const slots = [...(arm.match(/for \(const key of \[([^\]]*)\]/)?.[1] ?? '').matchAll(/'([a-z]+)'/g)].map((m) => m[1]!);
+    for (const [k, { slot }] of Object.entries(TS_CHANGE_ONE_SIDE)) {
+      if (slot !== undefined && !slots.includes(slot)) problems.push(`${k}: Python's options() lays no ${slot} (the slots change lays ${slots.join(', ')})`);
+    }
+    if (!byPython.has('slots')) problems.push("Python's options() tells no slots change");
+    assert.deepEqual(problems, [], 'every change of a timeseries tile is made by its viewer and by Python');
+  });
+});
+
 describe('L11: screen code builds no command', () => {
   const kinds = [...unionKinds(SOURCES.read('src/grid-commands.ts'), 'GridCommand'), ...unionKinds(SOURCES.read('src/page-commands.ts'), 'PageCommand')];
   const screens = SOURCES.under('src', '.ts').filter(isScreen);
