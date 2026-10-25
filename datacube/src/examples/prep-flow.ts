@@ -7,7 +7,9 @@
 // until it is shown. A second sheet, Reshape, shows the tools that reshape rows: the top orders of each region kept by a
 // Sample, chosen and renamed by a Select, their money made rows by a Transpose and summed by measure -- each made by its
 // tool's own rule (row-sample.ts, select-columns.ts, transpose.ts), applied as the screen applies it (grid-commands.ts).
-// test/examples.test.ts reads it back.
+// A third, Match, shows what a join leaves and finds: the big orders no country is found for (the Join's L) and how many
+// (Count Records), the countries no big order is of (its R), and every order's country as the countries name it (a Find
+// Replace) -- count-records.ts's and find-replace.ts's rules. test/examples.test.ts reads it back.
 
 import { element, fn, lambda, property, variable } from '../../../pure-protocol/src/index.ts';
 import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../config.ts';
@@ -24,6 +26,8 @@ import { applyGridCommands, type GridCommand } from '../grid-commands.ts';
 import { rowSampleCommands } from '../row-sample.ts';
 import { selectCommands } from '../select-columns.ts';
 import { transposeCommands } from '../transpose.ts';
+import { countRecordsCommands } from '../count-records.ts';
+import { findReplaceCommands } from '../find-replace.ts';
 import { EXAMPLE_ROWS, EXAMPLE_SAMPLE, SALES_SPECS } from './charts-dashboard.ts';
 import { COUNTRY_SPECS, sampleSource } from './prep-joins.ts';
 
@@ -119,6 +123,26 @@ export async function prepFlowPage(): Promise<PageDocument> {
       rows: ['measure'], sorts: [{ column: 'amount', direction: 'desc' }],
     }), { ...DEFAULT_CONFIGURATION, columns: { amount: MONEY } }) },
   );
+  // MATCH: what the join leaves on each side, how many it leaves of the orders, and the orders' countries named as the
+  // countries name them -- every order joined to its country by its code, their name alone brought, replacing its own
+  const named2 = theirNames(SALES_SPECS.map((c) => c.name), ['country'], 'their_');
+  const official: readonly ColumnSpec[] = [...SALES_SPECS, { name: named2.get('country')!, type: 'String' }];
+  const byName: JoinSource = {
+    _type: 'join', name: 'Orders, their country named', left: { grid: 'grid-1' }, right: { grid: 'grid-2' },
+    how: { form: 'join', kind: 'left', on: { rows: [{ left: 'country_code', op: '==', right: 'code' }] }, prefix: 'their_', keep: ['country'] },
+    columns: official.map((c) => ({ name: c.name, type: c.type })),
+  };
+  const port = (grid: string, side: 'left' | 'right', name: string, columns: readonly ColumnSpec[]): RowsSource => ({
+    _type: 'rows', name, input: { grid, port: side }, columns: columns.map((c) => ({ name: c.name, type: c.type })),
+  });
+  cubes.push(
+    { id: 'grid-13', cube: box('Big orders with no country', port('grid-4', 'left', 'Big orders', SALES_SPECS), flat('unmatched', SALES_SPECS), MONEYED) },
+    { id: 'grid-14', cube: stepped('How many', rowsOf('grid-13', 'Big orders with no country', SALES_SPECS), flat('how many', SALES_SPECS),
+      DEFAULT_CONFIGURATION, (s) => countRecordsCommands(s)) },
+    { id: 'grid-15', cube: box('Countries with no big order', port('grid-4', 'right', 'Countries', COUNTRY_SPECS), flat('no order', COUNTRY_SPECS)) },
+    { id: 'grid-16', cube: stepped('Countries as named', byName, flat('named', official), MONEYED,
+      (s) => findReplaceCommands(s, { column: 'country', with: named2.get('country')! })) },
+  );
   const grids: PageView[] = cubes.map((c) => ({ id: c.id, kind: 'grid', cube: c.id, title: c.cube.name }));
   const notes: PageView[] = [
     { id: 'text-1', kind: 'text', text: 'Inputs' },
@@ -126,6 +150,7 @@ export async function prepFlowPage(): Promise<PageDocument> {
     { id: 'text-4', kind: 'text', text: 'Report' },
     { id: 'text-3', kind: 'text', text: '**Start here.** Click a box to see its rows below, and its settings beside. Drop a tool from the left onto a box to add a step after it; drag from a box\'s right edge to another box to link them; ▶ Run counts every box and writes the Output.' },
     { id: 'text-5', kind: 'text', text: '**Reshape.** The two biggest orders of each region (a Sample), their columns chosen and revenue renamed sales (a Select), their money made rows (a Transpose) and summed by measure.' },
+    { id: 'text-6', kind: 'text', text: '**Match.** The big orders whose country code finds no country -- the Join\'s L -- and how many (Count Records); the countries no big order is of (its R); and each order\'s country named as the countries file names it (Find Replace).' },
   ];
   const reshape: FlowBox[] = [
     { tile: 'grid-9', x: 40, y: 60 },
@@ -133,6 +158,13 @@ export async function prepFlowPage(): Promise<PageDocument> {
     { tile: 'grid-11', x: 536, y: 60 },
     { tile: 'grid-12', x: 536, y: 210 },
     { tile: 'text-5', x: 40, y: 210 },
+  ];
+  const match: FlowBox[] = [
+    { tile: 'grid-13', x: 40, y: 60 },
+    { tile: 'grid-14', x: 288, y: 60 },
+    { tile: 'grid-15', x: 40, y: 210 },
+    { tile: 'grid-16', x: 288, y: 210 },
+    { tile: 'text-6', x: 40, y: 360 },
   ];
   // three columns wide, so the whole of it is in sight beside the settings: its inputs, its steps, its report
   const boxes: FlowBox[] = [
@@ -155,6 +187,7 @@ export async function prepFlowPage(): Promise<PageDocument> {
     views: { views: [...grids, ...notes], sheets: [
       { id: 'sheet-1', name: 'Sales prep', layout: { kind: 'flow', boxes } },
       { id: 'sheet-2', name: 'Reshape', layout: { kind: 'flow', boxes: reshape } },
+      { id: 'sheet-3', name: 'Match', layout: { kind: 'flow', boxes: match } },
     ] },
   });
 }

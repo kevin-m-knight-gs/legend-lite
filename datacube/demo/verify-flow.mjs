@@ -1276,6 +1276,25 @@ try {
   const turnedOut = await page.locator('.dc-flow-results:visible .dc-th[data-column]').evaluateAll((els) => els.map((e) => e.dataset.column));
   check(JSON.stringify(turnedOut) === JSON.stringify(['order_id', 'region', 'measure', 'amount']), `its Transpose reads the Select's sales: ${turnedOut}`);
   await page.screenshot({ path: outPath('flow-example-reshape.png') });
+
+  // ITS MATCH SHEET: what the join leaves on each side (its L and R), how many of the orders it leaves (Count Records),
+  // and every order's country as the countries name it (Find Replace) -- run
+  await page.locator('.dc-sheet-tab', { hasText: 'Match' }).click();
+  await page.waitForFunction(() => document.querySelector('.dc-flow-box[data-tile="grid-16"]')?.offsetParent != null, undefined, { timeout: 60_000 });
+  await page.locator('.dc-flow-run:visible').click();
+  await page.waitForFunction(() => [...document.querySelectorAll('.dc-flow-run')].every((b) => /Run$/.test(b.textContent ?? '')), undefined, { timeout: 240_000 });
+  const matchCounts = await page.locator('.dc-flow-box:visible').evaluateAll((els) => Object.fromEntries(els.map((e) => [e.dataset.tile, e.querySelector('.dc-flow-count')?.textContent ?? ''])));
+  const unmatchedOrders = matchCounts['grid-13'];
+  check(/^[\d,]+$/.test(unmatchedOrders) && unmatchedOrders !== '0' && matchCounts['grid-14'] === '1' && /^[\d,]+$/.test(matchCounts['grid-15']) && matchCounts['grid-16'] === '6,000',
+    `Match: the orders with no country, counted, the countries with none, every order named: ${JSON.stringify(matchCounts)}`);
+  await page.locator('.dc-flow-log-close:visible').click();
+  await page.locator('.dc-flow-box[data-tile="grid-14"]').click();
+  await page.waitForFunction(() => {
+    const shown = [...document.querySelectorAll('.dc-flow-results')].find((r) => r.offsetParent != null);
+    return shown?.querySelector('.dc-flow-results-title')?.textContent === 'How many' && /of [\d,]+ rows|[\d,]+ rows ×/.test(shown.textContent ?? '');
+  }, undefined, { timeout: 60_000 });
+  check((await page.locator('.dc-flow-results:visible').textContent() ?? '').includes(unmatchedOrders), `its count, the orders the join left: ${unmatchedOrders}`);
+  await page.screenshot({ path: outPath('flow-example-match.png') });
 } catch (e) {
   bad(`threw: ${e.stack ?? e}`);
 } finally {

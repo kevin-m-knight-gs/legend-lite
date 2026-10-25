@@ -32,7 +32,7 @@ describe('the example pages', () => {
   // a flow to open, rather than one to build first (docs/DATACUBE_FLOW_MODE_2026_10_24.md)
   it('the flow example: its boxes each the tool it is, read live, in its containers, its Output writing a CSV', async () => {
     const page = readPage(pageToJson(await prepFlowPage()));
-    assert.equal(page.sheets.length, 2);
+    assert.equal(page.sheets.length, 3);
     const layout = page.sheets[0]!.layout;
     assert.ok(layout.kind === 'flow');
     const cube = (id: string) => page.cubes.find((c) => c.id === id)!.cube;
@@ -42,7 +42,12 @@ describe('the example pages', () => {
       'grid-7': 'browse', 'grid-8': 'unique',
       // its Reshape sheet: a Sample, a Select, a Transpose and a Summarize
       'grid-9': 'sample', 'grid-10': 'select', 'grid-11': 'transpose', 'grid-12': 'summarize',
+      // its Match sheet: a Join's L read by a Browse and counted, its R, and a Find Replace
+      'grid-13': 'browse', 'grid-14': 'countRecords', 'grid-15': 'browse', 'grid-16': 'findReplace',
     });
+    assert.deepEqual(['grid-14', 'grid-16'].map((id) => boxSays(cube(id)).says), ['its rows counted: Count', 'country replaced by their_country']);
+    assert.deepEqual(['grid-13', 'grid-15'].map((id) => { const s = cube(id).source; return s._type === 'rows' && 'grid' in s.input ? `${s.input.grid}:${s.input.port}` : null; }),
+      ['grid-4:left', 'grid-4:right'], "the Join's L and R, read live");
     assert.deepEqual(['grid-9', 'grid-10', 'grid-11', 'grid-12'].map((id) => boxSays(cube(id)).says), [
       'last 2 of each region by revenue', 'revenue → sales; 12 of 17 columns left out', 'sales, cost, profit to rows', 'by measure',
     ]);

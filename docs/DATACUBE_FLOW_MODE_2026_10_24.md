@@ -769,7 +769,12 @@ and revenue renamed sales (a Select), their money made rows (a Transpose: sales,
 order's id and region) and summed by measure (a Summarize) -- each box made by its tool's own rule, applied as the
 screen applies it (`grid-commands.ts applyGridCommands`), so the example cannot drift from what the tools make. Tested by
 `examples.test.ts` (each box's tool and words, each read live), the harness (run: 6, 6, 18, 3; the Transpose reading the
-Select's `sales`) and the tour (its picture). A page of two flow sheets keeps both canvases on the page, so the harness
+Select's `sales`) and the tour (its picture). A third sheet, **Match** (2026-10-25), shows what a join leaves and finds:
+the big orders whose country code finds no country -- the Join's L -- and how many (a Count Records), the countries no
+big order is of (its R), and every order's country named as the countries file names it (a Find Replace: a Join of the
+orders and the countries by code, their name alone brought, replacing the order's own) -- boxes on one sheet reading a
+box on another, live. Tested by `examples.test.ts`, the harness (run: the orders left, counted in one row; every one of
+the 6,000 orders named) and the tour (its picture). A page of two flow sheets keeps both canvases on the page, so the harness
 and the tour count and click what is shown.
 
 **Built, Fuzzy Match** (M2; `join-how.ts`, `join.ts`, `ui/join-dialog.ts`): Alteryx's Fuzzy Match as a join -- a row

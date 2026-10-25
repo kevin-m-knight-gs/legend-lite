@@ -586,6 +586,15 @@ try {
     await page.waitForFunction(() => /of [\d,]+ rows|[\d,]+ rows ×/.test([...document.querySelectorAll('.dc-flow-results')].find((r) => r.offsetParent !== null)?.textContent ?? ''), null, { timeout: 120_000 });
     await shot(page, 'its Reshape sheet run: the top orders of each region, chosen and renamed, their money made rows and summed');
     const reshaped = await page.locator('.dc-flow-count:visible').allTextContents();
+    // its Match sheet: the Join's L and R, a Count Records, a Find Replace, run
+    await page.locator('.dc-sheet-tab', { hasText: 'Match' }).click();
+    await page.locator('.dc-flow-box[data-tile="grid-16"]').waitFor({ timeout: 60_000 });
+    await page.locator('.dc-flow-run:visible').click();
+    await ran();
+    await page.locator('.dc-flow-log-close:visible').click();
+    await page.locator('.dc-flow-box[data-tile="grid-13"]').click();
+    await page.waitForFunction(() => /of [\d,]+ rows|[\d,]+ rows ×/.test([...document.querySelectorAll('.dc-flow-results')].find((r) => r.offsetParent !== null)?.textContent ?? ''), null, { timeout: 120_000 });
+    await shot(page, "its Match sheet run: the big orders the join found no country for (its L), counted; the countries no big order is of (its R); every order's country as named");
     return `wrote ${file.suggestedFilename()}; counted ${counts.filter((c) => c !== '').join(', ')}; reshaped ${reshaped.filter((c) => c !== '').join(', ')}`;
   });
 
