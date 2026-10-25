@@ -1650,6 +1650,28 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, 'Could not parse string'):
             odd.to_pandas()
 
+    def test_rows_sampled_as_a_flow_box_samples_them(self):
+        # (M3) grid.sample: a flow's Sample (row-sample.ts sampleCommands) -- the first of each group, all but the first,
+        # one of every n; the first of all of them its Top N; None, every row again. The database numbers the rows
+        page = ll.Page('Sample')
+        grid = page.grid(pd.DataFrame({'desk': ['FX', 'FX', 'FX', 'Rates', 'Rates'], 'n': [1, 2, 3, 4, 5]}), name='numbered')
+        ns = lambda: sorted(int(v) for v in grid.to_pandas()['n'])
+        grid.sample('last', 1, 'n', groups=['desk'])
+        self.assertEqual(ns(), [3, 5])
+        grid.sample('skip', 2, 'n')
+        self.assertEqual(ns(), [3, 4, 5])
+        grid.sample('every', 2, 'n', groups=['desk'])
+        self.assertEqual(ns(), [1, 3, 4])
+        grid.sample('first', 2, 'n')
+        self.assertEqual(ns(), [1, 2])
+        self.assertEqual(grid._query.get('topN'), {'by': 'n', 'n': 2, 'bottom': True})
+        grid.sample(None)
+        self.assertEqual(ns(), [1, 2, 3, 4, 5])
+        with self.assertRaisesRegex(ValueError, 'one row of every 1 is every row'):
+            grid.sample('every', 1, 'n')
+        with self.assertRaisesRegex(ValueError, 'its mode is first, last, skip, every'):
+            grid.sample('random', 1, 'n')
+
     def test_one_formula_over_several_columns_as_a_flow_box_does(self):
         # (M3) grid.multi_field: a flow's Multi-Field Formula (multi-field-columns.ts multiFieldCommands) -- one expression over
         # $v, a column of each, parsed and typed by the compiler; $x the row, for its other columns

@@ -21,12 +21,15 @@ import {
 import { renamedCommand, rearranged } from '../src/page-rebase.ts';
 import { tidyCommands } from '../src/page-gestures.ts';
 import { applyPlanned, pageBetween } from '../src/page-between.ts';
-import { CubeRefusal, type DerivedColumn, type FilterNode } from '../src/snapshot.ts';
+import { CubeRefusal, type CubeSnapshot, type DerivedColumn, type FilterNode } from '../src/snapshot.ts';
 import { readUnique, uniqueCommands, uniqueOf } from '../src/unique.ts';
 import { profileLambda, profileOf } from '../src/profile.ts';
 import { imputeCommands, imputedOf, readImputation } from '../src/impute.ts';
 import { dateToolCommands, dateToolOf, readDateTool } from '../src/date-tools.ts';
 import { multiFieldOf } from '../src/multi-field.ts';
+import { readRowSample, rowSampleCommands, rowSampleOf, sampleCommands } from '../src/row-sample.ts';
+import { applyGridCommands } from '../src/grid-commands.ts';
+import type { GridDraft } from '../src/grid-edits.ts';
 import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi-field-columns.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, fn, lambda, lit, property, variable } from '../../pure-protocol/src/index.ts';
@@ -265,6 +268,72 @@ describe('Unique (unique.ts): a row number per key, its first kept, the number h
     assert.equal((uniqueCommands(taken, { keys: ['region'] })[0] as { column: DerivedColumn }).column.name, 'UniqueRow_2');
     assert.deepEqual(readUnique({ kind: 'unique', keys: ['region'], by: 'notional' }), { keys: ['region'], by: { column: 'notional', direction: 'asc' } });
     assert.throws(() => readUnique({ kind: 'unique', keys: 'region' }), /its keys are a list of column names/);
+  });
+});
+
+describe("Sample's other ways (row-sample.ts): a row number and a filter, as Unique's", () => {
+  const typed = { ...rawRows(accessor('local::DB', 'trades'), COLUMNS) };
+  const columnsOf = (c: readonly unknown[]) => (c as { kind: string; column?: DerivedColumn }[]).filter((x) => x.kind === 'calculate').map((x) => x.column!);
+
+  it('numbers its rows in an order, per group, and filters on the number: first, last, all but the first, one of every', () => {
+    const first = rowSampleCommands(typed, { kind: 'first', n: 2, by: 'notional', groups: ['region'] });
+    assert.deepEqual(columnsOf(first)[0]!.window, { fn: 'rowNumber', partition: ['region'], order: [{ column: 'notional', direction: 'asc' }] });
+    assert.deepEqual(first.find((c) => c.kind === 'addFilter'), { kind: 'addFilter', condition: { kind: 'condition', column: 'SampleRow', operator: 'lessThanEqual', value: 2 } });
+    assert.deepEqual(first.at(-1), { kind: 'configure', patch: { columns: { SampleRow: { hidden: true } } } });
+    const last = rowSampleCommands(typed, { kind: 'last', n: 1, by: 'notional', groups: ['region'] });
+    assert.equal(columnsOf(last)[0]!.window?.order[0]?.direction, 'desc');
+    const skip = rowSampleCommands(typed, { kind: 'skip', n: 10, by: 'notional', groups: [] });
+    assert.equal((skip.find((c) => c.kind === 'addFilter') as { condition: { operator: string } }).condition.operator, 'greaterThan');
+    const every = rowSampleCommands(typed, { kind: 'every', n: 3, by: 'notional', groups: [] });
+    const [row, rem] = columnsOf(every);
+    assert.equal(JSON.stringify(rem!.lambda?.body[0]), JSON.stringify(
+      fn('mod', fn('toOne', property(variable('x'), 'SampleRow')), lit.integer(3))));
+    assert.equal(row!.window?.fn, 'rowNumber');
+  });
+
+  it('is read back off its query, a Sample box saying what it keeps; its columns none of a Formula or a Select', () => {
+    const says = (commands: ReturnType<typeof rowSampleCommands>) => {
+      const derived = columnsOf(commands);
+      const filter = (commands.find((c) => c.kind === 'addFilter') as { condition: FilterNode }).condition;
+      const hidden = Object.fromEntries(derived.map((d) => [d.name, { hidden: true }]));
+      return boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived, filter }), { columns: hidden }));
+    };
+    assert.deepEqual(says(rowSampleCommands(typed, { kind: 'first', n: 2, by: 'notional', groups: ['region'] })),
+      { tool: 'sample', also: [], says: 'first 2 of each region by notional' });
+    assert.deepEqual(says(rowSampleCommands(typed, { kind: 'every', n: 3, by: 'notional', groups: [] })),
+      { tool: 'sample', also: [], says: 'one of every 3 by notional' });
+    assert.deepEqual(says(rowSampleCommands(typed, { kind: 'skip', n: 10, by: 'notional', groups: [] })),
+      { tool: 'sample', also: [], says: 'all but the first 10 by notional' });
+    const every = rowSampleCommands(typed, { kind: 'every', n: 3, by: 'notional', groups: ['region'] });
+    const read = rowSampleOf({ derived: columnsOf(every), filter: (every.find((c) => c.kind === 'addFilter') as { condition: FilterNode }).condition });
+    assert.deepEqual(read, { kind: 'every', n: 3, by: 'notional', groups: ['region'], columns: ['SampleRow', 'SampleEvery'] });
+  });
+
+  it("goes from the sample it has to the one asked: a Top N for the first of all, a row sample's columns made again", () => {
+    let draft: GridDraft = { snapshot: typed, config: DEFAULT_CONFIGURATION };
+    const step = (t: Parameters<typeof sampleCommands>[1]): CubeSnapshot => {
+      draft = applyGridCommands(draft, sampleCommands(draft.snapshot, t));
+      return draft.snapshot;
+    };
+    assert.equal(rowSampleOf(step({ kind: 'first', n: 2, by: 'notional', groups: ['region'] }))?.kind, 'first');
+    // to one of every 3: the old number off, the new one under the same name
+    const every = step({ kind: 'every', n: 3, by: 'notional', groups: [] });
+    assert.deepEqual(every.derived.map((d) => d.name), ['SampleRow', 'SampleEvery']);
+    assert.equal(rowSampleOf(every)?.kind, 'every');
+    // to the first 5 of all the rows: its Top N, the row sample gone
+    const top = step({ kind: 'first', n: 5, by: 'notional', groups: [] });
+    assert.deepEqual([top.derived.length, top.filter, top.topN], [0, undefined, { by: 'notional', n: 5, bottom: true }]);
+    assert.deepEqual(sampleCommands(top, null), [{ kind: 'topN', topN: null }]);
+  });
+
+  it('refuses in words what it cannot sample', () => {
+    assert.throws(() => rowSampleCommands(typed, { kind: 'every', n: 1, by: 'notional', groups: [] }), /one row of every 1 is every row/);
+    assert.throws(() => rowSampleCommands(typed, { kind: 'skip', n: 0, by: 'notional', groups: [] }), /a whole number from 1/);
+    assert.throws(() => rowSampleCommands(typed, { kind: 'first', n: 2, by: 'nope', groups: [] }), /no column 'nope'/);
+    assert.throws(() => rowSampleCommands(typed, { kind: 'first', n: 2, by: 'notional', groups: [] }), /its Top N/);
+    assert.deepEqual(readRowSample({ kind: 'sample', mode: 'skip', n: 3, by: 'notional' }), { kind: 'skip', n: 3, by: 'notional', groups: [] });
+    assert.equal(readRowSample({ kind: 'sample', mode: null }), null);
+    assert.throws(() => readRowSample({ kind: 'sample', mode: 'random', n: 3, by: 'notional' }), /its mode is first, last, skip, every/);
   });
 });
 

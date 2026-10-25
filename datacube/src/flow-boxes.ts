@@ -11,6 +11,7 @@ import {
 import { grainOf } from './calc-presets.ts';
 import { textToolOf, type TextTool } from './text-tools.ts';
 import { uniqueOf } from './unique.ts';
+import { rowSampleOf, rowSampleWords } from './row-sample.ts';
 import { imputedOf } from './impute.ts';
 import { multiFieldOf, type MultiFieldColumn } from './multi-field.ts';
 import { dateToolOf } from './date-tools.ts';
@@ -39,7 +40,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   multiField: { name: 'Multi-Field', group: 'prepare', does: 'one formula over several columns, a new column of each' },
   select: { name: 'Select', group: 'prepare', does: 'the columns it keeps' },
   sort: { name: 'Sort', group: 'prepare', does: 'its rows in the order it sorts them' },
-  sample: { name: 'Sample', group: 'prepare', does: 'its first or its last rows, in the order of a column' },
+  sample: { name: 'Sample', group: 'prepare', does: 'its first or last rows (of each group), all but its first, or one of every N' },
   unique: { name: 'Unique', group: 'prepare', does: 'a row of each key, its first: U the unique rows, D the duplicates' },
   recordId: { name: 'Record ID', group: 'prepare', does: 'a number for each row, in an order it is given' },
   multiRow: { name: 'Multi-Row', group: 'prepare', does: 'a column of the row before or after each one' },
@@ -142,13 +143,17 @@ export function boxSays(cube: CubeDocument): BoxSays {
   // Unique: a row number per key, its first rows kept, the number hidden (unique.ts) -- one step, before the others
   const unique = uniqueOf(q);
   if (unique !== undefined) steps.push({ tool: 'unique', says: `by ${unique.keys.join(', ')}` });
+  // a Sample by row number (row-sample.ts): its numbers and its filter one step, as Unique's are
+  const sampled = unique === undefined ? rowSampleOf(q) : undefined;
+  if (sampled !== undefined) steps.push({ tool: 'sample', says: rowSampleWords(sampled) });
+  const own = new Set([...(unique !== undefined ? [unique.column] : []), ...(sampled?.columns ?? [])]);
   // Imputation's window columns (an average across every row) are its own, said with the column they fill
   const helpers = new Set(q.derived.flatMap((d) => imputedOf(d, q.derived)?.helper ?? []));
   // a Multi-Field Formula's columns: one formula, each over its own column
   const multi = multiFieldOf(q.derived);
   // its calculated columns, each by the tool that makes one so -- the ones of a tool together, in the order they come
   for (const d of q.derived) {
-    if (d.name === unique?.column || helpers.has(d.name)) continue;
+    if (own.has(d.name) || helpers.has(d.name)) continue;
     const tool = columnTool(d, q.derived, multi.get(d.name));
     const last = steps.at(-1);
     const said = columnWords(d, q.derived, multi.get(d.name));
@@ -156,13 +161,13 @@ export function boxSays(cube: CubeDocument): BoxSays {
     if (last?.tool === tool) last.says = last.says === said || last.says.split(', ').includes(said) ? last.says : `${last.says}, ${said}`;
     else steps.push({ tool, says: said });
   }
-  if (q.filter !== undefined && unique === undefined) steps.push({ tool: 'filter', says: conditionWords(q.filter) });
+  if (q.filter !== undefined && own.size === 0) steps.push({ tool: 'filter', says: conditionWords(q.filter) });
   if (q.topN !== undefined) steps.push({ tool: 'sample', says: `${q.topN.bottom === true ? 'first' : 'last'} ${q.topN.n} by ${q.topN.by}` });
   if (q.pivotOn.length > 0) {
     steps.push({ tool: 'crosstab', says: `${q.pivotOn.join(', ')} across${q.rows.length > 0 ? `, by ${q.rows.join(', ')}` : ''}` });
   } else if (q.rows.length > 0) steps.push({ tool: 'summarize', says: `by ${q.rows.join(', ')}` });
   if (q.sorts.length > 0) steps.push({ tool: 'sort', says: q.sorts.map((s) => `${s.column} ${s.direction === 'desc' ? '↓' : '↑'}`).join(', ') });
-  const hidden = hiddenColumns(cube).filter((c) => c !== unique?.column && !helpers.has(c));
+  const hidden = hiddenColumns(cube).filter((c) => !own.has(c) && !helpers.has(c));
   if (hidden.length > 0) steps.push({ tool: 'select', says: `${hidden.length} of ${q.columns.length} columns left out` });
   const first = steps[0];
   if (first === undefined) return { tool: 'browse', also: [], says: 'every row' };

@@ -893,6 +893,16 @@ class Grid(Tile):
         number, or a whole-number column filled with a fraction, refused in DataCube's words."""
         return self._preset({'kind': 'impute', 'columns': list(columns), 'with': fill})
 
+    def sample(self, mode: str | None, n: int | None = None, by: str | None = None, *, groups: Sequence[str] = ()) -> Grid:
+        """Its rows sampled -- a flow's Sample (DataCube's code: row-sample.ts sampleCommands), in the order of the column
+        ``by``: ``mode`` ``'first'`` or ``'last'`` ``n`` rows (its smallest or largest: of all the rows, the grid's Top N,
+        which keeps rows that tie; of each group of ``groups``, a row number per group), ``'skip'`` -- every row after
+        the first ``n`` -- or ``'every'``, one row of every ``n``; either of all the rows or of each group. The database
+        numbers the rows (a window column, hidden). ``None``: every row again, its sample taken off."""
+        if mode is None:
+            return self._preset({'kind': 'sample', 'mode': None})
+        return self._preset({'kind': 'sample', 'mode': mode, 'n': n, 'by': by, 'groups': list(groups)})
+
     def multi_field(self, columns: Sequence[str], expression: str, *, suffix: str = '_new') -> Grid:
         """One ``expression`` over each of ``columns`` -- a flow's Multi-Field Formula (DataCube's code:
         multi-field-columns.ts multiFieldCommands): Pure over ``$v``, each column's value in turn (``'$v->toOne()->trim()'``, ``'$v->toOne() *

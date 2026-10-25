@@ -241,7 +241,7 @@ How to read the status column:
 | Multi-Field Formula | Built (2026-10-25) | One expression over `$v`, each column's value, parsed by the compiler: a calculated column of each (`<column><suffix>`). In place, as Alteryx's "change existing fields", needs a relation `rename` |
 | Select (choose, rename, retype) | Step | Choosing is the grid's shown columns. Renaming is a display name today, not the relation's `rename`; both as relation steps (§17.8). Retyping is `cast` |
 | Sort | Built | The grid's sorts |
-| Sample (first, last, every Nth, N per group) | Step | `limit`, `drop`, `slice`, and a row number for N per group |
+| Sample (first, last, every Nth, N per group) | Built (2026-10-25) | The first or last N of all the rows, the grid's Top N; of each group, all but the first N, or one of every N, a row number (`rowNumber`, per group) and a filter on it, hidden -- `mod` of it for one of every N |
 | Random % Sample | Step | `random()` |
 | Unique (Unique, Duplicates) | Built (2026-10-25) | A row number per key (`rowNumber` partitioned by its columns, in an order), a filter keeping the first, the number hidden; its Duplicates the filter's False port (§3.3), drawn U and D |
 | Record ID | Built | A window column: `rowNumber` |
@@ -682,7 +682,21 @@ expression parsed by the same compiler). Tested by `flow-sheet.test.ts` (its col
 Python's `test_one_formula_over_several_columns_as_a_flow_box_does` (DuckDB's trimmed and upper-cased text, doubled
 numbers plus another column; the compiler's refusal) and the harness (a refused one, then one over region and desk).
 
-Still to come in M3: a date written as text by a format.
+**Built, Sample's other ways** (`row-sample.ts`, `ui/sample-form.ts`): Alteryx's Sample whole -- its first or last N
+rows, all but its first N (Skip), or one row of every N, in the order of a column, of all its rows or of each group of
+some columns (Group by). The first or last N of all the rows stay the grid's Top N (rows that tie kept); every other
+way is said as Unique's is: a row number in the order (`rowNumber`, partitioned by the groups, falling for the last
+ones), a filter on it (`<= n`, `> n`), and for one of every N its remainder (`mod($x.SampleRow, n) == 1`), the numbers
+hidden. `sampleCommands` goes from whatever sample the grid has to the one asked (its Top N or its row sample taken off
+first, the new numbers under the same names), and Keep every row takes it off. A box says "first 1 of each region by
+trade_id", "all but the first 10 by trade_id", "one of every 100 by trade_id", read back off its query (`rowSampleOf`).
+Python: `grid.sample(mode, n, by, groups=...)`, `grid.sample(None)`. Tested by `flow-sheet.test.ts` (its columns, its
+reading, a sample changed twice), Python's `test_rows_sampled_as_a_flow_box_samples_them` (DuckDB's numbering: the last
+of each desk, all but the first two, one of every two of each desk) and the harness (a Sample set again to the first of
+each region, 3 rows, then one of every 100 of the Filter's 503, 6).
+
+Still to come in M3: a date written as text by a format; a random sample (`random()` answers again each time a box is
+read, so a box's rows would change under it: it waits for a seed).
 
 **Built, an example flow** (`examples/prep-flow.ts`, in Open…'s examples as "A data flow"): a flow to open rather than
 one to build first -- the sales sample's orders and its countries in an Inputs container; the orders over $1,000, joined

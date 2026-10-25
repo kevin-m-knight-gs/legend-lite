@@ -567,6 +567,30 @@ try {
   const sampled = (await boxes()).find((b) => b.id === sample.id);
   check(sampled?.tool === 'sample' && sampled.says === 'first 5 by trade_id', `a Sample box: ${JSON.stringify(sampled)}`);
   check(await resultRows() === 5, 'its first five rows');
+  // set again from its settings: the first of each region by trade_id, then one of every 100
+  const resample = async (set) => {
+    await page.locator('.dc-flow-settings button', { hasText: 'Open its settings' }).click();
+    await docked('Sample');
+    await set(page.locator('.dc-flow-dock .dc-sample'));
+    await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+    await settled();
+    return (await boxes()).find((b) => b.id === sample.id);
+  };
+  const perRegion = await resample(async (w) => {
+    await w.locator('.dc-sample-n').fill('1');
+    await w.locator('.dc-sample-grouped input').check();
+    await w.locator('.dc-sample-groups input[value="region"]').check();
+  });
+  check(perRegion?.says === 'first 1 of each region by trade_id', `a Sample of each group: ${JSON.stringify(perRegion)}`);
+  check(await resultRows() === 3, 'a row of each of the three regions');
+  check(await page.locator('.dc-flow-results .dc-th[data-column="SampleRow"]').count() === 0, 'its row number hidden');
+  const everyHundred = await resample(async (w) => {
+    await w.locator('.dc-sample-which').selectOption('every');
+    await w.locator('.dc-sample-n').fill('100');
+    await w.locator('.dc-sample-grouped input').uncheck();
+  });
+  check(everyHundred?.says === 'one of every 100 by trade_id', `a Sample of one of every 100: ${JSON.stringify(everyHundred)}`);
+  check(await resultRows() === Math.ceil(fewer / 100), `one of every 100 of the Filter's ${fewer}: ${Math.ceil(fewer / 100)}`);
 
   // A DATETIME (M3), dragged onto the Filter: its trade dates taken to their month, in its window docked
   const beforeDate = (await boxes()).map((b) => b.id);

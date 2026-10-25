@@ -3643,16 +3643,32 @@ export class CubeApp {
     }
   }
 
-  /** A FLOW'S SAMPLE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): its Top N said as a sample is -- its first rows or its
-   *  last, in the order of a column -- in a window of its own (ui/sample-form.ts, fetched with the first). */
+  /** A FLOW'S SAMPLE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): its first or last rows (its Top N, or of each group),
+   *  all but its first, or one of every N, in the order of a column -- row-sample.ts sampleCommands, the rule Python's
+   *  grid.sample asks -- in a window of its own (ui/sample-form.ts). Both fetched with the first. */
   async #openSample(): Promise<void> {
     if (this.#cubeOnly()) return;
-    const { sampleForm } = await lazily(() => import('./ui/sample-form.ts'));
+    const [{ sampleForm }, { rowSampleOf, sampleCommands }] = await Promise.all([
+      lazily(() => import('./ui/sample-form.ts')), lazily(() => import('./row-sample.ts')),
+    ]);
+    const asked = async (commands: () => GridCommand[]): Promise<string | null> => {
+      try {
+        return await this.#apply(commands(), 'Sample');
+      } catch (e) {
+        if (e instanceof CubeRefusal) return e.message;
+        throw e;
+      }
+    };
+    const s = this.#snapshot;
+    // where it starts: its row sample, else its Top N said as one (its smallest first: bottom)
+    const top = s.topN;
+    const now = rowSampleOf(s) ?? (top === undefined ? undefined
+      : { kind: top.bottom === true ? 'first' as const : 'last' as const, n: top.n, by: top.by, groups: [] });
     this.#showOverlay('Sample', (host, close) => sampleForm(host, {
-      columns: rowColumns(this.#snapshot).map((c) => c.name),
-      now: this.#snapshot.topN,
-      apply: (column, n, last) => this.#gesture('filter.topN', { column, n, ...(last ? {} : { bottom: true }) }, 'Sample'),
-      clear: () => this.#gesture('filter.topNOff', {}, 'Sample'),
+      columns: rowColumns(s).filter((c) => !(rowSampleOf(s)?.columns ?? []).includes(c.name)).map((c) => c.name),
+      now,
+      apply: (sample) => asked(() => sampleCommands(this.#snapshot, sample)),
+      clear: () => asked(() => sampleCommands(this.#snapshot, null)),
       close,
     }));
   }
