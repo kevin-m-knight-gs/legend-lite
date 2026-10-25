@@ -551,6 +551,32 @@ try {
     return `${says.join(' → ')}; counted ${counts.join(', ')}`;
   });
 
+  // the example flow (Open…'s "A data flow"): opened, run, a box's profile, a container folded
+  await step('The example flow: opened, run, a box profiled, a container folded', async (shot) => {
+    await burger('Open…');
+    await page.locator('#cubeswin .dc-open-example[data-example="prep-flow"]').click();
+    await page.waitForFunction(() => document.querySelectorAll('.dc-flow-box').length === 8, null, { timeout: 120_000 });
+    await shot(page, 'the example flow: its inputs, its steps and its report, each in a container');
+    const [file] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.click('.dc-flow-run')]);
+    await page.waitForFunction(() => /Run$/.test(document.querySelector('.dc-flow-run')?.textContent ?? ''), null, { timeout: 240_000 });
+    await page.locator('.dc-flow-log-close').click();
+    // the join's rows profiled: each column's values, its different values, its smallest and largest
+    await page.locator('.dc-flow-box[data-tile="grid-4"]').focus();
+    await page.keyboard.press('Enter');
+    // its grid shown (Run leaves its Output's) and its rows in: what it is made of settled before its profile is asked
+    await page.waitForFunction(() => document.querySelector('.dc-flow-results-title')?.textContent === 'Orders with their country'
+      && /of [\d,]+ rows|[\d,]+ rows ×/.test(document.querySelector('.dc-flow-results')?.textContent ?? ''), null, { timeout: 120_000 });
+    await page.locator('.dc-flow-mode[data-mode="profile"]').click();
+    await page.locator('.dc-flow-profile-table').waitFor({ timeout: 60_000 });
+    await shot(page, 'run, each box counted; the join profiled below');
+    await page.locator('.dc-flow-mode[data-mode="rows"]').click();
+    await page.locator('.dc-flow-container[data-tile="text-2"] .dc-flow-frame-fold').click();
+    await page.waitForFunction(() => document.querySelector('.dc-flow-box[data-tile="grid-3"]')?.hidden === true, null, { timeout: 20_000 });
+    await shot(page, 'its Prepare container folded to its head');
+    const counts = await page.locator('.dc-flow-count').allTextContents();
+    return `wrote ${file.suggestedFilename()}; counted ${counts.filter((c) => c !== '').join(', ')}`;
+  });
+
   await step('No page errors on the way', async () => {
     if (pageErrors.length) throw new Error(pageErrors.slice(0, 3).join(' | '));
     return 'none';

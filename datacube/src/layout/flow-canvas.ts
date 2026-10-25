@@ -1677,7 +1677,9 @@ export class FlowCanvas {
       });
       return;
     }
-    if (view.dataset['drawn'] !== key) this.#drawProfile(view, this.#profiled);
+    // drawn once answered: one still being asked keeps saying so
+    const p = this.#profiled;
+    if (view.dataset['drawn'] !== key && (p.answer !== undefined || p.refused !== undefined)) this.#drawProfile(view, p);
   }
 
   #drawProfile(view: HTMLElement, p: { readonly key: string; readonly answer?: Profile; readonly refused?: string }): void {
