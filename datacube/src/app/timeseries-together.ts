@@ -8,7 +8,7 @@
 // the tables' database (D3: its copy is a table there); until then it is refused in the join's words (leafRefusal).
 // Fetched with the join's code (join-app.ts): a page that combines no grids loads none of it.
 
-import { TAB_TABLES, openSources, type OpenedSource } from '../join-open.ts';
+import { eachRelation, TAB_TABLES, openSources, type OpenedSource } from '../join-open.ts';
 import type { PageApp } from '../page/page-app.ts';
 import type { PlanAndRun } from '../runner.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
@@ -34,7 +34,7 @@ export async function openTogether(grids: readonly string[], o: TogetherOf): Pro
   const opened = await o.open(grids);
   const rows = o.rows(opened.model, opened.runtime);
   return {
-    relations: new Map(grids.map((g, i) => [g, opened.relations[i]!] as const)),
+    relations: new Map(eachRelation(opened, grids)),
     run: async (query) => (await rows.run.host.planAndRun(query, 0)).rows,
     dispose: () => rows.letGo(),
   };

@@ -24,7 +24,7 @@ import {
   type TsRangeWord, type TsSeries, type TsSource, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
-  candleOf, columnRef, exprText, functionNamed, inlined, nextSeriesId, parseExpr, seriesName,
+  candleOf, columnRef, exprText, firstValue, functionNamed, inlined, nextSeriesId, parseExpr, seriesName,
   sourcesOf, timeseriesProblems, TsSyntaxError, type TsColumn, TS_FUNCTIONS, type TsFamily,
 } from '../timeseries-expr.ts';
 import {
@@ -131,6 +131,14 @@ function button(doc: Document, label: string, title: string, onClick: () => void
   return b;
 }
 
+/** A select's line saying why there is nothing to pick there: not an option. */
+function unpicked(doc: Document, why: string): HTMLOptionElement {
+  const o = doc.createElement('option');
+  o.textContent = why;
+  o.disabled = true;
+  return o;
+}
+
 /** An option of a select, in `doc` (the window's own: a page's windows may float in another document). */
 function option(doc: Document, label: string, value: string, selected = false): HTMLOptionElement {
   const o = doc.createElement('option');
@@ -208,7 +216,11 @@ export class TimeseriesView {
   #results = new Map<string, TsResult>();
   #failed = new Map<string, string>();
   #statRows = new Map<string, ResultTable>();
+  /** What the database refused of each series' statistics, and of each source's dates (its range buttons' starts): said
+   *  in the banner and on the line's row, never shown as figures missing (the review's P4: invariant 4). */
+  #statsFailed = new Map<string, string>();
   #bounds = new Map<string, ResultTable>();
+  #boundsFailed = new Map<string, string>();
   #lines: TsLine[] = [];
   #notes: string[] = [];
   #problems: string[] = [];
@@ -391,17 +403,20 @@ export class TimeseriesView {
     const signal = new AbortController().signal;
     // the bounds of each source on the page (its range buttons' starts, the database's)
     const bounds = new Map<string, ResultTable>();
+    const boundsFailed = new Map<string, string>();
     await Promise.all(spec.sources.map(async (s) => {
       const own = this.#input(s.alias);
       if (!own) return;
       try {
         bounds.set(s.alias, await own.grid.run(boundsQuery(own.input, s), own.grid.snapshot, signal));
-      } catch {
-        // its grid cannot answer: its series say why
+      } catch (e) {
+        // its dates refused: a range from the latest date cannot be found from them -- said (#rangeProblems)
+        boundsFailed.set(s.alias, e instanceof Error ? e.message : String(e));
       }
     }));
     if (gen !== this.#gen || this.#disposed) return;
     this.#bounds = bounds;
+    this.#boundsFailed = boundsFailed;
     const window = this.#window();
     // the series with no problem of their own (a problem of the tile's stops them all)
     const blocked = (s: TsSeries): string | undefined =>
@@ -459,17 +474,21 @@ export class TimeseriesView {
     const window = this.#window();
     const signal = new AbortController().signal;
     const rows = new Map<string, ResultTable>();
+    const failed = new Map<string, string>();
     await Promise.all(spec.series.filter((s) => this.#results.has(s.id) && !this.#results.get(s.id)!.query.band).map(async (s) => {
       try {
         rows.set(s.id, (await this.#run(s, (inputs) => statsQuery(inputs, spec, s, window), signal)).table);
-      } catch {
-        // a statistic it cannot have: its row says none
+      } catch (e) {
+        // refused: said on its row and in the banner, never as figures missing
+        failed.set(s.id, e instanceof Error ? e.message : String(e));
       }
     }));
     if (gen !== this.#gen || this.#disposed) return;
     this.#statRows = rows;
+    this.#statsFailed = failed;
     this.#paintLegend();
     this.#paintStats();
+    this.#paintBanner();
   }
 
   // -- drawing -------------------------------------------------------------------------------------------------------
@@ -677,10 +696,25 @@ export class TimeseriesView {
   }
 
   #paintBanner(): void {
-    const said = [...this.#problems, ...this.#notes];
+    const problems = [...this.#problems, ...this.#rangeProblems(), ...this.#statsProblems()];
+    const said = [...problems, ...this.#notes];
     this.#banner.hidden = said.length === 0;
     this.#banner.replaceChildren(...said.map((t) => this.#doc.createTextNode(`${t} `)));
-    this.#banner.classList.toggle('dc-ts-bad', this.#problems.length > 0);
+    this.#banner.classList.toggle('dc-ts-bad', problems.length > 0);
+  }
+
+  /** A range from the latest date whose sources' dates were refused: said, with what is shown instead. */
+  #rangeProblems(): string[] {
+    const r = this.#spec.range;
+    if (!r || !('last' in r) || r.last === 'max' || this.#zoom || this.#boundsFailed.size === 0) return [];
+    const refused = [...this.#boundsFailed].map(([alias, why]) => `${alias}'s dates were refused (${why})`).join('; ');
+    return [`The ${r.last} range is not known: ${refused}. Shown from ${this.#window().from ?? 'the first date'}.`];
+  }
+
+  /** Each series' statistics the database refused, by its id. */
+  #statsProblems(): string[] {
+    if (!viewSetting(this.#spec, 'stats') && !viewSetting(this.#spec, 'legend')) return [];
+    return [...this.#statsFailed].map(([id, why]) => `Series ${id}'s statistics were refused: ${why}`);
   }
 
   #say(words: readonly string[], bad = false): void {
@@ -724,6 +758,12 @@ export class TimeseriesView {
       swatch.style.background = l.color;
       name.append(swatch, doc.createTextNode(l.name));
       tr.append(name);
+      const refused = this.#statsFailed.get(l.series.id);
+      if (refused !== undefined) {
+        tr.append(el(doc, 'td', 'dc-ts-table-refused', `Refused: ${refused}`, { colspan: String(STAT_COLUMNS.length) }));
+        table.append(tr);
+        continue;
+      }
       for (const c of STAT_COLUMNS) {
         const raw = this.#statValue(l, c.stat);
         const n = toNumber(raw as Scalar);
@@ -803,17 +843,24 @@ export class TimeseriesView {
     const splitSel = el(doc, 'select', 'dc-select dc-ts-select', undefined, { 'aria-label': 'Lines' });
     const paintPickers = (): void => {
       const src = spec.sources.find((s) => s.alias === sourceSel.value);
-      const cols = (src ? columns.get(src.alias) : undefined) ?? [];
+      const known = src ? columns.get(src.alias) : undefined;
+      // a source whose grid is not on the page has no columns to pick: said in its pickers, never an empty list
+      const cols = known ?? [];
       const numbers = cols.filter((c) => isNumeric(c.type) && c.name !== src?.date);
-      columnSel.replaceChildren(...numbers.map((c) => option(doc, c.name, c.name)));
+      columnSel.replaceChildren(...(known === undefined ? [unpicked(doc, 'Its grid is not on the page')] : numbers.map((c) => option(doc, c.name, c.name))));
       keySel.replaceChildren(option(doc, 'Every row', ''));
       const texts = cols.filter((c) => !isNumeric(c.type) && !isTemporal(c.type)).map((c) => c.name);
       const chosen = splitSel.value !== '' ? splitSel.value : was?.split ?? '';
       splitSel.replaceChildren(option(doc, 'One line', ''), ...[...new Set([...texts, ...(chosen !== '' ? [chosen] : [])])].map((c) => option(doc, `A line per ${c}`, c)));
       splitSel.value = chosen;
-      if (src?.key !== undefined) void this.#keyValues(src).then((values) => {
-        for (const v of values) keySel.append(option(doc, v, v));
-      });
+      const key = src?.key;
+      if (src !== undefined && key !== undefined) {
+        void this.#keyValues(src, key).then((values) => {
+          for (const v of values) keySel.append(option(doc, v, v));
+        }, (e: unknown) => {
+          keySel.append(unpicked(doc, `Its instruments were refused: ${e instanceof Error ? e.message : String(e)}`));
+        });
+      }
     };
     paintPickers();
     const use = button(doc, 'Use', 'Write the expression of this column', () => {
@@ -835,7 +882,19 @@ export class TimeseriesView {
     fnSel.addEventListener('change', () => {
       const f = functionNamed(fnSel.value);
       if (!f) return;
-      const inner = expr.value.trim() === '' ? 'close' : expr.value.trim();
+      // a blank box: the function of the picked source's first value (DataCube's first plot's rule, firstValue), else
+      // refused in words -- never a column guessed by name
+      let inner = expr.value.trim();
+      if (inner === '') {
+        const picked = spec.sources.find((s) => s.alias === sourceSel.value);
+        const first = picked ? firstValue(columns.get(picked.alias) ?? [], picked) : undefined;
+        if (picked === undefined || first === undefined) {
+          fnSel.value = '';
+          error.textContent = 'Write the series it applies to first, or build one from a column.';
+          return;
+        }
+        inner = exprText(columnRef(first, many ? picked.alias : undefined));
+      }
       if (f.candles) {
         // a candle of the column written: its source's open, high, low and close (timeseries-expr.ts candleOf)
         fnSel.value = '';
@@ -846,7 +905,12 @@ export class TimeseriesView {
           column = undefined;
         }
         const src = column?.kind === 'column' ? spec.sources.find((s) => s.alias === (column.source ?? spec.sources[0]?.alias)) : undefined;
-        const made = column && src ? candleOf(column, columns.get(src.alias) ?? []) : undefined;
+        const own = src ? columns.get(src.alias) : undefined;
+        if (src && own === undefined) {
+          error.textContent = `Candles read their grid's open, high and low: ${src.alias}'s grid is not on the page.`;
+          return;
+        }
+        const made = column && own ? candleOf(column, own) : undefined;
         if (made === undefined) {
           error.textContent = 'Candles are of a column whose grid has its open, high and low beside it: write a close (close[AAPL]), or ohlc(open, high, low, close).';
           return;
@@ -937,16 +1001,14 @@ export class TimeseriesView {
     check();
   }
 
-  /** The values of a source's instrument column, the database's (the picker's). */
-  async #keyValues(src: TsSource): Promise<string[]> {
+  /** The values of a source's instrument column, the database's (the picker's): refused, in the database's words. */
+  async #keyValues(src: TsSource, key: string): Promise<string[]> {
     const own = this.#input(src.alias);
-    if (!own || src.key === undefined) return [];
-    try {
-      const t = await own.grid.run(keyValuesQuery(own.input, src.key), own.grid.snapshot, new AbortController().signal);
-      return (t.columns[0]?.values ?? []).map((v) => String(v));
-    } catch {
-      return [];
-    }
+    if (!own) throw new Error(`${src.alias}'s grid is not on the page`);
+    const t = await own.grid.run(keyValuesQuery(own.input, key), own.grid.snapshot, new AbortController().signal);
+    const values = t.columns[0];
+    if (values === undefined) throw new Error(`the database answered ${key}'s values with no column`);
+    return values.values.map((v) => String(v));
   }
 
   /** Settings: the sources, the view, the panes, the annotations, a range of two dates, export. */

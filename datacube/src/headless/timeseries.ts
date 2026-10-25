@@ -12,6 +12,7 @@ import {
   type TsQuery, type TsWindow,
 } from '../timeseries-query.ts';
 import type { HostTables } from './host-tables.ts';
+import { eachRelation } from '../join-open.ts';
 import { sourcesOnHost, sourcesOpenedOn } from './join.ts';
 import { readTimeseries, type TimeseriesSpec, type TsExpr, type TsSeries, type TsSource } from '../timeseries-spec.ts';
 import {
@@ -233,11 +234,15 @@ export async function timeseriesQuery(spec: string): Promise<string> {
     if (cubes.length === 1) return JSON.stringify({ grid: cubes[0] });
     // several: one model of the host's tables they read, a snapped grid's its copy (join.ts sourcesOnHost)
     const { sources, tables } = await sourcesOnHost(page, cubes, asked.host, asked.copies ?? {});
-    const saved = aliases.map((alias, i) => ({ alias, query: page.cubes.find((c) => c.id === cubes[i])!.cube.query }));
+    const saved = aliases.map((alias, i) => {
+      const cube = page.cubes.find((c) => c.id === cubes[i]);
+      if (cube === undefined) throw new Problem(`source ${alias} reads ${cubes[i]}, which is no cube of the page`);
+      return { alias, query: cube.cube.query };
+    });
     const opened = await sourcesOpenedOn(sources, tables);
     // each grid as the page has it -- its calculated columns, its filter -- over its relation of the model
-    const inputs: TsInputs = new Map(saved.map(({ alias, query }, i) => {
-      const snapshot: CubeSnapshot = { ...query, source: { query: opened.relations[i]! }, epoch: 0 };
+    const inputs: TsInputs = new Map(eachRelation(opened, saved).map(([{ alias, query }, relation]) => {
+      const snapshot: CubeSnapshot = { ...query, source: { query: relation }, epoch: 0 };
       return [alias, { snapshot, filter: query.filter }] as const;
     }));
     const window = asked.window ?? {};

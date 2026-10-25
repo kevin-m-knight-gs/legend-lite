@@ -197,6 +197,15 @@ export interface OpenedSources {
   readonly notes: readonly string[];
 }
 
+/** Each of `items` with its source's relation, in the order the sources were opened: one each -- checked, never assumed
+ *  (the timeseries review's G7). */
+export function eachRelation<T>(opened: { readonly relations: readonly ValueSpecification[] }, items: readonly T[]): (readonly [T, ValueSpecification])[] {
+  if (opened.relations.length !== items.length) {
+    throw new Error(`the model opened ${opened.relations.length} relations for ${items.length} sources`);
+  }
+  return items.map((item, i) => [item, opened.relations[i] as ValueSpecification] as const);
+}
+
 /**
  * GRIDS' SOURCES OVER ONE MODEL (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2): what a timeseries series that
  * combines grids is planned over, as a join's two inputs are (openInputs' rule, for any number of sources) -- each

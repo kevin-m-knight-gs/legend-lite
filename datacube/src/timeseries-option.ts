@@ -142,9 +142,10 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
     }
     // in the split's order as a person reads it: 2Y before 10Y
     const ordered = [...groups.values()].sort((a, b) => String(a.split ?? '').localeCompare(String(b.split ?? ''), UI_LOCALE, { numeric: true }));
-    const expr = safeInline(s, ts);
-    const formatColumn = r.query.unit === 'same' && expr ? firstColumn(expr) : undefined;
-    const bounds = expr ? boundsOf(expr) : undefined;
+    // answered, so written as a query already: its expression inlines (a failure here is a bug, never a line unformatted)
+    const expr = inlined(s.expr, ts.series);
+    const formatColumn = r.query.unit === 'same' ? firstColumn(expr) : undefined;
+    const bounds = boundsOf(expr);
     for (const g of ordered) {
       const slot = s.style?.color ?? place;
       place++;
@@ -191,14 +192,6 @@ function splitName(s: TsSeries, split: Scalar | undefined): string {
   if (s.name !== undefined) return `${s.name} ${String(split)}`;
   const plain = s.expr.kind === 'column' && (s.expr.where ?? []).length === 0;
   return plain ? String(split) : `${String(split)} ${seriesName(s)}`;
-}
-
-function safeInline(s: TsSeries, ts: TimeseriesSpec): TsExpr | undefined {
-  try {
-    return inlined(s.expr, ts.series);
-  } catch {
-    return undefined;
-  }
 }
 
 // ------------------------------------------------------------------ writing a value
