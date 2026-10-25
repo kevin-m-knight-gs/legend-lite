@@ -2626,8 +2626,10 @@ class Flows(Paged):
 
     def test_what_only_a_board_takes_refused_in_words(self):
         page, flow, source, _big = self.flowed()
-        with self.assertRaisesRegex(ValueError, 'a text tile goes on a board sheet'):
-            flow.text('a note')
+        # a text tile on a flow is a comment (M7): placed on its canvas as a box is
+        note = flow.text('Trades over 90 only')
+        note.place(500, 20)
+        self.assertIn({'tile': note.id, 'x': 500, 'y': 20}, self.boxes(page, flow))
         with self.assertRaisesRegex(ValueError, 'is a box of a flow: it moves to another flow sheet'):
             source.move_to(page.sheets[0])
         with self.assertRaisesRegex(ValueError, 'placed on its canvas'):

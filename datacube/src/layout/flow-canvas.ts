@@ -25,7 +25,9 @@ import { BOX_HEIGHT, BOX_WIDTH, MARGIN, type Flow } from './flow.ts';
 import type { FlowBoardState } from './flow-board.ts';
 import type { FlowPoint, LineEnd, RunLog } from './flow-board.ts';
 import type { InputPort, InputSide } from '../cube-document.ts';
-import { boxInputs, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowTool } from '../flow-boxes.ts';
+import {
+  boxInputs, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowGroup, type FlowTool,
+} from '../flow-boxes.ts';
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { gridTitle } from '../page-ids.ts';
 import type { MenuItem } from '../ui/menu.ts';
@@ -52,8 +54,8 @@ const portY = (side: InputSide): number => (side === 'left' ? BOX_HEIGHT * 0.3 :
 const ZOOMS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5] as const;
 
 /** Each palette group's heading. */
-const GROUP_WORDS: Readonly<Record<'in' | 'prepare' | 'join' | 'transform', string>> = {
-  in: 'In', prepare: 'Prepare', join: 'Join', transform: 'Transform',
+const GROUP_WORDS: Readonly<Record<FlowGroup, string>> = {
+  in: 'In', prepare: 'Prepare', join: 'Join', transform: 'Transform', docs: 'Notes',
 };
 
 /** Where a box's output is on its right edge, from its top: a Filter's True above its False (Alteryx's T and F), any
@@ -77,6 +79,7 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   tile: 'M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z',
   runningTotal: 'M2 13l4-4.5 3 2.5 5-6.5M10.5 4.5H14V8',
   crosstab: 'M2 2.5h12v11H2zM2 6.5h12M6 2.5v11',
+  comment: 'M2.5 2.5h11v8h-6l-3 3v-3h-2zM5 5.5h6M5 8h4',
   filter: 'M2 3h12l-4.5 5.5V13l-3 1.5V8.5z',
   formula: 'M10.5 2.5c-2 0-2.5 1-2.8 3L6.8 11c-.3 2-.8 3-2.8 3M5 6.5h5.5M10 9l3.5 4M13.5 9L10 13',
   select: 'M2 3h3v3H2zM7.5 4.5H14M2 10h3v3H2zM7.5 11.5H14M2.8 4.5l.7.7 1-1.4',
@@ -154,6 +157,8 @@ export class FlowCanvas {
   /** The settings' inputs: a box's Input (a join's Left and Right), each a box of the flow or a frozen copy. */
   readonly #inputs: HTMLElement;
   #inputsKey = '';
+  /** Each comment drawn, as a note: its card, by its tile's id. */
+  readonly #notes = new Map<string, HTMLElement>();
   /** A box's menu (a right-click), made the first time, and what its entry picked does. */
   #menu: MenuView | undefined;
   #menuAct: ((item: MenuItem) => void) | undefined;
@@ -352,14 +357,30 @@ export class FlowCanvas {
     const editing = board.editing;
     this.#host.classList.toggle('dc-flow-view', !editing);
     this.#palette.hidden = !editing;
-    // the boxes: each one's element kept, drawn again where it changed
-    const ids = new Set(layout.boxes.map((b) => b.tile));
+    // the boxes: each one's element kept, drawn again where it changed -- and its comments, each a note (M7)
+    const ids = new Set(layout.boxes.filter((b) => board.noteOf(b.tile) === undefined).map((b) => b.tile));
+    const notes = new Set(layout.boxes.filter((b) => board.noteOf(b.tile) !== undefined).map((b) => b.tile));
     for (const [id, drawn] of [...this.#boxes]) {
       if (ids.has(id)) continue;
       drawn.root.remove();
       this.#boxes.delete(id);
     }
+    for (const [id, note] of [...this.#notes]) {
+      if (notes.has(id)) continue;
+      note.remove();
+      this.#notes.delete(id);
+    }
     for (const box of layout.boxes) {
+      const tile = board.noteOf(box.tile);
+      if (tile !== undefined) {
+        const note = this.#notes.get(box.tile) ?? this.#makeNote(box.tile);
+        // its words' element, its owner's, in its body: placed once
+        const body = note.querySelector<HTMLElement>('.dc-flow-note-body')!;
+        if (body.firstChild !== tile.element) body.replaceChildren(tile.element);
+        note.style.transform = `translate(${box.x}px, ${box.y}px)`;
+        note.querySelector<HTMLElement>('.dc-flow-note-x')!.hidden = !editing;
+        continue;
+      }
       const drawn = this.#boxes.get(box.tile) ?? this.#make(box.tile);
       this.#paintBox(box.tile, drawn);
       drawn.root.style.transform = `translate(${box.x}px, ${box.y}px)`;
@@ -665,6 +686,63 @@ export class FlowCanvas {
     this.#boxes.set(id, drawn);
     this.#plane.append(root);
     return drawn;
+  }
+
+  /**
+   * A COMMENT AS A NOTE (M7): a card on the canvas, its words in its body (its text tile's own element: a double-click
+   * edits them in place, as on a board), its head what it is moved by, its × what takes it off; Delete on it too.
+   */
+  #makeNote(id: string): HTMLElement {
+    const doc = this.#doc;
+    const root = doc.createElement('div');
+    root.className = 'dc-flow-note';
+    root.dataset['tile'] = id;
+    root.tabIndex = 0;
+    root.setAttribute('role', 'note');
+    const head = doc.createElement('div');
+    head.className = 'dc-flow-note-head';
+    head.title = 'Drag to move the comment; double-click its words to edit them';
+    const remove = doc.createElement('button');
+    remove.type = 'button';
+    remove.className = 'dc-flow-note-x';
+    remove.textContent = '×';
+    remove.setAttribute('aria-label', 'Remove the comment');
+    remove.addEventListener('pointerdown', (e) => e.stopPropagation());
+    remove.addEventListener('click', () => this.#board.options.onRemove?.(id));
+    head.append(remove);
+    const body = doc.createElement('div');
+    body.className = 'dc-flow-note-body';
+    root.append(head, body);
+    head.addEventListener('pointerdown', (e) => this.#startNote(id, root, e));
+    root.addEventListener('keydown', (e) => {
+      if (e.target !== root || !this.#board.editing) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        this.#board.options.onRemove?.(id);
+      }
+    });
+    this.#notes.set(id, root);
+    this.#plane.append(root);
+    return root;
+  }
+
+  /** A note dragged by its head: it follows the pointer, and its place is told once, let go (onMove). */
+  #startNote(id: string, root: HTMLElement, e: PointerEvent): void {
+    if (e.button !== 0 || !this.#board.editing) return;
+    const at = this.#board.layout.boxes.find((b) => b.tile === id);
+    if (at === undefined) return;
+    e.preventDefault();
+    const start = { x: e.clientX, y: e.clientY };
+    let to = { x: at.x, y: at.y };
+    this.#own(root, e, (ev) => {
+      to = { x: Math.max(0, at.x + (ev.clientX - start.x) / this.#zoom), y: Math.max(0, at.y + (ev.clientY - start.y) / this.#zoom) };
+      root.classList.add('dc-flow-dragging');
+      root.style.transform = `translate(${to.x}px, ${to.y}px)`;
+    }, (apply) => {
+      root.classList.remove('dc-flow-dragging');
+      if (apply && (to.x !== at.x || to.y !== at.y)) this.#board.options.onMove?.(id, Math.round(to.x), Math.round(to.y));
+      this.paint();
+    });
   }
 
   /** A BOX'S MENU (a right-click): shown, its settings, renamed, duplicated, an input frozen, taken off -- each the same

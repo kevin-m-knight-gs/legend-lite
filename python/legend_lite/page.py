@@ -1334,6 +1334,14 @@ class Text(Tile):
         # long, not text
         self._page._apply_page([_commands.page_set_text(tile=self._id, text=text)])
 
+    def place(self, x: int, y: int) -> Text:
+        """Its note moved to (``x``, ``y``) on its flow's canvas, as a comment is dragged there (page-commands.ts
+        placeBox; docs/DATACUBE_FLOW_MODE_2026_10_24.md M7). A text tile on a board is placed by its layout: refused in
+        DataCube's words."""
+        _ = self._view
+        self._page._apply_page([_commands.page_place_box(tile=self._id, x=x, y=y)])
+        return self
+
 
 class Sheet:
     """A sheet of a page: a whole screen of tiles, in places -- each a tile, or a stack of tiles shown one at a time --
@@ -1413,7 +1421,8 @@ class Sheet:
 
     def text(self, text: str, *, title: str | None = None) -> Text:
         """A text tile on this sheet, a band of its own at its bottom (``title``: its own; None, numbered), as the
-        menus' Create ▸ Text Box adds one (page-commands.ts addText) -- its words judged by DataCube, in its words."""
+        menus' Create ▸ Text Box adds one (page-commands.ts addText) -- its words judged by DataCube, in its words. On a
+        flow, a comment: a note on its canvas, placed as a box is (``tile.place(x, y)`` moves it)."""
         _ = self._doc
         applied = self._page._apply_page([_commands.page_add_text(sheet=self._id, text=text, title=title, columns=None)])
         return self._page._tile(applied[0]['id'], Text)

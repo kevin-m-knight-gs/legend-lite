@@ -607,6 +607,15 @@ tools narrowed to the ones whose name or words hold what is typed, Enter adding 
 by `flow-sheet.test.ts` (the rule), Python's `Flows` (`flow.tidy`) and the harness (a box pushed out of place and tidied,
 the Formula duplicated from its menu, the palette narrowed to Join).
 
+**Built, comments** (`page-document.ts`, `page-commands.ts` `addText`, `page-gestures.ts` `tidyCommands`,
+`layout/flow-board.ts` `addNote`, `layout/flow-canvas.ts` `#makeNote`, `page/cube-page.ts` `#addComment`): a text tile on
+a flow is a comment -- Alteryx's Comment tool, under Notes in the palette: dropped on the canvas it lands where it is let
+go, its editor open there (the board's own text editor: Markdown, OK or Ctrl+Enter); drawn as a note card, moved by its
+head, its words edited by a double-click, taken off by its × or Delete. Tidy Up and Run leave comments as they are. M1's
+rule that a flow holds grids alone is a flow of grids and comments now (a chart still goes on a board). Python:
+`flow.text(...)` adds one, `note.place(x, y)` moves it. Tested by `flow-sheet.test.ts`, Python's `Flows` and the
+harness (a comment dropped on the canvas, its words typed, a text tile of the page).
+
 **Built, zoom and a palette that fits** (`layout/flow-canvas.ts`): −, the level (back to its own size), + and Fit at the
 canvas's corner, and Ctrl+wheel around the pointer -- the screen's, never the page's; a box dragged at a zoom moves by
 the pointer's way across the window in the canvas's own units (110 pixels at 110%, 100 of the canvas). The palette lays

@@ -549,8 +549,8 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const problem = textProblem(command.text);
       if (problem !== null) throw new CubeRefusal(problem);
       const id = freshId(draft, command.id, 'text');
+      // on a flow, a comment: placed as a box is (docs/DATACUBE_FLOW_MODE_2026_10_24.md M7)
       const sheet = sheetNamed(page, command.sheet);
-      onBoardOnly(sheet, 'a text tile');
       const given = command.title === null ? undefined : named('tile', command.title);
       const title = given === textTitle(id) ? undefined : given;
       const view: TextView = { id, kind: 'text', text: command.text, ...(title !== undefined ? { title } : {}) };

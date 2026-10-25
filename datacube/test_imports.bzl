@@ -2965,6 +2965,7 @@ TEST_IMPORTS = {
         "src/page-commands.ts",
         "src/page-document.ts",
         "src/page-filters.ts",
+        "src/page-gestures.ts",
         "src/page-ids.ts",
         "src/page-model.ts",
         "src/page-names.ts",

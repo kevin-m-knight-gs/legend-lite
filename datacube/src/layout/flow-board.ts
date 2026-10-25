@@ -101,6 +101,8 @@ export interface FlowBoardState {
   /** The last run's log, if one has run. */
   readonly log: RunLog | undefined;
   tile(id: string): BandTile | undefined;
+  /** A comment of the flow (M7): its text tile, drawn as a note on the canvas. */
+  noteOf(id: string): BandTile | undefined;
 }
 
 /** The drawing, once fetched. */
@@ -119,6 +121,9 @@ export class FlowBoard implements FlowBoardState {
   readonly dock: HTMLElement;
   readonly options: FlowBoardOptions;
   readonly #boxes = new Map<string, Held>();
+  /** Each comment of the flow (docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): a text tile, its words' element its owner's,
+   *  drawn as a note where the flow places it. */
+  readonly #notes = new Map<string, BandTile>();
   /** Each box added from the palette, as the tool it was added as: drawn so while its grid does nothing yet (a Filter
    *  with no condition is a Filter to set, not a Browse) -- the screen's, never the page's. */
   readonly #addedAs = new Map<string, FlowTool>();
@@ -169,9 +174,9 @@ export class FlowBoard implements FlowBoardState {
     this.#paint();
   }
 
-  /** How many boxes are on it. */
+  /** How many tiles are on it: its boxes and its comments. */
   get size(): number {
-    return this.#boxes.size;
+    return this.#boxes.size + this.#notes.size;
   }
 
   /** A flow is no board of bands: a tile added has no columns to take. */
@@ -200,7 +205,7 @@ export class FlowBoard implements FlowBoardState {
   }
 
   title(id: string): string | undefined {
-    return this.#boxes.get(id)?.title;
+    return this.#boxes.get(id)?.title ?? this.#notes.get(id)?.title;
   }
 
   addedAs(id: string): FlowTool | undefined {
@@ -286,6 +291,17 @@ export class FlowBoard implements FlowBoardState {
     this.#paint();
   }
 
+  /** A comment on the flow: its text tile, drawn as a note -- placed after `near`, or where the flow has it. */
+  addNote(tile: BandTile, near?: string): void {
+    this.#notes.set(tile.id, tile);
+    if (!this.#layout.boxes.some((b) => b.tile === tile.id)) this.#layout = placeAfter(this.#layout, tile.id, near);
+    this.#paint();
+  }
+
+  noteOf(id: string): BandTile | undefined {
+    return this.#notes.get(id);
+  }
+
   /** A box with no grid made for it: drawn from its document. */
   addBox(id: string, title: string, near?: string): void {
     this.#hold(id, title, near);
@@ -316,6 +332,8 @@ export class FlowBoard implements FlowBoardState {
   /** A box off the canvas (its grid's element taken out, not destroyed). */
   remove(id: string): void {
     this.close(id);
+    this.#notes.get(id)?.element.remove();
+    this.#notes.delete(id);
     this.#boxes.delete(id);
     this.#addedAs.delete(id);
     this.#refused.delete(id);
@@ -325,6 +343,11 @@ export class FlowBoard implements FlowBoardState {
   }
 
   rename(id: string, title: string): void {
+    const note = this.#notes.get(id);
+    if (note !== undefined) {
+      this.#notes.set(id, { ...note, title });
+      return;
+    }
     const held = this.#boxes.get(id);
     if (held === undefined) return;
     held.title = title;
@@ -355,6 +378,8 @@ export class FlowBoard implements FlowBoardState {
     this.#disposed = true;
     for (const held of this.#boxes.values()) held.tile?.element.remove();
     this.#boxes.clear();
+    for (const note of this.#notes.values()) note.element.remove();
+    this.#notes.clear();
     this.#canvas?.dispose();
     this.#canvas = undefined;
     this.#host.replaceChildren();

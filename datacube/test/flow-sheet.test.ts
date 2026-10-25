@@ -19,6 +19,7 @@ import {
   boxCubes, layoutTiles, pageToJson, readPage, unnamedLabel, writePageOf, PageDocumentError, type PageDocument,
 } from '../src/page-document.ts';
 import { renamedCommand, rearranged } from '../src/page-rebase.ts';
+import { tidyCommands } from '../src/page-gestures.ts';
 import { applyPlanned, pageBetween } from '../src/page-between.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
@@ -190,9 +191,18 @@ describe("a flow sheet's page commands", () => {
     refused(() => apply(d, { kind: 'placeBox', tile: 'grid-9', x: 0, y: 0 }), /grid-9/);
   });
 
-  it('refuses in words what only a board takes: a chart, a text tile, a stack, an arrangement, a tile from a board', () => {
+  it('takes a text tile as a comment, placed as a box is, and left where it is by Tidy Up (M7)', () => {
+    const d = apply(FLOW(), { kind: 'addText', id: 'text-1', sheet: 'sheet-2', text: 'Trades over 100 only', title: null, columns: null },
+      { kind: 'placeBox', tile: 'text-1', x: 600, y: 300 });
+    assert.deepEqual(at(d.page, 'text-1'), { tile: 'text-1', x: 600, y: 300 });
+    readPage(JSON.parse(pageToJson(d.page)));
+    const tidy = tidyCommands(d.page, 'sheet-2');
+    const after = tidy.length === 0 ? d.page : apply(d, ...tidy).page;
+    assert.deepEqual(at(after, 'text-1'), { tile: 'text-1', x: 600, y: 300 }, 'a comment stays where it was put');
+  });
+
+  it('refuses in words what only a board takes: a chart, a stack, an arrangement, a tile from a board', () => {
     const d = FLOW();
-    refused(() => apply(d, { kind: 'addText', sheet: 'sheet-2', text: 'hi', title: null, columns: null }), /a text tile goes on a board sheet/);
     refused(() => apply(d, { kind: 'stack', tiles: ['grid-2', 'grid-3'] }), /a flow sheet's boxes are not stacked/);
     refused(() => apply(d, { kind: 'arrange', sheet: 'sheet-2', preset: 'grid', order: null }), /a flow sheet's boxes are placed on its canvas/);
     refused(() => apply(d, { kind: 'moveTile', tile: 'grid-1', sheet: 'sheet-2', columns: null }), /a flow sheet holds boxes, each a grid that does one step: a grid stays on a board/);

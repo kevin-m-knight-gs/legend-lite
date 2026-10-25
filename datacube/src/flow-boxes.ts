@@ -16,10 +16,10 @@ import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
 export type FlowTool = 'input' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'sample' | 'recordId' | 'multiRow' | 'tile'
-  | 'runningTotal' | 'summarize' | 'crosstab' | 'browse';
+  | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
-export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: 'in' | 'prepare' | 'join' | 'transform'; readonly does: string }>> = {
+export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: FlowGroup; readonly does: string }>> = {
   input: { name: 'Input', group: 'in', does: 'rows from a file, a table, a class or a saved query' },
   join: { name: 'Join', group: 'join', does: 'two inputs joined on their keys: Left above, Right below' },
   union: { name: 'Union', group: 'join', does: 'the rows of two inputs, one under the other, columns by name' },
@@ -35,12 +35,16 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   summarize: { name: 'Summarize', group: 'transform', does: 'a row per group, its measures beside its keys' },
   crosstab: { name: 'Cross Tab', group: 'transform', does: 'a column\'s values made columns across, a row per group' },
   browse: { name: 'Browse', group: 'prepare', does: 'its input\'s rows, as they come' },
+  comment: { name: 'Comment', group: 'docs', does: 'a note on the canvas, in words of your own' },
 };
+
+/** A palette group (Alteryx's: In/Out, Preparation, Join, Transform, Documentation). */
+export type FlowGroup = 'in' | 'prepare' | 'join' | 'transform' | 'docs';
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
   'input', 'filter', 'formula', 'select', 'sort', 'sample', 'recordId', 'multiRow', 'tile', 'join', 'union', 'summarize', 'crosstab',
-  'runningTotal',
+  'runningTotal', 'comment',
 ];
 
 /**

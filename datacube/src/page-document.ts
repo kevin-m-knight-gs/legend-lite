@@ -613,11 +613,12 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
   // every view has its place, on one sheet: a view the layout leaves out would be put somewhere on opening, and the
   // page read as changed before anyone touched it
   const placed = sheets.flatMap((sheet) => layoutTiles(sheet.layout));
-  // a flow's boxes are grids (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL5): a chart or a text tile goes on a board
+  // a flow's boxes are grids (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL5), its comments text tiles (M7, 2026-10-25): a
+  // chart goes on a board
   for (const sheet of sheets) {
     if (sheet.layout.kind !== 'flow') continue;
-    const notGrid = sheet.layout.boxes.find((b) => views.find((v) => v.id === b.tile)?.kind !== 'grid');
-    if (notGrid !== undefined) throw new PageDocumentError(`sheet ${sheet.id} is a flow of grids: ${notGrid.tile} is no grid`);
+    const notGrid = sheet.layout.boxes.find((b) => views.find((v) => v.id === b.tile)?.kind === 'chart');
+    if (notGrid !== undefined) throw new PageDocumentError(`sheet ${sheet.id} is a flow of grids and comments: ${notGrid.tile} is a chart`);
   }
   const twice = placed.filter((id, i) => placed.indexOf(id) !== i);
   if (twice.length > 0) throw new PageDocumentError(`${[...new Set(twice)].join(', ')} on two sheets`);

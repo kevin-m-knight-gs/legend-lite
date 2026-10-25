@@ -565,6 +565,26 @@ try {
   await page.locator('.dc-flow-zoom-level').click();
   check(await page.locator('.dc-flow-zoom-level').textContent() === '100%', 'back to its own size');
 
+  // A COMMENT (M7): the palette's Comment dropped on the canvas, its words typed in place -- a note where it was let go
+  const notes = () => page.locator('.dc-flow-note').count();
+  const spot = await emptyCanvasPoint();
+  await page.locator('.dc-flow-tool[data-tool="comment"]').scrollIntoViewIfNeeded();
+  const commentTool = await page.locator('.dc-flow-tool[data-tool="comment"]').boundingBox();
+  await page.mouse.move(commentTool.x + commentTool.width / 2, commentTool.y + commentTool.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(spot.x, spot.y, { steps: 12 });
+  await page.mouse.up();
+  await page.locator('.dc-flow-note textarea').waitFor({ timeout: 10_000 });
+  check(await notes() === 1, 'a note on the canvas, its editor open');
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Add Comment', 'one step: Add Comment');
+  await page.locator('.dc-flow-note textarea').fill('Big trades only: notional over 900,000');
+  await page.locator('.dc-flow-note .dc-text-bar button', { hasText: 'OK' }).click();
+  await page.waitForFunction(() => /Big trades only/.test(document.querySelector('.dc-flow-note-body')?.textContent ?? ''), undefined, { timeout: 10_000 });
+  const noteId = await page.locator('.dc-flow-note').getAttribute('data-tile');
+  const written = await page.evaluate((id) => window.__dataPage.document('x').views.find((v) => v.id === id), noteId);
+  check(written?.kind === 'text' && /Big trades only/.test(written.text), `a text tile of the page: ${JSON.stringify(written)}`);
+  await page.screenshot({ path: outPath('flow-comment.png') });
+
   // THE PALETTE'S FIND: its tools narrowed to what is typed
   await page.fill('.dc-flow-find', 'join');
   const visible = await page.locator('.dc-flow-tool:visible').evaluateAll((els) => els.map((e) => e.dataset.tool));

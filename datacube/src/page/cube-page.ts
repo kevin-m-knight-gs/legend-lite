@@ -524,7 +524,9 @@ export class CubePage {
         if (this.#saved(tile)) this.#tell('Rename Tile', pageCommand('renameTile', { tile, title }));
         this.#options.onChange();
       },
-      onTool: (tool, after, editor, into, port, at) => this.#options.onTool?.(tool, after, id, editor, into, port, at),
+      // a Comment is the page's own (a text tile), any other tool its owner's to make
+      onTool: (tool, after, editor, into, port, at) => (tool === 'comment' ? this.#addComment(id, at)
+        : this.#options.onTool?.(tool, after, id, editor, into, port, at)),
       // a line drawn, taken off, or set in a box's settings: what the box reads (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
       onConnect: (tile, side, from, port) => {
         this.#tell('Link Box', pageCommand('setInput', { grid: tile, side, input: { grid: from, ...(port !== undefined ? { port } : {}) } }));
@@ -609,8 +611,13 @@ export class CubePage {
     const sheet = this.#planned.get(spec.id) ?? by ?? this.#shown;
     this.#specs.set(spec.id, spec);
     if (sheet.kind === 'flow') {
+      // a comment (a text tile: M7), drawn as a note where the flow places it
+      if (this.#texts.has(spec.id)) {
+        sheet.board.addNote(spec, by === sheet ? near : undefined);
+        return;
+      }
       // a flow's boxes are grids, one shown at a time: the one shown before closes (`#closeBox`)
-      if (!this.#grids.has(spec.id)) throw new Error(`${spec.id} is no grid: a flow sheet holds boxes alone`);
+      if (!this.#grids.has(spec.id)) throw new Error(`${spec.id} is no grid: a flow sheet holds boxes and comments alone`);
       this.#closeBox(sheet);
       this.#boxes.delete(spec.id);
       sheet.board.add(spec, by === sheet ? near : undefined);
@@ -726,7 +733,8 @@ export class CubePage {
     const sheet = this.#sheets.find((s) => s.id === sheetId);
     if (sheet?.kind !== 'flow' || sheet.board.running !== undefined) return;
     const board = sheet.board;
-    const order = [...board.layout.boxes].sort((a, b) => a.x - b.x || a.y - b.y).map((b) => b.tile);
+    // its boxes, not its comments
+    const order = [...board.layout.boxes].filter((b) => board.noteOf(b.tile) === undefined).sort((a, b) => a.x - b.x || a.y - b.y).map((b) => b.tile);
     const was = board.shown;
     const started = performance.now();
     const logged: { id: string; ms: number; rows?: number; refused?: string }[] = [];
@@ -750,6 +758,16 @@ export class CubePage {
     } finally {
       board.setRunning(undefined);
     }
+  }
+
+  /** A COMMENT ON FLOW `sheet` (the palette's Comment: docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): a text tile, where it
+   *  was let go (`at`) or below the boxes, one step -- its editor open on it at once. */
+  #addComment(sheet: string, at?: FlowPoint): void {
+    const id = this.#nextId('text');
+    const told = this.#tell('Add Comment', pageCommand('addText', { id, sheet, text: 'A comment', title: null, columns: null }),
+      ...(at !== undefined ? [pageCommand('placeBox', { tile: id, x: at.x, y: at.y })] : []));
+    this.#options.onChange();
+    if (told && this.#texts.has(id)) this.editText(id);
   }
 
   /** A BOX DUPLICATED (Ctrl+D, its menu: docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): a copy of its cube as the page has

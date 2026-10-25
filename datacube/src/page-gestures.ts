@@ -120,8 +120,11 @@ export function tidyCommands(page: PageDocument, sheet: string): PageCommand[] {
     const cube = page.cubes.find((c) => c.id === view?.cube)?.cube;
     return cube === undefined ? [] : liveGrids(cube.source);
   };
-  const tidy = arranged(layout, reads);
-  return JSON.stringify(tidy.boxes) === JSON.stringify(layout.boxes) ? [] : [{ kind: 'layout', sheet, layout: { kind: 'flow', ...tidy } }];
+  // its boxes tidied, its comments where they are: a comment is put beside what it says by hand
+  const isBox = (tile: string): boolean => page.views.find((v) => v.id === tile)?.kind === 'grid';
+  const placed = new Map(arranged({ boxes: layout.boxes.filter((b) => isBox(b.tile)) }, reads).boxes.map((b) => [b.tile, b]));
+  const boxes = layout.boxes.map((b) => placed.get(b.tile) ?? b);
+  return JSON.stringify(boxes) === JSON.stringify(layout.boxes) ? [] : [{ kind: 'layout', sheet, layout: { kind: 'flow', boxes } }];
 }
 
 /** The page's gestures Python asks by name (headless pageGesture), with their arguments read from JSON: those whose

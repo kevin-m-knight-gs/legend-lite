@@ -338,8 +338,10 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  flow.tidy asks too (page-gestures.ts tidyCommands, layout/flow.ts arranged), a box duplicated; a box's menu and the
  *  palette's find the canvas's chunk). Measured 366,976.
  *  367,500 -> 368,000 (2026-10-25, the flow mode's Sample: a grid's Sample window opened by its step, docked; the form
- *  a chunk of its own, ui/sample-form.ts). Measured 367,587. */
-const BUDGET = 368_000;
+ *  a chunk of its own, ui/sample-form.ts). Measured 367,587.
+ *  368,000 -> 368,500 (2026-10-25, the flow mode's comments: a text tile on a flow placed as a box is, drawn as a note,
+ *  left alone by Tidy Up and Run; the note's drawing the canvas's chunk). Measured 368,285. */
+const BUDGET = 368_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -456,8 +458,10 @@ const BUDGET = 368_000;
  *  355,500 -> 356,000 (2026-10-25, the flow mode's M5 and M6 first steps: a box's count kept for its chain, Run showing
  *  each box in turn; the drawing the canvas's chunk). Measured 355,733.
  *  356,000 -> 356,500 (2026-10-25, the flow mode's False port: a live input's port read and resolved, a box made where
- *  its tool or line was let go). Measured 356,148. */
-const ENGINE_BUDGET = 356_500;
+ *  its tool or line was let go). Measured 356,148.
+ *  356,500 -> 357,000 (2026-10-25, the flow mode's comments -- the grid-only page's note of the same date). Measured
+ *  356,556. */
+const ENGINE_BUDGET = 357_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -630,8 +634,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  377,500 -> 378,000 (2026-10-25, the flow mode's False port -- the engine page's note of the same date; a Filter's T
  *  and F ports' styles among them). Measured 377,821.
  *  378,000 -> 378,500 (2026-10-25, the flow mode's run log: its panel's styles; its drawing the canvas's chunk). Measured
- *  378,157. */
-const WIDGET_BUDGET = 378_500;
+ *  378,157.
+ *  378,500 -> 379,000 (2026-10-25, the flow mode's comments -- the grid-only page's note of the same date; a note's
+ *  styles among them). Measured 378,609. */
+const WIDGET_BUDGET = 379_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
