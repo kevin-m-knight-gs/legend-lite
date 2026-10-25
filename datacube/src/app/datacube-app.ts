@@ -1333,7 +1333,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       })().catch((e: unknown) => window.alert(`Create ▸ Grid over a class: ${e instanceof Error ? e.message : String(e)}`));
     };
     // A FLOW'S BOX SHOWN (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1's design, 3): opened as a saved page's grid is, over
-    // the page as it is now -- its live inputs read there -- by its host on a page Python serves; what it said, said
+    // the page as it is now -- its live inputs read there -- by its host on a page Python serves; what it said, said on
+    // its grid
     openBox = async (box, document, now) => {
       const shown = placed;
       const cube = now.views.find((v) => v.id === box && v.kind === 'grid')?.cube ?? box;
@@ -1343,8 +1344,15 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         await opened.discard?.();
         return undefined;
       }
-      if (opened.notes.length > 0) sayResting({ text: opened.notes.join('; '), warn: true });
-      return opened.make;
+      // what opening it left out, said on its own status bar -- the box's, put away with it, never the page's line,
+      // where it outlived the box (the next box shown said it)
+      if (opened.notes.length === 0) return opened.make;
+      const said = opened.notes.join('; ');
+      return (host, options, start) => {
+        const grid = opened.make(host, options, start);
+        grid.note(said);
+        return grid;
+      };
     };
     // A FILE DROPPED ONTO A FLOW'S CANVAS: an Input over it, opened as the picker opens a file it is given
     flowFile = (file) => {

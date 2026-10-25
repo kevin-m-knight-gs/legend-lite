@@ -346,7 +346,7 @@ describe('Transpose (transpose.ts): columns made rows, a Name and a Value each, 
   it('explodes a list of the names, chooses each row\'s value by its name, and hides all but the keys', () => {
     const [name, value, hide] = made() as unknown as [{ column: DerivedColumn }, { column: DerivedColumn }, { patch: { columns: object } }];
     assert.equal(name.column.unnest, true);
-    assert.deepEqual((name.column.lambda?.body[0] as { values: unknown[] }).values, [lit.string('notional'), lit.string('pnl')]);
+    assert.deepEqual((name.column.lambda?.body[0] as unknown as { values: unknown[] }).values, [lit.string('notional'), lit.string('pnl')]);
     const x = variable('x');
     assert.equal(JSON.stringify(value.column.lambda?.body[0]), JSON.stringify(
       fn('if', fn('equal', property(x, 'Name'), lit.string('notional')), lambda([], property(x, 'notional')), lambda([], property(x, 'pnl')))));

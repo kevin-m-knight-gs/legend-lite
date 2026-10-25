@@ -710,6 +710,10 @@ Python's `test_columns_made_rows_as_a_flow_box_transposes_them` (DuckDB's rows, 
 (the Filter's 503 rows twice, its key, Name and Value alone). Composed of select-per-column unions (FL14) it would
 need a source kind of its own; an explode needs none.
 
+Fixed with it: what opening a box left out (a column no longer in its input, a calculated column that read one) was
+said on the page's status line, where it stayed under every box shown after it; it is said on the box's own status bar
+now (its grid's note, put away with it), as a Join's notes are. The harness holds the page's line clear.
+
 Still to come in M3: a date written as text by a format; a random sample (`random()` answers again each time a box is
 read, so a box's rows would change under it: it waits for a seed).
 

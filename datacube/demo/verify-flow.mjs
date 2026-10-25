@@ -694,6 +694,9 @@ try {
   const turnedHeads = await page.locator('.dc-flow-results .dc-th[data-column]').evaluateAll((els) => els.map((e) => e.dataset.column));
   check(JSON.stringify(turnedHeads) === JSON.stringify(['trade_id', 'Name', 'Value']), `its key, its Name and its Value alone: ${turnedHeads}`);
   await page.screenshot({ path: outPath('flow-transpose.png') });
+  // what opening a box before it left out is said on that box's own status bar, never on the page's line under another
+  check(!/no longer in its input/.test(await page.locator('.dc-app-status').first().textContent().catch(() => '') ?? ''),
+    'no other box\'s note on the page\'s status line');
 
   // MULTI-FIELD FORMULA (M3), dragged onto the Filter: one expression over two text columns, a column of each; then one
   // the compiler refuses (trim of a number), said in the window
