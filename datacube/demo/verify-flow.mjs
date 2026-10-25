@@ -626,6 +626,35 @@ try {
   await boxCount(beforePaste.length + 1);
   check(await page.locator('.dc-flow-redo').isDisabled(), 'redone; nothing left to redo');
 
+  // A TEXT INPUT (M7's In tools): dropped on the canvas, a table of its own pasted in from a sheet -- an Input over it
+  const beforeText = (await boxes()).map((b) => b.id);
+  const textSpot = await emptyCanvasPoint();
+  await page.locator('.dc-flow-tool[data-tool="textInput"]').scrollIntoViewIfNeeded();
+  const textTool = await page.locator('.dc-flow-tool[data-tool="textInput"]').boundingBox();
+  await page.mouse.move(textTool.x + textTool.width / 2, textTool.y + textTool.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(textSpot.x, textSpot.y, { steps: 12 });
+  await page.mouse.up();
+  const typedIn = page.locator('.dc-text-input');
+  await typedIn.waitFor({ timeout: 10_000 });
+  await typedIn.locator('.dc-text-input-name input').fill('fx rates');
+  await typedIn.locator('.dc-text-input-head').first().evaluate((field) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', 'ccy\trate\r\nEUR\t1.08\r\nGBP\t1.27\r\nJPY\t0.0067\r\n');
+    field.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  });
+  const heads = await typedIn.locator('.dc-text-input-head').evaluateAll((els) => els.map((e) => e.value));
+  check(JSON.stringify(heads) === '["ccy","rate"]', `the pasted block fills the table from its head row: ${heads}`);
+  check(await typedIn.locator('tbody tr').count() === 3, 'a row a line pasted, the empty rows filled');
+  await typedIn.locator('.dc-save-foot .dc-primary').click();
+  await boxCount(beforeText.length + 1);
+  const rates = await added(beforeText);
+  check(rates.tool === 'input' && rates.says === 'fx rates.csv' && rates.shown, `an Input over it: ${JSON.stringify(rates)}`);
+  check(await resultRows() === 3, 'its three rows');
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Add Text Input', 'one step: Add Text Input');
+  const ratesAt = await page.evaluate((id) => window.__dataPage.document('x').sheets.find((s) => s.layout.kind === 'flow').layout.boxes.find((b) => b.tile === id), rates.id);
+  check(Math.abs(ratesAt.x + 92 - textSpot.canvasX) <= 2, `made where it was let go: its middle at ${ratesAt.x + 92}`);
+
   // THE PALETTE'S FIND: its tools narrowed to what is typed
   await page.fill('.dc-flow-find', 'join');
   const visible = await page.locator('.dc-flow-tool:visible').evaluateAll((els) => els.map((e) => e.dataset.tool));

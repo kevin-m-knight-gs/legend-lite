@@ -71,6 +71,7 @@ const lineKey = (end: LineEnd): string => `${end.tile}:${end.side}`;
 /** Each tool's icon, as strokes in a 16-unit square. */
 const ICONS: Readonly<Record<FlowTool, string>> = {
   input: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v8c0 1.1-2.2 2-5 2s-5-.9-5-2zM3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 8c0 1.1 2.2 2 5 2s5-.9 5-2',
+  textInput: 'M2 2.5h12v11H2zM2 6h12M6.5 2.5v11M8.5 9.5h4M8.5 11.5h2.5',
   join: 'M6 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9M10 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9',
   union: 'M2.5 3h11v4h-11zM2.5 9h11v4h-11z',
   recordId: 'M6 2.5L4.5 13.5M11.5 2.5L10 13.5M2.5 6h11M2 10.5h11',

@@ -1370,6 +1370,27 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           if (make !== undefined && placed === shown) page.addGrid(make, placedAt);
           return;
         }
+        // a table typed in: a CSV file of its own, an Input over it as a file dropped on the canvas is
+        if (tool === 'textInput') {
+          const { tableCsv, textInputDialog } = await lazily(() => import('../ui/text-input-dialog.ts'));
+          await textInputDialog(document, {
+            apply: async (table) => {
+              const file = new File([tableCsv(table)], `${table.name}.csv`, { type: 'text/csv' });
+              try {
+                const opened = await sources.opened({ kind: 'file', file }, gridCapped(page.cubes.length + 1));
+                if (placed !== shown) {
+                  await opened.discard?.();
+                  return null;
+                }
+                page.addGrid(opened.make, { ...placedAt, label: 'Add Text Input' });
+                return null;
+              } catch (e) {
+                return e instanceof Error ? e.message : String(e);
+              }
+            },
+          });
+          return;
+        }
         if (after === undefined) {
           throw new Error("this tool reads another box's rows: click a box first, or drop the tool on one");
         }

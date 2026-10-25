@@ -343,8 +343,10 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  left alone by Tidy Up and Run; the note's drawing the canvas's chunk). Measured 368,285.
  *  368,500 -> 369,500 (2026-10-25, the flow mode's DateTime: a period column read off its expression to say a box's
  *  tool (calc-presets.ts grainOf), the window that sets it opened by its step, docked; the form a chunk of its own,
- *  ui/date-form.ts). Measured 369,121. */
-const BUDGET = 369_500;
+ *  ui/date-form.ts). Measured 369,121.
+ *  369,500 -> 370,000 (2026-10-25, the flow mode's Text Input: the palette's tool and the step that adds an Input over the
+ *  table typed in; the window a chunk of its own, ui/text-input-dialog.ts). Measured 369,521. */
+const BUDGET = 370_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -649,8 +651,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  378,500 -> 379,000 (2026-10-25, the flow mode's comments -- the grid-only page's note of the same date; a note's
  *  styles among them). Measured 378,609.
  *  379,000 -> 380,000 (2026-10-25, the flow mode's DateTime -- the grid-only page's note of the same date). Measured
- *  379,446. */
-const WIDGET_BUDGET = 380_000;
+ *  379,446.
+ *  380,000 -> 380,500 (2026-10-25, the flow mode's Text Input -- the grid-only page's note of the same date; the table's
+ *  window's styles among them). Measured 380,187. */
+const WIDGET_BUDGET = 380_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -25,6 +25,7 @@ import { CubeRefusal, type DerivedColumn } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
 import { grainColumn, grainOf } from '../src/calc-presets.ts';
+import { pastedCells, tableCsv, tableProblem } from '../src/ui/text-input-dialog.ts';
 
 const COLUMNS = [{ name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }];
 const FILE: FileSource = {
@@ -179,6 +180,29 @@ describe('what a box says it does (flow-boxes.ts boxSays): its query, never a fi
     const of = (id: string) => chain.cubes.find((c) => c.id === id)?.cube;
     assert.deepEqual([...readersOf('grid-2', ['grid-2', 'grid-3', 'grid-4'], of)].sort(), ['grid-3', 'grid-4']);
     assert.deepEqual([...readersOf('grid-4', ['grid-2', 'grid-3', 'grid-4'], of)], []);
+  });
+});
+
+describe("a Text Input's table (ui/text-input-dialog.ts): a CSV file's text, as a file dropped on the canvas is", () => {
+  it('writes its head row and a line a row, quoting a value only where it must', () => {
+    assert.equal(tableCsv({ name: 't', columns: ['region', 'target'], rows: [['EMEA', '10'], ['AMER', '20']] }), 'region,target\nEMEA,10\nAMER,20\n');
+    assert.equal(tableCsv({ name: 't', columns: ['a', 'b'], rows: [['x, y', 'say "hi"'], [' pad', 'two\nlines']] }),
+      'a,b\n"x, y","say ""hi"""\n" pad","two\nlines"\n');
+  });
+
+  it('says what keeps it from being a table: a name, a column named once each, a row with a value', () => {
+    const ok = { name: 'targets', columns: ['region', 'target'], rows: [['EMEA', '10']] };
+    assert.equal(tableProblem(ok), undefined);
+    assert.equal(tableProblem({ ...ok, name: ' ' }), 'it needs a name');
+    assert.equal(tableProblem({ ...ok, columns: ['region', ''] }), 'column 2 needs a name');
+    assert.equal(tableProblem({ ...ok, columns: ['region', 'region'] }), "'region' names two columns");
+    assert.equal(tableProblem({ ...ok, rows: [['', '']] }), 'it needs a row with a value');
+  });
+
+  it("reads a block of cells as a sheet copies it: a line a row, tabs between values, the last line's break none", () => {
+    assert.deepEqual(pastedCells('a\tb\r\n1\t2\r\n'), [['a', 'b'], ['1', '2']]);
+    assert.deepEqual(pastedCells('one'), [['one']]);
+    assert.deepEqual(pastedCells('x\t\ty\n'), [['x', '', 'y']]);
   });
 });
 

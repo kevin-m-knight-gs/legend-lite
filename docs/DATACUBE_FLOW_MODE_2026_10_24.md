@@ -222,7 +222,7 @@ How to read the status column:
 | Tool | Status | How |
 |---|---|---|
 | Input Data | Built | A grid's sources: a file, a remote file, a warehouse table, a class, a saved query, a frame |
-| Text Input | Step | A small table typed in, as a source (Pure's `#TDS` literal) |
+| Text Input | Built (2026-10-25) | A small table typed in or pasted from a sheet, written as a CSV file: an Input over it, as a file dropped on the canvas is. Pure's `#TDS` literal remains the way to keep one in a model |
 | Browse | Built | The results pane: the selected box's or port's grid |
 | Output Data (to a table) | Core, after v1 | `write` to a store table throws "not yet implemented" (`core/.../lowering/Lowerer.java:3295`): F1, built in core in parallel (FL13) |
 | Output Data (to a file) | Built | The grid's exports, for the rows shown. The whole result streamed is A5 of the BI and ETL plan |
@@ -636,6 +636,16 @@ Paste Box (Paste Comment), on any flow of the page. A copy is the page's alone: 
 paste on another page would read nothing (a page's whole flow carried between pages is M7's "flows from other pages").
 Tested by the harness (a Formula copied and pasted at the pointer, reading what it reads; undone and redone by the
 buttons).
+
+**Built, Text Input** (`ui/text-input-dialog.ts`, `app/datacube-app.ts` `flowTool`): Alteryx's Text Input, under In in
+the palette -- dropped on the canvas, a window of a small table: its columns named in its head row, a value a cell, Enter
+down a row (a new one at the last), + for a column and a row, a column's × and a row's number to take them off; a block
+of cells pasted from a sheet (tabs between values, a line a row) fills the table from the cell it is pasted in, growing
+it to hold the block. Add Input writes it as a CSV file (`tableCsv`: a value quoted only where it must be) and adds an
+Input over that file where the tool was let go -- one step, Add Text Input -- the same as a file dropped on the canvas,
+so its types are the database's reading of its values and the page saves and shares it as it does any file. Tested by
+`flow-sheet.test.ts` (its CSV, its refusals, a pasted block's cells) and the harness (a block pasted into its head row,
+an Input of three rows). Still to come: setting it again from the box's settings (today a new Text Input replaces it).
 
 ### M5 and M6, first steps (2026-10-25)
 

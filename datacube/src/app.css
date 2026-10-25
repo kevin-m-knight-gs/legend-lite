@@ -4889,3 +4889,63 @@
 .dc-flow-results-body { flex: 1 1 auto; min-height: 0; display: flex; }
 .dc-flow-results-body > * { flex: 1 1 auto; min-width: 0; min-height: 0; }
 .dc-flow-results-empty { display: grid; place-items: center; color: var(--dc-muted); padding: 16px; text-align: center; }
+
+/* ---- a flow's Text Input (ui/text-input-dialog.ts): a small table typed in, in the Save window's style ---- */
+.dc-picker.dc-text-input { width: min(680px, 100%); }
+.dc-text-input-name { display: flex; flex-direction: column; gap: 4px; max-width: 280px; margin-bottom: 12px; }
+.dc-text-input-wrap { max-height: 46vh; overflow: auto; border: 1px solid var(--dc-line); border-radius: 8px; }
+.dc-text-input-table { border-collapse: collapse; font-size: 12px; }
+.dc-text-input-table th, .dc-text-input-table td { padding: 0; border-bottom: 1px solid var(--dc-line); }
+.dc-text-input-table td + td, .dc-text-input-table th + th { border-left: 1px solid var(--dc-line); }
+.dc-text-input-table thead th { position: sticky; top: 0; z-index: 1; background: var(--tw-neutral-50); text-align: left; }
+.dc-text-input-head, .dc-text-input-cell {
+  width: 132px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}
+.dc-text-input-head { font-weight: 600; padding-right: 22px; }
+.dc-text-input-head:focus, .dc-text-input-cell:focus { outline: 2px solid var(--dc-active); outline-offset: -2px; background: var(--dc-bg); }
+.dc-text-input-drop {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dc-muted);
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+  opacity: 0;
+}
+.dc-text-input-table th:hover > .dc-text-input-drop, .dc-text-input-drop:focus-visible { opacity: 1; }
+.dc-text-input-drop:hover { background: var(--tw-neutral-200); color: var(--tw-black); }
+.dc-text-input-n {
+  width: 30px;
+  color: var(--dc-muted);
+  font-weight: 400;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.dc-text-input-n[title] { cursor: pointer; }
+.dc-text-input-n[title]:hover { color: var(--tw-red-600); text-decoration: line-through; }
+.dc-text-input-corner, .dc-text-input-plus { width: 30px; }
+.dc-text-input-add-column {
+  width: 24px;
+  height: 22px;
+  margin: 0 3px;
+  border: 1px dashed var(--dc-line-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dc-muted-strong);
+  cursor: pointer;
+}
+.dc-text-input-add-column:hover { border-style: solid; color: var(--dc-active); }
+.dc-text-input-add-row { margin: 8px 0 4px; }

@@ -16,12 +16,13 @@ import type { ColumnEditorStart } from './ui/column-editor.ts';
 import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
-export type FlowTool = 'input' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'sample' | 'recordId' | 'multiRow' | 'tile'
+export type FlowTool = 'input' | 'textInput' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'sample' | 'recordId' | 'multiRow' | 'tile'
   | 'datetime' | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
 export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: FlowGroup; readonly does: string }>> = {
   input: { name: 'Input', group: 'in', does: 'rows from a file, a table, a class or a saved query' },
+  textInput: { name: 'Text Input', group: 'in', does: 'a small table of your own, typed in or pasted from a sheet' },
   join: { name: 'Join', group: 'join', does: 'two inputs joined on their keys: Left above, Right below' },
   union: { name: 'Union', group: 'join', does: 'the rows of two inputs, one under the other, columns by name' },
   filter: { name: 'Filter', group: 'prepare', does: 'the rows that meet its conditions' },
@@ -45,7 +46,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'transform' | 'docs';
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'filter', 'formula', 'select', 'sort', 'sample', 'recordId', 'multiRow', 'tile', 'datetime', 'join', 'union', 'summarize',
+  'input', 'textInput', 'filter', 'formula', 'select', 'sort', 'sample', 'recordId', 'multiRow', 'tile', 'datetime', 'join', 'union', 'summarize',
   'crosstab', 'runningTotal', 'comment',
 ];
 
