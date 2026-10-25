@@ -51,4 +51,12 @@ export const EXAMPLE_PAGES: readonly ExamplePage[] = [
       + 'whose country the table lacks.',
     build: async () => (await lazily(() => import('./prep-joins.ts'))).prepJoinsPage(),
   },
+  {
+    id: 'markets',
+    label: 'Markets: timeseries',
+    about: 'Ten instruments\' daily prices and a Treasury curve as timeseries: performance rebased, drawdowns, realized '
+      + 'volatility, correlation and beta, Bollinger bands, moving averages and RSI, the 10s2s spread, and a bond fund '
+      + 'against its yield read across two grids in one query -- gs-quant\'s functions, every figure the database\'s.',
+    build: async () => (await lazily(() => import('./markets.ts'))).marketsPage(),
+  },
 ];

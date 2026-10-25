@@ -13,7 +13,8 @@ import type { CubeSnapshot } from '../src/snapshot.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
-import { parseExpr, type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
+import { type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
+import { parseExpr } from '../src/timeseries-expr.ts';
 import {
   boundsQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_LATEST, TS_LOWER,
   TS_ROWS, TS_SPLIT, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
@@ -21,6 +22,7 @@ import {
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
 import type { FileSource } from '../src/cube-document.ts';
 import { catalogColumns } from '../src/upload.ts';
+import { from } from '../../pure-protocol/src/index.ts';
 
 // -- the prices: two instruments over 40 weekdays from 2024-01-01, and a third trading on fewer days --
 
@@ -140,9 +142,9 @@ function values(t: ResultTable, name: string): unknown[] {
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
 
 /** A series' line, oldest first (the query answers latest first), one per split value. */
-async function line(ts: TimeseriesSpec, id = 'A', view: TsWindow = {}): Promise<{ dates: string[]; values: Line; lower?: Line; upper?: Line; split?: unknown[] }> {
+async function line(ts: TimeseriesSpec, id = 'A', view: TsWindow = {}, clip: TsWindow = {}): Promise<{ dates: string[]; values: Line; lower?: Line; upper?: Line; split?: unknown[] }> {
   const series = ts.series.find((s) => s.id === id)!;
-  const q = seriesQuery(inputs, ts, series, view);
+  const q = seriesQuery(inputs, ts, series, view, clip);
   const t = await run(q);
   const dates = values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse();
   const out = { dates, values: values(t, TS_VALUE).map(num).reverse() };
@@ -218,6 +220,18 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close((await line(spec({ A: 'returns(close[AAA], 5)' }))).values, zip(AAA, lagged(AAA, 5), (v, p) => v / p - 1), 'simple 5');
     close((await line(spec({ A: 'returns(close[AAA], 1, log)' }))).values, zip(AAA, lagged(AAA, 1), (v, p) => Math.log(v) - Math.log(p)), 'log');
     close((await line(spec({ A: 'returns(close[AAA], type=absolute)' }))).values, zip(AAA, lagged(AAA, 1), (v, p) => v - p), 'absolute');
+  });
+
+  // a host reading a window (Python's Timeseries.frame): the window's dates alone, each value computed over every date
+  // first -- a rolling figure's first values in the window have their history
+  it('a window kept by the database after every value is computed: its first values have their history', async () => {
+    const all = await line(spec({ A: 'volatility(close[AAA], 5)' }));
+    const from = DAYS[10]!;
+    const to = DAYS[20]!;
+    const kept = await line(spec({ A: 'volatility(close[AAA], 5)' }), 'A', {}, { from, to });
+    assert.deepEqual(kept.dates, DAYS.slice(10, 21));
+    close(kept.values, all.values.slice(10, 21), 'the window\'s volatility, as over every date');
+    assert.ok(kept.values[0] !== null, 'its first value has its five returns');
   });
 
   it('diff and lag', async () => {
@@ -531,5 +545,68 @@ describe('a series combining two grids, planned over one model of their tables (
     const l = await joinedLine({ ...combined({ A: 'px:close[BBB] / rates:yield[10Y]' }), grain: 'month' });
     assert.deepEqual(l.dates, months.map((m) => `${m}-01`));
     close(l.values, months.map((m) => lastOf(DAYS, BBB, m) / lastOf(RATE_DAYS, TEN, m)), 'monthly ratio', 1e-9);
+  });
+});
+
+// THE MARKETS EXAMPLE (src/examples/markets.ts), end to end: its two samples read into the database as the tab reads
+// them, typed as the page declares them, and every series of every tile -- its statistics and its sources' bounds too --
+// planned by legend-lite's planner and answered by the database: a grid's alone by its own planner, the series across
+// both grids over one model of their tables (openSources), as the tab runs them.
+describe('the markets example: every series of every tile, on its own samples', () => {
+  it('the samples read as the page declares them, and every query plans and answers', async () => {
+    const { marketsPage, MARKET_SPECS, RATE_SPECS } = await import('../src/examples/markets.ts');
+    const { marketsCsv, ratesCsv } = await import('../src/samples.ts');
+    const db = await openDatabase();
+    const local = new DuckDbEngine(db.connection);
+    try {
+      const page = await marketsPage();
+      const grids = new Map<string, { input: TsInput; planner: LitePlanner; table: string }>();
+      for (const [cube, csv, specs] of [['prices', marketsCsv(), MARKET_SPECS], ['rates', ratesCsv(), RATE_SPECS]] as const) {
+        const r = await ingestFile(local, db.files, new File([csv], `sample-${cube}.csv`), writer, { table: `ex_${cube}` });
+        const own = plannerFor(r.model, r.runtime);
+        const all = await local.execute(await own.plan(from(r.source).limit(1).lambda()), 0);
+        assert.deepEqual(all.columns.map((c) => `${c.name}:${c.type}`), specs.map((c) => `${c.name}:${c.type}`), `${cube}: typed as the page says`);
+        const saved = page.cubes.find((c) => c.id === cube)!.cube.query;
+        grids.set(cube, { input: { snapshot: { ...saved, source: { query: r.source }, epoch: 1 }, filter: undefined }, planner: own, table: r.table });
+      }
+      // the two grids over one model of their tables, for the series that read both
+      const sources = ['prices', 'rates'].map((c) => page.cubes.find((x) => x.id === c)!.cube.source);
+      const opened = await openSources(sources, {
+        here: TAB_TABLES, tables: [grids.get('prices')!.table, grids.get('rates')!.table], models: writer, databaseType: 'DuckDB',
+        catalog: (table) => catalogColumns(local, writer, table),
+        typer: (model, runtime) => plannerFor(model, runtime),
+      });
+      const joint = plannerFor(opened.model, opened.runtime);
+      const together = new Map(['prices', 'rates'].map((c, i) => [c, { ...grids.get(c)!.input, snapshot: { ...grids.get(c)!.input.snapshot, source: { query: opened.relations[i]! } } }] as const));
+      let ran = 0;
+      for (const view of page.views) {
+        if (view.kind !== 'timeseries') continue;
+        const ts = view.spec;
+        const cubeOf = (alias: string): string => ts.sources.find((x) => x.alias === alias)!.cube;
+        for (const src of ts.sources) {
+          const g = grids.get(src.cube)!;
+          const t = await local.execute(await g.planner.plan(boundsQuery(g.input, src)), 0);
+          assert.ok(t.rowCount === 1 && values(t, TS_LATEST)[0] !== null, `${view.id}: ${src.alias}'s bounds`);
+        }
+        for (const series of ts.series) {
+          const aliases = seriesSources(ts, series);
+          const [inputsOf, plannerOf] = aliases.length > 1
+            ? [new Map(aliases.map((a) => [a, together.get(cubeOf(a))!] as const)), joint]
+            : [new Map([[aliases[0]!, grids.get(cubeOf(aliases[0]!))!.input]]), grids.get(cubeOf(aliases[0]!))!.planner];
+          const q = seriesQuery(inputsOf, ts, series);
+          const t = await local.execute(await plannerOf.plan(q.query), 0);
+          const shown = values(t, TS_VALUE).filter((v) => v !== null && Number.isFinite(Number(v)));
+          assert.ok(shown.length > 100, `${view.id} ${series.id} (${series.name}): ${shown.length} values`);
+          if (!q.band) {
+            const st = await local.execute(await plannerOf.plan(statsQuery(inputsOf, ts, series, {}).query), 0);
+            assert.ok(st.rowCount >= 1, `${view.id} ${series.id}: its statistics`);
+          }
+          ran += 1;
+        }
+      }
+      assert.equal(ran, 24, 'every series of the page');
+    } finally {
+      await local.close();
+    }
   });
 });

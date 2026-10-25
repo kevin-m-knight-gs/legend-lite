@@ -499,6 +499,9 @@ const PASS_THROUGH: Record<string, string> = {
   setChart: "the spec as the chart's panel made it (chart-spec.ts editChart)",
   addText: "a new text tile's id, as the page numbers ids, on the sheet it was asked for, with its starting words",
   setText: "the words as typed in the text tile's editor (setText judges them, by page-text.ts textProblem)",
+  // 2026-10-25 (the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7)
+  addTimeseries: "a new timeseries tile's id, as the page numbers ids, under the grid it was asked from, its first series DataCube's rule over that grid's columns (ui/timeseries-view.ts firstTimeseries: timeseries-expr.ts defaultTimeseries, as Python's headless timeseriesMade)",
+  setTimeseries: "the spec as the timeseries tile's editors made it (read by timeseries-spec.ts readTimeseries, as setTimeseries reads it)",
   renamePage: 'the name as typed (renamePage judges it)', savedAs: "the page store's record the page was saved as",
   setPageFilter: "the filter as the page's filter bar made it", removePageFilter: 'the page filter whose x was clicked',
 };
@@ -732,6 +735,10 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/datacube-app.ts:openDataCube:engine.local': { other: `${BOTH} Add a Grid over a class: opened here, or made by the host (K16)`, ability: 'class' },
   'src/app/datacube-app.ts:openDataCube:localEngine': { other: `${BOTH} Join…: the tab's own join, or the host's (B11)`, ability: 'join' },
   'src/app/datacube-app.ts:offered:localEngine': { other: `${BOTH} Join… offered on a grid of the tab's tables, or one the host opened`, ability: 'join' },
+  // 2026-10-25 (the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2)
+  'src/app/datacube-app.ts:openDataCube:tabEngine': { other: `${BOTH} a timeseries series of several grids read together over one model of the tab's tables, or the host's (join.json together: headless joinTogether)`, ability: 'join' },
+  'src/app/datacube-app.ts:openDataCube:hostTables': { other: `${BOTH} the host's half of grids read together (headless joinTogether, join-open.ts openSources)`, ability: 'join' },
+  'src/app/datacube-app.ts:rows:rows.runner': { other: `${BOTH} a timeseries' combined query run by the host's runner (Python's), or the tab's planner and database`, ability: 'rows' },
   // -- the sources (sources.ts) --
   'src/app/sources.ts:picksSources:database.mountRemote': { other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'remote' },
   'src/app/sources.ts:picksSources:services.warehouse': { count: 2, other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'warehouse' },
@@ -865,9 +872,12 @@ const HOST_ABILITIES: Readonly<Record<HostAbility, {
   join: {
     kind: 'shared',
     tab: ['test/join-open.test.ts::a join opened over one model, its rows from DuckDB',
-      "test/host-join-flow.test.ts::Join… on a host's page: each of the window's answers the host's (B11)"],
+      "test/host-join-flow.test.ts::Join… on a host's page: each of the window's answers the host's (B11)",
+      'test/timeseries-queries.test.ts::a series combining two grids, planned over one model of their tables (§5.2)'],
     python: ['../python/tests/test_headless.py::test_two_frames_joined_as_the_tabs_join_joins_them',
-      '../python/tests/test_page.py::test_a_tab_on_the_page_asks_python_each_of_its_join_windows_answers'],
+      '../python/tests/test_page.py::test_a_tab_on_the_page_asks_python_each_of_its_join_windows_answers',
+      // 2026-10-25 (the timeseries tile): grids read together over one model of Python's tables (join.json together)
+      '../python/tests/test_page.py::test_a_tab_on_the_page_asks_python_to_read_a_timeseries_grids_together'],
   },
   // a driver each (the tab's, Python's), held to one recorded corpus of the warehouse's calls
   warehouse: {

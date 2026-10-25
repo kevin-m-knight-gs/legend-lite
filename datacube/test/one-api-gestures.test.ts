@@ -38,6 +38,7 @@ import { toJson } from '../../pure-protocol/src/index.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
 import { sameButIds } from './page-same.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
+import { element } from '../../pure-protocol/src/index.ts';
 
 // -- the page, as DataCube's app wires one another editor serves ----------------------------------------------------
 
@@ -198,6 +199,52 @@ function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
     ...extra,
   });
   return page;
+}
+
+/** A grid over daily prices (a date, an instrument, a close): what a timeseries reads. Its engine answers every query
+ *  with the same two days of one instrument, its columns the grid's. */
+const PRICES: CubeSnapshot = {
+  source: { query: element('prices') },
+  columns: [{ name: 'symbol', type: 'String' }, { name: 'day', type: 'StrictDate' }, { name: 'close', type: 'Float' }],
+  derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1,
+};
+class PricesGate extends GateEngine {
+  override async answer(_sql: string, epoch: number): Promise<ResultTable> {
+    return {
+      columns: [
+        { name: 'symbol', type: 'String', values: ['AAA', 'AAA'] },
+        { name: 'day', type: 'StrictDate', values: ['2024-01-02', '2024-01-03'] },
+        { name: 'close', type: 'Float', values: [100, 101] },
+      ],
+      rowCount: 2, epoch, elapsedMs: 1,
+    };
+  }
+}
+const overPrices = (): GridMaker => (gridHost, spawned, start) => {
+  const made = new CubeApp(gridHost, start?.snapshot ?? PRICES, {
+    engine: new PricesGate(), planner: new StubPlanner(), compact: true, sourceLabel: 'prices.csv',
+    cubeSource: { ...file('prices.csv'), columns: PRICES.columns.map((c) => ({ name: c.name, type: c.type })) },
+    configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: 'prices.csv' },
+    ...(page ? { windowHost: page.root } : {}), ...spawned,
+    onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
+  });
+  if (spawned.id !== undefined) cubes.set(spawned.id, made);
+  return made;
+};
+/** A page of a grid of prices, `a`, and one over orders beside it. */
+async function pricesGrids(): Promise<{ a: string; b: string }> {
+  newPage();
+  const a = pg().addGrid(overPrices());
+  const b = pg().addGrid(over('orders.csv'), { near: a });
+  await settle();
+  return { a, b };
+}
+/** A timeseries tile of the prices, its viewer drawn (ui/timeseries-view.ts, a chunk of its own fetched with the first). */
+async function withTimeseries(): Promise<{ a: string; b: string; series: string }> {
+  const g = await pricesGrids();
+  gridMenuItem(g.a, 'Timeseries').click();
+  const bar = await shown<HTMLElement>(host, '[data-tile^="timeseries-"] .dc-ts-bar .dc-ts-range');
+  return { ...g, series: bar.closest<HTMLElement>('[data-tile]')!.dataset['tile']! };
 }
 
 /** A page of two grids, `a` over trades, `b` over orders beside it. */
@@ -520,6 +567,23 @@ const GESTURES: readonly Gesture[] = [
   // a text tile (page-text.ts): Create ▸ Text Box, then its words edited in place (its drawing and editor a chunk of their
   // own, fetched with the first: the editor waited for)
   { name: 'a text box added', setUp: twoGrids, make: ({ a }) => gridMenuItem(a!, 'Text Box').click() },
+  // a timeseries tile (ui/timeseries-view.ts): Create ▸ Timeseries on a grid of prices -- its first series DataCube's
+  // rule over the grid's columns -- and a range picked in its toolbar (its viewer a chunk of its own, waited for)
+  {
+    name: 'a timeseries added',
+    setUp: pricesGrids,
+    make: async ({ a }) => {
+      gridMenuItem(a!, 'Timeseries').click();
+      await shown(host, '[data-tile^="timeseries-"] .dc-ts-bar');
+    },
+  },
+  {
+    name: 'a timeseries range picked in its toolbar',
+    setUp: withTimeseries,
+    make: ({ series }) => {
+      [...tile(series!).querySelectorAll<HTMLButtonElement>('.dc-ts-range')].find((b) => b.textContent === '1Y')!.click();
+    },
+  },
   {
     name: 'a text tile edited in place',
     setUp: async () => {
@@ -895,8 +959,10 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). 2026-10-22 (the S7 confirmation
  *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it.
- *  2026-10-24 (BI parity P4, text tiles): 51 -> 53, a text box added and a text tile edited in place. */
-const GESTURES_AT_LEAST = 53;
+ *  2026-10-24 (BI parity P4, text tiles): 51 -> 53, a text box added and a text tile edited in place.
+ *  2026-10-25 (the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7): 53 -> 55, a timeseries added and
+ *  its range picked in its toolbar. */
+const GESTURES_AT_LEAST = 55;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

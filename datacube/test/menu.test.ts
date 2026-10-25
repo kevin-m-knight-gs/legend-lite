@@ -695,12 +695,12 @@ describe('the chart\'s presets in the grid\'s Extended Columns (docs/DATACUBE_CH
 describe('Create ▸ and Join ▸', () => {
   const labels = (items: readonly MenuItem[]) => items.map((i) => `${i.separated ? '| ' : ''}${i.label}`);
 
-  it('Create ▸ is the same everywhere: a data source, a copy of this grid, a chart, a text box; the host\'s a line apart', () => {
+  it('Create ▸ is the same everywhere: a data source, a copy of this grid, a chart, a timeseries, a text box; the host\'s a line apart', () => {
     const host: MenuItem[] = [{ id: 'host.createClass', label: 'Class\u2026' }, { id: 'host.createDataSpace', label: 'Data Space\u2026' }];
-    assert.deepEqual(labels(createItems({ source: true, host })), ['Data Source\u2026', 'Copy of This Grid', 'Visualization', 'Text Box', '| Class\u2026', 'Data Space\u2026']);
-    assert.deepEqual(labels(createItems({ source: false, host: [] })), ['Copy of This Grid', 'Visualization', 'Text Box']);
-    assert.ok(createItems({ source: true, host, disabled: true }).slice(0, 4).every((i) => i.disabled), 'the grid\'s own off in Ad Hoc');
-    assert.ok(createItems({ source: true, host, disabled: true }).slice(4).every((i) => !i.disabled), 'the host\'s its own to say');
+    assert.deepEqual(labels(createItems({ source: true, host })), ['Data Source\u2026', 'Copy of This Grid', 'Visualization', 'Timeseries', 'Text Box', '| Class\u2026', 'Data Space\u2026']);
+    assert.deepEqual(labels(createItems({ source: false, host: [] })), ['Copy of This Grid', 'Visualization', 'Timeseries', 'Text Box']);
+    assert.ok(createItems({ source: true, host, disabled: true }).slice(0, 5).every((i) => i.disabled), 'the grid\'s own off in Ad Hoc');
+    assert.ok(createItems({ source: true, host, disabled: true }).slice(5).every((i) => !i.disabled), 'the host\'s its own to say');
     const create = buildMenu({ snapshot: CUBE, column: 'desk', canOpenSource: true, create: host }).flatMap((g) => g.items).find((i) => i.label === 'Create');
     assert.deepEqual(labels(create?.submenu ?? []), labels(createItems({ source: true, host })), 'the right-click\'s, the same');
   });

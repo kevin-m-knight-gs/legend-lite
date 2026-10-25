@@ -29,10 +29,10 @@ import { columnType, CubeRefusal, type CubeSnapshot, type FilterNode } from './s
 import { WINDOW_ALL_PREFIX } from './grid/columns.ts';
 import { isDay } from '../../engine-client/src/types.ts';
 import {
-  inlined, isBand, MAX_SPLIT_LINES, paramOf, PERIODS_PER_YEAR, RANGE_STEP, sourceAlias, sourcesOf, TS_POINT_LIMIT, TS_RANGES,
-  unitOf, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsMatch, type TsRangeWord, type TsSeries, type TsSource,
-  type TsUnit,
+  MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, TS_POINT_LIMIT, TS_RANGES, type TimeseriesSpec, type TsAggregate,
+  type TsExpr, type TsMatch, type TsRangeWord, type TsSeries, type TsSource,
 } from './timeseries-spec.ts';
+import { inlined, isBand, paramOf, sourceAlias, sourcesOf, unitOf, type TsUnit } from './timeseries-expr.ts';
 import type { TimeGrain } from './chart-spec.ts';
 
 /** The columns a series' query answers with. */
@@ -682,9 +682,12 @@ export function seriesSources(ts: TimeseriesSpec, series: TsSeries): string[] {
 
 /**
  * A SERIES' QUERY: its periods (and split values), latest first, each with its value -- or a band's lower and upper
- * -- at most TS_POINT_LIMIT of them.
+ * -- at most TS_POINT_LIMIT of them. `view.from`: the first date shown, an index's base (readsAnchor). `clip`: the dates
+ * its answer keeps (a host reading a window: Python's Timeseries.frame) -- kept by the database after every value is
+ * computed over every date, so a window's first values have their history (a 63-day volatility its 63 days); absent,
+ * every date (the viewer's, which zooms over them).
  */
-export function seriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, view: TsWindow = {}): TsQuery {
+export function seriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, view: TsWindow = {}, clip: TsWindow = {}): TsQuery {
   const b = seriesRelation(inputs, ts, series, view.from);
   const out: ColSpec[] = [
     derive(TS_DATE, row(col(b.period))),
@@ -695,7 +698,12 @@ export function seriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeri
     ...(b.split !== undefined ? [derive(TS_SPLIT, row(col(b.split)))] : []),
   ];
   const kept = [...out.map((c) => c.name), ...(b.rows !== undefined ? [b.rows] : [])];
-  const rel = b.rel.extend(out).select(kept).sort([desc(TS_DATE)]).limit(TS_POINT_LIMIT + 1);
+  let rel = b.rel.extend(out);
+  const within: ValueSpecification[] = [];
+  if (clip.from !== undefined) within.push(fn('greaterThanEqual', one(b.period), dateLiteral(clip.from, b.periodType)));
+  if (clip.to !== undefined) within.push(fn('lessThanEqual', one(b.period), dateLiteral(`${clip.to}${isDay(b.periodType) ? '' : 'T23:59:59'}`, b.periodType)));
+  if (within.length > 0) rel = rel.filter(row(and(...within)));
+  rel = rel.select(kept).sort([desc(TS_DATE)]).limit(TS_POINT_LIMIT + 1);
   return {
     series: series.id,
     query: rel.lambda(),

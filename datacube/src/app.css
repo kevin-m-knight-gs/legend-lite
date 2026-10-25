@@ -4377,3 +4377,110 @@
 .dc-text-area { flex: 1 1 auto; min-height: 4em; resize: none; margin: var(--dc-pad-2); font: inherit; font-family: var(--dc-mono, ui-monospace, monospace); }
 .dc-text-bar { display: flex; align-items: center; gap: var(--dc-pad-2); padding: 0 var(--dc-pad-2) var(--dc-pad-2); }
 .dc-text-problem { flex: 1 1 auto; color: var(--dc-error, #c62828); font-size: var(--dc-text-sm-size); }
+
+/* A TIMESERIES TILE (ui/timeseries-view.ts; docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §6): its toolbar -- the range
+   buttons, the frequency, compare, log, the statistics, its series and settings -- its legend of lines with their latest
+   value and change, the chart, and the statistics' table; its editors a popover over the chart. The chart's colours are
+   the charts' own (.dc-chartpanel's --dc-chart-* tokens, read by the renderer). */
+.dc-ts-host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.dc-ts.dc-chartpanel {
+  position: relative; flex-direction: column; flex: 1 1 auto; background: var(--dc-chart-surface); color: var(--dc-chart-ink);
+}
+.dc-ts-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--dc-pad-1);
+  padding: var(--dc-pad-1) var(--dc-pad-2); border-bottom: 1px solid var(--dc-line-faint);
+}
+.dc-ts-gap { flex: 1 1 auto; }
+.dc-ts-ranges { display: inline-flex; align-items: center; }
+.dc-ts-range {
+  font: inherit; font-size: var(--dc-text-sm-size); font-variant-numeric: tabular-nums; height: 22px; min-width: 30px;
+  padding: 0 var(--dc-pad-1); border: 1px solid var(--dc-line); margin-left: -1px; background: var(--dc-bg); color: inherit;
+  cursor: pointer;
+}
+.dc-ts-range:first-child { margin-left: 0; border-radius: var(--dc-radius-sm) 0 0 var(--dc-radius-sm); }
+.dc-ts-range:last-of-type { border-radius: 0 var(--dc-radius-sm) var(--dc-radius-sm) 0; }
+.dc-ts-range:hover { background: var(--dc-hover); }
+.dc-ts-range[aria-pressed='true'] {
+  position: relative; border-color: var(--dc-active); background: var(--dc-selected-bg); color: var(--dc-active); font-weight: 600;
+}
+.dc-ts-custom { margin-left: var(--dc-pad-2); color: var(--dc-muted-strong); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dc-ts-btn, .dc-ts .dc-ts-select { height: 22px; font-size: var(--dc-text-sm-size); }
+.dc-ts-btn[aria-pressed='true'] { border-color: var(--dc-active); background: var(--dc-selected-bg); color: var(--dc-active); }
+
+.dc-ts-legend { display: flex; flex-wrap: wrap; gap: var(--dc-pad-1); padding: var(--dc-pad-1) var(--dc-pad-2) 0; }
+.dc-ts-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 var(--dc-pad-2); border-radius: 10px;
+  border: 1px solid var(--dc-line-faint); background: var(--dc-bg); color: inherit; font: inherit;
+  font-size: var(--dc-text-sm-size); font-variant-numeric: tabular-nums; cursor: pointer; white-space: nowrap;
+}
+.dc-ts-chip:hover { border-color: var(--dc-line-strong); }
+.dc-ts-chip.dc-ts-off { opacity: 0.45; }
+.dc-ts-chip.dc-ts-off .dc-ts-chip-name { text-decoration: line-through; }
+.dc-ts-chip.dc-ts-failed { border-color: var(--tw-red-500); color: var(--tw-red-600); }
+.dc-ts-swatch { display: inline-block; width: 12px; height: 3px; border-radius: 2px; flex: 0 0 auto; }
+.dc-ts-chip-name { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; }
+.dc-ts-chip-value { font-weight: 600; }
+.dc-ts-up { color: var(--tw-green-700); }
+.dc-ts-down { color: var(--tw-red-600); }
+
+.dc-ts-banner {
+  margin: var(--dc-pad-1) var(--dc-pad-2) 0; padding: 2px var(--dc-pad-2); border-left: 3px solid var(--dc-line-strong);
+  background: var(--dc-fill-faint); color: var(--dc-muted-strong); font-size: var(--dc-text-sm-size);
+}
+.dc-ts-banner.dc-ts-bad { border-left-color: var(--tw-red-500); color: var(--tw-red-600); }
+
+.dc-ts-body { position: relative; flex: 1 1 auto; min-height: 160px; display: flex; }
+.dc-ts-chart { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.dc-ts-chart[aria-busy='true'] { opacity: 0.6; transition: opacity 0.2s 0.2s; }
+
+/* the statistics under the chart, a third of the tile at most: the chart keeps the room */
+.dc-ts-stats { flex: 0 1 auto; max-height: 33%; min-height: 0; overflow: auto; border-top: 1px solid var(--dc-line-faint); padding: 0 var(--dc-pad-2) var(--dc-pad-1); }
+.dc-ts-stats-head { padding: var(--dc-pad-1) 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-ts-table { border-collapse: collapse; font-size: var(--dc-text-sm-size); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dc-ts-table th {
+  position: sticky; top: 0; background: var(--dc-chart-surface); text-align: right; font-weight: 600;
+  color: var(--dc-muted-strong); padding: 2px 6px; border-bottom: 1px solid var(--dc-line);
+}
+.dc-ts-table th:first-child { text-align: left; }
+.dc-ts-table td { padding: 2px 6px; border-bottom: 1px solid var(--dc-line-faint); }
+.dc-ts-table tr:hover td { background: var(--dc-row-hover); }
+.dc-ts-table-num { text-align: right; }
+.dc-ts-table-date { text-align: right; color: var(--dc-muted-strong); }
+.dc-ts-table-name { display: flex; align-items: center; gap: 6px; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; }
+
+/* its editors: a popover over the chart's right edge, scrolling when it is taller than the tile */
+.dc-ts-pop {
+  position: absolute; top: 34px; right: var(--dc-pad-1); bottom: var(--dc-pad-1); z-index: 3;
+  width: min(420px, calc(100% - 2 * var(--dc-pad-1))); overflow: auto; padding: var(--dc-pad-2);
+  display: flex; flex-direction: column; gap: var(--dc-pad-2);
+  background: var(--dc-bg); color: var(--dc-cell-fg); border: 1px solid var(--dc-line); border-radius: var(--dc-radius-sm);
+  box-shadow: var(--dc-popup-shadow);
+}
+.dc-ts-pop[hidden] { display: none; }
+.dc-ts-pop-head { display: flex; align-items: center; justify-content: space-between; }
+.dc-ts-pop-title { font-weight: 600; font-size: var(--dc-text-lg-size); }
+.dc-ts-close {
+  font: inherit; width: 22px; height: 22px; padding: 0; border: 1px solid transparent; border-radius: var(--dc-radius-sm);
+  background: transparent; color: var(--dc-muted-strong); cursor: pointer;
+}
+.dc-ts-close:hover:not(:disabled) { border-color: var(--dc-line); background: var(--dc-hover); }
+.dc-ts-close:disabled { color: var(--dc-disabled); cursor: default; }
+.dc-ts-heading { margin-top: var(--dc-pad-1); font-weight: 600; color: var(--dc-muted-strong); text-transform: uppercase; font-size: var(--dc-text-sm-size); letter-spacing: 0.04em; }
+.dc-ts-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--dc-pad-1); }
+.dc-ts-field { display: inline-flex; flex-direction: column; gap: 2px; }
+.dc-ts-field-label { color: var(--dc-muted-strong); font-size: var(--dc-text-sm-size); }
+.dc-ts-check { display: inline-flex; align-items: center; gap: 4px; }
+.dc-ts-expr { width: 100%; font-family: var(--dc-font-mono); }
+.dc-ts-alias { width: 9ch; font-family: var(--dc-font-mono); }
+.dc-ts-small { width: 8ch; }
+.dc-ts-error { min-height: 1em; color: var(--tw-red-600); font-size: var(--dc-text-sm-size); }
+.dc-ts-error:empty { display: none; }
+.dc-ts-hint { color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-ts-actions { display: flex; justify-content: flex-end; gap: var(--dc-pad-1); }
+.dc-ts-swatches { display: inline-flex; gap: 3px; }
+.dc-ts-swatches .dc-ts-swatch { width: 16px; height: 16px; border-radius: 3px; cursor: pointer; border: 2px solid transparent; }
+.dc-ts-swatches .dc-ts-swatch[aria-checked='true'] { border-color: var(--dc-cell-fg); }
+.dc-ts-reference summary { cursor: pointer; color: var(--dc-muted-strong); }
+.dc-ts-functions { display: grid; grid-template-columns: max-content 1fr; gap: 2px 8px; margin: var(--dc-pad-1) 0; font-size: var(--dc-text-sm-size); }
+.dc-ts-functions dt { font-family: var(--dc-font-mono); white-space: nowrap; }
+.dc-ts-functions dd { margin: 0; color: var(--dc-muted-strong); }

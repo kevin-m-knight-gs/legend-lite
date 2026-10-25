@@ -2,28 +2,16 @@
 // comes from timeseries-option.ts; this mounts it, keeps it sized to its box, and hands the viewer back what a person
 // did on it -- the dates a zoom or a pan shows, a date double-clicked.
 //
-// Its own chunk, fetched with the first timeseries tile; ECharts' core and the charts it shares with chart-render.ts
-// come once, whichever draws first. Only what a timeseries draws is registered (`echarts/lib/...`, as chart-render.ts
-// does): lines, bars and dots, the grids, the crosshair and its hover, the zoom and the navigator, the annotations'
-// lines and areas.
+// Its own chunk, fetched with the first timeseries tile -- over the charts' own ECharts, which it is handed (`init`:
+// chart-render.ts canvasChart, fetched beside it): chart-render.ts registers every chart and component a timeseries draws
+// with (lines, bars and dots, the grids, the crosshair and its hover, the zoom and the navigator, the annotations' lines
+// and areas), so a page's charts and its timeseries share one build of it, still reached by a dynamic import alone, and
+// a timeseries adds no other way to split it (test/bundle-budget.test.ts: a first chart's fetch is unchanged by it).
 
-import * as echarts from 'echarts/core';
-import 'echarts/lib/chart/line.js';
-import 'echarts/lib/chart/bar.js';
-import 'echarts/lib/chart/scatter.js';
-import 'echarts/lib/component/grid.js';
-import 'echarts/lib/component/tooltip.js';
-import 'echarts/lib/component/axisPointer.js';
-import 'echarts/lib/component/dataZoom.js';
-import 'echarts/lib/component/markLine.js';
-import 'echarts/lib/component/markArea.js';
-import 'echarts/lib/component/aria.js';
-import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsOption } from 'echarts';
+import type { ECharts } from 'echarts/core';
 import type { ChartPicture } from './chart-render.ts';
 import { isoOf } from './timeseries-option.ts';
-
-echarts.use([CanvasRenderer]);
 
 /** A timeseries mounted in an element. */
 export interface MountedTimeseries {
@@ -61,8 +49,8 @@ export function mountTimeseries(el: HTMLElement, on: {
   readonly onZoom: (from: string | undefined, to: string | undefined) => void;
   readonly onDate?: (date: string) => void;
   readonly onResize?: () => void;
-}): MountedTimeseries {
-  const chart = echarts.init(el, null, { renderer: 'canvas' });
+}, init: (el: HTMLElement) => ECharts): MountedTimeseries {
+  const chart = init(el);
   let shown = false;
   let lastKey: string | null = null;
   const window = (): { from?: string; to?: string } => {

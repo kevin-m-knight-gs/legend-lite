@@ -11,8 +11,10 @@ import { CHART_MARKS, chartProblems } from '../src/chart-spec.ts';
 import { chartsGalleryPage } from '../src/examples/charts-gallery.ts';
 import { pageToJson, readPage } from '../src/page-document.ts';
 import { tiles } from '../src/layout/bands.ts';
-import { COUNTRY_COLUMNS, countriesCsv, salesCsv, SALES_COLUMNS } from '../src/samples.ts';
+import { COUNTRY_COLUMNS, countriesCsv, MARKET_COLUMNS, RATE_COLUMNS, salesCsv, SALES_COLUMNS } from '../src/samples.ts';
 import { COUNTRY_SPECS, prepJoinsPage } from '../src/examples/prep-joins.ts';
+import { MARKET_SPECS, RATE_SPECS, marketsPage } from '../src/examples/markets.ts';
+import { timeseriesProblems } from '../src/timeseries-expr.ts';
 import { openCube } from '../src/cube-document.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 
@@ -21,7 +23,7 @@ const CHART_PAGES = EXAMPLE_PAGES.filter((e) => e.id.startsWith('charts-'));
 
 describe('the example pages', () => {
   it('each is a page of charts, or the join example', () => {
-    assert.deepEqual(EXAMPLE_PAGES.filter((e) => !CHART_PAGES.includes(e)).map((e) => e.id), ['prep-joins']);
+    assert.deepEqual(EXAMPLE_PAGES.filter((e) => !CHART_PAGES.includes(e)).map((e) => e.id), ['prep-joins', 'markets']);
   });
 
   for (const example of CHART_PAGES) {
@@ -90,6 +92,31 @@ describe('the example pages', () => {
   it('the sample\'s columns are the page\'s, in order', () => {
     assert.deepEqual(SALES_SPECS.map((c) => c.name), [...SALES_COLUMNS]);
     assert.deepEqual(COUNTRY_SPECS.map((c) => c.name), [...COUNTRY_COLUMNS]);
+    assert.deepEqual(MARKET_SPECS.map((c) => c.name), [...MARKET_COLUMNS]);
+    assert.deepEqual(RATE_SPECS.map((c) => c.name), [...RATE_COLUMNS]);
+  });
+
+  // the timeseries tile's example (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §9): every tile drawable over its grids'
+  // columns (test/timeseries-queries.test.ts runs each of its series on the samples)
+  it('the markets example: two samples, four sheets of timeseries, each tile drawable over its grids\' columns', async () => {
+    const page = readPage(pageToJson(await marketsPage()));
+    assert.deepEqual(page.sheets.map((s) => s.name), ['Performance', 'Risk', 'Technicals', 'Rates']);
+    const placed = page.sheets.flatMap((s) => tiles(s.layout));
+    assert.deepEqual([...placed].sort(), page.views.map((v) => v.id).sort(), 'every view once, on one sheet');
+    for (const [id, sample] of [['prices', 'markets'], ['rates', 'rates']] as const) {
+      const source = page.cubes.find((c) => c.id === id)!.cube.source;
+      assert.ok(source._type === 'file' && source.sample?.id === sample, `${id} is the ${sample} sample`);
+    }
+    const columns = new Map([['prices', MARKET_SPECS], ['rates', RATE_SPECS]] as const);
+    const tilesOf = page.views.filter((v) => v.kind === 'timeseries');
+    assert.equal(tilesOf.length, 6);
+    for (const v of tilesOf) {
+      if (v.kind !== 'timeseries') continue;
+      const byAlias = new Map(v.spec.sources.map((s) => [s.alias, columns.get(s.cube as 'prices' | 'rates')!.map((c) => ({ name: c.name, type: c.type }))] as const));
+      assert.deepEqual(timeseriesProblems(v.spec, byAlias), [], v.title ?? v.id);
+    }
+    // one tile reads both grids, in one query
+    assert.ok(tilesOf.some((v) => v.kind === 'timeseries' && v.spec.sources.length === 2));
   });
 
   // the user, 2026-10-23: join prep was on the site, but no page showed it

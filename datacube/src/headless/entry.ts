@@ -19,8 +19,8 @@ import {
   chartDrill, chartPick, cubeOpensAgain, gridCopied, pageGesture, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
   pageReads, pageRebase, pageRecord, pageSaved, pageSearch, pageWithCube,
 } from './page.ts';
-import { joinCube, joinQuestions, joinSides } from './join.ts';
-import { timeseriesMade } from './timeseries.ts';
+import { joinCube, joinQuestions, joinSides, joinTogether } from './join.ts';
+import { timeseriesMade, timeseriesQuery } from './timeseries.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
 export { REQUEST_KINDS };
@@ -124,12 +124,15 @@ export { nameGiven };
 /** A join of two of a page's cubes over the host's tables (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.4): the join's
  *  grid's cube document, for the page command addGrid, what the join will do before it is made, and its two sides as the
  *  Join window shows them -- the tab's Join…, with no screen, and its answers for a tab on the host's page (B11). */
-export { joinCube, joinQuestions, joinSides };
+export { joinCube, joinQuestions, joinSides, joinTogether };
 
 /** A timeseries tile's spec as Python tells it, made by DataCube's own rules -- its expressions by DataCube's parser, a
  *  source's columns by its defaults -- and read by the tile's one reader (timeseriesMade: Python's page.timeseries and
  *  Timeseries's setters; docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7). */
 export { timeseriesMade };
+/** A timeseries tile's series as its query (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5), over the host's tables, for
+ *  the host to plan and run where the rows are: Python's Timeseries.frame. */
+export { timeseriesQuery };
 
 /** What DataCube's code runs on in this host: its planner's worker, and the database. */
 export interface Headless {

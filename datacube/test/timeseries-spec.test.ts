@@ -5,10 +5,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { tsProblem, type TimeseriesSpec, type TsExpr } from '../src/timeseries-spec.ts';
 import {
-  aliasFor, columnsOf, defaultTimeseries, exprText, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf, timeseriesProblems,
-  tsProblem, TsSyntaxError, unitOf, TS_FUNCTIONS, type TimeseriesSpec, type TsColumn, type TsExpr,
-} from '../src/timeseries-spec.ts';
+  aliasFor, columnsOf, defaultTimeseries, exprText, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
+  timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS,
+} from '../src/timeseries-expr.ts';
 
 const ROUND_TRIPS = [
   'close',
@@ -141,7 +142,7 @@ describe('what an expression reads, and is', () => {
 
   it('a ref round in a circle is said', () => {
     const series = [{ id: 'A', expr: parseExpr('$B') }, { id: 'B', expr: parseExpr('$A + 1') }];
-    assert.throws(() => inlined(series[0]!.expr, series), /A -> B -> A|B -> A/);
+    assert.throws(() => inlined(series[0]!.expr, series), /series B reads itself: \$B reads \$A reads \$B/);
   });
 
   it('its unit: a level, a ratio, a percent, a number, an index', () => {
@@ -198,7 +199,7 @@ describe('the saved spec\'s reader', () => {
       [with_({ sources: [{ alias: 'px', cube: 'g', date: 'd' }, { alias: 'px', cube: 'h', date: 'd' }] }), /two sources are called px/],
       [with_({ grain: 'hour' }), /frequency "hour"/],
       [with_({ series: [{ id: 'a', expr: { kind: 'number', value: 1 } }] }), /not a capital letter/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'macd', args: [] } }] }), /macd.*recursion/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'macd', args: [] } }] }), /calls "macd", which this DataCube does not compute/],
       [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'returns', args: [{ kind: 'column', column: 'c' }], params: { obs: 0 } } }] }), /obs 0 is below 1/],
       [with_({ series: [{ id: 'A', expr: { kind: 'column', source: 'fx', column: 'c' } }] }), /reads fx:..., which is none of its sources/],
       [with_({ series: [{ id: 'A', expr: { kind: 'column', column: 'c' }, pane: 4 }] }), /pane 4 is not one of 0 to 3/],
@@ -255,7 +256,7 @@ describe('a timeseries against its sources\' columns', () => {
 });
 
 describe('a first timeseries of a grid', () => {
-  it('its date, its instruments, its price, one line per instrument', () => {
+  it('its date, its instruments, its price, one line per instrument -- each from 100, so any prices compare', () => {
     const ts = defaultTimeseries([
       { name: 'id', type: 'Integer' }, { name: 'trade_date', type: 'StrictDate' }, { name: 'ticker', type: 'String' },
       { name: 'volume', type: 'Integer' }, { name: 'close_px', type: 'Float' },
@@ -263,7 +264,15 @@ describe('a first timeseries of a grid', () => {
     assert.deepEqual(ts, {
       sources: [{ alias: 'prices', cube: 'grid-1', date: 'trade_date', key: 'ticker' }],
       series: [{ id: 'A', expr: { kind: 'column', column: 'close_px' }, split: 'ticker' }],
+      view: { compare: 'rebase' },
     });
+  });
+
+  it('a rate per tenor drawn as it is; one line of no instrument as it is', () => {
+    const curve = defaultTimeseries([{ name: 'tenor', type: 'String' }, { name: 'day', type: 'StrictDate' }, { name: 'yield', type: 'Float' }], [], 'g', 'rates');
+    assert.deepEqual([curve?.series[0]?.split, curve?.view], ['tenor', undefined]);
+    const one = defaultTimeseries([{ name: 'day', type: 'StrictDate' }, { name: 'close', type: 'Float' }], [], 'g', 'px');
+    assert.deepEqual([one?.series[0]?.split, one?.view], [undefined, undefined]);
   });
 
   it('none of a grid with no date, or no number', () => {

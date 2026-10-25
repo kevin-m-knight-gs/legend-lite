@@ -8,11 +8,12 @@ import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { openedState } from '../cube-state.ts';
 import { cubeToJson, gridCapped, newGridTree, rebuilt, writeCube, type JoinInput, type JoinSource } from '../cube-document.ts';
-import { HOST_TABLES, openInputs, openJoin, summaryCounts, type JoinOpening, type OpenedJoin } from '../join-open.ts';
+import { HOST_TABLES, openInputs, openJoin, openSources, summaryCounts, type JoinOpening, type OpenedJoin, type OpenedSources } from '../join-open.ts';
 import { joinSummary, joinTitle, readJoinHow, summaryWords, type JoinHow } from '../join.ts';
 import { tiles } from '../layout/bands.ts';
 import { joinInputOf } from '../page-commands.ts';
 import { readPage, type PageDocument } from '../page-document.ts';
+import type { CubeSource } from '../cube-document.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { catalogColumns } from '../upload.ts';
 import { pythonRunner } from '../services/python-host.ts';
@@ -126,6 +127,47 @@ export async function joinCube(spec: string): Promise<string> {
       + `"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
       + `"relation":${toJson({ _type: 'lambda', parameters: [], body: [opened.relation] })}}`;
   }, s.tables);
+}
+
+/** What a host hands in for grids read together (joinTogether): its page, the grids by their tiles' ids, and what it
+ *  serves (host-tables.ts HostTables). */
+export interface TogetherSpec {
+  readonly page: unknown;
+  readonly grids: readonly string[];
+  readonly host: HostTables;
+}
+
+/**
+ * GRIDS READ TOGETHER (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2): a page's grids over one model of the tables
+ * they read in the host's database (join-open.ts openSources, the rule the tab opens them by over its own) -- for a
+ * timeseries series that combines them, on a tab on the host's page, which has no database of its own there: the series'
+ * one query is written over these relations by the tab and planned and run by the host's plan-and-run. JSON: `{model,
+ * runtime, relations, notes}`, each relation as the protocol writes it, in the grids' order.
+ */
+export async function joinTogether(spec: string): Promise<string> {
+  const s = fromJson(spec) as unknown as TogetherSpec;
+  const page = readPage(s.page, { empty: true });
+  if (!Array.isArray(s.grids) || s.grids.length === 0) throw new Error('grids read together are a list of the page\'s grids');
+  const sources: CubeSource[] = [];
+  const tables: string[] = [];
+  for (const id of s.grids) {
+    const view = page.views.find((v) => v.id === id);
+    if (!view || view.kind !== 'grid') throw new Error(`'${id}' is no grid of the page`);
+    const cube = page.cubes.find((c) => c.id === view.cube);
+    if (!cube) throw new Error(`'${id}' shows no cube of the page`);
+    sources.push(cube.cube.source);
+    // each grid's leaves' tables, as the host reads them (the one rule: host-tables.ts leafTables), in the grids' order
+    tables.push(...await leafTables(cube.cube.source, s.host));
+  }
+  const opened = await sourcesOpenedOn(sources, tables);
+  return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
+    + `"relations":[${opened.relations.map((r) => toJson(r)).join(',')}],"notes":${JSON.stringify(opened.notes)}}`;
+}
+
+/** Sources opened over one model of the host's tables they read (`tables`: their leaves', leafTables, in their order) --
+ *  join-open.ts openSources, as the tab opens them over its own (joinTogether; headless timeseries.ts timeseriesQuery). */
+export async function sourcesOpenedOn(sources: readonly CubeSource[], tables: readonly string[]): Promise<OpenedSources> {
+  return using((o) => openSources(sources, o), tables);
 }
 
 /**

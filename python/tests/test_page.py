@@ -846,9 +846,32 @@ class Document(Paged):
             tile.plot('macd($A)')
         with self.assertRaisesRegex(ValueError, 'frequency "hour"'):
             tile.options(grain='hour')
+        # its values, every figure the database's (headless timeseriesQuery, the viewer's own queries): a grid's series,
+        # one across both grids (read together over one model of their frames), a window kept by the database -- weekly
+        # and rebased, as it was just told, one week from 100; then daily, as the rows are
+        weekly = tile.frame('A')
+        self.assertEqual(([d.strftime('%Y-%m-%d') for d in weekly.index], list(weekly['A'])), (['2024-01-01'], [100.0]))
+        tile.options(view=None, grain=None)
+        a = tile.frame('A')
+        self.assertEqual(list(a.columns), ['A'])
+        self.assertEqual([d.strftime('%Y-%m-%d') for d in a.index], ['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05'])
+        self.assertEqual(list(a['A']), [100.0, 101.0, 99.5, 102.0])
+        both = tile.frame('C')
+        # the correlation of the two's simple returns over the last 3 dates, where both have them: one value, the 5th
+        returns = (pd.Series([101.0 / 100.0, 99.5 / 101.0, 102.0 / 99.5]) - 1, pd.Series([4.1 / 4.0, 3.9 / 4.1, 4.2 / 3.9]) - 1)
+        self.assertAlmostEqual(both['C'].dropna().iloc[-1], returns[0].corr(returns[1]), places=9)
+        kept = tile.frame('A', start='2024-01-03', end='2024-01-04')
+        self.assertEqual(list(kept['A']), [101.0, 99.5], 'the window\'s dates alone, kept by the database')
+        with self.assertRaisesRegex(ValueError, 'has no series Z'):
+            tile.frame('Z')
         # a grid's own: its date and instrument columns chosen, its first series a line per instrument
         alone = px.timeseries()
         self.assertEqual(alone.series, [{'id': 'A', 'expr': {'kind': 'column', 'column': 'close'}, 'split': 'symbol'}])
+        # a price per instrument compared from 100, as the screen's Create ▸ Timeseries makes it (timeseries-expr.ts
+        # firstPlot); a column per instrument, every one 100 at its first date
+        self.assertEqual(alone.spec['view'], {'compare': 'rebase'})
+        first = alone.frame()
+        self.assertEqual((list(first.columns), first['SPX'].iloc[0]), (['SPX'], 100.0))
         # saved and read back as it is
         again = ll.Page.load(page.to_dict(), frames={'prices': prices, 'rates': yields})
         self.assertEqual(again.timeseries_tiles[0].spec, tile.spec)
@@ -2549,6 +2572,44 @@ class Joined(Paged):
         self.assertEqual(asked('cube', how=self.HOW)[0], 400, 'a grid is added on a sheet')
         self.assertEqual(engine.answer('POST', '/join.json', '', '{"op": "sides"}').status, 400)
         self.assertEqual(len(page.grids), 2, 'asking adds nothing to the page: the tab adds the grid')
+
+    def test_a_tab_on_the_page_asks_python_to_read_a_timeseries_grids_together(self):
+        # docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2: a timeseries series that combines grids is one query over one
+        # model of the tables they read -- on a page Python serves, Python's, opened by DataCube's own rule over them
+        # (join.json together: headless joinTogether, join-open.ts openSources); the tab writes the series' query over
+        # the relations it answers, and Python's plan-and-run plans and runs it
+        page = ll.Page('Markets')
+        days = pd.to_datetime(['2024-01-02', '2024-01-03', '2024-01-04']).date
+        px = page.grid(pd.DataFrame({'symbol': ['SPX'] * 3, 'day': days, 'close': [100.0, 101.0, 99.5]}), name='prices')
+        rates = page.grid(pd.DataFrame({'tenor': ['10Y'] * 3, 'obs_date': days, 'yield': [4.0, 4.1, 3.9]}), name='rates')
+        engine = datacube._session.engine()
+
+        def asked(**given):
+            answer = engine.answer('POST', '/join.json', '', _json.dumps({'op': 'together', 'page': _json.dumps(page.to_dict()), **given}))
+            return answer.status, answer.body.decode('utf-8')
+
+        status, body = asked(grids=[px.id, rates.id])
+        self.assertEqual(status, 200, body)
+        said = json.loads(body)
+        self.assertTrue(said['model'] and said['runtime'], 'one model of both grids\' tables')
+        self.assertEqual(len(said['relations']), 2, 'each grid\'s relation over it, in order')
+        self.assertTrue(all(isinstance(r, dict) and '_type' in r for r in said['relations']), 'as the protocol writes one')
+        self.assertEqual(said['notes'], [])
+        # a query over the model, planned and run by Python's plan-and-run: each relation answers its own frame's rows
+        for relation, column in zip(said['relations'], ['close', 'yield']):
+            tree = {'_type': 'lambda', 'parameters': [], 'body': [relation]}
+            ran = engine.answer('POST', '/plan-and-run.json', '', json.dumps(
+                {'lambda': _json.dumps(tree), 'model': said['model'], 'runtime': said['runtime']}))
+            self.assertEqual(ran.status, 200, ran.body[:300])
+            import pyarrow.ipc
+            table = pyarrow.ipc.open_stream(ran.body).read_all()
+            self.assertEqual(table.num_rows, 3)
+            self.assertIn(column, table.column_names)
+        # refused in its words: no grids, a tile that is no grid
+        self.assertEqual(asked(grids=[])[0], 400)
+        status, body = asked(grids=[px.id, 'nope'])
+        self.assertEqual(status, 422)
+        self.assertIn("'nope' is no grid of the page", body)
 
     def test_shown_served_with_both_frames_versions(self):
         page, joined = self.joined()

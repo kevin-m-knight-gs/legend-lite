@@ -20,10 +20,13 @@ import { themeOf } from '../chart-option.ts';
 import type { ChartPicture } from '../chart-render.ts';
 import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import {
-  aliasFor, columnRef, exprText, functionNamed, inlined, MAX_PANES, nextSeriesId, parseExpr, readTimeseries, seriesName, sourceOf,
-  sourcesOf, timeseriesProblems, TS_FUNCTIONS, TS_RANGES, TsSyntaxError, viewSetting, type TimeseriesSpec, type TsAnnotation,
-  type TsColumn, type TsExpr, type TsFamily, type TsRangeWord, type TsSeries, type TsSource, type TsStyleKind, type TsView,
+  MAX_PANES, readTimeseries, TS_RANGES, viewSetting, type TimeseriesSpec, type TsAnnotation, type TsExpr,
+  type TsRangeWord, type TsSeries, type TsSource, type TsStyleKind, type TsView,
 } from '../timeseries-spec.ts';
+import {
+  aliasFor, columnRef, defaultTimeseries, exprText, functionNamed, inlined, nextSeriesId, parseExpr, seriesName,
+  sourceOf, sourcesOf, timeseriesProblems, TsSyntaxError, type TsColumn, TS_FUNCTIONS, type TsFamily,
+} from '../timeseries-expr.ts';
 import {
   boundsQuery, keyValuesQuery, rangeStartName, readsAnchor, seriesQuery, seriesSources, statName, statsQuery, TS_LATEST,
   TS_SPLIT, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
@@ -68,6 +71,17 @@ export interface TimeseriesHost {
   readonly mount?: (el: HTMLElement, on: MountOn) => MountedTimeseries;
 }
 
+/**
+ * A FIRST TIMESERIES OF A GRID (Create ▸ Timeseries): DataCube's rule over the grid's columns as it is now
+ * (timeseries-expr.ts defaultTimeseries -- the rule Python's headless timeseriesMade asks too), its source called after
+ * the grid's title; or why the grid cannot be read as one, in words.
+ */
+export function firstTimeseries(grid: TsGrid): TimeseriesSpec | string {
+  const columns = rowColumns(grid.snapshot).map((c) => ({ name: c.name, type: c.type }));
+  const made = defaultTimeseries(columns, grid.snapshot.rows, grid.cube, aliasFor(grid.title, []));
+  return made ?? `${grid.title} has no date column with a number to plot along it: a timeseries is read along a date.`;
+}
+
 /** What the renderer tells the viewer. */
 export interface MountOn {
   readonly onZoom: (from: string | undefined, to: string | undefined) => void;
@@ -99,10 +113,19 @@ function button(doc: Document, label: string, title: string, onClick: () => void
   return b;
 }
 
+/** An option of a select, in `doc` (the window's own: a page's windows may float in another document). */
+function option(doc: Document, label: string, value: string, selected = false): HTMLOptionElement {
+  const o = doc.createElement('option');
+  o.textContent = label;
+  o.value = value;
+  o.selected = selected;
+  return o;
+}
+
 function select(doc: Document, options: readonly (readonly [string, string])[], value: string, onChange: (v: string) => void,
   title = ''): HTMLSelectElement {
   const s = el(doc, 'select', 'dc-select dc-ts-select', undefined, title ? { title, 'aria-label': title } : {});
-  for (const [v, label] of options) s.append(new Option(label, v, v === value, v === value));
+  for (const [v, label] of options) s.append(option(doc, label, v, v === value));
   s.value = value;
   s.addEventListener('change', () => onChange(s.value));
   return s;
@@ -172,6 +195,8 @@ export class TimeseriesView {
   /** The person's own look: the dates the zoom shows, until a range is chosen again. */
   #zoom: TsWindow | null = null;
   #asked = '';
+  /** What its series read of their grids when it last asked (`#inputKey`). */
+  #read = '';
   #range = '';
   #gen = 0;
   #zoomTimer: ReturnType<typeof setTimeout> | undefined;
@@ -201,8 +226,13 @@ export class TimeseriesView {
     this.#apply(spec);
   }
 
-  /** A grid it reads landed a new view (its filter, its rows): asked again, as every chart of a grid is. */
-  refresh(): void {
+  /**
+   * A grid it reads landed a new view: asked again when what its series read of it changed -- its source, its columns,
+   * its calculated columns, its filter (a chart's click among it) -- as every chart of a grid is; a grid regrouped,
+   * sorted or scrolled changes none of it. `force`: asked again whatever (its rows read again, a snap, going live).
+   */
+  refresh(force = false): void {
+    if (!force && this.#inputKey() === this.#read) return;
     this.#asked = '';
     void this.#fetch();
   }
@@ -234,7 +264,8 @@ export class TimeseriesView {
 
   #apply(spec: TimeseriesSpec): void {
     const range = JSON.stringify(spec.range ?? null);
-    if (range !== this.#range) {
+    const moved = range !== this.#range;
+    if (moved) {
       this.#range = range;
       this.#zoom = null;
     }
@@ -242,8 +273,11 @@ export class TimeseriesView {
     this.#paintBar();
     if (queryKey(spec) !== this.#asked) void this.#fetch();
     else {
-      this.#draw();
-      void this.#windowed();
+      // the drawing alone changed (a line's style, its pane, hidden; an annotation; the legend): drawn from the rows it
+      // has (D4) -- and the window moved, what reads its first date asked again, and the statistics
+      void this.#draw();
+      if (moved) void this.#windowed();
+      else this.#paintStats();
     }
   }
 
@@ -320,11 +354,20 @@ export class TimeseriesView {
     return { ...(r.from !== undefined ? { from: r.from } : {}), ...(r.to !== undefined ? { to: r.to } : {}) };
   }
 
+  /** What the series read of their grids: each source's grid's source, columns, calculated columns and filter. */
+  #inputKey(): string {
+    return JSON.stringify(this.#spec.sources.map((s) => {
+      const g = this.#host.grid(s.cube);
+      return g ? [g.snapshot.source, g.snapshot.columns, g.snapshot.derived, g.filter ?? null] : null;
+    }));
+  }
+
   /** Every series asked again: the bounds, then the series, then the statistics. */
   async #fetch(): Promise<void> {
     const gen = ++this.#gen;
     const spec = this.#spec;
     this.#asked = queryKey(spec);
+    this.#read = this.#inputKey();
     this.#canvas.setAttribute('aria-busy', 'true');
     const problems = timeseriesProblems(spec, this.#columns(spec));
     this.#problems = problems;
@@ -423,7 +466,13 @@ export class TimeseriesView {
         onDate: (date) => this.#eventAt(date),
         onResize: () => void this.#draw(),
       };
-      const make = this.#host.mount ?? (await lazily(() => import('../timeseries-render.ts'))).mountTimeseries;
+      let make = this.#host.mount;
+      if (make === undefined) {
+        // the drawing, over the charts' ECharts (chart-render.ts canvasChart): both fetched together
+        const [{ mountTimeseries }, { canvasChart }] = await Promise.all([
+          lazily(() => import('../timeseries-render.ts')), lazily(() => import('../chart-render.ts'))]);
+        make = (el, o) => mountTimeseries(el, o, canvasChart);
+      }
       if (this.#disposed) return null;
       this.#chart = make(this.#canvas, on);
       return this.#chart;
@@ -479,8 +528,9 @@ export class TimeseriesView {
     this.#pop = el(doc, 'div', 'dc-ts-pop');
     this.#pop.hidden = true;
     const body = el(doc, 'div', 'dc-ts-body');
-    body.append(this.#canvas, this.#pop);
-    this.#root.append(this.#bar, this.#legend, this.#banner, body, this.#stats);
+    body.append(this.#canvas);
+    // the editors over the whole tile under its toolbar, not the chart alone: a short tile's chart is a strip
+    this.#root.append(this.#bar, this.#legend, this.#banner, body, this.#stats, this.#pop);
     this.#root.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !this.#pop.hidden) {
         e.stopPropagation();
@@ -575,8 +625,12 @@ export class TimeseriesView {
       swatch.style.background = l.color;
       chip.append(swatch, el(doc, 'span', 'dc-ts-chip-name', l.name));
       // its latest value in the window shown: a point the database answered, read
-      const last = [...l.points].reverse().find((p) => p[1] !== null && (w.to === undefined || p[0].slice(0, 10) <= w.to));
-      if (last) chip.append(el(doc, 'span', 'dc-ts-chip-value', valueText(l, last[1], this.#formatOf(l))));
+      const at = l.points.findLastIndex((p) => p[1] !== null && (w.to === undefined || p[0].slice(0, 10) <= w.to));
+      // a band says its edges there, a line its value
+      const said = at < 0 ? undefined : l.band
+        ? `${valueText(l, l.lower?.[at] ?? null, this.#formatOf(l))} – ${valueText(l, l.upper?.[at] ?? null, this.#formatOf(l))}`
+        : valueText(l, l.points[at]![1], this.#formatOf(l));
+      if (said !== undefined) chip.append(el(doc, 'span', 'dc-ts-chip-value', said));
       const pct = this.#stat(l, 'pct');
       if (pct !== null && (l.unit === 'same' || l.unit === 'index')) {
         chip.append(el(doc, 'span', `dc-ts-chip-change ${pct >= 0 ? 'dc-ts-up' : 'dc-ts-down'}`, `${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct * 100).toLocaleString(UI_LOCALE, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}%`));
@@ -741,12 +795,12 @@ export class TimeseriesView {
       const src = spec.sources.find((s) => s.alias === sourceSel.value);
       const cols = (src ? columns.get(src.alias) : undefined) ?? [];
       const numbers = cols.filter((c) => isNumeric(c.type) && c.name !== src?.date);
-      columnSel.replaceChildren(...numbers.map((c) => new Option(c.name, c.name)));
-      keySel.replaceChildren(new Option('Every row', ''));
+      columnSel.replaceChildren(...numbers.map((c) => option(doc, c.name, c.name)));
+      keySel.replaceChildren(option(doc, 'Every row', ''));
       splitText.textContent = src?.key ? `One line per ${src.key}` : 'One line per instrument (no instrument column)';
       splitBox.disabled = src?.key === undefined;
       if (src?.key !== undefined) void this.#keyValues(src).then((values) => {
-        for (const v of values) keySel.append(new Option(v, v));
+        for (const v of values) keySel.append(option(doc, v, v));
       });
     };
     paintPickers();
@@ -759,10 +813,10 @@ export class TimeseriesView {
     });
     // a function around it: gs-quant's, by family
     const fnSel = el(doc, 'select', 'dc-select dc-ts-select', undefined, { 'aria-label': 'Function' });
-    fnSel.append(new Option('Apply a function…', ''));
+    fnSel.append(option(doc, 'Apply a function…', ''));
     for (const family of FAMILIES) {
       const group = el(doc, 'optgroup', undefined, undefined, { label: family });
-      for (const f of TS_FUNCTIONS.filter((x) => x.family === family)) group.append(new Option(f.label, f.name));
+      for (const f of TS_FUNCTIONS.filter((x) => x.family === family)) group.append(option(doc, f.label, f.name));
       fnSel.append(group);
     }
     const about = el(doc, 'div', 'dc-ts-hint');

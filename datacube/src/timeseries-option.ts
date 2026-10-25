@@ -15,8 +15,9 @@ import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { escapeHtml, periodText, type ChartTheme } from './chart-option.ts';
 import {
-  exprText, inlined, MAX_PANES, seriesName, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsExpr, type TsSeries, type TsUnit,
+  MAX_PANES, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsExpr, type TsSeries,
 } from './timeseries-spec.ts';
+import { boundsOf, exprText, inlined, seriesName, type TsUnit } from './timeseries-expr.ts';
 import { TS_DATE, TS_LOWER, TS_ROWS, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from './timeseries-query.ts';
 
 /** A series' query and what the database answered. */
@@ -47,6 +48,8 @@ export interface TsLine {
   readonly formatColumn?: string;
   /** The source whose grid formats it: the one its series reads first. */
   readonly formatSource?: string;
+  /** The least and the most its figures can be (an RSI's): its axis shows them whole. */
+  readonly bounds?: readonly [number, number];
 }
 
 /** A value read off a result: a number, a bigint, or a number's exact text (a Number column's). */
@@ -115,9 +118,11 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
       if (!g) groups.set(k, (g = { split, at: [] }));
       g.at.push(i);
     }
-    const ordered = [...groups.values()].sort((a, b) => String(a.split ?? '').localeCompare(String(b.split ?? '')));
+    // in the split's order as a person reads it: 2Y before 10Y
+    const ordered = [...groups.values()].sort((a, b) => String(a.split ?? '').localeCompare(String(b.split ?? ''), UI_LOCALE, { numeric: true }));
     const expr = safeInline(s, ts);
     const formatColumn = r.query.unit === 'same' && expr ? firstColumn(expr) : undefined;
+    const bounds = expr ? boundsOf(expr) : undefined;
     for (const g of ordered) {
       const slot = s.style?.color ?? place;
       place++;
@@ -132,7 +137,7 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
       lines.push({
         key: g.split === undefined ? s.id : `${s.id}\u0000${String(g.split)}`,
         series: s,
-        name: g.split === undefined ? seriesName(s) : `${s.name ?? String(g.split)}${s.name === undefined && !isPlainColumn(s) ? ` ${seriesName(s)}` : ''}`,
+        name: splitName(s, g.split),
         ...(g.split !== undefined ? { split: g.split } : {}),
         unit: r.query.unit,
         band: r.query.band,
@@ -144,6 +149,7 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
         ...(wd ? { width: wd } : {}),
         ...(formatColumn !== undefined ? { formatColumn } : {}),
         ...(formatColumn !== undefined && r.query.sources[0] !== undefined ? { formatSource: r.query.sources[0] } : {}),
+        ...(bounds !== undefined ? { bounds } : {}),
       });
     }
   }
@@ -151,9 +157,15 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
   return { lines, notes };
 }
 
-/** A split series of one plain column is named by its value alone ("AAPL"), else by its value and its expression. */
-function isPlainColumn(s: TsSeries): boolean {
-  return s.expr.kind === 'column' && (s.expr.where ?? []).length === 0;
+/**
+ * A line's name: its series' -- and, one of a split series' lines, its value with it: a named series' after its name
+ * ("Yield 10Y"), a plain column's alone ("AAPL"), else before its expression ("AAPL volatility(close, 63)").
+ */
+function splitName(s: TsSeries, split: Scalar | undefined): string {
+  if (split === undefined) return seriesName(s);
+  if (s.name !== undefined) return `${s.name} ${String(split)}`;
+  const plain = s.expr.kind === 'column' && (s.expr.where ?? []).length === 0;
+  return plain ? String(split) : `${String(split)} ${seriesName(s)}`;
 }
 
 function safeInline(s: TsSeries, ts: TimeseriesSpec): TsExpr | undefined {
@@ -166,8 +178,9 @@ function safeInline(s: TsSeries, ts: TimeseriesSpec): TsExpr | undefined {
 
 // ------------------------------------------------------------------ writing a value
 
+/** `v` to `digits` places; a value that rounds to zero is zero, never "-0.000". */
 const fixed = (v: number, digits: number): string =>
-  v.toLocaleString(UI_LOCALE, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  (Math.abs(v) < 0.5 * 10 ** -digits ? 0 : v).toLocaleString(UI_LOCALE, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
 /** A value written as its grid writes its column (the grid's formatter, bound to the line's column). */
 export type TsFormat = (v: number) => string;
@@ -250,14 +263,19 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   const bottom = AXIS_LABELS + (navigator ? NAVIGATOR + 8 : 0);
   const room = Math.max(60, total - TOP - bottom - PANE_GAP * (panes.length - 1));
   const weight = panes.reduce((a, p) => a + p.height, 0);
+  const shown = lines.filter((l) => !l.series.hidden);
+  // room on the right for each line's latest value, tagged at its end (the axes' labels are inside the grid already)
+  const lastValues = viewSetting(ts, 'lastValues');
+  const tag = lastValues ? Math.max(0, ...shown.filter((l) => !l.band && !['bars', 'dots'].includes(l.series.style?.kind ?? 'line'))
+    .map((l) => valueText(l, [...l.points].reverse().find((p) => p[1] !== null)?.[1] ?? null, ctx.formatOf?.(l)).length)) : 0;
+  const right = 16 + (tag > 0 ? tag * 6 + 14 : 0);
   let y = TOP;
   const grids = panes.map((p) => {
     const h = Math.max(40, Math.round((room * p.height) / weight));
-    const g = { left: 12, right: 16, top: y, height: h, containLabel: true };
+    const g = { left: 12, right, top: y, height: h, containLabel: true };
     y += h + PANE_GAP;
     return g;
   });
-  const shown = lines.filter((l) => !l.series.hidden);
   // each pane's units, in the order its lines come: the first on the left, a second on the right
   const yAxes: Record<string, unknown>[] = [];
   const axisOf = new Map<string, number>();
@@ -271,13 +289,20 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
       const on = here.filter((l) => sideOf(l) === side);
       if (on.length === 0 && !(side === 'left')) continue;
       const unit = on[0]?.unit ?? 'same';
+      // every line on it bounded alike (RSIs): the axis shows the bounds whole
+      const bounds = on[0]?.bounds;
+      const bounded = bounds !== undefined && on.every((l) => l.bounds?.[0] === bounds[0] && l.bounds?.[1] === bounds[1]) ? bounds : undefined;
       axisOf.set(`${gi}|${side}`, yAxes.length);
       yAxes.push({
         type: p.log && side === 'left' ? 'log' : 'value',
         gridIndex: gi,
         position: side,
-        scale: true,
-        splitNumber: p.index === 0 ? 5 : 3,
+        scale: bounded === undefined,
+        // as many ticks as the pane has room for: a short pane's labels never run into each other; a bounded axis's at
+        // even steps of its bounds (an RSI's 0, 50, 100 -- or every 25)
+        ...(bounded !== undefined
+          ? { min: bounded[0], max: bounded[1], interval: (bounded[1] - bounded[0]) / (grids[gi]!.height >= 160 ? 4 : 2) }
+          : { splitNumber: Math.max(1, Math.min(5, Math.floor(grids[gi]!.height / 45))) }),
         axisLine: { show: false },
         axisTick: { show: false },
         splitLine: { show: side === 'left', lineStyle: { color: theme.grid, width: 1 } },
@@ -304,7 +329,6 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
     axisPointer: { label: { show: gi === lastGrid } },
   }));
   const series: Record<string, unknown>[] = [];
-  const lastValues = viewSetting(ts, 'lastValues');
   for (const p of placed) {
     const l = p.line;
     const kind = l.series.style?.kind ?? 'line';

@@ -1358,6 +1358,44 @@ class Timeseries(Tile):
         self._set(spec)
         return self
 
+    def frame(self, series: str | None = None, *, start: str | None = None, end: str | None = None) -> Any:
+        """Series ``series`` (None: its first) as a pandas DataFrame, every figure the database's: its query written by
+        DataCube over the tables its grids read -- the viewer's own (headless timeseriesQuery: timeseries-query.ts), a
+        series of several grids over one model of their tables -- planned and run by the engine's plan-and-run where the
+        rows are (D16). Indexed by date, oldest first; a column per line: the series' name (else its id), or each value
+        of its split (``SPX``, ``NDX``); a band's ``lower`` and ``upper``. ``start`` and ``end`` (ISO days): the dates it
+        keeps -- kept by the database after every value is computed over every date (a window's first values have their
+        history), and an index's base, a compare's, its first."""
+        import pandas as pd
+        from .frames import to_pandas
+        spec = self._view['spec']
+        if series is None:
+            if not spec['series']:
+                raise ValueError(f'{self!r} plots no series')
+            series = spec['series'][0]['id']
+        page = self._page
+        session = page._session
+        engine, frames = session.headless(), session.frames
+        window = {k: v for k, v in (('from', start), ('to', end)) if v is not None}
+        with frames.reading() as over:
+            said = _json.loads(engine.call('timeseriesQuery', _json.dumps({
+                'page': page._doc, 'tile': self._id, 'series': series, 'window': window, 'host': frames.hosted()})))
+            if 'problems' in said:
+                raise ValueError('; '.join(said['problems']))
+            rows = to_pandas(_engine_rows(session, said['query'], said, over))
+        # its dates as the database kept them (the window's alone), each a timestamp, as pandas indexes a series
+        named = said['columns']
+        rows = rows.assign(**{named['date']: pd.to_datetime(rows[named['date']])})
+        if said['band']:
+            out = rows.set_index(named['date'])[[named['lower'], named['upper']]].rename(columns={named['lower']: 'lower', named['upper']: 'upper'})
+        elif said['split'] is not None:
+            out = rows.pivot(index=named['date'], columns=named['split'], values=named['value'])
+            out.columns.name = said['split']
+        else:
+            out = rows.set_index(named['date'])[[named['value']]].rename(columns={named['value']: said['name'] or series})
+        out.index.name = 'date'
+        return out.sort_index()
+
     def _set(self, spec: dict[str, Any]) -> None:
         _ = self._view
         page = self._page

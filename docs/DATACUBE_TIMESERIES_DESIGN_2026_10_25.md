@@ -184,9 +184,13 @@ history.
 The same steps, with step 2 per source -- each source's rows (its own date, instrument and filter) grouped to the
 tile's frequency -- and the grouped sources joined on the period (inner: the dates both have, gs-quant's intersect)
 before step 3. Planned over ONE model of every source's tables, as DataCube's Join opens a join of two grids
-(`join-open.ts openInputs`, generalized from two inputs to the series' sources), and run on the tab's DuckDB. A source's
-tables are where its rows are now: a grid over the tab's files reads its files; a snapped grid its copy (D3); a source
-anywhere else is refused for the combination, in words that offer its grid's Snap -- it is still plotted on its own.
+(`join-open.ts openSources`: `openInputs`' rule for any number of sources). Where the tables are is the host's, the rule
+one: on the tab, its own DuckDB (`app/timeseries-together.ts tabSources`); on a page Python serves, which has no
+database of its own there, Python's tables, opened there by DataCube's code headless (`join.json` op `together`:
+headless `joinTogether`) -- and either way the series' one query is written by the tab over the relations given and
+planned and run where the grids' rows are (the host's plan-and-run). A source's tables are where its rows are now: a
+grid over a file reads its table; a snapped grid its copy (D3); a source anywhere else is refused for the combination
+in the join's words (`leafRefusal`) -- it is still plotted on its own, by its own grid's runner.
 
 ### 5.3 The tile's bounds and statistics
 
@@ -207,6 +211,12 @@ and from a date with no value, compare mode, bounds, statistics). A probe of §5
 the tab's DuckDB with different date and instrument columns, opened over one model by `openInputs`, each grouped by its
 own date, joined on the period, a rolling correlation over the joined rows -- planned and run, the joined dates exactly
 the shared ones.
+
+Since (2026-10-25): §5.2 is tested the same way (a ratio across grids on the dates both have, one grid's series over
+the joint model, a correlation of two grids' returns after the join, a split of the first grid against the second's
+one series, monthly), and the Markets example end to end -- its two samples read into DuckDB as the tab reads them,
+typed as the page declares them, and its every series (24, two across both grids), its statistics and its sources'
+bounds planned and run.
 
 ## 6. The viewer
 
@@ -244,11 +254,18 @@ the shared ones.
   the kind refuses it by name, as the text tile came in (2026-10-24).
 - **Commands** (`page-commands.ts`): `addTimeseries` (on a sheet, a band of its own) and `setTimeseries` (the spec
   whole, as `setChart`); `renameTile`, `moveTile`, `removeTile` and the layout's as for any tile. The rebase
-  (`page-rebase.ts`) renames the cubes a tile's sources name, as it renames a chart's. Removing a grid a tile reads
-  keeps that grid's cube for the tile, its source DETACHED (said on the tile), as a chart whose grid goes keeps a copy of
-  its query; the cube is let go when nothing reads it.
-- **Following**: each source follows its grid's filter and the selections clicked on the page, or is frozen with the
-  filter it had (per source).
+  (`page-rebase.ts`) renames the cubes a tile's sources name, as it renames a chart's. **Removing a grid a tile reads**
+  (decided while building it, 2026-10-25): the tile keeps its source -- the reference to the grid's cube, nothing else
+  -- and says, where its series were, that its grid was removed (Undo brings it back; Settings reads another grid).
+  No cube is kept off the board for it, as one is for a frozen chart: a tile's source is the grid itself, never a copy
+  of its query, so there is nothing to draw until a grid is there again. A command naming a source accepts a cube a
+  grid shows or one the page has held (its undo).
+- **Following**: each source follows its grid -- its filter, the selections clicked on the page, its calculated
+  columns, a snap or going live -- and asks again only when one of those changed (the viewer's input key): a grid
+  regrouped, sorted or scrolled asks nothing. Per-source frozen filters are phase 2.
+- **Create ▸ Timeseries**, in every grid's Create ▸: a tile under the grid, its first series DataCube's rule over the
+  grid's columns (`timeseries-expr.ts defaultTimeseries`: its date, its instrument column, its price-like value, a line
+  per instrument) -- the rule Python's headless `timeseriesMade` asks too.
 - **Python** (`python/legend_lite/page.py`): `page.timeseries(sources={'px': prices, 'rates': rates}, series=[...])`, a
   `Timeseries` tile whose `series`, `range`, `view` and `annotations` it sets; every word judged by DataCube's reader,
   asked headless -- Python keeps no list of its own (the charts' rule, PR #47).
@@ -257,9 +274,9 @@ the shared ones.
 ## 8. Phases
 
 1. **The tile** -- everything in §3 to §7: sources from any number of grids; series of one source and combinations
-   across sources in the tab's DuckDB; the viewer whole; the page commands, the rebase, a removed grid; Python; an
-   example page over a markets sample (daily prices and volumes of ten instruments, a yield curve's tenors, an FX rate:
-   three grids). Each step a commit, held by its tests (§9).
+   across sources, on the tab and on a page Python serves; the viewer whole; the page commands, the rebase, a removed
+   grid; Python; an example page over a markets sample (daily prices and volumes of ten instruments with a currency
+   among them, and a yield curve's tenors: two grids). Each step a commit, held by its tests (§9). **Built** (§10).
 2. **Sources elsewhere**: a combination offering the grid's Snap when a source is on another store (D3), and reading
    the copy; per-source frozen filters.
 3. **Later**: a join across stores (D3); OHLC candles; events read from a grid's column (a calendar of releases) as
@@ -275,8 +292,24 @@ the viewer's DOM (jsdom, the renderer stood in for); the page commands, the reba
 
 ## 10. What is built so far (on the branch)
 
-- `timeseries-spec.ts`: the spec of §3 with the date and instrument columns at the tile's top (one source); the catalog,
-  the reader, the expression language, a first tile of a grid. **Changes**: the date and the instrument move into
-  `sources`, and the parser reads `alias:`.
-- `timeseries-query.ts`: §5.1 and §5.3, tested (§5.4). **Changes**: §5.2's per-source grouping and the join.
-- `timeseries-option.ts`, `timeseries-render.ts`: §6's drawing, not yet tested or wired.
+- **The spec** (`timeseries-spec.ts`): the types of §3, the functions' signatures and the saved spec's reader -- what a
+  page reads at its start, and all it needs to. The rest is fetched with the first timeseries tile (budgeted:
+  `test/bundle-budget.test.ts`): the catalog's words, the expression language, the rules against a grid's columns and a
+  first tile of a grid (`timeseries-expr.ts`); the queries (`timeseries-query.ts`, §5); the drawing
+  (`timeseries-option.ts`); the viewer (`ui/timeseries-view.ts`, §6); its renderer (`timeseries-render.ts`, over the
+  charts' own ECharts: `chart-render.ts canvasChart`, one build of it for both).
+- **On the page** (§7): the view kind read and written (`page-document.ts`), its commands (`page-commands.ts`
+  `addTimeseries`, `setTimeseries`), rebased and diffed (`page-rebase.ts`, `page-between.ts`); the board's tile
+  (`page/cube-page.ts`: placed, synced to the page's state, restored, removed, exported as a picture); Create ▸
+  Timeseries; grids read together on the tab (`app/timeseries-together.ts`) and on Python's page (`join.json`
+  `together`). The one-API ledgers hold it: the commands are the screen's and Python's alike (`test/one-api-gestures`:
+  a timeseries added, its range picked, each replayed by the host to the same page).
+- **Python** (`python/legend_lite/page.py`): `page.timeseries`, `sheet.timeseries`, `grid.timeseries`, the
+  `Timeseries` tile's `plot`, `unplot` and `options` -- every word judged by DataCube's code headless.
+- **Samples and an example**: `samples.ts` markets (ten instruments, five years of business days, a crash and a bear
+  market) and rates (a Treasury curve that rises and inverts); the Markets example page (`examples/markets.ts`: four
+  sheets -- performance rebased with a vol pane; drawdowns, volatility, correlation and beta; Bollinger bands, moving
+  averages, RSI and volume; the curve, the 10s2s spread, and a bond fund against its yield across two grids), drawn in
+  Chromium on the demo site.
+- **Next**: a series' values to Python as a DataFrame (the database's, by the same queries); OHLC candles; per-source
+  frozen filters; events from a grid's column.
