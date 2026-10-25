@@ -3,4 +3,4 @@
 // join's code is one (test/bundle-budget.test.ts).
 
 export { hostJoinFlow, joinFlow } from './join-flow.ts';
-export { openedJoin } from './join-sources.ts';
+export { openedJoin, openedRows } from './join-sources.ts';

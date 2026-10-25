@@ -182,9 +182,11 @@ export interface DatabaseService {
    * A saved cube opened by the host where it reads it, as its source is now (Python's `opened.json`: headless gridOpened)
    * -- every kind but a frame's, which a page with no database or compiler of its own on the host cannot open
    * (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3; the S7 audit's H-2, H-3). `cube`: its document's text; `page`: its
-   * page's name; `gridsOnPage`: how many grids the page holds.
+   * page's name; `gridsOnPage`: how many grids the page holds; `on`, the page's document (its text) and the cube's id on
+   * it, what a grid over another grid's rows reads (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1).
    */
-  readonly opened?: (cube: string, page: string, gridsOnPage: number) => Promise<HostOpened>;
+  readonly opened?: (cube: string, page: string, gridsOnPage: number, on?: { readonly page: string; readonly id: string })
+    => Promise<HostOpened>;
   /**
    * A new grid's cube over a class made by the host where it reads it (Python's `source.json`: headless sourceCube, as
    * Python's page.grid(cls=...) makes one: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md K16, K17) -- for a page with no

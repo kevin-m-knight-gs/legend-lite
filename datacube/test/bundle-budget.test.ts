@@ -313,8 +313,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  355,500 -> 356,500 (2026-10-25, the flow mode's M1 step 1, docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1: a grid over
  *  another grid's rows read and written (cube-document.ts RowsSource), its live input resolved against its page, a page
  *  whose link goes nowhere or round refused as it is read, its grids opened after what they read (live-inputs.ts) --
- *  every page read asks it, so it is no chunk of its own; the canvas will be). Measured 356,085. */
-const BUDGET = 356_500;
+ *  every page read asks it, so it is no chunk of its own; the canvas will be). Measured 356,085.
+ *  356,500 -> 357,000 (2026-10-25, the flow mode's M1 step 2: a box opened in the tab -- sources.ts reopened's arm, where
+ *  it is opened (by the host on its page, else here), each grid's start kept for a box after it, what a grid reads
+ *  resolved as it opened (GridPlace.reads); the opening itself is the join's chunk's (app/join-sources.ts openedRows)).
+ *  Measured 356,620. */
+const BUDGET = 357_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

@@ -186,7 +186,7 @@ export interface HostJoinFlowOf {
 
 /** Why a grid of a host's page is no input of a join there (join-open.ts leafRefusal over HOST_TABLES), or undefined. */
 function hostRefusal(o: HostJoinFlowOf, id: string): string | undefined {
-  const source = o.sources.place(id)?.cubeSource;
+  const source = o.sources.reads(id);
   if (source === undefined) return 'this grid is written down by no source: a join reads none';
   for (const leaf of leavesOf(source)) {
     const refused = leafRefusal(leaf, HOST_TABLES);

@@ -212,6 +212,15 @@ export interface LiveInput {
 /** An input of a grid over another's rows: live (the grid on the page), or frozen (what a grid was: a join's input). */
 export type CubeInput = LiveInput | JoinInput;
 
+/** An input as a cube document (join-open.ts, a box's first source opened): its configuration the product's, nothing
+ *  open. */
+export function inputCube(input: JoinInput): CubeDocument {
+  return {
+    kind: CUBE_KIND, version: CUBE_VERSION, name: input.name, source: input.source, query: input.query,
+    configuration: {}, tree: { open: [], showTotals: false },
+  };
+}
+
 /** Whether an input is live: a grid of its page, read as it is now. */
 export const isLive = (input: CubeInput): input is LiveInput => 'grid' in input;
 

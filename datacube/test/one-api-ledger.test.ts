@@ -754,6 +754,11 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/sources.ts:openedGivenClass:database.made': { other: `${BOTH} the host's half of a named class (K16)`, ability: 'class' },
   'src/app/sources.ts:reopened:database.opened': { count: 2, other: `${BOTH} a grid of the host's page opened by the host (H-2, H-3)`, ability: 'reopen' },
   'src/app/sources.ts:reopened:local': { other: `${BOTH} a saved join opened by the tab, or the host`, ability: 'join' },
+  // 2026-10-25, the flow mode's M1 step 2 (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): another grid's rows
+  'src/app/sources.ts:rowsWhere:local': { other: `${BOTH} a box after another opened by the tab, or by the host on its page`, ability: 'input' },
+  'src/app/sources.ts:rowsWhere:database.opened': { other: `${BOTH} a box after another opened by the host on its page (gridOpened)`, ability: 'input' },
+  'src/app/sources.ts:openedRows:local': { other: `${BOTH} a box after another opened in the tab's database; on a host's page, by the host (rowsWhere)`, ability: 'input' },
+  'src/app/join-sources.ts:openedAfterStart:place.runner': { other: `${BOTH} a box over a source read elsewhere, typed by the host's runner (Python's) or the tab's planner`, ability: 'input' },
   'src/app/sources.ts:pick:database.ingestFile': { other: `${BOTH} Files and Examples where a database takes a file (the tab's, Python's)`, ability: 'files' },
   'src/app/sources.ts:pick:files': { count: 2, other: `${BOTH} Files and Examples where a database takes a file`, ability: 'files' },
   'src/app/sources.ts:pick:queries': { other: `${BOTH} Saved queries where the host has a query store`, ability: 'queries' },
@@ -805,7 +810,7 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
 
 /** What a `both:` branch is a way to on each host: an ability, proved on each (HOST_ABILITIES). */
 type HostAbility = 'rows' | 'pages' | 'model' | 'class' | 'join' | 'warehouse' | 'remote' | 'files' | 'snap' | 'queries'
-  | 'reopen';
+  | 'reopen' | 'input';
 
 /** A test, `file::name`: a test file of DataCube's (under test/) or the tab's libraries' and the title of one of its
  *  `it`s, `describe`s, browser `check`s or conformance runs, or a Python test file (under ../python/tests/) and one of
@@ -872,6 +877,14 @@ const HOST_ABILITIES: Readonly<Record<HostAbility, {
       "test/host-join-flow.test.ts::Join… on a host's page: each of the window's answers the host's (B11)"],
     python: ['../python/tests/test_headless.py::test_two_frames_joined_as_the_tabs_join_joins_them',
       '../python/tests/test_page.py::test_a_tab_on_the_page_asks_python_each_of_its_join_windows_answers'],
+  },
+  // another grid's rows (2026-10-25, the flow mode's M1 step 2): join-open.ts inputRows on both -- the tab's openRows and
+  // openedAfterStart, the host's headless baseOver
+  input: {
+    kind: 'shared',
+    tab: ["test/join-open.test.ts::another grid's rows: a chain of boxes over a table, each its input's rows at their finest level (flow mode §3.1)"],
+    python: ['../python/tests/test_page.py::test_a_box_reads_its_inputs_rows_as_that_grid_is_now',
+      '../python/tests/test_page.py::test_a_box_after_a_box_and_after_a_grouped_one_its_groups'],
   },
   // a driver each (the tab's, Python's), held to one recorded corpus of the warehouse's calls
   warehouse: {

@@ -10,9 +10,10 @@ import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { readJoinHow, joinSummary, type JoinHow } from '../src/join.ts';
-import { TAB_TABLES, leafRefusal, openInputs, openJoin, summaryCounts, type JoinOpening } from '../src/join-open.ts';
+import { TAB_TABLES, leafRefusal, openInputs, openJoin, openRows, summaryCounts, type JoinOpening } from '../src/join-open.ts';
 import {
-  leavesOf, rawRows, readCube, cubeToJson, type CubeSource, type FileSource, type JoinInput, type JoinSource, type LeafSource, type SavedQuery,
+  leavesOf, rawRows, readCube, cubeToJson, type CubeSource, type FileSource, type JoinInput, type JoinSource, type LeafSource,
+  type RowsSource, type SavedQuery,
 } from '../src/cube-document.ts';
 import { TOTAL_ROWS_COLUMN } from '../src/query.ts';
 import { catalogColumns } from '../src/upload.ts';
@@ -129,6 +130,33 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     planners.push(p2);
     const unique = await summaryCounts(q2, async (query) => engine.run((await p2.plan(query)).sql, 0));
     assert.deepEqual(unique, { mine: 5, matched: 5, joined: 5, repeated: { keys: 0, most: 0 } });
+  });
+
+  it("another grid's rows: a chain of boxes over a table, each its input's rows at their finest level (flow mode §3.1)", async () => {
+    // a Filter box over trades (qty over 2), then a Summarize box after it grouped by sym
+    const big = query(TRADES, { filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 2 } });
+    const first: RowsSource = { _type: 'rows', name: 'trades', input: input(TRADES, 'trades', big), columns: [] };
+    const opened = await openRows(first, opening(['trades']));
+    assert.deepEqual(opened.columns.map((c) => c.name), ['id', 'cust', 'sym', 'at', 'qty'], "its input's columns");
+    const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
+    assert.deepEqual([...got['id']!].sort(), [1, 2, 5], 'the rows its input keeps');
+    const bySym = query(TRADES, { rows: ['sym'], columns: [{ name: 'qty', type: 'Float', aggregate: 'sum' }, { name: 'sym', type: 'String' }] });
+    const second: RowsSource = { _type: 'rows', name: 'trades', columns: [], input: { name: 'Big', source: first, query: bySym } };
+    const after = await openRows(second, opening(['trades']));
+    // a grouped input's rows: its groups, its key first and its measure beside it (its other columns, new to this query,
+    // come as their Aggregation takes them)
+    assert.equal(after.columns[0]!.name, 'sym', "a grouped input's rows: its key first");
+    assert.ok(after.columns.some((c) => c.name === 'qty'), 'and its measure');
+    const groups = await rows(after.model, after.runtime, { _type: 'lambda', parameters: [], body: [after.relation] });
+    const pairs = groups['sym']!.map((sym, i) => `${String(sym)}:${String(groups['qty']![i])}`).sort();
+    assert.deepEqual(pairs, ['A:8', 'B:7'], 'the second over the first: A 5 + 3, B 7');
+    // its leaves are the chain's: one table, read once
+    assert.deepEqual(leavesOf(second), [TRADES]);
+  });
+
+  it("another grid's rows unresolved is refused, never guessed: its link is its page's", async () => {
+    const live: RowsSource = { _type: 'rows', name: 'trades', input: { grid: 'grid-1' }, columns: [] };
+    await assert.rejects(openRows(live, opening([])), /resolve it against the page first/);
   });
 
   it('joins a grouped grid\'s result: a join after an aggregate', async () => {

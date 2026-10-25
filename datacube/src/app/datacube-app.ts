@@ -703,8 +703,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         pageNow: () => pageNow(page.title, true),
         // left while a grid of the keeper's page was opened (New ▸ Blank Page, Open…): nothing of it lands on the page
         // of this tab's own (the S4 audit's 4)
-        open: async (document, grid, several) => {
-          const opened = await sources.reopened(document, undefined, several, page.model?.tables[grid], true);
+        open: async (document, grid, several, on) => {
+          const opened = await sources.reopened(document, undefined, several, page.model?.tables[grid], true, on);
           if (left) throw new Error("the page Python serves was left: nothing of it lands on this tab's own");
           return opened;
         },
@@ -826,7 +826,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           let o: Opened | undefined;
           let why = 'not opened';
           try {
-            o = await sources.reopened(cube, id, gridCapped(doc.cubes.length), doc.model?.tables[cubeId], replacing);
+            // its page given: a grid over another grid's rows opens over that grid as the page has it
+            o = await sources.reopened(cube, id, gridCapped(doc.cubes.length), doc.model?.tables[cubeId], replacing,
+              { page: doc, cube: cubeId });
           } catch (e) {
             // a class whose rows are not here (its table read by no grid of the tab), or a join that no longer joins (an
             // input's file changed under it, a remote file that asks for keys) is left out and said, as a file not

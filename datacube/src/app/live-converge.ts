@@ -29,6 +29,7 @@ import type { GridCopy, GridView, PageDocument } from '../page-document.ts';
 import type { GridMaker, PageApp } from '../page/page-app.ts';
 import { sameValue, type CubeSnapshot } from '../snapshot.ts';
 import type { Converge, Converged } from './live-channel.ts';
+import type { GridOn } from './sources.ts';
 
 /** A grid on the page, as the converge needs it: its state, and its commands applied as another editor's or its own. */
 export interface ConvergeGrid {
@@ -54,8 +55,9 @@ export interface ConvergeDeps {
   grid(id: string): ConvergeGrid | undefined;
   /** The page as the screen writes it now. */
   pageNow(): PageDocument | undefined;
-  /** A grid another editor added, opened from its cube as a saved page's are: its maker, or undefined (not opened). */
-  open(document: CubeDocument, grid: string, several: boolean): Promise<{ readonly make: GridMaker } | undefined>;
+  /** A grid another editor added, opened from its cube as a saved page's are -- on the keeper's page, which a grid over
+   *  another grid's rows reads (`on`) -- its maker, or undefined (not opened). */
+  open(document: CubeDocument, grid: string, several: boolean, on: GridOn): Promise<{ readonly make: GridMaker } | undefined>;
 }
 
 /** How long a grid's change in flight is waited for before the page is read (the channel's QUIET_AT_MOST). */
@@ -126,7 +128,8 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
     const cube = cubeIn(on.target, view.id);
     if (cube === undefined) continue;
     // capped as a grid sharing its page is (the page it joins: the keeper's)
-    const opened = await deps.open(cube, view.id, gridCapped(on.target.views.filter((v) => v.kind === 'grid').length));
+    const opened = await deps.open(cube, view.id, gridCapped(on.target.views.filter((v) => v.kind === 'grid').length),
+      { page: on.target, cube: view.cube });
     if (opened === undefined) throw new Error(`${cube.source.name} was not opened`);
     makers.set(view.id, opened.make);
   }

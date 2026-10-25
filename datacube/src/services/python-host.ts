@@ -502,9 +502,13 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
     // a saved cube opened by Python where it reads it, every kind but a frame's (§18.3; the S7 audit's H-2, H-3): this page
     // has no compiler or database of its own there
     ...(offers.files ? {
-      opened: async (cube: string, page: string, gridsOnPage: number): Promise<HostOpened> => {
-        // read exactly: the relation's numbers as their digits (a join condition's decimal)
-        const said = fromJson(await posted(link, 'opened.json', { cube, page, gridsOnPage })) as {
+      opened: async (cube: string, page: string, gridsOnPage: number,
+        on?: { readonly page: string; readonly id: string }): Promise<HostOpened> => {
+        // read exactly: the relation's numbers as their digits (a join condition's decimal); the page a grid over another
+        // grid's rows reads, given (`document`, its text; `id`, the cube's id on it)
+        const said = fromJson(await posted(link, 'opened.json', {
+          cube, page, gridsOnPage, ...(on ? { document: on.page, id: on.id } : {}),
+        })) as {
           cube: string; notes: string[]; taken: boolean; model: string; runtime: string; relation?: unknown;
           how: { mapping?: string; enumerations?: string[]; project?: true }; frames: Record<string, ExactNumber>;
         };

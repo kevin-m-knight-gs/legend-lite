@@ -454,8 +454,17 @@ its input's base, through what that base is read through); every base call given
 (`gridBase`, `gridBaseOn`, `gridOpened`, `cubeLeaves`, the keeper's `pageRebase`), and refused in words without it;
 `rowsCube`, a box added after a grid, which Python's `page.grid(input=grid)` asks (FL20). The source kind is in the L8
 ledger's reads and adds (`one-api-ledger.test.ts`, dated), with Python's test (`python/tests/test_page.py Flowed`: a
-box's rows live, a box after a box and after a grouped one, refusals, saved and loaded, joined as a copy). Still to do
-in the tab: a box opened there, locally and on a page Python serves (the openers' split, point 2 above).
+box's rows live, a box after a box and after a grouped one, refusals, saved and loaded, joined as a copy).
+
+**Built in step 2, the tab** (`datacube/src/app/sources.ts`, `join-sources.ts`, `join-open.ts`): a box opened where its
+page reads (`rowsWhere`) -- on a page Python serves, by Python, the page handed to it (`opened.json`'s `document` and
+`id`); in the tab, over the tab's own tables as a join's are read (`openRows`: each file once, a table read for a grid
+on the page taken, never asked for again), or, its chain over a source read elsewhere (a warehouse table, a class, a
+saved query), over that first source opened as a grid over it opens, that grid never made (`openedAfterStart`, the
+opener's start kept by its maker: point 2 above, without changing any opener). What a grid reads is kept as it opened
+(`GridPlace.reads`). Checked in the running app: a page file with a box after its grid (notional over 1,000) opened
+with 179,996 of the grid's 200,000 rows. The L12 host register lists the new branches (the `input` ability, its proofs
+on both hosts). Not yet: an edit upstream re-reading the boxes after it in the tab (step 4, with the canvas).
 
 ---
 

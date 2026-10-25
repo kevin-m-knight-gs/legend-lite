@@ -1095,8 +1095,10 @@ class Engine:
         except ValueError:
             return _said(400, 'an opened grid is JSON')
         if not isinstance(asked, dict) or not isinstance(asked.get('cube'), str) or not isinstance(asked.get('page'), str) \
-                or not isinstance(asked.get('gridsOnPage'), int):
-            return _said(400, 'an opened grid is {"cube": its document\'s text, "page", "gridsOnPage"}')
+                or not isinstance(asked.get('gridsOnPage'), int) \
+                or not isinstance(asked.get('document', ''), str) or not isinstance(asked.get('id', ''), str):
+            return _said(400, 'an opened grid is {"cube": its document\'s text, "page", "gridsOnPage", and its page\'s '
+                              '"document" and its cube\'s "id" there when it reads another grid\'s rows}')
         if self._headless is None:
             return _said(404, 'this engine opens no saved grid: legend-lite opens one with DataCube\'s own code, headless, '
                               'which this engine was not given')
@@ -1108,9 +1110,10 @@ class Engine:
         # one read of the frames (D15): DataCube's code reads them, and asks the engine, as they were when it began
         with self.frames.reading() as over:
             try:
+                # its page, given: a grid over another grid's rows opens over that grid as it is now (DataCube's rule)
                 made = _json.loads(headless.call('gridOpened', asked['cube'], over.hosted, asked['page'],
-                                                 asked['gridsOnPage']))
-                leaves = json.loads(headless.call('cubeLeaves', asked['cube']))
+                                                 asked['gridsOnPage'], {}, False, asked.get('document'), asked.get('id')))
+                leaves = json.loads(headless.call('cubeLeaves', asked['cube'], asked.get('document'), asked.get('id')))
             except Exception as refused:
                 # DataCube's refusal (a frame not served, a join that no longer joins), in its words, from V8
                 return _said(422, f'{type(refused).__name__}: {refused}')

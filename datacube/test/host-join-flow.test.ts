@@ -75,6 +75,8 @@ function over(page: PageDocument, sourceOf: (id: string) => CubeSource | undefin
   } as unknown as PageApp;
   const sources = {
     place: (id: string) => ({ cubeSource: sourceOf(id) }),
+    // what a grid reads: its source, which holds no link here
+    reads: (id: string) => sourceOf(id),
     reopened: async (d: CubeDocument, at: string | undefined, several: boolean) => {
       assert.equal(at, undefined);
       assert.equal(several, true, 'one of the page\'s grids: its panel folded');
