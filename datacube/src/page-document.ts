@@ -32,6 +32,7 @@ import { readPageFilters, type PageFilter } from './page-filters.ts';
 import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
 import { textProblem } from './page-text-rule.ts';
+import { afterWhatTheyRead, liveProblem } from './live-inputs.ts';
 
 export const PAGE_KIND = 'datacube.page';
 /**
@@ -147,7 +148,7 @@ export function noneOpened(name: string, opened: number): string | undefined {
  * opened. Any other source refuses the open, in words (a file asked for, a frame given).
  */
 export function leftOutWhenUnopened(source: CubeSource): boolean {
-  return source._type === 'class' || source._type === 'join';
+  return source._type === 'class' || source._type === 'join' || source._type === 'rows';
 }
 
 /** What a cube left out as its page opens is said as (leftOutWhenUnopened): its source's name, and why. */
@@ -432,11 +433,16 @@ export function filtersFor(filters: readonly PageFilter[], views: readonly PageV
 /**
  * The order a saved page's cubes are opened in, wherever their tiles sit on the page: a join's after the grids over one
  * source, since it reads the files they read in (a file read once); a class's after every other, since its rows are
- * the tables the page's other grids read in.
+ * the tables the page's other grids read in; and a grid over another grid's rows after the grids it reads
+ * (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1: live-inputs.ts afterWhatTheyRead), each cube's grid the page's view of it
+ * (`views`).
  */
-export function openingOrder<T extends { readonly cube: CubeDocument }>(cubes: readonly T[]): T[] {
+export function openingOrder<T extends { readonly id: string; readonly cube: CubeDocument }>(cubes: readonly T[],
+  views: readonly PageView[]): T[] {
   const of = (kind: (t: string) => boolean): T[] => cubes.filter((c) => kind(c.cube.source._type));
-  return [...of((t) => t !== 'class' && t !== 'join'), ...of((t) => t === 'join'), ...of((t) => t === 'class')];
+  const gridOf = (c: T): string | undefined => views.find((v) => v.kind === 'grid' && v.cube === c.id)?.id;
+  return afterWhatTheyRead([...of((t) => t !== 'class' && t !== 'join' && t !== 'rows'), ...of((t) => t === 'join' || t === 'rows'),
+    ...of((t) => t === 'class')], gridOf);
 }
 
 /** The page as a JSON-ready object: each cube as its own document writes itself. */
@@ -603,7 +609,7 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     if (filters.length === 0) throw new PageDocumentError("'filters' is an empty list: a page with none has no field");
   }
 
-  return {
+  const page: PageDocument = {
     kind: PAGE_KIND,
     version: PAGE_VERSION,
     name: raw['name'],
@@ -616,6 +622,11 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     ...(record !== undefined ? { record } : {}),
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),
   };
+  // a grid over another grid's rows reads a grid of this page, and never its own rows (docs/DATACUBE_FLOW_MODE_2026_10_24.md
+  // §3.1): a page whose link names no grid of it, or goes round, is no page any editor writes
+  const live = liveProblem(page);
+  if (live !== undefined) throw new PageDocumentError(live);
+  return page;
 }
 
 /** The copies the page's snapped grids read, by cube (§18.8), each read strictly: none is written as no field. */

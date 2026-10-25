@@ -7,7 +7,7 @@
 
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 import {
-  CUBE_KIND, CUBE_VERSION, leavesOf, openCube, type CubeDocument, type CubeSource, type JoinInput, type JoinSource, type LeafSource,
+  CUBE_KIND, CUBE_VERSION, isLive, leavesOf, openCube, type CubeDocument, type CubeSource, type JoinInput, type JoinSource, type LeafSource,
 } from './cube-document.ts';
 import type { CatalogColumn, TableModels } from './infer.ts';
 import { MOST_REPEATS, REPEATED_KEYS, joinRelation, type JoinHow, type JoinSide, type JoinSummaryCounts, type JoinSummaryQueries } from './join.ts';
@@ -24,7 +24,7 @@ export const TAB_TABLES: readonly TableKind[] = ['file', 'remoteFile'];
 /** A host's (Python's): its frames, and the files and remote files it read in (headless host-tables.ts leafTables). */
 export const HOST_TABLES: readonly TableKind[] = ['frame', 'file', 'remoteFile'];
 
-const WHAT: Readonly<Record<Exclude<CubeSource['_type'], 'join'>, string>> = {
+const WHAT: Readonly<Record<LeafSource['_type'], string>> = {
   file: 'a file, read in another database',
   remoteFile: 'a remote file, read in another database',
   frame: "a dataframe, read on Python's database",
@@ -87,6 +87,23 @@ function asCube(input: JoinInput): CubeDocument {
   };
 }
 
+/**
+ * AN INPUT'S ROWS, the one rule (a join's input; another grid's rows' input, docs/DATACUBE_FLOW_MODE_2026_10_24.md
+ * §3.1): its cube opened over `over` -- what its source is now, as `typer` types it -- at its finest level (query.ts
+ * classLambda: a flat cube's rows, a grouped cube's groups), what drifted since said in `notes` under its name. Refused
+ * in words when it is pivoted: its columns are its values, so its rows have no fixed columns.
+ */
+export async function inputRows(input: JoinInput, over: ValueSpecification, typer: RelationTyper, notes: string[]): Promise<JoinSide> {
+  const opened = openCube(asCube(input), { query: over }, await sourceColumns(typer, over));
+  for (const n of opened.notes) notes.push(`${input.name}: ${n}`);
+  if (opened.snapshot.pivotOn.length > 0) {
+    throw new CubeRefusal(`${input.name} is pivoted: its columns are its values, so its rows have no fixed columns; take its pivot off first`);
+  }
+  const rows = classLambda(opened.snapshot).body[0]!;
+  const columns = (await sourceColumns(typer, rows)).map((c) => ({ name: c.name, type: c.type }));
+  return { name: input.name, relation: rows, columns };
+}
+
 /** A join's how with their kept columns that are gone left out, each said; the rest is joinRelation's to judge. */
 function reconciled(how: JoinHow, right: JoinSide, notes: string[]): JoinHow {
   if ((how.form !== 'join' && how.form !== 'asOf') || how.keep === null) return how;
@@ -124,22 +141,17 @@ export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpeni
   let next = 0;
 
   const relation = async (s: CubeSource): Promise<ValueSpecification> => {
+    if (s._type === 'rows') {
+      // another grid's rows, resolved against its page (live-inputs.ts resolvedSource): that grid's rows as it is
+      if (isLive(s.input)) throw new Error(`${s.name} reads grid '${s.input.grid}' live: resolve it against its page first`);
+      return (await side(s.input)).relation;
+    }
     if (s._type !== 'join') return relationOf.get(o.tables[next++]!)!;
     const l = await side(s.left);
     const r = await side(s.right);
     return joinRelation(l, r, reconciled(s.how, r, notes));
   };
-  const side = async (input: JoinInput): Promise<JoinSide> => {
-    const over = await relation(input.source);
-    const opened = openCube(asCube(input), { query: over }, await sourceColumns(typer, over));
-    for (const n of opened.notes) notes.push(`${input.name}: ${n}`);
-    if (opened.snapshot.pivotOn.length > 0) {
-      throw new CubeRefusal(`${input.name} is pivoted: its columns are its values, so it joins as no fixed columns; take its pivot off first`);
-    }
-    const rows = classLambda(opened.snapshot).body[0]!;
-    const columns = (await sourceColumns(typer, rows)).map((c) => ({ name: c.name, type: c.type }));
-    return { name: input.name, relation: rows, columns };
-  };
+  const side = async (input: JoinInput): Promise<JoinSide> => inputRows(input, await relation(input.source), typer, notes);
 
   const l = await side(left);
   const r = await side(right);

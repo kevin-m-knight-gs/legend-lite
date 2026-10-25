@@ -6,6 +6,7 @@
 
 import type { CubeDocument } from './cube-document.ts';
 import { leavesOf } from './cube-document.ts';
+import { resolvedSource } from './live-inputs.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { add, asSaved, remove, tiles, type Bands } from './layout/bands.ts';
 import { applyPageCommand, followedPage, idsOf, type PageCommand, type PageDraft } from './page-commands.ts';
@@ -180,7 +181,9 @@ export async function rebaseEdits(draft: PageDraft, edits: readonly PageEdit[], 
  * audit's 3).
  */
 export function pageReads(page: PageDocument): PageReads {
-  const leaves = page.cubes.flatMap((c) => leavesOf(c.cube.source));
+  // a grid over another grid's rows reads what that grid reads: its links resolved against the page first
+  // (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1)
+  const leaves = page.cubes.flatMap((c) => leavesOf(resolvedSource(page, c.cube.source)));
   const sorted = (keys: readonly string[]): string[] => [...new Set(keys)].sort();
   return {
     frames: sorted(leaves.flatMap((leaf) => (leaf._type === 'frame' ? [leaf.name] : []))),

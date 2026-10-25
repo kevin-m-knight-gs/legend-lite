@@ -821,8 +821,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const notes: string[] = [...opened.notes];
       sources.reserve(Object.values(doc.model?.tables ?? {}).flat());
       try {
-        // a class's grid after the grids whose tables it reads (page-document.ts openingOrder)
-        for (const { id: cubeId, cube } of openingOrder(doc.cubes)) {
+        // a class's grid after the grids whose tables it reads, a grid after the grids it reads (page-document.ts openingOrder)
+        for (const { id: cubeId, cube } of openingOrder(doc.cubes, doc.views)) {
           let o: Opened | undefined;
           let why = 'not opened';
           try {
@@ -1082,6 +1082,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
                 : src._type === 'frame' ? `it reads the dataframe ${src.name}: it opens where Python serves it`
                 : src._type === 'class' ? `opening it reads the class ${src.name} from ${src.project} again, at the revision it was read at, its rows where its table is open`
                 : src._type === 'join' ? `opening it reads the files ${src.name} joins again, and joins them`
+                : src._type === 'rows' ? `it reads the rows of ${src.name}, another grid of the page, as that grid is when it opens`
                 : src.sample ? `the example (${src.sample.rows.toLocaleString(UI_LOCALE)} rows) is generated again when it opens`
                   : `opening it reads ${src.name} again, from your computer`
           : src._type === 'savedQuery' ? `it reads the saved query “${src.name}” again, where its project (${src.query.groupId}:${src.query.artifactId}) is known`
@@ -1090,6 +1091,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
                 : src._type === 'frame' ? `it reads the dataframe ${src.name}, which only the Python that serves it has`
                 : src._type === 'class' ? `it reads the class ${src.name} from ${src.project}, which only this browser's model home has`
                 : src._type === 'join' ? `whoever opens it needs the files ${src.name} joins`
+                : src._type === 'rows' ? `it reads the rows of ${src.name}, another grid of the page`
                 : src.sample ? 'it rebuilds its sample on its own'
                   : `whoever opens it needs ${src.name}`);
       }

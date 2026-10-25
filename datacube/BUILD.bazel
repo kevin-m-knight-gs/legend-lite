@@ -539,6 +539,8 @@ _HEADLESS_TESTS = [
     "json-shape",
     "lazily",
     "lite-planner",
+    # a grid over another grid's rows, and its live input (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): pure
+    "live-inputs",
     "menu",
     "menu-more",
     "model-join",

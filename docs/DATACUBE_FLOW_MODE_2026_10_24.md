@@ -411,6 +411,34 @@ Every milestone ends usable: something a person does from start to finish, saved
 6. **Python's methods**, by the names agreed (D6).
 7. **The browser harness** and a tour step.
 
+### M1's design, as the code shapes it (2026-10-25)
+
+Read while building step 1, against main at `1e91768d`.
+
+1. **A box is a document until it is shown.** M1 runs only the shown box. So the box before it is usually not an
+   open grid, and a box's base cannot be taken from an open grid upstream. A box's base is worked out from its chain's
+   first source down, one rule at every step: **an input's rows** (join-open.ts `inputRows`, the rule a join's input
+   already followed, now shared) over the base of what that input reads. Python's host already works a base out this
+   way, per source (headless host-tables.ts `onHost`, grid.ts `gridBase`), so there the rule is one more arm.
+2. **The tab's openers split in two.** Each kind's opener in `datacube/src/app/sources.ts` today both opens a source and
+   makes its grid. A box needs the first half alone: the base (its relation, its columns, the planner and plane it is
+   read through) with no grid made. The opener becomes "open the base", then "make a grid over it"; every kind keeps
+   its one opener.
+3. **The page holds a box's document while it is not open.** The page today reads each grid's document off its open
+   grid (page-app.ts `#seen`), and keeps the documents of the grids it could not open (`#withUnopened`). A box not
+   shown is the second case by design: its document lives in the page's state and is edited by commands, and its grid
+   is made when it is shown and let go when it is not.
+4. **A link is resolved, never guessed.** Whatever asks what a grid reads (its leaves, its base) asks a source whose
+   live inputs are resolved against the page first (live-inputs.ts `resolvedSource`); `leavesOf` refuses an unresolved
+   one rather than answering for it. A page whose link names no grid of it, or goes round, is refused when read.
+5. **The Join window's copy holds no link.** A grid joined is copied with its links resolved (page-commands.ts
+   `joinInputOf`, now live-inputs.ts `gridInput`, the one rule for a grid as an input): a frozen input never changes.
+
+**Built in step 1** (`datacube/src/cube-document.ts` `RowsSource`, `LiveInput`; `datacube/src/live-inputs.ts`): the
+source written and read, refused by name when malformed; links resolved against the page, a cycle and a missing grid
+refused in words; the order a page opens its grids in (`page-document.ts openingOrder`, now given the page's views);
+the keeper's reads (`page-rebase.ts pageReads`); the save and share words. Tested by `datacube/test/live-inputs.test.ts`.
+
 ---
 
 ## 6. Still open

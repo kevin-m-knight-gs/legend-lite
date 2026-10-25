@@ -17,6 +17,7 @@ import {
   PageDocumentError, keptFor, readGridCopy, readLayout, unnamedLabel, writePageOf, type ChartView, type GridCopy, type GridView,
   type PageDocument, type PageLayout, type PageSheet, type PageView, type TextView,
 } from './page-document.ts';
+import { gridInput } from './live-inputs.ts';
 import { givenName } from './page-names.ts';
 import type { PageModelRef } from './page-model.ts';
 import { chartTitle, gridTitle, idShape, nextPageId, textTitle } from './page-ids.ts';
@@ -225,14 +226,14 @@ function viewNamed(page: PageDocument, id: string): PageView {
  * A GRID OF THE PAGE AS A JOIN READS IT (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.5): its result as the page has it
  * -- its cube's source and query -- under the name it shows, the title a person gave its tile, else what it reads. The
  * tab's Join… and Python's page.join ask it alike (join-flow.ts, headless joinCube). Refused in words: no tile of the
- * page, or a chart.
+ * page, or a chart. The one rule of a grid as an input (live-inputs.ts gridInput, a live input's too): its source
+ * resolved, so a join's copy of a grid over another grid's rows holds no live input (docs/DATACUBE_FLOW_MODE_2026_10_24.md
+ * FL6).
  */
 export function joinInputOf(page: PageDocument, grid: string): JoinInput {
   const view = viewNamed(page, grid);
   if (view.kind !== 'grid') throw new CubeRefusal(`'${grid}' is ${kindWords(view)}: a join is of two grids`);
-  const cube = page.cubes.find((c) => c.id === view.cube);
-  if (!cube) throw new CubeRefusal(`'${grid}' shows no cube of the page`);
-  return { name: view.title ?? cube.cube.source.name, source: cube.cube.source, query: cube.cube.query };
+  return gridInput(page, grid);
 }
 
 const withSheet = (page: PageDocument, id: string, change: (s: PageSheet) => PageSheet): PageDocument =>
