@@ -46,6 +46,8 @@ export interface TsGrid {
   /** Its cube's id (its tile's). */
   readonly cube: string;
   readonly title: string;
+  /** Its grid removed from the page, its cube kept for the tiles that read it (page-document.ts readsCube): read as it was. */
+  readonly kept?: true;
   readonly snapshot: CubeSnapshot;
   readonly filter: FilterNode | undefined;
   run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<ResultTable>;
@@ -966,7 +968,8 @@ export class TimeseriesView {
         (v) => this.#edit({ kind: 'source', alias: s.alias, date: v }), 'Date column');
       const key = select(doc, [['', 'No instruments'], ...cols.filter((c) => !isNumeric(c.type) && !isTemporal(c.type)).map((c) => [c.name, c.name] as const)],
         s.key ?? '', (v) => this.#edit({ kind: 'source', alias: s.alias, key: v === '' ? null : v }), 'Instrument column');
-      const where = el(doc, 'span', 'dc-ts-hint', grid ? grid.title : 'its grid was removed: undo brings it back');
+      const where = el(doc, 'span', 'dc-ts-hint', grid === undefined ? 'its grid is not on the page'
+        : grid.kept ? `${grid.title} (its grid removed: read as it was; Undo brings the grid back)` : grid.title);
       // the tile's own rule says whether it may stop reading this grid, and why not
       let refused: string | undefined;
       try {

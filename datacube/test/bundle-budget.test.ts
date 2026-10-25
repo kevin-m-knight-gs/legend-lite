@@ -316,8 +316,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  removed and exported on the board, Create ▸ Timeseries, the wiring that reads grids together (on the tab and on a
  *  host's page), the markets and rates samples and the Markets example's entry -- its expression language, its
  *  queries, its drawing and its viewer chunks of their own, fetched with the first timeseries tile (the budget of
- *  their own below), over the charts' ECharts. Measured 363,018. */
-const BUDGET = 363_500;
+ *  their own below), over the charts' ECharts. Measured 363,018.
+ *  363,500 -> 365,000 (2026-10-25, the timeseries review's G4, docs/TIMESERIES_REVIEW_2026_10_25.md, the owner's decision
+ *  4: a removed grid's cube kept while a timeseries reads it -- one rule a page keeps a cube by (page-document.ts
+ *  readsCube), the cubes a timeseries' commands carry and their reader (page-commands.ts `kept`), planned for an undo
+ *  (page-between), renamed (page-rebase), kept reachable (page-state), and kept off the board for the tile (cube-page);
+ *  with the review's earlier fixes on this branch, under the old budget alone). Measured 364,345. */
+const BUDGET = 365_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -422,8 +427,9 @@ const BUDGET = 363_500;
  *  date). Measured 337,265.
  *  338,000 -> 344,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 314,000 -> 324,000 -- the
  *  grid-only page's note of the same date). Measured 343,438.
- *  344,000 -> 352,000 (2026-10-25, the timeseries tile -- the grid's note of the same date). Measured 351,371. */
-const ENGINE_BUDGET = 352_000;
+ *  344,000 -> 352,000 (2026-10-25, the timeseries tile -- the grid's note of the same date). Measured 351,371.
+ *  352,000 -> 353,500 (2026-10-25, the timeseries review's G4 -- the grid's note of the same date). Measured 352,714. */
+const ENGINE_BUDGET = 353_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -597,8 +603,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  date). Measured 356,493.
  *  357,000 -> 363,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 332,500 -> 342,500 -- the
  *  grid-only page's note of the same date). Measured 362,642.
- *  363,000 -> 372,000 (2026-10-25, the timeseries tile -- the grid's note of the same date). Measured 371,528. */
-const WIDGET_BUDGET = 372_000;
+ *  363,000 -> 372,000 (2026-10-25, the timeseries tile -- the grid's note of the same date). Measured 371,528.
+ *  372,000 -> 373,500 (2026-10-25, the timeseries review's G4 -- the grid's note of the same date). Measured 372,935. */
+const WIDGET_BUDGET = 373_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

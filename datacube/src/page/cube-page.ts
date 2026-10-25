@@ -640,6 +640,17 @@ export class CubePage {
         if (on) this.#planned.set(view.id, on);
         this.#placeText(view);
       }
+      // a cube a timeseries tile reads that no grid of the page shows (its grid removed while the tile read it: the
+      // review's G4) kept off the board for it, made as the page `to` holds it -- as a detached chart's is, below
+      for (const view of to.views) {
+        if (view.kind !== 'timeseries') continue;
+        for (const { cube } of view.spec.sources) {
+          if (this.#grids.has(cube) || this.#kept.has(cube) || to.views.some((v) => v.kind === 'grid' && v.cube === cube)) continue;
+          const make = remake(cube, to.cubes?.find((c) => c.id === cube)?.cube);
+          if (!make) throw new Error(`timeseries ${view.id} cannot be drawn again: grid ${cube}'s maker is gone`);
+          this.keepGrid(cube, make);
+        }
+      }
       // timeseries tiles it has and the screen does not, each on its sheet (each reads its grids when it draws)
       for (const view of to.views) {
         if (view.kind !== 'timeseries' || this.#series.has(view.id)) continue;
@@ -1178,8 +1189,9 @@ export class CubePage {
   }
 
   /**
-   * A grid KEPT OFF THE BOARD for the frozen charts that read it (a saved page's grid removed while they were frozen):
-   * made, opened and listened to by nothing, until its last chart goes. Its charts come back detached (`restore`).
+   * A grid KEPT OFF THE BOARD for the frozen charts that read it (a saved page's grid removed while they were frozen),
+   * or the timeseries tiles (the review's G4): made, opened and listened to by nothing, until the last of them goes. Its
+   * charts come back detached (`restore`).
    */
   keepGrid(id: string, make: (host: HTMLElement, options: SpawnOptions) => SpawnedGrid): void {
     if (this.#grids.has(id) || this.#kept.has(id)) throw new Error(`a grid ${id} is already on the page`);
@@ -1683,13 +1695,20 @@ export class CubePage {
     this.#afterRemove();
   }
 
-  /** A grid kept off the board that no chart reads any more goes. */
+  /** A grid kept off the board that no chart, and no timeseries, reads any more goes. */
   #releaseKept(): void {
     for (const [id, cube] of [...this.#kept]) {
       if ([...this.#charts.values()].some((c) => c.link.detached?.from === id)) continue;
+      if (this.#seriesRead(id)) continue;
       cube.dispose();
       this.#kept.delete(id);
     }
+  }
+
+  /** Whether a timeseries tile reads grid `id`'s cube: what keeps a removed grid's cube on the page (the review's G4). */
+  #seriesRead(id: string): boolean {
+    const cube = this.#cubeOf(id);
+    return [...this.#series.values()].some((t) => t.spec.sources.some((s) => s.cube === cube));
   }
 
   /**
@@ -1813,10 +1832,13 @@ export class CubePage {
    *  its formats as they are now; undefined when no grid on the board shows that cube (removed). */
   #tsGrid(cube: string): TsGrid | undefined {
     const grid = cube === PAGE_CUBE && this.#options.grid ? GRID : cube;
-    const source = this.#grids.get(grid)?.source;
+    // a grid removed while the tile reads it: its cube kept off the board, read as it was (the review's G4)
+    const kept = this.#grids.has(grid) ? undefined : this.#kept.get(grid);
+    const source = this.#grids.get(grid)?.source ?? kept?.chartSource();
     if (!source) return undefined;
     return {
       cube,
+      ...(kept ? { kept: true } : {}),
       title: this.title(grid) ?? this.#titles.get(grid) ?? grid,
       get snapshot() { return source.snapshot; },
       get filter() { return source.snapshot.filter; },
@@ -1905,6 +1927,8 @@ export class CubePage {
     tile.view?.dispose();
     this.#series.delete(id);
     this.#take(id);
+    // a removed grid's cube it alone read goes with it
+    this.#releaseKept();
     this.#options.onChange();
     this.#afterRemove();
   }
@@ -1940,12 +1964,12 @@ export class CubePage {
       keeps = true;
     }
     grid.added.stop();
-    // a frozen chart still reads it: kept off the board, to run its query, until that chart goes
-    if (keeps) this.#kept.set(id, grid.added.cube);
+    // a frozen chart or a timeseries still reads it: kept off the board, to run their queries, until the last of them goes
+    // (the page keeps its cube as long: page-document.ts readsCube) -- the timeseries drawing on from it
+    if (keeps || this.#seriesRead(id)) this.#kept.set(id, grid.added.cube);
     else grid.added.cube.dispose();
     this.#grids.delete(id);
     this.#take(id);
-    // a timeseries reading it keeps its source, and says its grid is gone (an undo brings it back)
     this.#refreshSeries(id);
     this.#options.onChange();
     this.#afterRemove();

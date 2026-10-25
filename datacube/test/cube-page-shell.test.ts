@@ -720,6 +720,51 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     assert.equal(pg().shownSheet, 'sheet-ts');
   });
 
+  // the review's G4 (docs/TIMESERIES_REVIEW_2026_10_25.md): a grid removed while a timeseries read it took its cube with
+  // it, and the page reopened read a cube it no longer held; the owner, 2026-10-25: kept, as a frozen chart's is
+  it('a grid removed while a timeseries reads it: its cube kept off the board, the tile reading it still, the page saving it', async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    const b = pg().addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const doc = pg().document('Q3')!;
+    const gridB = doc.views.find((v) => v.id === b)!;
+    assert.ok(gridB.kind === 'grid');
+    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: gridB.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] };
+    reopen({ ...doc, views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Orders', spec }],
+      sheets: doc.sheets.map((s, i) => (i === 0 ? { ...s, layout: { ...s.layout, bands: [...s.layout.bands, { height: 0.5, node: { tile: 'ts' } }] } } : s)) });
+    await shown(host, '[data-tile="ts"] .dc-ts-bar');
+    tile(b).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    assert.equal(tile(b), null, 'the grid is off the board');
+    const saved = pg().document('Q3')!;
+    assert.ok(saved.cubes.some((c) => c.id === gridB.cube), 'its cube kept on the page while the tile reads it');
+    assert.ok(pg().cubes.includes(gridB.cube), 'and off the board, to run the tile\'s queries');
+    await new Promise((r) => setTimeout(r, 200));
+    const said = tile('ts').querySelector('.dc-ts-banner')?.textContent ?? '';
+    assert.ok(!/not on the page/.test(said), `the tile still reads it: ${said}`);
+    // the tile removed: the kept cube goes with it
+    tile('ts').querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    assert.equal(tile('ts'), null, 'the tile is off the board');
+    assert.ok(!pg().document('Q3')!.cubes.some((c) => c.id === gridB.cube), 'let go with the last tile that read it');
+    assert.ok(!pg().cubes.includes(gridB.cube));
+    // its removal undone: the tile back, reading the very cube it read, kept off the board for it again (its step's
+    // command carries the cube: page-commands.ts addTimeseries `kept`)
+    pg().undo();
+    await settle();
+    const back = pg().views().views.find((v) => v.kind === 'timeseries');
+    assert.ok(back?.kind === 'timeseries', 'the tile is back');
+    assert.deepEqual(back.spec.sources.map((s) => s.cube), [gridB.cube], 'reading the cube it read');
+    assert.ok(pg().cubes.includes(gridB.cube), 'kept off the board for it again');
+    assert.ok(pg().document('Q3')!.cubes.some((c) => c.id === gridB.cube), 'and on the page, saved with it');
+    assert.equal(tile(b), null, 'its grid still gone');
+    await shown(host, `[data-tile="${back.id}"] .dc-ts-bar`);
+    await new Promise((r) => setTimeout(r, 200));
+    const again = tile(back.id).querySelector('.dc-ts-banner')?.textContent ?? '';
+    assert.ok(!/not on the page/.test(again), `it draws from it: ${again}`);
+  });
+
   it('a page whose first sheet was deleted reopens with its own sheets alone, on its first', async () => {
     newPage({ confirm: () => true });
     pg().addGrid(over('trades.csv'));

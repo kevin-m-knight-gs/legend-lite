@@ -14,7 +14,7 @@ import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, tiles, type Bands, type Preset,
 } from './layout/bands.ts';
 import {
-  PageDocumentError, keptFor, readGridCopy, readLayout, unnamedLabel, writePageOf, type ChartView, type GridCopy, type GridView,
+  PageDocumentError, keptFor, readGridCopy, readLayout, readsCube, unnamedLabel, writePageOf, type ChartView, type GridCopy, type GridView,
   type PageDocument, type PageLayout, type PageSheet, type PageView, type TextView, type TimeseriesView,
 } from './page-document.ts';
 import { givenName } from './page-names.ts';
@@ -105,14 +105,18 @@ export type PageCommand =
   /**
    * A TIMESERIES TILE (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7) of the grids its spec's sources name, on
    * `sheet`: under `near` (the tile it came from, on that sheet), beside the charts already there while that row has
-   * room; near none, a band of its own at the sheet's bottom.
+   * room; near none, a band of its own at the sheet's bottom. `kept`: cubes its sources read that no grid shows, held
+   * for the tile as `document` says, reading `copy` (null: their live rows) -- made, or the one of that id replaced --
+   * as a removed grid's cube is while a tile reads it (the review's G4, docs/TIMESERIES_REVIEW_2026_10_25.md; the
+   * owner, 2026-10-25: kept, as a frozen chart's is). What an undo says (page-between.ts), so the tile it brings back
+   * reads the very cube it read, a cube never held without a tile reading it.
    */
   | {
     readonly kind: 'addTimeseries'; readonly id?: string; readonly sheet: string; readonly near: string | null;
-    readonly spec: TimeseriesSpec; readonly title: string | null; readonly columns: number | null;
+    readonly spec: TimeseriesSpec; readonly title: string | null; readonly columns: number | null; readonly kept?: readonly KeptCube[];
   }
-  /** A timeseries tile's spec, whole (as its viewer made it). */
-  | { readonly kind: 'setTimeseries'; readonly tile: string; readonly spec: TimeseriesSpec }
+  /** A timeseries tile's spec, whole (as its viewer made it); `kept` as addTimeseries's. */
+  | { readonly kind: 'setTimeseries'; readonly tile: string; readonly spec: TimeseriesSpec; readonly kept?: readonly KeptCube[] }
   /** A chart reading another grid's cube from now on (D7: Show Grid made the grid of its own grouping) -- its selection
    *  taken off the cube it read, and that cube let go when no view reads it any more (a detached chart's). */
   | { readonly kind: 'followGrid'; readonly chart: string; readonly grid: string }
@@ -166,8 +170,8 @@ export type PageCommand =
 
 export const PAGE_COMMAND_KINDS = [
   'renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
-  'addText', 'setText', 'addTimeseries', 'setTimeseries', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter',
-  'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto', 'modelPin', 'modelKeep',
+  'addText', 'setText', 'addTimeseries', 'setTimeseries', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile',
+  'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
 /** Each page command's fields, by kind (`?` one it may leave out): what readPageCommand takes, and what Python's generated
@@ -176,7 +180,7 @@ export const PAGE_COMMAND_FIELDS = {
   renamePage: ['name'], savedAs: ['record'], addSheet: ['id?', 'name'], renameSheet: ['sheet', 'name'], moveSheet: ['sheet', 'to'],
   removeSheet: ['sheet'], renameTile: ['tile', 'title'], addGrid: ['id?', 'document', 'sheet', 'near', 'title', 'columns'],
   addChart: ['id?', 'near', 'spec', 'title', 'columns'], setChart: ['chart', 'spec'], addText: ['id?', 'sheet', 'text', 'title', 'columns'],
-  setText: ['tile', 'text'], addTimeseries: ['id?', 'sheet', 'near', 'spec', 'title', 'columns'], setTimeseries: ['tile', 'spec'],
+  setText: ['tile', 'text'], addTimeseries: ['id?', 'sheet', 'near', 'spec', 'title', 'columns', 'kept?'], setTimeseries: ['tile', 'spec', 'kept?'],
   followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
@@ -187,6 +191,13 @@ export const PAGE_COMMAND_FIELDS = {
 const pageFieldsWhole: [MissingFields<PageCommand, typeof PAGE_COMMAND_FIELDS>] extends [never] ? true
   : MissingFields<PageCommand, typeof PAGE_COMMAND_FIELDS> = true;
 void pageFieldsWhole;
+
+/** A cube held for the timeseries tiles that read it, no grid showing it (addTimeseries's `kept`). */
+export interface KeptCube {
+  readonly cube: string;
+  readonly document: CubeDocument;
+  readonly copy: GridCopy | null;
+}
 
 /** What a command applied gives: the page, and the command as applied (its id allocated, when it made something). */
 export interface PageApplied {
@@ -289,19 +300,38 @@ function rewritten(page: PageDocument,
 const kindWords = (view: PageView): string => (view.kind === 'text' ? 'a text tile' : view.kind === 'timeseries' ? 'a timeseries tile' : `a ${view.kind}`);
 
 /**
- * A timeseries' spec as a command gives it, or a refusal: read by the tile's one reader (timeseries-spec.ts
- * readTimeseries), each source's cube one a grid of the page shows -- or an id the page has held, a grid removed since,
- * whose source the tile keeps as it was (said on the tile: an undo brings the grid back). No other id is a source.
+ * A timeseries' spec as a command gives it, and the page holding the cubes the command keeps for it (`kept`), or a
+ * refusal: read by the tile's one reader (timeseries-spec.ts readTimeseries); each cube kept one a source reads, no grid
+ * shows, and no tile or sheet is called -- made, or the one of its id replaced, its copy as given (no grid snaps or goes
+ * live for it); then each source's cube one the page holds -- a grid's, or one kept for the tiles that read it, its grid
+ * removed (the review's G4, docs/TIMESERIES_REVIEW_2026_10_25.md: the page reopened read a cube it no longer held,
+ * when an id it had once held was a source). No other id is a source.
  */
-function timeseriesSpec(draft: PageDraft, given: TimeseriesSpec): TimeseriesSpec {
+function timeseriesSpec(draft: PageDraft, given: TimeseriesSpec, kept: readonly KeptCube[] | undefined):
+  { readonly spec: TimeseriesSpec; readonly draft: PageDraft } {
   const spec = readTimeseries(JSON.parse(JSON.stringify(given)));
   if (typeof spec === 'string') throw new CubeRefusal(spec);
-  const shown = new Set(draft.page.views.flatMap((v) => (v.kind === 'grid' ? [v.cube] : [])));
-  const held = new Set(takenIds(draft));
-  for (const s of spec.sources) {
-    if (!shown.has(s.cube) && !held.has(s.cube)) throw new CubeRefusal(`source ${s.alias} reads '${s.cube}', which no grid of the page shows`);
+  let { page } = draft;
+  for (const k of kept ?? []) {
+    if (!spec.sources.some((s) => s.cube === k.cube)) throw new CubeRefusal(`no source of the timeseries reads ${k.cube}: a cube is kept for the tiles that read it`);
+    if (page.views.some((v) => v.kind === 'grid' && v.cube === k.cube)) throw new CubeRefusal(`a grid shows ${k.cube}: its cube is the grid's`);
+    if (page.views.some((v) => v.id === k.cube) || page.sheets.some((s) => s.id === k.cube)) {
+      throw new CubeRefusal(`'${k.cube}' is a tile or a sheet of the page, not a cube`);
+    }
+    const cubes = page.cubes.some((c) => c.id === k.cube)
+      ? page.cubes.map((c) => (c.id === k.cube ? { id: c.id, cube: k.document } : c))
+      : [...page.cubes, { id: k.cube, cube: k.document }];
+    const copies = { ...(page.copies ?? {}) };
+    if (k.copy === null) delete copies[k.cube];
+    else copies[k.cube] = k.copy;
+    const { copies: _had, ...bare } = page;
+    page = rewritten(bare, { cubes, ...(Object.keys(copies).length > 0 ? { copies } : {}) });
   }
-  return spec;
+  const held = new Set([...page.cubes.map((c) => c.id), ...page.views.flatMap((v) => (v.kind === 'grid' ? [v.cube] : []))]);
+  for (const s of spec.sources) {
+    if (!held.has(s.cube)) throw new CubeRefusal(`source ${s.alias} reads '${s.cube}', which is no cube of the page`);
+  }
+  return { spec, draft: { page, held: [...new Set([...draft.held, ...(kept ?? []).map((k) => k.cube)])] } };
 }
 
 function gridNamed(page: PageDocument, grid: string): GridView {
@@ -369,7 +399,7 @@ function withoutTile(page: PageDocument, tile: string): PageDocument {
     }
   }
   const views = next.views.filter((v) => !gone.has(v.id));
-  const cubes = next.cubes.filter((c) => views.some((v) => v.cube === c.id));
+  const cubes = next.cubes.filter((c) => views.some((v) => readsCube(v, c.id)));
   const sheets = next.sheets.map((s) => {
     let layout: Bands = s.layout;
     for (const id of gone) if (tiles(layout).includes(id)) layout = remove(layout, id);
@@ -517,9 +547,10 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       return done({ ...page, views: page.views.map((v) => (v.id === view.id ? { ...view, text: command.text } : v)) });
     }
     case 'addTimeseries': {
-      const spec = timeseriesSpec(draft, command.spec);
-      const sheet = sheetNamed(page, command.sheet);
-      if (command.near !== null && !tiles(sheet.layout).includes(viewNamed(page, command.near).id)) {
+      const { spec, draft: holding } = timeseriesSpec(draft, command.spec, command.kept);
+      const on = holding.page;
+      const sheet = sheetNamed(on, command.sheet);
+      if (command.near !== null && !tiles(sheet.layout).includes(viewNamed(on, command.near).id)) {
         throw new CubeRefusal(`'${command.near}' is not on ${sheet.id}: a timeseries goes under a tile of its own sheet`);
       }
       const id = freshId(draft, command.id, 'timeseries');
@@ -529,21 +560,25 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       // under the tile it came from, beside the charts there while the row has room (a chart's place); else a band of
       // its own at the sheet's bottom (a text's)
       const beside = (ids: readonly string[]): boolean => ids.every((t) => {
-        const kind = page.views.find((v) => v.id === t)?.kind;
+        const kind = on.views.find((v) => v.id === t)?.kind;
         return kind === 'chart' || kind === 'timeseries';
       });
-      const placed = withSheet(page, sheet.id, (s) => ({
+      const placed = withSheet(on, sheet.id, (s) => ({
         ...s,
         layout: laid(() => (command.near === null ? add(s.layout, id, undefined, command.columns ?? MAX_COLUMNS)
           : add(s.layout, id, command.near, command.columns ?? MAX_COLUMNS, beside))),
       }));
-      return done({ ...placed, views: [...page.views, view] }, [...draft.held, id], { ...command, id });
+      return done({ ...placed, views: [...on.views, view] }, [...holding.held, id], { ...command, id });
     }
     case 'setTimeseries': {
       const view = viewNamed(page, command.tile);
       if (view.kind !== 'timeseries') throw new CubeRefusal(`'${command.tile}' is ${kindWords(view)}, not a timeseries tile`);
-      const spec = timeseriesSpec(draft, command.spec);
-      return done({ ...page, views: page.views.map((v) => (v.id === view.id ? { ...view, spec } : v)) });
+      const { spec, draft: holding } = timeseriesSpec(draft, command.spec, command.kept);
+      // a cube kept for the tile alone (its grid removed: G4) let go when it reads it no more, as a removal lets it go
+      const on = holding.page;
+      const views = on.views.map((v) => (v.id === view.id ? { ...view, spec } : v));
+      const cubes = on.cubes.filter((c) => views.some((v) => readsCube(v, c.id)));
+      return done(rewritten({ ...on, ...(on.model ? { model: keptFor(on.model, cubes) } : {}) }, { views, cubes }), holding.held);
     }
     case 'setChart': {
       const view = viewNamed(page, command.chart);
@@ -575,7 +610,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
         const { selection: _was, ...rest } = v;
         return { ...rest, cube: grid.cube };
       });
-      const cubes = unpicked.cubes.filter((c) => views.some((v) => v.cube === c.id));
+      const cubes = unpicked.cubes.filter((c) => views.some((v) => readsCube(v, c.id)));
       const kept = rewritten({ ...unpicked, ...(unpicked.model ? { model: keptFor(unpicked.model, cubes) } : {}) }, { views, cubes });
       return done(followedPage(kept, grid.cube, page));
     }
@@ -600,7 +635,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
         const { selection: _was, ...rest } = v;
         return { ...rest, cube: command.cube, spec: v.spec.frozen === true ? v.spec : { ...v.spec, frozen: true } };
       });
-      const read = unpicked.cubes.filter((c) => views.some((v) => v.cube === c.id));
+      const read = unpicked.cubes.filter((c) => views.some((v) => readsCube(v, c.id)));
       const cubes = read.some((c) => c.id === command.cube)
         ? read.map((c) => (c.id === command.cube ? { id: c.id, cube: command.document } : c))
         : [...read, { id: command.cube, cube: command.document }];
@@ -886,6 +921,29 @@ function columnsFrom(v: unknown): number | null {
   return v;
 }
 
+/** A timeseries command's kept cubes (KeptCube), each a cube's id, its document and its copy or null; none: left out. */
+function keptOf(v: unknown): { kept?: readonly KeptCube[] } {
+  if (v === undefined) return {};
+  if (!Array.isArray(v)) throw new CubeRefusal("a timeseries' kept cubes are a list of {cube, document, copy}");
+  return {
+    kept: v.map((k): KeptCube => {
+      if (!isObject(k)) throw new CubeRefusal(`a kept cube is {cube, document, copy}, not ${JSON.stringify(k)}`);
+      const odd = Object.keys(k).filter((f) => !['cube', 'document', 'copy'].includes(f));
+      if (odd.length > 0) throw new CubeRefusal(`a kept cube takes cube, document, copy, not ${odd.join(', ')}`);
+      if (k['copy'] === undefined) throw new CubeRefusal('a kept cube says the copy it reads, or null for its live rows');
+      let copy: GridCopy | null = null;
+      if (k['copy'] !== null) {
+        try {
+          copy = readGridCopy(k['copy']);
+        } catch (e) {
+          throw new CubeRefusal(e instanceof Error ? e.message : String(e));
+        }
+      }
+      return { cube: text(k['cube'], 'a cube'), document: cubeOf(k['document']), copy };
+    }),
+  };
+}
+
 /**
  * A page command read from JSON (Python's, a live channel's): its kind one this module applies, its fields exactly those
  * the kind takes, each of its type -- a grid's cube read by its own reader -- or refused in words. What a field NAMES (a
@@ -947,11 +1005,12 @@ export function readPageCommand(given: unknown): PageCommand {
       return {
         kind, ...optionalId(o['id'], "a timeseries tile's id"), sheet: text(o['sheet'], 'a sheet'), near: textOrNull(o['near'], 'a tile'),
         spec: o['spec'] as unknown as TimeseriesSpec, title: textOrNull(o['title'], "a tile's title"), columns: columnsFrom(o['columns']),
+        ...keptOf(o['kept']),
       };
     case 'setTimeseries':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       if (!isObject(o['spec'])) throw new CubeRefusal("a timeseries' spec is an object");
-      return { kind, tile: text(o['tile'], 'a tile'), spec: o['spec'] as unknown as TimeseriesSpec };
+      return { kind, tile: text(o['tile'], 'a tile'), spec: o['spec'] as unknown as TimeseriesSpec, ...keptOf(o['kept']) };
     case 'followGrid':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, chart: text(o['chart'], 'a chart'), grid: text(o['grid'], 'a grid') };

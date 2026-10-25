@@ -14,7 +14,7 @@ import {
   readPageCommand, followedPage, opensAgain, rebuiltCommands,
   type PageCommand, type PageDraft,
 } from '../src/page-commands.ts';
-import { gridCopyOf, modelAcross, openedLive, pageToJson, readPage, unnamedLabel, type ChartView, type PageDocument } from '../src/page-document.ts';
+import { gridCopyOf, modelAcross, openedLive, pageToJson, readPage, readsCube, unnamedLabel, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { cubeOpensAgain } from '../src/headless/page.ts';
 import { CubeRefusal, withoutConditions, type FilterNode } from '../src/snapshot.ts';
 import { PageModel } from '../src/page-model.ts';
@@ -262,12 +262,51 @@ describe('a timeseries tile: added, its spec set, titled and removed by the page
     const tile = view(without.page, 'timeseries-1') as unknown as { spec: typeof SPEC };
     assert.deepEqual(tile.spec.sources.map((x) => x.cube), ['grid', 'grid-2']);
     apply({ kind: 'setTimeseries', tile: 'timeseries-1', spec: { ...SPEC, view: { stats: true } } }, without);
-    // saved so and read back
+    // its cube kept while the tile reads it, as a frozen chart's is (the review's G4: it went with its grid, and the page
+    // reopened read a cube it no longer held) -- saved so and read back; the tile removed, the cube goes with it
+    assert.ok(without.page.cubes.some((c) => c.id === 'grid-2'), 'the removed grid\'s cube kept for the tile');
     assert.ok(readPage(JSON.parse(JSON.stringify(pageToJson(without.page)))).views.some((v) => v.id === 'timeseries-1'));
+    // the tile removed: kept while any view still reads it (a frozen chart of it, on this page), let go with the last
+    const after = apply({ kind: 'removeTile', tile: 'timeseries-1' }, without).page;
+    assert.equal(after.cubes.some((c) => c.id === 'grid-2'), after.views.some((v) => readsCube(v, 'grid-2')));
+    const charts = after.views.filter((v) => readsCube(v, 'grid-2')).map((v) => v.id);
+    const last = charts.reduce((p, id) => apply({ kind: 'removeTile', tile: id }, { page: p, held: idsOf(p) }).page, after);
+    assert.ok(!last.cubes.some((c) => c.id === 'grid-2'), 'let go with the last view that read it');
+    // a saved page whose timeseries reads a cube it does not hold is refused by name, as a chart's is
+    const json = JSON.parse(pageToJson(without.page)) as { cubes: { id: string }[]; views: { id: string; cube?: string }[] };
+    json.cubes = json.cubes.filter((c) => c.id !== 'grid-2');
+    json.views = json.views.filter((v) => v.cube !== 'grid-2');
+    assert.throws(() => readPage(JSON.stringify(json)), /timeseries timeseries-1's source other reads grid-2, which is no cube of this page/);
+  });
+
+  // the review's G4: the undo of a tile's removal, its grid removed before it -- the cube it read went with it, and the
+  // page the undo made read a cube it no longer held; the command carries the cube, as detach carries a chart's
+  it('a tile brought back with the cube it kept: made under its id as the page held it, its copy too; refused in words', () => {
+    const made = applyPageCommand(draft(), add()).draft;
+    const kept = apply({ kind: 'removeTile', tile: 'grid-2' }, made);
+    const document = kept.page.cubes.find((c) => c.id === 'grid-2')!.cube;
+    const gone = apply({ kind: 'removeTile', tile: 'timeseries-1' }, kept);
+    const charts = gone.page.views.filter((v) => readsCube(v, 'grid-2')).map((v) => v.id);
+    const bare = charts.reduce((d, id) => apply({ kind: 'removeTile', tile: id }, d), gone);
+    assert.ok(!bare.page.cubes.some((c) => c.id === 'grid-2'), 'let go with the last view that read it');
+    refused(() => apply(add(), bare), /source other reads 'grid-2', which is no cube of the page/);
+    const back = apply(add({ kept: [{ cube: 'grid-2', document, copy: SNAP }] }), bare);
+    assert.deepEqual(back.page.cubes.find((c) => c.id === 'grid-2')?.cube, document, 'the cube as the page held it');
+    assert.deepEqual(back.page.copies?.['grid-2'], SNAP, 'reading the copy it read');
+    assert.ok(readPage(JSON.parse(JSON.stringify(pageToJson(back.page)))).views.some((v) => v.id === back.page.views.at(-1)!.id));
+    // re-pointed at a grid: the cube kept for it alone let go, as a removal lets it go; its copy with it
+    const repointed = apply({ kind: 'setTimeseries', tile: back.page.views.at(-1)!.id, spec: { ...SPEC, sources: [SPEC.sources[0]!] } }, back).page;
+    assert.ok(!repointed.cubes.some((c) => c.id === 'grid-2') && repointed.copies?.['grid-2'] === undefined);
+    refused(() => apply(add({ kept: [{ cube: 'grid-7', document, copy: null }] }), bare), /no source of the timeseries reads grid-7/);
+    refused(() => apply(add({ kept: [{ cube: 'grid', document, copy: null }] }), made), /a grid shows grid: its cube is the grid's/);
+    refused(() => apply(add({ spec: { ...SPEC, sources: [{ alias: 'x', cube: 'sheet-1', date: 'd' }] }, kept: [{ cube: 'sheet-1', document, copy: null }] })),
+      /'sheet-1' is a tile or a sheet of the page, not a cube/);
+    refused(() => readPageCommand({ ...add(), kept: [{ cube: 'grid-2', document }] }), /says the copy it reads, or null/);
+    refused(() => readPageCommand({ ...add(), kept: [{ cube: 'grid-2', document, copy: null, rows: 3 }] }), /a kept cube takes cube, document, copy, not rows/);
   });
 
   it('refused in words: a source no grid shows, a spec of a word it does not know, a chart set as a timeseries', () => {
-    refused(() => apply(add({ spec: { ...SPEC, sources: [{ alias: 'x', cube: 'nowhere', date: 'd' }] } })), /source x reads 'nowhere', which no grid of the page shows/);
+    refused(() => apply(add({ spec: { ...SPEC, sources: [{ alias: 'x', cube: 'nowhere', date: 'd' }] } })), /source x reads 'nowhere', which is no cube of the page/);
     refused(() => apply(add({ spec: { ...SPEC, grain: 'hour' } as never })), /frequency "hour"/);
     refused(() => apply(add({ spec: { ...SPEC, series: [{ id: 'A', expr: { kind: 'call', fn: 'macd', args: [] } }] } as never })), /calls "macd", which this DataCube does not compute/);
     refused(() => apply(add({ sheet: 'sheet-9' })), /'sheet-9' is not a sheet of the page/);
@@ -363,6 +402,10 @@ describe('a page command read from JSON is the same command, and what DataCube d
       spec: { sources: [{ alias: 'trades', cube: 'grid', date: 'tradeDate' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] },
     },
     { kind: 'setTimeseries', tile: 'timeseries-1', spec: { sources: [{ alias: 'trades', cube: 'grid', date: 'tradeDate' }], series: [] } },
+    {
+      kind: 'setTimeseries', tile: 'timeseries-1', spec: { sources: [{ alias: 'trades', cube: 'grid-9', date: 'tradeDate' }], series: [] },
+      kept: [{ cube: 'grid-9', document: trades.cubes[0]!.cube, copy: null }, { cube: 'grid-8', document: trades.cubes[0]!.cube, copy: SNAP }],
+    },
     { kind: 'setText', tile: 'text-1', text: 'Up **3%**' },
     { kind: 'followGrid', chart: 'chart', grid: 'grid-2' },
     { kind: 'detach', chart: 'chart', cube: 'grid-9', document: trades.cubes[0]!.cube },

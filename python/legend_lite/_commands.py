@@ -156,14 +156,14 @@ def page_set_text(*, tile: Any, text: Any) -> dict[str, Any]:
     return {'kind': 'setText', 'tile': tile, 'text': text}
 
 
-def page_add_timeseries(*, id: Any = _ABSENT, sheet: Any, near: Any, spec: Any, title: Any,
-                        columns: Any) -> dict[str, Any]:
+def page_add_timeseries(*, id: Any = _ABSENT, sheet: Any, near: Any, spec: Any, title: Any, columns: Any,
+                        kept: Any = _ABSENT) -> dict[str, Any]:
     return {'kind': 'addTimeseries', **({} if id is _ABSENT else {'id': id}), 'sheet': sheet, 'near': near,
-            'spec': spec, 'title': title, 'columns': columns}
+            'spec': spec, 'title': title, 'columns': columns, **({} if kept is _ABSENT else {'kept': kept})}
 
 
-def page_set_timeseries(*, tile: Any, spec: Any) -> dict[str, Any]:
-    return {'kind': 'setTimeseries', 'tile': tile, 'spec': spec}
+def page_set_timeseries(*, tile: Any, spec: Any, kept: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'setTimeseries', 'tile': tile, 'spec': spec, **({} if kept is _ABSENT else {'kept': kept})}
 
 
 def page_follow_grid(*, chart: Any, grid: Any) -> dict[str, Any]:

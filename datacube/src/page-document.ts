@@ -91,6 +91,17 @@ export interface TimeseriesView {
 
 export type PageView = GridView | ChartView | TextView | TimeseriesView;
 
+/**
+ * WHETHER A VIEW READS A CUBE -- a grid's or a chart's its own, a timeseries' each of its sources' (a text tile none): the
+ * one rule a page keeps a cube by, so a grid removed while a timeseries reads its cube leaves the cube on the page, as a
+ * frozen chart's is kept (the owner, 2026-10-25, the review's G4: the cube went with its grid, the tile after a reopen
+ * reading a cube the page no longer held).
+ */
+export function readsCube(view: PageView, cube: string): boolean {
+  if (view.kind === 'timeseries') return view.spec.sources.some((s) => s.cube === cube);
+  return view.kind !== 'text' && view.cube === cube;
+}
+
 /** Where the views sit: the page's bands (layout/bands.ts), each tile a view's id. */
 export interface PageLayout extends Bands {
   readonly kind: 'bands';
@@ -751,10 +762,12 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
     return { id, kind: 'text', text: v['text'] as string, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}) };
   }
   if (v['kind'] === 'timeseries') {
-    // its spec by the tile's one reader (timeseries-spec.ts readTimeseries); its sources' cubes the page's, or a grid's
-    // that was removed (said on the tile, never refused here: an undo brings it back)
+    // its spec by the tile's one reader (timeseries-spec.ts readTimeseries); its sources' cubes the page's -- a grid's
+    // that was removed kept while the tile reads it (readsCube) -- as a chart's cube is (the review's G4)
     const spec = readTimeseries(v['spec']);
     if (typeof spec === 'string') throw new PageDocumentError(`timeseries ${id} has no timeseries it can draw: ${spec}`);
+    const missing = spec.sources.find((s) => !cubes.has(s.cube));
+    if (missing) throw new PageDocumentError(`timeseries ${id}'s source ${missing.alias} reads ${missing.cube}, which is no cube of this page`);
     if (v['title'] !== undefined && !named('tile', v['title'])) throw new PageDocumentError(`timeseries ${id}'s title is blank`);
     return { id, kind: 'timeseries', spec, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}) };
   }

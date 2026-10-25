@@ -88,9 +88,13 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
       return {
         ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), sheet: n(command.sheet),
         near: command.near === null ? null : n(command.near), spec: renamedSpec(command.spec, n),
+        ...(command.kept !== undefined ? { kept: command.kept.map((k) => ({ ...k, cube: n(k.cube) })) } : {}),
       };
     case 'setTimeseries':
-      return { ...command, tile: n(command.tile), spec: renamedSpec(command.spec, n) };
+      return {
+        ...command, tile: n(command.tile), spec: renamedSpec(command.spec, n),
+        ...(command.kept !== undefined ? { kept: command.kept.map((k) => ({ ...k, cube: n(k.cube) })) } : {}),
+      };
     case 'setChart':
     case 'select':
       return { ...command, chart: n(command.chart) };
