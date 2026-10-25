@@ -2997,6 +2997,29 @@ class Flows(Paged):
                          {'left': source.id, 'right': source.id})
 
 
+    def test_a_join_box_hands_on_the_rows_each_side_pairs_with_none(self):
+        # M2: a Join's L and R ports (live-inputs.ts gridInput) -- the rows of its Left no row of its Right pairs with,
+        # and of its Right no row of its Left: anti-joins the database runs, each read live
+        page, flow, source, big = self.flowed()
+        on_notional = {'form': 'join', 'kind': 'inner', 'on': {'rows': [{'left': 'notional', 'op': '==', 'right': 'notional'}]},
+                       'prefix': 'their_', 'keep': None}
+        joined = page.join(big, source, on_notional)
+        rest = flow.grid(input=joined)
+        rest.relink(joined, port='right')
+        self.assertEqual(sorted(rest.to_pandas()['notional']), [75.5], 'the Input\'s rows the Filter left out')
+        self.assertEqual(list(rest.to_pandas().columns), list(source.to_pandas().columns), 'its Right\'s columns, as it hands them on')
+        big.filter(None)
+        self.assertEqual(len(rest.to_pandas()), 0, 'an edit upstream reaches it: every row of the Input matched now')
+        rest.relink(joined, port='left')
+        self.assertEqual(len(rest.to_pandas()), 0, 'each of the Filter\'s rows has its match')
+        # a join set so that its ports would pair nothing is refused while a box reads one
+        with self.assertRaisesRegex(ValueError, 'a Union keeps every row of both'):
+            joined.rejoin({'form': 'append'})
+        with self.assertRaisesRegex(ValueError, 'is no join: it has no Left and Right unmatched'):
+            rest.relink(big, port='left')
+        # saved and loaded: the port kept
+        again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
+        self.assertEqual(len(next(g for g in again.grids if g.id == rest.id).to_pandas()), 0)
 
 class Snapped(Paged):
     """Snap as page state (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): grid.snap() copies the grid's base query by

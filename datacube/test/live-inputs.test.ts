@@ -88,7 +88,7 @@ describe('a grid over another grid\'s rows, as its cube writes it', () => {
     assert.throws(() => read({ _type: 'rows', name: 'a', columns: COLUMNS }), /another grid's rows has no input/);
     // a port is a Filter's False alone (FL7, docs/DATACUBE_FLOW_MODE_2026_10_24.md M2: read since 2026-10-25)
     assert.throws(() => read({ _type: 'rows', name: 'a', input: { grid: 'grid-1', port: 'true' }, columns: COLUMNS }),
-      /a live input's port is a Filter's 'false', not "true"/);
+      /a live input's port is a Filter's 'false' or a Join's 'left' or 'right', not "true"/);
     assert.throws(() => read({ _type: 'rows', name: 'a', input: { grid: 'grid-1', at: 1 }, columns: COLUMNS }),
       /a live input is its grid alone, and its port, not at/);
     assert.throws(() => read({ _type: 'rows', name: 'a', input: { grid: 'chart-1' }, columns: COLUMNS }),

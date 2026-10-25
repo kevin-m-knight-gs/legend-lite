@@ -4695,6 +4695,21 @@
   color: var(--dc-muted);
 }
 .dc-flow-box[data-tool='filter'] > .dc-flow-port-false, .dc-flow-box[data-tool='unique'] > .dc-flow-port-false { display: block; top: 70%; }
+/* a Join's outputs: its L above its J above its R (Alteryx's), each a port a line is drawn from */
+.dc-flow-port-unmatched { display: none; }
+.dc-flow-box[data-tool='join'] > .dc-flow-port-out, .dc-flow-box[data-tool='fuzzyMatch'] > .dc-flow-port-out {
+  width: 12px;
+  height: 12px;
+  margin-top: -7px;
+  right: -7px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  color: var(--dc-muted);
+}
+.dc-flow-box[data-tool='join'] > .dc-flow-port-l, .dc-flow-box[data-tool='fuzzyMatch'] > .dc-flow-port-l { display: block; top: 22%; }
+.dc-flow-box[data-tool='join'] > .dc-flow-port-r, .dc-flow-box[data-tool='fuzzyMatch'] > .dc-flow-port-r { display: block; top: 78%; }
 .dc-flow-port-out:hover { transform: scale(1.4); border-color: var(--dc-active); background: var(--dc-selected-bg); }
 .dc-flow-view .dc-flow-port-out { cursor: inherit; }
 .dc-flow-view .dc-flow-port-out:hover { transform: none; border-color: var(--dc-line-strong); background: var(--dc-bg); }
@@ -4714,9 +4729,9 @@
 .dc-flow-port-left { top: 30%; }
 .dc-flow-port-right { top: 70%; }
 .dc-flow-box[data-tool='input'] > .dc-flow-port-in { display: none; }
-.dc-flow-box[data-tool='join'] > .dc-flow-port-in, .dc-flow-box[data-tool='union'] > .dc-flow-port-in { display: none; }
-.dc-flow-box[data-tool='join'] > .dc-flow-port-left, .dc-flow-box[data-tool='join'] > .dc-flow-port-right,
-.dc-flow-box[data-tool='union'] > .dc-flow-port-left, .dc-flow-box[data-tool='union'] > .dc-flow-port-right { display: block; }
+/* every tool of the Join group reads two: a Join's, a Union's, an Append Fields', a Fuzzy Match's */
+.dc-flow-box[data-group='join'] > .dc-flow-port-in { display: none; }
+.dc-flow-box[data-group='join'] > .dc-flow-port-left, .dc-flow-box[data-group='join'] > .dc-flow-port-right { display: block; }
 /* a box reading a copy on a side (a line taken off): its input hollow and dashed, said in its title */
 .dc-flow-box.dc-flow-frozen > .dc-flow-port-in { border-style: dashed; border-color: var(--tw-sky-600); }
 .dc-flow-box.dc-flow-frozen .dc-flow-says::before { content: '❄ '; color: var(--tw-sky-600); }

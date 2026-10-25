@@ -280,8 +280,10 @@ class Grid(Tile):
         """Its rows read live from grid ``input`` of its page from now on -- a line drawn on its flow from that box's
         output (page-commands.ts setInput; docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) -- its query as it is, the grid then
         opened over ``input`` as it is now (what changed said, as a load says it). ``side``: a join's ``'left'`` or
-        ``'right'``. ``port='false'``: a Filter's False, the rows its condition leaves out (FL7). Refused in DataCube's
-        words: a grid that reads no other grid's rows, one that would read its own, a False of a grid with no filter."""
+        ``'right'``. ``port='false'``: a Filter's False, the rows its condition leaves out (FL7); ``port='left'`` or
+        ``'right'``: a Join's L or R, the rows of that input its condition pairs with no row of the other (live-inputs.ts
+        gridInput: an anti-join the database runs). Refused in DataCube's words: a grid that reads no other grid's rows,
+        one that would read its own, a False of a grid with no filter, an L or R of a grid that is no join."""
         _ = self._view, input._view
         given = {'grid': input._id, **({'port': port} if port is not None else {})}
         with self._page._batch():

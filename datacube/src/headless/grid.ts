@@ -73,7 +73,7 @@ import {
 import { sourceColumns } from '../source-columns.ts';
 import { pythonRunner } from '../services/python-host.ts';
 import { hostCalls, hostEngine, hostWorker } from './host.ts';
-import { leafOnHost, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
+import { leafOnHost, leafTables, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
 import { inputRows } from '../join-open.ts';
 import type { JoinSide } from '../join.ts';
 import { gridInput, liveGrids, resolvedSource } from '../live-inputs.ts';
@@ -84,7 +84,7 @@ import { modelMeasureCommands } from '../model-measure-commands.ts';
 import { modelMeasures } from '../model-measures.ts';
 import type { PageModelRef } from '../page-model.ts';
 import { sharedPart, type SharedQuery } from '../../../query-store/src/share.ts';
-import { joinOpenedOn } from './join.ts';
+import { joinOpenedOn, rowsOpenedOn } from './join.ts';
 import { base64 } from './web.ts';
 
 /** A grid as Python hands it in: its cube document (page-document's, as JSON text), and its base (gridBase's). */
@@ -358,6 +358,15 @@ async function baseOver(source: CubeSource, host: HostTables, given: Readonly<Re
     };
   }
   const input = on.rows.input;
+  // a Join's L or R reads both of the join's inputs: over one model of the host's tables, as the join is
+  if (input.unmatched !== undefined) {
+    const opened = await rowsOpenedOn(on.rows, await leafTables(on.rows, host, given));
+    return {
+      base: { model: opened.model, runtime: opened.runtime, relation: toJson({ _type: 'lambda', parameters: [], body: [opened.relation] }) },
+      notes: opened.notes,
+      side: { name: input.name, relation: opened.relation, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) },
+    };
+  }
   const inner = await baseOver(input.source, host, given);
   const { planner, relation } = await typed(inner.base);
   try {

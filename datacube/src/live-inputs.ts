@@ -6,6 +6,7 @@
 import { isLive, type CubeInput, type CubeSource, type InputPort, type JoinInput } from './cube-document.ts';
 import type { PageDocument } from './page-document.ts';
 import { boxOmitted, boxRenamed } from './box-columns.ts';
+import { unmatchedOn } from './join-how.ts';
 import { CubeRefusal } from './snapshot.ts';
 
 /** The grids `source` reads live, each once, in the order it reads them -- through its frozen inputs too. */
@@ -13,8 +14,10 @@ export function liveGrids(source: CubeSource): string[] {
   const grids: string[] = [];
   const visit = (s: CubeSource): void => {
     const input = (i: CubeInput): void => {
-      if (!isLive(i)) visit(i.source);
-      else if (!grids.includes(i.grid)) grids.push(i.grid);
+      if (!isLive(i)) {
+        visit(i.source);
+        for (const u of i.unmatched ?? []) input(u.by);
+      } else if (!grids.includes(i.grid)) grids.push(i.grid);
     };
     if (s._type === 'rows') input(s.input);
     else if (s._type === 'join') {
@@ -40,7 +43,8 @@ export function gridInput(page: PageDocument, grid: string, through: readonly st
   if (through.includes(grid)) {
     throw new CubeRefusal(`'${grid}' reads its own rows (${[...through.slice(through.indexOf(grid)), grid].join(' → ')})`);
   }
-  const query = port === undefined ? cube.cube.query : portQuery(grid, cube.cube.query, port);
+  if (port === 'left' || port === 'right') return unmatchedInput(page, grid, cube.cube.source, port, [...through, grid]);
+  const query = port === undefined ? cube.cube.query : falseQuery(grid, cube.cube.query);
   // a flow's box hands on the columns it shows, under the names it gives them (box-columns.ts); a board's grid, all
   const onFlow = page.sheets.some((s) => s.layout.kind === 'flow' && s.layout.boxes.some((b) => b.tile === grid));
   const omit = onFlow ? boxOmitted(cube.cube.query, cube.cube.configuration) : [];
@@ -52,15 +56,39 @@ export function gridInput(page: PageDocument, grid: string, through: readonly st
 }
 
 /**
- * A GRID'S PORT AS ITS QUERY (FL7): its False, the same query with its filter turned round -- the rows of its input its
+ * A GRID'S FALSE AS ITS QUERY (FL7): the same query with its filter turned round -- the rows of its input its
  * condition does not hold for (a row its condition is unknown for, a null compared, is in neither, as SQL's NOT says).
  * Refused in words when it has no filter: no row is left out.
  */
-function portQuery(grid: string, query: JoinInput['query'], port: InputPort): JoinInput['query'] {
-  if (port !== 'false') throw new Error(`no such port: ${String(port)}`);
+function falseQuery(grid: string, query: JoinInput['query']): JoinInput['query'] {
   const filter = query.filter;
   if (filter === undefined) throw new CubeRefusal(`'${grid}' has no filter: its False port leaves no row out`);
   return { ...query, filter: filter.kind === 'not' ? filter.child : { kind: 'not', child: filter } };
+}
+
+/**
+ * A JOIN'S L OR R (§3.3; Alteryx's): that input itself, resolved -- its rows, its columns as it hands them on -- each of
+ * its rows the other input's pair with none (`JoinInput.unmatched`: an anti-join the database runs, join-open.ts), on its
+ * join's condition, turned round for its Right (join-how.ts unmatchedOn). The join's own query is its J's, and reaches
+ * neither. Refused in words: a grid that is no join, a join with no rows left unmatched (a Union) or whose condition an
+ * anti-join cannot say.
+ */
+function unmatchedInput(page: PageDocument, grid: string, source: CubeSource, side: 'left' | 'right', through: readonly string[]): JoinInput {
+  if (source._type !== 'join') throw new CubeRefusal(`'${grid}' is no join: it has no Left and Right unmatched`);
+  const on = unmatchedOn(source.how, side);
+  const [mine, theirs] = side === 'left' ? [source.left, source.right] : [source.right, source.left];
+  const rows = resolvedInput(page, mine, through);
+  return { ...rows, unmatched: [...(rows.unmatched ?? []), { by: resolvedInput(page, theirs, through), on }] };
+}
+
+/** An input resolved (resolvedOn's): a live one the copy of its grid now, a copy with each source in it resolved. */
+function resolvedInput(page: PageDocument, i: CubeInput, through: readonly string[]): JoinInput {
+  return isLive(i) ? gridInput(page, i.grid, through, i.port) : copyWith(i, (s) => resolvedOn(page, s, through));
+}
+
+/** A copy with `f` made of its source and of each source of the inputs its rows are matched against. */
+function copyWith(i: JoinInput, f: (s: CubeSource) => CubeSource): JoinInput {
+  return { ...i, source: f(i.source), ...(i.unmatched !== undefined ? { unmatched: i.unmatched.map((u) => ({ ...u, by: copyWith(u.by, f) })) } : {}) };
 }
 
 /**
@@ -73,8 +101,7 @@ export function resolvedSource(page: PageDocument, source: CubeSource, grid?: st
 }
 
 function resolvedOn(page: PageDocument, source: CubeSource, through: readonly string[]): CubeSource {
-  const input = (i: CubeInput): JoinInput => (isLive(i) ? gridInput(page, i.grid, through, i.port)
-    : { ...i, source: resolvedOn(page, i.source, through) });
+  const input = (i: CubeInput): JoinInput => resolvedInput(page, i, through);
   switch (source._type) {
     case 'rows': return { ...source, input: input(source.input) };
     case 'join': return { ...source, left: input(source.left), right: input(source.right) };
@@ -95,7 +122,7 @@ export function relinked(source: CubeSource, n: (id: string) => string): CubeSou
 
 /** An input with every grid its links name renamed (relinked's rule, a page command's input: setInput). */
 export function relinkedInput(input: CubeInput, n: (id: string) => string): CubeInput {
-  return isLive(input) ? { ...input, grid: n(input.grid) } : { ...input, source: relinked(input.source, n) };
+  return isLive(input) ? { ...input, grid: n(input.grid) } : copyWith(input, (s) => relinked(s, n));
 }
 
 /**
@@ -104,7 +131,7 @@ export function relinkedInput(input: CubeInput, n: (id: string) => string): Cube
  * other link as it is.
  */
 export function frozenFrom(source: CubeSource, grid: string, copy: (port: InputPort | undefined) => JoinInput): CubeSource {
-  const input = (i: CubeInput): CubeInput => (isLive(i) ? (i.grid === grid ? copy(i.port) : i) : { ...i, source: frozenFrom(i.source, grid, copy) });
+  const input = (i: CubeInput): CubeInput => (isLive(i) ? (i.grid === grid ? copy(i.port) : i) : copyWith(i, (s) => frozenFrom(s, grid, copy)));
   switch (source._type) {
     case 'rows': return { ...source, input: input(source.input) };
     case 'join': return { ...source, left: input(source.left), right: input(source.right) };

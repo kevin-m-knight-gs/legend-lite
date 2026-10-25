@@ -257,7 +257,7 @@ How to read the status column:
 
 | Tool | Status | How |
 |---|---|---|
-| Join (L, J, R) | Step | `join.ts`: inner, left, right, full, any condition, as of. The L and R ports are its "no match" forms (§3.3) |
+| Join (L, J, R) | Built (2026-10-25) | `join.ts`: inner, left, right, full, any condition, as of. Its L and R ports are each side's rows matched against the other's: anti-joins (§3.3) |
 | Join Multiple | Built, once linked | Joins chained by live inputs |
 | Union | Built | A join's append |
 | Append Fields | Built (2026-10-25) | Every row with every row: a join, matching rows only, on no condition -- the Join window's Every pair |
@@ -963,9 +963,31 @@ rows it came out with, where it was let go** -- and a tool dropped on the canvas
 Python's `Flows` and the harness (the Filter's F drawn onto the canvas: a Browse of the 4,497 rows it leaves out, made
 where it was let go).
 
-**Still open in M2:** ports with several outputs besides a Filter's (FL7: a Unique's Duplicates), a Union of more than
-two inputs, Append Fields, Find Replace and Fuzzy Match; and the board's own Join… making live joins too (FL6's "new
-joins are live": the flow's are; the board's still copies, as Python's `page.join` of two board grids).
+**Built, a Join's L and R** (§3.3; `cube-document.ts` `JoinInput.unmatched`, `join-how.ts` `unmatchedOn`,
+`live-inputs.ts` `gridInput`, `join-open.ts`, `layout/flow-canvas.ts`; 2026-10-25): a live input may name a Join's `left`
+or `right` port -- the rows of its Left (or Right) its condition pairs with no row of the other, Alteryx's L and R. No
+new kind of source: resolved, the port is that input itself (its own rows, its columns as it hands them on) with its
+rows matched against the other's (`unmatched: [{by, on}]`), each an anti-join the database runs over one model of both
+(`overOneModel`'s side; the host's `rowsOpenedOn`), on the join's own condition -- turned round for its Right (each
+row's columns swapped, its comparison mirrored: `<` is `>`). The join's own query is its J's and reaches neither. The
+leaves of a port are both inputs' (`leavesOf`), so a chain read elsewhere than the page's own tables refuses it as a
+join refuses its inputs. Refused in words: a grid that is no join, a Union (it keeps every row of both), an as-of join,
+a join's Pure condition (it names their columns as the join brings them out; an anti-join by their own: a semi- or
+anti-join's Pure condition is turned round by naming its two rows the other way); and a join set again so that a box
+reading its L or R could not (`setJoin` holds the page to the reader's rule, `liveProblem`, as `setInput` does). A Join
+box (a Fuzzy Match's too) draws its L above its J above its R on its right edge; a line from L or R links what it is
+let go on, the settings' Input offers each Join's Joined, Left unmatched and Right unmatched, and a line's words name
+the port and its side's columns. Found on the way: an Append Fields and a Fuzzy Match box drew one input port where
+their two lines came in (the CSS knew a Join's and a Union's two alone); the Join group's tools draw L and R now.
+Python: `grid.relink(join, port='left' | 'right')`. Tested by `flow-sheet.test.ts` (resolved, frozen, written and read
+back, the refusals, `unmatchedOn`), `join-open.test.ts` (DuckDB: trades with no customer, the customer with no trade),
+Python's `test_a_join_box_hands_on_the_rows_each_side_pairs_with_none` and the harness (the Join's R drawn onto the
+canvas: a Browse of the trades the Filter left out; set to its L in the settings: none).
+
+**Still open in M2:** a Union of more than two inputs and Find Replace; a Join's L and R on a Pure condition (its
+their-names turned back to their own); and the board's own Join… making live joins too (FL6's "new joins are live": the
+flow's are; the board's still copies, as Python's `page.join` of two board grids). Built since: a Unique's Duplicates,
+Append Fields, Fuzzy Match, a Join's L and R.
 
 
 ---

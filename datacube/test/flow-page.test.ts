@@ -217,7 +217,7 @@ describe('a flow sheet on a page of its own', () => {
     assert.deepEqual(tools, [{ tool: 'filter', after: undefined, sheet: 'sheet-2' }]);
   });
 
-  it("docks the window that sets a box in the flow's settings pane: a Filter's filter, a Summarize's row groups", async () => {
+  it("docks the window that sets a box in the flow's settings pane: a Filter's filter, a Summarize's own window", async () => {
     const filtered = FLOW_PAGE();
     const page = writePageOf({
       name: 'flows',
@@ -231,7 +231,7 @@ describe('a flow sheet on a page of its own', () => {
     assert.equal(box('grid-4').dataset['tool'], 'summarize');
     await show('grid-4');
     const docked = await shown<HTMLElement>(host, '.dc-flow-dock > .dc-app-overlay');
-    assert.equal(docked.dataset['window'], 'Properties', "a Summarize is set by Properties' row groups");
+    assert.equal(docked.dataset['window'], 'Summarize', 'a Summarize is set by its window: a row a column (ui/summarize-form.ts)');
     assert.ok(docked.closest('.dc-flow-settings'), 'docked in the settings pane, not floating');
     // a box added as a tool, its grid doing nothing yet: drawn as that tool, to be set
     pg().boxAddedAs('grid-3', 'filter');

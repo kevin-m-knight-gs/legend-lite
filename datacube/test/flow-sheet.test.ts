@@ -31,6 +31,7 @@ import { readRowSample, rowSampleCommands, rowSampleOf, sampleCommands } from '.
 import { readTranspose, transposeCommands, transposeOf } from '../src/transpose.ts';
 import { readSelection, retypesOf, selectCommands, selectionOf } from '../src/select-columns.ts';
 import { readSummary, summarizeCommands } from '../src/summarize.ts';
+import { unmatchedOn } from '../src/join-how.ts';
 import { summaryActions, summaryOf } from '../src/grid-edits.ts';
 import { applyGridCommands } from '../src/grid-commands.ts';
 import type { GridDraft } from '../src/grid-edits.ts';
@@ -838,10 +839,53 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
     assert.deepEqual(readPageCommand({ kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3', port: 'false' } }),
       { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3', port: 'false' } });
     assert.throws(() => readPageCommand({ kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3', port: 'true' } }),
-      /a live input's port is a Filter's 'false', not "true"/);
+      /a live input's port is a Filter's 'false' or a Join's 'left' or 'right', not "true"/);
     assert.deepEqual(renamedCommand({ kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3', port: 'false' } }, new Map([['grid-3', 'grid-9']])),
       { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-9', port: 'false' } });
     assert.deepEqual(boxInputs(d.page.cubes.find((c) => c.id === 'grid-4')!.cube), [{ side: 'input', grid: 'grid-3', port: 'false' }]);
+  });
+
+  it("reads a Join's L and R (§3.3): each side's own rows, those the other's pair with none; refused where none can be", () => {
+    const join: CubeSource = {
+      _type: 'join', name: 'trades ⋈ trades', left: { grid: 'grid-3' }, right: { grid: 'grid-4' }, columns: COLUMNS,
+      how: { form: 'join', kind: 'inner', on: { rows: [{ left: 'notional', op: '<', right: 'notional' }] }, prefix: 'their_', keep: null },
+    };
+    const d = apply(FLOW(), addGrid(cube(join), 'sheet-2', 'grid-3'),
+      addGrid(cube({ ...rows('grid-5'), input: { grid: 'grid-5', port: 'right' } }), 'sheet-2', 'grid-5'));
+    const live = sourceOf(d.page, 'grid-6');
+    assert.deepEqual(liveGrids(live), ['grid-5']);
+    // resolved: the Sort's rows (its Right), each the Filter's rows (its Left) pair with none -- the comparison turned round
+    const read = resolvedSource(d.page, live, 'grid-6');
+    const input = read._type === 'rows' && !isLive(read.input) ? read.input : undefined;
+    assert.deepEqual(input?.query.sorts, [{ column: 'notional', direction: 'desc' }], "its Right's own query");
+    assert.deepEqual(input?.unmatched?.map((u) => [u.by.query.filter?.kind, u.on]), [['condition', { rows: [{ left: 'notional', op: '>', right: 'notional' }] }]]);
+    assert.deepEqual(liveGrids(read), [], 'a copy with no link left in it');
+    // frozen when the Join goes: a copy of its R, written and read back
+    const gone = apply(d, { kind: 'removeTile', tile: 'grid-5' }).page;
+    const frozen = sourceOf(gone, 'grid-6');
+    assert.equal(frozen._type === 'rows' && !isLive(frozen.input) ? frozen.input.unmatched?.length : undefined, 1);
+    assert.equal(pageToJson(readPage(JSON.parse(pageToJson(gone)))), pageToJson(gone), 'written and read back the same');
+    // a join set so that its R pairs nothing is refused while a box reads it, in its words
+    refused(() => apply(d, { kind: 'setJoin', grid: 'grid-5', how: { form: 'append' } }), /grid-6: a Union keeps every row of both/);
+    refused(() => apply(FLOW(), { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3', port: 'left' } }),
+      /'grid-3' is no join: it has no Left and Right unmatched/);
+    assert.deepEqual(readPageCommand({ kind: 'setInput', grid: 'grid-6', side: 'input', input: { grid: 'grid-5', port: 'left' } }),
+      { kind: 'setInput', grid: 'grid-6', side: 'input', input: { grid: 'grid-5', port: 'left' } });
+  });
+
+  it("says what pairs a side's row with none (join-how.ts unmatchedOn): the join's own, turned round for its Right", () => {
+    const rowsOn = { rows: [{ left: 'a', op: '<=' as const, right: 'b' }, { left: 'n', op: '~' as const, right: 'm', within: 1 }] };
+    const how = { form: 'join', kind: 'left', on: rowsOn, prefix: 'their_', keep: null } as const;
+    assert.deepEqual(unmatchedOn(how, 'left'), rowsOn);
+    assert.deepEqual(unmatchedOn(how, 'right'), { rows: [{ left: 'b', op: '>=', right: 'a' }, { left: 'm', op: '~', right: 'n', within: 1 }] });
+    // a semi-join's Pure condition names both sides by their own names: its two rows named the other way
+    const pure = lambda(['x', 'y'], fn('equal', property(variable('x'), 'a'), property(variable('y'), 'b')));
+    const turned = unmatchedOn({ form: 'semi', on: { lambda: pure } }, 'right');
+    assert.deepEqual('lambda' in turned ? turned.lambda.parameters.map((p) => p.name) : undefined, ['y', 'x']);
+    refused(() => unmatchedOn({ form: 'append' }, 'left'), /a Union keeps every row of both/);
+    refused(() => unmatchedOn({ ...how, on: { lambda: pure } }, 'left'), /its condition is Pure/);
+    refused(() => unmatchedOn({ form: 'asOf', match: { left: 'a', op: '>=', right: 'b' }, on: { rows: [] }, prefix: 'p_', keep: null }, 'left'),
+      /an as-of join's rows of mine with no nearest row/);
   });
 
   it("sets a Join box's join again (setJoin): its inputs as they are, undone by the commands between", () => {

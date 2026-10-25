@@ -7,8 +7,8 @@
 import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { openedState } from '../cube-state.ts';
-import { cubeToJson, gridCapped, newGridTree, rebuilt, writeCube, type JoinInput, type JoinSource } from '../cube-document.ts';
-import { HOST_TABLES, openInputs, openJoin, summaryCounts, type JoinOpening, type OpenedJoin } from '../join-open.ts';
+import { cubeToJson, gridCapped, newGridTree, rebuilt, writeCube, type JoinInput, type JoinSource, type RowsSource } from '../cube-document.ts';
+import { HOST_TABLES, openInputs, openJoin, openRows, summaryCounts, type JoinOpening, type OpenedJoin, type OpenedRows } from '../join-open.ts';
 import { joinSummary, joinTitle, readJoinHow, summaryWords, type JoinHow } from '../join.ts';
 import { joinInputOf } from '../page-commands.ts';
 import { layoutTiles, readPage, type PageDocument } from '../page-document.ts';
@@ -140,6 +140,12 @@ export async function joinCube(spec: string): Promise<string> {
  */
 export async function joinOpenedOn(source: JoinSource, tables: readonly string[]): Promise<OpenedJoin> {
   return using((o) => openJoin(source, o), tables);
+}
+
+/** Another grid's rows opened over the host's tables, each read once, as a join is (join-open.ts openRows): a box over a
+ *  Join's L or R, which reads both of the join's inputs (cube-document.ts JoinInput.unmatched). */
+export async function rowsOpenedOn(source: RowsSource, tables: readonly string[]): Promise<OpenedRows> {
+  return using((o) => openRows(source, o), tables);
 }
 
 /**

@@ -195,6 +195,24 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     }
   });
 
+  it("a Join's L and R (cube-document.ts JoinInput.unmatched): each side's rows the other's pair with none", async () => {
+    const on = { rows: [{ left: 'cust', op: '==' as const, right: 'id' }] };
+    const unmatched = (mine: JoinInput, by: JoinInput, condition: typeof on): RowsSource =>
+      ({ _type: 'rows', name: mine.name, input: { ...mine, unmatched: [{ by, on: condition }] }, columns: [] });
+    // its Left: trade 4 has no key, trade 5 no customer
+    const l = unmatched(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), on);
+    const left = await openRows(l, opening(['trades', 'customers']));
+    assert.deepEqual(left.columns.map((c) => c.name), ['id', 'cust', 'sym', 'at', 'qty'], 'its own columns');
+    const ls = await rows(left.model, left.runtime, { _type: 'lambda', parameters: [], body: [left.relation] });
+    assert.deepEqual(ls['id']!.map(Number).sort(), [4, 5]);
+    assert.deepEqual(leavesOf(l), [TRADES, CUSTOMERS], 'both tables, its own first');
+    // its Right: the condition turned round -- customer 30 has no trade
+    const r = unmatched(input(CUSTOMERS, 'customers'), input(TRADES, 'trades'), { rows: [{ left: 'id', op: '==', right: 'cust' }] });
+    const right = await openRows(r, opening(['customers', 'trades']));
+    const rs = await rows(right.model, right.runtime, { _type: 'lambda', parameters: [], body: [right.relation] });
+    assert.deepEqual(rs['id']!.map(Number), [30]);
+  });
+
   it('append: columns by name, a column one side lacks empty on its rows', async () => {
     const opened = await openJoin(join(input(TRADES, 'trades'), input(MORE, 'more'), { form: 'append' }), opening(['trades', 'more']));
     assert.deepEqual(opened.columns.map((c) => [c.name, c.type]),

@@ -230,7 +230,7 @@ try {
   // A LINE DRAWN by hand: from the Input's output onto the Formula, which reads the Input from then on -- one step, undone
   // (the canvas scrolled back to its start: a box added was scrolled into view, the Input's port under the palette)
   await page.locator('.dc-flow-canvas').evaluate((c) => { c.scrollLeft = 0; c.scrollTop = 0; });
-  const outPort = await page.locator(`.dc-flow-box[data-tile="${input.id}"] .dc-flow-port-out:not(.dc-flow-port-false)`).boundingBox();
+  const outPort = await page.locator(`.dc-flow-box[data-tile="${input.id}"] .dc-flow-port-out:not(.dc-flow-port-false):not(.dc-flow-port-unmatched)`).boundingBox();
   const onto = await page.locator(`.dc-flow-box[data-tile="${formula.id}"]`).boundingBox();
   await page.mouse.move(outPort.x + outPort.width / 2, outPort.y + outPort.height / 2);
   await page.mouse.down();
@@ -540,6 +540,35 @@ try {
   check(Math.abs(leftAt.x + 92 - freeSpot.canvasX) <= 2, `made where its line was let go: (${leftAt.x}, ${leftAt.y}), its middle at ${freeSpot.canvasX}`);
   await page.screenshot({ path: outPath('flow-false.png') });
 
+  // A JOIN'S R (§3.3): a line from its R port let go on the canvas -- a Browse of the Input's rows no row of the Filter's
+  // pairs with (the Filter's trades matched on trade_id: every other trade)
+  const beforeR = (await boxes()).map((b) => b.id);
+  await page.locator(`.dc-flow-box[data-tile="${join.id}"]`).scrollIntoViewIfNeeded();
+  check(JSON.stringify(await page.locator(`.dc-flow-box[data-tile="${join.id}"] .dc-flow-port-out:visible`).allTextContents()) === '["J","L","R"]',
+    'a Join draws its J, L and R');
+  const rPort = await page.locator(`.dc-flow-box[data-tile="${join.id}"] .dc-flow-port-r`).boundingBox();
+  const rSpot = await emptyCanvasPoint();
+  await page.mouse.move(rPort.x + rPort.width / 2, rPort.y + rPort.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rSpot.x, rSpot.y, { steps: 12 });
+  await page.mouse.up();
+  await boxCount(beforeR.length + 1);
+  const unpaired = await added(beforeR);
+  check(unpaired.tool === 'browse' && await readsOf(unpaired.id) === `${join.id}:right`, `a Browse of the Join's R: ${JSON.stringify(unpaired)}, ${await readsOf(unpaired.id)}`);
+  await settled();
+  check(await resultRows() === all - fewer, `the Input's rows no Filter row pairs with: ${all} - ${fewer}`);
+  // set from its settings to the Join's L: each of the Filter's trades has its match
+  await page.locator('.dc-flow-input select').first().selectOption(`grid:${join.id}:left`);
+  await page.waitForFunction(([id, j]) => {
+    const doc = window.__dataPage.document('x');
+    const view = doc.views.find((v) => v.id === id);
+    const input = doc.cubes.find((c) => c.id === view.cube).cube.source.input;
+    return input.grid === j && input.port === 'left';
+  }, [unpaired.id, join.id], { timeout: 20_000 });
+  await settled();
+  check(await resultRows() === 0, 'its L: none of the Filter\'s trades without a match');
+  await page.screenshot({ path: outPath('flow-join-ports.png') });
+
   // TIDY UP (M7): a box pushed out of place, then every box a column after the boxes it reads -- one step; then a box's
   // menu, Duplicate
   const pushed = page.locator(`.dc-flow-box[data-tile="${formula.id}"]`);
@@ -826,7 +855,7 @@ try {
   check(uniqueBox?.tool === 'unique' && uniqueBox.says === 'by region', `a Unique box: ${JSON.stringify(uniqueBox)}`);
   check(await resultRows() === 3, 'a row of each region: 3');
   check(await page.locator('.dc-flow-results .dc-th[data-column="UniqueRow"]').count() === 0, 'its row number hidden');
-  const ports = await page.locator(`.dc-flow-box[data-tile="${uniq.id}"] .dc-flow-port-out`).allTextContents();
+  const ports = await page.locator(`.dc-flow-box[data-tile="${uniq.id}"] .dc-flow-port-out:visible`).allTextContents();
   check(JSON.stringify(ports) === '["U","D"]', `its outputs U and D: ${ports}`);
   await page.locator('.dc-flow-canvas').evaluate((c) => { c.scrollLeft = 0; c.scrollTop = 0; });
   const beforeDupes = (await boxes()).map((b) => b.id);

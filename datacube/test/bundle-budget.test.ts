@@ -372,8 +372,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  376,000 -> 376,500 (2026-10-25, the flow mode's Summarize window: its opener (app.ts), and the read of a grid's
  *  columns as a Summarize has them beside the offers it reads (grid-edits.ts summaryOf, summaryActions); the commands'
  *  rule and the window chunks of their own -- the rule reading the snapshot alone, as one that imported the grid's edits
- *  split their startup chunk in two, +1,362 bytes, measured and undone). Measured 376,147. */
-const BUDGET = 376_500;
+ *  split their startup chunk in two, +1,362 bytes, measured and undone). Measured 376,147.
+ *  376,500 -> 377,000 (2026-10-25, the flow mode's Join L and R: a live input naming a Join's port resolved to its side's
+ *  rows matched against the other's (live-inputs.ts gridInput, join-how.ts unmatchedOn), read and written with a copy
+ *  (cube-document.ts JoinInput.unmatched), a join set again held to its readers (page-commands.ts setJoin) -- read when a
+ *  page is, so at startup; the anti-joins themselves join-open.ts's, and the ports' drawing the canvas's chunk). Measured
+ *  376,805. */
+const BUDGET = 377_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -516,8 +521,10 @@ const BUDGET = 376_500;
  *  of the same date). Measured 363,365.
  *  364,000 -> 365,000 (2026-10-25, the flow mode's in place and a box's correlations: the in-place rule beside what a box
  *  hands on (box-columns.ts inPlaceCommand, inPlaceOf, read at startup through live-inputs.ts), the Profile asking its
- *  measures' correlations (app.ts); the tools and the matrix's drawing their chunks). Measured 364,174. */
-const ENGINE_BUDGET = 365_000;
+ *  measures' correlations (app.ts); the tools and the matrix's drawing their chunks). Measured 364,174.
+ *  365,000 -> 365,500 (2026-10-25, the flow mode's Summarize window and a Join's L and R -- the grid-only page's notes of
+ *  the same date). Measured 365,150. */
+const ENGINE_BUDGET = 365_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -719,8 +726,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  of the same date; the Select's and the Transpose's windows' styles among them). Measured 386,857.
  *  387,500 -> 388,500 (2026-10-25, the flow mode's minimap, Fuzzy Match, Select's retype and a box's correlations: the
  *  minimap's and the correlation matrix's styles, the Join window's edits-apart field and the Select's type choice;
- *  their code the canvas's and the windows' chunks). Measured 387,738. */
-const WIDGET_BUDGET = 388_500;
+ *  their code the canvas's and the windows' chunks). Measured 387,738.
+ *  388,500 -> 389,500 (2026-10-25, the flow mode's Summarize window and a Join's L and R -- the grid-only page's notes of
+ *  the same date; the window's rows and a Join's three outputs' styles among them). Measured 389,004. */
+const WIDGET_BUDGET = 389_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

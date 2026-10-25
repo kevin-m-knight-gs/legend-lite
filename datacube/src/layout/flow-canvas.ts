@@ -62,9 +62,14 @@ const GROUP_WORDS: Readonly<Record<FlowGroup, string>> = {
   in: 'In and Out', prepare: 'Prepare', join: 'Join', parse: 'Parse', transform: 'Transform', docs: 'Notes',
 };
 
-/** Where a box's output is on its right edge, from its top: a Filter's True above its False (Alteryx's T and F), any
- *  other box's in the middle. */
-const outY = (filter: boolean, port: InputPort | undefined): number => (!filter ? BOX_HEIGHT / 2 : port === 'false' ? BOX_HEIGHT * 0.7 : BOX_HEIGHT * 0.3);
+/** How a box's outputs are drawn on its right edge: one; a Filter's True and False (a Unique's U and D); a Join's L, J
+ *  and R (Alteryx's anchors). */
+type Outs = 'one' | 'two' | 'three';
+
+/** Where a box's output is on its right edge, from its top: a Filter's True above its False, a Join's L above its J
+ *  above its R, any other box's in the middle. */
+const outY = (outs: Outs, port: InputPort | undefined): number => (outs === 'two' ? (port === 'false' ? BOX_HEIGHT * 0.7 : BOX_HEIGHT * 0.3)
+  : outs === 'three' && port === 'left' ? BOX_HEIGHT * 0.22 : outs === 'three' && port === 'right' ? BOX_HEIGHT * 0.78 : BOX_HEIGHT / 2);
 
 /** The canvas's keys and gestures, as its ? says them. */
 const KEYS: readonly (readonly [string, string])[] = [
@@ -85,8 +90,13 @@ const KEYS: readonly (readonly [string, string])[] = [
   ['Right-click a box', 'its menu'],
 ];
 
-/** The two outputs' names: a Filter's True and False, a Unique's Unique and Duplicates. */
-const PORT_WORDS = { filter: ['True', 'False'], unique: ['Unique', 'Duplicates'] } as const;
+/** An output's name: a Filter's True and False, a Unique's Unique and Duplicates, a Join's Joined and its Left and Right
+ *  unmatched. */
+function portWord(tool: FlowTool | undefined, port: InputPort | undefined): string {
+  if (tool === 'join' || tool === 'fuzzyMatch') return port === 'left' ? 'Left unmatched' : port === 'right' ? 'Right unmatched' : 'Joined';
+  if (tool === 'unique') return port === 'false' ? 'Duplicates' : 'Unique';
+  return port === 'false' ? 'False' : 'True';
+}
 
 /** A side's name, as a port and the settings say it. */
 const SIDE_WORDS: Readonly<Record<InputSide, string>> = { input: 'Input', left: 'Left', right: 'Right' };
@@ -956,6 +966,13 @@ export class FlowCanvas {
     const outFalse = port('dc-flow-port-out dc-flow-port-false', 'F');
     outFalse.title = 'Its False: the rows its condition leaves out. Drag onto another box to link it here';
     outFalse.addEventListener('pointerdown', (e) => this.#startWire(id, outFalse, e, 'false'));
+    // a Join's Left and Right unmatched, above and below its J (Alteryx's L, J and R)
+    const outLeft = port('dc-flow-port-out dc-flow-port-unmatched dc-flow-port-l', 'L');
+    outLeft.title = 'Its Left unmatched: the rows of its Left no row of its Right pairs with. Drag onto another box to link it here';
+    outLeft.addEventListener('pointerdown', (e) => this.#startWire(id, outLeft, e, 'left'));
+    const outRight = port('dc-flow-port-out dc-flow-port-unmatched dc-flow-port-r', 'R');
+    outRight.title = 'Its Right unmatched: the rows of its Right no row of its Left pairs with. Drag onto another box to link it here';
+    outRight.addEventListener('pointerdown', (e) => this.#startWire(id, outRight, e, 'right'));
     const glyph = doc.createElement('span');
     glyph.className = 'dc-flow-icon';
     const text = doc.createElement('div');
@@ -976,7 +993,7 @@ export class FlowCanvas {
       e.stopPropagation();
       this.#board.options.onRemove?.(id);
     });
-    root.append(into, left, right, glyph, text, count, remove, out, outFalse);
+    root.append(into, left, right, glyph, text, count, remove, out, outFalse, outLeft, outRight);
     const drawn: Drawn = { root, icon: glyph, name, says, count, remove, key: '', renaming: false };
     root.addEventListener('pointerdown', (e) => this.#startBox(id, drawn, e));
     root.addEventListener('keydown', (e) => this.#onBoxKey(id, drawn, e));
@@ -1280,11 +1297,13 @@ export class FlowCanvas {
     drawn.key = key;
     drawn.root.dataset['tool'] = tool;
     drawn.root.dataset['group'] = FLOW_TOOLS[tool].group;
-    // its two outputs, where it has two: a Filter's T and F, a Unique's U and D
+    // its outputs, where it has several: a Filter's T and F, a Unique's U and D, a Join's J between its L and R
     const [outTrue, outFalse] = drawn.root.querySelectorAll<HTMLElement>(':scope > .dc-flow-port-out');
     if (outTrue !== undefined && outFalse !== undefined) {
       const unique = tool === 'unique';
-      outTrue.textContent = unique ? 'U' : 'T';
+      const joined = this.#outsOf(id) === 'three';
+      outTrue.textContent = joined ? 'J' : unique ? 'U' : 'T';
+      outTrue.title = joined ? 'Its Joined rows. Drag onto another box to link it here' : 'Drag onto another box to link it here';
       outFalse.textContent = unique ? 'D' : 'F';
       outFalse.title = unique ? 'Its Duplicates: every row after its key\'s first. Drag onto another box to link it here'
         : 'Its False: the rows its condition leaves out. Drag onto another box to link it here';
@@ -1528,10 +1547,17 @@ export class FlowCanvas {
     return i !== undefined && 'grid' in i ? { grid: i.grid, ...(i.port !== undefined ? { port: i.port } : {}) } : undefined;
   }
 
-  /** Whether a box is drawn with two outputs: a Filter's True and False, a Unique's U and D (its filter's, turned round). */
-  #isFilter(id: string): boolean {
+  /** How a box's outputs are drawn: a Filter's True and False, a Unique's U and D (its filter's, turned round); a Join's
+   *  (a Fuzzy Match's too) L, J and R; any other box's one. */
+  #outsOf(id: string): Outs {
     const tool = this.#said(id)?.tool;
-    return tool === 'filter' || tool === 'unique';
+    return tool === 'filter' || tool === 'unique' ? 'two' : tool === 'join' || tool === 'fuzzyMatch' ? 'three' : 'one';
+  }
+
+  /** The columns a Join's L or R hands on: those of the box it reads on that side, live; none said, a copy. */
+  #sideColumns(id: string, side: 'left' | 'right'): string[] {
+    const input = this.#inputsOf(id).find((i) => i.side === side);
+    return input !== undefined && 'grid' in input ? this.#columnsOf(input.grid) : [];
   }
 
   /**
@@ -1558,7 +1584,7 @@ export class FlowCanvas {
         const into = foldedIn.get(box.tile);
         if (from !== undefined && from === into) continue;
         const x1 = from !== undefined ? from.x + from.frame!.w : a.x + BOX_WIDTH;
-        const y1 = from !== undefined ? from.y + FRAME_HEAD / 2 : a.y + outY(this.#isFilter(input.grid), input.port);
+        const y1 = from !== undefined ? from.y + FRAME_HEAD / 2 : a.y + outY(this.#outsOf(input.grid), input.port);
         const x2 = into !== undefined ? into.x : box.x;
         const y2 = into !== undefined ? into.y + FRAME_HEAD / 2 : box.y + portY(input.side);
         lines.push({
@@ -1570,7 +1596,7 @@ export class FlowCanvas {
     const w = this.#wire;
     const wire = w === undefined ? undefined : (() => {
       const a = at.get(w.from);
-      return a === undefined ? undefined : curve(a.x + BOX_WIDTH, a.y + outY(this.#isFilter(w.from), w.port), w.x, w.y);
+      return a === undefined ? undefined : curve(a.x + BOX_WIDTH, a.y + outY(this.#outsOf(w.from), w.port), w.x, w.y);
     })();
     // a line selected or marked that is gone (its box taken off, linked elsewhere) is let go
     const keys = new Set(lines.map((l) => lineKey(l.end)));
@@ -1606,12 +1632,12 @@ export class FlowCanvas {
     if (mid !== undefined) this.#unlink.style.transform = `translate(${mid.x - 9}px, ${mid.y - 9}px)`;
   }
 
-  /** What goes along a line from `from` (its port: a Filter's False, a Unique's Duplicates) into `into`: its rows when
-   *  they were counted, and its columns, as `from`'s document says them. */
+  /** What goes along a line from `from` (its port: a Filter's False, a Unique's Duplicates, a Join's L or R) into `into`:
+   *  its rows when they were counted, and its columns, as `from`'s document says them (a Join's L or R, its side's). */
   #lineWords(from: string, port: InputPort | undefined, into: string): string {
     const tool = this.#said(from)?.tool ?? 'browse';
-    const out = port === undefined ? '' : ` (${PORT_WORDS[tool === 'unique' ? 'unique' : 'filter'][1]})`;
-    const columns = this.#columnsOf(from);
+    const out = port === undefined ? '' : ` (${portWord(tool, port)})`;
+    const columns = port === 'left' || port === 'right' ? this.#sideColumns(from, port) : this.#columnsOf(from);
     const rows = port === undefined ? this.#board.count(from) : undefined;
     return [
       `${this.#nameOf(from, tool)}${out} → ${this.#nameOf(into, this.#said(into)?.tool ?? 'browse')}`,
@@ -1857,12 +1883,14 @@ export class FlowCanvas {
     const boxes = this.#board.layout.boxes.map((b) => b.tile);
     const readers = id === undefined || inputs.length === 0 ? new Set<string>()
       : readersOf(id, boxes, (b) => this.#board.options.documentOf?.(b));
-    // each box of the flow, and a Filter's False besides
+    // each box of the flow, and its other outputs besides: a Filter's False, a Join's L and R
     const offered = boxes.filter((b) => b !== id && !readers.has(b)).flatMap((b) => {
-      const name = this.#nameOf(b, this.#said(b)?.tool ?? 'browse');
-      if (!this.#isFilter(b)) return [{ id: b, name }];
-      const [yes, no] = PORT_WORDS[this.#said(b)?.tool === 'unique' ? 'unique' : 'filter'];
-      return [{ id: b, name: `${name} (${yes})` }, { id: b, name: `${name} (${no})`, port: 'false' as const }];
+      const tool = this.#said(b)?.tool;
+      const name = this.#nameOf(b, tool ?? 'browse');
+      const outs = this.#outsOf(b);
+      if (outs === 'one') return [{ id: b, name }];
+      const ports: readonly (InputPort | undefined)[] = outs === 'two' ? [undefined, 'false'] : [undefined, 'left', 'right'];
+      return ports.map((port) => ({ id: b, name: `${name} (${portWord(tool, port)})`, ...(port !== undefined ? { port } : {}) }));
     });
     const key = JSON.stringify([id, inputs, offered, this.#board.editing]);
     if (key === this.#inputsKey) return;
@@ -1896,7 +1924,7 @@ export class FlowCanvas {
         if (v === 'frozen') this.#board.options.onFreeze?.(id!, input.side);
         else {
           const [grid, port] = v.slice('grid:'.length).split(':');
-          this.#board.options.onConnect?.(id!, input.side, grid!, port === 'false' ? 'false' : undefined);
+          this.#board.options.onConnect?.(id!, input.side, grid!, port === 'false' || port === 'left' || port === 'right' ? port : undefined);
         }
       });
       row.append(words, pick);

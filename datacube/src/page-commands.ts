@@ -801,9 +801,13 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
         throw new CubeRefusal(`'${command.grid}' reads its snap: its join moves it once it goes live`);
       }
       if (sameValue(source.how, command.how)) throw new CubeRefusal(`'${command.grid}' joins so already`);
-      return done(rewritten(page, {
+      const next = rewritten(page, {
         cubes: page.cubes.map((c) => (c.id === held.id ? { id: c.id, cube: { ...c.cube, source: { ...source, how: command.how } } } : c)),
-      }));
+      });
+      // a box reading its L or R reads it still (live-inputs.ts liveProblem: the page's reader's rule)
+      const problem = liveProblem(next);
+      if (problem !== undefined) throw new CubeRefusal(problem);
+      return done(next);
     }
     case 'setOutput': {
       const view = viewNamed(page, command.grid);

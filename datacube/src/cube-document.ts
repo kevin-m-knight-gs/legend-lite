@@ -48,7 +48,7 @@ import {
   type SourceRef,
 } from './snapshot.ts';
 import { TreeState, parsePathKey, type RowPath } from './tree.ts';
-import { readJoinHow, type JoinHow } from './join-how.ts';
+import { readJoinCondition, readJoinHow, type JoinCondition, type JoinHow } from './join-how.ts';
 import { idShape } from './page-ids.ts';
 import type { UploadFormat } from './upload.ts';
 import type { SharedQuery } from '../../query-store/src/share.ts';
@@ -194,6 +194,16 @@ export interface JoinInput {
   /** The columns its rows rename, each from its name to another: a flow's box's renamed columns (a Select's: its display
    *  names), since what reads a box reads them by the names it gives them. Absent, none. */
   readonly rename?: readonly { readonly from: string; readonly to: string }[];
+  /** Its rows that no row of another input pairs with, in turn (a Join's L or R: live-inputs.ts gridInput) -- each an
+   *  anti-join the database runs (join-open.ts), on a condition naming each side's columns by the names it hands them on
+   *  by. Absent, every row. */
+  readonly unmatched?: readonly Unmatched[];
+}
+
+/** Rows of an input matched against another's (JoinInput.unmatched): those `by`'s rows pair with none on `on`. */
+export interface Unmatched {
+  readonly by: JoinInput;
+  readonly on: JoinCondition;
 }
 
 /**
@@ -213,14 +223,16 @@ export interface RowsSource {
 }
 
 /** A LIVE INPUT (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL6): the grid of this id on the same page, as it is now -- or one
- *  of its ports (FL7): `false`, the rows its filter leaves out (a Filter's False output). */
+ *  of its ports (FL7): `false`, the rows its filter leaves out (a Filter's False output); `left`, `right`, a Join's L and
+ *  R. */
 export interface LiveInput {
   readonly grid: string;
   readonly port?: InputPort;
 }
 
-/** A grid's output besides its rows (FL7): a Filter's False -- its input's rows its condition does not hold for. */
-export type InputPort = 'false';
+/** A grid's output besides its rows (FL7): a Filter's False -- its input's rows its condition does not hold for; a
+ *  Join's L and R -- the rows of its Left, or of its Right, its condition pairs with no row of the other (Alteryx's). */
+export type InputPort = 'false' | 'left' | 'right';
 
 /** An input of a grid over another's rows: live (the grid on the page), or frozen (what a grid was: a join's input). */
 export type CubeInput = LiveInput | JoinInput;
@@ -286,10 +298,15 @@ export type LeafSource = Exclude<CubeSource, JoinSource | RowsSource>;
  */
 export function leavesOf(source: CubeSource): LeafSource[] {
   switch (source._type) {
-    case 'join': return [...leavesOf(frozenInput(source.left, source.name).source), ...leavesOf(frozenInput(source.right, source.name).source)];
-    case 'rows': return leavesOf(frozenInput(source.input, source.name).source);
+    case 'join': return [...inputLeaves(frozenInput(source.left, source.name)), ...inputLeaves(frozenInput(source.right, source.name))];
+    case 'rows': return inputLeaves(frozenInput(source.input, source.name));
     default: return [source];
   }
+}
+
+/** An input's leaves: its source's, then each input its rows are matched against (JoinInput.unmatched), in turn. */
+function inputLeaves(input: JoinInput): LeafSource[] {
+  return [...leavesOf(input.source), ...(input.unmatched ?? []).flatMap((u) => inputLeaves(u.by))];
 }
 
 /**
@@ -565,8 +582,22 @@ function readFrozenInput(i: Record<string, unknown>, what: string): JoinInput {
     && typeof (r as Record<string, unknown>)['from'] === 'string' && typeof (r as Record<string, unknown>)['to'] === 'string'))) {
     throw new CubeDocumentError(`${what}'s columns renamed are a list of {from, to}, not ${JSON.stringify(plain(rename) ?? null)}`);
   }
+  const unmatched = i['unmatched'];
+  if (unmatched !== undefined && !(Array.isArray(unmatched) && unmatched.length > 0 && unmatched.every((u) => isObject(u) && isObject(u['by'])))) {
+    throw new CubeDocumentError(`${what}'s unmatched rows are a list of {by, on}, not ${JSON.stringify(plain(unmatched) ?? null)}`);
+  }
+  const matched = (u: Record<string, unknown>, n: number): Unmatched => {
+    const by = readFrozenInput(u['by'] as Record<string, unknown>, `${what}'s unmatched ${n}`);
+    try {
+      return { by, on: readJoinCondition(u['on'], `${what}'s unmatched ${n}`) };
+    } catch (e) {
+      if (e instanceof CubeRefusal) throw new CubeDocumentError(e.message);
+      throw e;
+    }
+  };
   return { name: i['name'], source: readSource(i['source']), query: readQuery(i['query']), ...(omit !== undefined ? { omit: omit as string[] } : {}),
-    ...(rename !== undefined ? { rename: (rename as { from: string; to: string }[]).map((r) => ({ from: r.from, to: r.to })) } : {}) };
+    ...(rename !== undefined ? { rename: (rename as { from: string; to: string }[]).map((r) => ({ from: r.from, to: r.to })) } : {}),
+    ...(unmatched !== undefined ? { unmatched: (unmatched as Record<string, unknown>[]).map((u, n) => matched(u, n + 1)) } : {}) };
 }
 
 /** Another grid's rows (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): its name, its columns, its input live or frozen. */
@@ -588,10 +619,11 @@ function readInput(i: Record<string, unknown>, what: string): CubeInput {
   if (typeof i['grid'] !== 'string' || !idShape('grid').test(i['grid'])) {
     throw new CubeDocumentError(`a live input names a grid of its page ('grid-3'), not ${JSON.stringify(plain(i['grid']) ?? null)}`);
   }
-  if (i['port'] !== undefined && i['port'] !== 'false') {
-    throw new CubeDocumentError(`a live input's port is a Filter's 'false', not ${JSON.stringify(plain(i['port']) ?? null)}`);
+  const port = i['port'];
+  if (port !== undefined && port !== 'false' && port !== 'left' && port !== 'right') {
+    throw new CubeDocumentError(`a live input's port is a Filter's 'false' or a Join's 'left' or 'right', not ${JSON.stringify(plain(port) ?? null)}`);
   }
-  return i['port'] === 'false' ? { grid: i['grid'], port: 'false' } : { grid: i['grid'] };
+  return port !== undefined ? { grid: i['grid'], port } : { grid: i['grid'] };
 }
 
 /** An input read from JSON (a page command's: setInput), refused in words as a cube's own reader refuses it. */

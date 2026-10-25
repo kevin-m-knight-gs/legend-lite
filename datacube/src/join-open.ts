@@ -83,7 +83,9 @@ export interface OpenedJoin extends OpenedInputs {
  * AN INPUT'S ROWS, the one rule (a join's input; another grid's rows' input, docs/DATACUBE_FLOW_MODE_2026_10_24.md
  * §3.1): its cube opened over `over` -- what its source is now, as `typer` types it -- at its finest level (query.ts
  * classLambda: a flat cube's rows, a grouped cube's groups), what drifted since said in `notes` under its name. Refused
- * in words when it is pivoted: its columns are its values, so its rows have no fixed columns.
+ * in words when it is pivoted: its columns are its values, so its rows have no fixed columns. Its rows matched against
+ * another input's (JoinInput.unmatched: a Join's L or R) are not these: they are read over one model of both, its side
+ * (overOneModel) or openRows.
  */
 export async function inputRows(input: JoinInput, over: ValueSpecification, typer: RelationTyper, notes: string[]): Promise<JoinSide> {
   const opened = openCube(inputCube(input), { query: over }, await sourceColumns(typer, over));
@@ -154,7 +156,12 @@ async function overOneModel(leaves: readonly LeafSource[], o: JoinOpening): Prom
     const r = await side(frozenInput(s.right, s.name));
     return joinRelation(l, r, reconciled(s.how, r, notes));
   };
-  const side = async (input: JoinInput): Promise<JoinSide> => inputRows(input, await relation(input.source), typer, notes);
+  const side = async (input: JoinInput): Promise<JoinSide> => {
+    let rows = await inputRows(input, await relation(input.source), typer, notes);
+    // a Join's L or R (cube-document.ts JoinInput.unmatched): its rows no row of the other's pairs with, in turn
+    for (const u of input.unmatched ?? []) rows = { ...rows, relation: joinRelation(rows, await side(u.by), { form: 'anti', on: u.on }) };
+    return rows;
+  };
   return { model: written.model, runtime: written.runtime, typer, notes, relation, side };
 }
 

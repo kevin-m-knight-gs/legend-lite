@@ -108,7 +108,9 @@ function readRow<Op extends string>(raw: unknown, what: string, ops: readonly Op
     ...(within !== undefined ? { within: within as number } : {}) };
 }
 
-function readCondition(raw: unknown, what: string): JoinCondition {
+/** A condition read field by field as a join source keeps it (its `on`), or why not (CubeRefusal): a Join's L and R
+ *  keep one too (cube-document.ts JoinInput.unmatched). */
+export function readJoinCondition(raw: unknown, what: string): JoinCondition {
   const o = object(raw, what, ['rows', 'lambda']);
   if ('rows' in o === 'lambda' in o) throw new CubeRefusal(`${what} is rows or a lambda, one of them`);
   if ('rows' in o) {
@@ -150,21 +152,21 @@ export function readJoinHow(raw: unknown): JoinHow {
         throw new CubeRefusal(`a join's kind is one of ${JOIN_KINDS.join(', ')}, not ${JSON.stringify(o['kind'])}`);
       }
       return {
-        form, kind: o['kind'] as JoinKindWord, on: readCondition(o['on'], "a join's condition"), prefix: readPrefix(o['prefix']),
+        form, kind: o['kind'] as JoinKindWord, on: readJoinCondition(o['on'], "a join's condition"), prefix: readPrefix(o['prefix']),
         keep: readKeep(o['keep']),
       };
     }
     case 'asOf': {
       const o = object(raw, 'an as-of join', ['form', 'match', 'on', 'prefix', 'keep']);
       return {
-        form, match: readRow(o['match'], "an as-of join's match", AS_OF_OPS), on: readCondition(o['on'], "an as-of join's condition"),
+        form, match: readRow(o['match'], "an as-of join's match", AS_OF_OPS), on: readJoinCondition(o['on'], "an as-of join's condition"),
         prefix: readPrefix(o['prefix']), keep: readKeep(o['keep']),
       };
     }
     case 'semi':
     case 'anti': {
       const o = object(raw, `a ${form}-join`, ['form', 'on']);
-      return { form, on: readCondition(o['on'], `a ${form}-join's condition`) };
+      return { form, on: readJoinCondition(o['on'], `a ${form}-join's condition`) };
     }
     case 'append':
       object(raw, 'an append', ['form']);
@@ -172,6 +174,30 @@ export function readJoinHow(raw: unknown): JoinHow {
     default:
       throw new CubeRefusal(`a join's form is one of ${JOIN_FORMS.join(', ')}, not ${JSON.stringify(form)}`);
   }
+}
+
+/** A row's comparison turned round: mine `<` theirs is theirs `>` mine. */
+const MIRRORED: Readonly<Record<JoinOp, JoinOp>> = { '==': '==', '!=': '!=', '<': '>', '<=': '>=', '>': '<', '>=': '<=', '~': '~' };
+
+/**
+ * WHAT PAIRS A SIDE'S ROW WITH NONE (a Join's L and R: docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.3): the condition an
+ * anti-join of that side against the other is on -- the join's own for its Left; for its Right, turned round (each row's
+ * columns swapped and its comparison mirrored, a Pure condition's two rows named the other way). Refused in words: a
+ * Union (it keeps every row of both), an as-of join (each row of mine has its nearest or none: a join's left kind says
+ * it), a join's Pure condition (it names their columns as the join brings them out, prefixed; an anti-join, by their own).
+ */
+export function unmatchedOn(how: JoinHow, side: 'left' | 'right'): JoinCondition {
+  if (how.form === 'append') throw new CubeRefusal('a Union keeps every row of both: none is left unmatched');
+  if (how.form === 'asOf') throw new CubeRefusal("an as-of join's rows of mine with no nearest row are its left kind's: it has no Left and Right unmatched");
+  const on = how.on;
+  if ('rows' in on) {
+    return side === 'left' ? on : { rows: on.rows.map((r) => ({ left: r.right, op: MIRRORED[r.op], right: r.left, ...(r.within !== undefined ? { within: r.within } : {}) })) };
+  }
+  if (how.form === 'join') {
+    throw new CubeRefusal('its condition is Pure, naming their columns as the join brings them out: set it by rows to read its Left and Right unmatched');
+  }
+  const [mine, theirs] = on.lambda.parameters;
+  return side === 'left' ? on : { lambda: { ...on.lambda, parameters: [theirs!, mine!] } };
 }
 
 /** An input as a key is suggested over it: what it is called and its columns -- no relation needed (a menu's). */

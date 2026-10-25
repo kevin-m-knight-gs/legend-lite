@@ -12,7 +12,8 @@ import {
 import type { ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { ColumnSpec, CubeSnapshot } from '../snapshot.ts';
 import type { FileHandle } from '../file-handles.ts';
-import { TAB_TABLES, inputRows, openInputs, openJoin, openRows, type JoinOpening, type OpenedInputs } from '../join-open.ts';
+import { TAB_TABLES, inputRows, leafRefusal, openInputs, openJoin, openRows, type JoinOpening, type OpenedInputs } from '../join-open.ts';
+import { CubeRefusal } from '../snapshot.ts';
 import type { HeldCopy } from '../app.ts';
 import type { SnapTarget } from '../cube.ts';
 import type { RelationTyper } from '../source-columns.ts';
@@ -195,6 +196,10 @@ async function openedAfterStart(h: JoinSourcesHost, source: RowsSource, resolved
     if (isLive(input)) throw new Error(`${s.name} reads grid '${input.grid}' live: resolve it against its page first`);
     inputs.unshift(input);
     s = input.source;
+  }
+  // a Join's L or R reads both of the join's inputs, so where a join reads them: this tab's own tables
+  if (inputs.some((i) => i.unmatched !== undefined)) {
+    throw new CubeRefusal(leafRefusal(leavesOf(resolved).find((l) => leafRefusal(l, TAB_TABLES) !== undefined)!, TAB_TABLES)!);
   }
   const start = await h.openedStart(inputCube(inputs[0]!), true);
   if (!start) return undefined;
