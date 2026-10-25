@@ -75,6 +75,56 @@ export function removeBox(flow: Flow, tile: string): Flow {
   return { boxes: flow.boxes.filter((b) => b.tile !== tile) };
 }
 
+/**
+ * A FLOW TIDIED (Tidy Up, Alteryx's Arrange: docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): each box in the column of how far
+ * it is from the flow's start -- a box that reads none of the flow's first, a box one column after the furthest box it
+ * reads -- and, down a column, in the order of the boxes it reads (as level with them as the column has room), else as it
+ * was; every place on the grid of the flow's gaps. `reads`: the boxes a box reads live. The boxes in the order they came.
+ */
+export function arranged(flow: Flow, reads: (tile: string) => readonly string[]): Flow {
+  const on = new Set(flow.boxes.map((b) => b.tile));
+  const inputs = (tile: string): string[] => reads(tile).filter((r) => r !== tile && on.has(r));
+  const depth = new Map<string, number>();
+  const visiting = new Set<string>();
+  const depthOf = (tile: string): number => {
+    const known = depth.get(tile);
+    if (known !== undefined) return known;
+    // a cycle the page would refuse: its box where it starts
+    if (visiting.has(tile)) return 0;
+    visiting.add(tile);
+    const read = inputs(tile);
+    const d = read.length === 0 ? 0 : 1 + Math.max(...read.map(depthOf));
+    visiting.delete(tile);
+    depth.set(tile, d);
+    return d;
+  };
+  for (const b of flow.boxes) depthOf(b.tile);
+  const was = new Map(flow.boxes.map((b) => [b.tile, b] as const));
+  const row = new Map<string, number>();
+  const deepest = Math.max(0, ...depth.values());
+  for (let d = 0; d <= deepest; d += 1) {
+    // where each would like to be: level with the boxes it reads, else where it was
+    const wanted = (tile: string): number => {
+      const read = inputs(tile).filter((r) => row.has(r));
+      return read.length === 0 ? Number.POSITIVE_INFINITY : read.reduce((sum, r) => sum + row.get(r)!, 0) / read.length;
+    };
+    const these = flow.boxes.map((b) => b.tile).filter((t) => depth.get(t) === d)
+      .sort((a, b) => wanted(a) - wanted(b) || was.get(a)!.y - was.get(b)!.y || was.get(a)!.x - was.get(b)!.x);
+    let next = 0;
+    for (const tile of these) {
+      const w = wanted(tile);
+      const at = Number.isFinite(w) ? Math.max(next, Math.round(w)) : next;
+      row.set(tile, at);
+      next = at + 1;
+    }
+  }
+  return {
+    boxes: flow.boxes.map((b) => ({
+      tile: b.tile, x: MARGIN + depth.get(b.tile)! * (BOX_WIDTH + GAP_X), y: MARGIN + row.get(b.tile)! * (BOX_HEIGHT + GAP_Y),
+    })),
+  };
+}
+
 /** What is wrong with a flow, in words (none: it is one). */
 export function flowProblems(flow: Flow): string[] {
   const problems: string[] = [];

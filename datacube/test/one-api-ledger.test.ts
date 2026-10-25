@@ -398,7 +398,9 @@ describe('L8: every command kind and source kind, against who makes and reads it
 
   it('each command kind is made by the screen and by Python, or listed', () => {
     // what the page's table makes is credited, never the module's other gestures (the S8 audit's 1)
-    assert.ok(made(pageGestureRule, 'followGrid') && made(pageGestureRule, 'setChart') && !made(pageGestureRule, 'layout'));
+    // (2026-10-25, docs/DATACUBE_FLOW_MODE_2026_10_24.md M7: the table's flow.tidy makes a flow's layout now -- a module
+    // gesture it does not call, moveToSheetCommands' moveTile, is the one that must not be credited)
+    assert.ok(made(pageGestureRule, 'followGrid') && made(pageGestureRule, 'setChart') && !made(pageGestureRule, 'moveTile'));
     const problems: string[] = [];
     for (const kind of [...gridKinds, ...pageKinds]) {
       const has: Record<Cell, boolean> = {

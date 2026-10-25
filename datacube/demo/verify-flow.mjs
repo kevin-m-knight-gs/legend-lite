@@ -458,6 +458,36 @@ try {
   check(await page.locator('.dc-flow-dock [role="tab"][aria-selected="true"]').getAttribute('data-tab') === 'Horizontal Pivots',
     'Properties at its column labels (its column pivots)');
   await page.screenshot({ path: outPath('flow-tools.png') });
+
+  // TIDY UP (M7): a box pushed out of place, then every box a column after the boxes it reads -- one step; then a box's
+  // menu, Duplicate
+  const pushed = page.locator(`.dc-flow-box[data-tile="${formula.id}"]`);
+  await pushed.focus();
+  for (let i = 0; i < 6; i += 1) await pushed.press('Shift+ArrowDown');
+  await page.locator('.dc-flow-tidy').click();
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Tidy Up', 'one step: Tidy Up');
+  const tidied = await page.evaluate(() => window.__dataPage.document('x').sheets.find((s) => s.layout.kind === 'flow').layout.boxes);
+  const xOf = (id) => tidied.find((b) => b.tile === id).x;
+  check(xOf(input.id) < xOf(filter.id) && xOf(filter.id) < xOf(join.id) && xOf(filter.id) < xOf(formula.id),
+    `each box after the boxes it reads: ${JSON.stringify(tidied.map((b) => [b.tile, b.x, b.y]))}`);
+  await page.screenshot({ path: outPath('flow-tidied.png') });
+  const beforeCopy = (await boxes()).map((b) => b.id);
+  await page.locator(`.dc-flow-box[data-tile="${formula.id}"]`).click({ button: 'right' });
+  const duplicate = page.locator('.dc-menu .dc-menu-item', { hasText: 'Duplicate' }).first();
+  await duplicate.waitFor({ timeout: 5_000 });
+  check(await page.locator('.dc-menu .dc-menu-item', { hasText: 'Freeze its Input' }).count() === 1, 'its menu offers to freeze its input');
+  await duplicate.click();
+  await boxCount(beforeCopy.length + 1);
+  const copy = await added(beforeCopy);
+  check(copy.tool === 'formula' && copy.says === 'fee', `a copy of the Formula: ${JSON.stringify(copy)}`);
+  check(await readsOf(copy.id) === filter.id, 'reading what it reads');
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Duplicate Box', 'one step: Duplicate Box');
+
+  // THE PALETTE'S FIND: its tools narrowed to what is typed
+  await page.fill('.dc-flow-find', 'join');
+  const visible = await page.locator('.dc-flow-tool:visible').evaluateAll((els) => els.map((e) => e.dataset.tool));
+  check(JSON.stringify(visible) === JSON.stringify(['join']), `found: ${visible}`);
+  await page.fill('.dc-flow-find', '');
 } catch (e) {
   bad(`threw: ${e.stack ?? e}`);
 } finally {

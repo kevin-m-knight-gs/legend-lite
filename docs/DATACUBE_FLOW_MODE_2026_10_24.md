@@ -590,6 +590,19 @@ its column in its rows; a Cross Tab's Properties docked at Column Labels). Still
 form of its own, the grid's Top N being by a column), Unique, the parse tools as Formula presets, Data Cleansing,
 Imputation.
 
+### M7's first steps (2026-10-25)
+
+**Built, the canvas's own tools** (`layout/flow.ts` `arranged`, `page-gestures.ts` `tidyCommands` and the `flow.tidy`
+gesture, `layout/flow-canvas.ts`, `page/cube-page.ts`, `page/page-app.ts`): **Tidy Up**, at the canvas's corner, places
+every box a column after the furthest box it reads and, down a column, level with the boxes it reads, else in the order
+it was down the canvas -- one step, nothing when it is tidy already; Python's `flow.tidy()` asks the same rule (headless
+`pageGesture`). **Duplicate** (Ctrl+D on a box, or its menu): a copy of its cube, reading what it reads, after the box it
+reads first -- a document until shown. **A box's menu** (a right-click): Show its rows, Open its settings, Rename,
+Duplicate, Freeze each live input, Remove -- each the same as its gesture elsewhere. **The palette's find field**: its
+tools narrowed to the ones whose name or words hold what is typed, Enter adding the first after the box shown. Tested
+by `flow-sheet.test.ts` (the rule), Python's `Flows` (`flow.tidy`) and the harness (a box pushed out of place and tidied,
+the Formula duplicated from its menu, the palette narrowed to Join).
+
 **Still open in M2:** ports with several outputs (FL7: a Filter's False, a Unique's Duplicates), a Union of more than
 two inputs, Append Fields, Find Replace and Fuzzy Match; and the board's own Join… making live joins too (FL6's "new
 joins are live": the flow's are; the board's still copies, as Python's `page.join` of two board grids).

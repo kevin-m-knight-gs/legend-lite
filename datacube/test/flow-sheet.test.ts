@@ -11,7 +11,7 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { boxInputs, boxSays, readersOf } from '../src/flow-boxes.ts';
 import { add, NEW_SHEET } from '../src/layout/bands.ts';
 import {
-  BOX_HEIGHT, BOX_WIDTH, EMPTY_FLOW, FlowRefusal, GAP_X, GAP_Y, MARGIN, flowProblems, moveBox, placeAfter, removeBox,
+  BOX_HEIGHT, BOX_WIDTH, EMPTY_FLOW, FlowRefusal, GAP_X, GAP_Y, MARGIN, arranged, flowProblems, moveBox, placeAfter, removeBox,
 } from '../src/layout/flow.ts';
 import { liveGrids } from '../src/live-inputs.ts';
 import { applyPageCommand, idsOf, readPageCommand, type PageCommand, type PageDraft } from '../src/page-commands.ts';
@@ -90,6 +90,24 @@ describe("a flow's layout (layout/flow.ts)", () => {
     assert.throws(() => moveBox(flow, 'z', 0, 0), /'z' is no box of this flow/);
     assert.deepEqual(removeBox(flow, 'a').boxes.map((b) => b.tile), ['b']);
     assert.deepEqual(removeBox(flow, 'z'), flow, 'a box it does not have: as it is');
+  });
+
+  it('tidies a flow: each box a column after the boxes it reads, level with them, else as it was down the canvas', () => {
+    const reads: Record<string, string[]> = { input: [], other: [], filter: ['input'], join: ['filter', 'other'], sort: ['input'] };
+    const messy = { boxes: [
+      { tile: 'join', x: 10, y: 500 }, { tile: 'input', x: 700, y: 30 }, { tile: 'sort', x: 5, y: 5 },
+      { tile: 'filter', x: 300, y: 300 }, { tile: 'other', x: 0, y: 900 },
+    ] };
+    const tidy = arranged(messy, (t) => reads[t] ?? []);
+    const at = (t: string) => tidy.boxes.find((b) => b.tile === t);
+    const col = (n: number) => MARGIN + n * (BOX_WIDTH + GAP_X);
+    const row = (n: number) => MARGIN + n * (BOX_HEIGHT + GAP_Y);
+    assert.deepEqual(tidy.boxes.map((b) => b.tile), messy.boxes.map((b) => b.tile), 'the boxes in the order they came');
+    assert.deepEqual([at('input'), at('other')], [{ tile: 'input', x: col(0), y: row(0) }, { tile: 'other', x: col(0), y: row(1) }]);
+    // the Sort was higher up the canvas than the Filter: first in their column
+    assert.deepEqual([at('sort'), at('filter')], [{ tile: 'sort', x: col(1), y: row(0) }, { tile: 'filter', x: col(1), y: row(1) }]);
+    assert.deepEqual(at('join'), { tile: 'join', x: col(2), y: row(1) }, 'level with the boxes it reads');
+    assert.deepEqual(arranged(tidy, (t) => reads[t] ?? []), tidy, 'tidy already: as it is');
   });
 
   it('says what is wrong with a flow read from somewhere', () => {

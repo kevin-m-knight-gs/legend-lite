@@ -41,6 +41,10 @@ export interface FlowBoardOptions {
   readonly onUndo?: (redo: boolean) => void;
   /** A file dropped onto the canvas (from the desktop): the caller adds an Input box over it. */
   readonly onFile?: (file: File) => void;
+  /** Tidy Up (the canvas's button): the caller places every box by the flow's own rule (page-gestures.ts tidyCommands). */
+  readonly onTidy?: () => void;
+  /** Duplicate (Ctrl+D on a box, or its menu): the caller adds a copy of it, reading what it reads. */
+  readonly onDuplicate?: (id: string) => void;
   /** Each box's cube document as the page has it: what it does, and the boxes it reads (the lines into it). */
   readonly documentOf?: (id: string) => CubeDocument | undefined;
 }

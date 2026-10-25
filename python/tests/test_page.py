@@ -2642,6 +2642,23 @@ class Flows(Paged):
         self.assertEqual(again.to_dict()['sheets'], saved['sheets'])
         self.assertTrue(again.sheets[1].flow)
 
+    def test_tidied_as_the_canvas_tidies_it(self):
+        # M7: each box a column after the boxes it reads, level with them -- then nothing to do
+        page, flow, source, big = self.flowed()
+        top = flow.grid(input=source)
+        big.place(500, 300)
+        flow.tidy()
+        places = {b['tile']: (b['x'], b['y']) for b in self.boxes(page, flow)}
+        self.assertEqual(places[source.id], (40, 40))
+        # both read the Input: level with it, in the order they were down the canvas (the Filter moved below)
+        self.assertEqual(places[top.id], (40 + 184 + 64, 40))
+        self.assertEqual(places[big.id], (40 + 184 + 64, 40 + 60 + 32))
+        steps = len(page._page_commands)
+        flow.tidy()
+        self.assertEqual(len(page._page_commands), steps, 'tidy already: nothing told')
+        with self.assertRaisesRegex(ValueError, 'is a board: its tiles are laid out in bands'):
+            page.sheets[0].tidy()
+
     def test_a_box_relinked_and_frozen(self):
         # docs/DATACUBE_FLOW_MODE_2026_10_24.md M2: a line drawn from another box's output, a box frozen
         page, flow, source, big = self.flowed()

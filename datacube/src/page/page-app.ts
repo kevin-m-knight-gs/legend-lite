@@ -43,7 +43,7 @@ import {
   applyToState, idsOf, selectionRefilters, takenIds, type PageCommand, type PageDraft,
 } from '../page-commands.ts';
 import { applyPlanned, namedUnder } from '../page-between.ts';
-import { pageCommand } from '../page-gestures.ts';
+import { pageCommand, tidyCommands } from '../page-gestures.ts';
 import { PageState } from '../page-state.ts';
 import { givenName } from '../page-names.ts';
 import type { PageModelRef } from '../page-model.ts';
@@ -1009,6 +1009,11 @@ export class PageApp {
       ...(this.#options.onFlowJoin ? {
         onJoinBox: (box: string, sheet: string) => this.#options.onFlowJoin?.(box, sheet, this.#state.draft.page),
       } : {}),
+      // TIDY UP: the flow's boxes placed by its own rule, one step -- or, placed so already, nothing
+      onTidy: (sheet: string) => {
+        const commands = tidyCommands(this.#state.draft.page, sheet);
+        if (commands.length > 0 && this.#edit({ label: 'Tidy Up', commands })) this.#options.onChange?.();
+      },
       ...(this.#options.onFlowTool ? {
         onTool: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined, into?: LineEnd) =>
           this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page, editor, into),

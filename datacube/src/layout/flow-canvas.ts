@@ -11,7 +11,9 @@
 // told once, on drop. A gesture owns its pointer to the end: let go (applied), Escape, a lost capture (undone).
 //
 // THE KEYBOARD: Tab moves among the palette's tools and the boxes; Enter shows a box, the arrows move it (Shift: further),
-// Delete takes it off, F2 renames it; Enter on a tool adds a box of it after the box shown. A box's inputs are set in its
+// Delete takes it off, F2 renames it, Ctrl+D duplicates it; Enter on a tool adds a box of it after the box shown, and the
+// palette's find field narrows its tools (Enter there adds the first). A box right-clicked offers all of it; Tidy Up, at
+// the canvas's corner, places every box a column after the boxes it reads. A box's inputs are set in its
 // settings too (Input, a join's Left and Right): a box of the flow, or a frozen copy.
 //
 // LINES (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): drawn from a box's output port onto another box, a line links it (a
@@ -25,6 +27,8 @@ import type { LineEnd } from './flow-board.ts';
 import type { InputSide } from '../cube-document.ts';
 import { boxInputs, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowTool } from '../flow-boxes.ts';
 import { gridTitle } from '../page-ids.ts';
+import type { MenuItem } from '../ui/menu.ts';
+import { MenuView } from '../ui/menu-view.ts';
 
 /** How far a pressed box or tool moves before it is dragged rather than clicked, in pixels. */
 const DRAG_PX = 4;
@@ -138,6 +142,14 @@ export class FlowCanvas {
   /** The settings' inputs: a box's Input (a join's Left and Right), each a box of the flow or a frozen copy. */
   readonly #inputs: HTMLElement;
   #inputsKey = '';
+  /** A box's menu (a right-click), made the first time, and what its entry picked does. */
+  #menu: MenuView | undefined;
+  #menuAct: ((item: MenuItem) => void) | undefined;
+  /** The canvas's own tools, at its corner: Tidy Up. */
+  readonly #toolbar: HTMLElement;
+  /** The palette's find field, and its tools by name. */
+  readonly #find: HTMLInputElement;
+  readonly #tools = new Map<FlowTool, HTMLButtonElement>();
 
   constructor(host: HTMLElement, board: FlowBoardState) {
     this.#host = host;
@@ -153,6 +165,26 @@ export class FlowCanvas {
     this.#palette.setAttribute('role', 'toolbar');
     this.#palette.setAttribute('aria-label', 'Tools');
     this.#palette.setAttribute('aria-orientation', 'vertical');
+    // FIND: its tools narrowed to those whose name or words hold what is typed; Enter adds the first after the box shown
+    this.#find = doc.createElement('input');
+    this.#find.type = 'search';
+    this.#find.className = 'dc-flow-find';
+    this.#find.placeholder = 'Find';
+    this.#find.setAttribute('aria-label', 'Find a tool');
+    this.#find.addEventListener('input', () => this.#narrow());
+    this.#find.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.#find.value !== '') {
+        e.stopPropagation();
+        this.#find.value = '';
+        this.#narrow();
+        return;
+      }
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const first = PALETTE.find((t) => !this.#tools.get(t)!.hidden);
+      if (first !== undefined) this.#board.options.onTool?.(first, this.#board.shown, TOOL_EDITORS[first]);
+    });
+    this.#palette.append(this.#find);
     // its tools by Alteryx's groups, each under its heading
     let group: string | undefined;
     for (const tool of PALETTE) {
@@ -161,10 +193,13 @@ export class FlowCanvas {
         group = g;
         const heading = el('div', 'dc-flow-group');
         heading.textContent = GROUP_WORDS[g];
+        heading.dataset['group'] = g;
         heading.setAttribute('aria-hidden', 'true');
         this.#palette.append(heading);
       }
-      this.#palette.append(this.#tool(tool));
+      const button = this.#tool(tool);
+      this.#tools.set(tool, button);
+      this.#palette.append(button);
     }
     const main = el('div', 'dc-flow-main');
     this.#canvas = el('div', 'dc-flow-canvas');
@@ -201,8 +236,19 @@ export class FlowCanvas {
     this.#settingsEmpty = el('div', 'dc-flow-settings-empty');
     this.#inputs = el('div', 'dc-flow-inputs');
     this.#settings.append(settingsHead, this.#inputs, board.dock, this.#settingsEmpty);
+    // the canvas on its stage, its own tools at its corner, over it as it scrolls
+    const stage = el('div', 'dc-flow-stage');
+    this.#toolbar = el('div', 'dc-flow-toolbar');
+    const tidy = doc.createElement('button');
+    tidy.type = 'button';
+    tidy.className = 'dc-flow-tidy';
+    tidy.textContent = 'Tidy Up';
+    tidy.title = 'Place every box a column after the boxes it reads, level with them';
+    tidy.addEventListener('click', () => this.#board.options.onTidy?.());
+    this.#toolbar.append(tidy);
+    stage.append(this.#canvas, this.#toolbar);
     const top = el('div', 'dc-flow-top');
-    top.append(this.#canvas, this.#side, this.#settings);
+    top.append(stage, this.#side, this.#settings);
     this.#split = el('div', 'dc-flow-split');
     this.#split.setAttribute('role', 'separator');
     this.#split.setAttribute('aria-orientation', 'horizontal');
@@ -284,6 +330,7 @@ export class FlowCanvas {
     this.#plane.style.width = `${right}px`;
     this.#plane.style.height = `${bottom}px`;
     this.#hint.hidden = layout.boxes.length > 0 || !editing;
+    this.#toolbar.hidden = !editing || layout.boxes.length < 2;
     this.#paintResults();
     this.#paintSettings();
   }
@@ -301,6 +348,7 @@ export class FlowCanvas {
 
   dispose(): void {
     this.#gesture?.(false);
+    this.#menu?.close();
     this.#palette.remove();
     this.#canvas.parentElement?.remove();
   }
@@ -375,6 +423,18 @@ export class FlowCanvas {
     });
   }
 
+  /** The palette narrowed to the tools whose name or words hold what the find field holds (a heading kept with its own). */
+  #narrow(): void {
+    const q = this.#find.value.trim().toLowerCase();
+    for (const [tool, button] of this.#tools) {
+      const t = FLOW_TOOLS[tool];
+      button.hidden = q !== '' && !`${t.name} ${t.does}`.toLowerCase().includes(q);
+    }
+    for (const heading of this.#palette.querySelectorAll<HTMLElement>('.dc-flow-group')) {
+      heading.hidden = PALETTE.every((t) => FLOW_TOOLS[t].group !== heading.dataset['group'] || this.#tools.get(t)!.hidden);
+    }
+  }
+
   /** The box under a point of the window, if one is. */
   #boxAt(x: number, y: number): string | undefined {
     for (const [id, drawn] of this.#boxes) {
@@ -441,6 +501,12 @@ export class FlowCanvas {
     const drawn: Drawn = { root, icon: glyph, name, says, remove, key: '', renaming: false };
     root.addEventListener('pointerdown', (e) => this.#startBox(id, drawn, e));
     root.addEventListener('keydown', (e) => this.#onBoxKey(id, drawn, e));
+    // right-clicked: what can be done to it, each the gesture it is besides (a click, F2, Ctrl+D, Delete)
+    root.addEventListener('contextmenu', (e) => {
+      if (drawn.renaming) return;
+      e.preventDefault();
+      this.#boxMenu(id, drawn, e.clientX, e.clientY);
+    });
     name.addEventListener('dblclick', (e) => {
       e.stopPropagation();
       this.#rename(id, drawn);
@@ -448,6 +514,37 @@ export class FlowCanvas {
     this.#boxes.set(id, drawn);
     this.#plane.append(root);
     return drawn;
+  }
+
+  /** A BOX'S MENU (a right-click): shown, its settings, renamed, duplicated, an input frozen, taken off -- each the same
+   *  as its gesture elsewhere on the canvas; a locked page's, shown alone. */
+  #boxMenu(id: string, drawn: Drawn, x: number, y: number): void {
+    const o = this.#board.options;
+    const said = this.#said(id);
+    const editor = said ? TOOL_EDITORS[said.tool] : undefined;
+    const editing = this.#board.editing;
+    const live = this.#inputsOf(id).filter((i) => 'grid' in i);
+    const items: MenuItem[] = [
+      { id: 'tile.box.show', label: 'Show its rows' },
+      ...(editing ? [
+        { id: 'tile.box.settings', label: 'Open its settings', ...(editor === undefined ? { disabled: true } : {}) } as const,
+        { id: 'tile.box.rename', label: 'Rename (F2)' } as const,
+        { id: 'tile.box.duplicate', label: 'Duplicate (Ctrl+D)' } as const,
+        ...live.map((i) => ({ id: `tile.box.freeze.${i.side}` as const, label: `Freeze its ${SIDE_WORDS[i.side]}: a copy of its rows now` })),
+        { id: 'tile.box.remove', label: 'Remove (Delete)' } as const,
+      ] : []),
+    ];
+    this.#menu ??= new MenuView(this.#doc, { onSelect: (item) => this.#menuAct?.(item) });
+    this.#menuAct = (item) => {
+      const act = item.id ?? '';
+      if (act === 'tile.box.show') this.#select(id);
+      else if (act === 'tile.box.settings' && editor !== undefined) o.onSelect?.(id, editor);
+      else if (act === 'tile.box.rename') this.#rename(id, drawn);
+      else if (act === 'tile.box.duplicate') o.onDuplicate?.(id);
+      else if (act === 'tile.box.remove') o.onRemove?.(id);
+      else if (act.startsWith('tile.box.freeze.')) o.onFreeze?.(id, act.slice('tile.box.freeze.'.length) as InputSide);
+    };
+    this.#menu.show([{ label: '', items }], x, y);
   }
 
   /** The columns a box hands on, as its document says them: its query's columns and calculated columns, but those it
@@ -571,6 +668,11 @@ export class FlowCanvas {
     if (e.key === 'F2') {
       e.preventDefault();
       this.#rename(id, drawn);
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      o.onDuplicate?.(id);
       return;
     }
     const step = e.shiftKey ? BIG_STEP : STEP;

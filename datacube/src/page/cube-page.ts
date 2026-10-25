@@ -35,6 +35,7 @@ import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import { FlowBoard, type LineEnd } from '../layout/flow-board.ts';
+import { liveGrids } from '../live-inputs.ts';
 import { EMPTY_FLOW, flowTiles } from '../layout/flow.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
@@ -253,6 +254,8 @@ export interface CubePageOptions {
   /** A flow's Join or Union box's settings asked for (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): the Join window over its
    *  inputs, opened by the page's owner -- a window over the page, never docked. */
   readonly onJoinBox?: (box: string, sheet: string) => void;
+  /** Tidy Up on flow `sheet`: its boxes placed by the flow's own rule, by the page's owner (page-gestures.ts tidyCommands). */
+  readonly onTidy?: (sheet: string) => void;
 }
 
 /** An edit of the page's structure: its page commands, and what it is called (the page's Undo names it). */
@@ -531,6 +534,8 @@ export class CubePage {
       onUndo: (redo) => this.#options.onUndo?.(redo),
       onFile: (file) => this.#options.onFile?.(file, id),
       documentOf: (tile) => this.#boxes.get(tile)?.document ?? this.documentOf(tile),
+      onTidy: () => this.#options.onTidy?.(id),
+      onDuplicate: (tile) => this.#duplicateBox(id, tile),
     });
     board.setEditing(this.#editing);
     const sheet: FlowSheet = { kind: 'flow', id, name, host, board };
@@ -706,6 +711,17 @@ export class CubePage {
       this.#planned.delete(id);
     }
     if (editor !== undefined) this.#grids.get(id)?.added?.cube.openStep?.(editor);
+  }
+
+  /** A BOX DUPLICATED (Ctrl+D, its menu: docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): a copy of its cube as the page has
+   *  it -- reading what it reads -- placed after the box it reads first, a document until it is shown, as every box not
+   *  shown is: the page command every grid is added by. */
+  #duplicateBox(sheet: string, tile: string): void {
+    const document = this.#boxes.get(tile)?.document ?? this.documentOf(tile);
+    if (document === undefined) return;
+    const near = liveGrids(document.source)[0] ?? tile;
+    this.#tell('Duplicate Box', pageCommand('addGrid', { document, sheet, near, title: null, columns: null }));
+    this.#options.onChange();
   }
 
   /** A box added from a flow's palette as `tool` (PageApp.addedAs): drawn as one until its grid does something. */

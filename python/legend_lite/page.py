@@ -1387,6 +1387,21 @@ class Sheet:
         """Whether it is a flow sheet (``page.flow()``): its boxes on a canvas, each a grid, placed by ``box.place``."""
         return self._doc['layout']['kind'] == 'flow'
 
+    def tidy(self) -> Sheet:
+        """Its boxes placed by the flow's own rule, as the canvas's Tidy Up places them (headless pageGesture:
+        page-gestures.ts tidyCommands; docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): each a column after the boxes it reads,
+        level with them -- one layout, or nothing when they are there already. A board's tiles are laid out in bands:
+        refused in DataCube's words."""
+        page = self._page
+        said = json.loads(page._session.headless().call('pageGesture', 'flow.tidy', _json.dumps(
+            {'page': page._doc, 'sheet': self.id})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        commands = [_plain(c) for c in said['commands']]
+        if commands:
+            page._apply_page(commands, 'a tidy')
+        return self
+
     def grid(self, frame: Any = None, **given: Any) -> Grid:
         """A grid on this sheet, as ``page.grid(..., sheet=this)`` adds one: on a flow, a box -- after ``input``, the box
         it reads, when it is one of this flow's."""

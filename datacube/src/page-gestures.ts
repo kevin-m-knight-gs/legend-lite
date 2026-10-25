@@ -10,7 +10,9 @@ import type { ChartSpec } from './chart-spec.ts';
 import { asSaved, remove, tiles, type Bands, type Preset } from './layout/bands.ts';
 import { fieldNames } from './command-fields.ts';
 import { PAGE_COMMAND_FIELDS, type PageCommand } from './page-commands.ts';
-import type { PageLayout } from './page-document.ts';
+import { readPage, type PageDocument, type PageLayout } from './page-document.ts';
+import { arranged } from './layout/flow.ts';
+import { liveGrids } from './live-inputs.ts';
 import { givenName } from './page-names.ts';
 import { CubeRefusal } from './snapshot.ts';
 
@@ -103,6 +105,25 @@ export function showGridCommands(chart: string, grid: string, spec: ChartSpec): 
   return [{ kind: 'followGrid', chart, grid }, { kind: 'setChart', chart, spec }];
 }
 
+/**
+ * TIDY UP (docs/DATACUBE_FLOW_MODE_2026_10_24.md M7; the canvas's button and Python's flow.tidy(), headless pageGesture):
+ * flow sheet `sheet`'s boxes placed by the flow's own rule (layout/flow.ts arranged) -- each a column after the boxes it
+ * reads -- told as its layout whole, or nothing when they are there already. Refused in words: no flow sheet of the page.
+ */
+export function tidyCommands(page: PageDocument, sheet: string): PageCommand[] {
+  const s = page.sheets.find((x) => x.id === sheet);
+  if (s === undefined) throw new CubeRefusal(`'${sheet}' is no sheet of the page`);
+  const layout = s.layout;
+  if (layout.kind !== 'flow') throw new CubeRefusal(`'${sheet}' is a board: its tiles are laid out in bands, not tidied`);
+  const reads = (tile: string): string[] => {
+    const view = page.views.find((v) => v.id === tile);
+    const cube = page.cubes.find((c) => c.id === view?.cube)?.cube;
+    return cube === undefined ? [] : liveGrids(cube.source);
+  };
+  const tidy = arranged(layout, reads);
+  return JSON.stringify(tidy.boxes) === JSON.stringify(layout.boxes) ? [] : [{ kind: 'layout', sheet, layout: { kind: 'flow', ...tidy } }];
+}
+
 /** The page's gestures Python asks by name (headless pageGesture), with their arguments read from JSON: those whose
  *  meaning a Python call shares with the screen's; the board's own (a hand's move, a layout drawn) are the board's. */
 export const PAGE_GESTURES = {
@@ -113,6 +134,17 @@ export const PAGE_GESTURES = {
     };
     if (typeof a['spec'] !== 'object' || a['spec'] === null) throw new CubeRefusal("'chart.showGrid' needs spec, the chart's spec");
     return showGridCommands(text('chart'), text('grid'), a['spec'] as ChartSpec);
+  },
+  // a flow's boxes tidied, over the page as it is (its boxes' links)
+  'flow.tidy': (a: Readonly<Record<string, unknown>>): PageCommand[] => {
+    if (typeof a['sheet'] !== 'string') throw new CubeRefusal("'flow.tidy' needs sheet, the flow sheet's id");
+    let page: PageDocument;
+    try {
+      page = readPage(a['page'], { empty: true });
+    } catch (e) {
+      throw new CubeRefusal(e instanceof Error ? e.message : String(e));
+    }
+    return tidyCommands(page, a['sheet']);
   },
 } as const;
 
