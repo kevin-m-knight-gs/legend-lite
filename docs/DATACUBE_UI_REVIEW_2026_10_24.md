@@ -88,6 +88,8 @@ statistics · a 192×14 progress box · the planner's word ("local").
 2. **A grouped grid shows a blank column for every text column.** The Data sheet grouped by region shows nine empty
    columns (order_id, sold, city, channel…): a text column's default aggregate is `unique`, blank whenever a group
    holds more than one value. Upstream DataCube's default, and the first thing a person sees on the start page.
+   **Kept as it is (the user, 2026-10-25).** Showing a muted count ("3 values") where `unique` comes back blank, or
+   making distinct count the default, were weighed; the user chose to keep upstream's `unique` for now.
 3. **The columns panel lists every pivot leaf** (notional 2021 … 2025, Total; pnl 2021 …) on the start page: 25
    checkboxes for 3 measures.
    **Fixed 2026-10-25** (`ui/columns-panel.ts`). Every measure a pivot spread now arrives folded under its own row,
@@ -407,9 +409,9 @@ View ▸                                    Properties…                 Ctrl+E
 
 **Where it stands, 2026-10-25.** Built: numbers right-aligned; the page's ≡ grouped by purpose (§3); one tile header
 (§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2); the example-switch bug fixed (found 1); the status bar's error as a chip; the title bar (§4); the columns panel (found 3); the menus' marks and words (step 1
-of the menus); one icon set for the page's chrome (found 4). Next: the rest of the menus (Create ▸ on a chart and a text
-box, Settings…); grouped text columns (found 2); the tree carets drawn too; the options pane docked at the page's edge;
-then §8.
+of the menus); one icon set for the page's chrome (found 4). Grouped text columns (found 2) kept as they
+are (the user). Next: the rest of the menus (Create ▸ on a chart and a text box, Settings…); the tree carets drawn too;
+the options pane docked at the page's edge; then §8.
 
 Screenshots of each state (the start page, the chart examples and the gallery's KPI dashboard, the chart options at
 1400 and 1024 wide, the page menu, the joins example's error, the status bar) were taken with a scratch Playwright
