@@ -371,8 +371,13 @@ The marks and words are now the same in every menu:
 - **A sheet tab's menu** says Rename… and Delete Sheet. Each disabled entry there says why on hover ("Edit Layout
   first", "It is the first sheet", "A page keeps one sheet at least"), as does a locked Move to Sheet.
 
-Still open: a chart's and a text box's Create ▸, and "Settings…" as the app's own window (today it opens the first
-grid's settings; the app has no settings of its own yet).
+**Step 2, 2026-10-25:** a chart's and a text box's Create ▸, in the grid's own words (`ui/menu.ts` createItems). On a
+chart, Copy of This Grid and Visualization act on the grid the chart reads; on a text box, or on a chart whose grid is
+gone, they are offered disabled and say why. Data Source… and Text Box are placed beside the tile.
+
+"Settings…" stays in the page's ≡: its four settings (Debug Mode, Reload, Max History Stack Size, Row Buffer) are the
+app's, apply to every grid on the page at once and are kept by the host, so a tab in one grid's Properties would
+mislead. Only the way it opens goes through the first grid.
 
 ### The two menus, after
 

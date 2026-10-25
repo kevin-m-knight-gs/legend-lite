@@ -931,6 +931,8 @@ export class PageApp {
       },
       onEmpty: () => this.#paintEmpty(),
       onTiles: () => this.#onTiles(),
+      // a chart's or a text box's Create ▸ Data Source…: the host's picker, as the page's ≡ has it, beside that tile
+      ...(this.#options.openSource ? { addSource: (near: string) => { void this.addSource(near); } } : {}),
       onSettingsChanged: (values) => {
         for (const grid of this.#live()) grid.useSettings(values);
         this.#options.onSettingsChanged?.(values);

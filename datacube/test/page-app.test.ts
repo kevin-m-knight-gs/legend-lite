@@ -298,7 +298,7 @@ describe('a page of its own', () => {
     assert.equal(tile(id).querySelector('.dc-text-tile strong')?.textContent, 'Python');
   });
 
-  it("a text tile's right-click, in the menus' one order: Edit Text…, then View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page", async () => {
+  it("a text tile's right-click, in the menus' one order: Create ▸, Edit Text…, then View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page", async () => {
     // the menus (docs/DATACUBE_UI_REVIEW_2026_10_24.md): a text box had no right-click; its own window first, then how
     // it is shown and where, as a chart's and a grid's
     const told: PageCommand[] = [];
@@ -312,16 +312,20 @@ describe('a page of its own', () => {
     await settle();
     const id = 'text-1';
     await until(() => tile(id).querySelector('textarea'));
-    const menu = (): { top: string[]; view: string[]; entry: (text: string) => HTMLElement } => {
+    const menu = (): { top: string[]; view: string[]; create: string[]; entry: (text: string) => HTMLElement } => {
       dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
       const opened = tile(id).querySelector('.dc-text-host')!.dispatchEvent(
         new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
       assert.equal(opened, false, 'the menu is the tile\'s, not the browser\'s');
       const root = dom.window.document.querySelector('.dc-menu')!;
-      const view = [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].find((i) => label(i) === 'View')!;
+      const under = (parent: string): string[] => {
+        const item = [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].find((i) => label(i) === parent)!;
+        return [...item.querySelectorAll<HTMLElement>(':scope > .dc-submenu > .dc-menu-item')].map(label);
+      };
       return {
         top: [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].map(label),
-        view: [...view.querySelectorAll<HTMLElement>(':scope > .dc-submenu > .dc-menu-item')].map(label),
+        view: under('View'),
+        create: under('Create'),
         entry: (text) => [...root.querySelectorAll<HTMLElement>('.dc-menu-item')].find((i) => label(i) === text)!,
       };
     };
@@ -331,8 +335,20 @@ describe('a page of its own', () => {
     tile(id).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await until(() => tile(id).querySelector('.dc-text-tile'));
     const first = menu();
-    assert.deepEqual(first.top, ['Edit Text\u2026', 'View']);
+    assert.deepEqual(first.top, ['Create', 'Edit Text\u2026', 'View']);
     assert.deepEqual(first.view, ['Maximise', 'Move to Sheet', 'Remove from Page']);
+    // Create ▸ in the grid's own words; what needs a grid is off, and says why
+    assert.deepEqual(first.create, ['Copy of This Grid', 'Visualization', 'Text Box']);
+    for (const off of ['Copy of This Grid', 'Visualization']) {
+      assert.equal(first.entry(off).getAttribute('aria-disabled'), 'true', off);
+      assert.equal(first.entry(off).title, 'A text box reads no grid');
+    }
+    first.entry('Text Box').click();
+    await settle();
+    assert.deepEqual(told.at(-1)?.kind, 'addText', 'Create ▸ Text Box: another text box beside it');
+    await until(() => tile('text-2')?.querySelector('textarea'));
+    tile('text-2').querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await until(() => tile('text-2').querySelector('.dc-text-tile'));
     first.entry('Edit Text\u2026').click();
     await until(() => tile(id).querySelector('textarea'));
     assert.ok(tile(id).querySelector('textarea'), 'Edit Text\u2026 opens its editor');

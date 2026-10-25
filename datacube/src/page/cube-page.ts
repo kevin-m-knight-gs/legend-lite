@@ -31,7 +31,7 @@
 
 import { ChartPanel } from '../ui/chart-panel.ts';
 import { MenuView } from '../ui/menu-view.ts';
-import type { MenuItem } from '../ui/menu.ts';
+import { createItems, type MenuItem } from '../ui/menu.ts';
 import { chromeIcon, paintState, stateButton } from '../ui/tile-icons.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
@@ -189,6 +189,9 @@ export interface CubePageOptions {
   readonly onTiles?: () => void;
   /** A grid's Settings saved: every grid on the page takes them (a page of its own). */
   readonly onSettingsChanged?: (values: SettingValues) => void;
+  /** Create ▸ Data Source… from a chart's or a text box's right-click: the host's picker, a grid over what is picked
+   *  beside `near` (a page of its own: page-app.ts addSource); absent, a tile's Create ▸ offers none, as a grid's. */
+  readonly addSource?: (near: string) => void;
   /**
    * How a grid like `from` -- over its source -- is made, starting at `snapshot` (and `configuration`, given; else
    * `from`'s): Copy of Grid, and the grid of a chart's own grouping Show Grid makes. A page of its own makes every grid
@@ -1214,6 +1217,26 @@ export class CubePage {
   }
 
   /**
+   * A TILE'S CREATE ▸, as a grid's (ui/menu.ts createItems: the same words in every menu): a data source beside it, a
+   * text box beside it, and -- of the grid it reads (`grid`) -- a copy of that grid or another chart of it. With no grid
+   * (a text box, a chart whose grid is gone) those two are offered off, `why` said on their hover.
+   */
+  #tileCreate(grid: string | null, why: string): MenuItem {
+    const needsGrid = new Set(['grid.new', 'chart.plot']);
+    return { label: 'Create', submenu: createItems({ source: this.#options.addSource !== undefined, host: [] })
+      .map((item) => (grid === null && needsGrid.has(item.id ?? '') ? { ...item, disabled: true, hint: why } : item)) };
+  }
+
+  /** What a tile's Create ▸ entry picked does (#tileCreate): beside tile `id`, of the grid it reads. */
+  #onTileCreate(id: string, grid: string | null, item: MenuItem): void {
+    if (item.id === 'source.new') this.#options.addSource?.(id);
+    if (item.id === 'text.new') this.addText(id);
+    if (grid === null) return;
+    if (item.id === 'grid.new') this.addGrid(grid);
+    if (item.id === 'chart.plot') this.openChart(undefined, grid);
+  }
+
+  /**
    * A TILE'S VIEW ▸, the last entry of a chart's and a text box's right-click as of a grid's (docs/DATACUBE_UI_REVIEW_
    * 2026_10_24.md, the menus): how it is shown and where -- filling the page or back to it, onto another sheet or a new
    * one (on a page of sheets; locked, offered disabled and why), off the page.
@@ -1327,6 +1350,7 @@ export class CubePage {
         // opens its properties, or brings them forward: their ×, Escape or a press elsewhere puts them away
         if (item.id === 'tile.properties') panel.openForm();
         if (item.id === 'tile.grid') this.#showGrid(id);
+        this.#onTileCreate(id, link.grid, item);
         this.#onTileView(id, item);
       };
       // the menus' one skeleton (docs/DATACUBE_UI_REVIEW_2026_10_24.md, the menus): its data, its window, then how it
@@ -1335,6 +1359,7 @@ export class CubePage {
         { label: '', items: [
           { id: 'tile.grid', label: 'Show Grid', ...(way !== null && refused === null ? {} : { disabled: true, ...(refused ? { hint: refused } : {}) }) },
         ] },
+        { label: '', items: [this.#tileCreate(link.grid, 'Its grid is gone: it reads its own copy of the query')] },
         { label: '', items: [{ id: 'tile.properties', label: 'Properties\u2026' }] },
         { label: '', items: [this.#tileView(id)] },
       ], event.clientX, event.clientY);
@@ -1724,9 +1749,11 @@ export class CubePage {
       event.preventDefault();
       this.#menuFor = (item) => {
         if (item.id === 'tile.editText') this.editText(view.id);
+        this.#onTileCreate(view.id, null, item);
         this.#onTileView(view.id, item);
       };
       this.#menu.show([
+        { label: '', items: [this.#tileCreate(null, 'A text box reads no grid')] },
         { label: '', items: [{ id: 'tile.editText', label: 'Edit Text\u2026' }] },
         { label: '', items: [this.#tileView(view.id)] },
       ], event.clientX, event.clientY);

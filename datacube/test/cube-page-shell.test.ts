@@ -524,31 +524,52 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     assert.equal(form().hidden, true, 'Escape on its tile');
   });
 
-  it("is in the menus' one order: Show Grid, Properties…, then View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page", async () => {
+  it("is in the menus' one order: Show Grid, Create ▸, Properties…, then View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page", async () => {
     // the menus (docs/DATACUBE_UI_REVIEW_2026_10_24.md): a chart's own window is Properties…, as a grid's is, and what is
     // done to its tile is under View ▸, as a grid's is -- Remove from Page, never a bare Remove
     newPage();
     const a = pg().addGrid(over('trades.csv'));
     await settle();
     const chart = await chartOf(a);
-    const shown = (): { top: string[]; view: string[]; entry: (text: string) => HTMLElement } => {
+    const shown = (): { top: string[]; view: string[]; create: string[]; entry: (text: string) => HTMLElement } => {
       chartMenu(chart);
       const root = dom.window.document.querySelector('.dc-menu')!;
-      const view = [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].find((i) => label(i) === 'View')!;
+      const under = (parent: string): string[] => {
+        const item = [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].find((i) => label(i) === parent)!;
+        return [...item.querySelectorAll<HTMLElement>(':scope > .dc-submenu > .dc-menu-item')].map(label);
+      };
       return {
         top: [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].map(label),
-        view: [...view.querySelectorAll<HTMLElement>(':scope > .dc-submenu > .dc-menu-item')].map(label),
+        view: under('View'),
+        create: under('Create'),
         entry: (text) => menuItems().find((i) => label(i) === text)!,
       };
     };
     const first = shown();
-    assert.deepEqual(first.top, ['Show Grid', 'Properties\u2026', 'View']);
+    assert.deepEqual(first.top, ['Show Grid', 'Create', 'Properties\u2026', 'View']);
+    // Create ▸ in the grid's own words (ui/menu.ts createItems), of the grid the chart reads
+    assert.deepEqual(first.create, ['Copy of This Grid', 'Visualization', 'Text Box']);
     assert.deepEqual(first.view, ['Maximise', 'Move to Sheet', 'Remove from Page']);
     first.entry('Maximise').click();
     assert.ok(host.querySelector('.dc-bands-maximised'), 'the page filled with it');
     assert.deepEqual(shown().view, ['Restore', 'Move to Sheet', 'Remove from Page'], 'the entry says what it will do');
     shown().entry('Restore').click();
     assert.equal(host.querySelector('.dc-bands-maximised'), null);
+    const charts = (): string[] => pg().views().views.filter((v) => v.kind === 'chart').map((v) => v.id);
+    const before = charts();
+    shown().entry('Visualization').click();
+    await settle();
+    assert.equal(charts().length, before.length + 1, 'Create ▸ Visualization: another chart of its grid');
+    const made = charts().find((c) => !before.includes(c))!;
+    const view = pg().views().views.find((v) => v.id === made);
+    assert.equal(view?.kind === 'chart' ? view.cube : undefined, a, 'of the grid the chart reads');
+    const grids = pg().grids.length;
+    shown().entry('Copy of This Grid').click();
+    await settle();
+    assert.equal(pg().grids.length, grids + 1, 'Create ▸ Copy of This Grid: a copy of its grid');
+    shown().entry('Text Box').click();
+    await settle();
+    assert.ok(pg().views().views.some((v) => v.kind === 'text'), 'Create ▸ Text Box: a text box beside it');
     shown().entry('Remove from Page').click();
     await settle();
     assert.equal(tile(chart), null, 'off the page');
