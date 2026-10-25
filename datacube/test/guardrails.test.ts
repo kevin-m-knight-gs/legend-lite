@@ -156,7 +156,10 @@ describe('source guardrails', () => {
     const hits: string[] = [];
     for (const file of FILES) {
       SOURCES.read(file).split('\n').forEach((line, i) => {
-        if (!isComment(line) && typed.test(line) && !line.includes('closeMark(')) hits.push(`${file}:${i + 1}: ${line.trim()}`);
+        // a separator joining words (a pivot's path, a class's: `' › '`) is a word, not a mark of the chrome
+        if (!isComment(line) && typed.test(line) && !line.includes('closeMark(') && !/\.join\(\s*['`"]/.test(line)) {
+          hits.push(`${file}:${i + 1}: ${line.trim()}`);
+        }
       });
     }
     assert.deepEqual(hits, [], `draw it (chromeIcon, closeMark):\n${hits.join('\n')}`);

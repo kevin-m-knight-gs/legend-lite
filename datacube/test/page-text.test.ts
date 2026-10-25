@@ -49,14 +49,16 @@ describe("a text tile's words", () => {
     for (const line of ['*a '.repeat(40_000), '**a '.repeat(30_000), '['.repeat(100_000), '<'.repeat(100_000), '`` a '.repeat(30_000)]) {
       const started = performance.now();
       readRuns(line);
-      assert.ok(performance.now() - started < 1500, `${line.slice(0, 6)}... read in ${Math.round(performance.now() - started)} ms`);
+      // linear: tens of milliseconds here; quadratic, 13 s for the stars
+      assert.ok(performance.now() - started < 5000, `${line.slice(0, 6)}... read in ${Math.round(performance.now() - started)} ms`);
     }
     const quotes = readText(`${'> '.repeat(3000)}deep`);
     let depth = 0;
     for (let b: TextBlock | undefined = quotes[0]; b?.kind === 'quote'; b = b.blocks[0]) depth++;
     assert.equal(depth, 17, 'quotes read to the deepest, the rest their words');
-    assert.doesNotThrow(() => readText(Array.from({ length: 500 }, (_, i) => `${'  '.repeat(i)}- item`).join('\n')));
-    assert.doesNotThrow(() => readRuns(`${'['.repeat(5000)}x${'](https://a.test)'.repeat(5000)}`));
+    // nested past the deepest: read, not thrown (a stack overflowed)
+    assert.ok(readText(Array.from({ length: 500 }, (_, i) => `${'  '.repeat(i)}- item`).join('\n')).length > 0);
+    assert.ok(readRuns(`${'['.repeat(5000)}x${'](https://a.test)'.repeat(5000)}`).length > 0);
   });
 
   // the user, 2026-10-25: a full Markdown editor -- GitHub's

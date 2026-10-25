@@ -330,8 +330,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  the columns panel's part-ticked measure (ui/columns-panel.ts)). Measured 359,826.
  *  360,500 -> 361,500 (2026-10-25, the page's chrome drawn in one icon set (ui/tile-icons.ts chromeIcon, closeMark;
  *  found 4) -- the tree carets too -- and a chart's and a text box's Create ▸ (cube-page.ts #tileCreate)). Measured
- *  360,653. */
-const BUDGET = 361_500;
+ *  360,653.
+ *  361,500 -> 365,000 (2026-10-25, files in a text box (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8 step 1: text-files.ts,
+ *  the setTextFiles command, the tabs, the reads by handle, file-handles.ts pickTextFiles) and the branch's deep audit's
+ *  fixes (the chart options in a shadow root and off a moved tile, the status chips of the view shown, a refusal before
+ *  a file is read, handles kept on Save As). The file code could be a chunk of its own, fetched with a box's first file;
+ *  not done here). Measured 364,289. */
+const BUDGET = 365_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -447,8 +452,10 @@ const BUDGET = 361_500;
  *  Measured 348,087.
  *  348,500 -> 349,500 (2026-10-25, the page's chrome drawn in one icon set (ui/tile-icons.ts chromeIcon, closeMark; found
  *  4 of docs/DATACUBE_UI_REVIEW_2026_10_24.md): each typed glyph -- a tile's layouts, maximise and remove, the menus'
- *  chevron, every close -- now a small drawing of its own). Measured 348,520. */
-const ENGINE_BUDGET = 349_500;
+ *  chevron, every close -- now a small drawing of its own). Measured 348,520.
+ *  349,500 -> 353,000 (2026-10-25, files in a text box and the branch's deep audit's fixes -- the grid-only page's note
+ *  of the same date). Measured 352,353. */
+const ENGINE_BUDGET = 353_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -614,8 +621,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  -- and a join reopened borrowing a grid's table (app/sources.ts borrow: the example-switch bug)). Measured 367,526.
  *  368,500 -> 370,000 (2026-10-25, the menus' one design language (a key beside its entry, a chart's and a text box's
  *  View ▸, a sheet tab's reasons) and the page's chrome drawn in one icon set -- the grid-only and engine pages' notes of
- *  the same date). Measured 368,722. */
-const WIDGET_BUDGET = 370_000;
+ *  the same date). Measured 368,722.
+ *  370,000 -> 373,500 (2026-10-25, files in a text box and the branch's deep audit's fixes, the dark theme's palette
+ *  declared in both themes among them -- the grid-only page's note of the same date). Measured 372,941. */
+const WIDGET_BUDGET = 373_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

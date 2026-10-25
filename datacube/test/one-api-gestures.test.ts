@@ -555,7 +555,12 @@ const GESTURES: readonly Gesture[] = [
       const g = await twoGrids();
       gridMenuItem(g.a, 'Text Box').click();
       await settle();
-      return { ...g, text: [...host.querySelectorAll<HTMLElement>('[data-tile^="text-"]')].at(-1)!.dataset['tile']! };
+      const text = [...host.querySelectorAll<HTMLElement>('[data-tile^="text-"]')].at(-1)!.dataset['tile']!;
+      // a new one opens its editor, whose right-click is the browser's: put away first
+      await editorOf(text);
+      tile(text).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      for (let i = 0; i < 100 && !tile(text).querySelector('.dc-text-tile'); i++) await new Promise((r) => setTimeout(r, 5));
+      return { ...g, text };
     },
     make: async ({ text }) => {
       escape();
