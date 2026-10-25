@@ -251,8 +251,8 @@ export interface FlowJoinOf {
   /** The box joined: the new box's Left -- or, `box` given, the Join box set again. */
   readonly cube: string;
   readonly box?: string;
-  /** The tool it is: a Union's window starts at Append. */
-  readonly tool: 'join' | 'union';
+  /** The tool it is: a Union's window starts at Append, an Append Fields' at Every pair. */
+  readonly tool: 'join' | 'union' | 'appendFields';
   /** The flow's boxes, as its canvas names them: the boxes its Right is chosen among. */
   readonly boxes: readonly string[];
   /** Dropped on a line: the box that line went into, which reads the new box from then on (one step). */
@@ -317,7 +317,7 @@ export async function flowJoin(o: FlowJoinOf): Promise<void> {
             ...(their !== right ? [pageCommand('setInput', { grid: o.box!, side: 'right', input: { grid: their } })] : []),
             ...(sameValue(how, joined.how) ? [] : [pageCommand('setJoin', { grid: o.box!, how })]),
           ];
-          if (commands.length > 0 && !page.editPage(o.tool === 'union' ? 'Set Union' : 'Set Join', commands)) {
+          if (commands.length > 0 && !page.editPage(`Set ${FLOW_TOOLS[o.tool].name}`, commands)) {
             throw new Error('the page refused it');
           }
           return undefined;
@@ -347,9 +347,10 @@ export async function flowJoin(o: FlowJoinOf): Promise<void> {
     }, {
       lead: joined !== undefined ? `How ${named(left)} and its Right combine: the box's rows, read again as they are now.`
         : `Combine ${named(left)} with another box of the flow: a box after it that reads both, live.`,
-      action: joined !== undefined ? 'Apply' : o.tool === 'union' ? 'Add Union' : 'Add Join',
-      // a Union's window starts at Append; a box set again, at its own join
-      ...(joined !== undefined ? { how: joined.how } : o.tool === 'union' ? { form: 'append' as const } : {}),
+      action: joined !== undefined ? 'Apply' : `Add ${FLOW_TOOLS[o.tool].name}`,
+      // a Union's window starts at Append, an Append Fields' at Every pair; a box set again, at its own join
+      ...(joined !== undefined ? { how: joined.how } : o.tool === 'union' ? { form: 'append' as const }
+        : o.tool === 'appendFields' ? { form: 'cross' as const } : {}),
     });
   } finally {
     await opened.close();

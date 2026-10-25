@@ -219,7 +219,12 @@ describe('a join in words', () => {
     assert.equal(joinTitle({ form: 'append' }, 'trades', 'more'), 'trades + more');
     assert.equal(joinTitle({ form: 'anti', on: { rows: [] } }, 'trades', 'customers'), 'trades without customers');
     assert.equal(joinWords(join()), 'all of mine, on cust = id');
-    assert.equal(joinWords(join({ kind: 'inner', on: { rows: [] } })), 'matching rows only, on every pair');
+    // every row with every row (an Append Fields): said so; all of mine on no condition still a join's words
+    assert.equal(joinWords(join({ kind: 'inner', on: { rows: [] } })), 'each row with every row of theirs');
+    assert.equal(joinWords(join({ kind: 'left', on: { rows: [] } })), 'all of mine, on every pair');
+    assert.deepEqual(summaryWords(join({ kind: 'inner', on: { rows: [] } }), { mine: 5, matched: 5, joined: 20 }),
+      ['Each of my 5 rows beside each of the 4 rows of theirs: 20 rows.']);
+    assert.deepEqual(summaryWords(join({ kind: 'inner', on: { rows: [] } }), { mine: 0, matched: 0, joined: 0 }), ['I have no rows: none after it.']);
     assert.equal(joinWords({ form: 'asOf', match: { left: 'at', op: '>=', right: 'at' }, on: { rows: [] }, prefix: 'p_', keep: null }), 'nearest at >= at');
   });
 

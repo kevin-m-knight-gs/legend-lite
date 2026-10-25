@@ -48,6 +48,11 @@ export type JoinHow =
   /** The rows of both, columns matched by name: a column one side lacks is empty on its rows. */
   | { readonly form: 'append' };
 
+/** A join of every row of mine with every row of theirs: matching rows only, on no condition (Alteryx's Append Fields;
+ *  docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) -- the Join window's Every pair, a flow's Append Fields box. */
+export const isEveryPair = (how: JoinHow): boolean =>
+  how.form === 'join' && how.kind === 'inner' && 'rows' in how.on && how.on.rows.length === 0;
+
 export type JoinForm = JoinHow['form'];
 export const JOIN_FORMS: readonly JoinForm[] = ['join', 'asOf', 'semi', 'anti', 'append'];
 

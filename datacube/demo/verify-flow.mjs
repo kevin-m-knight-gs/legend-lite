@@ -447,6 +447,25 @@ try {
   check(await resultRows() === fewer + all, `the rows of both: ${fewer} + ${all}`);
   await page.screenshot({ path: outPath('flow-union.png') });
 
+  // AN APPEND FIELDS BOX, dragged onto the Filter: the window at Every pair, no condition asked; the dropped targets'
+  // four rows beside each of the Filter's
+  const beforeAppend = (await boxes()).map((b) => b.id);
+  await drag('appendFields', filter.id);
+  await joinWindow.waitFor({ timeout: 20_000 });
+  check(await joinWindow.locator('.dc-join-kind[data-kind="cross"]').getAttribute('aria-checked') === 'true', 'an Append Fields\' window starts at Every pair');
+  await joinWindow.locator('.dc-join-their').selectOption(dropped.id);
+  await page.waitForFunction(() => { const b = document.querySelector('.dc-join .dc-save-foot .dc-primary'); return b instanceof HTMLButtonElement && !b.disabled; }, undefined, { timeout: 60_000 });
+  check(await joinWindow.locator('.dc-join-condition').isHidden(), 'no condition asked');
+  check(await joinWindow.locator('.dc-save-foot .dc-primary').textContent() === 'Add Append Fields', 'its button: Add Append Fields');
+  await page.screenshot({ path: outPath('flow-append-fields.png') });
+  await joinWindow.locator('.dc-save-foot .dc-primary').click();
+  await joinWindow.waitFor({ state: 'detached', timeout: 60_000 });
+  await boxCount(beforeAppend.length + 1);
+  const appended = await added(beforeAppend);
+  check(appended.tool === 'appendFields' && appended.says === 'each row with every row of theirs', `an Append Fields box: ${JSON.stringify(appended)}`);
+  await settled();
+  check(await resultRows() === fewer * 4, `each of the Filter's ${fewer} rows beside each of the 4 targets: ${fewer * 4}`);
+
   // A RECORD ID (M3), dragged onto the Filter: the column editor docked at a row number, ordered by trade_id here
   const beforeId = (await boxes()).map((b) => b.id);
   await drag('recordId', filter.id);

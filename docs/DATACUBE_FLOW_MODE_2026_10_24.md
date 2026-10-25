@@ -260,7 +260,7 @@ How to read the status column:
 | Join (L, J, R) | Step | `join.ts`: inner, left, right, full, any condition, as of. The L and R ports are its "no match" forms (§3.3) |
 | Join Multiple | Built, once linked | Joins chained by live inputs |
 | Union | Built | A join's append |
-| Append Fields | Step | Every row with every row: a join whose condition is always true |
+| Append Fields | Built (2026-10-25) | Every row with every row: a join, matching rows only, on no condition -- the Join window's Every pair |
 | Find Replace | Step | A join, then `replace` |
 | Fuzzy Match | Step | A join whose condition is `levenshteinDistance` or `jaroWinklerSimilarity` against a threshold |
 | Make Group | Out for now | Groups made from pairs need a transitive closure, which one relation cannot say |
@@ -575,6 +575,18 @@ hiding it as a saved grid over a changed file does -- found when a Join set from
 only" hid their columns (Alteryx's *Unknown passes them by default; a Select hides by name). Tested by the harness (a
 Join of the Filter and the Input on trade_id, its rows, an edit upstream, set again and undone, a Union of both),
 `flow-sheet.test.ts`, `page-commands.test.ts` and Python's `Flows`.
+
+**Built, Append Fields** (2026-10-25; `join-how.ts isEveryPair`, `ui/join-dialog.ts`, `app/join-flow.ts`): Alteryx's
+Append Fields -- each row of one input beside every row of another, a small table's values on each row of a big one. It
+is a join, matching rows only, on no condition, so it is no new kind of source: the Join window gained the form **Every
+pair** (its condition hidden; their columns kept and prefixed as a join's; what it will do said as "Each of my 503 rows
+beside each of the 4 rows of theirs: 2,012 rows."), and the palette's Append Fields opens the window there ("Add Append
+Fields"). A box whose join is every pair says "each row with every row of theirs" and is drawn as Append Fields
+(`flow-boxes.ts joinTool`); set again, the window opens at Every pair. The window's forms are now three across, nine
+of them. Python: `page.append_fields(mine, theirs, prefix=..., keep=...)`, `page.join` with no condition. Tested by
+`flow-sheet.test.ts` (the box's tool; all of mine on no condition stays a Join), `join.test.ts` (its words), Python's
+`test_every_row_beside_every_row_as_append_fields` and the harness (the Filter's rows beside the dropped targets' four:
+four times its rows).
 
 ### M3's own steps (2026-10-25)
 

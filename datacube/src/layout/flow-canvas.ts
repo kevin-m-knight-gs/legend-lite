@@ -100,6 +100,7 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   regex: 'M4 2.5v6M1.5 4l5 3M6.5 4l-5 3M10 2.5l-2 11M14 2.5l-2 11M8.5 9.5H14',
   join: 'M6 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9M10 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9',
   union: 'M2.5 3h11v4h-11zM2.5 9h11v4h-11z',
+  appendFields: 'M2 3h5v10H2zM9 3h5v10H9zM2 8h12',
   recordId: 'M6 2.5L4.5 13.5M11.5 2.5L10 13.5M2.5 6h11M2 10.5h11',
   unique: 'M3 3.5h4v4H3zM9 3.5h4v4H9zM3 10h4M9 10h4M3 12.5h4M9 12.5h4',
   sample: 'M2.5 3h11M2.5 6.5h11M2.5 10h4M2.5 13h4M10 10.5l1.5 1.5 2.5-3',

@@ -2044,6 +2044,15 @@ class Page:
         self._changed()
         return grid
 
+    def append_fields(self, mine: Grid, theirs: Grid, *, prefix: str = 'their_', keep: Sequence[str] | None = None,
+                      title: str | None = None, sheet: Sheet | None = None, live: bool | None = None) -> Grid:
+        """Each row of ``mine`` beside every row of ``theirs`` -- a flow's Append Fields (Alteryx's), the Join window's
+        Every pair: ``join`` with no condition, matching rows only (join-how.ts isEveryPair), their names that mine has
+        given ``prefix``, ``keep`` the columns of theirs kept (every one when None). A small table's values on each row of
+        a big one; its rows are the two counts multiplied."""
+        return self.join(mine, theirs, {'form': 'join', 'kind': 'inner', 'on': {'rows': []}, 'prefix': prefix,
+                                        'keep': None if keep is None else list(keep)}, title=title, sheet=sheet, live=live)
+
     def sheet(self, name: str | None = None) -> Sheet:
         """A new sheet after the last (``name``: its own; None, named after its first grid)."""
         # as the screen adds one -- what is not text refused by addSheet's reader, in DataCube's words (page-commands.ts addSheet): its id after every one the page has held

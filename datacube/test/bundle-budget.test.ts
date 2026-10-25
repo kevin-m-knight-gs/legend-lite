@@ -500,8 +500,11 @@ const BUDGET = 375_000;
  *  359,500 -> 361,000 (2026-10-25, the flow mode's containers -- the grid-only page's note of the same date; the Profile's
  *  and the keys' wiring of the canvas's options among them). Measured 360,446.
  *  361,000 -> 362,500 (2026-10-25, the flow mode's Output -- the grid-only page's note of the same date). Measured
- *  361,799. */
-const ENGINE_BUDGET = 362_500;
+ *  361,799.
+ *  362,500 -> 363,000 (2026-10-25, the flow mode's Multi-Field Formula and Append Fields: the Multi-Field's opener
+ *  (app.ts), and a Join box's tool read off its join to set it again (app/datacube-app.ts, join-how.ts isEveryPair).
+ *  Measured 362,544. */
+const ENGINE_BUDGET = 363_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

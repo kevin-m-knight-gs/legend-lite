@@ -12,6 +12,7 @@ import {
   AS_OF_OPS, DEFAULT_PREFIX, JOIN_OPS, suggestedKeys, summaryWords, theirNames, type AsOfOp, type JoinCondition, type JoinHow,
   type JoinKindWord, type JoinOp, type JoinRow, type JoinSide, type JoinSummaryCounts,
 } from '../join.ts';
+import { isEveryPair } from '../join-how.ts';
 
 /** Another grid of the page, as the window offers it. */
 export interface JoinCandidate {
@@ -44,7 +45,7 @@ export interface JoinDialogOptions {
 }
 
 /** What the window's form offers, each a form of join.ts's `how`. */
-export type Choice = JoinKindWord | 'asOf' | 'semi' | 'anti' | 'append';
+export type Choice = JoinKindWord | 'asOf' | 'semi' | 'anti' | 'append' | 'cross';
 /**
  * Each form as its tile says it (the user, 2026-10-23: the window was messy beside Create a Class's): a short name, a
  * picture of what it keeps of the two (`picture`, below), and what it does, in a line.
@@ -58,6 +59,7 @@ const CHOICES: readonly { readonly value: Choice; readonly label: string; readon
   { value: 'semi', label: 'Mine with a match', says: 'The rows of mine that have a match: mine alone, each once.' },
   { value: 'anti', label: 'Mine with none', says: 'The rows of mine that have no match: mine alone, each once.' },
   { value: 'append', label: 'Append theirs', says: 'Their rows under mine, column by column: no condition.' },
+  { value: 'cross', label: 'Every pair', says: 'Each row of mine beside every row of theirs: no condition -- a small table\'s values on each of my rows (Alteryx\'s Append Fields).' },
 ];
 const OP_WORDS: Readonly<Record<JoinOp, string>> = { '==': '=', '!=': '≠', '<': '<', '<=': '≤', '>': '>', '>=': '≥' };
 
@@ -91,6 +93,7 @@ const PICTURES: Readonly<Record<Choice, readonly { readonly d: string; readonly 
   semi: [{ d: BOTH, filled: true }, { d: MINE, filled: false }],
   anti: [{ d: MINE_ALONE, filled: true }, { d: MINE, filled: false }],
   append: [{ d: 'M8 2h14v6H8Z', filled: true }, { d: 'M8 10h14v6H8Z', filled: false }],
+  cross: [{ d: 'M3 3h11v12H3Z', filled: true }, { d: 'M16 3h11v12H16Z', filled: true }, { d: 'M3 9h24', filled: false }],
 };
 
 function picture(doc: Document, choice: Choice): SVGSVGElement {
@@ -291,7 +294,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     /** The window's parts shown as the form chosen asks. */
     const shape = (): void => {
       const c = chosen;
-      condition.hidden = c === 'append';
+      condition.hidden = c === 'append' || c === 'cross';
       matchBlock.hidden = c !== 'asOf';
       columnsCard.hidden = c === 'semi' || c === 'anti' || c === 'append';
       pure.hidden = !pureOn.checked;
@@ -384,7 +387,9 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       const c = chosen;
       if (c === 'append') return { form: 'append' };
       let on: JoinCondition;
-      if (pureOn.checked) {
+      // every pair: no condition, their columns kept and prefixed as a join's are
+      if (c === 'cross') on = { rows: [] };
+      else if (pureOn.checked) {
         if (pure.value.trim() === '') return 'Write the condition, or take Pure off.';
         on = { lambda: await o.parse(pure.value) };
       } else {
@@ -402,7 +407,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
         if (!m.left || !m.right) return 'Choose the two columns the nearest row is found by.';
         return { form: 'asOf', match: { left: m.left, op: m.op as AsOfOp, right: m.right }, on, prefix: pre, keep };
       }
-      return { form: 'join', kind: c, on, prefix: pre, keep };
+      return { form: 'join', kind: c === 'cross' ? 'inner' : c, on, prefix: pre, keep };
     };
 
     let asked = 0;
@@ -475,7 +480,8 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     })());
 
     const startHow = o.start?.how;
-    choose(o.start?.form ?? (startHow === undefined ? 'left' : startHow.form === 'join' ? startHow.kind : startHow.form));
+    choose(o.start?.form ?? (startHow === undefined ? 'left' : isEveryPair(startHow) ? 'cross'
+      : startHow.form === 'join' ? startHow.kind : startHow.form));
     void load();
   });
 }

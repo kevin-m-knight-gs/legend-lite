@@ -14,6 +14,7 @@ import { uniqueOf } from './unique.ts';
 import { imputedOf } from './impute.ts';
 import { multiFieldOf, type MultiFieldColumn } from './multi-field.ts';
 import { dateToolOf } from './date-tools.ts';
+import { isEveryPair, type JoinHow } from './join-how.ts';
 import { joinWords } from './join-words.ts';
 import { conditionWords } from './page-filters.ts';
 import type { DerivedColumn } from './snapshot.ts';
@@ -21,7 +22,7 @@ import type { ColumnEditorStart } from './ui/column-editor.ts';
 import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
-export type FlowTool = 'input' | 'textInput' | 'output' | 'join' | 'union' | 'filter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
+export type FlowTool = 'input' | 'textInput' | 'output' | 'join' | 'union' | 'appendFields' | 'filter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile'
   | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment' | 'container';
 
@@ -32,6 +33,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   output: { name: 'Output', group: 'in', does: 'its input\'s rows written to a CSV file, now and each time the flow runs' },
   join: { name: 'Join', group: 'join', does: 'two inputs joined on their keys: Left above, Right below' },
   union: { name: 'Union', group: 'join', does: 'the rows of two inputs, one under the other, columns by name' },
+  appendFields: { name: 'Append Fields', group: 'join', does: 'each row of one input beside every row of another: a small table\'s values on each' },
   filter: { name: 'Filter', group: 'prepare', does: 'the rows that meet its conditions' },
   formula: { name: 'Formula', group: 'prepare', does: 'columns calculated from each row' },
   multiField: { name: 'Multi-Field', group: 'prepare', does: 'one formula over several columns, a new column of each' },
@@ -61,7 +63,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
   'input', 'textInput', 'output', 'filter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
-  'join', 'union', 'textToColumns', 'regex', 'summarize', 'crosstab', 'runningTotal', 'comment', 'container',
+  'join', 'union', 'appendFields', 'textToColumns', 'regex', 'summarize', 'crosstab', 'runningTotal', 'comment', 'container',
 ];
 
 /**
@@ -112,6 +114,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   runningTotal: { window: 'column', start: { name: 'RunningTotal', window: { fn: 'sum', partition: [], order: [], frame: 'running' } } },
   join: { window: 'join' },
   union: { window: 'join' },
+  appendFields: { window: 'join' },
 };
 
 /** What a box does, as the canvas says it: its tool (the first its query applies), any others it applies besides,
@@ -129,8 +132,10 @@ export interface BoxSays {
  */
 export function boxSays(cube: CubeDocument): BoxSays {
   const source = cube.source;
-  // a join's form says it: an Append is a Union, any other a Join (join-how.ts joinWords)
-  if (source._type === 'join') return { tool: source.how.form === 'append' ? 'union' : 'join', also: [], says: joinWords(source.how) };
+  // a join's form says it: an Append is a Union, every pair an Append Fields, any other a Join (join-how.ts joinWords)
+  if (source._type === 'join') {
+    return { tool: joinTool(source.how), also: [], says: joinWords(source.how) };
+  }
   if (source._type !== 'rows') return { tool: 'input', also: [], says: source.name };
   const q = cube.query;
   const steps: { tool: FlowTool; says: string }[] = [];
@@ -162,6 +167,12 @@ export function boxSays(cube: CubeDocument): BoxSays {
   const first = steps[0];
   if (first === undefined) return { tool: 'browse', also: [], says: 'every row' };
   return { tool: first.tool, also: steps.slice(1).map((s) => s.tool), says: first.says };
+}
+
+/** The tool a join is: an Append a Union, every row with every row an Append Fields (join-how.ts isEveryPair), any other
+ *  a Join -- the box's, and the Join window's start when it is set again. */
+export function joinTool(how: JoinHow): 'join' | 'union' | 'appendFields' {
+  return how.form === 'append' ? 'union' : isEveryPair(how) ? 'appendFields' : 'join';
 }
 
 /** The tool a calculated column is made by: a window column's by its function (a row number, the row before or after,

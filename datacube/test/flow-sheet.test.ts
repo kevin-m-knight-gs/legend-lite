@@ -624,6 +624,11 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
     assert.deepEqual(liveGrids(now), ['grid-3', 'grid-4'], 'its inputs as they are');
     assert.equal(boxSays(union.cubes.find((c) => c.id === 'grid-5')!.cube).tool, 'union', 'an Append is a Union box');
     assert.equal(boxSays(d.page.cubes.find((c) => c.id === 'grid-5')!.cube).tool, 'join');
+    // every row with every row -- matching only, on no condition -- is an Append Fields box (join-how.ts isEveryPair)
+    const pairs = apply(d, { kind: 'setJoin', grid: 'grid-5', how: { form: 'join', kind: 'inner', on: { rows: [] }, prefix: 'their_', keep: null } }).page;
+    assert.deepEqual(boxSays(pairs.cubes.find((c) => c.id === 'grid-5')!.cube), { tool: 'appendFields', also: [], says: 'each row with every row of theirs' });
+    const allOfMine = apply(d, { kind: 'setJoin', grid: 'grid-5', how: { form: 'join', kind: 'left', on: { rows: [] }, prefix: 'their_', keep: null } }).page;
+    assert.equal(boxSays(allOfMine.cubes.find((c) => c.id === 'grid-5')!.cube).tool, 'join', 'all of mine on no condition stays a Join');
     refused(() => apply({ page: union, held: idsOf(union) }, { kind: 'setJoin', grid: 'grid-5', how: { form: 'append' } }), /joins so already/);
     refused(() => apply(d, { kind: 'setJoin', grid: 'grid-3', how: { form: 'append' } }), /is no join/);
     const back = applyPlanned({ page: union, held: idsOf(union) }, pageBetween(union, d.page, 'history'), false).draft.page;

@@ -2490,6 +2490,17 @@ class Joined(Paged):
             page.join(page.grids[0], page.grids[1], {**self.HOW, 'on': {'rows': [{'left': 'nope', 'op': '==', 'right': 'desk'}]}})
         self.assertEqual(len(page.grids), 3)
 
+    def test_every_row_beside_every_row_as_append_fields(self):
+        # (M2) page.append_fields: a flow's Append Fields, the Join window's Every pair -- a join on no condition
+        page = ll.Page('Append Fields')
+        mine = page.grid(trades(), name='trades')
+        theirs = page.grid(desks(), name='desks')
+        paired = page.append_fields(mine, theirs, prefix='d_')
+        rows = paired.to_pandas()
+        self.assertEqual(len(rows), len(trades()) * len(desks()))
+        self.assertIn('d_desk', rows.columns)
+        self.assertEqual(paired._cube['source']['how']['on'], {'rows': []})
+
     def test_placed_on_its_first_inputs_sheet_and_named_as_its_grids_show(self):
         # docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z9: as the tab's Join… places and names one (join-flow.ts), by
         # DataCube's rule (page-commands.ts joinInputOf, headless joinCube)

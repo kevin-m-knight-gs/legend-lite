@@ -9,7 +9,7 @@ import {
   type JoinKind, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import { rowCountLambda } from './query.ts';
-import type { JoinCondition, JoinHow, JoinKindWord, JoinRow, JoinSide } from './join-how.ts';
+import { isEveryPair, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow, type JoinSide } from './join-how.ts';
 
 export * from './join-how.ts';
 export { joinWords, rowWords } from './join-words.ts';
@@ -218,6 +218,13 @@ export function summaryWords(how: JoinHow, c: JoinSummaryCounts): string[] {
   if (how.form === 'append') {
     const theirs = asked(c.theirs, 'they have');
     return [`${plural(c.mine, 'row')} of mine and ${plural(theirs, 'row')} of theirs: ${plural(c.mine + theirs, 'row')}.`];
+  }
+  // every pair (an Append Fields): each of mine beside each of theirs, no match asked of it
+  if (isEveryPair(how)) {
+    const joined = asked(c.joined, 'come out of it');
+    if (c.mine === 0) return ['I have no rows: none after it.'];
+    const theirs = joined / c.mine;
+    return [`Each of my ${plural(c.mine, 'row')} beside ${theirs === 1 ? 'the one row' : `each of the ${plural(theirs, 'row')}`} of theirs: ${plural(joined, 'row')}.`];
   }
   const matched = asked(c.matched, 'find a match');
   const unmatched = c.mine - matched;
