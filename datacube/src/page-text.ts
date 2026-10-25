@@ -8,6 +8,8 @@
 
 import { textProblem } from './page-text-rule.ts';
 import { drawIcon } from './ui/tile-icons.ts';
+import type { TextFileFormat } from './text-files.ts';
+import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 
 export type TextRun =
   | { readonly kind: 'text'; readonly text: string }
@@ -442,6 +444,131 @@ export function textElement(doc: Document, blocks: readonly TextBlock[], preview
   body.className = preview ? 'dc-text-words' : 'dc-text-tile dc-text-words';
   drawBlocks(doc, body, blocks);
   return body;
+}
+
+/** The rows of a CSV file a text box draws; the rest are counted. */
+export const FILE_ROWS = 200;
+
+/**
+ * A FILE IN A TEXT BOX (text-files.ts; docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): Markdown drawn as the box draws its own
+ * words, plain text as it is, JSON indented (as it is, and said, when it does not read), CSV as a table -- its first line
+ * the header, its first FILE_ROWS rows, the rest counted. Every word a text node: a file's own markup is never run. The
+ * words' type, not the tile's drawn words (`.dc-text-tile`: what a page exports is the box's own words).
+ */
+export function fileElement(doc: Document, format: TextFileFormat, text: string, separator: ',' | '\t'): HTMLElement {
+  const box = doc.createElement('div');
+  box.className = 'dc-text-file dc-text-words';
+  const pre = (words: string): void => {
+    const el = doc.createElement('pre');
+    el.className = 'dc-text-file-plain';
+    el.textContent = words;
+    box.append(el);
+  };
+  const note = (words: string): void => {
+    const el = doc.createElement('p');
+    el.className = 'dc-text-file-note';
+    el.textContent = words;
+    box.append(el);
+  };
+  switch (format) {
+    case 'markdown':
+      drawBlocks(doc, box, readText(text));
+      break;
+    case 'text':
+      pre(text);
+      break;
+    case 'json': {
+      let indented: string | undefined;
+      try {
+        indented = JSON.stringify(JSON.parse(text), null, 2);
+      } catch (e) {
+        note(`This is not JSON a browser reads (${e instanceof Error ? e.message : String(e)}); shown as it is.`);
+      }
+      pre(indented ?? text);
+      break;
+    }
+    case 'csv': {
+      const { rows, more } = csvRows(text, separator, FILE_ROWS + 1);
+      const [head, ...body] = rows;
+      if (head === undefined) {
+        note('The file is empty.');
+        break;
+      }
+      const table = doc.createElement('table');
+      table.className = 'dc-text-file-table';
+      const thead = doc.createElement('thead');
+      const tr = doc.createElement('tr');
+      for (const cell of head) {
+        const th = doc.createElement('th');
+        th.textContent = cell;
+        tr.append(th);
+      }
+      thead.append(tr);
+      const tbody = doc.createElement('tbody');
+      for (const row of body) {
+        const line = doc.createElement('tr');
+        for (const cell of row) {
+          const td = doc.createElement('td');
+          td.textContent = cell;
+          line.append(td);
+        }
+        tbody.append(line);
+      }
+      table.append(thead, tbody);
+      box.append(table);
+      if (more > 0) note(`and ${more.toLocaleString(UI_LOCALE)} more row${more === 1 ? '' : 's'}`);
+      break;
+    }
+  }
+  return box;
+}
+
+/**
+ * `text` as CSV rows, `most` of them kept and the rest counted (`more`): RFC 4180's quoting -- a quoted field may hold
+ * the separator, a line break, and "" for a quote; a line break is CRLF or LF; a last empty line is no row.
+ */
+export function csvRows(text: string, separator: string, most: number): { rows: string[][]; more: number } {
+  const rows: string[][] = [];
+  let more = 0;
+  let row: string[] = [];
+  let field = '';
+  let quoted = false;
+  let started = false;
+  const endRow = (): void => {
+    row.push(field);
+    if (rows.length < most) rows.push(row);
+    else more += 1;
+    row = [];
+    field = '';
+    started = false;
+  };
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]!;
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else if (c === '"') quoted = false;
+      else field += c;
+      continue;
+    }
+    if (c === '"' && field === '') {
+      quoted = true;
+      started = true;
+    } else if (c === separator) {
+      row.push(field);
+      field = '';
+      started = true;
+    } else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      endRow();
+    } else {
+      field += c;
+      started = true;
+    }
+  }
+  if (started || field !== '' || row.length > 0) endRow();
+  return { rows, more };
 }
 
 function drawRuns(doc: Document, into: HTMLElement, list: readonly TextRun[]): void {

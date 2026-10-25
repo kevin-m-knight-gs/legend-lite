@@ -8,6 +8,7 @@ and read back into the same page as the open page says it is."""
 import copy
 import datetime
 import gc
+import hashlib
 import json
 import os
 import sys
@@ -812,6 +813,40 @@ class Document(Paged):
         self.assertEqual(other.sheet.name, 'More')
         page.remove(other)
         self.assertNotIn(other, page.texts)
+
+    def test_a_text_box_points_to_its_files_never_copies_them(self):
+        # files opened or dropped on a text box (DataCube's text-files.ts; docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): by
+        # the command the screen sends (setTextFiles), each its name, size and fingerprint -- its bytes stay where it was
+        page, _, _ = self.built()
+        note = page.text('Plans')
+        self.assertEqual(note.files, [])
+        with tempfile.TemporaryDirectory() as d:
+            plan = Path(d, 'plan.md')
+            plan.write_bytes(b'# Plan\n')
+            trades = Path(d, 'trades.csv')
+            trades.write_bytes(b'desk,pnl\nFX,1\n')
+            note.files = [plan, str(trades)]
+            deck = Path(d, 'deck.pptx')
+            deck.write_bytes(b'not text')
+            with self.assertRaisesRegex(ValueError, 'deck.pptx is not a kind of file a text box shows: Markdown, text, '
+                                                    'CSV or JSON'):
+                note.files = [deck]
+            with self.assertRaisesRegex(ValueError, 'is in the text box twice'):
+                note.files = [plan, plan]
+        sha = 'a' * 64
+        self.assertEqual(note.files, [
+            {'name': 'plan.md', 'size': 7, 'sha256': hashlib.sha256(b'# Plan\n').hexdigest()},
+            {'name': 'trades.csv', 'size': 14, 'sha256': hashlib.sha256(b'desk,pnl\nFX,1\n').hexdigest()},
+        ])
+        saved = next(v for v in page.to_dict()['views'] if v['id'] == note.id)
+        self.assertEqual(saved['files'], note.files, 'the page keeps the three, never the bytes')
+        # a file as ``files`` gives one, judged as given
+        with self.assertRaisesRegex(ValueError, 'a file is its name, size and sha256, not its bytes'):
+            note.files = [{'name': 'x.md', 'size': 1, 'sha256': sha, 'bytes': 'x'}]
+        note.files = note.files[1:]
+        self.assertEqual([f['name'] for f in note.files], ['trades.csv'])
+        note.files = []
+        self.assertNotIn('files', next(v for v in page.to_dict()['views'] if v['id'] == note.id))
 
     def test_a_grid_is_edited_as_datacubes_screen_edits_it_and_refused_in_its_words(self):
         # grouping, pivot, Column Properties and sorts by the one module the screen's panels, header menu and drag zones

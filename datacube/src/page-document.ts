@@ -32,6 +32,7 @@ import { readPageFilters, type PageFilter } from './page-filters.ts';
 import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
 import { textProblem } from './page-text-rule.ts';
+import { readTextFiles, type TextFile } from './text-files.ts';
 
 export const PAGE_KIND = 'datacube.page';
 /**
@@ -69,6 +70,8 @@ export interface TextView {
   readonly text: string;
   /** Its own title; else it is numbered (page-ids.ts textTitle). */
   readonly title?: string;
+  /** The files it shows beside its words (text-files.ts: pointed to, never copied); left out when none. */
+  readonly files?: readonly TextFile[];
   /** It shows no cube: read off any view, a text tile's cube is undefined. */
   readonly cube?: never;
 }
@@ -732,7 +735,13 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
     const problem = textProblem(v['text']);
     if (problem !== null) throw new PageDocumentError(`text ${id}: ${problem}`);
     if (v['title'] !== undefined && !named('tile', v['title'])) throw new PageDocumentError(`text ${id}'s title is blank`);
-    return { id, kind: 'text', text: v['text'] as string, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}) };
+    // its files by the one rule (text-files.ts readTextFiles); none written, none read
+    const files = v['files'] === undefined ? [] : readTextFiles(v['files']);
+    if (typeof files === 'string') throw new PageDocumentError(`text ${id}: ${files}`);
+    return {
+      id, kind: 'text', text: v['text'] as string, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}),
+      ...(files.length > 0 ? { files } : {}),
+    };
   }
   if (typeof v['cube'] !== 'string' || !cubes.has(v['cube'])) {
     throw new PageDocumentError(`view ${id} shows no cube of this page`);

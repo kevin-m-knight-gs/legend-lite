@@ -29,6 +29,7 @@
 
 import { CubePage, type PageEdit, type SheetInfo, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
 import { MenuView } from '../ui/menu-view.ts';
+import type { FileHandle, HandleRead } from '../file-handles.ts';
 import { chromeIcon } from '../ui/tile-icons.ts';
 import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
@@ -112,6 +113,8 @@ export type GridMaker = (host: HTMLElement, options: SpawnOptions, start?: GridS
 export interface PageAppOptions {
   /** Where the page goes: it fills it. */
   readonly host: HTMLElement;
+  /** A text box's file read again by its fingerprint, from what the host kept for this page (cube-page.ts textFile). */
+  readonly textFile?: (sha256: string, click: boolean) => Promise<HandleRead | undefined>;
   /** The page's name, in its bar's name box, until `setTitle`. */
   readonly title?: string;
   /**
@@ -650,6 +653,11 @@ export class PageApp {
     await this.#page.opened();
   }
 
+  /** The text boxes' files read this session with their handles: the host keeps them when the page is saved. */
+  textFilesNow(): { readonly sha256: string; readonly handle: FileHandle }[] {
+    return this.#page.textFilesNow();
+  }
+
   /** New ▸ Data Source…: the host's picker, and the grid it makes beside the others. */
   async addSource(near?: string): Promise<string | undefined> {
     const make = await this.#options.openSource?.();
@@ -933,6 +941,7 @@ export class PageApp {
       onTiles: () => this.#onTiles(),
       // a chart's or a text box's Create ▸ Data Source…: the host's picker, as the page's ≡ has it, beside that tile
       ...(this.#options.openSource ? { addSource: (near: string) => { void this.addSource(near); } } : {}),
+      ...(this.#options.textFile ? { textFile: this.#options.textFile } : {}),
       onSettingsChanged: (values) => {
         for (const grid of this.#live()) grid.useSettings(values);
         this.#options.onSettingsChanged?.(values);

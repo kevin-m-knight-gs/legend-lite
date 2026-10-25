@@ -77,6 +77,7 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'addText':
       return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), sheet: n(command.sheet) };
     case 'setText':
+    case 'setTextFiles':
       return { ...command, tile: n(command.tile) };
     case 'setChart':
     case 'select':

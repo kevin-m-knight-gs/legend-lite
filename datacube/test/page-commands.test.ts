@@ -221,6 +221,25 @@ describe('a text tile: added, its words set, titled, moved and removed by the pa
     refused(() => apply({ kind: 'addText', sheet: 'sheet-1', text: 'x'.repeat(10_001), title: null, columns: null }), /at most 10,000 characters/);
     refused(() => readPageCommand({ kind: 'setText', tile: 'text-1', text: 3 }), /a text tile's text is text/);
   });
+
+  it('its files set whole, pointed to by name, size and fingerprint (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8); saved and read back; none, none written', () => {
+    const made = applyPageCommand(draft(), { kind: 'addText', sheet: 'sheet-1', text: 'Notes', title: null, columns: null }).draft;
+    const files = [{ name: 'plan.md', size: 120, sha256: 'a'.repeat(64) }, { name: 'trades.csv', size: 9, sha256: 'b'.repeat(64) }];
+    const set = apply({ kind: 'setTextFiles', tile: 'text-1', files }, made).page;
+    assert.deepEqual((view(set, 'text-1') as { files?: unknown }).files, files);
+    assert.deepEqual(readPage(JSON.parse(JSON.stringify(pageToJson(set)))).views.find((v) => v.id === 'text-1'), view(set, 'text-1'));
+    const none = apply({ kind: 'setTextFiles', tile: 'text-1', files: [] }, made).page;
+    assert.equal('files' in (view(none, 'text-1') as object), false, 'no files: none written');
+    // by the one rule, in its words
+    refused(() => apply({ kind: 'setTextFiles', tile: 'text-1', files: [{ name: 'deck.pptx', size: 1, sha256: 'a'.repeat(64) }] }, made),
+      /deck\.pptx is not a kind of file a text box shows/);
+    refused(() => apply({ kind: 'setTextFiles', tile: 'chart', files: [] }, made), /'chart' is a chart, not a text tile/);
+    refused(() => readPageCommand({ kind: 'setTextFiles', tile: 'text-1', files: [{ name: 'a.md', size: 1 }] }), /a file has|sha256/);
+    // a page whose text box carries a file it cannot show is refused as it is read
+    const bad = JSON.parse(pageToJson(set)) as { views: { id: string; files?: unknown[] }[] };
+    bad.views.find((v) => v.id === 'text-1')!.files = [{ name: 'deck.pptx', size: 1, sha256: 'a'.repeat(64) }];
+    assert.throws(() => readPage(bad), /text text-1: deck\.pptx is not a kind of file a text box shows/);
+  });
 });
 
 describe("a grid of the page as a join reads it, the tab's Join… and Python's alike (joinInputOf: Z9)", () => {
@@ -299,6 +318,7 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'setChart', chart: 'chart', spec },
     { kind: 'addText', id: 'text-1', sheet: 'sheet-1', text: '# Sales', title: null, columns: null },
     { kind: 'setText', tile: 'text-1', text: 'Up **3%**' },
+    { kind: 'setTextFiles', tile: 'text-1', files: [{ name: 'plan.md', size: 120, sha256: 'a'.repeat(64) }] },
     { kind: 'followGrid', chart: 'chart', grid: 'grid-2' },
     { kind: 'detach', chart: 'chart', cube: 'grid-9', document: trades.cubes[0]!.cube },
     { kind: 'detach', chart: 'chart', cube: 'grid-9', document: trades.cubes[0]!.cube, copy: { table: 'snap_9', label: 'Snap 09:00', takenAt: '2026-10-24T09:00:00.000Z', rowCount: 3 } },

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
-import { readText, textEditor, textElement } from '../src/page-text.ts';
+import { FILE_ROWS, csvRows, fileElement, readText, textEditor, textElement } from '../src/page-text.ts';
 import { textLines } from '../src/page/cube-page.ts';
 
 describe("a text tile's words drawn", () => {
@@ -122,5 +122,45 @@ describe("a text tile's words drawn", () => {
     area.setSelectionRange(words().length - 6, words().length - 4);
     area.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'i', ctrlKey: true }));
     assert.match(words(), /\| \*Ce\*ll \|$/);
+  });
+});
+
+describe("a text box's file, drawn (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8)", () => {
+  const doc = new JSDOM('').window.document;
+
+  it('Markdown as the box draws its own words, never as HTML, and none of it the tile\'s own words', () => {
+    const el = fileElement(doc, 'markdown', '# Plan\n\nBy **desk** <img src=x onerror=alert(1)>', ',');
+    assert.equal(el.className, 'dc-text-file dc-text-words', 'the words\' type; an export takes the box\'s own words');
+    assert.equal(el.querySelector('h3')?.textContent, 'Plan');
+    assert.equal(el.querySelector('strong')?.textContent, 'desk');
+    assert.equal(el.querySelector('img'), null, 'typed markup is text');
+  });
+
+  it('text as it is; JSON indented, or as it is and said when it does not read', () => {
+    assert.equal(fileElement(doc, 'text', 'a  b\n<b>x</b>', ',').querySelector('pre')?.textContent, 'a  b\n<b>x</b>');
+    assert.equal(fileElement(doc, 'json', '{"a":[1,2]}', ',').querySelector('pre')?.textContent, '{\n  "a": [\n    1,\n    2\n  ]\n}');
+    const broken = fileElement(doc, 'json', '{"a":', ',');
+    assert.match(broken.querySelector('.dc-text-file-note')?.textContent ?? '', /^This is not JSON a browser reads/);
+    assert.equal(broken.querySelector('pre')?.textContent, '{"a":');
+  });
+
+  it('CSV as a table: its first line the header, its first rows, the rest counted', () => {
+    const el = fileElement(doc, 'csv', 'region,notional\nEMEA,"1,200"\nAPAC,5\n', ',');
+    assert.deepEqual([...el.querySelectorAll('th')].map((t) => t.textContent), ['region', 'notional']);
+    assert.deepEqual([...el.querySelectorAll('tbody tr')].map((r) => [...r.querySelectorAll('td')].map((c) => c.textContent)),
+      [['EMEA', '1,200'], ['APAC', '5']]);
+    const long = ['n', ...Array.from({ length: FILE_ROWS + 3 }, (_, i) => String(i))].join('\n');
+    const many = fileElement(doc, 'csv', long, ',');
+    assert.equal(many.querySelectorAll('tbody tr').length, FILE_ROWS);
+    assert.equal(many.querySelector('.dc-text-file-note')?.textContent, 'and 3 more rows');
+    assert.equal(fileElement(doc, 'csv', '', ',').querySelector('.dc-text-file-note')?.textContent, 'The file is empty.');
+  });
+
+  it('reads CSV by RFC 4180: quoted separators, line breaks and quotes; CRLF; tabs for a TSV; no row for a last empty line', () => {
+    assert.deepEqual(csvRows('a,b\r\n"x,1","say ""hi"""\r\n"two\nlines",3\r\n', ',', 10),
+      { rows: [['a', 'b'], ['x,1', 'say "hi"'], ['two\nlines', '3']], more: 0 });
+    assert.deepEqual(csvRows('a\tb\n1\t2', '\t', 10), { rows: [['a', 'b'], ['1', '2']], more: 0 });
+    assert.deepEqual(csvRows('a,,\n', ',', 10), { rows: [['a', '', '']], more: 0 });
+    assert.deepEqual(csvRows('h\n1\n2\n3', ',', 2), { rows: [['h'], ['1']], more: 2 });
   });
 });

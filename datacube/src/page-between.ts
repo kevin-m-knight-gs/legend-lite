@@ -149,11 +149,13 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
       const sheet = sheetOf(to, v.id);
       if (sheet === undefined) throw new CubeRefusal(`'${v.id}' is on no sheet of the page: it cannot be made`);
       emit({ kind: 'addText', id: v.id, sheet: sheet.id, text: v.text, title: v.title ?? null, columns: null });
+      if ((v.files ?? []).length > 0) emit({ kind: 'setTextFiles', tile: v.id, files: v.files ?? [] });
       continue;
     }
     const here = cur().views.find((x): x is TextView => x.kind === 'text' && x.id === n(v.id));
     if (here === undefined) continue;
     if (here.text !== v.text) emit({ kind: 'setText', tile: v.id, text: v.text });
+    if (JSON.stringify(here.files ?? []) !== JSON.stringify(v.files ?? [])) emit({ kind: 'setTextFiles', tile: v.id, files: v.files ?? [] });
     if ((here.title ?? null) !== (v.title ?? null)) emit({ kind: 'renameTile', tile: v.id, title: v.title ?? null });
   }
 

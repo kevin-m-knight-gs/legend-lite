@@ -16,7 +16,7 @@ import { fn } from '../../../pure-protocol/src/index.ts';
 import { CubeApp, type CubeAppQuerySource } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import { gridCapped } from '../cube-document.ts';
-import { handleKey } from '../file-handles.ts';
+import { handleKey, readHandle } from '../file-handles.ts';
 import { Latest, TabWork, mayLeave } from '../host.ts';
 import { PlanThenRun, type PlanAndRun } from '../runner.ts';
 import { PageApp, type GridMaker } from '../page/page-app.ts';
@@ -465,6 +465,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
    */
   const page = new PageApp({
     host,
+    // a text box's file read again from where it was picked: the handle this browser kept for the saved page, as a
+    // grid's file is (file-handles.ts); a page not saved, or nothing kept, has the text box ask for it
+    textFile: async (sha, click) => {
+      const id = page.record;
+      const kept = id === undefined ? undefined : await (await services.pages)?.handles?.get(handleKey(id, sha));
+      return kept ? readHandle(kept, click) : undefined;
+    },
     hostMenu: () => [
       // saved pages: where the host keeps them (in this browser), over the sources they were built on
       ...(services.pages ? [
@@ -959,6 +966,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      */
     async function keepHandles(pageId: string): Promise<void> {
       for (const f of sources.filesNow()) if (f.handle) await pages?.handles?.put(handleKey(pageId, f.sha256), f.handle);
+      // and each text box's file, picked with a handle, as a grid's is (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8)
+      for (const f of page.textFilesNow()) await pages?.handles?.put(handleKey(pageId, f.sha256), f.handle);
     }
 
     /** The grid a saved page's cube is shown in (its grid view's id), or the cube's own id (a detached chart's). */

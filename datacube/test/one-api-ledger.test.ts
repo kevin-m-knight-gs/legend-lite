@@ -499,6 +499,7 @@ const PASS_THROUGH: Record<string, string> = {
   setChart: "the spec as the chart's panel made it (chart-spec.ts editChart)",
   addText: "a new text tile's id, as the page numbers ids, on the sheet it was asked for, with its starting words",
   setText: "the words as typed in the text tile's editor (setText judges them, by page-text.ts textProblem)",
+  setTextFiles: "the files opened or dropped on a text box, each its name, size and fingerprint (setTextFiles judges them, by text-files.ts readTextFiles); Python's Text.files fingerprints a path the same way",
   renamePage: 'the name as typed (renamePage judges it)', savedAs: "the page store's record the page was saved as",
   setPageFilter: "the filter as the page's filter bar made it", removePageFilter: 'the page filter whose x was clicked',
 };

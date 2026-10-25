@@ -4469,6 +4469,34 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 
 /* A TEXT TILE (page-text.ts): a page's title or a note, its small Markdown drawn; edited in place */
 .dc-text-host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+/* FILES IN A TEXT BOX (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): a tab each beside its words, the one shown below */
+.dc-text-host.dc-text-drop { outline: 2px dashed var(--dc-active); outline-offset: -4px; background: var(--dc-selected-bg); }
+.dc-text-files {
+  flex: none; display: flex; gap: 2px; overflow-x: auto; padding: 4px var(--dc-pad-2) 0;
+  border-bottom: 1px solid var(--dc-line);
+}
+.dc-text-file-tab { flex: none; display: inline-flex; align-items: center; }
+.dc-text-file-name {
+  font: inherit; font-size: var(--dc-text-sm-size); max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; padding: 3px 8px; border: 1px solid transparent; border-bottom: 0;
+  border-radius: var(--dc-radius-sm) var(--dc-radius-sm) 0 0; background: transparent; color: var(--dc-muted); cursor: pointer;
+}
+.dc-text-file-name:hover { color: inherit; background: var(--dc-hover); }
+.dc-text-file-name[aria-selected='true'] { color: inherit; border-color: var(--dc-line); background: var(--tw-white); }
+.dc-text-file-close {
+  display: inline-flex; align-items: center; padding: 2px; margin-left: -4px; border: 0; background: transparent;
+  color: var(--dc-muted); cursor: pointer; font-size: 10px;
+}
+.dc-text-file-close:hover { color: inherit; }
+.dc-text-pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.dc-text-file { flex: 1 1 auto; overflow: auto; padding: var(--dc-pad-2) var(--dc-pad-3, 12px); line-height: 1.45; }
+.dc-text-file-plain { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--dc-mono, ui-monospace, monospace); font-size: 12px; }
+.dc-text-file-table { border-collapse: collapse; font-size: var(--dc-text-sm-size); }
+.dc-text-file-table th, .dc-text-file-table td { border: 1px solid var(--dc-line); padding: 2px 6px; text-align: left; white-space: nowrap; }
+.dc-text-file-table th { position: sticky; top: 0; background: var(--tw-white); font-weight: 600; }
+.dc-text-file-note { margin: 0 0 0.6em; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-text-file-missing { margin: auto; max-width: 360px; text-align: center; color: var(--dc-muted); padding: var(--dc-pad-2); }
+.dc-text-file-missing p { margin: 0 0 0.6em; }
 /* a text tile's words (page-text.ts textElement): the tile's box, then the words' type -- the tile's and its editor's
    preview's alike */
 .dc-text-tile { flex: 1 1 auto; overflow: auto; padding: var(--dc-pad-2) var(--dc-pad-3, 12px); line-height: 1.45; }

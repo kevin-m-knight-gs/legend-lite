@@ -7,6 +7,7 @@
 // reopened, a sheet renamed and deleted.
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
@@ -296,6 +297,98 @@ describe('a page of its own', () => {
     await until(() => tile(id)?.querySelector('.dc-text-tile strong'));
     assert.deepEqual(page.views(), { views: doc.views, sheets: doc.sheets });
     assert.equal(tile(id).querySelector('.dc-text-tile strong')?.textContent, 'Python');
+  });
+
+  it("a text box's files (§8): opened, a tab each beside its words, drawn; taken off; reopened where the file is not, it is asked for", async () => {
+    // docs/DATACUBE_UI_REVIEW_2026_10_24.md §8: a page points to a text box's files by name, size and fingerprint --
+    // their bytes stay where they were picked
+    const told: PageCommand[] = [];
+    const until = async (shown: () => unknown): Promise<void> => {
+      for (let i = 0; i < 200 && !shown(); i++) await new Promise((r) => setTimeout(r, 5));
+    };
+    const plan = new File(['# Plan\n\nBy **desk**'], 'plan.md');
+    const sha = createHash('sha256').update('# Plan\n\nBy **desk**').digest('hex');
+    /** The file input Open Files… puts in the page (no handles to give in this browser), given `files`. */
+    const pick = async (...files: File[]): Promise<void> => {
+      await until(() => dom.window.document.querySelector('input.dc-file-input'));
+      const input = dom.window.document.querySelector<HTMLInputElement>('input.dc-file-input')!;
+      Object.defineProperty(input, 'files', { value: files });
+      input.dispatchEvent(new dom.window.Event('change'));
+    };
+    const tabs = (id: string): string[] => [...tile(id).querySelectorAll('.dc-text-file-name')].map((t) => t.textContent ?? '');
+    const open = (id: string, entry: string): void => {
+      dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      tile(id).querySelector('.dc-text-host')!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')].find((i) => label(i) === entry)!.click();
+    };
+    newPage({ confirm: () => true, onPageCommand: (c) => told.push(c) });
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    gridMenuItem(a, 'Text Box').click();
+    await settle();
+    const id = 'text-1';
+    await until(() => tile(id).querySelector('textarea'));
+    tile(id).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    // Open Files…: told as the page's command, pointed to; shown in its own tab, drawn as Markdown
+    told.length = 0;
+    open(id, 'Open Files\u2026');
+    await pick(plan);
+    await until(() => tile(id).querySelector('.dc-text-file h3'));
+    assert.deepEqual(told, [{ kind: 'setTextFiles', tile: id, files: [{ name: 'plan.md', size: plan.size, sha256: sha }] }]);
+    assert.deepEqual(tabs(id), ['Text', 'plan.md']);
+    assert.equal(tile(id).querySelector('.dc-text-file h3')?.textContent, 'Plan');
+    assert.equal(tile(id).querySelector('[role="tab"][aria-selected="true"]')?.textContent, 'plan.md', 'the file added shown');
+    // its words a tab away
+    [...tile(id).querySelectorAll<HTMLElement>('.dc-text-file-name')].find((t) => t.textContent === 'Text')!.click();
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    assert.equal(tile(id).querySelector('.dc-text-file'), null);
+    // the same file again: nothing told
+    told.length = 0;
+    open(id, 'Open Files\u2026');
+    await pick(plan);
+    await settle();
+    assert.deepEqual(told, [], 'a file it shows already');
+    // saved with the page as where it is, never its bytes
+    const doc = page.document('Q3')!;
+    assert.deepEqual(doc.views.find((v) => v.id === id), { id, kind: 'text', text: 'Double-click to write here.', files: [{ name: 'plan.md', size: plan.size, sha256: sha }] });
+    assert.equal(pageToJson(doc).includes('By **desk**'), false, "the file's words are not in the page");
+    // its tab's x takes it off
+    tile(id).querySelector<HTMLButtonElement>('.dc-text-file-close')!.click();
+    await settle();
+    assert.deepEqual(told.at(-1), { kind: 'setTextFiles', tile: id, files: [] });
+    assert.equal(tile(id).querySelector('.dc-text-files'), null, 'no files: no tabs');
+    // reopened in a browser that kept nothing of it: asked for again by its name; the same file picked is shown
+    const back = readPage(pageToJson(doc));
+    page.dispose();
+    newPage();
+    page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])));
+    await settle();
+    await until(() => tile(id)?.querySelector('.dc-text-files'));
+    [...tile(id).querySelectorAll<HTMLElement>('.dc-text-file-name')].find((t) => t.textContent === 'plan.md')!.click();
+    await until(() => tile(id).querySelector('.dc-text-file-missing'));
+    const missing = tile(id).querySelector('.dc-text-file-missing')!;
+    assert.match(missing.textContent ?? '', /^plan\.md is not here \(this browser keeps nothing of it\): a page points to its files, never copies them\./);
+    missing.querySelector('button')!.click();
+    await pick(plan);
+    await until(() => tile(id).querySelector('.dc-text-file h3'));
+    assert.equal(tile(id).querySelector('.dc-text-file h3')?.textContent, 'Plan');
+    // where the host kept its handle: read from there -- the browser asking first, the person's click letting it
+    page.dispose();
+    const asked: boolean[] = [];
+    newPage({ textFile: async (given, click) => {
+      asked.push(click);
+      return given === sha ? (click ? { state: 'file', file: plan } : { state: 'needs-click' }) : undefined;
+    } });
+    page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])));
+    await settle();
+    await until(() => tile(id)?.querySelector('.dc-text-files'));
+    [...tile(id).querySelectorAll<HTMLElement>('.dc-text-file-name')].find((t) => t.textContent === 'plan.md')!.click();
+    await until(() => tile(id).querySelector('.dc-text-file-missing button'));
+    assert.equal(tile(id).querySelector('.dc-text-file-missing button')?.textContent, 'Allow reading plan.md');
+    tile(id).querySelector<HTMLButtonElement>('.dc-text-file-missing button')!.click();
+    await until(() => tile(id).querySelector('.dc-text-file h3'));
+    assert.deepEqual(asked, [false, true], 'asked once without a click, then with the click');
   });
 
   it("a text tile's right-click, in the menus' one order: Create ▸, Edit Text…, then View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page", async () => {
