@@ -39,7 +39,7 @@ export const RATE_SPECS: readonly ColumnSpec[] = [
 ];
 
 /** A sample's file as a cube records it, built here and hashed, so the page reopens over the same rows rebuilt. */
-async function sampleSource(id: string, columns: readonly ColumnSpec[]): Promise<FileSource> {
+export async function sampleSource(id: string, columns: readonly ColumnSpec[]): Promise<FileSource> {
   const sample = sampleById(id);
   if (!sample) throw new Error(`no sample '${id}'`);
   const bytes = new TextEncoder().encode(sample.build(sample.defaultRows));
@@ -58,27 +58,33 @@ function cubeOf(name: string, source: CubeDocument['source'], snapshot: CubeSnap
   return writeCube({ name, source, snapshot: state.snapshot, configuration: state.configuration, tree: state.tree });
 }
 
-const PRICES: TsSource = { alias: 'px', cube: 'prices', date: 'date', key: 'symbol' };
-const RATES: TsSource = { alias: 'rates', cube: 'rates', date: 'date', key: 'tenor' };
+export const PRICES: TsSource = { alias: 'px', cube: 'prices', date: 'date', key: 'symbol' };
+export const RATES: TsSource = { alias: 'rates', cube: 'rates', date: 'date', key: 'tenor' };
 
 /** A series as a person writes it: its id, its expression typed, and the rest of its slots. */
-const s = (id: string, expr: string, rest: Omit<TsSeries, 'id' | 'expr'> = {}): TsSeries => ({ id, expr: parseExpr(expr), ...rest });
+export const s = (id: string, expr: string, rest: Omit<TsSeries, 'id' | 'expr'> = {}): TsSeries => ({ id, expr: parseExpr(expr), ...rest });
 
 /** A timeseries tile, its spec read by the tile's one reader (a slip here is refused at build, not drawn wrong). */
-function tile(id: string, title: string, spec: TimeseriesSpec): PageView {
+export function tile(id: string, title: string, spec: TimeseriesSpec): PageView {
   const read = readTimeseries(spec);
   if (typeof read === 'string') throw new Error(`${id}: ${read}`);
   return { id, kind: 'timeseries', title, spec: read };
 }
 
 /** The 2020 crash and the first hike of 2022, marked on every tile that spans them. */
-const MARKS = [
+export const MARKS = [
   { kind: 'period', from: '2020-02-20', to: '2020-03-23', label: 'Covid crash' },
   { kind: 'event', date: '2022-03-16', label: 'First hike' },
 ] as const;
 
-/** The page: four sheets over the prices and the curve, each a timeseries tile or two beside its grid. */
-export async function marketsPage(): Promise<PageDocument> {
+/** The two grids every timeseries example reads: the prices, grouped by asset class and symbol, and the curve by tenor. */
+export const MARKET_GRIDS: readonly PageView[] = [
+  { id: 'prices', kind: 'grid', cube: 'prices', title: 'Prices' },
+  { id: 'rates', kind: 'grid', cube: 'rates', title: 'Treasury curve' },
+];
+
+/** The cubes of MARKET_GRIDS, each over its sample rebuilt on opening. */
+export async function marketCubes(): Promise<{ readonly id: string; readonly cube: CubeDocument }[]> {
   const pricesFile = await sampleSource('markets', MARKET_SPECS);
   const ratesFile = await sampleSource('rates', RATE_SPECS);
   // a price and a yield average over a group's days (a sum of prices is no figure); a volume sums
@@ -88,9 +94,13 @@ export async function marketsPage(): Promise<PageDocument> {
   });
   const rates = cubeOf('Rates', ratesFile, grouped('rates', RATE_SPECS, ['tenor']),
     { ...DEFAULT_CONFIGURATION, reportTitle: 'Rates', columns: { yield: average } });
+  return [{ id: 'prices', cube: prices }, { id: 'rates', cube: rates }];
+}
+
+/** The page: four sheets over the prices and the curve, each a timeseries tile or two beside its grid. */
+export async function marketsPage(): Promise<PageDocument> {
   const views: PageView[] = [
-    { id: 'prices', kind: 'grid', cube: 'prices', title: 'Prices' },
-    { id: 'rates', kind: 'grid', cube: 'rates', title: 'Treasury curve' },
+    ...MARKET_GRIDS,
     // performance: every line rebased to 100 at the first date shown (a zoom rebases again), a pane of realized vol
     tile('performance', 'Performance, rebased to 100', {
       sources: [PRICES],
@@ -176,7 +186,7 @@ export async function marketsPage(): Promise<PageDocument> {
   ];
   return writePageOf({
     name: 'Markets',
-    cubes: [{ id: 'prices', cube: prices }, { id: 'rates', cube: rates }],
+    cubes: await marketCubes(),
     views: { views, sheets },
   });
 }

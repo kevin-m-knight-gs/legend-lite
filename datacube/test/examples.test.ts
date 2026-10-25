@@ -14,7 +14,9 @@ import { tiles } from '../src/layout/bands.ts';
 import { COUNTRY_COLUMNS, countriesCsv, MARKET_COLUMNS, RATE_COLUMNS, salesCsv, SALES_COLUMNS } from '../src/samples.ts';
 import { COUNTRY_SPECS, prepJoinsPage } from '../src/examples/prep-joins.ts';
 import { MARKET_SPECS, RATE_SPECS, marketsPage } from '../src/examples/markets.ts';
-import { timeseriesProblems } from '../src/timeseries-expr.ts';
+import { timeseriesGalleryPage } from '../src/examples/timeseries-gallery.ts';
+import { timeseriesProblems, TS_FUNCTIONS } from '../src/timeseries-expr.ts';
+import type { TimeseriesSpec, TsExpr } from '../src/timeseries-spec.ts';
 import { openCube } from '../src/cube-document.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 
@@ -23,7 +25,7 @@ const CHART_PAGES = EXAMPLE_PAGES.filter((e) => e.id.startsWith('charts-'));
 
 describe('the example pages', () => {
   it('each is a page of charts, or the join example', () => {
-    assert.deepEqual(EXAMPLE_PAGES.filter((e) => !CHART_PAGES.includes(e)).map((e) => e.id), ['prep-joins', 'markets']);
+    assert.deepEqual(EXAMPLE_PAGES.filter((e) => !CHART_PAGES.includes(e)).map((e) => e.id), ['prep-joins', 'markets', 'timeseries-gallery']);
   });
 
   for (const example of CHART_PAGES) {
@@ -117,6 +119,49 @@ describe('the example pages', () => {
     }
     // one tile reads both grids, in one query
     assert.ok(tilesOf.some((v) => v.kind === 'timeseries' && v.spec.sources.length === 2));
+  });
+
+  // the user, 2026-10-25: "a real saved page with multiple tabs showing all of these" -- every function of the catalog,
+  // each on its family's sheet, every tile drawable over its grids' columns (test/timeseries-queries.test.ts runs them)
+  it('the timeseries gallery: a sheet per family, each using every function of its family, the ways to view, the data', async () => {
+    const page = readPage(pageToJson(await timeseriesGalleryPage()));
+    const families = [...new Set(TS_FUNCTIONS.map((f) => f.family))];
+    assert.deepEqual(page.sheets.map((s) => s.name), [...families, 'Ways to view', 'The data']);
+    const placed = page.sheets.flatMap((s) => tiles(s.layout));
+    assert.deepEqual([...placed].sort(), page.views.map((v) => v.id).sort(), 'every view once, on one sheet');
+    assert.deepEqual(page.sheets.map((s) => s.layout.kind === 'bands' && s.layout.fit), page.sheets.map(() => true), 'every sheet fits its window');
+    const view = (id: string) => page.views.find((v) => v.id === id);
+    const specsOn = (sheet: string): TimeseriesSpec[] => tiles(page.sheets.find((s) => s.name === sheet)!.layout)
+      .flatMap((id) => { const v = view(id); return v?.kind === 'timeseries' ? [v.spec] : []; });
+    const called = (e: TsExpr): string[] => e.kind === 'call' ? [e.fn, ...e.args.flatMap(called)]
+      : e.kind === 'binary' ? [...called(e.left), ...called(e.right)] : [];
+    const calledOn = (sheet: string): Set<string> => new Set(specsOn(sheet).flatMap((ts) => ts.series.flatMap((x) => called(x.expr))));
+    for (const family of families) {
+      const missing = TS_FUNCTIONS.filter((f) => f.family === family && !calledOn(family).has(f.name)).map((f) => f.name);
+      assert.deepEqual(missing, [], `${family}: every function of it on its sheet`);
+    }
+    // every tile drawable over its grids' columns; the ways to view read a split, a frequency, a log scale, a compare
+    // and two grids at once
+    const columns = new Map([['prices', MARKET_SPECS], ['rates', RATE_SPECS]] as const);
+    const all = page.views.flatMap((v) => (v.kind === 'timeseries' ? [v] : []));
+    assert.ok(all.length >= 30, `${all.length} tiles`);
+    for (const v of all) {
+      const byAlias = new Map(v.spec.sources.map((s) => [s.alias, columns.get(s.cube as 'prices' | 'rates')!.map((c) => ({ name: c.name, type: c.type }))] as const));
+      assert.deepEqual(timeseriesProblems(v.spec, byAlias), [], v.title ?? v.id);
+    }
+    const ways = specsOn('Ways to view');
+    assert.ok(ways.some((ts) => ts.series.some((x) => x.split !== undefined)), 'a line per symbol');
+    assert.ok(ways.some((ts) => ts.grain === 'month'), 'a month at a time');
+    assert.ok(ways.some((ts) => ts.panes?.some((p) => p.log)), 'a log scale');
+    assert.ok(ways.some((ts) => ts.view?.compare === 'percent'), 'every line from one start');
+    assert.deepEqual([...new Set(ways.flatMap((ts) => ts.series.map((x) => x.style?.kind ?? 'line')))].sort(), ['area', 'bars', 'dots', 'line', 'step']);
+    assert.ok(ways.some((ts) => ts.sources.length === 2), 'two grids');
+    // the data sheet: the two grids every tile reads, each its sample rebuilt on opening
+    assert.deepEqual(tiles(page.sheets.at(-1)!.layout), ['prices', 'rates']);
+    for (const [id, sample] of [['prices', 'markets'], ['rates', 'rates']] as const) {
+      const source = page.cubes.find((c) => c.id === id)!.cube.source;
+      assert.ok(source._type === 'file' && source.sample?.id === sample, `${id} is the ${sample} sample`);
+    }
   });
 
   // the user, 2026-10-23: join prep was on the site, but no page showed it

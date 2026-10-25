@@ -26,6 +26,7 @@ import { TreeState } from '../src/tree.ts';
 import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
 import type { ChartMeasure, ChartSpec } from '../src/chart-spec.ts';
 import type { FilterNode } from '../src/snapshot.ts';
+import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { getInstanceByDom } from 'echarts/core';
 
 import * as cube from './cube-fixture.ts';
@@ -688,6 +689,35 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     engine.gate.releaseAll();
     await settle();
     assert.equal(ready, true);
+  });
+
+  // the timeseries gallery, 2026-10-25: a page of nine sheets of timeseries asked every series of every sheet as it
+  // opened -- a tile on a sheet not shown is drawn, and asks its grids, when its sheet is shown (docs/TENETS.md: lazy Work)
+  it('a timeseries tile on a sheet not shown asks nothing until its sheet is shown', async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const doc = pg().document('Q3')!;
+    const grid = doc.views.find((v) => v.id === a)!;
+    assert.ok(grid.kind === 'grid');
+    const spec: TimeseriesSpec = {
+      sources: [{ alias: 't', cube: grid.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }],
+    };
+    reopen({
+      ...doc,
+      views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Notional', spec }],
+      sheets: [...doc.sheets, { id: 'sheet-ts', name: 'Series', layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'ts' } }] } }],
+    });
+    await settle();
+    await new Promise((r) => setTimeout(r, 50));
+    const asked = engine.queries;
+    assert.equal(sheetOf('ts'), 'sheet-ts', 'the tile is on its sheet');
+    assert.equal(tile('ts').querySelector('.dc-ts-bar'), null, 'its viewer not made while its sheet is not shown');
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(engine.queries, asked, 'nothing asked for it');
+    clickTab('Series');
+    await shown(host, '[data-tile="ts"] .dc-ts-bar');
+    assert.equal(pg().shownSheet, 'sheet-ts');
   });
 
   it('a page whose first sheet was deleted reopens with its own sheets alone, on its first', async () => {

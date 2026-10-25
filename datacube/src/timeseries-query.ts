@@ -117,6 +117,8 @@ interface Built {
   readonly split?: string;
   readonly unit: TsUnit;
   readonly rows?: string;
+  /** What wrote it: a query over it (its statistics) goes on writing, so a column it adds is named after the series' own. */
+  readonly writer: Writer;
 }
 
 /** The type the compiler gave a column of a grid (its source's or a row-level calculated column's). */
@@ -707,7 +709,7 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
   }
   return {
     rel: w.rel, period: PERIOD, ord: ORD, periodType: firstType, ...built, ...(split !== undefined ? { split } : {}), unit,
-    ...(counted ? { rows: TS_ROWS } : {}), sources: read,
+    ...(counted ? { rows: TS_ROWS } : {}), sources: read, writer: w,
   };
 }
 
@@ -794,9 +796,8 @@ export function boundsQuery(input: TsInput, src: TsSource): Lambda {
  */
 export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, view: TsWindow = {}): TsQuery {
   const b = seriesRelation(inputs, ts, series, view.from);
-  const w = new Writer(b.rel, {
-    part: b.split ?? `${WINDOW_ALL_PREFIX}ts`, period: b.period, ord: b.ord, ts, anchor: undefined, periodType: b.periodType,
-  });
+  // the series' own writer: a writer of its own would name a lag of the statistics as the series named its own
+  const w = b.writer;
   const v = b.value;
   const shown: ValueSpecification[] = [fn('isNotEmpty', col(v))];
   if (view.from !== undefined) shown.push(fn('greaterThanEqual', one(b.period), dateLiteral(view.from, b.periodType)));

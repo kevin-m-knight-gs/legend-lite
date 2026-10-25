@@ -157,6 +157,8 @@ describe('what an expression reads, and is', () => {
     assert.equal(u('close[A] / close[B]'), 'number');
     assert.equal(u('close * 2'), 'same');
     assert.equal(u('drawdown(close)'), 'ratio');
+    // a level compounded from its returns is a level, as an index is -- not its returns' ratio
+    assert.equal(u('prices(returns(close), 100)'), 'index');
   });
 
   it('series ids run A to Z, then A2', () => {

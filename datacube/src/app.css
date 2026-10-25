@@ -4382,7 +4382,7 @@
    buttons, the frequency, compare, log, the statistics, its series and settings -- its legend of lines with their latest
    value and change, the chart, and the statistics' table; its editors a popover over the chart. The chart's colours are
    the charts' own (.dc-chartpanel's --dc-chart-* tokens, read by the renderer). */
-.dc-ts-host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.dc-ts-host { display: flex; flex-direction: column; height: 100%; min-height: 0; container: dc-ts / inline-size; }
 .dc-ts.dc-chartpanel {
   position: relative; flex-direction: column; flex: 1 1 auto; background: var(--dc-chart-surface); color: var(--dc-chart-ink);
 }
@@ -4406,6 +4406,12 @@
 .dc-ts-custom { margin-left: var(--dc-pad-2); color: var(--dc-muted-strong); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dc-ts-btn, .dc-ts .dc-ts-select { height: 22px; font-size: var(--dc-text-sm-size); }
 .dc-ts-btn[aria-pressed='true'] { border-color: var(--dc-active); background: var(--dc-selected-bg); color: var(--dc-active); }
+/* a tile half a screen wide or less (the timeseries gallery's two and three abreast): its toolbar tighter, on one row
+   where it fits */
+@container dc-ts (max-width: 860px) {
+  .dc-ts-bar { gap: 3px; padding-inline: var(--dc-pad-1); }
+  .dc-ts-range { min-width: 24px; padding: 0 3px; }
+}
 
 .dc-ts-legend { display: flex; flex-wrap: wrap; gap: var(--dc-pad-1); padding: var(--dc-pad-1) var(--dc-pad-2) 0; }
 .dc-ts-chip {

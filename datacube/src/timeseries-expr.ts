@@ -78,7 +78,9 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   // returns
   returns: { label: 'Returns', family: 'Returns', unit: 'input', about: 'The return over obs observations.', gsQuant: 'econometrics.returns' },
   prices: {
-    label: 'Prices from returns', family: 'Returns', unit: 'same', params: { initial: 'the level it starts from' },
+    // a level compounded from initial, as an index is (the timeseries gallery, 2026-10-25: as its returns' unit, a
+    // level of 1,139 read as 113,949.58%)
+    label: 'Prices from returns', family: 'Returns', unit: 'index', params: { initial: 'the level it starts from' },
     about: 'A level compounded from a series of returns, from initial.', gsQuant: 'econometrics.prices',
     differs: 'compounded from the first return the series has: its first level is initial times its first return',
   },

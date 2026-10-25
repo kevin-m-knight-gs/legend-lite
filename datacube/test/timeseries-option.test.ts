@@ -49,6 +49,8 @@ describe('the lines, from what the database answered', () => {
     // a level is written as its grid writes its column; a figure by its unit
     assert.equal(lines[0]!.formatColumn, 'close');
     assert.equal(valueText(lines[1]!, 20), '20.00%');
+    // a plain number to its places; a small one (a covariance of daily returns) to three significant places, not zero
+    assert.deepEqual([1.23456, 0.000123456, 0, -0.0000001234].map((v) => valueText({ unit: 'number' }, v)), ['1.235', '0.000123', '0.000', '-1.23E-7']);
   });
 
   it('a split series: a line per value, in the order a person reads them (2Y before 10Y), each named by it', () => {
@@ -103,6 +105,16 @@ describe('the drawing', () => {
     // one zoom for every pane, and its navigator
     const zoom = option['dataZoom'] as { xAxisIndex: number[]; type: string }[];
     assert.ok(zoom.some((z) => z.type === 'slider') && zoom.every((z) => z.xAxisIndex.length === 2));
+  });
+
+  // the timeseries gallery, 2026-10-25: a log pane of two prices, one on the right, drew the right one on a straight scale
+  it('a log pane: its left axis and a right one of levels on a log scale; a ratio on the right keeps its zero', () => {
+    const ts = spec([S('A', 'close[NVDA]'), S('B', 'close[SPX]', { axis: 'right' })], { panes: [{ log: true }] });
+    const levels = [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }), answered('B', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [300, 200, 100] })];
+    const types = (o: Record<string, unknown>): string[] => (o['yAxis'] as { type: string }[]).map((y) => y.type);
+    assert.deepEqual(types(draw(ts, levels).option), ['log', 'log']);
+    const ratio: TimeseriesSpec = { ...ts, series: [ts.series[0]!, S('B', 'returns($A)', { axis: 'right' })] };
+    assert.deepEqual(types(draw(ratio, [levels[0]!, answered('B', 'ratio', { [TS_DATE]: DAYS, [TS_VALUE]: [0.1, -0.2, null] })]).option), ['log', 'value']);
   });
 
   it('an RSI\'s axis shows its bounds whole', () => {

@@ -288,7 +288,9 @@ bounds planned and run.
 The queries planned and run (§5.4, growing with each function and with §5.2's combinations); the spec's reader, its
 refusals and the expression language's round trip (parse, print, parse); the drawing (`timeseries-option.ts`, in node);
 the viewer's DOM (jsdom, the renderer stood in for); the page commands, the rebase and a removed grid; Python's
-`page.timeseries`; the example page drawn in Chromium.
+`page.timeseries`; the example pages drawn in Chromium -- and the timeseries gallery (below) the catalog's own test:
+every function on its family's sheet, every series of it planned and answered on the samples
+(`test/examples.test.ts`, `test/timeseries-queries.test.ts`).
 
 ## 10. What is built so far (on the branch)
 
@@ -321,4 +323,21 @@ the viewer's DOM (jsdom, the renderer stood in for); the page commands, the reba
   of daily rows is right -- drawn by ECharts' candlestick (registered with the rarer kinds, `chart-render-kinds.ts`,
   before the tile's chart is made: an ECharts chart takes the layouts it knows as it is made), never read, unmoved by
   compare. The series editor's Candles makes one of a close (`candleOf`: the open, high and low beside it, by name).
-- **Next**: per-source frozen filters; events from a grid's column; a regression of one series on another.
+- **The timeseries gallery** (`examples/timeseries-gallery.ts`; the user, 2026-10-25: "a real saved page with multiple
+  tabs showing all of these", as the chart gallery is): in the Open window's examples beside Markets -- a sheet per
+  family of the catalog (returns, level, rolling statistics, risk, relationships, technicals, math), each using every
+  function of its family, titled by what it does; a sheet of the ways to read a tile (a line per symbol, a month at a
+  time, a log scale, every line from one start with its statistics, the styles, two grids in one query); and the two
+  grids. 36 tiles, 88 series, each sheet fitting its window. Building it found three defects, each fixed with its test:
+  a level read through a lag (`diff`, `lag`, `prices(returns(...))`) had its statistics name their own lag as the
+  series named its own, and the planner refused the column twice (the statistics now go on writing with the series'
+  own writer, `Built.writer`); `prices` took its returns' unit (a level of 1,139 read as 113,949.58%: it is an index's
+  level now); and a log pane drew a second price, on the right, on a straight scale (a right axis of levels is log too;
+  a ratio's keeps its zero). A small plain number (a covariance of daily returns) is written to three significant
+  places, not as 0.000; a tile half a screen wide tightens its toolbar (a container query on `.dc-ts-host`).
+- **A tile on a sheet not shown asks nothing** (`page/cube-page.ts #drawTimeseries`): its viewer is made, and its grids
+  asked, when its sheet is shown (`showSheet`, a step that leaves one shown, a page reopened) -- the gallery opens
+  asking its first sheet's 10 series, not its 88 (docs/TENETS.md: lazy Work; `test/cube-page-shell.test.ts`). Charts
+  on a sheet not shown still ask at opening, as before.
+- **Next**: per-source frozen filters; events from a grid's column; a regression of one series on another; a chart on a
+  sheet not shown asking only when shown, as a timeseries tile does.

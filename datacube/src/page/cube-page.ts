@@ -800,6 +800,7 @@ export class CubePage {
     // a sheet brought back is shown: where the change is
     const back = this.#sheets.find((s) => !sheetsBefore.has(s.id));
     if (back) this.showSheet(back.id);
+    this.#drawShownSeries();
     this.#releaseKept();
     this.#options.onSheets?.();
     this.#options.onTiles?.();
@@ -820,6 +821,7 @@ export class CubePage {
     this.#shown.host.hidden = true;
     next.host.hidden = false;
     this.#shown = next;
+    this.#drawShownSeries();
     this.#options.onSheets?.();
   }
 
@@ -1544,6 +1546,7 @@ export class CubePage {
     this.#planned.clear();
     // a page reopens on its first sheet (what is looked at is not saved: the design's §5, 7)
     this.showSheet(this.#sheets[0]!.id);
+    this.#drawShownSeries();
     // a kept grid no restored chart reads (its charts not opened) goes now, not at the next removal
     this.#releaseKept();
   }
@@ -1851,7 +1854,7 @@ export class CubePage {
     });
   }
 
-  /** A timeseries tile on the board, its viewer fetched and drawn (`#drawTimeseries`). */
+  /** A timeseries tile on the board, its viewer fetched and drawn (`#drawTimeseries`) once its sheet is shown. */
   #placeTimeseries(view: TimeseriesPageView): void {
     const body = this.#doc.createElement('div');
     body.className = 'dc-ts-host';
@@ -1864,11 +1867,14 @@ export class CubePage {
    * A timeseries tile's viewer (ui/timeseries-view.ts, a chunk of its own fetched with the first drawn) over the page's
    * grids: each source's by its cube, several opened together for a series that combines them (CubePageOptions.together),
    * and a change of its spec told as the page's (setTimeseries) -- the step then puts it back as the page has it (`sync`).
+   * A tile on a sheet not shown is drawn when its sheet is (`#drawShownSeries`): until then it asks its grids nothing --
+   * a page of many sheets of them (the timeseries gallery's) asks only what is looked at (docs/TENETS.md: lazy Work).
    */
   #drawTimeseries(id: string): void {
+    if (this.#sheetOf(id) !== this.#shown) return;
     void lazily(() => import('../ui/timeseries-view.ts')).then(({ TimeseriesView }) => {
       const tile = this.#series.get(id);
-      if (!tile || tile.view || this.#disposed) return;
+      if (!tile || tile.view || this.#disposed || this.#sheetOf(id) !== this.#shown) return;
       tile.view = new TimeseriesView(tile.body, {
         grid: (cube) => this.#tsGrid(cube),
         grids: () => tiles(this.#layoutOf(this.#sheetOf(id) ?? this.#shown)).filter((t) => this.#grids.has(t))
@@ -1885,6 +1891,11 @@ export class CubePage {
         },
       }, tile.spec);
     });
+  }
+
+  /** The timeseries tiles of the sheet shown not yet drawn, drawn: a sheet shown, a step that leaves one shown. */
+  #drawShownSeries(): void {
+    for (const [id, tile] of this.#series) if (!tile.view) this.#drawTimeseries(id);
   }
 
   /** A timeseries tile off the board, as a step leaves it. */

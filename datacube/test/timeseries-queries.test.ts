@@ -465,6 +465,16 @@ describe('a series\' statistics over the dates shown', () => {
     assert.equal(Number(values(t, statName('count'))[0]), 39);
   });
 
+  // the timeseries gallery, 2026-10-25: a level read through a lag (a difference, a lag, prices of returns) had its
+  // statistics name their own lag as the series named its own -- the planner refused the column twice
+  it('a level read through a lag: its statistics name their own columns after the series\'', async () => {
+    const ts = spec({ A: 'diff(close[AAA], 5)' });
+    const t = await run(statsQuery(inputs, ts, ts.series[0]!));
+    const diffs = AAA.slice(5).map((x, i) => x - AAA[i]!);
+    assert.equal(Number(values(t, statName('count'))[0]), diffs.length);
+    close([num(values(t, statName('first'))[0]), num(values(t, statName('last'))[0])], [diffs[0]!, diffs.at(-1)!], 'ends', 1e-9);
+  });
+
   it('per line of a split series', async () => {
     const ts = spec({ A: 'close' }, {}, 'symbol');
     const t = await run(statsQuery(inputs, ts, ts.series[0]!));
@@ -572,18 +582,26 @@ describe('a series combining two grids, planned over one model of their tables (
   });
 });
 
-// THE MARKETS EXAMPLE (src/examples/markets.ts), end to end: its two samples read into the database as the tab reads
-// them, typed as the page declares them, and every series of every tile -- its statistics and its sources' bounds too --
-// planned by legend-lite's planner and answered by the database: a grid's alone by its own planner, the series across
-// both grids over one model of their tables (openSources), as the tab runs them.
-describe('the markets example: every series of every tile, on its own samples', () => {
-  it('the samples read as the page declares them, and every query plans and answers', async () => {
-    const { marketsPage, MARKET_SPECS, RATE_SPECS } = await import('../src/examples/markets.ts');
+// THE MARKETS EXAMPLE AND THE TIMESERIES GALLERY (src/examples/markets.ts, timeseries-gallery.ts), end to end: their
+// two samples read into the database as the tab reads them, typed as the pages declare them, and every series of every
+// tile -- its statistics and its sources' bounds too -- planned by legend-lite's planner and answered by the database: a
+// grid's alone by its own planner, the series across both grids over one model of their tables (openSources), as the
+// tab runs them.
+/** The gallery's series: every function at least once, and the ways to view. */
+const GALLERY_SERIES = 88;
+
+describe('the timeseries examples: every series of every tile, on its own samples', () => {
+  const pages = [
+    ['the markets example', 24, async () => (await import('../src/examples/markets.ts')).marketsPage()],
+    ['the timeseries gallery', GALLERY_SERIES, async () => (await import('../src/examples/timeseries-gallery.ts')).timeseriesGalleryPage()],
+  ] as const;
+  for (const [what, count, build] of pages) it(`${what}: the samples read as the page declares them, and every query plans and answers`, async () => {
+    const { MARKET_SPECS, RATE_SPECS } = await import('../src/examples/markets.ts');
     const { marketsCsv, ratesCsv } = await import('../src/samples.ts');
     const db = await openDatabase();
     const local = new DuckDbEngine(db.connection);
     try {
-      const page = await marketsPage();
+      const page = await build();
       const grids = new Map<string, { input: TsInput; planner: LitePlanner; table: string }>();
       for (const [cube, csv, specs] of [['prices', marketsCsv(), MARKET_SPECS], ['rates', ratesCsv(), RATE_SPECS]] as const) {
         const r = await ingestFile(local, db.files, new File([csv], `sample-${cube}.csv`), writer, { table: `ex_${cube}` });
@@ -620,7 +638,8 @@ describe('the markets example: every series of every tile, on its own samples', 
           const q = seriesQuery(inputsOf, ts, series);
           const t = await local.execute(await plannerOf.plan(q.query), 0);
           const shown = values(t, TS_VALUE).filter((v) => v !== null && Number.isFinite(Number(v)));
-          assert.ok(shown.length > 100, `${view.id} ${series.id} (${series.name}): ${shown.length} values`);
+          // five years of days (or weeks), or of months
+          assert.ok(shown.length > (ts.grain === 'month' ? 40 : 100), `${view.id} ${series.id} (${series.name}): ${shown.length} values`);
           if (!q.band) {
             const st = await local.execute(await plannerOf.plan(statsQuery(inputsOf, ts, series, {}).query), 0);
             assert.ok(st.rowCount >= 1, `${view.id} ${series.id}: its statistics`);
@@ -628,7 +647,7 @@ describe('the markets example: every series of every tile, on its own samples', 
           ran += 1;
         }
       }
-      assert.equal(ran, 24, 'every series of the page');
+      assert.equal(ran, count, 'every series of the page');
     } finally {
       await local.close();
     }

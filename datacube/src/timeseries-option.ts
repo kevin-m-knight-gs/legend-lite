@@ -204,7 +204,13 @@ export function valueText(line: Pick<TsLine, 'unit'>, v: number | null, format?:
     case 'ratio': return `${fixed(v * 100, 2)}%`;
     case 'percent': return `${fixed(v, 2)}%`;
     case 'index': return fixed(v, 2);
-    case 'number': return Math.abs(v) >= 1000 ? fixed(v, 0) : fixed(v, Math.abs(v) >= 10 ? 2 : 3);
+    case 'number': {
+      const a = Math.abs(v);
+      if (a >= 1000) return fixed(v, 0);
+      // a small figure (a covariance of daily returns) to three significant places, not rounded to nothing
+      if (a !== 0 && a < 0.01) return v.toLocaleString(UI_LOCALE, { maximumSignificantDigits: 3, ...(a < 1e-6 ? { notation: 'scientific' } : {}) });
+      return fixed(v, a >= 10 ? 2 : 3);
+    }
     case 'same':
       return format ? format(v) : fixed(v, Math.abs(v) >= 1000 ? 0 : 2);
   }
@@ -303,7 +309,8 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
       const bounded = bounds !== undefined && on.every((l) => l.bounds?.[0] === bounds[0] && l.bounds?.[1] === bounds[1]) ? bounds : undefined;
       axisOf.set(`${gi}|${side}`, yAxes.length);
       yAxes.push({
-        type: p.log && side === 'left' ? 'log' : 'value',
+        // a log pane's left axis, and a right one of levels (a second price): a ratio on the right keeps its zero
+        type: p.log && (side === 'left' || unit === 'same' || unit === 'index') ? 'log' : 'value',
         gridIndex: gi,
         position: side,
         scale: bounded === undefined,

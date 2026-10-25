@@ -59,4 +59,13 @@ export const EXAMPLE_PAGES: readonly ExamplePage[] = [
       + 'against its yield read across two grids in one query -- gs-quant\'s functions, every figure the database\'s.',
     build: async () => (await lazily(() => import('./markets.ts'))).marketsPage(),
   },
+  {
+    // the user, 2026-10-25: "a real saved page with multiple tabs showing all of these", as the chart gallery is
+    id: 'timeseries-gallery',
+    label: 'Timeseries gallery: every function',
+    about: 'Every function of the timeseries tile, a sheet per family -- returns, levels, rolling statistics, risk, '
+      + 'relationships, technicals and math -- then the ways to read a tile: a line per symbol, a month at a time, a log '
+      + 'scale, every line from one start, its styles, and two grids in one query; over the markets and rates samples.',
+    build: async () => (await lazily(() => import('./timeseries-gallery.ts'))).timeseriesGalleryPage(),
+  },
 ];
