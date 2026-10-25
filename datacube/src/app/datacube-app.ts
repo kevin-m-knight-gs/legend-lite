@@ -1406,7 +1406,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           throw new Error("this tool reads another box's rows: click a box first, or drop the tool on one");
         }
         // a Join or a Union: the Join window over this box (its Left) and another of the flow, each read live (M2)
-        if (tool === 'join' || tool === 'union' || tool === 'appendFields' || tool === 'fuzzyMatch') {
+        if (tool === 'join' || tool === 'union' || tool === 'appendFields' || tool === 'fuzzyMatch' || tool === 'findReplace') {
           await joinOnFlow({ cube: after, tool, sheet, now, ...(into !== undefined ? { into } : {}) });
           return;
         }
@@ -1441,7 +1441,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     };
     // A FLOW'S JOIN BOX (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): made after a box, or set again -- the Join window over
     // the flow's boxes, in this tab's own database (a page Python serves makes one by flow.join: refused here, said)
-    const joinOnFlow = async (o: { readonly cube: string; readonly box?: string; readonly tool: 'join' | 'union' | 'appendFields' | 'fuzzyMatch'; readonly sheet: string;
+    const joinOnFlow = async (o: { readonly cube: string; readonly box?: string; readonly tool: 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace'; readonly sheet: string;
       readonly now: PageDocument; readonly into?: LineEnd }): Promise<void> => {
       const local = services.engine.local;
       if (!local) throw new Error('a join on a flow is made where the page\'s tables are: on a page Python serves, by flow.join(...)');

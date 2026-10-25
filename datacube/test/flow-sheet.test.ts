@@ -32,6 +32,7 @@ import { readTranspose, transposeCommands, transposeOf } from '../src/transpose.
 import { readSelection, retypesOf, selectCommands, selectionOf } from '../src/select-columns.ts';
 import { readSummary, summarizeCommands } from '../src/summarize.ts';
 import { unmatchedOn } from '../src/join-how.ts';
+import { findReplaceCommands, findReplaceOf, readFindReplace } from '../src/find-replace.ts';
 import { summaryActions, summaryOf } from '../src/grid-edits.ts';
 import { applyGridCommands } from '../src/grid-commands.ts';
 import type { GridDraft } from '../src/grid-edits.ts';
@@ -440,6 +441,42 @@ describe('Summarize (summarize.ts): a row a group, each column grouped by, aggre
       { columns: [{ name: 'desk', action: 'group' }, { name: 'notional', action: 'average' }] });
     refused(() => readSummary({ kind: 'summarize', group: 'desk' }), /a list of column names/);
     refused(() => readSummary({ kind: 'summarize', group: [], by: [] }), /takes group and aggregate, not by/);
+  });
+});
+
+describe('Find Replace (find-replace.ts): a column replaced by the column of theirs its Join found, in place', () => {
+  const joined = { ...rawRows(accessor('local::DB', 'trades'), [...COLUMNS, { name: 'their_region', type: 'String' }, { name: 'name', type: 'String' }]) };
+
+  it('replaces where theirs has a value, hands it on by its own name, leaves theirs out; read back; set again', () => {
+    const commands = findReplaceCommands(joined, { column: 'region', with: 'name' });
+    const [calc, hide, place] = commands as unknown as [{ column: DerivedColumn }, { patch: { columns: object } }, { patch: { columns: object } }];
+    assert.equal(calc.column.name, 'region_replaced');
+    assert.equal(JSON.stringify(calc.column.lambda?.body[0]), JSON.stringify(fn('coalesce', property(variable('x'), 'name'), property(variable('x'), 'region'))));
+    assert.deepEqual(hide.patch.columns, { name: { hidden: true } });
+    assert.deepEqual(place.patch.columns, { region: { hidden: true }, region_replaced: { displayName: 'region' } });
+    assert.deepEqual(findReplaceOf(calc.column), { column: 'region', with: 'name' });
+    // a Join box replacing its column so: a Find Replace box, said so
+    const join: CubeSource = {
+      _type: 'join', name: 'trades ⋈ names', left: { grid: 'grid-2' }, right: { grid: 'grid-3' }, columns: joined.columns,
+      how: { form: 'join', kind: 'left', on: { rows: [{ left: 'region', op: '==', right: 'region' }] }, prefix: 'their_', keep: null },
+    };
+    const box = cube(join, (q) => ({ ...q, columns: joined.columns, derived: [calc.column] }),
+      { columns: { name: { hidden: true }, region: { hidden: true }, region_replaced: { displayName: 'region' } } });
+    assert.deepEqual(boxSays(box), { tool: 'findReplace', also: [], says: 'region replaced by name' });
+    assert.equal(boxSays(cube(join)).tool, 'join', 'a Join replacing nothing is a Join');
+    // set again: the replacing before taken off, its columns shown again, then the new one
+    const again = findReplaceCommands({ ...joined, derived: [calc.column] }, { column: 'region', with: 'their_region' });
+    assert.deepEqual(again.slice(0, 2), [
+      { kind: 'removeCalculated', name: 'region_replaced' }, { kind: 'configure', patch: { columns: { region: { hidden: null }, name: { hidden: null } } } },
+    ]);
+  });
+
+  it('refuses in words what it cannot replace', () => {
+    refused(() => findReplaceCommands(joined, { column: 'nope', with: 'name' }), /no column 'nope'/);
+    refused(() => findReplaceCommands(joined, { column: 'region', with: 'region' }), /not by itself/);
+    assert.deepEqual(readFindReplace({ kind: 'findReplace', column: 'region', with: 'name' }), { column: 'region', with: 'name' });
+    refused(() => readFindReplace({ kind: 'findReplace', column: 'region' }), /names its column and the column it is replaced with/);
+    refused(() => readFindReplace({ kind: 'findReplace', column: 'a', with: 'b', by: 1 }), /takes column and with, not by/);
   });
 });
 

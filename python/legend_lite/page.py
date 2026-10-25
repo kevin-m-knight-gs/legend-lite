@@ -2109,6 +2109,18 @@ class Page:
                                                                                          'within': within}]},
                                         'prefix': prefix, 'keep': None}, title=title, sheet=sheet, live=live)
 
+    def find_replace(self, mine: Grid, theirs: Grid, column: str, find: str, replace: str, *, prefix: str = 'their_',
+                     title: str | None = None, sheet: Sheet | None = None, live: bool | None = None) -> Grid:
+        """Each row's ``column`` of ``mine`` found among ``theirs``' ``find`` and replaced by their ``replace`` -- a flow's
+        Find Replace (Alteryx's): every row of mine joined to theirs on ``column`` equal to ``find``, their ``replace``
+        alone brought over (page.join), then ``column`` handed on as their value where one was found, its own where none
+        was, theirs left out (DataCube's code: find-replace.ts findReplaceCommands). The database joins and chooses."""
+        joined = self.join(mine, theirs, {'form': 'join', 'kind': 'left', 'on': {'rows': [{'left': column, 'op': '==', 'right': find}]},
+                                          'prefix': prefix, 'keep': [replace]}, title=title, sheet=sheet, live=live)
+        # their column as the join brings it out: the last, prefixed where a column of mine has its name
+        brought = joined._cube['query']['columns'][-1]['name']
+        return joined._preset({'kind': 'findReplace', 'column': column, 'with': brought})
+
     def sheet(self, name: str | None = None) -> Sheet:
         """A new sheet after the last (``name``: its own; None, named after its first grid)."""
         # as the screen adds one -- what is not text refused by addSheet's reader, in DataCube's words (page-commands.ts addSheet): its id after every one the page has held

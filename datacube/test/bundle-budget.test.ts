@@ -377,8 +377,10 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  rows matched against the other's (live-inputs.ts gridInput, join-how.ts unmatchedOn), read and written with a copy
  *  (cube-document.ts JoinInput.unmatched), a join set again held to its readers (page-commands.ts setJoin) -- read when a
  *  page is, so at startup; the anti-joins themselves join-open.ts's, and the ports' drawing the canvas's chunk). Measured
- *  376,805. */
-const BUDGET = 377_000;
+ *  376,805.
+ *  377,000 -> 377,500 (2026-10-25, the flow mode's Find Replace: its window's opener (app.ts); the rule, the window and a
+ *  box's words chunks of their own, find-replace.ts, ui/find-replace-form.ts and the canvas's). Measured 377,079. */
+const BUDGET = 377_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

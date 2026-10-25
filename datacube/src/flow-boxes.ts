@@ -16,6 +16,7 @@ import { transposeOf } from './transpose.ts';
 import { boxRenamed, inPlaceOf } from './box-columns.ts';
 import { retypesOf } from './select-columns.ts';
 import { imputedOf } from './impute.ts';
+import { findReplaceOf } from './find-replace.ts';
 import { multiFieldOf, type MultiFieldColumn } from './multi-field.ts';
 import { dateToolOf } from './date-tools.ts';
 import { isEveryPair, isFuzzy, type JoinHow } from './join-how.ts';
@@ -26,7 +27,7 @@ import type { ColumnEditorStart } from './ui/column-editor.ts';
 import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
-export type FlowTool = 'input' | 'textInput' | 'output' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'filter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
+export type FlowTool = 'input' | 'textInput' | 'output' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile'
   | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'crosstab' | 'transpose' | 'browse' | 'comment' | 'container';
 
@@ -39,6 +40,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   union: { name: 'Union', group: 'join', does: 'the rows of two inputs, one under the other, columns by name' },
   appendFields: { name: 'Append Fields', group: 'join', does: 'each row of one input beside every row of another: a small table\'s values on each' },
   fuzzyMatch: { name: 'Fuzzy Match', group: 'join', does: 'two inputs joined where their text is alike: a few letters apart at most' },
+  findReplace: { name: 'Find Replace', group: 'join', does: 'a column\'s values found in another input and replaced by theirs: a lookup' },
   filter: { name: 'Filter', group: 'prepare', does: 'the rows that meet its conditions' },
   formula: { name: 'Formula', group: 'prepare', does: 'columns calculated from each row' },
   multiField: { name: 'Multi-Field', group: 'prepare', does: 'one formula over several columns, a new column of each' },
@@ -69,7 +71,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
   'input', 'textInput', 'output', 'browse', 'filter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
-  'join', 'union', 'appendFields', 'fuzzyMatch', 'textToColumns', 'regex', 'summarize', 'crosstab', 'transpose', 'runningTotal', 'comment', 'container',
+  'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'summarize', 'crosstab', 'transpose', 'runningTotal', 'comment', 'container',
 ];
 
 /**
@@ -96,6 +98,8 @@ export type StepEditor =
   | { readonly window: 'select' }
   /** The Summarize window (ui/summarize-form.ts): each column grouped by, aggregated, or left out. */
   | { readonly window: 'summarize' }
+  /** The Find Replace window (ui/find-replace-form.ts): the column its Join found among theirs, and theirs it becomes. */
+  | { readonly window: 'findReplace' }
   /** The DateTime window (ui/date-form.ts): a date column taken to its period, the grid's own period preset. */
   | { readonly window: 'datetime' }
   /** A text tool's window (ui/text-tool-form.ts): Text To Columns, RegEx or Data Cleansing (text-tools.ts). */
@@ -129,6 +133,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   union: { window: 'join' },
   appendFields: { window: 'join' },
   fuzzyMatch: { window: 'join' },
+  findReplace: { window: 'findReplace' },
 };
 
 /** What a box does, as the canvas says it: its tool (the first its query applies), any others it applies besides,
@@ -148,6 +153,10 @@ export function boxSays(cube: CubeDocument): BoxSays {
   const source = cube.source;
   // a join's form says it: an Append is a Union, every pair an Append Fields, any other a Join (join-how.ts joinWords)
   if (source._type === 'join') {
+    // a Join whose column is handed on replaced by one of theirs (find-replace.ts): a Find Replace
+    const replaced = cube.query.derived.map(findReplaceOf).find((r) => r !== undefined
+      && inPlaceOf(cube.query.derived, cube.configuration, () => [r.column]).some((p) => p.column === r.column));
+    if (replaced !== undefined) return { tool: 'findReplace', also: [], says: `${replaced.column} replaced by ${replaced.with}` };
     return { tool: joinTool(source.how), also: [], says: joinWords(source.how) };
   }
   if (source._type !== 'rows') return { tool: 'input', also: [], says: source.name };

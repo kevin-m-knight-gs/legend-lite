@@ -1669,6 +1669,21 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, 'its columns hold numbers and text'):
             page.grid(pd.DataFrame({'a': [1.0], 'b': ['x']}), name='mixed').transpose(['a', 'b'])
 
+    def test_a_column_found_among_another_grid_and_replaced_as_find_replace(self):
+        # (M2) page.find_replace: a flow's Find Replace (find-replace.ts findReplaceCommands) -- every row of mine joined to
+        # theirs on my column equal to theirs, their replacement where found, my own where not; theirs left out
+        page = ll.Page('Find Replace')
+        flow = page.flow()
+        mine = flow.grid(trades(), name='booked_trades')
+        names = flow.grid(pd.DataFrame({'desk': ['FX'], 'name': ['Foreign exchange']}), name='desk_names')
+        replaced = page.find_replace(mine, names, 'desk', 'desk', 'name')
+        # what it hands on, read by the box after it: desk, replaced where found
+        rows = flow.grid(input=replaced).to_pandas()
+        self.assertEqual(sorted(rows['desk']), ['Foreign exchange', 'Rates', 'Rates'], 'found replaced, not found as it was')
+        self.assertNotIn('name', rows.columns, 'theirs left out')
+        with self.assertRaisesRegex(ValueError, "the grid has no column 'nope'"):
+            page.find_replace(mine, names, 'desk', 'desk', 'name')._preset({'kind': 'findReplace', 'column': 'nope', 'with': 'name'})
+
     def test_rows_summarised_as_a_flow_box_summarises_them(self):
         # (M1) grid.summarize: a flow's Summarize (summarize.ts summarizeCommands) -- a row of each group, each column
         # aggregated as it is told, every other left out; the database groups and aggregates

@@ -269,6 +269,8 @@ try {
   await settled();
 
   // A TOOL DROPPED ON A LINE: a Sort between the Filter and the Formula -- the Formula reads the Sort; one step, undone
+  // the palette scrolled where the tool is in sight (it is taller than its pane)
+  await page.locator('.dc-flow-tool[data-tool="sort"]').scrollIntoViewIfNeeded();
   const on = await lineMiddle(formula.id);
   const sortTool = await page.locator('.dc-flow-tool[data-tool="sort"]').boundingBox();
   await page.mouse.move(sortTool.x + sortTool.width / 2, sortTool.y + sortTool.height / 2);
@@ -490,6 +492,44 @@ try {
   check(fuzzy.tool === 'fuzzyMatch' && fuzzy.says === 'matching rows only, on region ≈ region (within 1)', `a Fuzzy Match box: ${JSON.stringify(fuzzy)}`);
   await settled();
   check(await resultRows() > 0, 'its pairs, alike regions matched');
+
+  // A FIND REPLACE (M2), dragged onto the Filter: a file of region names dropped, the Join window at all of mine on
+  // region, then its window docked -- region replaced by their name where found
+  const regionCsv = 'region,name\nEMEA,Europe\nAMER,Americas\n';
+  const named = await page.evaluateHandle((text) => {
+    const d = new DataTransfer();
+    d.items.add(new File([text], 'regions.csv', { type: 'text/csv' }));
+    return d;
+  }, regionCsv);
+  const beforeNames = (await boxes()).map((b) => b.id);
+  await page.dispatchEvent('.dc-flow-canvas', 'dragover', { dataTransfer: named });
+  await page.dispatchEvent('.dc-flow-canvas', 'drop', { dataTransfer: named });
+  await boxCount(beforeNames.length + 1);
+  const regions = await added(beforeNames);
+  const beforeFind = (await boxes()).map((b) => b.id);
+  await drag('findReplace', filter.id);
+  await joinWindow.waitFor({ timeout: 20_000 });
+  check(await joinWindow.locator('.dc-join-kind[data-kind="left"]').getAttribute('aria-checked') === 'true', 'a Find Replace\'s window starts at all of mine');
+  await joinWindow.locator('.dc-join-their').selectOption(regions.id);
+  await page.waitForFunction(() => document.querySelectorAll('.dc-join .dc-join-left option').length > 1, undefined, { timeout: 60_000 });
+  await joinWindow.locator('.dc-join-left').first().selectOption('region');
+  await joinWindow.locator('.dc-join-right').first().selectOption('region');
+  await page.waitForFunction(() => { const b = document.querySelector('.dc-join .dc-save-foot .dc-primary'); return b instanceof HTMLButtonElement && !b.disabled; }, undefined, { timeout: 60_000 });
+  check(await joinWindow.locator('.dc-save-foot .dc-primary').textContent() === 'Add Find Replace', 'its button: Add Find Replace');
+  await joinWindow.locator('.dc-save-foot .dc-primary').click();
+  await joinWindow.waitFor({ state: 'detached', timeout: 60_000 });
+  await boxCount(beforeFind.length + 1);
+  const finder = await added(beforeFind);
+  await docked('Find Replace');
+  check(await page.locator('.dc-flow-dock .dc-find-column').inputValue() === 'region' && await page.locator('.dc-flow-dock .dc-find-with').inputValue() === 'name',
+    'its window starts at its Join\'s key and the last of theirs');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  const replacing = (await boxes()).find((b) => b.id === finder.id);
+  check(replacing?.tool === 'findReplace' && replacing.says === 'region replaced by name', `a Find Replace box: ${JSON.stringify(replacing)}`);
+  check(await resultRows() === fewer, `each of the Filter's rows once: ${fewer}`);
+  check(/Europe|Americas/.test(await page.locator('.dc-flow-results').textContent() ?? ''), 'its regions found, replaced by their names');
+  check(await page.locator('.dc-flow-results .dc-th[data-column="name"]').count() === 0, 'theirs left out');
 
   // A RECORD ID (M3), dragged onto the Filter: the column editor docked at a row number, ordered by trade_id here
   const beforeId = (await boxes()).map((b) => b.id);

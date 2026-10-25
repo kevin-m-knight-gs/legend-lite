@@ -254,7 +254,7 @@ export interface FlowJoinOf {
   readonly box?: string;
   /** The tool it is: a Union's window starts at Append, an Append Fields' at Every pair, a Fuzzy Match's at matching
    *  rows only on similar text. */
-  readonly tool: 'join' | 'union' | 'appendFields' | 'fuzzyMatch';
+  readonly tool: 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace';
   /** The flow's boxes, as its canvas names them: the boxes its Right is chosen among. */
   readonly boxes: readonly string[];
   /** Dropped on a line: the box that line went into, which reads the new box from then on (one step). */
@@ -336,23 +336,28 @@ export async function flowJoin(o: FlowJoinOf): Promise<void> {
           return undefined;
         }
         const into = o.into;
-        return {
-          id: page.addGrid(made.make, {
-            near: left,
-            ...(into !== undefined ? {
-              label: 'Insert Box', after: (id: string) => [pageCommand('setInput', { grid: into.tile, side: into.side, input: { grid: id } })],
-            } : {}),
-          }),
-          notes: made.notes,
-        };
+        const id = page.addGrid(made.make, {
+          near: left,
+          ...(into !== undefined ? {
+            label: 'Insert Box', after: (id: string) => [pageCommand('setInput', { grid: into.tile, side: into.side, input: { grid: id } })],
+          } : {}),
+        });
+        // a Find Replace: the join made, its column replaced in its own window, docked (TOOL_EDITORS)
+        if (o.tool === 'findReplace') {
+          page.boxAddedAs(id, 'findReplace');
+          page.grid(id)?.openStep?.({ window: 'findReplace' });
+        }
+        return { id, notes: made.notes };
       },
     }, {
       lead: joined !== undefined ? `How ${named(left)} and its Right combine: the box's rows, read again as they are now.`
-        : `Combine ${named(left)} with another box of the flow: a box after it that reads both, live.`,
+        : o.tool === 'findReplace' ? `Find each row of ${named(left)} among another box's rows -- a column of yours, theirs it is found in -- then, beside, the column of theirs it becomes.`
+          : `Combine ${named(left)} with another box of the flow: a box after it that reads both, live.`,
       action: joined !== undefined ? 'Apply' : `Add ${FLOW_TOOLS[o.tool].name}`,
       // a Union's window starts at Append, an Append Fields' at Every pair; a box set again, at its own join
       ...(joined !== undefined ? { how: joined.how } : o.tool === 'union' ? { form: 'append' as const }
-        : o.tool === 'appendFields' ? { form: 'cross' as const } : o.tool === 'fuzzyMatch' ? { form: 'inner' as const, op: '~' as const } : {}),
+        : o.tool === 'appendFields' ? { form: 'cross' as const } : o.tool === 'fuzzyMatch' ? { form: 'inner' as const, op: '~' as const }
+          : o.tool === 'findReplace' ? { form: 'left' as const } : {}),
     });
   } finally {
     await opened.close();

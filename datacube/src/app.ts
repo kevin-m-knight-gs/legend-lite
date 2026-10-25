@@ -466,7 +466,7 @@ const windowStack = new WeakMap<HTMLElement, number>();
 /** The text tools' windows, by the tool each sets (text-tools.ts). */
 const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
 const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation'
-  || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize'
+  || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize' || key === 'Find Replace'
   || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
@@ -3648,6 +3648,9 @@ export class CubeApp {
       case 'summarize':
         void this.#openSummarize();
         return;
+      case 'findReplace':
+        void this.#openFindReplace();
+        return;
       // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
       case 'join':
         return;
@@ -3822,6 +3825,35 @@ export class CubeApp {
       apply: async (summary) => {
         try {
           return await this.#apply(summarizeCommands(this.#snapshot, summary), 'Summarize');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S FIND REPLACE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2, Alteryx's): a Join box's column replaced by the
+   *  column of theirs its Join found for it -- in place, theirs hidden (find-replace.ts, the rule Python's
+   *  page.find_replace asks) -- in a window of its own (ui/find-replace-form.ts), starting at its own, else at its
+   *  Join's key and the last of theirs. Both fetched with the first. */
+  async #openFindReplace(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ findReplaceForm }, { findReplaceCommands, findReplaceOf }] = await Promise.all([
+      lazily(() => import('./ui/find-replace-form.ts')), lazily(() => import('./find-replace.ts')),
+    ]);
+    const now = this.#snapshot.derived.map(findReplaceOf).find((r) => r !== undefined);
+    const source = this.#options.cubeSource;
+    const how = source?._type === 'join' ? source.how : undefined;
+    const key = how !== undefined && how.form !== 'append' && 'rows' in how.on ? how.on.rows[0]?.left : undefined;
+    const made = new Set(this.#snapshot.derived.filter((d) => findReplaceOf(d) !== undefined).map((d) => d.name));
+    this.#showOverlay('Find Replace', (host, close) => findReplaceForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => c.name).filter((c) => !made.has(c)),
+      ...(now !== undefined ? { start: now } : key !== undefined ? { start: { column: key } } : {}),
+      apply: async (t) => {
+        try {
+          return await this.#apply(findReplaceCommands(this.#snapshot, t), 'Find Replace');
         } catch (e) {
           if (e instanceof CubeRefusal) return e.message;
           throw e;

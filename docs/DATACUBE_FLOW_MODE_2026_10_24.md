@@ -261,7 +261,7 @@ How to read the status column:
 | Join Multiple | Built, once linked | Joins chained by live inputs |
 | Union | Built | A join's append |
 | Append Fields | Built (2026-10-25) | Every row with every row: a join, matching rows only, on no condition -- the Join window's Every pair |
-| Find Replace | Step | A join, then `replace` |
+| Find Replace | Built (2026-10-25) | A Join box, all of mine on my column equal to theirs, its column then handed on as theirs where found (`coalesce`, in place) |
 | Fuzzy Match | Built (2026-10-25) | A join row comparing by similar text (`~`): both a value, at most N edits apart by `levenshteinDistance`; a Fuzzy Match box opens the Join window at it. `jaroWinklerSimilarity`, a score, waits for a row of its own |
 | Make Group | Out for now | Groups made from pairs need a transitive closure, which one relation cannot say |
 
@@ -984,10 +984,23 @@ back, the refusals, `unmatchedOn`), `join-open.test.ts` (DuckDB: trades with no 
 Python's `test_a_join_box_hands_on_the_rows_each_side_pairs_with_none` and the harness (the Join's R drawn onto the
 canvas: a Browse of the trades the Filter left out; set to its L in the settings: none).
 
-**Still open in M2:** a Union of more than two inputs and Find Replace; a Join's L and R on a Pure condition (its
+**Built, Find Replace** (`find-replace.ts`, `ui/find-replace-form.ts`, `app/join-flow.ts`, 2026-10-25): Alteryx's Find
+Replace in its whole-field form -- each row's value of a column found among another input's, replaced by theirs where
+found. No new kind of source: a Join box -- the palette's Find Replace opens the Join window at All of mine ("Add Find
+Replace"), the key a column of mine equal to one of theirs -- whose column is then handed on replaced, set in its own
+window docked as the box is made (Replace each `region` found with its `name`): a calculated column,
+`coalesce($x.name, $x.region)`, handed on in place of the column (`box-columns.ts`), theirs hidden. A row not found
+keeps its own. The database joins and chooses. A box says "region replaced by name", read back off its column
+(`findReplaceOf`) -- a Join replacing nothing is a Join; set again, its replacing before is taken off first. Python:
+`page.find_replace(mine, theirs, column, find, replace)` (a left join bringing `replace` alone, then the replacing).
+Tested by `flow-sheet.test.ts`, Python's `test_a_column_found_among_another_grid_and_replaced_as_find_replace` and the
+harness (a file of region names dropped, the Filter's regions found and replaced). Still to come: finding within a
+field (any part, its start) and case left out of the comparison -- each a comparison a join row does not have yet.
+
+**Still open in M2:** a Union of more than two inputs; a Join's L and R on a Pure condition (its
 their-names turned back to their own); and the board's own Join… making live joins too (FL6's "new joins are live": the
 flow's are; the board's still copies, as Python's `page.join` of two board grids). Built since: a Unique's Duplicates,
-Append Fields, Fuzzy Match, a Join's L and R.
+Append Fields, Fuzzy Match, a Join's L and R, Find Replace.
 
 
 ---

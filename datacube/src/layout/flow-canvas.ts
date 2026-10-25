@@ -117,6 +117,7 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   union: 'M2.5 3h11v4h-11zM2.5 9h11v4h-11z',
   appendFields: 'M2 3h5v10H2zM9 3h5v10H9zM2 8h12',
   fuzzyMatch: 'M5.5 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8M10.5 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8M6 14.5c1-.8 2-.8 3 0s2 .8 3 0',
+  findReplace: 'M6.5 2.5a4 4 0 1 0 0 8a4 4 0 1 0 0-8M9.5 9.5l4 4M10 3.5h4M12 1.5l2 2-2 2',
   recordId: 'M6 2.5L4.5 13.5M11.5 2.5L10 13.5M2.5 6h11M2 10.5h11',
   unique: 'M3 3.5h4v4H3zM9 3.5h4v4H9zM3 10h4M9 10h4M3 12.5h4M9 12.5h4',
   sample: 'M2.5 3h11M2.5 6.5h11M2.5 10h4M2.5 13h4M10 10.5l1.5 1.5 2.5-3',
