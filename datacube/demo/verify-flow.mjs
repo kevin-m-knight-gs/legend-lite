@@ -895,6 +895,36 @@ try {
   await settled();
   check((await boxes()).find((b) => b.id === dateFiltered.id)?.says === 'trade_date: Last 12 Months', 'set again: a range relative to today');
 
+  // A CUSTOM FILTER (FL12), dragged onto the Filter: its condition in Pure, checked by the compiler -- one that is no
+  // Boolean refused in its words -- a column a click away; its T and F; set again, its condition as the compiler prints it
+  const beforeCustom = (await boxes()).map((b) => b.id);
+  await drag('customFilter', filter.id);
+  await boxCount(beforeCustom.length + 1);
+  const customed = await added(beforeCustom);
+  await docked('Custom Filter');
+  const conditionBox = page.locator('.dc-flow-dock .dc-custom-filter-condition');
+  await conditionBox.fill('$x.notional->toOne() * 2');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await page.waitForFunction(() => /a Boolean: this one is Float/.test(document.querySelector('.dc-flow-dock .dc-sample-status')?.textContent ?? ''), undefined, { timeout: 30_000 });
+  await conditionBox.fill('');
+  await page.locator('.dc-flow-dock .dc-custom-filter-column:text-is("region")').click();
+  check(await conditionBox.inputValue() === '$x.region', `a column put in: ${await conditionBox.inputValue()}`);
+  await conditionBox.press('End');
+  await conditionBox.type(" == 'EMEA'");
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  const customBox = (await boxes()).find((b) => b.id === customed.id);
+  check(customBox?.tool === 'customFilter' && customBox.says === 'a condition on region', `a Custom Filter box: ${JSON.stringify(customBox)}`);
+  const inEmea = await resultRows();
+  check(inEmea > 0 && inEmea < fewer, `the Filter's EMEA trades: ${inEmea} of ${fewer}`);
+  check(JSON.stringify(await page.locator(`.dc-flow-box[data-tile="${customed.id}"] > .dc-flow-port-out:visible`).allTextContents()) === '["T","F"]',
+    'its T and F, as a Filter\'s');
+  await page.locator('.dc-flow-settings button', { hasText: 'Open its settings' }).click();
+  await docked('Custom Filter');
+  const printed = await page.locator('.dc-flow-dock .dc-custom-filter-condition').inputValue();
+  check(/region/.test(printed) && /EMEA/.test(printed), `set again: its condition as the compiler prints it: ${printed}`);
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-quiet').click();
+
   // A TEST (FL8), dragged onto the Filter: its trade ids repeat none, its notionals within bounds -- each check's failing
   // rows counted by the database, its box marked by what its row says; set again, passing
   const beforeTest = (await boxes()).map((b) => b.id);

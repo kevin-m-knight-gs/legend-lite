@@ -3169,6 +3169,25 @@ class Flows(Paged):
         with self.assertRaisesRegex(ValueError, 'Load its values to fix them'):
             after.to_pandas()
 
+    def test_a_custom_filter_keeps_the_rows_its_condition_is_true_for(self):
+        # FL12: grid.custom_filter -- a condition in Pure over $x, parsed and typed by the compiler, the database judging;
+        # its column hidden from the box after it; its False the rest; a condition that is no Boolean refused
+        page, flow, source, _big = self.flowed()
+        kept = flow.grid(input=source)
+        kept.custom_filter("$x.notional->toOne() > 90 && $x.region == 'EMEA'")
+        after = flow.grid(input=kept)
+        self.assertEqual(list(after.to_pandas()['notional']), [100.0])
+        self.assertNotIn('CustomFilter', after.to_pandas().columns, 'its condition hidden from the box after it')
+        rest = flow.grid(input=source)
+        rest.relink(kept, port='false')
+        self.assertEqual(sorted(rest.to_pandas()['notional']), [75.5, 250.0])
+        kept.custom_filter("$x.region == 'AMER'")
+        self.assertEqual(list(after.to_pandas()['notional']), [250.0], 'set again: its condition the new one')
+        with self.assertRaisesRegex(ValueError, 'a condition is true or false, a Boolean: this one is Float'):
+            kept.custom_filter('$x.notional->toOne() * 2')
+        with self.assertRaises(ValueError):
+            kept.custom_filter('$x.nope > 1')
+
     def test_a_sample_hands_on_the_rest(self):
         # M3: a Sample a filter makes hands on the rest by its False (Alteryx's Create Samples, its estimation and holdout):
         # the rows it leaves out, by the same seed -- its rows and the rest every row, none in both

@@ -568,6 +568,16 @@ export class CubeController {
   }
 
   /**
+   * A draft's columns typed as a refresh types them (step 0, `typeColumns`), nothing run: a calculated column's type
+   * before it is applied -- a Custom Filter's condition, which is true or false (custom-filter.ts). The compiler's
+   * refusal thrown, in its words.
+   */
+  async typed(snapshot: CubeSnapshot, signal?: AbortSignal): Promise<CubeSnapshot> {
+    const reading: CubeSnapshot = { ...snapshot, source: { query: this.#snaps.sourceFor(snapshot.source.query) } };
+    return (await typeColumns(reading, this.#runner, signal)).snapshot;
+  }
+
+  /**
    * Run a state: the one query path. Resolves the view (its snapshot as the
    * engine returned it: the compiler's types for the source, the plan's for
    * group-stage calculated columns), STALE when a newer run or `cancel`

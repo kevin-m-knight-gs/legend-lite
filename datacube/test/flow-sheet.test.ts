@@ -47,6 +47,7 @@ import { grainColumn, grainOf } from '../src/calc-presets.ts';
 import { CHECKS_COLUMN, checkCommands, checksOf, checkWords, failingChecks, failingWords, readChecks, testColumns, type Check } from '../src/checks.ts';
 import { DATE_RANGES, dateRangeConditions, datesBetweenConditions } from '../src/date-ranges.ts';
 import { datesKept } from '../src/page-filters.ts';
+import { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterOf, customFilterProbe, customFilterText, readCustomFilter } from '../src/custom-filter.ts';
 import { pastedCells, tableCsv, tableProblem } from '../src/ui/text-input-dialog.ts';
 
 const COLUMNS = [{ name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }];
@@ -385,6 +386,45 @@ describe("a Test (checks.ts): each check's failing rows counted by the database,
     refused(() => checkCommands(typed, [{ kind: 'rows', min: 1 }, { kind: 'rows', max: 9 }]), /its count of rows is checked twice/);
     assert.deepEqual(readChecks({ kind: 'test', checks: [{ kind: 'rows', min: 1 }] }), [{ kind: 'rows', min: 1 }]);
     refused(() => readChecks({ kind: 'test', checks: [{ kind: 'rows', column: 'region', min: 1 }] }), /a rows check takes no column/);
+  });
+});
+
+describe('a Custom Filter (custom-filter.ts): the rows a condition in Pure is true for, its column hidden', () => {
+  const typed = { ...rawRows(accessor('local::DB', 'trades'), COLUMNS) };
+  const apply = (s: CubeSnapshot, commands: readonly unknown[]): CubeSnapshot =>
+    applyGridCommands({ snapshot: s, config: DEFAULT_CONFIGURATION }, commands as never).snapshot;
+  const x = variable('x');
+  const big = lambda(['x'], fn('and', fn('greaterThan', fn('toOne', property(x, 'notional')), lit.integer(100)),
+    fn('equal', property(x, 'region'), lit.string('EMEA'))));
+
+  it('makes its column and the filter on it alone, read back; set again, its column edited', () => {
+    const had: FilterNode = { kind: 'condition', column: 'region', operator: 'equal', value: 'APAC' };
+    const commands = customFilterCommands({ ...typed, filter: had }, big, 'Boolean');
+    const s = apply({ ...typed, filter: had }, commands);
+    assert.deepEqual(s.filter, { kind: 'condition', column: CUSTOM_FILTER_COLUMN, operator: 'equal', value: true }, 'in place of what it had');
+    assert.deepEqual(customFilterOf(s), { lambda: big, reads: ['notional', 'region'] });
+    const hidden = (commands.at(-1) as unknown as { patch: { columns: Record<string, unknown> } }).patch.columns;
+    assert.deepEqual(hidden, { [CUSTOM_FILTER_COLUMN]: { hidden: true } });
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived: s.derived, filter: s.filter! }), { columns: { [CUSTOM_FILTER_COLUMN]: { hidden: true } } })),
+      { tool: 'customFilter', also: [], says: 'a condition on notional, region' });
+    const small = lambda(['x'], fn('lessThan', fn('toOne', property(x, 'notional')), lit.integer(5)));
+    const again = customFilterCommands(s, small, 'Boolean');
+    assert.equal(again[0]!.kind, 'editCalculated');
+    assert.deepEqual(customFilterOf(apply(s, again))?.reads, ['notional']);
+    assert.equal(customFilterOf({ derived: s.derived, filter: had }), undefined, 'another filter: no Custom Filter');
+  });
+
+  it('refuses a condition that is no Boolean and a name taken; its text and JSON read', () => {
+    refused(() => customFilterCommands(typed, big, 'Float'), /a condition is true or false, a Boolean: this one is Float/);
+    const taken = { ...typed, derived: [{ name: CUSTOM_FILTER_COLUMN, window: { fn: 'rowNumber', partition: [], order: [] } }] } as never;
+    refused(() => customFilterCommands(taken, big, 'Boolean'), /'CustomFilter' is already a column/);
+    assert.equal(customFilterText(' $x.a > 1 '), 'x|$x.a > 1');
+    assert.equal(customFilterText('r|$r.a > 1'), 'r|$r.a > 1');
+    assert.deepEqual(readCustomFilter({ kind: 'customFilter', expression: '$x.a > 1' }), { expression: '$x.a > 1' });
+    refused(() => readCustomFilter({ kind: 'customFilter', expression: ' ' }), /its condition in Pure/);
+    refused(() => readCustomFilter({ kind: 'customFilter', expression: '$x.a', column: 'a' }), /a custom filter takes no column/);
+    // the grid with its column as it would be, for the compiler to type
+    assert.deepEqual(customFilterProbe(typed, big).derived.map((d) => d.name), [CUSTOM_FILTER_COLUMN]);
   });
 });
 

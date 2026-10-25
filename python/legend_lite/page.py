@@ -1033,6 +1033,16 @@ class Grid(Tile):
         ones it had."""
         return self._preset({'kind': 'test', 'checks': [dict(c) for c in checks]})
 
+    def custom_filter(self, condition: str) -> Grid:
+        """Its rows those a condition written in Pure is true for -- a flow's Custom Filter (DataCube's code:
+        custom-filter.ts customFilterCommands; Alteryx's Filter, its Custom filter): ``condition`` over ``$x``, the row
+        (``"$x.notional > 1000 && $x.region == 'EMEA'"``), parsed and typed by the compiler, its column (``CustomFilter``,
+        hidden) and the grid's filter keeping the rows it is true for, in place of every condition it had; the rows it
+        leaves out its False (``relink(..., port='false')``). Refused in the compiler's words, or DataCube's: a
+        condition that is no Boolean."""
+        _expression(condition)
+        return self._preset({'kind': 'customFilter', 'expression': condition})
+
     def multi_field(self, columns: Sequence[str], expression: str, *, suffix: str = '_new', in_place: bool = False) -> Grid:
         """One ``expression`` over each of ``columns`` -- a flow's Multi-Field Formula (DataCube's code:
         multi-field-columns.ts multiFieldCommands): Pure over ``$v``, each column's value in turn (``'$v->toOne()->trim()'``, ``'$v->toOne() *

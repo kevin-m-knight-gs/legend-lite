@@ -250,6 +250,7 @@ How to read the status column:
 | Data Cleansing | Built (2026-10-25) | Calculated columns, a `<column>_clean` each: empties made blank (`coalesce`), punctuation out and repeated spaces one (`regexpReplace`), `trim`, `toUpper` / `toLower` (§17.6). In place, as Alteryx's: each handed on by its column's name |
 | Imputation | Built (2026-10-25) | `coalesce` with a value, or with a window column of the column's average, smallest or largest across every row (hidden): a `<column>_filled` each. A median waits for a window `median` |
 | Date Filter | Built | Its own tool: a date column in a range relative to today, or between two days (date-ranges.ts) |
+| Filter's Custom filter | Built (2026-10-25) | Its own tool, Custom Filter: a condition written in Pure over `$x`, parsed and typed by the compiler (a Boolean), a hidden calculated column and the grid's filter on it alone; its T and F (FL12's "filter by a Pure expression") |
 | Generate Rows | Later | Core has no relation that makes rows from a rule; needs a design |
 | Auto Field | Out | Every column already has its type from the compiler; there is nothing to guess |
 | Create Samples | Built | A Sample's two outputs: its rows (S) and the rest (R), its False -- a split by a seed |
@@ -861,6 +862,23 @@ its place. Tested by `flow-sheet.test.ts` (set, read, written, renamed, undone, 
 stop), Python's `test_a_test_that_stops_a_run_writes_no_output` (refused, nothing written; set to warn, written; saved
 and loaded) and the harness (the example's Checks sheet: run, 2024's orders written; its Test set to stop a run and run
 again: nothing written, said, the Test red).
+
+**Built, Custom Filter** (FL12's "filter by a Pure expression", §17.6 item 6; `custom-filter.ts`,
+`ui/custom-filter-form.ts`, `app.ts` `#openCustomFilter`, `cube.ts` `typed`; 2026-10-25): Alteryx's Filter, its Custom
+filter, as a tool of its own in Prepare. Its window takes a condition written in Pure over `$x`, the row -- each of its
+input's columns a click away, put in where the cursor is -- which the compiler parses and types when OK is pressed: one
+that is no Boolean is refused in words ("a condition is true or false, a Boolean: this one is Float"), as is the
+compiler's own refusal. Its query is what a grid already does: a calculated column of the condition (`CustomFilter`,
+hidden, so the box after it never reads it) and the grid's filter keeping the rows it is true for, in place of every
+condition it had; set again, its column edited. So its False port is a filter's (T and F), the rows the condition is not
+true for. Read back off its column and its filter (`customFilterOf`), a box says the columns its condition reads ("a
+condition on region"); set again, its window shows the condition as the compiler prints it. The type is the compiler's
+before anything is set: the draft typed as a refresh types it (`CubeController.typed`, step 0's `typeColumns`), nothing
+run. Python: `grid.custom_filter("$x.region == 'EMEA'")` (headless `gridPreset`, the same parse and typing). Tested by
+`flow-sheet.test.ts` (its column and filter, read back, its words, set again, refusals, its text and JSON),
+Python's `test_a_custom_filter_keeps_the_rows_its_condition_is_true_for` (over DuckDB: its rows, its False the rest, set
+again, a Float refused, an unknown column refused) and the harness (a Custom Filter over the Filter: a Float refused in
+the window, a column put in by a click, EMEA's trades, its T and F; set again, its condition printed).
 
 **Built, a Cross Tab's columns fixed** (FL2; `grid-edits.ts` `pinPivot`, `grid-commands.ts` `pinPivot`,
 `grid-gestures.ts` `pivot.pin`, `query.ts` `crossTabRows`, `app.ts` `pinPivotValues`, `layout/flow-canvas.ts` `#paintPin`;

@@ -28,6 +28,7 @@ import { readSelection, selectCommands, type Selection } from '../select-columns
 import { readSummary, summarizeCommands, type Summary } from '../summarize.ts';
 import { findReplaceCommands, readFindReplace, type FindReplace } from '../find-replace.ts';
 import { countRecordsCommands, readCountRecords } from '../count-records.ts';
+import { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterProbe, customFilterText, readCustomFilter } from '../custom-filter.ts';
 import { checkCommands, checksOf, checkWords, failingChecks, failingWords, readChecks, type Check } from '../checks.ts';
 import type { MultiFieldAsked } from '../multi-field.ts';
 import { DATE_TOOL_KINDS, dateToolCommands, readDateTool, type DateTool } from '../date-tools.ts';
@@ -782,7 +783,8 @@ export async function gridModelMeasure(spec: GridSpec, given: string): Promise<s
  * a Sample (row-sample.ts sampleCommands: grid.sample), a Transpose (transpose.ts transposeCommands: grid.transpose), or a
  * Select (select-columns.ts selectCommands: grid.select), a Summarize (summarize.ts summarizeCommands: grid.summarize), or
  * a Find Replace's replacing (find-replace.ts findReplaceCommands: page.find_replace), or Count Records
- * (count-records.ts countRecordsCommands: grid.count_records), or a Test (checks.ts checkCommands: grid.test).
+ * (count-records.ts countRecordsCommands: grid.count_records), or a Test (checks.ts checkCommands: grid.test), or a
+ * Custom Filter (custom-filter.ts customFilterCommands, its condition parsed and typed by the compiler: grid.custom_filter).
  * `given`, the preset or the tool as JSON (readGridPreset, readTextTool, readUnique, readImputation, readMultiField, by
  * its kind; readRowSample), over the grid's columns as the compiler types them now.
  * JSON: as gridApply's, or `{problems}`, in DataCube's words.
@@ -791,7 +793,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
   let asked: { readonly preset: GridPreset } | { readonly tool: TextTool } | { readonly unique: Unique } | { readonly impute: Imputation }
     | { readonly date: DateTool } | { readonly multi: MultiFieldAsked } | { readonly sample: RowSample | null }
     | { readonly transpose: Transpose } | { readonly select: Selection } | { readonly summarize: Summary } | { readonly findReplace: FindReplace }
-    | { readonly count: { readonly name: string } } | { readonly checks: readonly Check[] };
+    | { readonly count: { readonly name: string } } | { readonly checks: readonly Check[] } | { readonly custom: { readonly expression: string } };
   try {
     const raw: unknown = JSON.parse(given);
     const kind = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>)['kind'] : undefined;
@@ -800,6 +802,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
       : kind === 'transpose' ? { transpose: readTranspose(raw) } : kind === 'selectColumns' ? { select: readSelection(raw) }
       : kind === 'summarize' ? { summarize: readSummary(raw) } : kind === 'findReplace' ? { findReplace: readFindReplace(raw) }
       : kind === 'countRecords' ? { count: readCountRecords(raw) } : kind === 'test' ? { checks: readChecks(raw) }
+      : kind === 'customFilter' ? { custom: readCustomFilter(raw) }
       : (DATE_TOOL_KINDS as readonly unknown[]).includes(kind) ? { date: readDateTool(raw) }
       : (TEXT_TOOL_KINDS as readonly unknown[]).includes(kind) ? { tool: readTextTool(raw) } : { preset: readGridPreset(raw) };
   } catch (e) {
@@ -818,6 +821,18 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
         return JSON.stringify({ problems: [e.message] });
       }
     }
+    // a Custom Filter's condition, parsed and typed as the window parses and types it: a refusal the compiler's
+    let conditionType: string | undefined;
+    if ('custom' in asked) {
+      try {
+        lambda = await o.planner.parse(customFilterText(asked.custom.expression));
+        conditionType = (await typedColumns(o.runner, customFilterProbe(o.state.snapshot, lambda)))
+          .derived.find((d) => d.name === CUSTOM_FILTER_COLUMN)?.type;
+      } catch (e) {
+        if (!(e instanceof PlanError)) throw e;
+        return JSON.stringify({ problems: [e.message] });
+      }
+    }
     try {
       commands = 'tool' in asked ? textToolCommands(asked.tool) : 'date' in asked ? dateToolCommands(asked.date)
         : 'multi' in asked ? multiFieldCommands(await typedColumns(o.runner, o.state.snapshot), { ...asked.multi, lambda: lambda! })
@@ -828,6 +843,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
         : 'findReplace' in asked ? findReplaceCommands(await typedColumns(o.runner, o.state.snapshot), asked.findReplace)
         : 'count' in asked ? countRecordsCommands(await typedColumns(o.runner, o.state.snapshot), asked.count.name)
         : 'checks' in asked ? checkCommands(await typedColumns(o.runner, o.state.snapshot), asked.checks)
+        : 'custom' in asked ? customFilterCommands(o.state.snapshot, lambda!, conditionType)
         : 'unique' in asked ? uniqueCommands(await typedColumns(o.runner, o.state.snapshot), asked.unique)
           : 'impute' in asked ? imputeCommands(await typedColumns(o.runner, o.state.snapshot), asked.impute)
           : presetCommands(await typedColumns(o.runner, o.state.snapshot), asked.preset);

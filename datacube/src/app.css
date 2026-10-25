@@ -5169,6 +5169,14 @@
 /* a Multi-Field Formula's expression (ui/multi-field-form.ts): Pure, typed as the column editor's is */
 .dc-multi-field .dc-text-tool-field { max-width: none; }
 .dc-multi-field-expression { width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--dc-mono, ui-monospace, monospace); }
+/* a Custom Filter's condition, and its input's columns a click away */
+.dc-custom-filter-condition { width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--dc-mono, ui-monospace, monospace); }
+.dc-custom-filter-columns { display: flex; flex-wrap: wrap; gap: 4px; max-height: 6.5em; overflow: auto; }
+.dc-custom-filter-column {
+  font: inherit; font-size: 12px; padding: 1px 8px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--dc-line); background: var(--dc-fill-faint); color: inherit;
+}
+.dc-custom-filter-column:hover { background: var(--dc-hover); border-color: var(--dc-line-strong); }
 .dc-multi-field-suffix { width: 8em; }
 /* a Select's columns (ui/select-form.ts): a row a column -- kept, its name, its type, its new name */
 .dc-select-find { flex: 1; min-width: 10em; }

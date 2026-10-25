@@ -467,7 +467,7 @@ const windowStack = new WeakMap<HTMLElement, number>();
 /** The text tools' windows, by the tool each sets (text-tools.ts). */
 const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
 const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation' || key === 'Date Filter' || key === 'Test'
-  || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize' || key === 'Find Replace'
+  || key === 'Custom Filter' || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize' || key === 'Find Replace'
   || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
@@ -3640,6 +3640,9 @@ export class CubeApp {
       case 'dateFilter':
         void this.#openDateFilter();
         return;
+      case 'customFilter':
+        void this.#openCustomFilter();
+        return;
       case 'test':
         void this.#openTest();
         return;
@@ -3822,6 +3825,49 @@ export class CubeApp {
     const type = rowColumns(s).find((c) => c.name === on)?.type;
     const values = (answered.columns.find((c) => c.name === on)?.values ?? []).map((v) => cellFilterValue(v, type));
     return this.#gesture('pivot.pin', { values }, 'Load Values');
+  }
+
+  /**
+   * A FLOW'S CUSTOM FILTER (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12, Alteryx's Filter, its Custom filter): the rows a
+   * condition written in Pure is true for -- parsed by the compiler, typed before it is set (a condition is a Boolean),
+   * its column and its filter (custom-filter.ts, the rule Python's grid.custom_filter asks) -- in a window of its own
+   * (ui/custom-filter-form.ts), the condition it has printed as the compiler prints it. Both fetched with the first.
+   */
+  async #openCustomFilter(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ customFilterForm }, { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterOf, customFilterProbe, customFilterText }] = await Promise.all([
+      lazily(() => import('./ui/custom-filter-form.ts')), lazily(() => import('./custom-filter.ts')),
+    ]);
+    const had = customFilterOf(this.#snapshot);
+    let start = '';
+    if (had !== undefined) {
+      // its condition as the compiler prints it, the lambda's braces off
+      const printed = (await this.#controller.print(had.lambda).catch(() => '')).trim();
+      start = printed.startsWith('{') && printed.endsWith('}') ? printed.slice(1, -1).trim() : printed;
+    }
+    this.#showOverlay('Custom Filter', (host, close) => customFilterForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => c.name).filter((c) => c !== CUSTOM_FILTER_COLUMN),
+      condition: start,
+      apply: async (text) => {
+        let lambda: Lambda;
+        let type: string | undefined;
+        try {
+          lambda = await this.#check(this.#controller.parse(customFilterText(text)));
+          const probed = await this.#check(this.#controller.typed(customFilterProbe(this.#snapshot, lambda)));
+          type = probed.derived.find((d) => d.name === CUSTOM_FILTER_COLUMN)?.type;
+        } catch (e) {
+          // the compiler's refusal, in its words
+          return e instanceof Error ? e.message : String(e);
+        }
+        try {
+          return await this.#apply(customFilterCommands(this.#snapshot, lambda, type), 'Custom Filter');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
   }
 
   /** A CROSS TAB'S VALUES ITS COLUMNS LACK (FL3): the values its rows hold now that its pinned values do not list, asked

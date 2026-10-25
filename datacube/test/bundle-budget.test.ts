@@ -400,8 +400,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  command and rule (grid-commands.ts pinPivot, grid-edits.ts pinPivot, a pivot set again taking another's off), the
  *  gesture that types them (grid-gestures.ts pivot.pin), its undo (grid-between.ts), a pinned pivot's rows for the box
  *  after it (query.ts crossTabRows) and Load values (app.ts pinPivotValues, page/cube-page.ts onPinValues); the strip
- *  that asks it the canvas's chunk; no startup file added, measured). Measured 381,541. */
-const BUDGET = 382_000;
+ *  that asks it the canvas's chunk; no startup file added, measured). Measured 381,541.
+ *  382,000 -> 383,000 (2026-10-25, the flow mode's Cross Tab missing values (FL3) and Custom Filter (FL12): the values a
+ *  pin lacks asked as its rows land and awaited by a run (query.ts unpinnedValuesLambda, app.ts lackingPivotValues,
+ *  page/cube-page.ts #askLacking, layout/flow-board.ts lacking), a draft's columns typed with nothing run (cube.ts
+ *  typed) and the Custom Filter's opener (app.ts); its rule, its window and the canvas's marks chunks of their own; no
+ *  startup file added, measured). Measured 382,146. */
+const BUDGET = 383_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -778,8 +783,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  marks' code chunks of their own). Measured 392,624.
  *  393,500 -> 395,000 (2026-10-25, the flow mode's Test count of rows and Cross Tab with fixed columns: an empty grid's
  *  row read (page/cube-page.ts firstRowOf), a pivot's values pinned and a pinned pivot's rows -- the grid-only page's
- *  note of the same date -- and the Cross Tab strip's styles). Measured 394,407. */
-const WIDGET_BUDGET = 395_000;
+ *  note of the same date -- and the Cross Tab strip's styles). Measured 394,407.
+ *  395,000 -> 396,000 (2026-10-25, the flow mode's Cross Tab missing values and Custom Filter -- the grid-only page's
+ *  note of the same date -- and the Custom Filter window's styles). Measured 395,109. */
+const WIDGET_BUDGET = 396_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -131,6 +131,8 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   test: 'M8 1.8l5.5 2v4c0 3.3-2.4 5.6-5.5 6.4C4.9 13.4 2.5 11.1 2.5 7.8v-4zM5.3 8l1.9 1.9 3.6-3.8',
   jsonParse: 'M5 2.5c-1.5 0-2 .7-2 2v1.8c0 .8-.4 1.2-1.2 1.2.8 0 1.2.4 1.2 1.2V10.5c0 1.3.5 2 2 2M11 2.5c1.5 0 2 .7 2 2v1.8c0 .8.4 1.2 1.2 1.2-.8 0-1.2.4-1.2 1.2V10.5c0 1.3-.5 2-2 2M6.5 7.5h3',
   dateFilter: 'M2 3.5h9v8H2zM2 6h9M4.5 2v3M8.5 2v3M10 9.5h5l-2 2.5v2.5l-1-1v-1.5z',
+  // a funnel, and a condition written out beside it
+  customFilter: 'M1.5 3h9L7 7.5V11l-2 1V7.5zM12 8.5l-1.5 2 1.5 2M14 8.5l1.5 2-1.5 2',
   textToColumns: 'M2 4.5h12M2 8h4M10 8h4M2 11.5h4M10 11.5h4M8 6v8',
   regex: 'M4 2.5v6M1.5 4l5 3M6.5 4l-5 3M10 2.5l-2 11M14 2.5l-2 11M8.5 9.5H14',
   join: 'M6 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9M10 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9',
@@ -1913,12 +1915,13 @@ export class FlowCanvas {
     right.after(...union.slice(2).map((_, i) => port('dc-flow-port-more', String(i + 3), i + 2)), add);
   }
 
-  /** How a box's outputs are drawn: a Filter's True and False, a Unique's U and D (its filter's, turned round); a Join's
+  /** How a box's outputs are drawn: a Filter's True and False (a Date Filter's, a Custom Filter's), a Unique's U and D
+   *  (its filter's, turned round); a Join's
    *  (a Fuzzy Match's too) L, J and R; any other box's one. */
   #outsOf(id: string): Outs {
     const said = this.#said(id);
     const tool = said?.tool;
-    if (tool === 'filter' || tool === 'dateFilter' || tool === 'unique') return 'two';
+    if (tool === 'filter' || tool === 'dateFilter' || tool === 'customFilter' || tool === 'unique') return 'two';
     // a Sample a filter makes (at random, one of every N, at some places, the first N by row): its rows, and the rest --
     // its False, the filter turned round (Alteryx's Create Samples); a Sample of the first N by an order (its topN), one
     if (tool === 'sample' && said?.also.length === 0) {
