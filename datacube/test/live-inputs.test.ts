@@ -97,6 +97,24 @@ describe('a grid over another grid\'s rows, as its cube writes it', () => {
       /input has no name/);
   });
 
+  it("reads a Union's inputs after its right (JoinSource.more) back exactly; refuses them on a join of two, or not a list", () => {
+    const union: CubeSource = {
+      _type: 'join', name: 'a ∪ b ∪ c', how: { form: 'append' }, columns: COLUMNS,
+      left: { grid: 'grid-1' }, right: { grid: 'grid-2' }, more: [{ grid: 'grid-3' }, { name: 'd', source: FILE, query: cube(FILE).query }],
+    };
+    const doc = cube(union);
+    assert.deepEqual(readCube(cubeToJson(doc)).source, union);
+    assert.equal(cubeToJson(readCube(cubeToJson(doc))), cubeToJson(doc));
+    assert.deepEqual(liveGrids(union), ['grid-1', 'grid-2', 'grid-3']);
+    const raw = (source: unknown): string => JSON.stringify({ ...JSON.parse(cubeToJson(cube(FILE))), source });
+    const plain = JSON.parse(cubeToJson(doc)).source;
+    assert.throws(() => readCube(raw({ ...plain, how: { form: 'semi', on: { rows: [] } } })),
+      (e: unknown) => e instanceof CubeDocumentError && /a join of two: only a Union takes more inputs/.test(e.message));
+    assert.throws(() => readCube(raw({ ...plain, more: [] })), /inputs after its right are a list of inputs, not \[\]/);
+    assert.throws(() => readCube(raw({ ...plain, more: { grid: 'grid-3' } })), /inputs after its right are a list of inputs/);
+    assert.throws(() => readCube(raw({ ...plain, more: [{ grid: 'chart-1' }] })), /a live input names a grid of its page \('grid-3'\), not "chart-1"/);
+  });
+
   it('says what it reads only once resolved: a live input is its page\'s to answer', () => {
     assert.throws(() => leavesOf(rows('grid-1')), /reads grid 'grid-1' of its page live: resolve it against the page first/);
     const p = CHAIN();

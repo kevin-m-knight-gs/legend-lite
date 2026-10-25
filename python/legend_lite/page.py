@@ -280,7 +280,7 @@ class Grid(Tile):
         """Its rows read live from grid ``input`` of its page from now on -- a line drawn on its flow from that box's
         output (page-commands.ts setInput; docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) -- its query as it is, the grid then
         opened over ``input`` as it is now (what changed said, as a load says it). ``side``: a join's ``'left'`` or
-        ``'right'``. ``port='false'``: a Filter's False, the rows its condition leaves out (FL7); ``port='left'`` or
+        ``'right'``, a Union's ``'more1'``, ``'more2'``, ... (its next, one past its last, an input added). ``port='false'``: a Filter's False, the rows its condition leaves out (FL7); ``port='left'`` or
         ``'right'``: a Join's L or R, the rows of that input its condition pairs with no row of the other (live-inputs.ts
         gridInput: an anti-join the database runs). Refused in DataCube's words: a grid that reads no other grid's rows,
         one that would read its own, a False of a grid with no filter, an L or R of a grid that is no join."""
@@ -294,9 +294,27 @@ class Grid(Tile):
     def freeze(self, side: str = 'input') -> Grid:
         """Its rows read from a copy of what its live input is now, from now on (page-commands.ts setInput with no input:
         a box's Freeze, as a box taken off freezes the boxes that read it): an edit of that grid no longer reaches this
-        one. ``side``: a join's ``'left'`` or ``'right'``. Refused in DataCube's words when it reads a copy already."""
+        one. ``side``: a join's ``'left'`` or ``'right'``, a Union's ``'more1'``, .... Refused in DataCube's words when it
+        reads a copy already."""
         _ = self._view
         self._page._apply_page([_commands.page_set_input(grid=self._id, side=side, input=None)], 'a freeze')
+        return self
+
+    def take_off(self, side: str) -> Grid:
+        """A Union's input on ``side`` taken off, those after it each moved up one -- a line into its box deleted on the
+        canvas, as the canvas takes it off (headless pageGesture: page-gestures.ts takeOffCommands;
+        docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) -- the grid then opened over the inputs left. ``side``: ``'left'``,
+        ``'right'``, ``'more1'``, .... A join of two, whose input is frozen rather than taken off (``freeze``), refused in
+        DataCube's words."""
+        _ = self._view
+        page = self._page
+        said = json.loads(page._session.headless().call('pageGesture', 'flow.takeOff', _json.dumps(
+            {'page': page._doc, 'grid': self._id, 'side': side})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        with page._batch():
+            page._apply_page([_plain(c) for c in said['commands']], 'a take off')
+            page._current(self._view['cube'], 3)
         return self
 
     def rejoin(self, how: Mapping[str, Any]) -> Grid:
@@ -321,11 +339,14 @@ class Grid(Tile):
 
     @property
     def inputs(self) -> dict[str, Grid]:
-        """The grids of its page it reads live, by side -- ``'input'``, a join's ``'left'`` and ``'right'`` -- each one
-        a live link of its source (live-inputs.ts liveGrids); a side read from a copy is left out."""
+        """The grids of its page it reads live, by side -- ``'input'``, a join's ``'left'`` and ``'right'``, a Union's
+        ``'more1'``, ``'more2'``, ... after them (cube-document.ts inputSides) -- each one a live link of its source
+        (live-inputs.ts liveGrids); a side read from a copy is left out."""
         source = self._cube['source']
-        sides = {'rows': ('input',), 'join': ('left', 'right')}.get(source['_type'], ())
-        return {side: self._page._tile(source[side]['grid'], Grid) for side in sides if 'grid' in source[side]}
+        given = {'rows': {'input': source.get('input')},
+                 'join': {'left': source.get('left'), 'right': source.get('right'),
+                          **{f'more{k}': i for k, i in enumerate(source.get('more', []), start=1)}}}.get(source['_type'], {})
+        return {side: self._page._tile(i['grid'], Grid) for side, i in given.items() if 'grid' in i}
 
     def _apply(self, commands: list[dict[str, Any]]) -> Grid:
         """The grid edited by commands, each the one DataCube's screen builds for the same edit (grid-commands.ts:
@@ -2104,6 +2125,29 @@ class Page:
                 self._forget({grid.id})
                 raise
         self._changed()
+        return grid
+
+    def union(self, *grids: Grid, title: str | None = None, sheet: Sheet | None = None, live: bool | None = None) -> Grid:
+        """The rows of every grid, one after another -- a flow's Union (Alteryx's, of any number), the Join window's
+        Append: ``join`` of the first two with ``{'form': 'append'}``, each grid after them one more input in turn
+        (page-commands.ts setJoin's ``more``), columns matched by name -- one a grid lacks empty in its rows. ``live`` as
+        ``join``'s: when not, each input after the first two frozen too (a copy of what it is now)."""
+        if len(grids) < 2:
+            raise ValueError(f'a union reads two grids or more, not {len(grids)}')
+        for g in grids:
+            if g._page is not self:
+                raise ValueError(f'{g!r} is another page\'s')
+        if live is None:
+            live = grids[0].sheet.flow
+        grid = self.join(grids[0], grids[1], {'form': 'append'}, title=title, sheet=sheet, live=live)
+        if len(grids) > 2:
+            more = [{'grid': g.id} for g in grids[2:]]
+            with self._batch():
+                self._apply_page([_commands.page_set_join(grid=grid.id, how={'form': 'append'}, more=more)], 'a union')
+                if not live:
+                    self._apply_page([_commands.page_set_input(grid=grid.id, side=f'more{k}', input=None)
+                                      for k in range(1, len(more) + 1)], 'a freeze')
+                self._current(grid._view['cube'], 3)
         return grid
 
     def append_fields(self, mine: Grid, theirs: Grid, *, prefix: str = 'their_', keep: Sequence[str] | None = None,

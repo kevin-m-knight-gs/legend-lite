@@ -222,8 +222,8 @@ def page_set_input(*, grid: Any, side: Any, input: Any) -> dict[str, Any]:
     return {'kind': 'setInput', 'grid': grid, 'side': side, 'input': input}
 
 
-def page_set_join(*, grid: Any, how: Any) -> dict[str, Any]:
-    return {'kind': 'setJoin', 'grid': grid, 'how': how}
+def page_set_join(*, grid: Any, how: Any, more: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'setJoin', 'grid': grid, 'how': how, **({} if more is _ABSENT else {'more': more})}
 
 
 def page_set_output(*, grid: Any, output: Any) -> dict[str, Any]:

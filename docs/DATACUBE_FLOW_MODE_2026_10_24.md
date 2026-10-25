@@ -260,7 +260,7 @@ How to read the status column:
 |---|---|---|
 | Join (L, J, R) | Built (2026-10-25) | `join.ts`: inner, left, right, full, any condition, as of. Its L and R ports are each side's rows matched against the other's: anti-joins (§3.3) |
 | Join Multiple | Built, once linked | Joins chained by live inputs |
-| Union | Built | A join's append |
+| Union | Built | A join's append, of any number of inputs (`JoinSource.more`) |
 | Append Fields | Built (2026-10-25) | Every row with every row: a join, matching rows only, on no condition -- the Join window's Every pair |
 | Find Replace | Built (2026-10-25) | A Join box, all of mine on my column equal to theirs, its column then handed on as theirs where found (`coalesce`, in place) |
 | Fuzzy Match | Built (2026-10-25) | A join row comparing by similar text (`~`): both a value, at most N edits apart by `levenshteinDistance`; a Fuzzy Match box opens the Join window at it. `jaroWinklerSimilarity`, a score, waits for a row of its own |
@@ -588,6 +588,26 @@ of them. Python: `page.append_fields(mine, theirs, prefix=..., keep=...)`, `page
 `flow-sheet.test.ts` (the box's tool; all of mine on no condition stays a Join), `join.test.ts` (its words), Python's
 `test_every_row_beside_every_row_as_append_fields` and the harness (the Filter's rows beside the dropped targets' four:
 four times its rows).
+
+**Built, a Union of any number** (2026-10-25; `cube-document.ts` `JoinSource.more`, `join.ts appended`,
+`page-gestures.ts takeOffCommands`, `layout/flow-canvas.ts`): Alteryx's Union takes as many inputs as are wired to it, and
+so does a Union box now. A join source whose form is an append holds its inputs after its right in `more` (the sides
+`more1`, `more2`, ...; a join of two refuses one, as its reader and `setJoin` say). Every rule that walks a join's
+inputs walks them too (`joinInputs`: its leaves, the grids it reads live, a source resolved against its page, relinked,
+frozen when a box it reads goes), and the database appends them all in one query: the first input's columns in its
+order, then each next one's it lacks, every input extended by the columns only the others have, empty of the type the
+first to have it gave it. The commands are the ones a join already had: `setInput` on a Union's next side (one past its
+last) adds an input, and `setJoin` takes `more` whole (left out, kept). Undo is `pageBetween`'s: a change in the count
+is told as `setJoin` with `more`. On the canvas a Union's ports are numbered, one an input, with a **+** below them; a
+line let go on a Union fills a side read from a copy, or adds an input. Deleting a line into a Union of more than two
+takes that input off and moves the ones after it up (`takeOffCommands`; a Union of two freezes it, as a join does). Its
+settings list each input with a ×, and **Add an input…**. A Union of more says "the rows of all 3, columns by name".
+Python: `page.union(*grids)`, `grid.relink(g, side='more1')`, `grid.take_off(side)` (headless `pageGesture`
+`flow.takeOff`, the canvas's own rule), and `grid.inputs` names every side. Tested by `flow-sheet.test.ts` (added, set
+whole, taken off, frozen, undone and redone, read and renamed), `live-inputs.test.ts` (read back; refused on a join of
+two), `join-open.test.ts` (four inputs over DuckDB, a table read twice once), Python's `test_a_union_of_more_than_two`
+and the harness (a third line drawn onto the Union, its ports, its rows, one taken off and one added from its settings,
+undone).
 
 ### M3's own steps (2026-10-25)
 

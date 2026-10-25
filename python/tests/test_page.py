@@ -3055,6 +3055,44 @@ class Flows(Paged):
                          {'left': source.id, 'right': source.id})
 
 
+    def test_a_union_of_more_than_two(self):
+        # M2: a flow's Union of any number (page-commands.ts setJoin's more): each grid after the first two one input
+        # more, each read live; one added as a line let go on it (relink to its next side), one taken off as a line
+        # deleted (take_off: page-gestures.ts takeOffCommands); on a board, each kept by value
+        page, flow, source, big = self.flowed()
+        n_source, n_big = len(source.to_pandas()), len(big.to_pandas())
+        union = page.union(big, source, big)
+        self.assertEqual(union.sheet, flow)
+        self.assertEqual(union.inputs, {'left': big, 'right': source, 'more1': big})
+        self.assertEqual(len(union.to_pandas()), 2 * n_big + n_source)
+        big.filter([('notional', 'greaterThan', 200)])
+        fewer = len(big.to_pandas())
+        self.assertLess(fewer, n_big)
+        self.assertEqual(len(union.to_pandas()), 2 * fewer + n_source, 'an edit of an input reaches it')
+        union.relink(source, side='more2')
+        self.assertEqual(list(union.inputs), ['left', 'right', 'more1', 'more2'])
+        union.take_off('left')
+        self.assertEqual(union.inputs, {'left': source, 'right': big, 'more1': source})
+        self.assertEqual(len(union.to_pandas()), 2 * n_source + fewer)
+        union.take_off('more1')
+        self.assertEqual(union.inputs, {'left': source, 'right': big})
+        with self.assertRaisesRegex(ValueError, 'reads two inputs: one taken off is frozen'):
+            union.take_off('left')
+        with self.assertRaisesRegex(ValueError, 'has no input 5'):
+            union.relink(big, side='more3')
+        with self.assertRaisesRegex(ValueError, 'a union reads two grids or more, not 1'):
+            page.union(big)
+        # saved and loaded: its more kept
+        union.relink(big, side='more1')
+        again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
+        self.assertEqual({k: g.id for k, g in next(g for g in again.grids if g.id == union.id).inputs.items()},
+                         {'left': source.id, 'right': big.id, 'more1': big.id})
+        # on a board: each input kept by value, its rows those of all three
+        board = [page.grid(trades(), name=f'board_{i}') for i in range(3)]
+        copied = page.union(*board)
+        self.assertEqual(copied.inputs, {})
+        self.assertEqual(len(copied.to_pandas()), 3 * len(board[0].to_pandas()))
+
     def test_a_join_box_hands_on_the_rows_each_side_pairs_with_none(self):
         # M2: a Join's L and R ports (live-inputs.ts gridInput) -- the rows of its Left no row of its Right pairs with,
         # and of its Right no row of its Left: anti-joins the database runs, each read live

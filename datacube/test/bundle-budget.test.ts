@@ -381,8 +381,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  377,000 -> 377,500 (2026-10-25, the flow mode's Find Replace: its window's opener (app.ts); the rule, the window and a
  *  box's words chunks of their own, find-replace.ts, ui/find-replace-form.ts and the canvas's). Measured 377,079.
  *  377,500 -> 378,000 (2026-10-25, the flow mode's Count Records: its step, applied as its box is made (app.ts), its
- *  rule a chunk of its own, count-records.ts). Measured 377,577. */
-const BUDGET = 378_000;
+ *  rule a chunk of its own, count-records.ts). Measured 377,577.
+ *  378,000 -> 379,000 (2026-10-25, the flow mode's Union of any number: a join's inputs after its right read, written
+ *  and walked at startup (cube-document.ts JoinSource.more, joinInputs; live-inputs.ts; page-commands.ts setJoin's more,
+ *  setInput's next side; page-between.ts, page-rebase.ts), and a Union's input taken off (page-gestures.ts
+ *  takeOffCommands, flow.takeOff); its ports and settings the canvas's chunk). Measured 378,619. */
+const BUDGET = 379_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -530,8 +534,11 @@ const BUDGET = 378_000;
  *  the same date). Measured 365,150.
  *  365,500 -> 366,000 (2026-10-25, the flow mode's Find Replace and a box's Chart: the Find Replace window's opener
  *  (app.ts) and the page's chart of a box (page/cube-page.ts chartOf, its ChartPanel the page's own already); the
- *  window, the rule and the results pane's drawing chunks of their own). Measured 365,531. */
-const ENGINE_BUDGET = 366_000;
+ *  window, the rule and the results pane's drawing chunks of their own). Measured 365,531.
+ *  366,000 -> 367,500 (2026-10-25, the flow mode's Union of any number -- the grid-only page's note of the same date;
+ *  the append of any number opened over one model besides, join.ts and join-open.ts the engine page's at startup).
+ *  Measured 366,940. */
+const ENGINE_BUDGET = 367_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -738,8 +745,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  the same date; the window's rows and a Join's three outputs' styles among them). Measured 389,004.
  *  389,500 -> 390,000 (2026-10-25, the flow mode's Find Replace, a box's Chart and a Select's column order: a box's
  *  order handed on (box-columns.ts boxOrder, read at startup through live-inputs.ts; cube-document.ts JoinInput.order),
- *  the Chart's and the Select's arrows' styles among them). Measured 389,693. */
-const WIDGET_BUDGET = 390_000;
+ *  the Chart's and the Select's arrows' styles among them). Measured 389,693.
+ *  390,000 -> 391,500 (2026-10-25, the flow mode's Union of any number -- the grid-only page's and the engine page's
+ *  notes of the same date; a Union's numbered ports and its settings' rows among the styles). Measured 391,082. */
+const WIDGET_BUDGET = 391_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

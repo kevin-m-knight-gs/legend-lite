@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { cubeOpenedAgain, isLive, rawRows, writeCube, type CubeDocument, type CubeSource, type FileSource, type RowsSource } from '../src/cube-document.ts';
+import { cubeOpenedAgain, inputSides, isLive, leavesOf, rawRows, writeCube, type CubeDocument, type CubeSource, type FileSource, type RowsSource } from '../src/cube-document.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { boxInputs, boxSays, readersOf } from '../src/flow-boxes.ts';
 import { add, NEW_SHEET } from '../src/layout/bands.ts';
@@ -19,7 +19,7 @@ import {
   boxCubes, layoutTiles, pageToJson, readPage, unnamedLabel, writePageOf, PageDocumentError, type PageDocument,
 } from '../src/page-document.ts';
 import { renamedCommand, rearranged } from '../src/page-rebase.ts';
-import { tidyCommands } from '../src/page-gestures.ts';
+import { takeOffCommands, tidyCommands } from '../src/page-gestures.ts';
 import { applyPlanned, pageBetween } from '../src/page-between.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode } from '../src/snapshot.ts';
 import { readUnique, uniqueCommands, uniqueOf } from '../src/unique.ts';
@@ -1054,12 +1054,76 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
     assert.deepEqual(sourceOf(back, 'grid-5'), sourceOf(d.page, 'grid-5'), 'undone: its join as it was');
   });
 
+  it("takes a Union of more than two (M2): one added on its next side, its more set whole, one taken off, undone", () => {
+    const union: CubeSource = {
+      _type: 'join', name: 'trades ∪ trades', left: { grid: 'grid-2' }, right: { grid: 'grid-3' }, columns: COLUMNS, how: { form: 'append' },
+    };
+    const d = apply(FLOW(), addGrid(cube(union), 'sheet-2', 'grid-3'));
+    const box = (page: PageDocument) => page.cubes.find((c) => c.id === 'grid-5')!.cube;
+    // a line let go on it: its next side, one input more
+    const three = apply(d, { kind: 'setInput', grid: 'grid-5', side: 'more1', input: { grid: 'grid-4' } });
+    const s3 = sourceOf(three.page, 'grid-5');
+    assert.deepEqual(s3._type === 'join' ? s3.more : undefined, [{ grid: 'grid-4' }]);
+    assert.deepEqual(liveGrids(s3), ['grid-2', 'grid-3', 'grid-4']);
+    assert.deepEqual(inputSides(s3), ['left', 'right', 'more1']);
+    assert.deepEqual(boxInputs(box(three.page)).map((i) => i.side), ['left', 'right', 'more1']);
+    assert.deepEqual(boxSays(box(three.page)), { tool: 'union', also: [], says: 'the rows of all 3, columns by name' });
+    // resolved: a copy of each, a leaf each
+    const read = resolvedSource(three.page, s3, 'grid-5');
+    assert.deepEqual(liveGrids(read), []);
+    assert.deepEqual(leavesOf(read), [FILE, FILE, FILE]);
+    assert.equal(pageToJson(readPage(JSON.parse(pageToJson(three.page)))), pageToJson(three.page), 'written and read back the same');
+    // its more1 linked again, frozen; a side past its next refused; one that reads its own rows refused
+    const again = sourceOf(apply(three, { kind: 'setInput', grid: 'grid-5', side: 'more1', input: { grid: 'grid-2' } }).page, 'grid-5');
+    assert.deepEqual(again._type === 'join' ? again.more : undefined, [{ grid: 'grid-2' }]);
+    const frozen = sourceOf(apply(three, { kind: 'setInput', grid: 'grid-5', side: 'more1', input: null }).page, 'grid-5');
+    assert.ok(frozen._type === 'join' && frozen.more !== undefined && !isLive(frozen.more[0]!), 'a copy of what it read');
+    refused(() => apply(three, { kind: 'setInput', grid: 'grid-5', side: 'more3', input: { grid: 'grid-2' } }), /has 3 inputs: it has no input 5/);
+    refused(() => apply(three, { kind: 'setInput', grid: 'grid-5', side: 'more2', input: { grid: 'grid-5' } }), /'grid-5' reads its own rows/);
+    refused(() => apply(d, { kind: 'setInput', grid: 'grid-5', side: 'more1', input: null }), /has no more1 to freeze/);
+    // a join of two takes no more
+    const inner = { form: 'join', kind: 'inner', on: { rows: [] }, prefix: 'their_', keep: null } as const;
+    refused(() => apply(three, { kind: 'setJoin', grid: 'grid-5', how: inner }), /would join 3 inputs: only a Union takes more than two/);
+    refused(() => apply(apply(d, { kind: 'setJoin', grid: 'grid-5', how: inner }), { kind: 'setInput', grid: 'grid-5', side: 'more1', input: { grid: 'grid-4' } }),
+      /only a Union takes more inputs/);
+    // its more set whole (setJoin's more; left out, kept as it is)
+    const four = apply(three, { kind: 'setJoin', grid: 'grid-5', how: { form: 'append' }, more: [{ grid: 'grid-4' }, { grid: 'grid-1' }] });
+    assert.deepEqual(liveGrids(sourceOf(four.page, 'grid-5')), ['grid-2', 'grid-3', 'grid-4', 'grid-1']);
+    refused(() => apply(four, { kind: 'setJoin', grid: 'grid-5', how: { form: 'append' } }), /joins so already/);
+    // taken off (page-gestures.ts takeOffCommands): its right, those after it moved up
+    const off = takeOffCommands('grid-5', sourceOf(four.page, 'grid-5'), 'right');
+    assert.deepEqual(off.map((c) => c.kind), ['setInput', 'setJoin']);
+    const after = sourceOf(apply(four, ...off).page, 'grid-5');
+    assert.deepEqual(after._type === 'join' ? [after.left, after.right, after.more] : undefined, [{ grid: 'grid-2' }, { grid: 'grid-4' }, [{ grid: 'grid-1' }]]);
+    const last = sourceOf(apply(three, ...takeOffCommands('grid-5', s3, 'more1')).page, 'grid-5');
+    assert.deepEqual(last, sourceOf(d.page, 'grid-5'), 'its third taken off: a Union of two, with no more');
+    refused(() => takeOffCommands('grid-5', sourceOf(d.page, 'grid-5'), 'left'), /reads two inputs: one taken off is frozen/);
+    refused(() => takeOffCommands('grid-5', s3, 'more2'), /has 3 inputs: it has no input 4/);
+    // a box it reads taken off the page: that input frozen, as a Join's side is
+    const gone = sourceOf(apply(three, { kind: 'removeTile', tile: 'grid-4' }).page, 'grid-5');
+    assert.ok(gone._type === 'join' && !isLive(gone.more![0]!));
+    // undone and redone by the commands between
+    const back = applyPlanned({ page: four.page, held: idsOf(four.page) }, pageBetween(four.page, d.page, 'history'), false).draft.page;
+    assert.deepEqual(sourceOf(back, 'grid-5'), sourceOf(d.page, 'grid-5'), 'undone: a Union of two');
+    const redone = applyPlanned({ page: d.page, held: idsOf(d.page) }, pageBetween(d.page, four.page, 'history'), false).draft.page;
+    assert.deepEqual(sourceOf(redone, 'grid-5'), sourceOf(four.page, 'grid-5'), 'redone: of four');
+    // read, written and renamed as every command is
+    const set: PageCommand = { kind: 'setJoin', grid: 'grid-5', how: { form: 'append' }, more: [{ grid: 'grid-4' }] };
+    assert.deepEqual(readPageCommand(JSON.parse(JSON.stringify(set))), set);
+    assert.deepEqual(readPageCommand({ kind: 'setInput', grid: 'grid-5', side: 'more2', input: { grid: 'grid-4' } }),
+      { kind: 'setInput', grid: 'grid-5', side: 'more2', input: { grid: 'grid-4' } });
+    refused(() => readPageCommand({ kind: 'setInput', grid: 'grid-5', side: 'more0', input: null }), /a Union's more1, more2, \.\.\., not "more0"/);
+    refused(() => readPageCommand({ kind: 'setJoin', grid: 'grid-5', how: { form: 'append' }, more: { grid: 'grid-4' } }), /are a list/);
+    assert.deepEqual(renamedCommand(set, new Map([['grid-4', 'grid-9'], ['grid-5', 'grid-8']])),
+      { kind: 'setJoin', grid: 'grid-8', how: { form: 'append' }, more: [{ grid: 'grid-9' }] });
+  });
+
   it('reads and writes it, follows renames, and is the undo of a removal that froze its readers', () => {
     for (const c of [
       { kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2' } },
       { kind: 'setInput', grid: 'grid-5', side: 'right', input: null },
     ]) assert.deepEqual(readPageCommand(JSON.parse(JSON.stringify(c))), c);
-    assert.throws(() => readPageCommand({ kind: 'setInput', grid: 'grid-3', side: 'top', input: null }), /its input, or a join's left or right, not "top"/);
+    assert.throws(() => readPageCommand({ kind: 'setInput', grid: 'grid-3', side: 'top', input: null }), /its input, a join's left or right, or a Union's more1, more2, \.\.\., not "top"/);
     assert.throws(() => readPageCommand({ kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2', x: 1 } }), /a live input is its grid alone, and its port, not x/);
     const renamed = new Map([['grid-2', 'grid-8'], ['grid-3', 'grid-7']]);
     assert.deepEqual(renamedCommand({ kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2' } }, renamed),

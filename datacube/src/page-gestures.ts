@@ -15,7 +15,7 @@ import { arranged } from './layout/flow.ts';
 import { liveGrids } from './live-inputs.ts';
 import { givenName } from './page-names.ts';
 import { CubeRefusal, sameValue } from './snapshot.ts';
-import { inputOn, inputSides, joinInputs, type CubeSource, type InputSide } from './cube-document.ts';
+import { inputOn, inputSides, joinInputs, moreIndex, type CubeSource, type InputSide } from './cube-document.ts';
 
 /** A page command of `kind` whose every field is the person's input -- what they typed, picked or pointed at -- built
  *  as Python's generated builder builds it (_commands.py, from the same list): its kind, then its fields in the order
@@ -178,6 +178,23 @@ export const PAGE_GESTURES = {
       throw new CubeRefusal(e instanceof Error ? e.message : String(e));
     }
     return tidyCommands(page, a['sheet']);
+  },
+  // a Union's input taken off, over the page as it is (its grid's source)
+  'flow.takeOff': (a: Readonly<Record<string, unknown>>): PageCommand[] => {
+    if (typeof a['grid'] !== 'string') throw new CubeRefusal("'flow.takeOff' needs grid, the Union's id");
+    if (typeof a['side'] !== 'string' || (moreIndex(a['side']) === undefined && a['side'] !== 'left' && a['side'] !== 'right')) {
+      throw new CubeRefusal(`'flow.takeOff' needs side, a Union's left, right or more1, more2, ..., not ${JSON.stringify(a['side'])}`);
+    }
+    let page: PageDocument;
+    try {
+      page = readPage(a['page'], { empty: true });
+    } catch (e) {
+      throw new CubeRefusal(e instanceof Error ? e.message : String(e));
+    }
+    const view = page.views.find((v) => v.id === a['grid']);
+    const cube = view?.kind === 'grid' ? page.cubes.find((c) => c.id === view.cube) : undefined;
+    if (cube === undefined) throw new CubeRefusal(`'${a['grid']}' is no grid of the page`);
+    return takeOffCommands(a['grid'], cube.cube.source, a['side'] as InputSide);
   },
 } as const;
 

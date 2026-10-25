@@ -229,6 +229,20 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     assert.equal(got['id']!.length, 6);
   });
 
+  it('append of more than two (a Union of any number, JoinSource.more): each in turn, columns by name, a table read twice once', async () => {
+    const three = { ...join(input(TRADES, 'trades'), input(MORE, 'more'), { form: 'append' }), more: [input(TAGGED, 'tagged'), input(TRADES, 'again')] };
+    const opened = await openJoin(three, opening(['trades', 'more', 'tagged', 'trades']));
+    assert.deepEqual(opened.columns.map((c) => c.name), ['id', 'cust', 'sym', 'at', 'qty', 'venue', 'tags']);
+    assert.deepEqual(opened.more?.map((s) => s.name), ['tagged', 'again']);
+    const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
+    assert.deepEqual(got['id']!.map(Number).sort((a, b) => a - b), [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 7]);
+    const at = (id: number): number => got['id']!.map(Number).indexOf(id);
+    assert.deepEqual([got['venue']![at(6)], got['tags']![at(1)], got['venue']![at(7)]], ['X', null, null]);
+    assert.notEqual(got['tags']![at(7)], null);
+    // a join of two takes no more
+    await assert.rejects(openJoin({ ...three, how: LEFT_ON_CUST }, opening(['trades', 'more', 'tagged', 'trades'])), /joins two inputs, not 4/);
+  });
+
   it('a row of != pairs only rows that both have a value: an empty key matches no row (the audit\'s 2)', async () => {
     const how: JoinHow = { form: 'join', kind: 'inner', on: { rows: [{ left: 'cust', op: '!=', right: 'id' }] }, prefix: 'c_', keep: ['region'] };
     const opened = await openJoin(join(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), how), opening(['trades', 'customers']));

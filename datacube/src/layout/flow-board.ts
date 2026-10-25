@@ -13,7 +13,7 @@
 
 import type { BandTile } from './band-board.ts';
 import { EMPTY_FLOW, placeAfter, removeBox, type Flow, type Frame, type Output } from './flow.ts';
-import { isLive, type CubeDocument, type CubeInput, type InputPort, type InputSide } from '../cube-document.ts';
+import { isLive, joinInputs, type CubeDocument, type CubeInput, type InputPort, type InputSide } from '../cube-document.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import type { Profile } from '../profile.ts';
@@ -315,7 +315,7 @@ export class FlowBoard implements FlowBoardState {
     const input = (i: CubeInput): string => (isLive(i) ? `<${this.#chain(i.grid, through)}>` : toJson(i));
     const s = doc.source;
     const source = s._type === 'rows' ? `rows ${input(s.input)}` : s._type === 'join'
-      ? `join ${input(s.left)} ${input(s.right)} ${toJson(s.how)}` : toJson(s);
+      ? `join ${joinInputs(s).map(input).join(' ')} ${toJson(s.how)}` : toJson(s);
     return `${source}|${toJson(doc.query)}`;
   }
 

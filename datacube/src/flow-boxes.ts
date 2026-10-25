@@ -39,7 +39,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   textInput: { name: 'Text Input', group: 'in', does: 'a small table of your own, typed in or pasted from a sheet' },
   output: { name: 'Output', group: 'in', does: 'its input\'s rows written to a CSV file, now and each time the flow runs' },
   join: { name: 'Join', group: 'join', does: 'two inputs joined on their keys: Left above, Right below' },
-  union: { name: 'Union', group: 'join', does: 'the rows of two inputs, one under the other, columns by name' },
+  union: { name: 'Union', group: 'join', does: 'the rows of two inputs or more, one under another, columns by name: a line let go on it adds one' },
   appendFields: { name: 'Append Fields', group: 'join', does: 'each row of one input beside every row of another: a small table\'s values on each' },
   fuzzyMatch: { name: 'Fuzzy Match', group: 'join', does: 'two inputs joined where their text is alike: a few letters apart at most' },
   findReplace: { name: 'Find Replace', group: 'join', does: 'a column\'s values found in another input and replaced by theirs: a lookup' },

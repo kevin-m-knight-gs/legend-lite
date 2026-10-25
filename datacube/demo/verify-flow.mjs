@@ -89,7 +89,8 @@ const readsOf = (id) => page.evaluate((tile) => {
   const view = doc.views.find((v) => v.id === tile);
   const source = doc.cubes.find((c) => c.id === view.cube).cube.source;
   const side = (i) => ('grid' in i ? (i.port ? `${i.grid}:${i.port}` : i.grid) : 'copy');
-  return source._type === 'rows' ? side(source.input) : source._type === 'join' ? [side(source.left), side(source.right)] : null;
+  return source._type === 'rows' ? side(source.input)
+    : source._type === 'join' ? [side(source.left), side(source.right), ...(source.more ?? []).map(side)] : null;
 }, id);
 /** The middle of the line into `tile`, in the window's points. */
 const lineMiddle = (tile) => page.evaluate((t) => {
@@ -466,6 +467,40 @@ try {
   await settled();
   check(await resultRows() === fewer + all, `the rows of both: ${fewer} + ${all}`);
   await page.screenshot({ path: outPath('flow-union.png') });
+
+  // A UNION OF MORE THAN TWO (M2): a line from the Input let go on the Union -- one input more, its ports 1, 2 and 3 and
+  // its +, its rows the three's; one taken off from its settings (its ×), one added there (Add an input…); undone
+  await page.locator('.dc-flow-canvas').evaluate((c) => { c.scrollLeft = 0; c.scrollTop = 0; });
+  const inPort = await page.locator(`.dc-flow-box[data-tile="${input.id}"] .dc-flow-port-out:not(.dc-flow-port-false):not(.dc-flow-port-unmatched)`).boundingBox();
+  const onUnion = await page.locator(`.dc-flow-box[data-tile="${union.id}"]`).boundingBox();
+  await page.mouse.move(inPort.x + inPort.width / 2, inPort.y + inPort.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(onUnion.x + onUnion.width / 2, onUnion.y + onUnion.height / 2, { steps: 12 });
+  await page.mouse.up();
+  const reads = async (id) => JSON.stringify(await readsOf(id));
+  check(await reads(union.id) === JSON.stringify([filter.id, input.id, input.id]), `a third input: ${await reads(union.id)}`);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Link Box', 'one step: Link Box');
+  check(JSON.stringify(await page.locator(`.dc-flow-box[data-tile="${union.id}"] > .dc-flow-port-in:visible`).allTextContents()) === '["1","2","3","+"]',
+    'its ports numbered, and its +');
+  check(await show(union.id) === fewer + 2 * all, `the rows of all three: ${fewer} + ${all} + ${all}`);
+  check(/the rows of all 3/.test((await boxes()).find((b) => b.id === union.id)?.says ?? ''), 'it says all three');
+  await page.screenshot({ path: outPath('flow-union-three.png') });
+  const offs = page.locator('.dc-flow-inputs .dc-flow-input-off');
+  check(await offs.count() === 3, `a × on each of its three inputs: ${await offs.count()}`);
+  await offs.nth(1).click();
+  check(await reads(union.id) === JSON.stringify([filter.id, input.id]), `its Input 2 taken off, its third moved up: ${await reads(union.id)}`);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Take Off Input', 'one step: Take Off Input');
+  check(await offs.count() === 0, 'two inputs: none to take off (a line taken off freezes)');
+  await page.locator('.dc-flow-input-add select').selectOption(`grid:${filter.id}`);
+  check(await reads(union.id) === JSON.stringify([filter.id, input.id, filter.id]), `added from its settings: ${await reads(union.id)}`);
+  await settled();
+  check(await resultRows() === 2 * fewer + all, `the Filter's rows twice and the Input's: ${2 * fewer + all}`);
+  await page.locator('.dc-flow-canvas').click({ position: { x: 5, y: 5 } });
+  for (const want of [[filter.id, input.id], [filter.id, input.id, input.id], [filter.id, input.id]]) {
+    await page.keyboard.press('Control+z');
+    check(await reads(union.id) === JSON.stringify(want), `undone: ${await reads(union.id)}`);
+  }
+  check(await show(union.id) === fewer + all, 'a Union of two again: the rows of both');
 
   // AN APPEND FIELDS BOX, dragged onto the Filter: the window at Every pair, no condition asked; the dropped targets'
   // four rows beside each of the Filter's
