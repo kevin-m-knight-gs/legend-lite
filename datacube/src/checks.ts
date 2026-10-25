@@ -1,9 +1,10 @@
 // A FLOW'S TEST (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL8 and §4's Test, Alteryx's Test tool): checks of a box's rows --
-// a column with no empty value, a column no value of which repeats, a number column within bounds -- each counted by the
-// database as the rows that fail it, in one row: said as what a grid already does (Count Records' way, count-records.ts):
-// a column of one value its rows are grouped by, a column of 1 for each row whose check fails, summed, every column it
-// read hidden. A box whose every count is 0 passes; its failing checks are what its row says. What a box checks is read
-// back off its columns (`checksOf`): each rebuilt by the rule that made it and compared whole, never guessed at.
+// a column with no empty value, a column no value of which repeats, a number column within bounds, a count of rows
+// within bounds -- each counted by the database as the rows that fail it, in one row: said as what a grid already does
+// (Count Records' way, count-records.ts): a column of one value its rows are grouped by, a column of 1 for each row whose
+// check fails, summed, every column it read hidden; a count of rows checked after grouping, a column over its group's
+// count of 1 or 0. A box whose every count is 0 passes; its failing checks are what its row says. What a box checks is
+// read back off its columns (`checksOf`): each rebuilt by the rule that made it and compared whole, never guessed at.
 //
 // One rule for the box's window and Python's grid.test (headless gridPreset).
 //
@@ -15,22 +16,24 @@ import type { GridCommand } from './grid-commands.ts';
 import { CubeRefusal, rowColumns, sameValue, type CubeShape, type CubeSnapshot, type DerivedColumn } from './snapshot.ts';
 
 /** A check of a box's rows: no empty value; no value repeated; a number from `min` to `max` (either left out: no bound
- *  that side), an empty value no failure. */
+ *  that side), an empty value no failure; its count of rows from `min` to `max` (whole numbers, a smallest 1 at least),
+ *  of no column. */
 export type Check =
   | { readonly kind: 'notEmpty'; readonly column: string }
   | { readonly kind: 'unique'; readonly column: string }
-  | { readonly kind: 'between'; readonly column: string; readonly min?: number; readonly max?: number };
+  | { readonly kind: 'between'; readonly column: string; readonly min?: number; readonly max?: number }
+  | { readonly kind: 'rows'; readonly min?: number; readonly max?: number };
 
-export const CHECK_KINDS: readonly Check['kind'][] = ['notEmpty', 'unique', 'between'];
+export const CHECK_KINDS: readonly Check['kind'][] = ['notEmpty', 'unique', 'between', 'rows'];
 
 /** The column of one value its rows are grouped by, its value, and the count of its rows beside its checks. */
 export const CHECKS_COLUMN = 'ChecksAll';
 const ALL = 'checks';
 export const ROWS_COLUMN = 'Rows';
 
-/** What each check's count is called: its column's name, and what fails it. */
-const SUFFIX: Readonly<Record<Check['kind'], string>> = { notEmpty: '_empty', unique: '_repeated', between: '_outside' };
-export const checkName = (c: Check): string => `${c.column}${SUFFIX[c.kind]}`;
+/** What each check's count is called: its column's name, and what fails it (a count of rows: its count's). */
+const SUFFIX: Readonly<Record<Check['kind'], string>> = { notEmpty: '_empty', unique: '_repeated', between: '_outside', rows: '_outside' };
+export const checkName = (c: Check): string => `${c.kind === 'rows' ? ROWS_COLUMN : c.column}${SUFFIX[c.kind]}`;
 /** A unique check's row number among the rows of its value (a window column, hidden). */
 const rowName = (column: string): string => `${column}__row`;
 
@@ -39,18 +42,21 @@ const x = (column: string): ValueSpecification => property(variable('x'), column
 const failing = (failed: ValueSpecification): Lambda => lambda(['x'], fn('if', failed, lambda([], lit.integer(1)), lambda([], lit.integer(0))));
 const bound = (v: number, whole: boolean): ValueSpecification => (whole ? lit.integer(v) : lit.float(v));
 
-/** The calculated column that counts a check's failing rows, by the rule (`whole`: its column holds whole numbers). */
+/** `v` outside `min` to `max`: below the one, above the other, or either. */
+function outside(v: ValueSpecification, min: number | undefined, max: number | undefined, whole: boolean): ValueSpecification {
+  const below = min === undefined ? undefined : fn('lessThan', v, bound(min, whole));
+  const above = max === undefined ? undefined : fn('greaterThan', v, bound(max, whole));
+  return below !== undefined && above !== undefined ? fn('or', below, above) : (below ?? above)!;
+}
+
+/** The calculated column that counts a check's failing rows, by the rule (`whole`: its column holds whole numbers) -- a
+ *  count of rows's over its group's count, 1 when it is outside its bounds. */
 function failingLambda(c: Check, whole: boolean): Lambda {
   switch (c.kind) {
     case 'notEmpty': return failing(fn('isEmpty', x(c.column)));
     case 'unique': return failing(fn('greaterThan', fn('toOne', x(rowName(c.column))), lit.integer(1)));
-    case 'between': {
-      const v = fn('toOne', x(c.column));
-      const below = c.min === undefined ? undefined : fn('lessThan', v, bound(c.min, whole));
-      const above = c.max === undefined ? undefined : fn('greaterThan', v, bound(c.max, whole));
-      const out = below !== undefined && above !== undefined ? fn('or', below, above) : (below ?? above)!;
-      return failing(fn('and', fn('isNotEmpty', x(c.column)), out));
-    }
+    case 'between': return failing(fn('and', fn('isNotEmpty', x(c.column)), outside(fn('toOne', x(c.column)), c.min, c.max, whole)));
+    case 'rows': return failing(outside(fn('toOne', x(ROWS_COLUMN)), c.min, c.max, true));
   }
 }
 
@@ -67,14 +73,33 @@ export function checkCommands(s: CubeSnapshot, checks: readonly Check[]): GridCo
   // a test set again: its own columns taken off first, in the same step, and the columns it read checked again
   const was = checksOf(s);
   const own = new Set(was === undefined ? [] : testColumns(was));
-  const off: GridCommand[] = was === undefined ? [] : [{ kind: 'group', rows: [] },
+  // its count of rows's column (after grouping) first: it reads the others
+  const off: GridCommand[] = was === undefined ? [] : [
+    ...(s.groupDerived ?? []).filter((d) => own.has(d.name)).reverse().map((d): GridCommand => ({ kind: 'removeCalculated', name: d.name })),
+    { kind: 'group', rows: [] },
     ...s.derived.filter((d) => own.has(d.name)).reverse().map((d): GridCommand => ({ kind: 'removeCalculated', name: d.name }))];
   const types = new Map(rowColumns(s).filter((c) => !own.has(c.name)).map((c) => [c.name, c.type] as const));
-  const taken = new Set([...types.keys(), ...(s.groupDerived ?? []).map((d) => d.name)]);
+  const taken = new Set([...types.keys(), ...(s.groupDerived ?? []).map((d) => d.name).filter((n) => !own.has(n))]);
   const names = new Set<string>();
   const made: GridCommand[] = [];
   const counts: string[] = [];
+  const after: GridCommand[] = [];
   for (const c of checks) {
+    if (c.kind === 'rows') {
+      if (c.min === undefined && c.max === undefined) throw new CubeRefusal('a count of rows is bounded: its smallest, its largest, or both');
+      for (const v of [c.min, c.max]) {
+        if (v !== undefined && !Number.isInteger(v)) throw new CubeRefusal(`a count of rows is a whole number, not ${v}`);
+      }
+      if (c.min !== undefined && c.min < 1) throw new CubeRefusal('every count of rows is 0 at least: a smallest is 1 or more, or left out');
+      if (c.max !== undefined && c.max < 0) throw new CubeRefusal(`a count of rows is never ${c.max}`);
+      if (c.min !== undefined && c.max !== undefined && c.min > c.max) throw new CubeRefusal(`rows from ${c.min} to ${c.max}: its smallest is above its largest`);
+      if (names.has(checkName(c))) throw new CubeRefusal('its count of rows is checked twice');
+      names.add(checkName(c));
+      if (taken.has(checkName(c))) throw new CubeRefusal(`'${checkName(c)}' is already a column`);
+      taken.add(checkName(c));
+      after.push({ kind: 'calculate', level: 'group', column: { name: checkName(c), lambda: failingLambda(c, true) } });
+      continue;
+    }
     if (!types.has(c.column)) throw new CubeRefusal(`the grid has no column '${c.column}'`);
     const type = types.get(c.column);
     if (c.kind === 'between') {
@@ -111,6 +136,7 @@ export function checkCommands(s: CubeSnapshot, checks: readonly Check[]): GridCo
     { kind: 'calculate', level: 'row', column: { name: CHECKS_COLUMN, lambda: lambda(['x'], lit.string(ALL)), kind: 'dimension' } },
     { kind: 'group', rows: [CHECKS_COLUMN] },
     ...[ROWS_COLUMN, ...counts].map((name): GridCommand => ({ kind: 'column', name, change: { aggregate: 'sum' } })),
+    ...after,
     { kind: 'configure', patch: { columns: Object.fromEntries(hidden.map((c) => [c, { hidden: true }])) } },
   ];
 }
@@ -133,12 +159,33 @@ function numberOf(v: ValueSpecification | undefined): number | undefined {
   return undefined;
 }
 
+/** The bounds an `outside` says, read off its comparisons: a lessThan's, a greaterThan's, or the two or-ed. */
+function boundsOf(out: ValueSpecification | undefined): { min?: number; max?: number } {
+  const o = out as { function?: string; parameters?: ValueSpecification[] } | undefined;
+  const sides = o?.function === 'or' ? o.parameters ?? [] : o === undefined ? [] : [o];
+  const side = (f: string): number | undefined => numberOf((sides.find((p) => (p as { function?: string }).function === f) as
+    { parameters?: ValueSpecification[] } | undefined)?.parameters?.[1]);
+  const min = side('lessThan');
+  const max = side('greaterThan');
+  return { ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) };
+}
+
+/** A `failing` lambda's condition: what its `if` asks. */
+const conditionOf = (l: Lambda): ValueSpecification | undefined => (l.body[0] as { parameters?: ValueSpecification[] }).parameters?.[0];
+
+/** The count of rows a column over its group checks, read back: rebuilt and compared whole -- undefined for any other. */
+function rowsCheckOf(d: DerivedColumn): Check | undefined {
+  if (d.lambda === undefined || d.name !== checkName({ kind: 'rows' })) return undefined;
+  const c: Check = { kind: 'rows', ...boundsOf(conditionOf(d.lambda)) };
+  return (c.min !== undefined || c.max !== undefined) && toJson(d.lambda) === toJson(failingLambda(c, true)) ? c : undefined;
+}
+
 /** The check a calculated column counts, read back: its column's name from its own, the check rebuilt and compared whole
  *  (a between's bounds read off its comparisons) -- undefined for any other column. */
 function checkOf(d: DerivedColumn, derived: readonly DerivedColumn[]): Check | undefined {
   if (d.lambda === undefined || d.kind !== 'measure') return undefined;
   for (const kind of CHECK_KINDS) {
-    if (!d.name.endsWith(SUFFIX[kind])) continue;
+    if (kind === 'rows' || !d.name.endsWith(SUFFIX[kind])) continue;
     const column = d.name.slice(0, -SUFFIX[kind].length);
     if (column === '') continue;
     let c: Check = { kind, column } as Check;
@@ -147,16 +194,10 @@ function checkOf(d: DerivedColumn, derived: readonly DerivedColumn[]): Check | u
       if (w?.fn !== 'rowNumber' || !sameValue(w.partition, [column])) continue;
     }
     if (kind === 'between') {
-      // `if(and(isNotEmpty($x.c), <out>), ...)`: <out> a lessThan, a greaterThan, or the two or-ed
-      const out = ((((d.lambda.body[0] as { parameters?: ValueSpecification[] }).parameters?.[0]) as { parameters?: ValueSpecification[] })
-        ?.parameters?.[1]) as { function?: string; parameters?: ValueSpecification[] } | undefined;
-      const sides = out?.function === 'or' ? out.parameters ?? [] : out === undefined ? [] : [out];
-      const side = (f: string): number | undefined => numberOf((sides.find((p) => (p as { function?: string }).function === f) as
-        { parameters?: ValueSpecification[] } | undefined)?.parameters?.[1]);
-      const min = side('lessThan');
-      const max = side('greaterThan');
-      if (min === undefined && max === undefined) continue;
-      c = { kind, column, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) };
+      // `if(and(isNotEmpty($x.c), <out>), ...)`
+      const bounds = boundsOf((conditionOf(d.lambda) as { parameters?: ValueSpecification[] } | undefined)?.parameters?.[1]);
+      if (bounds.min === undefined && bounds.max === undefined) continue;
+      c = { kind, column, ...bounds };
     }
     // its bounds whole numbers (a whole-number column's) or not: rebuilt each way they can be, compared as the protocol
     // writes them (a float read back from a page holds its double, one made here its exact digits: the same text)
@@ -167,34 +208,60 @@ function checkOf(d: DerivedColumn, derived: readonly DerivedColumn[]): Check | u
   return undefined;
 }
 
-/** A grid checking its rows, read off its query: its checks in order -- undefined for any other grid. */
-export function checksOf(q: Pick<CubeShape, 'derived' | 'rows'>): readonly Check[] | undefined {
+/** A grid checking its rows, read off its query: its checks in order, its count of rows's last -- undefined for any
+ *  other grid. */
+export function checksOf(q: Pick<CubeShape, 'derived' | 'rows' | 'groupDerived'>): readonly Check[] | undefined {
   if (q.rows.length !== 1 || q.rows[0] !== CHECKS_COLUMN) return undefined;
   const all = q.derived.find((d) => d.name === CHECKS_COLUMN)?.lambda?.body[0] as { _type?: string; value?: unknown } | undefined;
   if (all?._type !== 'string' || all.value !== ALL) return undefined;
-  const checks = q.derived.flatMap((d) => checkOf(d, q.derived) ?? []);
+  const checks = [...q.derived.flatMap((d) => checkOf(d, q.derived) ?? []), ...(q.groupDerived ?? []).flatMap((d) => rowsCheckOf(d) ?? [])];
   return checks.length === 0 ? undefined : checks;
 }
 
-/** A check in words: "region has no empty value", "trade_id repeats no value", "notional from 0 to 1000000". */
+/** A check in words: "region has no empty value", "trade_id repeats no value", "notional from 0 to 1000000", "rows from
+ *  1 to 500", "at least 1 row". */
 export function checkWords(c: Check): string {
+  const rows = (n: number | undefined): string => `${n} ${n === 1 ? 'row' : 'rows'}`;
   switch (c.kind) {
     case 'notEmpty': return `${c.column} has no empty value`;
     case 'unique': return `${c.column} repeats no value`;
     case 'between': return c.min !== undefined && c.max !== undefined ? `${c.column} from ${c.min} to ${c.max}`
       : c.min !== undefined ? `${c.column} at least ${c.min}` : `${c.column} at most ${c.max}`;
+    case 'rows': return c.min !== undefined && c.max !== undefined ? `rows from ${c.min} to ${c.max}`
+      : c.min !== undefined ? `at least ${rows(c.min)}` : `at most ${rows(c.max)}`;
   }
 }
 
-/** The checks a test's row says fail (`value`: each check's count, by its column), each with how many rows fail it. */
-export function failingChecks(checks: readonly Check[], value: (name: string) => unknown): { readonly check: Check; readonly rows: number }[] {
-  return checks.flatMap((check) => {
-    const n = Number(value(checkName(check)) ?? 0);
+/** A failing check: how many rows fail it -- a count of rows's, how many rows its input has. */
+export interface Failing { readonly check: Check; readonly rows: number }
+
+/**
+ * The checks a test's row says fail (`value`: each check's count, by its column; undefined for every column when it has
+ * no row), each with how many rows fail it -- a count of rows's, its rows. A test of no rows (its input has none) is
+ * grouped into no row: every count's 0, and a count of rows fails its smallest (1 at least) -- read off the row's
+ * absence, nothing compared.
+ */
+export function failingChecks(checks: readonly Check[], value: (name: string) => unknown): Failing[] {
+  return checks.flatMap((check): Failing[] => {
+    const counted = value(checkName(check));
+    if (check.kind === 'rows') {
+      const fails = counted === undefined || counted === null ? check.min !== undefined : Number(counted) > 0;
+      return fails ? [{ check, rows: Number(value(ROWS_COLUMN) ?? 0) }] : [];
+    }
+    const n = Number(counted ?? 0);
     return n > 0 ? [{ check, rows: n }] : [];
   });
 }
 
-/** Checks read from JSON (Python's): `{kind: 'test', checks: [{kind, column, min?, max?}, ...]}` -- or refused in words. */
+/** A failing check in words: "region has no empty value: 2 rows fail", "rows from 1 to 500: it has 0 rows" (`count`:
+ *  a number as its reader writes one). */
+export function failingWords(f: Failing, count: (n: number) => string = String): string {
+  return f.check.kind === 'rows' ? `${checkWords(f.check)}: it has ${count(f.rows)} ${f.rows === 1 ? 'row' : 'rows'}`
+    : `${checkWords(f.check)}: ${count(f.rows)} ${f.rows === 1 ? 'row fails' : 'rows fail'}`;
+}
+
+/** Checks read from JSON (Python's): `{kind: 'test', checks: [{kind, column, min?, max?}, ...]}` (a `rows` check of no
+ *  column) -- or refused in words. */
 export function readChecks(raw: unknown): Check[] {
   const o = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : undefined;
   if (o === undefined || o['kind'] !== 'test' || !Array.isArray(o['checks'])) {
@@ -203,10 +270,12 @@ export function readChecks(raw: unknown): Check[] {
   return (o['checks'] as unknown[]).map((c) => {
     const k = c !== null && typeof c === 'object' && !Array.isArray(c) ? c as Record<string, unknown> : {};
     if (!CHECK_KINDS.includes(k['kind'] as Check['kind'])) throw new CubeRefusal(`a check is ${CHECK_KINDS.join(', ')}, not ${JSON.stringify(k['kind'])}`);
-    if (typeof k['column'] !== 'string') throw new CubeRefusal(`a check names its column, not ${JSON.stringify(k['column'])}`);
-    const odd = Object.keys(k).filter((key) => !['kind', 'column', ...(k['kind'] === 'between' ? ['min', 'max'] : [])].includes(key));
+    const rows = k['kind'] === 'rows';
+    if (!rows && typeof k['column'] !== 'string') throw new CubeRefusal(`a check names its column, not ${JSON.stringify(k['column'])}`);
+    const odd = Object.keys(k).filter((key) => !['kind', ...(rows ? [] : ['column']), ...(k['kind'] === 'between' || rows ? ['min', 'max'] : [])].includes(key));
     if (odd.length > 0) throw new CubeRefusal(`a ${String(k['kind'])} check takes no ${odd.join(', ')}`);
     for (const b of ['min', 'max']) if (k[b] !== undefined && typeof k[b] !== 'number') throw new CubeRefusal(`a bound is a number, not ${JSON.stringify(k[b])}`);
-    return { kind: k['kind'], column: k['column'], ...(k['min'] !== undefined ? { min: k['min'] } : {}), ...(k['max'] !== undefined ? { max: k['max'] } : {}) } as Check;
+    return { kind: k['kind'], ...(rows ? {} : { column: k['column'] }), ...(k['min'] !== undefined ? { min: k['min'] } : {}),
+      ...(k['max'] !== undefined ? { max: k['max'] } : {}) } as Check;
   });
 }

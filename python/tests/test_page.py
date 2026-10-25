@@ -1731,6 +1731,23 @@ class Abilities(Paged):
             grid.test([{'kind': 'between', 'column': 'region', 'min': 1}])
         with self.assertRaisesRegex(ValueError, 'holds whole numbers: bound it by whole numbers'):
             grid.test([{'kind': 'between', 'column': 'id', 'min': 0.5}])
+        # its count of rows, checked after grouping: 1 when it is outside its bounds, its rows said
+        grid.test([{'kind': 'notEmpty', 'column': 'id'}, {'kind': 'rows', 'min': 5}])
+        self.assertEqual(counts('Rows', 'id_empty', 'Rows_outside'), {'Rows': 4, 'id_empty': 0, 'Rows_outside': 1})
+        self.assertEqual(grid.failing, [{'check': 'at least 5 rows', 'rows': 4, 'says': 'at least 5 rows: it has 4 rows'}])
+        grid.test([{'kind': 'rows', 'min': 1, 'max': 4}])
+        self.assertEqual(grid.failing, [], 'set again: its 4 rows within bounds')
+        with self.assertRaisesRegex(ValueError, 'a smallest is 1 or more, or left out'):
+            grid.test([{'kind': 'rows', 'min': 0}])
+        with self.assertRaisesRegex(ValueError, 'a rows check takes no column'):
+            grid.test([{'kind': 'rows', 'column': 'id', 'max': 2}])
+        # a Test of no rows (its input has none): no row, every count 0 -- a count of rows fails its smallest
+        none = page.grid(frame, name='none')
+        none.filter(('region', 'equal', 'AMER'))
+        tested = page.grid(input=none)
+        tested.test([{'kind': 'notEmpty', 'column': 'id'}, {'kind': 'rows', 'min': 1}])
+        self.assertEqual(len(tested.to_pandas()), 0)
+        self.assertEqual(tested.failing, [{'check': 'at least 1 row', 'rows': 0, 'says': 'at least 1 row: it has 0 rows'}])
 
     def test_rows_summarised_as_a_flow_box_summarises_them(self):
         # (M1) grid.summarize: a flow's Summarize (summarize.ts summarizeCommands) -- a row of each group, each column
@@ -3095,12 +3112,12 @@ class Flows(Paged):
         page, flow, source, _big = self.flowed()
         checked = flow.grid(input=source)
         checked.test([{'kind': 'between', 'column': 'notional', 'min': 0, 'max': 200}, {'kind': 'notEmpty', 'column': 'desk'}])
-        self.assertEqual(checked.failing, [{'check': 'notional from 0 to 200', 'rows': 1}])
+        self.assertEqual(checked.failing, [{'check': 'notional from 0 to 200', 'rows': 1, 'says': 'notional from 0 to 200: 1 row fails'}])
         out = flow.grid(input=source)
         out.output('trades out.csv')
         checked.stops_run()
         with tempfile.TemporaryDirectory() as folder:
-            with self.assertRaisesRegex(ValueError, r'stops the run: notional from 0 to 200 \(1 failing\): no Output written'):
+            with self.assertRaisesRegex(ValueError, r'stops the run: notional from 0 to 200: 1 row fails: no Output written'):
                 flow.run(folder)
             self.assertEqual(os.listdir(folder), [], 'nothing written')
             checked.stops_run(False)

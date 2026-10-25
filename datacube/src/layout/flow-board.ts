@@ -86,8 +86,8 @@ export interface FlowBoardOptions {
   readonly onCopy?: (ids: readonly string[], cut: boolean) => void;
   /** The shown box's Profile (its results pane's): its columns summarised, asked of the database (profile.ts). */
   readonly profileOf?: (id: string) => Promise<Profile>;
-  /** The first row box `id`'s grid shows now, a column's value at a time -- undefined while it has no grid (not shown)
-   *  or no rows yet: a Test box's counts, read as its rows land (checks.ts). */
+  /** The first row box `id`'s grid shows now, a column's value at a time (each undefined when it has no row) --
+   *  undefined while it has no grid (not shown) or no view yet: a Test box's counts, read as its rows land (checks.ts). */
   readonly firstRowOf?: (id: string) => ((column: string) => unknown) | undefined;
   /** The shown box's Code (its results pane's): the query its grid ran last, as the compiler prints it, and its SQL. */
   readonly codeOf?: (id: string) => Promise<{ readonly pure: string; readonly sql: string }>;

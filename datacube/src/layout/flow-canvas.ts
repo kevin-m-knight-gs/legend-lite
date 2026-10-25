@@ -29,7 +29,7 @@ import {
   boxInputs, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowGroup, type FlowTool,
 } from '../flow-boxes.ts';
 import { rowSampleOf } from '../row-sample.ts';
-import { checksOf, checkWords, failingChecks } from '../checks.ts';
+import { checksOf, failingChecks, failingWords } from '../checks.ts';
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import type { Profile } from '../profile.ts';
 import { gridTitle } from '../page-ids.ts';
@@ -1416,7 +1416,7 @@ export class FlowCanvas {
     // its rows landed for what it is now (its count is for its chain): read, while its grid is there
     const row = this.#board.count(id) !== undefined ? this.#board.options.firstRowOf?.(id) : undefined;
     if (row !== undefined) {
-      const failing = failingChecks(checks, row).map((f) => `${checkWords(f.check)}: ${f.rows.toLocaleString(UI_LOCALE)} ${f.rows === 1 ? 'row fails' : 'rows fail'}`);
+      const failing = failingChecks(checks, row).map((f) => failingWords(f, (n) => n.toLocaleString(UI_LOCALE)));
       const now = { chain, viewed, of: checks.length, failing };
       this.#tested.set(id, now);
       // the board told too: a stopping Test failing stops a run's writes (page/cube-page.ts #runFlow)

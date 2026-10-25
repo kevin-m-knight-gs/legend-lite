@@ -304,7 +304,7 @@ How to read the status column:
 | Tool | Status | How |
 |---|---|---|
 | Comment, Tool Container | Step | The flow sheet's own state (§3.4) |
-| Test | Built, a first slice | Checks as a box (no empty value, no value repeated, a number within bounds), counted by the database; modes (FL8) and a row-count check later |
+| Test | Built | Checks as a box (no empty value, no value repeated, a number within bounds, a count of rows within bounds), counted by the database; a mode that stops a run (FL8) |
 | Block Until Done | Later | Run order, from runs and schedules (F3) |
 | Message | Later | The run's log |
 | Base 64 Encoder | Built | `encodeBase64` in a Formula |
@@ -840,8 +840,8 @@ hidden. So its one row is each check's failing rows, counted by the database -- 
 land for what it is now (shown, or the flow run), the canvas reads its row (`firstRowOf`, the box's grid's) and marks
 the box: amber, saying "1 of 2 checks fail" with each failing check and its rows in its title, or its words green when
 every check passes; the result is kept for what its rows are made of (its chain), so it shows after another box is
-shown, and a run's log says it ("2 tests failing"). A Test's mode (below) is
-built; a row-count check is next. Python: `grid.test([{'kind': 'notEmpty', 'column': ...}, ...])`, its row by `to_pandas`.
+shown, and a run's log says it ("2 tests failing"). A Test's mode and its count of rows (below) are
+built. Python: `grid.test([{'kind': 'notEmpty', 'column': ...}, ...])`, its row by `to_pandas`.
 Tested by `flow-sheet.test.ts` (the counts made and read back whole, one bound, set again, which fail, refusals, read
 from JSON), Python's `test_rows_checked_as_a_test_box_checks_them` (over DuckDB: an empty region, a repeated id, a
 notional outside its bounds, each 1; set again, passing) and the harness (a Test over the Filter: its trade ids unique,
@@ -861,6 +861,21 @@ its place. Tested by `flow-sheet.test.ts` (set, read, written, renamed, undone, 
 stop), Python's `test_a_test_that_stops_a_run_writes_no_output` (refused, nothing written; set to warn, written; saved
 and loaded) and the harness (the example's Checks sheet: run, 2024's orders written; its Test set to stop a run and run
 again: nothing written, said, the Test red).
+
+**Built, a Test's count of rows** (FL8's row-count check; `checks.ts` kind `rows`; 2026-10-25): a check of no column --
+its input's count of rows from a smallest to a largest (whole numbers, either left out, a smallest 1 at least: every
+count is 0 at least). It is checked after grouping: a column over the group's `Rows` (`Rows_outside`, 1 when the count
+is outside its bounds, the database comparing), read back from the grid's calculated columns after grouping, rebuilt and
+compared whole as every check is. Its failing is said with the rows its input has -- "rows from 1 to 500: it has 900
+rows", "at least 1 row: it has 0 rows" -- in the box's title, the run's log and Python's `grid.failing` (`says`, the one
+set of words for the canvas and Python; `flow.run`'s refusal says them too). A Test of an input of no rows is grouped
+into no row: every check's count is 0, and a count of rows fails its smallest, read off the row's absence (the canvas's
+`firstRowOf` now gives a reader of no values for a grid of no rows, rather than none). Its window offers "rows: a count
+within bounds", its column picker hidden, once a Test. Python: `grid.test([{'kind': 'rows', 'min': 1, 'max': 500}])`.
+Tested by `flow-sheet.test.ts` (made after grouping, read back, said, set again, failing with and without a row,
+refusals, read from JSON), Python's `test_rows_checked_as_a_test_box_checks_them` (over DuckDB: 4 rows failing at least
+5; a Test of no rows failing at least 1) and the harness (the Test's second check made a count of rows at most 1: its
+trades failing it, their count said; read back as a count of rows).
 
 **The example flow's Reshape sheet** (`examples/prep-flow.ts`): a second sheet showing the tools that reshape rows over the
 same orders -- the two biggest orders of each region (a Sample: last 2 of each region by revenue), their columns chosen

@@ -608,8 +608,9 @@ export class CubePage {
       },
       firstRowOf: (tile) => {
         const v = this.#grids.get(tile)?.added?.cube.view;
-        if (v === undefined || v === null || v.rows.rowCount === 0) return undefined;
-        return (column) => v.rows.columns.find((c) => c.name === column)?.values[0];
+        if (v === undefined || v === null) return undefined;
+        // no row (a Test of no rows): every column's value undefined
+        return (column) => (v.rows.rowCount === 0 ? undefined : v.rows.columns.find((c) => c.name === column)?.values[0]);
       },
       codeOf: (tile) => {
         const grid = this.#grids.get(tile)?.added?.cube;

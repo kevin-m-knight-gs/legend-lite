@@ -28,7 +28,7 @@ import { readSelection, selectCommands, type Selection } from '../select-columns
 import { readSummary, summarizeCommands, type Summary } from '../summarize.ts';
 import { findReplaceCommands, readFindReplace, type FindReplace } from '../find-replace.ts';
 import { countRecordsCommands, readCountRecords } from '../count-records.ts';
-import { checkCommands, checksOf, checkWords, failingChecks, readChecks, type Check } from '../checks.ts';
+import { checkCommands, checksOf, checkWords, failingChecks, failingWords, readChecks, type Check } from '../checks.ts';
 import type { MultiFieldAsked } from '../multi-field.ts';
 import { DATE_TOOL_KINDS, dateToolCommands, readDateTool, type DateTool } from '../date-tools.ts';
 import {
@@ -1287,8 +1287,9 @@ export async function gridView(spec: GridSpec): Promise<string> {
 }
 
 /** A TEST'S FAILING CHECKS (checks.ts failingChecks: the canvas's reading of its row, Python's flow.run's): its view
- *  run as the screen runs it, each check whose count is above 0 with its rows. JSON: `{failing: [{check, rows}]}` (the
- *  check in words), or `{problems}` when the grid checks nothing. */
+ *  run as the screen runs it, each check whose count is above 0 with its rows (a count of rows's: the rows it has).
+ *  JSON: `{failing: [{check, rows, says}]}` (the check in words, and its failing as the canvas says it), or `{problems}`
+ *  when the grid checks nothing. */
 export async function gridFailing(spec: GridSpec): Promise<string> {
   return using(spec, async (o) => {
     const checks = checksOf(o.state.snapshot);
@@ -1296,7 +1297,7 @@ export async function gridFailing(spec: GridSpec): Promise<string> {
     const view = await controllerOf(o).run({ snapshot: o.state.snapshot, tree: o.state.tree });
     if (view === STALE) throw new Error('the grid was asked again before its view was ready');
     const failing = failingChecks(checks, (name) => view.rows.columns.find((c) => c.name === name)?.values[0]);
-    return JSON.stringify({ failing: failing.map((f) => ({ check: checkWords(f.check), rows: f.rows })) });
+    return JSON.stringify({ failing: failing.map((f) => ({ check: checkWords(f.check), rows: f.rows, says: failingWords(f) })) });
   });
 }
 

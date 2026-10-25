@@ -887,6 +887,20 @@ try {
   await page.locator('.dc-flow-settings button', { hasText: 'Open its settings' }).click();
   await docked('Test');
   check(await page.locator('.dc-flow-dock .dc-test-check').count() === 2, 'set again: its two checks as they are');
+  // its second a count of rows (of no column): at most 1, its many rows failing it -- counted after grouping
+  const countCheck = page.locator('.dc-flow-dock .dc-test-check').nth(1);
+  await countCheck.locator('.dc-test-kind').selectOption('rows');
+  check(await countCheck.locator('.dc-test-column').isHidden(), 'a count of rows names no column');
+  await countCheck.locator('.dc-test-min').fill('');
+  await countCheck.locator('.dc-test-max').fill('1');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  await page.waitForFunction((t) => document.querySelector(`.dc-flow-box[data-tile="${t}"] .dc-flow-says`)?.getAttribute('title')?.includes('at most 1 row: it has'), tested.id, { timeout: 10_000 });
+  const counting = await page.locator(`.dc-flow-box[data-tile="${tested.id}"] .dc-flow-says`).getAttribute('title');
+  check(/trade_id repeats no value, at most 1 row\n.*at most 1 row: it has \d+ rows/.test(counting ?? ''), `its count of rows failing, its rows said: ${counting}`);
+  await page.locator('.dc-flow-settings button', { hasText: 'Open its settings' }).click();
+  await docked('Test');
+  check(await page.locator('.dc-flow-dock .dc-test-check').nth(1).locator('.dc-test-kind').inputValue() === 'rows', 'read back: a count of rows');
   await page.locator('.dc-flow-dock .dc-test-check').nth(1).locator('.dc-test-off').click();
   await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
   await settled();

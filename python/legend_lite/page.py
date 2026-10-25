@@ -285,9 +285,10 @@ class Grid(Tile):
 
     @property
     def failing(self) -> list[dict[str, Any]]:
-        """This Test's checks that fail, each ``{'check': words, 'rows': n}`` -- its row read as the canvas reads it
-        (DataCube's checks.ts failingChecks, headless gridFailing); none, every row passes. A grid that checks nothing is
-        refused in DataCube's words."""
+        """This Test's checks that fail, each ``{'check': words, 'rows': n, 'says': words}`` -- its row read as the canvas
+        reads it (DataCube's checks.ts failingChecks, headless gridFailing): ``n`` the rows that fail it (a count of rows's,
+        the rows its input has), ``says`` its failing as the canvas says it; none, every row passes. A grid that checks
+        nothing is refused in DataCube's words."""
         engine, frames = self._headless()
         with frames.reading():
             said = json.loads(engine.call('gridFailing', self._spec(engine, frames)))
@@ -1004,11 +1005,13 @@ class Grid(Tile):
 
     def test(self, checks: Sequence[Mapping[str, Any]]) -> Grid:
         """Checks of its rows -- a flow's Test (DataCube's code: checks.ts checkCommands): each
-        ``{'kind': 'notEmpty' | 'unique', 'column': c}`` or ``{'kind': 'between', 'column': c, 'min': lo, 'max': hi}``
-        (a bound left out: none that side) -- its one row then counting, by the database, the rows that fail each:
-        ``<column>_empty``, ``<column>_repeated``, ``<column>_outside``, beside ``Rows``, every column it read hidden. A
-        check of a column it has not, a bound of a column that is no number, or bounds the wrong way round, refused in
-        DataCube's words. Set again, its checks replace the ones it had."""
+        ``{'kind': 'notEmpty' | 'unique', 'column': c}``, ``{'kind': 'between', 'column': c, 'min': lo, 'max': hi}``
+        (a bound left out: none that side) or ``{'kind': 'rows', 'min': lo, 'max': hi}`` (its count of rows, whole
+        numbers, a smallest 1 at least) -- its one row then counting, by the database, the rows that fail each:
+        ``<column>_empty``, ``<column>_repeated``, ``<column>_outside``, beside ``Rows`` (``Rows_outside`` 1 when its
+        count is outside its bounds), every column it read hidden. A check of a column it has not, a bound of a column
+        that is no number, or bounds the wrong way round, refused in DataCube's words. Set again, its checks replace the
+        ones it had."""
         return self._preset({'kind': 'test', 'checks': [dict(c) for c in checks]})
 
     def multi_field(self, columns: Sequence[str], expression: str, *, suffix: str = '_new', in_place: bool = False) -> Grid:
@@ -1636,7 +1639,7 @@ class Sheet:
         stopping = [(box['tile'], self._page._tile(box['tile'], Grid).failing) for box in layout['boxes'] if box.get('stops')]
         failed = [(tile, f) for tile, f in stopping if f]
         if failed:
-            raise ValueError('; '.join(f"{tile} stops the run: " + ', '.join(f"{c['check']} ({c['rows']} failing)" for c in f)
+            raise ValueError('; '.join(f"{tile} stops the run: " + ', '.join(c['says'] for c in f)
                                        for tile, f in failed) + ': no Output written')
         out.mkdir(parents=True, exist_ok=True)
         doc = self._page._doc

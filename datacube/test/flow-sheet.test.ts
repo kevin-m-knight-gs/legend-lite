@@ -44,7 +44,7 @@ import { accessor, collection, fn, lambda, lit, property, variable, type ValueSp
 import { textToolOf } from '../src/text-tools.ts';
 import { readTextTool, textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
 import { grainColumn, grainOf } from '../src/calc-presets.ts';
-import { CHECKS_COLUMN, checkCommands, checksOf, checkWords, failingChecks, readChecks, testColumns, type Check } from '../src/checks.ts';
+import { CHECKS_COLUMN, checkCommands, checksOf, checkWords, failingChecks, failingWords, readChecks, testColumns, type Check } from '../src/checks.ts';
 import { DATE_RANGES, dateRangeConditions, datesBetweenConditions } from '../src/date-ranges.ts';
 import { datesKept } from '../src/page-filters.ts';
 import { pastedCells, tableCsv, tableProblem } from '../src/ui/text-input-dialog.ts';
@@ -354,6 +354,37 @@ describe("a Test (checks.ts): each check's failing rows counted by the database,
     assert.deepEqual(readChecks({ kind: 'test', checks: [{ kind: 'between', column: 'notional', min: 1 }] }), [{ kind: 'between', column: 'notional', min: 1 }]);
     refused(() => readChecks({ kind: 'test', checks: [{ kind: 'unique', column: 'region', min: 1 }] }), /a unique check takes no min/);
     refused(() => readChecks({ kind: 'test', checks: [{ kind: 'sometimes', column: 'region' }] }), /a check is notEmpty, unique, between/);
+  });
+
+  it('checks its count of rows after grouping: a column over its group, 1 outside its bounds; read back, said', () => {
+    const counted: Check[] = [{ kind: 'notEmpty', column: 'region' }, { kind: 'rows', min: 1, max: 500 }];
+    const s = apply(typed, checkCommands(typed, counted));
+    assert.deepEqual(s.groupDerived?.map((d) => d.name), ['Rows_outside']);
+    assert.deepEqual(checksOf(s), counted);
+    assert.deepEqual(testColumns(counted), ['region_empty', 'Rows_outside', 'Rows', 'ChecksAll']);
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived: s.derived, groupDerived: s.groupDerived ?? [], rows: s.rows }))),
+      { tool: 'test', also: [], says: 'region has no empty value, rows from 1 to 500' });
+    assert.deepEqual(checksOf(apply(typed, checkCommands(typed, [{ kind: 'rows', max: 1 }]))), [{ kind: 'rows', max: 1 }]);
+    assert.equal(checkWords({ kind: 'rows', min: 1 }), 'at least 1 row');
+    assert.equal(checkWords({ kind: 'rows', max: 10 }), 'at most 10 rows');
+    // set again: its column over its group taken off too
+    const again = apply(s, checkCommands(s, [{ kind: 'rows', min: 2 }]));
+    assert.deepEqual(checksOf(again), [{ kind: 'rows', min: 2 }]);
+    assert.deepEqual(again.groupDerived?.map((d) => d.name), ['Rows_outside']);
+    assert.deepEqual(again.derived.map((d) => d.name), ['Rows', 'ChecksAll']);
+    // failing: its count's 1, said with its rows; no row (its input has none) fails a smallest, not a largest alone
+    const failing = failingChecks(counted, (c) => ({ region_empty: 0, Rows_outside: 1, Rows: 900 } as Record<string, number>)[c]);
+    assert.deepEqual(failing.map((f) => failingWords(f)), ['rows from 1 to 500: it has 900 rows']);
+    assert.deepEqual(failingChecks(counted, () => undefined).map((f) => failingWords(f)), ['rows from 1 to 500: it has 0 rows']);
+    assert.deepEqual(failingChecks([{ kind: 'rows', max: 3 }], () => undefined), []);
+    assert.equal(failingWords({ check: counted[0]!, rows: 1 }), 'region has no empty value: 1 row fails');
+    refused(() => checkCommands(typed, [{ kind: 'rows' }]), /a count of rows is bounded/);
+    refused(() => checkCommands(typed, [{ kind: 'rows', min: 0 }]), /a smallest is 1 or more, or left out/);
+    refused(() => checkCommands(typed, [{ kind: 'rows', min: 1.5 }]), /a count of rows is a whole number, not 1.5/);
+    refused(() => checkCommands(typed, [{ kind: 'rows', min: 9, max: 2 }]), /its smallest is above its largest/);
+    refused(() => checkCommands(typed, [{ kind: 'rows', min: 1 }, { kind: 'rows', max: 9 }]), /its count of rows is checked twice/);
+    assert.deepEqual(readChecks({ kind: 'test', checks: [{ kind: 'rows', min: 1 }] }), [{ kind: 'rows', min: 1 }]);
+    refused(() => readChecks({ kind: 'test', checks: [{ kind: 'rows', column: 'region', min: 1 }] }), /a rows check takes no column/);
   });
 });
 
