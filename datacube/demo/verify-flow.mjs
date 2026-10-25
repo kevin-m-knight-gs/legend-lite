@@ -776,6 +776,24 @@ try {
   check(atRandom?.says === '10% at random, seed 7', `a random Sample: ${JSON.stringify(atRandom)}`);
   const tenth = await resultRows();
   check(tenth > fewer * 0.04 && tenth < fewer * 0.2, `about a tenth of the Filter's ${fewer}: ${tenth}`);
+  // CREATE SAMPLES (M3): a Sample a filter makes has two outputs, its rows (S) and the rest (R) -- Alteryx's estimation
+  // and holdout; a line from its R let go on the canvas, a Browse of the rest
+  check(JSON.stringify(await page.locator(`.dc-flow-box[data-tile="${sample.id}"] > .dc-flow-port-out:visible`).allTextContents()) === '["S","R"]',
+    `a Sample's S and R: ${await page.locator(`.dc-flow-box[data-tile="${sample.id}"] > .dc-flow-port-out:visible`).allTextContents()}`);
+  const beforeRest = (await boxes()).map((b) => b.id);
+  await page.locator(`.dc-flow-box[data-tile="${sample.id}"]`).scrollIntoViewIfNeeded();
+  const restPort = await page.locator(`.dc-flow-box[data-tile="${sample.id}"] .dc-flow-port-false`).boundingBox();
+  const restSpot = await emptyCanvasPoint();
+  await page.mouse.move(restPort.x + restPort.width / 2, restPort.y + restPort.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(restSpot.x, restSpot.y, { steps: 12 });
+  await page.mouse.up();
+  await boxCount(beforeRest.length + 1);
+  const theRest = await added(beforeRest);
+  check(theRest.tool === 'browse' && await readsOf(theRest.id) === `${sample.id}:false`, `a Browse of the rest: ${JSON.stringify(theRest)}, ${await readsOf(theRest.id)}`);
+  await settled();
+  check(await resultRows() === fewer - tenth, `the rest: ${fewer} - ${tenth}`);
+  await page.screenshot({ path: outPath('flow-sample-rest.png') });
 
   // A DATETIME (M3), dragged onto the Filter: its trade dates taken to their month, in its window docked
   const beforeDate = (await boxes()).map((b) => b.id);

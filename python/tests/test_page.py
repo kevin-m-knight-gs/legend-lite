@@ -3055,6 +3055,25 @@ class Flows(Paged):
                          {'left': source.id, 'right': source.id})
 
 
+    def test_a_sample_hands_on_the_rest(self):
+        # M3: a Sample a filter makes hands on the rest by its False (Alteryx's Create Samples, its estimation and holdout):
+        # the rows it leaves out, by the same seed -- its rows and the rest every row, none in both
+        page, flow, source, _big = self.flowed()
+        every = sorted(source.to_pandas()['notional'])
+        sampled = flow.grid(input=source)
+        sampled.sample('random', 50, seed=2)
+        rest = flow.grid(input=source)
+        rest.relink(sampled, port='false')
+        got, left = sorted(sampled.to_pandas()['notional']), sorted(rest.to_pandas()['notional'])
+        self.assertEqual(sorted(got + left), every)
+        self.assertEqual(list(rest.to_pandas().columns), list(source.to_pandas().columns), 'its row number and chance hidden')
+        sampled.sample('every', 2, 'notional')
+        self.assertEqual(len(sampled.to_pandas()) + len(rest.to_pandas()), len(every), 'set again: the rest follows')
+        # the first by an order is a Top N, with no filter: no rest (refused as it is set, or as the rest is read)
+        with self.assertRaisesRegex(ValueError, 'has no filter: its False port leaves no row out'):
+            sampled.sample('first', 1, 'notional')
+            rest.to_pandas()
+
     def test_a_union_of_more_than_two(self):
         # M2: a flow's Union of any number (page-commands.ts setJoin's more): each grid after the first two one input
         # more, each read live; one added as a line let go on it (relink to its next side), one taken off as a line

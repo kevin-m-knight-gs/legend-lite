@@ -4526,7 +4526,7 @@
 }
 .dc-flow-count[hidden] { display: none; }
 /* a Filter's: its True rows, above its T port, clear of its F */
-.dc-flow-box[data-tool='filter'] > .dc-flow-count, .dc-flow-box[data-tool='unique'] > .dc-flow-count { top: calc(30% - 20px); }
+.dc-flow-box.dc-flow-two > .dc-flow-count { top: calc(30% - 20px); }
 /* the palette's find field: its tools narrowed to what it holds */
 .dc-flow-find {
   grid-column: 1 / -1;
@@ -4680,9 +4680,10 @@
 }
 .dc-flow-port-in { left: -5px; }
 .dc-flow-port-out { right: -5px; cursor: crosshair; transition: transform 100ms ease, border-color 100ms ease; font-size: 0; }
-/* a Filter's outputs: its True above its False (Alteryx's T and F), each a port a line is drawn from */
+/* a Filter's outputs: its True above its False (Alteryx's T and F), each a port a line is drawn from -- a Unique's U and
+   D, a Sample's S and R (its rows and the rest) */
 .dc-flow-port-false { display: none; }
-.dc-flow-box[data-tool='filter'] > .dc-flow-port-out, .dc-flow-box[data-tool='unique'] > .dc-flow-port-out {
+.dc-flow-box.dc-flow-two > .dc-flow-port-out {
   width: 12px;
   height: 12px;
   margin-top: -7px;
@@ -4694,7 +4695,7 @@
   text-align: center;
   color: var(--dc-muted);
 }
-.dc-flow-box[data-tool='filter'] > .dc-flow-port-false, .dc-flow-box[data-tool='unique'] > .dc-flow-port-false { display: block; top: 70%; }
+.dc-flow-box.dc-flow-two > .dc-flow-port-false { display: block; top: 70%; }
 /* a Join's outputs: its L above its J above its R (Alteryx's), each a port a line is drawn from */
 .dc-flow-port-unmatched { display: none; }
 .dc-flow-box[data-tool='join'] > .dc-flow-port-out, .dc-flow-box[data-tool='fuzzyMatch'] > .dc-flow-port-out {

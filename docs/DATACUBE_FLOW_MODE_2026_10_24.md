@@ -252,7 +252,8 @@ How to read the status column:
 | Date Filter | Built | The filter, on a date column |
 | Generate Rows | Later | Core has no relation that makes rows from a rule; needs a design |
 | Auto Field | Out | Every column already has its type from the compiler; there is nothing to guess |
-| Create Samples, Oversample, Multi-Field Binning | Later | `random()` and the bins preset are the parts |
+| Create Samples | Built | A Sample's two outputs: its rows (S) and the rest (R), its False -- a split by a seed |
+| Oversample, Multi-Field Binning | Later | `random()` and the bins preset are the parts |
 
 ### Join
 
@@ -791,6 +792,18 @@ percent: one more of the Sample's ways ("a random"), read back off it and said "
 numbers, hashes and keeps the rows. Of all the rows only: the same percent of each group is the same percent of all.
 Python: `grid.sample('random', 25, seed=7)`. Tested by `flow-sheet.test.ts`, Python's Sample test (the same rows for the
 same seed) and the harness (about a tenth of the Filter's rows).
+
+**Built, Create Samples** (`layout/flow-canvas.ts` `#outsOf`, 2026-10-25): Alteryx's Create Samples splits its rows
+into an estimation sample and the rest. A Sample a filter makes -- at random by its seed, one of every N, at some places,
+the first N of each group by row number -- now draws two outputs, its rows (**S**) and the rest (**R**): the rest is its
+False (FL7, the port a Filter has), its filter turned round, so the same seed gives the same split every time and the two
+are every row, none in both. A Sample of the first N by an order is a Top N, with no filter: one output, and a box
+linked to its rest is refused in words. Each part a box after it; a three-way split, the rest sampled again. The ports
+are drawn by a class of their own (`dc-flow-two`: a Filter's, a Unique's and a Sample's alike). Python:
+`rest.relink(sampled, port='false')`. Tested by `flow-sheet.test.ts` (the rest's query: the filter turned round, its
+columns as they are; a Top N refused), Python's `test_a_sample_hands_on_the_rest` (the rows and the rest are every row,
+set again and followed) and the harness (a Random % Sample's S and R, a Browse of the rest: the Filter's rows less the
+tenth).
 
 **The example flow's Reshape sheet** (`examples/prep-flow.ts`): a second sheet showing the tools that reshape rows over the
 same orders -- the two biggest orders of each region (a Sample: last 2 of each region by revenue), their columns chosen

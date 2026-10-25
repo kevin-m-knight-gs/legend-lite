@@ -368,6 +368,24 @@ describe("Sample's other ways (row-sample.ts): a row number and a filter, as Uni
     assert.deepEqual(readRowSample({ kind: 'sample', mode: 'random', n: 10, seed: 3 }), { kind: 'random', n: 10, by: '', groups: [], seed: 3 });
   });
 
+  it("hands on the rest by its False (Alteryx's Create Samples): its filter turned round, its hidden columns as they are", () => {
+    const commands = rowSampleCommands(typed, { kind: 'random', n: 30, by: '', groups: [], seed: 5 });
+    const derived = columnsOf(commands);
+    const filter = (commands.find((c) => c.kind === 'addFilter') as { condition: FilterNode }).condition;
+    const hidden = Object.fromEntries(derived.map((d) => [d.name, { hidden: true }]));
+    const d = apply(FLOW(), addGrid(cube(rows('grid-2'), (q) => ({ ...q, derived, filter }), { columns: hidden }), 'sheet-2', 'grid-2'),
+      addGrid(cube({ ...rows('grid-5'), input: { grid: 'grid-5', port: 'false' } }), 'sheet-2', 'grid-5'));
+    const rest = resolvedSource(d.page, d.page.cubes.find((c) => c.id === 'grid-6')!.cube.source, 'grid-6');
+    const input = rest._type === 'rows' && !isLive(rest.input) ? rest.input : undefined;
+    assert.deepEqual(input?.query.filter, { kind: 'not', child: { kind: 'condition', column: 'SampleChance', operator: 'lessThan', value: 30 } });
+    assert.deepEqual(input?.query.derived, derived, 'its row number and its chance, as they are: the same seed, the same rows');
+    assert.deepEqual(input?.omit, ['SampleRow', 'SampleChance'], 'hidden, so handed on by neither of its outputs');
+    // a Sample of the first rows by an order (a Top N) has no filter: no rest
+    const top = apply(FLOW(), addGrid(cube(rows('grid-2'), (q) => ({ ...q, topN: { by: 'notional', n: 5 } })), 'sheet-2', 'grid-2'));
+    refused(() => apply(top, { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-5', port: 'false' } }),
+      /'grid-5' has no filter: its False port leaves no row out/);
+  });
+
   it("goes from the sample it has to the one asked: a Top N for the first of all, a row sample's columns made again", () => {
     let draft: GridDraft = { snapshot: typed, config: DEFAULT_CONFIGURATION };
     const step = (t: Parameters<typeof sampleCommands>[1]): CubeSnapshot => {

@@ -28,6 +28,7 @@ import { moreIndex, type InputPort, type InputSide } from '../cube-document.ts';
 import {
   boxInputs, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowGroup, type FlowTool,
 } from '../flow-boxes.ts';
+import { rowSampleOf } from '../row-sample.ts';
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import type { Profile } from '../profile.ts';
 import { gridTitle } from '../page-ids.ts';
@@ -90,11 +91,12 @@ const KEYS: readonly (readonly [string, string])[] = [
   ['Right-click a box', 'its menu'],
 ];
 
-/** An output's name: a Filter's True and False, a Unique's Unique and Duplicates, a Join's Joined and its Left and Right
- *  unmatched. */
+/** An output's name: a Filter's True and False, a Unique's Unique and Duplicates, a Sample's Sampled and the rest, a
+ *  Join's Joined and its Left and Right unmatched. */
 function portWord(tool: FlowTool | undefined, port: InputPort | undefined): string {
   if (tool === 'join' || tool === 'fuzzyMatch') return port === 'left' ? 'Left unmatched' : port === 'right' ? 'Right unmatched' : 'Joined';
   if (tool === 'unique') return port === 'false' ? 'Duplicates' : 'Unique';
+  if (tool === 'sample') return port === 'false' ? 'The rest' : 'Sampled';
   return port === 'false' ? 'False' : 'True';
 }
 
@@ -1318,22 +1320,28 @@ export class FlowCanvas {
     const inputs = this.#inputsOf(id);
     const frozen = inputs.flatMap((i) => ('frozen' in i ? [i.frozen] : []));
     const counted = this.#board.count(id);
-    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted, inputs.length]);
+    const outs = this.#outsOf(id);
+    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted, inputs.length, outs]);
     if (key === drawn.key) return;
     drawn.key = key;
     drawn.root.dataset['tool'] = tool;
     drawn.root.dataset['group'] = FLOW_TOOLS[tool].group;
     this.#paintIns(drawn.root, tool === 'union' && inputs.length >= 2 ? inputs.map((i) => i.side) : undefined);
-    // its outputs, where it has several: a Filter's T and F, a Unique's U and D, a Join's J between its L and R
+    // its outputs, where it has several: a Filter's T and F, a Unique's U and D, a Sample's S and R, a Join's J between
+    // its L and R
+    drawn.root.classList.toggle('dc-flow-two', outs === 'two');
     const [outTrue, outFalse] = drawn.root.querySelectorAll<HTMLElement>(':scope > .dc-flow-port-out');
     if (outTrue !== undefined && outFalse !== undefined) {
       const unique = tool === 'unique';
-      const joined = this.#outsOf(id) === 'three';
-      outTrue.textContent = joined ? 'J' : unique ? 'U' : 'T';
-      outTrue.title = joined ? 'Its Joined rows. Drag onto another box to link it here' : 'Drag onto another box to link it here';
-      outFalse.textContent = unique ? 'D' : 'F';
+      const sample = tool === 'sample';
+      const joined = outs === 'three';
+      outTrue.textContent = joined ? 'J' : unique ? 'U' : sample ? 'S' : 'T';
+      outTrue.title = joined ? 'Its Joined rows. Drag onto another box to link it here'
+        : sample && outs === 'two' ? 'Its sampled rows. Drag onto another box to link it here' : 'Drag onto another box to link it here';
+      outFalse.textContent = unique ? 'D' : sample ? 'R' : 'F';
       outFalse.title = unique ? 'Its Duplicates: every row after its key\'s first. Drag onto another box to link it here'
-        : 'Its False: the rows its condition leaves out. Drag onto another box to link it here';
+        : sample ? 'The rest: every row its sample leaves out (a holdout, by the same seed). Drag onto another box to link it here'
+          : 'Its False: the rows its condition leaves out. Drag onto another box to link it here';
     }
     drawn.root.classList.toggle('dc-flow-shown', shown);
     drawn.root.classList.toggle('dc-flow-refused', refused !== undefined);
@@ -1627,8 +1635,16 @@ export class FlowCanvas {
   /** How a box's outputs are drawn: a Filter's True and False, a Unique's U and D (its filter's, turned round); a Join's
    *  (a Fuzzy Match's too) L, J and R; any other box's one. */
   #outsOf(id: string): Outs {
-    const tool = this.#said(id)?.tool;
-    return tool === 'filter' || tool === 'unique' ? 'two' : tool === 'join' || tool === 'fuzzyMatch' ? 'three' : 'one';
+    const said = this.#said(id);
+    const tool = said?.tool;
+    if (tool === 'filter' || tool === 'unique') return 'two';
+    // a Sample a filter makes (at random, one of every N, at some places, the first N by row): its rows, and the rest --
+    // its False, the filter turned round (Alteryx's Create Samples); a Sample of the first N by an order (its topN), one
+    if (tool === 'sample' && said?.also.length === 0) {
+      const doc = this.#board.options.documentOf?.(id);
+      if (doc !== undefined && rowSampleOf(doc.query) !== undefined) return 'two';
+    }
+    return tool === 'join' || tool === 'fuzzyMatch' ? 'three' : 'one';
   }
 
   /** The columns a Join's L or R hands on: those of the box it reads on that side, live; none said, a copy. */
