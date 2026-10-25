@@ -16,6 +16,7 @@ import { EMPTY_FLOW, placeAfter, removeBox, type Flow } from './flow.ts';
 import { isLive, type CubeDocument, type CubeInput, type InputPort, type InputSide } from '../cube-document.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
+import type { Profile } from '../profile.ts';
 import { lazily } from '../lazily.ts';
 
 export interface FlowBoardOptions {
@@ -59,6 +60,8 @@ export interface FlowBoardOptions {
   /** Ctrl+C on a box or a note, or on the boxes picked together (Ctrl+X: `cut`, and taken off the page): the caller
    *  keeps a copy of them to paste. */
   readonly onCopy?: (ids: readonly string[], cut: boolean) => void;
+  /** The shown box's Profile (its results pane's): its columns summarised, asked of the database (profile.ts). */
+  readonly profileOf?: (id: string) => Promise<Profile>;
   /** Ctrl+V on the canvas: the caller adds what it copied last, at `at` (where the pointer is), else after the box it
    *  reads. */
   readonly onPaste?: (at: FlowPoint | undefined) => void;
@@ -118,6 +121,9 @@ export interface FlowBoardState {
   noteOf(id: string): BandTile | undefined;
   /** Said to a screen reader. */
   say(text: string): void;
+  /** What a box's rows are made of now -- its document and those of the boxes it reads -- to know an answer about them
+   *  (its count, its profile) is still about them. */
+  chain(id: string): string;
 }
 
 /** The drawing, once fetched. */
@@ -283,6 +289,10 @@ export class FlowBoard implements FlowBoardState {
     const source = s._type === 'rows' ? `rows ${input(s.input)}` : s._type === 'join'
       ? `join ${input(s.left)} ${input(s.right)} ${toJson(s.how)}` : toJson(s);
     return `${source}|${toJson(doc.query)}`;
+  }
+
+  chain(id: string): string {
+    return this.#chain(id);
   }
 
   /** A box added from the palette as `tool`: drawn as one until its grid does something. */

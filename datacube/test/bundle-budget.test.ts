@@ -673,8 +673,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  381,000 -> 381,500 (2026-10-25, the flow mode's Unique -- the engine page's note of the same date; its U and D ports'
  *  styles among them). Measured 381,179.
  *  381,500 -> 382,000 (2026-10-25, the flow mode's many boxes at once -- the grid-only page's note of the same date; the
- *  picked boxes' ring and the band's styles among them). Measured 381,752. */
-const WIDGET_BUDGET = 382_000;
+ *  picked boxes' ring and the band's styles among them). Measured 381,752.
+ *  382,000 -> 382,500 (2026-10-25, the flow mode's Profile: the results pane's Rows and Profile and the profile's table's
+ *  styles; its query and its reading a chunk of their own, profile.ts, its drawing the canvas's chunk). Measured
+ *  382,213. */
+const WIDGET_BUDGET = 382_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

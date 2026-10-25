@@ -36,6 +36,7 @@ import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import { FlowBoard, type FlowPoint, type LineEnd } from '../layout/flow-board.ts';
 import { liveGrids, relinked } from '../live-inputs.ts';
+import type { Profile } from '../profile.ts';
 import { EMPTY_FLOW, flowTiles } from '../layout/flow.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
@@ -164,6 +165,8 @@ export interface SpawnedGrid {
   openStep?(editor: StepEditor): void;
   /** Its view as it landed last: its rows, and a flat grid's total when the row cap cut them -- a flow's box's count. */
   readonly view?: { readonly rows: { readonly rowCount: number }; readonly totalRows?: number } | null;
+  /** Its rows' profile (a flow's box's Profile: profile.ts), asked of the database when it is shown. */
+  profile?(): Promise<Profile>;
 }
 
 export interface CubePageOptions {
@@ -561,6 +564,10 @@ export class CubePage {
       onRun: () => void this.#runFlow(id),
       onDuplicate: (tile) => this.#duplicateBox(id, tile),
       onCopy: (tiles, cut) => this.#copyBoxes(tiles, cut),
+      profileOf: (tile) => {
+        const grid = this.#grids.get(tile)?.added?.cube;
+        return grid?.profile === undefined ? Promise.reject(new Error(`${tile} is not shown`)) : grid.profile();
+      },
       onPaste: (at) => this.#pasteBox(id, at),
     });
     board.setEditing(this.#editing);

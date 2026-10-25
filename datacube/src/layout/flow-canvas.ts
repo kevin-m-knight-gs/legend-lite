@@ -29,6 +29,7 @@ import {
   boxInputs, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowGroup, type FlowTool,
 } from '../flow-boxes.ts';
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
+import type { Profile } from '../profile.ts';
 import { gridTitle } from '../page-ids.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { MenuView } from '../ui/menu-view.ts';
@@ -140,6 +141,12 @@ export class FlowCanvas {
   readonly #head: HTMLElement;
   readonly #headTitle: HTMLElement;
   readonly #headActions: HTMLElement;
+  /** The results pane's Rows and Profile, and which it shows (the screen's): the box's grid, or its columns summarised. */
+  readonly #modes: HTMLElement;
+  #mode: 'rows' | 'profile' = 'rows';
+  /** The profile asked for, by the box and what its rows are made of (its chain): its answer, or why there is none. */
+  #profiled: { readonly key: string; readonly answer?: Profile; readonly refused?: string } | undefined;
+  readonly #profileView: HTMLElement;
   readonly #body: HTMLElement;
   readonly #empty: HTMLElement;
   readonly #boxes = new Map<string, Drawn>();
@@ -330,7 +337,28 @@ export class FlowCanvas {
     this.#head = el('div', 'dc-flow-results-head');
     this.#headTitle = el('div', 'dc-flow-results-title');
     this.#headActions = el('div', 'dc-flow-results-actions');
-    this.#head.append(this.#headTitle, this.#headActions);
+    this.#modes = el('div', 'dc-flow-modes');
+    this.#modes.setAttribute('role', 'tablist');
+    this.#modes.setAttribute('aria-label', 'Rows or profile');
+    for (const [mode, label, title] of [
+      ['rows', 'Rows', 'Its rows, as its grid shows them'],
+      ['profile', 'Profile', 'Each column summarised: its values, its different values, its smallest and largest'],
+    ] as const) {
+      const b = doc.createElement('button');
+      b.type = 'button';
+      b.className = 'dc-flow-mode';
+      b.dataset['mode'] = mode;
+      b.textContent = label;
+      b.title = title;
+      b.setAttribute('role', 'tab');
+      b.addEventListener('click', () => {
+        this.#mode = mode;
+        this.#paintResults();
+      });
+      this.#modes.append(b);
+    }
+    this.#profileView = el('div', 'dc-flow-profile');
+    this.#head.append(this.#headTitle, this.#modes, this.#headActions);
     this.#body = el('div', 'dc-flow-results-body');
     this.#empty = el('div', 'dc-flow-results-empty');
     this.#results.append(this.#head, this.#body);
@@ -1356,14 +1384,97 @@ export class FlowCanvas {
       if (this.#body.firstChild !== this.#empty || this.#body.childNodes.length !== 1) this.#body.replaceChildren(this.#empty);
       this.#headTitle.textContent = 'Results';
       this.#headActions.replaceChildren();
+      this.#modes.hidden = true;
+      this.#body.classList.remove('dc-flow-profiling');
+      this.#profileView.remove();
       return;
     }
+    this.#headTitle.textContent = this.#nameOf(id!, this.#said(id!)?.tool ?? 'browse');
+    this.#modes.hidden = this.#board.options.profileOf === undefined;
+    for (const b of this.#modes.querySelectorAll<HTMLElement>('.dc-flow-mode')) {
+      const on = b.dataset['mode'] === this.#mode;
+      b.classList.toggle('dc-chosen', on);
+      b.setAttribute('aria-selected', String(on));
+    }
+    if (this.#mode === 'profile' && this.#board.options.profileOf !== undefined) {
+      // its grid kept where it is, out of sight, so its rows are not asked again when it comes back
+      this.#body.classList.add('dc-flow-profiling');
+      if (!this.#body.contains(tile.element)) this.#body.replaceChildren(tile.element);
+      if (!this.#body.contains(this.#profileView)) this.#body.append(this.#profileView);
+      this.#paintProfile(id!);
+      this.#headActions.replaceChildren();
+      return;
+    }
+    this.#body.classList.remove('dc-flow-profiling');
+    this.#profileView.remove();
     // the box's grid placed once, as the band board places a tile: never moved while it is shown
     if (this.#body.firstChild !== tile.element || this.#body.childNodes.length !== 1) this.#body.replaceChildren(tile.element);
-    this.#headTitle.textContent = this.#nameOf(id!, this.#said(id!)?.tool ?? 'browse');
     const actions = tile.actions ?? [];
     if (actions.some((a, i) => this.#headActions.children[i] !== a) || this.#headActions.children.length !== actions.length) {
       this.#headActions.replaceChildren(...actions);
+    }
+  }
+
+  /**
+   * THE SHOWN BOX'S PROFILE (M5, profile.ts): each column of its rows -- its type, how many rows have a value (a bar of
+   * it), its different values, its smallest and largest -- asked of the database once for what its rows are made of
+   * now, and asked again when that changes.
+   */
+  #paintProfile(id: string): void {
+    const key = `${id}|${this.#board.chain(id)}`;
+    const view = this.#profileView;
+    const doc = this.#doc;
+    if (this.#profiled?.key !== key) {
+      this.#profiled = { key };
+      view.replaceChildren(Object.assign(doc.createElement('div'), { className: 'dc-flow-profile-wait', textContent: 'Profiling its columns…' }));
+      void this.#board.options.profileOf?.(id).then(
+        (answer) => { if (this.#profiled?.key === key) this.#profiled = { key, answer }; },
+        (e: unknown) => { if (this.#profiled?.key === key) this.#profiled = { key, refused: e instanceof Error ? e.message : String(e) }; },
+      ).then(() => {
+        if (this.#profiled?.key === key && this.#mode === 'profile' && this.#board.shown === id) this.#drawProfile(view, this.#profiled);
+      });
+      return;
+    }
+    if (view.dataset['drawn'] !== key) this.#drawProfile(view, this.#profiled);
+  }
+
+  #drawProfile(view: HTMLElement, p: { readonly key: string; readonly answer?: Profile; readonly refused?: string }): void {
+    const doc = this.#doc;
+    const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent: Element, text?: string): HTMLElementTagNameMap[K] => {
+      const e = doc.createElement(tag);
+      if (cls) e.className = cls;
+      if (text !== undefined) e.textContent = text;
+      parent.append(e);
+      return e;
+    };
+    view.replaceChildren();
+    view.dataset['drawn'] = p.key;
+    if (p.answer === undefined) {
+      if (p.refused !== undefined) el('div', 'dc-flow-profile-wait dc-flow-profile-refused', view, `No profile: ${p.refused}`);
+      return;
+    }
+    const { rows, columns } = p.answer;
+    const n = (v: number): string => v.toLocaleString(UI_LOCALE);
+    const said = (v: unknown): string => (v === null || v === undefined ? '—' : typeof v === 'number' ? n(v) : String(v));
+    el('div', 'dc-flow-profile-sum', view, `${n(rows)} ${rows === 1 ? 'row' : 'rows'}, ${columns.length} ${columns.length === 1 ? 'column' : 'columns'}`);
+    const table = el('table', 'dc-flow-profile-table', view);
+    const head = el('tr', '', el('thead', '', table));
+    for (const h of ['Column', 'Type', 'Filled', 'Distinct', 'Smallest', 'Largest']) el('th', '', head, h);
+    const body = el('tbody', '', table);
+    for (const c of columns) {
+      const tr = el('tr', '', body);
+      tr.dataset['column'] = c.name;
+      el('td', 'dc-flow-profile-name', tr, c.name);
+      el('td', 'dc-flow-profile-type', tr, c.type);
+      const filled = el('td', 'dc-flow-profile-filled', tr);
+      const share = rows === 0 ? 0 : c.filled / rows;
+      const bar = el('span', 'dc-flow-profile-bar', filled);
+      el('span', 'dc-flow-profile-fill', bar).style.width = `${Math.round(share * 100)}%`;
+      el('span', 'dc-flow-profile-count', filled, `${n(c.filled)} (${Math.round(share * 100)}%)`);
+      filled.title = `${n(rows - c.filled)} empty`;
+      el('td', 'dc-flow-profile-num', tr, n(c.distinct));
+      el('td', 'dc-flow-profile-value', tr, 'smallest' in c ? said(c.smallest) : '');
+      el('td', 'dc-flow-profile-value', tr, 'largest' in c ? said(c.largest) : '');
     }
   }
 

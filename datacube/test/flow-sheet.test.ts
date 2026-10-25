@@ -23,6 +23,7 @@ import { tidyCommands } from '../src/page-gestures.ts';
 import { applyPlanned, pageBetween } from '../src/page-between.ts';
 import { CubeRefusal, type DerivedColumn, type FilterNode } from '../src/snapshot.ts';
 import { readUnique, uniqueCommands, uniqueOf } from '../src/unique.ts';
+import { profileLambda, profileOf } from '../src/profile.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, fn, lambda, lit, property, variable } from '../../pure-protocol/src/index.ts';
 import { textToolOf } from '../src/text-tools.ts';
@@ -260,6 +261,32 @@ describe('Unique (unique.ts): a row number per key, its first kept, the number h
     assert.equal((uniqueCommands(taken, { keys: ['region'] })[0] as { column: DerivedColumn }).column.name, 'UniqueRow_2');
     assert.deepEqual(readUnique({ kind: 'unique', keys: ['region'], by: 'notional' }), { keys: ['region'], by: { column: 'notional', direction: 'asc' } });
     assert.throws(() => readUnique({ kind: 'unique', keys: 'region' }), /its keys are a list of column names/);
+  });
+});
+
+describe("a box's Profile (profile.ts): one row of aggregates asked of the database, read back a column each", () => {
+  const columns = [{ name: 'region', type: 'String' }, { name: 'settled', type: 'Boolean' }];
+
+  it("asks each column's values and different values counted, and an ordered column's smallest and largest", () => {
+    const text = JSON.stringify(profileLambda(property(variable('r'), 'rows'), columns));
+    assert.match(text, /"function":"groupBy"/);
+    for (const name of ['c0_filled', 'c0_distinct', 'c0_smallest', 'c0_largest', 'c1_filled', 'c1_distinct']) assert.ok(text.includes(`"${name}"`), name);
+    assert.ok(!text.includes('"c1_smallest"'), 'a Boolean has no smallest');
+    assert.match(text, /"function":"distinct"/);
+  });
+
+  it('reads its one row back; a box with no rows, every count none', () => {
+    const col = (name: string, v: unknown) => ({ name, type: 'Integer', values: [v] });
+    const table = { rowCount: 1, epoch: 0, elapsedMs: 0, columns: [
+      col('__profile_rows__', 5), col('c0_filled', 4), col('c0_distinct', 3), col('c0_smallest', 'AMER'), col('c0_largest', 'EMEA'),
+      col('c1_filled', 5), col('c1_distinct', 2),
+    ] } as never;
+    assert.deepEqual(profileOf(table, columns), { rows: 5, columns: [
+      { name: 'region', type: 'String', filled: 4, distinct: 3, smallest: 'AMER', largest: 'EMEA' },
+      { name: 'settled', type: 'Boolean', filled: 5, distinct: 2 },
+    ] });
+    assert.deepEqual(profileOf({ rowCount: 0, epoch: 0, elapsedMs: 0, columns: [] } as never, columns).columns[0],
+      { name: 'region', type: 'String', filled: 0, distinct: 0 });
   });
 });
 

@@ -41,7 +41,7 @@ import type { Dimension } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
 import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
-import { columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda } from './query.ts';
+import { classLambda, columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda } from './query.ts';
 import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
 import { valueList } from './ui/value-list.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
@@ -159,6 +159,7 @@ import {
 } from './ui/columns-panel.ts';
 import { familyOf, isTemporal, isVariant } from '../../engine-client/src/types.ts';
 import type { TextTool } from './text-tools.ts';
+import type { Profile } from './profile.ts';
 import { lazily } from './lazily.ts';
 
 
@@ -3666,6 +3667,25 @@ export class CubeApp {
       },
       close,
     }));
+  }
+
+  /**
+   * THE GRID'S PROFILE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M5, a flow's box's: profile.ts): each column of its rows at
+   * their finest level -- the rows the box after it reads (query.ts classLambda), the columns it shows -- its values and its different values
+   * counted, its smallest and largest, by the database: its columns typed first (none of its rows), then one row of
+   * aggregates. Refused in words for a pivoted grid, whose columns are its values.
+   */
+  async profile(): Promise<Profile> {
+    const s = this.#snapshot;
+    if (s.pivotOn.length > 0) throw new CubeRefusal('a pivoted grid\'s columns are its values: take its pivot off to profile it');
+    const { columnsLambda, profileLambda, profileOf } = await lazily(() => import('./profile.ts'));
+    const rows = classLambda(s).body[0]!;
+    const typed = await this.#controller.runQuery(columnsLambda(rows), s);
+    // the columns it shows: what the box after it reads (a hidden one left out: live-inputs.ts gridInput's omit)
+    const columns = typed.rows.columns.filter((c) => columnConfig(this.#config, c.name).hidden !== true)
+      .map((c) => ({ name: c.name, type: c.type }));
+    const answer = await this.#controller.runQuery(profileLambda(rows, columns), s);
+    return profileOf(answer.rows, columns);
   }
 
   /** A FLOW'S UNIQUE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): a row of each key, its first in an order -- a row

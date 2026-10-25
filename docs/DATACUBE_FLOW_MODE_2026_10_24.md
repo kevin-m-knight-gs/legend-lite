@@ -709,6 +709,17 @@ ran and how long it took, then each box -- its rows, its time, or why it was ref
 it; closed by its ×, until the next run. Tested by the harness (a line a box). Still to come: Run on a page Python
 serves counting by Python's engine without showing each box.
 
+**Built, Profile** (`profile.ts`, `app.ts` `profile`, `layout/flow-canvas.ts` `#paintProfile`): Alteryx's Browse
+profile (its Field Summary) -- the results pane's Rows and Profile, the profile a row a column of the shown box's rows:
+its type, how many rows have a value (a bar of it, its empties said on it), its different values, its smallest and its
+largest (none for a Boolean or JSON). Asked of the database when it is shown, never before: the box's columns typed
+first (none of its rows, `limit(0)`), then one row of aggregates over the rows the box after it reads (`classLambda`,
+its hidden columns left out) -- `count`, `distinct` then `count`, `min`, `max`, each by the database. Asked once for
+what its rows are made of (the box and every box it reads: the board's `chain`), again when that changes; the grid kept
+in place, out of sight, so its rows are not asked again when Rows comes back. A pivoted box is refused in words (its
+columns are its values). Tested by `flow-sheet.test.ts` (its question, its reading) and the harness (the Input's
+profile: 5,000 rows, region 3 values from AMER to EMEA, notional's smallest and largest; its rows again).
+
 **Built, a Filter's False** (FL7; `cube-document.ts` `LiveInput.port`, `live-inputs.ts` `gridInput`'s port,
 `layout/flow-canvas.ts`): a live input may name a box's port -- `{grid, port: 'false'}`, its False: the same query with
 its filter turned round, the rows of its input its condition does not hold for (a row its condition is unknown for, a

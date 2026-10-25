@@ -786,6 +786,25 @@ try {
   const ratesAt = await page.evaluate((id) => window.__dataPage.document('x').sheets.find((s) => s.layout.kind === 'flow').layout.boxes.find((b) => b.tile === id), rates.id);
   check(Math.abs(ratesAt.x + 92 - textSpot.canvasX) <= 2, `made where it was let go: its middle at ${ratesAt.x + 92}`);
 
+  // A BOX'S PROFILE (M5): the Input shown (Enter on it: other boxes cover it by now), its Profile -- each column
+  // summarised by the database; its Rows again
+  await page.locator(`.dc-flow-box[data-tile="${input.id}"]`).focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction((t) => document.querySelector(`.dc-flow-box[data-tile="${t}"]`)?.classList.contains('dc-flow-shown'), input.id);
+  await page.locator('.dc-flow-mode[data-mode="profile"]').click();
+  await page.locator('.dc-flow-profile-table').waitFor({ timeout: 60_000 });
+  const profiled = await page.locator('.dc-flow-profile-table tbody tr').evaluateAll((trs) => Object.fromEntries(trs.map((tr) => [
+    tr.dataset.column, [...tr.querySelectorAll('td')].map((td) => td.textContent),
+  ])));
+  check(/^5,000 rows, \d+ columns$/.test(await page.locator('.dc-flow-profile-sum').textContent() ?? ''), 'its rows and columns counted');
+  check(profiled.region?.[2] === '5,000 (100%)' && profiled.region?.[3] === '3', `region: every row filled, 3 different values: ${profiled.region}`);
+  check(!(await page.locator('.dc-flow-results-body > :first-child').isVisible()), 'its grid out of sight behind its profile');
+  check(profiled.notional?.[1] === 'Float' && profiled.notional?.[4] !== '' && profiled.notional?.[5] !== '', `notional: a Float, its smallest and largest: ${profiled.notional}`);
+  await page.screenshot({ path: outPath('flow-profile.png') });
+  await page.locator('.dc-flow-mode[data-mode="rows"]').click();
+  check(await page.locator('.dc-flow-profile').count() === 0 && await resultRows() === all, 'its rows again');
+  check(await page.locator('.dc-flow-results-body > :first-child').isVisible(), 'its grid in sight again');
+
   // THE PALETTE'S FIND: its tools narrowed to what is typed
   await page.fill('.dc-flow-find', 'join');
   const visible = await page.locator('.dc-flow-tool:visible').evaluateAll((els) => els.map((e) => e.dataset.tool));
