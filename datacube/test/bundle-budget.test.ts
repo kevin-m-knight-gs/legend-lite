@@ -323,8 +323,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  358,500 -> 359,500 (2026-10-25, the text box as a Markdown editor the user chose: its reader, drawing and editor
  *  stay a chunk of their own (page-text.ts); what the page carries is their styles -- tables, code, quotes, tasks, the
  *  toolbar, the preview (app.css) -- and an export's lines of each new block (cube-page.ts textLines)). Measured
- *  358,640. */
-const BUDGET = 359_500;
+ *  358,640.
+ *  359,500 -> 360,500 (2026-10-25, the menus' one design language: a key shown right-aligned beside its entry
+ *  (ui/menu-view.ts), a chart's and a text box's View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page -- and a
+ *  text box's right-click (cube-page.ts #tileView), a sheet tab's entries saying why they are off (ui/sheet-tabs.ts); and
+ *  the columns panel's part-ticked measure (ui/columns-panel.ts)). Measured 359,826. */
+const BUDGET = 360_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -435,8 +439,10 @@ const BUDGET = 359_500;
  *  346,310.
  *  347,000 -> 348,000 (2026-10-25, the text box's Markdown styles -- the grid-only page's note of the same date -- and a
  *  chart's options as a popover that closes: its heading and x, Escape and a press elsewhere, placed beside its chart
- *  (ui/chart-panel.ts openForm)). Measured 347,245. */
-const ENGINE_BUDGET = 348_000;
+ *  (ui/chart-panel.ts openForm)). Measured 347,245.
+ *  348,000 -> 348,500 (2026-10-25, the menus' one design language -- the grid-only page's note of the same date).
+ *  Measured 348,087. */
+const ENGINE_BUDGET = 348_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

@@ -321,7 +321,7 @@ describe('a page of its own', () => {
       const view = [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].find((i) => label(i) === 'View')!;
       return {
         top: [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].map(label),
-        view: [...view.querySelectorAll<HTMLElement>('.dc-submenu > .dc-menu-item')].map(label),
+        view: [...view.querySelectorAll<HTMLElement>(':scope > .dc-submenu > .dc-menu-item')].map(label),
         entry: (text) => [...root.querySelectorAll<HTMLElement>('.dc-menu-item')].find((i) => label(i) === text)!,
       };
     };

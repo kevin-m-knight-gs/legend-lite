@@ -537,7 +537,7 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
       const view = [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].find((i) => label(i) === 'View')!;
       return {
         top: [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].map(label),
-        view: [...view.querySelectorAll<HTMLElement>('.dc-submenu > .dc-menu-item')].map(label),
+        view: [...view.querySelectorAll<HTMLElement>(':scope > .dc-submenu > .dc-menu-item')].map(label),
         entry: (text) => menuItems().find((i) => label(i) === text)!,
       };
     };
