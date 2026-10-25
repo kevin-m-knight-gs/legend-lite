@@ -46,7 +46,11 @@ describe('the example pages', () => {
       'grid-13': 'browse', 'grid-14': 'countRecords', 'grid-15': 'browse', 'grid-16': 'findReplace',
       // its Checks sheet: three regions' Filters, a Union of the three, a Date Filter and a Test
       'grid-17': 'filter', 'grid-18': 'filter', 'grid-19': 'filter', 'grid-20': 'union', 'grid-21': 'dateFilter', 'grid-22': 'test',
+      // and a Cross Tab whose columns are fixed to two of the three regions (FL2, FL3)
+      'grid-23': 'crosstab',
     });
+    assert.deepEqual(cube('grid-23').query.pivotValues, ['AMER', 'EMEA'], 'its columns fixed: two of the three regions');
+    assert.equal(boxSays(cube('grid-23')).says, 'region across, by channel');
     assert.deepEqual(liveGrids(cube('grid-20').source), ['grid-17', 'grid-18', 'grid-19'], 'a Union of three, read live');
     const checksLayout = page.sheets[3]!.layout;
     assert.ok(checksLayout.kind === 'flow');

@@ -30,6 +30,7 @@ import {
 } from '../flow-boxes.ts';
 import { rowSampleOf } from '../row-sample.ts';
 import { checksOf, failingChecks, failingWords } from '../checks.ts';
+import { lackingWords } from '../cross-tab.ts';
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import type { Profile } from '../profile.ts';
 import { gridTitle } from '../page-ids.ts';
@@ -994,14 +995,17 @@ export class FlowCanvas {
     const refused = log.boxes.filter((b) => b.refused !== undefined).length;
     // a Test's result, as its rows landed in the run
     const tests = new Map(log.boxes.flatMap((b) => {
-      const t = this.#board.layout.boxes.some((x) => x.tile === b.id) ? this.#testOf(b.id) : undefined;
+      const t = this.#board.layout.boxes.some((x) => x.tile === b.id) ? this.#testOf(b.id) ?? this.#lackingOf(b.id) : undefined;
       return t === undefined ? [] : [[b.id, t] as const];
     }));
-    const failing = [...tests.values()].filter((t) => t.failing.length > 0).length;
+    // a Test failing, and a Cross Tab whose values lack a column (its result says its own words), each counted
+    const failing = [...tests.values()].filter((t) => t.failing.length > 0 && !('says' in t)).length;
+    const lacking = [...tests.values()].filter((t) => t.failing.length > 0 && 'says' in t).length;
     const seconds = (ms: number): string => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toLocaleString(UI_LOCALE, { maximumFractionDigits: 1 })} s`);
     const stoppers = (log.stopped ?? []).map((id) => (this.#board.layout.boxes.some((x) => x.tile === id) ? this.#nameOf(id, 'test') : id));
     head.append(el('span', 'dc-flow-log-title', `Ran ${log.boxes.length} ${log.boxes.length === 1 ? 'box' : 'boxes'} in ${seconds(log.ms)}`
       + (refused > 0 ? `, ${refused} refused` : '') + (failing > 0 ? `, ${failing} ${failing === 1 ? 'test' : 'tests'} failing` : '')
+      + (lacking > 0 ? `, ${lacking} ${lacking === 1 ? 'Cross Tab' : 'Cross Tabs'} missing values` : '')
       + (stoppers.length > 0 ? `; stopped by ${stoppers.join(', ')}: nothing written` : '')));
     const close = el('button', 'dc-flow-log-close', '×') as HTMLButtonElement;
     close.type = 'button';
@@ -1432,8 +1436,25 @@ export class FlowCanvas {
     return had?.chain === chain ? had : undefined;
   }
 
-  /** A Test's result in a few words: how many of its checks fail, or that every one passes. */
-  static #testWords(t: { readonly of: number; readonly failing: readonly string[] }): string {
+  /**
+   * A CROSS TAB'S CHECK (FL3, cross-tab.ts): the values its rows hold that its pinned columns lack, as the database said
+   * them for what it is now (the page asks as its rows land), a Test's result in shape -- its failing in words, and its
+   * own few words -- undefined for a box that pins nothing, or before it was asked.
+   */
+  #lackingOf(id: string): { readonly of: number; readonly failing: readonly string[]; readonly says: string } | undefined {
+    const q = this.#board.options.documentOf?.(id)?.query;
+    const on = q?.pivotOn[0];
+    if (q === undefined || on === undefined || (q.pivotValues ?? []).length === 0) return undefined;
+    const values = this.#board.lacking(id);
+    if (values === undefined) return undefined;
+    const n = values.length;
+    return { of: 1, failing: n > 0 ? [lackingWords(on, values)] : [],
+      says: n === 0 ? 'every value has a column' : `${n.toLocaleString(UI_LOCALE)} ${n === 1 ? 'value has' : 'values have'} no column` };
+  }
+
+  /** A Test's result in a few words: how many of its checks fail, or that every one passes (a Cross Tab's, its own). */
+  static #testWords(t: { readonly of: number; readonly failing: readonly string[]; readonly says?: string }): string {
+    if (t.says !== undefined) return t.says;
     return t.failing.length > 0 ? `${t.failing.length} of ${t.of} ${t.of === 1 ? 'check fails' : 'checks fail'}`
       : `${t.of === 1 ? 'its check passes' : `all ${t.of} checks pass`}`;
   }
@@ -1452,7 +1473,8 @@ export class FlowCanvas {
     const frozen = inputs.flatMap((i) => ('frozen' in i ? [i.frozen] : []));
     const counted = this.#board.count(id);
     const outs = this.#outsOf(id);
-    const tested = tool === 'test' ? this.#testOf(id) : undefined;
+    // a Test's result, or a Cross Tab's values its columns lack (FL3): said and marked alike
+    const tested = tool === 'test' ? this.#testOf(id) : this.#lackingOf(id);
     const stops = this.#board.layout.boxes.find((b) => b.tile === id)?.stops === true;
     const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted, inputs.length, outs, tested, stops]);
     if (key === drawn.key) return;
@@ -2506,9 +2528,12 @@ export class FlowCanvas {
   /** THE SETTINGS' MODE OF A TEST (FL8), above its window when docked: Stop a run when a check fails -- no Output
    *  written -- or (off) warn. */
   #paintStops(id: string | undefined): void {
-    const test = id !== undefined && this.#said(id)?.tool === 'test';
+    // a Test's, and a Cross Tab's whose columns are fixed (FL3: a value with no column of its own)
+    const query = id === undefined ? undefined : this.#board.options.documentOf?.(id)?.query;
+    const crossTab = query !== undefined && query.pivotOn.length > 0 && (query.pivotValues ?? []).length > 0;
+    const test = id !== undefined && (this.#said(id)?.tool === 'test' || crossTab);
     const stops = test && this.#board.layout.boxes.find((b) => b.tile === id)?.stops === true;
-    const key = JSON.stringify([id, test, stops, this.#board.editing]);
+    const key = JSON.stringify([id, test, crossTab, stops, this.#board.editing]);
     if (key === this.#stopsKey) return;
     this.#stopsKey = key;
     this.#stopsStrip.hidden = !test;
@@ -2524,7 +2549,9 @@ export class FlowCanvas {
     box.checked = stops;
     box.disabled = !this.#board.editing;
     box.addEventListener('change', () => this.#board.options.onStops?.(id!, box.checked));
-    label.append(box, Object.assign(d.createElement('span'), { textContent: 'Stop a run when a check fails: no Output is written' }));
+    label.append(box, Object.assign(d.createElement('span'), {
+      textContent: crossTab ? 'Stop a run when a value has no column: no Output is written' : 'Stop a run when a check fails: no Output is written',
+    }));
     this.#stopsStrip.replaceChildren(label);
   }
 
@@ -2538,7 +2565,9 @@ export class FlowCanvas {
     const pivoted = q !== undefined && q.pivotOn.length > 0;
     const pinned = pivoted && (q.pivotValues ?? []).length > 0 ? q.pivotValues! : undefined;
     const said = id === undefined ? undefined : this.#pinSaid.get(id);
-    const key = JSON.stringify([id, pivoted, pinned, said, this.#board.editing, this.#board.options.onPinValues !== undefined]);
+    // the values its rows hold that it has no column for (FL3), once the database has said them
+    const lacking = pinned === undefined || id === undefined ? undefined : this.#board.lacking(id);
+    const key = JSON.stringify([id, pivoted, pinned, lacking, said, this.#board.editing, this.#board.options.onPinValues !== undefined]);
     if (key === this.#pinKey) return;
     this.#pinKey = key;
     this.#pinStrip.hidden = !pivoted;
@@ -2568,12 +2597,15 @@ export class FlowCanvas {
       })());
       return b;
     };
+    const missing = d.createElement('span');
+    missing.className = 'dc-flow-pin-lacking';
+    missing.textContent = lacking !== undefined && lacking.length > 0 ? lackingWords(q.pivotOn[0]!, lacking) : '';
     const status = d.createElement('span');
     status.className = 'dc-flow-pin-said';
     status.setAttribute('role', 'status');
     status.textContent = said ?? '';
     this.#pinStrip.replaceChildren(words, button(pinned === undefined ? 'Load values' : 'Load values again', 'dc-flow-pin-load', true),
-      ...(pinned !== undefined ? [button('Unfix', 'dc-flow-pin-unfix', false)] : []), status);
+      ...(pinned !== undefined ? [button('Unfix', 'dc-flow-pin-unfix', false)] : []), missing, status);
   }
 
   /** THE SETTINGS' OUTPUT (M6): the CSV file an Output box writes, named here (Enter, or leaving the field); Write now

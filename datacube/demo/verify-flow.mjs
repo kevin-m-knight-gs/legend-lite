@@ -1529,6 +1529,10 @@ try {
   check(await page.locator('.dc-flow-box[data-tile="grid-22"].dc-flow-failing').count() === 1
     && await page.locator('.dc-flow-box[data-tile="grid-22"] .dc-flow-says').textContent() === '1 of 3 checks fail', 'its discount check fails, said on its box');
   check(/1 test failing/.test(await page.locator('.dc-flow-log:visible .dc-flow-log-title').textContent() ?? ''), 'and in the run\'s log');
+  // its Cross Tab, its columns fixed to two of the three regions (FL2): the third said, on its box and in the log (FL3)
+  check(await page.locator('.dc-flow-box[data-tile="grid-23"].dc-flow-failing').count() === 1
+    && await page.locator('.dc-flow-box[data-tile="grid-23"] .dc-flow-says').textContent() === '1 value has no column', 'its Cross Tab: a region with no column, said on its box');
+  check(/1 Cross Tab missing values/.test(await page.locator('.dc-flow-log:visible .dc-flow-log-title').textContent() ?? ''), 'and in the run\'s log, apart from the Test');
   const logRow = async (name) => page.locator('.dc-flow-log:visible .dc-flow-log-item', { hasText: name }).locator('.dc-flow-log-rows').textContent();
   check(/wrote orders of 2024\.csv/.test(await logRow('Orders of 2024') ?? ''), 'a Test that warns: 2024\'s orders written');
   await page.screenshot({ path: outPath('flow-example-checks.png') });
@@ -1544,6 +1548,17 @@ try {
   check(/not written: Orders checked failed/.test(await logRow('Orders of 2024') ?? ''), '2024\'s orders not written, said why');
   check(await page.locator('.dc-flow-box[data-tile="grid-22"].dc-flow-failing.dc-flow-stops').count() === 1, 'the Test red: it stops a run, failing');
   await page.screenshot({ path: outPath('flow-example-stopped.png') });
+  // ITS CROSS TAB'S MISSING VALUE (FL3): named in its settings, and Load values again gives it a column -- passing
+  await page.locator('.dc-flow-log-close:visible').click();
+  await page.locator('.dc-flow-box[data-tile="grid-23"]').click();
+  await settled();
+  const lackingSaid = await page.locator('.dc-flow-settings:visible .dc-flow-pin-lacking').textContent();
+  check(lackingSaid === 'region APAC has no column of its own: Load values again to add it', `its settings name it: ${lackingSaid}`);
+  check(/^Its columns: AMER, EMEA\.$/.test(await page.locator('.dc-flow-settings:visible .dc-flow-pin-words').textContent() ?? ''), 'its columns: AMER, EMEA');
+  await page.locator('.dc-flow-settings:visible .dc-flow-pin-load').click();
+  await page.waitForFunction(() => document.querySelector('.dc-flow-box[data-tile="grid-23"] .dc-flow-says')?.textContent === 'every value has a column', undefined, { timeout: 60_000 });
+  check(await page.locator('.dc-flow-box[data-tile="grid-23"].dc-flow-passing').count() === 1, 'loaded again: every region a column, passing');
+  check(/^Its columns: AMER, APAC, EMEA\.$/.test(await page.locator('.dc-flow-settings:visible .dc-flow-pin-words').textContent() ?? ''), 'its columns: all three');
 } catch (e) {
   bad(`threw: ${e.stack ?? e}`);
 } finally {

@@ -4956,6 +4956,8 @@
 .dc-flow-pin-words { font-size: 12px; flex: 1 1 18em; min-width: 0; }
 .dc-flow-pin-said { color: var(--dc-muted); font-size: 12px; flex-basis: 100%; }
 .dc-flow-pin-said:empty { display: none; }
+.dc-flow-pin-lacking { color: var(--tw-amber-700, #b45309); font-size: 12px; flex-basis: 100%; }
+.dc-flow-pin-lacking:empty { display: none; }
 .dc-flow-input-side { color: var(--dc-muted); font-size: 12px; }
 .dc-flow-input > .dc-select { min-width: 10em; max-width: 22em; }
 /* a Union's input taken off (one of more than two), and its next one added */

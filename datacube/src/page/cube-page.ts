@@ -56,7 +56,7 @@ import { chartTitle, gridTitle, nextPageId, textTitle } from '../page-ids.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { CubeDocument, CubeSource, InputPort } from '../cube-document.ts';
 import type { GridCopy, PageDocument } from '../page-document.ts';
-import { sameValue, withoutConditions, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
+import { sameValue, withoutConditions, type CubeSnapshot, type FilterNode, type FilterValue } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
@@ -181,6 +181,8 @@ export interface SpawnedGrid {
   /** A Cross Tab's values pinned as its rows hold them now, its columns fixed (FL2), or `pin` false its values its rows'
    *  again: the refusal in words, or null. */
   pinPivotValues?(pin: boolean): Promise<string | null>;
+  /** A Cross Tab's values its pinned columns lack, asked of the database (FL3): none when it pins nothing. */
+  lackingPivotValues?(): Promise<readonly (FilterValue | null)[]>;
 }
 
 export interface CubePageOptions {
@@ -432,6 +434,8 @@ export class CubePage {
   #cameNext = 0;
   /** Each added grid's first open (its first view), for `opened`. */
   readonly #opening = new Map<string, Promise<void>>();
+  /** Each Cross Tab's question of the values its columns lack, while it is asked (#askLacking): what a run waits for. */
+  readonly #lackingAsked = new Map<string, Promise<void>>();
   /** This page's crosshair group (chart-render.ts setGroup): its own, so two pages on one screen do not share. */
   readonly #crosshair = `page-${(crosshairs += 1)}`;
   /** A chart's right-click menu: its Options, Show Grid, Remove. */
@@ -856,6 +860,10 @@ export class CubePage {
           const t0 = performance.now();
           await this.#showBox(id);
           await this.#opening.get(id)?.catch(() => undefined);
+          // a Cross Tab's values its columns lack, asked as its rows land (FL3): known before any Output is written
+          const shown = this.#grids.get(id)?.added?.cube;
+          if (shown !== undefined) this.#askLacking(id, shown, board);
+          await this.#lackingAsked.get(id);
           // its log: its rows, how long it took, or why it was refused
           const rows = board.count(id);
           let refused = board.refusal(id);
@@ -880,6 +888,22 @@ export class CubePage {
     } finally {
       board.setRunning(undefined);
     }
+  }
+
+  /**
+   * A CROSS TAB'S VALUES ITS COLUMNS LACK (FL3), asked of the database once its rows land for what it is now -- once
+   * for each thing it is (its chain), one question at a time -- and told the board, which marks the box and holds a
+   * stopping one's run (FL8). A grid that pins nothing lacks nothing. A run waits for the question (#runFlow).
+   */
+  #askLacking(id: string, cube: SpawnedGrid, board: FlowBoard): void {
+    if ((cube.snapshot.pivotValues ?? []).length === 0 || cube.lackingPivotValues === undefined) return;
+    if (board.lacking(id) !== undefined || this.#lackingAsked.has(id)) return;
+    const asked = cube.lackingPivotValues()
+      .then((values) => { if (!this.#disposed) board.setLacking(id, values); })
+      // a question the database refused: its box's refusal is its grid's own to say
+      .catch(() => undefined)
+      .finally(() => this.#lackingAsked.delete(id));
+    this.#lackingAsked.set(id, asked);
   }
 
   /** AN OUTPUT WRITTEN (its Write now, a Run: docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): the box shown, its grid made,
@@ -1689,6 +1713,7 @@ export class CubePage {
         const on = this.#sheetOf(id);
         const v = cube.view;
         if (on?.kind === 'flow' && v) on.board.counted(id, v.totalRows ?? v.rows.rowCount);
+        if (on?.kind === 'flow' && v) this.#askLacking(id, cube, on.board);
       }),
       // its own changes are the page's: "changed since saved" re-reads the page
       cube.on('change', () => {

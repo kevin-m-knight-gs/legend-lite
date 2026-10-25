@@ -278,8 +278,8 @@ class Grid(Tile):
 
     def stops_run(self, stops: bool = True) -> Grid:
         """This Test box stops its flow's run when one of its checks fails -- no Output written, as the canvas's Run writes
-        none (page-commands.ts setStops; FL8's refuse) -- or, False, only warns. A grid on a board refused in DataCube's
-        words."""
+        none (page-commands.ts setStops; FL8's refuse) -- or, False, only warns. A Cross Tab whose columns are fixed stops
+        it so when a value of its rows has no column (FL3: ``failing``). A grid on a board refused in DataCube's words."""
         self._page._apply_page([_commands.page_set_stops(grid=self.id, stops=stops)])
         return self
 
@@ -287,8 +287,9 @@ class Grid(Tile):
     def failing(self) -> list[dict[str, Any]]:
         """This Test's checks that fail, each ``{'check': words, 'rows': n, 'says': words}`` -- its row read as the canvas
         reads it (DataCube's checks.ts failingChecks, headless gridFailing): ``n`` the rows that fail it (a count of rows's,
-        the rows its input has), ``says`` its failing as the canvas says it; none, every row passes. A grid that checks
-        nothing is refused in DataCube's words."""
+        the rows its input has), ``says`` its failing as the canvas says it; none, every row passes. A Cross Tab whose
+        columns are fixed (``pin_pivot``) checks that every value of its rows has a column (FL3): failing, ``n`` its values
+        with none, ``says`` them. A grid that checks nothing is refused in DataCube's words."""
         engine, frames = self._headless()
         with frames.reading():
             said = json.loads(engine.call('gridFailing', self._spec(engine, frames)))

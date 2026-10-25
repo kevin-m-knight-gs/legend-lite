@@ -3146,8 +3146,23 @@ class Flows(Paged):
         self.assertEqual(by_desk['FX']['EMEA_notional'], 100.0)
         self.assertEqual(by_desk['Rates']['AMER_notional'], 250.0)
         self.assertTrue(pd.isna(by_desk['FX']['AMER_notional']), "FX has no AMER row: its cell empty")
+        self.assertEqual(crossed.failing, [], 'every value a column')
         crossed.pin_pivot(['EMEA'])
         self.assertEqual(list(after.to_pandas().columns), ['desk', 'EMEA_notional', 'EMEA_pnl', 'Total_notional', 'Total_pnl'], 'its columns the pinned ones')
+        # FL3: a value its rows hold that its columns lack, said by the database's answer -- and, set to stop a run (FL8),
+        # no Output written; its values loaded again, written
+        self.assertEqual(crossed.failing, [{'check': 'every region has a column', 'rows': 1,
+                                            'says': 'region AMER has no column of its own: Load values again to add it'}])
+        after.output('crossed.csv')
+        crossed.stops_run()
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, 'stops the run: region AMER has no column of its own'):
+                flow.run(folder)
+            self.assertEqual(os.listdir(folder), [], 'nothing written')
+            crossed.load_pivot_values()
+            self.assertEqual(crossed.failing, [])
+            self.assertEqual([p.name for p in flow.run(folder)], ['crossed.csv'])
+        crossed.pin_pivot(['EMEA'])
         with self.assertRaisesRegex(ValueError, "'EMEA' is pinned twice"):
             crossed.pin_pivot(['EMEA', 'EMEA'])
         crossed.pin_pivot(None)

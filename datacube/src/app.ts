@@ -41,7 +41,7 @@ import type { Dimension } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
 import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
-import { classLambda, columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda, pivotValuesLambda } from './query.ts';
+import { classLambda, columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda, pivotValuesLambda, unpinnedValuesLambda } from './query.ts';
 import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
 import { DATE_RANGE_LABELS, DATE_RANGES } from './date-ranges.ts';
 import { valueList } from './ui/value-list.ts';
@@ -3822,6 +3822,18 @@ export class CubeApp {
     const type = rowColumns(s).find((c) => c.name === on)?.type;
     const values = (answered.columns.find((c) => c.name === on)?.values ?? []).map((v) => cellFilterValue(v, type));
     return this.#gesture('pivot.pin', { values }, 'Load Values');
+  }
+
+  /** A CROSS TAB'S VALUES ITS COLUMNS LACK (FL3): the values its rows hold now that its pinned values do not list, asked
+   *  of the database (query.ts unpinnedValuesLambda), each as the screen reads a cell -- none when it pins nothing. */
+  async lackingPivotValues(): Promise<readonly (FilterValue | null)[]> {
+    const s = this.#snapshot;
+    const query = unpinnedValuesLambda(s);
+    if (query === null) return [];
+    const { rows: answered } = await this.#controller.runQuery(query, s);
+    const on = s.pivotOn[0]!;
+    const type = rowColumns(s).find((c) => c.name === on)?.type;
+    return (answered.columns.find((c) => c.name === on)?.values ?? []).map((v) => cellFilterValue(v, type));
   }
 
   /** A FLOW'S JSON PARSE (Alteryx's): a JSON column's fields made columns of their own -- the column editor opened on its

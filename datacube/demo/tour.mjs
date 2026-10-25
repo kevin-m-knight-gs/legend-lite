@@ -600,10 +600,11 @@ try {
     await page.locator('.dc-flow-box[data-tile="grid-22"]').waitFor({ timeout: 60_000 });
     await page.locator('.dc-flow-run:visible').click();
     await ran();
-    await page.waitForFunction(() => document.querySelector('.dc-flow-box[data-tile="grid-22"]')?.classList.contains('dc-flow-failing'), null, { timeout: 60_000 });
-    await shot(page, "its Checks sheet run: three regions' orders unioned again, 2024's kept and written, every order checked -- its discount check failing, said on its box and in the run's log");
+    await page.waitForFunction(() => ['grid-22', 'grid-23'].every((t) => document.querySelector(`.dc-flow-box[data-tile="${t}"]`)?.classList.contains('dc-flow-failing')), null, { timeout: 60_000 });
+    await shot(page, "its Checks sheet run: three regions' orders unioned again, 2024's kept and written, every order checked -- its discount check failing; revenue by channel, its columns fixed to two regions, its third said -- on their boxes and in the run's log");
     const tested = await page.locator('.dc-flow-box[data-tile="grid-22"] .dc-flow-says').textContent();
-    return `wrote ${file.suggestedFilename()}; counted ${counts.filter((c) => c !== '').join(', ')}; reshaped ${reshaped.filter((c) => c !== '').join(', ')}; tested: ${tested}`;
+    const crossed = await page.locator('.dc-flow-box[data-tile="grid-23"] .dc-flow-says').textContent();
+    return `wrote ${file.suggestedFilename()}; counted ${counts.filter((c) => c !== '').join(', ')}; reshaped ${reshaped.filter((c) => c !== '').join(', ')}; tested: ${tested}; crossed: ${crossed}`;
   });
 
   await step('No page errors on the way', async () => {

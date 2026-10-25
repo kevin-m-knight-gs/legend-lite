@@ -18,6 +18,7 @@ import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import type { Profile } from '../profile.ts';
 import { lazily } from '../lazily.ts';
+import type { FilterValue } from '../snapshot.ts';
 
 /** A box's chart as its results pane holds it: its options shown or hidden, and taken down. */
 export interface FlowChart {
@@ -160,6 +161,9 @@ export interface FlowBoardState {
   /** A Test box found failing (true) or passing, the last time its rows landed, while its chain is as it was then
    *  (`tested`, the canvas's: it reads its row); undefined, not known. */
   testFails(id: string): boolean | undefined;
+  /** A Cross Tab's values its pinned columns lack (FL3), the last time the database was asked, while its chain is as it
+   *  was then (`setLacking`, the page's); undefined, not known. */
+  lacking(id: string): readonly (FilterValue | null)[] | undefined;
   /** A Test box's result, as the canvas read it off its row: kept for its chain as it is now. */
   tested(id: string, fails: boolean): void;
   /** A run in progress (Run): how many boxes are done, of how many. */
@@ -208,6 +212,7 @@ export class FlowBoard implements FlowBoardState {
   readonly #views = new Map<string, number>();
   /** Each Test box's result, for the chain it was read for. */
   readonly #tests = new Map<string, { readonly fails: boolean; readonly chain: string }>();
+  readonly #lacking = new Map<string, { readonly values: readonly (FilterValue | null)[]; readonly chain: string }>();
   #running: { readonly done: number; readonly of: number } | undefined;
   #log: RunLog | undefined;
   #layout: Flow = EMPTY_FLOW;
@@ -307,6 +312,21 @@ export class FlowBoard implements FlowBoardState {
   testFails(id: string): boolean | undefined {
     const t = this.#tests.get(id);
     return t !== undefined && t.chain === this.#chain(id) ? t.fails : undefined;
+  }
+
+  /** A Cross Tab's values its pinned columns lack (FL3), as the database last said them for what it is now (its chain):
+   *  none, every value has a column; undefined, not asked since it changed. */
+  lacking(id: string): readonly (FilterValue | null)[] | undefined {
+    const l = this.#lacking.get(id);
+    return l !== undefined && l.chain === this.#chain(id) ? l.values : undefined;
+  }
+
+  /** A Cross Tab's lacking values, as the database said them (the page asks as its rows land): its result a Test's for a
+   *  run (`tested`: a stopping one with some stops it), drawn. */
+  setLacking(id: string, values: readonly (FilterValue | null)[]): void {
+    this.#lacking.set(id, { values, chain: this.#chain(id) });
+    this.tested(id, values.length > 0);
+    this.#paint();
   }
 
   tested(id: string, fails: boolean): void {
@@ -439,6 +459,7 @@ export class FlowBoard implements FlowBoardState {
     this.#counts.delete(id);
     this.#views.delete(id);
     this.#tests.delete(id);
+    this.#lacking.delete(id);
     this.#layout = removeBox(this.#layout, id);
     this.#paint();
   }

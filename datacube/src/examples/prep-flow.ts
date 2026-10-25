@@ -165,6 +165,15 @@ export async function prepFlowPage(): Promise<PageDocument> {
     { id: 'grid-22', cube: stepped('Orders checked', rowsOf('grid-20', regions.name, SALES_SPECS), flat('checked', SALES_SPECS), DEFAULT_CONFIGURATION,
       (s) => checkCommands(s, [{ kind: 'unique', column: 'order_id' }, { kind: 'notEmpty', column: 'country' },
         { kind: 'between', column: 'discount', min: 0, max: 0.15 }])) },
+    // revenue by channel across the regions, its columns fixed to two of the three (FL2): its third said (FL3)
+    { id: 'grid-23', cube: stepped('Revenue by channel', rowsOf('grid-20', regions.name, SALES_SPECS), flat('by channel', SALES_SPECS), DEFAULT_CONFIGURATION,
+      () => [
+        { kind: 'configure', patch: { columns: Object.fromEntries(['units', 'cost', 'profit', 'discount', 'target']
+          .map((c) => [c, { excludedFromPivot: true, hidden: true }])) } },
+        { kind: 'group', rows: ['channel'] },
+        { kind: 'pivot', columns: ['region'] },
+        { kind: 'pinPivot', values: ['AMER', 'EMEA'] },
+      ]) },
   );
   const grids: PageView[] = cubes.map((c) => ({ id: c.id, kind: 'grid', cube: c.id, title: c.cube.name }));
   const notes: PageView[] = [
@@ -173,7 +182,7 @@ export async function prepFlowPage(): Promise<PageDocument> {
     { id: 'text-4', kind: 'text', text: 'Report' },
     { id: 'text-3', kind: 'text', text: '**Start here.** Click a box to see its rows below, and its settings beside. Drop a tool from the left onto a box to add a step after it; drag from a box\'s right edge to another box to link them; ▶ Run counts every box and writes the Output.' },
     { id: 'text-5', kind: 'text', text: '**Reshape.** The two biggest orders of each region (a Sample), their columns chosen and revenue renamed sales (a Select), their money made rows (a Transpose) and summed by measure.' },
-    { id: 'text-7', kind: 'text', text: '**Checks.** The orders of each region, taken apart and put together again (a Union of three); those of 2024 (a Date Filter); and every order checked -- its id unique, its country never empty, its discount at most 15% (a Test). Run it: one check fails, and says how many orders fail it. Set the Test to stop a run, and run it again: 2024\'s orders are not written.' },
+    { id: 'text-7', kind: 'text', text: '**Checks.** The orders of each region, taken apart and put together again (a Union of three); those of 2024 (a Date Filter); and every order checked -- its id unique, its country never empty, its discount at most 15% (a Test). Run it: one check fails, and says how many orders fail it. Set the Test to stop a run, and run it again: 2024\'s orders are not written. Revenue by channel across the regions has its columns fixed to AMER and EMEA (a Cross Tab): its rows\' APAC is said, a value with no column of its own -- Load values again to add it.' },
     { id: 'text-6', kind: 'text', text: '**Match.** The big orders whose country code finds no country -- the Join\'s L -- and how many (Count Records); the countries no big order is of (its R); and each order\'s country named as the countries file names it (Find Replace).' },
   ];
   const reshape: FlowBox[] = [
@@ -197,6 +206,7 @@ export async function prepFlowPage(): Promise<PageDocument> {
     { tile: 'grid-20', x: 288, y: 180 },
     { tile: 'grid-21', x: 536, y: 60, output: { format: 'csv', name: 'orders of 2024.csv' } },
     { tile: 'grid-22', x: 536, y: 300 },
+    { tile: 'grid-23', x: 536, y: 420 },
     { tile: 'text-7', x: 40, y: 430 },
   ];
   // three columns wide, so the whole of it is in sight beside the settings: its inputs, its steps, its report

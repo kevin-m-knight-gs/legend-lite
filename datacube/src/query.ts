@@ -456,6 +456,23 @@ export function pivotValuesLambda(s: QuerySnapshot): Lambda | null {
     .lambda();
 }
 
+/**
+ * A CROSS TAB'S VALUES ITS COLUMNS LACK (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL3): the values of its pivot's column its
+ * rows hold that its pinned values do not list -- an empty one among them, as SQL's `not in` leaves it out -- in its
+ * pivot's order, one past what a pivot shows, the database finding them. Null when nothing is pinned.
+ */
+export function unpinnedValuesLambda(s: QuerySnapshot): Lambda | null {
+  const pinned = s.pivotValues ?? [];
+  const on = s.pivotOn[0];
+  if (pinned.length === 0 || on === undefined || s.pivotOn.length !== 1) return null;
+  const lacking: FilterNode = { kind: 'or', children: [
+    { kind: 'condition', column: on, operator: 'isEmpty' },
+    { kind: 'condition', column: on, operator: 'notIn', value: pinned },
+  ] };
+  const { pivotValues: _pinned, ...rest } = s;
+  return pivotValuesLambda({ ...rest, filter: s.filter === undefined ? lacking : { kind: 'and', children: [s.filter, lacking] } });
+}
+
 /** The condition a pivot cell's rows meet. */
 function tupleCondition(s: QuerySnapshot, tuple: readonly GroupKey[]): ValueSpecification {
   const conditions = memberConditions(s, s.pivotOn, tuple);

@@ -61,7 +61,8 @@ import {
 import { gridLens, readPageFilters } from '../page-filters.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError, type ModelOptions } from '../planner.ts';
-import { classBasis, classLambda, pivotValuesLambda, snapPull, type ClassBasis } from '../query.ts';
+import { classBasis, classLambda, pivotValuesLambda, snapPull, unpinnedValuesLambda, type ClassBasis } from '../query.ts';
+import { lackingCheck, lackingWords } from '../cross-tab.ts';
 import { cellFilterValue } from '../value-filter.ts';
 import type { PlanAndRun, QueryLens } from '../runner.ts';
 import { classSamples } from '../model-plans.ts';
@@ -1288,13 +1289,25 @@ export async function gridView(spec: GridSpec): Promise<string> {
 }
 
 /** A TEST'S FAILING CHECKS (checks.ts failingChecks: the canvas's reading of its row, Python's flow.run's): its view
- *  run as the screen runs it, each check whose count is above 0 with its rows (a count of rows's: the rows it has).
+ *  run as the screen runs it, each check whose count is above 0 with its rows (a count of rows's: the rows it has); a
+ *  Cross Tab's whose columns are fixed (FL3, cross-tab.ts), its values with no column, asked as the page asks them.
  *  JSON: `{failing: [{check, rows, says}]}` (the check in words, and its failing as the canvas says it), or `{problems}`
  *  when the grid checks nothing. */
 export async function gridFailing(spec: GridSpec): Promise<string> {
   return using(spec, async (o) => {
     const checks = checksOf(o.state.snapshot);
-    if (checks === undefined) return JSON.stringify({ problems: ['it checks nothing: it is no Test'] });
+    // a Cross Tab whose columns are fixed (FL3): its one check, every value of its rows a column
+    const unpinned = checks === undefined ? unpinnedValuesLambda(o.state.snapshot) : null;
+    if (unpinned !== null) {
+      const s = o.state.snapshot;
+      const on = s.pivotOn[0]!;
+      const { rows } = await controllerOf(o).runQuery(unpinned, s);
+      const type = rowColumns(s).find((c) => c.name === on)?.type;
+      const values = (rows.columns.find((c) => c.name === on)?.values ?? []).map((v) => cellFilterValue(v, type));
+      return JSON.stringify({ failing: values.length === 0 ? []
+        : [{ check: lackingCheck(on), rows: values.length, says: lackingWords(on, values) }] });
+    }
+    if (checks === undefined) return JSON.stringify({ problems: ['it checks nothing: it is no Test, nor a Cross Tab with its columns fixed'] });
     const view = await controllerOf(o).run({ snapshot: o.state.snapshot, tree: o.state.tree });
     if (view === STALE) throw new Error('the grid was asked again before its view was ready');
     const failing = failingChecks(checks, (name) => view.rows.columns.find((c) => c.name === name)?.values[0]);

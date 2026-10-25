@@ -283,7 +283,7 @@ How to read the status column:
 | Tool | Status | How |
 |---|---|---|
 | Summarize | Built | A grid's grouping and measures: sum, count, average, min, max, median, quartiles, standard deviation, variance, concatenate (`joinStrings`), weighted average, unique -- set in Alteryx's window, a row a column (2026-10-25) |
-| Cross Tab | Built, its columns fixed (2026-10-25) | The grid's pivot; Load values pins its values, so its columns are fixed and a box after it reads them, each named by its value (FL2). A value its rows gain that the pin lacks, said and checked by mode (FL3, FL8), is next |
+| Cross Tab | Built (2026-10-25) | The grid's pivot; Load values pins its values, so its columns are fixed and a box after it reads them, each named by its value (FL2); a value its rows gain that the pin lacks asked of the database and said on its box, a run stopped by it in refuse mode (FL3, FL8) |
 | Transpose | Built (2026-10-25) | An exploded column over the list of the columns' names (`lateral(...->flatten(~Name))`), a column choosing each row's value by its name (`if`), every column but the keys hidden; columns of one kind of value |
 | Running Total | Built | A window column, running frame |
 | Weighted Average | Built | `wavg` |
@@ -874,8 +874,8 @@ column for each value named by it (`EMEA`; `EMEA_notional` when it spreads sever
 measures it keeps out of the pivot beside them. So a box after it reads them -- in the flow, its Profile, its Output and
 Create a Class alike -- where FL2's design asked for a `cast`: the grid writes a pivot as one aggregate per value
 (`levelRelation`), so a pin types its columns without one. Its strip lists them, with **Load values again** and
-**Unfix**. A value its rows gain that the pin lacks has no column of its own until loaded again; saying it (FL3) and
-its mode (FL8) are next. Python: `grid.load_pivot_values()` (the headless `gridPivotValues`, the screen's question),
+**Unfix**. A value its rows gain that the pin lacks has no column of its own until loaded again, and is said (below).
+Python: `grid.load_pivot_values()` (the headless `gridPivotValues`, the screen's question),
 `grid.pin_pivot(values)`, `grid.pin_pivot(None)`. Tested by `grid-gestures.test.ts` (typed, the same again nothing,
 taken off, kept by its own pivot and dropped by another, refusals, read from JSON), `create-class.test.ts` (its rows: no
 order, renamed, selected; a value naming a key refused), the random walks (`grid-random.ts`: pins among the edits, every
@@ -883,6 +883,24 @@ pair of states reached by commands), Python's `test_a_cross_tab_with_its_columns
 (over DuckDB: Load values, a box after it reading `AMER_notional`... ; pinned to one, fewer; unpinned, refused) and the
 harness (a Cross Tab pivoted on region and grouped by desk by the header menu, Load values, a Browse after it reading
 its regions' columns).
+
+**Built, a Cross Tab's missing values said** (FL3, FL8's mode; `query.ts` `unpinnedValuesLambda`, `cross-tab.ts`,
+`page/cube-page.ts` `#askLacking`, `layout/flow-board.ts` `lacking`; 2026-10-25): M4's done-when. A Cross Tab whose
+columns are fixed asks the database, as its rows land (shown, or the flow run), for the values its rows hold that its
+pin lacks -- its pivot's own values query with a filter keeping the empty value and those `not in` the pin (SQL's
+`not in` leaves an empty value out, so it is asked for by name) -- once for each thing it is (its chain). Some found,
+its box is drawn as a failing Test is -- amber, saying "1 value has no column", its title and its settings naming them
+("region APAC has no column of its own: Load values again to add it") -- and the run's log counts it apart from the
+Tests ("1 Cross Tab missing values"). Its settings offer a Test's mode (**Stop a run when a value has no column**, the
+same `setStops`): set, a run waits for its answer before any Output is written and writes none, drawn red. Load
+values again adds the value: every value a column, passing. Python: `grid.failing` answers for a Cross Tab whose columns
+are fixed by the same question (headless `gridFailing`: `{check: 'every region has a column', rows: <values>, says}`), so
+`grid.stops_run()` and `flow.run(folder)` refuse a run as the canvas does. The example flow's Checks sheet has one:
+revenue by channel across the regions, fixed to AMER and EMEA, its APAC said. Tested by Python's
+`test_a_cross_tab_with_its_columns_fixed_is_read_by_the_box_after_it` (its AMER said when pinned to EMEA; a stopping
+one refusing a run, nothing written; loaded again, written), `examples.test.ts` (its fixed values, its words) and the
+harness (the Checks sheet run: its box amber, said, counted in the log apart from the Test; its settings naming APAC;
+Load values again: passing, all three its columns) and the tour.
 
 **Built, a Test's count of rows** (FL8's row-count check; `checks.ts` kind `rows`; 2026-10-25): a check of no column --
 its input's count of rows from a smallest to a largest (whole numbers, either left out, a smallest 1 at least: every
