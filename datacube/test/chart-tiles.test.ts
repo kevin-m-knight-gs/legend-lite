@@ -247,7 +247,7 @@ describe('the page\'s layout: placed under, arranged, undone, locked', () => {
     assert.deepEqual(boardBands(), [[b, 'grid'], [a, copy]]);
   });
 
-  it('Edit Layout unticked locks the page: no handles, no layouts, no layout undo -- nothing moves', async () => {
+  it('Done Editing Layout locks the page: no handles, no layouts, no layout undo -- nothing moves', async () => {
     await twoCharts();
     pick('Arrange\u2026').click();
     await settle();
@@ -255,11 +255,12 @@ describe('the page\'s layout: placed under, arranged, undone, locked', () => {
     await settle();
     const arranged = bands();
     const board = root.querySelector<HTMLElement>('.dc-bands')!;
-    assert.equal(pick('Edit Layout').getAttribute('aria-checked'), 'true');
-    pick('Edit Layout').click();
+    // a switch says what it will do, and flips (the menus, docs/DATACUBE_UI_REVIEW_2026_10_24.md): no check mark
+    assert.equal(pick('Done Editing Layout').getAttribute('aria-checked'), null);
+    pick('Done Editing Layout').click();
     assert.ok(board.classList.contains('dc-bands-view'));
     assert.equal(board.querySelectorAll('.dc-band-divider').length, 0);
-    assert.equal(pick('Edit Layout').getAttribute('aria-checked'), 'false');
+    assert.equal(pick('Edit Layout').getAttribute('aria-checked'), null);
     assert.equal(pick('Arrange\u2026').getAttribute('aria-disabled'), 'true');
     assert.equal(pick('Undo Layout').getAttribute('aria-disabled'), 'true');
     // nor from a tile's frame
@@ -315,7 +316,7 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
     const top = (items: HTMLElement[]): string[] => items.filter((i) => i.parentElement?.closest('.dc-menu-item') === null)
       .map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
     // View ▸ holds the controls' switch and what is done to the tile (the user, 2026-10-24: no Tile ▸)
-    assert.deepEqual(under(rightClick(id), 'View').slice(2), ['Hide Controls', 'Keyboard Shortcuts...', 'Remove from Page']);
+    assert.deepEqual(under(rightClick(id), 'View').slice(2), ['Hide Controls', 'Keyboard Shortcuts…', 'Remove from Page']);
     assert.ok(!top(rightClick(id)).includes('Tile'));
     // the cube's own grid is its host's: it cannot be taken off the page
     assert.ok(!under(rightClick('grid'), 'View').includes('Remove from Page'), 'the cube\'s own grid stays on the page');

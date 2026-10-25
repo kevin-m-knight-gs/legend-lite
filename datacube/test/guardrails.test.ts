@@ -117,6 +117,18 @@ describe('source guardrails', () => {
     assert.deepEqual(hits, [], `name the locale (UI_LOCALE):\n${hits.join('\n')}`);
   });
 
+  it('marks a menu entry that asks for more with the one character … (docs/DATACUBE_UI_REVIEW_2026_10_24.md, the menus)', () => {
+    // 2026-10-25: a third of the entries said "..." and the rest "…"; one menu said "Properties..." beside "Arrange…".
+    const dots = /label: ['`"][^'`"]*\.\.\.['`"]/;
+    const hits: string[] = [];
+    for (const file of FILES) {
+      SOURCES.read(file).split('\n').forEach((line, i) => {
+        if (!isComment(line) && dots.test(line)) hits.push(`${file}:${i + 1}: ${line.trim()}`);
+      });
+    }
+    assert.deepEqual(hits, [], `write … (\\u2026), not three dots:\n${hits.join('\n')}`);
+  });
+
   it('keeps the demo-only planner out of the product', () => {
     // "One planner" is an architectural commitment, and a convenient
     // second one is exactly how such commitments rot.

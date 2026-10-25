@@ -678,6 +678,17 @@
   color: var(--tw-neutral-500);
 }
 
+/* An entry's key, right-aligned and quiet, where one does what the entry
+   does (the menus: docs/DATACUBE_UI_REVIEW_2026_10_24.md). */
+.dc-menu-shortcut {
+  flex: none;
+  margin-left: auto;
+  padding-left: 24px;
+  color: var(--tw-neutral-500);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Upstream's check mark: a fixed gutter, so checked and unchecked
    entries keep their labels in line. */
 .dc-menu-check {

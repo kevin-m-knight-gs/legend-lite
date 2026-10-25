@@ -396,6 +396,11 @@ export interface MenuItem {
   readonly separated?: boolean;
   /** Said on hover: why a disabled entry is off (Show Grid on a cube on its own). */
   readonly hint?: string;
+  /**
+   * Its key, shown right-aligned (docs/DATACUBE_UI_REVIEW_2026_10_24.md, the menus): only where the key does what the
+   * entry does (shortcuts.ts lists them), spelled as that list spells it.
+   */
+  readonly shortcut?: string;
 }
 
 /** What Conditional Formatting ▸ says of a column: its data bars, its colour scale, its icons, how many rules. */
@@ -532,7 +537,7 @@ function presetItems(ctx: MenuContext, column: string | undefined, named: string
       id: 'calc.grain' as const, label: GRAIN_LABELS[g], column, grain: g,
     })) });
   }
-  if (ctx.extendable && isNumeric(type)) out.push({ id: 'calc.bins', label: `Bins of ${named}...`, column });
+  if (ctx.extendable && isNumeric(type)) out.push({ id: 'calc.bins', label: `Bins of ${named}…`, column });
   if (ctx.isMeasure && ctx.pivotBase === undefined && s.rows.length > 0 && s.pivotOn.length === 0) {
     out.push({ label: `Show ${named} As`, submenu: GRID_SHOW_AS_KINDS.map((k) => ({
       id: 'calc.showAs' as const, label: GRID_SHOW_AS_LABELS[k], column, showAs: k,
@@ -579,8 +584,8 @@ function conditionalItems(ctx: MenuContext, column: string | undefined): MenuIte
     submenu: [
       ctx.hasHeatmap
         ? { id: 'heatmap.remove' as const, label: 'Remove Heatmap', disabled: !column, ...on }
-        : { id: 'heatmap.add' as const, label: 'Heatmap', disabled: !column, ...on },
-      { id: 'format.dataBar', label: c?.dataBar ? 'Remove Data Bars' : 'Data Bars', disabled: !column, on: !c?.dataBar, ...on },
+        : { id: 'heatmap.add' as const, label: 'Add Heatmap', disabled: !column, ...on },
+      { id: 'format.dataBar', label: c?.dataBar ? 'Remove Data Bars' : 'Add Data Bars', disabled: !column, on: !c?.dataBar, ...on },
       {
         label: 'Color Scales',
         submenu: COLOR_SCALES.map((s) => ({ id: 'format.colorScale' as const, label: s.label, disabled: !column, scale: s.scale, ...on })),
@@ -635,13 +640,14 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     {
       label: 'Edit',
       submenu: [
-        { id: 'view.undo', label: 'Undo', disabled: ctx.canUndo !== true },
-        { id: 'view.redo', label: 'Redo', disabled: ctx.canRedo !== true },
+        { id: 'view.undo', label: 'Undo', disabled: ctx.canUndo !== true, shortcut: 'Ctrl+Z' },
+        { id: 'view.redo', label: 'Redo', disabled: ctx.canRedo !== true, shortcut: 'Ctrl+Shift+Z' },
         {
           id: 'copy.selection',
           label: 'Copy Selected Cells',
           disabled: !ctx.hasSelection,
           separated: true,
+          shortcut: 'Ctrl+C',
         },
         {
           id: 'copy.rows',
@@ -793,11 +799,11 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           disabled: s.pivotOn.length === 0,
         },
         // Ours: the header measure-first (notional > 2021, 2022) or
-        // value-first (2021 > notional, pnl, upstream's). Checked when on.
+        // value-first (2021 > notional, pnl, upstream's). A switch says
+        // what it will do, and flips (the menus, docs/DATACUBE_UI_REVIEW_2026_10_24.md).
         {
           id: 'pivot.measuresFirst',
-          label: 'Measures First in Column Headers',
-          checked: ctx.measuresFirst === true,
+          label: ctx.measuresFirst === true ? 'Values First in Column Headers' : 'Measures First in Column Headers',
           disabled: s.pivotOn.length === 0,
         },
       ],
@@ -814,22 +820,22 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     {
       label: 'Extended Columns',
       submenu: [
-        { id: 'calc.add', label: 'Add New Column...' },
+        { id: 'calc.add', label: 'Add New Column…' },
         ...(column !== undefined && ctx.extendable
-          ? [{ id: 'calc.extend' as const, label: `Extend Column ${named}...`,
+          ? [{ id: 'calc.extend' as const, label: `Extend Column ${named}…`,
             column }]
           : []),
         ...presetItems(ctx, column, named),
         ...relatedItems(ctx),
         // Group Values: a column's values gathered by hand into named groups, a column of its own; its groups edited again
         ...(column !== undefined && ctx.groupsColumn
-          ? [{ id: 'calc.editGroups' as const, label: `Edit Groups of ${named}...`, column }]
-          : column !== undefined && ctx.groupable ? [{ id: 'calc.groupValues' as const, label: `Group Values of ${named}...`, column }] : []),
+          ? [{ id: 'calc.editGroups' as const, label: `Edit Groups of ${named}…`, column }]
+          : column !== undefined && ctx.groupable ? [{ id: 'calc.groupValues' as const, label: `Group Values of ${named}…`, column }] : []),
         ...modelMeasureItems(ctx),
         ...(column !== undefined && ctx.calcStage !== undefined
           ? [
             // a related column is the class tree's (Add Related Column), never a formula to edit
-            ...(ctx.relatedColumn || ctx.groupsColumn ? [] : [{ id: 'calc.edit' as const, label: `Edit Column ${named}...`, column }]),
+            ...(ctx.relatedColumn || ctx.groupsColumn ? [] : [{ id: 'calc.edit' as const, label: `Edit Column ${named}…`, column }]),
             { id: 'calc.delete' as const, label: `Delete Column ${named}`,
               column },
           ]
@@ -907,7 +913,8 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
 
   push('', [{
     id: 'view.properties',
-    label: 'Properties...',
+    label: 'Properties…',
+    shortcut: 'Ctrl+E',
     ...(ctx.propertiesColumn !== undefined ? { column: ctx.propertiesColumn } : {}),
   }]);
 
@@ -919,7 +926,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
   // Tile ▸, the user, 2026-10-23: the grid's menu button gone).
   const tile: MenuItem[] = [
     ...(ctx.sheets === undefined ? []
-      : [{ label: 'Move to Sheet', ...(ctx.sheets === 'locked' ? { disabled: true } : { submenu: ctx.sheets }) }]),
+      : [{ label: 'Move to Sheet', ...(ctx.sheets === 'locked' ? { disabled: true, hint: 'Edit Layout first' } : { submenu: ctx.sheets }) }]),
     ...(ctx.canRemove === true ? [{ id: 'grid.remove' as const, label: 'Remove from Page' }] : []),
   ];
   push('', [{
@@ -929,7 +936,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       { id: 'tree.expandAll', label: 'Expand All', disabled: s.rows.length < 2 },
       { id: 'tree.collapseAll', label: 'Collapse All', disabled: !ctx.hasExpanded },
       { id: 'view.controls', label: ctx.controlsHidden ? 'Show Controls' : 'Hide Controls', separated: true },
-      { id: 'view.shortcuts', label: 'Keyboard Shortcuts...' },
+      { id: 'view.shortcuts', label: 'Keyboard Shortcuts…' },
       ...tile.map((item, i) => (i === 0 ? { ...item, separated: true } : item)),
     ],
   }]);
@@ -963,7 +970,7 @@ function filterSubmenu(ctx: MenuContext): MenuItem[] {
         const more = operators.filter((op) => op !== 'equal');
         if (more.length > 0) {
           items.push({
-            label: `More Filters on ${columnLabel(column, ctx.totalLabel)}...`,
+            label: `More Filters on ${columnLabel(column, ctx.totalLabel)}…`,
             submenu: more.map((op) => filterItem(column, op, value)),
           });
         }
@@ -976,7 +983,7 @@ function filterSubmenu(ctx: MenuContext): MenuItem[] {
   // time of day) its ranges relative to today; a pivot's cell offers neither
   const type = column === undefined || ctx.pivotBase !== undefined ? undefined : ctx.columnType;
   if (column !== undefined && type !== undefined) {
-    items.push({ id: 'filter.valueList', label: `Filter Values of ${columnLabel(column, ctx.totalLabel)}...`, column });
+    items.push({ id: 'filter.valueList', label: `Filter Values of ${columnLabel(column, ctx.totalLabel)}…`, column });
     if (isTemporal(type) && !isTimeOfDay(type)) {
       items.push({ label: 'Date Range', submenu: DATE_RANGES.map((range) => ({
         id: 'filter.dateRange' as const, label: DATE_RANGE_LABELS[range], column, range,
@@ -999,7 +1006,7 @@ function filterSubmenu(ctx: MenuContext): MenuItem[] {
     items.push({ id: 'filter.topNOff', label: `Clear ${s.topN.bottom ? 'Bottom' : 'Top'} ${s.topN.n}` });
   }
   items.push(
-    { id: 'filter.column', label: 'Filters...' },
+    { id: 'filter.column', label: 'Filters…' },
     {
       id: 'filter.clearAll',
       label: 'Clear All Filters',

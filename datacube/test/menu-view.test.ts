@@ -56,6 +56,20 @@ describe('MenuView', () => {
     assert.equal(remove!.title, '');
   });
 
+  it("shows an entry's key after its words, said to a screen reader as the entry's own; one without shows none", () => {
+    // the menus (docs/DATACUBE_UI_REVIEW_2026_10_24.md): a key shown right-aligned where one does what the entry does
+    view.show([{ label: '', items: [
+      { id: 'view.undo', label: 'Undo', shortcut: 'Ctrl+Shift+Z' },
+      { id: 'view.redo', label: 'Redo' },
+    ] }], 10, 10);
+    const [undo, redo] = view.items;
+    assert.deepEqual([...undo!.children].map((c) => [c.className, c.textContent]),
+      [['dc-menu-label', 'Undo'], ['dc-menu-shortcut', 'Ctrl+Shift+Z']]);
+    assert.equal(undo!.getAttribute('aria-keyshortcuts'), 'Control+Shift+Z');
+    assert.equal(redo!.querySelector('.dc-menu-shortcut'), null);
+    assert.equal(redo!.hasAttribute('aria-keyshortcuts'), false);
+  });
+
   it('opens nothing for an empty menu', () => {
     view.show([], 10, 10);
     assert.equal(view.open, false);

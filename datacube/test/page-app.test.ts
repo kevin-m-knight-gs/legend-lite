@@ -298,6 +298,59 @@ describe('a page of its own', () => {
     assert.equal(tile(id).querySelector('.dc-text-tile strong')?.textContent, 'Python');
   });
 
+  it("a text tile's right-click, in the menus' one order: Edit Text…, then View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page", async () => {
+    // the menus (docs/DATACUBE_UI_REVIEW_2026_10_24.md): a text box had no right-click; its own window first, then how
+    // it is shown and where, as a chart's and a grid's
+    const told: PageCommand[] = [];
+    const until = async (shown: () => unknown): Promise<void> => {
+      for (let i = 0; i < 100 && !shown(); i++) await new Promise((r) => setTimeout(r, 5));
+    };
+    newPage({ confirm: () => true, onPageCommand: (c) => told.push(c) });
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    gridMenuItem(a, 'Text Box').click();
+    await settle();
+    const id = 'text-1';
+    await until(() => tile(id).querySelector('textarea'));
+    const menu = (): { top: string[]; view: string[]; entry: (text: string) => HTMLElement } => {
+      dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      const opened = tile(id).querySelector('.dc-text-host')!.dispatchEvent(
+        new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      assert.equal(opened, false, 'the menu is the tile\'s, not the browser\'s');
+      const root = dom.window.document.querySelector('.dc-menu')!;
+      const view = [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].find((i) => label(i) === 'View')!;
+      return {
+        top: [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].map(label),
+        view: [...view.querySelectorAll<HTMLElement>('.dc-submenu > .dc-menu-item')].map(label),
+        entry: (text) => [...root.querySelectorAll<HTMLElement>('.dc-menu-item')].find((i) => label(i) === text)!,
+      };
+    };
+    // while its words are edited, the browser's own menu (copy, paste) in its editor
+    assert.equal(tile(id).querySelector('.dc-text-host')!.dispatchEvent(
+      new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true })), true, 'the editor keeps the browser\'s menu');
+    tile(id).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    const first = menu();
+    assert.deepEqual(first.top, ['Edit Text\u2026', 'View']);
+    assert.deepEqual(first.view, ['Maximise', 'Move to Sheet', 'Remove from Page']);
+    first.entry('Edit Text\u2026').click();
+    await until(() => tile(id).querySelector('textarea'));
+    assert.ok(tile(id).querySelector('textarea'), 'Edit Text\u2026 opens its editor');
+    tile(id).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    // Maximise fills the page with it, and the same entry then says Restore
+    menu().entry('Maximise').click();
+    assert.ok(host.querySelector('.dc-bands-maximised'), 'the page filled with it');
+    assert.deepEqual(menu().view, ['Restore', 'Move to Sheet', 'Remove from Page']);
+    menu().entry('Restore').click();
+    assert.equal(host.querySelector('.dc-bands-maximised'), null, 'back to the page');
+    told.length = 0;
+    menu().entry('Remove from Page').click();
+    await settle();
+    assert.deepEqual(told.map((c) => c.kind), ['removeTile']);
+    assert.equal(tile(id), null, 'off the page');
+  });
+
   it('is saved as one cube per grid, each over its own source, and reopens as it was', async () => {
     newPage();
     const a = page.addGrid(over('trades.csv'));
@@ -703,7 +756,7 @@ describe('a page of its own', () => {
     assert.ok(tile(a).contains(readout), 'moved with the sheet shown');
     const del = (labelText: string): void => {
       tabOf(labelText).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-      [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete')!.click();
+      [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete Sheet')!.click();
     };
     del('orders.csv');
     assert.equal(asked.length, 1, 'asked, as it has a tile');
@@ -714,7 +767,7 @@ describe('a page of its own', () => {
     assert.deepEqual(tabs(), ['trades.csv']);
     assert.deepEqual(page.grids, [a], 'its grid went with it');
     tabOf('trades.csv').dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    const last = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete')!;
+    const last = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete Sheet')!;
     assert.equal(last.getAttribute('aria-disabled'), 'true', 'the last sheet stays');
   });
 
@@ -804,10 +857,10 @@ describe('a page of its own', () => {
     const [first, second] = page.sheets;
     (tile(chart).querySelector('.dc-chart-tile') as HTMLElement)
       .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Remove')!.click();
+    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Remove from Page')!.click();
     await settle();
     tabOf('trades.csv').dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete')!.click();
+    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete Sheet')!.click();
     await settle();
     assert.deepEqual(told.map((c) => c.kind), ['addSheet', 'moveTile', 'removeTile', 'removeSheet']);
     assert.deepEqual(told[0], { kind: 'addSheet', id: second, name: null });

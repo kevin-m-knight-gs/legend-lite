@@ -37,7 +37,7 @@ describe('while Ad Hoc Analysis is on, the shell acts on it (B5b)', () => {
 
   it('cube-only entries are not offered, and Ctrl-E opens nothing (P2-289)', async () => {
     await enter();
-    for (const label of ['Properties...', 'Hide Drag Zones', 'Show Drag Zones']) {
+    for (const label of ['Properties…', 'Hide Drag Zones', 'Show Drag Zones']) {
       const e = entry(label);
       if (e) assert.equal(e.getAttribute('aria-disabled'), 'true', `${label} is the cube's`);
     }

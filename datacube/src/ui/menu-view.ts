@@ -154,6 +154,14 @@ export class MenuView {
       el.setAttribute('aria-disabled', 'true');
     }
     if (item.hint !== undefined) el.title = item.hint;
+    if (item.shortcut !== undefined) {
+      // its key, right-aligned and quiet, and said to a screen reader as the entry's own
+      el.setAttribute('aria-keyshortcuts', item.shortcut.replace(/Ctrl/g, 'Control'));
+      const keys = doc.createElement('span');
+      keys.className = 'dc-menu-shortcut';
+      keys.textContent = item.shortcut;
+      el.appendChild(keys);
+    }
 
     if (item.submenu && item.submenu.length > 0) {
       el.classList.add('dc-has-submenu');

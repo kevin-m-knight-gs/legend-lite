@@ -343,6 +343,27 @@ A sheet tab's right-click is the same shape at its size: Rename…, Move Left, M
 - **At most two levels of submenu** (Conditional Formatting ▸ Color Scales ▸ is the deepest), and about a dozen
   entries at the top.
 
+### Built so far (step 1, 2026-10-25)
+
+The marks and words are now the same in every menu:
+
+- **"…" is one character everywhere.** Every menu entry that opens a window or asks for more ends with "…", never
+  "...". A guard in `test/guardrails.test.ts` fails on a menu label written with three dots.
+- **Keys are shown right-aligned, only where the key does what the entry does:** Undo Ctrl+Z, Redo Ctrl+Shift+Z,
+  Copy Selected Cells Ctrl+C, Properties… Ctrl+E. A screen reader is told the key too (`aria-keyshortcuts`). The
+  page's ≡ shows none: its Undo has no key of its own, and there is no Ctrl+S.
+- **A chart's menu** is Show Grid; Properties… (once "Options..."); then View ▸ with Maximise / Restore, Move to
+  Sheet ▸ and Remove from Page (once a bare "Remove").
+- **A text box has a right-click:** Edit Text…, then the same View ▸. While its words are being edited, its editor
+  keeps the browser's own menu (copy, paste).
+- **On/off entries say what they will do and flip,** with no check mark: Edit Layout / Done Editing Layout, Measures
+  First / Values First in Column Headers, Add / Remove Heatmap, Add / Remove Data Bars.
+- **A sheet tab's menu** says Rename… and Delete Sheet. Each disabled entry there says why on hover ("Edit Layout
+  first", "It is the first sheet", "A page keeps one sheet at least"), as does a locked Move to Sheet.
+
+Still open: a chart's and a text box's Create ▸, and "Settings…" as the app's own window (today it opens the first
+grid's settings; the app has no settings of its own yet).
+
 ### The two menus, after
 
 ```
@@ -377,9 +398,9 @@ View ▸                                    Properties…                 Ctrl+E
 | 4 | Files in the text box (§8): Markdown and text first, then PDF, media, Word, email, PowerPoint | Added by the user, 2026-10-25 |
 
 **Where it stands, 2026-10-25.** Built: numbers right-aligned; the page's ≡ grouped by purpose (§3); one tile header
-(§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2); the example-switch bug fixed (found 1); the status bar's error as a chip; the title bar (§4); the columns panel (found 3). Next:
-the menus' design language for
-every menu; grouped text columns (found 2); one icon set (found 4; the tile states, the
+(§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2); the example-switch bug fixed (found 1); the status bar's error as a chip; the title bar (§4); the columns panel (found 3); the menus' marks and words (step 1
+of the menus). Next: the rest of the menus (Create ▸ on a chart and a text box, Settings…); grouped text columns
+(found 2); one icon set (found 4; the tile states, the
 status bar's tools and the editor's toolbar already drawn); the options pane docked at the page's edge; then §8.
 
 Screenshots of each state (the start page, the chart examples and the gallery's KPI dashboard, the chart options at

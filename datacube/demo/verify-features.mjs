@@ -553,7 +553,7 @@ async function burger(label) {
   await settle();
 }
 /**
- * An entry of the first GRID's right-click, through its submenus: Edit ▸ Undo and Redo, Properties... -- its menu button
+ * An entry of the first GRID's right-click, through its submenus: Edit ▸ Undo and Redo, Properties… -- its menu button
  * went (the user, 2026-10-23: the right-click has all it had).
  */
 async function gridMenu(label) {
@@ -569,7 +569,7 @@ async function gridMenu(label) {
 }
 /** Ad Hoc Analysis, started from Properties ▸ Dimensions (the user, 2026-10-23: no menu entry of its own). */
 async function startAdHoc() {
-  await gridMenu('Properties...');
+  await gridMenu('Properties…');
   await page.locator('.dc-editor-tab', { hasText: 'Dimensions' }).click();
   await page.locator('.dc-dimension-adhoc button', { hasText: 'Start Ad Hoc Analysis' }).click();
 }
@@ -995,7 +995,7 @@ try {
     // A filter IN FORCE, so there is something to list: opening on an
     // empty editor over a filtered cube would drop it on Apply.
     await menu(['Filter', /^Add Filter: .* = /]);
-    await menu(['Filter', 'Filters...'], { requery: false });
+    await menu(['Filter', 'Filters…'], { requery: false });
     const open = await page.evaluate(() =>
       Boolean(document.querySelector('.dc-app-overlay:not([hidden])')));
     if (!open) throw new Error('the overlay never opened');
@@ -1023,7 +1023,7 @@ try {
   await check('the filter editor builds a compound filter', async () => {
     await menu(['Filter', 'Clear All Filters']).catch(() => {});
     const all = await resultRows();
-    await menu(['Filter', 'Filters...'], { requery: false });
+    await menu(['Filter', 'Filters…'], { requery: false });
 
     const create = page.locator('button', { hasText: 'Create New Filter' });
     if (await create.count()) {
@@ -1142,7 +1142,7 @@ try {
     // the planner accepts for that column's type.
     await menu(['Filter', 'Clear All Filters']).catch(() => {});
     const all = await resultRows();
-    await menu(['Filter', 'Filters...'], { requery: false });
+    await menu(['Filter', 'Filters…'], { requery: false });
     const create = page.locator('button', { hasText: 'Create New Filter' });
     if (await create.count()) await create.first().click();
     const names = await page.locator('.dc-filter-column').first()
@@ -1788,7 +1788,7 @@ try {
       isNumeric(view.find((c) => c.name === n)?.type));
     if (measure < 0) throw new Error('no measure column to shade');
     heatCol = measure;
-    await menu(['Conditional Formatting', 'Heatmap'], { col: heatCol });
+    await menu(['Conditional Formatting', 'Add Heatmap'], { col: heatCol });
     const after = await page.evaluate(() =>
       [...document.querySelectorAll('.dc-cell')]
         .filter((c) => c.style.backgroundColor).length);
@@ -2008,7 +2008,7 @@ try {
   await section('the editor');
 
   await check('the properties editor opens with its tabs', async () => {
-    await menu(['Properties...'], { requery: false });
+    await menu(['Properties…'], { requery: false });
     const tabs = await page.locator('.dc-app-overlay [role=tab],'
       + ' .dc-tab').allTextContents();
     if (tabs.length < 3) {
@@ -2060,7 +2060,7 @@ try {
   };
 
   async function editorTab(name) {
-    await menu(['Properties...'], { requery: false });
+    await menu(['Properties…'], { requery: false });
     const tab = page.locator('.dc-editor-tab', { hasText: name });
     if (!(await tab.count())) {
       const seen = await page.locator('.dc-editor-tab').allTextContents();
@@ -2079,8 +2079,8 @@ try {
   /** Turn a General Properties checkbox on or off, by its label. */
   const setGeneralCheck = async (label, on) => {
     await reset();
-    // the grid's Properties..., from its right-click
-    await gridMenu('Properties...');
+    // the grid's Properties…, from its right-click
+    await gridMenu('Properties…');
     await settle();
     await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
       .click();
@@ -2102,8 +2102,8 @@ try {
   /** Turn "keep grouped columns in the grid" on or off. */
   const setKeepGrouped = async (on) => {
     await reset();
-    // the grid's Properties..., from its right-click
-    await gridMenu('Properties...');
+    // the grid's Properties…, from its right-click
+    await gridMenu('Properties…');
     await settle();
     await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
       .click();
@@ -2299,7 +2299,7 @@ try {
     ['pinning a column', ['Pin', 'Pin Left'], {}],
     // a NUMERIC column as the grid shows it NOW: the index the heatmap check found is stale
     // once a later check has reordered the columns
-    ['a heatmap', ['Conditional Formatting', 'Heatmap'], async () => {
+    ['a heatmap', ['Conditional Formatting', 'Add Heatmap'], async () => {
       const view = await readView(page);
       return { col: (await headerNames()).findIndex((n) => isNumeric(view.find((c) => c.name === n)?.type)) };
     }],
@@ -2474,7 +2474,7 @@ try {
 
   await check('the filter editor is reachable from the status bar', async () => {
     // It was two levels down a right-click menu -- Filter, then
-    // "Filters..." -- and went unfound. DataCube puts a Filter button
+    // "Filters…" -- and went unfound. DataCube puts a Filter button
     // in the status bar (DataCubeStatusBar) for this reason.
     const button = page.locator('.dc-status-filter');
     if (!(await button.count())) {
@@ -2499,7 +2499,7 @@ try {
       // the page down and showed it below the data it was about.
       const pageBefore = await page.evaluate(() =>
         document.documentElement.scrollHeight);
-      await menu(['Properties...'], { requery: false });
+      await menu(['Properties…'], { requery: false });
       const g = await page.evaluate(() => {
         const w = document.querySelector('.dc-app-overlay');
         const grid = document.querySelector('.dc-app-grid');
@@ -2551,7 +2551,7 @@ try {
     // swallowing every click, while `element.hidden` still reported
     // true. Nothing looked wrong; cells simply could not be
     // right-clicked, and ten checks timed out.
-    await menu(['Properties...'], { requery: false });
+    await menu(['Properties…'], { requery: false });
     await page.locator('.dc-overlay-close').first().click();
     await settle();
 
@@ -2581,7 +2581,7 @@ try {
   await check('the Filter and Properties windows stay open together', async () => {
     // Upstream's layout keeps several windows open at once; there used
     // to be ONE overlay, and opening the filter threw the editor away.
-    await menu(['Properties...'], { requery: false });
+    await menu(['Properties…'], { requery: false });
     // From the status bar: `menu()` starts by closing every window.
     await page.locator('.dc-status-filter').click();
     await settle();
@@ -2607,7 +2607,7 @@ try {
     async () => {
       // `reset` shut whatever the previous check left open, so open
       // it here.
-      await menu(['Properties...'], { requery: false });
+      await menu(['Properties…'], { requery: false });
       const box = () => page.evaluate(() => {
         const b = document.querySelector('.dc-app-overlay')
           .getBoundingClientRect();
@@ -2646,7 +2646,7 @@ try {
       // Closed and reopened, it comes back where it was left.
       await page.locator('.dc-overlay-close').first().click();
       await settle();
-      await menu(['Properties...'], { requery: false });
+      await menu(['Properties…'], { requery: false });
       const again = await box();
       if (again.x !== sized.x || again.y !== sized.y
         || again.w !== sized.w || again.h !== sized.h) {
@@ -2730,11 +2730,11 @@ try {
 
   /**
    * Open an "Add New Column" window from the GRID's menu, where
-   * upstream keeps it: Extended Columns > Add New Column...
+   * upstream keeps it: Extended Columns > Add New Column…
    */
   const openCalc = async () => {
     await closeCalc();
-    await menu(['Extended Columns', 'Add New Column...'], { requery: false });
+    await menu(['Extended Columns', 'Add New Column…'], { requery: false });
     await page.waitForSelector('.dc-coleditor', { timeout: 10_000 });
   };
 
@@ -3027,8 +3027,8 @@ try {
     async () => {
       await addCalc(0, 'uplift', 'x|$x.notional->toOne() * 1.1');
       await settle();
-      // From its own window, as upstream: Edit Column uplift... > Delete.
-      await menu(['Extended Columns', 'Edit Column uplift...'],
+      // From its own window, as upstream: Edit Column uplift… > Delete.
+      await menu(['Extended Columns', 'Edit Column uplift…'],
         { col: await needCol('uplift'), requery: false });
       await page.waitForSelector('.dc-coleditor .dc-calc-delete', { timeout: 5000 });
       const before = await statusNow();
@@ -3492,7 +3492,7 @@ try {
       // A check that failed earlier cannot leave its columns behind.
       await clearCalcs();
       // C6, and upstream's own entries: Extended Columns > Add New
-      // Column..., Extend Column X..., Edit Column X..., Delete
+      // Column..., Extend Column X..., Edit Column X…, Delete
       // Column X.
       await flatten();
       await page.click('.dc-titlebar-menu');
@@ -3504,8 +3504,8 @@ try {
       }
       const onSource = (await menuAt(await needCol('notional')))
         .map((i) => i.label);
-      for (const want of ['Extended Columns', 'Add New Column...',
-        'Extend Column notional...']) {
+      for (const want of ['Extended Columns', 'Add New Column…',
+        'Extend Column notional…']) {
         if (!onSource.includes(want)) {
           throw new Error(`no "${want}"; offered ${onSource.join(' / ')}`);
         }
@@ -3514,7 +3514,7 @@ try {
         throw new Error('Edit/Delete offered on a source column');
       }
       // EXTEND prefills the reference and inherits the column's kind.
-      await menu(['Extended Columns', 'Extend Column notional...'],
+      await menu(['Extended Columns', 'Extend Column notional…'],
         { col: await needCol('notional'), requery: false });
       await page.waitForSelector('.dc-coleditor', { timeout: 5000 });
       const seeded = await page.evaluate(() => ({
@@ -3531,7 +3531,7 @@ try {
       await settle();
       await closeCalc();
       const onCalc = (await menuAt(await needCol('n2'))).map((i) => i.label);
-      for (const want of ['Edit Column n2...', 'Delete Column n2']) {
+      for (const want of ['Edit Column n2…', 'Delete Column n2']) {
         if (!onCalc.includes(want)) {
           throw new Error(`no "${want}"; offered ${onCalc.join(' / ')}`);
         }
@@ -3555,7 +3555,7 @@ try {
         await page.locator('.dc-row').nth(3).locator('.dc-cell').nth(1).click({ button: 'right' });
         const own = (t) => `.dc-menu-item:has(> .dc-menu-label:text-is(${JSON.stringify(t)}))`;
         await page.locator(own('Extended Columns')).first().hover();
-        await page.locator(own('Add New Column...')).first().click();
+        await page.locator(own('Add New Column…')).first().click();
       };
       await openNew();
       await page.locator('.dc-coleditor').first().evaluate((e) => {
@@ -3567,7 +3567,7 @@ try {
       if (both !== 2) throw new Error(`${both} editor windows, expected 2`);
       await addCalc(0, 'uplift', 'x|$x.notional->toOne() * 1.1');
       await settle();
-      const edit = async () => menu(['Extended Columns', 'Edit Column uplift...'],
+      const edit = async () => menu(['Extended Columns', 'Edit Column uplift…'],
         { col: await needCol('uplift'), requery: false });
       await edit();
       await page.fill('.dc-coleditor .dc-calc-input-expr', 'x|$x.notional->toOne() * 9');
@@ -3711,7 +3711,8 @@ try {
     await menu(['Pivot', 'Measures First in Column Headers'], { requery: false });
     await settle();
     const [top1, second1] = await rows();
-    await menu(['Pivot', 'Measures First in Column Headers'], { requery: false });
+    // the switch says what it will do, so flipping back is its other words
+    await menu(['Pivot', 'Values First in Column Headers'], { requery: false });
     await settle();
     const [top2] = await rows();
     await menu(['Pivot', 'Clear All Horizontal Pivots']).catch(() => {});
@@ -5155,7 +5156,7 @@ try {
       let was = await answered();
       await cellOf(a.labels[0]).dblclick();
       const b = await changed(was);
-      await page.locator('.dc-adhoc-tool', { hasText: 'Options...' }).click();
+      await page.locator('.dc-adhoc-tool', { hasText: 'Options…' }).click();
       const win = page.locator('.dc-app-overlay[data-window="Ad Hoc Options"]');
       await win.waitFor({ timeout: 5000 });
       await win.locator('input[name="dc-adhoc-indentation"][value="none"]').check();

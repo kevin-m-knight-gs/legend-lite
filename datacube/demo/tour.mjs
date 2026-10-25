@@ -176,7 +176,7 @@ const field = (scope, label) => scope.locator(`.dc-field:has(> .dc-field-label:t
 
 /** Properties > Column Properties > `column` > Aggregation: `fn`, Apply -- as a person sets it. */
 async function setAggregation(column, pick, shot) {
-  await cellMenu(['Properties...']);
+  await cellMenu(['Properties…']);
   await page.locator('.dc-editor-tab', { hasText: 'Column Properties' }).first().click();
   await page.locator(`.dc-pe-col[data-column="${column}"]`).first().click();
   const select = page.locator('.dc-field', { hasText: 'Aggregation:' }).first().locator('select').first();
@@ -292,7 +292,7 @@ try {
 
   await step('A calculated column: Extended Columns > Add New Column…', async (shot) => {
     if (!numeric) throw new Error('the grid has no numeric column');
-    await cellMenu(['Extended Columns', 'Add New Column...']);
+    await cellMenu(['Extended Columns', 'Add New Column…']);
     await page.waitForSelector('.dc-coleditor', { timeout: 10_000 });
     await page.fill('.dc-coleditor .dc-calc-input-name', 'uplift');
     await page.locator('.dc-coleditor .dc-xc-kind[data-kind="formula"]').click();
@@ -350,7 +350,7 @@ try {
     if ((await pill(chart.id).textContent()) !== 'Pinned') throw new Error(`the pill says ${await pill(chart.id).textContent()}`);
     const [column, fn] = (await charts()).find((c) => c.id === chart.id).y[0];
     const other = fn === 'min' ? 'max' : 'min';
-    await chartMenu(chart.id, 'Options...');
+    await chartMenu(chart.id, 'Properties…');
     const form = page.locator(`[data-tile="${chart.id}"] .dc-chartpanel-form`);
     await form.locator('.dc-chartpanel-add').click();
     const second = () => form.locator('.dc-chartpanel-measure').first();
@@ -360,7 +360,7 @@ try {
     const frozen = (await charts()).find((c) => c.id === chart.id);
     if (!same(frozen.y, [[column, fn], [column, other]])) throw new Error(`the frozen chart plots ${JSON.stringify(frozen.y)}`);
     await shot(page, 'frozen, two values');
-    // its × puts the options away (Options... only opens them: the user, 2026-10-25)
+    // its × puts the options away (Properties… only opens them: the user, 2026-10-25)
     await form.locator('.dc-chartpanel-form-close').click();
     await form.waitFor({ state: 'hidden' });
     await choose(chart.id, 'Dynamic');

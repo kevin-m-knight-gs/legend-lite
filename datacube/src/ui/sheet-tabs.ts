@@ -345,15 +345,18 @@ export class SheetTabs {
 
   #tabMenu(id: string, x: number, y: number, trigger: HTMLElement): void {
     const at = this.#tabs.findIndex((t) => t.id === id);
-    const locked = this.#editing ? {} : { disabled: true };
+    // off, and why said on its hover (the menus, docs/DATACUBE_UI_REVIEW_2026_10_24.md): a locked page first, then
+    // what this one entry cannot do
+    const off = (why: string | false): { disabled?: true; hint?: string } =>
+      (!this.#editing ? { disabled: true, hint: 'Edit Layout first' } : why ? { disabled: true, hint: why } : {});
     this.#showMenu([
-      { label: '', items: [{ id: `sheet.rename.${id}` as const, label: 'Rename', ...locked }] },
+      { label: '', items: [{ id: `sheet.rename.${id}` as const, label: 'Rename\u2026', ...off(false) }] },
       { label: '', items: [
-        { id: `sheet.left.${id}` as const, label: 'Move Left', ...(this.#editing && at > 0 ? {} : { disabled: true }) },
-        { id: `sheet.right.${id}` as const, label: 'Move Right', ...(this.#editing && at < this.#tabs.length - 1 ? {} : { disabled: true }) },
+        { id: `sheet.left.${id}` as const, label: 'Move Left', ...off(at === 0 && 'It is the first sheet') },
+        { id: `sheet.right.${id}` as const, label: 'Move Right', ...off(at === this.#tabs.length - 1 && 'It is the last sheet') },
       ] },
       // the last sheet stays: a page has one at least
-      { label: '', items: [{ id: `sheet.delete.${id}` as const, label: 'Delete', ...(this.#editing && this.#tabs.length > 1 ? {} : { disabled: true }) }] },
+      { label: '', items: [{ id: `sheet.delete.${id}` as const, label: 'Delete Sheet', ...off(this.#tabs.length < 2 && 'A page keeps one sheet at least') }] },
     ], x, y, trigger);
   }
 

@@ -227,8 +227,8 @@ async function columnProperties(at: string, column: string): Promise<HTMLElement
   assert.ok(th, `${at} shows a ${column} header`);
   th.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
   await settle();
-  const item = menuItems().find((i) => label(i) === 'Properties...');
-  assert.ok(item, 'the header offers Properties...');
+  const item = menuItems().find((i) => label(i) === 'Properties…');
+  assert.ok(item, 'the header offers Properties…');
   item.click();
   await settle();
   const win = dom.window.document.querySelector<HTMLElement>('[data-window="Properties"]');
@@ -486,25 +486,25 @@ describe('Show Grid on a following chart and on a frozen one', () => {
   });
 });
 
-describe('a chart\'s right-click menu: Options..., and Show Grid offered only where it shows a grid', () => {
+describe('a chart\'s right-click menu: Properties…, and Show Grid offered only where it shows a grid', () => {
   beforeEach(setUpPage);
   afterEach(tearDownPage);
 
-  // the user, 2026-10-25 (docs/DATACUBE_UI_REVIEW_2026_10_24.md §2): a pane that closes -- Options... was a toggle, and
+  // the user, 2026-10-25 (docs/DATACUBE_UI_REVIEW_2026_10_24.md §2): a pane that closes -- Options... (Properties… since) was a toggle, and
   // the pane had no way out of its own
-  it('Options... opens the chart\'s options or brings them forward; their \u00d7, Escape and a press elsewhere put them away', async () => {
+  it('Properties… opens the chart\'s options or brings them forward; their \u00d7, Escape and a press elsewhere put them away', async () => {
     newPage();
     const a = pg().addGrid(over('trades.csv'));
     await settle();
     const chart = await chartOf(a);
     const form = (): HTMLElement => tile(chart).querySelector('.dc-chartpanel-form') as HTMLElement;
-    const options = (): void => chartMenu(chart).find((i) => label(i) === 'Options...')!.click();
+    const options = (): void => chartMenu(chart).find((i) => label(i) === 'Properties…')!.click();
     const press = (on: Element): boolean => on.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true }));
     assert.equal(form().hidden, true, 'a chart on the page starts without its form');
     options();
     assert.equal(form().hidden, false);
     options();
-    assert.equal(form().hidden, false, 'Options... again brings them forward, never away');
+    assert.equal(form().hidden, false, 'Properties… again brings them forward, never away');
     assert.equal(form().querySelector('.dc-chartpanel-form-title')?.textContent, 'Options');
     // its ×
     (form().querySelector('.dc-chartpanel-form-close') as HTMLButtonElement).click();
@@ -515,13 +515,43 @@ describe('a chart\'s right-click menu: Options..., and Show Grid offered only wh
     assert.equal(form().hidden, false, 'a press in them');
     press(tile(a));
     assert.equal(form().hidden, true, 'a press on another tile');
-    // Escape, in them -- and on the chart's tile, where the board keeps the focus after Options...
+    // Escape, in them -- and on the chart's tile, where the board keeps the focus after Properties…
     options();
     form().dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     assert.equal(form().hidden, true, 'Escape');
     options();
     tile(chart).dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     assert.equal(form().hidden, true, 'Escape on its tile');
+  });
+
+  it("is in the menus' one order: Show Grid, Properties…, then View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page", async () => {
+    // the menus (docs/DATACUBE_UI_REVIEW_2026_10_24.md): a chart's own window is Properties…, as a grid's is, and what is
+    // done to its tile is under View ▸, as a grid's is -- Remove from Page, never a bare Remove
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    const shown = (): { top: string[]; view: string[]; entry: (text: string) => HTMLElement } => {
+      chartMenu(chart);
+      const root = dom.window.document.querySelector('.dc-menu')!;
+      const view = [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].find((i) => label(i) === 'View')!;
+      return {
+        top: [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].map(label),
+        view: [...view.querySelectorAll<HTMLElement>('.dc-submenu > .dc-menu-item')].map(label),
+        entry: (text) => menuItems().find((i) => label(i) === text)!,
+      };
+    };
+    const first = shown();
+    assert.deepEqual(first.top, ['Show Grid', 'Properties\u2026', 'View']);
+    assert.deepEqual(first.view, ['Maximise', 'Move to Sheet', 'Remove from Page']);
+    first.entry('Maximise').click();
+    assert.ok(host.querySelector('.dc-bands-maximised'), 'the page filled with it');
+    assert.deepEqual(shown().view, ['Restore', 'Move to Sheet', 'Remove from Page'], 'the entry says what it will do');
+    shown().entry('Restore').click();
+    assert.equal(host.querySelector('.dc-bands-maximised'), null);
+    shown().entry('Remove from Page').click();
+    await settle();
+    assert.equal(tile(chart), null, 'off the page');
   });
 
   // the user, 2026-10-23: Show Grid on every chart. A chart of rows, of places or of one figure takes nothing of its
@@ -652,7 +682,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     assert.deepEqual(tabs(), ['orders.csv', 'trades.csv']);
     clickTab('orders.csv');
     await settle();
-    tabMenu('orders.csv', 'Delete');
+    tabMenu('orders.csv', 'Delete Sheet');
     await settle();
     assert.deepEqual(tabs(), ['trades.csv'], 'the sheet is gone');
     assert.equal(pg().shownSheet, sheetOf(a), 'the sheet after it is shown');
@@ -720,7 +750,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     const b = pg().addGrid(over('orders.csv'));
     await settle();
     const second = pg().shownSheet;
-    tabMenu('trades.csv', 'Delete');
+    tabMenu('trades.csv', 'Delete Sheet');
     await settle();
     assert.deepEqual(pg().sheets, [second]);
     reopen(pg().document('Q3')!, { confirm: () => true });
@@ -884,7 +914,7 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     await drawn();
     await step('a chart removed', told, () => removeTile(ids['chart']!), 'Remove Desk mix', ids);
     await step('the copy moved to a named sheet', told, () => gridMenuItem(ids['copy']!, 'Charts').click(), 'Move to Sheet', ids);
-    await step('a sheet deleted with its tiles', told, () => tabMenu('Charts', 'Delete'), 'Delete Sheet', ids);
+    await step('a sheet deleted with its tiles', told, () => tabMenu('Charts', 'Delete Sheet'), 'Delete Sheet', ids);
   });
 
   it('a chart removed while it filters its grid: undone, its selection is back on the grid\'s filter', async () => {
@@ -1128,7 +1158,7 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     await settle();
     const chart = await chartOf(a);
     await drawn();
-    chartMenu(chart).find((i) => label(i) === 'Options...')!.click();
+    chartMenu(chart).find((i) => label(i) === 'Properties…')!.click();
     await settle();
     const across = [...tile(chart).querySelectorAll<HTMLElement>('.dc-field')]
       .find((f) => f.querySelector('.dc-field-label')?.textContent === 'Across:')?.querySelector('select');
@@ -1157,7 +1187,7 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     await settle();
     clickTab('trades.csv');
     await settle();
-    tabMenu('Sheet 2', 'Delete');
+    tabMenu('Sheet 2', 'Delete Sheet');
     await settle();
     pg().undo();
     await drawn();
@@ -1333,7 +1363,7 @@ describe('what is looked at survives an edit: the board put at the page keeps it
 
   it("a chart's open options, through an edit and through its Show Grid", async () => {
     const { chart } = await aPage();
-    chartMenu(chart).find((i) => label(i) === 'Options...')!.click();
+    chartMenu(chart).find((i) => label(i) === 'Properties…')!.click();
     await settle();
     const form = (): HTMLElement => tile(chart).querySelector<HTMLElement>('.dc-chartpanel-form')!;
     assert.equal(form().hidden, false);

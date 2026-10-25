@@ -483,7 +483,7 @@ describe('the app', () => {
     // the DOM cannot drift apart. (The drag zones have no setting there: they fold from their
     // own chevron, the user, 2026-09-30.)
     hamburger();
-    pick('Properties...');
+    pick('Properties…');
     const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
     [...overlay.querySelectorAll('.dc-editor-tab')]
       .find((b) => b.textContent === 'General Properties')
@@ -523,7 +523,7 @@ describe('the app', () => {
   // menu entry
   /** Properties ▸ Dimensions, picked from the open hamburger: the editor's window. */
   const dimensionsTab = (): HTMLElement => {
-    pick('Properties...');
+    pick('Properties…');
     const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
     [...overlay.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Dimensions')!
       .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
@@ -571,7 +571,7 @@ describe('the app', () => {
     const own = new CubeApp(host, SNAPSHOT, { engine, planner, dimensions: [{ name: 'Desks', columns: ['desk', 'region'] }] });
     await own.open();
     (host.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
-    pick('Properties...');
+    pick('Properties…');
     const tab = host.querySelector('.dc-app-overlay') as HTMLElement;
     [...tab.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Dimensions')!
       .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
@@ -597,7 +597,7 @@ describe('the app', () => {
     });
     await own.open();
     (host.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
-    pick('Properties...');
+    pick('Properties…');
     const tab = host.querySelector('.dc-app-overlay') as HTMLElement;
     [...tab.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Dimensions')!
       .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
@@ -778,7 +778,7 @@ describe('the app', () => {
 
   it('opens the editor from the right-click menu, as DataCube does', () => {
     rightClick();
-    pick('Properties...');
+    pick('Properties…');
     assert.equal(
       (root.querySelector('.dc-app-overlay') as HTMLElement).hidden,
       false,
@@ -877,7 +877,7 @@ describe('the app', () => {
 
   it('adds and removes a heatmap from the menu (Conditional Formatting ▸ Heatmap, then Remove Heatmap)', async () => {
     rightClick('.dc-cell:not(.dc-dim)');
-    pick('Heatmap');
+    pick('Add Heatmap');
     const column = Object.entries(app.configuration.columns).find(
       ([, c]) => c.heatmap,
     );
@@ -971,7 +971,7 @@ describe('the app', () => {
     await own.open();
     const cell = [...host.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === '▸EMEA') as HTMLElement;
     cell.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
-    pick('Filter Values of region...');
+    pick('Filter Values of region…');
     for (let i = 0; i < 50 && !host.querySelector('[data-window="Filter Values"]'); i++) await new Promise((r) => setTimeout(r, 0));
     const win = host.querySelector('[data-window="Filter Values"]') as HTMLElement;
     assert.ok(win, 'the window opened');
@@ -996,7 +996,7 @@ describe('the app', () => {
     assert.deepEqual(own.snapshot.filter, { kind: 'condition', column: 'region', operator: 'in', value: ['AMER', 'EMEA'] });
   });
 
-  it('? shows the keyboard shortcuts, as View ▸ Keyboard Shortcuts... does; not while typing', () => {
+  it('? shows the keyboard shortcuts, as View ▸ Keyboard Shortcuts… does; not while typing', () => {
     const grid = root.querySelector('.dc-grid') as HTMLElement;
     grid.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '?', bubbles: true }));
     const win = root.querySelector('[data-window="Keyboard Shortcuts"]') as HTMLElement;
@@ -1014,7 +1014,7 @@ describe('the app', () => {
     assert.equal(shown(), false);
     // and from the menu
     rightClick('.dc-cell:not(.dc-dim)');
-    pick('Keyboard Shortcuts...');
+    pick('Keyboard Shortcuts…');
     assert.equal(shown(), true);
   });
 
@@ -1141,12 +1141,12 @@ describe('the app', () => {
   it('offers no named dimension in the title bar menu: Properties ▸ Dimensions groups by one (the user, 2026-10-23)', () => {
     hamburger();
     const labels = menuItems().map((i) => i.querySelector('.dc-menu-label')?.textContent ?? '');
-    assert.ok(labels.includes('Properties...') && !labels.includes('Geography'), labels.join(', '));
+    assert.ok(labels.includes('Properties…') && !labels.includes('Geography'), labels.join(', '));
   });
 
   it('opens the editor, and Cancel closes it', () => {
     rightClick();
-    pick('Properties...');
+    pick('Properties…');
     const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
     assert.equal(overlay.hidden, false);
     assert.notEqual(overlay.querySelector('.dc-editor'), null);
@@ -1159,9 +1159,9 @@ describe('the app', () => {
     assert.equal(root.querySelector('.dc-app-overlay'), null);
   });
 
-  it('Properties... from a HEADER opens Column Properties on that column', () => {
+  it('Properties… from a HEADER opens Column Properties on that column', () => {
     rightClick('.dc-th[data-column="notional"]');
-    pick('Properties...');
+    pick('Properties…');
     const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
     const active = win.querySelector('.dc-editor-tab[aria-selected="true"]');
     assert.equal(active?.textContent, 'Column Properties');
@@ -1170,9 +1170,9 @@ describe('the app', () => {
     assert.equal(win.querySelector<HTMLElement>('.dc-pe-col.dc-on')?.dataset['column'], 'notional');
   });
 
-  it('Properties... from a CELL opens Column Properties on its column too (the user, 2026-09-30)', () => {
+  it('Properties… from a CELL opens Column Properties on its column too (the user, 2026-09-30)', () => {
     rightClick('.dc-row [data-column="notional"]');
-    pick('Properties...');
+    pick('Properties…');
     const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
     const active = win.querySelector('.dc-editor-tab[aria-selected="true"]');
     assert.equal(active?.textContent, 'Column Properties');
@@ -1182,7 +1182,7 @@ describe('the app', () => {
 
   it("Column Properties' Colors: data bars, an icon set, a rule of a value of one's own, applied as the grid's configure", async () => {
     rightClick('.dc-th[data-column="notional"]');
-    pick('Properties...');
+    pick('Properties…');
     const win = (): HTMLElement => root.querySelector('[data-window="Properties"]') as HTMLElement;
     // the panel is redrawn after each change: each control found anew
     const field = (label: string): HTMLElement => [...win().querySelectorAll('.dc-field')]
@@ -1219,7 +1219,7 @@ describe('the app', () => {
     assert.deepEqual(cells.map((c) => [c.textContent, c.style.color]).filter(([t]) => t !== ''),
       [['0.6k', 'rgb(0, 0, 255)'], ['0.4k', 'rgb(0, 0, 255)']]);
     rightClick('.dc-th[data-column="notional"]');
-    pick('Properties...');
+    pick('Properties…');
     const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
     const field = [...win.querySelectorAll('.dc-field')].find((f) => f.querySelector('.dc-field-label')?.textContent === 'Format Code:') as HTMLElement;
     const input = field.querySelector('input') as HTMLInputElement;
@@ -1405,7 +1405,7 @@ describe('the app', () => {
     };
     assert.ok(cells(total).length > 0, 'the total is on screen');
     assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'no heatmap yet');
-    await pickOnTotal('Heatmap');
+    await pickOnTotal('Add Heatmap');
     assert.ok(app.configuration.columns[total]?.heatmap, "the total's own heatmap");
     assert.equal(app.configuration.columns['notional']?.heatmap, undefined, "its measure's is left alone");
     assert.ok(cells(total).some((c) => c.style.backgroundColor !== ''), 'the total is painted');
@@ -1512,7 +1512,7 @@ describe('the app', () => {
     // Once, here, so a setting that shapes the query cannot reach the
     // engine through one path and not another.
     rightClick();
-    pick('Properties...');
+    pick('Properties…');
     const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
     [...overlay.querySelectorAll('.dc-editor-tab')]
       .find((b) => b.textContent === 'General Properties')

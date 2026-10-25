@@ -377,7 +377,7 @@ function dragOnto(id: string, onto: string, where: 'middle' | 'left' = 'middle')
 /** A grid's Column Properties for `column`, its Aggregation set to `fn`, and OK. */
 async function setAggregation(at: string, column: string, fn: string): Promise<void> {
   await headerMenu(at, column);
-  entry('Properties...').click();
+  entry('Properties…').click();
   await settle();
   const win = dom.window.document.querySelector<HTMLElement>('[data-window="Properties"]')!;
   const select = [...win.querySelectorAll('.dc-field')].find((f) => f.querySelector('.dc-field-label')?.textContent === 'Aggregation:')!
@@ -518,7 +518,7 @@ const GESTURES: readonly Gesture[] = [
     },
   },
   { name: 'a sheet moved', setUp: withSheet, make: () => tabMenu('Sheet 2', 'Move Left') },
-  { name: 'a sheet deleted', setUp: withSheet, make: () => tabMenu('Sheet 2', 'Delete') },
+  { name: 'a sheet deleted', setUp: withSheet, make: () => tabMenu('Sheet 2', 'Delete Sheet') },
   { name: 'a tile renamed', setUp: twoGrids, make: ({ b }) => rename(b!, 'Orders') },
   { name: 'a chart added', setUp: twoGrids, make: async ({ a }) => { await chartOf(a!); } },
   { name: 'a chart frozen', setUp: withChart, make: ({ chart }) => togglePill(chart!) },

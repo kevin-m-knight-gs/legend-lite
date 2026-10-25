@@ -165,7 +165,7 @@ try {
     const next = fn === 'max' ? 'min' : 'max';
     // Properties > Column Properties > the column > Aggregation, Apply: as a person sets it
     await page.locator(FIRST).locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Properties..."))').first().click();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Properties…"))').first().click();
     await page.locator('.dc-editor-tab', { hasText: 'Column Properties' }).first().click();
     await page.locator(`.dc-pe-col[data-column="${column}"]`).first().click();
     await page.locator('.dc-field', { hasText: 'Aggregation:' }).first().locator('select').first().selectOption(next);
@@ -225,7 +225,7 @@ try {
   await check('a chart made a KPI: its number, against a target it is above, its trend\'s line under it', async () => {
     await addChart();
     const id = await page.locator('[data-tile^="chart-"]').last().getAttribute('data-tile');
-    await chartMenu(id, 'Options...');
+    await chartMenu(id, 'Properties…');
     const form = page.locator(`[data-tile="${id}"] .dc-chartpanel-form`);
     const fieldNamed = (label) => form.locator(`.dc-field:has(> .dc-field-label:text-is("${label}"))`);
     await fieldNamed('Chart:').locator('select').selectOption('kpi');

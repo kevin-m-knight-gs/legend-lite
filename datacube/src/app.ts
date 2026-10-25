@@ -4587,13 +4587,14 @@ export class CubeApp {
         { id: 'page.arrange' as const, label: 'Arrange\u2026', ...(this.#page.page.editing ? {} : { disabled: true }) },
         { id: 'page.undoLayout' as const, label: 'Undo Layout', ...(this.#page.page.canUndoLayout ? {} : { disabled: true }) },
         { id: 'page.redoLayout' as const, label: 'Redo Layout', ...(this.#page.page.canRedoLayout ? {} : { disabled: true }) },
-        { id: 'page.editLayout' as const, label: 'Edit Layout', checked: this.#page.page.editing },
+        // a switch says what it will do, and flips (the menus, docs/DATACUBE_UI_REVIEW_2026_10_24.md)
+        { id: 'page.editLayout' as const, label: this.#page.page.editing ? 'Done Editing Layout' : 'Edit Layout' },
       ] }] : []),
       { label: '', items: host('data') },
       { label: '', items: this.#undoItems() },
       { label: '', items: [...host('file'), ...this.#outputItems()] },
       { label: '', items: [...submenu('View', [...this.#viewItems(), ...host('view')])] },
-      { label: '', items: [{ id: 'view.settings', label: 'Settings...' }] },
+      { label: '', items: [{ id: 'view.settings', label: 'Settings…' }] },
     ];
     return groups.filter((g) => g.items.length > 0);
   }
@@ -4613,9 +4614,9 @@ export class CubeApp {
       // WHAT UNDO ACTS ON: Ad Hoc's session while it is on, never the hidden cube's history
       // (P2-284). Disabled rather than hidden when there is nothing to go back to: a shortcut
       // that silently does nothing cannot be told from one that is broken.
-      { id: 'view.undo', label: 'Undo',
+      { id: 'view.undo', label: 'Undo', shortcut: 'Ctrl+Z',
         ...((this.#adhoc ? this.#adhoc.session.canUndo : this.#owner.canUndo) ? {} : { disabled: true }) },
-      { id: 'view.redo', label: 'Redo',
+      { id: 'view.redo', label: 'Redo', shortcut: 'Ctrl+Shift+Z',
         ...((this.#adhoc ? this.#adhoc.session.canRedo : this.#owner.canRedo) ? {} : { disabled: true }) },
     ];
   }
@@ -4636,7 +4637,7 @@ export class CubeApp {
   #viewItems(): MenuItem[] {
     // The cube's own entries are not offered while Ad Hoc is on: they changed the hidden cube
     // and nothing visible (P2-289).
-    return [{ id: 'view.properties', label: 'Properties...', ...(this.#adhoc ? { disabled: true } : {}) }];
+    return [{ id: 'view.properties', label: 'Properties…', shortcut: 'Ctrl+E', ...(this.#adhoc ? { disabled: true } : {}) }];
   }
 
   /**

@@ -1213,6 +1213,35 @@ export class CubePage {
     return [...this.#charts.keys()].some((chart) => this.#sheetOf(chart) === sheet);
   }
 
+  /**
+   * A TILE'S VIEW ▸, the last entry of a chart's and a text box's right-click as of a grid's (docs/DATACUBE_UI_REVIEW_
+   * 2026_10_24.md, the menus): how it is shown and where -- filling the page or back to it, onto another sheet or a new
+   * one (on a page of sheets; locked, offered disabled and why), off the page.
+   */
+  #tileView(id: string): MenuItem {
+    const filling = this.#sheetOf(id)?.board.maximised === id;
+    const sheets = this.#otherSheets(id);
+    return { label: 'View', submenu: [
+      { id: 'tile.maximise', label: filling ? 'Restore' : 'Maximise' },
+      ...(this.#options.sheetLabel ? [{ label: 'Move to Sheet', separated: true, ...(this.#editing ? { submenu: [
+        ...sheets.map((s) => ({ id: `sheet.to.${s.id}` as const, label: s.label })),
+        { id: 'sheet.toNew' as const, label: 'New Sheet', ...(sheets.length > 0 ? { separated: true } : {}) },
+      ] } : { disabled: true, hint: 'Edit Layout first' }) }] : []),
+      { id: 'tile.remove', label: 'Remove from Page', ...(this.#options.sheetLabel ? {} : { separated: true }) },
+    ] };
+  }
+
+  /** What a tile's View ▸ entry picked does (#tileView). */
+  #onTileView(id: string, item: MenuItem): void {
+    if (item.id === 'tile.maximise') {
+      const board = this.#sheetOf(id)?.board;
+      board?.maximise(board.maximised === id ? null : id);
+    }
+    if (item.id === 'tile.remove') this.#removeTile(id);
+    if (item.id === 'sheet.toNew') this.moveToSheet(id, null);
+    else if (item.id?.startsWith('sheet.to.')) this.moveToSheet(id, item.id.slice('sheet.to.'.length));
+  }
+
   /** The sheets a tile is not on, as their tabs say them: where its Move to Sheet can take it. */
   #otherSheets(tile: string): { id: string; label: string }[] {
     const label = this.#options.sheetLabel;
@@ -1295,26 +1324,19 @@ export class CubePage {
       const way = spec === null ? null : showGridWay(spec, link.grid !== null);
       const refused = way === 'own' ? this.#ownGridRefusal() : null;
       this.#menuFor = (item) => {
-        // opens its options, or brings them forward: their ×, Escape or a press elsewhere puts them away
-        if (item.id === 'tile.options') panel.openForm();
+        // opens its properties, or brings them forward: their ×, Escape or a press elsewhere puts them away
+        if (item.id === 'tile.properties') panel.openForm();
         if (item.id === 'tile.grid') this.#showGrid(id);
-        if (item.id === 'tile.remove') this.#removeTile(id);
-        if (item.id === 'sheet.toNew') this.moveToSheet(id, null);
-        else if (item.id?.startsWith('sheet.to.')) this.moveToSheet(id, item.id.slice('sheet.to.'.length));
+        this.#onTileView(id, item);
       };
-      const sheets = this.#otherSheets(id);
+      // the menus' one skeleton (docs/DATACUBE_UI_REVIEW_2026_10_24.md, the menus): its data, its window, then how it
+      // is shown and where
       this.#menu.show([
         { label: '', items: [
-          { id: 'tile.options', label: 'Options...' },
           { id: 'tile.grid', label: 'Show Grid', ...(way !== null && refused === null ? {} : { disabled: true, ...(refused ? { hint: refused } : {}) }) },
         ] },
-        // a page of sheets: this chart onto another, or a new one (its grid stays where it is, and it follows it)
-        // locked: offered disabled, with nothing under it
-        ...(this.#options.sheetLabel ? [{ label: '', items: [{ label: 'Move to Sheet', ...(this.#editing ? { submenu: [
-          ...sheets.map((s) => ({ id: `sheet.to.${s.id}` as const, label: s.label })),
-          { id: 'sheet.toNew' as const, label: 'New Sheet', ...(sheets.length > 0 ? { separated: true } : {}) },
-        ] } : { disabled: true }) }] }] : []),
-        { label: '', items: [{ id: 'tile.remove', label: 'Remove' }] },
+        { label: '', items: [{ id: 'tile.properties', label: 'Properties\u2026' }] },
+        { label: '', items: [this.#tileView(id)] },
       ], event.clientX, event.clientY);
     });
     paint();
@@ -1695,6 +1717,20 @@ export class CubePage {
     this.#drawText(view.id);
     body.addEventListener('dblclick', () => this.editText(view.id));
     edit.addEventListener('click', () => this.editText(view.id));
+    // RIGHT-CLICK: its window, then how it is shown and where, as a chart's (#tileView); its editor's own words keep the
+    // browser's (copy, paste)
+    body.addEventListener('contextmenu', (event) => {
+      if (this.#texts.get(view.id)?.editing) return;
+      event.preventDefault();
+      this.#menuFor = (item) => {
+        if (item.id === 'tile.editText') this.editText(view.id);
+        this.#onTileView(view.id, item);
+      };
+      this.#menu.show([
+        { label: '', items: [{ id: 'tile.editText', label: 'Edit Text\u2026' }] },
+        { label: '', items: [this.#tileView(view.id)] },
+      ], event.clientX, event.clientY);
+    });
     this.#place({ id: view.id, title: view.title ?? textTitle(view.id), element: body, actions: [], state: edit });
   }
 

@@ -300,14 +300,14 @@ const openFilters = async () => {
   await page.waitForSelector('.dc-menu', { timeout: 8000 });
   const found = await page.evaluate(() => {
     const el = [...document.querySelectorAll('.dc-menu .dc-menu-label')]
-      .find((e) => e.textContent === 'Filters...');
+      .find((e) => e.textContent === 'Filters…');
     const item = el?.parentElement;
     if (!item) return false;
     item.focus();
     item.click();
     return true;
   });
-  if (!found) throw new Error('no "Filters..." entry in the menu');
+  if (!found) throw new Error('no "Filters…" entry in the menu');
   await page.waitForSelector('.dc-filters', { timeout: 8000 });
 };
 
