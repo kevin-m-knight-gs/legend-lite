@@ -8,13 +8,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { tiles } from '../src/layout/bands.ts';
 import { applyPageCommand, applyToState as apply, idsOf, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import type { PageDocument } from '../src/page-document.ts';
 import { PageState, type PageDead, type PageMoved } from '../src/page-state.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
 import { corpus } from './fixtures/pages/make.ts';
 import { canonical, renamedPage } from './page-same.ts';
+import { layoutTiles } from '../src/page-document.ts';
 
 // the saved-page corpus's frame page: grids grid and grid-2 and two charts on sheet-1, grid-2 alone on sheet-2
 const trades = (await corpus())['trades.page.json']!;
@@ -48,7 +48,7 @@ describe('a page edit is one step of one history', () => {
     const again = moved(state.redo());
     assert.deepEqual(again.renamed, { 'sheet-3': 'sheet-4' });
     assert.deepEqual(sheets(state), ['sheet-1', 'sheet-2', 'sheet-4']);
-    assert.deepEqual(tiles(state.draft.page.sheets[2]!.layout), ['chart']);
+    assert.deepEqual(layoutTiles(state.draft.page.sheets[2]!.layout), ['chart']);
     assert.equal(state.redo(), undefined);
     // and the steps follow the rename: undone again, it is sheet-4 that goes
     const once = moved(state.undo());

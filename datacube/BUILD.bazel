@@ -283,7 +283,9 @@ _EXTRA_DATA = {
     "parity-screen": ["test/fixtures/parity/parity.json"],
     # the saved-page corpus, and the script that makes it (the test holds the files to what it makes)
     "page-corpus": [":corpus_pages", "test/fixtures/pages/make.ts"],
-    "page-commands": ["test/fixtures/pages/make.ts"],
+    "page-commands": ["test/fixtures/pages/make.ts", "test/bands-of.ts"],
+    # a sheet's layout read as a board's (a flow's is boxes: docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4)
+    "page-document": ["test/bands-of.ts"],
     "host-join-flow": ["test/fixtures/pages/make.ts"],
     "page-filters": ["test/fixtures/pages/make.ts"],
     "page-state": ["test/fixtures/pages/make.ts", "test/page-same.ts"],
@@ -314,9 +316,11 @@ _EXTRA_DATA = {
     "cube-editors-app": ["test/cube-fixture.ts", "test/gate.ts"],
     "cube-adhoc-shell": ["test/cube-fixture.ts", "test/gate.ts"],
     "multi-cube": ["test/cube-fixture.ts", "test/gate.ts"],
-    "chart-tiles": ["test/cube-fixture.ts", "test/gate.ts"],
-    "page-app": ["test/cube-fixture.ts", "test/gate.ts", "test/theirs.ts"],
-    "cube-page-shell": ["test/cube-fixture.ts", "test/gate.ts", "test/page-same.ts", "test/theirs.ts"],
+    "chart-tiles": ["test/cube-fixture.ts", "test/gate.ts", "test/bands-of.ts"],
+    "page-app": ["test/cube-fixture.ts", "test/gate.ts", "test/theirs.ts", "test/bands-of.ts"],
+    "cube-page-shell": ["test/cube-fixture.ts", "test/gate.ts", "test/page-same.ts", "test/theirs.ts", "test/bands-of.ts"],
+    # a flow sheet on a page of its own, over real grids (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1)
+    "flow-page": ["test/cube-fixture.ts", "test/gate.ts"],
     # the headless lane's stand-ins for node:assert and node:test, held to Node's own here
     "headless-assert": ["test/headless/node-assert.ts"],
     "headless-test-runner": [
@@ -499,6 +503,8 @@ _HEADLESS_TESTS = [
     "cube-document",
     # a grid edit as a value (docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md)
     "cypher-spike",
+    # a flow sheet's layout, a box's words and its page commands (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): pure
+    "flow-sheet",
     "format-code",
     "grid-commands",
     # a grid's and a page's gestures as their commands (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8)

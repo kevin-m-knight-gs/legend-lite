@@ -10,9 +10,8 @@ import { openedState } from '../cube-state.ts';
 import { cubeToJson, gridCapped, newGridTree, rebuilt, writeCube, type JoinInput, type JoinSource } from '../cube-document.ts';
 import { HOST_TABLES, openInputs, openJoin, summaryCounts, type JoinOpening, type OpenedJoin } from '../join-open.ts';
 import { joinSummary, joinTitle, readJoinHow, summaryWords, type JoinHow } from '../join.ts';
-import { tiles } from '../layout/bands.ts';
 import { joinInputOf } from '../page-commands.ts';
-import { readPage, type PageDocument } from '../page-document.ts';
+import { layoutTiles, readPage, type PageDocument } from '../page-document.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { catalogColumns } from '../upload.ts';
 import { pythonRunner } from '../services/python-host.ts';
@@ -105,7 +104,7 @@ export async function joinCube(spec: string): Promise<string> {
   const { title } = s.added;
   // beside its first input, on that input's sheet unless another is named (the S7 audit's Y-3: Python's went on the
   // first sheet, where the input was not)
-  const sheet = s.added.sheet ?? s.page.sheets.find((sh) => tiles(sh.layout).includes(s.mine))?.id ?? s.page.sheets[0]!.id;
+  const sheet = s.added.sheet ?? s.page.sheets.find((sh) => layoutTiles(sh.layout).includes(s.mine))?.id ?? s.page.sheets[0]!.id;
   const name = s.page.name;
   const gridsOnPage = s.page.cubes.length + 1;
   return using(async (o) => {

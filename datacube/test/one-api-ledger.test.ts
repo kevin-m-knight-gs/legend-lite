@@ -505,6 +505,9 @@ const PASS_THROUGH: Record<string, string> = {
   setText: "the words as typed in the text tile's editor (setText judges them, by page-text.ts textProblem)",
   renamePage: 'the name as typed (renamePage judges it)', savedAs: "the page store's record the page was saved as",
   setPageFilter: "the filter as the page's filter bar made it", removePageFilter: 'the page filter whose x was clicked',
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4, the flow sheet): Create ▸ Flow, and a box let go
+  addFlow: "a new flow sheet's id, as the page numbers ids, unnamed",
+  placeBox: "where the box was let go, or its arrow key took it (placeBox rounds and judges it: layout/flow.ts moveBox)",
 };
 /** Functions that make commands a screen file calls and no headless function asks, each the screen's own (2026-10-22,
  *  S8): a person's input passed through, a form's edits, the board's hand or a tab's drag. */

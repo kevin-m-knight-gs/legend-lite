@@ -8,7 +8,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { tiles } from '../src/layout/bands.ts';
 import { applyPlanned, namedUnder, pageBetween } from '../src/page-between.ts';
 import { applyPageCommands, idsOf, nextPageId, takenIds, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import { gridCopyOf, pageToJson, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
@@ -16,6 +15,7 @@ import { textTitle } from '../src/page-ids.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { corpus } from './fixtures/pages/make.ts';
 import { canonical, differing, renamedPage } from './page-same.ts';
+import { layoutTiles } from '../src/page-document.ts';
 
 const pages = await corpus();
 const trades = pages['trades.page.json']!;
@@ -89,7 +89,7 @@ function randomEdit(rand: () => number, d: PageDraft, n: number): [string, PageC
       : [`select ${n}`, { kind: 'select', chart: pick(charts).id, conditions: rand() < 0.3 ? [] : [EMEA] }])],
     ['moveTile', () => [`move tile ${n}`, { kind: 'moveTile', tile: pick(page.views).id, sheet: pick(sheets).id, columns: null }]],
     ['stack', () => {
-      const on = tiles(pick(sheets).layout);
+      const on = layoutTiles(pick(sheets).layout);
       return [`stack ${n}`, { kind: 'stack', tiles: on.length >= 2 ? on.slice(0, 2) : on }];
     }],
     ['removeTile', () => [`remove tile ${n}`, { kind: 'removeTile', tile: pick(page.views).id }]],

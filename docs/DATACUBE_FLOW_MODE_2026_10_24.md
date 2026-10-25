@@ -466,6 +466,40 @@ opener's start kept by its maker: point 2 above, without changing any opener). W
 with 179,996 of the grid's 200,000 rows. The L12 host register lists the new branches (the `input` ability, its proofs
 on both hosts). Not yet: an edit upstream re-reading the boxes after it in the tab (step 4, with the canvas).
 
+**Built in step 3, the `flow` layout kind** (`datacube/src/layout/flow.ts`, `page-document.ts`, `page-commands.ts`,
+`page-rebase.ts`, `headless/layout.ts`): a sheet's layout is a board's bands or a flow's boxes (`PageLayout`,
+`layoutTiles`), read and written, its rules held (each box once, at whole places, neither below zero; a flow's tile a
+grid). Two command kinds: `addFlow` (Create ▸ Flow) and `placeBox` (a box let go, its arrow keys). `addGrid` on a flow
+puts the box after `near`, the box it reads (the next column on its row, else the first free row there: `placeAfter`).
+What only a board takes is refused in words: a chart, a text tile, a stack, an arrangement, a band layout; `moveTile`
+goes from board to board or flow to flow. A grid taken off leaves every grid that read it live reading a copy of what it
+was (FL6, `withoutTile`). The rebase renames both kinds and keeps a flow told before a box came (`rearranged`). An
+unnamed flow is "Flow n" (`sheetLabel`). Tested by `datacube/test/flow-sheet.test.ts`.
+
+**Built in step 4, the canvas, the palette and the results pane** (`datacube/src/layout/flow-board.ts`, `flow-canvas.ts`,
+`flow-boxes.ts`, `page/cube-page.ts`, `page/page-app.ts`, `app/datacube-app.ts`): a flow sheet's board is a `FlowBoard`,
+its drawing fetched with the first flow (a page with no flow downloads none of it): the palette (Input, Filter, Formula,
+Select, Sort, Summarize, by Alteryx's groups and colours), the canvas (boxes on a dot grid, a curved line into each box
+from each box it reads), and the results pane below, the shown box's grid, a full DataCube. A box says what it does from
+its document alone (`boxSays`: its tool, the steps it takes besides, what it is set to). **A box is a document until it
+is shown** (point 3 above): a page opens none of a flow's boxes (`page-document.ts boxCubes`: the tab's Open…, the
+keeper's page converged) and writes each box's cube as the page has it; a click (or Enter) shows one, its grid made by
+the host over the page as it is now (`PageAppOptions.openBox`: `sources.reopened` with the page), the box shown before
+closed with what its grid did kept (`CubePage #closeBox`). A box whose source a step changes while it is shown (a box it
+read taken off) is shown again over it. A tool clicked adds a box after the box shown, dropped on a box after that box
+(`onFlowTool`: an Input, a grid over a source picked now; any other tool, a grid over that box's rows, read live, over the
+tables its grid reads). Moves, removals and renames are page commands, each a step of the page's history; which box is
+shown is the screen's. Python: `page.flow()`, `sheet.grid(...)`, `sheet.flow`, `box.place(x, y)` (FL20), tested by
+`python/tests/test_page.py Flows`. Tested by `datacube/test/flow-page.test.ts` (real grids on a page of its own), and
+checked in the running app: Create ▸ Flow, an Input of the examples, a Filter after it, each box shown, a box dragged.
+
+**Not yet, said:** a tool's settings opening with its box (step 5: a Filter box opens the filter editor); an undo of a
+box's removal brings it back as a new tile, and the boxes after it keep reading its copy until Unfreeze (M2) links them
+again (an undo is the page's structure: page-between.ts leaves the cubes of the grids both pages have as they are); a
+chart or a text box of a box's rows (refused, said: they go on a board sheet); a tool added from the tab on a page
+Python serves (refused in words: Python adds one, `flow.grid(input=box)`); a grid on a board reading a box that is shown
+re-read when that box is edited.
+
 ---
 
 ## 6. Still open

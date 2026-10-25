@@ -27,6 +27,7 @@ import { ExactNumber, fromJson, toJson as protocolJson } from '../../pure-protoc
 import { readChart, type ChartSpec } from './chart-spec.ts';
 import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument, type CubeSource } from './cube-document.ts';
 import { type Bands, type Node, NEW_SHEET, add as addTile, problems, tiles as tilesOf } from './layout/bands.ts';
+import { flowProblems, flowTiles, type Flow } from './layout/flow.ts';
 import type { PageModelRef } from './page-model.ts';
 import { readPageFilters, type PageFilter } from './page-filters.ts';
 import { givenName, type NamedPart } from './page-names.ts';
@@ -77,8 +78,22 @@ export interface TextView {
 export type PageView = GridView | ChartView | TextView;
 
 /** Where the views sit: the page's bands (layout/bands.ts), each tile a view's id. */
-export interface PageLayout extends Bands {
+/** A board sheet's layout: its bands (layout/bands.ts). */
+export interface BandsLayout extends Bands {
   readonly kind: 'bands';
+}
+
+/** A flow sheet's layout (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): its boxes on a canvas (layout/flow.ts). */
+export interface FlowLayout extends Flow {
+  readonly kind: 'flow';
+}
+
+/** A sheet's layout: a board of bands, or a flow of boxes. */
+export type PageLayout = BandsLayout | FlowLayout;
+
+/** The tiles a sheet's layout holds: a board's in reading order, a flow's in the order its boxes were placed. */
+export function layoutTiles(layout: PageLayout): string[] {
+  return layout.kind === 'flow' ? flowTiles(layout) : tilesOf(layout);
 }
 
 /** A sheet: a whole screen of the page's views, laid out as its bands. */
@@ -122,13 +137,16 @@ export function newPage(name = ''): PageDocument {
 }
 
 /**
- * WHAT A SHEET IS CALLED (its tab): the name someone gave it, else the report title of the first grid it shows (its
- * tiles in reading order; `grid` says of a tile whether it is a grid and its title), else "Sheet n" by its place (`at`,
- * from 0). The tab's sheet tabs ask it of the board, and a page's suggested name of its document (suggestedName).
+ * WHAT A SHEET IS CALLED (its tab): the name someone gave it, else -- a flow -- "Flow n", else the report title of the
+ * first grid it shows (its tiles in reading order; `grid` says of a tile whether it is a grid and its title), else
+ * "Sheet n" by its place (`at`, from 0). The tab's sheet tabs ask it of the board, and a page's suggested name of its
+ * document (suggestedName).
  */
-export function sheetLabel(sheet: { readonly name?: string | undefined; readonly tiles: readonly string[] }, at: number,
-  grid: (tile: string) => { readonly title: string | undefined } | undefined): string {
+export function sheetLabel(sheet: { readonly name?: string | undefined; readonly tiles: readonly string[]; readonly flow?: boolean },
+  at: number, grid: (tile: string) => { readonly title: string | undefined } | undefined): string {
   if (sheet.name !== undefined) return sheet.name;
+  // a flow is its steps, not its first box's source: "Flow N" until someone names it
+  if (sheet.flow === true) return `Flow ${at + 1}`;
   const first = sheet.tiles.map(grid).find((g) => g !== undefined);
   return first?.title || `Sheet ${at + 1}`;
 }
@@ -171,7 +189,7 @@ export function suggestedName(page: PageDocument): string {
 function labelOf(page: PageDocument, sheet: PageSheet, name: string | undefined): string {
   const cubes = new Map(page.cubes.map((c) => [c.id, c.cube]));
   const grids = new Map(page.views.flatMap((v) => (v.kind === 'grid' ? [[v.id, v.cube] as const] : [])));
-  return sheetLabel({ name, tiles: tilesOf(sheet.layout) }, page.sheets.indexOf(sheet), (tile) => {
+  return sheetLabel({ name, tiles: layoutTiles(sheet.layout), flow: sheet.layout.kind === 'flow' }, page.sheets.indexOf(sheet), (tile) => {
     const cube = grids.get(tile);
     if (cube === undefined) return undefined;
     const title = cubes.get(cube)?.configuration['reportTitle'];
@@ -431,6 +449,16 @@ export function filtersFor(filters: readonly PageFilter[], views: readonly PageV
 }
 
 /**
+ * A FLOW'S BOXES (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1's design, 3): the cubes of `page` a box of a flow sheet
+ * shows. Each is a document until its box is shown, so a page opens none of them as it opens (the tab's Open…, its
+ * keeper's page converged): each is opened when its box is shown, over the page as it is then.
+ */
+export function boxCubes(page: Pick<PageDocument, 'views' | 'sheets'>): Set<string> {
+  const boxes = new Set(page.sheets.flatMap((s) => (s.layout.kind === 'flow' ? flowTiles(s.layout) : [])));
+  return new Set(page.views.flatMap((v) => (v.kind === 'grid' && boxes.has(v.id) ? [v.cube] : [])));
+}
+
+/**
  * The order a saved page's cubes are opened in, wherever their tiles sit on the page: a join's after the grids over one
  * source, since it reads the files they read in (a file read once); a class's after every other, since its rows are
  * the tables the page's other grids read in; and a grid over another grid's rows after the grids it reads
@@ -584,7 +612,13 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
   const sheets = readSheets(plain(raw['sheets']), viewIds);
   // every view has its place, on one sheet: a view the layout leaves out would be put somewhere on opening, and the
   // page read as changed before anyone touched it
-  const placed = sheets.flatMap((sheet) => tilesOf(sheet.layout));
+  const placed = sheets.flatMap((sheet) => layoutTiles(sheet.layout));
+  // a flow's boxes are grids (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL5): a chart or a text tile goes on a board
+  for (const sheet of sheets) {
+    if (sheet.layout.kind !== 'flow') continue;
+    const notGrid = sheet.layout.boxes.find((b) => views.find((v) => v.id === b.tile)?.kind !== 'grid');
+    if (notGrid !== undefined) throw new PageDocumentError(`sheet ${sheet.id} is a flow of grids: ${notGrid.tile} is no grid`);
+  }
   const twice = placed.filter((id, i) => placed.indexOf(id) !== i);
   if (twice.length > 0) throw new PageDocumentError(`${[...new Set(twice)].join(', ')} on two sheets`);
   const missing = [...viewIds].filter((id) => !placed.includes(id));
@@ -785,7 +819,8 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
  */
 export function readLayout(l: unknown, views: ReadonlySet<string>, what: string): PageLayout {
   if (!isObject(l)) throw new PageDocumentError(`${what} is not a layout`);
-  if (l['kind'] !== 'bands') throw new PageDocumentError(`${what} is not a layout of bands`);
+  if (l['kind'] === 'flow') return readFlow(l, views, what);
+  if (l['kind'] !== 'bands') throw new PageDocumentError(`${what} is not a layout of bands or a flow`);
   if (typeof l['fit'] !== 'boolean') throw new PageDocumentError(`${what}'s fit is not true or false`);
   if (!Array.isArray(l['bands'])) throw new PageDocumentError(`${what}'s bands are not a list`);
   const bands = l['bands'].map((b, i) => {
@@ -796,6 +831,23 @@ export function readLayout(l: unknown, views: ReadonlySet<string>, what: string)
   const wrong = problems(layout);
   if (wrong.length > 0) throw new PageDocumentError(`${what} cannot be laid out: ${wrong.join('; ')}`);
   return { kind: 'bands', ...layout };
+}
+
+/** A flow sheet's layout (layout/flow.ts): its boxes, each a tile of the page at a place, every rule of a flow held. */
+function readFlow(l: Record<string, unknown>, views: ReadonlySet<string>, what: string): FlowLayout {
+  const extra = Object.keys(l).filter((k) => k !== 'kind' && k !== 'boxes');
+  if (extra.length > 0) throw new PageDocumentError(`${what} is a flow of boxes, not ${extra.join(', ')}`);
+  if (!Array.isArray(l['boxes'])) throw new PageDocumentError(`${what}'s boxes are not a list`);
+  const boxes = l['boxes'].map((b, i) => {
+    if (!isObject(b) || typeof b['tile'] !== 'string' || typeof b['x'] !== 'number' || typeof b['y'] !== 'number') {
+      throw new PageDocumentError(`box ${i + 1} of ${what} is not a tile and its place (x, y)`);
+    }
+    if (!views.has(b['tile'])) throw new PageDocumentError(`a box shows no view of this page (${b['tile']})`);
+    return { tile: b['tile'], x: b['x'], y: b['y'] };
+  });
+  const wrong = flowProblems({ boxes });
+  if (wrong.length > 0) throw new PageDocumentError(`${what} cannot be laid out: ${wrong.join('; ')}`);
+  return { kind: 'flow', boxes };
 }
 
 function readNode(n: unknown, views: ReadonlySet<string>, where: string): Node {

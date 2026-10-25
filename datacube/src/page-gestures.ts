@@ -88,8 +88,10 @@ export function moveSheetCommand(sheet: string, at: number, to: number, count: n
 
 /** MOVE TO SHEET: tile `tile` onto sheet `sheet`, at its bottom -- a new one (`isNew`), made first, after the last, in
  *  the same step -- `columns` fitting side by side there (the board's measure; null, as many as a sheet holds). */
-export function moveToSheetCommands(tile: string, sheet: string, isNew: boolean, columns: number | null): PageCommand[] {
-  return [...(isNew ? [{ kind: 'addSheet', id: sheet, name: null } as const] : []), { kind: 'moveTile', tile, sheet, columns }];
+export function moveToSheetCommands(tile: string, sheet: string, isNew: boolean, columns: number | null, flow = false): PageCommand[] {
+  // a flow's box onto a new sheet: a new flow (a box goes from flow to flow: page-commands.ts moveTile)
+  const added = { kind: flow ? 'addFlow' : 'addSheet', id: sheet, name: null } as const;
+  return [...(isNew ? [added] : []), { kind: 'moveTile', tile, sheet, columns }];
 }
 
 /**

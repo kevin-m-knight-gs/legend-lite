@@ -25,7 +25,7 @@ import { configurationOf, gridCapped, treeOf, type CubeDocument } from '../cube-
 import { gridBetween } from '../grid-between.ts';
 import type { GridCommand } from '../grid-commands.ts';
 import type { PageCommand } from '../page-commands.ts';
-import type { GridCopy, GridView, PageDocument } from '../page-document.ts';
+import { boxCubes, type GridCopy, type GridView, type PageDocument } from '../page-document.ts';
 import type { GridMaker, PageApp } from '../page/page-app.ts';
 import { sameValue, type CubeSnapshot } from '../snapshot.ts';
 import type { Converge, Converged } from './live-channel.ts';
@@ -123,8 +123,10 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
   await gridsAtTarget();
   // 2. the board at the keeper's page; a grid of it this page has never had opened from its cube there
   const makers = new Map<string, GridMaker>();
+  // a flow's box is a document until it is shown: drawn from its cube there, never opened here (page-document.ts boxCubes)
+  const boxes = boxCubes(on.target);
   for (const view of on.target.views) {
-    if (view.kind !== 'grid' || page.grids.includes(view.id) || page.knows(view.id)) continue;
+    if (view.kind !== 'grid' || page.grids.includes(view.id) || page.knows(view.id) || boxes.has(view.cube)) continue;
     const cube = cubeIn(on.target, view.id);
     if (cube === undefined) continue;
     // capped as a grid sharing its page is (the page it joins: the keeper's)

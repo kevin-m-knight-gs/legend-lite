@@ -11,13 +11,14 @@ import {
   CubeDocumentError, cubeOpenedAgain, readCube, readCubeSource, type CubeDocument, type CubeSource, type JoinInput,
 } from './cube-document.ts';
 import {
-  MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, tiles, type Bands, type Preset,
+  MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, type Bands, type Preset,
 } from './layout/bands.ts';
+import { EMPTY_FLOW, FlowRefusal, moveBox, placeAfter, removeBox, type Flow } from './layout/flow.ts';
 import {
-  PageDocumentError, keptFor, readGridCopy, readLayout, unnamedLabel, writePageOf, type ChartView, type GridCopy, type GridView,
-  type PageDocument, type PageLayout, type PageSheet, type PageView, type TextView,
+  PageDocumentError, keptFor, layoutTiles, readGridCopy, readLayout, unnamedLabel, writePageOf, type ChartView, type FlowLayout,
+  type GridCopy, type GridView, type PageDocument, type PageLayout, type PageSheet, type PageView, type TextView,
 } from './page-document.ts';
-import { gridInput } from './live-inputs.ts';
+import { frozenFrom, gridInput, liveGrids } from './live-inputs.ts';
 import { givenName } from './page-names.ts';
 import type { PageModelRef } from './page-model.ts';
 import { chartTitle, gridTitle, idShape, nextPageId, textTitle } from './page-ids.ts';
@@ -73,6 +74,11 @@ export type PageCommand =
    *  over it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B13). No step of its history, as a rename is none. */
   | { readonly kind: 'savedAs'; readonly record: string | null }
   | { readonly kind: 'addSheet'; readonly id?: string; readonly name: string | null }
+  /** A flow sheet (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): a sheet drawn as a canvas of boxes, each a grid that does
+   *  one thing -- empty, after the page's other sheets. */
+  | { readonly kind: 'addFlow'; readonly id?: string; readonly name: string | null }
+  /** A box of a flow sheet moved to (`x`, `y`) on its canvas (layout/flow.ts moveBox). */
+  | { readonly kind: 'placeBox'; readonly tile: string; readonly x: number; readonly y: number }
   | { readonly kind: 'renameSheet'; readonly sheet: string; readonly name: string | null }
   | { readonly kind: 'moveSheet'; readonly sheet: string; readonly to: number }
   | { readonly kind: 'removeSheet'; readonly sheet: string }
@@ -154,7 +160,8 @@ export type PageCommand =
   | { readonly kind: 'modelKeep'; readonly cube: string; readonly tables: readonly string[] | null; readonly class: string | null };
 
 export const PAGE_COMMAND_KINDS = [
-  'renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
+  'renamePage', 'savedAs', 'addSheet', 'addFlow', 'placeBox', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid',
+  'addChart', 'setChart',
   'addText', 'setText', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter',
   'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
@@ -162,7 +169,8 @@ export const PAGE_COMMAND_KINDS = [
 /** Each page command's fields, by kind (`?` one it may leave out): what readPageCommand takes, and what Python's generated
  *  builders write (D17). */
 export const PAGE_COMMAND_FIELDS = {
-  renamePage: ['name'], savedAs: ['record'], addSheet: ['id?', 'name'], renameSheet: ['sheet', 'name'], moveSheet: ['sheet', 'to'],
+  renamePage: ['name'], savedAs: ['record'], addSheet: ['id?', 'name'], addFlow: ['id?', 'name'], placeBox: ['tile', 'x', 'y'],
+  renameSheet: ['sheet', 'name'], moveSheet: ['sheet', 'to'],
   removeSheet: ['sheet'], renameTile: ['tile', 'title'], addGrid: ['id?', 'document', 'sheet', 'near', 'title', 'columns'],
   addChart: ['id?', 'near', 'spec', 'title', 'columns'], setChart: ['chart', 'spec'], addText: ['id?', 'sheet', 'text', 'title', 'columns'],
   setText: ['tile', 'text'], followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
@@ -196,6 +204,32 @@ const named = (part: 'page' | 'tile' | 'sheet', text: string): string | undefine
 
 const saved = (layout: Bands): PageLayout => ({ kind: 'bands', ...asSaved(layout) });
 
+/** A flow op of layout/flow.ts, its refusal in its words. */
+function flowed(op: () => Flow): FlowLayout {
+  try {
+    return { kind: 'flow', ...op() };
+  } catch (e) {
+    if (e instanceof FlowRefusal) throw new CubeRefusal(e.message);
+    throw e;
+  }
+}
+
+/** A tile put on a sheet: on a flow, a box after `after` (layout/flow.ts placeAfter: Alteryx's tool dropped on a box's
+ *  output); on a board, as `onBoard` places it (bands.ts add, as each command's own rule asks). */
+function placedOn(layout: PageLayout, tile: string, after: string | undefined, onBoard: (bands: Bands) => Bands): PageLayout {
+  return layout.kind === 'flow' ? flowed(() => placeAfter(layout, tile, after)) : laid(() => onBoard(layout));
+}
+
+/** A tile taken off a sheet's layout: a flow's box, a board's tile by its bands' rule. */
+function takenOff(layout: PageLayout, tile: string): PageLayout {
+  return layout.kind === 'flow' ? { kind: 'flow', ...removeBox(layout, tile) } : laid(() => remove(layout, tile));
+}
+
+/** A command a flow sheet takes none of, refused in words: what goes there is a box (a grid), placed on its canvas. */
+function onBoardOnly(sheet: PageSheet, what: string): void {
+  if (sheet.layout.kind === 'flow') throw new CubeRefusal(`a flow sheet holds boxes, each a grid: ${what} goes on a board sheet`);
+}
+
 /** A layout op of bands.ts, its refusal in its words. */
 function laid(op: () => Bands): PageLayout {
   try {
@@ -207,7 +241,7 @@ function laid(op: () => Bands): PageLayout {
 }
 
 function sheetOf(page: PageDocument, tile: string): PageSheet | undefined {
-  return page.sheets.find((s) => tiles(s.layout).includes(tile));
+  return page.sheets.find((s) => layoutTiles(s.layout).includes(tile));
 }
 
 function sheetNamed(page: PageDocument, id: string): PageSheet {
@@ -340,12 +374,22 @@ function withoutTile(page: PageDocument, tile: string): PageDocument {
       }
     }
   }
+  // a grid others read live: each of them reads a copy of what it was from now on (docs/DATACUBE_FLOW_MODE_2026_10_24.md
+  // FL6), so no link is left to a grid the page no longer has
+  if (view.kind === 'grid' && next.cubes.some((c) => liveGrids(c.cube.source).includes(view.id))) {
+    const copy = gridInput(next, view.id);
+    next = {
+      ...next,
+      cubes: next.cubes.map((c) => (liveGrids(c.cube.source).includes(view.id)
+        ? { ...c, cube: { ...c.cube, source: frozenFrom(c.cube.source, view.id, copy) } } : c)),
+    };
+  }
   const views = next.views.filter((v) => !gone.has(v.id));
   const cubes = next.cubes.filter((c) => views.some((v) => v.cube === c.id));
   const sheets = next.sheets.map((s) => {
-    let layout: Bands = s.layout;
-    for (const id of gone) if (tiles(layout).includes(id)) layout = remove(layout, id);
-    return layout === s.layout ? s : { ...s, layout: saved(layout) };
+    let layout: PageLayout = s.layout;
+    for (const id of gone) if (layoutTiles(layout).includes(id)) layout = takenOff(layout, id);
+    return layout === s.layout ? s : { ...s, layout };
   });
   const left = rewritten({ ...next, ...(next.model ? { model: keptFor(next.model, cubes) } : {}) }, { views, cubes, sheets });
   // a chart's selection off its cube's filter: that cube's other charts judged by the filter now (the S2 audit's 5, F2)
@@ -359,7 +403,7 @@ function withoutTile(page: PageDocument, tile: string): PageDocument {
  * page Python edits is written as the screen writes it.
  */
 export function inScreenOrder(page: PageDocument): PageDocument {
-  const reading = page.sheets.flatMap((s) => tiles(s.layout));
+  const reading = page.sheets.flatMap((s) => layoutTiles(s.layout));
   const at = (id: string): number => (reading.includes(id) ? reading.indexOf(id) : reading.length);
   const inReading = (kind: PageView['kind']): PageView[] => page.views.filter((v) => v.kind === kind).map((v, i) => ({ v, i }))
     .sort((x, y) => at(x.v.id) - at(y.v.id) || x.i - y.i).map((x) => x.v);
@@ -392,6 +436,20 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const sheet: PageSheet = { id, ...(name !== undefined ? { name } : {}), layout: saved(NEW_SHEET) };
       return done({ ...page, sheets: [...page.sheets, sheet] }, [...draft.held, id], { ...command, id });
     }
+    case 'addFlow': {
+      const id = freshId(draft, command.id, 'sheet');
+      const name = command.name === null ? undefined : named('sheet', command.name);
+      const sheet: PageSheet = { id, ...(name !== undefined ? { name } : {}), layout: { kind: 'flow', ...EMPTY_FLOW } };
+      return done({ ...page, sheets: [...page.sheets, sheet] }, [...draft.held, id], { ...command, id });
+    }
+    case 'placeBox': {
+      viewNamed(page, command.tile);
+      const sheet = sheetOf(page, command.tile);
+      if (!sheet) throw new CubeRefusal(`'${command.tile}' is on no sheet`);
+      const layout = sheet.layout;
+      if (layout.kind !== 'flow') throw new CubeRefusal(`'${command.tile}' is a tile of a board, placed by its layout: a box is a flow sheet's`);
+      return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => moveBox(layout, command.tile, command.x, command.y)) })));
+    }
     case 'renameSheet': {
       const sheet = sheetNamed(page, command.sheet);
       const given = command.name === null ? undefined : named('sheet', command.name);
@@ -412,7 +470,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       if (page.sheets.length === 1) throw new CubeRefusal('a page has one sheet at least: its last is not removed');
       // its grids first: a chart of one, on this sheet or another, goes with it or stays detached
       let next = page;
-      const on = (): string[] => tiles(sheetNamed(next, sheet.id).layout);
+      const on = (): string[] => layoutTiles(sheetNamed(next, sheet.id).layout);
       for (const tile of on().filter((t) => viewNamed(next, t).kind === 'grid')) next = withoutTile(next, tile);
       for (const tile of on()) next = withoutTile(next, tile);
       return done(rewritten(next, { sheets: next.sheets.filter((s) => s.id !== sheet.id) }));
@@ -442,7 +500,10 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const view: PageView = { id, kind: 'grid', cube: id, ...(title !== undefined ? { title } : {}) };
       // a grid is a table, which wants the page's width: a band of its own at the bottom of its sheet, never beside the
       // tile it came from, nor between that tile and its charts (the user, 2026-10-23: bands.ts add)
-      const placed = withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => add(s.layout, id, undefined, command.columns ?? MAX_COLUMNS)) }));
+      // on a flow, a box after the one it came from (`near`)
+      const placed = withSheet(page, sheet.id, (s) => ({
+        ...s, layout: placedOn(s.layout, id, command.near ?? undefined, (bands) => add(bands, id, undefined, command.columns ?? MAX_COLUMNS)),
+      }));
       const cubes = command.document === null ? page.cubes : [...page.cubes, { id, cube: command.document }];
       return done(rewritten(placed, { cubes, views: [...page.views, view] }),
         [...draft.held, id], { ...command, id });
@@ -457,9 +518,12 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const view: ChartView = { id, kind: 'chart', cube: grid.cube, title, spec };
       const sheet = sheetOf(page, grid.id);
       if (!sheet) throw new CubeRefusal(`'${grid.id}' is on no sheet`);
+      onBoardOnly(sheet, 'a chart');
       // under its grid, beside the charts already there while that row has room (bands.ts add)
       const charts = (ids: readonly string[]): boolean => ids.every((t) => page.views.find((v) => v.id === t)?.kind === 'chart');
-      const placed = withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => add(s.layout, id, grid.id, command.columns ?? MAX_COLUMNS, charts)) }));
+      const placed = withSheet(page, sheet.id, (s) => ({
+        ...s, layout: placedOn(s.layout, id, undefined, (bands) => add(bands, id, grid.id, command.columns ?? MAX_COLUMNS, charts)),
+      }));
       // a live chart follows its grid from the start, by the one rule every change of the cube follows it by (V1, P6):
       // a spec made for the grid is where following leaves it; one made for another grid (Python's, a page's own) is
       // regrouped as the grid is, as the next change of the grid would regroup it (D19, 2026-10-24)
@@ -472,12 +536,15 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       if (problem !== null) throw new CubeRefusal(problem);
       const id = freshId(draft, command.id, 'text');
       const sheet = sheetNamed(page, command.sheet);
+      onBoardOnly(sheet, 'a text tile');
       const given = command.title === null ? undefined : named('tile', command.title);
       const title = given === textTitle(id) ? undefined : given;
       const view: TextView = { id, kind: 'text', text: command.text, ...(title !== undefined ? { title } : {}) };
       // a band of its own at the bottom of its sheet, as a grid is added (bands.ts add): a title or a note is moved where
       // it reads from there
-      const placed = withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => add(s.layout, id, undefined, command.columns ?? MAX_COLUMNS)) }));
+      const placed = withSheet(page, sheet.id, (s) => ({
+        ...s, layout: placedOn(s.layout, id, undefined, (bands) => add(bands, id, undefined, command.columns ?? MAX_COLUMNS)),
+      }));
       return done({ ...placed, views: [...page.views, view] }, [...draft.held, id], { ...command, id });
     }
     case 'setText': {
@@ -568,13 +635,22 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       return done({ ...page, views: page.views.map((v) => (v.id === view.id ? chart : v)) });
     }
     case 'moveTile': {
-      viewNamed(page, command.tile);
+      const view = viewNamed(page, command.tile);
       const from = sheetOf(page, command.tile);
       const to = sheetNamed(page, command.sheet);
       // onto its own sheet: nothing, as the screen's Move to Sheet offers only the others
       if (!from || from.id === to.id) return done(page);
-      const out = withSheet(page, from.id, (s) => ({ ...s, layout: laid(() => remove(s.layout, command.tile)) }));
-      return done(withSheet(out, to.id, (s) => ({ ...s, layout: laid(() => add(s.layout, command.tile, undefined, command.columns ?? MAX_COLUMNS)) })));
+      // a box goes from flow to flow, a board's tile from board to board: a grid shown on a board runs, a flow's box is a
+      // document until it is shown (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1's design, 3)
+      if (from.layout.kind !== to.layout.kind) {
+        throw new CubeRefusal(from.layout.kind === 'flow'
+          ? `'${command.tile}' is a box of a flow: it moves to another flow sheet, not onto a board`
+          : `a flow sheet holds boxes, each a grid that does one step: ${kindWords(view)} stays on a board`);
+      }
+      const out = withSheet(page, from.id, (s) => ({ ...s, layout: takenOff(s.layout, command.tile) }));
+      return done(withSheet(out, to.id, (s) => ({
+        ...s, layout: placedOn(s.layout, command.tile, undefined, (bands) => add(bands, command.tile, undefined, command.columns ?? MAX_COLUMNS)),
+      })));
     }
     case 'stack': {
       if (new Set(command.tiles).size < 2) throw new CubeRefusal('a stack is two tiles or more');
@@ -583,15 +659,19 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       if (!sheet || command.tiles.some((t) => sheetOf(page, t) !== sheet)) {
         throw new CubeRefusal('the tiles of a stack are on one sheet (move them there first)');
       }
-      return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => stackTiles(s.layout, command.tiles)) })));
+      const layout = sheet.layout;
+      if (layout.kind === 'flow') throw new CubeRefusal("a flow sheet's boxes are not stacked: each is a place of its own on the canvas");
+      return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => stackTiles(layout, command.tiles)) })));
     }
     case 'removeTile':
       return done(withoutTile(page, command.tile));
     case 'arrange': {
       const sheet = sheetNamed(page, command.sheet);
       const order = command.order;
-      return done(withSheet(page, sheet.id, (s) => ({
-        ...s, layout: laid(() => (order === null ? arrange(s.layout, command.preset as Preset) : arrange(s.layout, command.preset as Preset, order))),
+      const layout = sheet.layout;
+      if (layout.kind === 'flow') throw new CubeRefusal("a board's arrangements are a board's: a flow sheet's boxes are placed on its canvas");
+      return done(withSheet(page, sheet.id, () => ({
+        ...sheet, layout: laid(() => (order === null ? arrange(layout, command.preset as Preset) : arrange(layout, command.preset as Preset, order))),
       })));
     }
     case 'layout': {
@@ -605,13 +685,17 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
         if (e instanceof PageDocumentError) throw new CubeRefusal(e.message);
         throw e;
       }
-      const { kind: _kind, ...bands } = read;
-      const had = [...tiles(sheet.layout)].sort();
-      const has = [...tiles(bands)].sort();
+      // a board's layout is a board's, a flow's a flow's: a sheet is not turned into the other by its layout
+      if (read.kind !== sheet.layout.kind) {
+        throw new CubeRefusal(`'${sheet.id}' is ${sheet.layout.kind === 'flow' ? 'a flow sheet' : 'a board'}: its layout is ${sheet.layout.kind === 'flow' ? 'boxes' : 'bands'}`);
+      }
+      const had = [...layoutTiles(sheet.layout)].sort();
+      const has = [...layoutTiles(read)].sort();
       if (JSON.stringify(had) !== JSON.stringify(has)) {
         throw new CubeRefusal(`a sheet's layout holds its tiles, each once: ${had.join(', ') || 'none'}, not ${has.join(', ') || 'none'}`);
       }
-      return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: saved(bands) })));
+      const now: PageLayout = read.kind === 'flow' ? read : saved(read);
+      return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: now })));
     }
     case 'setPageFilter': {
       const filters = page.filters ?? [];
@@ -852,6 +936,15 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'addSheet':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, ...optionalId(o['id'], "a sheet's id"), name: textOrNull(o['name'], "a sheet's name") };
+    case 'addFlow':
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      return { kind, ...optionalId(o['id'], "a sheet's id"), name: textOrNull(o['name'], "a sheet's name") };
+    case 'placeBox':
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      if (typeof o['x'] !== 'number' || typeof o['y'] !== 'number') {
+        throw new CubeRefusal(`a box's place is two numbers, not (${JSON.stringify(o['x'])}, ${JSON.stringify(o['y'])})`);
+      }
+      return { kind, tile: text(o['tile'], 'a box'), x: o['x'], y: o['y'] };
     case 'renameSheet':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, sheet: text(o['sheet'], 'a sheet'), name: textOrNull(o['name'], "a sheet's name") };

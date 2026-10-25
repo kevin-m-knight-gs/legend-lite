@@ -32,6 +32,8 @@ import * as cube from './cube-fixture.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
 import { theirs } from './theirs.ts';
 import { differing, sameButIds } from './page-same.ts';
+import { bandsOf } from './bands-of.ts';
+import { layoutTiles } from '../src/page-document.ts';
 
 /** jsdom has no canvas: a 2D context that draws nothing, so ECharts can mount (as chart-tiles.test.ts does). */
 function inertCanvas(window: JSDOM['window']): void {
@@ -610,7 +612,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     pointer(gridHead, 'pointerup', 140, 10);
     await settle();
     assert.equal(sheetOf(a), first);
-    assert.deepEqual(pg().views().sheets.map((s) => tilesOf(s.layout)), [[a], [chart]]);
+    assert.deepEqual(pg().views().sheets.map((s) => layoutTiles(s.layout)), [[a], [chart]]);
   });
 
   it('a sheet deleted with its grid: that grid\'s following chart elsewhere goes, its frozen one stays, detached; the next sheet is shown', async () => {
@@ -721,7 +723,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
       assert.ok(item, `the page's menu offers ${text}`);
       return item;
     };
-    const bands = (): string[][] => pg().views().sheets[0]!.layout.bands.map((band) => tilesOf({ fit: false, bands: [band] }));
+    const bands = (): string[][] => bandsOf(pg().views().sheets[0]!.layout).bands.map((band) => tilesOf({ fit: false, bands: [band] }));
     const sideBySide = bands();
     entry('Arrange…').click();
     await settle();
@@ -1177,7 +1179,7 @@ describe('titles and ids: renamed tiles moved and saved, a new grid beside a kep
     assert.ok(item, 'the chart\'s Move to Sheet > Sheet 2');
     item.click();
     await settle();
-    assert.equal(pg().views().sheets.find((s) => tilesOf(s.layout).includes(chart))?.id, sheetOf(chart));
+    assert.equal(pg().views().sheets.find((s) => layoutTiles(s.layout).includes(chart))?.id, sheetOf(chart));
     assert.equal(chartView(chart)!.title, 'Desk mix', 'moved under the name it was given');
     // saved: the renamed grid's title written, the other's (as it was made) left out
     const doc = pg().document('Q3')!;
@@ -1599,7 +1601,7 @@ describe("the S3 audit's findings: a page of its own", () => {
     await settle();
     const moved = shares();
     assert.deepEqual(Object.keys(moved).sort(), [a, b, chart].sort(), `the drag moved b beside a: ${JSON.stringify(moved)}`);
-    assert.equal(pg().views().sheets[0]!.layout.bands.length, 1, 'one band: b beside a and its chart');
+    assert.equal(bandsOf(pg().views().sheets[0]!.layout).bands.length, 1, 'one band: b beside a and its chart');
   });
 
   it('P14: an arrangement picked is told as the arrangement, the page\'s tiles arranged by it', async () => {
@@ -1622,7 +1624,7 @@ describe("the S3 audit's findings: a page of its own", () => {
     (await shown<HTMLButtonElement>(host, '.dc-layout-picker [data-preset="focus-left"]')).click();
     await settle();
     assert.deepEqual(told.map((c) => c.kind), ['arrange']);
-    assert.deepEqual(new Set(tilesOf(pg().views().sheets.find((s) => s.id === sheet)!.layout)), new Set([a, chart, b]));
+    assert.deepEqual(new Set(layoutTiles(pg().views().sheets.find((s) => s.id === sheet)!.layout)), new Set([a, chart, b]));
   });
 
   it('F11: a detached chart\'s Show Grid is told, and undone and redone the board is the state the step holds', async () => {

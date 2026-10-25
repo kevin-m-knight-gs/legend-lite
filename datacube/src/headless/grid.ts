@@ -41,7 +41,9 @@ import { applyToSnapshot } from '../config.ts';
 import { applyGridCommands, readGridCommand, readMeasure, type GridCommand } from '../grid-commands.ts';
 import { measureCommands } from '../grid-measures.ts';
 import type { GridDraft } from '../grid-edits.ts';
-import { leftOutNote, leftOutWhenUnopened, plainNumbers, readGridCopy, readPage, type GridCopy, type PageView } from '../page-document.ts';
+import {
+  layoutTiles, leftOutNote, leftOutWhenUnopened, plainNumbers, readGridCopy, readPage, type GridCopy, type PageView,
+} from '../page-document.ts';
 import { gridLens, readPageFilters } from '../page-filters.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError, type ModelOptions } from '../planner.ts';
@@ -63,7 +65,6 @@ import { hostCalls, hostEngine, hostWorker } from './host.ts';
 import { leafOnHost, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
 import { inputRows } from '../join-open.ts';
 import type { JoinSide } from '../join.ts';
-import { tiles } from '../layout/bands.ts';
 import { gridInput, liveGrids, resolvedSource } from '../live-inputs.ts';
 import type { PageDocument } from '../page-document.ts';
 import { classGiven, className, type ClassElement } from '../class-source.ts';
@@ -516,7 +517,7 @@ export async function rowsCube(spec: string): Promise<string> {
     name: page.name, source: { ...live, columns: columns.map((c) => ({ name: c.name, type: c.type })) },
     snapshot: state.snapshot, configuration: state.configuration, tree: state.tree,
   });
-  const sheet = s.sheet ?? page.sheets.find((sh) => tiles(sh.layout).includes(s.input))?.id ?? page.sheets[0]!.id;
+  const sheet = s.sheet ?? page.sheets.find((sh) => layoutTiles(sh.layout).includes(s.input))?.id ?? page.sheets[0]!.id;
   const command = `{"kind":"addGrid","document":${cubeToJson(cube)},"sheet":${JSON.stringify(sheet)},`
     + `"near":${JSON.stringify(s.input)},"title":${JSON.stringify(s.title)},"columns":null}`;
   const reads = 'source' in base ? `"source":${JSON.stringify(base.source)}` : `"relation":${base.relation}`;

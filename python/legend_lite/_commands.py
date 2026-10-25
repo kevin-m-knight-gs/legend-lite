@@ -14,9 +14,9 @@ _ABSENT: Any = object()
 GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort',
                                'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate', 'editCalculated',
                                'removeCalculated', 'open', 'collapseAll', 'expandAll', 'topN', 'tree',)
-PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet',
-                               'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText', 'followGrid',
-                               'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout',
+PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'addFlow', 'placeBox', 'renameSheet', 'moveSheet',
+                               'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText',
+                               'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout',
                                'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto', 'modelPin',
                                'modelKeep',)
 
@@ -114,6 +114,14 @@ def page_saved_as(*, record: Any) -> dict[str, Any]:
 
 def page_add_sheet(*, id: Any = _ABSENT, name: Any) -> dict[str, Any]:
     return {'kind': 'addSheet', **({} if id is _ABSENT else {'id': id}), 'name': name}
+
+
+def page_add_flow(*, id: Any = _ABSENT, name: Any) -> dict[str, Any]:
+    return {'kind': 'addFlow', **({} if id is _ABSENT else {'id': id}), 'name': name}
+
+
+def page_place_box(*, tile: Any, x: Any, y: Any) -> dict[str, Any]:
+    return {'kind': 'placeBox', 'tile': tile, 'x': x, 'y': y}
 
 
 def page_rename_sheet(*, sheet: Any, name: Any) -> dict[str, Any]:

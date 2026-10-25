@@ -15,6 +15,7 @@ import { COUNTRY_COLUMNS, countriesCsv, salesCsv, SALES_COLUMNS } from '../src/s
 import { COUNTRY_SPECS, prepJoinsPage } from '../src/examples/prep-joins.ts';
 import { openCube } from '../src/cube-document.ts';
 import { element } from '../../pure-protocol/src/index.ts';
+import { layoutTiles } from '../src/page-document.ts';
 
 /** The pages of charts over the sales sample; the join example is read below. */
 const CHART_PAGES = EXAMPLE_PAGES.filter((e) => e.id.startsWith('charts-'));
@@ -28,7 +29,7 @@ describe('the example pages', () => {
     it(`${example.label}: opens as a saved page, every view on a sheet, every chart drawable`, async () => {
       const page = readPage(pageToJson(await example.build()));
       assert.ok(page.sheets.length >= 2, 'a sheet per family, and the grid');
-      const placed = page.sheets.flatMap((s) => tiles(s.layout));
+      const placed = page.sheets.flatMap((s) => layoutTiles(s.layout));
       assert.deepEqual([...placed].sort(), page.views.map((v) => v.id).sort(), 'every view once, on one sheet');
       const charts = page.views.filter((v) => v.kind === 'chart');
       assert.ok(charts.length >= 20, `simple to complex: ${charts.length} charts`);
@@ -52,7 +53,7 @@ describe('the example pages', () => {
       'each kind once');
     const dashboard = page.sheets.find((s) => s.name === 'KPI dashboard');
     assert.ok(dashboard, 'a KPI dashboard sheet');
-    const onDashboard = new Set(tiles(dashboard.layout));
+    const onDashboard = new Set(layoutTiles(dashboard.layout));
     for (const v of own) {
       if (v.kind !== 'chart' || onDashboard.has(v.id)) continue;
       const label = CHART_MARKS.find((m) => m.value === v.spec.mark)!.label;
@@ -96,7 +97,7 @@ describe('the example pages', () => {
   it('the join example: two samples, their join by ISO code and the orders it leaves out, each reopened from its samples', async () => {
     const page = readPage(pageToJson(await prepJoinsPage()));
     assert.deepEqual(page.sheets.map((s) => s.name), ['Two tables', 'Joined', 'No match']);
-    const placed = page.sheets.flatMap((s) => tiles(s.layout));
+    const placed = page.sheets.flatMap((s) => layoutTiles(s.layout));
     assert.deepEqual([...placed].sort(), page.views.map((v) => v.id).sort(), 'every view once, on one sheet');
     const cube = (id: string) => page.cubes.find((c) => c.id === id)!.cube;
     // the two tables: each a sample, rebuilt on opening

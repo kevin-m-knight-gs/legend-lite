@@ -19,7 +19,6 @@ import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-a
 import { HOLD_MS } from '../src/ui/long-press.ts';
 import { gridCopyOf, newPage as freshPage, pageToJson, readPage, unnamedLabel, type PageDocument } from '../src/page-document.ts';
 import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
-import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { applyPageCommands, idsOf, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
@@ -31,6 +30,8 @@ import * as echarts from 'echarts/core';
 // loaded within one settle() on any machine -- CI's Windows runner took longer than that to fetch it (PR #64's CI,
 // 2026-10-22: 'a page with a class grid has the bar' saw the slot still empty)
 import '../src/ui/page-filter-bar.ts';
+import { bandsOf } from './bands-of.ts';
+import { layoutTiles } from '../src/page-document.ts';
 
 let dom: JSDOM;
 let host: HTMLElement;
@@ -569,7 +570,7 @@ describe('a page of its own', () => {
     const second = page.sheets[1]!;
     gridMenuItem(a, 'Sheet 2').click();
     await settle();
-    assert.deepEqual(page.sheets.map((id) => page.views().sheets.find((s) => s.id === id)!.layout.bands.length), [1, 1]);
+    assert.deepEqual(page.sheets.map((id) => bandsOf(page.views().sheets.find((s) => s.id === id)!.layout).bands.length), [1, 1]);
     assert.equal(tile(a).closest<HTMLElement>('.dc-sheet')!.dataset['sheet'], second, 'the grid is on the second sheet');
     assert.equal(tile(chart).closest<HTMLElement>('.dc-sheet')!.dataset['sheet'], first, 'its chart stays');
     assert.deepEqual(tabs(), ['Sheet 1', 'trades.csv'], 'each sheet named after its first grid, else by its place');
@@ -610,7 +611,7 @@ describe('a page of its own', () => {
     assert.deepEqual(tabs(), ['Charts', 'trades.csv']);
     const doc = page.document('Q3')!;
     assert.deepEqual(doc.sheets.map((s) => [s.id, s.name]), [[s2, 'Charts'], [s1, undefined]]);
-    assert.deepEqual(doc.sheets.map((s) => tilesOf(s.layout)), [[chart], [a]]);
+    assert.deepEqual(doc.sheets.map((s) => layoutTiles(s.layout)), [[chart], [a]]);
     const back = readPage(pageToJson(doc));
     page.dispose();
     newPage();
@@ -641,7 +642,7 @@ describe('a page of its own', () => {
     await settle();
     assert.equal(page.sheets.length, 2);
     // the grid and its chart under it (two bands since 2026-10-23: a chart goes under its grid) stay where they were
-    assert.deepEqual(page.views().sheets.map((s) => s.layout.bands.length), [2, 0]);
+    assert.deepEqual(page.views().sheets.map((s) => bandsOf(s.layout).bands.length), [2, 0]);
   });
 
   it('a grid behind a chart in a stack still exports its table, beside the charts of its sheet', async () => {

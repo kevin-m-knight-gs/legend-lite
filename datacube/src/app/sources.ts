@@ -185,6 +185,9 @@ export interface SourcesOf {
    */
   readonly page: {
     readonly cubes: readonly string[]; readonly recoverable?: readonly string[];
+    /** A flow's boxes not shown (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1's design, 3): on the page, no grid made for
+     *  them -- what each read when it was last shown stays, so showing it again reads no file again. */
+    readonly boxes?: readonly string[];
     /** Its name ('' before it has one) and its model, where it has one: what a class it names is read by (K16, K17). */
     readonly title: string; readonly model: PageModelRef | undefined;
   };
@@ -227,6 +230,12 @@ export interface PageSources {
    */
   reopened(doc: CubeDocument, page: string | undefined, several: boolean, tables?: readonly string[],
     served?: boolean, on?: GridOn): Promise<Opened | undefined>;
+  /**
+   * A NEW BOX AFTER ANOTHER (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL5): a grid over `source`, another grid's rows as
+   * `page` has them, in this tab -- over `tables`, those of the grid it reads, when that grid is open (none read
+   * again) -- `capped` beside the page's others; undefined when the person gave up.
+   */
+  openedBox(source: RowsSource, page: PageDocument, how: { readonly capped: boolean; readonly tables?: readonly string[] }): Promise<Opened | undefined>;
   /** A saved query's record -- from a store, or as a share link carries it -- as a cube's source. */
   openedRecord(q: SavedQueryRecord): Promise<OpenedQuery>;
   /** A frame of the host's (Python's dataframe) for a grid: fresh, or a saved cube rebuilt over it. */
@@ -417,8 +426,12 @@ export function pageSources(d: SourcesOf): PageSources {
   const readAt = new Map<string, Date>();
 
   const madeGrid = (id: string, place: GridPlace): void => {
-    // its own planner: let go with the last grid planning through it (a snap's copy lets its own go with it)
+    // its own planner: let go with the last grid planning through it (a snap's copy lets its own go with it) -- and the
+    // one a grid made before under its id planned through, made anew (a flow's box shown again), once none plans by it
+    const was = gridPlanners.get(id) ?? [];
     gridPlanners.set(id, place.planner ? [place.planner] : []);
+    const still = new Set([...gridPlanners.values()].flat());
+    for (const p of was) if (!still.has(p)) p.dispose?.();
     gridPlaces.set(id, place);
     if (place.tables) gridTables.set(id, place.tables);
     for (const t of place.tables ?? []) {
@@ -444,7 +457,7 @@ export function pageSources(d: SourcesOf): PageSources {
    */
   const dropUnread = (): void => {
     // the grids on the page, and those an undo can bring back: what they read stays
-    const live = new Set([...page.cubes, ...(page.recoverable ?? [])]);
+    const live = new Set([...page.cubes, ...(page.recoverable ?? []), ...(page.boxes ?? [])]);
     const read = new Set([...live].flatMap((grid) => gridTables.get(grid) ?? []));
     for (const grid of [...gridTables.keys()]) if (!live.has(grid)) gridTables.delete(grid);
     for (const [table, fileName] of [...held]) {
@@ -883,19 +896,21 @@ export function pageSources(d: SourcesOf): PageSources {
     how: { readonly saved?: CubeDocument; readonly capped?: boolean; readonly page?: string; readonly kept?: readonly string[] }):
     Promise<Opened | undefined> {
     if (!local && database.opened) return openedOnHost(src, doc, several, on);
-    return openedRows(src, on, how);
+    return openedRows(src, on.page, on.cube, how);
   }
 
   /**
    * ANOTHER GRID'S ROWS FOR A GRID (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1; app/join-sources.ts, fetched with it):
-   * `source` as its page keeps it, its link resolved against `on`'s page -- over the tables of this tab its chain reads,
+   * `source` as its page keeps it, its link resolved against `page` -- the grid of `cube` there, when it is one of the
+   * page's (a new one is none yet), refused should it read itself back -- over the tables of this tab its chain reads,
    * as a join's are, or over its first source as a grid over that opens (a warehouse table, a class, a saved query).
    */
-  async function openedRows(source: RowsSource, on: GridOn, how: { readonly saved?: CubeDocument; readonly capped?: boolean;
-    readonly page?: string; readonly kept?: readonly string[] } = {}): Promise<Opened | undefined> {
+  async function openedRows(source: RowsSource, page: PageDocument, cube: string | undefined, how: { readonly saved?: CubeDocument;
+    readonly capped?: boolean; readonly page?: string; readonly kept?: readonly string[]; readonly tables?: readonly string[] } = {}):
+    Promise<Opened | undefined> {
     if (!local) throw new Error(`${source.name} reads another grid's rows, opened in this tab's own database: this page has none`);
-    const grid = on.page.views.find((v) => v.kind === 'grid' && v.cube === on.cube)?.id;
-    const resolved = resolvedSource(on.page, source, grid);
+    const grid = cube === undefined ? undefined : page.views.find((v) => v.kind === 'grid' && v.cube === cube)?.id;
+    const resolved = resolvedSource(page, source, grid);
     if (resolved._type !== 'rows') throw new Error(`${source.name} resolved as another kind of source (${resolved._type})`);
     const { openedRows: opened } = await joinSources();
     return opened(tablesHost(local), source, resolved, how);
@@ -1344,6 +1359,7 @@ export function pageSources(d: SourcesOf): PageSources {
     opened,
     named,
     reopened,
+    openedBox: (source, page, how) => openedRows(source, page, undefined, how),
     openedRecord,
     openedFrame,
     openedClass,

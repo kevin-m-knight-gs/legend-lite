@@ -4377,3 +4377,198 @@
 .dc-text-area { flex: 1 1 auto; min-height: 4em; resize: none; margin: var(--dc-pad-2); font: inherit; font-family: var(--dc-mono, ui-monospace, monospace); }
 .dc-text-bar { display: flex; align-items: center; gap: var(--dc-pad-2); padding: 0 var(--dc-pad-2) var(--dc-pad-2); }
 .dc-text-problem { flex: 1 1 auto; color: var(--dc-error, #c62828); font-size: var(--dc-text-sm-size); }
+
+/* ---- A FLOW SHEET (layout/flow-board.ts, flow-canvas.ts; docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.4): the palette, the
+   canvas of boxes on a dot grid, and the results pane below -- the grid of the box shown ---- */
+.dc-flow {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  position: relative;
+  background: var(--dc-bg);
+}
+.dc-flow-palette {
+  flex: none;
+  width: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 6px;
+  border-right: 1px solid var(--dc-line-faint);
+  background: var(--dc-bg);
+  overflow-y: auto;
+}
+.dc-flow-palette[hidden] { display: none; }
+.dc-flow-tool {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 2px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dc-muted-strong);
+  font: inherit;
+  font-size: 11px;
+  line-height: 14px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.dc-flow-tool:hover { background: var(--dc-fill-faint); border-color: var(--dc-line-faint); color: var(--tw-black); }
+.dc-flow-tool:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
+.dc-flow-tool-name { white-space: nowrap; }
+
+/* a tool's icon: its glyph in its group's colour, on a tint of it (Alteryx's groups: in and out, preparation, join,
+   transform) -- readable on either theme, the colour tokens being each theme's own */
+.dc-flow-icon {
+  --dc-flow-tone: var(--tw-sky-600);
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--dc-flow-tone);
+  background: color-mix(in srgb, var(--dc-flow-tone) 14%, transparent);
+}
+.dc-flow-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+[data-group='in'] > .dc-flow-icon { --dc-flow-tone: var(--tw-green-700); }
+[data-group='join'] > .dc-flow-icon { --dc-flow-tone: var(--tw-amber-500); }
+[data-group='transform'] > .dc-flow-icon { --dc-flow-tone: var(--tw-orange-500); }
+
+.dc-flow-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.dc-flow-canvas {
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow: auto;
+  position: relative;
+  outline: none;
+  background-color: var(--tw-neutral-50);
+  background-image: radial-gradient(circle, var(--tw-neutral-300) 1px, transparent 1.25px);
+  background-size: 16px 16px;
+}
+.dc-flow-plane { position: relative; min-width: 100%; min-height: 100%; }
+.dc-flow-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.dc-flow-lines path { fill: none; stroke: var(--tw-neutral-400); stroke-width: 1.5; }
+.dc-flow-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--dc-muted);
+  text-align: center;
+  pointer-events: none;
+}
+.dc-flow-hint[hidden] { display: none; }
+
+/* a box: a card, its tool's icon, its name and what it is set to; its ports at its sides */
+.dc-flow-box {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 184px;
+  height: 60px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--dc-line);
+  border-radius: 10px;
+  background: var(--dc-bg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: box-shadow 120ms ease, border-color 120ms ease;
+}
+.dc-flow-box:hover { border-color: var(--dc-line-strong); box-shadow: 0 2px 8px rgb(0 0 0 / 10%); }
+.dc-flow-box:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 2px; }
+.dc-flow-box.dc-flow-shown { border-color: var(--dc-active); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dc-active) 22%, transparent); }
+.dc-flow-box.dc-flow-target { border: 1px dashed var(--dc-active); background: var(--dc-selected-bg); }
+.dc-flow-box.dc-flow-dragging { cursor: grabbing; z-index: 2; transition: none; box-shadow: 0 8px 20px rgb(0 0 0 / 18%); }
+.dc-flow-view .dc-flow-box { cursor: pointer; }
+.dc-flow-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.dc-flow-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-says { font-size: 11px; line-height: 14px; color: var(--dc-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-rename { width: 100%; box-sizing: border-box; font: inherit; padding: 0 3px; border: 1px solid var(--dc-active); border-radius: 3px; background: var(--dc-bg); color: inherit; }
+.dc-flow-x {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: none;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dc-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dc-flow-box:hover > .dc-flow-x:not([hidden]), .dc-flow-box:focus-within > .dc-flow-x:not([hidden]) { display: grid; }
+.dc-flow-x:hover { background: var(--dc-fill); color: var(--tw-black); }
+.dc-flow-port {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -5px;
+  border: 1.5px solid var(--dc-line-strong);
+  border-radius: 50%;
+  background: var(--dc-bg);
+}
+.dc-flow-port-in { left: -5px; }
+.dc-flow-port-out { right: -5px; }
+.dc-flow-box[data-tool='input'] > .dc-flow-port-in { display: none; }
+.dc-flow-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0.92;
+  background: var(--dc-bg);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 18%);
+}
+
+/* the results pane: the box shown's grid, its height the divider's */
+.dc-flow-split {
+  flex: none;
+  height: 6px;
+  border-top: 1px solid var(--dc-line);
+  background: var(--dc-fill-faint);
+  cursor: row-resize;
+  touch-action: none;
+}
+.dc-flow-split:hover, .dc-flow-split:focus-visible { background: var(--dc-selected-line); outline: none; }
+.dc-flow-results {
+  flex: none;
+  height: var(--dc-flow-results, 45%);
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  background: var(--dc-bg);
+}
+.dc-flow-results-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--dc-pad-1);
+  height: var(--dc-control-height);
+  padding: 0 var(--dc-pad-1) 0 var(--dc-pad-2);
+  border-bottom: 1px solid var(--dc-line-faint);
+  font-weight: 500;
+}
+.dc-flow-results-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-results-actions { flex: none; display: flex; align-items: center; gap: var(--dc-pad-1); }
+.dc-flow-results-body { flex: 1 1 auto; min-height: 0; display: flex; }
+.dc-flow-results-body > * { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.dc-flow-results-empty { display: grid; place-items: center; color: var(--dc-muted); padding: 16px; text-align: center; }

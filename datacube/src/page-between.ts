@@ -18,10 +18,9 @@
 // `whole`: everything a page command can set; what none can (a model gone, a model moved, a pin taken off, a cube opened
 // again over its source as it is now: `rebuilt`) is refused in words, and the screen opens the page again instead.
 
-import { tiles } from './layout/bands.ts';
 import { applyPageCommand, idsOf, nextPageId, takenIds, type PageCommand, type PageDraft } from './page-commands.ts';
 import type { CubeDocument } from './cube-document.ts';
-import type { ChartView, GridCopy, GridView, PageDocument, PageSheet, PageView, TextView } from './page-document.ts';
+import { layoutTiles, type ChartView, type GridCopy, type GridView, type PageDocument, type PageSheet, type PageView, type TextView } from './page-document.ts';
 import { rearranged, renamedCommand } from './page-rebase.ts';
 import { CubeRefusal, sameValue } from './snapshot.ts';
 
@@ -107,7 +106,7 @@ export function applyPlanned(draft: PageDraft, commands: readonly PageCommand[],
   return { draft: d, applied, renamed: Object.fromEntries(renamed) };
 }
 
-const sheetOf = (page: PageDocument, tile: string): PageSheet | undefined => page.sheets.find((s) => tiles(s.layout).includes(tile));
+const sheetOf = (page: PageDocument, tile: string): PageSheet | undefined => page.sheets.find((s) => layoutTiles(s.layout).includes(tile));
 const gridShowing = (page: PageDocument, cube: string): PageView | undefined => page.views.find((v) => v.kind === 'grid' && v.cube === cube);
 
 /**

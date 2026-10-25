@@ -259,6 +259,14 @@ class Grid(Tile):
         docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): a frame's grid its one, a join's each of its leaves'."""
         return _cube_frames(self._page._session, self._cube, self._page._doc, self._view['cube'])
 
+    def place(self, x: int, y: int) -> Grid:
+        """Its box moved to (``x``, ``y``) on its flow's canvas -- its top-left corner, in the canvas's units, neither
+        below zero -- as a box dragged there is moved (page-commands.ts placeBox; docs/DATACUBE_FLOW_MODE_2026_10_24.md
+        FL20). A grid on a board is placed by its layout: refused in DataCube's words."""
+        _ = self._view
+        self._page._apply_page([_commands.page_place_box(tile=self._id, x=x, y=y)])
+        return self
+
     def _apply(self, commands: list[dict[str, Any]]) -> Grid:
         """The grid edited by commands, each the one DataCube's screen builds for the same edit (grid-commands.ts:
         docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md), each written by its generated builder (``_commands``: D17) --
@@ -1324,8 +1332,20 @@ class Sheet:
 
     @property
     def tiles(self) -> list[Tile]:
-        """Its tiles in reading order, a stack's in its tabs' order."""
+        """Its tiles in reading order, a stack's in its tabs' order (a flow's boxes, in the order they were added)."""
         return [self._page._tile_of(t) for t in self._page._tiles(self._doc['layout'])]
+
+    @property
+    def flow(self) -> bool:
+        """Whether it is a flow sheet (``page.flow()``): its boxes on a canvas, each a grid, placed by ``box.place``."""
+        return self._doc['layout']['kind'] == 'flow'
+
+    def grid(self, frame: Any = None, **given: Any) -> Grid:
+        """A grid on this sheet, as ``page.grid(..., sheet=this)`` adds one: on a flow, a box -- after ``input``, the box
+        it reads, when it is one of this flow's."""
+        if 'sheet' in given:
+            raise ValueError("a sheet's grid is on that sheet: it takes no sheet=")
+        return self._page.grid(frame, sheet=self, **given)
 
     def text(self, text: str, *, title: str | None = None) -> Text:
         """A text tile on this sheet, a band of its own at its bottom (``title``: its own; None, numbered), as the
@@ -1837,6 +1857,14 @@ class Page:
         """A new sheet after the last (``name``: its own; None, named after its first grid)."""
         # as the screen adds one -- what is not text refused by addSheet's reader, in DataCube's words (page-commands.ts addSheet): its id after every one the page has held
         applied = self._apply_page([_commands.page_add_sheet(name=name)], "a sheet's name")
+        return self._sheet(applied[0]['id'])
+
+    def flow(self, name: str | None = None) -> Sheet:
+        """A new flow sheet after the last (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4, FL20; ``name``: its own; None,
+        "Flow n"): a canvas of boxes, each a grid that does one step -- ``flow.grid(...)`` its first, ``flow.grid(input=box)``
+        each after another, ``box.place(x, y)`` where it sits -- as the screen's Create ▸ Flow adds one."""
+        # as the screen adds one (page-commands.ts addFlow): its id after every one the page has held
+        applied = self._apply_page([_commands.page_add_flow(name=name)], "a sheet's name")
         return self._sheet(applied[0]['id'])
 
     def stack(self, *tiles: Tile) -> None:

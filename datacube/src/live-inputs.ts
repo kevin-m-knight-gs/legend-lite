@@ -61,6 +61,36 @@ function resolvedOn(page: PageDocument, source: CubeSource, through: readonly st
   }
 }
 
+/** A source with every grid its links name renamed (`n`: an id to the id it is now), as the page's ids are renamed
+ *  (page-rebase.ts renamedCommand). */
+export function relinked(source: CubeSource, n: (id: string) => string): CubeSource {
+  const input = (i: CubeInput): CubeInput => (isLive(i) ? { grid: n(i.grid) } : { ...i, source: relinked(i.source, n) });
+  switch (source._type) {
+    case 'rows': return { ...source, input: input(source.input) };
+    case 'join': return { ...source, left: { ...source.left, source: relinked(source.left.source, n) }, right: { ...source.right, source: relinked(source.right.source, n) } };
+    default: return source;
+  }
+}
+
+/**
+ * A SOURCE WITH ITS LINKS TO `grid` FROZEN (FL6: a grid removed while others read it live): each live input naming it
+ * replaced by `copy`, what that grid was (gridInput) -- through its frozen inputs too; every other link as it is.
+ */
+export function frozenFrom(source: CubeSource, grid: string, copy: JoinInput): CubeSource {
+  const input = (i: CubeInput): CubeInput => (isLive(i) ? (i.grid === grid ? copy : i) : { ...i, source: frozenFrom(i.source, grid, copy) });
+  switch (source._type) {
+    case 'rows': return { ...source, input: input(source.input) };
+    case 'join': {
+      const left = input(source.left);
+      const right = input(source.right);
+      // a join's inputs are copies already (JoinInput): a live one is none of its own
+      if (isLive(left) || isLive(right)) throw new Error(`${source.name}: a join's inputs are copies, never live`);
+      return { ...source, left, right };
+    }
+    default: return source;
+  }
+}
+
 /**
  * Whether a page's live inputs all hold: each names a grid of the page, and none reads its own rows -- the problem in
  * words, else undefined. A page read (page-document.ts readPage) is held to it.

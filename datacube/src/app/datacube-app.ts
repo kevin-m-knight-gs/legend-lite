@@ -15,7 +15,9 @@ import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { fn } from '../../../pure-protocol/src/index.ts';
 import { CubeApp, type CubeAppQuerySource } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
-import { gridCapped } from '../cube-document.ts';
+import { gridCapped, type CubeDocument, type RowsSource } from '../cube-document.ts';
+import type { FlowTool } from '../flow-boxes.ts';
+import { gridInput } from '../live-inputs.ts';
 import { handleKey } from '../file-handles.ts';
 import { Latest, TabWork, mayLeave } from '../host.ts';
 import { PlanThenRun, type PlanAndRun } from '../runner.ts';
@@ -25,6 +27,7 @@ import {
   modelPageName,
   openedLive,
   openingOrder,
+  boxCubes,
   pageContent,
   pageDefinitionText,
   pageToJson,
@@ -378,6 +381,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let createDataSpace: (() => void) | undefined;
   /** ADD A GRID OVER <CLASS> (§16.1): the class grid `cube` was made, read beside it at the page's pin. */
   let classGrid: ((cube: string | undefined) => void) | undefined;
+  /** A FLOW'S BOX SHOWN, and a tool of its palette added (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1), once the page can
+   *  open sources. */
+  let openBox: ((box: string, document: CubeDocument, now: PageDocument) => Promise<GridMaker | undefined>) | undefined;
+  let flowTool: ((tool: FlowTool, after: string | undefined, sheet: string, now: PageDocument) => void) | undefined;
   /** JOIN… (§17.5): grid `cube` joined to another of the page -- in the tab, where a grid reads tables of its database; by
    *  the host, on a host's page (B11). Offered on a grid's menu where `offered` says. */
   let joinGrid: { readonly offered: (place: GridPlace) => boolean; readonly open: (cube: string | undefined, ask?: JoinAsk) => void } | undefined;
@@ -509,6 +516,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     ...(picks ? { openSource: () => picker?.('add') ?? Promise.resolve(undefined) } : {}),
     // where the page can start again from a blank one: a data source, or a saved page
     ...(picks || services.pages ? { onBlankPage: () => blankPage?.({ asked: true }) } : {}),
+    // a flow's box shown, over the page as it is now; a tool of its palette added
+    openBox: (box, document, now) => openBox?.(box, document, now) ?? Promise.resolve(undefined),
+    onFlowTool: (tool, after, sheet, now) => flowTool?.(tool, after, sheet, now),
     onChange: () => {
       harnessSignal.changes += 1;
       // a grid gone from the page is followed no more
@@ -821,8 +831,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const notes: string[] = [...opened.notes];
       sources.reserve(Object.values(doc.model?.tables ?? {}).flat());
       try {
-        // a class's grid after the grids whose tables it reads, a grid after the grids it reads (page-document.ts openingOrder)
+        // a class's grid after the grids whose tables it reads, a grid after the grids it reads (page-document.ts openingOrder);
+        // a flow's box is a document until it is shown, opened then (boxCubes)
+        const boxes = boxCubes(doc);
         for (const { id: cubeId, cube } of openingOrder(doc.cubes, doc.views)) {
+          if (boxes.has(cubeId)) continue;
           let o: Opened | undefined;
           let why = 'not opened';
           try {
@@ -858,7 +871,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       }
       // a page its other editor serves opens as its keeper has it, a page of no grid (or none opened) too: its name, its
       // sheets and the ids it holds are the page's (the S7 audit's H-1)
-      const unopened = replacing ? undefined : noneOpened(doc.name, makers.size);
+      const unopened = replacing ? undefined : noneOpened(doc.name, makers.size + boxCubes(doc).size);
       if (unopened !== undefined) {
         library?.say(unopened, 'warn');
         return [];
@@ -1309,6 +1322,44 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         }
         page.addGrid(opened.make, { near: cube });
       })().catch((e: unknown) => window.alert(`Create ▸ Grid over a class: ${e instanceof Error ? e.message : String(e)}`));
+    };
+    // A FLOW'S BOX SHOWN (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1's design, 3): opened as a saved page's grid is, over
+    // the page as it is now -- its live inputs read there -- by its host on a page Python serves; what it said, said
+    openBox = async (box, document, now) => {
+      const shown = placed;
+      const cube = now.views.find((v) => v.id === box && v.kind === 'grid')?.cube ?? box;
+      const opened = await sources.reopened(document, undefined, true, now.model?.tables[cube], channel !== undefined, { page: now, cube });
+      if (opened === undefined) return undefined;
+      if (placed !== shown) {
+        await opened.discard?.();
+        return undefined;
+      }
+      if (opened.notes.length > 0) sayResting({ text: opened.notes.join('; '), warn: true });
+      return opened.make;
+    };
+    // A TOOL OF THE PALETTE: an Input, a grid over a source picked now, a box of its own; any other tool, a box after
+    // `after` -- a grid over that box's rows, read live -- over the tables that box's grid reads when it is shown
+    flowTool = (tool, after, sheet, now) => {
+      void (async () => {
+        const shown = placed;
+        if (tool === 'input') {
+          const make = await picker?.('add');
+          if (make !== undefined && placed === shown) page.addGrid(make);
+          return;
+        }
+        if (after === undefined) {
+          throw new Error("this tool reads another box's rows: click a box first, or drop the tool on one");
+        }
+        const live: RowsSource = { _type: 'rows', name: gridInput(now, after).name, input: { grid: after }, columns: [] };
+        const tables = sources.place(after)?.tables;
+        const opened = await sources.openedBox(live, now, { capped: gridCapped(now.cubes.length + 1), ...(tables ? { tables } : {}) });
+        if (opened === undefined) return;
+        if (placed !== shown || !page.sheets.includes(sheet)) {
+          await opened.discard?.();
+          return;
+        }
+        page.addGrid(opened.make, { near: after });
+      })().catch((e: unknown) => window.alert(`${tool[0]!.toUpperCase()}${tool.slice(1)}: ${e instanceof Error ? e.message : String(e)}`));
     };
     // JOIN… (§17.5): where the page plans and runs its own SQL, its grids' tables in its own database (§17.3); on a
     // host's page (Python's), which has none there, the host answers its window's asks over its tables (HostJoin: B11).

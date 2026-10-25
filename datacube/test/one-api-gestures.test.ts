@@ -494,6 +494,16 @@ const withSheet = async (): Promise<Record<string, string>> => {
   return g;
 };
 
+/** A flow sheet with a box on it (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): the page's two grids, then a flow, shown,
+ *  and a grid added on it -- the box shown. */
+const withFlow = async (): Promise<Record<string, string>> => {
+  const g = await twoGrids();
+  pg().addFlow();
+  const box = pg().addGrid(over('desks.csv'));
+  await shown(host, `.dc-flow-box[data-tile="${box}"]`);
+  return { ...g, box };
+};
+
 const GESTURES: readonly Gesture[] = [
   // the page
   { name: 'a grid added', setUp: twoGrids, make: async ({ a }) => { pg().addGrid(over('desks.csv'), { near: a! }); } },
@@ -520,6 +530,16 @@ const GESTURES: readonly Gesture[] = [
   // a text tile (page-text.ts): Create ▸ Text Box, then its words edited in place (its drawing and editor a chunk of their
   // own, fetched with the first: the editor waited for)
   { name: 'a text box added', setUp: twoGrids, make: ({ a }) => gridMenuItem(a!, 'Text Box').click() },
+  // a flow sheet (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4): Create ▸ Flow, and a box moved by its arrow key
+  { name: 'a flow added', setUp: twoGrids, make: () => { pg().addFlow(); } },
+  {
+    name: 'a box moved',
+    setUp: withFlow,
+    make: ({ box }) => {
+      host.querySelector<HTMLElement>(`.dc-flow-box[data-tile="${box!}"]`)!
+        .dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    },
+  },
   {
     name: 'a text tile edited in place',
     setUp: async () => {
@@ -895,8 +915,9 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). 2026-10-22 (the S7 confirmation
  *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it.
- *  2026-10-24 (BI parity P4, text tiles): 51 -> 53, a text box added and a text tile edited in place. */
-const GESTURES_AT_LEAST = 53;
+ *  2026-10-24 (BI parity P4, text tiles): 51 -> 53, a text box added and a text tile edited in place.
+ *  2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4): 53 -> 55, a flow added and a box moved. */
+const GESTURES_AT_LEAST = 55;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

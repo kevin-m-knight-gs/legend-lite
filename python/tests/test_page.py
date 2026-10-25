@@ -2586,6 +2586,63 @@ class Flowed(Paged):
         self.assertEqual(sorted(joined.to_pandas()['notional']), [100.0, 250.0])
 
 
+class Flows(Paged):
+    """A flow sheet (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4, FL20): page.flow() adds one as Create ▸ Flow does, its
+    boxes added by flow.grid(...) -- each after the box it reads, where the palette puts one -- and moved by box.place(x,
+    y) as a drag moves one; what only a board takes refused in DataCube's words; saved and loaded as it was."""
+
+    def flowed(self):
+        page = ll.Page('Flow')
+        flow = page.flow()
+        source = flow.grid(trades(), name='trades')
+        big = flow.grid(input=source)
+        big.filter([('notional', 'greaterThan', 90)])
+        return page, flow, source, big
+
+    def boxes(self, page, flow):
+        sheet = next(s for s in page.to_dict()['sheets'] if s['id'] == flow.id)
+        return sheet['layout']['boxes']
+
+    def test_a_flow_of_boxes_each_after_the_box_it_reads(self):
+        page, flow, source, big = self.flowed()
+        self.assertTrue(flow.flow)
+        self.assertFalse(page.sheets[0].flow)
+        self.assertEqual([t.id for t in flow.tiles], [source.id, big.id])
+        first, after = self.boxes(page, flow)
+        self.assertEqual((first['x'], first['y']), (40, 40))
+        self.assertEqual(after['y'], first['y'], 'after the box it reads, on its row')
+        self.assertGreater(after['x'], first['x'])
+        self.assertEqual(sorted(big.to_pandas()['notional']), [100.0, 250.0])
+
+    def test_a_box_placed_by_hand(self):
+        page, flow, _source, big = self.flowed()
+        big.place(300, 120)
+        self.assertEqual(self.boxes(page, flow)[1], {'tile': big.id, 'x': 300, 'y': 120})
+        with self.assertRaisesRegex(ValueError, 'neither below zero'):
+            big.place(-1, 0)
+        board = page.grid(trades(), name='board_trades')
+        with self.assertRaisesRegex(ValueError, "a tile of a board, placed by its layout"):
+            board.place(0, 0)
+
+    def test_what_only_a_board_takes_refused_in_words(self):
+        page, flow, source, _big = self.flowed()
+        with self.assertRaisesRegex(ValueError, 'a text tile goes on a board sheet'):
+            flow.text('a note')
+        with self.assertRaisesRegex(ValueError, 'is a box of a flow: it moves to another flow sheet'):
+            source.move_to(page.sheets[0])
+        with self.assertRaisesRegex(ValueError, 'placed on its canvas'):
+            flow.layout([source])
+        with self.assertRaisesRegex(ValueError, 'takes no sheet='):
+            flow.grid(trades(), name='other', sheet=flow)
+
+    def test_saved_and_loaded_as_it_was(self):
+        page, flow, _source, _big = self.flowed()
+        saved = page.to_dict()
+        again = ll.Page.load(saved, frames={'trades': trades()})
+        self.assertEqual(again.to_dict()['sheets'], saved['sheets'])
+        self.assertTrue(again.sheets[1].flow)
+
+
 class Snapped(Paged):
     """Snap as page state (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): grid.snap() copies the grid's base query by
     the engine every tab's Snap copies through, and the page's snap command says the grid reads the copy -- every call on
