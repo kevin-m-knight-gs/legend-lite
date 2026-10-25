@@ -1122,7 +1122,7 @@ export class CubePage {
       }),
       cube.on('plane', () => {
         // its rows read from elsewhere now (a snap, going live): its timeseries ask again
-        this.#refreshSeries(id, true);
+        this.#refreshSeries(id);
         this.#options.onChange();
       }),
     ];
@@ -1417,10 +1417,10 @@ export class CubePage {
     this.#refreshSeries(grid);
   }
 
-  /** The timeseries tiles reading grid `grid` told its view landed (`force`: asked again whatever: its rows moved). */
-  #refreshSeries(grid: string, force = false): void {
+  /** The timeseries tiles reading grid `grid` told its view landed: each asks again, as a chart does. */
+  #refreshSeries(grid: string): void {
     const cube = this.#cubeOf(grid);
-    for (const series of this.#series.values()) if (series.spec.sources.some((s) => s.cube === cube)) series.view?.refresh(force);
+    for (const series of this.#series.values()) if (series.spec.sources.some((s) => s.cube === cube)) series.view?.refresh();
   }
 
   #reconcileGrid(grid: string, filter: FilterNode | undefined): void {
@@ -1946,7 +1946,7 @@ export class CubePage {
     this.#grids.delete(id);
     this.#take(id);
     // a timeseries reading it keeps its source, and says its grid is gone (an undo brings it back)
-    this.#refreshSeries(id, true);
+    this.#refreshSeries(id);
     this.#options.onChange();
     this.#afterRemove();
   }

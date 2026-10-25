@@ -57,6 +57,10 @@ export interface TsTogether {
   dispose(): void;
 }
 
+/** How long a grid's view waits before the tile asks again: a burst of views (a grid expanding row by row) asks once, as
+ *  a chart's (ui/chart-panel.ts debounceMs). */
+const REFRESH_DEBOUNCE_MS = 150;
+
 /** What the viewer is given by the page it is on. */
 export interface TimeseriesHost {
   /** A grid of the page by its cube, as it is now; undefined when no grid shows it (removed). */
@@ -197,8 +201,8 @@ export class TimeseriesView {
   /** The person's own look: the dates the zoom shows, until a range is chosen again. */
   #zoom: TsWindow | null = null;
   #asked = '';
-  /** What its series read of their grids when it last asked (`#inputKey`). */
-  #read = '';
+  /** A grid's view landed: the refetch it waits for (`refresh`). */
+  #refreshTimer: ReturnType<typeof setTimeout> | undefined;
   #range = '';
   #gen = 0;
   #zoomTimer: ReturnType<typeof setTimeout> | undefined;
@@ -229,14 +233,18 @@ export class TimeseriesView {
   }
 
   /**
-   * A grid it reads landed a new view: asked again when what its series read of it changed -- its source, its columns,
-   * its calculated columns, its filter (a chart's click among it) -- as every chart of a grid is; a grid regrouped,
-   * sorted or scrolled changes none of it. `force`: asked again whatever (its rows read again, a snap, going live).
+   * A grid it reads landed a new view: asked again, as every chart of a grid is (after `delay`, so a burst of views asks
+   * once). Never kept because what it reads of the grid looks the same: its rows may have moved under the same query (a
+   * frame served again, a file read again), and only the database knows (the owner, 2026-10-25: no results cache; the
+   * review's P2, docs/TIMESERIES_REVIEW_2026_10_25.md).
    */
-  refresh(force = false): void {
-    if (!force && this.#inputKey() === this.#read) return;
-    this.#asked = '';
-    void this.#fetch();
+  refresh(delay = REFRESH_DEBOUNCE_MS): void {
+    clearTimeout(this.#refreshTimer);
+    this.#refreshTimer = setTimeout(() => {
+      if (this.#disposed) return;
+      this.#asked = '';
+      void this.#fetch();
+    }, delay);
   }
 
   /** The chart as drawn now, as a picture (an export of the page); null before it has drawn. */
@@ -247,6 +255,7 @@ export class TimeseriesView {
   dispose(): void {
     this.#disposed = true;
     clearTimeout(this.#zoomTimer);
+    clearTimeout(this.#refreshTimer);
     this.#chart?.dispose();
     this.#chart = null;
   }
@@ -356,20 +365,11 @@ export class TimeseriesView {
     return { ...(r.from !== undefined ? { from: r.from } : {}), ...(r.to !== undefined ? { to: r.to } : {}) };
   }
 
-  /** What the series read of their grids: each source's grid's source, columns, calculated columns and filter. */
-  #inputKey(): string {
-    return JSON.stringify(this.#spec.sources.map((s) => {
-      const g = this.#host.grid(s.cube);
-      return g ? [g.snapshot.source, g.snapshot.columns, g.snapshot.derived, g.filter ?? null] : null;
-    }));
-  }
-
   /** Every series asked again: the bounds, then the series, then the statistics. */
   async #fetch(): Promise<void> {
     const gen = ++this.#gen;
     const spec = this.#spec;
     this.#asked = queryKey(spec);
-    this.#read = this.#inputKey();
     this.#canvas.setAttribute('aria-busy', 'true');
     const problems = timeseriesProblems(spec, this.#columns(spec));
     this.#problems = problems;

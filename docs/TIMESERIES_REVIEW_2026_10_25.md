@@ -83,14 +83,14 @@ Python changes the page only through them; expressions are parsed by DataCube's 
 dated, named and needed; the generated files match their tools; every path that changes the sheet shown draws its
 tiles; the guard holds behind a proxy and CI is unchanged.
 
-## 5. Decisions for the owner
+## 5. Decisions for the owner (decided, the owner, 2026-10-25)
 
-1. **A combination over a snapped grid (P1, P3).** Build it now -- each snapped grid's copy table declared in the one
-   model a combination is planned over, a grid in another store than the copies refused by name until the cross-store
-   join -- or refuse a snapped grid in a combination by name until phase 2?
-2. **No frequency (Q3).** Annualize by the periods a year the database infers from the dates' spacing (gs-quant's
-   rule), refuse the annualized figures with no frequency, or make Daily the default frequency of a date column?
-3. **`frame()` past the drawing's limit (P5).** No limit for Python (the window it asks for, all of it), or refused
-   past it by name?
-4. **A removed grid that a timeseries reads (G4).** Keep the removed grid's cube in the page while a tile reads it (as
-   a frozen chart's is kept), or refuse such a page when it is read?
+1. **A combination over a snapped grid (P1, P3): built now.** Each snapped grid's copy table declared in the one model
+   a combination is planned over, on the tab and on Python's host; a grid in another store than the copies refused by
+   name until the cross-store join.
+2. **No frequency (Q3): inferred from the dates.** The database infers the periods a year from the series' own
+   spacing (gs-quant's rule: daily 252, weekly 52, monthly 12, ...).
+3. **`frame()` past the drawing's limit (P5): no limit for Python.** The window it asks for, all of it; the limit is
+   the drawing's.
+4. **A removed grid that a timeseries reads (G4): its cube kept.** The removed grid's cube stays in the page while a
+   tile reads it, as a frozen chart's is kept, so the tile still draws after a reopen.

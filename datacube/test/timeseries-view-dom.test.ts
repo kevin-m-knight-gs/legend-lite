@@ -34,12 +34,17 @@ const of = (symbol: string): { days: string[]; closes: number[] } => {
 let engine: DuckDbEngine;
 let grid: TsGrid;
 let runs = 0;
+/** The database the grid reads, and its table: a test changes the rows under the grid's query. */
+let database: Awaited<ReturnType<typeof openDatabase>>;
+let table = '';
 
 before(async () => {
   const db = await openDatabase();
+  database = db;
   engine = new DuckDbEngine(db.connection);
   const writer = plannerFor('', 'local::RT');
   const r = await ingestFile(engine, db.files, new File([CSV], 'sample-markets.csv'), writer);
+  table = r.table;
   const planner = plannerFor(r.model, r.runtime);
   const snapshot: CubeSnapshot = {
     source: { query: r.source }, columns: [...MARKET_SPECS], derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1,
@@ -151,6 +156,26 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
       assert.equal(runs, asked, 'a line hidden asks the database nothing');
       const ids = (drawn.at(-1)!.series as { id: string }[]).map((x) => x.id);
       assert.ok(!ids.includes('A'), 'the hidden line is not drawn');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  // the review's P2 (docs/TIMESERIES_REVIEW_2026_10_25.md): rows that move under the same query (a frame served again, a
+  // file read again) were kept, the tile answering from what it had -- a results cache, which the owner ruled out
+  it('a grid\'s view landing asks again, the database\'s new rows drawn though the grid\'s query is the same', async () => {
+    const { root, view } = viewer(SPEC);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      const last = of('SPX').closes.at(-1)!;
+      assert.ok(chips(root)[0]!.includes(last.toFixed(2)));
+      await (database.connection as unknown as { query(sql: string): Promise<unknown> }).query(`UPDATE "${table}" SET close = close * 2`);
+      try {
+        view.refresh(0);
+        await until(() => chips(root)[0]!.includes((last * 2).toFixed(2)), 'the rows as the database now has them');
+      } finally {
+        await (database.connection as unknown as { query(sql: string): Promise<unknown> }).query(`UPDATE "${table}" SET close = close / 2`);
+      }
     } finally {
       view.dispose();
     }

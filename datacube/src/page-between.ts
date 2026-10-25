@@ -165,7 +165,9 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     if (!inFrom(v.id)) {
       const sheet = sheetOf(to, v.id);
       if (sheet === undefined) throw new CubeRefusal(`'${v.id}' is on no sheet of the page: it cannot be made`);
-      emit({ kind: 'addTimeseries', id: v.id, sheet: sheet.id, near: null, spec: renamedSpec(v.spec, n), title: v.title ?? null, columns: null });
+      // the spec as `to` names its grids, as every command of the plan names `to`'s ids: the plan's application renames
+      // them (a spec renamed here was renamed twice: the review's A1, docs/TIMESERIES_REVIEW_2026_10_25.md)
+      emit({ kind: 'addTimeseries', id: v.id, sheet: sheet.id, near: null, spec: v.spec, title: v.title ?? null, columns: null });
       continue;
     }
     const here = cur().views.find((x): x is TimeseriesView => x.kind === 'timeseries' && x.id === n(v.id));
