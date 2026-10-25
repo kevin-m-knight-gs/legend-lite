@@ -29,6 +29,7 @@
 
 import { CubePage, type PageEdit, type SheetInfo, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
 import { MenuView } from '../ui/menu-view.ts';
+import { chromeIcon } from '../ui/tile-icons.ts';
 import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
@@ -225,7 +226,7 @@ export class PageApp {
     this.#burger = doc.createElement('button');
     this.#burger.type = 'button';
     this.#burger.className = 'dc-titlebar-menu';
-    this.#burger.textContent = '≡';
+    this.#burger.append(chromeIcon(doc, 'menu'));
     this.#burger.title = 'The page\'s menu';
     this.#burger.setAttribute('aria-label', 'Page menu');
     this.#burger.setAttribute('aria-haspopup', 'menu');

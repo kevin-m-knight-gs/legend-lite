@@ -12,6 +12,7 @@
 
 import type { MenuGroup, MenuItem } from './menu.ts';
 import { focusedElement } from '../focus.ts';
+import { chromeIcon } from './tile-icons.ts';
 
 export interface MenuViewOptions {
   readonly onSelect: (item: MenuItem) => void;
@@ -169,7 +170,7 @@ export class MenuView {
       const chevron = doc.createElement('span');
       chevron.className = 'dc-menu-chevron';
       chevron.setAttribute('aria-hidden', 'true');
-      chevron.textContent = '\u203a';
+      chevron.append(chromeIcon(doc, 'chevronRight'));
       el.appendChild(chevron);
 
       const sub = doc.createElement('div');

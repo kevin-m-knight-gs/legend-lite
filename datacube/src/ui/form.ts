@@ -21,6 +21,8 @@
 //    user's hands are already on the keyboard and a settings panel
 //    that needs the mouse is a settings panel nobody adjusts.
 
+import { closeMark } from './tile-icons.ts';
+
 const NONE = '(None)';
 
 export interface Disposable {
@@ -213,8 +215,8 @@ export function colorPicker(
   if (options.clearable !== false) {
     const clear = make(doc, 'button', 'dc-color-clear');
     clear.type = 'button';
-    clear.textContent = '×';
     clear.title = 'Clear colour';
+    closeMark(clear);
     clear.addEventListener('click', () => {
       wrap.classList.add('dc-color-unset');
       onChange(undefined);

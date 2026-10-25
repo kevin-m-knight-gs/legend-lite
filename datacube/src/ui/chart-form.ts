@@ -30,6 +30,7 @@ import { checkbox, dropdown, field, numberInput } from './form.ts';
 import { aggregatesFor } from './panel-column.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
 import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
+import { chromeIcon } from './tile-icons.ts';
 
 /** What each kind calls its split. Which kinds draw one series (no split) and which need one are the rulebook's. */
 const SPLIT_LABELS: Readonly<Partial<Record<ChartMark, string>>> = {
@@ -356,7 +357,7 @@ function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
     const remove = doc.createElement('button');
     remove.type = 'button';
     remove.className = 'dc-btn dc-btn-small';
-    remove.textContent = '\u00d7';
+    remove.append(chromeIcon(doc, 'close'));
     remove.title = `Take value ${i + 1} off the chart`;
     remove.setAttribute('aria-label', remove.title);
     remove.addEventListener('click', () => replace(i, null));

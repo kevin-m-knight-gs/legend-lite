@@ -11,6 +11,7 @@
 // What a sheet IS is the page's (page/cube-page.ts); this strip only says the sheets and asks for changes.
 
 import { MenuView } from './menu-view.ts';
+import { chromeIcon } from './tile-icons.ts';
 import type { MenuGroup, MenuItem } from './menu.ts';
 
 /** A sheet as its tab says it. */
@@ -83,7 +84,7 @@ export class SheetTabs {
     this.#list = doc.createElement('button');
     this.#list.type = 'button';
     this.#list.className = 'dc-sheet-list';
-    this.#list.textContent = '▾';
+    this.#list.append(chromeIcon(doc, 'more'));
     this.#list.title = 'Every sheet';
     this.#list.setAttribute('aria-label', 'Every sheet');
     this.#list.setAttribute('aria-haspopup', 'menu');
@@ -224,7 +225,7 @@ export class SheetTabs {
     const close = doc.createElement('button');
     close.type = 'button';
     close.className = 'dc-sheet-close';
-    close.textContent = '\u00d7';
+    close.append(chromeIcon(close.ownerDocument, 'close'));
     close.tabIndex = -1;
     close.addEventListener('pointerdown', (e) => e.stopPropagation());
     close.addEventListener('dblclick', (e) => e.stopPropagation());

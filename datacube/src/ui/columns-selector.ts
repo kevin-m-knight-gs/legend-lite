@@ -25,6 +25,7 @@
 // transfer is still populated, for drags that leave the document.
 
 import { cubeScopeOf } from './scope.ts';
+import { closeMark } from './tile-icons.ts';
 
 export interface SelectorColumn {
   readonly name: string;
@@ -246,8 +247,8 @@ export class ColumnsSelector {
     const clear = doc.createElement('button');
     clear.type = 'button';
     clear.className = 'dc-selector-search-clear';
-    clear.textContent = '×';
     clear.title = 'Clear search [Esc]';
+    closeMark(clear, 'Clear search');
     clear.addEventListener('click', () => {
       search.value = '';
       search.focus();

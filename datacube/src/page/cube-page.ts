@@ -32,7 +32,7 @@
 import { ChartPanel } from '../ui/chart-panel.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import type { MenuItem } from '../ui/menu.ts';
-import { paintState, stateButton } from '../ui/tile-icons.ts';
+import { chromeIcon, paintState, stateButton } from '../ui/tile-icons.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
@@ -1938,7 +1938,7 @@ export class CubePage {
           : `${source.label(c.column)}: ${String(c.value)}`)
       : '');
     chart.chip.hidden = words.length === 0;
-    chart.chip.textContent = `${words.join(', ')} ×`;
+    chart.chip.replaceChildren(this.#doc.createTextNode(words.join(', ')), chromeIcon(this.#doc, 'close'));
     chart.chip.title = 'Filtered to this; click to clear';
     chart.chip.setAttribute('aria-label', `Clear the filter to ${words.join(', ')}`);
   }

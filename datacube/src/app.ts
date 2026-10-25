@@ -145,7 +145,7 @@ import {
   type MenuItem,
 } from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
-import { paintState, stateButton, toolIcon, type ToolIcon } from './ui/tile-icons.ts';
+import { chromeIcon, paintState, stateButton, toolIcon, type ToolIcon } from './ui/tile-icons.ts';
 import { longPressMenus } from './ui/long-press.ts';
 import { makeWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
 import {
@@ -1565,7 +1565,7 @@ export class CubeApp {
       const away = doc.createElement('button');
       away.type = 'button';
       away.className = 'dc-status-note-close';
-      away.textContent = '×';
+      away.append(chromeIcon(doc, 'close'));
       away.setAttribute('aria-label', 'Put the note away');
       away.addEventListener('click', () => this.note(undefined));
       note.append(said, away);
@@ -1661,7 +1661,7 @@ export class CubeApp {
     const away = doc.createElement('button');
     away.type = 'button';
     away.className = 'dc-status-chip-close';
-    away.textContent = '×';
+    away.append(chromeIcon(doc, 'close'));
     away.setAttribute('aria-label', close.label);
     away.title = close.label;
     away.addEventListener('click', close.act);
@@ -4182,7 +4182,7 @@ export class CubeApp {
     const shut = this.#doc.createElement('button');
     shut.type = 'button';
     shut.className = 'dc-overlay-close';
-    shut.textContent = '\u00d7';
+    shut.append(chromeIcon(this.#doc, 'close'));
     shut.setAttribute('aria-label', `Close ${title}`);
     shut.addEventListener('click', close);
     head.append(h, shut);
@@ -4323,7 +4323,7 @@ export class CubeApp {
     burger.className = 'dc-titlebar-menu';
     burger.setAttribute('aria-label', 'Menu');
     burger.setAttribute('aria-haspopup', 'menu');
-    burger.textContent = '\u2261';
+    burger.append(chromeIcon(doc, 'menu'));
     burger.addEventListener('click', () => {
       // A second press on the hamburger SHUTS it: the outside-press dismissal would close the
       // menu and the click that follows reopen it, so the button would appear to do nothing.

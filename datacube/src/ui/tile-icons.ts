@@ -6,7 +6,9 @@
 // The button carries its state's word too, hidden from sight but not from a screen reader or a test: "Snapped",
 // "Pinned". What a click does is its owner's (a grid's snap menu, a chart's states, a text box's editor).
 //
-// A grid's status bar draws its tools the same way (`toolIcon`): one stroke, one square, one set.
+// A grid's status bar draws its tools the same way (`toolIcon`): one stroke, one square, one set. So does the page's
+// chrome (`chromeIcon`; docs/DATACUBE_UI_REVIEW_2026_10_24.md, found 4): its marks were typed glyphs -- ⊞ ⤢ × ≡ ▾ › --
+// each from whatever font the browser found, at its own weight and on its own baseline.
 
 /** The states a tile's icon says. */
 export type TileState = 'live' | 'snapped' | 'dynamic' | 'pinned' | 'frozen' | 'detached' | 'viewing' | 'editing';
@@ -48,6 +50,43 @@ const TOOLS: Readonly<Record<ToolIcon, readonly string[]>> = {
   // an i in a ring: what answered
   info: ['M8 2.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 1 1 0-11z', 'M8 7.4v3.6', 'M8 5.1v.2'],
 };
+
+/** The page's chrome: a tile's layouts, filling the page and back, closing, a menu, a disclosure. */
+export type ChromeIcon = 'layout' | 'maximise' | 'restore' | 'close' | 'menu' | 'more' | 'chevronRight' | 'chevronDown';
+
+/** Each mark's drawing, on the states' square and in their stroke. */
+const CHROME: Readonly<Record<ChromeIcon, readonly string[]>> = {
+  // four panes: the tile's layouts
+  layout: ['M2.5 2.5h4.5v4.5h-4.5z', 'M9 2.5h4.5v4.5H9z', 'M2.5 9h4.5v4.5h-4.5z', 'M9 9h4.5v4.5H9z'],
+  // two corners pulled out: fill the page
+  maximise: ['M9.5 2.5h4v4', 'M13.5 2.5 9.5 6.5', 'M6.5 13.5h-4v-4', 'M2.5 13.5l4-4'],
+  // the corners pushed in: back to the page
+  restore: ['M13 7h-4V3', 'M9 7l4.5-4.5', 'M3 9h4v4', 'M7 9l-4.5 4.5'],
+  // a cross: close, take off, remove
+  close: ['M4.5 4.5l7 7', 'M11.5 4.5l-7 7'],
+  // three lines: a menu
+  menu: ['M2.5 4.5h11', 'M2.5 8h11', 'M2.5 11.5h11'],
+  // a caret down: a list to open
+  more: ['M4.5 6.5 8 10l3.5-3.5'],
+  // a chevron: a submenu, a fold to open, the way a panel goes
+  chevronRight: ['M6.5 3.5 11 8l-4.5 4.5'],
+  chevronDown: ['M3.5 6.5 8 11l4.5-4.5'],
+};
+
+/** A mark of the page's chrome, said by its name to a test (`data-icon`), hidden from a screen reader: its button's own
+ *  label says what it does. */
+export function chromeIcon(doc: Document, icon: ChromeIcon): SVGSVGElement {
+  const svg = drawIcon(doc, 'dc-chrome-icon', CHROME[icon], false);
+  svg.dataset['icon'] = icon;
+  return svg;
+}
+
+/** A close (or take-off) button drawn with the set's cross; one that had only its glyph to name it is named `label`. */
+export function closeMark<B extends HTMLElement>(button: B, label = 'Close'): B {
+  button.replaceChildren(chromeIcon(button.ownerDocument, 'close'));
+  if (!button.hasAttribute('aria-label')) button.setAttribute('aria-label', button.title || label);
+  return button;
+}
 
 /** The icon of a state. */
 export function stateIcon(doc: Document, state: TileState): SVGSVGElement {

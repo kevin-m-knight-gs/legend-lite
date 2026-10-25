@@ -12,6 +12,7 @@ import {
   AS_OF_OPS, DEFAULT_PREFIX, JOIN_OPS, suggestedKeys, summaryWords, theirNames, type AsOfOp, type JoinCondition, type JoinHow,
   type JoinKindWord, type JoinOp, type JoinRow, type JoinSide, type JoinSummaryCounts,
 } from '../join.ts';
+import { closeMark } from './tile-icons.ts';
 
 /** Another grid of the page, as the window offers it. */
 export interface JoinCandidate {
@@ -133,7 +134,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     const titles = el(doc, 'div', 'dc-picker-titles', head);
     el(doc, 'h2', 'dc-picker-title', titles, 'Join').id = 'dc-join-title';
     el(doc, 'p', 'dc-picker-subtitle', titles, `Combine ${o.mine} with another grid of the page: a new grid of the rows they make together.`);
-    const close = el(doc, 'button', 'dc-picker-close', head, '×');
+    const close = closeMark(el(doc, 'button', 'dc-picker-close', head, '×'));
     close.type = 'button';
     close.setAttribute('aria-label', 'Close');
     close.addEventListener('click', () => { if (!busy) finish(); });
@@ -272,7 +273,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       if (row.right !== undefined) right.value = row.right;
       for (const s of [left, op, right]) s.addEventListener('change', changed);
       if (removable) {
-        const remove = el(doc, 'button', 'dc-picker-button dc-quiet dc-join-remove', line, '×');
+        const remove = closeMark(el(doc, 'button', 'dc-picker-button dc-quiet dc-join-remove', line, '×'));
         remove.type = 'button';
         remove.setAttribute('aria-label', 'Take this condition off');
         remove.addEventListener('click', () => { line.remove(); changed(); });

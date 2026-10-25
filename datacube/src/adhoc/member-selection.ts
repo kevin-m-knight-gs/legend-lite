@@ -9,6 +9,7 @@
 
 import type { MemberPath } from './state.ts';
 import { memberLabel } from './query.ts';
+import { closeMark } from '../ui/tile-icons.ts';
 
 export interface MemberSelectionOptions {
   readonly dimension: string;
@@ -198,7 +199,7 @@ export function buildMemberSelection(host: HTMLElement, options: MemberSelection
         });
         up.setAttribute('aria-label', 'Move up');
         up.disabled = at === 0;
-        const remove = button('×', 'dc-adhoc-picked-remove', item, () => toggle(m));
+        const remove = closeMark(button('×', 'dc-adhoc-picked-remove', item, () => toggle(m)));
         remove.setAttribute('aria-label', `Remove ${label.textContent}`);
       }
     }

@@ -1479,11 +1479,12 @@ describe('a chart\'s selection, on a cube alone: its chip, cleared by it or by t
     clickMark(tile(chart), 0, 0);
     await settle();
     assert.deepEqual(cube.app.snapshot.filter, A_EMEA, 'the mark\'s region and desk, ANDed on');
-    assert.equal(chip(chart).textContent, 'region: EMEA, desk: A \u00d7');
+    assert.equal(chip(chart).textContent, 'region: EMEA, desk: A');
+    assert.equal(chip(chart).querySelector('svg')?.getAttribute('data-icon'), 'close', 'its way off drawn, not typed');
     clickMark(tile(chart), 1, 1);
     await settle();
     assert.deepEqual(cube.app.snapshot.filter, B_AMER, 'replaced, not piled on: two clicks never filter to nothing');
-    assert.equal(chip(chart).textContent, 'region: AMER, desk: B \u00d7');
+    assert.equal(chip(chart).textContent, 'region: AMER, desk: B');
     clickMark(tile(chart), 1, 1);
     await settle();
     assert.equal(cube.app.snapshot.filter, undefined, 'the same mark again: taken off');
@@ -1513,7 +1514,7 @@ describe('a chart\'s selection, on a cube alone: its chip, cleared by it or by t
     await cube.app.edit([{ kind: 'configure', patch: { columns: { region: { displayName: 'Region' } } } }], 'settings');
     const chart = await restoredWith([EMEA, LARGE, NO_DESK]);
     assert.equal(chip(chart).hidden, false);
-    assert.equal(chip(chart).textContent, 'Region: EMEA, notional ≥ 500, desk: (empty) ×');
+    assert.equal(chip(chart).textContent, 'Region: EMEA, notional ≥ 500, desk: (empty)');
     assert.equal(chip(chart).getAttribute('aria-label'), 'Clear the filter to Region: EMEA, notional ≥ 500, desk: (empty)');
     assert.deepEqual(selection(chart), [EMEA, LARGE, NO_DESK]);
     chip(chart).click();
@@ -1567,7 +1568,7 @@ describe('a frozen chart on a page of its own loses its selection with its grid'
     await settle();
     const chip = (): HTMLButtonElement => tile(chart).querySelector('.dc-tile-actions .dc-tile-chip') as HTMLButtonElement;
     assert.equal(chip().hidden, false);
-    assert.equal(chip().textContent, 'region: EMEA ×');
+    assert.equal(chip().textContent, 'region: EMEA');
     await removeTile(b);
     assert.equal(pill(chart), 'Detached');
     assert.equal(chip().hidden, true, 'no selection on a grid that is gone');

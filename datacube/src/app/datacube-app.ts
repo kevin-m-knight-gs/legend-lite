@@ -57,6 +57,7 @@ import { convergeOn } from './live-converge.ts';
 import { pageHash } from '../page-hash.ts';
 import { pageSources, picksSources, type Chosen, type GridPlace, type Opened, type SignedIn } from './sources.ts';
 import { lazily } from '../lazily.ts';
+import { chromeIcon } from '../ui/tile-icons.ts';
 
 // the query store's code, fetched the first time it is needed -- a query link -- as charts are: a grid-only page never
 // downloads it (test/bundle-budget.test.ts)
@@ -1038,7 +1039,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         close.type = 'button';
         close.className = 'dc-picker-close';
         close.setAttribute('aria-label', 'Close');
-        close.textContent = '\u00d7';
+        close.append(chromeIcon(document, 'close'));
         head.append(titles, close);
         const body = document.createElement('div');
         body.className = 'dc-open-body';
@@ -1709,7 +1710,7 @@ function appWindows(container: HTMLElement): AppWindows {
   /** Each window's header, which it is dragged by. */
   const heads = new Map<HTMLElement, HTMLElement>();
   const hostWindow = (id: string, title: string, ...body: Node[]): HTMLElement => {
-    const close = el('button', { type: 'button', className: 'hostwin-close', textContent: '\u00d7' });
+    const close = el('button', { type: 'button', className: 'hostwin-close' }, chromeIcon(document, 'close'));
     close.setAttribute('aria-label', 'Close');
     const head = el('div', { className: 'hostwin-head' }, el('span', { textContent: title }), close);
     const win = el('div', { id, className: 'hostwin', hidden: true }, head, el('div', { className: 'hostwin-body' }, ...body));

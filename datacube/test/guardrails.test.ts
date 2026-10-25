@@ -129,6 +129,19 @@ describe('source guardrails', () => {
     assert.deepEqual(hits, [], `write … (\\u2026), not three dots:\n${hits.join('\n')}`);
   });
 
+  it('draws the chrome\'s marks in one set: no typed ×, ≡, ⊞, ⤢ or ⤡ (docs/DATACUBE_UI_REVIEW_2026_10_24.md, found 4)', () => {
+    // 2026-10-25: the page's marks came from four fonts, at four weights and on four baselines; they are drawn now
+    // (ui/tile-icons.ts chromeIcon, closeMark). A close button made with its glyph and then drawn says closeMark.
+    const typed = /['`"](×|\\u00d7|≡|\\u2261|⊞|⤢|⤡)['`"]/;
+    const hits: string[] = [];
+    for (const file of FILES) {
+      SOURCES.read(file).split('\n').forEach((line, i) => {
+        if (!isComment(line) && typed.test(line) && !line.includes('closeMark(')) hits.push(`${file}:${i + 1}: ${line.trim()}`);
+      });
+    }
+    assert.deepEqual(hits, [], `draw it (chromeIcon, closeMark):\n${hits.join('\n')}`);
+  });
+
   it('keeps the demo-only planner out of the product', () => {
     // "One planner" is an architectural commitment, and a convenient
     // second one is exactly how such commitments rot.

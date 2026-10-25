@@ -24,6 +24,7 @@ import {
   makeHeaderDraggable,
   setHeaderDrag,
 } from './pivot-panel.ts';
+import { chromeIcon } from './tile-icons.ts';
 
 export interface ColumnsPanelColumn {
   readonly name: string;
@@ -276,7 +277,7 @@ export class ColumnsToolPanel {
     } else {
       // A chevron pointing the way the panel will go, which is the
       // convention every collapsible sidebar uses.
-      button.textContent = '\u203a';
+      button.append(chromeIcon(this.#doc, 'chevronRight'));
       button.title = 'Hide the columns panel';
       button.setAttribute('aria-label', 'Hide the columns panel');
     }
@@ -314,7 +315,7 @@ export class ColumnsToolPanel {
       twist.type = 'button';
       twist.className = 'dc-tool-panel-twist';
       const folded = this.#folded.has(column.name);
-      twist.textContent = folded ? '\u203a' : '\u2304';
+      twist.append(chromeIcon(doc, folded ? 'chevronRight' : 'chevronDown'));
       twist.title = folded
         ? `Show the ${children.length} columns of ${column.name}`
         : `Fold the ${children.length} columns of ${column.name}`;

@@ -485,17 +485,21 @@ describe('the band board', () => {
     assert.equal(changes.length, 0);
   });
 
-  it('maximise says what it does and flips: ⤢ fills the page with a tile, ⤡ on that tile puts it back (the user, 2026-10-25)', () => {
+  it('maximise says what it does and flips: its corners out fill the page with a tile, in on that tile put it back (the user, 2026-10-25)', () => {
     const { board } = sideBySide(['a', 'b']);
     const button = (id: string): HTMLButtonElement => root(id).querySelector<HTMLButtonElement>('.dc-tile-maximise')!;
-    assert.deepEqual([button('a').textContent, button('a').getAttribute('aria-label')], ['⤢', 'Maximise A']);
+    // drawn in the chrome's one set (ui/tile-icons.ts chromeIcon; found 4 of docs/DATACUBE_UI_REVIEW_2026_10_24.md)
+    const icon = (id: string): string | null => button(id).querySelector('svg')?.getAttribute('data-icon') ?? null;
+    assert.deepEqual([icon('a'), button('a').getAttribute('aria-label')], ['maximise', 'Maximise A']);
+    assert.equal(button('a').textContent, '', 'no glyph typed');
     button('a').click();
     assert.equal(board.maximised, 'a');
-    assert.deepEqual([button('a').textContent, button('a').getAttribute('aria-label')], ['⤡', 'Restore A']);
+    assert.deepEqual([icon('a'), button('a').getAttribute('aria-label')], ['restore', 'Restore A']);
     assert.match(button('a').title, /^Restore/);
     button('a').click();
     assert.equal(board.maximised, null);
-    assert.equal(button('a').textContent, '⤢');
+    assert.equal(icon('a'), 'maximise');
+    assert.equal(button('a').querySelectorAll('svg').length, 1, 'one icon, redrawn in place');
   });
 
   it('a tile\'s state goes left of its title; alone, where it is told (a lone grid\'s sheet tab), and back with a second tile', () => {

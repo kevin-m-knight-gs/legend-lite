@@ -42,6 +42,7 @@ import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { CubeSnapshot, FilterNode } from '../snapshot.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { lazily } from '../lazily.ts';
+import { chromeIcon } from './tile-icons.ts';
 
 /** The kinds with an axis of categories or time across, whose pointer a page's other charts follow (a crosshair). */
 const CROSSHAIRED: ReadonlySet<ChartMark> = new Set(['bar', 'line', 'area', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto']);
@@ -293,7 +294,7 @@ export class ChartPanel {
     const close = doc.createElement('button');
     close.type = 'button';
     close.className = 'dc-chartpanel-form-close';
-    close.textContent = '\u00d7';
+    close.append(chromeIcon(doc, 'close'));
     close.title = 'Close the options (Escape)';
     close.setAttribute('aria-label', 'Close the options');
     close.addEventListener('click', () => this.closeForm());

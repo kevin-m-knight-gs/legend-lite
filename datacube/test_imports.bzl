@@ -55,6 +55,7 @@ TEST_IMPORTS = {
         "src/ui/menu.ts",
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
         "src/ui/window.ts",
         "src/value-filter.ts",
     ],
@@ -157,6 +158,7 @@ TEST_IMPORTS = {
         "src/ui/menu.ts",
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
         "src/ui/window.ts",
         "src/value-filter.ts",
     ],
@@ -558,12 +560,14 @@ TEST_IMPORTS = {
         "src/ui/association-dialog.ts",
         "src/ui/class-dialog.ts",
         "src/ui/data-space-dialog.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "band-board": [
         "src/layout/band-board.ts",
         "src/layout/bands.ts",
         "src/page-names.ts",
+        "src/ui/tile-icons.ts",
     ],
     "bands": [
         "src/layout/bands.ts",
@@ -711,6 +715,7 @@ TEST_IMPORTS = {
         "src/ui/panel-general.ts",
         "src/ui/panel-kit.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "chart-maps": [
@@ -756,6 +761,7 @@ TEST_IMPORTS = {
         "src/ui/panel-general.ts",
         "src/ui/panel-kit.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "chart-queries": [
@@ -1025,6 +1031,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/ui/class-dialog.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "class-source": [
@@ -1149,6 +1156,7 @@ TEST_IMPORTS = {
         "src/ui/column-editor.ts",
         "src/ui/docs.ts",
         "src/ui/json-fields.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "column-kind": [
@@ -1174,14 +1182,17 @@ TEST_IMPORTS = {
         "src/ui/columns-panel.ts",
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
     ],
     "columns-selector-dom": [
         "src/ui/columns-selector.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
     ],
     "columns-selector": [
         "src/ui/columns-selector.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
     ],
     "conditional": [
         "src/calc.ts",
@@ -1311,6 +1322,7 @@ TEST_IMPORTS = {
         "src/ui/association-dialog.ts",
         "src/ui/class-dialog.ts",
         "src/ui/data-space-dialog.ts",
+        "src/ui/tile-icons.ts",
         "src/upload.ts",
         "src/value-filter.ts",
     ],
@@ -2419,6 +2431,7 @@ TEST_IMPORTS = {
         "src/ui/panel-general.ts",
         "src/ui/panel-kit.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "editor": [
@@ -2455,6 +2468,7 @@ TEST_IMPORTS = {
         "src/ui/panel-general.ts",
         "src/ui/panel-kit.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "editors-live": [
@@ -2491,6 +2505,7 @@ TEST_IMPORTS = {
         "src/ui/panel-general.ts",
         "src/ui/panel-kit.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "engine-remote-http": [
@@ -2704,6 +2719,7 @@ TEST_IMPORTS = {
         "src/offers.ts",
         "src/snapshot.ts",
         "src/ui/filter-editor.ts",
+        "src/ui/tile-icons.ts",
     ],
     "filter-editor": [
         "src/calc.ts",
@@ -2725,10 +2741,12 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/ui/filter-editor.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "form": [
         "src/ui/form.ts",
+        "src/ui/tile-icons.ts",
     ],
     "format-code": [
         "src/format-code.ts",
@@ -2795,6 +2813,7 @@ TEST_IMPORTS = {
         "src/treeview.ts",
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "grid-between": [
@@ -2887,6 +2906,7 @@ TEST_IMPORTS = {
         "src/treeview.ts",
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "grid-edits": [
@@ -3002,6 +3022,7 @@ TEST_IMPORTS = {
         "src/treeview.ts",
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "grid": [
@@ -3232,6 +3253,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/ui/join-dialog.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "join-inputs": [
@@ -3475,6 +3497,7 @@ TEST_IMPORTS = {
         "src/focus.ts",
         "src/layout/bands.ts",
         "src/ui/layout-picker.ts",
+        "src/ui/tile-icons.ts",
     ],
     "lazily": [
         "src/lazily.ts",
@@ -3992,6 +4015,7 @@ TEST_IMPORTS = {
         "src/treeview.ts",
         "src/ui/menu-view.ts",
         "src/ui/menu.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "menu": [
@@ -4316,6 +4340,7 @@ TEST_IMPORTS = {
         "src/ui/panel-general.ts",
         "src/ui/panel-kit.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "one-api-gestures": [
@@ -5672,10 +5697,12 @@ TEST_IMPORTS = {
     "pivot-panel-dom": [
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
     ],
     "pivot-panel": [
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
     ],
     "pivot-total": [
         "src/calc.ts",
@@ -5983,6 +6010,7 @@ TEST_IMPORTS = {
     "save-dialog": [
         "src/focus.ts",
         "src/ui/save-dialog.ts",
+        "src/ui/tile-icons.ts",
     ],
     "saved-documents": [
         "src/calc-presets.ts",
@@ -6079,6 +6107,7 @@ TEST_IMPORTS = {
         "src/treeview.ts",
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "screen-colours": [
@@ -6215,6 +6244,7 @@ TEST_IMPORTS = {
         "src/ui/menu-view.ts",
         "src/ui/menu.ts",
         "src/ui/sheet-tabs.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "shell": [
@@ -6357,6 +6387,7 @@ TEST_IMPORTS = {
     "source-picker": [
         "src/focus.ts",
         "src/ui/source-picker.ts",
+        "src/ui/tile-icons.ts",
     ],
     "state-guardrail": [],
     "style": [
@@ -6365,6 +6396,9 @@ TEST_IMPORTS = {
         "src/json-shape.ts",
         "src/snapshot.ts",
         "src/style.ts",
+    ],
+    "tile-icons": [
+        "src/ui/tile-icons.ts",
     ],
     "tree": [
         "src/tree.ts",

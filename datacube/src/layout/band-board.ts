@@ -57,6 +57,7 @@ import {
   tradeBands,
 } from './bands.ts';
 import { givenName } from '../page-names.ts';
+import { chromeIcon } from '../ui/tile-icons.ts';
 
 export interface BandTile {
   readonly id: string;
@@ -469,7 +470,7 @@ export class BandBoard {
     const layout = doc.createElement('button');
     layout.type = 'button';
     layout.className = 'dc-tile-tool dc-tile-layout';
-    layout.textContent = '⊞';
+    layout.append(chromeIcon(doc, 'layout'));
     layout.title = 'Layouts';
     layout.setAttribute('aria-label', `Layouts for ${spec.title}`);
     layout.hidden = this.#options.onLayout === undefined;
@@ -477,14 +478,14 @@ export class BandBoard {
     const maximise = doc.createElement('button');
     maximise.type = 'button';
     maximise.className = 'dc-tile-tool dc-tile-maximise';
-    maximise.textContent = '⤢';
+    maximise.append(chromeIcon(doc, 'maximise'));
     maximise.title = 'Fill the page with this tile (and back)';
     maximise.setAttribute('aria-label', `Maximise ${spec.title}`);
     maximise.addEventListener('click', () => this.maximise(this.#maximised === spec.id ? null : spec.id));
     const remove = doc.createElement('button');
     remove.type = 'button';
     remove.className = 'dc-tile-remove';
-    remove.textContent = '×';
+    remove.append(chromeIcon(doc, 'close'));
     remove.title = `Remove ${spec.title}`;
     remove.setAttribute('aria-label', `Remove ${spec.title}`);
     remove.hidden = spec.removable === false;
@@ -540,7 +541,7 @@ export class BandBoard {
     const close = this.#doc.createElement('button');
     close.type = 'button';
     close.className = 'dc-tile-tab-close';
-    close.textContent = '\u00d7';
+    close.append(chromeIcon(this.#doc, 'close'));
     close.title = `Remove ${name}`;
     close.setAttribute('aria-label', `Remove ${name}`);
     close.tabIndex = -1;
@@ -677,9 +678,11 @@ export class BandBoard {
         : id === maximised ? { x: 0, y: 0, w: width, h: screen } : undefined;
       p.root.hidden = box === undefined;
       if (box) place(p.root, box);
-      // ⤢ fills the page with it; ⤡, on the tile that fills it, puts it back
+      // its corners pulled out fill the page with it; pushed in, on the tile that fills it, they put it back
       const filling = id === maximised;
-      p.maximise.textContent = filling ? '⤡' : '⤢';
+      if (p.maximise.firstElementChild?.getAttribute('data-icon') !== (filling ? 'restore' : 'maximise')) {
+        p.maximise.replaceChildren(chromeIcon(this.#doc, filling ? 'restore' : 'maximise'));
+      }
       p.maximise.title = filling ? 'Restore: back to the page' : 'Fill the page with this tile';
       p.maximise.setAttribute('aria-label', `${filling ? 'Restore' : 'Maximise'} ${p.name}`);
     }

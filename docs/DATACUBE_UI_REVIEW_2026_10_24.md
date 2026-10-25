@@ -96,6 +96,14 @@ statistics · a 192×14 progress box · the planner's word ("local").
    folded block still says it is partly hidden. Tested in `test/columns-panel.test.ts`; `demo/verify-features.mjs`
    checks the real page.
 4. **Glyphs from four sets:** ⊞ ⤢ × ✎ ⚙ ⧨ ▸ ⌃, each from a different font, at different weights and baselines.
+   **Fixed 2026-10-25** (`ui/tile-icons.ts` chromeIcon, closeMark). The page's chrome is now drawn in the one set the
+   tile states and the status bar's tools already used: one stroke on one 16-unit square, in the text's colour, sized
+   to the text of its button. That covers the tile header's layouts, maximise / restore and remove; the page's and a
+   lone grid's ≡; the sheet list's caret and each tab's ×; the menus' submenu chevron; the columns panel's fold and
+   collapse chevrons; and every close or take-off ×, in windows, chips, the status bar and the editors. A button whose
+   glyph was its only name is now named for a screen reader. A guard in `test/guardrails.test.ts` fails on a typed ×,
+   ≡, ⊞, ⤢ or ⤡. Still typed: the grid's tree carets (▸ ▾, also in the JSON field picker and Ad Hoc's member
+   picker), and the columns selector's search mark and move arrows.
 
 ## What to change
 
@@ -399,9 +407,9 @@ View ▸                                    Properties…                 Ctrl+E
 
 **Where it stands, 2026-10-25.** Built: numbers right-aligned; the page's ≡ grouped by purpose (§3); one tile header
 (§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2); the example-switch bug fixed (found 1); the status bar's error as a chip; the title bar (§4); the columns panel (found 3); the menus' marks and words (step 1
-of the menus). Next: the rest of the menus (Create ▸ on a chart and a text box, Settings…); grouped text columns
-(found 2); one icon set (found 4; the tile states, the
-status bar's tools and the editor's toolbar already drawn); the options pane docked at the page's edge; then §8.
+of the menus); one icon set for the page's chrome (found 4). Next: the rest of the menus (Create ▸ on a chart and a text
+box, Settings…); grouped text columns (found 2); the tree carets drawn too; the options pane docked at the page's edge;
+then §8.
 
 Screenshots of each state (the start page, the chart examples and the gallery's KPI dashboard, the chart options at
 1400 and 1024 wide, the page menu, the joins example's error, the status bar) were taken with a scratch Playwright
