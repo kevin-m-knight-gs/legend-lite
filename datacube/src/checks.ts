@@ -9,7 +9,7 @@
 //
 // PURE: no DOM, no planner.
 
-import { fn, lambda, lit, property, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { fn, lambda, lit, property, toJson, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { familyOf, isFractional } from '../../engine-client/src/types.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { CubeRefusal, rowColumns, sameValue, type CubeShape, type CubeSnapshot, type DerivedColumn } from './snapshot.ts';
@@ -158,7 +158,11 @@ function checkOf(d: DerivedColumn, derived: readonly DerivedColumn[]): Check | u
       if (min === undefined && max === undefined) continue;
       c = { kind, column, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) };
     }
-    if (sameValue(d.lambda, failingLambda(c, true)) || sameValue(d.lambda, failingLambda(c, false))) return c;
+    // its bounds whole numbers (a whole-number column's) or not: rebuilt each way they can be, compared as the protocol
+    // writes them (a float read back from a page holds its double, one made here its exact digits: the same text)
+    const wholeBounds = c.kind !== 'between' || [c.min, c.max].every((v) => v === undefined || Number.isInteger(v));
+    const as = toJson(d.lambda);
+    if ((wholeBounds && as === toJson(failingLambda(c, true))) || as === toJson(failingLambda(c, false))) return c;
   }
   return undefined;
 }

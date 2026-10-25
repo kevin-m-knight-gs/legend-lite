@@ -307,9 +307,11 @@ describe("a Test (checks.ts): each check's failing rows counted by the database,
     assert.deepEqual(Object.keys(hidden), ['region', 'notional', 'ChecksAll', 'region__row']);
     assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived: s.derived, rows: s.rows }))),
       { tool: 'test', also: [], says: 'region has no empty value, region repeats no value, notional from 0 to 1000' });
-    // a bound on one side alone, read back
+    // a bound on one side alone, and a fraction, read back
     const atMost = apply(typed, checkCommands(typed, [{ kind: 'between', column: 'notional', max: -5 }]));
     assert.deepEqual(checksOf(atMost), [{ kind: 'between', column: 'notional', max: -5 }]);
+    const fraction = apply(typed, checkCommands(typed, [{ kind: 'between', column: 'notional', min: 0, max: 0.15 }]));
+    assert.deepEqual(checksOf(fraction), [{ kind: 'between', column: 'notional', min: 0, max: 0.15 }]);
     assert.equal(checkWords({ kind: 'between', column: 'notional', min: 2 }), 'notional at least 2');
     // set again: its own columns taken off first, its checks the new ones
     const again = apply(s, checkCommands(s, [{ kind: 'notEmpty', column: 'notional' }]));

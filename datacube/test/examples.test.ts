@@ -32,7 +32,7 @@ describe('the example pages', () => {
   // a flow to open, rather than one to build first (docs/DATACUBE_FLOW_MODE_2026_10_24.md)
   it('the flow example: its boxes each the tool it is, read live, in its containers, its Output writing a CSV', async () => {
     const page = readPage(pageToJson(await prepFlowPage()));
-    assert.equal(page.sheets.length, 3);
+    assert.equal(page.sheets.length, 4);
     const layout = page.sheets[0]!.layout;
     assert.ok(layout.kind === 'flow');
     const cube = (id: string) => page.cubes.find((c) => c.id === id)!.cube;
@@ -44,7 +44,14 @@ describe('the example pages', () => {
       'grid-9': 'sample', 'grid-10': 'select', 'grid-11': 'transpose', 'grid-12': 'summarize',
       // its Match sheet: a Join's L read by a Browse and counted, its R, and a Find Replace
       'grid-13': 'browse', 'grid-14': 'countRecords', 'grid-15': 'browse', 'grid-16': 'findReplace',
+      // its Checks sheet: three regions' Filters, a Union of the three, a Date Filter and a Test
+      'grid-17': 'filter', 'grid-18': 'filter', 'grid-19': 'filter', 'grid-20': 'union', 'grid-21': 'dateFilter', 'grid-22': 'test',
     });
+    assert.deepEqual(liveGrids(cube('grid-20').source), ['grid-17', 'grid-18', 'grid-19'], 'a Union of three, read live');
+    assert.deepEqual(['grid-20', 'grid-21', 'grid-22'].map((id) => boxSays(cube(id)).says), [
+      'the rows of all 3, columns by name', 'sold from 2024-01-01 to 2024-12-31',
+      'order_id repeats no value, country has no empty value, discount from 0 to 0.15',
+    ]);
     assert.deepEqual(['grid-14', 'grid-16'].map((id) => boxSays(cube(id)).says), ['its rows counted: Count', 'country replaced by their_country']);
     assert.deepEqual(['grid-13', 'grid-15'].map((id) => { const s = cube(id).source; return s._type === 'rows' && 'grid' in s.input ? `${s.input.grid}:${s.input.port}` : null; }),
       ['grid-4:left', 'grid-4:right'], "the Join's L and R, read live");

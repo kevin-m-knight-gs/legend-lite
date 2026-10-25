@@ -9,7 +9,10 @@
 // tool's own rule (row-sample.ts, select-columns.ts, transpose.ts), applied as the screen applies it (grid-commands.ts).
 // A third, Match, shows what a join leaves and finds: the big orders no country is found for (the Join's L) and how many
 // (Count Records), the countries no big order is of (its R), and every order's country as the countries name it (a Find
-// Replace) -- count-records.ts's and find-replace.ts's rules. test/examples.test.ts reads it back.
+// Replace) -- count-records.ts's and find-replace.ts's rules. A fourth, Checks, takes the orders apart by region and puts
+// them together again (a Union of three), keeps 2024's (a Date Filter) and checks every order (a Test: its id unique, its
+// country never empty, its discount at most 15% -- the one a run finds failing): checks.ts's rule, the Date Filter's two
+// days as its window writes them. test/examples.test.ts reads it back.
 
 import { element, fn, lambda, property, variable } from '../../../pure-protocol/src/index.ts';
 import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../config.ts';
@@ -28,6 +31,7 @@ import { selectCommands } from '../select-columns.ts';
 import { transposeCommands } from '../transpose.ts';
 import { countRecordsCommands } from '../count-records.ts';
 import { findReplaceCommands } from '../find-replace.ts';
+import { checkCommands } from '../checks.ts';
 import { EXAMPLE_ROWS, EXAMPLE_SAMPLE, SALES_SPECS } from './charts-dashboard.ts';
 import { COUNTRY_SPECS, sampleSource } from './prep-joins.ts';
 
@@ -143,6 +147,25 @@ export async function prepFlowPage(): Promise<PageDocument> {
     { id: 'grid-16', cube: stepped('Countries as named', byName, flat('named', official), MONEYED,
       (s) => findReplaceCommands(s, { column: 'country', with: named2.get('country')! })) },
   );
+  // CHECKS: the orders of each region, unioned again; those of 2024; each order checked
+  const region = (id: string, name: string): { id: string; cube: CubeDocument } => ({ id, cube: box(`${name} orders`,
+    rowsOf('grid-1', 'Orders', SALES_SPECS), flat(name, SALES_SPECS, { filter: { kind: 'condition', column: 'region', operator: 'equal', value: name } }), MONEYED) });
+  const regions: JoinSource = {
+    _type: 'join', name: 'Every region again', left: { grid: 'grid-17' }, right: { grid: 'grid-18' }, more: [{ grid: 'grid-19' }],
+    how: { form: 'append' }, columns: SALES_SPECS.map((c) => ({ name: c.name, type: c.type })),
+  };
+  cubes.push(
+    region('grid-17', 'EMEA'), region('grid-18', 'APAC'), region('grid-19', 'AMER'),
+    { id: 'grid-20', cube: box(regions.name, regions, flat('every region', SALES_SPECS), MONEYED) },
+    // the days of 2024, both kept: the Date Filter's two conditions, as its window writes them (date-ranges.ts)
+    { id: 'grid-21', cube: box('Orders of 2024', rowsOf('grid-20', regions.name, SALES_SPECS), flat('2024', SALES_SPECS, { filter: { kind: 'and', children: [
+      { kind: 'condition', column: 'sold', operator: 'greaterThanEqual', value: '2024-01-01' },
+      { kind: 'condition', column: 'sold', operator: 'lessThanEqual', value: '2024-12-31' },
+    ] } }), MONEYED) },
+    { id: 'grid-22', cube: stepped('Orders checked', rowsOf('grid-20', regions.name, SALES_SPECS), flat('checked', SALES_SPECS), DEFAULT_CONFIGURATION,
+      (s) => checkCommands(s, [{ kind: 'unique', column: 'order_id' }, { kind: 'notEmpty', column: 'country' },
+        { kind: 'between', column: 'discount', min: 0, max: 0.15 }])) },
+  );
   const grids: PageView[] = cubes.map((c) => ({ id: c.id, kind: 'grid', cube: c.id, title: c.cube.name }));
   const notes: PageView[] = [
     { id: 'text-1', kind: 'text', text: 'Inputs' },
@@ -150,6 +173,7 @@ export async function prepFlowPage(): Promise<PageDocument> {
     { id: 'text-4', kind: 'text', text: 'Report' },
     { id: 'text-3', kind: 'text', text: '**Start here.** Click a box to see its rows below, and its settings beside. Drop a tool from the left onto a box to add a step after it; drag from a box\'s right edge to another box to link them; ▶ Run counts every box and writes the Output.' },
     { id: 'text-5', kind: 'text', text: '**Reshape.** The two biggest orders of each region (a Sample), their columns chosen and revenue renamed sales (a Select), their money made rows (a Transpose) and summed by measure.' },
+    { id: 'text-7', kind: 'text', text: '**Checks.** The orders of each region, taken apart and put together again (a Union of three); those of 2024 (a Date Filter); and every order checked -- its id unique, its country never empty, its discount at most 15% (a Test). Run it: one check fails, and says how many orders fail it.' },
     { id: 'text-6', kind: 'text', text: '**Match.** The big orders whose country code finds no country -- the Join\'s L -- and how many (Count Records); the countries no big order is of (its R); and each order\'s country named as the countries file names it (Find Replace).' },
   ];
   const reshape: FlowBox[] = [
@@ -165,6 +189,15 @@ export async function prepFlowPage(): Promise<PageDocument> {
     { tile: 'grid-15', x: 40, y: 210 },
     { tile: 'grid-16', x: 288, y: 210 },
     { tile: 'text-6', x: 40, y: 360 },
+  ];
+  const checks: FlowBox[] = [
+    { tile: 'grid-17', x: 40, y: 60 },
+    { tile: 'grid-18', x: 40, y: 180 },
+    { tile: 'grid-19', x: 40, y: 300 },
+    { tile: 'grid-20', x: 288, y: 180 },
+    { tile: 'grid-21', x: 536, y: 60 },
+    { tile: 'grid-22', x: 536, y: 300 },
+    { tile: 'text-7', x: 40, y: 430 },
   ];
   // three columns wide, so the whole of it is in sight beside the settings: its inputs, its steps, its report
   const boxes: FlowBox[] = [
@@ -188,6 +221,7 @@ export async function prepFlowPage(): Promise<PageDocument> {
       { id: 'sheet-1', name: 'Sales prep', layout: { kind: 'flow', boxes } },
       { id: 'sheet-2', name: 'Reshape', layout: { kind: 'flow', boxes: reshape } },
       { id: 'sheet-3', name: 'Match', layout: { kind: 'flow', boxes: match } },
+      { id: 'sheet-4', name: 'Checks', layout: { kind: 'flow', boxes: checks } },
     ] },
   });
 }

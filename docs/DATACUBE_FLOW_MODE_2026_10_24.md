@@ -965,6 +965,14 @@ $1,000, a row a continent and one for the orders with no country, 10 countries' 
 Fixed with it: a note a flow's box left on the status line (columns gone from its input) outlived its page; a page
 put on screen now starts with none of it.
 
+**Built, the example's Checks sheet** (`examples/prep-flow.ts`, 2026-10-25): a fourth sheet shows the tools added since --
+the orders taken apart by region (three Filters) and put together again (a Union of three, `JoinSource.more`), 2024's
+kept (a Date Filter between two days), and, beside it, every order checked (a Test: its id unique, its country never
+empty, its discount at most 15%). Run, every order comes back (6,000), 2024's about half, and the Test's one row says its discount
+check fails, marked on its box and in the run's log ("1 test failing"). Tested by `examples.test.ts` (each box's tool,
+the Union's three inputs read live, the words of the Union, the Date Filter and the Test) and the harness (the sheet
+run: its counts, the failing check said).
+
 ### M7's first steps (2026-10-25)
 
 **Built, the canvas's own tools** (`layout/flow.ts` `arranged`, `page-gestures.ts` `tidyCommands` and the `flow.tidy`

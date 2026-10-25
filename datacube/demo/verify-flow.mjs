@@ -1467,6 +1467,21 @@ try {
   }, undefined, { timeout: 60_000 });
   check((await page.locator('.dc-flow-results:visible').textContent() ?? '').includes(unmatchedOrders), `its count, the orders the join left: ${unmatchedOrders}`);
   await page.screenshot({ path: outPath('flow-example-match.png') });
+
+  // ITS CHECKS SHEET: the orders of each region unioned again (a Union of three), those of 2024 (a Date Filter), each
+  // order checked (a Test) -- run: every order back, 2024's, one row of counts, one check failing and said so
+  await page.locator('.dc-sheet-tab', { hasText: 'Checks' }).click();
+  await page.waitForFunction(() => document.querySelector('.dc-flow-box[data-tile="grid-22"]')?.offsetParent != null, undefined, { timeout: 60_000 });
+  await page.locator('.dc-flow-run:visible').click();
+  await page.waitForFunction(() => [...document.querySelectorAll('.dc-flow-run')].every((b) => /Run$/.test(b.textContent ?? '')), undefined, { timeout: 240_000 });
+  const checkCounts = await page.locator('.dc-flow-box:visible').evaluateAll((els) => Object.fromEntries(els.map((e) => [e.dataset.tile, e.querySelector('.dc-flow-count')?.textContent ?? ''])));
+  const in2024 = Number((checkCounts['grid-21'] ?? '').replace(/,/g, ''));
+  check(checkCounts['grid-20'] === '6,000' && in2024 > 2_000 && in2024 < 4_000 && checkCounts['grid-22'] === '1',
+    `Checks: every order back, 2024's, one row of counts: ${JSON.stringify(checkCounts)}`);
+  check(await page.locator('.dc-flow-box[data-tile="grid-22"].dc-flow-failing').count() === 1
+    && await page.locator('.dc-flow-box[data-tile="grid-22"] .dc-flow-says').textContent() === '1 of 3 checks fail', 'its discount check fails, said on its box');
+  check(/1 test failing/.test(await page.locator('.dc-flow-log:visible .dc-flow-log-title').textContent() ?? ''), 'and in the run\'s log');
+  await page.screenshot({ path: outPath('flow-example-checks.png') });
 } catch (e) {
   bad(`threw: ${e.stack ?? e}`);
 } finally {
