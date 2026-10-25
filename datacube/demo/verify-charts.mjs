@@ -263,12 +263,15 @@ try {
         const s = getComputedStyle(el);
         return { visible: el.matches(':focus-visible'), style: s.outlineStyle, offset: s.outlineOffset };
       };
-      return { segment: ring(win.querySelector('.dc-segment.dc-chosen')), checkbox: ring(win.querySelector('input[type="checkbox"]')) };
+      // one in an open section: a folded one's are hidden, and take no focus
+      const shown = [...win.querySelectorAll('input[type="checkbox"]')].find((c) => c.checkVisibility());
+      if (!shown) return { segment: ring(win.querySelector('.dc-segment.dc-chosen')), checkbox: 'none in an open section' };
+      return { segment: ring(win.querySelector('.dc-segment.dc-chosen')), checkbox: ring(shown) };
     });
     if (!rings.segment.visible || rings.segment.style === 'none' || rings.segment.offset !== '-4px') {
       throw new Error(`a short choice is not ringed inside itself when reached by the keyboard: ${JSON.stringify(rings)}`);
     }
-    if (!rings.checkbox.visible || rings.checkbox.style === 'none') throw new Error(`a checkbox is not ringed: ${JSON.stringify(rings)}`);
+    if (rings.checkbox?.visible !== true || rings.checkbox.style === 'none') throw new Error(`a checkbox is not ringed: ${JSON.stringify(rings)}`);
     // more of a square (the user, 2026-10-25): two columns of sections where it is 500px wide or more (app.css
     // .dc-chartpanel-columns), and no taller than its form once painted -- no empty space under it
     await form.locator('.dc-chartpanel-form .dc-section').first().waitFor();
