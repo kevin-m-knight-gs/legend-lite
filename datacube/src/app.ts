@@ -46,7 +46,7 @@ import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-
 import { valueList } from './ui/value-list.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
-import { columnKind, headerSorts, type GridDraft } from './grid-edits.ts';
+import { columnKind, headerSorts, isMeasureLeaf, type GridDraft } from './grid-edits.ts';
 import { applyGridCommands, draftCommands, type GridCommand } from './grid-commands.ts';
 import {
   gridGesture, gridGestureGiven, type GestureArgs, type GestureGrid, type GridGestureArgs, type GridGestureName,
@@ -786,6 +786,7 @@ export class CubeApp {
       formats: this.#formats,
       appearance: this.#config.appearance,
       columnAppearance: toColumnAppearance(this.#config),
+      isMeasure: (leaf) => isMeasureLeaf({ snapshot: this.#shown, config: this.#config }, leaf),
       canGroup: (c) => this.#isDimension(c),
       onReorder: (order, added) => {
         // A COLUMN DRAGGED OUT OF THE PANEL INTO THE GRID IS A
