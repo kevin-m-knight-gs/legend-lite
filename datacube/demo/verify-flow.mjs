@@ -547,6 +547,17 @@ try {
   check(/Europe|Americas/.test(await page.locator('.dc-flow-results').textContent() ?? ''), 'its regions found, replaced by their names');
   check(await page.locator('.dc-flow-results .dc-th[data-column="name"]').count() === 0, 'theirs left out');
 
+  // COUNT RECORDS (M4), dragged onto the Filter: no settings -- made, it counts; one row, its count
+  const beforeCount = (await boxes()).map((b) => b.id);
+  await drag('countRecords', filter.id);
+  await boxCount(beforeCount.length + 1);
+  const counter = await added(beforeCount);
+  await page.waitForFunction((id) => document.querySelector(`.dc-flow-box[data-tile="${id}"] .dc-flow-says`)?.textContent === 'its rows counted: Count',
+    counter.id, { timeout: 60_000 });
+  await settled();
+  check(await resultRows() === 1, 'one row');
+  check((await page.locator('.dc-flow-results').textContent() ?? '').includes(fewer.toLocaleString('en-US')), `its count: the Filter's ${fewer}`);
+
   // A RECORD ID (M3), dragged onto the Filter: the column editor docked at a row number, ordered by trade_id here
   const beforeId = (await boxes()).map((b) => b.id);
   await drag('recordId', filter.id);

@@ -27,6 +27,7 @@ import { readTranspose, transposeCommands, type Transpose } from '../transpose.t
 import { readSelection, selectCommands, type Selection } from '../select-columns.ts';
 import { readSummary, summarizeCommands, type Summary } from '../summarize.ts';
 import { findReplaceCommands, readFindReplace, type FindReplace } from '../find-replace.ts';
+import { countRecordsCommands, readCountRecords } from '../count-records.ts';
 import type { MultiFieldAsked } from '../multi-field.ts';
 import { DATE_TOOL_KINDS, dateToolCommands, readDateTool, type DateTool } from '../date-tools.ts';
 import {
@@ -777,7 +778,8 @@ export async function gridModelMeasure(spec: GridSpec, given: string): Promise<s
  * a Multi-Field Formula (multi-field-columns.ts multiFieldCommands, its expression parsed by the compiler: grid.multi_field),
  * a Sample (row-sample.ts sampleCommands: grid.sample), a Transpose (transpose.ts transposeCommands: grid.transpose), or a
  * Select (select-columns.ts selectCommands: grid.select), a Summarize (summarize.ts summarizeCommands: grid.summarize), or
- * a Find Replace's replacing (find-replace.ts findReplaceCommands: page.find_replace).
+ * a Find Replace's replacing (find-replace.ts findReplaceCommands: page.find_replace), or Count Records
+ * (count-records.ts countRecordsCommands: grid.count_records).
  * `given`, the preset or the tool as JSON (readGridPreset, readTextTool, readUnique, readImputation, readMultiField, by
  * its kind; readRowSample), over the grid's columns as the compiler types them now.
  * JSON: as gridApply's, or `{problems}`, in DataCube's words.
@@ -785,7 +787,8 @@ export async function gridModelMeasure(spec: GridSpec, given: string): Promise<s
 export async function gridPreset(spec: GridSpec, given: string): Promise<string> {
   let asked: { readonly preset: GridPreset } | { readonly tool: TextTool } | { readonly unique: Unique } | { readonly impute: Imputation }
     | { readonly date: DateTool } | { readonly multi: MultiFieldAsked } | { readonly sample: RowSample | null }
-    | { readonly transpose: Transpose } | { readonly select: Selection } | { readonly summarize: Summary } | { readonly findReplace: FindReplace };
+    | { readonly transpose: Transpose } | { readonly select: Selection } | { readonly summarize: Summary } | { readonly findReplace: FindReplace }
+    | { readonly count: { readonly name: string } };
   try {
     const raw: unknown = JSON.parse(given);
     const kind = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>)['kind'] : undefined;
@@ -793,6 +796,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
       : kind === 'multiField' ? { multi: readMultiField(raw) } : kind === 'sample' ? { sample: readRowSample(raw) }
       : kind === 'transpose' ? { transpose: readTranspose(raw) } : kind === 'selectColumns' ? { select: readSelection(raw) }
       : kind === 'summarize' ? { summarize: readSummary(raw) } : kind === 'findReplace' ? { findReplace: readFindReplace(raw) }
+      : kind === 'countRecords' ? { count: readCountRecords(raw) }
       : (DATE_TOOL_KINDS as readonly unknown[]).includes(kind) ? { date: readDateTool(raw) }
       : (TEXT_TOOL_KINDS as readonly unknown[]).includes(kind) ? { tool: readTextTool(raw) } : { preset: readGridPreset(raw) };
   } catch (e) {
@@ -819,6 +823,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
         : 'select' in asked ? selectCommands(await typedColumns(o.runner, o.state.snapshot), asked.select)
         : 'summarize' in asked ? summarizeCommands(await typedColumns(o.runner, o.state.snapshot), asked.summarize)
         : 'findReplace' in asked ? findReplaceCommands(await typedColumns(o.runner, o.state.snapshot), asked.findReplace)
+        : 'count' in asked ? countRecordsCommands(await typedColumns(o.runner, o.state.snapshot), asked.count.name)
         : 'unique' in asked ? uniqueCommands(await typedColumns(o.runner, o.state.snapshot), asked.unique)
           : 'impute' in asked ? imputeCommands(await typedColumns(o.runner, o.state.snapshot), asked.impute)
           : presetCommands(await typedColumns(o.runner, o.state.snapshot), asked.preset);

@@ -285,7 +285,7 @@ How to read the status column:
 | Transpose | Built (2026-10-25) | An exploded column over the list of the columns' names (`lateral(...->flatten(~Name))`), a column choosing each row's value by its name (`if`), every column but the keys hidden; columns of one kind of value |
 | Running Total | Built | A window column, running frame |
 | Weighted Average | Built | `wavg` |
-| Count Records | Built | `count` |
+| Count Records | Built (2026-10-25) | One row, its count: a column of one value grouped by and hidden, a 1 for each row summed (`count-records.ts`) |
 | Arrange, Make Columns | Later | Layout tools for reports; the pages do most of what they are for |
 
 ### Investigate and report
@@ -746,6 +746,14 @@ and its second column, `snapshot.ts SECOND_COLUMN`; one that must name it refuse
 `grid.summarize(group, {'px': ('wavg', 'qty')})`. A Select renames many at once, Alteryx's Dynamic Rename: a prefix and
 a suffix given to each kept column in sight ("Rename"), or each its own name again ("Own names"). Tested by
 `flow-sheet.test.ts`, Python's Summarize test (a desk's prices weighted by their quantities: 17.5) and the harness.
+
+**Built, Count Records** (`count-records.ts`, 2026-10-25): Alteryx's Count Records -- how many rows a box's input has, one
+row, one column. No new kind of query: a column of one value its rows are grouped by (hidden, so the box after it reads
+none of it), a column of 1 for each row summed, every other column hidden; the database counts. A tool with no settings:
+made, it counts (its step opened as the box is made: `StepEditor` `countRecords`, no window), saying "its rows counted:
+Count", read back off its columns (`countRecordsOf`). Python: `grid.count_records(name='Count')`. Tested by
+`flow-sheet.test.ts`, Python's `test_rows_counted_as_count_records` and the harness (the Filter's rows counted: one row,
+its count).
 
 **The example flow's Reshape sheet** (`examples/prep-flow.ts`): a second sheet showing the tools that reshape rows over the
 same orders -- the two biggest orders of each region (a Sample: last 2 of each region by revenue), their columns chosen

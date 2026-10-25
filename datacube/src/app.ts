@@ -3651,6 +3651,9 @@ export class CubeApp {
       case 'findReplace':
         void this.#openFindReplace();
         return;
+      case 'countRecords':
+        void this.#countRecords();
+        return;
       // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
       case 'join':
         return;
@@ -3833,6 +3836,22 @@ export class CubeApp {
       },
       close,
     }));
+  }
+
+  /** A FLOW'S COUNT RECORDS (docs/DATACUBE_FLOW_MODE_2026_10_24.md M4, Alteryx's): its rows counted, one step, no window
+   *  -- a column of one value grouped by, a 1 for each row summed, the rest hidden (count-records.ts, the rule Python's
+   *  grid.count_records asks). Fetched with the first; refused, said on its status bar. */
+  async #countRecords(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const { countRecordsCommands } = await lazily(() => import('./count-records.ts'));
+    let refused: string | null;
+    try {
+      refused = await this.#apply(countRecordsCommands(this.#snapshot), 'Count Records');
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      refused = e.message;
+    }
+    if (refused !== null) this.note(`Count Records: ${refused}`);
   }
 
   /** A FLOW'S FIND REPLACE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2, Alteryx's): a Join box's column replaced by the

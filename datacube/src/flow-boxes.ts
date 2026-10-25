@@ -17,6 +17,7 @@ import { boxOmitted, boxOrder, boxRenamed, inPlaceOf } from './box-columns.ts';
 import { retypesOf } from './select-columns.ts';
 import { imputedOf } from './impute.ts';
 import { findReplaceOf } from './find-replace.ts';
+import { countRecordsOf } from './count-records.ts';
 import { multiFieldOf, type MultiFieldColumn } from './multi-field.ts';
 import { dateToolOf } from './date-tools.ts';
 import { isEveryPair, isFuzzy, type JoinHow } from './join-how.ts';
@@ -29,7 +30,8 @@ import type { EditorTab } from './ui/editor.ts';
 /** A tool of the flow's palette, and what a box is drawn as. */
 export type FlowTool = 'input' | 'textInput' | 'output' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile'
-  | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'crosstab' | 'transpose' | 'browse' | 'comment' | 'container';
+  | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'countRecords' | 'crosstab' | 'transpose' | 'browse'
+  | 'comment' | 'container';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
 export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: FlowGroup; readonly does: string }>> = {
@@ -58,6 +60,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   regex: { name: 'RegEx', group: 'parse', does: 'a pattern over text: whether it matches, its matches replaced or taken out' },
   runningTotal: { name: 'Running Total', group: 'transform', does: 'a column\'s total so far, row by row' },
   summarize: { name: 'Summarize', group: 'transform', does: 'a row per group, its measures beside its keys' },
+  countRecords: { name: 'Count Records', group: 'transform', does: 'how many rows it has: one row, one column, its count' },
   crosstab: { name: 'Cross Tab', group: 'transform', does: 'a column\'s values made columns across, a row per group' },
   transpose: { name: 'Transpose', group: 'transform', does: 'columns made rows: a Name and a Value for each, its keys beside them' },
   browse: { name: 'Browse', group: 'in', does: 'its input\'s rows, as they come: to look at, profile or chart' },
@@ -71,7 +74,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
   'input', 'textInput', 'output', 'browse', 'filter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
-  'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'summarize', 'crosstab', 'transpose', 'runningTotal', 'comment', 'container',
+  'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'comment', 'container',
 ];
 
 /**
@@ -100,6 +103,8 @@ export type StepEditor =
   | { readonly window: 'summarize' }
   /** The Find Replace window (ui/find-replace-form.ts): the column its Join found among theirs, and theirs it becomes. */
   | { readonly window: 'findReplace' }
+  /** Count Records (count-records.ts), which has no settings: opened, its grid counts its rows -- one step. */
+  | { readonly window: 'countRecords' }
   /** The DateTime window (ui/date-form.ts): a date column taken to its period, the grid's own period preset. */
   | { readonly window: 'datetime' }
   /** A text tool's window (ui/text-tool-form.ts): Text To Columns, RegEx or Data Cleansing (text-tools.ts). */
@@ -162,6 +167,9 @@ export function boxSays(cube: CubeDocument): BoxSays {
   if (source._type !== 'rows') return { tool: 'input', also: [], says: source.name };
   const q = cube.query;
   const steps: { tool: FlowTool; says: string }[] = [];
+  // Count Records: a column of one value grouped by, a 1 for each row summed (count-records.ts) -- its own, all of it
+  const counted = countRecordsOf(q);
+  if (counted !== undefined) return { tool: 'countRecords', also: [], says: `its rows counted: ${counted.name}` };
   // Unique: a row number per key, its first rows kept, the number hidden (unique.ts) -- one step, before the others
   const unique = uniqueOf(q);
   if (unique !== undefined) steps.push({ tool: 'unique', says: `by ${unique.keys.join(', ')}` });

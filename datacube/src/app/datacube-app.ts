@@ -1437,6 +1437,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         // drawn as the tool it was added as, and its settings docked in the flow's settings pane: what the tool is for
         page.boxAddedAs(box, tool);
         if (editor !== undefined) page.grid(box)?.openStep?.(editor);
+        // a tool with no settings does its step as it is made: Count Records counts
+        else if (tool === 'countRecords') page.grid(box)?.openStep?.({ window: 'countRecords' });
       })().catch((e: unknown) => window.alert(`${tool[0]!.toUpperCase()}${tool.slice(1)}: ${e instanceof Error ? e.message : String(e)}`));
     };
     // A FLOW'S JOIN BOX (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): made after a box, or set again -- the Join window over

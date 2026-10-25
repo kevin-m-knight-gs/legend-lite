@@ -1684,6 +1684,20 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, "the grid has no column 'nope'"):
             page.find_replace(mine, names, 'desk', 'desk', 'name')._preset({'kind': 'findReplace', 'column': 'nope', 'with': 'name'})
 
+    def test_rows_counted_as_count_records(self):
+        # (M4) grid.count_records: a flow's Count Records (count-records.ts) -- one row, one column; the box after it reads
+        # the count alone
+        page = ll.Page('Count Records')
+        flow = page.flow()
+        source = flow.grid(trades(), name='counted_trades')
+        counted = flow.grid(input=source)
+        counted.count_records()
+        rows = flow.grid(input=counted).to_pandas()
+        self.assertEqual(list(rows.columns), ['Count'])
+        self.assertEqual([int(v) for v in rows['Count']], [3])
+        with self.assertRaisesRegex(ValueError, 'it counts its rows already'):
+            counted.count_records()
+
     def test_rows_summarised_as_a_flow_box_summarises_them(self):
         # (M1) grid.summarize: a flow's Summarize (summarize.ts summarizeCommands) -- a row of each group, each column
         # aggregated as it is told, every other left out; the database groups and aggregates

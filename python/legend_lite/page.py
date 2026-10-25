@@ -940,6 +940,12 @@ class Grid(Tile):
         given = {c: ({'fn': a[0], 'by': a[1]} if isinstance(a, tuple) else a) for c, a in (aggregate or {}).items()}
         return self._preset({'kind': 'summarize', 'group': list(group), 'aggregate': given})
 
+    def count_records(self, name: str = 'Count') -> Grid:
+        """How many rows it has -- one row, one column, ``name`` -- a flow's Count Records (DataCube's code:
+        count-records.ts countRecordsCommands): a column of one value grouped by and hidden, a 1 for each row summed,
+        every other column hidden, so the box after it reads the count alone. The database counts."""
+        return self._preset({'kind': 'countRecords', 'name': name})
+
     def multi_field(self, columns: Sequence[str], expression: str, *, suffix: str = '_new', in_place: bool = False) -> Grid:
         """One ``expression`` over each of ``columns`` -- a flow's Multi-Field Formula (DataCube's code:
         multi-field-columns.ts multiFieldCommands): Pure over ``$v``, each column's value in turn (``'$v->toOne()->trim()'``, ``'$v->toOne() *

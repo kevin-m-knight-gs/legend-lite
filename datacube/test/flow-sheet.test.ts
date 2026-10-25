@@ -34,6 +34,7 @@ import { handedOn } from '../src/box-columns.ts';
 import { readSummary, summarizeCommands } from '../src/summarize.ts';
 import { unmatchedOn } from '../src/join-how.ts';
 import { findReplaceCommands, findReplaceOf, readFindReplace } from '../src/find-replace.ts';
+import { countRecordsCommands, countRecordsOf, readCountRecords } from '../src/count-records.ts';
 import { summaryActions, summaryOf } from '../src/grid-edits.ts';
 import { applyGridCommands } from '../src/grid-commands.ts';
 import type { GridDraft } from '../src/grid-edits.ts';
@@ -516,6 +517,25 @@ describe('Find Replace (find-replace.ts): a column replaced by the column of the
     assert.deepEqual(readFindReplace({ kind: 'findReplace', column: 'region', with: 'name' }), { column: 'region', with: 'name' });
     refused(() => readFindReplace({ kind: 'findReplace', column: 'region' }), /names its column and the column it is replaced with/);
     refused(() => readFindReplace({ kind: 'findReplace', column: 'a', with: 'b', by: 1 }), /takes column and with, not by/);
+  });
+});
+
+describe('Count Records (count-records.ts): one row, its count -- a column of one value grouped by, a 1 summed', () => {
+  const typed = { ...rawRows(accessor('local::DB', 'trades'), COLUMNS) };
+
+  it('groups by its column of one value, sums its 1s, hides the rest; read back and said; refused in words', () => {
+    const commands = countRecordsCommands({ ...typed, rows: ['region'] });
+    assert.deepEqual(commands.map((c) => c.kind), ['group', 'calculate', 'calculate', 'group', 'column', 'configure']);
+    const done = applyGridCommands({ snapshot: typed, config: DEFAULT_CONFIGURATION }, countRecordsCommands(typed));
+    assert.deepEqual(countRecordsOf(done.snapshot), { name: 'Count', all: 'CountAll' });
+    const config = done.config as unknown as Record<string, unknown>;
+    assert.deepEqual(handedOn(rowColumns(done.snapshot).map((c) => c.name), done.snapshot, config).map((c) => c.as), ['Count'], 'its count alone');
+    const box = cube(rows('grid-1'), (q) => ({ ...q, derived: done.snapshot.derived, rows: done.snapshot.rows }), config);
+    assert.deepEqual(boxSays(box), { tool: 'countRecords', also: [], says: 'its rows counted: Count' });
+    refused(() => countRecordsCommands(done.snapshot), /counts its rows already/);
+    refused(() => countRecordsCommands(typed, 'region'), /'region' is already a column/);
+    assert.deepEqual(readCountRecords({ kind: 'countRecords' }), { name: 'Count' });
+    refused(() => readCountRecords({ kind: 'countRecords', by: 1 }), /takes name, not by/);
   });
 });
 

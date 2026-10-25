@@ -379,8 +379,10 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  page is, so at startup; the anti-joins themselves join-open.ts's, and the ports' drawing the canvas's chunk). Measured
  *  376,805.
  *  377,000 -> 377,500 (2026-10-25, the flow mode's Find Replace: its window's opener (app.ts); the rule, the window and a
- *  box's words chunks of their own, find-replace.ts, ui/find-replace-form.ts and the canvas's). Measured 377,079. */
-const BUDGET = 377_500;
+ *  box's words chunks of their own, find-replace.ts, ui/find-replace-form.ts and the canvas's). Measured 377,079.
+ *  377,500 -> 378,000 (2026-10-25, the flow mode's Count Records: its step, applied as its box is made (app.ts), its
+ *  rule a chunk of its own, count-records.ts). Measured 377,577. */
+const BUDGET = 378_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
