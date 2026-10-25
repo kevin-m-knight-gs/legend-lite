@@ -309,8 +309,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  right-click menu to Column Properties' buttons). Measured 346,360.
  *  347,000 -> 355,500 (2026-10-24, main's D19 merged into this branch: its own steps there, 323,500 -> 332,000 ->
  *  333,500 -- the grid's and the page's total diffs, the converge on the keeper's page, the page hash, its audits'
- *  rounds, each signed off by the user (D9) -- now on top of the parity program's). Measured 355,159. */
-const BUDGET = 355_500;
+ *  rounds, each signed off by the user (D9) -- now on top of the parity program's). Measured 355,159.
+ *  355,500 -> 356,000 (2026-10-25, the UI waves the user asked for: a measure's numbers right-aligned in the grid and
+ *  every export (style.ts autoTextAlign, grid-edits.ts isMeasureLeaf); the page's ≡ grouped by purpose -- New Page,
+ *  Export Page File…, Edit Layout that flips, Create ▸ Text Box, View ▸ Hide the Bar and Keyboard Shortcuts…, each greyed
+ *  entry's why on hover (page-app.ts #menuGroups)). Measured 355,513. */
+const BUDGET = 356_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
