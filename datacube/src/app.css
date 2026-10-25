@@ -4952,6 +4952,10 @@
 .dc-flow-output[hidden] { display: none; }
 .dc-flow-output-name { width: 16em; }
 .dc-flow-output-said { color: var(--dc-muted); font-size: 12px; }
+/* a Cross Tab's columns: found as it runs, or fixed by Load values (FL2), and what the last said */
+.dc-flow-pin-words { font-size: 12px; flex: 1 1 18em; min-width: 0; }
+.dc-flow-pin-said { color: var(--dc-muted); font-size: 12px; flex-basis: 100%; }
+.dc-flow-pin-said:empty { display: none; }
 .dc-flow-input-side { color: var(--dc-muted); font-size: 12px; }
 .dc-flow-input > .dc-select { min-width: 10em; max-width: 22em; }
 /* a Union's input taken off (one of more than two), and its next one added */

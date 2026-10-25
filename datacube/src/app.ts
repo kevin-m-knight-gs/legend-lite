@@ -41,7 +41,7 @@ import type { Dimension } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
 import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
-import { classLambda, columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda } from './query.ts';
+import { classLambda, columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda, pivotValuesLambda } from './query.ts';
 import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
 import { DATE_RANGE_LABELS, DATE_RANGES } from './date-ranges.ts';
 import { valueList } from './ui/value-list.ts';
@@ -3779,7 +3779,9 @@ export class CubeApp {
     const download = this.#options.download;
     if (!download) throw new Error('this page has no way to hand a file over');
     const s = this.#snapshot;
-    if (s.pivotOn.length > 0) throw new CubeRefusal('a pivoted grid\'s columns are its values: take its pivot off to write it');
+    if (s.pivotOn.length > 0 && (s.pivotValues ?? []).length === 0) {
+      throw new CubeRefusal('a pivoted grid\'s columns are its values: Load its values to fix them, or take its pivot off, to write it');
+    }
     const { columnsLambda, rowsLambda } = await lazily(() => import('./profile.ts'));
     const rows = classLambda(s).body[0]!;
     const typed = await this.#controller.runQuery(columnsLambda(rows), s);
@@ -3795,6 +3797,31 @@ export class CubeApp {
     });
     if (parts.length === 0) parts.push(toCsv({ columns: shown.map((n) => ({ name: n, values: [] })), rowCount: 0, epoch: 0, elapsedMs: 0 } as never));
     download(name, 'text/csv', parts.join(''));
+  }
+
+  /**
+   * A CROSS TAB'S LOAD VALUES (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2): the values its rows hold now, asked of the
+   * database as its pivot asks them (query.ts pivotValuesLambda, its pins taken off), pinned -- its columns fixed, so the
+   * box after it reads them (the gesture pivot.pin, Python's grid.load_pivot_values); `pin` false, its values its rows'
+   * again. The refusal, in words, or null.
+   */
+  async pinPivotValues(pin: boolean): Promise<string | null> {
+    if (!pin) return this.#gesture('pivot.pin', { values: null }, 'Unfix Columns');
+    const { pivotValues: _pinned, ...s } = this.#snapshot;
+    let query: Lambda | null;
+    let answered: ResultTable;
+    try {
+      query = pivotValuesLambda(s);
+      if (query === null) return 'it pivots on no column: it has no values to load';
+      ({ rows: answered } = await this.#controller.runQuery(query, s));
+    } catch (e) {
+      if (e instanceof CubeRefusal) return e.message;
+      throw e;
+    }
+    const on = s.pivotOn[0]!;
+    const type = rowColumns(s).find((c) => c.name === on)?.type;
+    const values = (answered.columns.find((c) => c.name === on)?.values ?? []).map((v) => cellFilterValue(v, type));
+    return this.#gesture('pivot.pin', { values }, 'Load Values');
   }
 
   /** A FLOW'S JSON PARSE (Alteryx's): a JSON column's fields made columns of their own -- the column editor opened on its

@@ -283,7 +283,7 @@ How to read the status column:
 | Tool | Status | How |
 |---|---|---|
 | Summarize | Built | A grid's grouping and measures: sum, count, average, min, max, median, quartiles, standard deviation, variance, concatenate (`joinStrings`), weighted average, unique -- set in Alteryx's window, a row a column (2026-10-25) |
-| Cross Tab | Step | The grid's pivot, typed by its cast, its values checked (FL2, FL3, FL8) |
+| Cross Tab | Built, its columns fixed (2026-10-25) | The grid's pivot; Load values pins its values, so its columns are fixed and a box after it reads them, each named by its value (FL2). A value its rows gain that the pin lacks, said and checked by mode (FL3, FL8), is next |
 | Transpose | Built (2026-10-25) | An exploded column over the list of the columns' names (`lateral(...->flatten(~Name))`), a column choosing each row's value by its name (`if`), every column but the keys hidden; columns of one kind of value |
 | Running Total | Built | A window column, running frame |
 | Weighted Average | Built | `wavg` |
@@ -861,6 +861,28 @@ its place. Tested by `flow-sheet.test.ts` (set, read, written, renamed, undone, 
 stop), Python's `test_a_test_that_stops_a_run_writes_no_output` (refused, nothing written; set to warn, written; saved
 and loaded) and the harness (the example's Checks sheet: run, 2024's orders written; its Test set to stop a run and run
 again: nothing written, said, the Test red).
+
+**Built, a Cross Tab's columns fixed** (FL2; `grid-edits.ts` `pinPivot`, `grid-commands.ts` `pinPivot`,
+`grid-gestures.ts` `pivot.pin`, `query.ts` `crossTabRows`, `app.ts` `pinPivotValues`, `layout/flow-canvas.ts` `#paintPin`;
+2026-10-25): a pivoted box's columns are its values, found as it runs, so a box after it could not read them (refused in
+words). Its settings now say so, with **Load values**: its values as its rows hold them now, asked of the database by
+the pivot's own values query, pinned -- the grid's long-standing `pivotValues`, now set by a grid command of its own
+(`pinPivot`, undone as any is: `grid-between.ts`; a pivot set on another column takes the pin off) and its gesture
+(`pivot.pin`: each value typed as its column is, an empty value refused -- it names no column). Pinned, its rows at
+their finest level are a relation with fixed columns (`classLambda` over `crossTabRows`): a row per group, its keys, a
+column for each value named by it (`EMEA`; `EMEA_notional` when it spreads several measures; its total `Total`), the
+measures it keeps out of the pivot beside them. So a box after it reads them -- in the flow, its Profile, its Output and
+Create a Class alike -- where FL2's design asked for a `cast`: the grid writes a pivot as one aggregate per value
+(`levelRelation`), so a pin types its columns without one. Its strip lists them, with **Load values again** and
+**Unfix**. A value its rows gain that the pin lacks has no column of its own until loaded again; saying it (FL3) and
+its mode (FL8) are next. Python: `grid.load_pivot_values()` (the headless `gridPivotValues`, the screen's question),
+`grid.pin_pivot(values)`, `grid.pin_pivot(None)`. Tested by `grid-gestures.test.ts` (typed, the same again nothing,
+taken off, kept by its own pivot and dropped by another, refusals, read from JSON), `create-class.test.ts` (its rows: no
+order, renamed, selected; a value naming a key refused), the random walks (`grid-random.ts`: pins among the edits, every
+pair of states reached by commands), Python's `test_a_cross_tab_with_its_columns_fixed_is_read_by_the_box_after_it`
+(over DuckDB: Load values, a box after it reading `AMER_notional`... ; pinned to one, fewer; unpinned, refused) and the
+harness (a Cross Tab pivoted on region and grouped by desk by the header menu, Load values, a Browse after it reading
+its regions' columns).
 
 **Built, a Test's count of rows** (FL8's row-count check; `checks.ts` kind `rows`; 2026-10-25): a check of no column --
 its input's count of rows from a smallest to a largest (whole numbers, either left out, a smallest 1 at least: every

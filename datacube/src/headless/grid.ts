@@ -61,7 +61,8 @@ import {
 import { gridLens, readPageFilters } from '../page-filters.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError, type ModelOptions } from '../planner.ts';
-import { classBasis, classLambda, snapPull, type ClassBasis } from '../query.ts';
+import { classBasis, classLambda, pivotValuesLambda, snapPull, type ClassBasis } from '../query.ts';
+import { cellFilterValue } from '../value-filter.ts';
 import type { PlanAndRun, QueryLens } from '../runner.ts';
 import { classSamples } from '../model-plans.ts';
 import { SampleRefusal, type SampleRows } from '../sample-rows.ts';
@@ -1298,6 +1299,22 @@ export async function gridFailing(spec: GridSpec): Promise<string> {
     if (view === STALE) throw new Error('the grid was asked again before its view was ready');
     const failing = failingChecks(checks, (name) => view.rows.columns.find((c) => c.name === name)?.values[0]);
     return JSON.stringify({ failing: failing.map((f) => ({ check: checkWords(f.check), rows: f.rows, says: failingWords(f) })) });
+  });
+}
+
+/** A PIVOT'S VALUES AS ITS ROWS HOLD THEM NOW (a Cross Tab's Load values, FL2: app.ts pinPivotValues, the screen's
+ *  question): its values query asked with its pins taken off, run as the screen runs it, each value as the screen reads
+ *  a cell -- what Python's grid.load_pivot_values pins by the gesture pivot.pin. JSON: `{values}`, or `{problems}` when
+ *  it pivots on no column. */
+export async function gridPivotValues(spec: GridSpec): Promise<string> {
+  return using(spec, async (o) => {
+    const { pivotValues: _pinned, ...s } = o.state.snapshot;
+    const query = pivotValuesLambda(s);
+    if (query === null) return JSON.stringify({ problems: ['it pivots on no column: it has no values to load'] });
+    const { rows } = await controllerOf(o).runQuery(query, s);
+    const on = s.pivotOn[0]!;
+    const type = rowColumns(s).find((c) => c.name === on)?.type;
+    return JSON.stringify({ values: (rows.columns.find((c) => c.name === on)?.values ?? []).map((v) => cellFilterValue(v, type)) });
   });
 }
 

@@ -472,12 +472,55 @@ export function levelLambda(snapshot: QuerySnapshot, scope?: LevelScope, pivot?:
  * A CLASS'S ROWS (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.1, Create a Class…): the cube's rows at its finest
  * level, as the grid shows them -- a flat cube's rows (its calculated columns, its filter, the columns it shows), a
  * grouped cube's groups (one row per group, its measures beside its keys) -- in no order and uncapped: a class's
- * instances have neither. Refused in words: a pivot (its columns are its values, and a class's properties are
- * fixed). A grid asks no aggregate of its own (snapshot.ts QuerySnapshot), so one grouped by nothing is its rows.
+ * instances have neither. A pivot whose values are pinned (a Cross Tab's, crossTabRows) has fixed columns, so its rows
+ * are its groups' too; one whose values its rows decide each time is refused in words (its columns are its values, and
+ * a class's properties, a box's columns, are fixed). A grid asks no aggregate of its own (snapshot.ts QuerySnapshot),
+ * so one grouped by nothing is its rows.
  */
 export function classLambda(snapshot: CubeSnapshot): Lambda {
-  if (snapshot.pivotOn.length > 0) throw new Error('a class has fixed properties: take the pivot off first');
+  if (snapshot.pivotOn.length > 0) return crossTabRows(snapshot).lambda();
   return levelRelation(snapshot, undefined, undefined, false).lambda();
+}
+
+/** The name of a pinned pivot's column as its rows hand it on (crossTabRows): its value alone when it spreads one
+ *  measure, else its value and its measure; a total `Total`, or `Total_<measure>`. */
+export function crossTabName(column: PivotColumn, spread: number): string {
+  const label = column.tuple === null ? 'Total' : column.tuple.map(pivotLabel).join('_');
+  return spread === 1 ? label : `${label}_${column.measure.name}`;
+}
+
+/**
+ * A CROSS TAB'S ROWS (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2, Alteryx's Cross Tab): a pivot whose values are pinned
+ * has fixed columns -- one per value (and measure), its total's -- so its rows at their finest level are a relation the
+ * box after it reads: a row per group, its keys beside its cells, each cell named by its value (crossTabName), the
+ * measures it keeps out of the pivot beside them; no order, no cap. Refused in words: values its rows decide each time
+ * (Load its values to fix them), a value naming a column it has already.
+ */
+function crossTabRows(snapshot: CubeSnapshot): Relation {
+  const facts = pinnedPivotFacts(snapshot);
+  if (facts === null) {
+    throw new CubeRefusal('its columns are its values, which its rows decide each time it runs: Load its values to fix them, or take its pivot off');
+  }
+  let rel = levelRelation(snapshot, undefined, facts, false);
+  const cells = pivotColumns(snapshot, facts);
+  const spread = spreadMeasures(snapshot).length;
+  const kept = [
+    ...snapshot.rows,
+    ...(snapshot.rows.length > 0 ? carriedMeasures(snapshot, snapshot.rows) : []).map((m) => m.name),
+    ...(snapshot.groupDerived ?? []).filter((d) => !d.childAggregate).map((d) => d.name),
+  ];
+  const names = new Set(kept);
+  const renamed: string[] = [];
+  for (const c of cells) {
+    const name = crossTabName(c, spread);
+    if (name === '') throw new CubeRefusal('an empty text value names no column: fill or filter its empty values first');
+    if (names.has(name)) throw new CubeRefusal(`its value '${name}' names a column it has already: rename that column first`);
+    names.add(name);
+    renamed.push(name);
+    if (name !== c.name) rel = rel.rename(c.name, name);
+  }
+  // its keys, its cells, the rest: no machinery (the root a pivot of no groups is grouped under)
+  return rel.select([...snapshot.rows, ...renamed, ...kept.slice(snapshot.rows.length)]);
 }
 
 /**

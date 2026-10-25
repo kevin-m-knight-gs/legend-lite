@@ -10,12 +10,12 @@ import { lambda, property, variable } from '../../pure-protocol/src/index.ts';
 import { nameProblem } from './calc.ts';
 import { draftColumn, newDraft } from './column-draft.ts';
 import { applyToSnapshot, columnConfig, withColumn, type ColumnPatch, type CubeConfiguration } from './config.ts';
-import { defaultAggregate, spreadMeasures } from './query.ts';
+import { defaultAggregate, MAX_PIVOT_VALUES, spreadMeasures } from './query.ts';
 import { takesAggregate } from './offers.ts';
 import {
   AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SECOND_COLUMN, SORT_DIRECTIONS, TWO_COLUMN_AGGREGATES, rowColumns,
   totalOrderSorts, type AggregateFn,
-  type ColumnKind, type CubeShape, type CubeSnapshot, type DerivedColumn, type Measure, type SortDirection, type SortSpec,
+  type ColumnKind, type CubeShape, type CubeSnapshot, type DerivedColumn, type FilterValue, type Measure, type SortDirection, type SortSpec,
 } from './snapshot.ts';
 import type { TreeState } from './tree.ts';
 
@@ -125,7 +125,37 @@ export function setPivot<D extends GridDraft>(draft: D, pivotOn: readonly string
   checkGroupable(draft, pivotOn, draft.snapshot.pivotOn, 'the pivot');
   const columns = allColumns(draft);
   const sorts = pivotOn.length > 0 ? draft.snapshot.sorts : draft.snapshot.sorts.filter((x) => columns.includes(x.column));
-  return { ...draft, snapshot: { ...draft.snapshot, pivotOn: [...pivotOn], sorts } };
+  // its pinned values are the values of what it pivoted on (pinPivot): another pivot's are none of its
+  const { pivotValues, ...rest } = draft.snapshot;
+  const same = pivotOn.length === draft.snapshot.pivotOn.length && pivotOn.every((c, i) => c === draft.snapshot.pivotOn[i]);
+  return { ...draft, snapshot: { ...rest, ...(same && pivotValues !== undefined ? { pivotValues } : {}), pivotOn: [...pivotOn], sorts } };
+}
+
+/**
+ * THE PIVOT'S VALUES PINNED (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2, a Cross Tab's Load values): its columns those
+ * values', whatever its rows hold -- a value its rows lack an empty column, one they hold that it lacks no column of its
+ * own (said by the check FL3 adds) -- so what reads its rows reads fixed columns (query.ts crossTabRows); null, its
+ * values its rows' each time it runs. Refused in words: a grid pivoting on no column, or on more than one; no value; an
+ * empty value (no column can be named by it); a value twice; more than a pivot shows.
+ */
+export function pinPivot<D extends GridDraft>(draft: D, values: readonly FilterValue[] | null): D {
+  const { pivotValues: _was, ...rest } = draft.snapshot;
+  if (values === null) return { ...draft, snapshot: rest };
+  const on = draft.snapshot.pivotOn;
+  if (on.length === 0) throw new CubeRefusal('the grid pivots on no column: it has no values to pin');
+  if (on.length > 1) throw new CubeRefusal(`a pivot on one column has its values pinned, not on ${on.length} (${on.join(', ')})`);
+  if (values.length === 0) throw new CubeRefusal(`a pin is of one value of '${on[0]}' at least`);
+  if (values.length > MAX_PIVOT_VALUES) throw new CubeRefusal(`a pivot shows ${MAX_PIVOT_VALUES} values at most, not ${values.length}`);
+  const seen = new Set<string>();
+  for (const v of values) {
+    if (typeof v !== 'string' && typeof v !== 'number' && typeof v !== 'boolean') {
+      throw new CubeRefusal(`a pinned value is a text, a number or true or false, not ${JSON.stringify(v)}`);
+    }
+    if (v === '') throw new CubeRefusal('an empty text names no column: fill or filter its empty values first');
+    if (seen.has(String(v))) throw new CubeRefusal(`'${String(v)}' is pinned twice`);
+    seen.add(String(v));
+  }
+  return { ...draft, snapshot: { ...rest, pivotValues: [...values] } };
 }
 
 function checkGroupable(draft: GridDraft, names: readonly string[], had: readonly string[], what: string): void {

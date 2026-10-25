@@ -44,6 +44,9 @@ export interface FlowBoardOptions {
   /** A Test box set to stop a run when its checks fail (its settings' checkbox), or to warn: the caller tells it
    *  (setStops). */
   readonly onStops?: (id: string, stops: boolean) => void;
+  /** A Cross Tab box's Load values (`pin`: its values as its rows hold them now pinned, its columns fixed -- FL2) or
+   *  Unfix: the refusal in words, or null. */
+  readonly onPinValues?: (id: string, pin: boolean) => Promise<string | null>;
   /** An Output's Write now: the caller writes its rows to its file, and says why not when it could not. */
   readonly onWrite?: (id: string) => Promise<string | null>;
   /** A box clicked, or Enter on it: the caller shows its rows (its grid made, `add`) -- and its settings, `editor` (the

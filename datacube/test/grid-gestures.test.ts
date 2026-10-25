@@ -67,6 +67,37 @@ describe('the row groups and the pivot', () => {
   });
 });
 
+describe("a Cross Tab's values pinned (FL2: pivot.pin, grid-edits.ts pinPivot): its columns fixed", () => {
+  const pivoted = (s: Partial<CubeSnapshot> = {}): GestureGrid => grid({ pivotOn: ['year'], ...s });
+  it('pins the values as the database answered them, each typed as its column is; null takes them off', () => {
+    // a big integer answered as its digits: a number again; one past a double's exact range kept as its text
+    assert.deepEqual(gridGesture('pivot.pin', pivoted(), { values: ['2023', 2024, '90071992547409930'] }),
+      [{ kind: 'pinPivot', values: [2023, 2024, '90071992547409930'] }]);
+    assert.deepEqual(gridGesture('pivot.pin', grid({ pivotOn: ['desk'] }), { values: ['FX', 'Rates'] }), [{ kind: 'pinPivot', values: ['FX', 'Rates'] }]);
+    assert.deepEqual(gridGesture('pivot.pin', pivoted({ pivotValues: [2023] }), { values: [2023] }), [], 'pinned so already');
+    assert.deepEqual(gridGesture('pivot.pin', pivoted({ pivotValues: [2023] }), { values: null }), [{ kind: 'pinPivot', values: null }]);
+    assert.deepEqual(gridGesture('pivot.pin', pivoted(), { values: null }), [], 'nothing pinned to take off');
+    refused(() => gridGesture('pivot.pin', pivoted(), { values: [2023, null] }), /an empty 'year', which names no column/);
+  });
+
+  it('applied: its values kept while it pivots on that column, taken off by another pivot; refused in words', () => {
+    const applied = (s: Partial<CubeSnapshot>, commands: readonly unknown[]): CubeSnapshot =>
+      applyGridCommands({ snapshot: { ...CUBE, ...s }, config: DEFAULT_CONFIGURATION }, commands as never).snapshot;
+    assert.deepEqual(applied({ pivotOn: ['year'] }, [{ kind: 'pinPivot', values: [2023, 2024] }]).pivotValues, [2023, 2024]);
+    assert.equal(applied({ pivotOn: ['year'], pivotValues: [2023] }, [{ kind: 'pinPivot', values: null }]).pivotValues, undefined);
+    assert.deepEqual(applied({ pivotOn: ['year'], pivotValues: [2023] }, [{ kind: 'pivot', columns: ['year'] }]).pivotValues, [2023], 'the same pivot');
+    assert.equal(applied({ pivotOn: ['year'], pivotValues: [2023] }, [{ kind: 'pivot', columns: ['desk'] }]).pivotValues, undefined, "another's values none of its");
+    refused(() => applied({}, [{ kind: 'pinPivot', values: [1] }]), /pivots on no column/);
+    refused(() => applied({ pivotOn: ['year', 'desk'] }, [{ kind: 'pinPivot', values: [1] }]), /a pivot on one column has its values pinned, not on 2/);
+    refused(() => applied({ pivotOn: ['desk'] }, [{ kind: 'pinPivot', values: [] }]), /one value of 'desk' at least/);
+    refused(() => applied({ pivotOn: ['desk'] }, [{ kind: 'pinPivot', values: ['FX', 'FX'] }]), /'FX' is pinned twice/);
+    refused(() => applied({ pivotOn: ['desk'] }, [{ kind: 'pinPivot', values: [''] }]), /an empty text names no column/);
+    assert.deepEqual(readGridCommand({ kind: 'pinPivot', values: ['FX', 2] }), { kind: 'pinPivot', values: ['FX', 2] });
+    assert.deepEqual(readGridCommand({ kind: 'pinPivot', values: null }), { kind: 'pinPivot', values: null });
+    refused(() => readGridCommand({ kind: 'pinPivot', values: [{ x: 1 }] }), /a list of texts, numbers or true and false, or null/);
+  });
+});
+
 describe("the columns' presentation", () => {
   it("a setting a column has already, or a group it is not in taken out, is nothing to tell (the S8 audit's 6)", () => {
     const config = withColumns({ desk: { pinned: 'left', hidden: true, width: 120 }, notional: { heatmap: { from: '#ffffff', to: '#ff8a65' } } });

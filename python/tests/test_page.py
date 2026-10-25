@@ -3131,6 +3131,29 @@ class Flows(Paged):
         again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
         self.assertTrue(next(b for s in again.to_dict()['sheets'] for b in s['layout'].get('boxes', []) if b['tile'] == checked.id).get('stops'))
 
+    def test_a_cross_tab_with_its_columns_fixed_is_read_by_the_box_after_it(self):
+        # FL2: a Cross Tab box (desk by region, its measures summed) -- its columns its values, which a box after it
+        # reads once Load values pins them (grid.load_pivot_values: asked of the database), each value's column named
+        # by it; pinned by hand to fewer, fewer; taken off, refused in words
+        page, flow, source, _big = self.flowed()
+        crossed = flow.grid(input=source)
+        crossed.group('desk').pivot('region')
+        crossed.load_pivot_values()
+        after = flow.grid(input=crossed)
+        rows = after.to_pandas()
+        self.assertEqual(list(rows.columns), ['desk', 'AMER_notional', 'AMER_pnl', 'EMEA_notional', 'EMEA_pnl', 'Total_notional', 'Total_pnl'])
+        by_desk = {r['desk']: r for r in rows.to_dict('records')}
+        self.assertEqual(by_desk['FX']['EMEA_notional'], 100.0)
+        self.assertEqual(by_desk['Rates']['AMER_notional'], 250.0)
+        self.assertTrue(pd.isna(by_desk['FX']['AMER_notional']), "FX has no AMER row: its cell empty")
+        crossed.pin_pivot(['EMEA'])
+        self.assertEqual(list(after.to_pandas().columns), ['desk', 'EMEA_notional', 'EMEA_pnl', 'Total_notional', 'Total_pnl'], 'its columns the pinned ones')
+        with self.assertRaisesRegex(ValueError, "'EMEA' is pinned twice"):
+            crossed.pin_pivot(['EMEA', 'EMEA'])
+        crossed.pin_pivot(None)
+        with self.assertRaisesRegex(ValueError, 'Load its values to fix them'):
+            after.to_pandas()
+
     def test_a_sample_hands_on_the_rest(self):
         # M3: a Sample a filter makes hands on the rest by its False (Alteryx's Create Samples, its estimation and holdout):
         # the rows it leaves out, by the same seed -- its rows and the rest every row, none in both

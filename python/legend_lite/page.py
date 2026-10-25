@@ -523,6 +523,24 @@ class Grid(Tile):
         """Pivoted on ``columns`` (the Columns zone): dimensions, as for ``group``; none, not pivoted."""
         return self._apply([_commands.grid_pivot(columns=list(columns))])
 
+    def pin_pivot(self, values: Sequence[Any] | None) -> Grid:
+        """Its pivot's values pinned -- a flow's Cross Tab with its columns fixed (FL2; the gesture ``pivot.pin``, the
+        rule its settings' Load values asks): its columns those values', whatever its rows hold, so a box after it reads
+        them (each value's column named by it: ``'EMEA'``, or ``'EMEA_notional'`` when it spreads several measures);
+        ``None``, its values its rows' each time it runs. Refused in DataCube's words: a pivot on no column, or on more
+        than one, an empty value, a value twice."""
+        return self._gesture('pivot.pin', {'values': None if values is None else list(values)})
+
+    def load_pivot_values(self) -> Grid:
+        """Its pivot's values pinned as its rows hold them now, asked of the database as its pivot asks them -- a
+        Cross Tab's Load values (DataCube's headless gridPivotValues, then ``pin_pivot``)."""
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridPivotValues', self._spec(engine, frames)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return self.pin_pivot(said['values'])
+
     def add_pivot(self, column: str) -> Grid:
         """Pivoted on ``column`` too, last, as the menu's Add Horizontal Pivot adds it (the gesture
         ``pivot.addHorizontal``); pivoted on already, nothing changes."""

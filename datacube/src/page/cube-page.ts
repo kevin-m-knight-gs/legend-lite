@@ -178,6 +178,9 @@ export interface SpawnedGrid {
   code?(): Promise<{ readonly pure: string; readonly sql: string }>;
   /** Text onto its host's clipboard (a flow's box's Code copied). */
   copyText?(text: string): Promise<void>;
+  /** A Cross Tab's values pinned as its rows hold them now, its columns fixed (FL2), or `pin` false its values its rows'
+   *  again: the refusal in words, or null. */
+  pinPivotValues?(pin: boolean): Promise<string | null>;
 }
 
 export interface CubePageOptions {
@@ -565,6 +568,16 @@ export class CubePage {
       onStops: (tile, stops) => {
         this.#tell(stops ? 'Stop Run On Failure' : 'Warn On Failure', pageCommand('setStops', { grid: tile, stops }));
         this.#options.onChange();
+      },
+      onPinValues: async (tile, pin) => {
+        // its grid made first, when it is not shown: its values are its rows'
+        if (this.#grids.get(tile)?.added?.cube === undefined) await this.#showBox(tile);
+        const grid = this.#grids.get(tile)?.added?.cube;
+        if (grid?.pinPivotValues === undefined) {
+          const on = this.#sheetOf(tile);
+          return (on?.kind === 'flow' ? on.board.refusal(tile) : undefined) ?? 'its grid could not be opened';
+        }
+        return grid.pinPivotValues(pin);
       },
       onWrite: (tile) => this.#writeBox(tile),
       onSelect: (tile, editor) => void this.#showBox(tile, editor),

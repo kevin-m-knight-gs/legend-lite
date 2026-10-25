@@ -84,16 +84,18 @@ export interface OpenedJoin extends OpenedInputs {
 /**
  * AN INPUT'S ROWS, the one rule (a join's input; another grid's rows' input, docs/DATACUBE_FLOW_MODE_2026_10_24.md
  * §3.1): its cube opened over `over` -- what its source is now, as `typer` types it -- at its finest level (query.ts
- * classLambda: a flat cube's rows, a grouped cube's groups), what drifted since said in `notes` under its name. Refused
- * in words when it is pivoted: its columns are its values, so its rows have no fixed columns. Its rows matched against
+ * classLambda: a flat cube's rows, a grouped cube's groups, a Cross Tab's groups by its pinned values), what drifted
+ * since said in `notes` under its name. Refused in words when it is pivoted on values its rows decide: its columns are
+ * its values, so its rows have no fixed columns. Its rows matched against
  * another input's (JoinInput.unmatched: a Join's L or R) are not these: they are read over one model of both, its side
  * (overOneModel) or openRows.
  */
 export async function inputRows(input: JoinInput, over: ValueSpecification, typer: RelationTyper, notes: string[]): Promise<JoinSide> {
   const opened = openCube(inputCube(input), { query: over }, await sourceColumns(typer, over));
   for (const n of opened.notes) notes.push(`${input.name}: ${n}`);
-  if (opened.snapshot.pivotOn.length > 0) {
-    throw new CubeRefusal(`${input.name} is pivoted: its columns are its values, so its rows have no fixed columns; take its pivot off first`);
+  // a Cross Tab's columns fixed by its values pinned (FL2: query.ts crossTabRows); its rows deciding them, none fixed
+  if (opened.snapshot.pivotOn.length > 0 && (opened.snapshot.pivotValues ?? []).length === 0) {
+    throw new CubeRefusal(`${input.name} is pivoted: its columns are its values, so its rows have no fixed columns; Load its values to fix them, or take its pivot off first`);
   }
   const all = classLambda(opened.snapshot).body[0]!;
   const typed = (await sourceColumns(typer, all)).map((c) => ({ name: c.name, type: c.type }));
@@ -176,7 +178,7 @@ async function overOneModel(leaves: readonly LeafSource[], o: JoinOpening): Prom
 /**
  * THE INPUTS OF A JOIN over one model (overOneModel): its two -- a Union's `more` after them -- each its cube's rows at
  * their finest level over its source, the leaves of each in turn (cube-document.ts inputLeaves) -- refused in words when
- * a leaf is read elsewhere (leafRefusal) or an input is pivoted (its columns are its values).
+ * a leaf is read elsewhere (leafRefusal) or an input is pivoted on values its rows decide (its columns are its values).
  */
 export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpening, more: readonly JoinInput[] = []): Promise<OpenedInputs> {
   const all = [left, right, ...more];

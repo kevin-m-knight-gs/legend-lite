@@ -395,8 +395,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  grid's first row read and a run writing its Outputs after every box, held back by a failing stopping Test
  *  (page/cube-page.ts firstRowOf, #runFlow), the box's mode read, written and set (page-document.ts, layout/flow.ts
  *  setStops, page-commands.ts setStops); its rule, window and marks chunks of their own; no startup file added, measured).
- *  Measured 380,296. */
-const BUDGET = 381_000;
+ *  Measured 380,296.
+ *  381,000 -> 382,000 (2026-10-25, the flow mode's Cross Tab with fixed columns, FL2: a pivot's values pinned -- its
+ *  command and rule (grid-commands.ts pinPivot, grid-edits.ts pinPivot, a pivot set again taking another's off), the
+ *  gesture that types them (grid-gestures.ts pivot.pin), its undo (grid-between.ts), a pinned pivot's rows for the box
+ *  after it (query.ts crossTabRows) and Load values (app.ts pinPivotValues, page/cube-page.ts onPinValues); the strip
+ *  that asks it the canvas's chunk; no startup file added, measured). Measured 381,541. */
+const BUDGET = 382_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -551,8 +556,10 @@ const BUDGET = 381_000;
  *  367,500 -> 368,500 (2026-10-25, the flow mode's Code view and Date Filter -- the grid-only page's note of the same
  *  date). Measured 367,918.
  *  368,500 -> 369,500 (2026-10-25, the flow mode's Test and a Test that stops a run -- the grid-only page's note of the
- *  same date). Measured 368,637. */
-const ENGINE_BUDGET = 369_500;
+ *  same date). Measured 368,637.
+ *  369,500 -> 370,500 (2026-10-25, the flow mode's Cross Tab with fixed columns -- the grid-only page's note of the same
+ *  date). Measured 369,849. */
+const ENGINE_BUDGET = 370_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -768,8 +775,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  392,500 -> 393,500 (2026-10-25, the flow mode's Date Filter and Test: the Date Filter's rule and read-back and its
  *  window's opener -- the grid-only page's note of the same date -- the Test's opener (app.ts #openTest) and a grid's
  *  first row read (page/cube-page.ts firstRowOf); a Test's marks and its window's styles; its rule, its window and its
- *  marks' code chunks of their own). Measured 392,624. */
-const WIDGET_BUDGET = 393_500;
+ *  marks' code chunks of their own). Measured 392,624.
+ *  393,500 -> 395,000 (2026-10-25, the flow mode's Test count of rows and Cross Tab with fixed columns: an empty grid's
+ *  row read (page/cube-page.ts firstRowOf), a pivot's values pinned and a pinned pivot's rows -- the grid-only page's
+ *  note of the same date -- and the Cross Tab strip's styles). Measured 394,407. */
+const WIDGET_BUDGET = 395_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

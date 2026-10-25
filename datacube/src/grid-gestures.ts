@@ -14,6 +14,7 @@
 
 import { columnConfig, mergeColumnOrder, withColumn, type CubeConfiguration } from './config.ts';
 import { availableDimensions, drillDown, drillUp, useDimension, type Dimension } from './dimensions.ts';
+import { familyOf } from '../../engine-client/src/types.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { headerSortCommand, type SortedHeader } from './header-sort.ts';
 import {
@@ -70,6 +71,7 @@ export type GridGestureArgs = {
   readonly 'pivot.clearVertical': Nothing;
   readonly 'pivot.horizontal': Column; readonly 'pivot.addHorizontal': Column; readonly 'pivot.removeHorizontal': Column;
   readonly 'pivot.clearHorizontal': Nothing;
+  readonly 'pivot.pin': { readonly values: readonly (FilterValue | null)[] | null };
   readonly 'zones.set': { readonly rows: readonly string[]; readonly columns: readonly string[] };
   readonly 'pivot.measuresFirst': Nothing; readonly 'pivot.exclude': Column; readonly 'pivot.include': Column;
   readonly 'column.hide': Column; readonly 'column.show': { readonly column: string; readonly visible: boolean };
@@ -311,6 +313,29 @@ const GESTURES = {
   'pivot.addHorizontal': { args: ['column'], make: (g, a) => zone('pivot', g.snapshot, added(columnOf(a))) },
   'pivot.removeHorizontal': { args: ['column'], make: (g, a) => zone('pivot', g.snapshot, removed(columnOf(a))) },
   'pivot.clearHorizontal': { args: [], make: () => [{ kind: 'pivot', columns: [] }] },
+  // A CROSS TAB'S LOAD VALUES (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2; Python's grid.pin_pivot): the values its rows
+  // hold now, as the database answered them, pinned -- its columns those from then on (grid-edits.ts pinPivot), each
+  // typed as its column is (a number answered as text, as a database's big integer is, a number); null, its values its
+  // rows' again. An empty value is refused in words: it names no column. The same values pinned again: nothing
+  'pivot.pin': {
+    args: ['values'],
+    make: (g, a) => {
+      const had = g.snapshot.pivotValues !== undefined && g.snapshot.pivotValues.length > 0 ? g.snapshot.pivotValues : null;
+      const given = a['values'];
+      if (given === null) return had === null ? [] : [{ kind: 'pinPivot', values: null }];
+      if (!Array.isArray(given)) throw new CubeRefusal(`a pivot's values are a list, or null, not ${JSON.stringify(given)}`);
+      const on = g.snapshot.pivotOn[0];
+      const type = rowColumns(g.snapshot).find((c) => c.name === on)?.type;
+      const values = (given as readonly unknown[]).map((v): FilterValue => {
+        if (v === null) throw new CubeRefusal(`its rows hold an empty '${on ?? ''}', which names no column: fill or filter its empty values first`);
+        // a number past what a double holds exactly kept as its text: its condition reads it as its column's type
+        const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
+        if (familyOf(type) === 'numeric' && Number.isFinite(n) && (!Number.isInteger(n) || Number.isSafeInteger(n))) return n;
+        return v as FilterValue;
+      });
+      return sameValue(had, values) ? [] : [{ kind: 'pinPivot', values }];
+    },
+  },
   // a drag in the zones: the whole layout the drop leaves, one change (P2-103)
   'zones.set': {
     args: ['rows', 'columns'],

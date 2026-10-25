@@ -670,6 +670,40 @@ try {
     'Properties at its column labels (its column pivots)');
   await page.screenshot({ path: outPath('flow-tools.png') });
 
+  // ITS COLUMNS FIXED (FL2): pivoted on region and grouped by desk in its docked Properties -- its columns its values,
+  // found as it runs -- then Load values pins them (asked of the database): a Browse after it reads each region a column
+  const zone = async (tab, column) => {
+    await page.locator(`.dc-flow-dock .dc-editor-tab[data-tab="${tab}"]`).click();
+    await page.locator(`.dc-flow-dock .dc-pane-available .dc-selector-row[data-column="${column}"]:visible`).click();
+    await page.locator('.dc-flow-dock .dc-selector-move:visible').first().click();
+  };
+  await zone('Horizontal Pivots', 'region');
+  await zone('Vertical Pivots', 'desk');
+  await page.locator('.dc-flow-dock .dc-editor-footer .dc-primary').click();
+  await settled();
+  await page.waitForFunction(() => /found as it runs/.test(document.querySelector('.dc-flow-pin-words')?.textContent ?? ''), undefined, { timeout: 30_000 });
+  check(await page.locator('.dc-flow-pin-unfix').count() === 0, 'nothing fixed yet: no Unfix');
+  await page.locator('.dc-flow-pin-load').click();
+  await page.waitForFunction(() => /^Its columns: /.test(document.querySelector('.dc-flow-pin-words')?.textContent ?? ''), undefined, { timeout: 30_000 });
+  const pinned = await page.evaluate((tile) => {
+    const doc = window.__dataPage.document('x');
+    return doc.cubes.find((c) => c.id === doc.views.find((v) => v.id === tile).cube).cube.query.pivotValues;
+  }, crossTab.id);
+  check(Array.isArray(pinned) && pinned.length > 0, `its values pinned in its query: ${JSON.stringify(pinned)}`);
+  const pinWords = await page.locator('.dc-flow-pin-words').textContent();
+  check(/^Its columns: [A-Z]+/.test(pinWords ?? ''), `Load values: its columns named, ${pinWords} (${JSON.stringify(pinned)})`);
+  check(await page.locator('.dc-flow-pin-unfix').count() === 1, 'fixed: Unfix offered');
+  const beforeCrossed = (await boxes()).map((b) => b.id);
+  await drag('browse', crossTab.id);
+  await boxCount(beforeCrossed.length + 1);
+  const crossed = await added(beforeCrossed);
+  await settled();
+  const crossedHeads = await page.locator('.dc-flow-results .dc-th[data-column]').evaluateAll((els) => els.map((e) => e.dataset.column));
+  const firstRegion = (pinWords ?? '').replace(/^Its columns: /, '').split(/[,.]/)[0]?.trim();
+  check(crossedHeads.includes('desk') && crossedHeads.some((c) => c === firstRegion || c.startsWith(`${firstRegion}_`)),
+    `a Browse after it reads its fixed columns: ${JSON.stringify(crossedHeads)}`);
+  check(await readsOf(crossed.id) === crossTab.id, 'it reads the Cross Tab');
+
   // A FILTER'S FALSE (FL7): a line from its F port let go on the canvas -- a Browse of the rows its condition leaves out
   await page.locator('.dc-flow-canvas').evaluate((c) => { c.scrollLeft = 0; c.scrollTop = 0; });
   const beforeFalse = (await boxes()).map((b) => b.id);

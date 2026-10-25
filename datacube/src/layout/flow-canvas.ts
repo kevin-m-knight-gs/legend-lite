@@ -255,6 +255,11 @@ export class FlowCanvas {
   /** A Test's mode, in the settings (#paintStops), and what it was drawn for. */
   readonly #stopsStrip: HTMLElement;
   #stopsKey = '';
+  /** A Cross Tab's columns, in the settings (#paintPin): found as it runs, or fixed by Load values; what it was drawn for,
+   *  and what its last Load values or Unfix said, by box. */
+  readonly #pinStrip: HTMLElement;
+  #pinKey = '';
+  readonly #pinSaid = new Map<string, string>();
   /** Each comment drawn, as a note: its card, by its tile's id. */
   readonly #notes = new Map<string, HTMLElement>();
   /** A box's menu (a right-click), made the first time, and what its entry picked does. */
@@ -381,7 +386,8 @@ export class FlowCanvas {
     this.#inputs = el('div', 'dc-flow-inputs');
     this.#outputStrip = el('div', 'dc-flow-output');
     this.#stopsStrip = el('div', 'dc-flow-output dc-flow-stops');
-    this.#settings.append(settingsHead, this.#inputs, this.#outputStrip, this.#stopsStrip, board.dock, this.#settingsEmpty);
+    this.#pinStrip = el('div', 'dc-flow-output dc-flow-pin');
+    this.#settings.append(settingsHead, this.#inputs, this.#outputStrip, this.#stopsStrip, this.#pinStrip, board.dock, this.#settingsEmpty);
     // the canvas on its stage, its own tools at its corner, over it as it scrolls
     const stage = el('div', 'dc-flow-stage');
     this.#toolbar = el('div', 'dc-flow-toolbar');
@@ -2449,6 +2455,7 @@ export class FlowCanvas {
     this.#paintInputs(id);
     this.#paintOutput(id);
     this.#paintStops(id);
+    this.#paintPin(id);
     const said = id === undefined ? undefined : this.#said(id);
     const name = id === undefined ? undefined : this.#nameOf(id, said?.tool ?? 'browse');
     const editor = said ? TOOL_EDITORS[said.tool] : undefined;
@@ -2519,6 +2526,54 @@ export class FlowCanvas {
     box.addEventListener('change', () => this.#board.options.onStops?.(id!, box.checked));
     label.append(box, Object.assign(d.createElement('span'), { textContent: 'Stop a run when a check fails: no Output is written' }));
     this.#stopsStrip.replaceChildren(label);
+  }
+
+  /**
+   * A CROSS TAB'S COLUMNS (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2): a pivoted box's columns are its values -- found
+   * as it runs, so a box after it cannot read them -- or fixed by **Load values** (its values as its rows hold them now,
+   * pinned: query.ts crossTabRows), named here; Load values again, or Unfix. What the last one said beside them.
+   */
+  #paintPin(id: string | undefined): void {
+    const q = id === undefined ? undefined : this.#board.options.documentOf?.(id)?.query;
+    const pivoted = q !== undefined && q.pivotOn.length > 0;
+    const pinned = pivoted && (q.pivotValues ?? []).length > 0 ? q.pivotValues! : undefined;
+    const said = id === undefined ? undefined : this.#pinSaid.get(id);
+    const key = JSON.stringify([id, pivoted, pinned, said, this.#board.editing, this.#board.options.onPinValues !== undefined]);
+    if (key === this.#pinKey) return;
+    this.#pinKey = key;
+    this.#pinStrip.hidden = !pivoted;
+    if (!pivoted || id === undefined) {
+      this.#pinStrip.replaceChildren();
+      return;
+    }
+    const d = this.#doc;
+    const words = d.createElement('span');
+    words.className = 'dc-flow-pin-words';
+    const shown = (pinned ?? []).slice(0, 8).map(String);
+    words.textContent = pinned === undefined
+      ? 'Its columns are its values, found as it runs: a box after it cannot read them until they are fixed.'
+      : `Its columns: ${shown.join(', ')}${pinned.length > shown.length ? ` and ${pinned.length - shown.length} more` : ''}.`;
+    const button = (text: string, cls: string, pin: boolean): HTMLButtonElement => {
+      const b = d.createElement('button');
+      b.type = 'button';
+      b.className = `dc-picker-button dc-quiet ${cls}`;
+      b.textContent = text;
+      b.disabled = !this.#board.editing || this.#board.options.onPinValues === undefined;
+      b.title = pin ? 'Its values as its rows hold them now, each a column of its own from now on' : 'Its values found as it runs again';
+      b.addEventListener('click', () => void (async () => {
+        b.disabled = true;
+        const refused = await this.#board.options.onPinValues?.(id, pin);
+        this.#pinSaid.set(id, refused ?? (pin ? 'Its columns are fixed: a value its rows gain has no column of its own' : 'Its columns are its values again'));
+        this.#paintPin(id);
+      })());
+      return b;
+    };
+    const status = d.createElement('span');
+    status.className = 'dc-flow-pin-said';
+    status.setAttribute('role', 'status');
+    status.textContent = said ?? '';
+    this.#pinStrip.replaceChildren(words, button(pinned === undefined ? 'Load values' : 'Load values again', 'dc-flow-pin-load', true),
+      ...(pinned !== undefined ? [button('Unfix', 'dc-flow-pin-unfix', false)] : []), status);
   }
 
   /** THE SETTINGS' OUTPUT (M6): the CSV file an Output box writes, named here (Enter, or leaving the field); Write now

@@ -11,9 +11,10 @@ from typing import Any
 # a field a command may leave out, left out
 _ABSENT: Any = object()
 
-GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort',
-                               'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate', 'editCalculated',
-                               'removeCalculated', 'open', 'collapseAll', 'expandAll', 'topN', 'tree',)
+GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'pinPivot', 'sorts', 'addSort', 'clearSort', 'clickSort',
+                               'clickTreeSort', 'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate',
+                               'editCalculated', 'removeCalculated', 'open', 'collapseAll', 'expandAll', 'topN',
+                               'tree',)
 PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'addFlow', 'placeBox', 'renameSheet', 'moveSheet',
                                'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText',
                                'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout',
@@ -27,6 +28,10 @@ def grid_group(*, rows: Any) -> dict[str, Any]:
 
 def grid_pivot(*, columns: Any) -> dict[str, Any]:
     return {'kind': 'pivot', 'columns': columns}
+
+
+def grid_pin_pivot(*, values: Any) -> dict[str, Any]:
+    return {'kind': 'pinPivot', 'values': values}
 
 
 def grid_sorts(*, sorts: Any) -> dict[str, Any]:
