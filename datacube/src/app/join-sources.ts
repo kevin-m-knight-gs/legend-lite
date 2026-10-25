@@ -24,6 +24,11 @@ export interface JoinSourcesHost {
    * opens, or one read for another join (`joinRead`).
    */
   readFile(sha256: string): { readonly table: string; readonly file: File; readonly handle?: FileHandle } | undefined;
+  /**
+   * A table a grid holds, read by a join not made yet: kept even if that grid goes (with the page it was on) until the
+   * returned give-back is called -- once the join's grid is made, or the join let go.
+   */
+  borrow(table: string): () => void;
   /** A saved cube's file got back (sources.ts fileFor): rebuilt, from the handle `page` kept, or asked for. */
   fileFor(src: FileSource, cube: string, page: string | undefined): Promise<{ file: File; handle?: FileHandle } | undefined>;
   /** A table name of the host's database no grid holds, taken; given back with `untake`, or taken as read with `take`. */
@@ -63,7 +68,7 @@ export interface JoinRead {
  * (`joinRead`), and -- a file given that is not the one the join was saved over -- that, said.
  */
 async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, page: string | undefined,
-  kept: string | undefined): Promise<{ table: string; held?: boolean; note?: string } | undefined> {
+  kept: string | undefined): Promise<{ table: string; held?: boolean; giveBack?: () => void; note?: string } | undefined> {
   /** The name the page's model keeps for this leaf's table (its project's store reads it so), when no grid holds it; else
    *  a fresh one. */
   const asked = (base: string): string => {
@@ -88,7 +93,8 @@ async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, pag
     const renamed = kept !== undefined && already.table !== kept
       ? { note: `${already.file.name} is read as ${already.table} in this tab, not ${kept} as the page's classes read it` } : {};
     const read = h.joinRead.get(already.table);
-    if (!read) return { table: already.table, ...renamed };
+    // a grid's table: borrowed, so a grid that goes meanwhile (the page this one replaces) does not take it with it
+    if (!read) return { table: already.table, giveBack: h.borrow(already.table), ...renamed };
     read.users += 1;
     return { table: already.table, held: true, ...renamed };
   }
@@ -117,6 +123,17 @@ async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, pag
   return { table: opened.table, held: true, ...(said.length > 0 ? { note: said.join('; ') } : {}) };
 }
 
+/** `make`, with `then` called once it has made its grid. */
+function madeThen<M extends (...args: never[]) => unknown>(make: M, then: () => void): M {
+  return ((...args: Parameters<M>) => {
+    try {
+      return make(...args);
+    } finally {
+      then();
+    }
+  }) as M;
+}
+
 /**
  * A join of copies held in the tab, as its plane says it: its files by name, read in by the latest of their read times
  * (its row count is the grid's own to say). A table read at no time the tab knows is a bug of the tab's, refused.
@@ -136,9 +153,13 @@ export async function openedJoin(h: JoinSourcesHost, source: JoinSource, how: { 
   const { local } = h;
   /** The tables read in for joins that this one holds. */
   const holding: string[] = [];
+  /** The grids' tables it borrows (JoinSourcesHost.borrow), given back once its grid is made or it is let go. */
+  const borrowing: (() => void)[] = [];
+  const giveBack = (): void => { for (const back of borrowing.splice(0)) back(); };
   const said: string[] = [];
   /** Its hold on them let go: one no other join holds, and no grid made of one does, is dropped. */
   const forget = async (): Promise<void> => {
+    giveBack();
     for (const t of holding.splice(0)) {
       const read = h.joinRead.get(t);
       if (!read) continue;
@@ -162,6 +183,7 @@ export async function openedJoin(h: JoinSourcesHost, source: JoinSource, how: { 
           return undefined;
         }
         if (got.held) holding.push(got.table);
+        if (got.giveBack) borrowing.push(got.giveBack);
         if (got.note !== undefined) said.push(got.note);
         read.push(got.table);
       }
@@ -197,10 +219,11 @@ export async function openedJoin(h: JoinSourcesHost, source: JoinSource, how: { 
         h.letGo(grid);
         await forget();
       },
-      make: h.gridMaker(r.snapshot, r.configuration, [], {
+      // its grid made holds its tables itself (sources.ts madeGrid): what it borrowed is given back then
+      make: madeThen(h.gridMaker(r.snapshot, r.configuration, [], {
         ...h.rowsPlace(grid), ...plane, cubeSource, label: source.name, ...(r.tree ? { tree: r.tree } : {}), tables,
         foldPanel: how.capped === true,
-      }),
+      }), giveBack),
     };
   } catch (e) {
     if (rows) h.letGo(rows);

@@ -79,6 +79,12 @@ statistics · a 192×14 progress box · the planner's word ("local").
    "sample_sales_2"?* Opening Joining tables first, or Chart examples after it, works. The new page's copy of the sales
    file is named `sample_sales_2` (the old page's still held `sample_sales` when it loaded), then the old page lets
    its copy go, and the new grids still query `sample_sales`.
+   **Fixed 2026-10-25** (`app/sources.ts` readFile and borrow, `app/join-sources.ts` leafTable). The cause was that
+   the gallery and the join example use the same sales sample. A join reopened looks up a table already read from the
+   same file, and it found the old page's `sample_sales` before the new page's own `sample_sales_2`; the old page then
+   dropped it. The join now takes the opening page's own copy first. A table it does take from a grid stays until the
+   join's grid is made, even if that grid's page goes, because the join borrows it. `demo/verify-join.mjs` opens the
+   Chart gallery before the join example.
 2. **A grouped grid shows a blank column for every text column.** The Data sheet grouped by region shows nine empty
    columns (order_id, sold, city, channel…): a text column's default aggregate is `unique`, blank whenever a group
    holds more than one value. Upstream DataCube's default, and the first thing a person sees on the start page.
@@ -355,8 +361,8 @@ View ▸                                    Properties…                 Ctrl+E
 | 4 | Files in the text box (§8): Markdown and text first, then PDF, media, Word, email, PowerPoint | Added by the user, 2026-10-25 |
 
 **Where it stands, 2026-10-25.** Built: numbers right-aligned; the page's ≡ grouped by purpose (§3); one tile header
-(§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2). Next:
-the example-switch bug (found 1); the status bar's error as a chip; the title bar (§4); the menus' design language for
+(§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2); the example-switch bug fixed (found 1). Next:
+the status bar's error as a chip; the title bar (§4); the menus' design language for
 every menu; grouped text columns (found 2); the columns panel (found 3); one icon set (found 4; the tile states, the
 status bar's tools and the editor's toolbar already drawn); the options pane docked at the page's edge; then §8.
 

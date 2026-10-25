@@ -303,6 +303,15 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length === 1, undefined, { timeout: 60_000 })
     .then(() => check(true, 'the start page reopened: its one grid'), async () => bad(`grids open: ${await page.locator(GRIDS).count()}`));
 
+  // AFTER ANOTHER EXAMPLE OVER THE SAME SAMPLE (the example-switch bug, docs/DATACUBE_UI_REVIEW_2026_10_24.md found 1):
+  // the Chart gallery holds the sales sample's table when the join example opens; its joins took that table, which went
+  // with the gallery's page -- "Table with name sample_sales does not exist". The checks below are its joins' rows.
+  await page.click('.dc-titlebar-menu');
+  await item('Open…').click();
+  await page.locator('#cubeswin .dc-open-example[data-example="charts-gallery"]').click();
+  await page.waitForFunction(() => (window.__dataPage?.views().views ?? []).some((v) => v.kind === 'chart'), undefined, { timeout: 120_000 });
+  await page.locator('[data-tile] .dc-row').first().waitFor({ timeout: 120_000 });
+
   // THE JOIN EXAMPLE (the user, 2026-10-23: join prep was on the site, but nothing showed it): opened from Open…'s
   // examples, its two samples made in this tab and its two joins made again -- every order beside its country, by
   // continent, charted; the orders whose country the table lacks (Singapore's) -- nothing asked for
