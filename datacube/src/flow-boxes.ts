@@ -20,15 +20,15 @@ import { findReplaceOf } from './find-replace.ts';
 import { countRecordsOf } from './count-records.ts';
 import { multiFieldOf, type MultiFieldColumn } from './multi-field.ts';
 import { dateToolOf } from './date-tools.ts';
+import { conditionWords, datesKept, datesKeptWords } from './page-filters.ts';
 import { isEveryPair, isFuzzy, type JoinHow } from './join-how.ts';
 import { joinWords } from './join-words.ts';
-import { conditionWords } from './page-filters.ts';
 import { rowColumns, type DerivedColumn } from './snapshot.ts';
 import type { ColumnEditorStart } from './ui/column-editor.ts';
 import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
-export type FlowTool = 'input' | 'textInput' | 'output' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
+export type FlowTool = 'input' | 'textInput' | 'output' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'dateFilter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile'
   | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'countRecords' | 'crosstab' | 'transpose' | 'browse'
   | 'comment' | 'container';
@@ -44,6 +44,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   fuzzyMatch: { name: 'Fuzzy Match', group: 'join', does: 'two inputs joined where their text is alike: a few letters apart at most' },
   findReplace: { name: 'Find Replace', group: 'join', does: 'a column\'s values found in another input and replaced by theirs: a lookup' },
   filter: { name: 'Filter', group: 'prepare', does: 'the rows that meet its conditions' },
+  dateFilter: { name: 'Date Filter', group: 'prepare', does: 'the rows whose date is in a range: this month, the last 30 days, or between two days' },
   formula: { name: 'Formula', group: 'prepare', does: 'columns calculated from each row' },
   multiField: { name: 'Multi-Field', group: 'prepare', does: 'one formula over several columns, a new column of each' },
   select: { name: 'Select', group: 'prepare', does: 'the columns it keeps, and the names it hands them on by' },
@@ -73,7 +74,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'textInput', 'output', 'browse', 'filter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
+  'input', 'textInput', 'output', 'browse', 'filter', 'dateFilter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
   'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'comment', 'container',
 ];
 
@@ -91,6 +92,8 @@ export type StepEditor =
   | { readonly window: 'sample' }
   /** The Imputation window (ui/impute-form.ts): the number columns filled, and with what. */
   | { readonly window: 'impute' }
+  /** The Date Filter window (ui/date-filter-form.ts): a date column, and the range of its dates kept. */
+  | { readonly window: 'dateFilter' }
   /** The Unique window (ui/unique-form.ts): the columns a key is, and the order a key's first row is first in. */
   | { readonly window: 'unique' }
   /** The Multi-Field Formula window (ui/multi-field-form.ts): its columns, its expression over each one's value. */
@@ -115,6 +118,7 @@ export type StepEditor =
 
 export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   filter: { window: 'filters' },
+  dateFilter: { window: 'dateFilter' },
   formula: { window: 'column' },
   multiField: { window: 'multiField' },
   transpose: { window: 'transpose' },
@@ -207,8 +211,11 @@ export function boxSays(cube: CubeDocument): BoxSays {
     if (last?.tool === tool) last.says = last.says === said || last.says.split(', ').includes(said) ? last.says : `${last.says}, ${said}`;
     else steps.push({ tool, says: said });
   }
-  // a Unique's filter and a Sample's are their own; any other, a Filter's
-  if (q.filter !== undefined && unique === undefined && sampled === undefined) steps.push({ tool: 'filter', says: conditionWords(q.filter) });
+  // a Unique's filter and a Sample's are their own; one column's dates in a range a Date Filter's; any other, a Filter's
+  if (q.filter !== undefined && unique === undefined && sampled === undefined) {
+    const dated = datesKept(q.filter);
+    steps.push(dated !== undefined ? { tool: 'dateFilter', says: datesKeptWords(dated) } : { tool: 'filter', says: conditionWords(q.filter) });
+  }
   if (q.topN !== undefined) steps.push({ tool: 'sample', says: `${q.topN.bottom === true ? 'first' : 'last'} ${q.topN.n} by ${q.topN.by}` });
   if (q.pivotOn.length > 0) {
     steps.push({ tool: 'crosstab', says: `${q.pivotOn.join(', ')} across${q.rows.length > 0 ? `, by ${q.rows.join(', ')}` : ''}` });

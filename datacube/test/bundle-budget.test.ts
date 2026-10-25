@@ -385,8 +385,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  378,000 -> 379,000 (2026-10-25, the flow mode's Union of any number: a join's inputs after its right read, written
  *  and walked at startup (cube-document.ts JoinSource.more, joinInputs; live-inputs.ts; page-commands.ts setJoin's more,
  *  setInput's next side; page-between.ts, page-rebase.ts), and a Union's input taken off (page-gestures.ts
- *  takeOffCommands, flow.takeOff); its ports and settings the canvas's chunk). Measured 378,619. */
-const BUDGET = 379_000;
+ *  takeOffCommands, flow.takeOff); its ports and settings the canvas's chunk). Measured 378,619.
+ *  379,000 -> 380,000 (2026-10-25, the flow mode's Code view and Date Filter: a grid's last query printed (app.ts code,
+ *  copyText); the Date Filter's rule (date-ranges.ts datesBetweenConditions, grid-gestures.ts filter.dates), its read-back
+ *  (page-filters.ts datesKept: beside a Filter's words, so no startup file of its own -- in its own module, read by the
+ *  canvas's chunk, it was one, 1,413 bytes) and its window's opener (app.ts); the window a chunk of its own). Measured
+ *  379,602. */
+const BUDGET = 380_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -537,8 +542,10 @@ const BUDGET = 379_000;
  *  window, the rule and the results pane's drawing chunks of their own). Measured 365,531.
  *  366,000 -> 367,500 (2026-10-25, the flow mode's Union of any number -- the grid-only page's note of the same date;
  *  the append of any number opened over one model besides, join.ts and join-open.ts the engine page's at startup).
- *  Measured 366,940. */
-const ENGINE_BUDGET = 367_500;
+ *  Measured 366,940.
+ *  367,500 -> 368,500 (2026-10-25, the flow mode's Code view and Date Filter -- the grid-only page's note of the same
+ *  date). Measured 367,918. */
+const ENGINE_BUDGET = 368_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

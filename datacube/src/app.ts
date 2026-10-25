@@ -43,6 +43,7 @@ import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
 import { classLambda, columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda } from './query.ts';
 import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
+import { DATE_RANGE_LABELS, DATE_RANGES } from './date-ranges.ts';
 import { valueList } from './ui/value-list.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, SECOND_COLUMN, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
@@ -86,7 +87,7 @@ import {
   buildColumnModel,
   type LeafColumn,
 } from './grid/columns.ts';
-import { conditionWords } from './page-filters.ts';
+import { conditionWords, datesKept } from './page-filters.ts';
 import { shortcutsTable } from './ui/shortcuts.ts';
 import { shownColumns } from './shown-columns.ts';
 import { handedOn } from './box-columns.ts';
@@ -465,7 +466,7 @@ const windowStack = new WeakMap<HTMLElement, number>();
  *  docks them (CubeAppOptions.dock); every other window floats. */
 /** The text tools' windows, by the tool each sets (text-tools.ts). */
 const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
-const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation'
+const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation' || key === 'Date Filter'
   || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize' || key === 'Find Replace'
   || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
@@ -3636,6 +3637,9 @@ export class CubeApp {
       case 'impute':
         void this.#openImpute();
         return;
+      case 'dateFilter':
+        void this.#openDateFilter();
+        return;
       case 'multiField':
         void this.#openMultiField();
         return;
@@ -3785,6 +3789,24 @@ export class CubeApp {
     });
     if (parts.length === 0) parts.push(toCsv({ columns: shown.map((n) => ({ name: n, values: [] })), rowCount: 0, epoch: 0, elapsedMs: 0 } as never));
     download(name, 'text/csv', parts.join(''));
+  }
+
+  /** A FLOW'S DATE FILTER (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's): a date column's rows in a range -- one
+   *  relative to when the query runs (the header menu's Date Range: date-ranges.ts) or the days between two -- in a window
+   *  of its own (ui/date-filter-form.ts), fetched with the first: the grid's own gesture (filter.dates, the rule Python's
+   *  grid.date_filter asks), its filter those dates alone. */
+  async #openDateFilter(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const { dateFilterForm } = await lazily(() => import('./ui/date-filter-form.ts'));
+    const kept = datesKept(this.#snapshot.filter);
+    this.#showOverlay('Date Filter', (host, close) => dateFilterForm(host, {
+      columns: rowColumns(this.#snapshot).filter((c) => isTemporal(c.type)).map((c) => c.name),
+      ranges: DATE_RANGES.map((range) => ({ range, label: DATE_RANGE_LABELS[range] })),
+      ...(kept !== undefined ? { kept } : {}),
+      apply: (k) => this.#gesture('filter.dates', 'range' in k ? { column: k.column, range: k.range } : { column: k.column, from: k.from, to: k.to },
+        'Date Filter'),
+      close,
+    }));
   }
 
   /** A FLOW'S IMPUTATION (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): number columns' empties filled -- a value, or the

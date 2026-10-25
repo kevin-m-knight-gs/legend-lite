@@ -126,6 +126,7 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   output: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v5M3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 4v8c0 1.1 2.2 2 5 2M10 11.5h5M13 9.5l2 2-2 2',
   cleanse: 'M10 2l4 4-6.5 6.5H3.5V8.5zM8 4l4 4M2 14.5h12',
   impute: 'M2 3h12v10H2zM2 6.5h12M2 10h12M6 3v10M10 6.5v3.5M10.5 8.2h3',
+  dateFilter: 'M2 3.5h9v8H2zM2 6h9M4.5 2v3M8.5 2v3M10 9.5h5l-2 2.5v2.5l-1-1v-1.5z',
   textToColumns: 'M2 4.5h12M2 8h4M10 8h4M2 11.5h4M10 11.5h4M8 6v8',
   regex: 'M4 2.5v6M1.5 4l5 3M6.5 4l-5 3M10 2.5l-2 11M14 2.5l-2 11M8.5 9.5H14',
   join: 'M6 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9M10 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9',
@@ -1796,7 +1797,7 @@ export class FlowCanvas {
   #outsOf(id: string): Outs {
     const said = this.#said(id);
     const tool = said?.tool;
-    if (tool === 'filter' || tool === 'unique') return 'two';
+    if (tool === 'filter' || tool === 'dateFilter' || tool === 'unique') return 'two';
     // a Sample a filter makes (at random, one of every N, at some places, the first N by row): its rows, and the rest --
     // its False, the filter turned round (Alteryx's Create Samples); a Sample of the first N by an order (its topN), one
     if (tool === 'sample' && said?.also.length === 0) {

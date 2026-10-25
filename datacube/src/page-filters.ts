@@ -13,7 +13,10 @@ import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageCommand } from './page-commands.ts';
 import { filterNode } from './query.ts';
 import type { QueryLens } from './runner.ts';
-import { CubeRefusal, isRelativeDate, relativeDateWords, sameValue, type FilterNode, type FilterValue } from './snapshot.ts';
+import { CubeRefusal, isRelativeDate, relativeDateWords, sameValue, type FilterCondition, type FilterNode, type FilterValue } from './snapshot.ts';
+// a filter's words of one column's dates (datesKept, below) beside its other words: here, as conditionWords is, so a flow's
+// box reads it with its other words (a module of its own would be a startup file of its own)
+import { DATE_RANGE_LABELS, DATE_RANGES, dateRangeConditions, isDay, type DateRange } from './date-ranges.ts';
 
 /** One filter of the page. */
 export interface PageFilter {
@@ -238,4 +241,26 @@ export function gridLens(filters: readonly PageFilter[], source: CubeSource | un
     key: JSON.stringify(taken.map((f) => [f.id, f.condition])),
     refused,
   };
+}
+
+/** What a filter keeps of one column's dates (a flow's Date Filter box, read back): a range relative to today, or the
+ *  days between two -- its two conditions alone, as the ones above make them; undefined for any other filter. */
+export type DatesKept = { readonly column: string; readonly range: DateRange }
+  | { readonly column: string; readonly from: string; readonly to: string };
+
+export function datesKept(filter: FilterNode | undefined): DatesKept | undefined {
+  const parts = filter === undefined ? [] : filter.kind === 'and' ? filter.children : [filter];
+  if (parts.length !== 2 || parts.some((p) => p.kind !== 'condition')) return undefined;
+  const [a, b] = parts as [FilterCondition, FilterCondition];
+  if (a.column !== b.column) return undefined;
+  const range = DATE_RANGES.find((r) => sameValue(parts, dateRangeConditions(a.column, r)));
+  if (range !== undefined) return { column: a.column, range };
+  if (a.operator === 'greaterThanEqual' && b.operator === 'lessThanEqual' && typeof a.value === 'string' && typeof b.value === 'string'
+    && isDay(a.value) && isDay(b.value)) return { column: a.column, from: a.value, to: b.value };
+  return undefined;
+}
+
+/** A Date Filter in words: "trade_date: Last 30 Days", "trade_date from 2024-01-01 to 2024-06-30". */
+export function datesKeptWords(kept: DatesKept): string {
+  return 'range' in kept ? `${kept.column}: ${DATE_RANGE_LABELS[kept.range]}` : `${kept.column} from ${kept.from} to ${kept.to}`;
 }

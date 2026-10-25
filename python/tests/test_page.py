@@ -1457,6 +1457,18 @@ class Abilities(Paged):
         self.assertEqual(list(grid.to_pandas()['notional']), [2.0] if (today - datetime.timedelta(days=400)).year == today.year - 1 else [])
         with self.assertRaisesRegex(ValueError, 'a date range is today'):
             grid.filter_date_range('day', 'someday')
+        # grid.date_filter: a flow's Date Filter, its filter those dates alone -- between two days, both kept, or a range
+        back = (today - datetime.timedelta(days=400)).isoformat()
+        grid.date_filter('day', start=back, end=back)
+        self.assertEqual(list(grid.to_pandas()['notional']), [2.0])
+        grid.date_filter('day', start=back, end=today.isoformat())
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [1.0, 2.0])
+        grid.date_filter('day', 'last30Days')
+        self.assertEqual(list(grid.to_pandas()['notional']), [1.0])
+        with self.assertRaisesRegex(ValueError, 'is after its last'):
+            grid.date_filter('day', start=today.isoformat(), end=back)
+        with self.assertRaisesRegex(ValueError, 'one of them'):
+            grid.date_filter('day')
 
     def test_the_top_n_groups_by_a_measure_are_ranked_by_the_database_each_parents_own(self):
         # grid.top: the menu's Top 10 / Bottom 10 (DataCube's snapshot.ts TopN, the filter.topN gesture)

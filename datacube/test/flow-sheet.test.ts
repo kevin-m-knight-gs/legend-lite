@@ -44,6 +44,8 @@ import { accessor, collection, fn, lambda, lit, property, variable } from '../..
 import { textToolOf } from '../src/text-tools.ts';
 import { readTextTool, textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
 import { grainColumn, grainOf } from '../src/calc-presets.ts';
+import { DATE_RANGES, dateRangeConditions, datesBetweenConditions } from '../src/date-ranges.ts';
+import { datesKept } from '../src/page-filters.ts';
 import { pastedCells, tableCsv, tableProblem } from '../src/ui/text-input-dialog.ts';
 
 const COLUMNS = [{ name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }];
@@ -283,6 +285,27 @@ describe('Unique (unique.ts): a row number per key, its first kept, the number h
     assert.equal((uniqueCommands(taken, { keys: ['region'] })[0] as { column: DerivedColumn }).column.name, 'UniqueRow_2');
     assert.deepEqual(readUnique({ kind: 'unique', keys: ['region'], by: 'notional' }), { keys: ['region'], by: { column: 'notional', direction: 'asc' } });
     assert.throws(() => readUnique({ kind: 'unique', keys: 'region' }), /its keys are a list of column names/);
+  });
+});
+
+describe("a Date Filter (date-ranges.ts): a range relative to today, or the days between two", () => {
+  it('is read back off its filter, a Date Filter box saying it; any other filter a Filter box', () => {
+    for (const range of DATE_RANGES) {
+      const [a, b] = dateRangeConditions('trade_date', range);
+      assert.deepEqual(datesKept({ kind: 'and', children: [a!, b!] }), { column: 'trade_date', range });
+    }
+    const between = { kind: 'and', children: datesBetweenConditions('trade_date', '2024-01-01', '2024-06-30') } as const;
+    assert.deepEqual(datesKept(between), { column: 'trade_date', from: '2024-01-01', to: '2024-06-30' });
+    const box = (filter: FilterNode) => boxSays(cube(rows('grid-1'), (q) => ({ ...q, filter })));
+    assert.deepEqual(box(between), { tool: 'dateFilter', also: [], says: 'trade_date from 2024-01-01 to 2024-06-30' });
+    assert.deepEqual(box({ kind: 'and', children: dateRangeConditions('trade_date', 'last30Days') }),
+      { tool: 'dateFilter', also: [], says: 'trade_date: Last 30 Days' });
+    // one condition, two columns, or a third condition: a Filter's
+    const one = datesBetweenConditions('trade_date', '2024-01-01', '2024-06-30')[0]!;
+    assert.equal(box(one).tool, 'filter');
+    assert.equal(datesKept({ kind: 'and', children: [one, { kind: 'condition', column: 'other', operator: 'lessThanEqual', value: '2024-06-30' }] }), undefined);
+    assert.equal(datesKept({ kind: 'and', children: [...between.children, one] }), undefined);
+    assert.equal(datesKept({ kind: 'or', children: [...between.children] }), undefined);
   });
 });
 

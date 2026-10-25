@@ -60,3 +60,28 @@ export function dateRangeConditions(column: string, range: DateRange): FilterNod
     { kind: 'condition', column, operator: 'lessThan', value: ends[1] },
   ];
 }
+
+/** A day as a filter writes one: `2024-06-30`, a real day of its month. */
+const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+export function isDay(text: string): boolean {
+  const m = DAY.exec(text);
+  if (m === null) return false;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]);
+}
+
+/**
+ * THE DAYS FROM ONE TO ANOTHER, both kept (a flow's Date Filter between two days, Python's grid.filter_dates): `from <=
+ * column <= to`, each a day (YYYY-MM-DD), the first not after the last -- refused in words otherwise. The database
+ * compares them, a date-time column's moment after the last day's midnight left out, as a filter's day is.
+ */
+export function datesBetweenConditions(column: string, from: string, to: string): FilterNode[] {
+  for (const [day, what] of [[from, 'its first day'], [to, 'its last day']] as const) {
+    if (!isDay(day)) throw new CubeRefusal(`${what} is a day, as 2024-06-30, not ${JSON.stringify(day)}`);
+  }
+  if (from > to) throw new CubeRefusal(`its first day, ${from}, is after its last, ${to}`);
+  return [
+    { kind: 'condition', column, operator: 'greaterThanEqual', value: from },
+    { kind: 'condition', column, operator: 'lessThanEqual', value: to },
+  ];
+}

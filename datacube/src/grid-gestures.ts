@@ -17,13 +17,13 @@ import { availableDimensions, drillDown, drillUp, useDimension, type Dimension }
 import type { GridCommand } from './grid-commands.ts';
 import { headerSortCommand, type SortedHeader } from './header-sort.ts';
 import {
-  CubeRefusal, isPivotTotalColumn, readTopN, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode, type FilterOperator, type FilterValue,
+  CubeRefusal, isPivotTotalColumn, readTopN, rowColumns, sameValue, type CubeSnapshot, type DerivedColumn, type FilterNode, type FilterOperator, type FilterValue,
 } from './snapshot.ts';
 import type { RowPath } from './tree.ts';
 import { DATA_BAR, readColorScale, readIconSet, readRule, type FormatRuleGiven, type IconSetName } from './conditional.ts';
 import type { HeatmapSpec } from './style.ts';
 import { readFormatCode } from './format-code.ts';
-import { dateRangeConditions, type DateRange } from './date-ranges.ts';
+import { dateRangeConditions, datesBetweenConditions, type DateRange } from './date-ranges.ts';
 import { keptCondition, ownConditions } from './value-filter.ts';
 import { TREE_COLUMN } from './treeview.ts';
 
@@ -62,6 +62,7 @@ export type GridGestureArgs = {
   readonly 'filter.set': { readonly filter: FilterNode | null };
   readonly 'filter.values': { readonly column: string; readonly values: readonly (FilterValue | null)[] | null };
   readonly 'filter.dateRange': { readonly column: string; readonly range: DateRange };
+  readonly 'filter.dates': { readonly column: string; readonly range?: DateRange; readonly from?: string; readonly to?: string };
   readonly 'filter.topN': { readonly column: string; readonly n: number; readonly bottom?: boolean };
   readonly 'filter.topNOff': Nothing;
   readonly 'chart.refilter': { readonly remove: readonly FilterNode[]; readonly add: readonly FilterNode[] };
@@ -275,6 +276,24 @@ const GESTURES = {
     make: (g, a) => {
       const column = columnOf(a);
       return replaced(g.snapshot, column, dateRangeConditions(column, text(a, 'range', 'the date range') as DateRange));
+    },
+  },
+  // A DATE FILTER'S DATES (date-ranges.ts; a flow's Date Filter box, Python's grid.date_filter): its filter made the
+  // column's dates in a range relative to today, or the days from one to another (both kept), alone -- the box's one
+  // step, in place of every condition it had
+  'filter.dates': {
+    args: ['column', 'range?', 'from?', 'to?'],
+    make: (g, a) => {
+      const column = columnOf(a);
+      const days = a['from'] !== undefined || a['to'] !== undefined;
+      if ((a['range'] !== undefined) === days) {
+        throw new CubeRefusal('a Date Filter keeps a range of dates, or the days from one to another: one of them');
+      }
+      const add = days ? datesBetweenConditions(column, text(a, 'from', 'its first day'), text(a, 'to', 'its last day'))
+        : dateRangeConditions(column, text(a, 'range', 'the date range') as DateRange);
+      const had = g.snapshot.filter;
+      const remove = had === undefined ? [] : had.kind === 'and' ? had.children : [had];
+      return sameValue(remove, add) ? [] : [{ kind: 'refilter', remove, add }];
     },
   },
   // a chart's mark on the grid's filter -- the selection it had taken off, the one it has now on -- or a selection off

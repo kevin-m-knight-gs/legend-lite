@@ -249,7 +249,7 @@ How to read the status column:
 | Tile | Built | A window column: `ntile` |
 | Data Cleansing | Built (2026-10-25) | Calculated columns, a `<column>_clean` each: empties made blank (`coalesce`), punctuation out and repeated spaces one (`regexpReplace`), `trim`, `toUpper` / `toLower` (§17.6). In place, as Alteryx's: each handed on by its column's name |
 | Imputation | Built (2026-10-25) | `coalesce` with a value, or with a window column of the column's average, smallest or largest across every row (hidden): a `<column>_filled` each. A median waits for a window `median` |
-| Date Filter | Built | The filter, on a date column |
+| Date Filter | Built | Its own tool: a date column in a range relative to today, or between two days (date-ranges.ts) |
 | Generate Rows | Later | Core has no relation that makes rows from a rule; needs a design |
 | Auto Field | Out | Every column already has its type from the compiler; there is nothing to guess |
 | Create Samples | Built | A Sample's two outputs: its rows (S) and the rest (R), its False -- a split by a seed |
@@ -804,6 +804,21 @@ are drawn by a class of their own (`dc-flow-two`: a Filter's, a Unique's and a S
 columns as they are; a Top N refused), Python's `test_a_sample_hands_on_the_rest` (the rows and the rest are every row,
 set again and followed) and the harness (a Random % Sample's S and R, a Browse of the rest: the Filter's rows less the
 tenth).
+
+**Built, Date Filter** (`date-ranges.ts` `datesBetweenConditions`, `datesKept`; `ui/date-filter-form.ts`; `app.ts`
+`#openDateFilter`; 2026-10-25): Alteryx's Date Filter as a tool of its own, in Prepare after Filter. Its window asks a
+date column and a range: one of the eighteen the header menu's Date Range offers (today, this month, the last 30 days,
+year to date, ... -- relative to when the query runs, the database computing today), or the days between two, both kept.
+Both are one grid gesture, `filter.dates` (new: the two days checked, the first not after the last): its filter made
+those dates alone, in place of every condition it had -- the box's one step. A box whose filter is those two conditions
+alone is drawn as a Date Filter ("trade_date: Last 30 Days", "trade_date from 2024-01-01 to 2024-06-30", read back by
+`page-filters.ts datesKept`, beside a Filter's words: a module of its own read by the canvas's chunk would be a startup
+file of its own), and has a Filter's T and F. Python: `grid.date_filter(column, range)` or `grid.date_filter(column,
+start=..., end=...)`, the same gesture. Tested by `grid-gestures.test.ts` (the days' two conditions, every condition it
+had replaced, so already, a day that is none, a first after the last, both or neither), `flow-sheet.test.ts` (each range
+and the days read back, the box's words, a filter of any other shape a Filter's), Python's date range test (between two
+days, a range, refused) and the harness (a Date Filter over the Filter's trades: 2023's, its T and F, set again to the
+last 12 months).
 
 **The example flow's Reshape sheet** (`examples/prep-flow.ts`): a second sheet showing the tools that reshape rows over the
 same orders -- the two biggest orders of each region (a Sample: last 2 of each region by revenue), their columns chosen

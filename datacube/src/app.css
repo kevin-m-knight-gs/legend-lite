@@ -4908,6 +4908,8 @@
 .dc-sample [hidden] { display: none !important; }
 .dc-sample-seed { width: 64px; }
 .dc-sample-n { width: 6em; }
+/* a Date Filter's two days, asked only when it keeps the days between them */
+.dc-date-filter-days[hidden] { display: none; }
 .dc-sample-hint { margin: 0; color: var(--dc-muted); font-size: 12px; max-width: 52ch; }
 .dc-sample-status { margin: 0; min-height: 1em; color: var(--tw-red-600); font-size: 12px; }
 .dc-sample-status:empty { display: none; }

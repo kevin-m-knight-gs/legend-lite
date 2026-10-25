@@ -189,6 +189,30 @@ describe('the value list and date ranges: a column\'s own conditions replaced', 
     ] });
     refused(() => gridGesture('filter.dateRange', grid(), { column: 'year', range: 'soon' as never }), /a date range is today/);
   });
+
+  it("a Date Filter's dates: a range or the days between two, both kept, its filter alone; refused in words", () => {
+    const [command] = gridGesture('filter.dates', grid(), { column: 'year', from: '2024-01-01', to: '2024-06-30' });
+    const days = [
+      { kind: 'condition', column: 'year', operator: 'greaterThanEqual', value: '2024-01-01' },
+      { kind: 'condition', column: 'year', operator: 'lessThanEqual', value: '2024-06-30' },
+    ] as const;
+    assert.deepEqual(command, { kind: 'refilter', remove: [], add: days });
+    // in place of every condition it had: another column's, a range's
+    const had = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } as const;
+    const filtered = { ...grid(), snapshot: { ...grid().snapshot, filter: had } };
+    assert.deepEqual(gridGesture('filter.dates', filtered, { column: 'year', range: 'thisYear' })[0],
+      { kind: 'refilter', remove: [had], add: gridGesture('filter.dateRange', grid(), { column: 'year', range: 'thisYear' })
+        .flatMap((c) => (c.kind === 'refilter' ? c.add : [])) });
+    const set = { ...grid(), snapshot: { ...grid().snapshot, filter: { kind: 'and', children: days } as const } };
+    assert.deepEqual(gridGesture('filter.dates', set, { column: 'year', from: '2024-01-01', to: '2024-06-30' }), [], 'so already');
+    refused(() => gridGesture('filter.dates', grid(), { column: 'year', from: '2024-02-30', to: '2024-06-30' }),
+      /its first day is a day, as 2024-06-30, not "2024-02-30"/);
+    refused(() => gridGesture('filter.dates', grid(), { column: 'year', from: '2024-07-01', to: '2024-06-30' }),
+      /its first day, 2024-07-01, is after its last, 2024-06-30/);
+    refused(() => gridGesture('filter.dates', grid(), { column: 'year', range: 'thisYear', from: '2024-07-01', to: '2024-08-01' }),
+      /a range of dates, or the days from one to another: one of them/);
+    refused(() => gridGesture('filter.dates', grid(), { column: 'year' }), /one of them/);
+  });
 });
 
 describe('top or bottom N', () => {

@@ -827,6 +827,36 @@ try {
   check(await resultRows() === fewer - tenth, `the rest: ${fewer} - ${tenth}`);
   await page.screenshot({ path: outPath('flow-sample-rest.png') });
 
+  // A DATE FILTER (M3), dragged onto the Filter: its trade dates between two days, in its window docked; a Filter's T
+  // and F; a range relative to today said in its words
+  const beforeDated = (await boxes()).map((b) => b.id);
+  await drag('dateFilter', filter.id);
+  await boxCount(beforeDated.length + 1);
+  const dateFiltered = await added(beforeDated);
+  await docked('Date Filter');
+  await page.locator('.dc-flow-dock .dc-date-filter-column').selectOption('trade_date');
+  check(await page.locator('.dc-flow-dock .dc-date-filter-days').isHidden(), 'a range asks no days');
+  await page.locator('.dc-flow-dock .dc-date-filter-way').selectOption('between');
+  check(await page.locator('.dc-flow-dock .dc-date-filter-days').isVisible(), 'its two days asked');
+  await page.locator('.dc-flow-dock .dc-date-filter-from').fill('2023-01-01');
+  await page.locator('.dc-flow-dock .dc-date-filter-to').fill('2023-12-31');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  const dateBox = (await boxes()).find((b) => b.id === dateFiltered.id);
+  check(dateBox?.tool === 'dateFilter' && dateBox.says === 'trade_date from 2023-01-01 to 2023-12-31', `a Date Filter box: ${JSON.stringify(dateBox)}`);
+  const in2023 = await resultRows();
+  check(in2023 > 0 && in2023 < fewer, `the Filter's trades of 2023: ${in2023} of ${fewer}`);
+  check(JSON.stringify(await page.locator(`.dc-flow-box[data-tile="${dateFiltered.id}"] > .dc-flow-port-out:visible`).allTextContents()) === '["T","F"]',
+    'its T and F, as a Filter\'s');
+  await page.screenshot({ path: outPath('flow-date-filter.png') });
+  await page.locator('.dc-flow-settings button', { hasText: 'Open its settings' }).click();
+  await docked('Date Filter');
+  check(await page.locator('.dc-flow-dock .dc-date-filter-from').inputValue() === '2023-01-01', 'set again: its days as they are');
+  await page.locator('.dc-flow-dock .dc-date-filter-way').selectOption('last12Months');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  check((await boxes()).find((b) => b.id === dateFiltered.id)?.says === 'trade_date: Last 12 Months', 'set again: a range relative to today');
+
   // A DATETIME (M3), dragged onto the Filter: its trade dates taken to their month, in its window docked
   const beforeDate = (await boxes()).map((b) => b.id);
   await drag('datetime', filter.id);

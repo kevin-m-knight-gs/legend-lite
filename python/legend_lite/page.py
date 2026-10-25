@@ -647,6 +647,15 @@ class Grid(Tile):
         month" shows last month whenever it is opened."""
         return self._gesture('filter.dateRange', {'column': column, 'range': range})
 
+    def date_filter(self, column: str, range: str | None = None, *, start: str | None = None, end: str | None = None) -> Grid:
+        """Its filter made ``column``'s dates in ``range`` (``filter_date_range``'s ranges, relative to when the query
+        runs) or from ``start`` to ``end``, both kept, each a day as ``'2024-06-30'`` -- alone, in place of every condition
+        it had: a flow's Date Filter box (DataCube's grid-gestures.ts ``filter.dates``, its window's rule). Both or
+        neither, a day that is none, or a first day after the last, refused in DataCube's words."""
+        given = {'column': column, **({'range': range} if range is not None else {}),
+                 **({'from': start} if start is not None else {}), **({'to': end} if end is not None else {})}
+        return self._gesture('filter.dates', given)
+
     def top(self, n: int | None, by: str | None = None, *, bottom: bool = False) -> Grid:
         """The top ``n`` rows by ``by`` -- a grouped grid's groups at each level, each parent's own -- the largest first,
         or the smallest with ``bottom`` (the menu's Top 10 and Bottom 10; DataCube's snapshot.ts TopN): ties kept, the
