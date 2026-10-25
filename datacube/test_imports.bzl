@@ -3491,6 +3491,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/ui/json-fields.ts",
+        "src/ui/tile-icons.ts",
         "src/value-filter.ts",
     ],
     "layout-picker": [

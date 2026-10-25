@@ -196,11 +196,18 @@
 
 .dc-chevron {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 12px;
-  text-align: center;
   cursor: pointer;
   opacity: 0.75;
   user-select: none;
+}
+
+.dc-chevron .dc-chrome-icon {
+  width: 12px;
+  height: 12px;
 }
 
 .dc-chevron:hover {

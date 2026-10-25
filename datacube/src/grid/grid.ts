@@ -49,6 +49,7 @@ import {
 import { toClipboard } from '../export.ts';
 import { onScreen } from './screen-colours.ts';
 import { focusedElement } from '../focus.ts';
+import { chromeIcon } from '../ui/tile-icons.ts';
 import {
   autoTextAlign,
   cellStyle,
@@ -1375,11 +1376,12 @@ export class DataGrid {
             if (meta?.expanded !== undefined) {
               const chevron = doc.createElement('span');
               chevron.className = 'dc-chevron';
-              // The row already carries aria-expanded, so the glyph is
+              // The row already carries aria-expanded, so the mark is
               // decoration; announcing it again would say "collapsed"
-              // twice.
+              // twice. Drawn in the chrome's one set (ui/tile-icons.ts;
+              // found 4 of docs/DATACUBE_UI_REVIEW_2026_10_24.md).
               chevron.setAttribute('aria-hidden', 'true');
-              chevron.textContent = meta.expanded ? '\u25be' : '\u25b8';
+              chevron.append(chromeIcon(doc, meta.expanded ? 'chevronDown' : 'chevronRight'));
               cell.appendChild(chevron);
             } else {
               // A leaf still needs the chevron's width, or its label

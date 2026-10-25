@@ -281,10 +281,21 @@ onto it and preview them in the tile.
 
 Several files make a list in the tile (tabs or a side list), one shown at a time.
 
-**Open: where a file's bytes live.** Saved in the page means a shared link carries them, but pages grow large.
-Referenced means the page asks for the file again when it is reopened, as a grid over a local file does today. The
-recommendation is referenced, perhaps with a small file saved in the page. The user decides when the wave starts.
-Python's `page.text` follows whichever is chosen.
+**Decided: a file is pointed to, never copied into the page** (the user, 2026-10-25: "pointing to file if we can that
+would be ideal"). A page keeps each file's name, size, format and fingerprint (its SHA-256), never its bytes, the way a
+grid over a local file is kept today (`file-handles.ts`):
+
+- **Chrome and Edge:** opening or dropping a file gives the page a handle to it, kept in this browser (IndexedDB, by
+  the page and the fingerprint), never in the page's document or anything shared. Reopened, the file is read as it is
+  now; after a reload the browser asks once, a click with no file dialog.
+- **Firefox and Safari, a moved or deleted file, or a page opened on another machine:** the text box says the file is
+  missing and offers to pick it again; the fingerprint says whether what was picked is the same file.
+- **Python:** a text box's files are read and written through the page's one command (`setTextFiles`), Python
+  fingerprinting a file it is given by path; the browser tab then finds it as above.
+
+**Step 1 (planned, 2026-10-25):** Markdown, plain text, CSV and JSON. Open Files… on the text box's right-click, or a
+drop onto it; one tab a file beside the box's own words; × takes a file off; Markdown drawn as the box draws its own
+words, text and JSON as they are (JSON indented), CSV as a small table.
 
 ## The menus: one design language, two scopes
 

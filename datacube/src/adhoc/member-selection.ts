@@ -9,7 +9,7 @@
 
 import type { MemberPath } from './state.ts';
 import { memberLabel } from './query.ts';
-import { closeMark } from '../ui/tile-icons.ts';
+import { chromeIcon, closeMark } from '../ui/tile-icons.ts';
 
 export interface MemberSelectionOptions {
   readonly dimension: string;
@@ -131,7 +131,7 @@ export function buildMemberSelection(host: HTMLElement, options: MemberSelection
     const k = key(m);
     const twist = el('button', 'dc-adhoc-member-twist', row);
     twist.type = 'button';
-    twist.textContent = expandable ? (open.has(k) ? '▾' : '▸') : '';
+    if (expandable) twist.append(chromeIcon(doc, open.has(k) ? 'chevronDown' : 'chevronRight'));
     twist.disabled = !expandable;
     twist.setAttribute('aria-label', open.has(k) ? 'Collapse' : 'Expand');
     if (expandable) row.setAttribute('aria-expanded', String(open.has(k)));

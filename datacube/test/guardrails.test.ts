@@ -129,10 +129,11 @@ describe('source guardrails', () => {
     assert.deepEqual(hits, [], `write … (\\u2026), not three dots:\n${hits.join('\n')}`);
   });
 
-  it('draws the chrome\'s marks in one set: no typed ×, ≡, ⊞, ⤢ or ⤡ (docs/DATACUBE_UI_REVIEW_2026_10_24.md, found 4)', () => {
+  it('draws the chrome\'s marks in one set: no typed ×, ≡, ⊞, ⤢, ⤡, ▸ or ▾ (docs/DATACUBE_UI_REVIEW_2026_10_24.md, found 4)', () => {
     // 2026-10-25: the page's marks came from four fonts, at four weights and on four baselines; they are drawn now
     // (ui/tile-icons.ts chromeIcon, closeMark). A close button made with its glyph and then drawn says closeMark.
-    const typed = /['`"](×|\\u00d7|≡|\\u2261|⊞|⤢|⤡)['`"]/;
+    // the tree carets too (2026-10-25: the grid's, the JSON field picker's, Ad Hoc's member picker's)
+    const typed = /['`"](×|\\u00d7|≡|\\u2261|⊞|⤢|⤡|▸|\\u25b8|▾|\\u25be)['`"]/;
     const hits: string[] = [];
     for (const file of FILES) {
       SOURCES.read(file).split('\n').forEach((line, i) => {
