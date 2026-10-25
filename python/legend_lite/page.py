@@ -1363,7 +1363,8 @@ class Timeseries(Tile):
         DataCube over the tables its grids read -- the viewer's own (headless timeseriesQuery: timeseries-query.ts), a
         series of several grids over one model of their tables -- planned and run by the engine's plan-and-run where the
         rows are (D16). Indexed by date, oldest first; a column per line: the series' name (else its id), or each value
-        of its split (``SPX``, ``NDX``); a band's ``lower`` and ``upper``. ``start`` and ``end`` (ISO days): the dates it
+        of its split (``SPX``, ``NDX``); a band's ``lower`` and ``upper``; candles' ``open``, ``high``, ``low`` and
+        ``close``. ``start`` and ``end`` (ISO days): the dates it
         keeps -- kept by the database after every value is computed over every date (a window's first values have their
         history), and an index's base, a compare's, its first."""
         import pandas as pd
@@ -1388,6 +1389,14 @@ class Timeseries(Tile):
         rows = rows.assign(**{named['date']: pd.to_datetime(rows[named['date']])})
         if said['band']:
             out = rows.set_index(named['date'])[[named['lower'], named['upper']]].rename(columns={named['lower']: 'lower', named['upper']: 'upper'})
+        elif said['candles']:
+            four = {named['open']: 'open', named['high']: 'high', named['low']: 'low', named['value']: 'close'}
+            if said['split'] is not None:
+                # a candle per instrument: its four prices, each a column per instrument
+                out = rows.rename(columns=four).pivot(index=named['date'], columns=named['split'], values=list(four.values()))
+                out.columns.names = [None, said['split']]
+            else:
+                out = rows.set_index(named['date'])[list(four)].rename(columns=four)
         elif said['split'] is not None:
             out = rows.pivot(index=named['date'], columns=named['split'], values=named['value'])
             out.columns.name = said['split']

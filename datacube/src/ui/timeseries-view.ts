@@ -24,7 +24,7 @@ import {
   type TsRangeWord, type TsSeries, type TsSource, type TsStyleKind, type TsView,
 } from '../timeseries-spec.ts';
 import {
-  aliasFor, columnRef, defaultTimeseries, exprText, functionNamed, inlined, nextSeriesId, parseExpr, seriesName,
+  aliasFor, candleOf, columnRef, defaultTimeseries, exprText, functionNamed, inlined, nextSeriesId, parseExpr, seriesName,
   sourceOf, sourcesOf, timeseriesProblems, TsSyntaxError, type TsColumn, TS_FUNCTIONS, type TsFamily,
 } from '../timeseries-expr.ts';
 import {
@@ -184,6 +184,8 @@ export class TimeseriesView {
   #pop!: HTMLElement;
   #chart: MountedTimeseries | null = null;
   #mounting: Promise<MountedTimeseries | null> | null = null;
+  /** Whether ECharts can draw candles (chart-render-kinds.ts registered before the chart was made). */
+  #candles = false;
   /** The rows of the last answers, by series, and what each refused. */
   #results = new Map<string, TsResult>();
   #failed = new Map<string, string>();
@@ -499,6 +501,19 @@ export class TimeseriesView {
     this.#notes = notes;
     this.#paintLegend();
     this.#paintBanner();
+    // candles are one of ECharts' rarer charts (chart-render-kinds.ts), registered with the first drawn -- before the
+    // chart is made: an ECharts chart takes the layouts it knows as it is made, so one made before knew no candle's (a
+    // candle drawn on it had no place: "reading 'ends'"), and is made again
+    if (lines.some((l) => l.candles) && !this.#candles && this.#host.mount === undefined) {
+      await lazily(() => import('../chart-render-kinds.ts'));
+      this.#candles = true;
+      if (this.#disposed) return;
+      if (this.#chart) {
+        this.#chart.dispose();
+        this.#chart = null;
+        this.#mounting = null;
+      }
+    }
     const chart = await this.#mount();
     if (!chart || this.#disposed) return;
     const option = timeseriesOption(spec, lines, {
@@ -824,6 +839,26 @@ export class TimeseriesView {
       const f = functionNamed(fnSel.value);
       if (!f) return;
       const inner = expr.value.trim() === '' ? 'close' : expr.value.trim();
+      if (f.candles) {
+        // a candle of the column written: its source's open, high, low and close (timeseries-expr.ts candleOf)
+        fnSel.value = '';
+        let column: TsExpr | undefined;
+        try {
+          column = parseExpr(inner);
+        } catch {
+          column = undefined;
+        }
+        const src = column?.kind === 'column' ? spec.sources.find((s) => s.alias === (column.source ?? spec.sources[0]?.alias)) : undefined;
+        const made = column && src ? candleOf(column, columns.get(src.alias) ?? []) : undefined;
+        if (made === undefined) {
+          error.textContent = 'Candles are of a column whose grid has its open, high and low beside it: write a close (close[AAPL]), or ohlc(open, high, low, close).';
+          return;
+        }
+        expr.value = exprText(made);
+        about.textContent = `${f.label}: ${f.about}`;
+        check();
+        return;
+      }
       const other = spec.series.find((s) => s.id !== sid);
       const args = f.series === 2 ? [inner, other ? `$${other.id}` : inner] : [inner];
       const params = f.params.filter((p) => p.name === 'w').map((p) => String(p.default));

@@ -12,7 +12,7 @@ import type { ResultTable } from '../../engine-client/src/result.ts';
 import { LIGHT_THEME } from '../src/chart-option.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { timeseriesCsv, timeseriesOption, tsLines, valueText, type TsResult } from '../src/timeseries-option.ts';
-import { TS_DATE, TS_LOWER, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
+import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
 import type { TsUnit } from '../src/timeseries-expr.ts';
 
@@ -133,6 +133,21 @@ describe('the drawing', () => {
     assert.deepEqual(series.map((s) => s.id), ['B:base', 'B:fill', 'B:lower', 'B:upper']);
     assert.equal(series[0]!.stack, series[1]!.stack);
     assert.ok(series[1]!.areaStyle, 'the fill');
+  });
+
+  it('candles: a candlestick per period, [date, open, close, low, high] as ECharts reads one, said O H L C on a hover', () => {
+    const ts = spec([S('A', 'ohlc(open, high, low, close)', { name: 'AAPL' })]);
+    const { lines, option } = draw(ts, [
+      answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [12, 11, 10], [TS_OPEN]: [11, 10, 9], [TS_HIGH]: [13, 12, 11], [TS_LOW]: [10, 9, 8] }, { candles: true }),
+    ]);
+    assert.deepEqual(lines[0]!.candles, { open: [9, 10, 11], high: [11, 12, 13], low: [8, 9, 10] });
+    const candle = (option['series'] as { type: string; data: unknown[]; endLabel?: unknown }[])[0]!;
+    assert.equal(candle.type, 'candlestick');
+    assert.deepEqual(candle.data[0], ['2024-01-02', 9, 10, 8, 11]);
+    assert.equal(candle.endLabel, undefined, 'no latest-value tag on a candle');
+    const tooltip = option['tooltip'] as { formatter: (items: unknown[]) => string };
+    const said = tooltip.formatter([{ seriesId: 'A', value: ['2024-01-02', 9, 10, 8, 11], axisValue: '2024-01-02' }]);
+    for (const words of ['O 9.00', 'H 11.00', 'L 8.00', 'C 10.00']) assert.ok(said.includes(words), `${words} in ${said}`);
   });
 
   it('the annotations over the panes: a level on its pane, an event and a period across the dates', () => {

@@ -16,7 +16,7 @@ import type { LitePlanner } from '../src/lite-planner.ts';
 import { type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import {
-  boundsQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_LATEST, TS_LOWER,
+  boundsQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN,
   TS_ROWS, TS_SPLIT, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
 } from '../src/timeseries-query.ts';
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
@@ -204,6 +204,30 @@ describe('a column along the dates', () => {
     close(v.values, months.map((m) => DAYS.reduce((s, d, i) => s + (d.startsWith(m) ? VOL[i]! : 0), 0)), 'volume');
     const f = await line(spec({ A: 'close[AAA].first' }, { grain: 'month' }));
     close(f.values, months.map((m) => AAA[DAYS.findIndex((d) => d.startsWith(m))]!), 'month-start');
+  });
+
+  // a candle (ohlc) per period: each argument a plain column taken by the period as a candle's is -- the first, the most,
+  // the least, the last -- so a weekly candle of daily closes is the week's first close, highest, lowest and last
+  it('weekly candles: the week\'s first, highest, lowest and last, the database\'s', async () => {
+    const ts = spec({ A: 'ohlc(close[AAA], close[AAA], close[AAA], close[AAA])' }, { grain: 'week' });
+    const q = seriesQuery(inputs, ts, ts.series[0]!);
+    assert.equal(q.candles, true);
+    const t = await run(q);
+    const weekOf = (d: string): string => {
+      const at = new Date(`${d}T00:00:00Z`);
+      return new Date(at.getTime() - ((at.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
+    };
+    const weeks = [...new Set(DAYS.map(weekOf))];
+    const of = (w: string): number[] => AAA.filter((_, i) => weekOf(DAYS[i]!) === w);
+    const got = (name: string): Line => values(t, name).map(num).reverse();
+    assert.deepEqual(values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse(), weeks);
+    close(got(TS_OPEN), weeks.map((w) => of(w)[0]!), 'open');
+    close(got(TS_HIGH), weeks.map((w) => Math.max(...of(w))), 'high');
+    close(got(TS_LOW), weeks.map((w) => Math.min(...of(w))), 'low');
+    close(got(TS_VALUE), weeks.map((w) => of(w).at(-1)!), 'close');
+    // and read by nothing
+    await assert.rejects(async () => seriesQuery(inputs, spec({ A: 'returns(ohlc(close, close, close, close))' }), spec({ A: 'returns(ohlc(close, close, close, close))' }).series[0]!),
+      /candles are drawn, never read/);
   });
 
   it('the grid\'s filter narrows every series', async () => {

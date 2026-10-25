@@ -459,8 +459,10 @@ const CHART_BUDGET = 303_500;
 /** What a first timeseries tile fetches beyond the page's startup and a first chart's (the charts' ECharts, which it
  *  draws over): its expression language (timeseries-expr.ts), its queries and its drawing (timeseries-query.ts,
  *  timeseries-option.ts), its viewer (ui/timeseries-view.ts) and its renderer (timeseries-render.ts). Set 2026-10-25 at
- *  its first measure (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md), 29,593, with room for its next functions. */
-const TIMESERIES_BUDGET = 31_000;
+ *  its first measure (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md), 29,593, with room for its next functions.
+ *  31,000 -> 33,000 (2026-10-25, candles: ohlc's words, its query, its drawing and hover, and a candle of a column made by
+ *  the series editor -- the candlestick chart itself with the rarer kinds, above). Measured 31,228. */
+const TIMESERIES_BUDGET = 33_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -474,8 +476,11 @@ const isKinds = (file: string): boolean => /[\\/]chart-(?:render-)?kinds-[^\\/]+
  *  unminified, the same tree 95,848.
  *  66,000 -> 68,000 (2026-10-18, the roadmap run's phases 5-7: the box plot, the click's period end on these kinds,
  *  batch 3's leftovers -- a Marimekko, a waffle, a Gantt -- and ECharts code these kinds share only with the maps,
- *  counted here since phase 6's audit). Measured 66,807. */
-const KINDS_BUDGET = 68_000;
+ *  counted here since phase 6's audit). Measured 66,807.
+ *  68,000 -> 70,000 (2026-10-25, the timeseries tile's candles, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md):
+ *  ECharts' candlestick registered with these rarer charts, fetched by a timeseries tile when it first draws candles, so
+ *  neither a first chart nor a first timeseries carries it. Measured 69,759. */
+const KINDS_BUDGET = 70_000;
 
 const isMaps = (file: string): boolean => /[\\/]chart-(?:render-)?maps-[^\\/]+\.js$/.test(file);
 /** Set 2026-10-18 at its first measure (chart batch 5, the roadmap run's phase 6), 75,526: the drawing with the world's

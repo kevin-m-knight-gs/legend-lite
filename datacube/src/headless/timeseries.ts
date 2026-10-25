@@ -9,7 +9,8 @@ import { readPage, type PageDocument } from '../page-document.ts';
 import { gridTitle } from '../page-ids.ts';
 import { rowColumns, type CubeSnapshot } from '../snapshot.ts';
 import {
-  readsAnchor, seriesQuery, seriesSources, TS_DATE, TS_LOWER, TS_SPLIT, TS_UPPER, TS_VALUE, type TsInputs, type TsWindow,
+  readsAnchor, seriesQuery, seriesSources, TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_SPLIT, TS_UPPER, TS_VALUE, type TsInputs,
+  type TsWindow,
 } from '../timeseries-query.ts';
 import { leafTables, type HostTables } from './host-tables.ts';
 import { sourcesOpenedOn } from './join.ts';
@@ -121,9 +122,9 @@ export interface SeriesAsked {
  * calculated columns and its filter), the sources opened over one model of the host's tables they read (join-open.ts
  * openSources, as the tab reads several grids together; one grid read the same way) -- for a host to plan and run where
  * the rows are (Python's Timeseries.frame: the database's every figure, as the screen's). JSON: `{model, runtime,
- * query, columns, unit, band, split, name}` -- the query a lambda as the protocol writes it, `columns` the names of its
- * answer's (timeseries-query.ts: `date`, `value`, a split's `split`, a band's `lower` and `upper`), its rows latest
- * first -- or `{problems}`, in DataCube's words.
+ * query, columns, unit, band, candles, split, name}` -- the query a lambda as the protocol writes it, `columns` the names
+ * of its answer's (timeseries-query.ts: `date`, `value`, a split's `split`, a band's `lower` and `upper`, a candle's
+ * `open`, `high` and `low`, its close the value), its rows latest first -- or `{problems}`, in DataCube's words.
  */
 export async function timeseriesQuery(spec: string): Promise<string> {
   try {
@@ -163,8 +164,9 @@ export async function timeseriesQuery(spec: string): Promise<string> {
     // its first date its base where it reads one (an index, compare), and the window's dates alone kept -- by the database
     const q = seriesQuery(inputs, ts, series, readsAnchor(ts, series) && window.from !== undefined ? { from: window.from } : {}, window);
     return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},"query":${toJson(q.query)},`
-      + `"columns":${JSON.stringify({ date: TS_DATE, value: TS_VALUE, split: TS_SPLIT, lower: TS_LOWER, upper: TS_UPPER })},`
-      + `"unit":${JSON.stringify(q.unit)},"band":${JSON.stringify(q.band)},"split":${JSON.stringify(q.split ?? null)},`
+      + `"columns":${JSON.stringify({ date: TS_DATE, value: TS_VALUE, split: TS_SPLIT, lower: TS_LOWER, upper: TS_UPPER, open: TS_OPEN, high: TS_HIGH, low: TS_LOW })},`
+      + `"unit":${JSON.stringify(q.unit)},"band":${JSON.stringify(q.band)},"candles":${JSON.stringify(q.candles === true)},`
+      + `"split":${JSON.stringify(q.split ?? null)},`
       + `"name":${JSON.stringify(series.name ?? null)}}`;
   } catch (e) {
     if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });

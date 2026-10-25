@@ -18,7 +18,9 @@ import {
   MAX_PANES, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsExpr, type TsSeries,
 } from './timeseries-spec.ts';
 import { boundsOf, exprText, inlined, seriesName, type TsUnit } from './timeseries-expr.ts';
-import { TS_DATE, TS_LOWER, TS_ROWS, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from './timeseries-query.ts';
+import {
+  TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_ROWS, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery,
+} from './timeseries-query.ts';
 
 /** A series' query and what the database answered. */
 export interface TsResult {
@@ -44,6 +46,8 @@ export interface TsLine {
   readonly lower?: readonly (number | null)[];
   readonly upper?: readonly (number | null)[];
   readonly width?: readonly (number | null)[];
+  /** A candle line's opens, highs and lows, point by point, as its points (its closes). */
+  readonly candles?: { readonly open: readonly (number | null)[]; readonly high: readonly (number | null)[]; readonly low: readonly (number | null)[] };
   /** The grid's column whose format its values take (a level's own); undefined for a figure of its own unit. */
   readonly formatColumn?: string;
   /** The source whose grid formats it: the one its series reads first. */
@@ -101,6 +105,9 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
     const lower = column(t, TS_LOWER);
     const upper = column(t, TS_UPPER);
     const width = column(t, TS_WIDTH);
+    const opens = column(t, TS_OPEN);
+    const highs = column(t, TS_HIGH);
+    const lows = column(t, TS_LOW);
     const splits = column(t, TS_SPLIT);
     if (t.rowCount > TS_POINT_LIMIT) notes.push(`${seriesName(s)}: its latest ${TS_POINT_LIMIT.toLocaleString(UI_LOCALE)} points (it has more).`);
     const rows = column(t, TS_ROWS);
@@ -134,6 +141,7 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
       const lo = take(lower);
       const hi = take(upper);
       const wd = take(width);
+      const candle = r.query.candles && opens && highs && lows ? { open: take(opens)!, high: take(highs)!, low: take(lows)! } : undefined;
       lines.push({
         key: g.split === undefined ? s.id : `${s.id}\u0000${String(g.split)}`,
         series: s,
@@ -147,6 +155,7 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
         ...(lo ? { lower: lo } : {}),
         ...(hi ? { upper: hi } : {}),
         ...(wd ? { width: wd } : {}),
+        ...(candle ? { candles: candle } : {}),
         ...(formatColumn !== undefined ? { formatColumn } : {}),
         ...(formatColumn !== undefined && r.query.sources[0] !== undefined ? { formatSource: r.query.sources[0] } : {}),
         ...(bounds !== undefined ? { bounds } : {}),
@@ -266,7 +275,7 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   const shown = lines.filter((l) => !l.series.hidden);
   // room on the right for each line's latest value, tagged at its end (the axes' labels are inside the grid already)
   const lastValues = viewSetting(ts, 'lastValues');
-  const tag = lastValues ? Math.max(0, ...shown.filter((l) => !l.band && !['bars', 'dots'].includes(l.series.style?.kind ?? 'line'))
+  const tag = lastValues ? Math.max(0, ...shown.filter((l) => !l.band && !l.candles && !['bars', 'dots'].includes(l.series.style?.kind ?? 'line'))
     .map((l) => valueText(l, [...l.points].reverse().find((p) => p[1] !== null)?.[1] ?? null, ctx.formatOf?.(l)).length)) : 0;
   const right = 16 + (tag > 0 ? tag * 6 + 14 : 0);
   let y = TOP;
@@ -352,6 +361,19 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
         { ...common, id: `${l.key}:lower`, type: 'line', data: at(l.lower), showSymbol: false, lineStyle: { color: l.color, width: 1, opacity: 0.7 } },
         { ...common, id: `${l.key}:upper`, type: 'line', data: at(l.upper), showSymbol: false, lineStyle: { color: l.color, width: 1, opacity: 0.7 } },
       );
+      continue;
+    }
+    if (l.candles) {
+      // a candle per period: [date, open, close, low, high], as ECharts' candlestick reads one; up green, down red
+      const c = l.candles;
+      const up = theme.series[2] ?? l.color;
+      const down = theme.bad ?? theme.series[7] ?? l.color;
+      series.push({
+        ...common, type: 'candlestick', barMaxWidth: 14,
+        data: l.points.map((pt, i) => [pt[0], c.open[i] ?? null, pt[1], c.low[i] ?? null, c.high[i] ?? null]),
+        encode: { x: 0, y: [1, 2, 3, 4] },
+        itemStyle: { color: up, color0: down, borderColor: up, borderColor0: down },
+      });
       continue;
     }
     const data = l.points as unknown as unknown[];
@@ -483,6 +505,15 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
           seen.add(id);
           const v = Array.isArray(it.value) ? toNumber(it.value[1] as Scalar) : null;
           const which = id.endsWith(':lower') ? ' (lower)' : id.endsWith(':upper') ? ' (upper)' : '';
+          if (l.candles && Array.isArray(it.value)) {
+            // a candle: its open, high, low and close, each as the grid writes its column
+            const [, o, c, lo, hi] = it.value as Scalar[];
+            const say = (x: Scalar | undefined): string => escapeHtml(valueText(l, toNumber(x), ctx.formatOf?.(l)));
+            rows.push(`<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${l.color};margin-right:6px"></span>${escapeHtml(l.name)}</div>`
+              + `<div style="display:grid;grid-template-columns:auto auto auto auto;gap:2px 10px;font-variant-numeric:tabular-nums;margin:0 0 4px 14px">`
+              + `<span>O ${say(o)}</span><span>H ${say(hi)}</span><span>L ${say(lo)}</span><b>C ${say(c)}</b></div>`);
+            continue;
+          }
           rows.push(`<div style="display:flex;gap:12px;justify-content:space-between"><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${l.color};margin-right:6px"></span>${escapeHtml(l.name)}${which}</span><b style="font-variant-numeric:tabular-nums">${escapeHtml(valueText(l, v, ctx.formatOf?.(l)))}</b></div>`);
         }
         return `<div style="font-weight:600;margin-bottom:4px">${escapeHtml(at === undefined ? '' : dateLabel(at, grain))}</div>${rows.join('')}`;
@@ -532,10 +563,12 @@ export function seriesText(s: TsSeries): string {
  */
 export function timeseriesCsv(lines: readonly TsLine[]): string {
   const cell = (v: string): string => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  const out = ['line,date,value,lower,upper'];
+  const out = ['line,date,value,lower,upper,open,high,low'];
+  const at = (xs: readonly (number | null)[] | undefined, i: number): string => (xs?.[i] == null ? '' : String(xs[i]));
   for (const l of lines) {
     l.points.forEach(([d, v], i) => {
-      out.push([l.name, d, v === null ? '' : String(v), l.lower?.[i] == null ? '' : String(l.lower[i]), l.upper?.[i] == null ? '' : String(l.upper[i])].map(cell).join(','));
+      out.push([l.name, d, v === null ? '' : String(v), at(l.lower, i), at(l.upper, i), at(l.candles?.open, i), at(l.candles?.high, i), at(l.candles?.low, i)]
+        .map(cell).join(','));
     });
   }
   return `${out.join('\n')}\n`;

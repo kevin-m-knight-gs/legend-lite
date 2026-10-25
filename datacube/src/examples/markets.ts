@@ -1,7 +1,7 @@
 // THE MARKETS EXAMPLE (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §9): the timeseries tile over two grids of
 // DataCube's own samples -- daily prices of ten instruments and a Treasury curve -- a sheet each for what a markets desk
-// reads first: performance rebased, risk (drawdowns, realized volatility, correlation, beta), technicals (Bollinger
-// bands, moving averages, RSI, volume) and rates (the curve, the 10s2s spread, a bond fund against its yield, the two
+// reads first: performance rebased, risk (drawdowns, realized volatility, correlation, beta), technicals (candles,
+// Bollinger bands, moving averages, RSI, volume) and rates (the curve, the 10s2s spread, a bond fund against its yield, the two
 // grids read in one query). Each series is typed as a person types it and read by DataCube's parser (timeseries-expr.ts
 // parseExpr); the page is written by DataCube's own writers, as the other example pages are, and opens as a saved page
 // does. test/examples.test.ts reads it back.
@@ -128,17 +128,17 @@ export async function marketsPage(): Promise<PageDocument> {
       annotations: [{ kind: 'level', value: 0, pane: 1 }, { kind: 'level', value: 1, pane: 2, label: 'beta 1' }],
     }),
     // technicals: a price with its band and averages, its RSI and its volume
-    tile('technicals', 'Apple: Bollinger bands, moving averages, RSI, volume', {
+    tile('technicals', 'Apple: candles, Bollinger bands, moving averages, RSI, volume', {
       sources: [PRICES],
       series: [
-        s('A', 'close[AAPL]', { name: 'Apple', style: { width: 2 } }),
-        s('B', 'bollinger_bands($A, 20, 2)', { name: '20d ±2σ' }),
-        s('C', 'mean($A, 50)', { name: '50d average', style: { dash: 'dashed', width: 1 } }),
-        s('D', 'mean($A, 200)', { name: '200d average', style: { dash: 'dashed', width: 1 } }),
-        s('E', 'rsi($A, 14)', { name: 'RSI 14', pane: 1 }),
+        s('A', 'ohlc(open[AAPL], high[AAPL], low[AAPL], close[AAPL])', { name: 'Apple' }),
+        s('B', 'bollinger_bands(close[AAPL], 20, 2)', { name: '20d ±2σ' }),
+        s('C', 'mean(close[AAPL], 50)', { name: '50d average', style: { dash: 'dashed', width: 1 } }),
+        s('D', 'mean(close[AAPL], 200)', { name: '200d average', style: { dash: 'dashed', width: 1 } }),
+        s('E', 'rsi(close[AAPL], 14)', { name: 'RSI 14', pane: 1 }),
         s('F', 'volume[AAPL].sum', { name: 'Volume', pane: 2, style: { kind: 'bars' } }),
       ],
-      range: { last: '1y' },
+      range: { last: '6m' },
       panes: [{ height: 3 }, { height: 1 }, { height: 1 }],
       annotations: [{ kind: 'level', value: 70, pane: 1, label: 'overbought' }, { kind: 'level', value: 30, pane: 1, label: 'oversold' }],
     }),

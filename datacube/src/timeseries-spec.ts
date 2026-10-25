@@ -205,7 +205,7 @@ export type TsFunctionName =
   | 'mean' | 'sum' | 'min' | 'max' | 'range' | 'std' | 'var' | 'zscores' | 'winsorize'
   | 'volatility' | 'drawdown' | 'max_drawdown' | 'sharpe_ratio'
   | 'correlation' | 'beta' | 'cov'
-  | 'bollinger_bands' | 'rsi'
+  | 'bollinger_bands' | 'rsi' | 'ohlc'
   | 'log' | 'exp' | 'sqrt' | 'abs' | 'power' | 'floor' | 'ceil';
 
 /** A function's parameter as a spec holds it: a whole number (a window, a lag), a number, or a word (a kind of return). */
@@ -225,7 +225,8 @@ export interface TsParamShape {
  * of them to.
  */
 export interface TsSignature {
-  readonly series: 1 | 2;
+  /** One, two (a correlation's), or four (a candle's: its open, high, low and close). */
+  readonly series: 1 | 2 | 4;
   readonly params: readonly TsParamShape[];
 }
 
@@ -244,9 +245,14 @@ export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
   zscores: one(W(0)), winsorize: one(num('limit', 2.5, 0)),
   volatility: one(W(22), RETURN_TYPE), drawdown: one(W(0)), max_drawdown: one(W(0)), sharpe_ratio: one(W(252)),
   correlation: { series: 2, params: [W(63)] }, beta: { series: 2, params: [W(63)] }, cov: { series: 2, params: [W(63)] },
-  bollinger_bands: one(W(20), num('k', 2, 0)), rsi: one(W(14)),
+  bollinger_bands: one(W(20), num('k', 2, 0)), rsi: one(W(14)), ohlc: { series: 4, params: [] },
   log: one(), exp: one(), sqrt: one(), abs: one(), power: one(num('y', 2)), floor: one(num('value', 0)), ceil: one(num('value', 0)),
 };
+
+/** How many series a function reads, in words: one, two, or a candle's four. */
+export function seriesWords(n: TsSignature['series']): string {
+  return n === 1 ? 'one series' : n === 2 ? 'two series' : 'four series (its open, high, low and close)';
+}
 
 /** The values a column may take of each period. */
 export const AGGREGATES: readonly TsAggregate[] = ['last', 'first', 'average', 'sum', 'min', 'max'];
@@ -337,7 +343,7 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
       if (!f) return `${what} calls ${JSON.stringify(e['fn'] ?? null)}, which this DataCube does not compute`;
       const fn = e['fn'] as TsFunctionName;
       if (!Array.isArray(e['args']) || e['args'].length !== f.series) {
-        return `${what}: ${fn} reads ${f.series === 1 ? 'one series' : 'two series'}`;
+        return `${what}: ${fn} reads ${seriesWords(f.series)}`;
       }
       for (const [i, a] of e['args'].entries()) {
         const p = exprProblem(a, `${fn}'s series ${i + 1}`, depth + 1);

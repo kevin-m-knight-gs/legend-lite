@@ -9,7 +9,7 @@
 
 import { isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import {
-  AGGREGATES, ALIAS, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
+  AGGREGATES, ALIAS, seriesWords, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
   type TsOperator, type TsParamShape, type TsSeries, type TsSource,
 } from './timeseries-spec.ts';
 
@@ -39,8 +39,8 @@ export interface TsFunction {
   readonly name: TsFunctionName;
   readonly label: string;
   readonly family: TsFamily;
-  /** How many series it reads: one, or two (a correlation's). */
-  readonly series: 1 | 2;
+  /** How many series it reads: one, two (a correlation's), or four (a candle's). */
+  readonly series: 1 | 2 | 4;
   readonly params: readonly TsParam[];
   /** What its figures are; `input` where it depends on a parameter (returns' type). */
   readonly unit: TsUnit | 'input';
@@ -53,6 +53,8 @@ export interface TsFunction {
   readonly anchored?: true;
   /** It draws two lines, a band between them (a Bollinger band): nothing may read it. */
   readonly band?: true;
+  /** It draws a candle per period, of its four series (an open, a high, a low, a close): nothing may read it. */
+  readonly candles?: true;
   /** Other names a person may type for it. */
   readonly aliases?: readonly string[];
   /** The least and the most its figures can be (an RSI's 0 and 100): its axis shows them whole. */
@@ -176,6 +178,12 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
     label: 'Bollinger bands', family: 'Technicals', unit: 'same', params: { k: 'standard deviations either side' },
     about: 'A band k standard deviations either side of the moving average over the last w observations.',
     gsQuant: 'technicals.bollinger_bands', band: true, aliases: ['bollinger'],
+  },
+  ohlc: {
+    label: 'Candles (open, high, low, close)', family: 'Technicals', unit: 'same', candles: true, aliases: ['candles', 'candlestick'],
+    about: 'A candle per period: its first open, its highest high, its lowest low and its last close (each a column of the '
+      + 'grid, taken so by the period unless its expression says how), green when it closed above its open, red below.',
+    gsQuant: 'DataCube (PlotTool Pro\'s candlesticks)',
   },
   rsi: {
     label: 'Relative strength index', family: 'Technicals', unit: 'number',
@@ -381,14 +389,52 @@ export function unitOf(e: TsExpr): TsUnit {
   }
 }
 
-/** Whether an expression draws a band (a Bollinger band): two lines, nothing reading it. */
 /** The least and the most an expression's figures can be: its outermost function's (an RSI's 0 and 100), else none. */
 export function boundsOf(e: TsExpr): readonly [number, number] | undefined {
   return e.kind === 'call' ? TS_FUNCTION.get(e.fn)?.bounds : undefined;
 }
 
+/** Whether an expression draws a band (a Bollinger band): two lines, nothing reading it. */
 export function isBand(e: TsExpr): boolean {
   return e.kind === 'call' && TS_FUNCTION.get(e.fn)?.band === true;
+}
+
+/** Whether an expression draws candles (ohlc): a candle per period, nothing reading it. */
+export function isCandles(e: TsExpr): boolean {
+  return e.kind === 'call' && TS_FUNCTION.get(e.fn)?.candles === true;
+}
+
+/** The words a grid's open, high and low columns are named by: a candle of its close is read of them. */
+const CANDLE_WORDS: readonly (readonly string[])[] = [['open', 'o'], ['high', 'h', 'hi'], ['low', 'l', 'lo']];
+
+/**
+ * A CANDLE OF A COLUMN (the series editor's Candles): `close[AAPL]` made `ohlc(open[AAPL], high[AAPL], low[AAPL],
+ * close[AAPL])` -- the same source and matches, the columns its source has by those names (or o, h, l; any case, a
+ * prefix or a suffix as the close's own: `close_px` beside `open_px`). Undefined when the expression is no column, or
+ * its source has no such three.
+ */
+export function candleOf(e: TsExpr, columns: readonly TsColumn[]): TsExpr | undefined {
+  if (e.kind !== 'column') return undefined;
+  const close = e.column.toLowerCase();
+  // what the close's name has beside its word (close_px: `_px`), which its open's has too
+  const at = ['close', 'last', 'px', 'price'].map((w) => [w, close.indexOf(w)] as const).find(([, i]) => i >= 0);
+  const named = (words: readonly string[]): string | undefined => {
+    for (const w of words) {
+      const want = at ? close.slice(0, at[1]) + w + close.slice(at[1] + at[0].length) : w;
+      const hit = columns.find((c) => c.name.toLowerCase() === want) ?? columns.find((c) => c.name.toLowerCase() === w);
+      if (hit) return hit.name;
+    }
+    return undefined;
+  };
+  const [open, high, low] = CANDLE_WORDS.map(named);
+  if (open === undefined || high === undefined || low === undefined) return undefined;
+  const of = (column: string): TsExpr => ({ ...e, column });
+  return { kind: 'call', fn: 'ohlc', args: [of(open), of(high), of(low), e] };
+}
+
+/** What an expression draws that nothing may read, in words: a Bollinger band, candles; undefined, a line. */
+export function drawnOnly(e: TsExpr): string | undefined {
+  return isBand(e) ? 'a band' : isCandles(e) ? 'candles' : undefined;
 }
 
 // ------------------------------------------------------------------ the expression language
@@ -592,12 +638,12 @@ export function parseExpr(text: string): TsExpr {
           continue;
         }
         const param = f.params[positional++];
-        if (!param) throw new TsSyntaxError(`${f.name} takes ${f.series === 1 ? 'one series' : 'two series'}${f.params.length > 0 ? ` and ${f.params.map((q) => q.name).join(', ')}` : ''}`, t.at);
+        if (!param) throw new TsSyntaxError(`${f.name} takes ${seriesWords(f.series)}${f.params.length > 0 ? ` and ${f.params.map((q) => q.name).join(', ')}` : ''}`, t.at);
         params[param.name] = paramValue(param);
       } while (isOp(',') && next());
     }
     expect(')');
-    if (args.length < f.series) throw new TsSyntaxError(`${f.name} reads ${f.series === 1 ? 'a series' : 'two series'}`, at);
+    if (args.length < f.series) throw new TsSyntaxError(`${f.name} reads ${seriesWords(f.series)}`, at);
     return { kind: 'call', fn: f.name, args, ...(Object.keys(params).length > 0 ? { params } : {}) };
   };
   const paramValue = (param: TsParam): number | string => {
@@ -763,7 +809,8 @@ export function timeseriesProblems(ts: TimeseriesSpec, columns: ReadonlyMap<stri
         continue;
       }
       if ((other.split ?? null) !== (s.split ?? null)) out.push(`${name} reads $${ref}, split ${other.split === undefined ? 'by nothing' : `by '${other.split}'`}: a series reads only series split as it is.`);
-      if (isBand(other.expr)) out.push(`${name} reads $${ref}, a band: a band is drawn, never read.`);
+      const drawn = drawnOnly(other.expr);
+      if (drawn !== undefined) out.push(`${name} reads $${ref}, ${drawn}: ${drawn} ${drawn === 'candles' ? 'are' : 'is'} drawn, never read.`);
     }
     let whole: TsExpr;
     try {
@@ -803,6 +850,7 @@ export function timeseriesProblems(ts: TimeseriesSpec, columns: ReadonlyMap<stri
         walk(e.right, false);
       } else if (e.kind === 'call') {
         if (!top && TS_FUNCTION.get(e.fn)?.band) out.push(`${name} reads a Bollinger band: a band is drawn, never read.`);
+        if (!top && TS_FUNCTION.get(e.fn)?.candles) out.push(`${name} reads candles: candles are drawn, never read.`);
         e.args.forEach((a) => walk(a, false));
       }
     };

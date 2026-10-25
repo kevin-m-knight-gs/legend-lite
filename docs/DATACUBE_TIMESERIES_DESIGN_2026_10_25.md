@@ -279,7 +279,7 @@ bounds planned and run.
    among them, and a yield curve's tenors: two grids). Each step a commit, held by its tests (§9). **Built** (§10).
 2. **Sources elsewhere**: a combination offering the grid's Snap when a source is on another store (D3), and reading
    the copy; per-source frozen filters.
-3. **Later**: a join across stores (D3); OHLC candles; events read from a grid's column (a calendar of releases) as
+3. **Later**: a join across stores (D3); events read from a grid's column (a calendar of releases) as
    annotations; regression of one series on another (a scatter with its fit: the database's slope and intercept from
    `covarPopulation` and `variancePopulation`); page filters reaching a tile's sources by class.
 
@@ -311,5 +311,14 @@ the viewer's DOM (jsdom, the renderer stood in for); the page commands, the reba
   sheets -- performance rebased with a vol pane; drawdowns, volatility, correlation and beta; Bollinger bands, moving
   averages, RSI and volume; the curve, the 10s2s spread, and a bond fund against its yield across two grids), drawn in
   Chromium on the demo site.
-- **Next**: a series' values to Python as a DataFrame (the database's, by the same queries); OHLC candles; per-source
-  frozen filters; events from a grid's column.
+- **A series' values in Python** (`Timeseries.frame(series, start=, end=)`): the viewer's own query written headless
+  over Python's tables (`timeseriesQuery`), planned and run by Python's plan-and-run -- a DataFrame indexed by date, a
+  column per line (a split's per value; a band's lower and upper; candles' open, high, low and close); a window kept
+  by the database after every value is computed over every date (`seriesQuery`'s clip), so its first values have their
+  history.
+- **Candles** (`ohlc(open, high, low, close)`, also `candles`): a candle per period -- each argument a column taken by
+  the period as a candle's is, its first open, highest high, lowest low and last close (`candled`), so a weekly candle
+  of daily rows is right -- drawn by ECharts' candlestick (registered with the rarer kinds, `chart-render-kinds.ts`,
+  before the tile's chart is made: an ECharts chart takes the layouts it knows as it is made), never read, unmoved by
+  compare. The series editor's Candles makes one of a close (`candleOf`: the open, high and low beside it, by name).
+- **Next**: per-source frozen filters; events from a grid's column; a regression of one series on another.

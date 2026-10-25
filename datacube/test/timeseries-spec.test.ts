@@ -7,7 +7,7 @@ import { describe, it } from 'node:test';
 
 import { tsProblem, type TimeseriesSpec, type TsExpr } from '../src/timeseries-spec.ts';
 import {
-  aliasFor, columnsOf, defaultTimeseries, exprText, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
+  aliasFor, candleOf, columnsOf, defaultTimeseries, exprText, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
   timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS,
 } from '../src/timeseries-expr.ts';
 
@@ -248,10 +248,33 @@ describe('a timeseries against its sources\' columns', () => {
     has({ ...TS({ A: 'close' }), sources: [{ alias: 'px', cube: 'g1', date: 'close' }] }, /is not a date/);
     has({ ...TS({ A: 'close[AAPL]' }), sources: [{ alias: 'px', cube: 'g1', date: 'day' }] }, /choose source px's instrument column/);
     has({ ...TS({ A: 'bollinger_bands(px:close, 20)', B: 'returns($A)' }) }, /a band is drawn, never read/);
+    has({ ...TS({ A: 'ohlc(px:close, px:close, px:close, px:close)', B: 'returns($A)' }) }, /reads \$A, candles: candles are drawn, never read/);
+    has(TS({ A: 'mean(ohlc(px:close, px:close, px:close, px:close), 5)' }), /reads candles: candles are drawn, never read/);
     const split: TimeseriesSpec = { ...TS({}), series: [{ id: 'A', expr: parseExpr('px:close'), split: 'symbol' }, { id: 'B', expr: parseExpr('returns($A)') }] };
     has(split, /split by 'symbol': a series reads only series split as it is/);
     const wrongSplit: TimeseriesSpec = { ...TS({}), series: [{ id: 'A', expr: parseExpr('rates:yield'), split: 'symbol' }] };
     has(wrongSplit, /which source rates -- the one it reads first -- has not/);
+  });
+});
+
+describe('candles', () => {
+  it('ohlc reads four series, written back as it was read; three are refused in words', () => {
+    const e = parseExpr('ohlc(open[AAPL], high[AAPL], low[AAPL], close[AAPL])');
+    assert.equal(exprText(e), 'ohlc(open[AAPL], high[AAPL], low[AAPL], close[AAPL])');
+    assert.equal(unitOf(e), 'same');
+    assert.equal(exprText(parseExpr('candles(o, h, l, c)')), 'ohlc(o, h, l, c)', 'by its other names');
+    assert.throws(() => parseExpr('ohlc(open, high, low)'), /ohlc reads four series \(its open, high, low and close\)/);
+    assert.match(tsProblem({ sources: [{ alias: 'px', cube: 'g', date: 'd' }], series: [{ id: 'A', expr: { kind: 'call', fn: 'ohlc', args: [{ kind: 'column', column: 'c' }] } }] }) ?? '',
+      /ohlc reads four series/);
+  });
+
+  it('a candle of a column: its source\'s open, high and low beside its close, by their names', () => {
+    const cols = (...names: string[]) => names.map((name) => ({ name, type: 'Float' }));
+    assert.equal(exprText(candleOf(parseExpr('px:close[AAPL]'), cols('open', 'high', 'low', 'close'))!),
+      'ohlc(px:open[AAPL], px:high[AAPL], px:low[AAPL], px:close[AAPL])');
+    assert.equal(exprText(candleOf(parseExpr('close_px'), cols('Open_px', 'High_px', 'Low_px', 'close_px'))!), 'ohlc(Open_px, High_px, Low_px, close_px)');
+    assert.equal(candleOf(parseExpr('close'), cols('close', 'volume')), undefined, 'no open, high and low: none');
+    assert.equal(candleOf(parseExpr('returns(close)'), cols('open', 'high', 'low', 'close')), undefined, 'no column: none');
   });
 });
 

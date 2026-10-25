@@ -864,6 +864,11 @@ class Document(Paged):
         self.assertEqual(list(kept['A']), [101.0, 99.5], 'the window\'s dates alone, kept by the database')
         with self.assertRaisesRegex(ValueError, 'has no series Z'):
             tile.frame('Z')
+        # a candle per week: its first, highest, lowest and last close, each the database's
+        candles = page.timeseries({'px': px}, ['ohlc(close[SPX], close[SPX], close[SPX], close[SPX])'], grain='week')
+        week = candles.frame()
+        self.assertEqual((list(week.columns), week.iloc[0].tolist()), (['open', 'high', 'low', 'close'], [100.0, 102.0, 99.5, 102.0]))
+        page.remove(candles)
         # a grid's own: its date and instrument columns chosen, its first series a line per instrument
         alone = px.timeseries()
         self.assertEqual(alone.series, [{'id': 'A', 'expr': {'kind': 'column', 'column': 'close'}, 'split': 'symbol'}])

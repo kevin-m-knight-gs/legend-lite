@@ -32,7 +32,7 @@ import {
   MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, TS_POINT_LIMIT, TS_RANGES, type TimeseriesSpec, type TsAggregate,
   type TsExpr, type TsMatch, type TsRangeWord, type TsSeries, type TsSource,
 } from './timeseries-spec.ts';
-import { inlined, isBand, paramOf, sourceAlias, sourcesOf, unitOf, type TsUnit } from './timeseries-expr.ts';
+import { inlined, isBand, isCandles, paramOf, sourceAlias, sourcesOf, unitOf, type TsUnit } from './timeseries-expr.ts';
 import type { TimeGrain } from './chart-spec.ts';
 
 /** The columns a series' query answers with. */
@@ -42,6 +42,10 @@ export const TS_LOWER = '__ts_lower';
 export const TS_UPPER = '__ts_upper';
 /** A band's width, upper less lower: the database's, so the drawing stacks the band's fill on its lower edge. */
 export const TS_WIDTH = '__ts_width';
+/** A candle's open, high and low (its close is TS_VALUE): the period's first open, highest high, lowest low. */
+export const TS_OPEN = '__ts_open';
+export const TS_HIGH = '__ts_high';
+export const TS_LOW = '__ts_low';
 export const TS_SPLIT = '__ts_split';
 /** How many of the grid's rows each period's value was taken from: more than one, for a series of no instrument, is said. */
 export const TS_ROWS = '__ts_rows';
@@ -79,6 +83,8 @@ export interface TsQuery {
   readonly query: Lambda;
   readonly unit: TsUnit;
   readonly band: boolean;
+  /** It draws a candle per period (ohlc): its answer's TS_OPEN, TS_HIGH, TS_LOW and its close, TS_VALUE. */
+  readonly candles?: boolean;
   readonly split?: string;
   /** Whether a period's value may be taken from several rows (a series of no instrument): its rows are counted. */
   readonly counted: boolean;
@@ -104,6 +110,10 @@ interface Built {
   readonly lower?: string;
   readonly upper?: string;
   readonly width?: string;
+  /** A candle's open, high and low; its close the value. */
+  readonly open?: string;
+  readonly high?: string;
+  readonly low?: string;
   readonly split?: string;
   readonly unit: TsUnit;
   readonly rows?: string;
@@ -314,20 +324,45 @@ class Writer {
   }
 }
 
-/** The value a node computes: its column's name, a number, or two columns (a band). */
+/** The value a node computes: its column's name, a number, two columns (a band), or four (a candle). */
 type Value = { readonly column: string } | { readonly number: number }
-  | { readonly lower: string; readonly upper: string; readonly width: string };
+  | { readonly lower: string; readonly upper: string; readonly width: string }
+  | { readonly open: string; readonly high: string; readonly low: string; readonly close: string };
+
+/** What only a drawing reads, refused where an expression reads it. */
+function unread(v: Value): never {
+  throw new CubeRefusal('lower' in v ? 'a band is drawn, never read' : 'candles are drawn, never read');
+}
 
 function asOperand(v: Value): ValueSpecification {
   if ('number' in v) return Number.isInteger(v.number) ? lit.integer(v.number) : float(v.number);
   if ('column' in v) return one(v.column);
-  throw new CubeRefusal('a band is drawn, never read');
+  return unread(v);
 }
 
 function columnOf(w: Writer, v: Value, what: string): string {
   if ('column' in v) return v.column;
   if ('number' in v) return w.row(what, asOperand(v));
-  throw new CubeRefusal('a band is drawn, never read');
+  return unread(v);
+}
+
+/** How a candle's four series take each period's rows: its first open, its highest high, its lowest low, its last close. */
+const CANDLE: readonly TsAggregate[] = ['first', 'max', 'min', 'last'];
+
+/** An expression with each candle's (ohlc's) plain columns taken by the period as a candle's are (CANDLE) -- unless one
+ *  says how itself (`open[AAPL].first`) -- so a weekly candle is the week's open, high, low and close. */
+function candled(e: TsExpr): TsExpr {
+  switch (e.kind) {
+    case 'call': {
+      const args = e.args.map(candled);
+      if (e.fn !== 'ohlc') return { ...e, args };
+      return { ...e, args: args.map((a, i) => (a.kind === 'column' && a.fn === undefined ? { ...a, fn: CANDLE[i]! } : a)) };
+    }
+    case 'binary':
+      return { ...e, left: candled(e.left), right: candled(e.right) };
+    default:
+      return e;
+  }
 }
 
 /** A node of the expression, written: its own columns after those of what it reads. */
@@ -511,6 +546,8 @@ function call(w: Writer, e: Extract<TsExpr, { kind: 'call' }>): Value {
         op('minus', float(100), fn('divide', float(100), op('plus', lit.integer(1), fn('divide', one(up), one(down)))))));
       return { column: w.ramped(rsi, gain, size) };
     }
+    case 'ohlc':
+      return { open: arg(0), high: arg(1), low: arg(2), close: arg(3) };
     case 'log': {
       const a = arg(0);
       return { column: w.row('ln', when(fn('lessThanEqual', one(a), lit.integer(0)), none(), fn('log', one(a)))) };
@@ -582,7 +619,7 @@ export function periodType(ts: TimeseriesSpec, input: TsInput, src: TsSource): s
  * on its own and the groups joined on the period. `anchor`: the first date shown, where an index starts.
  */
 function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, anchor: string | undefined): Built {
-  const expr = inlined(series.expr, ts.series);
+  const expr = candled(inlined(series.expr, ts.series));
   const bases = basesOf(ts, expr);
   const read = sourcesOf(ts, expr);
   if (bases.length === 0 || read.length === 0) throw new CubeRefusal(`series ${series.id} reads no column of a grid`);
@@ -649,9 +686,12 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
   for (const [key, name] of byName) w.bases.set(key, name);
   const top = write(w, expr);
   let unit = unitOf(expr);
-  let built: { value: string; lower?: string; upper?: string; width?: string };
+  let built: { value: string; lower?: string; upper?: string; width?: string; open?: string; high?: string; low?: string };
   if ('lower' in top) {
     built = { value: top.upper, lower: top.lower, upper: top.upper, width: top.width };
+  } else if ('open' in top) {
+    // a candle drawn as the rows are: compare moves no candle (its four prices would need one base each)
+    built = { value: top.close, open: top.open, high: top.high, low: top.low };
   } else {
     let value = columnOf(w, top, 'value');
     // compare: every LEVEL from one start -- a return, a volatility, a z-score drawn as it is
@@ -695,6 +735,7 @@ export function seriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeri
     ...(b.lower !== undefined ? [derive(TS_LOWER, row(col(b.lower)))] : []),
     ...(b.upper !== undefined ? [derive(TS_UPPER, row(col(b.upper)))] : []),
     ...(b.width !== undefined ? [derive(TS_WIDTH, row(col(b.width)))] : []),
+    ...(b.open !== undefined ? [derive(TS_OPEN, row(col(b.open))), derive(TS_HIGH, row(col(b.high!))), derive(TS_LOW, row(col(b.low!)))] : []),
     ...(b.split !== undefined ? [derive(TS_SPLIT, row(col(b.split)))] : []),
   ];
   const kept = [...out.map((c) => c.name), ...(b.rows !== undefined ? [b.rows] : [])];
@@ -709,6 +750,7 @@ export function seriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeri
     query: rel.lambda(),
     unit: b.unit,
     band: b.lower !== undefined,
+    ...(b.open !== undefined ? { candles: true } : {}),
     ...(b.split !== undefined ? { split: b.split } : {}),
     counted: b.rows !== undefined,
     sources: b.sources,
@@ -835,7 +877,7 @@ export function readsAnchor(ts: TimeseriesSpec, series: TsSeries): boolean {
     return false;
   }
   const unit = unitOf(expr);
-  return walk(expr) || (ts.view?.compare !== undefined && !isBand(expr) && (unit === 'same' || unit === 'index'));
+  return walk(expr) || (ts.view?.compare !== undefined && !isBand(expr) && !isCandles(expr) && (unit === 'same' || unit === 'index'));
 }
 
 /** The most values the instrument picker lists. */
