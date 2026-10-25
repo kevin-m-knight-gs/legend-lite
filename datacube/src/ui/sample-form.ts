@@ -4,7 +4,8 @@
 // row number and a filter), said as Alteryx's Sample says it, in a window its grid docks where its options dock it.
 // Fetched with the first Sample.
 
-import type { RowSample, RowSampleKind } from '../row-sample.ts';
+import { rangesWords, readRanges, type RecordRange, type RowSample, type RowSampleKind } from '../row-sample.ts';
+import { CubeRefusal } from '../snapshot.ts';
 
 export interface SampleFormOptions {
   /** The columns it can be ordered or grouped by. */
@@ -19,7 +20,7 @@ export interface SampleFormOptions {
 }
 
 const MODES: readonly (readonly [RowSampleKind, string])[] = [
-  ['first', 'first'], ['last', 'last'], ['skip', 'all but the first'], ['every', 'one of every'],
+  ['first', 'first'], ['last', 'last'], ['skip', 'all but the first'], ['every', 'one of every'], ['records', 'the rows at'],
 ];
 
 /** What each way keeps, under the form. */
@@ -28,6 +29,7 @@ const HINTS: Readonly<Record<RowSampleKind, string>> = {
   last: 'Its largest by that column -- of all the rows (rows that tie are kept), or of each group.',
   skip: 'Every row after the first ones by that column -- of all the rows, or of each group.',
   every: 'The first row by that column, and every one that many rows after it -- of all the rows, or of each group.',
+  records: 'The rows at those places by that column: 1-10, 20, 30+ (from the 30th on), -5 (the first 5) -- of all the rows, or of each group.',
 };
 
 /** The form, drawn into `host`. */
@@ -51,6 +53,10 @@ export function sampleForm(host: HTMLElement, o: SampleFormOptions): void {
   n.min = '1';
   n.step = '1';
   n.setAttribute('aria-label', 'How many rows');
+  // a Select Records' places, written as Alteryx writes them
+  const places = el('input', 'dc-picker-input dc-sample-ranges', line);
+  places.placeholder = '1-10, 20, 30+';
+  places.setAttribute('aria-label', 'The rows it keeps');
   el('span', 'dc-sample-word', line, 'rows, in the order of');
   const by = el('select', 'dc-select dc-sample-by', line);
   by.setAttribute('aria-label', 'The column it is ordered by');
@@ -73,7 +79,8 @@ export function sampleForm(host: HTMLElement, o: SampleFormOptions): void {
   const status = el('p', 'dc-sample-status', body);
   status.setAttribute('role', 'status');
   const now = o.now;
-  n.value = String(now?.n ?? 10);
+  n.value = String(now?.kind === 'records' ? 10 : now?.n ?? 10);
+  places.value = now?.ranges !== undefined ? rangesWords(now.ranges) : '';
   which.value = now?.kind ?? 'first';
   if (now !== undefined && o.columns.includes(now.by)) by.value = now.by;
   groupOn.checked = (now?.groups.length ?? 0) > 0;
@@ -95,12 +102,24 @@ export function sampleForm(host: HTMLElement, o: SampleFormOptions): void {
     else status.textContent = refused;
   };
   const groups = (): string[] => (groupOn.checked ? picks.filter((p) => p.checked).map((p) => p.value) : []);
+  const ranges = (): RecordRange[] | undefined => {
+    try {
+      return readRanges(places.value);
+    } catch (e) {
+      if (e instanceof CubeRefusal) return undefined;
+      throw e;
+    }
+  };
   const check = (): void => {
     const mode = which.value as RowSampleKind;
     list.hidden = !groupOn.checked;
     hint.textContent = HINTS[mode];
+    n.hidden = mode === 'records';
+    places.hidden = mode !== 'records';
     const count = Number(n.value);
-    const bad = !Number.isInteger(count) || count < 1 ? 'a whole number of rows, from 1'
+    const bad = mode === 'records' ? (ranges() === undefined ? 'its rows written as 1-10, 20, 30+' : by.value === '' ? 'a column to order them by'
+      : groupOn.checked && groups().length === 0 ? 'a column of each group' : undefined)
+      : !Number.isInteger(count) || count < 1 ? 'a whole number of rows, from 1'
       : mode === 'every' && count < 2 ? 'one of every 2 rows or more'
         : by.value === '' ? 'a column to order them by'
           : groupOn.checked && groups().length === 0 ? 'a column of each group' : undefined;
@@ -109,10 +128,15 @@ export function sampleForm(host: HTMLElement, o: SampleFormOptions): void {
   };
   for (const e of [which, by, groupOn, ...picks]) e.addEventListener('change', check);
   n.addEventListener('input', check);
+  places.addEventListener('input', check);
   check();
   cancel.addEventListener('click', () => o.close());
   clear.addEventListener('click', () => void done(o.clear()));
-  ok.addEventListener('click', () => void done(o.apply({ kind: which.value as RowSampleKind, n: Number(n.value), by: by.value, groups: groups() })));
+  ok.addEventListener('click', () => {
+    const kind = which.value as RowSampleKind;
+    const kept = kind === 'records' ? ranges() ?? [] : undefined;
+    void done(o.apply({ kind, n: kept?.length ?? Number(n.value), by: by.value, groups: groups(), ...(kept !== undefined ? { ranges: kept } : {}) }));
+  });
   n.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !ok.disabled) ok.click();
   });

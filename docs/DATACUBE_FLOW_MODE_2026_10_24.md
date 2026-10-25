@@ -242,6 +242,7 @@ How to read the status column:
 | Select (choose, rename, retype) | Built (2026-10-25) | Its own window: each column kept or left out (hidden), renamed (its display name, which a flow's box hands on as the relation's `rename`) and retyped (a calculated column of its conversion -- `parseInteger`, `toString`, `round`, `toFloat`... -- its column hidden, it handed on by the column's name) |
 | Sort | Built | The grid's sorts |
 | Sample (first, last, every Nth, N per group) | Built (2026-10-25) | The first or last N of all the rows, the grid's Top N; of each group, all but the first N, or one of every N, a row number (`rowNumber`, per group) and a filter on it, hidden -- `mod` of it for one of every N |
+| Select Records | Built (2026-10-25) | A Sample's way: a row number and a filter of its ranges (`1-10, 20, 30+`), or-ed |
 | Random % Sample | Step | `random()` |
 | Unique (Unique, Duplicates) | Built (2026-10-25) | A row number per key (`rowNumber` partitioned by its columns, in an order), a filter keeping the first, the number hidden; its Duplicates the filter's False port (§3.3), drawn U and D |
 | Record ID | Built | A window column: `rowNumber` |
@@ -754,6 +755,13 @@ made, it counts (its step opened as the box is made: `StepEditor` `countRecords`
 Count", read back off its columns (`countRecordsOf`). Python: `grid.count_records(name='Count')`. Tested by
 `flow-sheet.test.ts`, Python's `test_rows_counted_as_count_records` and the harness (the Filter's rows counted: one row,
 its count).
+
+**Built, Select Records** (`row-sample.ts`, `ui/sample-form.ts`, 2026-10-25): Alteryx's Select Records -- the rows at some
+places, written as Alteryx writes them (`1-10, 20, 30+`, `-5` the first five) -- one more of the Sample's ways ("the
+rows at"): its row number (in the order of a column, of each group when it has some) and a filter of its ranges, or-ed
+(one row an equal, from one on a `>=`, between two a `>=` and a `<=`), read back off it (`rowSampleOf`) and said "rows
+1-3, 10 by trade_id". The database numbers and keeps the rows. Python: `grid.sample('records', by=..., ranges='1-10,
+20')`. Tested by `flow-sheet.test.ts`, Python's Sample test and the harness (the first three and the tenth: four rows).
 
 **The example flow's Reshape sheet** (`examples/prep-flow.ts`): a second sheet showing the tools that reshape rows over the
 same orders -- the two biggest orders of each region (a Sample: last 2 of each region by revenue), their columns chosen

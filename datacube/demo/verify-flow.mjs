@@ -712,6 +712,14 @@ try {
   });
   check(everyHundred?.says === 'one of every 100 by trade_id', `a Sample of one of every 100: ${JSON.stringify(everyHundred)}`);
   check(await resultRows() === Math.ceil(fewer / 100), `one of every 100 of the Filter's ${fewer}: ${Math.ceil(fewer / 100)}`);
+  // Select Records: the rows at some places -- the first three and the tenth
+  const places = await resample(async (w) => {
+    await w.locator('.dc-sample-which').selectOption('records');
+    check(await w.locator('.dc-sample-n').isHidden() && await w.locator('.dc-sample-ranges').isVisible(), 'its places asked, not a number');
+    await w.locator('.dc-sample-ranges').fill('1-3, 10');
+  });
+  check(places?.says === 'rows 1-3, 10 by trade_id', `a Sample of some places: ${JSON.stringify(places)}`);
+  check(await resultRows() === 4, 'the rows at them: four');
 
   // A DATETIME (M3), dragged onto the Filter: its trade dates taken to their month, in its window docked
   const beforeDate = (await boxes()).map((b) => b.id);

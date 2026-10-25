@@ -1734,6 +1734,11 @@ class Abilities(Paged):
         grid.sample('first', 2, 'n')
         self.assertEqual(ns(), [1, 2])
         self.assertEqual(grid._query.get('topN'), {'by': 'n', 'n': 2, 'bottom': True})
+        # Select Records: the rows at some places, in the order of n
+        grid.sample('records', by='n', ranges='1-2, 5')
+        self.assertEqual(ns(), [1, 2, 5])
+        with self.assertRaisesRegex(ValueError, "'x' is no range of rows"):
+            grid.sample('records', by='n', ranges='x')
         grid.sample(None)
         self.assertEqual(ns(), [1, 2, 3, 4, 5])
         with self.assertRaisesRegex(ValueError, 'one row of every 1 is every row'):

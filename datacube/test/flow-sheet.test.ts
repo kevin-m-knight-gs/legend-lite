@@ -27,7 +27,7 @@ import { correlationLambda, correlationsOf, profileLambda, profileOf } from '../
 import { imputeCommands, imputedOf, readImputation } from '../src/impute.ts';
 import { dateToolCommands, dateToolOf, readDateTool } from '../src/date-tools.ts';
 import { multiFieldOf } from '../src/multi-field.ts';
-import { readRowSample, rowSampleCommands, rowSampleOf, sampleCommands } from '../src/row-sample.ts';
+import { rangesWords, readRanges, readRowSample, rowSampleCommands, rowSampleOf, sampleCommands } from '../src/row-sample.ts';
 import { readTranspose, transposeCommands, transposeOf } from '../src/transpose.ts';
 import { readSelection, retypesOf, selectCommands, selectionOf } from '../src/select-columns.ts';
 import { handedOn } from '../src/box-columns.ts';
@@ -322,6 +322,34 @@ describe("Sample's other ways (row-sample.ts): a row number and a filter, as Uni
     const every = rowSampleCommands(typed, { kind: 'every', n: 3, by: 'notional', groups: ['region'] });
     const read = rowSampleOf({ derived: columnsOf(every), filter: (every.find((c) => c.kind === 'addFilter') as { condition: FilterNode }).condition });
     assert.deepEqual(read, { kind: 'every', n: 3, by: 'notional', groups: ['region'], columns: ['SampleRow', 'SampleEvery'] });
+  });
+
+  it('keeps the rows at some places (Select Records): its ranges or-ed over the number, read back and said; refused in words', () => {
+    assert.deepEqual(readRanges('1-10, 20, 30+, -5'), [{ from: 1, to: 10 }, { from: 20, to: 20 }, { from: 30 }, { from: 1, to: 5 }]);
+    assert.equal(rangesWords(readRanges(' 1-10,20 , 30+')), '1-10, 20, 30+');
+    refused(() => readRanges('ten'), /'ten' is no range of rows/);
+    refused(() => readRanges(' , '), /name the rows it keeps/);
+    const t = { kind: 'records' as const, n: 3, by: 'notional', groups: [], ranges: readRanges('1-10, 20, 30+') };
+    const commands = rowSampleCommands(typed, t);
+    const filter = (commands.find((c) => c.kind === 'refilter') as { readonly add: readonly FilterNode[] }).add[0]!;
+    assert.deepEqual(filter, { kind: 'or', children: [
+      { kind: 'and', children: [{ kind: 'condition', column: 'SampleRow', operator: 'greaterThanEqual', value: 1 },
+        { kind: 'condition', column: 'SampleRow', operator: 'lessThanEqual', value: 10 }] },
+      { kind: 'condition', column: 'SampleRow', operator: 'equal', value: 20 },
+      { kind: 'condition', column: 'SampleRow', operator: 'greaterThanEqual', value: 30 },
+    ] });
+    const derived = columnsOf(commands);
+    assert.deepEqual(rowSampleOf({ derived, filter }), { ...t, columns: ['SampleRow'] });
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived, filter }), { columns: { SampleRow: { hidden: true } } })),
+      { tool: 'sample', also: [], says: 'rows 1-10, 20, 30+ by notional' });
+    // one row alone: an equal, still a Select Records (a remainder's 1 is one of every N's)
+    const one = rowSampleCommands(typed, { ...t, n: 1, ranges: [{ from: 7, to: 7 }] });
+    assert.equal(rowSampleOf({ derived: columnsOf(one), filter: (one.find((c) => c.kind === 'addFilter') as { condition: FilterNode }).condition })?.kind, 'records');
+    refused(() => rowSampleCommands(typed, { ...t, ranges: [] }), /name the rows it keeps/);
+    refused(() => rowSampleCommands(typed, { ...t, ranges: [{ from: 5, to: 2 }] }), /5-2 is no range of rows/);
+    assert.deepEqual(readRowSample({ kind: 'sample', mode: 'records', ranges: '2-3', by: 'notional' }),
+      { kind: 'records', n: 1, by: 'notional', groups: [], ranges: [{ from: 2, to: 3 }] });
+    refused(() => readRowSample({ kind: 'sample', mode: 'first', n: 2, by: 'notional', ranges: '1' }), /only a Select Records/);
   });
 
   it("goes from the sample it has to the one asked: a Top N for the first of all, a row sample's columns made again", () => {

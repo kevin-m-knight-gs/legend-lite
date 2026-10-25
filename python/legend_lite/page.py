@@ -900,14 +900,18 @@ class Grid(Tile):
         column handed on by its own name, the column itself hidden, as Alteryx's Imputation does."""
         return self._preset({'kind': 'impute', 'columns': list(columns), 'with': fill, **({'inPlace': True} if in_place else {})})
 
-    def sample(self, mode: str | None, n: int | None = None, by: str | None = None, *, groups: Sequence[str] = ()) -> Grid:
+    def sample(self, mode: str | None, n: int | None = None, by: str | None = None, *, groups: Sequence[str] = (),
+               ranges: str | None = None) -> Grid:
         """Its rows sampled -- a flow's Sample (DataCube's code: row-sample.ts sampleCommands), in the order of the column
         ``by``: ``mode`` ``'first'`` or ``'last'`` ``n`` rows (its smallest or largest: of all the rows, the grid's Top N,
         which keeps rows that tie; of each group of ``groups``, a row number per group), ``'skip'`` -- every row after
-        the first ``n`` -- or ``'every'``, one row of every ``n``; either of all the rows or of each group. The database
-        numbers the rows (a window column, hidden). ``None``: every row again, its sample taken off."""
+        the first ``n`` -- ``'every'``, one row of every ``n``, or ``'records'``, the rows at the places ``ranges`` says
+        (``'1-10, 20, 30+'``: Alteryx's Select Records); either of all the rows or of each group. The database numbers
+        the rows (a window column, hidden). ``None``: every row again, its sample taken off."""
         if mode is None:
             return self._preset({'kind': 'sample', 'mode': None})
+        if mode == 'records':
+            return self._preset({'kind': 'sample', 'mode': mode, 'ranges': ranges, 'by': by, 'groups': list(groups)})
         return self._preset({'kind': 'sample', 'mode': mode, 'n': n, 'by': by, 'groups': list(groups)})
 
     def transpose(self, columns: Sequence[str], *, keys: Sequence[str] = (), name: str = 'Name', value: str = 'Value') -> Grid:
