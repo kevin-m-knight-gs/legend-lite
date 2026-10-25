@@ -100,7 +100,8 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
     if (t.rowCount > TS_POINT_LIMIT) notes.push(`${seriesName(s)}: its latest ${TS_POINT_LIMIT.toLocaleString(UI_LOCALE)} points (it has more).`);
     const rows = column(t, TS_ROWS);
     if (rows && rows.some((n) => (toNumber(n) ?? 0) > 1)) {
-      notes.push(`${seriesName(s)} reads every instrument's rows, taking one per date: pick one (${firstColumn(s.expr) ?? 'close'}[${ts.key ? 'AAPL' : '...'}]) or split it by ${ts.key ?? 'its instrument'}.`);
+      const key = ts.sources.find((x) => x.alias === r.query.sources[0])?.key ?? 'its instrument';
+      notes.push(`${seriesName(s)} reads every instrument's rows, taking one per date: pick one (${firstColumn(s.expr) ?? 'close'}[...]) or split it by ${key}.`);
     }
     // the rows came latest first (the query's order, so a cut keeps the latest): each line's, oldest first
     const groups = new Map<string, { split: Scalar | undefined; at: number[] }>();
@@ -488,7 +489,8 @@ export function describeTimeseries(ts: TimeseriesSpec, lines: readonly TsLine[])
   const shown = lines.filter((l) => !l.series.hidden);
   if (shown.length === 0) return 'A timeseries with nothing to plot.';
   const names = shown.slice(0, 6).map((l) => l.name);
-  return `A timeseries of ${shown.length} line${shown.length === 1 ? '' : 's'} along ${ts.date}${ts.grain ? ` by ${ts.grain}` : ''}: ${names.join(', ')}${shown.length > 6 ? ', ...' : ''}.`;
+  const grids = ts.sources.length === 1 ? 'one grid' : `${ts.sources.length} grids`;
+  return `A timeseries of ${shown.length} line${shown.length === 1 ? '' : 's'} from ${grids}${ts.grain ? `, by ${ts.grain}` : ''}: ${names.join(', ')}${shown.length > 6 ? ', ...' : ''}.`;
 }
 
 /** A series' expression, as the editor shows it. */

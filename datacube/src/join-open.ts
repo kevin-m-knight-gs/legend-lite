@@ -97,13 +97,25 @@ function reconciled(how: JoinHow, right: JoinSide, notes: string[]): JoinHow {
   return { ...how, keep: how.keep.filter((c) => theirs.has(c)) };
 }
 
+/** Sources over one model as they are opened: the model, how a relation over it is typed, and each source's relation. */
+interface OneModel {
+  readonly model: string;
+  readonly runtime: string;
+  readonly typer: RelationTyper;
+  readonly notes: string[];
+  /** A source's relation over the model: a table's, or a join of its inputs (each opened as `side`). Asked in order. */
+  relation(s: CubeSource): Promise<ValueSpecification>;
+  /** An input as a join's side: its cube's rows at their finest level over its source. Asked in order. */
+  side(input: JoinInput): Promise<JoinSide>;
+}
+
 /**
- * THE TWO INPUTS OF A JOIN over one model: each leaf's table of the host's database declared once (a table read twice is
- * one table), each input its cube's rows at their finest level over its source -- refused in words when a leaf is read
- * elsewhere (leafRefusal) or an input is pivoted (its columns are its values).
+ * SOURCES OVER ONE MODEL: each leaf's table of the host's database declared once (a table read twice is one table) --
+ * refused in words when a leaf is read elsewhere (leafRefusal) -- and each source, asked IN ORDER (the tables are
+ * `o.tables` in leavesOf's order), its relation over the model.
  */
-export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpening): Promise<OpenedInputs> {
-  const leaves = [...leavesOf(left.source), ...leavesOf(right.source)];
+async function oneModel(sources: readonly CubeSource[], o: JoinOpening): Promise<OneModel> {
+  const leaves = sources.flatMap((s) => leavesOf(s));
   for (const leaf of leaves) {
     const why = leafRefusal(leaf, o.here);
     if (why !== undefined) throw new CubeRefusal(why);
@@ -140,10 +152,41 @@ export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpeni
     const columns = (await sourceColumns(typer, rows)).map((c) => ({ name: c.name, type: c.type }));
     return { name: input.name, relation: rows, columns };
   };
+  return { model: written.model, runtime: written.runtime, typer, notes, relation, side };
+}
 
-  const l = await side(left);
-  const r = await side(right);
-  return { model: written.model, runtime: written.runtime, typer, left: l, right: r, notes };
+/**
+ * THE TWO INPUTS OF A JOIN over one model: each leaf's table of the host's database declared once (a table read twice is
+ * one table), each input its cube's rows at their finest level over its source -- refused in words when a leaf is read
+ * elsewhere (leafRefusal) or an input is pivoted (its columns are its values).
+ */
+export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpening): Promise<OpenedInputs> {
+  const m = await oneModel([left.source, right.source], o);
+  const l = await m.side(left);
+  const r = await m.side(right);
+  return { model: m.model, runtime: m.runtime, typer: m.typer, left: l, right: r, notes: m.notes };
+}
+
+/** Several grids' sources opened over one model: the model, its typer, and each source's relation over it, in order. */
+export interface OpenedSources {
+  readonly model: string;
+  readonly runtime: string;
+  readonly typer: RelationTyper;
+  readonly relations: readonly ValueSpecification[];
+  readonly notes: readonly string[];
+}
+
+/**
+ * GRIDS' SOURCES OVER ONE MODEL (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2): what a timeseries series that
+ * combines grids is planned over, as a join's two inputs are (openInputs' rule, for any number of sources) -- each
+ * source the relation of its tables over the model, which its grid's calculated columns and filter are then written
+ * over. Refused in words when a leaf is read elsewhere (leafRefusal).
+ */
+export async function openSources(sources: readonly CubeSource[], o: JoinOpening): Promise<OpenedSources> {
+  const m = await oneModel(sources, o);
+  const relations: ValueSpecification[] = [];
+  for (const s of sources) relations.push(await m.relation(s));
+  return { model: m.model, runtime: m.runtime, typer: m.typer, relations, notes: m.notes };
 }
 
 /** A JOIN SOURCE OPENED (§17.4): its inputs over one model (openInputs), joined, typed. */

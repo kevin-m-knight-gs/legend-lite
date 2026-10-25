@@ -15,9 +15,12 @@ import { plannerFor } from './catalog-builder.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
 import { parseExpr, type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import {
-  boundsQuery, rangeStartName, seriesQuery, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_LATEST, TS_LOWER, TS_ROWS,
-  TS_SPLIT, TS_UPPER, TS_VALUE, type TsSource, type TsWindow,
+  boundsQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_LATEST, TS_LOWER,
+  TS_ROWS, TS_SPLIT, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
 } from '../src/timeseries-query.ts';
+import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
+import type { FileSource } from '../src/cube-document.ts';
+import { catalogColumns } from '../src/upload.ts';
 
 // -- the prices: two instruments over 40 weekdays from 2024-01-01, and a third trading on fewer days --
 
@@ -49,7 +52,8 @@ const CSV = [
 const writer = plannerFor('', 'local::RT');
 let engine: DuckDbEngine;
 let planner: LitePlanner;
-let src: TsSource;
+let input: TsInput;
+let inputs: TsInputs;
 
 before(async () => {
   const db = await openDatabase();
@@ -71,7 +75,8 @@ before(async () => {
     sorts: [],
     epoch: 1,
   };
-  src = { snapshot, filter: undefined };
+  input = { snapshot, filter: undefined };
+  inputs = new Map([['px', input]]);
 });
 
 after(async () => {
@@ -112,7 +117,7 @@ const pairs = (a: Line, b: Line, w: number, f: (p: number[], q: number[]) => num
 
 // -- running a series --
 
-const TS: TimeseriesSpec = { date: 'day', key: 'symbol', series: [] };
+const TS: TimeseriesSpec = { sources: [{ alias: 'px', cube: 'prices', date: 'day', key: 'symbol' }], series: [] };
 
 function spec(exprs: Record<string, string>, more: Partial<TimeseriesSpec> = {}, split?: string): TimeseriesSpec {
   return {
@@ -137,7 +142,7 @@ const num = (v: unknown): number | null => (v === null || v === undefined ? null
 /** A series' line, oldest first (the query answers latest first), one per split value. */
 async function line(ts: TimeseriesSpec, id = 'A', view: TsWindow = {}): Promise<{ dates: string[]; values: Line; lower?: Line; upper?: Line; split?: unknown[] }> {
   const series = ts.series.find((s) => s.id === id)!;
-  const q = seriesQuery(src, ts, series, view);
+  const q = seriesQuery(inputs, ts, series, view);
   const t = await run(q);
   const dates = values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse();
   const out = { dates, values: values(t, TS_VALUE).map(num).reverse() };
@@ -200,7 +205,7 @@ describe('a column along the dates', () => {
   });
 
   it('the grid\'s filter narrows every series', async () => {
-    const filtered: TsSource = { ...src, filter: { kind: 'condition', column: 'day', operator: 'greaterThanEqual', value: DAYS[30]! } };
+    const filtered: TsInputs = new Map([['px', { ...input, filter: { kind: 'condition', column: 'day', operator: 'greaterThanEqual', value: DAYS[30]! } }]]);
     const series = spec({ A: 'close[AAA]' }).series[0]!;
     const t = await run(seriesQuery(filtered, spec({ A: 'close[AAA]' }), series));
     assert.equal(t.rowCount, 10);
@@ -366,7 +371,7 @@ describe('from the first date shown', () => {
 
 describe('a series of no instrument says how many rows each date had', () => {
   it('close with no [AAA] and no split: each date three rows or two, counted', async () => {
-    const q = seriesQuery(src, spec({ A: 'close' }), spec({ A: 'close' }).series[0]!);
+    const q = seriesQuery(inputs, spec({ A: 'close' }), spec({ A: 'close' }).series[0]!);
     assert.equal(q.counted, true);
     const t = await run(q);
     const rows = values(t, TS_ROWS).map(Number);
@@ -376,7 +381,7 @@ describe('a series of no instrument says how many rows each date had', () => {
 
 describe('the tile\'s bounds: its latest date and where each range button starts, the database\'s', () => {
   it('the latest, the earliest, a month and a year back, the year\'s start', async () => {
-    const t = await run({ query: boundsQuery(src, TS) });
+    const t = await run({ query: boundsQuery(input, TS.sources[0]!) });
     const at = (n: string): string => String(values(t, n)[0]).slice(0, 10);
     assert.equal(at(TS_LATEST), DAYS[DAYS.length - 1]);
     assert.equal(at(TS_EARLIEST), DAYS[0]);
@@ -390,7 +395,7 @@ describe('a series\' statistics over the dates shown', () => {
   it('first, last, change, extremes and when, mean, deviation, volatility, drawdown, growth and Sharpe', async () => {
     const ts = spec({ A: 'close[AAA]' });
     const view = { from: DAYS[5]!, to: DAYS[34]! };
-    const t = await run(statsQuery(src, ts, ts.series[0]!, view));
+    const t = await run(statsQuery(inputs, ts, ts.series[0]!, view));
     const v = (s: Parameters<typeof statName>[0]): unknown => values(t, statName(s))[0];
     const shown = AAA.slice(5, 35);
     assert.equal(Number(v('count')), 30);
@@ -417,14 +422,114 @@ describe('a series\' statistics over the dates shown', () => {
 
   it('a return\'s statistics leave out what only a level has', async () => {
     const ts = spec({ A: 'returns(close[AAA])' });
-    const t = await run(statsQuery(src, ts, ts.series[0]!));
+    const t = await run(statsQuery(inputs, ts, ts.series[0]!));
     assert.ok(!t.columns.some((c) => c.name === statName('vol')), 'no volatility of a return');
     assert.equal(Number(values(t, statName('count'))[0]), 39);
   });
 
   it('per line of a split series', async () => {
     const ts = spec({ A: 'close' }, {}, 'symbol');
-    const t = await run(statsQuery(src, ts, ts.series[0]!));
+    const t = await run(statsQuery(inputs, ts, ts.series[0]!));
     assert.deepEqual(values(t, TS_SPLIT).map(String).sort(), ['AAA', 'BBB', 'CCC']);
+  });
+});
+
+// -- a series combining grids (D2): their tables over one model, each grouped by its own date, joined on the period --
+
+describe('a series combining two grids, planned over one model of their tables (§5.2)', () => {
+  // prices by weekday; a rates grid of its own, its own date and instrument columns, on fewer days and one more
+  const RATE_DAYS = DAYS.filter((_, i) => i % 2 === 0);
+  const TEN = RATE_DAYS.map((_, i) => round(4 + 0.05 * Math.sin(i) - 0.002 * i));
+  const TWO = RATE_DAYS.map((_, i) => round(4.5 - 0.004 * i));
+  let joint: TsInputs;
+  let jointPlanner: LitePlanner;
+  const file = (name: string, columns: [string, string][]): FileSource => ({
+    _type: 'file', name: `${name}.csv`, format: 'csv', size: 1, sha256: name.padEnd(64, '0'),
+    columns: columns.map(([n, type]) => ({ name: n, type })),
+  });
+  const PX = file('px_t', [['symbol', 'String'], ['day', 'StrictDate'], ['close', 'Float']]);
+  const RATES = file('rates_t', [['tenor', 'String'], ['obs_date', 'StrictDate'], ['yield', 'Float']]);
+  const COMBINED: TimeseriesSpec = {
+    sources: [
+      { alias: 'px', cube: 'grid-1', date: 'day', key: 'symbol' },
+      { alias: 'rates', cube: 'grid-2', date: 'obs_date', key: 'tenor' },
+    ],
+    series: [],
+  };
+  const combined = (exprs: Record<string, string>, split?: string): TimeseriesSpec => ({
+    ...COMBINED,
+    series: Object.entries(exprs).map(([id, text]): TsSeries => ({ id, expr: parseExpr(text), ...(split ? { split } : {}) })),
+  });
+  const joinedLine = async (ts: TimeseriesSpec, id = 'A'): Promise<{ dates: string[]; values: Line; split?: unknown[] }> => {
+    const series = ts.series.find((x) => x.id === id)!;
+    const q = seriesQuery(joint, ts, series);
+    const t = await engine.execute(await jointPlanner.plan(q.query), 0);
+    return {
+      dates: values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse(),
+      values: values(t, TS_VALUE).map(num).reverse(),
+      ...(q.split !== undefined ? { split: values(t, TS_SPLIT).reverse() } : {}),
+    };
+  };
+
+  before(async () => {
+    await engine.run('CREATE TABLE px_t (symbol VARCHAR, day DATE, close DOUBLE)', 0);
+    await engine.run(`INSERT INTO px_t VALUES ${DAYS.flatMap((d, i) => [`('AAA', '${d}', ${AAA[i]})`, `('BBB', '${d}', ${BBB[i]})`]).join(', ')}`, 0);
+    await engine.run('CREATE TABLE rates_t (tenor VARCHAR, obs_date DATE, yield DOUBLE)', 0);
+    await engine.run(`INSERT INTO rates_t VALUES ${RATE_DAYS.flatMap((d, i) => [`('10Y', '${d}', ${TEN[i]})`, `('2Y', '${d}', ${TWO[i]})`]).join(', ')}, ('10Y', '2024-12-31', 9)`, 0);
+    const models = plannerFor('', 'local::RT');
+    const opening: JoinOpening = {
+      here: TAB_TABLES, tables: ['px_t', 'rates_t'], models, databaseType: 'DuckDB',
+      catalog: (table) => catalogColumns(engine, models, table),
+      typer: (model, runtime) => plannerFor(model, runtime),
+    };
+    const opened = await openSources([PX, RATES], opening);
+    jointPlanner = plannerFor(opened.model, opened.runtime);
+    const grid = (query: (typeof opened.relations)[number], f: FileSource): TsInput => ({
+      snapshot: {
+        source: { query }, columns: f.columns.map((c) => ({ name: c.name, type: c.type })), derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1,
+      },
+      filter: undefined,
+    });
+    joint = new Map([['px', grid(opened.relations[0]!, PX)], ['rates', grid(opened.relations[1]!, RATES)]]);
+  });
+
+  it('reads both sources, the first first', () => {
+    const ts = combined({ A: 'px:close[AAA] / rates:yield[10Y]', B: 'rates:yield[2Y]' });
+    assert.deepEqual(seriesSources(ts, ts.series[0]!), ['px', 'rates']);
+    assert.deepEqual(seriesSources(ts, ts.series[1]!), ['rates']);
+  });
+
+  it('a ratio across grids, on the dates both have', async () => {
+    const l = await joinedLine(combined({ A: 'px:close[AAA] / rates:yield[10Y]' }));
+    assert.deepEqual(l.dates, RATE_DAYS);
+    close(l.values, RATE_DAYS.map((d, i) => AAA[DAYS.indexOf(d)]! / TEN[i]!), 'AAA / 10Y', 1e-9);
+  });
+
+  it('a series of the second grid alone, over the joint model, is its own', async () => {
+    const l = await joinedLine(combined({ A: 'rates:yield[2Y]' }));
+    assert.deepEqual(l.dates, RATE_DAYS);
+    close(l.values, TWO, '2Y');
+  });
+
+  it('a rolling correlation of two grids\' returns, after the join', async () => {
+    const a = RATE_DAYS.map((d) => AAA[DAYS.indexOf(d)]!);
+    const corr = pairs(simple(a), simple(TEN), 5, (p, q) => cov(p, q) / (sd(p) * sd(q)));
+    close((await joinedLine(combined({ A: 'correlation(px:close[AAA], rates:yield[10Y], 5)' }))).values, corr, 'corr', 1e-7);
+  });
+
+  it('split by the first grid\'s instrument, each line against the second grid\'s one series', async () => {
+    const l = await joinedLine(combined({ A: 'px:close - rates:yield[10Y]' }, 'symbol'));
+    const of = (sym: string): Line => l.values.filter((_, i) => l.split![i] === sym);
+    close(of('AAA'), RATE_DAYS.map((d, i) => AAA[DAYS.indexOf(d)]! - TEN[i]!), 'AAA - 10Y', 1e-9);
+    close(of('BBB'), RATE_DAYS.map((d, i) => BBB[DAYS.indexOf(d)]! - TEN[i]!), 'BBB - 10Y', 1e-9);
+  });
+
+  it('at a monthly frequency, each grid\'s month-end, joined by month', async () => {
+    const months = [...new Set(RATE_DAYS.map((d) => d.slice(0, 7)))];
+    const lastOf = (dates: readonly string[], vals: readonly number[], m: string): number =>
+      vals[dates.map((d) => d.slice(0, 7)).lastIndexOf(m)]!;
+    const l = await joinedLine({ ...combined({ A: 'px:close[BBB] / rates:yield[10Y]' }), grain: 'month' });
+    assert.deepEqual(l.dates, months.map((m) => `${m}-01`));
+    close(l.values, months.map((m) => lastOf(DAYS, BBB, m) / lastOf(RATE_DAYS, TEN, m)), 'monthly ratio', 1e-9);
   });
 });

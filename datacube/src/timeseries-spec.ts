@@ -1,11 +1,12 @@
-// THE TIMESERIES VIEWER'S SPEC (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): what a timeseries tile plots, in
-// plain JSON -- a chart of mark `timeseries` keeps it in its `ts` slot (chart-spec.ts), so it is saved, undone, merged
-// and read by Python as every chart is.
+// THE TIMESERIES VIEWER'S SPEC (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §3): what a timeseries tile plots, in
+// plain JSON -- a page view of its own (page-document.ts TimeseriesView), saved, undone, merged and made by Python as
+// every tile is.
 //
-// A tile plots SERIES along one date column of its grid. Each series is an EXPRESSION in the vocabulary of gs-quant's
+// A tile reads SOURCES -- grids of the page, each by its cube, with its own date column and instrument column -- and
+// plots SERIES along one time axis. Each series is an EXPRESSION in the vocabulary of gs-quant's
 // timeseries package -- the functions Goldman Sachs' PlotTool Pro exports to its expression language
 // (`gs_quant.timeseries`, each marked `@plot_function`): returns, volatility, z-scores, rolling statistics, drawdowns,
-// correlation and beta, Bollinger bands. A person types one (`volatility(close[AAPL], 63)`) or builds it from the
+// correlation and beta, Bollinger bands. A person types one (`volatility(px:close[AAPL], 63)`) or builds it from the
 // menus; either way the spec keeps the tree, and its text is printed from the tree (`exprText`), so the words a person
 // typed and the words saved never drift.
 //
@@ -22,17 +23,23 @@ import { isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/type
 /** How a period's rows become its one value: the latest row's (a price), the earliest's, or an aggregate (a volume's sum). */
 export type TsAggregate = 'last' | 'first' | 'average' | 'sum' | 'min' | 'max';
 
-/** A match on a series' rows: `close[AAPL]` (the tile's key column) or `close[venue=NYSE]`. */
+/** A match on a series' rows: `close[AAPL]` (its source's instrument column) or `close[venue=NYSE]`. */
 export interface TsMatch {
-  /** The column matched; absent, the tile's key column. */
+  /** The column matched; absent, its source's instrument column (TsSource.key). */
   readonly column?: string;
   readonly value: string | number | boolean;
 }
 
 /** What a series plots: a tree of the grid's columns, numbers, other series and functions. */
 export type TsExpr =
-  /** A column of the grid along the date: its rows that match, each period's taken by `fn` (default `last`). */
-  | { readonly kind: 'column'; readonly column: string; readonly fn?: TsAggregate; readonly where?: readonly TsMatch[] }
+  /**
+   * A column of a source along its date: its rows that match, each period's taken by `fn` (default `last`). `source`:
+   * the alias of the source it reads (`px:close`); absent, the tile's first source.
+   */
+  | {
+    readonly kind: 'column'; readonly source?: string; readonly column: string; readonly fn?: TsAggregate;
+    readonly where?: readonly TsMatch[];
+  }
   /** Another series' expression, by its id: `$A`. */
   | { readonly kind: 'ref'; readonly series: string }
   | { readonly kind: 'number'; readonly value: number }
@@ -64,7 +71,10 @@ export interface TsSeries {
   readonly expr: TsExpr;
   /** Its name in the legend; else its expression's text. */
   readonly name?: string;
-  /** One line per value of this column (one per symbol), each its own partition of every window. */
+  /**
+   * One line per value of this column (one per symbol), each its own partition of every window: a column of the source
+   * the series reads first (sourcesOf).
+   */
   readonly split?: string;
   readonly style?: TsStyle;
   /** The pane it is drawn in, 0 the main one at the top, up to MAX_PANES - 1. */
@@ -111,12 +121,28 @@ export interface TsView {
   readonly crosshair?: boolean;
 }
 
-export interface TimeseriesSpec {
-  /** The date column every series is read along: a StrictDate or a DateTime of the grid. */
+/**
+ * A GRID THE TILE READS: its cube on the page (a grid's, or -- its grid removed -- one kept for the tile, detached), the
+ * date column its rows are read along, the column naming each row's instrument, and the alias its expressions call it.
+ */
+export interface TsSource {
+  /** A word, unique in the tile: `px:close`. */
+  readonly alias: string;
+  /** The cube it reads: the page's (a grid's id is its cube's). */
+  readonly cube: string;
+  /** Its date column: a StrictDate or a DateTime. */
   readonly date: string;
-  /** The column naming each row's instrument -- a symbol, a ticker -- that `close[AAPL]` matches. */
+  /** Its column naming each row's instrument -- a symbol, a ticker, a tenor -- that `close[AAPL]` matches. */
   readonly key?: string;
-  /** The frequency the series are taken to: each period's value by its column's aggregate. Absent: as the rows are. */
+}
+
+export interface TimeseriesSpec {
+  /** The grids it reads, the first the one an expression reads when it names none. */
+  readonly sources: readonly TsSource[];
+  /**
+   * The ONE frequency of the tile -- each series' values taken to it by its column's aggregate -- so series of
+   * different grids share one time axis. Absent: as the rows are.
+   */
   readonly grain?: TimeGrain;
   readonly series: readonly TsSeries[];
   /** The window shown first. Absent: every date. */
@@ -142,6 +168,8 @@ export function viewSetting(ts: TimeseriesSpec, key: keyof typeof TS_VIEW_DEFAUL
 
 /** The most series a tile plots, and the most lines one split series draws (its first values, in order). */
 export const MAX_TS_SERIES = 12;
+/** The most grids a tile reads. */
+export const MAX_TS_SOURCES = 8;
 export const MAX_SPLIT_LINES = 20;
 /** The most panes a tile stacks: the main one and three under it. */
 export const MAX_PANES = 4;
@@ -395,15 +423,47 @@ export function refsOf(e: TsExpr): string[] {
   return [...out];
 }
 
-/** The grid's columns an expression reads -- its values' and its matches' -- each once, with the tile's key. */
-export function columnsOf(e: TsExpr, key?: string): string[] {
-  const out = new Set<string>();
+/** The alias of the source a column of an expression reads: its own, else the tile's first source's. */
+export function sourceAlias(ts: Pick<TimeseriesSpec, 'sources'>, e: Extract<TsExpr, { kind: 'column' }>): string | undefined {
+  return e.source ?? ts.sources[0]?.alias;
+}
+
+/** The sources an expression reads, by alias, in the order it first reads them (refs inlined first: `inlined`). */
+export function sourcesOf(ts: Pick<TimeseriesSpec, 'sources'>, e: TsExpr): string[] {
+  const out: string[] = [];
   const walk = (x: TsExpr): void => {
     if (x.kind === 'column') {
-      out.add(x.column);
+      const a = sourceAlias(ts, x);
+      if (a !== undefined && !out.includes(a)) out.push(a);
+    } else if (x.kind === 'binary') {
+      walk(x.left);
+      walk(x.right);
+    } else if (x.kind === 'call') x.args.forEach(walk);
+  };
+  walk(e);
+  return out;
+}
+
+/**
+ * The columns an expression reads of each source -- its values' and its matches', a match of no column its source's
+ * instrument column -- each once, by alias.
+ */
+export function columnsOf(ts: Pick<TimeseriesSpec, 'sources'>, e: TsExpr): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  const add = (alias: string, c: string): void => {
+    const cs = out.get(alias) ?? [];
+    if (!cs.includes(c)) cs.push(c);
+    out.set(alias, cs);
+  };
+  const walk = (x: TsExpr): void => {
+    if (x.kind === 'column') {
+      const alias = sourceAlias(ts, x);
+      if (alias === undefined) return;
+      add(alias, x.column);
+      const key = ts.sources.find((src) => src.alias === alias)?.key;
       for (const m of x.where ?? []) {
         const c = m.column ?? key;
-        if (c !== undefined) out.add(c);
+        if (c !== undefined) add(alias, c);
       }
     } else if (x.kind === 'binary') {
       walk(x.left);
@@ -411,7 +471,18 @@ export function columnsOf(e: TsExpr, key?: string): string[] {
     } else if (x.kind === 'call') x.args.forEach(walk);
   };
   walk(e);
-  return [...out];
+  return out;
+}
+
+/** An alias as a source may be called: a word, a letter first. */
+export const ALIAS = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+/** An alias for a grid of this title: its first word, lower case (`Prices` is `prices`), made unique among `taken`. */
+export function aliasFor(title: string | undefined, taken: readonly string[]): string {
+  const word = (title ?? '').toLowerCase().replace(/[^a-z0-9_]+/g, ' ').trim().split(' ')[0] ?? '';
+  const base = /^[a-z][a-z0-9_]*$/.test(word) && !functionNamed(word) ? word.slice(0, 16) : 'grid';
+  if (!taken.includes(base)) return base;
+  for (let n = 2; ; n++) if (!taken.includes(`${base}${n}`)) return `${base}${n}`;
 }
 
 /** An expression with every `$A` replaced by A's own expression (refs checked first: timeseriesProblems). */
@@ -497,6 +568,13 @@ function tokenize(text: string): Token[] {
     const at = i;
     if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(text[i + 1] ?? ''))) {
       const m = /^(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?/i.exec(text.slice(i))!;
+      // a number run straight into letters is a word -- a tenor, a period: 10Y, 3M
+      if (/[A-Za-z_]/.test(text[i + m[0].length] ?? '')) {
+        const w = /^[0-9A-Za-z_]+/.exec(text.slice(i))!;
+        out.push({ t: 'id', v: w[0], at, quoted: false });
+        i += w[0].length;
+        continue;
+      }
       out.push({ t: 'num', v: Number(m[0]), at });
       i += m[0].length;
       continue;
@@ -523,7 +601,7 @@ function tokenize(text: string): Token[] {
       i = end + 1;
       continue;
     }
-    if ('+-*/(),[]=.'.includes(c)) {
+    if ('+-*/(),[]=.:'.includes(c)) {
       out.push({ t: 'op', v: c, at });
       i++;
       continue;
@@ -539,8 +617,9 @@ const AGGREGATES: readonly TsAggregate[] = ['last', 'first', 'average', 'sum', '
 /**
  * AN EXPRESSION AS A PERSON TYPES IT, read into the tree the spec keeps -- PlotTool Pro's style over gs-quant's names:
  *
- *   close                      the grid's column, each period's latest value
- *   close[AAPL]                its rows whose key column (the tile's instrument column) is AAPL
+ *   close                      the first source's column, each period's latest value
+ *   px:close, rates:yield      a column of the source of that alias
+ *   close[AAPL]                its rows whose instrument column (the source's key) is AAPL
  *   close[venue=NYSE, AAPL]    and whose venue is NYSE
  *   volume[AAPL].sum           each period's rows summed (last, first, average, sum, min, max)
  *   $A                         series A's expression
@@ -601,7 +680,7 @@ export function parseExpr(text: string): TsExpr {
     if (t.t === 'op' && t.v === '-' && peek().t === 'num') return -(next() as { v: number }).v;
     throw new TsSyntaxError('a value was expected here (AAPL, "BRK.B", 42)', t.at);
   };
-  const column = (name: string): TsExpr => {
+  const column = (name: string, source?: string): TsExpr => {
     const where: TsMatch[] = [];
     let fn: TsAggregate | undefined;
     if (isOp('[')) {
@@ -627,7 +706,10 @@ export function parseExpr(text: string): TsExpr {
       }
       fn = t.v as TsAggregate;
     }
-    return { kind: 'column', column: name, ...(fn !== undefined ? { fn } : {}), ...(where.length > 0 ? { where } : {}) };
+    return {
+      kind: 'column', ...(source !== undefined ? { source } : {}), column: name, ...(fn !== undefined ? { fn } : {}),
+      ...(where.length > 0 ? { where } : {}),
+    };
   };
   const call = (name: string, at: number): TsExpr => {
     const f = functionNamed(name);
@@ -690,6 +772,14 @@ export function parseExpr(text: string): TsExpr {
     }
     if (t.t === 'id') {
       if (!t.quoted && isOp('(')) return call(t.v, t.at);
+      // a source's column: `px:close`, `rates:yield[10Y]`
+      if (!t.quoted && isOp(':')) {
+        if (!ALIAS.test(t.v)) throw new TsSyntaxError(`"${t.v}" is not a source's name`, t.at);
+        next();
+        const c = next();
+        if (c.t !== 'id') throw new TsSyntaxError(`a column of ${t.v} was expected here`, c.at);
+        return column(c.v, t.v);
+      }
       if (!t.quoted && NOT_BUILT[t.v.toLowerCase()]) throw new TsSyntaxError(`${t.v}: ${NOT_BUILT[t.v.toLowerCase()]}`, t.at);
       return column(t.v);
     }
@@ -714,7 +804,9 @@ function numberText(n: number): string {
 /** A value of a match as an expression writes it: a word as it is, anything else quoted. */
 function valueText(v: string | number | boolean): string {
   if (typeof v !== 'string') return String(v);
-  return WORD.test(v) && v !== 'true' && v !== 'false' ? v : JSON.stringify(v);
+  // a word as it is (AAPL, 10Y), unless it would read back as something else: a number, true or false
+  return /^[A-Za-z0-9_]+$/.test(v) && !Number.isFinite(Number(v)) && !/^\d+(\.\d*)?e\d*$/i.test(v) && v !== 'true' && v !== 'false'
+    ? v : JSON.stringify(v);
 }
 
 /** A column's name as an expression writes it: a word as it is, anything else in backticks. */
@@ -734,7 +826,7 @@ export function exprText(e: TsExpr, outer = 0): string {
       return `$${e.series}`;
     case 'column': {
       const where = (e.where ?? []).map((m) => (m.column !== undefined ? `${m.column}=${valueText(m.value)}` : valueText(m.value)));
-      return `${columnText(e.column)}${where.length > 0 ? `[${where.join(', ')}]` : ''}${e.fn !== undefined ? `.${e.fn}` : ''}`;
+      return `${e.source !== undefined ? `${e.source}:` : ''}${columnText(e.column)}${where.length > 0 ? `[${where.join(', ')}]` : ''}${e.fn !== undefined ? `.${e.fn}` : ''}`;
     }
     case 'binary': {
       const mine = PRECEDENCE[e.op];
@@ -781,8 +873,9 @@ export function nextSeriesId(series: readonly TsSeries[]): string {
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 const TS_KEYS: Readonly<Record<keyof TimeseriesSpec, true>> = {
-  date: true, key: true, grain: true, series: true, range: true, panes: true, annotations: true, view: true,
+  sources: true, grain: true, series: true, range: true, panes: true, annotations: true, view: true,
 };
+const SOURCE_KEYS: Readonly<Record<keyof TsSource, true>> = { alias: true, cube: true, date: true, key: true };
 const SERIES_KEYS: Readonly<Record<keyof TsSeries, true>> = {
   id: true, expr: true, name: true, split: true, style: true, pane: true, axis: true, hidden: true,
 };
@@ -793,7 +886,7 @@ const VIEW_KEYS: Readonly<Record<keyof TsView, true>> = {
 };
 const MATCH_KEYS: Readonly<Record<keyof TsMatch, true>> = { column: true, value: true };
 const EXPR_KEYS: { readonly [K in TsExpr['kind']]: Readonly<Record<string, true>> } = {
-  column: { kind: true, column: true, fn: true, where: true },
+  column: { kind: true, source: true, column: true, fn: true, where: true },
   ref: { kind: true, series: true },
   number: { kind: true, value: true },
   binary: { kind: true, op: true, left: true, right: true },
@@ -824,6 +917,9 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
   switch (kind) {
     case 'column': {
       if (typeof e['column'] !== 'string' || e['column'] === '') return `${what} names no column`;
+      if (e['source'] !== undefined && (typeof e['source'] !== 'string' || !ALIAS.test(e['source']))) {
+        return `${what}'s source ${JSON.stringify(e['source'])} is not a source's alias (a word)`;
+      }
       if (e['fn'] !== undefined && !AGGREGATES.includes(e['fn'] as TsAggregate)) {
         return `${what}'s period value ${JSON.stringify(e['fn'])} is not one of ${AGGREGATES.join(', ')}`;
       }
@@ -881,6 +977,20 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
   }
 }
 
+/** The aliases an expression's columns name, each once (a column naming none reads the first source). */
+function columnSourcesOf(e: TsExpr): string[] {
+  const out = new Set<string>();
+  const walk = (x: TsExpr): void => {
+    if (x.kind === 'column' && x.source !== undefined) out.add(x.source);
+    else if (x.kind === 'binary') {
+      walk(x.left);
+      walk(x.right);
+    } else if (x.kind === 'call') x.args.forEach(walk);
+  };
+  walk(e);
+  return [...out];
+}
+
 /** A date as a spec writes it, an ISO day. */
 const isDate = (v: unknown): v is string => typeof v === 'string' && DATE.test(v) && !Number.isNaN(Date.parse(v));
 
@@ -892,8 +1002,22 @@ export function tsProblem(ts: unknown): string | null {
   if (!isRecord(ts)) return 'its timeseries is not an object';
   const extra = unknownKey(ts, TS_KEYS, 'its timeseries');
   if (extra) return extra;
-  if (typeof ts['date'] !== 'string' || ts['date'] === '') return 'its timeseries names no date column';
-  if (ts['key'] !== undefined && typeof ts['key'] !== 'string') return 'its timeseries\' key is not a column';
+  const sources = ts['sources'];
+  if (!Array.isArray(sources) || sources.length === 0) return 'its timeseries reads no grid (sources)';
+  if (sources.length > MAX_TS_SOURCES) return `a timeseries reads at most ${MAX_TS_SOURCES} grids (it reads ${sources.length})`;
+  const aliases = new Set<string>();
+  for (const [i, src] of sources.entries()) {
+    const what = `source ${i + 1}`;
+    if (!isRecord(src)) return `${what} is not an object`;
+    const srcExtra = unknownKey(src, SOURCE_KEYS, what);
+    if (srcExtra) return srcExtra;
+    if (typeof src['alias'] !== 'string' || !ALIAS.test(src['alias'])) return `${what}'s alias ${JSON.stringify(src['alias'] ?? null)} is not a word`;
+    if (aliases.has(src['alias'])) return `two sources are called ${src['alias']}`;
+    aliases.add(src['alias']);
+    if (typeof src['cube'] !== 'string' || src['cube'] === '') return `source ${src['alias']} names no cube`;
+    if (typeof src['date'] !== 'string' || src['date'] === '') return `source ${src['alias']} names no date column`;
+    if (src['key'] !== undefined && (typeof src['key'] !== 'string' || src['key'] === '')) return `source ${src['alias']}'s key is not a column`;
+  }
   if (ts['grain'] !== undefined && !GRAINS.includes(ts['grain'] as TimeGrain)) {
     return `its timeseries' frequency ${JSON.stringify(ts['grain'])} is not one of ${GRAINS.join(', ')}`;
   }
@@ -911,6 +1035,8 @@ export function tsProblem(ts: unknown): string | null {
     ids.add(s['id']);
     const p = exprProblem(s['expr'], `series ${s['id']}`);
     if (p) return p;
+    const named = columnSourcesOf(s['expr'] as TsExpr).find((a) => !aliases.has(a));
+    if (named !== undefined) return `series ${s['id']} reads ${named}:..., which is none of its sources (${[...aliases].join(', ')})`;
     if (s['name'] !== undefined && typeof s['name'] !== 'string') return `series ${s['id']}'s name is not text`;
     if (s['split'] !== undefined && typeof s['split'] !== 'string') return `series ${s['id']}'s split is not a column`;
     if (s['pane'] !== undefined && !(Number.isInteger(s['pane']) && (s['pane'] as number) >= 0 && (s['pane'] as number) < MAX_PANES)) {
@@ -1013,22 +1139,31 @@ export interface TsColumn {
 }
 
 /**
- * What stops a timeseries from being drawn over its grid's columns, in words; empty when it can be: a date column that
- * is a date, a value that is a number, a series that reads what is there -- each series' refs there and not round in a
- * circle, of one split -- a band nothing reads.
+ * What stops a timeseries from being drawn over its sources' columns, in words; empty when it can be. `columns`: each
+ * source's columns by its alias, as its grid has them now -- undefined for a source whose grid the page cannot give
+ * (its cube gone). Each source's date a date, its key there; each series reading what its sources have -- a value a
+ * number, its refs there and not round in a circle, of one split, its split a column of the source it reads first --
+ * a band nothing reads.
  */
-export function timeseriesProblems(ts: TimeseriesSpec, columns: readonly TsColumn[]): string[] {
+export function timeseriesProblems(ts: TimeseriesSpec, columns: ReadonlyMap<string, readonly TsColumn[] | undefined>): string[] {
   const out: string[] = [];
-  const typeOf = new Map(columns.map((c) => [c.name, c.type]));
-  const dateType = typeOf.get(ts.date);
-  if (!typeOf.has(ts.date)) out.push(`The grid has no column '${ts.date}' to read the series along.`);
-  else if (!isTemporal(dateType) || isTimeOfDay(dateType)) out.push(`'${ts.date}' is not a date: a timeseries is read along a date or a date-time.`);
-  if (ts.key !== undefined && !typeOf.has(ts.key)) out.push(`The grid has no column '${ts.key}' to name the instruments by.`);
+  const types = new Map<string, Map<string, string | undefined>>();
+  for (const src of ts.sources) {
+    const cols = columns.get(src.alias);
+    if (cols === undefined) {
+      out.push(`Source ${src.alias}'s grid is not on the page.`);
+      continue;
+    }
+    const typeOf = new Map(cols.map((c) => [c.name, c.type]));
+    types.set(src.alias, typeOf);
+    const dateType = typeOf.get(src.date);
+    if (!typeOf.has(src.date)) out.push(`Source ${src.alias} has no column '${src.date}' to read its series along.`);
+    else if (!isTemporal(dateType) || isTimeOfDay(dateType)) out.push(`Source ${src.alias}'s '${src.date}' is not a date: a timeseries is read along a date or a date-time.`);
+    if (src.key !== undefined && !typeOf.has(src.key)) out.push(`Source ${src.alias} has no column '${src.key}' to name its instruments by.`);
+  }
   if (ts.series.length === 0) out.push('Add a series to plot.');
   for (const s of ts.series) {
     const name = `Series ${s.id}`;
-    if (s.split !== undefined && !typeOf.has(s.split)) out.push(`${name} is split by '${s.split}', which the grid has not.`);
-    if (s.split === ts.date) out.push(`${name} is split by its own date column.`);
     for (const ref of refsOf(s.expr)) {
       const other = ts.series.find((x) => x.id === ref);
       if (!other) {
@@ -1045,15 +1180,32 @@ export function timeseriesProblems(ts: TimeseriesSpec, columns: readonly TsColum
       out.push(`${name}: ${e instanceof Error ? e.message : String(e)}.`);
       continue;
     }
-    for (const c of columnsOf(whole, ts.key)) {
-      if (!typeOf.has(c)) out.push(`${name} reads '${c}', which the grid has not.`);
+    const read = sourcesOf(ts, whole);
+    for (const alias of read) {
+      if (!ts.sources.some((src) => src.alias === alias)) out.push(`${name} reads ${alias}:..., which is none of the tile's sources.`);
     }
-    const values = new Set<string>();
-    const matchesKey = { yes: false };
+    for (const [alias, cs] of columnsOf(ts, whole)) {
+      const typeOf = types.get(alias);
+      if (!typeOf) continue;
+      for (const c of cs) if (!typeOf.has(c)) out.push(`${name} reads '${c}', which source ${alias} has not.`);
+    }
+    if (s.split !== undefined) {
+      const first = read[0];
+      const typeOf = first === undefined ? undefined : types.get(first);
+      const date = ts.sources.find((src) => src.alias === first)?.date;
+      if (typeOf && !typeOf.has(s.split)) out.push(`${name} is split by '${s.split}', which source ${first} -- the one it reads first -- has not.`);
+      if (s.split === date) out.push(`${name} is split by its own date column.`);
+      if (read.length === 0) out.push(`${name} is split by '${s.split}' but reads no column.`);
+    }
     const walk = (e: TsExpr, top: boolean): void => {
       if (e.kind === 'column') {
-        values.add(e.column);
-        if ((e.where ?? []).some((m) => m.column === undefined)) matchesKey.yes = true;
+        const alias = sourceAlias(ts, e);
+        const typeOf = alias === undefined ? undefined : types.get(alias);
+        if (typeOf?.has(e.column) && !isNumeric(typeOf.get(e.column))) out.push(`${name} plots '${e.column}', which is not a number.`);
+        const src = ts.sources.find((x) => x.alias === alias);
+        if (src && src.key === undefined && (e.where ?? []).some((m) => m.column === undefined)) {
+          out.push(`${name} matches a value with no column (close[AAPL]): choose source ${src.alias}'s instrument column (Key).`);
+        }
       } else if (e.kind === 'binary') {
         walk(e.left, false);
         walk(e.right, false);
@@ -1063,46 +1215,54 @@ export function timeseriesProblems(ts: TimeseriesSpec, columns: readonly TsColum
       }
     };
     walk(whole, true);
-    for (const v of values) {
-      if (typeOf.has(v) && !isNumeric(typeOf.get(v))) out.push(`${name} plots '${v}', which is not a number.`);
-    }
-    if (matchesKey.yes && ts.key === undefined) out.push(`${name} matches a value with no column (close[AAPL]): choose the column naming the instruments (Key).`);
-    if (s.split !== undefined && values.size === 0) out.push(`${name} is split by '${s.split}' but reads no column.`);
   }
   return [...new Set(out)];
 }
 
-// ------------------------------------------------------------------ a first timeseries of a grid
+// ------------------------------------------------------------------ a first source, a first timeseries
 
 /** Words a column's name has when it is a price, most likely first: the default series reads the first that matches. */
-const PRICE_WORDS = ['close', 'adj_close', 'price', 'last', 'px', 'value', 'level', 'rate', 'spot', 'mid', 'nav'];
+const PRICE_WORDS = ['close', 'adj_close', 'price', 'last', 'px', 'value', 'level', 'rate', 'yield', 'spot', 'mid', 'nav'];
 /** Words a column's name has when it names the instrument. */
-const KEY_WORDS = ['symbol', 'ticker', 'instrument', 'asset', 'security', 'name', 'id', 'code', 'series'];
+const KEY_WORDS = ['symbol', 'ticker', 'instrument', 'asset', 'security', 'tenor', 'pair', 'name', 'id', 'code', 'series'];
+
+const named = (words: readonly string[], among: readonly TsColumn[]): TsColumn | undefined => {
+  for (const w of words) {
+    const hit = among.find((c) => c.name.toLowerCase() === w) ?? among.find((c) => c.name.toLowerCase().includes(w));
+    if (hit) return hit;
+  }
+  return undefined;
+};
 
 /**
- * A FIRST TIMESERIES OF A GRID: read along its first date column; its value the first number named like a price (close,
- * price, ...) else its first number column; one line per instrument when a column is named like one (symbol, ticker,
- * ...) -- its first text column the grid groups by, else the first so named. Null when the grid has no date or no number.
+ * A GRID AS A SOURCE: read along its first date column, its instruments named by its first text column the grid groups
+ * by, else the first named like one (symbol, ticker, tenor, ...). Null when it has no date.
  */
-export function defaultTimeseries(columns: readonly TsColumn[], rows: readonly string[] = []): TimeseriesSpec | null {
+export function sourceOf(columns: readonly TsColumn[], rows: readonly string[], cube: string, alias: string): TsSource | null {
   const date = columns.find((c) => isTemporal(c.type) && !isTimeOfDay(c.type));
   if (!date) return null;
-  const numbers = columns.filter((c) => isNumeric(c.type) && c.name !== date.name);
-  const named = (words: readonly string[], among: readonly TsColumn[]): TsColumn | undefined => {
-    for (const w of words) {
-      const hit = among.find((c) => c.name.toLowerCase() === w) ?? among.find((c) => c.name.toLowerCase().includes(w));
-      if (hit) return hit;
-    }
-    return undefined;
-  };
-  const value = named(PRICE_WORDS, numbers) ?? numbers[0];
-  if (!value) return null;
   const texts = columns.filter((c) => !isNumeric(c.type) && !isTemporal(c.type) && c.name !== date.name);
-  const grouped = texts.find((c) => rows.includes(c.name));
-  const key = grouped ?? named(KEY_WORDS, texts);
+  const key = texts.find((c) => rows.includes(c.name)) ?? named(KEY_WORDS, texts);
+  return { alias, cube, date: date.name, ...(key ? { key: key.name } : {}) };
+}
+
+/** The value a first series of a source plots: the first number named like a price (close, price, ...), else its first. */
+export function firstValue(columns: readonly TsColumn[], source: TsSource): string | undefined {
+  const numbers = columns.filter((c) => isNumeric(c.type) && c.name !== source.date);
+  return (named(PRICE_WORDS, numbers) ?? numbers[0])?.name;
+}
+
+/**
+ * A FIRST TIMESERIES OF A GRID: the grid its one source (sourceOf), its first series that source's price-like value, one
+ * line per instrument when it names them. Null when the grid has no date or no number.
+ */
+export function defaultTimeseries(columns: readonly TsColumn[], rows: readonly string[], cube: string, alias: string): TimeseriesSpec | null {
+  const source = sourceOf(columns, rows, cube, alias);
+  if (!source) return null;
+  const value = firstValue(columns, source);
+  if (value === undefined) return null;
   return {
-    date: date.name,
-    ...(key ? { key: key.name } : {}),
-    series: [{ id: 'A', expr: { kind: 'column', column: value.name }, ...(key ? { split: key.name } : {}) }],
+    sources: [source],
+    series: [{ id: 'A', expr: { kind: 'column', column: value }, ...(source.key ? { split: source.key } : {}) }],
   };
 }

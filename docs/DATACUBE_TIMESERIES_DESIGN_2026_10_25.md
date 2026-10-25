@@ -1,7 +1,6 @@
 # DataCube's timeseries viewer: many series from many grids, every figure the database's (design, 2026-10-25)
 
-**Status: in design with the user, 2026-10-25.** §2 records what the user decided; §2.2 what is proposed and waits on
-their word. `datacube/` is the DataCube + Python line's (`docs/IN_FLIGHT.md`); this work is on the session branch
+**Status: agreed with the user, 2026-10-25** (§2.1); being built on the branch. `datacube/` is the DataCube + Python line's (`docs/IN_FLIGHT.md`); this work is on the session branch
 `claude/timeseries-viewer-datacube-tsm0nb`. It builds on the charts design (`docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md`:
 "the database computes, the chart draws"; the presets as calculated columns, §3.2) and the pages design
 (`docs/DATACUBE_PAGES_DESIGN_2026_10_09.md`: every tile equal, bands, sheets).
@@ -70,12 +69,20 @@ annotations (levels, events, shaded periods), statistics over what is shown, and
   text, kept a few seconds, was proposed and withdrawn: freshness by a clock is a guess, and the drawing's own changes
   never needed the database.)
 
-### 2.2 Proposed, waiting on the user's word
+- **D5 Pure for everything, snapped or not** (the user: "make sure even when we snap still uses platform/pure queries
+  for everything not some new mechanism"). Every figure a tile draws is a Pure query planned by the platform's planner:
+  a series of one grid through that grid's runner (live or snapped, the grid's own plane decides what its source reads,
+  `cube.ts` `sourceFor`); a combination over one model of its sources' tables, a snapped grid's copy declared in that
+  model as any table of the tab is (`join-open.ts`, infer.ts `tablesModel`). No SQL is written here, and nothing is
+  computed in the browser.
+- **D6 A tile kind of its own, with its API** (the user: "Yes new chart types with API") -- a fourth page view beside
+  `grid`, `chart` and `text`: `timeseries`. A chart is, by definition, a view of ONE grid's query regrouped
+  (`chart-spec.ts`'s header); a tile over several grids is not one, and making it a chart kind would be the bolt-on D1
+  rules out. Its two page commands (§7) are made by Python in the same landing, as the one-API ledger requires
+  (`test/one-api-ledger.test.ts` L8).
 
-- **P1 A tile kind of its own** -- a fourth page view beside `grid`, `chart` and `text`: `timeseries`. A chart is, by
-  definition, a view of ONE grid's query regrouped (`chart-spec.ts`'s header); a tile over several grids is not one, and
-  making it a chart kind would be the bolt-on D1 rules out. The cost: two page commands of its own (§7), which Python
-  makes in the same landing, as the one-API ledger requires (`test/one-api-ledger.test.ts` L8).
+### 2.2 Proposed
+
 - **P2 What is built first** (§8): phase 1 is the whole model, the viewer, sources from any number of grids, combinations
   across grids in the tab's DuckDB (the probe of §5.4 passed), the page commands and Python.
 

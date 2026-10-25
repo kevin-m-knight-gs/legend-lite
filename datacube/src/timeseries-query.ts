@@ -1,13 +1,15 @@
-// A TIMESERIES' QUERIES (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §4): each series of a timeseries tile
-// (timeseries-spec.ts) as one query of its grid's source, which the planner plans and the DATABASE computes -- every
-// return, volatility, z-score and drawdown a window over the dates or an expression over the row, as every
-// calculated column of DataCube's is (calc-presets.ts). Nothing here computes a value; it writes what to compute.
+// A TIMESERIES' QUERIES (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5): each series of a timeseries tile
+// (timeseries-spec.ts) as ONE query (D2) -- of its grid, or, a series combining grids, of their tables over one model --
+// which the planner plans and the DATABASE computes: every return, volatility, z-score and drawdown a window over the
+// dates or an expression over the row, as every calculated column of DataCube's is (calc-presets.ts). Nothing here
+// computes a value; it writes what to compute, in Pure (D5).
 //
-//   1. the grid's source, its row-level calculated columns, its filter (the chart's: chart-spec.ts chartFilter) and
-//      what the series matches (close[AAPL])
-//   2. grouped by period (the tile's frequency: a date's day, week, month...) -- and by the split, one line per value --
-//      each column the series reads taken by its period's aggregate: the latest row's value by default (maxBy over the
-//      day's number, `dateDiff` from 1970: maxBy orders by a number)
+//   1. each source the series reads: its grid's rows -- their source, row-level calculated columns and filter (as the
+//      tile reads it) -- and what the series matches of them (close[AAPL])
+//   2. each grouped by its period (its date at the tile's frequency: a day, a week, a month...) -- the first by the
+//      split too, one line per value -- each column the series reads taken by its period's aggregate: the latest row's
+//      value by default (maxBy over the day's number, `dateDiff` from 1970: maxBy orders by a number); the groups of
+//      several sources joined on the period
 //   3. the dates every column the series reads has (gs-quant's `intersect`), the split's first MAX_SPLIT_LINES values
 //   4. each function of the expression, innermost first: its columns over the dates, every window partitioned by the
 //      split and ordered by the period; a rolling figure drawn once its window is full (gs-quant's ramp)
@@ -27,8 +29,9 @@ import { columnType, CubeRefusal, type CubeSnapshot, type FilterNode } from './s
 import { WINDOW_ALL_PREFIX } from './grid/columns.ts';
 import { isDay } from '../../engine-client/src/types.ts';
 import {
-  inlined, isBand, MAX_SPLIT_LINES, paramOf, PERIODS_PER_YEAR, RANGE_STEP, TS_POINT_LIMIT, TS_RANGES, unitOf,
-  type TimeseriesSpec, type TsAggregate, type TsExpr, type TsMatch, type TsRangeWord, type TsSeries, type TsUnit,
+  inlined, isBand, MAX_SPLIT_LINES, paramOf, PERIODS_PER_YEAR, RANGE_STEP, sourceAlias, sourcesOf, TS_POINT_LIMIT, TS_RANGES,
+  unitOf, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsMatch, type TsRangeWord, type TsSeries, type TsSource,
+  type TsUnit,
 } from './timeseries-spec.ts';
 import type { TimeGrain } from './chart-spec.ts';
 
@@ -79,6 +82,8 @@ export interface TsQuery {
   readonly split?: string;
   /** Whether a period's value may be taken from several rows (a series of no instrument): its rows are counted. */
   readonly counted: boolean;
+  /** The sources it reads, by alias: one, run where that grid runs; more, a combination over one model of their tables. */
+  readonly sources: readonly string[];
 }
 
 /** Where the viewer is: the first date shown (an index's base), and for statistics the last. */
@@ -91,7 +96,10 @@ export interface TsWindow {
 interface Built {
   readonly rel: Relation;
   readonly period: string;
+  readonly periodType: string;
   readonly ord: string;
+  /** The sources it reads, by alias, in order. */
+  readonly sources: readonly string[];
   readonly value: string;
   readonly lower?: string;
   readonly upper?: string;
@@ -101,7 +109,7 @@ interface Built {
   readonly rows?: string;
 }
 
-/** The type the compiler gave a column of the grid (its source's or a row-level calculated column's). */
+/** The type the compiler gave a column of a grid (its source's or a row-level calculated column's). */
 function typeIn(s: CubeSnapshot, column: string): string | undefined {
   return columnType(s, column);
 }
@@ -111,32 +119,49 @@ const GRAIN_FUNCTION: Readonly<Record<Exclude<TimeGrain, 'day'>, string>> = {
   week: 'firstDayOfWeek', month: 'firstDayOfMonth', quarter: 'firstDayOfQuarter', year: 'firstDayOfYear',
 };
 
-/** A column's matches as one condition on a row. */
-function matched(s: CubeSnapshot, ts: TimeseriesSpec, where: readonly TsMatch[]): ValueSpecification | undefined {
+/**
+ * A GRID A SERIES READS, as its query is written over it: its rows (its snapshot -- its source, its row-level calculated
+ * columns) and its filter as the tile reads it. Of a series of one grid, the grid's own snapshot (its plane decides what
+ * its source reads: live, or its snapped copy); of a combination, each grid's snapshot with its source the relation of
+ * its tables over the one model the combination is planned over (D5: Pure for everything, snapped or not).
+ */
+export interface TsInput {
+  readonly snapshot: CubeSnapshot;
+  readonly filter: FilterNode | undefined;
+}
+
+/** Each source's input, by its alias. */
+export type TsInputs = ReadonlyMap<string, TsInput>;
+
+/** A column's matches as one condition on a row (a match of no column, its source's instrument column). */
+function matched(s: CubeSnapshot, key: string | undefined, where: readonly TsMatch[]): ValueSpecification | undefined {
   if (where.length === 0) return undefined;
   const terms = where.map((m) => {
-    const c = m.column ?? ts.key;
+    const c = m.column ?? key;
     if (c === undefined) throw new CubeRefusal('a value is matched with no column: choose the column naming the instruments');
     return fn('equal', col(c), literalNode(m.value, typeIn(s, c)));
   });
   return and(...terms);
 }
 
-/** Each column the series reads, once: the column, how a period takes it, and what it matches. */
+/** Each column the series reads, once: its source, the column, how a period takes it, and what it matches. */
 interface Base {
   readonly key: string;
+  readonly alias: string;
   readonly column: string;
   readonly fn: TsAggregate;
   readonly where: readonly TsMatch[];
 }
 
-function basesOf(e: TsExpr): Base[] {
+const baseKey = (ts: TimeseriesSpec, n: Extract<TsExpr, { kind: 'column' }>): string =>
+  JSON.stringify([sourceAlias(ts, n) ?? '', n.column, n.fn ?? 'last', n.where ?? []]);
+
+function basesOf(ts: TimeseriesSpec, e: TsExpr): Base[] {
   const out = new Map<string, Base>();
   const walk = (n: TsExpr): void => {
     if (n.kind === 'column') {
-      const b: Base = { column: n.column, fn: n.fn ?? 'last', where: n.where ?? [], key: '' };
-      const key = JSON.stringify([b.column, b.fn, b.where]);
-      if (!out.has(key)) out.set(key, { ...b, key });
+      const key = baseKey(ts, n);
+      if (!out.has(key)) out.set(key, { key, alias: sourceAlias(ts, n) ?? '', column: n.column, fn: n.fn ?? 'last', where: n.where ?? [] });
     } else if (n.kind === 'binary') {
       walk(n.left);
       walk(n.right);
@@ -145,8 +170,6 @@ function basesOf(e: TsExpr): Base[] {
   walk(e);
   return [...out.values()];
 }
-
-const baseKey = (n: Extract<TsExpr, { kind: 'column' }>): string => JSON.stringify([n.column, n.fn ?? 'last', n.where ?? []]);
 
 /** A series' query written in steps: the relation so far, and a name for each column it adds. */
 class Writer {
@@ -307,7 +330,7 @@ function write(w: Writer, e: TsExpr): Value {
     case 'ref':
       throw new Error('a series is read inlined (timeseries-spec.ts inlined)');
     case 'column': {
-      const c = w.bases.get(baseKey(e));
+      const c = w.bases.get(baseKey(w.ts, e));
       if (c === undefined) throw new Error(`no grouped column for ${e.column}`);
       return { column: c };
     }
@@ -523,56 +546,87 @@ function baseAggregate(name: string, b: Base, ord: string, cond: ValueSpecificat
   }
 }
 
-/** The period a date is taken to at the tile's frequency, and the type the period has. */
-function periodOf(ts: TimeseriesSpec, dateType: string | undefined): { readonly body: ValueSpecification | null; readonly type: string } {
-  const grain = ts.grain;
-  if (grain === undefined || (grain === 'day' && isDay(dateType))) return { body: null, type: dateType ?? 'StrictDate' };
-  if (grain === 'day') return { body: fn('datePart', one(ts.date)), type: 'StrictDate' };
-  return { body: fn(GRAIN_FUNCTION[grain], one(ts.date)), type: 'StrictDate' };
+/** A source's date taken to the tile's frequency, and the type the period has: its own date, a day's, a period's start. */
+function periodOf(grain: TimeGrain | undefined, date: string, dateType: string | undefined): {
+  readonly body: ValueSpecification; readonly type: string;
+} {
+  if (grain === undefined || (grain === 'day' && isDay(dateType))) return { body: col(date), type: dateType ?? 'StrictDate' };
+  if (grain === 'day') return { body: fn('datePart', one(date)), type: 'StrictDate' };
+  return { body: fn(GRAIN_FUNCTION[grain], one(date)), type: 'StrictDate' };
+}
+
+/** A source of the tile by its alias, and its input, or a refusal naming it. */
+function sourceNamed(ts: TimeseriesSpec, inputs: TsInputs, alias: string): { readonly src: TsSource; readonly input: TsInput } {
+  const src = ts.sources.find((x) => x.alias === alias);
+  if (!src) throw new CubeRefusal(`there is no source ${alias}`);
+  const input = inputs.get(alias);
+  if (!input) throw new CubeRefusal(`source ${alias}'s grid is not open`);
+  return { src, input };
+}
+
+/** The type of a source's period at the tile's frequency: what a date the viewer passes back is written as. */
+export function periodType(ts: TimeseriesSpec, input: TsInput, src: TsSource): string {
+  return periodOf(ts.grain, src.date, typeIn(input.snapshot, src.date)).type;
 }
 
 /**
- * A SERIES' RELATION, through its expression's columns: steps 1 to 5 (the file's header). `filter`: the grid's filter as
- * the chart reads it (chartFilter); `anchor`: the first date shown, where an index starts.
+ * A SERIES' RELATION, through its expression's columns: steps 1 to 5 (the file's header), each source it reads grouped
+ * on its own and the groups joined on the period. `anchor`: the first date shown, where an index starts.
  */
-function seriesRelation(s: CubeSnapshot, ts: TimeseriesSpec, series: TsSeries, filter: FilterNode | undefined,
-  anchor: string | undefined): Built {
+function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, anchor: string | undefined): Built {
   const expr = inlined(series.expr, ts.series);
-  const bases = basesOf(expr);
-  if (bases.length === 0) throw new CubeRefusal(`series ${series.id} reads no column of the grid`);
-  const typeOf = (c: string): string | undefined => typeIn(s, c);
-  const dateType = typeOf(ts.date);
-  let rel = sourceWithDerived(s);
-  // 1. the grid's filter, the series' matches where every column it reads has the same, a date on every row
-  const shared = bases.every((b) => JSON.stringify(b.where) === JSON.stringify(bases[0]!.where)) ? bases[0]!.where : null;
-  const conditions: ValueSpecification[] = [fn('isNotEmpty', col(ts.date))];
-  if (filter) conditions.push(filterNode(filter, 'x', typeOf));
-  const sharedCondition = shared !== null ? matched(s, ts, shared) : undefined;
-  if (sharedCondition) conditions.push(sharedCondition);
-  rel = rel.filter(row(and(...conditions)));
-  // 2. each row's period and its number in time; grouped by the split and the period
-  const { body: periodBody, type: periodType } = periodOf(ts, dateType);
-  const period = periodBody === null ? ts.date : '__ts_period';
-  const ordUnit = isDay(dateType) ? 'DAYS' : 'SECONDS';
-  const ord = '__ts_ord';
-  rel = rel.extend([
-    ...(periodBody !== null ? [derive(period, row(periodBody))] : []),
-    derive(ord, row(fn('dateDiff', literalNode('1970-01-01', 'StrictDate'), one(ts.date), enumValue(DURATION, ordUnit)))),
-  ]);
+  const bases = basesOf(ts, expr);
+  const read = sourcesOf(ts, expr);
+  if (bases.length === 0 || read.length === 0) throw new CubeRefusal(`series ${series.id} reads no column of a grid`);
   const split = series.split;
-  const part = split ?? `${WINDOW_ALL_PREFIX}ts`;
   const byName = new Map<string, string>();
-  const aggs: ColSpec[] = bases.map((b, i) => {
-    const name = `__ts_base_${i}`;
-    byName.set(b.key, name);
-    return baseAggregate(name, b, ord, shared !== null ? undefined : matched(s, ts, b.where));
+  let counted = false;
+  let joined: Relation | undefined;
+  let firstType = '';
+  read.forEach((alias, i) => {
+    const { src, input } = sourceNamed(ts, inputs, alias);
+    const s = input.snapshot;
+    const typeOf = (c: string): string | undefined => typeIn(s, c);
+    const dateType = typeOf(src.date);
+    const mine = bases.filter((b) => b.alias === alias);
+    // 1. the grid's filter, the series' matches where every column it reads of this source has the same, a date on every row
+    const shared = mine.every((b) => JSON.stringify(b.where) === JSON.stringify(mine[0]!.where)) ? mine[0]!.where : null;
+    const conditions: ValueSpecification[] = [fn('isNotEmpty', col(src.date))];
+    if (input.filter) conditions.push(filterNode(input.filter, 'x', typeOf));
+    const sharedCondition = shared !== null ? matched(s, src.key, shared) : undefined;
+    if (sharedCondition) conditions.push(sharedCondition);
+    let rel = sourceWithDerived(s).filter(row(and(...conditions)));
+    // 2. each row's period and its number in time; grouped by the period -- and, the first source, the split
+    const { body, type } = periodOf(ts.grain, src.date, dateType);
+    if (i === 0) firstType = type;
+    else if (type !== firstType) {
+      throw new CubeRefusal(`series ${series.id} combines ${read[0]}'s dates with ${alias}'s, of another type: give the tile a frequency (Daily) to read both by day`);
+    }
+    const period = `__ts_p${i}`;
+    const ord = `__ts_o${i}`;
+    rel = rel.extend([
+      derive(period, row(body)),
+      derive(ord, row(fn('dateDiff', literalNode('1970-01-01', 'StrictDate'), one(src.date), enumValue(DURATION, isDay(dateType) ? 'DAYS' : 'SECONDS')))),
+    ]);
+    const aggs: ColSpec[] = mine.map((b) => {
+      const name = `__ts_base_${byName.size}`;
+      byName.set(b.key, name);
+      return baseAggregate(name, b, ord, shared !== null ? undefined : matched(s, src.key, b.where));
+    });
+    if (i === 0) {
+      aggs.push(agg(ORD, row(col(ord)), lambda(['y'], fn('max', variable('y')))));
+      // a period of a series of no instrument may hold several rows: counted, so the drawing can say so
+      counted = split === undefined && src.key !== undefined
+        && mine.some((b) => (b.fn === 'last' || b.fn === 'first') && b.where.length === 0);
+      if (counted) aggs.push(agg(TS_ROWS, row(lit.integer(1)), lambda(['y'], fn('count', variable('y')))));
+    }
+    rel = rel.groupBy([...(i === 0 && split !== undefined ? [split] : []), period], aggs);
+    // the groups joined on the period: the dates every source has (gs-quant's intersect)
+    joined = joined === undefined ? rel : joined.join(rel, 'INNER',
+      lambda(['l', 'r'], fn('equal', property(variable('l'), PERIOD), property(variable('r'), period))));
   });
-  aggs.push(agg(ord, row(col(ord)), lambda(['y'], fn('max', variable('y')))));
-  // a period of a series of no instrument may hold several rows: counted, so the drawing can say so
-  const counted = split === undefined && bases.some((b) => (b.fn === 'last' || b.fn === 'first') && b.where.length === 0)
-    && ts.key !== undefined;
-  if (counted) aggs.push(agg(TS_ROWS, row(lit.integer(1)), lambda(['y'], fn('count', variable('y')))));
-  rel = rel.groupBy([...(split !== undefined ? [split] : []), period], aggs);
+  let rel = joined!;
+  const part = split ?? `${WINDOW_ALL_PREFIX}ts`;
   if (split === undefined) rel = rel.extend([derive(part, row(lit.string('all')))]);
   // 3. the dates every column has; a split's first lines
   rel = rel.filter(row(and(...[...byName.values()].map(notEmpty))));
@@ -583,7 +637,7 @@ function seriesRelation(s: CubeSnapshot, ts: TimeseriesSpec, series: TsSeries, f
     rel = rel.filter(row(fn('lessThanEqual', col(rank), lit.integer(MAX_SPLIT_LINES))));
   }
   // 4 and 5. the expression, innermost first
-  const w = new Writer(rel, { part, period, ord, ts, anchor, periodType });
+  const w = new Writer(rel, { part, period: PERIOD, ord: ORD, ts, anchor, periodType: firstType });
   for (const [key, name] of byName) w.bases.set(key, name);
   const top = write(w, expr);
   let unit = unitOf(expr);
@@ -604,22 +658,26 @@ function seriesRelation(s: CubeSnapshot, ts: TimeseriesSpec, series: TsSeries, f
     built = { value };
   }
   return {
-    rel: w.rel, period, ord, ...built, ...(split !== undefined ? { split } : {}), unit, ...(counted ? { rows: TS_ROWS } : {}),
+    rel: w.rel, period: PERIOD, ord: ORD, periodType: firstType, ...built, ...(split !== undefined ? { split } : {}), unit,
+    ...(counted ? { rows: TS_ROWS } : {}), sources: read,
   };
 }
 
-/** The window a series is drawn over: its grid's filter as the chart reads it. */
-export interface TsSource {
-  readonly snapshot: CubeSnapshot;
-  readonly filter: FilterNode | undefined;
+/** The first source's period, which the others are joined on and every window runs along; its number in time. */
+const PERIOD = '__ts_p0';
+const ORD = '__ts_ord';
+
+/** The sources a series reads, by alias, in the order it reads them: one, run where its grid runs; more, a combination. */
+export function seriesSources(ts: TimeseriesSpec, series: TsSeries): string[] {
+  return sourcesOf(ts, inlined(series.expr, ts.series));
 }
 
 /**
  * A SERIES' QUERY: its periods (and split values), latest first, each with its value -- or a band's lower and upper
  * -- at most TS_POINT_LIMIT of them.
  */
-export function seriesQuery(src: TsSource, ts: TimeseriesSpec, series: TsSeries, view: TsWindow = {}): TsQuery {
-  const b = seriesRelation(src.snapshot, ts, series, src.filter, view.from);
+export function seriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, view: TsWindow = {}): TsQuery {
+  const b = seriesRelation(inputs, ts, series, view.from);
   const out: ColSpec[] = [
     derive(TS_DATE, row(col(b.period))),
     derive(TS_VALUE, row(col(b.value))),
@@ -637,26 +695,28 @@ export function seriesQuery(src: TsSource, ts: TimeseriesSpec, series: TsSeries,
     band: b.lower !== undefined,
     ...(b.split !== undefined ? { split: b.split } : {}),
     counted: b.rows !== undefined,
+    sources: b.sources,
   };
 }
 
 /**
- * THE DATES A TILE SPANS, and where each range button starts: the latest and the earliest date of the grid's rows (its
- * filter as the chart reads it), and each period back from the latest -- `adjust(latest, -1, YEARS)`, the year's first
- * day for YTD -- the DATABASE's date arithmetic, which the viewer only places its zoom at.
+ * THE DATES A SOURCE SPANS, and where each range button starts: the latest and the earliest date of its grid's rows (its
+ * filter as the tile reads it), and each period back from the latest -- `adjust(latest, -1, YEARS)`, the year's first
+ * day for YTD -- the DATABASE's date arithmetic, which the viewer only places its zoom at (the source with the latest
+ * date of all, found by comparing).
  */
-export function boundsQuery(src: TsSource, ts: TimeseriesSpec): Lambda {
-  const s = src.snapshot;
+export function boundsQuery(input: TsInput, src: TsSource): Lambda {
+  const s = input.snapshot;
   const typeOf = (c: string): string | undefined => typeIn(s, c);
   const all = `${WINDOW_ALL_PREFIX}ts_bounds`;
   let rel = sourceWithDerived(s);
-  const conditions: ValueSpecification[] = [fn('isNotEmpty', col(ts.date))];
-  if (src.filter) conditions.push(filterNode(src.filter, 'x', typeOf));
+  const conditions: ValueSpecification[] = [fn('isNotEmpty', col(src.date))];
+  if (input.filter) conditions.push(filterNode(input.filter, 'x', typeOf));
   rel = rel.filter(row(and(...conditions)))
     .extend([derive(all, row(lit.string('all')))])
     .groupBy([all], [
-      agg(TS_LATEST, row(col(ts.date)), lambda(['y'], fn('max', variable('y')))),
-      agg(TS_EARLIEST, row(col(ts.date)), lambda(['y'], fn('min', variable('y')))),
+      agg(TS_LATEST, row(col(src.date)), lambda(['y'], fn('max', variable('y')))),
+      agg(TS_EARLIEST, row(col(src.date)), lambda(['y'], fn('min', variable('y')))),
     ]);
   const starts: ColSpec[] = TS_RANGES.filter((r) => r.word !== 'max').map((r) => {
     const step = RANGE_STEP[r.word];
@@ -674,17 +734,15 @@ export function boundsQuery(src: TsSource, ts: TimeseriesSpec): Lambda {
  * standard deviation; for a level, its annualized volatility (of its log returns, in percent), its deepest drawdown, its
  * compound annual growth and its Sharpe ratio (a risk-free rate of zero) -- every one the database's, over what is shown.
  */
-export function statsQuery(src: TsSource, ts: TimeseriesSpec, series: TsSeries, view: TsWindow = {}): TsQuery {
-  const b = seriesRelation(src.snapshot, ts, series, src.filter, view.from);
+export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, view: TsWindow = {}): TsQuery {
+  const b = seriesRelation(inputs, ts, series, view.from);
   const w = new Writer(b.rel, {
-    part: b.split ?? `${WINDOW_ALL_PREFIX}ts`, period: b.period, ord: b.ord, ts, anchor: undefined,
-    periodType: periodOf(ts, typeIn(src.snapshot, ts.date)).type,
+    part: b.split ?? `${WINDOW_ALL_PREFIX}ts`, period: b.period, ord: b.ord, ts, anchor: undefined, periodType: b.periodType,
   });
   const v = b.value;
-  const dType = periodOf(ts, typeIn(src.snapshot, ts.date)).type;
   const shown: ValueSpecification[] = [fn('isNotEmpty', col(v))];
-  if (view.from !== undefined) shown.push(fn('greaterThanEqual', one(b.period), literalNode(view.from, dType)));
-  if (view.to !== undefined) shown.push(fn('lessThanEqual', one(b.period), literalNode(view.to, dType)));
+  if (view.from !== undefined) shown.push(fn('greaterThanEqual', one(b.period), literalNode(view.from, b.periodType)));
+  if (view.to !== undefined) shown.push(fn('lessThanEqual', one(b.period), literalNode(view.to, b.periodType)));
   w.rel = w.rel.filter(row(and(...shown)));
   const level = b.unit === 'same' || b.unit === 'index';
   const rLog = level ? w.returns(v, 1, 'log') : undefined;
@@ -735,12 +793,9 @@ export function statsQuery(src: TsSource, ts: TimeseriesSpec, series: TsSeries, 
     );
   }
   rel = rel.extend(derived);
-  const kept = [
-    ...(b.split !== undefined ? [b.split] : []),
-    ...TS_STATS.filter((st) => level || !['vol', 'mdd', 'cagr', 'sharpe'].includes(st)).map(S),
-  ];
+  const kept = TS_STATS.filter((st) => level || !['vol', 'mdd', 'cagr', 'sharpe'].includes(st)).map(S);
   if (b.split !== undefined) rel = rel.extend([derive(TS_SPLIT, row(col(b.split)))]);
-  rel = rel.select([...(b.split !== undefined ? [TS_SPLIT] : []), ...kept.filter((k) => k !== b.split)]);
+  rel = rel.select([...(b.split !== undefined ? [TS_SPLIT] : []), ...kept]);
   return {
     series: series.id,
     query: rel.lambda(),
@@ -748,6 +803,7 @@ export function statsQuery(src: TsSource, ts: TimeseriesSpec, series: TsSeries, 
     band: false,
     ...(b.split !== undefined ? { split: b.split } : {}),
     counted: false,
+    sources: b.sources,
   };
 }
 
@@ -766,11 +822,6 @@ export function readsAnchor(ts: TimeseriesSpec, series: TsSeries): boolean {
   return walk(expr) || (ts.view?.compare !== undefined && !isBand(expr) && (unit === 'same' || unit === 'index'));
 }
 
-/** The type of the period column of a tile: what a date the viewer passes back is written as. */
-export function periodTypeOf(s: CubeSnapshot, ts: TimeseriesSpec): string {
-  return periodOf(ts, typeIn(s, ts.date)).type;
-}
-
 /** The most values the instrument picker lists. */
 export const KEY_VALUES_LIMIT = 2000;
 
@@ -779,12 +830,12 @@ export const KEY_VALUES_LIMIT = 2000;
  * the grid's rows as the chart reads them -- the database's distinct values, as the grid's Filter Values window asks
  * them.
  */
-export function keyValuesQuery(src: TsSource, column: string): Lambda {
-  const s = src.snapshot;
+export function keyValuesQuery(input: TsInput, column: string): Lambda {
+  const s = input.snapshot;
   const typeOf = (c: string): string | undefined => typeIn(s, c);
   let rel = sourceWithDerived(s);
   const conditions: ValueSpecification[] = [fn('isNotEmpty', col(column))];
-  if (src.filter) conditions.push(filterNode(src.filter, 'x', typeOf));
+  if (input.filter) conditions.push(filterNode(input.filter, 'x', typeOf));
   rel = rel.filter(row(and(...conditions)))
     .groupBy([column], [agg('__ts_n', row(lit.integer(1)), lambda(['y'], fn('count', variable('y'))))])
     .sort([asc(column)])
