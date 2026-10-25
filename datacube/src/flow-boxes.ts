@@ -12,6 +12,7 @@ import { grainOf } from './calc-presets.ts';
 import { textToolOf, type TextTool } from './text-tools.ts';
 import { uniqueOf } from './unique.ts';
 import { imputedOf } from './impute.ts';
+import { dateToolOf } from './date-tools.ts';
 import { joinWords } from './join-words.ts';
 import { conditionWords } from './page-filters.ts';
 import type { DerivedColumn } from './snapshot.ts';
@@ -161,7 +162,8 @@ export function boxSays(cube: CubeDocument): BoxSays {
 function columnTool(d: DerivedColumn, derived: readonly DerivedColumn[]): FlowTool {
   const w = d.window;
   if (w === undefined) {
-    return grainOf(d) !== undefined ? 'datetime' : imputedOf(d, derived) !== undefined ? 'impute' : textToolOf(d)?.tool ?? 'formula';
+    return grainOf(d) !== undefined || dateToolOf(d) !== undefined ? 'datetime'
+      : imputedOf(d, derived) !== undefined ? 'impute' : textToolOf(d)?.tool ?? 'formula';
   }
   if (w.fn === 'rowNumber') return 'recordId';
   if (w.fn === 'lag' || w.fn === 'lead') return 'multiRow';
@@ -174,6 +176,8 @@ function columnTool(d: DerivedColumn, derived: readonly DerivedColumn[]): FlowTo
 function columnWords(d: DerivedColumn, derived: readonly DerivedColumn[]): string {
   const grain = grainOf(d);
   if (grain !== undefined) return `${grain.column} by ${grain.grain}`;
+  const dated = dateToolOf(d);
+  if (dated !== undefined) return dated.says;
   const filled = imputedOf(d, derived);
   if (filled !== undefined) return `${filled.column}'s empties → ${filled.with.kind === 'value' ? filled.with.value : `its ${filled.with.kind}`}`;
   return textToolOf(d)?.says ?? d.name;

@@ -3658,17 +3658,22 @@ export class CubeApp {
    *  By Day/Week/... preset (grid-presets.ts), in a window of its own (ui/date-form.ts, fetched with the first). */
   async #openDate(): Promise<void> {
     if (this.#cubeOnly()) return;
-    const { dateForm } = await lazily(() => import('./ui/date-form.ts'));
+    const [{ dateForm }, { dateToolCommands }] = await Promise.all([
+      lazily(() => import('./ui/date-form.ts')), lazily(() => import('./date-tools.ts')),
+    ]);
+    const asked = async (commands: () => GridCommand[]): Promise<string | null> => {
+      try {
+        return await this.#apply(commands(), 'Date Period');
+      } catch (e) {
+        if (e instanceof CubeRefusal) return e.message;
+        throw e;
+      }
+    };
     this.#showOverlay('Date Period', (host, close) => dateForm(host, {
       columns: rowColumns(this.#snapshot).filter((c) => isTemporal(c.type)).map((c) => c.name),
-      apply: async (column, grain) => {
-        try {
-          return await this.#apply(presetCommands(this.#snapshot, { kind: 'grain', column, grain }), 'Date Period');
-        } catch (e) {
-          if (e instanceof CubeRefusal) return e.message;
-          throw e;
-        }
-      },
+      texts: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'text').map((c) => c.name),
+      apply: (column, grain) => asked(() => presetCommands(this.#snapshot, { kind: 'grain', column, grain })),
+      applyTool: (tool) => asked(() => dateToolCommands(tool)),
       close,
     }));
   }

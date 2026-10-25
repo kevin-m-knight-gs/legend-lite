@@ -1631,6 +1631,25 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, "'notional_filled' is already a column"):
             grid.impute(['notional'], fill='largest')
 
+    def test_dates_read_and_taken_apart_as_a_flow_box_does(self):
+        # (M3) grid.parse_date, grid.date_part: a flow's DateTime's other two ways (date-tools.ts dateToolCommands),
+        # the database's strptime and date parts
+        days = pd.DataFrame({'booked': ['03/01/2024', '15/02/2024'], 'n': [1, 2]})
+        page = ll.Page('Dates')
+        grid = page.grid(days, name='days')
+        grid.parse_date('booked', 'dd/MM/yyyy')
+        grid.date_part('booked_date', 'month')
+        rows = grid.to_pandas().sort_values('n').to_dict('records')
+        self.assertEqual([str(r['booked_date'])[:10] for r in rows], ['2024-01-03', '2024-02-15'])
+        self.assertEqual([int(r['booked_date_month']) for r in rows], [1, 2])
+        with self.assertRaisesRegex(ValueError, 'it reads by a format'):
+            grid.parse_date('booked', ' ')
+        # a value the format cannot read refuses the rows, in the database's words
+        odd = page.grid(pd.DataFrame({'booked': ['03/01/2024', 'not a date']}), name='odd')
+        odd.parse_date('booked', 'dd/MM/yyyy')
+        with self.assertRaisesRegex(ValueError, 'Could not parse string'):
+            odd.to_pandas()
+
     def test_a_named_dimension_is_used_and_drilled(self):
         # (K6) grid.dimension, grid.drill, grid.drill_up: a dimension of the grid's configuration (the Dimensions tab's),
         # by dimensions.ts's own rules (useDimension, drillDown, drillUp), as the group command the Rows zone builds

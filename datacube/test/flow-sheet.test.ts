@@ -25,6 +25,7 @@ import { CubeRefusal, type DerivedColumn, type FilterNode } from '../src/snapsho
 import { readUnique, uniqueCommands, uniqueOf } from '../src/unique.ts';
 import { profileLambda, profileOf } from '../src/profile.ts';
 import { imputeCommands, imputedOf, readImputation } from '../src/impute.ts';
+import { dateToolCommands, dateToolOf, readDateTool } from '../src/date-tools.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, fn, lambda, lit, property, variable } from '../../pure-protocol/src/index.ts';
 import { textToolOf } from '../src/text-tools.ts';
@@ -288,6 +289,29 @@ describe("Imputation (impute.ts): a number's empties filled, a value or the colu
     assert.throws(() => imputeCommands(typed, { columns: ['qty'], with: { kind: 'value', value: 0.5 } }), /holds whole numbers/);
     assert.deepEqual(readImputation({ kind: 'impute', columns: ['qty'], with: 3 }), { columns: ['qty'], with: { kind: 'value', value: 3 } });
     assert.throws(() => readImputation({ kind: 'impute', columns: ['qty'], with: 'median' }), /not "median"/);
+  });
+});
+
+describe("the DateTime's part and text read (date-tools.ts): a column each, read back off its expression", () => {
+  const said = (derived: DerivedColumn[]) => boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived })));
+  const col = (t: Parameters<typeof dateToolCommands>[0]) => (dateToolCommands(t)[0] as unknown as { column: DerivedColumn }).column;
+
+  it("takes a date's part, by the compiler's own function; reads text by a format, a day's or a date-time's", () => {
+    const year = col({ kind: 'datePart', column: 'trade_date', part: 'year', name: 'y' });
+    assert.equal(JSON.stringify(year.lambda?.body[0]), JSON.stringify(fn('year', property(variable('x'), 'trade_date'))));
+    const day = col({ kind: 'datePart', column: 'trade_date', part: 'day', name: 'd' });
+    assert.match(JSON.stringify(day.lambda?.body[0]), /"function":"dayOfMonth".*"function":"toOne"/);
+    const read = col({ kind: 'dateParse', column: 'booked', format: 'dd/MM/yyyy', time: false, name: 'b' });
+    assert.match(JSON.stringify(read.lambda?.body[0]), /meta::legend::lite::convertDateFormat/);
+    assert.deepEqual(said([year, read]), { tool: 'datetime', also: [], says: 'year of trade_date, booked read as dd/MM/yyyy' });
+    assert.equal(dateToolOf(col({ kind: 'dateParse', column: 'at', format: 'yyyy-MM-dd HH:mm:ss', time: true, name: 'a' }))?.says,
+      'at read as yyyy-MM-dd HH:mm:ss');
+  });
+
+  it('refuses in words what it cannot make', () => {
+    assert.throws(() => dateToolCommands({ kind: 'datePart', column: 'd', part: 'year', name: ' ' }), /its column needs a name/);
+    assert.throws(() => readDateTool({ kind: 'datePart', column: 'd', part: 'century', name: 'c' }), /a part is year, month, day, week, hour/);
+    assert.throws(() => readDateTool({ kind: 'dateParse', column: 'd', format: '', time: false, name: 'c' }), /it reads by a format/);
   });
 });
 

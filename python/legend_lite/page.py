@@ -871,6 +871,21 @@ class Grid(Tile):
         return self._preset({'kind': 'unique', 'keys': list(keys),
                              **({'by': _sort_given(by, 'an order')} if by is not None else {})})
 
+    def date_part(self, column: str, part: str, *, name: str | None = None) -> Grid:
+        """A part of the date ``column`` -- ``'year'``, ``'month'`` (its number), ``'day'`` (of the month), ``'week'`` (of
+        the year), ``'hour'`` -- a new column of whole numbers, named ``<column>_<part>`` (or ``name``): a flow's
+        DateTime (DataCube's code: date-tools.ts dateToolCommands)."""
+        return self._preset({'kind': 'datePart', 'column': column, 'part': part, 'name': name or f'{column}_{part}'})
+
+    def parse_date(self, column: str, format: str, *, name: str | None = None) -> Grid:
+        """The text ``column`` read as dates by ``format`` -- the engine's tokens, ``'yyyy-MM-dd'``, ``'dd/MM/yyyy'``,
+        ``'yyyy-MM-dd HH:mm:ss'`` (a time of day in it: date-times) -- a new column named ``<column>_date`` (or
+        ``name``): a flow's DateTime (DataCube's code: date-tools.ts dateToolCommands). A value the format cannot read
+        refuses the grid's rows, in the database's words: filter such text out first."""
+        time = any(c in format for c in 'Hhms')
+        return self._preset({'kind': 'dateParse', 'column': column, 'format': format, 'time': time,
+                             'name': name or f'{column}_date'})
+
     def impute(self, columns: Sequence[str], *, fill: float | str = 'average') -> Grid:
         """The number ``columns``' empty values filled, a ``<column>_filled`` each -- a flow's Imputation (DataCube's code:
         impute.ts imputeCommands): with ``fill``, a number, or the column's own ``'average'``, ``'smallest'`` or

@@ -272,7 +272,7 @@ How to read the status column:
 | Text To Columns (to columns) | Built (2026-10-25) | `splitPart`, one calculated column per part |
 | Text To Columns (to rows) | Step | `split`, then Expand |
 | RegEx | Built (2026-10-25) | `regexpLike` (Match), `regexpReplace` (Replace), `regexpExtract`'s first (Extract), one tool. Tokenize (each match a row) is Expand's, later |
-| DateTime | Step | `parseDate` and `formatDate` in a Formula, offered as one tool |
+| DateTime | Built (2026-10-25) | One tool, three ways: a date to its period (the grain preset), a date's part (`year`, `monthNumber`, `dayOfMonth`, `weekOfYear`, `hour`), text read as a date by a format (`convertDateFormat` / `convertDateTimeFormat`: strptime). A date written as text waits for a format the compiler takes as text (`formatDate` takes an enum) |
 | JSON Parse | Built | JSON fields (`datacube/src/ui/json-fields.ts`) and Expand |
 | XML Parse | Out | No XML function in the platform |
 
@@ -644,7 +644,18 @@ fills, never a Formula's or a Select's). Python: `grid.impute(columns, fill='ave
 Python's `test_empties_imputed_as_a_flow_box_fills_them` (the values DuckDB fills: an average of 200 in two empties, a
 0) and the harness (an Imputation of the Filter's notional, its column in its rows, its average hidden).
 
-Still to come in M3: the DateTime tool's parse and format, Multi-Field Formula.
+**Built, the DateTime's other two ways** (`date-tools.ts`, `ui/date-form.ts`): the DateTime window's way picked first --
+a date to its period (as before), a date's PART (its year, its month's number, its day of the month, its week of the
+year, its hour: the compiler's `year`, `monthNumber`, `dayOfMonth`, `weekOfYear`, `hour`), or TEXT READ AS A DATE by a
+format in the engine's tokens (`yyyy-MM-dd`, `dd/MM/yyyy`, `yyyy-MM-dd HH:mm:ss`, or typed: legend-lite's
+`convertDateFormat` / `convertDateTimeFormat`, by their paths, which the compiler lowers to the database's strptime).
+A value the format cannot read refuses the box's rows in the database's words -- strptime's, not a try's: an empty for
+unreadable text would need a native of its own (found by Python's test). Boxes say "year of trade_date", "booked read as
+dd/MM/yyyy". Python: `grid.date_part(column, part)`, `grid.parse_date(column, format)`. Tested by `flow-sheet.test.ts`,
+Python's `test_dates_read_and_taken_apart_as_a_flow_box_does` (DuckDB's dates and months; the refusal) and the harness
+(a year of the trade date).
+
+Still to come in M3: Multi-Field Formula; a date written as text by a format.
 
 ### M7's first steps (2026-10-25)
 

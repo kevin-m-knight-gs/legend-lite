@@ -565,6 +565,22 @@ try {
   check(await page.locator('.dc-flow-results .dc-th[data-column="trade_date_month"]').count() > 0, 'its column in its rows: trade_date_month');
   check(await resultRows() === fewer, 'its input\'s rows, each kept');
 
+  // A DATETIME'S PART (M3): its year of the trade date, the same window's second way
+  const beforePart = (await boxes()).map((b) => b.id);
+  await drag('datetime', filter.id);
+  await boxCount(beforePart.length + 1);
+  const parted = await added(beforePart);
+  await docked('Date Period');
+  await page.locator('.dc-flow-dock .dc-date-mode').selectOption('part');
+  await page.locator('.dc-flow-dock .dc-date-part').selectOption('year');
+  await page.locator('.dc-flow-dock .dc-date-part-column').selectOption('trade_date');
+  check(await page.locator('.dc-flow-dock .dc-date-name').inputValue() === 'trade_date_year', 'named after its column and its part');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  const partBox = (await boxes()).find((b) => b.id === parted.id);
+  check(partBox?.tool === 'datetime' && partBox.says === 'year of trade_date', `a DateTime's part: ${JSON.stringify(partBox)}`);
+  check(await page.locator('.dc-flow-results .dc-th[data-column="trade_date_year"]').count() > 0, 'its column in its rows: trade_date_year');
+
   // THE TEXT TOOLS (M3), each dragged onto the Filter, set in its window docked, its columns planned and run
   const textStep = async (tool, window, set, expect) => {
     const before = (await boxes()).map((b) => b.id);

@@ -21,6 +21,7 @@ import { readTextTool, TEXT_TOOL_KINDS, textToolCommands } from '../text-tool-co
 import type { TextTool } from '../text-tools.ts';
 import { readUnique, uniqueCommands, type Unique } from '../unique.ts';
 import { imputeCommands, readImputation, type Imputation } from '../impute.ts';
+import { DATE_TOOL_KINDS, dateToolCommands, readDateTool, type DateTool } from '../date-tools.ts';
 import {
   argumentsGiven, gestureNamed, gestureReadsView, gridGestureGiven, type GestureArgs, type GestureView, type GridGestureName,
 } from '../grid-gestures.ts';
@@ -756,16 +757,18 @@ export async function gridModelMeasure(spec: GridSpec, given: string): Promise<s
  * a number to its bin -- Python's grid.grain, grid.show_as, grid.bins), or A FLOW'S TOOL AS ITS WINDOW SETS IT: a text
  * tool's columns (text-tool-columns.ts textToolCommands: Text To Columns, RegEx, Data Cleansing -- grid.split,
  * grid.regex, grid.cleanse), Unique (unique.ts uniqueCommands: grid.unique) or Imputation (impute.ts imputeCommands:
- * grid.impute). `given`, the preset or the tool as JSON
+ * grid.impute), or a DateTime's part or text read as a date (date-tools.ts dateToolCommands: grid.date_part, grid.parse_date). `given`, the preset or the tool as JSON
  * (readGridPreset, readTextTool, readUnique, readImputation, by its kind), over the grid's columns as the compiler types them now.
  * JSON: as gridApply's, or `{problems}`, in DataCube's words.
  */
 export async function gridPreset(spec: GridSpec, given: string): Promise<string> {
-  let asked: { readonly preset: GridPreset } | { readonly tool: TextTool } | { readonly unique: Unique } | { readonly impute: Imputation };
+  let asked: { readonly preset: GridPreset } | { readonly tool: TextTool } | { readonly unique: Unique } | { readonly impute: Imputation }
+    | { readonly date: DateTool };
   try {
     const raw: unknown = JSON.parse(given);
     const kind = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>)['kind'] : undefined;
     asked = kind === 'unique' ? { unique: readUnique(raw) } : kind === 'impute' ? { impute: readImputation(raw) }
+      : (DATE_TOOL_KINDS as readonly unknown[]).includes(kind) ? { date: readDateTool(raw) }
       : (TEXT_TOOL_KINDS as readonly unknown[]).includes(kind) ? { tool: readTextTool(raw) } : { preset: readGridPreset(raw) };
   } catch (e) {
     if (!(e instanceof CubeRefusal)) throw e;
@@ -774,7 +777,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
   return using(spec, async (o) => {
     let commands: GridCommand[];
     try {
-      commands = 'tool' in asked ? textToolCommands(asked.tool)
+      commands = 'tool' in asked ? textToolCommands(asked.tool) : 'date' in asked ? dateToolCommands(asked.date)
         : 'unique' in asked ? uniqueCommands(await typedColumns(o.runner, o.state.snapshot), asked.unique)
           : 'impute' in asked ? imputeCommands(await typedColumns(o.runner, o.state.snapshot), asked.impute)
           : presetCommands(await typedColumns(o.runner, o.state.snapshot), asked.preset);
