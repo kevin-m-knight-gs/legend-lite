@@ -848,9 +848,10 @@ class Document(Paged):
             tile.options(grain='hour')
         # its values, every figure the database's (headless timeseriesQuery, the viewer's own queries): a grid's series,
         # one across both grids (read together over one model of their frames), a window kept by the database -- weekly
-        # and rebased, as it was just told, one week from 100; then daily, as the rows are
+        # and rebased, as it was just told, one week from 100, dated at its last observation (the date its value is of);
+        # then daily, as the rows are
         weekly = tile.frame('A')
-        self.assertEqual(([d.strftime('%Y-%m-%d') for d in weekly.index], list(weekly['A'])), (['2024-01-01'], [100.0]))
+        self.assertEqual(([d.strftime('%Y-%m-%d') for d in weekly.index], list(weekly['A'])), (['2024-01-05'], [100.0]))
         tile.options(view=None, grain=None)
         a = tile.frame('A')
         self.assertEqual(list(a.columns), ['A'])

@@ -59,6 +59,13 @@ export interface TsFunction {
   readonly aliases?: readonly string[];
   /** The least and the most its figures can be (an RSI's 0 and 100): its axis shows them whole. */
   readonly bounds?: readonly [number, number];
+  /**
+   * Whether its figures are a LEVEL -- a price, an index: what compare starts from one value and the statistics read a
+   * volatility, a drawdown, a growth of (levelOf). `keeps`: a level of a level (a moving average of a price); `makes`: a
+   * level of anything (prices compounded from returns, an index). Absent: never a level (a return, a difference, a
+   * deviation -- a figure that may be zero or below, whose ratios mean nothing).
+   */
+  readonly level?: 'keeps' | 'makes';
 }
 
 /** A function's words: all of it but its signature, and what each parameter is (`w` and `obs`, `type` said once). */
@@ -77,29 +84,29 @@ const PARAM_ABOUT: Readonly<Record<string, string>> = {
 const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   // returns
   returns: { label: 'Returns', family: 'Returns', unit: 'input', about: 'The return over obs observations.', gsQuant: 'econometrics.returns' },
-  prices: {
+  prices: { level: 'makes',
     // a level compounded from initial, as an index is (the timeseries gallery, 2026-10-25: as its returns' unit, a
     // level of 1,139 read as 113,949.58%)
     label: 'Prices from returns', family: 'Returns', unit: 'index', params: { initial: 'the level it starts from' },
-    about: 'A level compounded from a series of returns, from initial.', gsQuant: 'econometrics.prices',
-    differs: 'compounded from the first return the series has: its first level is initial times its first return',
+    about: 'A level compounded from a series of returns, from initial: initial times the product of (1 + each return) to date.',
+    gsQuant: 'econometrics.prices',
   },
   diff: { label: 'Difference', family: 'Returns', unit: 'same', about: 'The change over obs observations: x - x[-obs].', gsQuant: 'analysis.diff' },
-  lag: {
+  lag: { level: 'keeps',
     label: 'Lag', family: 'Returns', unit: 'same', about: 'The value obs observations before.', gsQuant: 'analysis.lag',
     differs: 'a whole number of observations; gs-quant also takes a calendar period (1m), not built',
   },
   annualize: {
     label: 'Annualize', family: 'Returns', unit: 'same',
     about: 'Times the square root of the periods in a year (252 days, 52 weeks, 12 months, 4 quarters).',
-    gsQuant: 'econometrics.annualize', differs: 'the periods in a year are the tile\'s frequency, not read off the dates',
+    gsQuant: 'econometrics.annualize', differs: 'with a frequency, the periods in a year are the tile\'s (gs-quant always reads them off the dates, as DataCube does with none)',
   },
   // level
-  index: {
+  index: { level: 'makes',
     label: 'Index', family: 'Level', unit: 'index', params: { initial: 'its value at the first date shown' },
     about: 'Divided by its value at the first date shown, times initial.', gsQuant: 'econometrics.index', anchored: true,
   },
-  rebase: {
+  rebase: { level: 'makes',
     label: 'Rebase to 100', family: 'Level', unit: 'index', params: { base: 'its value at the first date shown' },
     about: 'Its value at the first date shown made base (100): index(x, 100).', gsQuant: 'DataCube (econometrics.index)', anchored: true,
   },
@@ -109,34 +116,38 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
     gsQuant: 'DataCube (econometrics.index - 1)', anchored: true,
   },
   // rolling statistics
-  mean: {
+  mean: { level: 'keeps',
     label: 'Moving average', family: 'Rolling statistics', unit: 'same', about: 'The average over the last w observations.',
     gsQuant: 'statistics.mean, technicals.moving_average', aliases: ['moving_average', 'sma', 'ma', 'average'],
+    differs: 'w defaults to 22 observations (gs-quant: every observation)',
   },
   sum: {
     label: 'Rolling sum', family: 'Rolling statistics', unit: 'same', about: 'The sum over the last w observations; from the start, a running total.',
     gsQuant: 'statistics.sum_', aliases: ['sum_', 'cumsum'],
   },
-  min: { label: 'Rolling minimum', family: 'Rolling statistics', unit: 'same', about: 'The least over the last w observations.', gsQuant: 'statistics.min_', aliases: ['min_'] },
-  max: { label: 'Rolling maximum', family: 'Rolling statistics', unit: 'same', about: 'The most over the last w observations.', gsQuant: 'statistics.max_', aliases: ['max_'] },
+  min: { level: 'keeps', label: 'Rolling minimum', family: 'Rolling statistics', unit: 'same', about: 'The least over the last w observations.', gsQuant: 'statistics.min_', aliases: ['min_'], differs: 'w defaults to 22 observations (gs-quant: every observation)' },
+  max: { level: 'keeps', label: 'Rolling maximum', family: 'Rolling statistics', unit: 'same', about: 'The most over the last w observations.', gsQuant: 'statistics.max_', aliases: ['max_'], differs: 'w defaults to 22 observations (gs-quant: every observation)' },
   range: {
     label: 'Rolling range', family: 'Rolling statistics', unit: 'same', about: 'The most less the least over the last w observations.',
     gsQuant: 'statistics.range_', aliases: ['range_'],
+    differs: 'w defaults to 22 observations (gs-quant: every observation)',
   },
   std: {
     label: 'Rolling standard deviation', family: 'Rolling statistics', unit: 'same', about: 'The sample standard deviation over the last w observations.',
     gsQuant: 'statistics.std', aliases: ['stdev'],
+    differs: 'w defaults to 22 observations (gs-quant: every observation)',
   },
   var: {
     label: 'Rolling variance', family: 'Rolling statistics', unit: 'same', about: 'The sample variance over the last w observations.',
     gsQuant: 'statistics.var', aliases: ['variance'],
+    differs: 'w defaults to 22 observations (gs-quant: every observation)',
   },
   zscores: {
     label: 'Z-score', family: 'Rolling statistics', unit: 'number', params: { w: 'observations in the window; 0 every observation' },
     about: 'How many standard deviations from the mean: over the last w observations, or (0) every one.',
     gsQuant: 'statistics.zscores', aliases: ['zscore', 'z'],
   },
-  winsorize: {
+  winsorize: { level: 'keeps',
     label: 'Winsorize', family: 'Rolling statistics', unit: 'same', params: { limit: 'standard deviations from the mean it is held within' },
     about: 'Held within limit standard deviations of its mean over every observation.', gsQuant: 'statistics.winsorize',
   },
@@ -145,7 +156,7 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
     label: 'Realized volatility', family: 'Risk', unit: 'percent',
     about: 'The annualized standard deviation of its returns over the last w observations, in percent (20% is 20).',
     gsQuant: 'econometrics.volatility', aliases: ['vol'],
-    differs: 'w defaults to 22 observations (gs-quant: the whole series); annualized by the tile\'s frequency',
+    differs: 'w defaults to 22 observations (gs-quant: the whole series)',
   },
   drawdown: {
     label: 'Drawdown', family: 'Risk', unit: 'ratio', params: { w: 'observations its peak is taken over; 0 from the start' },
@@ -158,30 +169,34 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   sharpe_ratio: {
     label: 'Sharpe ratio', family: 'Risk', unit: 'number',
     about: 'Its annualized mean return over its annualized volatility, over the last w observations.', gsQuant: 'econometrics.sharpe_ratio',
-    differs: 'a risk-free rate of zero and the arithmetic mean of simple returns; gs-quant takes excess returns over a currency\'s rate and compounds',
+    differs: 'w defaults to 252 observations (gs-quant: every observation); a risk-free rate of zero and the arithmetic mean of simple returns; gs-quant takes excess returns over a currency\'s rate and compounds',
   },
   // relationships
   correlation: {
     label: 'Rolling correlation', family: 'Relationships', unit: 'number',
     about: 'The correlation of the two series\' simple returns over the last w observations, on the dates both have.',
     gsQuant: 'econometrics.correlation', aliases: ['corr'],
+    differs: 'w defaults to 63 observations (gs-quant: every observation)',
   },
   beta: {
     label: 'Rolling beta', family: 'Relationships', unit: 'number',
     about: 'The first\'s beta to the second (a benchmark): the covariance of their simple returns over the second\'s variance.',
     gsQuant: 'econometrics.beta',
+    differs: 'w defaults to 63 observations (gs-quant: every observation)',
   },
   cov: {
     label: 'Rolling covariance', family: 'Relationships', unit: 'number',
     about: 'The sample covariance of the two series as they are, over the last w observations.', gsQuant: 'statistics.cov',
+    differs: 'w defaults to 63 observations (gs-quant: every observation)',
   },
   // technicals
-  bollinger_bands: {
+  bollinger_bands: { level: 'keeps',
     label: 'Bollinger bands', family: 'Technicals', unit: 'same', params: { k: 'standard deviations either side' },
     about: 'A band k standard deviations either side of the moving average over the last w observations.',
     gsQuant: 'technicals.bollinger_bands', band: true, aliases: ['bollinger'],
+    differs: 'w defaults to 20 observations (gs-quant: every observation)',
   },
-  ohlc: {
+  ohlc: { level: 'keeps',
     label: 'Candles (open, high, low, close)', family: 'Technicals', unit: 'same', candles: true, aliases: ['candles', 'candlestick'],
     about: 'A candle per period: its first open, its highest high, its lowest low and its last close (each a column of the '
       + 'grid, taken so by the period unless its expression says how), green when it closed above its open, red below.',
@@ -199,11 +214,11 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   sqrt: { label: 'Square root', family: 'Math', unit: 'same', about: 'The square root.', gsQuant: 'algebra.sqrt' },
   abs: { label: 'Absolute value', family: 'Math', unit: 'same', about: '|x|.', gsQuant: 'algebra.abs_', aliases: ['abs_'] },
   power: { label: 'Power', family: 'Math', unit: 'number', params: { y: 'the power' }, about: 'x to the power y.', gsQuant: 'algebra.power' },
-  floor: {
+  floor: { level: 'keeps',
     label: 'Floor at a value', family: 'Math', unit: 'same', params: { value: 'the least it may be' },
     about: 'Never below value: the greater of x and value.', gsQuant: 'algebra.floor',
   },
-  ceil: {
+  ceil: { level: 'keeps',
     label: 'Cap at a value', family: 'Math', unit: 'same', params: { value: 'the most it may be' },
     about: 'Never above value: the lesser of x and value.', gsQuant: 'algebra.ceil',
   },
@@ -377,16 +392,52 @@ export function unitOf(e: TsExpr): TsUnit {
       const r = unitOf(e.right);
       // a level times or over a number is still a level; two levels divided are a number (a ratio of prices)
       if (e.op === '+' || e.op === '-') return l === 'number' ? r : l;
-      if (e.right.kind === 'number') return l;
-      if (e.left.kind === 'number') return r;
+      // a ratio times 100 is a percent, a percent over 100 a ratio -- what a person means writing `100 * returns(x)` (the
+      // review's Q4: drawn a hundred times too large as a ratio still); any other number keeps its unit
+      const by = e.right.kind === 'number' ? { unit: l, n: e.right.value } : e.left.kind === 'number' && e.op === '*' ? { unit: r, n: e.left.value } : undefined;
+      if (by !== undefined) {
+        if (by.unit === 'ratio' && e.op === '*' && by.n === 100) return 'percent';
+        if (by.unit === 'percent' && e.op === '/' && by.n === 100) return 'ratio';
+        return by.unit;
+      }
+      // a number over a series (1 / x), two series multiplied or divided: a number
       return 'number';
     }
     case 'call': {
       const f = TS_FUNCTION.get(e.fn);
-      if (!f) return 'number';
+      if (!f) throw new Error(`no function ${e.fn} in the catalog (the spec's reader refuses one)`);
       if (f.unit === 'input') return paramOf(e, 'type') === 'absolute' ? unitOf(e.args[0]!) : 'ratio';
       if (f.unit === 'same') return e.args[0] ? unitOf(e.args[0]) : 'same';
       return f.unit;
+    }
+  }
+}
+
+/**
+ * WHETHER AN EXPRESSION IS A LEVEL -- a price, an index, a ratio or product of prices: what compare starts from one
+ * value, and what the statistics read a volatility, a drawdown, a growth and a Sharpe ratio of. A difference, a change,
+ * a deviation, a spread of two levels is none, though it is in its input's units (the review's Q2: `change(close)`
+ * rebased to nothing, `diff`'s volatility 2011%). A column is a level; a level times or over a number, or a level over
+ * or times a level, is one; a level plus or less a number is one; a function's is as its words say (TsFunction.level).
+ */
+export function levelOf(e: TsExpr): boolean {
+  switch (e.kind) {
+    case 'column':
+    case 'ref':
+      return true;
+    case 'number':
+      return false;
+    case 'binary': {
+      const l = levelOf(e.left);
+      const r = levelOf(e.right);
+      if (e.op === '+' || e.op === '-') return (l && e.right.kind === 'number') || (r && e.left.kind === 'number' && e.op === '+');
+      if (e.op === '/') return l && (r || e.right.kind === 'number');
+      return (l && (r || e.right.kind === 'number')) || (r && e.left.kind === 'number');
+    }
+    case 'call': {
+      const f = TS_FUNCTION.get(e.fn);
+      if (!f) throw new Error(`no function ${e.fn} in the catalog (the spec's reader refuses one)`);
+      return f.level === 'makes' || (f.level === 'keeps' && levelOf(e.args[0]!));
     }
   }
 }

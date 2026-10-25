@@ -21,7 +21,7 @@ const DAYS = ['2024-01-04', '2024-01-03', '2024-01-02'];
 /** What a series' query answered: its columns, latest first, as the database gives them. */
 function answered(series: string, unit: TsUnit, columns: Record<string, readonly (string | number | null)[]>,
   more: Partial<TsQuery> = {}): TsResult {
-  const query: TsQuery = { series, query: {} as Lambda, unit, band: false, counted: false, sources: ['px'], ...more };
+  const query: TsQuery = { series, query: {} as Lambda, unit, level: unit === 'same' || unit === 'index', band: false, counted: false, sources: ['px'], ...more };
   const names = Object.keys(columns);
   const table: ResultTable = {
     columns: names.map((name) => ({ name, type: name === TS_DATE ? 'StrictDate' : 'Float', values: [...columns[name]!] })),
@@ -115,6 +115,12 @@ describe('the drawing', () => {
     assert.deepEqual(types(draw(ts, levels).option), ['log', 'log']);
     const ratio: TimeseriesSpec = { ...ts, series: [ts.series[0]!, S('B', 'returns($A)', { axis: 'right' })] };
     assert.deepEqual(types(draw(ratio, [levels[0]!, answered('B', 'ratio', { [TS_DATE]: DAYS, [TS_VALUE]: [0.1, -0.2, null] })]).option), ['log', 'value']);
+    // the review's G3: a figure that may be zero or below on the log pane's left axis -- dropped by a log axis without a
+    // word -- keeps that axis straight, and the drawing says why
+    const returns = spec([S('A', 'returns(close[SPX])')], { panes: [{ log: true }] });
+    const drawn = answered('A', 'ratio', { [TS_DATE]: DAYS, [TS_VALUE]: [0.01, -0.02, null] });
+    assert.deepEqual(types(draw(returns, [drawn]).option), ['value']);
+    assert.ok(tsLines(returns, [drawn], LIGHT_THEME).notes.some((n) => /no level .* not on a log scale/.test(n)));
   });
 
   it('an RSI\'s axis shows its bounds whole', () => {

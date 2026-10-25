@@ -8,7 +8,7 @@ import { describe, it } from 'node:test';
 import { tsProblem, type TimeseriesSpec, type TsExpr } from '../src/timeseries-spec.ts';
 import {
   aliasFor, candleOf, columnsOf, defaultTimeseries, exprText, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
-  timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS,
+  levelOf, timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS,
 } from '../src/timeseries-expr.ts';
 
 const ROUND_TRIPS = [
@@ -159,6 +159,20 @@ describe('what an expression reads, and is', () => {
     assert.equal(u('drawdown(close)'), 'ratio');
     // a level compounded from its returns is a level, as an index is -- not its returns' ratio
     assert.equal(u('prices(returns(close), 100)'), 'index');
+    // the review's Q4: a ratio times 100 is a percent (`100 * returns(x)`, drawn a hundred times too large as a ratio), a
+    // percent over 100 a ratio; another number keeps the unit; a number over a series is a number
+    assert.deepEqual(['100 * returns(close)', 'returns(close) * 100', 'volatility(close) / 100', '2 * returns(close)', '1 / close']
+      .map(u), ['percent', 'percent', 'ratio', 'ratio', 'number']);
+  });
+
+  // the review's Q2: what compare and the level statistics take -- a price, an index, a ratio or product of prices --
+  // and what they do not, though it is in its input's units
+  it('a level: a price and what keeps one; a change, a difference, a deviation, a spread none', () => {
+    const level = (t: string): boolean => levelOf(parseExpr(t));
+    assert.deepEqual(['close', 'mean(close, 5)', 'close[A] / close[B]', 'close * 2', 'rebase(close)', 'prices(returns(close))', 'ohlc(open, high, low, close)']
+      .map(level), [true, true, true, true, true, true, true]);
+    assert.deepEqual(['change(close)', 'diff(close)', 'std(close, 5)', 'var(close, 5)', 'range(close, 5)', 'close[A] - close[B]', 'returns(close)', 'rebase(close[A]) - rebase(close[B])']
+      .map(level), [false, false, false, false, false, false, false, false]);
   });
 
   it('series ids run A to Z, then A2', () => {

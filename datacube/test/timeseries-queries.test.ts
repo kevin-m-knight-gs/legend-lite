@@ -17,7 +17,7 @@ import { type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import {
   boundsQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN,
-  TS_ROWS, TS_SPLIT, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
+  TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_PER_YEAR, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
 } from '../src/timeseries-query.ts';
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
 import type { FileSource } from '../src/cube-document.ts';
@@ -56,11 +56,12 @@ let engine: DuckDbEngine;
 let planner: LitePlanner;
 let input: TsInput;
 let inputs: TsInputs;
+let files: DuckDbFiles;
 
 before(async () => {
   const db = await openDatabase();
   engine = new DuckDbEngine(db.connection);
-  const files: DuckDbFiles = db.files;
+  files = db.files;
   const r = await ingestFile(engine, files, new File([CSV], 'prices.csv'), writer);
   planner = plannerFor(r.model, r.runtime);
   const snapshot: CubeSnapshot = {
@@ -198,7 +199,8 @@ describe('a column along the dates', () => {
     const months = [...new Set(DAYS.map((d) => d.slice(0, 7)))];
     const last = months.map((m) => AAA[DAYS.map((d) => d.slice(0, 7)).lastIndexOf(m)]!);
     const l = await line(spec({ A: 'close[AAA]' }, { grain: 'month' }));
-    assert.deepEqual(l.dates, months.map((m) => `${m}-01`));
+    // each month dated at its last observation, the date its value is of (the review's Q6)
+    assert.deepEqual(l.dates, months.map((m) => DAYS.filter((d) => d.startsWith(m)).at(-1)!));
     close(l.values, last, 'month-end');
     const v = await line(spec({ A: 'volume[AAA].sum' }, { grain: 'month' }));
     close(v.values, months.map((m) => DAYS.reduce((s, d, i) => s + (d.startsWith(m) ? VOL[i]! : 0), 0)), 'volume');
@@ -220,7 +222,8 @@ describe('a column along the dates', () => {
     const weeks = [...new Set(DAYS.map(weekOf))];
     const of = (w: string): number[] => AAA.filter((_, i) => weekOf(DAYS[i]!) === w);
     const got = (name: string): Line => values(t, name).map(num).reverse();
-    assert.deepEqual(values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse(), weeks);
+    // each candle dated at its week's last observation, the date its close is of
+    assert.deepEqual(values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse(), weeks.map((w) => DAYS.filter((d) => weekOf(d) === w).at(-1)!));
     close(got(TS_OPEN), weeks.map((w) => of(w)[0]!), 'open');
     close(got(TS_HIGH), weeks.map((w) => Math.max(...of(w))), 'high');
     close(got(TS_LOW), weeks.map((w) => Math.min(...of(w))), 'low');
@@ -482,6 +485,141 @@ describe('a series\' statistics over the dates shown', () => {
   });
 });
 
+// -- the review's findings, each pinned (docs/TIMESERIES_REVIEW_2026_10_25.md): the inputs its reviewer probed with, the
+//    values worked by hand here --
+
+describe('the review\'s findings on the numbers, each pinned', () => {
+  // Q1: the dates were intersected before any function ran -- AAA's returns taken over CCC's calendar
+  it('Q1: each operand on its own dates, then the dates both have (gs-quant): AAA\'s returns daily, CCC\'s every third day', async () => {
+    const ownA = simple(AAA);
+    const cDays = DAYS.filter((_, i) => i % 3 === 0);
+    const ownC = simple(CCC.filter((_, i) => i % 3 === 0));
+    const l = await line(spec({ A: 'returns(close[AAA]) - returns(close[CCC])' }));
+    assert.deepEqual(l.dates, cDays);
+    close(l.values, cDays.map((d, k) => (ownC[k] === null ? null : ownA[DAYS.indexOf(d)]! - ownC[k]!)), 'own-calendar spread', 1e-9);
+    // and through refs: B and C each a series of its own
+    const viaRefs = await line(spec({ A: '$B - $C', B: 'returns(close[AAA])', C: 'returns(close[CCC])' }));
+    close(viaRefs.values, l.values, 'the same through refs', 1e-12);
+  });
+
+  // Q2: compare and the level statistics took every same-unit figure for a level
+  it('Q2: compare rebases a level alone; a change, a difference, a spread of rebased lines drawn as they are', async () => {
+    const rebased = (ts: TimeseriesSpec): TimeseriesSpec => ({ ...ts, view: { compare: 'rebase' } });
+    const level = await line(rebased(spec({ A: 'close[AAA]' })));
+    close(level.values, AAA.map((v) => (v / AAA[0]!) * 100), 'a level rebased', 1e-9);
+    const change = await line(rebased(spec({ A: 'change(close[AAA])' })));
+    close(change.values, AAA.map((v) => v - AAA[0]!), 'a change as it is', 1e-9);
+    const diff = await line(rebased(spec({ A: 'diff(close[AAA])' })));
+    close(diff.values, AAA.map((v, i) => (i === 0 ? null : v - AAA[i - 1]!)), 'a difference as it is', 1e-9);
+    const spread = await line(rebased(spec({ A: 'rebase(close[AAA]) - rebase(close[BBB])' })));
+    close(spread.values, AAA.map((v, i) => (v / AAA[0]!) * 100 - (BBB[i]! / BBB[0]!) * 100), 'a spread of rebased lines', 1e-9);
+    // the statistics of a difference: no volatility, drawdown, growth or Sharpe ratio
+    const ts = spec({ A: 'diff(close[AAA])' });
+    const st = await run(statsQuery(inputs, ts, ts.series[0]!));
+    for (const s of ['vol', 'mdd', 'cagr', 'sharpe'] as const) assert.ok(!st.columns.some((c) => c.name === statName(s)), `no ${s} of a difference`);
+  });
+
+  // Q3: no frequency annualized by 252 whatever the dates were
+  it('Q3: no frequency -- the periods a year the database infers from the dates: 252 for weekdays, none for every third weekday', async () => {
+    const daily = await run(seriesQuery(inputs, spec({ A: 'volatility(close[AAA], 5)' }), spec({ A: 'volatility(close[AAA], 5)' }).series[0]!));
+    assert.deepEqual([...new Set(values(daily, TS_PER_YEAR))], [252]);
+    const sparse = spec({ A: 'volatility(close[CCC], 3)' });
+    const t = await run(seriesQuery(inputs, sparse, sparse.series[0]!));
+    assert.deepEqual([...new Set(values(t, TS_PER_YEAR))], [null], 'every third weekday (4.2 days apart) is no frequency');
+    assert.ok(values(t, TS_VALUE).every((v) => v === null), 'so no annualized figure');
+    // the statistics too: a level's, annualized by what the database inferred
+    const st = await run(statsQuery(inputs, spec({ A: 'close[AAA]' }), spec({ A: 'close[AAA]' }).series[0]!));
+    assert.equal(Number(values(st, TS_STAT_PER_YEAR)[0]), 252);
+    // a frequency told: its periods a year, nothing inferred
+    const weekly = spec({ A: 'volatility(close[AAA], 3)' }, { grain: 'week' });
+    const w = await run(seriesQuery(inputs, weekly, weekly.series[0]!));
+    assert.ok(!w.columns.some((c) => c.name === TS_PER_YEAR));
+  });
+
+  it('Q3: monthly rows with no frequency are annualized by 12', async () => {
+    const months = [...Array.from({ length: 12 }, (_, i) => `2023-${String(i + 1).padStart(2, '0')}-28`), '2024-01-28'];
+    const levels = [100, 101, 99, 103, 104, 102, 106, 107, 105, 109, 110, 108, 112];
+    const csv = ['symbol,day,close', ...months.map((d, i) => `M,${d},${levels[i]}`)].join('\n');
+    const r = await ingestFile(engine, files, new File([csv], 'monthly.csv'), writer, { table: 'q3_monthly' });
+    const own = plannerFor(r.model, r.runtime);
+    const monthly: TsInputs = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
+    const ts = spec({ A: 'volatility(close, 12, type=log)' });
+    const t = await engine.execute(await own.plan(seriesQuery(monthly, ts, ts.series[0]!).query), 0);
+    const logs = levels.slice(1).map((v, i) => Math.log(v / levels[i]!));
+    const want = sd(logs) * Math.sqrt(12) * 100;
+    close([num(values(t, TS_VALUE)[0])], [want], 'monthly volatility, by 12', 1e-9);
+    assert.equal(Number(values(t, TS_PER_YEAR)[0]), 12);
+  });
+
+  // Q5: a split series whose column matched on the split's column kept only that line
+  it('Q5: split by symbol, each line against one symbol\'s column (close / close[CCC]): every line, on the dates both have', async () => {
+    const l = await line(spec({ A: 'close / close[CCC]' }, {}, 'symbol'));
+    const of = (sym: string): Line => l.values.filter((_, i) => l.split![i] === sym);
+    const cIdx = DAYS.map((_, i) => i).filter((i) => i % 3 === 0);
+    close(of('AAA'), cIdx.map((i) => AAA[i]! / CCC[i]!), 'AAA / CCC', 1e-9);
+    close(of('BBB'), cIdx.map((i) => BBB[i]! / CCC[i]!), 'BBB / CCC', 1e-9);
+    close(of('CCC'), cIdx.map(() => 1), 'CCC / CCC', 1e-9);
+    // a split of one symbol's rows alone is refused, never drawn as one line
+    assert.throws(() => seriesQuery(inputs, spec({ A: 'close[CCC]' }, {}, 'symbol'), spec({ A: 'close[CCC]' }, {}, 'symbol').series[0]!),
+      /is split by symbol, but reads one symbol's rows alone/);
+  });
+
+  // Q6: a month dated at its start, valued at its end: a range from mid-month lost that month
+  it('Q6: at a monthly frequency, an anchor mid-month starts at that month, whose value is of its last day', async () => {
+    const months = [...new Set(DAYS.map((d) => d.slice(0, 7)))];
+    const lastOf = (m: string): number => AAA[DAYS.map((d) => d.slice(0, 7)).lastIndexOf(m)]!;
+    const ts = spec({ A: 'rebase(close[AAA])' }, { grain: 'month' });
+    const l = await line(ts, 'A', { from: '2024-01-15' });
+    close(l.values, months.map((m) => (lastOf(m) / lastOf(months[0]!)) * 100), 'January the base', 1e-9);
+    const st = await run(statsQuery(inputs, ts, ts.series[0]!, { from: '2024-01-15' }));
+    assert.equal(Number(values(st, statName('count'))[0]), months.length, 'January among the dates shown');
+  });
+
+  // Q7: which of several rows a period's value was, said only for the first source of no split and no match
+  it('Q7: the rows a period\'s value was one of, counted for every column: two instruments a day, one', async () => {
+    const all = await run(seriesQuery(inputs, spec({ A: 'close' }), spec({ A: 'close' }).series[0]!));
+    assert.ok(values(all, TS_ROWS).some((n) => Number(n) >= 2), 'close of every instrument: several a day');
+    const one = await run(seriesQuery(inputs, spec({ A: 'close[AAA] / close' }), spec({ A: 'close[AAA] / close' }).series[0]!));
+    assert.ok(values(one, TS_ROWS).some((n) => Number(n) >= 2), 'said though another column is matched');
+    const matched = await run(seriesQuery(inputs, spec({ A: 'close[AAA]' }), spec({ A: 'close[AAA]' }).series[0]!));
+    assert.deepEqual([...new Set(values(matched, TS_ROWS).map(Number))], [1]);
+  });
+
+  // Q8: prices of a return of -100% or less: the product, not the log's sum that skipped it
+  it('Q8: prices of returns compounds every factor: a -100% return zero from there, one below it turning the sign', async () => {
+    const zero = await line(spec({ A: 'prices(returns(close[AAA]) * 0 - 1, 10)' }));
+    close(zero.values, AAA.map((_, i) => (i === 0 ? null : 0)), 'a total loss', 1e-12);
+    const sign = await line(spec({ A: 'prices(returns(close[AAA]) * 0 - 2, 10)' }));
+    close(sign.values, AAA.map((_, i) => (i === 0 ? null : 10 * (-1) ** i)), 'each factor -1', 1e-9);
+  });
+
+  // Q9: a candle series' least and most read off its closes
+  it('Q9: a candle series\' statistics: its lowest low and highest high', async () => {
+    const ts = spec({ A: 'ohlc(close[AAA], close[AAA], close[AAA], close[AAA])' }, { grain: 'week' });
+    const st = await run(statsQuery(inputs, ts, ts.series[0]!));
+    close([num(values(st, statName('low'))[0]), num(values(st, statName('high'))[0])], [Math.min(...AAA), Math.max(...AAA)], 'extremes', 1e-12);
+  });
+
+  // Q11: a change from a start below zero
+  it('Q11: the % change from a start below zero rising is a rise; a rolling drawdown drawn once its window is full', async () => {
+    const ts = spec({ A: 'close[AAA] - 200' });
+    const st = await run(statsQuery(inputs, ts, ts.series[0]!));
+    const [first, last] = [AAA[0]! - 200, AAA.at(-1)! - 200];
+    close([num(values(st, statName('pct'))[0])], [(last - first) / Math.abs(first)], 'pct', 1e-9);
+    const dd = await line(spec({ A: 'drawdown(close[AAA], 5)' }));
+    assert.deepEqual(dd.values.slice(0, 4), [null, null, null, null]);
+    assert.notEqual(dd.values[4], null);
+  });
+
+  // G2: a date of another type than a date was read as one
+  it('G2: a series along a column that is no date is refused by name', () => {
+    const bad: TimeseriesSpec = { ...spec({ A: 'close' }), sources: [{ alias: 'px', cube: 'prices', date: 'symbol', key: 'symbol' }] };
+    assert.throws(() => seriesQuery(inputs, bad, bad.series[0]!), /symbol is a String, not a date/);
+    const none: TimeseriesSpec = { ...spec({ A: 'close' }), sources: [{ alias: 'px', cube: 'prices', date: 'nope' }] };
+    assert.throws(() => seriesQuery(inputs, none, none.series[0]!), /nope is no column of its grid/);
+  });
+});
+
 // -- a series combining grids (D2): their tables over one model, each grouped by its own date, joined on the period --
 
 describe('a series combining two grids, planned over one model of their tables (§5.2)', () => {
@@ -559,9 +697,12 @@ describe('a series combining two grids, planned over one model of their tables (
     close(l.values, TWO, '2Y');
   });
 
-  it('a rolling correlation of two grids\' returns, after the join', async () => {
-    const a = RATE_DAYS.map((d) => AAA[DAYS.indexOf(d)]!);
-    const corr = pairs(simple(a), simple(TEN), 5, (p, q) => cov(p, q) / (sd(p) * sd(q)));
+  // gs-quant's correlation: each series' returns on its own dates, then aligned on the dates both have (the review's Q1:
+  // the dates were joined first, AAA's returns taken over the rates' calendar)
+  it('a rolling correlation of two grids\' returns, each taken on its own dates, then joined', async () => {
+    const own = simple(AAA);
+    const a = RATE_DAYS.map((d) => own[DAYS.indexOf(d)]!);
+    const corr = pairs(a, simple(TEN), 5, (p, q) => cov(p, q) / (sd(p) * sd(q)));
     close((await joinedLine(combined({ A: 'correlation(px:close[AAA], rates:yield[10Y], 5)' }))).values, corr, 'corr', 1e-7);
   });
 
@@ -577,7 +718,9 @@ describe('a series combining two grids, planned over one model of their tables (
     const lastOf = (dates: readonly string[], vals: readonly number[], m: string): number =>
       vals[dates.map((d) => d.slice(0, 7)).lastIndexOf(m)]!;
     const l = await joinedLine({ ...combined({ A: 'px:close[BBB] / rates:yield[10Y]' }), grain: 'month' });
-    assert.deepEqual(l.dates, months.map((m) => `${m}-01`));
+    // each month dated at the later of the two grids' last observations in it
+    const lastDay = (dates: readonly string[], m: string): string => dates.filter((d) => d.startsWith(m)).at(-1)!;
+    assert.deepEqual(l.dates, months.map((m) => [lastDay(DAYS, m), lastDay(RATE_DAYS, m)].sort().at(-1)!));
     close(l.values, months.map((m) => lastOf(DAYS, BBB, m) / lastOf(RATE_DAYS, TEN, m)), 'monthly ratio', 1e-9);
   });
 });

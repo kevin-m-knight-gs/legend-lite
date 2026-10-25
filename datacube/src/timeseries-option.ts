@@ -19,7 +19,7 @@ import {
 } from './timeseries-spec.ts';
 import { boundsOf, exprText, inlined, seriesName, type TsUnit } from './timeseries-expr.ts';
 import {
-  TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_ROWS, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery,
+  TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery,
 } from './timeseries-query.ts';
 
 /** A series' query and what the database answered. */
@@ -37,6 +37,8 @@ export interface TsLine {
   /** Its split value, for a split series. */
   readonly split?: Scalar;
   readonly unit: TsUnit;
+  /** Whether its figures are a level: a log scale draws only levels (a return may be zero or below). */
+  readonly level: boolean;
   readonly band: boolean;
   readonly color: string;
   readonly dash: 'solid' | 'dashed' | 'dotted';
@@ -100,8 +102,10 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
     const r = results.find((x) => x.query.series === s.id);
     if (!r) continue;
     const t = r.table;
-    const dates = column(t, TS_DATE) ?? [];
-    const values = column(t, TS_VALUE) ?? [];
+    // every series' query answers with its dates and values (timeseries-query.ts seriesQuery): one without is a bug
+    const dates = column(t, TS_DATE);
+    const values = column(t, TS_VALUE);
+    if (dates === undefined || values === undefined) throw new Error(`series ${s.id}'s answer has no ${dates === undefined ? TS_DATE : TS_VALUE}`);
     const lower = column(t, TS_LOWER);
     const upper = column(t, TS_UPPER);
     const width = column(t, TS_WIDTH);
@@ -110,10 +114,21 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
     const lows = column(t, TS_LOW);
     const splits = column(t, TS_SPLIT);
     if (t.rowCount > TS_POINT_LIMIT) notes.push(`${seriesName(s)}: its latest ${TS_POINT_LIMIT.toLocaleString(UI_LOCALE)} points (it has more).`);
+    // a period's value one of several rows at its latest time: which one is the database's to pick (the review's Q7)
     const rows = column(t, TS_ROWS);
     if (rows && rows.some((n) => (toNumber(n) ?? 0) > 1)) {
-      const key = ts.sources.find((x) => x.alias === r.query.sources[0])?.key ?? 'its instrument';
-      notes.push(`${seriesName(s)} reads every instrument's rows, taking one per date: pick one (${firstColumn(s.expr) ?? 'close'}[...]) or split it by ${key}.`);
+      const key = ts.sources.find((x) => x.alias === r.query.sources[0])?.key;
+      notes.push(`${seriesName(s)}: several rows share a date's latest time, and one was taken -- match one (a column's [...])`
+        + `${key !== undefined && s.split === undefined ? ` or split it by ${key}` : ''}, so each date has one.`);
+    }
+    // annualized with no frequency: by what the database inferred from its dates, or by nothing (the review's Q3)
+    const perYear = column(t, TS_PER_YEAR);
+    if (perYear && perYear.length > 0 && perYear.every((n) => n === null)) {
+      notes.push(`${seriesName(s)}: its dates are no frequency it can be annualized by (daily, weekly, monthly, quarterly, yearly): choose the tile's frequency.`);
+    }
+    // a log scale draws levels alone: a line that may be zero or below keeps its axis straight (the review's G3)
+    if (ts.panes?.[s.pane ?? 0]?.log === true && !r.query.level) {
+      notes.push(`${seriesName(s)} is no level (it may be zero or below), so its axis is not on a log scale.`);
     }
     // the rows came latest first (the query's order, so a cut keeps the latest): each line's, oldest first
     const groups = new Map<string, { split: Scalar | undefined; at: number[] }>();
@@ -148,6 +163,7 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
         name: splitName(s, g.split),
         ...(g.split !== undefined ? { split: g.split } : {}),
         unit: r.query.unit,
+        level: r.query.level,
         band: r.query.band,
         color: theme.series[slot % theme.series.length]!,
         dash: s.style?.dash ?? DASHES[Math.floor(slot / theme.series.length) % DASHES.length]!,
@@ -309,8 +325,9 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
       const bounded = bounds !== undefined && on.every((l) => l.bounds?.[0] === bounds[0] && l.bounds?.[1] === bounds[1]) ? bounds : undefined;
       axisOf.set(`${gi}|${side}`, yAxes.length);
       yAxes.push({
-        // a log pane's left axis, and a right one of levels (a second price): a ratio on the right keeps its zero
-        type: p.log && (side === 'left' || unit === 'same' || unit === 'index') ? 'log' : 'value',
+        // a log pane's axes of levels alone: a return, a difference, a z-score may be zero or below, which a log axis drops
+        // without a word (the review's G3) -- that axis straight, and the drawing says why (tsLines)
+        type: p.log && on.length > 0 && on.every((l) => l.level) ? 'log' : 'value',
         gridIndex: gi,
         position: side,
         scale: bounded === undefined,

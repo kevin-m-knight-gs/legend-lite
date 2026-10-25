@@ -28,8 +28,8 @@ import {
   sourceOf, sourcesOf, timeseriesProblems, TsSyntaxError, type TsColumn, TS_FUNCTIONS, type TsFamily,
 } from '../timeseries-expr.ts';
 import {
-  boundsQuery, keyValuesQuery, rangeStartName, readsAnchor, seriesQuery, seriesSources, statName, statsQuery, TS_LATEST,
-  TS_SPLIT, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
+  boundsQuery, keyValuesQuery, rangeStartName, readsAnchor, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_LATEST,
+  TS_SPLIT, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
 import {
   describeTimeseries, dateLabel, timeseriesCsv, timeseriesOption, toNumber, tsLines, valueText, type TsFormat, type TsLine,
@@ -55,6 +55,15 @@ export interface TsTogether {
   readonly relations: ReadonlyMap<string, ValueSpecification>;
   run(query: Lambda): Promise<ResultTable>;
   dispose(): void;
+}
+
+/** A series' answer as its query asked it, its dates and its values among its columns: else the series' failure, said on
+ *  its line -- never drawn as no points (timeseries-option.ts tsLines reads them). */
+function answered(r: TsResult): TsResult {
+  for (const c of [TS_DATE, TS_VALUE]) {
+    if (!r.table.columns.some((x) => x.name === c)) throw new Error(`the database answered without the series' ${c === TS_DATE ? 'dates' : 'values'}`);
+  }
+  return r;
 }
 
 /** How long a grid's view waits before the tile asks again: a burst of views (a grid expanding row by row) asks once, as
@@ -316,8 +325,9 @@ export class TimeseriesView {
   async #run(series: TsSeries, make: (inputs: TsInputs) => TsQuery, signal: AbortSignal): Promise<TsResult> {
     const spec = this.#spec;
     const aliases = seriesSources(spec, series);
-    if (aliases.length <= 1) {
-      const alias = aliases[0] ?? spec.sources[0]?.alias ?? '';
+    if (aliases.length === 0) throw new Error(`series ${series.id} reads no column of a grid`);
+    if (aliases.length === 1) {
+      const alias = aliases[0]!;
       const own = this.#input(alias);
       if (!own) throw new Error(`source ${alias}'s grid is not on the page`);
       const query = make(new Map([[alias, own.input]]));
@@ -400,7 +410,7 @@ export class TimeseriesView {
         return;
       }
       try {
-        results.set(s.id, await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, readsAnchor(spec, s) && window.from ? { from: window.from } : {}), signal));
+        results.set(s.id, answered(await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, readsAnchor(spec, s) && window.from ? { from: window.from } : {}), signal)));
       } catch (e) {
         failed.set(s.id, e instanceof Error ? e.message : String(e));
       }
@@ -419,11 +429,11 @@ export class TimeseriesView {
     const spec = this.#spec;
     const window = this.#window();
     const signal = new AbortController().signal;
-    const anchored = spec.series.filter((s) => readsAnchor(spec, s) && this.#results.has(s.id));
+    const anchored = spec.series.filter((s) => this.#results.has(s.id) && readsAnchor(spec, s));
     if (anchored.length > 0) {
       const again = await Promise.all(anchored.map(async (s) => {
         try {
-          return [s.id, await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, window.from ? { from: window.from } : {}), signal)] as const;
+          return [s.id, answered(await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, window.from ? { from: window.from } : {}), signal))] as const;
         } catch (e) {
           this.#failed.set(s.id, e instanceof Error ? e.message : String(e));
           return undefined;
