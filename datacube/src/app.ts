@@ -3643,6 +3643,9 @@ export class CubeApp {
       case 'test':
         void this.#openTest();
         return;
+      case 'jsonParse':
+        this.#openJsonParse();
+        return;
       case 'multiField':
         void this.#openMultiField();
         return;
@@ -3792,6 +3795,18 @@ export class CubeApp {
     });
     if (parts.length === 0) parts.push(toCsv({ columns: shown.map((n) => ({ name: n, values: [] })), rowCount: 0, epoch: 0, elapsedMs: 0 } as never));
     download(name, 'text/csv', parts.join(''));
+  }
+
+  /** A FLOW'S JSON PARSE (Alteryx's): a JSON column's fields made columns of their own -- the column editor opened on its
+   *  fields (ui/json-fields.ts: each a calculated column the compiler checks), its box's first JSON column's; refused in
+   *  words when it has none. */
+  #openJsonParse(): void {
+    const json = rowColumns(this.#snapshot).find((c) => isVariant(c.type));
+    if (json === undefined) {
+      this.#status('its input has no JSON column: a JSON Parse reads the fields of one', 'warn');
+      return;
+    }
+    this.openColumnEditor({ json: json.name, level: 'dimension' });
   }
 
   /** A FLOW'S TEST (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL8, Alteryx's Test): its checks of its input's rows -- no

@@ -275,7 +275,7 @@ How to read the status column:
 | Text To Columns (to rows) | Built (2026-10-25) | `split`, exploded: one column, each row once a part |
 | RegEx | Built (2026-10-25) | `regexpLike` (Match), `regexpReplace` (Replace), `regexpExtract`'s first (Extract), one tool. Tokenize (each match a row) is Expand's, later |
 | DateTime | Built (2026-10-25) | One tool, three ways: a date to its period (the grain preset), a date's part (`year`, `monthNumber`, `dayOfMonth`, `weekOfYear`, `hour`), text read as a date by a format (`convertDateFormat` / `convertDateTimeFormat`: strptime). A date written as text waits for a format the compiler takes as text (`formatDate` takes an enum) |
-| JSON Parse | Built | JSON fields (`datacube/src/ui/json-fields.ts`) and Expand |
+| JSON Parse | Built | Its own tool: the column editor's JSON fields (`datacube/src/ui/json-fields.ts`) and Expand, on the box's JSON column |
 | XML Parse | Out | No XML function in the platform |
 
 ### Transform
@@ -819,6 +819,14 @@ had replaced, so already, a day that is none, a first after the last, both or ne
 and the days read back, the box's words, a filter of any other shape a Filter's), Python's date range test (between two
 days, a range, refused) and the harness (a Date Filter over the Filter's trades: 2023's, its T and F, set again to the
 last 12 months).
+
+**Built, JSON Parse** (`flow-boxes.ts` `jsonFieldOf`, `app.ts` `#openJsonParse`, 2026-10-25): Alteryx's JSON Parse as a
+tool of its own, in Parse. It opens the column editor on its box's JSON column's fields, docked (`ColumnEditorStart.json`,
+the grid's own picker: a value, a nested object or array as a JSON column, an array's count or values, each element a
+row) -- each a calculated column the compiler checks; its box's first JSON column, and refused in words when it has
+none. A box whose calculated column reads a field of a JSON column (`$x.c->get('key')...`, anywhere in its body) is
+drawn as a JSON Parse, saying "tier from customer". Python makes the same column by `grid.calculate`. Tested by
+`flow-sheet.test.ts` (a nested field read back, its words; a text's own `get` and a formula with none, not one).
 
 **Built, Test** (FL8's checks, a first slice; `checks.ts`, `ui/test-form.ts`, `app.ts` `#openTest`,
 `layout/flow-canvas.ts` `#testOf`; 2026-10-25): Alteryx's Test tool, as a box (In and Out, after Output). Its window

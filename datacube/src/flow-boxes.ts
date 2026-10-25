@@ -31,7 +31,7 @@ import type { EditorTab } from './ui/editor.ts';
 /** A tool of the flow's palette, and what a box is drawn as. */
 export type FlowTool = 'input' | 'textInput' | 'output' | 'test' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'dateFilter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile'
-  | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'countRecords' | 'crosstab' | 'transpose' | 'browse'
+  | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'jsonParse' | 'runningTotal' | 'summarize' | 'countRecords' | 'crosstab' | 'transpose' | 'browse'
   | 'comment' | 'container';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
@@ -61,6 +61,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   impute: { name: 'Imputation', group: 'prepare', does: 'empty numbers filled: a value, or the column\'s average, smallest or largest' },
   textToColumns: { name: 'Text To Columns', group: 'parse', does: 'a text column split on a delimiter, a column a part' },
   regex: { name: 'RegEx', group: 'parse', does: 'a pattern over text: whether it matches, its matches replaced or taken out' },
+  jsonParse: { name: 'JSON Parse', group: 'parse', does: 'a JSON column\'s fields made columns of their own: a value, a count, each element a row' },
   runningTotal: { name: 'Running Total', group: 'transform', does: 'a column\'s total so far, row by row' },
   summarize: { name: 'Summarize', group: 'transform', does: 'a row per group, its measures beside its keys' },
   countRecords: { name: 'Count Records', group: 'transform', does: 'how many rows it has: one row, one column, its count' },
@@ -77,7 +78,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
   'input', 'textInput', 'output', 'test', 'browse', 'filter', 'dateFilter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
-  'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'comment', 'container',
+  'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'jsonParse', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'comment', 'container',
 ];
 
 /**
@@ -98,6 +99,8 @@ export type StepEditor =
   | { readonly window: 'dateFilter' }
   /** The Test window (ui/test-form.ts): its checks, each of a column. */
   | { readonly window: 'test' }
+  /** The column editor opened on a JSON column's fields (ui/json-fields.ts), the box's first JSON column's. */
+  | { readonly window: 'jsonParse' }
   /** The Unique window (ui/unique-form.ts): the columns a key is, and the order a key's first row is first in. */
   | { readonly window: 'unique' }
   /** The Multi-Field Formula window (ui/multi-field-form.ts): its columns, its expression over each one's value. */
@@ -124,6 +127,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   filter: { window: 'filters' },
   dateFilter: { window: 'dateFilter' },
   test: { window: 'test' },
+  jsonParse: { window: 'jsonParse' },
   formula: { window: 'column' },
   multiField: { window: 'multiField' },
   transpose: { window: 'transpose' },
@@ -269,7 +273,8 @@ function columnTool(d: DerivedColumn, derived: readonly DerivedColumn[], multi: 
   const w = d.window;
   if (w === undefined) {
     return grainOf(d) !== undefined || dateToolOf(d) !== undefined ? 'datetime'
-      : imputedOf(d, derived) !== undefined ? 'impute' : textToolOf(d)?.tool ?? (multi !== undefined ? 'multiField' : 'formula');
+      : imputedOf(d, derived) !== undefined ? 'impute' : textToolOf(d)?.tool
+        ?? (jsonFieldOf(d) !== undefined ? 'jsonParse' : multi !== undefined ? 'multiField' : 'formula');
   }
   if (w.fn === 'rowNumber') return 'recordId';
   if (w.fn === 'lag' || w.fn === 'lead') return 'multiRow';
@@ -288,8 +293,37 @@ function columnWords(d: DerivedColumn, derived: readonly DerivedColumn[], multi:
   if (filled !== undefined) return `${filled.column}'s empties → ${filled.with.kind === 'value' ? filled.with.value : `its ${filled.with.kind}`}`;
   const tool = textToolOf(d);
   if (tool !== undefined) return tool.says;
+  const json = jsonFieldOf(d);
+  if (json !== undefined) return `${d.name} from ${json}`;
   // a Multi-Field Formula said once, by the columns it is over
   return multi !== undefined ? `over ${multi.all.join(', ')}` : d.name;
+}
+
+/**
+ * The JSON column a calculated column reads a field of (a JSON Parse's: the column editor's JSON fields, json-shape.ts,
+ * write `$x.c->get('key')...`): the column whose `get` of a key it holds, anywhere in its body -- undefined for any other.
+ */
+export function jsonFieldOf(d: DerivedColumn): string | undefined {
+  type Node = { readonly _type?: string; readonly function?: string; readonly property?: string; readonly name?: string;
+    readonly parameters?: readonly Node[]; readonly body?: readonly Node[]; readonly value?: unknown };
+  // `$x.c->get('a')->get('b')`: its keys each a text, its root a column of the row
+  const root = (n: Node | undefined): string | undefined => {
+    if (n?._type === 'property' && n.parameters?.[0]?._type === 'var' && typeof n.property === 'string') return n.property;
+    return n?._type === 'func' && n.function === 'get' && n.parameters?.[1]?._type === 'string' ? root(n.parameters[0]) : undefined;
+  };
+  const find = (n: Node | undefined): string | undefined => {
+    if (n === undefined || n === null || typeof n !== 'object') return undefined;
+    if (n._type === 'func' && n.function === 'get' && n.parameters?.[1]?._type === 'string') {
+      const c = root(n.parameters[0]);
+      if (c !== undefined) return c;
+    }
+    for (const p of [...(n.parameters ?? []), ...(n.body ?? [])]) {
+      const c = find(p);
+      if (c !== undefined) return c;
+    }
+    return undefined;
+  };
+  return d.lambda === undefined ? undefined : find(d.lambda as unknown as Node);
 }
 
 /** The columns a cube's configuration hides (Column Properties' Hide): what a Select box leaves out. */

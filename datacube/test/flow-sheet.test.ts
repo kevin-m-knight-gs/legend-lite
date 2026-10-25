@@ -8,7 +8,7 @@ import { describe, it } from 'node:test';
 
 import { cubeOpenedAgain, inputSides, isLive, leavesOf, rawRows, writeCube, type CubeDocument, type CubeSource, type FileSource, type RowsSource } from '../src/cube-document.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
-import { boxInputs, boxSays, readersOf } from '../src/flow-boxes.ts';
+import { boxInputs, boxSays, jsonFieldOf, readersOf } from '../src/flow-boxes.ts';
 import { add, NEW_SHEET } from '../src/layout/bands.ts';
 import {
   BOX_HEIGHT, BOX_WIDTH, EMPTY_FLOW, FlowRefusal, GAP_X, GAP_Y, MARGIN, arranged, flowProblems, framedBy, moveBox, placeAfter, removeBox,
@@ -40,7 +40,7 @@ import { applyGridCommands } from '../src/grid-commands.ts';
 import type { GridDraft } from '../src/grid-edits.ts';
 import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi-field-columns.ts';
 import { TreeState } from '../src/tree.ts';
-import { accessor, collection, fn, lambda, lit, property, variable } from '../../pure-protocol/src/index.ts';
+import { accessor, collection, fn, lambda, lit, property, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { textToolOf } from '../src/text-tools.ts';
 import { readTextTool, textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
 import { grainColumn, grainOf } from '../src/calc-presets.ts';
@@ -354,6 +354,19 @@ describe("a Test (checks.ts): each check's failing rows counted by the database,
     assert.deepEqual(readChecks({ kind: 'test', checks: [{ kind: 'between', column: 'notional', min: 1 }] }), [{ kind: 'between', column: 'notional', min: 1 }]);
     refused(() => readChecks({ kind: 'test', checks: [{ kind: 'unique', column: 'region', min: 1 }] }), /a unique check takes no min/);
     refused(() => readChecks({ kind: 'test', checks: [{ kind: 'sometimes', column: 'region' }] }), /a check is notEmpty, unique, between/);
+  });
+});
+
+describe("a JSON Parse: a calculated column reading a field of a JSON column", () => {
+  it('is drawn as a JSON Parse, saying which field of which column; any other column a Formula', () => {
+    const x = variable('x');
+    const field = (body: ValueSpecification): DerivedColumn => ({ name: 'tier', lambda: lambda(['x'], body), kind: 'dimension' });
+    const deep = fn('get', fn('get', property(x, 'customer'), lit.string('account')), lit.string('tier'));
+    assert.equal(jsonFieldOf(field(fn('to', deep, fn('cast', lit.string('')))) ), 'customer');
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived: [field(deep)] }))), { tool: 'jsonParse', also: [], says: 'tier from customer' });
+    // a text's own get, of no column of the row, and a formula with none: no JSON Parse
+    assert.equal(jsonFieldOf(field(fn('get', lit.string('{}'), lit.string('a')))), undefined);
+    assert.equal(boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived: [field(fn('plus', property(x, 'notional'), lit.integer(1)))] }))).tool, 'formula');
   });
 });
 
