@@ -37,7 +37,7 @@ import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, pla
 import { FlowBoard, type FlowPoint, type LineEnd } from '../layout/flow-board.ts';
 import { liveGrids, relinked } from '../live-inputs.ts';
 import type { Profile } from '../profile.ts';
-import { EMPTY_FLOW, flowTiles } from '../layout/flow.ts';
+import { CONTAINER_FRAME, EMPTY_FLOW, flowTiles, type Frame } from '../layout/flow.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { CHART_STATES, chartGrid, MAP_MARKS, showGridWay, type ChartSpec, type ChartState } from '../chart-spec.ts';
@@ -533,10 +533,20 @@ export class CubePage {
         this.#tell('Move Box', pageCommand('placeBox', { tile, x, y }));
         this.#options.onChange();
       },
-      onMoveMany: (moves) => {
-        this.#tell('Move Boxes', ...moves.map((m) => pageCommand('placeBox', { tile: m.id, x: m.x, y: m.y })));
+      onMoveMany: (moves, label) => {
+        this.#tell(label ?? 'Move Boxes', ...moves.map((m) => pageCommand('placeBox', { tile: m.id, x: m.x, y: m.y })));
         this.#options.onChange();
       },
+      onFrame: (tile, x, y, frame) => {
+        const was = this.#sheetOf(tile)?.board.layout;
+        const before = was !== undefined && 'boxes' in was ? was.boxes.find((b) => b.tile === tile)?.frame : undefined;
+        const label = before !== undefined && (before.collapsed === true) !== (frame.collapsed === true)
+          ? (frame.collapsed === true ? 'Fold Container' : 'Unfold Container') : 'Size Container';
+        this.#tell(label, pageCommand('placeBox', { tile, x, y, frame }));
+        this.#options.onChange();
+      },
+      onContainer: (at, frame) => this.#addContainer(id, at, frame),
+      onEditText: (tile) => this.editText(tile),
       onSelect: (tile, editor) => void this.#showBox(tile, editor),
       onRemove: (tile) => this.#removeTile(tile),
       onRemoveMany: (tiles) => this.#removeTiles(tiles),
@@ -546,7 +556,9 @@ export class CubePage {
       },
       // a Comment is the page's own (a text tile), any other tool its owner's to make
       onTool: (tool, after, editor, into, port, at) => (tool === 'comment' ? this.#addComment(id, at)
-        : this.#options.onTool?.(tool, after, id, editor, into, port, at)),
+        // a Container clicked in the palette, or dropped on a box: one of its own size, below the flow's boxes
+        : tool === 'container' ? this.#addContainer(id, at ?? this.#belowFlow(id), CONTAINER_FRAME)
+          : this.#options.onTool?.(tool, after, id, editor, into, port, at)),
       // a line drawn, taken off, or set in a box's settings: what the box reads (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
       onConnect: (tile, side, from, port) => {
         this.#tell('Link Box', pageCommand('setInput', { grid: tile, side, input: { grid: from, ...(port !== undefined ? { port } : {}) } }));
@@ -795,6 +807,22 @@ export class CubePage {
       ...(at !== undefined ? [pageCommand('placeBox', { tile: id, x: at.x, y: at.y })] : []));
     this.#options.onChange();
     if (told && this.#texts.has(id)) this.editText(id);
+  }
+
+  /** Where a thing made with no place goes on flow `sheet`: at its margin, below every box. */
+  #belowFlow(sheet: string): FlowPoint {
+    const s = this.#sheets.find((x) => x.id === sheet);
+    const boxes = s?.kind === 'flow' ? s.board.layout.boxes : [];
+    return { x: 40, y: boxes.length === 0 ? 40 : Math.max(...boxes.map((b) => b.y + (b.frame?.h ?? 60))) + 32 };
+  }
+
+  /** A CONTAINER (docs/DATACUBE_FLOW_MODE_2026_10_24.md M7, Alteryx's Tool Container): a comment of its name, framed at
+   *  `at` -- one step, Add Container; double-click its head to name it. */
+  #addContainer(sheet: string, at: FlowPoint, frame: Frame): void {
+    const id = this.#nextId('text');
+    this.#tell('Add Container', pageCommand('addText', { id, sheet, text: 'Container', title: null, columns: null }),
+      pageCommand('placeBox', { tile: id, x: Math.round(at.x), y: Math.round(at.y), frame }));
+    this.#options.onChange();
   }
 
   /** A BOX DUPLICATED (Ctrl+D, its menu: docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): a copy of its cube as the page has

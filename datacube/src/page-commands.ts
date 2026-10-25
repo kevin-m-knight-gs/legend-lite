@@ -14,7 +14,7 @@ import {
 import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, type Bands, type Preset,
 } from './layout/bands.ts';
-import { EMPTY_FLOW, FlowRefusal, moveBox, placeAfter, removeBox, type Flow } from './layout/flow.ts';
+import { EMPTY_FLOW, FlowRefusal, moveBox, placeAfter, removeBox, type Flow, type Frame } from './layout/flow.ts';
 import {
   PageDocumentError, keptFor, layoutTiles, readGridCopy, readLayout, unnamedLabel, writePageOf, type ChartView, type FlowLayout,
   type GridCopy, type GridView, type PageDocument, type PageLayout, type PageSheet, type PageView, type TextView,
@@ -79,8 +79,10 @@ export type PageCommand =
   /** A flow sheet (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): a sheet drawn as a canvas of boxes, each a grid that does
    *  one thing -- empty, after the page's other sheets. */
   | { readonly kind: 'addFlow'; readonly id?: string; readonly name: string | null }
-  /** A box of a flow sheet moved to (`x`, `y`) on its canvas (layout/flow.ts moveBox). */
-  | { readonly kind: 'placeBox'; readonly tile: string; readonly x: number; readonly y: number }
+  /** A box of a flow sheet moved to (`x`, `y`) on its canvas (layout/flow.ts moveBox) -- and, a comment's, `frame`: its
+   *  size as a container (Alteryx's Tool Container: docs/DATACUBE_FLOW_MODE_2026_10_24.md M7), folded or not; null, none
+   *  (a comment again); left out, the frame it has. */
+  | { readonly kind: 'placeBox'; readonly tile: string; readonly x: number; readonly y: number; readonly frame?: Frame | null }
   | { readonly kind: 'renameSheet'; readonly sheet: string; readonly name: string | null }
   | { readonly kind: 'moveSheet'; readonly sheet: string; readonly to: number }
   | { readonly kind: 'removeSheet'; readonly sheet: string }
@@ -182,7 +184,7 @@ export const PAGE_COMMAND_KINDS = [
 /** Each page command's fields, by kind (`?` one it may leave out): what readPageCommand takes, and what Python's generated
  *  builders write (D17). */
 export const PAGE_COMMAND_FIELDS = {
-  renamePage: ['name'], savedAs: ['record'], addSheet: ['id?', 'name'], addFlow: ['id?', 'name'], placeBox: ['tile', 'x', 'y'],
+  renamePage: ['name'], savedAs: ['record'], addSheet: ['id?', 'name'], addFlow: ['id?', 'name'], placeBox: ['tile', 'x', 'y', 'frame?'],
   renameSheet: ['sheet', 'name'], moveSheet: ['sheet', 'to'],
   removeSheet: ['sheet'], renameTile: ['tile', 'title'], addGrid: ['id?', 'document', 'sheet', 'near', 'title', 'columns'],
   addChart: ['id?', 'near', 'spec', 'title', 'columns'], setChart: ['chart', 'spec'], addText: ['id?', 'sheet', 'text', 'title', 'columns'],
@@ -457,12 +459,17 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       return done({ ...page, sheets: [...page.sheets, sheet] }, [...draft.held, id], { ...command, id });
     }
     case 'placeBox': {
-      viewNamed(page, command.tile);
+      const view = viewNamed(page, command.tile);
       const sheet = sheetOf(page, command.tile);
       if (!sheet) throw new CubeRefusal(`'${command.tile}' is on no sheet`);
       const layout = sheet.layout;
       if (layout.kind !== 'flow') throw new CubeRefusal(`'${command.tile}' is a tile of a board, placed by its layout: a box is a flow sheet's`);
-      return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => moveBox(layout, command.tile, command.x, command.y)) })));
+      if (command.frame !== undefined && command.frame !== null && view.kind !== 'text') {
+        throw new CubeRefusal(`'${command.tile}' is ${kindWords(view)}: a container is a comment`);
+      }
+      return done(withSheet(page, sheet.id, (s) => ({
+        ...s, layout: flowed(() => moveBox(layout, command.tile, command.x, command.y, command.frame)),
+      })));
     }
     case 'renameSheet': {
       const sheet = sheetNamed(page, command.sheet);
@@ -1006,7 +1013,7 @@ export function readPageCommand(given: unknown): PageCommand {
       if (typeof o['x'] !== 'number' || typeof o['y'] !== 'number') {
         throw new CubeRefusal(`a box's place is two numbers, not (${JSON.stringify(o['x'])}, ${JSON.stringify(o['y'])})`);
       }
-      return { kind, tile: text(o['tile'], 'a box'), x: o['x'], y: o['y'] };
+      return { kind, tile: text(o['tile'], 'a box'), x: o['x'], y: o['y'], ...(o['frame'] !== undefined ? { frame: readFrame(o['frame']) } : {}) };
     case 'renameSheet':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, sheet: text(o['sheet'], 'a sheet'), name: textOrNull(o['name'], "a sheet's name") };
@@ -1147,4 +1154,14 @@ export function readPageCommand(given: unknown): PageCommand {
     default:
       throw new CubeRefusal(`'${kind}' is not a page's command: ${PAGE_COMMAND_KINDS.join(', ')}`);
   }
+}
+
+/** A container's frame read from JSON (a placeBox's): {w, h, collapsed?}, or null, none -- refused in words. */
+function readFrame(raw: unknown): Frame | null {
+  if (raw === null) return null;
+  if (!isObject(raw) || typeof raw['w'] !== 'number' || typeof raw['h'] !== 'number'
+    || (raw['collapsed'] !== undefined && typeof raw['collapsed'] !== 'boolean') || Object.keys(raw).some((k) => !['w', 'h', 'collapsed'].includes(k))) {
+    throw new CubeRefusal(`a frame is {w, h, collapsed?} or null, not ${JSON.stringify(raw)}`);
+  }
+  return { w: raw['w'], h: raw['h'], ...(raw['collapsed'] === true ? { collapsed: true as const } : {}) };
 }

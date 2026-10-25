@@ -4553,7 +4553,7 @@
   background-image: radial-gradient(circle, var(--tw-neutral-300) 1px, transparent 1.25px);
   background-size: 16px 16px;
 }
-.dc-flow-plane { position: relative; min-width: 100%; min-height: 100%; }
+.dc-flow-plane { position: relative; min-width: 100%; min-height: 100%; isolation: isolate; }
 .dc-flow-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .dc-flow-lines path { fill: none; stroke: var(--tw-neutral-400); stroke-width: 1.5; }
 /* a line's wider stroke beneath it, what a pointer finds: pressed, the line selected */
@@ -5031,3 +5031,60 @@
 .dc-text-tool-delimiter { width: 5em; }
 .dc-text-tool-columns { display: flex; flex-wrap: wrap; gap: 6px 14px; max-height: 140px; overflow-y: auto; }
 .dc-text-tool-check { display: inline-flex; align-items: center; gap: 6px; color: var(--dc-muted-strong); }
+
+/* ---- a flow's containers (Alteryx's Tool Container: a comment with a frame) -- behind the lines and the boxes, its inside
+   the canvas's own (a band, a tool let go), its head and its corner its own ---- */
+.dc-flow-note.dc-flow-container {
+  z-index: -1;
+  min-height: 0;
+  border: 1.5px solid color-mix(in srgb, var(--dc-active) 35%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--dc-active) 4%, transparent);
+  box-shadow: none;
+  pointer-events: none;
+}
+.dc-flow-note.dc-flow-container.dc-flow-dragging { z-index: -1; box-shadow: 0 8px 20px rgb(0 0 0 / 12%); }
+.dc-flow-container > .dc-flow-note-head {
+  height: 30px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0 4px 0 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--dc-active) 20%, transparent);
+  border-radius: 8px 8px 0 0;
+  background: color-mix(in srgb, var(--dc-active) 10%, var(--dc-bg));
+  pointer-events: auto;
+}
+.dc-flow-container.dc-flow-folded > .dc-flow-note-head { border-bottom: none; border-radius: 8px; }
+.dc-flow-container > .dc-flow-note-body { display: none; }
+.dc-flow-container .dc-flow-note-x { height: 20px; opacity: 0.6; }
+.dc-flow-frame-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
+.dc-flow-frame-count { flex: none; color: var(--dc-muted); font-size: 11px; }
+.dc-flow-frame-fold {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dc-muted-strong);
+  font-size: 11px;
+  cursor: pointer;
+}
+.dc-flow-frame-fold:hover:not(:disabled) { background: var(--dc-fill); color: var(--tw-black); }
+.dc-flow-frame-size {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  pointer-events: auto;
+  background: linear-gradient(135deg, transparent 55%, color-mix(in srgb, var(--dc-active) 45%, transparent) 55%, color-mix(in srgb, var(--dc-active) 45%, transparent) 65%, transparent 65%, transparent 75%, color-mix(in srgb, var(--dc-active) 45%, transparent) 75%, color-mix(in srgb, var(--dc-active) 45%, transparent) 85%, transparent 85%);
+  border-radius: 0 0 8px 0;
+}
+.dc-flow-frame-size[hidden] { display: none; }
+.dc-flow-note:not(.dc-flow-container) :is(.dc-flow-frame-fold, .dc-flow-frame-title, .dc-flow-frame-count, .dc-flow-frame-size) { display: none; }
+/* a box a folded container holds: out of sight, its container's head standing for it */
+.dc-flow-box[hidden] { display: none; }

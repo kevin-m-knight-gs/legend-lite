@@ -352,8 +352,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  370,500 -> 371,500 (2026-10-25, the flow mode's Unique and its many boxes at once: a box's rows the columns it shows
  *  (live-inputs.ts gridInput's omit, join-open.ts inputRows), and the page's copy, paste, move and removal of several
  *  boxes as one step (page/cube-page.ts); picking them, the band and the group's drag the canvas's chunk). Measured
- *  370,931. */
-const BUDGET = 371_500;
+ *  370,931.
+ *  371,500 -> 372,500 (2026-10-25, the flow mode's containers: a comment framed on a flow -- the flow's frame rules
+ *  (layout/flow.ts frameProblem, framedBy), placeBox's frame (page-commands.ts) and its reading (page-document.ts), the
+ *  page's Add, Size, Fold and Move Container (page/cube-page.ts); their drawing the canvas's chunk). Measured 372,152. */
+const BUDGET = 372_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -484,8 +487,10 @@ const BUDGET = 371_500;
  *  box leaves out the columns its box hides (live-inputs.ts gridInput, cube-document.ts JoinInput.omit, join-open.ts
  *  inputRows -- startup modules); Unique's rule and its window chunks of their own). Measured 358,659.
  *  359,000 -> 359,500 (2026-10-25, the flow mode's many boxes at once -- the grid-only page's note of the same date).
- *  Measured 359,191. */
-const ENGINE_BUDGET = 359_500;
+ *  Measured 359,191.
+ *  359,500 -> 361,000 (2026-10-25, the flow mode's containers -- the grid-only page's note of the same date; the Profile's
+ *  and the keys' wiring of the canvas's options among them). Measured 360,446. */
+const ENGINE_BUDGET = 361_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -676,8 +681,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  picked boxes' ring and the band's styles among them). Measured 381,752.
  *  382,000 -> 382,500 (2026-10-25, the flow mode's Profile: the results pane's Rows and Profile and the profile's table's
  *  styles; its query and its reading a chunk of their own, profile.ts, its drawing the canvas's chunk). Measured
- *  382,213. */
-const WIDGET_BUDGET = 382_500;
+ *  382,213.
+ *  382,500 -> 384,000 (2026-10-25, the flow mode's containers -- the grid-only page's note of the same date; a container's
+ *  frame, head, fold and corner, and the keys' panel, styles among them). Measured 383,671. */
+const WIDGET_BUDGET = 384_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

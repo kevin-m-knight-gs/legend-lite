@@ -21,7 +21,7 @@
 // ×) takes it off -- the box reading it then reads a copy of what it read (frozen); a tool dropped on a line goes between
 // the two boxes.
 
-import { BOX_HEIGHT, BOX_WIDTH, MARGIN, type Flow } from './flow.ts';
+import { BOX_HEIGHT, BOX_WIDTH, CONTAINER_FRAME, FRAME_HEAD, FRAME_MIN, MARGIN, framedBy, type Flow, type FlowBox, type Frame } from './flow.ts';
 import type { FlowBoardState } from './flow-board.ts';
 import type { FlowPoint, LineEnd, RunLog } from './flow-board.ts';
 import type { InputPort, InputSide } from '../cube-document.ts';
@@ -75,6 +75,7 @@ const KEYS: readonly (readonly [string, string])[] = [
   ['Ctrl+D, F2', 'duplicate a box, rename it'],
   ['Ctrl+Z, Ctrl+Shift+Z', 'undo, redo'],
   ['Ctrl+A, Escape', 'pick every box, none'],
+  ['Ctrl+G', 'a container round the boxes picked'],
   ['Ctrl+wheel', 'zoom about the pointer'],
   ['Right-click a box', 'its menu'],
 ];
@@ -106,6 +107,7 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   runningTotal: 'M2 13l4-4.5 3 2.5 5-6.5M10.5 4.5H14V8',
   crosstab: 'M2 2.5h12v11H2zM2 6.5h12M6 2.5v11',
   comment: 'M2.5 2.5h11v8h-6l-3 3v-3h-2zM5 5.5h6M5 8h4',
+  container: 'M2 3.5h12v10H2zM2 6.5h12M4 5h3M5 9h2.5v2.5H5zM9 9h2.5v2.5H9z',
   filter: 'M2 3h12l-4.5 5.5V13l-3 1.5V8.5z',
   formula: 'M10.5 2.5c-2 0-2.5 1-2.8 3L6.8 11c-.3 2-.8 3-2.8 3M5 6.5h5.5M10 9l3.5 4M13.5 9L10 13',
   select: 'M2 3h3v3H2zM7.5 4.5H14M2 10h3v3H2zM7.5 11.5H14M2.8 4.5l.7.7 1-1.4',
@@ -457,6 +459,7 @@ export class FlowCanvas {
     this.#host.classList.toggle('dc-flow-view', !editing);
     this.#palette.hidden = !editing;
     // the boxes: each one's element kept, drawn again where it changed -- and its comments, each a note (M7)
+    const folded = this.#foldedBoxes(layout);
     const ids = new Set(layout.boxes.filter((b) => board.noteOf(b.tile) === undefined).map((b) => b.tile));
     const notes = new Set(layout.boxes.filter((b) => board.noteOf(b.tile) !== undefined).map((b) => b.tile));
     for (const [id, drawn] of [...this.#boxes]) {
@@ -471,8 +474,15 @@ export class FlowCanvas {
     }
     for (const box of layout.boxes) {
       const tile = board.noteOf(box.tile);
+      if (tile !== undefined && box.frame !== undefined) {
+        this.#paintContainer(box, box.frame, tile.element.textContent ?? '', layout, editing);
+        continue;
+      }
       if (tile !== undefined) {
         const note = this.#notes.get(box.tile) ?? this.#makeNote(box.tile);
+        note.classList.remove('dc-flow-container', 'dc-flow-folded');
+        note.style.width = '';
+        note.style.height = '';
         // its words' element, its owner's, in its body: placed once
         const body = note.querySelector<HTMLElement>('.dc-flow-note-body')!;
         if (body.firstChild !== tile.element) body.replaceChildren(tile.element);
@@ -483,6 +493,8 @@ export class FlowCanvas {
       const drawn = this.#boxes.get(box.tile) ?? this.#make(box.tile);
       this.#paintBox(box.tile, drawn);
       drawn.root.style.transform = `translate(${box.x}px, ${box.y}px)`;
+      // a box in a folded container is not drawn: its container's head stands for it
+      drawn.root.hidden = folded.has(box.tile);
     }
     this.#paintPicked();
     this.#paintLines(layout);
@@ -718,7 +730,11 @@ export class FlowCanvas {
         const from = this.#fromOf(line);
         this.#board.options.onTool?.(tool, from?.grid, editor, line, from?.port);
       }
-      else if (ev && this.#onCanvas(ev.clientX, ev.clientY)) this.#board.options.onTool?.(tool, undefined, editor, undefined, undefined, this.#pointAt(ev));
+      else if (ev && this.#onCanvas(ev.clientX, ev.clientY) && tool === 'container') {
+        // its head's middle where it was let go
+        const p = this.#pointAt(ev);
+        this.#board.options.onContainer?.({ x: Math.max(0, p.x + BOX_WIDTH / 2 - CONTAINER_FRAME.w / 2), y: Math.max(0, p.y + BOX_HEIGHT / 2 - FRAME_HEAD / 2) }, CONTAINER_FRAME);
+      } else if (ev && this.#onCanvas(ev.clientX, ev.clientY)) this.#board.options.onTool?.(tool, undefined, editor, undefined, undefined, this.#pointAt(ev));
     });
   }
 
@@ -902,7 +918,7 @@ export class FlowCanvas {
     const body = doc.createElement('div');
     body.className = 'dc-flow-note-body';
     root.append(head, body);
-    head.addEventListener('pointerdown', (e) => this.#startNote(id, root, e));
+    head.addEventListener('pointerdown', (e) => (root.classList.contains('dc-flow-container') ? this.#startContainer(id, root, e) : this.#startNote(id, root, e)));
     root.addEventListener('keydown', (e) => {
       if (e.target !== root || !this.#board.editing) return;
       if (this.#copied(id, e)) return;
@@ -914,6 +930,141 @@ export class FlowCanvas {
     this.#notes.set(id, root);
     this.#plane.append(root);
     return root;
+  }
+
+  /** The boxes folded containers hide, each by the container's box (its place and frame) that stands for it. */
+  #foldedBoxes(flow: Flow): Map<string, FlowBox> {
+    const hidden = new Map<string, FlowBox>();
+    for (const c of flow.boxes) {
+      if (c.frame?.collapsed !== true) continue;
+      for (const t of framedBy(flow, c.tile)) if (!hidden.has(t)) hidden.set(t, c);
+    }
+    return hidden;
+  }
+
+  /**
+   * A CONTAINER DRAWN (Alteryx's Tool Container, docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): a comment with a frame -- a
+   * frame behind the boxes, its head its words' first line, how many boxes it holds, its fold and its ×; dragged by its
+   * head with the boxes in it, sized by its corner, folded to its head. Its element is a note's, kept by its tile.
+   */
+  #paintContainer(box: FlowBox, frame: Frame, words: string, flow: Flow, editing: boolean): void {
+    const root = this.#notes.get(box.tile) ?? this.#makeNote(box.tile);
+    root.classList.add('dc-flow-container');
+    root.classList.toggle('dc-flow-folded', frame.collapsed === true);
+    root.style.transform = `translate(${box.x}px, ${box.y}px)`;
+    root.style.width = `${frame.w}px`;
+    root.style.height = `${frame.collapsed === true ? FRAME_HEAD : frame.h}px`;
+    const head = root.querySelector<HTMLElement>('.dc-flow-note-head')!;
+    let title = head.querySelector<HTMLElement>('.dc-flow-frame-title');
+    if (title === null) {
+      const fold = this.#doc.createElement('button');
+      fold.type = 'button';
+      fold.className = 'dc-flow-frame-fold';
+      fold.addEventListener('pointerdown', (e) => e.stopPropagation());
+      fold.addEventListener('click', () => {
+        const now = this.#board.layout.boxes.find((b) => b.tile === box.tile);
+        if (now?.frame === undefined) return;
+        const { collapsed: _c, ...open } = now.frame;
+        this.#board.options.onFrame?.(box.tile, now.x, now.y, now.frame.collapsed === true ? open : { ...open, collapsed: true });
+      });
+      title = this.#doc.createElement('span');
+      title.className = 'dc-flow-frame-title';
+      const count = this.#doc.createElement('span');
+      count.className = 'dc-flow-frame-count';
+      head.prepend(fold, title, count);
+      const size = this.#doc.createElement('span');
+      size.className = 'dc-flow-frame-size';
+      size.title = 'Drag to size the container';
+      size.addEventListener('pointerdown', (e) => this.#startFrameSize(box.tile, root, e));
+      root.append(size);
+      head.addEventListener('dblclick', (e) => {
+        if (e.target === head || e.target === title) this.#board.options.onEditText?.(box.tile);
+      });
+    }
+    const fold = head.querySelector<HTMLButtonElement>('.dc-flow-frame-fold')!;
+    fold.textContent = frame.collapsed === true ? '▸' : '▾';
+    fold.title = frame.collapsed === true ? 'Unfold: its boxes drawn again' : 'Fold to its head: its boxes out of sight';
+    fold.setAttribute('aria-label', frame.collapsed === true ? 'Unfold the container' : 'Fold the container');
+    fold.disabled = !editing;
+    const name = words.trim().split('\n')[0]!.trim() || 'Container';
+    title.textContent = name;
+    const held = framedBy(flow, box.tile).length;
+    head.querySelector<HTMLElement>('.dc-flow-frame-count')!.textContent = `${held} ${held === 1 ? 'box' : 'boxes'}`;
+    head.title = editing ? 'Drag to move the container and the boxes in it; double-click to name it' : name;
+    root.querySelector<HTMLElement>('.dc-flow-note-x')!.hidden = !editing;
+    root.querySelector<HTMLElement>('.dc-flow-frame-size')!.hidden = !editing || frame.collapsed === true;
+    root.setAttribute('aria-label', `Container ${name}: ${held} ${held === 1 ? 'box' : 'boxes'}${frame.collapsed === true ? ', folded' : ''}`);
+  }
+
+  /** A container dragged by its head: it and the boxes in it follow the pointer, their places told as one step, let go. */
+  #startContainer(id: string, root: HTMLElement, e: PointerEvent): void {
+    if (e.button !== 0 || !this.#board.editing) return;
+    const flow = this.#board.layout;
+    const at = flow.boxes.find((b) => b.tile === id);
+    if (at === undefined) return;
+    e.preventDefault();
+    const inside = new Map(flow.boxes.filter((b) => framedBy(flow, id).includes(b.tile)).map((b) => [b.tile, b] as const));
+    const start = { x: e.clientX, y: e.clientY };
+    let by = { x: 0, y: 0 };
+    this.#own(root, e, (ev) => {
+      const dx = (ev.clientX - start.x) / this.#zoom;
+      const dy = (ev.clientY - start.y) / this.#zoom;
+      // the whole as one: none of it past the canvas's edge
+      by = { x: Math.max(dx, -at.x, ...[...inside.values()].map((b) => -b.x)), y: Math.max(dy, -at.y, ...[...inside.values()].map((b) => -b.y)) };
+      root.classList.add('dc-flow-dragging');
+      root.style.transform = `translate(${at.x + by.x}px, ${at.y + by.y}px)`;
+      this.#dragged = new Map([...inside].map(([t, b]) => [t, { x: b.x + by.x, y: b.y + by.y }]));
+      for (const [t, p] of this.#dragged) {
+        const d = this.#boxes.get(t);
+        if (d) d.root.style.transform = `translate(${p.x}px, ${p.y}px)`;
+      }
+      this.#paintLines(this.#placed(this.#board.layout));
+    }, (apply) => {
+      this.#dragged = undefined;
+      root.classList.remove('dc-flow-dragging');
+      if (apply && (by.x !== 0 || by.y !== 0)) {
+        const moves = [{ id, x: Math.round(at.x + by.x), y: Math.round(at.y + by.y) },
+          ...[...inside.values()].map((b) => ({ id: b.tile, x: Math.round(b.x + by.x), y: Math.round(b.y + by.y) }))];
+        if (moves.length === 1) this.#board.options.onMove?.(id, moves[0]!.x, moves[0]!.y);
+        else this.#board.options.onMoveMany?.(moves, 'Move Container');
+      }
+      this.paint();
+    });
+  }
+
+  /** A container sized by its corner: no smaller than FRAME_MIN, told once, let go. */
+  #startFrameSize(id: string, root: HTMLElement, e: PointerEvent): void {
+    if (e.button !== 0 || !this.#board.editing) return;
+    const at = this.#board.layout.boxes.find((b) => b.tile === id);
+    const frame = at?.frame;
+    if (at === undefined || frame === undefined) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const start = { x: e.clientX, y: e.clientY };
+    let size = { w: frame.w, h: frame.h };
+    this.#own(root, e, (ev) => {
+      size = {
+        w: Math.max(FRAME_MIN.w, Math.round(frame.w + (ev.clientX - start.x) / this.#zoom)),
+        h: Math.max(FRAME_MIN.h, Math.round(frame.h + (ev.clientY - start.y) / this.#zoom)),
+      };
+      root.style.width = `${size.w}px`;
+      root.style.height = `${size.h}px`;
+    }, (apply) => {
+      if (apply && (size.w !== frame.w || size.h !== frame.h)) this.#board.options.onFrame?.(id, at.x, at.y, { ...frame, ...size });
+      this.paint();
+    });
+  }
+
+  /** Ctrl+G: a container round the boxes picked, a margin about them and room for its head. */
+  #wrapPicked(): void {
+    const boxes = this.#board.layout.boxes.filter((b) => this.#picked.has(b.tile));
+    if (boxes.length === 0) return;
+    const pad = 20;
+    const x = Math.max(0, Math.min(...boxes.map((b) => b.x)) - pad);
+    const y = Math.max(0, Math.min(...boxes.map((b) => b.y)) - pad - FRAME_HEAD);
+    const w = Math.max(FRAME_MIN.w, Math.max(...boxes.map((b) => b.x + BOX_WIDTH)) + pad - x);
+    const h = Math.max(FRAME_MIN.h, Math.max(...boxes.map((b) => b.y + BOX_HEIGHT)) + pad - y);
+    this.#board.options.onContainer?.({ x, y }, { w, h });
   }
 
   /** A note dragged by its head: it follows the pointer, and its place is told once, let go (onMove). */
@@ -1113,6 +1264,8 @@ export class FlowCanvas {
     const o = this.#board.options;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
+      // as a click: picked, and shown
+      this.#pick([id]);
       this.#select(id);
       return;
     }
@@ -1184,7 +1337,12 @@ export class FlowCanvas {
     const key = e.key.toLowerCase();
     if (key === 'a' && target === this.#canvas) {
       e.preventDefault();
-      this.#pick(this.#boxes.keys());
+      this.#pick([...this.#boxes].filter(([, d]) => !d.root.hidden).map(([id]) => id));
+      return;
+    }
+    if (key === 'g' && this.#board.editing && this.#picked.size > 0) {
+      e.preventDefault();
+      this.#wrapPicked();
       return;
     }
     if (key === 'v' && this.#board.editing && this.#board.options.onPaste) {
@@ -1274,15 +1432,21 @@ export class FlowCanvas {
       return `M${x1} ${y1}C${x1 + bend} ${y1} ${x2 - bend} ${y2} ${x2} ${y2}`;
     };
     const lines: { readonly end: LineEnd; readonly d: string; readonly mid: { x: number; y: number }; readonly says: string }[] = [];
+    // a box in a folded container: its lines to its container's head, its right edge out and its left in; a line inside
+    // one container, folded, not drawn
+    const foldedIn = this.#foldedBoxes(flow);
     for (const box of flow.boxes) {
       for (const input of this.#inputsOf(box.tile)) {
         if (!('grid' in input)) continue;
         const a = at.get(input.grid);
         if (!a) continue;
-        const x1 = a.x + BOX_WIDTH;
-        const y1 = a.y + outY(this.#isFilter(input.grid), input.port);
-        const x2 = box.x;
-        const y2 = box.y + portY(input.side);
+        const from = foldedIn.get(input.grid);
+        const into = foldedIn.get(box.tile);
+        if (from !== undefined && from === into) continue;
+        const x1 = from !== undefined ? from.x + from.frame!.w : a.x + BOX_WIDTH;
+        const y1 = from !== undefined ? from.y + FRAME_HEAD / 2 : a.y + outY(this.#isFilter(input.grid), input.port);
+        const x2 = into !== undefined ? into.x : box.x;
+        const y2 = into !== undefined ? into.y + FRAME_HEAD / 2 : box.y + portY(input.side);
         lines.push({
           end: { tile: box.tile, side: input.side }, d: curve(x1, y1, x2, y2), mid: { x: (x1 + x2) / 2, y: (y1 + y2) / 2 },
           says: this.#lineWords(input.grid, input.port, box.tile),

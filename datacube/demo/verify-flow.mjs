@@ -814,6 +814,45 @@ try {
   await page.locator('.dc-flow-keys-close').click();
   check(!(await page.locator('.dc-flow-keys-panel').isVisible()), 'closed by its ×');
 
+  // A CONTAINER (M7, Alteryx's Tool Container): Ctrl+G round the Formula and the Summarize picked; dragged by its head
+  // with the boxes in it (one step), folded (its boxes out of sight, their lines to its head), unfolded
+  await page.locator('.dc-flow-canvas').evaluate((c) => { c.scrollLeft = 0; c.scrollTop = 0; });
+  const sumAgain = (await boxes()).find((b) => b.tool === 'summarize');
+  await page.locator(`.dc-flow-box[data-tile="${formula.id}"]`).focus();
+  await page.keyboard.press('Enter');
+  await page.locator(`.dc-flow-box[data-tile="${sumAgain.id}"]`).scrollIntoViewIfNeeded();
+  await page.locator(`.dc-flow-box[data-tile="${sumAgain.id}"] .dc-flow-name`).click({ modifiers: ['Shift'], force: true });
+  check((await picked()).includes(formula.id) && (await picked()).includes(sumAgain.id), `the two picked: ${await picked()}`);
+  await page.locator('.dc-flow-canvas').focus();
+  await page.keyboard.press('Control+g');
+  const frameBox = page.locator('.dc-flow-container');
+  await frameBox.waitFor({ timeout: 10_000 });
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Add Container', 'one step: Add Container');
+  const frameId = await frameBox.getAttribute('data-tile');
+  const held = Number((await frameBox.locator('.dc-flow-frame-count').textContent()).split(' ')[0]);
+  check(held >= 2, `the container holds the two: ${held} boxes`);
+  const framePlace = await layoutOf();
+  const fHead = await frameBox.locator('.dc-flow-note-head').boundingBox();
+  await page.mouse.move(fHead.x + fHead.width - 90, fHead.y + fHead.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(fHead.x + fHead.width - 90, fHead.y + fHead.height / 2 + 40, { steps: 8 });
+  await page.mouse.up();
+  const frameMoved = await layoutOf();
+  check(frameMoved[frameId][1] - framePlace[frameId][1] === 40 && frameMoved[formula.id][1] - framePlace[formula.id][1] === 40
+    && frameMoved[sumAgain.id][1] - framePlace[sumAgain.id][1] === 40, 'moved with the boxes in it: 40 down, each');
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Move Container', 'one step: Move Container');
+  await frameBox.locator('.dc-flow-frame-fold').click();
+  await page.waitForFunction((t) => document.querySelector(`.dc-flow-box[data-tile="${t}"]`)?.hidden === true, formula.id);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Fold Container', 'folded: its boxes out of sight, one step');
+  check(await page.locator(`.dc-flow-hit[data-tile="${sumAgain.id}"]`).count() === 0
+    && await page.locator(`.dc-flow-hit[data-tile="${formula.id}"]`).count() === 1
+    && await page.locator('.dc-flow-container.dc-flow-folded').count() === 1,
+  'a line inside it not drawn; one from outside drawn to its head');
+  await page.screenshot({ path: outPath('flow-container.png') });
+  await frameBox.locator('.dc-flow-frame-fold').click();
+  await page.waitForFunction((t) => document.querySelector(`.dc-flow-box[data-tile="${t}"]`)?.hidden === false, formula.id);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Unfold Container', 'unfolded: its boxes again');
+
   // THE PALETTE'S FIND: its tools narrowed to what is typed
   await page.fill('.dc-flow-find', 'join');
   const visible = await page.locator('.dc-flow-tool:visible').evaluateAll((els) => els.map((e) => e.dataset.tool));

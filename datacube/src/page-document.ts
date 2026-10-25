@@ -619,6 +619,9 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     if (sheet.layout.kind !== 'flow') continue;
     const notGrid = sheet.layout.boxes.find((b) => views.find((v) => v.id === b.tile)?.kind === 'chart');
     if (notGrid !== undefined) throw new PageDocumentError(`sheet ${sheet.id} is a flow of grids and comments: ${notGrid.tile} is a chart`);
+    // a frame is a container's, a comment's: a grid is a box, never a container
+    const framedGrid = sheet.layout.boxes.find((b) => b.frame !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'text');
+    if (framedGrid !== undefined) throw new PageDocumentError(`${framedGrid.tile} has a frame: a container is a comment, not a grid`);
   }
   const twice = placed.filter((id, i) => placed.indexOf(id) !== i);
   if (twice.length > 0) throw new PageDocumentError(`${[...new Set(twice)].join(', ')} on two sheets`);
@@ -844,7 +847,15 @@ function readFlow(l: Record<string, unknown>, views: ReadonlySet<string>, what: 
       throw new PageDocumentError(`box ${i + 1} of ${what} is not a tile and its place (x, y)`);
     }
     if (!views.has(b['tile'])) throw new PageDocumentError(`a box shows no view of this page (${b['tile']})`);
-    return { tile: b['tile'], x: b['x'], y: b['y'] };
+    const odd = Object.keys(b).filter((k) => !['tile', 'x', 'y', 'frame'].includes(k));
+    if (odd.length > 0) throw new PageDocumentError(`box ${i + 1} of ${what} is a tile, its place and a frame, not ${odd.join(', ')}`);
+    const f = b['frame'];
+    if (f === undefined) return { tile: b['tile'], x: b['x'], y: b['y'] };
+    if (!isObject(f) || typeof f['w'] !== 'number' || typeof f['h'] !== 'number' || (f['collapsed'] !== undefined && f['collapsed'] !== true)
+      || Object.keys(f).some((k) => !['w', 'h', 'collapsed'].includes(k))) {
+      throw new PageDocumentError(`box ${i + 1} of ${what}'s frame is {w, h, collapsed?}, not ${JSON.stringify(f)}`);
+    }
+    return { tile: b['tile'], x: b['x'], y: b['y'], frame: { w: f['w'], h: f['h'], ...(f['collapsed'] === true ? { collapsed: true as const } : {}) } };
   });
   const wrong = flowProblems({ boxes });
   if (wrong.length > 0) throw new PageDocumentError(`${what} cannot be laid out: ${wrong.join('; ')}`);

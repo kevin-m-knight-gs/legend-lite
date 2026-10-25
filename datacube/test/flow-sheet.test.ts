@@ -11,7 +11,7 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { boxInputs, boxSays, readersOf } from '../src/flow-boxes.ts';
 import { add, NEW_SHEET } from '../src/layout/bands.ts';
 import {
-  BOX_HEIGHT, BOX_WIDTH, EMPTY_FLOW, FlowRefusal, GAP_X, GAP_Y, MARGIN, arranged, flowProblems, moveBox, placeAfter, removeBox,
+  BOX_HEIGHT, BOX_WIDTH, EMPTY_FLOW, FlowRefusal, GAP_X, GAP_Y, MARGIN, arranged, flowProblems, framedBy, moveBox, placeAfter, removeBox,
 } from '../src/layout/flow.ts';
 import { liveGrids, resolvedSource } from '../src/live-inputs.ts';
 import { applyPageCommand, idsOf, readPageCommand, type PageCommand, type PageDraft } from '../src/page-commands.ts';
@@ -342,6 +342,30 @@ describe("a flow sheet's page commands", () => {
     const tidy = tidyCommands(d.page, 'sheet-2');
     const after = tidy.length === 0 ? d.page : apply(d, ...tidy).page;
     assert.deepEqual(at(after, 'text-1'), { tile: 'text-1', x: 600, y: 300 }, 'a comment stays where it was put');
+  });
+
+  it('takes a framed comment as a container: its frame kept by a move, folded, taken off; a grid never framed (M7)', () => {
+    const frame = { w: 600, h: 200 };
+    const d = apply(FLOW(), { kind: 'addText', id: 'text-1', sheet: 'sheet-2', text: 'Prep', title: null, columns: null },
+      { kind: 'placeBox', tile: 'text-1', x: 20, y: 10, frame });
+    assert.deepEqual(at(d.page, 'text-1'), { tile: 'text-1', x: 20, y: 10, frame });
+    // moved, its frame kept; folded; a comment again
+    assert.deepEqual(at(apply(d, { kind: 'placeBox', tile: 'text-1', x: 30, y: 10 }).page, 'text-1'), { tile: 'text-1', x: 30, y: 10, frame });
+    assert.deepEqual(at(apply(d, { kind: 'placeBox', tile: 'text-1', x: 20, y: 10, frame: { ...frame, collapsed: true } }).page, 'text-1')?.frame,
+      { ...frame, collapsed: true });
+    assert.deepEqual(at(apply(d, { kind: 'placeBox', tile: 'text-1', x: 20, y: 10, frame: null }).page, 'text-1'), { tile: 'text-1', x: 20, y: 10 });
+    // saved and read again with its frame; a frame too small, or on a grid, refused
+    assert.deepEqual(at(readPage(JSON.parse(pageToJson(d.page))), 'text-1')?.frame, frame);
+    refused(() => apply(d, { kind: 'placeBox', tile: 'text-1', x: 0, y: 0, frame: { w: 50, h: 50 } }), /a frame is at least 200 by 100/);
+    refused(() => apply(d, { kind: 'placeBox', tile: 'grid-2', x: 0, y: 0, frame }), /a container is a comment/);
+    assert.throws(() => readPage(JSON.parse(pageToJson(d.page).replace('"tile":"grid-2","x":40,"y":40', '"tile":"grid-2","x":40,"y":40,"frame":{"w":300,"h":200}'))),
+      (e: unknown) => e instanceof PageDocumentError && /a container is a comment, not a grid/.test(e.message));
+    // the boxes in it: those whose whole place is inside it, below its head
+    const flow = flowOf(d.page);
+    assert.deepEqual(framedBy(flow, 'text-1').sort(), flow.boxes.filter((b) => b.tile !== 'text-1' && b.x >= 20 && b.y >= 40 && b.x + BOX_WIDTH <= 620 && b.y + BOX_HEIGHT <= 210)
+      .map((b) => b.tile).sort());
+    assert.deepEqual(readPageCommand({ kind: 'placeBox', tile: 'text-1', x: 1, y: 2, frame: { w: 300, h: 200, collapsed: true } }),
+      { kind: 'placeBox', tile: 'text-1', x: 1, y: 2, frame: { w: 300, h: 200, collapsed: true } });
   });
 
   it('refuses in words what only a board takes: a chart, a stack, an arrangement, a tile from a board', () => {

@@ -120,8 +120,8 @@ def page_add_flow(*, id: Any = _ABSENT, name: Any) -> dict[str, Any]:
     return {'kind': 'addFlow', **({} if id is _ABSENT else {'id': id}), 'name': name}
 
 
-def page_place_box(*, tile: Any, x: Any, y: Any) -> dict[str, Any]:
-    return {'kind': 'placeBox', 'tile': tile, 'x': x, 'y': y}
+def page_place_box(*, tile: Any, x: Any, y: Any, frame: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'placeBox', 'tile': tile, 'x': x, 'y': y, **({} if frame is _ABSENT else {'frame': frame})}
 
 
 def page_rename_sheet(*, sheet: Any, name: Any) -> dict[str, Any]:

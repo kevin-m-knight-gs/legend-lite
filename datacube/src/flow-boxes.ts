@@ -20,7 +20,7 @@ import type { EditorTab } from './ui/editor.ts';
 /** A tool of the flow's palette, and what a box is drawn as. */
 export type FlowTool = 'input' | 'textInput' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile'
-  | 'datetime' | 'cleanse' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment';
+  | 'datetime' | 'cleanse' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment' | 'container';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
 export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: FlowGroup; readonly does: string }>> = {
@@ -46,6 +46,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   crosstab: { name: 'Cross Tab', group: 'transform', does: 'a column\'s values made columns across, a row per group' },
   browse: { name: 'Browse', group: 'prepare', does: 'its input\'s rows, as they come' },
   comment: { name: 'Comment', group: 'docs', does: 'a note on the canvas, in words of your own' },
+  container: { name: 'Container', group: 'docs', does: 'a frame round boxes: moved together, folded away' },
 };
 
 /** A palette group (Alteryx's: In/Out, Preparation, Join, Parse, Transform, Documentation). */
@@ -54,7 +55,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
   'input', 'textInput', 'filter', 'formula', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse',
-  'join', 'union', 'textToColumns', 'regex', 'summarize', 'crosstab', 'runningTotal', 'comment',
+  'join', 'union', 'textToColumns', 'regex', 'summarize', 'crosstab', 'runningTotal', 'comment', 'container',
 ];
 
 /**

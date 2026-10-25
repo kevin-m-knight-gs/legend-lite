@@ -1368,12 +1368,29 @@ class Text(Tile):
         # long, not text
         self._page._apply_page([_commands.page_set_text(tile=self._id, text=text)])
 
-    def place(self, x: int, y: int) -> Text:
+    def place(self, x: int, y: int, *, width: int | None = None, height: int | None = None,
+              folded: bool | None = None) -> Text:
         """Its note moved to (``x``, ``y``) on its flow's canvas, as a comment is dragged there (page-commands.ts
-        placeBox; docs/DATACUBE_FLOW_MODE_2026_10_24.md M7). A text tile on a board is placed by its layout: refused in
-        DataCube's words."""
+        placeBox; docs/DATACUBE_FLOW_MODE_2026_10_24.md M7). Given a ``width`` and a ``height``, it is a CONTAINER --
+        Alteryx's Tool Container: a frame round the boxes placed inside it, moved with it on the canvas -- ``folded`` to
+        its head or not; without, a container keeps its frame. A text tile on a board is placed by its layout, and a
+        frame is at least 200 by 100: refused in DataCube's words."""
         _ = self._view
-        self._page._apply_page([_commands.page_place_box(tile=self._id, x=x, y=y)])
+        if (width is None) != (height is None):
+            raise ValueError('a container is a width and a height, both')
+        frame: dict[str, Any] | None = None
+        if width is not None:
+            frame = {'w': width, 'h': height, **({'collapsed': True} if folded else {})}
+        elif folded is not None:
+            raise ValueError('folded is a container\'s: give its width and height too')
+        self._page._apply_page([_commands.page_place_box(tile=self._id, x=x, y=y, **({'frame': frame} if frame else {}))])
+        return self
+
+    def unframe(self) -> Text:
+        """A container a comment again: its frame taken off, its place kept (placeBox with no frame)."""
+        sheet = next(s for s in self._page.to_dict()['sheets'] if any(b['tile'] == self._id for b in s['layout'].get('boxes', [])))
+        box = next(b for b in sheet['layout']['boxes'] if b['tile'] == self._id)
+        self._page._apply_page([_commands.page_place_box(tile=self._id, x=box['x'], y=box['y'], frame=None)])
         return self
 
 

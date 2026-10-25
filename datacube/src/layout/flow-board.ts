@@ -12,7 +12,7 @@
 // says what the hand did (`FlowBoardOptions`), and is put at the page the command makes (page/cube-page.ts sync).
 
 import type { BandTile } from './band-board.ts';
-import { EMPTY_FLOW, placeAfter, removeBox, type Flow } from './flow.ts';
+import { EMPTY_FLOW, placeAfter, removeBox, type Flow, type Frame } from './flow.ts';
 import { isLive, type CubeDocument, type CubeInput, type InputPort, type InputSide } from '../cube-document.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
@@ -24,7 +24,15 @@ export interface FlowBoardOptions {
   readonly onMove?: (id: string, x: number, y: number) => void;
   /** Boxes picked together (Shift+click, a band dragged round them) let go each at its place, by one drag or one arrow
    *  key: the caller tells their places as one step. */
-  readonly onMoveMany?: (moves: readonly { readonly id: string; readonly x: number; readonly y: number }[]) => void;
+  readonly onMoveMany?: (moves: readonly { readonly id: string; readonly x: number; readonly y: number }[], label?: string) => void;
+  /** A container's frame changed by hand -- sized by its corner, folded or unfolded by its head -- at (`x`, `y`): the
+   *  caller tells it (placeBox with its frame). */
+  readonly onFrame?: (id: string, x: number, y: number, frame: Frame) => void;
+  /** A container made at (`x`, `y`), `frame` its size (the palette's Container let go there, or Ctrl+G round the boxes
+   *  picked): the caller adds a comment framed so. */
+  readonly onContainer?: (at: FlowPoint, frame: Frame) => void;
+  /** A comment's words to be edited (a container's head double-clicked): the caller opens their editor. */
+  readonly onEditText?: (id: string) => void;
   /** A box clicked, or Enter on it: the caller shows its rows (its grid made, `add`) -- and its settings, `editor` (the
    *  window of its grid's that sets what it does: flow-boxes.ts TOOL_EDITORS), docked in the board's settings pane. */
   readonly onSelect?: (id: string, editor: StepEditor | undefined) => void;

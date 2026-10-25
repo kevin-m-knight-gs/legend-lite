@@ -2714,6 +2714,27 @@ class Flows(Paged):
         again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
         self.assertEqual(next(g for g in again.grids if g.id == top.id).input.id, big.id)
 
+    def test_a_container_frames_boxes(self):
+        # M7: a comment with a frame is a container (Alteryx's Tool Container): its size kept by a move, folded or not;
+        # a grid is never framed; a frame too small refused; taken off, a comment again
+        page, flow, _source, big = self.flowed()
+        box = flow.text('Prep')
+        box.place(20, 300, width=420, height=160)
+        self.assertIn({'tile': box.id, 'x': 20, 'y': 300, 'frame': {'w': 420, 'h': 160}}, self.boxes(page, flow))
+        box.place(30, 310)
+        self.assertIn({'tile': box.id, 'x': 30, 'y': 310, 'frame': {'w': 420, 'h': 160}}, self.boxes(page, flow))
+        box.place(30, 310, width=420, height=160, folded=True)
+        self.assertIn({'tile': box.id, 'x': 30, 'y': 310, 'frame': {'w': 420, 'h': 160, 'collapsed': True}}, self.boxes(page, flow))
+        with self.assertRaisesRegex(ValueError, 'a frame is at least 200 by 100'):
+            box.place(30, 310, width=50, height=50)
+        with self.assertRaisesRegex(ValueError, 'a container is a comment'):
+            page._apply_page([{'kind': 'placeBox', 'tile': big.id, 'x': 0, 'y': 0, 'frame': {'w': 300, 'h': 200}}])
+        again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
+        self.assertIn({'tile': box.id, 'x': 30, 'y': 310, 'frame': {'w': 420, 'h': 160, 'collapsed': True}},
+                      next(s for s in again.to_dict()['sheets'] if s['id'] == flow.id)['layout']['boxes'])
+        box.unframe()
+        self.assertIn({'tile': box.id, 'x': 30, 'y': 310}, self.boxes(page, flow))
+
     def test_unique_and_its_duplicates(self):
         # M3: a flow's Unique (unique.ts uniqueCommands) -- a row of each key, its first by an order -- and its
         # Duplicates, the filter's False port (FL7): every row after a key's first

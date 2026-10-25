@@ -684,6 +684,20 @@ placed together -- a pasted box reading another of them reads its pasted copy, a
 Boxes), the pasted ones picked. Tested by the harness (two boxes moved as one, copied and pasted with their link between
 them, taken off together, Ctrl+A and Escape, a band round the Input).
 
+**Built, containers** (`layout/flow.ts` `Frame`, `framedBy`; `page-commands.ts` `placeBox`'s `frame`;
+`layout/flow-canvas.ts` `#paintContainer`, `#startContainer`, `#startFrameSize`, `#wrapPicked`; `page/cube-page.ts`
+`#addContainer`): Alteryx's Tool Container, as a comment with a frame -- a flow box's place may carry a frame (its size,
+folded or not), a text tile's only, at least 200 by 100; `placeBox` sets it (null takes it off, a comment again; left
+out, it keeps the one it has). The boxes in a container are never written: they are the boxes whose whole place is
+inside its frame, below its head (`framedBy`). Drawn behind the lines and the boxes -- its inside the canvas's own (a band
+starts there, a tool is let go there) -- its head its words' first line, how many boxes it holds, its fold and its ×;
+dragged by its head with the boxes in it (one step, Move Container), sized by its corner (Size Container), folded to its
+head (Fold Container: its boxes out of sight, a line from outside drawn to its head, one inside it not drawn) and
+unfolded; double-click its head to name it. Made from the palette's Container (under Notes), or by Ctrl+G round the
+boxes picked. Python: `note.place(x, y, width=..., height=..., folded=...)`, `note.unframe()`. Tested by
+`flow-sheet.test.ts` (the frame kept, folded, taken off, refused on a grid and too small, read again, the boxes in it),
+Python's `test_a_container_frames_boxes` and the harness (Ctrl+G round two boxes, moved with them, folded, unfolded).
+
 **Built, a line's words and the canvas's keys** (`layout/flow-canvas.ts` `#lineWords`, `KEYS`): the pointer resting on
 a line says what goes along it, as Alteryx's connection says its metadata -- from which box (its port, a Filter's False or
 a Unique's Duplicates) into which, its rows when they were counted, and its columns as the box's document says them; the

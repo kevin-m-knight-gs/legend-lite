@@ -8,14 +8,32 @@
 //
 // The rules, enforced by construction and checked by `flowProblems`:
 //   - every box is in the flow once;
-//   - a place is two whole numbers, neither below zero.
+//   - a place is two whole numbers, neither below zero;
+//   - a frame (a container's) is two whole numbers, no smaller than FRAME_MIN.
 
-/** A box on the canvas: its tile, and where its top-left corner is. */
+/** A box on the canvas: its tile, and where its top-left corner is -- and, a container's (a comment with a frame:
+ *  Alteryx's Tool Container, docs/DATACUBE_FLOW_MODE_2026_10_24.md M7), its size, and whether it is folded to its head. */
 export interface FlowBox {
   readonly tile: string;
   readonly x: number;
   readonly y: number;
+  readonly frame?: Frame;
 }
+
+/** A container's size on the canvas; folded (`collapsed`), its head alone is drawn and the boxes in it are not. The boxes
+ *  in it are never written: they are the boxes whose place is inside it (`framedBy`). */
+export interface Frame {
+  readonly w: number;
+  readonly h: number;
+  readonly collapsed?: true;
+}
+
+/** The smallest a frame is: room for its head and a box. */
+export const FRAME_MIN = { w: 200, h: 100 } as const;
+/** A frame's head: its title, its fold, its ×. What a folded container is. */
+export const FRAME_HEAD = 30;
+/** A container's size as the palette's Container makes one: room for two boxes side by side. */
+export const CONTAINER_FRAME: Frame = { w: 480, h: 180 };
 
 /** A flow: its boxes, in the order they were placed. */
 export interface Flow {
@@ -32,6 +50,8 @@ export const GAP_X = 64;
 export const GAP_Y = 32;
 /** Where the first box goes: the canvas's margin. */
 export const MARGIN = 40;
+/** A box's size, as a container's frame takes it. */
+const BOX_SIZE = { w: BOX_WIDTH, h: BOX_HEIGHT } as const;
 
 /** The tiles of a flow, in the order they were placed. */
 export function flowTiles(flow: Flow): string[] {
@@ -62,12 +82,41 @@ export function placeAfter(flow: Flow, tile: string, near?: string): Flow {
 }
 
 /** A box moved to (`x`, `y`), rounded to whole units; refused when it is no box of the flow, or the place is off the canvas. */
-export function moveBox(flow: Flow, tile: string, x: number, y: number): Flow {
+export function moveBox(flow: Flow, tile: string, x: number, y: number, frame?: Frame | null): Flow {
   if (!flow.boxes.some((b) => b.tile === tile)) throw new FlowRefusal(`'${tile}' is no box of this flow`);
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0) {
     throw new FlowRefusal(`a box's place is two numbers, neither below zero, not (${x}, ${y})`);
   }
-  return { boxes: flow.boxes.map((b) => (b.tile === tile ? { tile, x: Math.round(x), y: Math.round(y) } : b)) };
+  const problem = frame === undefined || frame === null ? undefined : frameProblem(frame);
+  if (problem !== undefined) throw new FlowRefusal(`'${tile}'s frame: ${problem}`);
+  return {
+    boxes: flow.boxes.map((b) => {
+      if (b.tile !== tile) return b;
+      // its frame given, else the one it has (null: none)
+      const kept = frame === undefined ? b.frame : frame === null ? undefined : framed(frame);
+      return { tile, x: Math.round(x), y: Math.round(y), ...(kept !== undefined ? { frame: kept } : {}) };
+    }),
+  };
+}
+
+/** What is wrong with a frame, if anything: its size whole numbers no smaller than FRAME_MIN. */
+export function frameProblem(f: Frame): string | undefined {
+  if (!Number.isFinite(f.w) || !Number.isFinite(f.h) || Math.round(f.w) < FRAME_MIN.w || Math.round(f.h) < FRAME_MIN.h) {
+    return `a frame is at least ${FRAME_MIN.w} by ${FRAME_MIN.h}, not ${f.w} by ${f.h}`;
+  }
+  return undefined;
+}
+
+const framed = (f: Frame): Frame => ({ w: Math.round(f.w), h: Math.round(f.h), ...(f.collapsed === true ? { collapsed: true } : {}) });
+
+/** THE BOXES IN A CONTAINER (`frame`'s box): those whose whole place is inside its frame, below its head -- never a frame
+ *  itself. What moves with it, and what it hides folded. */
+export function framedBy(flow: Flow, container: string, size: { readonly w: number; readonly h: number } = BOX_SIZE): string[] {
+  const c = flow.boxes.find((b) => b.tile === container);
+  const f = c?.frame;
+  if (c === undefined || f === undefined) return [];
+  return flow.boxes.filter((b) => b.tile !== container && b.frame === undefined
+    && b.x >= c.x && b.y >= c.y + FRAME_HEAD && b.x + size.w <= c.x + f.w && b.y + size.h <= c.y + f.h).map((b) => b.tile);
 }
 
 /** A box taken off the canvas; a tile the flow does not have leaves it as it is. */
@@ -134,6 +183,10 @@ export function flowProblems(flow: Flow): string[] {
     seen.add(b.tile);
     if (!Number.isInteger(b.x) || !Number.isInteger(b.y) || b.x < 0 || b.y < 0) {
       problems.push(`'${b.tile}' is at (${b.x}, ${b.y}): a box's place is two whole numbers, neither below zero`);
+    }
+    const f = b.frame;
+    if (f !== undefined && (frameProblem(f) !== undefined || !Number.isInteger(f.w) || !Number.isInteger(f.h))) {
+      problems.push(`'${b.tile}'s frame is ${f.w} by ${f.h}: a frame is two whole numbers, at least ${FRAME_MIN.w} by ${FRAME_MIN.h}`);
     }
   }
   return problems;
