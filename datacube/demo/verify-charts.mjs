@@ -269,6 +269,12 @@ try {
       }, [marker, least], { timeout: 120_000 });
       await settle();
       const sheets = await page.locator('.dc-sheet-tab').evaluateAll((els) => els.map((e) => e.dataset.sheet));
+      // EACH TAB AS WIDE AS ITS NAME while the strip has room (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md
+      // §4): every gallery tab read "Bars and li..." with half the bar empty
+      const cut = await page.locator('.dc-sheet-tab .dc-sheet-label').evaluateAll((els) => els
+        .filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent));
+      const room = await page.locator('.dc-sheet-strip').evaluate((s) => s.scrollWidth <= s.clientWidth + 1);
+      if (room && cut.length) throw new Error(`tabs cut short with room to spare: ${cut.join(' | ')}`);
       let drawnCharts = 0;
       for (const sheet of sheets) {
         await page.locator(`.dc-sheet-tab[data-sheet="${sheet}"]`).click();

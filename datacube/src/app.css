@@ -98,28 +98,29 @@
 .dc-page-alone:empty { display: none; }
 .dc-page-alone > .dc-tile-cube { align-self: stretch; }
 
-/* THE NAME BOX (the design's §7.1): the page's name, after the menu -- "Untitled page" before it has one, a dot once
-   it changed since it was saved; a click renames it in place */
+/* THE PAGE'S NAME (the design's §7.1), after the menu: its title -- plain words, not a box (the user, 2026-10-25;
+   docs/DATACUBE_UI_REVIEW_2026_10_24.md §4) -- "Untitled page" before it has one, a dot once it changed since it was
+   saved; pointed at, the box a click renames it in */
 .dc-page-name {
   flex: 0 1 auto;
   min-width: 48px;
-  max-width: 240px;
-  height: 20px;
+  max-width: 280px;
+  height: 22px;
   margin: 0 var(--dc-pad-1);
   padding: 0 var(--dc-pad-2);
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  border: 1px solid var(--dc-line);
+  border: 1px solid transparent;
   border-radius: var(--dc-radius-sm);
-  background: var(--tw-white);
-  font-weight: 500;
+  background: transparent;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .dc-page-name[role='button'] { cursor: text; }
-.dc-page-name[role='button']:hover { border-color: var(--dc-line-strong); }
+.dc-page-name[role='button']:hover { border-color: var(--dc-line); background: var(--tw-white); }
 .dc-page-name.dc-page-name-untitled { color: var(--dc-muted); font-weight: 400; font-style: italic; }
 .dc-page-name.dc-page-name-changed::after { content: '\2022'; margin-left: 6px; color: var(--dc-active); }
 .dc-page-name-field { width: 200px; font: inherit; border: 0; padding: 0; background: transparent; outline: none; }
@@ -129,10 +130,12 @@
 .dc-sheet-tabs { flex: 0 1 auto; min-width: 0; align-self: stretch; display: flex; align-items: flex-end; gap: 2px; }
 .dc-sheet-strip { min-width: 0; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 .dc-sheet-strip::-webkit-scrollbar { display: none; }
+/* each as wide as its name (the user, 2026-10-25; §4): cut short only when the strip runs out of room -- they were all
+   160px, and "Bars and lines" read "Bars and li..." with half the bar empty */
 .dc-sheet-tab {
-  flex: 0 1 160px;
+  flex: 0 1 auto;
   min-width: 56px;
-  max-width: 200px;
+  max-width: 240px;
   height: 24px;
   padding: 0 var(--dc-pad-2);
   display: flex;

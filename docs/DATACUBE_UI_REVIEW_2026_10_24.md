@@ -185,6 +185,12 @@ was brings it back). No shortcuts are shown yet: the page binds no keys of its o
 - **The lone grid's source and state in its own status bar,** as every grid's — the page bar holds the page's things.
 - **One pill style** for states (filled, quiet), never a dashed outline.
 
+**Built 2026-10-25** (`app.css` `.dc-page-name`, `.dc-sheet-tab`; checked in `demo/verify-charts.mjs` over the gallery's
+tabs). The page's name is its title in plain bold words, with a box only on hover to show it renames there. Each sheet
+tab is as wide as its name, cut short only when the strip runs out of room; they were all 160px, and the gallery's
+read "Bars and li…" with half the bar empty. The ▾ list of every sheet, the unsaved dot, the lone grid's state in its
+tab and the state icons were in place already.
+
 ### 5. The grid's status bar, a readout a person reads
 
 - **Left: what the grid shows** — "200,000 rows · 3 groups" (the leaf count the grid already queries), and the
@@ -366,8 +372,8 @@ View ▸                                    Properties…                 Ctrl+E
 | 4 | Files in the text box (§8): Markdown and text first, then PDF, media, Word, email, PowerPoint | Added by the user, 2026-10-25 |
 
 **Where it stands, 2026-10-25.** Built: numbers right-aligned; the page's ≡ grouped by purpose (§3); one tile header
-(§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2); the example-switch bug fixed (found 1); the status bar's error as a chip. Next:
-the title bar (§4); the menus' design language for
+(§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2); the example-switch bug fixed (found 1); the status bar's error as a chip; the title bar (§4). Next:
+the menus' design language for
 every menu; grouped text columns (found 2); the columns panel (found 3); one icon set (found 4; the tile states, the
 status bar's tools and the editor's toolbar already drawn); the options pane docked at the page's edge; then §8.
 
