@@ -294,6 +294,53 @@ try {
     });
   }
 
+  // THE TIMESERIES EXAMPLES (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §9; the timeseries review's G5,
+  // docs/TIMESERIES_REVIEW_2026_10_25.md: no harness opened them): each opened from Open…'s Examples over the markets and
+  // rates samples it makes itself; on each of its sheets every timeseries tile draws -- its ECharts canvas, every line
+  // the database answered, no line refused and no problem in its banner (a tile on a sheet not shown draws when shown)
+  for (const [example, marker, least] of [['markets', 'performance', 6], ['timeseries-gallery', 'returns', 36]]) {
+    await check(`the example page ${example} opens from Open…, and every timeseries on every sheet draws`, async () => {
+      await page.click('.dc-titlebar-menu');
+      const open = page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Open\u2026"))').first();
+      if (!(await open.isVisible())) await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("File"))').first().hover();
+      await open.click();
+      await page.locator(`#cubeswin .dc-open-example[data-example="${example}"]`).click();
+      await page.waitForFunction(([mark, n]) => {
+        const views = window.__dataPage?.views().views ?? [];
+        return views.some((v) => v.id === mark) && views.filter((v) => v.kind === 'timeseries').length >= n;
+      }, [marker, least], { timeout: 120_000 });
+      await settle();
+      const sheets = await page.locator('.dc-sheet-tab').evaluateAll((els) => els.map((e) => e.dataset.sheet));
+      let drawn = 0;
+      for (const sheet of sheets) {
+        await page.locator(`.dc-sheet-tab[data-sheet="${sheet}"]`).click();
+        await settle();
+        // every timeseries tile shown on this sheet has drawn its answers -- a canvas, not still asking -- or said why not
+        await page.waitForFunction(() => {
+          const tiles = [...document.querySelectorAll('[data-tile] .dc-ts')].filter((t) => t.offsetParent !== null);
+          return tiles.every((t) => (t.querySelector('.dc-ts-chart canvas') && t.querySelector('.dc-ts-chart')?.getAttribute('aria-busy') !== 'true')
+            || t.querySelector('.dc-ts-failed') || t.querySelector('.dc-ts-banner.dc-ts-bad'));
+        }, null, { timeout: 120_000 }).catch(async (e) => {
+          const said = await page.locator('[data-tile] .dc-ts').evaluateAll((els) => els
+            .filter((t) => t.offsetParent !== null && !t.querySelector('.dc-ts-chart canvas'))
+            .map((t) => `${t.closest('[data-tile]')?.dataset.tile}: ${t.querySelector('.dc-ts-banner')?.textContent ?? ''}`));
+          throw new Error(`sheet ${sheet}: ${e.message}; undrawn: ${said.join(' | ')}`);
+        });
+        if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath(`${example}-${sheet}.png`) }); }
+        const bad = await page.locator('[data-tile] .dc-ts').evaluateAll((els) => els.filter((t) => t.offsetParent !== null).flatMap((t) => {
+          const tile = t.closest('[data-tile]')?.dataset.tile;
+          const refused = [...t.querySelectorAll('.dc-ts-failed')].map((c) => `${tile}: ${c.getAttribute('title')}`);
+          const banner = t.querySelector('.dc-ts-banner.dc-ts-bad');
+          return banner ? [...refused, `${tile}: ${banner.textContent}`] : refused;
+        }));
+        if (bad.length) throw new Error(`sheet ${sheet}: ${bad.join(' | ')}`);
+        drawn += await page.locator('[data-tile] .dc-ts .dc-ts-chart canvas').evaluateAll((els) => els.filter((e) => e.offsetParent !== null).length);
+      }
+      if (drawn < least) throw new Error(`${drawn} timeseries drawn over ${sheets.length} sheets, of ${least}`);
+      return `${sheets.length} sheets, ${drawn} timeseries drawn`;
+    });
+  }
+
   await check('no page errors', async () => {
     if (pageErrors.length) throw new Error(pageErrors.slice(0, 2).join(' | '));
   });
