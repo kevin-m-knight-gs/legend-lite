@@ -4483,6 +4483,7 @@
 .dc-flow-act:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
 .dc-flow-act[hidden] { display: none; }
 .dc-flow-zoom { min-width: 26px; padding: 0 8px; }
+.dc-flow-zoom.dc-chosen { background: color-mix(in srgb, var(--dc-active) 12%, var(--tw-white)); border-color: var(--dc-active); color: var(--dc-active); }
 /* Undo and Redo, a pair: off while there is no step to undo or redo */
 /* the canvas's keys and gestures, its ? opens them: at the stage's corner, under its tools */
 .dc-flow-keys-panel {
@@ -5068,6 +5069,18 @@
 .dc-transpose-row input { justify-self: center; }
 .dc-transpose-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dc-transpose-name-input, .dc-transpose-value-input { width: 9em; }
+
+/* ---- a flow's minimap (layout/flow-canvas.ts): the whole flow small, the part in view framed, while it does not fit ---- */
+.dc-flow-minimap {
+  position: absolute; right: 12px; bottom: 12px; z-index: 3;
+  padding: 6px; box-sizing: content-box;
+  background: color-mix(in srgb, var(--tw-white) 92%, transparent); border: 1px solid var(--tw-neutral-200); border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%); cursor: pointer; touch-action: none;
+}
+.dc-flow-minimap-box { fill: var(--tw-neutral-300); rx: 1.5px; }
+.dc-flow-minimap-shown { fill: var(--dc-active); }
+.dc-flow-minimap-frame { fill: color-mix(in srgb, var(--dc-active) 6%, transparent); stroke: color-mix(in srgb, var(--dc-active) 40%, transparent); stroke-width: 1px; }
+.dc-flow-minimap-view { fill: color-mix(in srgb, var(--dc-active) 10%, transparent); stroke: var(--dc-active); stroke-width: 1.5px; }
 
 /* ---- a flow's containers (Alteryx's Tool Container: a comment with a frame) -- behind the lines and the boxes, its inside
    the canvas's own (a band, a tool let go), its head and its corner its own ---- */

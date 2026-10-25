@@ -729,6 +729,12 @@ in words. A box says "region → area; 1 of 12 columns left out". Python: `grid.
 Python's `test_a_select_keeps_and_renames_for_what_reads_it` and the harness (a Select of the Filter, the Sort after it
 reading `area`, no `region`, no `book`).
 
+**Built, the minimap** (M7; `layout/flow-canvas.ts`): the toolbar's Map shows the whole flow small in the canvas's
+corner -- each box a mark, the one shown in its colour, each container its frame -- and the part in view framed; a
+press or a drag on it moves the view there. Asked for, never unasked (shown always, it covered the boxes in its corner:
+found by the harness, a Filter's port under it), and its button off while every box is in view. Tested by the harness
+(asked for, a press at its top and at its bottom moving the view, asked away).
+
 **Run from the keys** (`layout/flow-canvas.ts`): Ctrl+Enter (⌘+Enter) anywhere on the canvas runs the flow, as its
 button does, while no run is going; the keys panel and the button's title say so. Tested by the harness (a run from a
 box's keys writes its Output).

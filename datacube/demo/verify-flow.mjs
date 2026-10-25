@@ -104,7 +104,7 @@ const emptyCanvasPoint = () => page.evaluate(() => {
   for (let y = c.bottom - 30; y > c.top + 60; y -= 24) {
     for (let x = c.left + 100; x < c.right - 100; x += 24) {
       const hit = document.elementsFromPoint(x, y);
-      if (hit.some((e) => e.closest?.('.dc-flow-box, .dc-flow-note, .dc-flow-toolbar') || e.classList?.contains('dc-flow-hit'))) continue;
+      if (hit.some((e) => e.closest?.('.dc-flow-box, .dc-flow-note, .dc-flow-toolbar, .dc-flow-minimap') || e.classList?.contains('dc-flow-hit'))) continue;
       return { x, y, canvasX: x - document.querySelector('.dc-flow-plane').getBoundingClientRect().left };
     }
   }
@@ -727,6 +727,25 @@ try {
   // what opening a box before it left out is said on that box's own status bar, never on the page's line under another
   check(!/no longer in its input/.test(await page.locator('.dc-app-status').first().textContent().catch(() => '') ?? ''),
     'no other box\'s note on the page\'s status line');
+
+  // THE MINIMAP (M7), asked for by its button: a flow taller than the canvas drawn small, the part in view framed; a
+  // press on it moves there; asked away again, it covers nothing
+  const minimap = page.locator('.dc-flow-minimap');
+  check(!(await minimap.isVisible()), 'no minimap unasked');
+  await page.locator('.dc-flow-map').click();
+  check(await minimap.isVisible(), 'a minimap, asked for, the flow no longer fitting');
+  const mapBox = await minimap.boundingBox();
+  const scrolledBefore = await page.locator('.dc-flow-canvas').evaluate((c) => c.scrollTop);
+  await page.mouse.click(mapBox.x + mapBox.width / 2, mapBox.y + 4);
+  const scrolledTop = await page.locator('.dc-flow-canvas').evaluate((c) => c.scrollTop);
+  await page.mouse.click(mapBox.x + mapBox.width / 2, mapBox.y + mapBox.height - 4);
+  const scrolledBottom = await page.locator('.dc-flow-canvas').evaluate((c) => c.scrollTop);
+  check(scrolledBottom > scrolledTop, `a press on it moves the view there: ${scrolledBefore} -> ${scrolledTop} -> ${scrolledBottom}`);
+  check(await minimap.locator('.dc-flow-minimap-view').count() === 1 && await minimap.locator('.dc-flow-minimap-shown').count() === 1,
+    'the part in view framed, the box shown marked');
+  await page.screenshot({ path: outPath('flow-minimap.png') });
+  await page.locator('.dc-flow-map').click();
+  check(!(await minimap.isVisible()), 'asked away again');
 
   // MULTI-FIELD FORMULA (M3), dragged onto the Filter: one expression over two text columns, a column of each; then one
   // the compiler refuses (trim of a number), said in the window

@@ -47,6 +47,8 @@ const LEAST_SETTINGS = 320;
 const LEAST_CANVAS = 240;
 
 const SVG = 'http://www.w3.org/2000/svg';
+/** The minimap's room, at most: the plane drawn within it. */
+const MINIMAP = { w: 168, h: 108 } as const;
 
 /** Where a side's port is on a box's left edge, from its top: a join's left above its right, any other box's in the
  *  middle (as Alteryx's Join has its L and R anchors). */
@@ -79,6 +81,7 @@ const KEYS: readonly (readonly [string, string])[] = [
   ['Ctrl+A, Escape', 'pick every box, none'],
   ['Ctrl+G', 'a container round the boxes picked'],
   ['Ctrl+wheel', 'zoom about the pointer'],
+  ['Map', 'the whole flow small: press or drag on it to move'],
   ['Right-click a box', 'its menu'],
 ];
 
@@ -157,6 +160,11 @@ export class FlowCanvas {
   readonly #plane: HTMLElement;
   readonly #lines: SVGSVGElement;
   readonly #hint: HTMLElement;
+  /** THE MINIMAP (M7): the whole flow small, the part in view framed -- shown when asked (its toolbar button), while the
+   *  flow does not fit; never unasked, as it covers its corner of the canvas. */
+  readonly #minimap: SVGSVGElement;
+  #mapOn = false;
+  #mapButton!: HTMLButtonElement;
   readonly #split: HTMLElement;
   readonly #settings: HTMLElement;
   readonly #settingsTitle: HTMLElement;
@@ -343,13 +351,18 @@ export class FlowCanvas {
     const zoomIn = tool('dc-flow-zoom', '+', 'Zoom in (Ctrl+wheel)', () => this.#zoomBy(1));
     const fit = tool('dc-flow-zoom', 'Fit', 'Every box in view', () => this.#fit());
     // what the canvas's keys and gestures do, said on asking
+    this.#mapButton = tool('dc-flow-zoom dc-flow-map', 'Map', 'The whole flow, small: click or drag on it to move there', () => {
+      this.#mapOn = !this.#mapOn;
+      this.#paintMinimap();
+    });
+    this.#mapButton.setAttribute('aria-pressed', 'false');
     const keys = tool('dc-flow-zoom dc-flow-keys', '?', 'Keys and gestures', () => {
       this.#keysPanel.hidden = !this.#keysPanel.hidden;
     });
     keys.setAttribute('aria-label', 'Keys and gestures');
     zoomOut.setAttribute('aria-label', 'Zoom out');
     zoomIn.setAttribute('aria-label', 'Zoom in');
-    this.#toolbar.append(this.#run, this.#tidy, this.#undo, this.#redo, zoomOut, this.#zoomLevel, zoomIn, fit, keys);
+    this.#toolbar.append(this.#run, this.#tidy, this.#undo, this.#redo, zoomOut, this.#zoomLevel, zoomIn, fit, this.#mapButton, keys);
     // what Undo and Redo would do read again as the pointer comes to them
     this.#toolbar.addEventListener('pointerenter', () => this.#paintHistory());
     this.#canvas.addEventListener('wheel', (e) => {
@@ -378,7 +391,21 @@ export class FlowCanvas {
       keysList.append(Object.assign(doc.createElement('dt'), { textContent: k }), Object.assign(doc.createElement('dd'), { textContent: does }));
     }
     this.#keysPanel.append(keysHead, keysList);
-    stage.append(this.#canvas, this.#toolbar, this.#logPanel, this.#keysPanel);
+    this.#minimap = doc.createElementNS(SVG, 'svg');
+    this.#minimap.setAttribute('class', 'dc-flow-minimap');
+    this.#minimap.setAttribute('role', 'img');
+    this.#minimap.setAttribute('aria-label', 'The whole flow: click or drag to move there');
+    // a press or a drag on it: the view centred there
+    this.#minimap.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.#minimap.setPointerCapture(e.pointerId);
+      const go = (ev: PointerEvent): void => this.#minimapTo(ev);
+      go(e);
+      this.#minimap.addEventListener('pointermove', go);
+      this.#minimap.addEventListener('pointerup', () => this.#minimap.removeEventListener('pointermove', go), { once: true });
+    });
+    this.#canvas.addEventListener('scroll', () => this.#paintMinimap());
+    stage.append(this.#canvas, this.#toolbar, this.#logPanel, this.#keysPanel, this.#minimap);
     const top = el('div', 'dc-flow-top');
     top.append(stage, this.#side, this.#settings);
     this.#split = el('div', 'dc-flow-split');
@@ -514,6 +541,7 @@ export class FlowCanvas {
     const bottom = Math.max(0, ...layout.boxes.map((b) => b.y + BOX_HEIGHT)) + MARGIN;
     this.#plane.style.width = `${right}px`;
     this.#plane.style.height = `${bottom}px`;
+    this.#paintMinimap();
     this.#hint.hidden = layout.boxes.length > 0 || !editing;
     // Run on a locked page too: it changes nothing of the page's
     const running = board.running;
@@ -578,6 +606,68 @@ export class FlowCanvas {
     this.#zoomLevel.textContent = `${Math.round(zoom * 100)}%`;
     c.scrollLeft = Math.max(0, planeX * zoom - px);
     c.scrollTop = Math.max(0, planeY * zoom - py);
+    this.#paintMinimap();
+  }
+
+  /** How the minimap draws the plane: its scale, and the plane's size (its boxes' room). */
+  #minimapScale(): { readonly k: number; readonly w: number; readonly h: number } {
+    const w = parseFloat(this.#plane.style.width) || 1;
+    const h = parseFloat(this.#plane.style.height) || 1;
+    return { k: Math.min(MINIMAP.w / w, MINIMAP.h / h), w, h };
+  }
+
+  /**
+   * THE MINIMAP drawn, when asked: each box a mark (the one shown in its colour, a container its frame), and the part of
+   * the plane in view framed. Its button off while every box is in view -- there is nowhere to move to.
+   */
+  #paintMinimap(): void {
+    const map = this.#minimap;
+    const c = this.#canvas;
+    const z = this.#zoom;
+    const { k, w, h } = this.#minimapScale();
+    const fits = w * z <= c.clientWidth + 1 && h * z <= c.clientHeight + 1;
+    const button = this.#mapButton;
+    if (button !== undefined) {
+      button.disabled = fits;
+      button.setAttribute('aria-pressed', String(this.#mapOn && !fits));
+      button.classList.toggle('dc-chosen', this.#mapOn && !fits);
+    }
+    map.style.display = !this.#mapOn || fits || this.#board.layout.boxes.length === 0 ? 'none' : '';
+    if (map.style.display === 'none') return;
+    map.setAttribute('width', String(Math.ceil(w * k)));
+    map.setAttribute('height', String(Math.ceil(h * k)));
+    const doc = this.#doc;
+    const rect = (cls: string, x: number, y: number, rw: number, rh: number): SVGRectElement => {
+      const r = doc.createElementNS(SVG, 'rect');
+      r.setAttribute('class', cls);
+      r.setAttribute('x', String(x * k));
+      r.setAttribute('y', String(y * k));
+      r.setAttribute('width', String(Math.max(1, rw * k)));
+      r.setAttribute('height', String(Math.max(1, rh * k)));
+      return r;
+    };
+    const layout = this.#placed(this.#board.layout);
+    const folded = this.#foldedBoxes(layout);
+    const marks: SVGRectElement[] = [];
+    for (const box of layout.boxes) {
+      const note = this.#board.noteOf(box.tile);
+      if (note !== undefined && box.frame !== undefined) marks.push(rect('dc-flow-minimap-frame', box.x, box.y, box.frame.w, box.frame.h));
+      else if (note === undefined && !folded.has(box.tile)) {
+        marks.push(rect(`dc-flow-minimap-box${this.#board.shown === box.tile ? ' dc-flow-minimap-shown' : ''}`, box.x, box.y, BOX_WIDTH, BOX_HEIGHT));
+      }
+    }
+    marks.push(rect('dc-flow-minimap-view', c.scrollLeft / z, c.scrollTop / z, c.clientWidth / z, c.clientHeight / z));
+    map.replaceChildren(...marks);
+  }
+
+  /** The view centred where the minimap is pressed. */
+  #minimapTo(e: PointerEvent): void {
+    const r = this.#minimap.getBoundingClientRect();
+    const { k } = this.#minimapScale();
+    const c = this.#canvas;
+    const z = this.#zoom;
+    c.scrollLeft = Math.max(0, ((e.clientX - r.left) / k) * z - c.clientWidth / 2);
+    c.scrollTop = Math.max(0, ((e.clientY - r.top) / k) * z - c.clientHeight / 2);
   }
 
   /** Every box in view: the largest zoom, its own size at most, that shows them all. */
