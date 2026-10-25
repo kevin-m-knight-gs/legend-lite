@@ -1211,7 +1211,8 @@ export class PageApp {
     this.#empty.hidden = !empty;
     this.#emptySheet.hidden = !bare;
     this.#root.classList.toggle('dc-page-is-empty', empty);
-    this.#page.showAlone(empty ? null : this.#alone);
+    // a lone grid: no header -- its buttons at the bar's right, its state in its sheet's tab (the user, 2026-10-25)
+    this.#page.showAlone(empty ? null : this.#alone, empty ? null : this.#sheetTabs.stateSlot(this.#page.shownSheet) ?? null);
     this.#paintFilters();
   }
 

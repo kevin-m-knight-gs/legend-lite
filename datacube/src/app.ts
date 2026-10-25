@@ -145,6 +145,7 @@ import {
   type MenuItem,
 } from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
+import { paintState, stateButton } from './ui/tile-icons.ts';
 import { longPressMenus } from './ui/long-press.ts';
 import { makeWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
 import {
@@ -577,8 +578,14 @@ export class CubeApp {
   /** Every id the board has held, kept when it goes (its last chart gone): a board made again gives none of them out
    *  again (the S3 audit's 3). */
   #boardHeld: readonly string[] = [];
-  /** The grid's part of its tile's header (`tileHead`). */
+  /** The grid's part of its tile's header (`tileHead`): its zones' way back, while they are folded. */
   readonly #tileHeadEl: HTMLElement;
+  /** Its state left of its tile's title (`tileState`): Live or Snapped, a click its snap menu. */
+  readonly #tileStateEl: HTMLButtonElement;
+  /** A move of its plane under way (`#movePlane`): its state's controls wait. */
+  #planeMoving = false;
+  /** What it reads and where its rows are, in words, at the start of its status bar's readout while it is in a tile. */
+  readonly #statusSourceEl: HTMLElement;
   /** Where the grid lives when there is no board. */
   #middle: HTMLElement | null = null;
   #newColumns = 0;
@@ -619,10 +626,8 @@ export class CubeApp {
   #selection: CellRange | null = null;
   /** Where selection statistics are written, inside the status bar. */
   #statsSlot: HTMLElement | null = null;
-  /** Repaints the plane toggle, which is now the only plane badge. */
+  /** Repaints the plane toggle of a grid alone (its title bar's); a grid in a tile says its plane in `#tileStateEl`. */
   #paintSnap: (() => void) | null = null;
-  /** Switch plane as the button does (a retry after signing in again); null with no toggle. */
-  #planeToggle: (() => void) | null = null;
   /** The Receipts window's body while it is open (`#paintReceipts`). */
   #receiptsBody: HTMLElement | null = null;
   /** Ad Hoc Analysis mode while it is on; the cube's own grid is hidden then. */
@@ -664,6 +669,17 @@ export class CubeApp {
     root.classList.add('dc-app');
     this.#tileHeadEl = this.#doc.createElement('span');
     this.#tileHeadEl.className = 'dc-tile-cube';
+    this.#tileStateEl = stateButton(this.#doc);
+    this.#statusSourceEl = this.#doc.createElement('div');
+    this.#statusSourceEl.className = 'dc-status-source';
+    this.#tileStateEl.addEventListener('click', () => {
+      const plane = this.#plane();
+      if (!plane.toggles || this.#planeMoving) return;
+      // a snapped grid goes live or takes a fresh copy; a live one snaps
+      this.#toggleMenu(this.#tileStateEl, () => [{ label: '', items: plane.snapped
+        ? [{ id: 'plane.live' as const, label: 'Go Live' }, { id: 'plane.snap' as const, label: 'Snap Again' }]
+        : [{ id: 'plane.snap' as const, label: 'Snap' }] }]);
+    });
     // a grid in a page's tile: the page has the title bar
     root.classList.toggle('dc-compact', this.#options.compact === true);
     this.#controlsHidden = this.#options.controlsHidden === true;
@@ -1441,7 +1457,7 @@ export class CubeApp {
     this.#renderStatusBar(view, model.leaves.length);
     // The snapshot's row count is in the toggle's tooltip, and a
     // fresh snap changes it.
-    this.#paintSnap?.();
+    this.#paintPlane();
 
     const base = timingText(view, model.leaves.length);
     if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
@@ -1526,6 +1542,9 @@ export class CubeApp {
     // the fuller one in the wrong place. The cube states it here
     // itself, so a host gets a timing readout without wiring one,
     // and `onStatus` still fires for hosts that want their own.
+    // WHAT IT READS AND WHERE ITS ROWS ARE, in words, for a grid in a tile (the user, 2026-10-25): its header shows its
+    // title and its state's icon alone; a lone grid has no header at all
+    if (this.#inTile) right.append(this.#statusSourceEl, this.#statusSeparator());
     const rows = this.#readout(right, timingText(view, cols));
     rows.title = 'Rows and columns in the result, and how long the '
       + 'query took.';
@@ -2267,6 +2286,13 @@ export class CubeApp {
       case 'view.shortcuts':
         this.showShortcuts();
         return;
+      // its tile's state menu: live again, or a copy snapped (afresh, when one is held)
+      case 'plane.live':
+        void this.#movePlane('live');
+        return;
+      case 'plane.snap':
+        void this.#movePlane('snap');
+        return;
       case 'view.controls':
         this.setControlsHidden(!this.#controlsHidden);
         return;
@@ -2954,7 +2980,8 @@ export class CubeApp {
     body.append(...parts);
     const page = new CubePage({
       host,
-      grid: { element: body, source: this.chartSource(), head: this.#tileHeadEl },
+      grid: { element: body, source: this.chartSource(), head: this.#tileHeadEl, state: this.#tileStateEl,
+        ...(this.tileAbout() !== undefined ? { about: this.tileAbout()! } : {}) },
       onChange: () => this.#pageChanged(),
       // its edits applied to its page's state by the page commands' one rule, told, the board put at what they make (P13)
       onPageEdit: (edit) => this.#pageEdit(edit),
@@ -3374,7 +3401,7 @@ export class CubeApp {
   async #planeMoved(): Promise<void> {
     await this.#owner.refresh();
     this.#settlePlane();
-    this.#paintSnap?.();
+    this.#paintPlane();
     this.#emit('plane');
   }
 
@@ -3894,7 +3921,7 @@ export class CubeApp {
         this.#closeWindow('Sign in');
         this.#status(`signed in again as ${expired.principal}`, 'ok');
         // what failed runs again: the view (going live, or the refused change) and every chart
-        if (this.#controller.snaps.isSnapped) this.#planeToggle?.();
+        if (this.#controller.snaps.isSnapped && this.#plane().toggles) void this.#movePlane('live');
         else {
           // the refused change run again: its commands on the grid as it is now (what was made since kept), told as they
           // land; one an undo was part of, as it was asked for -- no command says the undo (G13; the S1 audit's 8, 9)
@@ -4270,71 +4297,111 @@ export class CubeApp {
     // no local store (the engine) is live with no snap on offer. Either
     // way it still states the plane, and a click does nothing -- a Live
     // that only answers with a refusal, or a Snap of a copy, was a lie.
+    const paint = (): void => {
+      const plane = this.#plane();
+      snap.textContent = plane.word;
+      snap.title = plane.tip;
+      snap.classList.toggle('dc-on', plane.snapped);
+      snap.classList.toggle('dc-fixed', !plane.toggles);
+      if (plane.toggles) snap.removeAttribute('aria-disabled');
+      else snap.setAttribute('aria-disabled', 'true');
+      snap.disabled = this.#planeMoving;
+    };
+    this.#paintSnap = paint;
+    if (this.#plane().toggles) {
+      snap.addEventListener('click', () => void this.#movePlane(this.#controller.snaps.isSnapped ? 'live' : 'snap'));
+    }
+    paint();
+    host.append(snap);
+    return host;
+  }
+
+  /**
+   * WHERE ITS ROWS ARE, as its pill and its tile's state say it: Snapped or Live, whether the person can move it, and the
+   * whole truth on hover -- WHEN a snap was frozen and HOW MANY rows it holds (rule 1 of snap mode: what you are looking
+   * at is never inferable).
+   *
+   * It moves only where both planes exist: a live source elsewhere (a warehouse, a remote file) and a store in this tab
+   * to snap into. Rows already held in the tab are a snap from the start; a plane with no local store (the engine) is
+   * live with no snap on offer -- a Live that only answers with a refusal, or a Snap of a copy, was a lie.
+   */
+  #plane(): { readonly snapped: boolean; readonly toggles: boolean; readonly word: string; readonly tip: string } {
     const held = this.#options.heldCopy;
     // the page's own store, or its host's (Python's page: hostSnap)
     const canSnap = (this.#options.runner === undefined && this.#options.snapTarget !== undefined)
       || (this.#options.runner !== undefined && this.#options.hostSnap !== undefined);
-    if (held !== undefined || !canSnap) {
-      snap.textContent = held !== undefined ? 'Snapped' : 'Live';
-      snap.classList.toggle('dc-on', held !== undefined);
-      snap.classList.add('dc-fixed');
-      snap.setAttribute('aria-disabled', 'true');
-      snap.title = held !== undefined
-        ? `${held.label} — copied into this tab at ${held.takenAt.toLocaleTimeString(UI_LOCALE)}` +
-          `${held.rowCount !== undefined ? `, ${held.rowCount.toLocaleString(UI_LOCALE)} rows` : ''}. ` +
-          'Nothing can change it while you work.'
-        : describePlane({ mode: 'live' }, { remote: false, toggles: false }).title;
-      host.append(snap);
-      this.#paintSnap = null;
-    } else {
-      const paint = (): void => {
-        const state = this.#controller.snaps.state;
-        snap.classList.toggle('dc-on', state.mode === 'snapped');
-        // Where the data is, when Live is a warehouse: the plane is a place (the wording every app shares)
-        const host = this.#options.runner !== undefined && this.#options.hostSnap !== undefined;
-        const remote = host || (this.#options.runner === undefined && this.#options.live !== undefined);
-        const described = describePlane(state, { remote, toggles: true,
-          ...(host ? { store: this.#options.hostSnap!.store } : {}) });
-        snap.textContent = described.text;
-        snap.title = described.title;
-      };
-      this.#paintSnap = paint;
-      this.#planeToggle = () => snap.click();
-      snap.addEventListener('click', () => {
-        // held while the page converges: the plane is the keeper's to put back, nothing moves
-        if (this.#held > 0) {
-          this.#status(CATCHING_UP, 'warn');
-          return;
-        }
-        snap.disabled = true;
-        // moved (its page tells it), or refused (nothing moved)
-        const done = (moved: boolean): void => {
-          snap.disabled = false;
-          this.#settlePlane();
-          paint();
-          if (moved) this.#emit('moved');
-          this.#emit('plane');
-        };
-        // The PLANE changes, the cube's state does not: freeze (or release)
-        // what is on screen, then the owner re-runs it -- not an undo step.
-        // The new plane holds only once it has ANSWERED: a refused re-run puts
-        // the old plane back, so the badge never names a plane the rows are
-        // not from (a dead warehouse left a dropped snap's rows under "Live").
-        const rerun = () => this.#owner.refresh();
-        // the copy into the tab comes before the re-run, which is when the owner turns busy: counted from the click
-        const work = this.#check(this.#controller.snaps.isSnapped
-          ? this.#controller.goLive(rerun)
-          : this.#controller.snapAndRun(this.#owner.committed.snapshot, rerun));
-        work.then(() => done(true), (e: unknown) => {
-          this.#status(e instanceof Error ? e.message : String(e), 'error');
-          done(false);
-        });
-      });
-      paint();
-      host.append(snap);
+    if (held !== undefined) {
+      return { snapped: true, toggles: false, word: 'Snapped', tip: `${held.label} — copied into this tab at ${held.takenAt.toLocaleTimeString(UI_LOCALE)}`
+        + `${held.rowCount !== undefined ? `, ${held.rowCount.toLocaleString(UI_LOCALE)} rows` : ''}. Nothing can change it while you work.` };
     }
-    return host;
+    if (!canSnap) return { snapped: false, toggles: false, word: 'Live', tip: describePlane({ mode: 'live' }, { remote: false, toggles: false }).title };
+    const state = this.#controller.snaps.state;
+    // Where the data is, when Live is a warehouse: the plane is a place (the wording every app shares)
+    const host = this.#options.runner !== undefined && this.#options.hostSnap !== undefined;
+    const remote = host || (this.#options.runner === undefined && this.#options.live !== undefined);
+    const described = describePlane(state, { remote, toggles: true, ...(host ? { store: this.#options.hostSnap!.store } : {}) });
+    return { snapped: state.mode === 'snapped', toggles: true, word: described.text, tip: described.title };
   }
+
+  /**
+   * THE PLANE MOVED BY THE PERSON: live again, or a copy snapped -- afresh, when one is held (Snap Again). Held while the
+   * page converges; the new plane holds only once it has ANSWERED: a refused re-run puts the old plane back, so the state
+   * never names a plane the rows are not from (a dead warehouse left a dropped snap's rows under "Live"). The PLANE
+   * changes, the cube's state does not: freeze (or release) what is on screen, then the owner re-runs it -- not an undo
+   * step.
+   */
+  async #movePlane(to: 'live' | 'snap'): Promise<void> {
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return;
+    }
+    if (this.#planeMoving || !this.#plane().toggles) return;
+    if (to === 'live' && !this.#controller.snaps.isSnapped) return;
+    this.#planeMoving = true;
+    this.#paintPlane();
+    // moved (its page tells it), or refused (nothing moved)
+    const done = (moved: boolean): void => {
+      this.#planeMoving = false;
+      this.#settlePlane();
+      this.#paintPlane();
+      if (moved) this.#emit('moved');
+      this.#emit('plane');
+    };
+    const rerun = () => this.#owner.refresh();
+    // the copy into the tab comes before the re-run, which is when the owner turns busy: counted from the click
+    await this.#check(to === 'live'
+      ? this.#controller.goLive(rerun)
+      : this.#controller.snapAndRun(this.#owner.committed.snapshot, rerun)).then(() => done(true), (e: unknown) => {
+      this.#status(e instanceof Error ? e.message : String(e), 'error');
+      done(false);
+    });
+  }
+
+  /** Its plane said again: a grid alone's pill, and its tile's state. */
+  #paintPlane(): void {
+    this.#paintSnap?.();
+    this.#paintTileState();
+  }
+
+  /**
+   * ITS STATE LEFT OF ITS TILE'S TITLE (ui/tile-icons.ts; the user, 2026-10-25): Live quiet, Snapped accented, what it
+   * reads and when it was frozen on hover; a click, where its plane can move, opens its menu (Snap; or Go Live, Snap
+   * Again).
+   */
+  #paintTileState(): void {
+    const plane = this.#plane();
+    const source = this.#sourceName();
+    const tip = plane.snapped ? plane.tip.replace(/ Click to go live\.$/, ' Click to go live, or to snap again.')
+      : `${source !== undefined ? `Reads ${source}. ` : ''}${plane.tip}`;
+    paintState(this.#tileStateEl, plane.snapped ? 'snapped' : 'live', plane.word, tip, { menu: plane.toggles, off: !plane.toggles });
+    this.#tileStateEl.disabled = this.#planeMoving;
+    // and in its status bar, in words
+    const reads = this.#statusSourceEl;
+    reads.dataset['state'] = plane.snapped ? 'snapped' : 'live';
+    reads.textContent = source !== undefined ? `${source} \u00b7 ${plane.word}` : plane.word;
+    reads.title = plane.tip;
+  }
+
 
   /** What this grid reads, as a person names it: a file, a table, a copy in this tab. */
   #sourceName(): string | undefined {
@@ -4372,15 +4439,28 @@ export class CubeApp {
     return this.#tileHeadEl;
   }
 
+  /** Its state, for the left of its tile's title (or a lone grid's sheet tab): Live or Snapped. */
+  tileState(): HTMLElement {
+    return this.#tileStateEl;
+  }
+
+  /** What it reads, as its tile's title says on hover: "Reads trades.csv". */
+  tileAbout(): string | undefined {
+    const source = this.#sourceName();
+    return source !== undefined ? `Reads ${source}` : undefined;
+  }
+
   #paintTileHead(): void {
     const head = this.#tileHeadEl;
     head.replaceChildren();
+    this.#paintTileState();
     if (!this.#inTile) return;
-    const source = this.#sourceName();
-    if (source !== undefined) head.append(this.#sourceTag(source));
-    // no menu button of its own (the user, 2026-10-23): its right-click has all a grid's menu had
-    head.append(this.#snapPill());
-    // the zones' way back LAST: in a page's bar, a lone grid's header ends the strip, above the zone bar's own fold
+    // a grid alone become a tile (a second grid on its page): its status bar says its source from now, not at its next view
+    const readout = this.#els.stats.querySelector('.dc-status-readout');
+    if (readout && !this.#statusSourceEl.isConnected) readout.prepend(this.#statusSourceEl, this.#statusSeparator());
+    // its source is its title's hover and its status bar's words, its plane its state left of its title (the user,
+    // 2026-10-25); no menu button of its own (2026-10-23): its right-click has all a grid's menu had. The zones' way back:
+    // in a page's bar, a lone grid's header ends the strip, above the zone bar's own fold
     if (!this.#config.showDragZones) head.append(this.#zonesBack());
   }
 

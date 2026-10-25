@@ -181,7 +181,7 @@ try {
     `its columns: mine, then theirs, the one mine has prefixed (${await columnsOf(joined)})`);
   // where its rows are (§18.3): two files read into this tab, so a copy held here from the start, as a file's grid is --
   // never Live, and no Snap of a copy offered
-  const pill = joined.locator('.dc-titlebar-toggle').first();
+  const pill = joined.locator('.dc-tile-state').first();
   const plane = { text: await pill.textContent(), title: await pill.getAttribute('title') ?? '' };
   check(plane.text === 'Snapped' && /^trades\.csv, customers\.csv — copied into this tab at /.test(plane.title)
     && await pill.getAttribute('aria-disabled') === 'true', `the join's plane: its files' copies, held here (${JSON.stringify(plane)})`);

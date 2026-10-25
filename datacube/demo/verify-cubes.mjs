@@ -540,11 +540,11 @@ try {
     page.once('dialog', (d) => { void d.accept(); });
     await pickSample('trades', 300);
     await landed(before);
-    // alone on the page: its header in the page bar's strip
-    if (!(await page.locator('.dc-page-alone .dc-source-tag').count())) throw new Error('the lone grid\'s source is not in the bar');
+    // alone on the page: no header -- its state in its sheet's tab (the user, 2026-10-25)
+    if (!(await page.locator('.dc-sheet-state .dc-tile-state').count())) throw new Error('the lone grid\'s state is not in its sheet\'s tab');
     await addSample('dates', 120);
     await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 60_000 });
-    if (await page.locator('.dc-page-alone .dc-source-tag').count()) throw new Error('two grids, and a header still in the bar');
+    if (await page.locator('.dc-sheet-state .dc-tile-state').count()) throw new Error('two grids, and a lone grid\'s state still in the tab');
     await chartOf('grid-2');
     await page.locator('[data-tile^="chart-"]').first().waitFor({ timeout: 20_000 });
     // the first grid, removed as any other: its tile's x
@@ -587,8 +587,9 @@ try {
     await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 60_000 });
     const got = await views();
     if (got !== want) throw new Error(`reopened as ${got}, saved as ${want}`);
-    const heads = await page.locator('.dc-band-tile .dc-source-tag').allTextContents();
-    if (!(heads.some((h) => /trades/.test(h)) && heads.some((h) => /dates/.test(h)))) throw new Error(`headers: ${heads.join(' | ')}`);
+    // each grid's source in its status bar (its header shows its state and title)
+    const heads = await page.locator('.dc-band-tile .dc-status-source').allTextContents();
+    if (!(heads.some((h) => /trades/.test(h)) && heads.some((h) => /dates/.test(h)))) throw new Error(`status bars: ${heads.join(' | ')}`);
     await page.click('#cubeswin .dc-picker-close').catch(() => {});
     await unchanged();
     return `${heads.join(' and ')}; not marked as changed`;
@@ -616,11 +617,11 @@ try {
     await chart.waitFor({ timeout: 20_000 });
     const id = await chart.getAttribute('data-tile');
     // pinned through its pill's menu (Dynamic / Pinned / Frozen): a chart that keeps its grouping outlives its grid
-    await chart.locator('.dc-tile-actions .dc-titlebar-toggle').click();
-    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: /^Pinned \u2014 / }) }).first().click();
+    await chart.locator('.dc-tile-state').click();
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: /^Pinned$/ }) }).first().click();
     await page.locator('[data-tile="grid-2"] .dc-tile-remove').click();
     await page.locator('[data-tile="grid-2"]').waitFor({ state: 'detached', timeout: 10_000 });
-    const pill = () => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`).textContent();
+    const pill = () => page.locator(`[data-tile="${id}"] .dc-tile-state`).textContent();
     if ((await pill()) !== 'Detached') throw new Error(`the chart says ${await pill()}`);
     await saveAs('Kept grid');
     const doc = await page.evaluate(() => window.__dataPage.document('Kept grid'));

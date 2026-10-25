@@ -129,6 +129,15 @@ Every tile -- a grid, a chart, a KPI, a text box -- has the same header, in the 
   bar says it in words ("Live", "Snapped 2 min ago"), and there is nothing to lay out, maximise or remove.
 - **A maximised tile** keeps a slim header with ⤡ (restore) in place of ⤢.
 
+**Built 2026-10-25.** `ui/tile-icons.ts` draws the states (inline SVG, coloured by `app.css .dc-tile-state[data-state]`;
+each carries its word for a screen reader and a test); `layout/band-board.ts` puts a tile's `state` before its title,
+says its `about` on the title's hover and flips ⤢/⤡; `page/cube-page.ts` gives a chart its state menu (Dynamic / Pinned /
+Frozen, ✓ on the current one, what each does on hover) and a text box its pencil; `app.ts` gives a grid in a tile its
+state (`#plane`, one description for its pill and its icon) with Snap, or Go Live and Snap Again, and its source and
+plane in words in its status bar (`.dc-status-source`); `ui/sheet-tabs.ts` holds a lone grid's state in its sheet's tab.
+A grid alone on a page of its own (no tile, Studio's query app) keeps its title bar's pill as it was. The zones' way
+back, while folded, stays among a tile's buttons (a lone grid's, at the page bar's right).
+
 ### 2. The chart options panel: a pane that closes
 
 - **A heading with a ×**, Escape closes it, a click on the page outside it closes it. Options… only opens it (or

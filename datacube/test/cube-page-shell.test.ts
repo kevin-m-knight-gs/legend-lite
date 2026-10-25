@@ -128,7 +128,7 @@ const chartView = (id: string): ChartView | undefined =>
   pg().views().views.find((v): v is ChartView => v.kind === 'chart' && v.id === id);
 const valuesOf = (id: string): readonly ChartMeasure[] | undefined => chartView(id)?.spec.y;
 /** A chart's Dynamic / Pinned / Frozen / Detached pill: what it says. */
-const pill = (id: string): string => tile(id).querySelector('.dc-tile-actions .dc-titlebar-toggle')?.textContent ?? '';
+const pill = (id: string): string => tile(id).querySelector('.dc-tile-state')?.textContent ?? '';
 const tabs = (): string[] => [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')].map((t) => t.querySelector('.dc-sheet-label')?.textContent ?? '');
 const tabOf = (text: string): HTMLElement => [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')]
   .find((t) => (t.querySelector('.dc-sheet-label')?.textContent ?? '') === text)!;
@@ -180,11 +180,11 @@ async function chartOf(gridTile: string): Promise<string> {
 }
 /** A chart's pill used as a hand does: Dynamic to Pinned (its grouping its own), or back -- picked from the menu it opens. */
 async function togglePill(chart: string): Promise<void> {
-  const pill = tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement;
+  const pill = tile(chart).querySelector('.dc-tile-state') as HTMLElement;
   const to = pill.textContent === 'Dynamic' ? 'Pinned' : 'Dynamic';
   pill.click();
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
-    .find((e) => e.textContent?.startsWith(`${to} \u2014 `));
+    .find((e) => e.querySelector(':scope > .dc-menu-label')?.textContent === to);
   if (!item) throw new Error(`the pill offers no ${to}`);
   item.click();
   await settle();
@@ -558,7 +558,7 @@ describe('a chart\'s right-click menu: Options..., and Show Grid offered only wh
     await settle();
     const chart = await chartOf(a);
     await remade(chart, (spec) => ({ ...spec, mark: 'map' }));
-    const title = tile(chart).querySelector<HTMLElement>('.dc-tile-actions .dc-titlebar-toggle')!.title;
+    const title = tile(chart).querySelector<HTMLElement>('.dc-tile-state')!.title;
     assert.match(title, /a map is placed by its own columns, not the grid's grouping/);
   });
 });
@@ -1706,6 +1706,7 @@ describe("the S3 audit's findings: a page of its own, again", () => {
       return {
         snapshot: SNAPSHOT, open: async () => {}, dispose: () => { disposed += 1; },
         chartSource: () => ({}) as never, on: () => () => {}, tileHead: () => element,
+        tileState: () => dom.window.document.createElement('button'), tileAbout: () => undefined,
       };
     };
     const board = new CubePage({

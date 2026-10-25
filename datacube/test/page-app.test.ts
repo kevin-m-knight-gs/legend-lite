@@ -108,12 +108,12 @@ function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
 }
 
 const tile = (id: string): HTMLElement => host.querySelector(`[data-tile="${id}"]`) as HTMLElement;
-/** A chart pinned by its pill (its grouping its own): the pill opened, Pinned picked from its menu. */
+/** A chart pinned by its state (its grouping its own): its state's menu opened, Pinned picked. */
 async function pin(chart: string): Promise<void> {
-  (tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement).click();
+  (tile(chart).querySelector('.dc-tile-state') as HTMLElement).click();
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
-    .find((e) => e.textContent?.startsWith('Pinned \u2014 '));
-  if (!item) throw new Error('the pill offers no Pinned');
+    .find((e) => e.querySelector(':scope > .dc-menu-label')?.textContent === 'Pinned');
+  if (!item) throw new Error('the state offers no Pinned');
   item.click();
   await settle();
 }
@@ -136,6 +136,17 @@ function pageMenu(): HTMLElement[] {
 }
 const label = (item: HTMLElement): string => item.querySelector(':scope > .dc-menu-label')?.textContent ?? '';
 const entry = (items: HTMLElement[], text: string): HTMLElement | undefined => items.find((i) => label(i) === text);
+/** A grid's plane moved from its state (left of its title, or a lone grid's in its sheet's tab): its menu opened,
+ *  `pick` chosen -- Snap, or Go Live, Snap Again. */
+async function movePlane(pick: string): Promise<void> {
+  dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+  (host.querySelector('.dc-tile-state:is([data-state="live"], [data-state="snapped"])') as HTMLElement).click();
+  const items = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')];
+  const item = entry(items, pick);
+  assert.ok(item, `its state offers ${pick}: ${items.map(label).join(' | ')}`);
+  item.click();
+  await settle();
+}
 /** An entry of a grid's right-click (a submenu's too: Create ▸, Tile ▸ Move to Sheet ▸), by what it says. */
 function gridMenuItem(gridTile: string, text: string): HTMLElement {
   dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
@@ -187,16 +198,19 @@ describe('a page of its own', () => {
     assert.deepEqual(page.document(page.title, undefined, true), freshPage());
   });
 
-  it('one grid alone shares the bar\'s strip: no frame, its source, pill and menu at the bar\'s right', async () => {
+  it('one grid alone: no frame, no header -- its state in its sheet\'s tab, its source in its status bar (the user, 2026-10-25)', async () => {
     newPage();
     const id = page.addGrid(over('trades.csv'));
     await settle();
     assert.equal(host.querySelector<HTMLElement>('.dc-page-empty')!.hidden, true);
     assert.ok(host.querySelector('.dc-bands')!.classList.contains('dc-bands-alone'));
     assert.ok(tile(id).classList.contains('dc-band-tile-alone'));
-    const strip = bar().querySelector('.dc-page-alone')!;
-    assert.match(strip.textContent ?? '', /trades\.csv/);
-    assert.ok(strip.querySelector('.dc-titlebar-toggle'), 'its Live/Snapped pill');
+    const state = bar().querySelector<HTMLElement>('.dc-sheet-tab-shown .dc-sheet-state .dc-tile-state');
+    assert.ok(state, 'its state in its sheet\'s tab, before the sheet\'s name');
+    assert.deepEqual([state.dataset['state'], state.textContent], ['live', 'Live']);
+    assert.equal(tile(id).querySelector('.dc-tile-head .dc-tile-state'), null, 'not in its hidden header too');
+    assert.equal(tile(id).querySelector('.dc-status-source')?.textContent, 'trades.csv \u00b7 Live', 'its status bar says it in words');
+    assert.doesNotMatch(bar().querySelector('.dc-page-alone')!.textContent ?? '', /trades\.csv/, 'no source in the bar');
     assert.equal(host.querySelector('.dc-tile-menu'), null, 'no menu button: its right-click is its menu (the user, 2026-10-23)');
   });
 
@@ -207,14 +221,18 @@ describe('a page of its own', () => {
     await settle();
     assert.equal(host.querySelector('.dc-bands')!.classList.contains('dc-bands-alone'), false);
     assert.equal(bar().querySelector('.dc-page-alone')!.children.length, 0);
+    assert.equal(bar().querySelector('.dc-sheet-state .dc-tile-state'), null, 'no lone grid\'s state in the tab');
     for (const id of [a, b]) {
       assert.equal(tile(id).querySelector<HTMLButtonElement>('.dc-tile-remove')!.hidden, false, `${id} can be removed`);
+      // its state back in its own header, first, before its title
+      assert.ok(tile(id).querySelector('.dc-tile-head')!.firstElementChild!.classList.contains('dc-tile-state'), `${id}: its state first`);
     }
-    // the first one removed: the other alone in the bar
+    // the first one removed: the other alone -- its state in the sheet's tab
     tile(a).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
     assert.deepEqual(page.grids, [b]);
-    assert.match(bar().querySelector('.dc-page-alone')!.textContent ?? '', /orders\.csv/);
+    assert.ok(bar().querySelector('.dc-sheet-state .dc-tile-state'), 'the lone grid\'s state in its sheet\'s tab');
+    assert.equal(tile(b).querySelector('.dc-status-source')?.textContent, 'orders.csv \u00b7 Live');
     // and the last, from its right-click's Tile ▸ (its tile has no remove button while alone): the empty page
     gridMenuItem(b, 'Remove from Page').click();
     await settle();
@@ -347,7 +365,7 @@ describe('a page of its own', () => {
     await pin(chart);
     tile(b).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
-    assert.equal(tile(chart).querySelector('.dc-titlebar-toggle')!.textContent, 'Detached');
+    assert.equal(tile(chart).querySelector('.dc-tile-state')!.textContent, 'Detached');
     assert.deepEqual(page.grids, [a]);
     const doc = page.document('Q3')!;
     assert.deepEqual(doc.cubes.map((c) => c.id), [a, b], 'the removed grid kept, for its chart');
@@ -358,7 +376,7 @@ describe('a page of its own', () => {
     page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])));
     await settle();
     assert.deepEqual(page.grids, [a]);
-    assert.equal(tile(chart).querySelector('.dc-titlebar-toggle')!.textContent, 'Detached');
+    assert.equal(tile(chart).querySelector('.dc-tile-state')!.textContent, 'Detached');
     // its last chart gone, the kept grid goes too
     tile(chart).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
@@ -849,8 +867,8 @@ describe('a page of its own', () => {
     newPage();
     const a = page.addGrid(hosted);
     await settle();
-    // a grid alone on its sheet has its header -- its plane's button -- in the page's bar
-    const pill = (): string | null | undefined => host.querySelector('.dc-titlebar-toggle')?.textContent;
+    // a grid alone on its sheet has its state in its sheet's tab
+    const pill = (): string | null | undefined => host.querySelector('.dc-tile-state')?.textContent;
     const copy = gridCopyOf({ table: 'snap_1', rowCount: 9, takenAt: new Date('2026-10-20T14:02:00Z'), label: 'Snap 14:02' });
     await theirs(page, [{ kind: 'snap', grid: a, copy }], new Map());
     await settle();
@@ -864,8 +882,7 @@ describe('a page of its own', () => {
     assert.equal(page.state.page.copies, undefined);
     assert.equal(pill(), 'Live');
     // the screen's own Snap: the page's document says the copy its host made
-    (host.querySelector('.dc-titlebar-toggle') as HTMLElement).click();
-    await settle();
+    await movePlane('Snap');
     const stateCopies = (): PageDocument['copies'] => page.state.page.copies;
     assert.equal(stateCopies()?.[a]?.table, 'snap_2', "the screen's Snap is in the page's state");
     // gone live by the other editor, which let the copy go (it read the page first): nothing let go here
@@ -960,12 +977,10 @@ describe('a page of its own', () => {
     newPage({ refuse: (text) => refused.push(text), onPageCommand: (c) => told.push(c) });
     page.addGrid(hostedGrid({}));
     await settle();
-    const pill = (): HTMLElement => host.querySelector('.dc-titlebar-toggle') as HTMLElement;
-    pill().click();
-    await settle();
+    const pill = (): HTMLElement => host.querySelector('.dc-tile-state') as HTMLElement;
+    await movePlane('Snap');
     assert.equal(pill().textContent, 'Snapped');
-    pill().click();
-    await settle();
+    await movePlane('Go Live');
     assert.equal(pill().textContent, 'Live');
     assert.deepEqual(refused, [], 'Go Live refused nothing');
     assert.deepEqual(told.filter((c) => c.kind === 'snap' || c.kind === 'live'), [], "no copy of the page's: it holds no cube for the grid");
@@ -1106,6 +1121,114 @@ describe("the page's ≡, grouped by purpose (docs/DATACUBE_UI_REVIEW_2026_10_24
     }
     assert.equal(entry(items, 'Settings…')!.title, 'Open a data source first');
     assert.equal(entry(items, 'Arrange…')!.title, 'Nothing on this page to arrange');
+  });
+});
+
+describe('one tile header for every kind: its state left of its title, the board\'s buttons at its right (the user, 2026-10-25)', () => {
+  const until = async (shown: () => unknown): Promise<void> => {
+    for (let i = 0; i < 100 && !shown(); i++) await new Promise((r) => setTimeout(r, 5));
+  };
+  /** A tile's header, child by child: its state's `data-state`, then the rest by class. */
+  const headOf = (id: string): string[] => [...tile(id).querySelector('.dc-tile-head')!.children]
+    .map((c) => (c.classList.contains('dc-tile-state') ? `state:${(c as HTMLElement).dataset['state']}` : c.className));
+  /** What a grid's state offers, its menu opened and shut. */
+  const offered = (): string[] => {
+    dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+    (host.querySelector('.dc-tile-state:is([data-state="live"], [data-state="snapped"])') as HTMLElement).click();
+    const labels = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].map(label);
+    dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+    return labels;
+  };
+
+  it('a grid, a chart and a text box: state, title, the board\'s buttons -- in that order', async () => {
+    newPage({ confirm: () => true });
+    const a = page.addGrid(over('trades.csv'));
+    const b = page.addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const chart = await chartOf(b);
+    entry(pageMenu(), 'Text Box')!.click();
+    await settle();
+    const text = page.views().views.find((v) => v.kind === 'text')!.id;
+    for (const [id, state] of [[a, 'live'], [chart, 'dynamic'], [text, 'editing']] as const) {
+      const head = headOf(id);
+      assert.equal(head[0], `state:${state}`, `${id}: its state first`);
+      assert.equal(head[1], 'dc-tile-title', `${id}: then its title`);
+      assert.equal(head.at(-1), 'dc-tile-actions', `${id}: the board's buttons last`);
+    }
+    // the buttons say no state: no pill among them
+    assert.equal(host.querySelector('.dc-tile-actions .dc-tile-state, .dc-tile-actions .dc-titlebar-toggle'), null);
+  });
+
+  it('a chart\'s state: Dynamic quiet, a pick among three, its ✓ on the one it is in, what each does on hover', async () => {
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    const b = page.addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const chart = await chartOf(b);
+    const state = tile(chart).querySelector<HTMLElement>('.dc-tile-head > .dc-tile-state')!;
+    assert.deepEqual([state.dataset['state'], state.textContent, state.getAttribute('aria-haspopup')], ['dynamic', 'Dynamic', 'menu']);
+    state.click();
+    const items = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')];
+    assert.deepEqual(items.map(label), ['Dynamic', 'Pinned', 'Frozen']);
+    assert.deepEqual(items.map((i) => i.getAttribute('aria-checked')), ['true', 'false', 'false']);
+    assert.match(items[2]!.title, /^It keeps its grouping and the grid's filter/);
+    dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+    await pin(chart);
+    assert.deepEqual([state.dataset['state'], state.textContent], ['pinned', 'Pinned']);
+  });
+
+  it('a text box\'s pencil: accented while its words are edited, quiet once they are', async () => {
+    newPage({ confirm: () => true });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    entry(pageMenu(), 'Text Box')!.click();
+    await settle();
+    const id = page.views().views.find((v) => v.kind === 'text')!.id;
+    const pencil = tile(id).querySelector<HTMLElement>('.dc-tile-head > .dc-tile-state')!;
+    await until(() => tile(id).querySelector('textarea'));
+    assert.deepEqual([pencil.dataset['state'], pencil.textContent], ['editing', 'Editing'], 'its editor opens on a new one');
+    [...tile(id).querySelectorAll('button')].find((b) => b.textContent === 'Cancel')!.click();
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    assert.deepEqual([pencil.dataset['state'], pencil.textContent], ['viewing', 'Edit']);
+    // a click on it edits the words again
+    pencil.click();
+    await until(() => tile(id).querySelector('textarea'));
+    assert.equal(pencil.dataset['state'], 'editing');
+  });
+
+  it('a grid\'s state: live, it offers Snap; snapped, Go Live and Snap Again -- a fresh copy, written down', async () => {
+    let made = 0;
+    const runner = new PlanThenRun(new StubPlanner(), engine) as unknown as QueryRunner;
+    newPage();
+    const a = page.addGrid((gridHost, spawned) => new CubeApp(gridHost, SNAPSHOT, {
+      runner, cubeSource: file('trades.csv'), sourceLabel: 'trades.csv', compact: true,
+      hostSnap: {
+        store: 'Python',
+        snap: async () => ({ rowCount: 3, table: `snap_${made += 1}`, source: SNAPSHOT.source.query, runner }),
+        release: async () => {},
+        held: async (table) => ({ table, source: SNAPSHOT.source.query, runner }),
+      },
+      ...(page ? { windowHost: page.root } : {}), ...spawned,
+    }));
+    await settle();
+    assert.deepEqual(offered(), ['Snap']);
+    await movePlane('Snap');
+    assert.equal(page.state.page.copies?.[a]?.table, 'snap_1');
+    assert.equal(host.querySelector<HTMLElement>('.dc-tile-state')!.dataset['state'], 'snapped');
+    assert.deepEqual(offered(), ['Go Live', 'Snap Again']);
+    await movePlane('Snap Again');
+    assert.equal(page.state.page.copies?.[a]?.table, 'snap_2', 'a fresh copy, the page told');
+    assert.equal(host.querySelector<HTMLElement>('.dc-tile-state')!.dataset['state'], 'snapped');
+    await movePlane('Go Live');
+    assert.equal(page.state.page.copies, undefined);
+    assert.equal(host.querySelector<HTMLElement>('.dc-tile-state')!.dataset['state'], 'live');
+    // a grid whose rows cannot move (no store to snap into): its state says Live, and opens nothing
+    const b = page.addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const fixed = tile(b).querySelector<HTMLButtonElement>('.dc-tile-head > .dc-tile-state')!;
+    assert.equal(fixed.getAttribute('aria-disabled'), 'true');
+    fixed.click();
+    assert.equal(dom.window.document.querySelector('.dc-menu'), null, 'no menu');
   });
 });
 

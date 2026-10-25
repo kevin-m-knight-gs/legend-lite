@@ -160,11 +160,11 @@ async function takeOff(zone, column) {
   await settle();
 }
 /** A chart's Dynamic / Pinned / Frozen / Detached pill, and its right-click menu. */
-const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`);
+const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-state`);
 /** A chart put in a state as a person does: its pill clicked, the state picked from the menu it opens. */
 async function choose(id, state) {
   await pill(id).click();
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state} \u2014 `) }) })
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state}$`) }) })
     .first().click();
 }
 async function chartMenu(id, label) {

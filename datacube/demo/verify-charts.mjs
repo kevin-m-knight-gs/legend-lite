@@ -80,13 +80,13 @@ try {
     await drawn();
   };
   /** A chart's Dynamic / Pinned / Frozen / Detached pill. */
-  const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`);
+  const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-state`);
   /** A chart put in a state as a person does: its pill clicked, the state picked from the menu it opens. */
   const choose = async (id, state) => {
     await pill(id).click();
-    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state} \u2014 `) }) })
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state}$`) }) })
       .first().click();
-    await page.waitForFunction(([c, s]) => document.querySelector(`[data-tile="${c}"] .dc-tile-actions .dc-titlebar-toggle`)?.textContent === s,
+    await page.waitForFunction(([c, s]) => document.querySelector(`[data-tile="${c}"] .dc-tile-state`)?.textContent === s,
       [id, state], { timeout: 5_000 });
   };
   /** A chart's right-click menu entry. */
@@ -216,7 +216,7 @@ try {
     await settle();
     if (await page.locator(`[data-tile="${gridId}"]`).count()) throw new Error('the grid is still there');
     if (await page.locator(`[data-tile="${followingId}"]`).count()) throw new Error('its following chart is still there');
-    await page.waitForFunction((id) => document.querySelector(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`)?.textContent === 'Detached', frozenId, { timeout: 5_000 });
+    await page.waitForFunction((id) => document.querySelector(`[data-tile="${id}"] .dc-tile-state`)?.textContent === 'Detached', frozenId, { timeout: 5_000 });
     return `${gridId} removed: ${followingId} went with it, ${frozenId} detached`;
   });
 

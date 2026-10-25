@@ -5160,8 +5160,9 @@ try {
     // the grid added beside the page's first (grid-1): every grid on a page alike
     const tile = page.locator('[data-tile^="grid-"]:not([data-tile="grid-1"])').first();
     await tile.locator('.dc-row').first().waitFor({ timeout: 60_000 });
-    const head = (await tile.locator('.dc-tile-cube').textContent()) ?? '';
-    if (!/sample-trades\.csv/.test(head)) throw new Error(`its header says "${head}"`);
+    // its source in its status bar (its header shows its state and title: the user, 2026-10-25)
+    const head = (await tile.locator('.dc-status-source').textContent()) ?? '';
+    if (!/sample-trades\.csv/.test(head)) throw new Error(`its status bar says "${head}"`);
     await page.waitForFunction(() => /first 1,000 of 1,500 rows/.test(
       document.querySelector('[data-tile^="grid-"]:not([data-tile="grid-1"]) .dc-status-warning')?.textContent ?? ''), null, { timeout: 30_000 });
     const main = await page.locator('[data-tile="grid-1"] .dc-row').count();
@@ -5194,8 +5195,9 @@ try {
     await page.locator('.dc-picker').waitFor({ state: 'detached', timeout: 60_000 });
     const tile = page.locator('[data-tile^="grid-"]').nth(tiles);
     await tile.locator('.dc-row').first().waitFor({ timeout: 60_000 });
-    const head = (await tile.locator('.dc-tile-cube').textContent()) ?? '';
-    if (!/Sells/.test(head)) throw new Error(`its header says "${head}"`);
+    // its source in its status bar (its header shows its state and title: the user, 2026-10-25)
+    const head = (await tile.locator('.dc-status-source').textContent()) ?? '';
+    if (!/Sells/.test(head)) throw new Error(`its status bar says "${head}"`);
     const cols = (await tile.locator('.dc-th').allTextContents()).map((t) => t.trim());
     if (cols.join() !== 'Trade Id,Side,Quantity') throw new Error(`columns ${cols.join(', ')}`);
     const sides = await tile.locator('.dc-row').evaluateAll((rows) => rows.map((r) => r.querySelectorAll('.dc-cell')[1]?.textContent?.trim()));

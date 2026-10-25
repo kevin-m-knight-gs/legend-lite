@@ -336,8 +336,8 @@ try {
         const tile = dc.locator('[data-tile^="grid-"]').nth(tiles);
         await tile.locator('.dc-row').first().waitFor({ timeout: 60_000 }).catch(() => undefined);
         const cells = await tile.locator('.dc-row').evaluateAll((rs) => rs.map((r) => r.textContent ?? ''));
-        // the page's one grid: its header in the page's bar (a lone grid's)
-        openedSaved = `${(await dc.locator('.dc-page-alone').textContent()) ?? ''}: ${cells.length} rows | ${cells.join(' | ')}`;
+        // the page's one grid: its source in its status bar
+        openedSaved = `${(await tile.locator('.dc-status-source').textContent().catch(() => '')) ?? ''}: ${cells.length} rows | ${cells.join(' | ')}`;
       }
     } else {
       openedSaved = `Saved queries listed: ${(await dc.$$eval('.dc-picker-row[data-query]', (els) => els.map((e) => e.textContent ?? ''))).join(', ')}`;
@@ -473,10 +473,11 @@ try {
   await cube.getByLabel('Password').fill('rita-pw');
   await cube.click('.dc-picker-form .dc-primary');
   await cube.click('.dc-picker-row[data-object="main.POSITIONS"]', { timeout: 60_000 });
-  // the plane button and the receipt of the grid on screen (an earlier page's are in the document too, hidden)
+  // the grid's state (left of its title, or a lone grid's in its sheet's tab) and the receipt of the grid on screen (an
+  // earlier page's are in the document too, hidden)
   const plane = () => cube.evaluate(() => {
     const shown = (e) => e !== null && e.offsetParent !== null;
-    const toggle = [...document.querySelectorAll('.dc-titlebar-toggle')].find(shown);
+    const toggle = [...document.querySelectorAll('.dc-tile-state')].find(shown);
     const receipt = [...document.querySelectorAll('.dc-status-receipt')].find(shown);
     return { text: toggle?.textContent?.trim() ?? '', title: toggle?.getAttribute('title') ?? '', receipt: receipt?.textContent ?? '',
       rows: /\b3 rows\b/.test(document.body.innerText), picker: document.querySelector('.dc-picker') !== null };
@@ -497,19 +498,24 @@ try {
     console.log(`  the grid said: ${JSON.stringify(live)}`);
     failed = true;
   }
-  await cube.locator('.dc-titlebar-toggle:visible').click();
+  // its state's menu: Snap
+  const moveTo = async (pick) => {
+    await cube.locator('.dc-tile-state:visible').first().click();
+    await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(`:scope > .dc-menu-label:text-is("${pick}")`) }).click();
+  };
+  await moveTo('Snap');
   const snapped = await until((p) => p.text === 'Snapped' && /Python's copy/.test(p.receipt));
   const snappedOk = snapped.text === 'Snapped' && /Python's copy/.test(snapped.receipt) && /a copy in Python's database/.test(snapped.title)
     && /3 rows/.test(snapped.title) && snapped.rows;
-  console.log(`${snappedOk ? 'ok  ' : 'FAIL'} its plane button snaps it into Python's DuckDB, the button and the receipt saying where the copy is`);
+  console.log(`${snappedOk ? 'ok  ' : 'FAIL'} its state's Snap snaps it into Python's DuckDB, its state and the receipt saying where the copy is`);
   if (!snappedOk) {
     console.log(`  the grid said: ${JSON.stringify(snapped)}`);
     failed = true;
   }
-  await cube.locator('.dc-titlebar-toggle:visible').click();
+  await moveTo('Go Live');
   const back = await until((p) => p.text === 'Live' && /the warehouse/.test(p.receipt));
   const backOk = back.text === 'Live' && /the warehouse/.test(back.receipt) && back.rows;
-  console.log(`${backOk ? 'ok  ' : 'FAIL'} clicked again, it reads Live on the warehouse once more, the copy let go`);
+  console.log(`${backOk ? 'ok  ' : 'FAIL'} Go Live: it reads Live on the warehouse once more, the copy let go`);
   if (!backOk) {
     console.log(`  the grid said: ${JSON.stringify(back)}`);
     failed = true;
@@ -710,7 +716,7 @@ try {
   // SNAP AS PAGE STATE (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): a grid snapped in Python reads Python's copy on
   // the open page, by the page's snap command (not opened again), whatever its frame does; gone live in Python it reads
   // the frame again; snapped on the page, Python's page has the copy; and ll.show(df, snap=True) opens snapped
-  const pill = () => document.querySelector('[data-tile="grid-1"] .dc-titlebar-toggle')?.textContent;
+  const pill = () => document.querySelector('[data-tile="grid-1"] .dc-tile-state')?.textContent;
   const joinTile = () => [...document.querySelectorAll('[data-tile^="grid"]')].find((t) => t.querySelector('.dc-th[data-column="d_desk"]'));
   await tabbed.evaluate(() => { document.querySelector('[data-tile="grid-1"]').dataset.kept = 'yes'; });
   await python('py-page-snap');
@@ -723,7 +729,8 @@ try {
   await python('py-page-live');
   await seen('gone live in Python (grid.live()): the open page reads the frame again',
     `(${String(pill)})() === 'Live' && document.querySelector('[data-tile="grid-1"]').innerText.includes('LATAM')`);
-  await tabbed.locator('[data-tile="grid-1"] .dc-titlebar-toggle').click();
+  await tabbed.locator('[data-tile="grid-1"] .dc-tile-state').click();
+  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("Snap")') }).click();
   await seen('snapped on the open page', `(${String(pill)})() === 'Snapped'`);
   const copies = await (async () => {
     // the page reports its document once a change settles: asked until it has, or ten seconds
@@ -908,7 +915,7 @@ try {
   const snappedTab = await browser.newPage();
   snappedTab.on('pageerror', (e) => { console.log(`snapped tab error: ${e.message}`); failed = true; });
   await snappedTab.goto(JSON.parse(snappedLine.slice('done show-snapped '.length)));
-  const tabSnapped = await snappedTab.waitForFunction(() => document.querySelector('.dc-titlebar-toggle')?.textContent === 'Snapped',
+  const tabSnapped = await snappedTab.waitForFunction(() => document.querySelector('.dc-tile-state')?.textContent === 'Snapped',
     undefined, { timeout: 60_000 }).then(() => true, () => false);
   console.log(`${tabSnapped ? 'ok  ' : 'FAIL'} ll.show(df, snap=True) opens the frame snapped`);
   if (!tabSnapped) {

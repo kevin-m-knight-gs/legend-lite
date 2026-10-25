@@ -1417,8 +1417,10 @@ describe("a real page and its keeper: the D19 audit's fourth round", () => {
         channel.changed();
         await new Promise((r) => setTimeout(r, 20));
       }
-      // the person's Snap
-      (host.querySelector('.dc-titlebar-toggle') as HTMLButtonElement).click();
+      // the person's Snap: the grid's state's menu, Snap
+      (host.querySelector('.dc-tile-state') as HTMLButtonElement).click();
+      [...host.ownerDocument.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')]
+        .find((i) => i.querySelector(':scope > .dc-menu-label')?.textContent === 'Snap')!.click();
       await settle();
       await settle();
       assert.equal(cubes.get(a)!.copy?.table, 'snap_2', 'snapped here');

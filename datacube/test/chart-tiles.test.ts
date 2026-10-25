@@ -31,13 +31,13 @@ afterEach(tearDown);
 const charts = (): ChartView[] => app.pageViews().views.filter((v): v is ChartView => v.kind === 'chart');
 const chart = (id: string): ChartView => charts().find((c) => c.id === id)!;
 const tile = (id: string): HTMLElement => root.querySelector(`[data-tile="${id}"]`) as HTMLElement;
-/** A chart's Dynamic / Pinned / Frozen / Detached pill: what it says. */
-const pill = (id: string): string => tile(id).querySelector('.dc-tile-actions .dc-titlebar-toggle')?.textContent ?? '';
-/** A chart put in a state by its pill: the pill opened, the state's entry picked (each says what it does). */
+/** A chart's Dynamic / Pinned / Frozen / Detached state, left of its title: what it says. */
+const pill = (id: string): string => tile(id).querySelector('.dc-tile-state')?.textContent ?? '';
+/** A chart put in a state by its state icon: its menu opened, the state's entry picked (each says what it does on hover). */
 const choose = async (id: string, state: 'Dynamic' | 'Pinned' | 'Frozen'): Promise<void> => {
-  (tile(id).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement).click();
+  (tile(id).querySelector('.dc-tile-state') as HTMLElement).click();
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
-    .find((e) => e.textContent?.startsWith(`${state} \u2014 `));
+    .find((e) => e.querySelector(':scope > .dc-menu-label')?.textContent === state);
   assert.ok(item, `the pill offers ${state}`);
   item.click();
   await settle();
@@ -131,7 +131,7 @@ describe('charts follow the grid until frozen', () => {
     assert.deepEqual([pill(a), pill(b)], ['Frozen', 'Pinned']);
     assert.deepEqual(chart(a).spec.kept, { filter: emea }, 'the grid\'s filter as it was, kept with the chart');
     assert.equal(chart(b).spec.kept, undefined);
-    assert.match(tile(a).querySelector<HTMLElement>('.dc-titlebar-toggle')!.title, /keeps its grouping and the grid's filter/);
+    assert.match(tile(a).querySelector<HTMLElement>('.dc-tile-state')!.title, /keeps its grouping and the grid's filter/);
     // the grid's filter taken off: the frozen chart's query still reads EMEA alone, the pinned one's every region
     await app.edit([{ kind: 'filter', filter: null }], 'filter');
     await settle();
@@ -361,7 +361,7 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
     assert.equal(tile(ofGrid[1]!), null, 'its following chart went with it');
     assert.ok(tile(ofGrid[0]!), 'its frozen chart stayed');
     assert.equal(pill(ofGrid[0]!), 'Detached');
-    assert.equal((tile(ofGrid[0]!).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLButtonElement).disabled, true,
+    assert.equal((tile(ofGrid[0]!).querySelector('.dc-tile-state') as HTMLButtonElement).disabled, true,
       'a detached chart has no grid to follow');
     // a cube alone saves its own grid alone: no grid of its own for it here, offered disabled, and clicked anyway nothing
     assert.equal(offersShowGrid(ofGrid[0]!), false, 'a detached chart gets no grid of its own on a cube alone');
@@ -391,7 +391,7 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
 });
 
 describe('each grid\'s header says its source and its plane', () => {
-  it('alone, the title bar says them; on a board, each grid\'s own tile header does', async () => {
+  it('alone, the title bar says them; on a board, each grid\'s state left of its title, its source on its title\'s hover and in its status bar', async () => {
     await remount({ heldCopy: { label: 'trades (test)', takenAt: new Date(), rowCount: 3 } });
     const bar = (): Element => root.querySelector(':scope > .dc-titlebar')!;
     assert.equal(bar().querySelector('.dc-source-tag')?.textContent, 'trades (test)');
@@ -401,12 +401,22 @@ describe('each grid\'s header says its source and its plane', () => {
     // the page's bar is the page's now
     assert.equal(bar().querySelector('.dc-source-tag'), null);
     assert.equal(bar().querySelector('.dc-titlebar-toggle'), null);
-    const head = (id: string): Element => tile(id).querySelector('.dc-tile-actions')!;
-    assert.equal(head('grid').querySelector('.dc-source-tag')?.textContent, 'trades (test)');
-    assert.equal(head('grid').querySelector('.dc-titlebar-toggle')?.textContent, 'Snapped');
     const added = root.querySelector<HTMLElement>('[data-tile^="grid-"]')!.dataset['tile']!;
-    assert.equal(head(added).querySelector('.dc-source-tag')?.textContent, 'trades (test)', 'the same source');
-    assert.equal(head(added).querySelector('.dc-titlebar-toggle')?.textContent, 'Snapped', 'the same copy in the tab');
+    for (const id of ['grid', added]) {
+      const head = tile(id).querySelector('.dc-tile-head')!;
+      // the one tile header (the user, 2026-10-25): its state first, its title, no source and no pill among its buttons
+      const state = head.firstElementChild as HTMLElement;
+      assert.ok(state.classList.contains('dc-tile-state'), `${id}: its state first`);
+      assert.deepEqual([state.dataset['state'], state.textContent], ['snapped', 'Snapped'], `${id}: the same copy in the tab`);
+      assert.equal(state.nextElementSibling?.className, 'dc-tile-title');
+      assert.equal(head.querySelector('.dc-source-tag'), null);
+      assert.equal(head.querySelector('.dc-titlebar-toggle'), null);
+      // a copy held from the start is no plane to move: no menu
+      assert.equal(state.getAttribute('aria-disabled'), 'true');
+      assert.match(state.title, /trades \(test\) — copied into this tab/);
+      assert.equal(tile(id).querySelector('.dc-status-source')?.textContent, 'trades (test) \u00b7 Snapped', `${id}: its status bar says it`);
+    }
+    assert.match(tile(added).querySelector<HTMLElement>('.dc-tile-title')!.title, /^Reads trades \(test\)\. Drag to move/);
   });
 });
 
@@ -446,7 +456,9 @@ describe('New > Source: a grid over another source, with its own planner and eng
     await settle();
     const [g] = added();
     assert.ok(g, 'a grid tile over the other source');
-    assert.match(g.querySelector('.dc-tile-cube')?.textContent ?? '', /orders\.csv/);
+    // its source on its title's hover and in its status bar (the user, 2026-10-25: not among its header's buttons)
+    assert.match(g.querySelector<HTMLElement>('.dc-tile-title')!.title, /^Reads orders\.csv\./);
+    assert.match(g.querySelector('.dc-status-source')?.textContent ?? '', /^orders\.csv · /);
     assert.ok(other.planner.plans > 0, 'planned by its own planner');
     assert.ok(other.engine.queries > 0, 'run on its own engine');
   });

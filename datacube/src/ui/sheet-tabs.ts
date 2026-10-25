@@ -30,6 +30,14 @@ export interface SheetTabsOptions {
   readonly onRemove: (id: string) => void;
 }
 
+/** A tab's parts: its state (`stateSlot`), its name, its ×. */
+interface Parts {
+  readonly tab: HTMLElement;
+  readonly state: HTMLElement;
+  readonly label: HTMLElement;
+  readonly close: HTMLButtonElement;
+}
+
 /** How far a pressed tab moves before it is dragged rather than clicked, in pixels. */
 const DRAG_PX = 4;
 
@@ -53,7 +61,7 @@ export class SheetTabs {
    * Each sheet's tab and its parts, kept from paint to paint: a click that shows a sheet leaves its tab, so a double
    * click renames it; and a rename's field, in the parts' place, leaves them to be painted all the same.
    */
-  readonly #els = new Map<string, { readonly tab: HTMLElement; readonly label: HTMLElement; readonly close: HTMLButtonElement }>();
+  readonly #els = new Map<string, Parts>();
 
   constructor(doc: Document, options: SheetTabsOptions) {
     this.#doc = doc;
@@ -135,6 +143,11 @@ export class SheetTabs {
     this.#paintOverflow();
   }
 
+  /** Where a sheet's tab says the state of the grid alone on it (the user, 2026-10-25): its Live or Snapped. */
+  stateSlot(id: string): HTMLElement | undefined {
+    return this.#els.get(id)?.state;
+  }
+
   /** The sheet whose tab is at a point of the window, if any. */
   at(x: number, y: number): string | undefined {
     for (const tab of this.#strip.querySelectorAll<HTMLElement>('.dc-sheet-tab')) {
@@ -164,13 +177,13 @@ export class SheetTabs {
     field.value = sheet.label;
     field.setAttribute('aria-label', 'Sheet name');
     // the tab's own label and ×, back in place when the field goes
-    const { label, close } = this.#els.get(id)!;
+    const { state, label, close } = this.#els.get(id)!;
     let done = false;
     const finish = (keep: boolean): void => {
       if (done) return;
       done = true;
       this.#renaming = undefined;
-      tab.replaceChildren(label, close);
+      tab.replaceChildren(state, label, close);
       if (keep && field.value.trim() !== sheet.label) this.#options.onRename(id, field.value.trim());
       this.#tabAt(id)?.focus();
     };
@@ -194,12 +207,17 @@ export class SheetTabs {
   // -- a tab ---------------------------------------------------------------------------------------------------
 
   /** A sheet's tab, its handlers reading where it is now (`paint` keeps it while its sheet lasts). */
-  #tab(id: string): { tab: HTMLElement; label: HTMLElement; close: HTMLButtonElement } {
+  #tab(id: string): Parts {
     const doc = this.#doc;
     const tab = doc.createElement('div');
     tab.className = 'dc-sheet-tab';
     tab.dataset['sheet'] = id;
     tab.setAttribute('role', 'tab');
+    // a lone grid's state, before its name (the page puts it here: `stateSlot`); a press on it is its own, not the tab's
+    const state = doc.createElement('span');
+    state.className = 'dc-sheet-state';
+    state.addEventListener('pointerdown', (e) => e.stopPropagation());
+    state.addEventListener('dblclick', (e) => e.stopPropagation());
     const label = doc.createElement('span');
     label.className = 'dc-sheet-label';
     // its ×: deleted as its menu's Delete does (the page asks first when it has tiles)
@@ -214,7 +232,7 @@ export class SheetTabs {
       e.stopPropagation();
       this.#options.onRemove(id);
     });
-    tab.append(label, close);
+    tab.append(state, label, close);
     tab.addEventListener('dblclick', () => this.rename(id));
     tab.addEventListener('contextmenu', (e) => {
       e.preventDefault();
@@ -222,10 +240,10 @@ export class SheetTabs {
     });
     tab.addEventListener('keydown', (e) => this.#onKey(e, id, tab));
     tab.addEventListener('pointerdown', (e) => this.#press(e, id, tab));
-    return { tab, label, close };
+    return { tab, state, label, close };
   }
 
-  #paintTab({ tab, label, close }: { tab: HTMLElement; label: HTMLElement; close: HTMLButtonElement }, sheet: SheetTab): void {
+  #paintTab({ tab, label, close }: Parts, sheet: SheetTab): void {
     const shown = sheet.id === this.#shown;
     tab.setAttribute('aria-selected', String(shown));
     tab.tabIndex = shown ? 0 : -1;

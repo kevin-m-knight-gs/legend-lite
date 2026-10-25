@@ -286,6 +286,9 @@ export type MenuActionId =
   | 'page.bar'
   | 'view.properties'
   | 'view.shortcuts'
+  // a grid's plane, from its tile's state (app.ts #movePlane): live again, or a copy snapped (afresh)
+  | 'plane.live'
+  | 'plane.snap'
   | 'filter.valueList'
   | 'filter.dateRange'
   | 'filter.topN'

@@ -32,6 +32,7 @@
 import { ChartPanel } from '../ui/chart-panel.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import type { MenuItem } from '../ui/menu.ts';
+import { paintState, stateButton } from '../ui/tile-icons.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
@@ -150,8 +151,12 @@ export interface SpawnedGrid {
   on(event: 'view' | 'change' | 'plane' | 'moved', fn: () => void): () => void;
   /** The copy it reads (a snap), as its page writes it down; undefined: it reads its rows live. */
   readonly copy?: GridCopy | undefined;
-  /** Its part of its tile's header: its source, its Live/Snapped pill, its menu. */
+  /** Its part of its tile's header, at its right: its zones' way back, while they are folded. */
   tileHead(): HTMLElement;
+  /** Its state, left of its tile's title: Live or Snapped (a lone grid's, in its sheet's tab). */
+  tileState(): HTMLElement;
+  /** What it reads, said on its tile's title's hover: "Reads trades.csv". */
+  tileAbout(): string | undefined;
   /** The grid as a saved cube, named `name`: undefined when it cannot say its source. */
   cubeDocument?(name: string): CubeDocument | undefined;
 }
@@ -166,8 +171,12 @@ export interface CubePageOptions {
   readonly grid?: {
     readonly element: HTMLElement;
     readonly source: ChartSource;
-    /** The grid's own part of its tile's header: its source, its Live/Snapped pill. */
+    /** The grid's own part of its tile's header: its zones' way back. */
     readonly head?: HTMLElement;
+    /** Its state, left of its tile's title: Live or Snapped. */
+    readonly state?: HTMLElement;
+    /** What it reads, said on its title's hover. */
+    readonly about?: string;
   };
   /** The page changed: a tile, its title, its layout, a chart's spec or selection, a grid's own state. */
   readonly onChange: () => void;
@@ -283,6 +292,8 @@ const STARTING_TEXT = 'Double-click to write here.';
 interface TextTile {
   text: string;
   readonly body: HTMLElement;
+  /** Its pencil, left of its title: a click edits its words. */
+  readonly edit: HTMLButtonElement;
   editing: boolean;
 }
 
@@ -369,6 +380,8 @@ export class CubePage {
       title: GRID_TILE_TITLE,
       element: own.element,
       actions: own.head ? [own.head] : [],
+      ...(own.state ? { state: own.state } : {}),
+      ...(own.about !== undefined ? { about: own.about } : {}),
       // the cube is the host's: the page's document is this grid's cube
       removable: false,
     });
@@ -921,12 +934,12 @@ export class CubePage {
    * grid, that tile is drawn without its frame and its header's part -- its source, its pill, its menu -- moves into
    * `slot`, the right of the page's bar; otherwise (or `slot` null) every header is its tile's.
    */
-  showAlone(slot: HTMLElement | null): void {
+  showAlone(slot: HTMLElement | null, stateSlot: HTMLElement | null = null): void {
     // the sheet shown: the others' tiles are each in its own frame
     for (const sheet of this.#sheets) if (sheet !== this.#shown) sheet.board.setAlone(null, null);
     const ids = tiles(this.#shown.board.layout);
     const lone = slot !== null && ids.length === 1 && this.#grids.has(ids[0]!) ? ids[0]! : null;
-    this.#shown.board.setAlone(lone, slot);
+    this.#shown.board.setAlone(lone, slot, stateSlot);
   }
 
   /**
@@ -1084,7 +1097,9 @@ export class CubePage {
     this.#titles.set(id, made);
     const near = how.near ?? (this.#options.grid ? GRID : undefined);
     const beside = near !== undefined && (this.#grids.has(near) || this.#charts.has(near)) ? near : undefined;
-    const tile: BandTile = { id, title: how.title ?? made, element: host, actions: [cube.tileHead()] };
+    const about = cube.tileAbout();
+    const tile: BandTile = { id, title: how.title ?? made, element: host, actions: [cube.tileHead()], state: cube.tileState(),
+      ...(about !== undefined ? { about } : {}) };
     this.#opening.set(id, cube.open());
     // a saved page's grid, or one a step makes again, comes under its own id: placed by its sheet's layout (`restore`,
     // `sync`)
@@ -1193,27 +1208,23 @@ export class CubePage {
     chip.className = 'dc-tile-chip';
     chip.hidden = true;
     chip.addEventListener('click', () => this.#select(id, null));
-    // THE CHART'S HEADER, simple (the user, 2026-09-30): its title, a pill -- as a grid's Live / Snapped -- that says
-    // its state and changes it, the filter chip while a click is filtering its grid, and its x. Everything else is a
-    // right-click away. Its states, one word each (the user, 2026-10-23: frozen charts kept their grouping but not
-    // their filter): DYNAMIC follows the grid; PINNED keeps its own grouping (a hand on its axes pins it) and follows
-    // the grid's filters and the page's clicks; FROZEN keeps its grouping and the grid's filter as they were.
-    const pill = doc.createElement('button');
-    pill.type = 'button';
-    pill.className = 'dc-titlebar-toggle';
-    pill.setAttribute('aria-haspopup', 'menu');
+    // THE CHART'S HEADER (the user, 2026-10-25: one header for every tile): its state as an icon left of its title --
+    // quiet while it follows its grid, accented when it keeps something of its own -- its title, the filter chip while
+    // a click is filtering its grid, and the board's buttons. Everything else is a right-click away. Its states, one
+    // word each (the user, 2026-10-23: frozen charts kept their grouping but not their filter): DYNAMIC follows the
+    // grid; PINNED keeps its own grouping (a hand on its axes pins it) and follows the grid's filters and the page's
+    // clicks; FROZEN keeps its grouping and the grid's filter as they were.
+    const pill = stateButton(doc);
     const paint = (): void => {
       const state = panel.state;
       const detached = link.grid === null;
-      pill.textContent = detached ? 'Detached' : STATE_WORDS[state].label;
-      pill.classList.toggle('dc-on', state === 'dynamic' && !detached);
-      pill.classList.toggle('dc-fixed', detached);
-      pill.disabled = detached;
       // a map is placed by its own columns (chart-spec.ts live): the grid's grouping leaves it as it is
       const map = panel.spec !== null && MAP_MARKS.has(panel.spec.mark) && state === 'dynamic';
-      pill.title = detached
-        ? 'Its grid was removed: this chart keeps its own copy of that grid\'s query. Right-click > Show Grid to show it in a grid of its own.'
-        : `${STATE_WORDS[state].label}: ${map ? 'it re-draws as the grid is filtered; a map is placed by its own columns, not the grid\'s grouping' : STATE_WORDS[state].says}. Click to change.`;
+      paintState(pill, detached ? 'detached' : state, detached ? 'Detached' : STATE_WORDS[state].label, detached
+        ? 'Detached: its grid was removed, and this chart keeps its own copy of that grid\'s query. Right-click > Show Grid to show it in a grid of its own.'
+        : `${STATE_WORDS[state].label}: ${map ? 'it re-draws as the grid is filtered; a map is placed by its own columns, not the grid\'s grouping' : STATE_WORDS[state].says}. Click to change.`,
+      { menu: !detached });
+      pill.disabled = detached;
     };
     const panel = new ChartPanel(body, {
       // its spec changed by hand -- its options, a drill, its state -- is a step of the page's
@@ -1239,8 +1250,9 @@ export class CubePage {
         if (state !== undefined) panel.setState(state);
       };
       const at = pill.getBoundingClientRect();
+      // a pick among three: the one it is in checked, what each does said on its hover
       this.#menu.show([{ label: '', items: CHART_STATES.map((s) => ({
-        id: `tile.state.${s}` as const, label: `${STATE_WORDS[s].label} \u2014 ${STATE_WORDS[s].says}`, checked: panel.state === s,
+        id: `tile.state.${s}` as const, label: STATE_WORDS[s].label, hint: `It ${STATE_WORDS[s].says.replace(/^it /, '')}`, checked: panel.state === s,
       })) }], at.left, at.bottom);
     });
     // RIGHT-CLICK: the chart's own entries
@@ -1285,13 +1297,13 @@ export class CubePage {
       added: restore !== undefined,
     });
     if (restore?.selection) this.#paintSelection(id);
-    const actions = [pill, chip];
+    const actions = [chip];
     if (restore) {
       // on its saved sheet, placed by that sheet's layout once every view is on the page (`restore`, `sync`)
-      this.#place({ id, title: restore.title, element: body, actions });
+      this.#place({ id, title: restore.title, element: body, actions, state: pill });
       return;
     }
-    const tile: BandTile = { id, title: chartTitle(id), element: body, actions };
+    const tile: BandTile = { id, title: chartTitle(id), element: body, actions, state: pill };
     const spec = panel.spec;
     if (spec && link.grid !== null) {
       if (this.#tellChart(id, tile, spec, link.grid)) this.#reveal(id);
@@ -1642,22 +1654,30 @@ export class CubePage {
     const doc = this.#doc;
     const body = doc.createElement('div');
     body.className = 'dc-text-host';
-    this.#texts.set(view.id, { text: view.text, body, editing: false });
+    // its state, left of its title as every tile's (the user, 2026-10-25): a pencil, quiet while its words are read,
+    // accented while they are edited -- a click edits them; in view mode it goes (app.css), nothing is edited there
+    const edit = stateButton(doc);
+    edit.classList.add('dc-text-edit');
+    this.#texts.set(view.id, { text: view.text, body, edit, editing: false });
+    this.#paintTextState(view.id);
     this.#drawText(view.id);
     body.addEventListener('dblclick', () => this.editText(view.id));
-    const edit = doc.createElement('button');
-    edit.type = 'button';
-    edit.className = 'dc-tile-tool dc-text-edit';
-    edit.textContent = '\u270e';
-    edit.title = 'Edit the text';
-    edit.setAttribute('aria-label', `Edit ${view.title ?? textTitle(view.id)}`);
     edit.addEventListener('click', () => this.editText(view.id));
-    this.#place({ id: view.id, title: view.title ?? textTitle(view.id), element: body, actions: [edit] });
+    this.#place({ id: view.id, title: view.title ?? textTitle(view.id), element: body, actions: [], state: edit });
+  }
+
+  /** A text tile's pencil: being edited, or there to edit it. */
+  #paintTextState(id: string): void {
+    const text = this.#texts.get(id);
+    if (!text) return;
+    paintState(text.edit, text.editing ? 'editing' : 'viewing', text.editing ? 'Editing' : 'Edit',
+      text.editing ? 'Its words are being edited: OK keeps them, Cancel or Escape leaves them as they were' : 'Edit the text');
   }
 
   /** A text tile's words drawn (page-text.ts, a chunk of its own fetched with the first drawn), unless its editor is
    *  open by the time they are. */
   #drawText(id: string): void {
+    this.#paintTextState(id);
     void lazily(() => import('../page-text.ts')).then(({ readText, textElement }) => {
       const text = this.#texts.get(id);
       if (text && !text.editing) text.body.replaceChildren(textElement(this.#doc, readText(text.text)));
@@ -1672,6 +1692,7 @@ export class CubePage {
     const text = this.#texts.get(id);
     if (!text || text.editing) return;
     text.editing = true;
+    this.#paintTextState(id);
     void lazily(() => import('../page-text.ts')).then(({ textEditor }) => {
       if (!this.#texts.has(id)) return;
       const close = (): void => {

@@ -149,7 +149,7 @@ const snappable = (name: string): GridMaker => (gridHost, spawned, start) => {
   if (spawned.id !== undefined) cubes.set(spawned.id, made);
   return made;
 };
-/** A page of a grid that can snap, `a`, beside one that cannot (so each pill is in its tile's header). */
+/** A page of a grid that can snap, `a`, beside one that cannot (so each state is left of its tile's title). */
 const snapGrid = async (): Promise<Record<string, string>> => {
   newPage();
   const a = pg().addGrid(snappable('trades.csv'));
@@ -157,7 +157,16 @@ const snapGrid = async (): Promise<Record<string, string>> => {
   await settle();
   return { a, b };
 };
-const toggle = (id: string): void => tile(id).querySelector<HTMLButtonElement>('.dc-titlebar-toggle')!.click();
+/** A grid's plane moved as a person moves it: its state's menu opened, Snap picked -- Go Live, when it is snapped. */
+const toggle = (id: string): void => {
+  const state = tile(id).querySelector<HTMLButtonElement>('.dc-tile-state')!;
+  const pick = state.dataset['state'] === 'snapped' ? 'Go Live' : 'Snap';
+  state.click();
+  const item = [...state.ownerDocument.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')]
+    .find((i) => i.querySelector(':scope > .dc-menu-label')?.textContent === pick);
+  assert.ok(item, `its state offers ${pick}`);
+  item.click();
+};
 
 /** A grid over the class Trade (a page filter is on a class a grid reads): its source a class, its rows the fixture's. */
 const TRADE = 'trades::domain::Trade';
@@ -283,11 +292,11 @@ async function chartOf(gridTile: string): Promise<string> {
 
 /** A chart's pill used as a hand does: Dynamic to Pinned (its grouping its own), or back -- picked from the menu it opens. */
 async function togglePill(chart: string): Promise<void> {
-  const pill = tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement;
+  const pill = tile(chart).querySelector('.dc-tile-state') as HTMLElement;
   const to = pill.textContent === 'Dynamic' ? 'Pinned' : 'Dynamic';
   pill.click();
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
-    .find((e) => e.textContent?.startsWith(`${to} \u2014 `));
+    .find((e) => e.querySelector(':scope > .dc-menu-label')?.textContent === to);
   if (!item) throw new Error(`the pill offers no ${to}`);
   item.click();
   await settle();

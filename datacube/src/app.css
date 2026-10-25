@@ -332,13 +332,6 @@
 .dc-tile-cube { display: flex; align-items: center; gap: 4px; }
 .dc-tile-cube .dc-titlebar-host { flex: none; }
 
-/* In a tile's header the pills (a grid's Live / Snapped, a chart's Dynamic / Frozen) are the
-   header's size, not the title bar's. */
-.dc-tile-actions .dc-titlebar-toggle {
-  height: 20px;
-  font-size: var(--dc-text-sm-size);
-  padding: 0 6px;
-}
 
 /* WHAT THE GRID READS, beside its pill (the user, 2026-09-30): quiet, it is a fact, not a control. */
 .dc-source-tag {
@@ -355,13 +348,6 @@
 .dc-tile-cube { display: flex; align-items: center; gap: 4px; }
 .dc-tile-cube .dc-titlebar-host { flex: none; }
 
-/* In a tile's header the pills (a grid's Live / Snapped, a chart's Dynamic / Frozen) are the
-   header's size, not the title bar's. */
-.dc-tile-actions .dc-titlebar-toggle {
-  height: 20px;
-  font-size: var(--dc-text-sm-size);
-  padding: 0 6px;
-}
 
 .dc-titlebar-menu {
   font: inherit;
@@ -3089,6 +3075,43 @@
 .dc-tile-tab.dc-tile-tab-before { box-shadow: inset 2px 0 0 var(--dc-active); }
 .dc-tile-tab.dc-tile-tab-after { box-shadow: inset -2px 0 0 var(--dc-active); }
 .dc-tile-title[hidden] { display: none; }
+
+/* A TILE'S STATE, LEFT OF ITS TITLE (ui/tile-icons.ts; the user, 2026-10-25): every tile says it in the same place,
+   quiet for the usual state and accented for an exception -- a page of ordinary tiles is calm, the one that is
+   different stands out. A grid: Live quiet, Snapped amber; a chart: Dynamic quiet, Pinned the accent, Frozen blue; a
+   text box: its pencil quiet, accented while its words are edited, gone in view mode (nothing is edited there). */
+.dc-tile-state {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--dc-radius-sm);
+  background: transparent;
+  color: var(--tw-neutral-400);
+  cursor: pointer;
+}
+.dc-tile-state:hover:not([aria-disabled='true']):not(:disabled) { border-color: var(--dc-line); background: var(--tw-neutral-100); }
+.dc-tile-state:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
+.dc-tile-state:is([aria-disabled='true'], :disabled) { cursor: default; }
+.dc-tile-state[data-state='snapped'] { color: var(--tw-amber-500); }
+.dc-tile-state:is([data-state='pinned'], [data-state='editing']) { color: var(--dc-active); }
+.dc-tile-state[data-state='frozen'] { color: var(--tw-blue-600); }
+.dc-tile-state[data-state='detached'] { color: var(--tw-neutral-600); }
+.dc-tile-state-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.dc-bands-view .dc-tile-state[data-state='viewing'] { display: none; }
+
+/* a lone grid's state, in its sheet's tab, before its name */
+.dc-sheet-state { display: inline-flex; align-items: center; margin-right: 2px; }
+.dc-sheet-state:empty { display: none; }
+.dc-sheet-state .dc-tile-state { width: 16px; height: 16px; }
+
+/* what a grid in a tile reads and where its rows are, in words, in its status bar */
+.dc-status-source { color: var(--tw-neutral-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 36ch; }
+.dc-status-source[data-state='snapped'] { color: var(--tw-amber-700); }
 
 /* a lone grid (a page of its own with one tile): no frame, no header -- its header's buttons are in the page's bar */
 .dc-band-tile.dc-band-tile-alone { border: 0; border-radius: 0; }
