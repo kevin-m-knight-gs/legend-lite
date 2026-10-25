@@ -836,6 +836,16 @@ press or a drag on it moves the view there. Asked for, never unasked (shown alwa
 found by the harness, a Filter's port under it), and its button off while every box is in view. Tested by the harness
 (asked for, a press at its top and at its bottom moving the view, asked away).
 
+**Built, the command palette** (M7; `layout/flow-canvas.ts` `#allCommands`, 2026-10-25): Ctrl+K on the canvas opens a
+field over a list of every command there is now, found as it is typed -- each toolbar button a person could press (Run,
+Tidy Up, Undo and Redo saying what they would do, the zoom, Fit, the Map, the keys), each tool of the palette (added
+after the box shown, as its click adds it; a locked page lists none) and each box (shown, and scrolled into view). Each
+word typed is looked for in a command's name and its words; a name that starts with what is typed comes first, then
+one with a word that does, then the rest, actions before tools before boxes. Arrows move, Enter runs, a click runs,
+Escape or a click elsewhere closes. No command of its own: each is its button's, its palette entry's or a click's
+gesture, so it adds nothing to undo or to Python. Listed among the keys (?). Tested by the harness (zoomed in and back,
+a Browse added after the box shown and undone, a box shown by its name, Escape).
+
 **Run from the keys** (`layout/flow-canvas.ts`): Ctrl+Enter (⌘+Enter) anywhere on the canvas runs the flow, as its
 button does, while no run is going; the keys panel and the button's title say so. Tested by the harness (a run from a
 box's keys writes its Output).
@@ -1109,7 +1119,18 @@ Append Fields, Fuzzy Match, a Join's L and R, Find Replace.
    the session that wrote this. If it has one, Transpose uses it instead of being composed (FL14).
 2. **Python's method names** for flows, put to the user before they are built (D6), at M1's step 6.
 3. **An Output box in the tab:** the tab plans with its WebAssembly planner and runs on its own DuckDB; whether its
-   runner takes a write plan's `Update` and `Sequence` nodes is to be read before M6.
+   runner takes a write plan's `Update` and `Sequence` nodes is to be read before M6. *Read (2026-10-25): no, and
+   neither does Python's.* A write is Pure (`->write(#>{db::DB.T}#)`, `update`, `delete`, `merge` by key; a replace is a
+   `delete` then a `write`), into a table a Database declares and that exists; planned, it is an execution plan --
+   a `Sequence` of `Update` steps, `Check`s and a `TextResult` (`core/.../ExecutionPlan.java`, `PlanMaker.program`) --
+   run in one transaction by Java's `PlanRunner` alone. The query path both hosts plan through is the single-SQL one:
+   `Plan` is `{sql, columns}` (`engine-client/src/relation-type.ts`), the tab's runner and Python's each run one
+   `plan.sql`, and the lowering refuses a store write in a query's plan (`Lowerer.java`, `TypedWrite`). So an Output to
+   a table needs, in each host, the execution plan from its planner (a wasm and a native export of `PlanJson`) and a
+   runner of its steps (Python's: a port of `PlanRunner.sequence`; the tab's: one in TypeScript, its connection
+   binding no parameters today), over a model that declares the target beside the sources. A host operation
+   (`CREATE OR REPLACE TABLE ... AS` the box's SQL, as Snap copies) would write one today, but outside Pure: not the
+   way, by the execution tenet. A table the tab writes lives in its in-memory DuckDB and goes when the tab does.
 
 ---
 

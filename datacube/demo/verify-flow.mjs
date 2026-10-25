@@ -238,6 +238,38 @@ try {
   await page.screenshot({ path: outPath('flow-code.png') });
   await page.locator('.dc-flow-mode[data-mode="rows"]').click();
   check(await page.locator('.dc-flow-code').count() === 0 && await resultRows() === groups, 'its rows again, its code taken down');
+  // THE COMMAND PALETTE (M7): Ctrl+K, a command found by name, Enter runs it -- the gesture of its button, its palette
+  // entry or a click; Escape closes it
+  await page.locator('.dc-flow-canvas').click({ position: { x: 5, y: 5 } });
+  const command = async (typed) => {
+    await page.keyboard.press('Control+k');
+    await page.locator('.dc-flow-commands').waitFor({ state: 'visible', timeout: 5_000 });
+    await page.locator('.dc-flow-commands-find').fill(typed);
+    return page.locator('.dc-flow-command.dc-active .dc-flow-command-label').textContent();
+  };
+  check(await command('zoom in') === 'Zoom in', 'Zoom in found');
+  await page.keyboard.press('Enter');
+  check(await page.locator('.dc-flow-commands').isHidden(), 'run, and closed');
+  check(await page.locator('.dc-flow-zoom-level').textContent() === '110%', `zoomed in: ${await page.locator('.dc-flow-zoom-level').textContent()}`);
+  check(await command('own size') === 'Zoom to its own size', 'its own size found');
+  await page.keyboard.press('Enter');
+  check(await page.locator('.dc-flow-zoom-level').textContent() === '100%', 'its own size again');
+  const beforeCommand = (await boxes()).map((b) => b.id);
+  check(await command('browse') === 'Add Browse', 'a tool found');
+  await page.keyboard.press('Enter');
+  await boxCount(beforeCommand.length + 1);
+  const browsed = await added(beforeCommand);
+  check(browsed.tool === 'browse' && await readsOf(browsed.id) === summary.id, `a Browse after the box shown: ${JSON.stringify(browsed)}`);
+  check(await command('show filter') === 'Show Filter', 'a box found by its name');
+  await page.screenshot({ path: outPath('flow-commands.png') });
+  await page.keyboard.press('Enter');
+  await page.waitForFunction((t) => document.querySelector(`.dc-flow-box[data-tile="${t}"]`)?.classList.contains('dc-flow-shown'), filter.id, { timeout: 10_000 });
+  await command('');
+  await page.keyboard.press('Escape');
+  check(await page.locator('.dc-flow-commands').isHidden(), 'Escape closes it');
+  await page.keyboard.press('Control+z');
+  await boxCount(beforeCommand.length);
+  await show(summary.id);
   check(await lineCount() === 3, 'a line into each box after the first');
 
   // EACH BOX PREVIEWED, the one shown before closed: only the shown box has a grid

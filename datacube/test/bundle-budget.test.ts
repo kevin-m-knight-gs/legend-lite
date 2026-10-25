@@ -747,8 +747,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  order handed on (box-columns.ts boxOrder, read at startup through live-inputs.ts; cube-document.ts JoinInput.order),
  *  the Chart's and the Select's arrows' styles among them). Measured 389,693.
  *  390,000 -> 391,500 (2026-10-25, the flow mode's Union of any number -- the grid-only page's and the engine page's
- *  notes of the same date; a Union's numbered ports and its settings' rows among the styles). Measured 391,082. */
-const WIDGET_BUDGET = 391_500;
+ *  notes of the same date; a Union's numbered ports and its settings' rows among the styles). Measured 391,082.
+ *  391,500 -> 392,500 (2026-10-25, the flow mode's Code view, Create Samples and command palette: a grid's last query
+ *  printed (app.ts code, copyText) at startup; the Code view's, the palette's and the two-output ports' styles among the
+ *  module's; their code the canvas's chunk). Measured 391,532. */
+const WIDGET_BUDGET = 392_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

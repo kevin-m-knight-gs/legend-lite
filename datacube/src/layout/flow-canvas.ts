@@ -84,6 +84,7 @@ const KEYS: readonly (readonly [string, string])[] = [
   ['Ctrl+D, F2', 'duplicate a box, rename it'],
   ['Ctrl+Z, Ctrl+Shift+Z', 'undo, redo'],
   ['Ctrl+Enter', 'run the flow'],
+  ['Ctrl+K', 'a command: any tool, box or action of the canvas, by name'],
   ['Ctrl+A, Escape', 'pick every box, none'],
   ['Ctrl+G', 'a container round the boxes picked'],
   ['Ctrl+wheel', 'zoom about the pointer'],
@@ -107,6 +108,10 @@ function sideWords(side: InputSide, union: boolean): string {
   if (side === 'input') return 'Input';
   return union ? (side === 'left' ? 'Input 1' : 'Input 2') : side === 'left' ? 'Left' : 'Right';
 }
+
+/** A command of the palette (Ctrl+K): what it is called, the words it is found by besides, its kind (the order it is
+ *  listed in among those found alike) and what it does -- the gesture of a button, the palette or a click. */
+interface Command { readonly label: string; readonly words: string; readonly kind: 0 | 1 | 2; readonly run: () => void }
 
 /** A box's Code as asked (its key: the box, and how many views its grid had landed), answered or refused. */
 type Coded = { readonly key: string; readonly answer?: { readonly pure: string; readonly sql: string }; readonly refused?: string };
@@ -261,6 +266,15 @@ export class FlowCanvas {
   readonly #zoomLevel: HTMLButtonElement;
   /** What the canvas's keys and gestures do: a panel the toolbar's ? opens. */
   readonly #keysPanel: HTMLElement;
+  /** THE COMMAND PALETTE (Ctrl+K, M7): a tool, a box or an action of the canvas found by name -- each the gesture of
+   *  its button, its palette entry or a click -- its field, its list, what it lists now and the one Enter runs. */
+  readonly #commands: HTMLElement;
+  readonly #commandFind: HTMLInputElement;
+  readonly #commandList: HTMLElement;
+  #commandsFound: readonly Command[] = [];
+  #commandAt = 0;
+  /** The toolbar's buttons a command presses, by what it is called. */
+  #toolbarCommands: readonly (readonly [string, HTMLButtonElement])[] = [];
   /** The last run's log, at the canvas's corner: drawn for the log it was drawn for, closed until the next run. */
   readonly #logPanel: HTMLElement;
   #logDrawn: RunLog | undefined;
@@ -434,7 +448,33 @@ export class FlowCanvas {
       this.#minimap.addEventListener('pointerup', () => this.#minimap.removeEventListener('pointermove', go), { once: true });
     });
     this.#canvas.addEventListener('scroll', () => this.#paintMinimap());
-    stage.append(this.#canvas, this.#toolbar, this.#logPanel, this.#keysPanel, this.#minimap);
+    this.#commands = el('div', 'dc-flow-commands');
+    this.#commands.hidden = true;
+    this.#commands.setAttribute('role', 'dialog');
+    this.#commands.setAttribute('aria-label', 'Commands');
+    this.#commandFind = doc.createElement('input');
+    this.#commandFind.type = 'search';
+    this.#commandFind.className = 'dc-flow-commands-find';
+    this.#commandFind.placeholder = 'A tool, a box or an action…';
+    this.#commandFind.setAttribute('aria-label', 'Find a command');
+    this.#commandList = el('div', 'dc-flow-commands-list');
+    this.#commandList.setAttribute('role', 'listbox');
+    this.#commands.append(this.#commandFind, this.#commandList);
+    this.#commandFind.addEventListener('input', () => {
+      this.#commandAt = 0;
+      this.#paintCommands();
+    });
+    this.#commandFind.addEventListener('keydown', (e) => this.#onCommandKey(e));
+    this.#commands.addEventListener('focusout', (e) => {
+      // where the focus went (a node of the same page, or none): outside it, closed
+      if (!this.#commands.contains(e.relatedTarget as Node | null)) this.#closeCommands(false);
+    });
+    this.#toolbarCommands = [
+      ['Run the flow', this.#run], ['Tidy Up', this.#tidy], ['Undo', this.#undo], ['Redo', this.#redo], ['Zoom in', zoomIn],
+      ['Zoom out', zoomOut], ['Zoom to its own size', this.#zoomLevel], ['Fit every box in view', fit], ['Map', this.#mapButton],
+      ['Keys and gestures', keys],
+    ];
+    stage.append(this.#canvas, this.#toolbar, this.#logPanel, this.#keysPanel, this.#commands, this.#minimap);
     const top = el('div', 'dc-flow-top');
     top.append(stage, this.#side, this.#settings);
     this.#split = el('div', 'dc-flow-split');
@@ -1496,6 +1536,12 @@ export class FlowCanvas {
       if (this.#copied([...this.#picked][0]!, e)) return;
     }
     if (!(e.ctrlKey || e.metaKey)) return;
+    // the command palette
+    if (e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      this.#openCommands();
+      return;
+    }
     // Run, from the keys: as its button, while no run is going
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -1521,6 +1567,119 @@ export class FlowCanvas {
     if (key !== 'z') return;
     e.preventDefault();
     this.#board.options.onUndo?.(e.shiftKey);
+  }
+
+  /** The command palette opened (Ctrl+K): its field emptied, every command listed, the field to type in. */
+  #openCommands(): void {
+    this.#paintHistory();
+    this.#commands.hidden = false;
+    this.#commandFind.value = '';
+    this.#commandAt = 0;
+    this.#paintCommands();
+    this.#commandFind.focus();
+  }
+
+  /** The command palette closed -- the canvas given its keys back, unless the focus went elsewhere. */
+  #closeCommands(focusCanvas = true): void {
+    if (this.#commands.hidden) return;
+    this.#commands.hidden = true;
+    if (focusCanvas) this.#canvas.focus({ preventScroll: true });
+  }
+
+  /**
+   * EVERY COMMAND THERE IS NOW: each toolbar button a person could press (Run, Tidy Up, Undo and Redo saying what they
+   * would do, the zoom, the Map, the keys), each tool of the palette (added as its click adds it, after the box shown:
+   * on a page that is edited), and each box (shown, and scrolled into view).
+   */
+  #allCommands(): Command[] {
+    const o = this.#board.options;
+    const history = this.#paintHistory();
+    const buttons = this.#toolbarCommands.filter(([, b]) => !b.hidden && !b.disabled).map(([label, b]): Command => ({
+      label: label === 'Undo' ? `Undo ${history.undo ?? ''}`.trim() : label === 'Redo' ? `Redo ${history.redo ?? ''}`.trim()
+        : label === 'Map' ? (this.#mapOn ? 'Hide the map' : 'Show the map') : label,
+      words: b.title, kind: 0, run: () => b.click(),
+    }));
+    const tools = this.#board.editing ? PALETTE.map((t): Command => ({
+      label: `Add ${FLOW_TOOLS[t].name}`, words: FLOW_TOOLS[t].does, kind: 1, run: () => o.onTool?.(t, this.#board.shown, TOOL_EDITORS[t]),
+    })) : [];
+    const boxes = [...this.#boxes.keys()].map((id): Command => {
+      const said = this.#said(id);
+      const tool = said?.tool ?? 'browse';
+      return {
+        label: `Show ${this.#nameOf(id, tool)}`, words: `${FLOW_TOOLS[tool].name} ${said?.says ?? ''}`, kind: 2,
+        run: () => {
+          this.#select(id);
+          this.reveal(id);
+        },
+      };
+    });
+    return [...buttons, ...tools, ...boxes];
+  }
+
+  /** The commands its field finds -- each word typed in its name or its words, those whose name starts with what is
+   *  typed first, then those with a word that does, then the rest; among each, actions, tools, boxes -- drawn, the one
+   *  Enter runs marked. */
+  #paintCommands(): void {
+    const typed = this.#commandFind.value.trim().toLowerCase();
+    const words = typed.split(/\s+/).filter((w) => w !== '');
+    const rank = (c: Command): number => {
+      const label = c.label.toLowerCase();
+      return label.startsWith(typed) ? 0 : label.split(/\s+/).some((w) => w.startsWith(words[0] ?? '')) ? 1 : 2;
+    };
+    this.#commandsFound = this.#allCommands()
+      .filter((c) => words.every((w) => `${c.label} ${c.words}`.toLowerCase().includes(w)))
+      .map((c, i) => ({ c, i, r: typed === '' ? 0 : rank(c) }))
+      .sort((a, b) => a.r - b.r || a.c.kind - b.c.kind || a.i - b.i)
+      .map(({ c }) => c);
+    this.#commandAt = Math.min(this.#commandAt, Math.max(0, this.#commandsFound.length - 1));
+    const doc = this.#doc;
+    if (this.#commandsFound.length === 0) {
+      this.#commandList.replaceChildren(Object.assign(doc.createElement('div'), { className: 'dc-flow-commands-none', textContent: 'No command has those words' }));
+      return;
+    }
+    this.#commandList.replaceChildren(...this.#commandsFound.map((c, i) => {
+      const item = doc.createElement('div');
+      item.className = 'dc-flow-command';
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', String(i === this.#commandAt));
+      item.classList.toggle('dc-active', i === this.#commandAt);
+      item.append(Object.assign(doc.createElement('span'), { className: 'dc-flow-command-label', textContent: c.label }),
+        Object.assign(doc.createElement('span'), { className: 'dc-flow-command-words', textContent: c.words }));
+      // pressed: run, before the field's focus goes (which would close it first)
+      item.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        this.#runCommand(c);
+      });
+      return item;
+    }));
+    this.#commandList.children[this.#commandAt]?.scrollIntoView({ block: 'nearest' });
+  }
+
+  #onCommandKey(e: KeyboardEvent): void {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      this.#closeCommands();
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const n = this.#commandsFound.length;
+      if (n === 0) return;
+      this.#commandAt = (this.#commandAt + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+      this.#paintCommands();
+      return;
+    }
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const c = this.#commandsFound[this.#commandAt];
+    if (c !== undefined) this.#runCommand(c);
+  }
+
+  /** A command run: the palette closed first (its gesture may open a window of its own), then its gesture. */
+  #runCommand(c: Command): void {
+    this.#closeCommands();
+    c.run();
   }
 
   /** Ctrl+C on a box or a note, or Ctrl+X (and it taken off): told, and true. */

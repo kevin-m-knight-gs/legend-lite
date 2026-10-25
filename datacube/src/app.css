@@ -4501,6 +4501,43 @@
   font-size: 12px;
 }
 .dc-flow-keys-panel[hidden] { display: none; }
+/* the command palette (Ctrl+K): a field over a list of what it finds, at the top of the canvas */
+.dc-flow-commands {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  z-index: 6;
+  width: min(460px, calc(100% - 28px));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100% - 60px);
+  border: 1px solid var(--dc-line);
+  border-radius: 10px;
+  background: var(--dc-bg);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  overflow: hidden;
+}
+.dc-flow-commands[hidden] { display: none; }
+.dc-flow-commands-find {
+  flex: none;
+  margin: 0;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 1px solid var(--dc-line-faint);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.dc-flow-commands-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px 0; }
+.dc-flow-command { display: flex; align-items: baseline; gap: 10px; padding: 6px 14px; cursor: pointer; min-width: 0; }
+.dc-flow-command:hover { background: var(--dc-fill-faint); }
+.dc-flow-command.dc-active { background: var(--dc-selected-bg); }
+.dc-flow-command-label { flex: none; font-weight: 600; white-space: nowrap; }
+.dc-flow-command-words { flex: 1 1 auto; min-width: 0; color: var(--dc-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-commands-none { padding: 8px 14px; color: var(--dc-muted); }
 .dc-flow-keys-list { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; margin: 0; padding: 10px 14px 14px; }
 .dc-flow-keys-list dt { font-weight: 600; color: var(--dc-muted-strong); white-space: nowrap; }
 .dc-flow-keys-list dd { margin: 0; color: var(--dc-muted-strong); }
