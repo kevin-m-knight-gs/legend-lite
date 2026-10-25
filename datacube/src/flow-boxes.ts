@@ -14,6 +14,7 @@ import { uniqueOf } from './unique.ts';
 import { rowSampleOf, rowSampleWords } from './row-sample.ts';
 import { transposeOf } from './transpose.ts';
 import { boxRenamed } from './box-columns.ts';
+import { retypesOf } from './select-columns.ts';
 import { imputedOf } from './impute.ts';
 import { multiFieldOf, type MultiFieldColumn } from './multi-field.ts';
 import { dateToolOf } from './date-tools.ts';
@@ -159,8 +160,11 @@ export function boxSays(cube: CubeDocument): BoxSays {
   // Transpose: its Name and Value one step, the columns it hides its own (transpose.ts)
   const transposed = transposeOf(q.derived);
   if (transposed !== undefined) steps.push({ tool: 'transpose', says: `${transposed.columns.join(', ')} to rows` });
+  // a Select's retypes: a conversion of a column it hides (select-columns.ts), said as the Select's
+  const hiddenNow = new Set(hiddenColumns(cube));
+  const retyped = retypesOf(q.derived).filter((r) => hiddenNow.has(r.column));
   const own = new Set([...(unique !== undefined ? [unique.column] : []), ...(sampled?.columns ?? []),
-    ...(transposed !== undefined ? [transposed.name, transposed.value, ...hiddenColumns(cube)] : [])]);
+    ...(transposed !== undefined ? [transposed.name, transposed.value, ...hiddenColumns(cube)] : []), ...retyped.map((r) => r.name)]);
   // Imputation's window columns (an average across every row) are its own, said with the column they fill
   const helpers = new Set(q.derived.flatMap((d) => imputedOf(d, q.derived)?.helper ?? []));
   // a Multi-Field Formula's columns: one formula, each over its own column
@@ -182,14 +186,18 @@ export function boxSays(cube: CubeDocument): BoxSays {
     steps.push({ tool: 'crosstab', says: `${q.pivotOn.join(', ')} across${q.rows.length > 0 ? `, by ${q.rows.join(', ')}` : ''}` });
   } else if (q.rows.length > 0) steps.push({ tool: 'summarize', says: `by ${q.rows.join(', ')}` });
   if (q.sorts.length > 0) steps.push({ tool: 'sort', says: q.sorts.map((s) => `${s.column} ${s.direction === 'desc' ? '↓' : '↑'}`).join(', ') });
-  const hidden = hiddenColumns(cube).filter((c) => !own.has(c) && !helpers.has(c));
-  // a Select's renames: the names it hands its columns on by (box-columns.ts)
-  const renames = boxRenamed(q, cube.configuration);
-  if (hidden.length > 0 || renames.length > 0) {
+  const hidden = hiddenColumns(cube).filter((c) => !own.has(c) && !helpers.has(c) && !retyped.some((r) => r.column === c));
+  // a Select's renames: the names it hands its columns on by (box-columns.ts); its retypes, by the names they are given
+  const as = new Map(boxRenamed(q, cube.configuration).map((r) => [r.from, r.to] as const));
+  const renames = [...as].filter(([from]) => !retyped.some((r) => r.name === from));
+  if (hidden.length > 0 || renames.length > 0 || retyped.length > 0) {
     const renamed = renames.length === 0 ? undefined
-      : renames.length <= 2 ? renames.map((r) => `${r.from} → ${r.to}`).join(', ') : `${renames.length} renamed`;
+      : renames.length <= 2 ? renames.map(([from, to]) => `${from} → ${to}`).join(', ') : `${renames.length} renamed`;
+    const types = retyped.length === 0 ? undefined : retyped.length <= 2
+      ? retyped.map((r) => `${r.column}${(as.get(r.name) ?? r.column) !== r.column ? ` → ${as.get(r.name)}` : ''} as ${r.to}`).join(', ')
+      : `${retyped.length} retyped`;
     const left = hidden.length === 0 ? undefined : `${hidden.length} of ${q.columns.length} columns left out`;
-    steps.push({ tool: 'select', says: [renamed, left].filter((w) => w !== undefined).join('; ') });
+    steps.push({ tool: 'select', says: [renamed, types, left].filter((w) => w !== undefined).join('; ') });
   }
   const first = steps[0];
   if (first === undefined) return { tool: 'browse', also: [], says: 'every row' };

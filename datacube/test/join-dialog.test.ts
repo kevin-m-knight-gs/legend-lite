@@ -143,7 +143,7 @@ describe('the Join window', () => {
     await settle();
     form('cross');
     await debounce();
-    assert.equal($('.dc-join-condition').hidden, true, 'no condition');
+    assert.equal($<HTMLElement>('.dc-join-condition').hidden, true, 'no condition');
     assert.deepEqual(asked.at(-1), { form: 'join', kind: 'inner', on: { rows: [] }, prefix: 'their_', keep: null });
   });
 

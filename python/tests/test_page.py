@@ -2872,6 +2872,16 @@ class Flows(Paged):
         self.assertEqual(sorted(rows['area']), sorted(big.to_pandas()['region']))
         with self.assertRaisesRegex(ValueError, "would both be handed on as 'notional'"):
             chosen.select(['region', 'notional'], rename={'region': 'notional'})
+        # retyped: text made whole numbers, handed on by its own name, the box after it reading numbers
+        codes = flow.grid(pd.DataFrame({'code': ['1', '22', '333'], 'n': [1, 2, 3]}), name='codes')
+        typed = flow.grid(input=codes)
+        typed.select(['code', 'n'], retype={'code': 'Integer'})
+        read = flow.grid(input=typed).to_pandas()
+        self.assertEqual(sorted(read.columns), ['code', 'n'])
+        self.assertEqual(sorted(int(v) for v in read['code']), [1, 22, 333])
+        self.assertTrue(pd.api.types.is_integer_dtype(read['code']), read.dtypes)
+        with self.assertRaisesRegex(ValueError, "'n' \\(Integer\\) cannot be made Boolean"):
+            typed.select(['code', 'n'], retype={'n': 'Boolean'})
 
     def test_a_summarize_gives_its_keys_and_aggregates(self):
         # a box after a Summarize reads a row per group, its keys and its aggregates -- the dimensions it is not grouped

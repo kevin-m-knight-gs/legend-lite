@@ -1,12 +1,13 @@
 // A SELECT, SET (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1, Alteryx's Select): each column of the box's input kept or
-// left out, and renamed or not -- select-columns.ts's rule, said as Alteryx's Select lays it out (a row a column: kept,
-// its name, its type, its new name) -- in a window its grid docks where its options dock it. Fetched with the first.
+// left out, renamed or not, retyped or not -- select-columns.ts's rule, said as Alteryx's Select lays it out (a row a
+// column: kept, its name, its type, its new name) -- in a window its grid docks where its options dock it. Fetched with
+// the first.
 
-import type { Selection } from '../select-columns.ts';
+import type { Retype, SelectedColumn, Selection } from '../select-columns.ts';
 
 export interface SelectFormOptions {
-  /** Its columns, in order: each one's name, type, whether it is kept now and the name it is handed on by now. */
-  readonly columns: readonly { readonly name: string; readonly type: string; readonly kept: boolean; readonly as: string }[];
+  /** Its columns, in order, as its Select has them now (select-columns.ts selectionOf). */
+  readonly columns: readonly SelectedColumn[];
   /** Its columns set: null when they were, else why not (the form stays, saying it). */
   apply(selection: Selection): Promise<string | null>;
   close(): void;
@@ -43,12 +44,21 @@ export function selectForm(host: HTMLElement, o: SelectFormOptions): void {
     keep.checked = c.kept;
     keep.setAttribute('aria-label', `Keep ${c.name}`);
     el('span', 'dc-select-name', row, c.name);
-    el('span', 'dc-select-type', row, c.type);
+    // its type: what it can be made, to choose among, its own first
+    let retype: HTMLSelectElement | undefined;
+    if (c.retypes.length === 0) el('span', 'dc-select-type', row, c.type);
+    else {
+      retype = el('select', 'dc-select dc-select-type dc-select-retype', row);
+      retype.setAttribute('aria-label', `${c.name}'s type`);
+      el('option', '', retype, c.type).value = '';
+      for (const t of c.retypes) el('option', '', retype, `→ ${t}`).value = t;
+      retype.value = c.retype ?? '';
+    }
     const rename = el('input', 'dc-picker-input dc-select-rename', row);
     rename.value = c.as === c.name ? '' : c.as;
     rename.placeholder = c.name;
     rename.setAttribute('aria-label', `${c.name}'s new name`);
-    return { name: c.name, row, keep, rename };
+    return { name: c.name, row, keep, rename, retype };
   });
   const summary = el('p', 'dc-sample-hint', body);
   const status = el('p', 'dc-sample-status', body);
@@ -64,11 +74,13 @@ export function selectForm(host: HTMLElement, o: SelectFormOptions): void {
     keep: rows.filter((r) => r.keep.checked).map((r) => r.name),
     rename: Object.fromEntries(rows.filter((r) => r.rename.value.trim() !== '' && r.rename.value.trim() !== r.name)
       .map((r) => [r.name, r.rename.value.trim()])),
+    retype: Object.fromEntries(rows.filter((r) => r.retype !== undefined && r.retype.value !== '').map((r) => [r.name, r.retype!.value as Retype])),
   });
   const check = (): void => {
     const t = selection();
     const renamed = Object.keys(t.rename).filter((c) => t.keep.includes(c)).length;
-    summary.textContent = `${t.keep.length} of ${rows.length} columns kept${renamed > 0 ? `, ${renamed} renamed` : ''}: what the boxes after it read, by these names.`;
+    const retyped = Object.keys(t.retype ?? {}).filter((c) => t.keep.includes(c)).length;
+    summary.textContent = `${t.keep.length} of ${rows.length} columns kept${renamed > 0 ? `, ${renamed} renamed` : ''}${retyped > 0 ? `, ${retyped} retyped` : ''}: what the boxes after it read, by these names and types.`;
     for (const r of rows) r.row.classList.toggle('dc-select-out', !r.keep.checked);
     ok.disabled = t.keep.length === 0;
     ok.title = t.keep.length === 0 ? 'Not yet: keep a column' : '';
@@ -76,6 +88,7 @@ export function selectForm(host: HTMLElement, o: SelectFormOptions): void {
   for (const r of rows) {
     r.keep.addEventListener('change', check);
     r.rename.addEventListener('input', check);
+    r.retype?.addEventListener('change', check);
   }
   find.addEventListener('input', () => {
     const q = find.value.trim().toLowerCase();

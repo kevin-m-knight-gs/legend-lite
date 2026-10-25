@@ -3774,19 +3774,17 @@ export class CubeApp {
     }));
   }
 
-  /** A FLOW'S SELECT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1, Alteryx's): each column kept or left out, and renamed --
-   *  hidden, and given a display name, which a flow's box hands on as the relation's rename (select-columns.ts, the rule
+  /** A FLOW'S SELECT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1, Alteryx's): each column kept or left out, renamed and
+   *  retyped -- hidden, given a display name, which a flow's box hands on as the relation's rename, or made another type
+   *  by a calculated column of its conversion (select-columns.ts, the rule
    *  Python's grid.select asks) -- in a window of its own (ui/select-form.ts). Both fetched with the first. */
   async #openSelect(): Promise<void> {
     if (this.#cubeOnly()) return;
-    const [{ selectForm }, { selectCommands }] = await Promise.all([
+    const [{ selectForm }, { selectCommands, selectionOf }] = await Promise.all([
       lazily(() => import('./ui/select-form.ts')), lazily(() => import('./select-columns.ts')),
     ]);
-    const s = this.#snapshot;
-    const config = this.#config as unknown as Record<string, unknown>;
-    const on = new Map(handedOn(rowColumns(s).map((c) => c.name), s, config).map((c) => [c.name, c.as] as const));
     this.#showOverlay('Select', (host, close) => selectForm(host, {
-      columns: rowColumns(s).map((c) => ({ name: c.name, type: c.type ?? '', kept: on.has(c.name), as: on.get(c.name) ?? c.name })),
+      columns: selectionOf(this.#snapshot, this.#config as unknown as Record<string, unknown>),
       apply: async (selection) => {
         try {
           return await this.#apply(selectCommands(this.#snapshot, selection), 'Select');

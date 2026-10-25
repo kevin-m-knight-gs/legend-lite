@@ -29,7 +29,7 @@ import { dateToolCommands, dateToolOf, readDateTool } from '../src/date-tools.ts
 import { multiFieldOf } from '../src/multi-field.ts';
 import { readRowSample, rowSampleCommands, rowSampleOf, sampleCommands } from '../src/row-sample.ts';
 import { readTranspose, transposeCommands, transposeOf } from '../src/transpose.ts';
-import { readSelection, selectCommands } from '../src/select-columns.ts';
+import { readSelection, retypesOf, selectCommands, selectionOf } from '../src/select-columns.ts';
 import { applyGridCommands } from '../src/grid-commands.ts';
 import type { GridDraft } from '../src/grid-edits.ts';
 import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi-field-columns.ts';
@@ -358,6 +358,30 @@ describe("Select (select-columns.ts): the columns a box keeps and the names it h
     assert.deepEqual(boxSays(box), { tool: 'select', also: [], says: 'region → area; 1 of 3 columns left out' });
   });
 
+  it("retypes a column: a conversion of it named for it, the column hidden and the conversion handed on by its name", () => {
+    const coded = { ...rawRows(accessor('local::DB', 'trades'), [...COLUMNS, { name: 'code', type: 'String' }]) };
+    const commands = selectCommands(coded, { keep: ['region', 'code'], rename: {}, retype: { code: 'Integer' } });
+    const [calc, conf] = commands as unknown as [{ kind: string; column: DerivedColumn }, { patch: { columns: Record<string, unknown> } }];
+    assert.equal(calc.column.name, 'code__Integer');
+    assert.equal(JSON.stringify(calc.column.lambda?.body[0]), JSON.stringify(fn('parseInteger', fn('toOne', property(variable('x'), 'code')))));
+    assert.equal(calc.column.kind, 'measure');
+    assert.deepEqual(conf.patch.columns['code'], { hidden: true, displayName: null });
+    assert.deepEqual(conf.patch.columns['code__Integer'], { hidden: null, displayName: 'code' });
+    // read back: its retype, its column kept under its own name, and the box says it
+    const derived = [calc.column];
+    const config = { columns: { code: { hidden: true }, code__Integer: { displayName: 'code' }, notional: { hidden: true } } };
+    assert.deepEqual(retypesOf(derived), [{ name: 'code__Integer', column: 'code', to: 'Integer' }]);
+    const row = selectionOf({ ...coded, derived }, config).find((c) => c.name === 'code');
+    assert.deepEqual([row?.kept, row?.as, row?.retype], [true, 'code', 'Integer']);
+    const box = cube(rows('grid-1'), (q) => ({ ...q, columns: coded.columns, derived }), config);
+    assert.deepEqual(boxSays(box), { tool: 'select', also: [], says: 'code as Integer; 1 of 3 columns left out' });
+    // set again without it: the conversion taken off, the column shown again
+    const again = selectCommands({ ...coded, derived }, { keep: ['region', 'code'], rename: {} });
+    assert.deepEqual(again[0], { kind: 'removeCalculated', name: 'code__Integer' });
+    assert.throws(() => selectCommands(coded, { keep: ['notional'], rename: {}, retype: { notional: 'Boolean' } }),
+      /'notional' \(Float\) cannot be made Boolean: it can be made String, Integer, Decimal/);
+  });
+
   it('refuses in words what it cannot hand on', () => {
     assert.throws(() => selectCommands(typed, { keep: [], rename: {} }), /keep a column/);
     assert.throws(() => selectCommands(typed, { keep: ['nope'], rename: {} }), /no column 'nope'/);
@@ -365,6 +389,8 @@ describe("Select (select-columns.ts): the columns a box keeps and the names it h
     assert.throws(() => selectCommands(typed, { keep: ['region'], rename: { region: ' ' } }), /renamed to nothing/);
     assert.deepEqual(readSelection({ kind: 'selectColumns', keep: ['a'] }), { keep: ['a'], rename: {} });
     assert.throws(() => readSelection({ kind: 'selectColumns', keep: ['a'], rename: { a: 1 } }), /its renames are \{column: new name\}/);
+    assert.deepEqual(readSelection({ kind: 'selectColumns', keep: ['a'], retype: { a: 'Float' } }), { keep: ['a'], rename: {}, retype: { a: 'Float' } });
+    assert.throws(() => readSelection({ kind: 'selectColumns', keep: ['a'], retype: { a: 'Money' } }), /its retypes are/);
   });
 });
 

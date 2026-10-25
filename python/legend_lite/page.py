@@ -912,12 +912,16 @@ class Grid(Tile):
         else it is refused in DataCube's words: make them text first."""
         return self._preset({'kind': 'transpose', 'columns': list(columns), 'keys': list(keys), 'name': name, 'value': value})
 
-    def select(self, keep: Sequence[str], *, rename: Mapping[str, str] | None = None) -> Grid:
-        """The columns it hands on, ``keep``, and the names it hands some on by, ``rename`` (``{'region': 'area'}``) -- a
-        flow's Select (DataCube's code: select-columns.ts selectCommands): every other column hidden, each renamed given
-        its display name, which a box of a flow hands on as the relation's ``rename``: the box after it reads ``area``.
-        Two columns handed on by one name refused, in DataCube's words."""
-        return self._preset({'kind': 'selectColumns', 'keep': list(keep), 'rename': dict(rename or {})})
+    def select(self, keep: Sequence[str], *, rename: Mapping[str, str] | None = None,
+               retype: Mapping[str, str] | None = None) -> Grid:
+        """The columns it hands on, ``keep``, the names it hands some on by, ``rename`` (``{'region': 'area'}``), and the
+        types it makes some, ``retype`` (``{'code': 'Integer'}``: ``'String'``, ``'Integer'``, ``'Float'``, ``'Decimal'``,
+        ``'Boolean'`` or ``'Date'``, as its column can be made) -- a flow's Select (DataCube's code: select-columns.ts
+        selectCommands): every other column hidden, each renamed given its display name, which a box of a flow hands on
+        as the relation's ``rename`` (the box after it reads ``area``), each retyped a column of its conversion handed on
+        by its name. Two columns handed on by one name, or a type a column cannot be made, refused in DataCube's words."""
+        return self._preset({'kind': 'selectColumns', 'keep': list(keep), 'rename': dict(rename or {}),
+                             **({'retype': dict(retype)} if retype else {})})
 
     def multi_field(self, columns: Sequence[str], expression: str, *, suffix: str = '_new') -> Grid:
         """One ``expression`` over each of ``columns`` -- a flow's Multi-Field Formula (DataCube's code:

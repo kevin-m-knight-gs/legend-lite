@@ -712,10 +712,12 @@ try {
   const sw = page.locator('.dc-flow-dock .dc-select-form');
   await sw.locator('.dc-select-row[data-column="region"] .dc-select-rename').fill('area');
   await sw.locator('.dc-select-row[data-column="book"] .dc-select-keep').uncheck();
+  // and a number made text: a conversion of it, handed on by its name
+  await sw.locator('.dc-select-row[data-column="quantity"] .dc-select-retype').selectOption('String');
   await sw.locator('.dc-sample-foot .dc-primary').click();
   await settled();
   const choseBox = (await boxes()).find((b) => b.id === chose.id);
-  check(choseBox?.tool === 'select' && /^region → area; 1 of \d+ columns left out$/.test(choseBox.says), `a Select box: ${JSON.stringify(choseBox)}`);
+  check(choseBox?.tool === 'select' && /^region → area; quantity as String; 1 of \d+ columns left out$/.test(choseBox.says), `a Select box: ${JSON.stringify(choseBox)}`);
   // a Sort after it, set to nothing: its rows as it reads them
   const beforeReader = (await boxes()).map((b) => b.id);
   await drag('sort', chose.id);
@@ -723,7 +725,14 @@ try {
   const reader = await added(beforeReader);
   await show(reader.id);
   const readHeads = await page.locator('.dc-flow-results .dc-th[data-column]').evaluateAll((els) => els.map((e) => e.dataset.column));
-  check(readHeads.includes('area') && !readHeads.includes('region') && !readHeads.includes('book'), `the box after it reads area, no region, no book: ${readHeads}`);
+  check(readHeads.includes('area') && !readHeads.includes('region') && !readHeads.includes('book') && readHeads.includes('quantity')
+    && !readHeads.some((h) => h.includes('__')), `the box after it reads area, no region, no book, quantity by its name: ${readHeads}`);
+  // its quantity text now: the Profile says its type
+  await page.locator('.dc-flow-mode[data-mode="profile"]:visible').click();
+  await page.locator('.dc-flow-profile-table:visible tr[data-column="quantity"]').waitFor({ timeout: 60_000 });
+  const quantityType = await page.locator('.dc-flow-profile-table:visible tr[data-column="quantity"] .dc-flow-profile-type').textContent();
+  check(quantityType === 'String', `quantity read as text after it: ${quantityType}`);
+  await page.locator('.dc-flow-mode[data-mode="rows"]:visible').click();
 
   // TRANSPOSE (M4), dragged onto the Filter: notional and pnl made rows beside each trade's id, the rest left out
   const beforeTranspose = (await boxes()).map((b) => b.id);

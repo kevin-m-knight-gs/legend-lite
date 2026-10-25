@@ -239,7 +239,7 @@ How to read the status column:
 | Formula | Built | A calculated column, checked by the compiler as it is typed |
 | Multi-Row Formula | Built | A window column: `lag`, `lead`, `first`, `last` |
 | Multi-Field Formula | Built (2026-10-25) | One expression over `$v`, each column's value, parsed by the compiler: a calculated column of each (`<column><suffix>`). In place, as Alteryx's "change existing fields", needs a relation `rename` |
-| Select (choose, rename, retype) | Built: choose, rename (2026-10-25) | Its own window: each column kept or left out (hidden) and renamed (its display name), which a flow's box hands on as the relation's `rename`. Retyping is `cast`, still to come |
+| Select (choose, rename, retype) | Built (2026-10-25) | Its own window: each column kept or left out (hidden), renamed (its display name, which a flow's box hands on as the relation's `rename`) and retyped (a calculated column of its conversion -- `parseInteger`, `toString`, `round`, `toFloat`... -- its column hidden, it handed on by the column's name) |
 | Sort | Built | The grid's sorts |
 | Sample (first, last, every Nth, N per group) | Built (2026-10-25) | The first or last N of all the rows, the grid's Top N; of each group, all but the first N, or one of every N, a row number (`rowNumber`, per group) and a filter on it, hidden -- `mod` of it for one of every N |
 | Random % Sample | Step | `random()` |
@@ -758,6 +758,18 @@ found by the harness, a Filter's port under it), and its button off while every 
 **Run from the keys** (`layout/flow-canvas.ts`): Ctrl+Enter (⌘+Enter) anywhere on the canvas runs the flow, as its
 button does, while no run is going; the keys panel and the button's title say so. Tested by the harness (a run from a
 box's keys writes its Output).
+
+**Built, Select's retype** (`select-columns.ts`, `ui/select-form.ts`): the Select window's Type is a choice wherever a
+column can be made something else -- text a whole number, a fraction, a decimal, true or false, a date (`parseInteger`,
+`parseFloat`, `parseDecimal`, `parseBoolean`, `parseDate`); a number text, a whole number (`round`), a fraction
+(`toFloat`) or a decimal; a date or true-or-false text (`toString`). A column retyped is a calculated column of its
+conversion (`$x.code->toOne()->parseInteger()`, named `code__Integer`), its column hidden and the conversion given the
+column's name, so the box after it reads `code`, a whole number -- the renames' own machinery, nothing new below it.
+Read back by its name and its shape together (`retypesOf`: a person's own formula is never taken for one); set again,
+a retype dropped is taken off. A box says "region → area; quantity as String; 1 of 12 columns left out". Python:
+`grid.select(keep, rename=..., retype={'code': 'Integer'})`. Tested by `flow-sheet.test.ts` (its command, its reading,
+its words, its refusal of a number made true or false), Python's Select test (text made numbers, the box after it
+reading integers) and the harness (quantity made text, the box after it profiling it as String).
 
 **A Summarize gives its keys and its aggregates** (`snapshot.ts ungroupedDimensions`): a box after a grouped box read
 a row per group with every dimension beside it, each its "unique value" (empty where a group's rows differ) -- the
