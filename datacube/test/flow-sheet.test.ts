@@ -29,6 +29,7 @@ import { dateToolCommands, dateToolOf, readDateTool } from '../src/date-tools.ts
 import { multiFieldOf } from '../src/multi-field.ts';
 import { readRowSample, rowSampleCommands, rowSampleOf, sampleCommands } from '../src/row-sample.ts';
 import { readTranspose, transposeCommands, transposeOf } from '../src/transpose.ts';
+import { readSelection, selectCommands } from '../src/select-columns.ts';
 import { applyGridCommands } from '../src/grid-commands.ts';
 import type { GridDraft } from '../src/grid-edits.ts';
 import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi-field-columns.ts';
@@ -342,6 +343,28 @@ describe("Sample's other ways (row-sample.ts): a row number and a filter, as Uni
     assert.deepEqual(readRowSample({ kind: 'sample', mode: 'skip', n: 3, by: 'notional' }), { kind: 'skip', n: 3, by: 'notional', groups: [] });
     assert.equal(readRowSample({ kind: 'sample', mode: null }), null);
     assert.throws(() => readRowSample({ kind: 'sample', mode: 'random', n: 3, by: 'notional' }), /its mode is first, last, skip, every/);
+  });
+});
+
+describe("Select (select-columns.ts): the columns a box keeps and the names it hands them on by", () => {
+  const typed = { ...rawRows(accessor('local::DB', 'trades'), [...COLUMNS, { name: 'desk', type: 'String' }]) };
+
+  it('hides what it leaves out and names what it renames, every other setting cleared; the box says both', () => {
+    const [c] = selectCommands(typed, { keep: ['region', 'notional'], rename: { region: 'area' } }) as unknown as [{ patch: { columns: object } }];
+    assert.deepEqual(c.patch.columns, {
+      region: { hidden: null, displayName: 'area' }, notional: { hidden: null, displayName: null }, desk: { hidden: true, displayName: null },
+    });
+    const box = cube(rows('grid-1'), (q) => ({ ...q, columns: typed.columns }), { columns: { region: { displayName: 'area' }, desk: { hidden: true } } });
+    assert.deepEqual(boxSays(box), { tool: 'select', also: [], says: 'region → area; 1 of 3 columns left out' });
+  });
+
+  it('refuses in words what it cannot hand on', () => {
+    assert.throws(() => selectCommands(typed, { keep: [], rename: {} }), /keep a column/);
+    assert.throws(() => selectCommands(typed, { keep: ['nope'], rename: {} }), /no column 'nope'/);
+    assert.throws(() => selectCommands(typed, { keep: ['region', 'desk'], rename: { region: 'desk' } }), /'region' and 'desk' would both be handed on as 'desk'/);
+    assert.throws(() => selectCommands(typed, { keep: ['region'], rename: { region: ' ' } }), /renamed to nothing/);
+    assert.deepEqual(readSelection({ kind: 'selectColumns', keep: ['a'] }), { keep: ['a'], rename: {} });
+    assert.throws(() => readSelection({ kind: 'selectColumns', keep: ['a'], rename: { a: 1 } }), /its renames are \{column: new name\}/);
   });
 });
 

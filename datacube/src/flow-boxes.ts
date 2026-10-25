@@ -13,6 +13,7 @@ import { textToolOf, type TextTool } from './text-tools.ts';
 import { uniqueOf } from './unique.ts';
 import { rowSampleOf, rowSampleWords } from './row-sample.ts';
 import { transposeOf } from './transpose.ts';
+import { boxRenamed } from './box-columns.ts';
 import { imputedOf } from './impute.ts';
 import { multiFieldOf, type MultiFieldColumn } from './multi-field.ts';
 import { dateToolOf } from './date-tools.ts';
@@ -39,7 +40,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   filter: { name: 'Filter', group: 'prepare', does: 'the rows that meet its conditions' },
   formula: { name: 'Formula', group: 'prepare', does: 'columns calculated from each row' },
   multiField: { name: 'Multi-Field', group: 'prepare', does: 'one formula over several columns, a new column of each' },
-  select: { name: 'Select', group: 'prepare', does: 'the columns it keeps' },
+  select: { name: 'Select', group: 'prepare', does: 'the columns it keeps, and the names it hands them on by' },
   sort: { name: 'Sort', group: 'prepare', does: 'its rows in the order it sorts them' },
   sample: { name: 'Sample', group: 'prepare', does: 'its first or last rows (of each group), all but its first, or one of every N' },
   unique: { name: 'Unique', group: 'prepare', does: 'a row of each key, its first: U the unique rows, D the duplicates' },
@@ -89,6 +90,8 @@ export type StepEditor =
   | { readonly window: 'multiField' }
   /** The Transpose window (ui/transpose-form.ts): the columns made rows, the keys kept beside them. */
   | { readonly window: 'transpose' }
+  /** The Select window (ui/select-form.ts): each column kept or left out, and renamed. */
+  | { readonly window: 'select' }
   /** The DateTime window (ui/date-form.ts): a date column taken to its period, the grid's own period preset. */
   | { readonly window: 'datetime' }
   /** A text tool's window (ui/text-tool-form.ts): Text To Columns, RegEx or Data Cleansing (text-tools.ts). */
@@ -102,7 +105,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   formula: { window: 'column' },
   multiField: { window: 'multiField' },
   transpose: { window: 'transpose' },
-  select: { window: 'properties', tab: 'Columns' },
+  select: { window: 'select' },
   sort: { window: 'properties', tab: 'Sorts' },
   summarize: { window: 'properties', tab: 'Vertical Pivots' },
   crosstab: { window: 'properties', tab: 'Horizontal Pivots' },
@@ -178,7 +181,14 @@ export function boxSays(cube: CubeDocument): BoxSays {
   } else if (q.rows.length > 0) steps.push({ tool: 'summarize', says: `by ${q.rows.join(', ')}` });
   if (q.sorts.length > 0) steps.push({ tool: 'sort', says: q.sorts.map((s) => `${s.column} ${s.direction === 'desc' ? '↓' : '↑'}`).join(', ') });
   const hidden = hiddenColumns(cube).filter((c) => !own.has(c) && !helpers.has(c));
-  if (hidden.length > 0) steps.push({ tool: 'select', says: `${hidden.length} of ${q.columns.length} columns left out` });
+  // a Select's renames: the names it hands its columns on by (box-columns.ts)
+  const renames = boxRenamed(q, cube.configuration);
+  if (hidden.length > 0 || renames.length > 0) {
+    const renamed = renames.length === 0 ? undefined
+      : renames.length <= 2 ? renames.map((r) => `${r.from} → ${r.to}`).join(', ') : `${renames.length} renamed`;
+    const left = hidden.length === 0 ? undefined : `${hidden.length} of ${q.columns.length} columns left out`;
+    steps.push({ tool: 'select', says: [renamed, left].filter((w) => w !== undefined).join('; ') });
+  }
   const first = steps[0];
   if (first === undefined) return { tool: 'browse', also: [], says: 'every row' };
   return { tool: first.tool, also: steps.slice(1).map((s) => s.tool), says: first.says };

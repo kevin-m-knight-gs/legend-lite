@@ -5,7 +5,7 @@
 // (join.ts joinRelation), and the compiler types what comes out. What drifted since it was saved is said. No DOM: the
 // tab's sources (app/sources.ts) and a test on Node's DuckDB (test/join-open.test.ts) call it alike.
 
-import { colSpecs, fn, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { colSpec, colSpecs, fn, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import {
   frozenInput, inputCube, leavesOf, openCube, type CubeSource, type JoinInput, type JoinSource, type LeafSource, type RowsSource,
 } from './cube-document.ts';
@@ -93,10 +93,15 @@ export async function inputRows(input: JoinInput, over: ValueSpecification, type
   }
   const all = classLambda(opened.snapshot).body[0]!;
   const typed = (await sourceColumns(typer, all)).map((c) => ({ name: c.name, type: c.type }));
-  // the columns its box leaves out (JoinInput.omit): selected away, the rest in their order
+  // the columns its box leaves out (JoinInput.omit): selected away, the rest in their order; then those it renames
+  // (JoinInput.rename), each by the relation's rename, what reads it reading them by their new names
   const omit = new Set(input.omit ?? []);
-  const columns = typed.filter((c) => !omit.has(c.name));
-  const rows = columns.length === typed.length ? all : fn('select', all, colSpecs(columns.map((c) => c.name)));
+  const kept = typed.filter((c) => !omit.has(c.name));
+  let rows = kept.length === typed.length ? all : fn('select', all, colSpecs(kept.map((c) => c.name)));
+  const renames = (input.rename ?? []).filter((r) => kept.some((c) => c.name === r.from));
+  for (const r of renames) rows = fn('rename', rows, colSpec(r.from), colSpec(r.to));
+  const to = new Map(renames.map((r) => [r.from, r.to] as const));
+  const columns = kept.map((c) => ({ name: to.get(c.name) ?? c.name, type: c.type }));
   return { name: input.name, relation: rows, columns };
 }
 

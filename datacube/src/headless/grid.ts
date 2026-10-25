@@ -24,6 +24,7 @@ import { imputeCommands, readImputation, type Imputation } from '../impute.ts';
 import { multiFieldCommands, multiFieldText, readMultiField } from '../multi-field-columns.ts';
 import { readRowSample, sampleCommands, type RowSample } from '../row-sample.ts';
 import { readTranspose, transposeCommands, type Transpose } from '../transpose.ts';
+import { readSelection, selectCommands, type Selection } from '../select-columns.ts';
 import type { MultiFieldAsked } from '../multi-field.ts';
 import { DATE_TOOL_KINDS, dateToolCommands, readDateTool, type DateTool } from '../date-tools.ts';
 import {
@@ -763,7 +764,8 @@ export async function gridModelMeasure(spec: GridSpec, given: string): Promise<s
  * grid.regex, grid.cleanse), Unique (unique.ts uniqueCommands: grid.unique) or Imputation (impute.ts imputeCommands:
  * grid.impute), a DateTime's part or text read as a date (date-tools.ts dateToolCommands: grid.date_part, grid.parse_date),
  * a Multi-Field Formula (multi-field-columns.ts multiFieldCommands, its expression parsed by the compiler: grid.multi_field),
- * a Sample (row-sample.ts sampleCommands: grid.sample), or a Transpose (transpose.ts transposeCommands: grid.transpose).
+ * a Sample (row-sample.ts sampleCommands: grid.sample), a Transpose (transpose.ts transposeCommands: grid.transpose), or a
+ * Select (select-columns.ts selectCommands: grid.select).
  * `given`, the preset or the tool as JSON (readGridPreset, readTextTool, readUnique, readImputation, readMultiField, by
  * its kind; readRowSample), over the grid's columns as the compiler types them now.
  * JSON: as gridApply's, or `{problems}`, in DataCube's words.
@@ -771,13 +773,13 @@ export async function gridModelMeasure(spec: GridSpec, given: string): Promise<s
 export async function gridPreset(spec: GridSpec, given: string): Promise<string> {
   let asked: { readonly preset: GridPreset } | { readonly tool: TextTool } | { readonly unique: Unique } | { readonly impute: Imputation }
     | { readonly date: DateTool } | { readonly multi: MultiFieldAsked } | { readonly sample: RowSample | null }
-    | { readonly transpose: Transpose };
+    | { readonly transpose: Transpose } | { readonly select: Selection };
   try {
     const raw: unknown = JSON.parse(given);
     const kind = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>)['kind'] : undefined;
     asked = kind === 'unique' ? { unique: readUnique(raw) } : kind === 'impute' ? { impute: readImputation(raw) }
       : kind === 'multiField' ? { multi: readMultiField(raw) } : kind === 'sample' ? { sample: readRowSample(raw) }
-      : kind === 'transpose' ? { transpose: readTranspose(raw) }
+      : kind === 'transpose' ? { transpose: readTranspose(raw) } : kind === 'selectColumns' ? { select: readSelection(raw) }
       : (DATE_TOOL_KINDS as readonly unknown[]).includes(kind) ? { date: readDateTool(raw) }
       : (TEXT_TOOL_KINDS as readonly unknown[]).includes(kind) ? { tool: readTextTool(raw) } : { preset: readGridPreset(raw) };
   } catch (e) {
@@ -801,6 +803,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
         : 'multi' in asked ? multiFieldCommands(await typedColumns(o.runner, o.state.snapshot), { ...asked.multi, lambda: lambda! })
         : 'sample' in asked ? sampleCommands(await typedColumns(o.runner, o.state.snapshot), asked.sample)
         : 'transpose' in asked ? transposeCommands(await typedColumns(o.runner, o.state.snapshot), asked.transpose)
+        : 'select' in asked ? selectCommands(await typedColumns(o.runner, o.state.snapshot), asked.select)
         : 'unique' in asked ? uniqueCommands(await typedColumns(o.runner, o.state.snapshot), asked.unique)
           : 'impute' in asked ? imputeCommands(await typedColumns(o.runner, o.state.snapshot), asked.impute)
           : presetCommands(await typedColumns(o.runner, o.state.snapshot), asked.preset);

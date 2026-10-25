@@ -5049,6 +5049,17 @@
 .dc-multi-field .dc-text-tool-field { max-width: none; }
 .dc-multi-field-expression { width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--dc-mono, ui-monospace, monospace); }
 .dc-multi-field-suffix { width: 8em; }
+/* a Select's columns (ui/select-form.ts): a row a column -- kept, its name, its type, its new name */
+.dc-select-find { flex: 1; min-width: 10em; }
+.dc-select-list { display: flex; flex-direction: column; max-height: 300px; overflow-y: auto; border: 1px solid var(--tw-neutral-200); border-radius: 8px; }
+.dc-select-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 90px minmax(0, 1fr); align-items: center; gap: 8px; padding: 3px 10px; }
+.dc-select-row[hidden] { display: none; }
+.dc-select-row + .dc-select-row { border-top: 1px solid var(--tw-neutral-100); }
+.dc-select-head { padding: 0 10px; color: var(--dc-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.dc-select-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-select-type { color: var(--dc-muted); font-size: 12px; }
+.dc-select-rename { padding: 3px 6px; }
+.dc-select-out .dc-select-name, .dc-select-out .dc-select-type { color: var(--dc-muted); text-decoration: line-through; }
 /* a Transpose's columns (ui/transpose-form.ts): each a key, made rows, or left out */
 .dc-transpose-list { display: flex; flex-direction: column; max-height: 260px; overflow-y: auto; border: 1px solid var(--tw-neutral-200); border-radius: 8px; }
 .dc-transpose-row { display: grid; grid-template-columns: 1fr 64px 84px; align-items: center; gap: 8px; padding: 4px 10px; }

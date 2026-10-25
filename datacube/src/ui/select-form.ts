@@ -1,0 +1,97 @@
+// A SELECT, SET (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1, Alteryx's Select): each column of the box's input kept or
+// left out, and renamed or not -- select-columns.ts's rule, said as Alteryx's Select lays it out (a row a column: kept,
+// its name, its type, its new name) -- in a window its grid docks where its options dock it. Fetched with the first.
+
+import type { Selection } from '../select-columns.ts';
+
+export interface SelectFormOptions {
+  /** Its columns, in order: each one's name, type, whether it is kept now and the name it is handed on by now. */
+  readonly columns: readonly { readonly name: string; readonly type: string; readonly kept: boolean; readonly as: string }[];
+  /** Its columns set: null when they were, else why not (the form stays, saying it). */
+  apply(selection: Selection): Promise<string | null>;
+  close(): void;
+}
+
+/** The form, drawn into `host`. */
+export function selectForm(host: HTMLElement, o: SelectFormOptions): void {
+  const doc = host.ownerDocument;
+  const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent: Element, text?: string): HTMLElementTagNameMap[K] => {
+    const e = doc.createElement(tag);
+    e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    parent.append(e);
+    return e;
+  };
+  const body = el('div', 'dc-sample dc-select-form', host);
+  const tools = el('div', 'dc-sample-line', body);
+  const find = el('input', 'dc-picker-input dc-select-find', tools);
+  find.type = 'search';
+  find.placeholder = 'Find a column';
+  find.setAttribute('aria-label', 'Find a column');
+  const all = el('button', 'dc-picker-button dc-quiet dc-select-all', tools, 'All');
+  all.type = 'button';
+  const none = el('button', 'dc-picker-button dc-quiet dc-select-none', tools, 'None');
+  none.type = 'button';
+  const head = el('div', 'dc-select-row dc-select-head', body);
+  for (const h of ['', 'Column', 'Type', 'Renamed']) el('span', '', head, h);
+  const list = el('div', 'dc-select-list', body);
+  const rows = o.columns.map((c) => {
+    const row = el('label', 'dc-select-row', list);
+    row.dataset['column'] = c.name;
+    const keep = el('input', 'dc-select-keep', row);
+    keep.type = 'checkbox';
+    keep.checked = c.kept;
+    keep.setAttribute('aria-label', `Keep ${c.name}`);
+    el('span', 'dc-select-name', row, c.name);
+    el('span', 'dc-select-type', row, c.type);
+    const rename = el('input', 'dc-picker-input dc-select-rename', row);
+    rename.value = c.as === c.name ? '' : c.as;
+    rename.placeholder = c.name;
+    rename.setAttribute('aria-label', `${c.name}'s new name`);
+    return { name: c.name, row, keep, rename };
+  });
+  const summary = el('p', 'dc-sample-hint', body);
+  const status = el('p', 'dc-sample-status', body);
+  status.setAttribute('role', 'status');
+  const foot = el('div', 'dc-sample-foot', body);
+  el('span', 'dc-save-spacer', foot);
+  const cancel = el('button', 'dc-picker-button dc-quiet', foot, 'Cancel');
+  cancel.type = 'button';
+  cancel.addEventListener('click', () => o.close());
+  const ok = el('button', 'dc-picker-button dc-primary', foot, 'OK');
+  ok.type = 'button';
+  const selection = (): Selection => ({
+    keep: rows.filter((r) => r.keep.checked).map((r) => r.name),
+    rename: Object.fromEntries(rows.filter((r) => r.rename.value.trim() !== '' && r.rename.value.trim() !== r.name)
+      .map((r) => [r.name, r.rename.value.trim()])),
+  });
+  const check = (): void => {
+    const t = selection();
+    const renamed = Object.keys(t.rename).filter((c) => t.keep.includes(c)).length;
+    summary.textContent = `${t.keep.length} of ${rows.length} columns kept${renamed > 0 ? `, ${renamed} renamed` : ''}: what the boxes after it read, by these names.`;
+    for (const r of rows) r.row.classList.toggle('dc-select-out', !r.keep.checked);
+    ok.disabled = t.keep.length === 0;
+    ok.title = t.keep.length === 0 ? 'Not yet: keep a column' : '';
+  };
+  for (const r of rows) {
+    r.keep.addEventListener('change', check);
+    r.rename.addEventListener('input', check);
+  }
+  find.addEventListener('input', () => {
+    const q = find.value.trim().toLowerCase();
+    for (const r of rows) r.row.hidden = q !== '' && !r.name.toLowerCase().includes(q);
+  });
+  const every = (on: boolean): void => {
+    for (const r of rows) if (!r.row.hidden) r.keep.checked = on;
+    check();
+  };
+  all.addEventListener('click', () => every(true));
+  none.addEventListener('click', () => every(false));
+  check();
+  ok.addEventListener('click', () => void (async () => {
+    status.textContent = '';
+    const refused = await o.apply(selection());
+    if (refused === null) o.close();
+    else status.textContent = refused;
+  })());
+}

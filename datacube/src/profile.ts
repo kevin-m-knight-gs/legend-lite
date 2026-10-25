@@ -74,8 +74,10 @@ export function columnsLambda(rows: ValueSpecification): Lambda {
 }
 
 /** A box's rows, the columns given alone (its shown ones: what an Output writes), in their order. */
-export function rowsLambda(rows: ValueSpecification, columns: readonly string[]): Lambda {
-  return from(rows).select(columns).lambda();
+export function rowsLambda(rows: ValueSpecification, columns: readonly { readonly name: string; readonly as: string }[]): Lambda {
+  // each renamed after it is chosen (a Select's renames: box-columns.ts handedOn)
+  return columns.filter((c) => c.as !== c.name)
+    .reduce((r, c) => r.rename(c.name, c.as), from(rows).select(columns.map((c) => c.name))).lambda();
 }
 
 /** The profile read back off its question's one row (`table`): refused in words when the answer is not that row. */

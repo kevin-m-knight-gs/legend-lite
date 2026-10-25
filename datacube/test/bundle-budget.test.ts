@@ -364,8 +364,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  374,000 -> 375,000 (2026-10-25, the flow mode's Multi-Field Formula: the palette's tool, its columns read back off
  *  their shapes to say a box (multi-field.ts multiFieldOf), the step that opens its window (app.ts); its window and its
  *  commands chunks of their own, ui/multi-field-form.ts and multi-field-columns.ts, fetched with the first). Measured
- *  374,121. */
-const BUDGET = 375_000;
+ *  374,121.
+ *  375,000 -> 376,000 (2026-10-25, the flow mode's Transpose, Select and Sample's other ways: their windows' openers
+ *  (app.ts), and what a box hands on -- its columns shown, a Summarize's keys and aggregates, a Select's renames -- one
+ *  rule now (box-columns.ts) that live-inputs.ts reads at startup; the rules and the windows chunks of their own).
+ *  Measured 375,039. */
+const BUDGET = 376_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -503,8 +507,10 @@ const BUDGET = 375_000;
  *  361,799.
  *  362,500 -> 363,000 (2026-10-25, the flow mode's Multi-Field Formula and Append Fields: the Multi-Field's opener
  *  (app.ts), and a Join box's tool read off its join to set it again (app/datacube-app.ts, join-how.ts isEveryPair).
- *  Measured 362,544. */
-const ENGINE_BUDGET = 363_000;
+ *  Measured 362,544.
+ *  363,000 -> 364,000 (2026-10-25, the flow mode's Transpose, Select and Sample's other ways -- the grid-only page's note
+ *  of the same date). Measured 363,365. */
+const ENGINE_BUDGET = 364_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -701,8 +707,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  384,000 -> 385,500 (2026-10-25, the flow mode's Output -- the grid-only page's note of the same date; its settings'
  *  styles among them). Measured 385,054.
  *  385,500 -> 386,500 (2026-10-25, the flow mode's Multi-Field Formula -- the grid-only page's note of the same date).
- *  Measured 385,655. */
-const WIDGET_BUDGET = 386_500;
+ *  Measured 385,655.
+ *  386,500 -> 387,500 (2026-10-25, the flow mode's Transpose, Select and Sample's other ways -- the grid-only page's note
+ *  of the same date; the Select's and the Transpose's windows' styles among them). Measured 386,857. */
+const WIDGET_BUDGET = 387_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

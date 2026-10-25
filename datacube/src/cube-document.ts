@@ -191,6 +191,9 @@ export interface JoinInput {
   /** The columns its rows leave out: a flow's box's hidden columns -- a Select's, Unique's row number -- since a box's
    *  rows are the columns it shows (live-inputs.ts gridInput). Absent, every column of its query. */
   readonly omit?: readonly string[];
+  /** The columns its rows rename, each from its name to another: a flow's box's renamed columns (a Select's: its display
+   *  names), since what reads a box reads them by the names it gives them. Absent, none. */
+  readonly rename?: readonly { readonly from: string; readonly to: string }[];
 }
 
 /**
@@ -557,7 +560,13 @@ function readFrozenInput(i: Record<string, unknown>, what: string): JoinInput {
   if (omit !== undefined && !(Array.isArray(omit) && omit.length > 0 && omit.every((c) => typeof c === 'string'))) {
     throw new CubeDocumentError(`${what}'s columns left out are a list of names, not ${JSON.stringify(plain(omit) ?? null)}`);
   }
-  return { name: i['name'], source: readSource(i['source']), query: readQuery(i['query']), ...(omit !== undefined ? { omit: omit as string[] } : {}) };
+  const rename = i['rename'];
+  if (rename !== undefined && !(Array.isArray(rename) && rename.length > 0 && rename.every((r) => r !== null && typeof r === 'object'
+    && typeof (r as Record<string, unknown>)['from'] === 'string' && typeof (r as Record<string, unknown>)['to'] === 'string'))) {
+    throw new CubeDocumentError(`${what}'s columns renamed are a list of {from, to}, not ${JSON.stringify(plain(rename) ?? null)}`);
+  }
+  return { name: i['name'], source: readSource(i['source']), query: readQuery(i['query']), ...(omit !== undefined ? { omit: omit as string[] } : {}),
+    ...(rename !== undefined ? { rename: (rename as { from: string; to: string }[]).map((r) => ({ from: r.from, to: r.to })) } : {}) };
 }
 
 /** Another grid's rows (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): its name, its columns, its input live or frozen. */

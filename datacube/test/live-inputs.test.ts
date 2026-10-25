@@ -136,6 +136,21 @@ describe('a live input resolved against its page', () => {
       (e: unknown) => e instanceof CubeDocumentError && /columns left out are a list of names/.test(e.message));
   });
 
+  it("a flow's box hands on its columns by the names it gives them: renamed (rename), written and read with a copy", () => {
+    const renaming = (c: CubeDocument): CubeDocument => ({ ...c, configuration: { ...c.configuration, columns: { region: { displayName: 'area' } } } });
+    const board = page({ 'grid-1': renaming(cube(FILE)), 'grid-2': cube(rows('grid-1')) });
+    assert.equal(gridInput(board, 'grid-1').rename, undefined, "a board's grid: its columns by their names");
+    const flow: PageDocument = { ...board, sheets: [{ id: 'sheet-1', layout: { kind: 'flow', boxes: [
+      { tile: 'grid-1', x: 40, y: 40 }, { tile: 'grid-2', x: 288, y: 40 },
+    ] } }] };
+    assert.deepEqual(gridInput(flow, 'grid-1').rename, [{ from: 'region', to: 'area' }]);
+    const frozen = cube({ _type: 'rows', name: 'trades.csv', input: gridInput(flow, 'grid-1'), columns: COLUMNS });
+    const again = readCube(JSON.parse(cubeToJson(frozen)));
+    assert.deepEqual(again.source._type === 'rows' && !('grid' in again.source.input) ? again.source.input.rename : null, [{ from: 'region', to: 'area' }]);
+    assert.throws(() => readCube(JSON.parse(cubeToJson(frozen).replace('"rename":[{"from":"region","to":"area"}]', '"rename":["region"]'))),
+      (e: unknown) => e instanceof CubeDocumentError && /columns renamed are a list of \{from, to\}/.test(e.message));
+  });
+
   it("a flow's Summarize gives its keys and its aggregates: the dimensions it is not grouped by left out", () => {
     // region and desk dimensions, notional a measure; grouped by region: desk has no one value a group
     const wide = [{ name: 'region', type: 'String' }, { name: 'desk', type: 'String' }, { name: 'notional', type: 'Float', kind: 'measure' as const }];

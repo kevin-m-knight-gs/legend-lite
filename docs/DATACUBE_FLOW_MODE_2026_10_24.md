@@ -239,7 +239,7 @@ How to read the status column:
 | Formula | Built | A calculated column, checked by the compiler as it is typed |
 | Multi-Row Formula | Built | A window column: `lag`, `lead`, `first`, `last` |
 | Multi-Field Formula | Built (2026-10-25) | One expression over `$v`, each column's value, parsed by the compiler: a calculated column of each (`<column><suffix>`). In place, as Alteryx's "change existing fields", needs a relation `rename` |
-| Select (choose, rename, retype) | Step | Choosing is the grid's shown columns. Renaming is a display name today, not the relation's `rename`; both as relation steps (§17.8). Retyping is `cast` |
+| Select (choose, rename, retype) | Built: choose, rename (2026-10-25) | Its own window: each column kept or left out (hidden) and renamed (its display name), which a flow's box hands on as the relation's `rename`. Retyping is `cast`, still to come |
 | Sort | Built | The grid's sorts |
 | Sample (first, last, every Nth, N per group) | Built (2026-10-25) | The first or last N of all the rows, the grid's Top N; of each group, all but the first N, or one of every N, a row number (`rowNumber`, per group) and a filter on it, hidden -- `mod` of it for one of every N |
 | Random % Sample | Step | `random()` |
@@ -716,6 +716,18 @@ way, Alteryx's Split to rows -- each part of a text its own row: one column, `sp
 split on ' ' to rows". Python: `grid.split(column, delimiter, name=..., rows=True)`. Tested by `flow-sheet.test.ts`,
 Python's text tools test (a, b, c three rows, d one) and the harness (the Filter's books split on a space: more rows
 than the Filter's).
+
+**Built, Select's window and its renames** (`select-columns.ts`, `ui/select-form.ts`, `box-columns.ts`): Alteryx's
+Select laid out as Alteryx lays it -- a row a column: kept or not, its name, its type, its new name; a find box, All and
+None. Kept and left out are the grid's own Hide; a rename is the column's display name, which a box of a flow now hands
+on as the relation's `rename` (`JoinInput.rename`, written with a frozen copy; `join-open.ts inputRows` renames after
+it selects), so the box after it reads `area` where it read `region`. What a box hands on is one rule now
+(`box-columns.ts`: hidden and a Summarize's ungrouped dimensions left out, renames applied), read alike by live inputs,
+the settings' columns out, the Profile and the Output (its CSV's head). Two columns handed on by one name are refused
+in words. A box says "region → area; 1 of 12 columns left out". Python: `grid.select(keep, rename={...})`. Tested by
+`flow-sheet.test.ts` (its command, its words, its refusals), `live-inputs.test.ts` (a rename carried, written, read),
+Python's `test_a_select_keeps_and_renames_for_what_reads_it` and the harness (a Select of the Filter, the Sort after it
+reading `area`, no `region`, no `book`).
 
 **A Summarize gives its keys and its aggregates** (`snapshot.ts ungroupedDimensions`): a box after a grouped box read
 a row per group with every dimension beside it, each its "unique value" (empty where a group's rows differ) -- the

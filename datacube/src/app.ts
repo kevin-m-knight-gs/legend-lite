@@ -89,6 +89,7 @@ import {
 import { conditionWords } from './page-filters.ts';
 import { shortcutsTable } from './ui/shortcuts.ts';
 import { shownColumns } from './shown-columns.ts';
+import { handedOn } from './box-columns.ts';
 import { freshConfiguration, gridCapped, newGridTree, writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
 import { treeHeaderText } from './treeview.ts';
@@ -96,7 +97,6 @@ import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import type { JsonColumnReader } from './ui/json-fields.ts';
 import {
   rowColumns,
-  ungroupedDimensions,
   type ColumnKind,
   type CubeSnapshot,
   type DerivedColumn,
@@ -465,7 +465,7 @@ const windowStack = new WeakMap<HTMLElement, number>();
 /** The text tools' windows, by the tool each sets (text-tools.ts). */
 const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
 const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation'
-  || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose'
+  || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select'
   || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
@@ -3641,6 +3641,9 @@ export class CubeApp {
       case 'transpose':
         void this.#openTranspose();
         return;
+      case 'select':
+        void this.#openSelect();
+        return;
       // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
       case 'join':
         return;
@@ -3713,12 +3716,12 @@ export class CubeApp {
     const { columnsLambda, profileLambda, profileOf } = await lazily(() => import('./profile.ts'));
     const rows = classLambda(s).body[0]!;
     const typed = await this.#controller.runQuery(columnsLambda(rows), s);
-    // the columns it shows: what the box after it reads (a hidden one left out: live-inputs.ts gridInput's omit)
-    const away = new Set(ungroupedDimensions(s));
-    const columns = typed.rows.columns.filter((c) => columnConfig(this.#config, c.name).hidden !== true && !away.has(c.name))
-      .map((c) => ({ name: c.name, type: c.type }));
+    // the columns it hands on: what the box after it reads (box-columns.ts), each said by the name it hands it on by
+    const on = handedOn(typed.rows.columns.map((c) => c.name), s, this.#config as unknown as Record<string, unknown>);
+    const columns = on.map((c) => ({ name: c.name, type: typed.rows.columns.find((t) => t.name === c.name)!.type }));
     const answer = await this.#controller.runQuery(profileLambda(rows, columns), s);
-    return profileOf(answer.rows, columns);
+    const profile = profileOf(answer.rows, columns);
+    return { ...profile, columns: profile.columns.map((c, i) => ({ ...c, name: on[i]!.as })) };
   }
 
   /**
@@ -3735,10 +3738,10 @@ export class CubeApp {
     const { columnsLambda, rowsLambda } = await lazily(() => import('./profile.ts'));
     const rows = classLambda(s).body[0]!;
     const typed = await this.#controller.runQuery(columnsLambda(rows), s);
-    // the columns it shows, a Summarize's keys and aggregates: what the box after it reads (live-inputs.ts boxOmits)
-    const away = new Set(ungroupedDimensions(s));
-    const shown = typed.rows.columns.filter((c) => columnConfig(this.#config, c.name).hidden !== true && !away.has(c.name)).map((c) => c.name);
-    const query = shown.length === typed.rows.columns.length ? classLambda(s) : rowsLambda(rows, shown);
+    // the columns it hands on, under the names it gives them: what the box after it reads (box-columns.ts)
+    const on = handedOn(typed.rows.columns.map((c) => c.name), s, this.#config as unknown as Record<string, unknown>);
+    const shown = on.map((c) => c.as);
+    const query = on.length === typed.rows.columns.length && on.every((c) => c.as === c.name) ? classLambda(s) : rowsLambda(rows, on);
     const parts: string[] = [];
     await this.#controller.streamQuery(query, s, (chunk) => {
       const text = toCsv(chunk, { bom: parts.length === 0 });
@@ -3762,6 +3765,31 @@ export class CubeApp {
       apply: async (imputation) => {
         try {
           return await this.#apply(imputeCommands(this.#snapshot, imputation), 'Imputation');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S SELECT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1, Alteryx's): each column kept or left out, and renamed --
+   *  hidden, and given a display name, which a flow's box hands on as the relation's rename (select-columns.ts, the rule
+   *  Python's grid.select asks) -- in a window of its own (ui/select-form.ts). Both fetched with the first. */
+  async #openSelect(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ selectForm }, { selectCommands }] = await Promise.all([
+      lazily(() => import('./ui/select-form.ts')), lazily(() => import('./select-columns.ts')),
+    ]);
+    const s = this.#snapshot;
+    const config = this.#config as unknown as Record<string, unknown>;
+    const on = new Map(handedOn(rowColumns(s).map((c) => c.name), s, config).map((c) => [c.name, c.as] as const));
+    this.#showOverlay('Select', (host, close) => selectForm(host, {
+      columns: rowColumns(s).map((c) => ({ name: c.name, type: c.type ?? '', kept: on.has(c.name), as: on.get(c.name) ?? c.name })),
+      apply: async (selection) => {
+        try {
+          return await this.#apply(selectCommands(this.#snapshot, selection), 'Select');
         } catch (e) {
           if (e instanceof CubeRefusal) return e.message;
           throw e;

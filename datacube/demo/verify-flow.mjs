@@ -681,6 +681,28 @@ try {
     && await page.locator('.dc-flow-results .dc-th[data-column="notional__average"]').count() === 0, 'its column in its rows, its average hidden');
   check(await resultRows() === fewer, "Imputation: its input's rows, each kept");
 
+  // SELECT (M1), dragged onto the Filter: region renamed area, book left out; the box after it reads area
+  const beforeSelect = (await boxes()).map((b) => b.id);
+  await drag('select', filter.id);
+  await boxCount(beforeSelect.length + 1);
+  const chose = await added(beforeSelect);
+  await docked('Select');
+  const sw = page.locator('.dc-flow-dock .dc-select-form');
+  await sw.locator('.dc-select-row[data-column="region"] .dc-select-rename').fill('area');
+  await sw.locator('.dc-select-row[data-column="book"] .dc-select-keep').uncheck();
+  await sw.locator('.dc-sample-foot .dc-primary').click();
+  await settled();
+  const choseBox = (await boxes()).find((b) => b.id === chose.id);
+  check(choseBox?.tool === 'select' && /^region → area; 1 of \d+ columns left out$/.test(choseBox.says), `a Select box: ${JSON.stringify(choseBox)}`);
+  // a Sort after it, set to nothing: its rows as it reads them
+  const beforeReader = (await boxes()).map((b) => b.id);
+  await drag('sort', chose.id);
+  await boxCount(beforeReader.length + 1);
+  const reader = await added(beforeReader);
+  await show(reader.id);
+  const readHeads = await page.locator('.dc-flow-results .dc-th[data-column]').evaluateAll((els) => els.map((e) => e.dataset.column));
+  check(readHeads.includes('area') && !readHeads.includes('region') && !readHeads.includes('book'), `the box after it reads area, no region, no book: ${readHeads}`);
+
   // TRANSPOSE (M4), dragged onto the Filter: notional and pnl made rows beside each trade's id, the rest left out
   const beforeTranspose = (await boxes()).map((b) => b.id);
   await drag('transpose', filter.id);

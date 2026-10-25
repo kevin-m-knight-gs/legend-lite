@@ -2850,6 +2850,19 @@ class Flows(Paged):
         with self.assertRaisesRegex(ValueError, 'is a board'):
             page.sheets[0].run('.')
 
+    def test_a_select_keeps_and_renames_for_what_reads_it(self):
+        # a flow's Select (select-columns.ts selectCommands): the columns it keeps, by the names it gives them -- the box
+        # after it reads them so (the relation's rename), its own grid showing them so
+        page, flow, source, big = self.flowed()
+        chosen = flow.grid(input=big)
+        chosen.select(['region', 'notional'], rename={'region': 'area'})
+        after = flow.grid(input=chosen)
+        rows = after.to_pandas()
+        self.assertEqual(sorted(rows.columns), ['area', 'notional'])
+        self.assertEqual(sorted(rows['area']), sorted(big.to_pandas()['region']))
+        with self.assertRaisesRegex(ValueError, "would both be handed on as 'notional'"):
+            chosen.select(['region', 'notional'], rename={'region': 'notional'})
+
     def test_a_summarize_gives_its_keys_and_aggregates(self):
         # a box after a Summarize reads a row per group, its keys and its aggregates -- the dimensions it is not grouped
         # by left out (snapshot.ts ungroupedDimensions: Alteryx's Summarize), as the canvas says and the screen reads
