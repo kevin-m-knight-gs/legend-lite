@@ -521,8 +521,9 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     assert.equal(w.getAttribute('aria-label'), `Properties \u2014 ${name}`, 'titled by its chart');
     assert.equal(w.querySelector('.dc-overlay-close')!.getAttribute('aria-label'), `Close Properties \u2014 ${name}`);
     assert.equal(dom.window.document.activeElement, w, 'the focus in it');
-    // beside the chart, to its right, its top level with it: not over it, on the screen; above the page's windows
-    assert.deepEqual(placed(w), [508, 120, 280, 560]);
+    // beside the chart, to its right: not over it, and on the screen -- 720 tall, so raised from the chart's top to
+    // fit jsdom's 768; above the page's windows
+    assert.deepEqual(placed(w), [508, 768 - 8 - 720, 300, 720]);
     assert.ok(Number(w.style.zIndex) > 20);
     options();
     assert.equal(host.querySelectorAll('.dc-chart-options').length, 1, 'Properties… again brings it forward, never a second');
@@ -534,9 +535,9 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     const east = w.querySelector('.dc-window-e')!;
     const drag = (type: string, x: number): boolean =>
       east.dispatchEvent(new dom.window.PointerEvent(type, { pointerId: 1, button: 0, clientX: x, clientY: 200, bubbles: true }));
-    drag('pointerdown', 788);
-    drag('pointermove', 828);
-    drag('pointerup', 828);
+    drag('pointerdown', 808);
+    drag('pointermove', 848);
+    drag('pointerup', 848);
     (w.querySelector('.dc-overlay-close') as HTMLButtonElement).click();
     assert.equal(win(), null, 'its \u00d7 put it away');
     // the chart moved meanwhile, to the screen's right edge: it opens at its left now, at its new width
@@ -545,7 +546,7 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
       configurable: true,
     });
     options();
-    assert.deepEqual(placed(win()!), [600 - 8 - 320, 120, 320, 560], 'beside where the chart is now, as wide as it was left');
+    assert.deepEqual(placed(win()!), [600 - 8 - 340, 40, 340, 720], 'beside where the chart is now, as wide as it was left');
     // Escape typed in a field of it is the field's; in it, it puts it away
     await settle();
     const field = win()!.querySelector<HTMLElement>('select, input');

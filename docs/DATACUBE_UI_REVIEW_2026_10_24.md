@@ -196,6 +196,26 @@ Tested in `test/window.test.ts` (placement), `test/window-dom.test.ts` (kept on 
 `test/cube-page-shell.test.ts` ("a chart's right-click menu") and, in a browser, `demo/verify-charts.mjs` (the KPI
 check: the window neither covers its chart nor leaves the screen).
 
+**Its fields in the Properties window's design, 2026-10-25** (the user: "nice and sleek like we upgraded Properties,
+Filters, Join"). They were one long column of "Label:" and box-cornered dropdowns, with two plain headings.
+
+- **Sections:** they now sit in the Properties window's own sections (`ui/chart-form.ts`): Data, More values, Small
+  multiples, Layout, Reference lines, Labels and legend, and Look and interaction. Each has a small uppercase title
+  with a caret that folds it, and the chart remembers which are folded. A section the chart's kind has nothing for is
+  left out.
+- **Shared styling:** the section titles, controls and focus ring use the Properties window's own CSS rules
+  (`app.css`, shared, not copied). The fold helper is shared too: `ui/form.ts` `foldable`, which moved there from the
+  column panel.
+- **Kind and values as cards:** the chart's kind sits in a card at the top, like the Join window's two grids. Each
+  value after the first is a card with a quiet × at its corner. "+ Add a value" is a sky link, like the Join window's
+  "+ Add a condition".
+- **Segmented choices:** each short choice is shown with all its options in view (`ui/chart-form.ts` `segmented`, a radio
+  group to the keyboard and to screen readers): Orientation, Stack, Legend, Labels, Turn labels, Zoom slider, and a
+  KPI's or gauge's "Good when". The chosen option is drawn like a chosen Join kind: sky fill, sky edge, bold text.
+
+Tested in `test/chart-kinds.test.ts` ("a chart's options in the Properties window's design") and, in a browser,
+`demo/verify-charts.mjs` (the section titles' type and the chosen option's sky colours).
+
 ### 3. The page's ≡ menu, grouped by purpose
 
 In the order of the menus' shared skeleton (below, "The menus"):

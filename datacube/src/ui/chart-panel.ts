@@ -58,7 +58,7 @@ let mapsRegistered = false;
 const DOUBLE_CLICK_MS = 250;
 
 /** The options' window: a column of fields, as tall as the screen lets it be (`besideWindow` makes it smaller to fit). */
-const CHART_WINDOW = { width: 280, height: 560, minWidth: 220, minHeight: 200 } as const;
+const CHART_WINDOW = { width: 300, height: 720, minWidth: 240, minHeight: 200 } as const;
 
 export interface ChartPanelOptions {
   /** The cube as it is NOW (the chart follows it). */
@@ -112,6 +112,7 @@ export class ChartPanel {
   /** What the options form (ui/chart-form.ts) reads and changes. */
   readonly #formHost: FormHost = ((panel: ChartPanel): FormHost => ({
     get doc() { return panel.#doc; },
+    folds: {},
     spec: () => this.#spec,
     set: (change, redraw) => this.#set(change, redraw),
     setOption: (key, value) => this.#setOption(key, value),

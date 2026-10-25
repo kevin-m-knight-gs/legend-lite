@@ -5612,6 +5612,7 @@ TEST_IMPORTS = {
         "src/ui/panel-kit.ts",
         "src/ui/scope.ts",
         "src/ui/tile-icons.ts",
+        "src/ui/window.ts",
         "src/upload.ts",
         "src/value-filter.ts",
     ],

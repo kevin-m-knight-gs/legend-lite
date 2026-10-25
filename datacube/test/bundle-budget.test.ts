@@ -623,8 +623,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  View ▸, a sheet tab's reasons) and the page's chrome drawn in one icon set -- the grid-only and engine pages' notes of
  *  the same date). Measured 368,722.
  *  370,000 -> 373,500 (2026-10-25, files in a text box and the branch's deep audit's fixes, the dark theme's palette
- *  declared in both themes among them -- the grid-only page's note of the same date). Measured 372,941. */
-const WIDGET_BUDGET = 373_500;
+ *  declared in both themes among them -- the grid-only page's note of the same date). Measured 372,941.
+ *  373,500 -> 374,000 (2026-10-25, a chart's options as a window beside its chart, kept on the screen (ui/window.ts
+ *  besideWindow, makeWindow's viewport), and its fields in the Properties window's design: the window's and the form's
+ *  styles, in this module's styles; the segmented control itself is the options form's own chunk). Measured 373,706. */
+const WIDGET_BUDGET = 374_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

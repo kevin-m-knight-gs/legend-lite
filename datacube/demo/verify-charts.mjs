@@ -240,6 +240,18 @@ try {
     const [cl, ct, cr, cb] = placed.chart;
     if (wl < 0 || wt < 0 || wr > placed.screen[0] || wb > placed.screen[1]) throw new Error(`its options' window is off the screen: ${JSON.stringify(placed)}`);
     if (wl < cr && wr > cl && wt < cb && wb > ct) throw new Error(`its options' window covers the chart: ${JSON.stringify(placed)}`);
+    // in the Properties window's design (the user, 2026-10-25): its sections titled as Properties' are, a short choice
+    // segmented with the chosen one sky-filled and sky-edged as a chosen Join kind
+    const look = await page.evaluate(() => {
+      const win = document.querySelector('.dc-chart-options');
+      const title = getComputedStyle(win.querySelector('.dc-section-title'));
+      const chosen = win.querySelector('.dc-segment.dc-chosen');
+      const seg = chosen ? getComputedStyle(chosen) : null;
+      return { titles: [...win.querySelectorAll('.dc-section-title')].map((t) => t.textContent),
+        transform: title.textTransform, size: title.fontSize, chosen: chosen?.textContent, fill: seg?.backgroundColor, edge: seg?.boxShadow };
+    });
+    if (look.transform !== 'uppercase' || look.size !== '10px') throw new Error(`its section titles are not Properties': ${JSON.stringify(look)}`);
+    if (look.fill !== 'rgb(240, 249, 255)' || !String(look.edge).includes('rgb(2, 132, 199)')) throw new Error(`its chosen choice is not sky: ${JSON.stringify(look)}`);
     const fieldNamed = (label) => form.locator(`.dc-field:has(> .dc-field-label:text-is("${label}"))`);
     await fieldNamed('Chart:').locator('select').selectOption('kpi');
     await page.locator(`[data-tile="${id}"] .dc-kpi-value`).waitFor({ timeout: 20_000 });
@@ -265,7 +277,7 @@ try {
     // its x puts the window away
     await form.locator('.dc-overlay-close').click();
     await form.waitFor({ state: 'detached' });
-    return `${id}: ${value}, ${said}, its trend by ${across}; its options beside it at ${placed.win.join(',')}, the chart at ${placed.chart.join(',')}`;
+    return `${id}: ${value}, ${said}, its trend by ${across}; its options beside it at ${placed.win.join(',')}, the chart at ${placed.chart.join(',')}; sections ${look.titles.join('/')}, ${look.chosen} chosen`;
   });
 
   // THE EXAMPLE PAGES (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3): each opened from Open…'s Examples, over the

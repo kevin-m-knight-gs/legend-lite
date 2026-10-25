@@ -2870,23 +2870,117 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
    audit: the one cue was taken away). */
 .dc-chart-options:focus:not(:focus-visible) { outline: none; }
 .dc-chart-options:focus-visible { outline: 2px solid var(--dc-active); outline-offset: -2px; }
-.dc-chart-options-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-chart-options-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* a narrow column: each label above its control, the control full width */
+/* ITS FIELDS IN THE PROPERTIES WINDOW'S DESIGN (the user, 2026-10-25: "nice and sleek like we upgraded Properties,
+   Filters, Join"): its sections' titles, controls and focus are the Properties window's own rules (.dc-pe, below,
+   shared); in a narrow column each label sits above its control, the control full width. Its kind in a card at the
+   top, as the Join window's grids; a short choice segmented, chosen as a Join kind is; each value after the first a
+   card with its x at the corner; "+ Add a value" a link. */
+.dc-chart-options .dc-overlay-body { padding: 12px 14px 14px; }
 .dc-chartpanel-form .dc-field {
   flex-direction: column;
   align-items: stretch;
-  gap: 2px;
-  margin-bottom: 8px;
+  gap: 3px;
+  min-height: 0;
+  margin: 0 0 6px;
 }
 .dc-chartpanel-form .dc-field-label {
   width: auto;
   text-align: left;
-  color: var(--dc-muted-strong);
+  font-size: 12px;
+  color: var(--tw-neutral-600);
 }
 .dc-chartpanel-form .dc-field-body > * { flex: 1 1 auto; }
 .dc-chartpanel-form .dc-select,
 .dc-chartpanel-form .dc-input { width: 100%; }
+.dc-chartpanel-form .dc-check { display: flex; gap: 6px; margin: 2px 0 6px; font-size: 12px; color: var(--tw-neutral-700); }
+.dc-chartpanel-form .dc-check-box { margin: 0; accent-color: var(--tw-sky-600); }
+.dc-chartpanel-kind {
+  margin: 0 0 14px;
+  padding: 10px 12px 4px;
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: 8px;
+  background: var(--tw-neutral-50);
+}
+.dc-chartpanel-measure {
+  position: relative;
+  margin: 0 0 8px;
+  padding: 8px 10px 2px;
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: 6px;
+  background: var(--tw-neutral-50);
+}
+.dc-chartpanel-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+}
+.dc-chartpanel-remove:hover { background: var(--tw-neutral-100); color: var(--tw-red-600); }
+.dc-chartpanel-remove .dc-chrome-icon { width: 12px; height: 12px; }
+.dc-chartpanel-add {
+  align-self: flex-start;
+  margin: 0 0 4px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--tw-sky-700);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dc-chartpanel-add:hover:not(:disabled) { text-decoration: underline; }
+.dc-chartpanel-add:disabled { color: var(--tw-neutral-400); cursor: default; }
+.dc-chartpanel-hint,
+.dc-chartpanel-note { margin: 4px 0 0; font-size: 11px; line-height: 15px; color: var(--tw-neutral-500); }
+
+/* A few short choices side by side (ui/chart-form.ts segmented): the chosen one as a chosen Join kind -- sky-edged, sky-filled,
+   its words strong. */
+.dc-segmented {
+  display: flex;
+  width: 100%;
+  border: 1px solid var(--tw-neutral-300);
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--tw-white);
+}
+.dc-segment {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-left: 1px solid var(--tw-neutral-300);
+  border-radius: 0;
+  background: transparent;
+  color: var(--tw-neutral-700);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.dc-segment:first-child { border-left: 0; }
+.dc-segment:hover { background: var(--tw-sky-50); }
+.dc-segment.dc-chosen {
+  background: var(--tw-sky-50);
+  box-shadow: inset 0 0 0 1px var(--tw-sky-600);
+  color: var(--tw-sky-800);
+  font-weight: 600;
+}
+.dc-segment:focus-visible { outline: 2px solid var(--tw-sky-600); outline-offset: -2px; }
 
 .dc-chartpanel-main {
   flex: 1 1 auto;
@@ -3337,24 +3431,11 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-chart-tile .dc-chartpanel { flex: 1 1 auto; min-width: 0; }
 
 .dc-chartpanel-status[hidden] { display: none; }
-.dc-chartpanel-hint { margin: var(--dc-pad-2) 0 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
-/* batch 2: a value after the first (its own mark and axis), the add button, a section's heading */
-.dc-chartpanel-measure {
-  display: flex; flex-direction: column; gap: var(--dc-pad-1);
-  padding: var(--dc-pad-2) 0; border-top: 1px solid var(--dc-line);
-}
-.dc-chartpanel-measure > .dc-btn { align-self: flex-end; }
-.dc-chartpanel-add { align-self: flex-start; margin: var(--dc-pad-1) 0; }
 /* a drilled chart's path (batch 2 item 10): each step a way back up */
 .dc-chartpanel-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 0 var(--dc-pad-2); font-size: var(--dc-text-sm-size); color: var(--dc-muted); }
 .dc-chartpanel-crumb { border: 0; background: none; padding: 0; color: var(--dc-active); cursor: pointer; text-decoration: underline; font: inherit; }
 .dc-chartpanel-crumb-here { color: var(--dc-muted-strong); }
 .dc-chartpanel-crumbs-hint .dc-chartpanel-crumb-here { color: var(--dc-muted); }
-.dc-chartpanel-heading {
-  margin: var(--dc-pad-2) 0 var(--dc-pad-1); padding-top: var(--dc-pad-2); border-top: 1px solid var(--dc-line);
-  color: var(--dc-muted-strong); font-size: var(--dc-text-sm-size); font-weight: 600;
-}
-
 
 /* THE RECEIPT: what answered the view, as the engine that ran it said. */
 /* its i, as the tools are (above); a warehouse's or an engine's answer in sky */
@@ -4306,8 +4387,8 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-pe .dc-editor-tab:focus-visible { outline: 1px solid var(--tw-sky-600); outline-offset: -1px; }
 .dc-pe .dc-editor-body { flex: 1; min-width: 0; overflow: auto; margin: 0; padding: 14px 18px; border: 0; }
 .dc-pe .dc-panel-title { font-size: 15px; line-height: 20px; font-weight: 600; margin: 0 0 12px; padding: 0; border: 0; }
-.dc-pe .dc-section { margin: 0 0 14px; padding: 0; border: 0; }
-.dc-pe .dc-section-title {
+:is(.dc-pe, .dc-chartpanel-form) .dc-section { margin: 0 0 14px; padding: 0; border: 0; }
+:is(.dc-pe, .dc-chartpanel-form) .dc-section-title {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -4323,7 +4404,8 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-pe .dc-field { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; }
 .dc-pe .dc-field-label { flex: none; width: 150px; text-align: left; color: var(--tw-neutral-600); }
 .dc-pe :is(select, input, textarea, button) { font-family: inherit; }
-.dc-pe select, .dc-pe input[type=text], .dc-pe input[type=number], .dc-pe input[type=search] {
+.dc-pe select, .dc-pe input[type=text], .dc-pe input[type=number], .dc-pe input[type=search],
+.dc-chartpanel-form select, .dc-chartpanel-form input[type=text], .dc-chartpanel-form input[type=number] {
   height: 26px;
   box-sizing: border-box;
   padding: 0 6px;
@@ -4333,7 +4415,8 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
   color: var(--tw-neutral-700);
   font-size: 12px;
 }
-.dc-pe select:focus, .dc-pe input:focus { border-color: var(--tw-sky-600); outline: none; }
+.dc-pe select:focus, .dc-pe input:focus,
+.dc-chartpanel-form select:focus, .dc-chartpanel-form input:focus { border-color: var(--tw-sky-600); outline: none; }
 .dc-pe .dc-button { border-radius: 2px; font-size: 12px; }
 .dc-pe .dc-editor-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 18px; margin: 0; border-top: 1px solid var(--tw-neutral-200); }
 .dc-pe .dc-editor-footer .dc-button:last-child { background: var(--tw-sky-700); border-color: var(--tw-sky-700); color: var(--tw-white); min-width: 64px; }
