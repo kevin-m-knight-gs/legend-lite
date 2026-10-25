@@ -4399,6 +4399,22 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
   font: inherit; opacity: .75; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 40vw; margin: 0;
 }
+/* AN ERROR, A CHIP (datacube-app.ts sayError): its mark and first words, the whole on hover and in "What went wrong" */
+.dc-status-host .dc-app-status.bad {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 40ch;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--tw-red-50, #fef2f2);
+  color: var(--tw-red-700, #b91c1c);
+  opacity: 1;
+  cursor: pointer;
+}
+.dc-app-status-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.errortext { margin: 0 0 8px; white-space: pre-wrap; word-break: break-word; font-family: var(--dc-mono, ui-monospace, monospace); font-size: 12px; }
 
 /* THE APP'S WINDOWS (src/app/datacube-app.ts: Open…'s list, Share, the Generated Pure & SQL), floating: `makeWindow`
    positions and sizes them, so only the frame is described here. They were the tab's page's; the app builds them on

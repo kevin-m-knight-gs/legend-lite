@@ -207,6 +207,11 @@ truncation warning. Then the receipt as an ⓘ (its words hidden but still its n
 2px bar on the grid's top edge while something runs. The readout keeps `data-rows` (rows on screen) and `data-view` (a
 count of landed views) for scripts, because its text no longer changes with each query's time.
 
+**The error chip, built 2026-10-25** (`app/datacube-app.ts` sayError, tested in `test/datacube-app-live.test.ts`). A page's
+error is a red chip in the bar: ⚠ and its first words, the whole of it on hover. A click opens "What went wrong" with
+the whole message and a button that shows the generated Pure and SQL. Its words stay the element's text, because the
+scripts that check the status line for an error read it all.
+
 Changed from the plan above, by the user's decision (2026-10-25: "just show stats/num rows of the last query"):
 the readout is the last query's own figures, "3 rows × 20 cols in 109ms", the same line a host is told. It shows no
 groups wording, no total and no summed count. The planner's word stays the host's own readout, because clicking it is
@@ -361,8 +366,8 @@ View ▸                                    Properties…                 Ctrl+E
 | 4 | Files in the text box (§8): Markdown and text first, then PDF, media, Word, email, PowerPoint | Added by the user, 2026-10-25 |
 
 **Where it stands, 2026-10-25.** Built: numbers right-aligned; the page's ≡ grouped by purpose (§3); one tile header
-(§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2); the example-switch bug fixed (found 1). Next:
-the status bar's error as a chip; the title bar (§4); the menus' design language for
+(§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2); the example-switch bug fixed (found 1); the status bar's error as a chip. Next:
+the title bar (§4); the menus' design language for
 every menu; grouped text columns (found 2); the columns panel (found 3); one icon set (found 4; the tile states, the
 status bar's tools and the editor's toolbar already drawn); the options pane docked at the page's edge; then §8.
 

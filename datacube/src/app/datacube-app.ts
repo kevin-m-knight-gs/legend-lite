@@ -140,7 +140,45 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     if (status.classList.contains('bad')) return;
     status.textContent = resting.text;
     status.classList.toggle('warn-text', resting.warn);
+    status.removeAttribute('role');
+    status.removeAttribute('tabindex');
+    status.removeAttribute('title');
   };
+  /**
+   * AN ERROR, AS A CHIP IN THE STATUS BAR (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §5): a mark and
+   * its first words, the whole of it on hover and in a window a click opens -- it ran into the bar as red text cut short.
+   * Its words stay the element's text: what reads the status line for an error reads it all.
+   */
+  const sayError = (text: string): void => {
+    const mark = document.createElement('span');
+    mark.className = 'dc-app-status-mark';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.textContent = '\u26a0';
+    const words = document.createElement('span');
+    words.className = 'dc-app-status-words';
+    words.textContent = text;
+    status.replaceChildren(mark, words);
+    status.classList.add('bad');
+    status.classList.remove('warn-text');
+    status.setAttribute('role', 'button');
+    status.tabIndex = 0;
+    status.title = `${text}\n\nClick for the whole of it`;
+  };
+  /** The error said, whole, in its window -- the query beside it a click away. A click on no error is the bar's. */
+  const openError = (event: Event): void => {
+    if (!status.classList.contains('bad')) return;
+    event.stopPropagation();
+    windows.errorText.textContent = status.querySelector('.dc-app-status-words')?.textContent ?? status.textContent ?? '';
+    windows.show(windows.error, { width: 640, height: 320 });
+  };
+  status.addEventListener('click', openError);
+  status.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openError(event);
+    }
+  });
+  windows.errorQuery.addEventListener('click', () => windows.show(windows.query));
   /** What taking the app down undoes, besides the page: the windows, a watch, a timer, a listener. */
   const undo: (() => void)[] = [windows.remove];
   let disposed = false;
@@ -293,9 +331,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           // saying what the cube cannot -- a planner that failed.
           if (kind !== 'error') return;
           harnessSignal.changes += 1;
-          status.textContent = text;
-          status.classList.add('bad');
-          status.classList.remove('warn-text');
+          sayError(text);
         },
         onView: (view) => {
           // For the browser harness: how many views have landed.
@@ -1625,8 +1661,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   function failedStart(e: unknown): void {
     harnessSignal.changes += 1;
     startProblem = e instanceof Error ? e.message : String(e);
-    status.textContent = startProblem;
-    status.classList.add('bad');
+    sayError(startProblem);
   }
 }
 
@@ -1646,6 +1681,10 @@ interface AppWindows {
   readonly query: HTMLElement;
   readonly pure: HTMLElement;
   readonly sql: HTMLElement;
+  /** What went wrong, whole: the status bar's error chip opens it. */
+  readonly error: HTMLElement;
+  readonly errorText: HTMLElement;
+  readonly errorQuery: HTMLButtonElement;
   /** A window shown (left where it is if already shown), at `size` the first time. */
   show(win: HTMLElement, size?: { width: number; height: number }): void;
   toggle(win: HTMLElement): void;
@@ -1691,6 +1730,9 @@ function appWindows(container: HTMLElement): AppWindows {
   const pure = el('pre', { id: 'pure' });
   const sql = el('pre', { id: 'sql' });
   const query = hostWindow('querywin', 'Generated Pure & SQL', el('h2', { textContent: 'Pure' }), pure, el('h2', { textContent: 'SQL' }), sql);
+  const errorText = el('pre', { id: 'errortext', className: 'errortext' });
+  const errorQuery = el('button', { type: 'button', textContent: 'Show the query' });
+  const error = hostWindow('errorwin', 'What went wrong', errorText, el('div', { className: 'sharerow' }, errorQuery));
   const show = (win: HTMLElement, size: { width: number; height: number } = { width: 720, height: 420 }): void => {
     if (!win.hidden) return;
     win.hidden = false;
@@ -1700,8 +1742,8 @@ function appWindows(container: HTMLElement): AppWindows {
     specs.set(win, makeWindow(win, head, container, { ...size, ...(spec ? { spec } : {}), onChange: (next) => specs.set(win, next) }));
   };
   return {
-    library, libraryHome, share, shareParts: { link, note, copy }, query, pure, sql, show,
-    remove: () => { for (const w of [libraryHome, share, query]) w.remove(); },
+    library, libraryHome, share, shareParts: { link, note, copy }, query, pure, sql, error, errorText, errorQuery, show,
+    remove: () => { for (const w of [libraryHome, share, query, error]) w.remove(); },
     toggle: (win) => {
       if (!win.hidden) {
         win.hidden = true;

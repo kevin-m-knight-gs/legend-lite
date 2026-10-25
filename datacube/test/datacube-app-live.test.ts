@@ -293,6 +293,28 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     assert.equal(app.shown(), undefined, 'left: no page of the editor\'s on screen');
   });
 
+  // the user, 2026-10-25 (docs/DATACUBE_UI_REVIEW_2026_10_24.md §5): an error ran into the status bar as red text cut
+  // short; a chip now, its whole a click away
+  it('an error is said as a chip: its first words, the whole on hover and in a window a click opens', async () => {
+    const editor = new Editor();
+    editor.read = async () => {
+      editor.reads += 1;
+      throw new Error('the engine is not answering yet: Catalog Error: Table with name sample_sales does not exist!');
+    };
+    await opened(editor);
+    const doc = dom.window.document;
+    const status = doc.getElementById('status')!;
+    assert.equal(status.classList.contains('bad'), true, `said: ${status.textContent}`);
+    assert.equal(status.getAttribute('role'), 'button');
+    assert.match(status.querySelector('.dc-app-status-words')?.textContent ?? '', /sample_sales does not exist/);
+    assert.match(status.title, /sample_sales does not exist!\n\nClick for the whole of it/);
+    const win = doc.getElementById('errorwin')!;
+    assert.equal(win.hidden, true);
+    status.click();
+    assert.equal(win.hidden, false, 'a click opens What went wrong');
+    assert.match(doc.getElementById('errortext')?.textContent ?? '', /^the engine is not answering yet: Catalog Error/);
+  });
+
   it('a first read that failed is tried again at the next move', async () => {
     const editor = new Editor();
     const read = editor.read;
