@@ -94,7 +94,9 @@ describe('a join source\'s how, read strictly', () => {
     refused(() => readJoinHow({ form: 'cross' }), /one of join, asOf, semi, anti, append/);
     refused(() => readJoinHow({ ...join(), kind: 'outer' }), /kind is one of inner, left, right, full/);
     refused(() => readJoinHow({ ...join(), extra: 1 }), /not extra/);
-    refused(() => readJoinHow({ ...join(), on: { rows: [{ left: 'a', op: '=', right: 'b' }] } }), /comparison is one of == != < <= > >=/);
+    refused(() => readJoinHow({ ...join(), on: { rows: [{ left: 'a', op: '=', right: 'b' }] } }), /comparison is one of == != < <= > >= ~/);
+    refused(() => readJoinHow({ ...join(), on: { rows: [{ left: 'a', op: '==', right: 'b', within: 1 }] } }), /only a ~ row is within some edits/);
+    refused(() => readJoinHow({ ...join(), on: { rows: [{ left: 'a', op: '~', right: 'b', within: -1 }] } }), /a whole number from 0/);
     refused(() => readJoinHow({ ...join(), on: { rows: [], lambda: {} } }), /rows or a lambda, one of them/);
     refused(() => readJoinHow({ ...join(), on: {} }), /rows or a lambda, one of them/);
     refused(() => readJoinHow({ ...join(), prefix: '' }), /prefix starts a column's name/);
@@ -120,6 +122,16 @@ describe('what a join becomes', () => {
     }
     assert.equal(pure(joinRelation(TRADES, CUSTOMERS, join({ on: { rows: [] } }))),
       `${T}->join(${C}->rename(~id, ~c_id), JoinKind.LEFT, {a, b | true})`);
+  });
+
+  it('similar text (~, a Fuzzy Match): both a value, at most so many edits apart by the database\'s distance', () => {
+    const fuzzy = join({ kind: 'inner', on: { rows: [{ left: 'sym', op: '~', right: 'region', within: 1 }] } });
+    assert.equal(pure(joinRelation(TRADES, CUSTOMERS, fuzzy)),
+      `${T}->join(${C}->rename(~id, ~c_id), JoinKind.INNER, {a, b | (($a.sym->isNotEmpty() && $b.region->isNotEmpty()) && ($a.sym->toOne()->levenshteinDistance($b.region->toOne()) <= 1))})`);
+    assert.deepEqual(readJoinHow(JSON.parse(JSON.stringify(fuzzy))), fuzzy);
+    assert.equal(joinWords(fuzzy), 'matching rows only, on sym ≈ region (within 1)');
+    // not said: two edits
+    assert.match(pure(joinRelation(TRADES, CUSTOMERS, join({ on: { rows: [{ left: 'sym', op: '~', right: 'region' }] } }))), /<= 2\)/);
   });
 
   it('selects away their columns not kept, after the join (a key it joined on included)', () => {

@@ -2079,6 +2079,17 @@ class Page:
         return self.join(mine, theirs, {'form': 'join', 'kind': 'inner', 'on': {'rows': []}, 'prefix': prefix,
                                         'keep': None if keep is None else list(keep)}, title=title, sheet=sheet, live=live)
 
+    def fuzzy_match(self, mine: Grid, theirs: Grid, on: tuple[str, str], *, within: int = 2, kind: str = 'inner',
+                    prefix: str = 'their_', title: str | None = None, sheet: Sheet | None = None, live: bool | None = None) -> Grid:
+        """``mine`` joined with ``theirs`` where their text is alike -- a flow's Fuzzy Match (Alteryx's), the Join window's
+        similar comparison: ``on`` is my column and theirs, ``within`` how many edits apart they may be (a letter added,
+        taken away or changed is one: the database's ``levenshteinDistance``), ``kind`` the join's (``'inner'``: the
+        pairs alone; ``'left'``: every row of mine)."""
+        left, right = on
+        return self.join(mine, theirs, {'form': 'join', 'kind': kind, 'on': {'rows': [{'left': left, 'op': '~', 'right': right,
+                                                                                         'within': within}]},
+                                        'prefix': prefix, 'keep': None}, title=title, sheet=sheet, live=live)
+
     def sheet(self, name: str | None = None) -> Sheet:
         """A new sheet after the last (``name``: its own; None, named after its first grid)."""
         # as the screen adds one -- what is not text refused by addSheet's reader, in DataCube's words (page-commands.ts addSheet): its id after every one the page has held

@@ -466,6 +466,28 @@ try {
   await settled();
   check(await resultRows() === fewer * 4, `each of the Filter's ${fewer} rows beside each of the 4 targets: ${fewer * 4}`);
 
+  // A FUZZY MATCH BOX, dragged onto the Filter: the window at matching only, its comparison similar; the dropped
+  // targets' regions within one edit of the Filter's
+  const beforeFuzzy = (await boxes()).map((b) => b.id);
+  await drag('fuzzyMatch', filter.id);
+  await joinWindow.waitFor({ timeout: 20_000 });
+  await joinWindow.locator('.dc-join-their').selectOption(dropped.id);
+  await page.waitForFunction(() => document.querySelectorAll('.dc-join .dc-join-left option').length > 1, undefined, { timeout: 60_000 });
+  check(await joinWindow.locator('.dc-join-op').first().inputValue() === '~' && await joinWindow.locator('.dc-join-within').first().isVisible(),
+    'a Fuzzy Match\'s window starts at similar, its edits apart beside it');
+  await joinWindow.locator('.dc-join-left').first().selectOption('region');
+  await joinWindow.locator('.dc-join-right').first().selectOption('region');
+  await joinWindow.locator('.dc-join-within').first().fill('1');
+  await page.waitForFunction(() => { const b = document.querySelector('.dc-join .dc-save-foot .dc-primary'); return b instanceof HTMLButtonElement && !b.disabled; }, undefined, { timeout: 60_000 });
+  check(await joinWindow.locator('.dc-save-foot .dc-primary').textContent() === 'Add Fuzzy Match', 'its button: Add Fuzzy Match');
+  await joinWindow.locator('.dc-save-foot .dc-primary').click();
+  await joinWindow.waitFor({ state: 'detached', timeout: 60_000 });
+  await boxCount(beforeFuzzy.length + 1);
+  const fuzzy = await added(beforeFuzzy);
+  check(fuzzy.tool === 'fuzzyMatch' && fuzzy.says === 'matching rows only, on region ≈ region (within 1)', `a Fuzzy Match box: ${JSON.stringify(fuzzy)}`);
+  await settled();
+  check(await resultRows() > 0, 'its pairs, alike regions matched');
+
   // A RECORD ID (M3), dragged onto the Filter: the column editor docked at a row number, ordered by trade_id here
   const beforeId = (await boxes()).map((b) => b.id);
   await drag('recordId', filter.id);
@@ -1068,7 +1090,8 @@ try {
   // THE PALETTE'S FIND: its tools narrowed to what is typed
   await page.fill('.dc-flow-find', 'join');
   const visible = await page.locator('.dc-flow-tool:visible').evaluateAll((els) => els.map((e) => e.dataset.tool));
-  check(JSON.stringify(visible) === JSON.stringify(['join']), `found: ${visible}`);
+  // its name or what it does: Join, and Fuzzy Match (two inputs joined where their text is alike)
+  check(JSON.stringify(visible) === JSON.stringify(['join', 'fuzzyMatch']), `found: ${visible}`);
   await page.fill('.dc-flow-find', '');
 
   // THE FLOW EXAMPLE, opened from Open…'s examples: its boxes on its canvas, each the tool it is, in its containers; Run

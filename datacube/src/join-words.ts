@@ -2,7 +2,7 @@
 // flow's Join box's (flow-boxes.ts boxSays: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2). A module of its own, light, so a box
 // says its join without the join's chunk, and the page's start loads none of it (test/bundle-budget.test.ts).
 
-import { isEveryPair, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow } from './join-how.ts';
+import { isEveryPair, SIMILAR_WITHIN, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow } from './join-how.ts';
 
 const KIND_WORDS: Readonly<Record<JoinKindWord, string>> = {
   inner: 'matching rows only', left: 'all of mine', right: 'all of theirs', full: 'everything',
@@ -10,6 +10,7 @@ const KIND_WORDS: Readonly<Record<JoinKindWord, string>> = {
 
 /** A row in words: `cust = id`. */
 export function rowWords(row: JoinRow): string {
+  if (row.op === '~') return `${row.left} ≈ ${row.right} (within ${row.within ?? SIMILAR_WITHIN})`;
   return `${row.left} ${row.op === '==' ? '=' : row.op} ${row.right}`;
 }
 

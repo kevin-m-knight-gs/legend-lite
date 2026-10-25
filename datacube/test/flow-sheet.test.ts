@@ -766,6 +766,9 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
     // every row with every row -- matching only, on no condition -- is an Append Fields box (join-how.ts isEveryPair)
     const pairs = apply(d, { kind: 'setJoin', grid: 'grid-5', how: { form: 'join', kind: 'inner', on: { rows: [] }, prefix: 'their_', keep: null } }).page;
     assert.deepEqual(boxSays(pairs.cubes.find((c) => c.id === 'grid-5')!.cube), { tool: 'appendFields', also: [], says: 'each row with every row of theirs' });
+    // a join on similar text is a Fuzzy Match box (join-how.ts isFuzzy)
+    const fuzzy = apply(d, { kind: 'setJoin', grid: 'grid-5', how: { form: 'join', kind: 'inner', on: { rows: [{ left: 'region', op: '~', right: 'region', within: 1 }] }, prefix: 'their_', keep: null } }).page;
+    assert.deepEqual(boxSays(fuzzy.cubes.find((c) => c.id === 'grid-5')!.cube), { tool: 'fuzzyMatch', also: [], says: 'matching rows only, on region ≈ region (within 1)' });
     const allOfMine = apply(d, { kind: 'setJoin', grid: 'grid-5', how: { form: 'join', kind: 'left', on: { rows: [] }, prefix: 'their_', keep: null } }).page;
     assert.equal(boxSays(allOfMine.cubes.find((c) => c.id === 'grid-5')!.cube).tool, 'join', 'all of mine on no condition stays a Join');
     refused(() => apply({ page: union, held: idsOf(union) }, { kind: 'setJoin', grid: 'grid-5', how: { form: 'append' } }), /joins so already/);

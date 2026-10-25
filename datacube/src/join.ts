@@ -9,7 +9,7 @@ import {
   type JoinKind, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import { rowCountLambda } from './query.ts';
-import { isEveryPair, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow, type JoinSide } from './join-how.ts';
+import { isEveryPair, SIMILAR_WITHIN, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow, type JoinSide } from './join-how.ts';
 
 export * from './join-how.ts';
 export { joinWords, rowWords } from './join-words.ts';
@@ -40,6 +40,9 @@ function rowTerm(row: JoinRow, right: string, [ma, tb]: readonly [string, string
     case '<=': return le(a, b);
     case '>': return gt(a, b);
     case '>=': return ge(a, b);
+    // similar text: both a value, at most so many edits apart -- the database's distance (a flow's Fuzzy Match)
+    case '~': return and(fn('isNotEmpty', a), fn('isNotEmpty', b),
+      le(fn('levenshteinDistance', fn('toOne', a), fn('toOne', b)), lit.integer(row.within ?? SIMILAR_WITHIN)));
   }
 }
 

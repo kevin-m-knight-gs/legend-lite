@@ -12,7 +12,7 @@ import {
   AS_OF_OPS, DEFAULT_PREFIX, JOIN_OPS, suggestedKeys, summaryWords, theirNames, type AsOfOp, type JoinCondition, type JoinHow,
   type JoinKindWord, type JoinOp, type JoinRow, type JoinSide, type JoinSummaryCounts,
 } from '../join.ts';
-import { isEveryPair } from '../join-how.ts';
+import { isEveryPair, SIMILAR_WITHIN } from '../join-how.ts';
 
 /** Another grid of the page, as the window offers it. */
 export interface JoinCandidate {
@@ -37,7 +37,9 @@ export interface JoinDialogOptions {
    * Where the window starts (a right-click's Join ▸: the column clicked, or a quick join that would repeat rows of mine):
    * their grid, the key it starts on in place of a suggestion, and the form chosen.
    */
-  readonly start?: { readonly their?: string; readonly row?: JoinRow; readonly form?: Choice; readonly how?: JoinHow };
+  readonly start?: { readonly their?: string; readonly row?: JoinRow; readonly form?: Choice; readonly how?: JoinHow;
+    /** The first row's comparison, in place of a suggestion's (a flow's Fuzzy Match: similar). */
+    readonly op?: JoinOp };
   /** What the window is for, under its title (none: a new grid of the page's two); its button's word (none: Join). A
    *  flow's Join box set again says so (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2). */
   readonly lead?: string;
@@ -61,7 +63,7 @@ const CHOICES: readonly { readonly value: Choice; readonly label: string; readon
   { value: 'append', label: 'Append theirs', says: 'Their rows under mine, column by column: no condition.' },
   { value: 'cross', label: 'Every pair', says: 'Each row of mine beside every row of theirs: no condition -- a small table\'s values on each of my rows (Alteryx\'s Append Fields).' },
 ];
-const OP_WORDS: Readonly<Record<JoinOp, string>> = { '==': '=', '!=': '≠', '<': '<', '<=': '≤', '>': '>', '>=': '≥' };
+const OP_WORDS: Readonly<Record<JoinOp, string>> = { '==': '=', '!=': '≠', '<': '<', '<=': '≤', '>': '>', '>=': '≥', '~': '≈ similar' };
 
 function el<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, cls: string, parent?: Element, text?: string): HTMLElementTagNameMap[K] {
   const e = doc.createElement(tag);
@@ -277,6 +279,18 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       if (row.left !== undefined) left.value = row.left;
       if (row.op !== undefined) op.value = row.op;
       if (row.right !== undefined) right.value = row.right;
+      // a similar row's edits apart: its own field, beside its comparison while it is similar
+      const within = el(doc, 'input', 'dc-picker-input dc-join-within', line);
+      within.type = 'number';
+      within.min = '0';
+      within.step = '1';
+      within.value = String(row.within ?? SIMILAR_WITHIN);
+      within.title = 'How many edits apart two texts may be: a letter added, taken away or changed is one';
+      within.setAttribute('aria-label', 'Edits apart at most');
+      const shown = (): void => { within.hidden = op.value !== '~'; };
+      shown();
+      op.addEventListener('change', shown);
+      within.addEventListener('input', changed);
       for (const s of [left, op, right]) s.addEventListener('change', changed);
       if (removable) {
         const remove = el(doc, 'button', 'dc-picker-button dc-quiet dc-join-remove', line, '×');
@@ -285,11 +299,15 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
         remove.addEventListener('click', () => { line.remove(); changed(); });
       }
     };
-    const readRow = (line: Element): Partial<JoinRow> => ({
-      left: (line.querySelector('.dc-join-left') as HTMLSelectElement).value,
-      op: (line.querySelector('.dc-join-op') as HTMLSelectElement).value as JoinOp,
-      right: (line.querySelector('.dc-join-right') as HTMLSelectElement).value,
-    });
+    const readRow = (line: Element): Partial<JoinRow> => {
+      const op = (line.querySelector('.dc-join-op') as HTMLSelectElement).value as JoinOp;
+      const within = Number((line.querySelector('.dc-join-within') as HTMLInputElement | null)?.value ?? SIMILAR_WITHIN);
+      return {
+        left: (line.querySelector('.dc-join-left') as HTMLSelectElement).value, op,
+        right: (line.querySelector('.dc-join-right') as HTMLSelectElement).value,
+        ...(op === '~' ? { within: Number.isInteger(within) && within >= 0 ? within : SIMILAR_WITHIN } : {}),
+      };
+    };
 
     /** The window's parts shown as the form chosen asks. */
     const shape = (): void => {
@@ -362,7 +380,10 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       // the key it was opened on, while their grid is the one it was opened at; else one plain key; else a row to fill
       const given = o.start?.row !== undefined && their.value === o.start.their ? o.start.row : undefined;
       if (wasRows !== undefined) for (const r of wasRows) rowLine(rowsBox, JOIN_OPS, r, true);
-      else rowLine(rowsBox, JOIN_OPS, given ?? (keys.length === 1 ? keys[0]!.row : { op: '==' }), true);
+      else {
+        const first: Partial<JoinRow> = given ?? (keys.length === 1 ? keys[0]!.row : { op: '==' });
+        rowLine(rowsBox, JOIN_OPS, o.start?.op !== undefined ? { ...first, op: o.start.op } : first, true);
+      }
       rowLine(matchLine, AS_OF_OPS, was?.form === 'asOf' ? was.match : { op: '>=' }, false);
       if (was !== undefined && (was.form === 'join' || was.form === 'asOf')) prefix.value = was.prefix;
       const kept = was !== undefined && (was.form === 'join' || was.form === 'asOf') ? was.keep : null;

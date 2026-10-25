@@ -262,7 +262,7 @@ How to read the status column:
 | Union | Built | A join's append |
 | Append Fields | Built (2026-10-25) | Every row with every row: a join, matching rows only, on no condition -- the Join window's Every pair |
 | Find Replace | Step | A join, then `replace` |
-| Fuzzy Match | Step | A join whose condition is `levenshteinDistance` or `jaroWinklerSimilarity` against a threshold |
+| Fuzzy Match | Built (2026-10-25) | A join row comparing by similar text (`~`): both a value, at most N edits apart by `levenshteinDistance`; a Fuzzy Match box opens the Join window at it. `jaroWinklerSimilarity`, a score, waits for a row of its own |
 | Make Group | Out for now | Groups made from pairs need a transitive closure, which one relation cannot say |
 
 ### Parse
@@ -728,6 +728,17 @@ in words. A box says "region → area; 1 of 12 columns left out". Python: `grid.
 `flow-sheet.test.ts` (its command, its words, its refusals), `live-inputs.test.ts` (a rename carried, written, read),
 Python's `test_a_select_keeps_and_renames_for_what_reads_it` and the harness (a Select of the Filter, the Sort after it
 reading `area`, no `region`, no `book`).
+
+**Built, Fuzzy Match** (M2; `join-how.ts`, `join.ts`, `ui/join-dialog.ts`): Alteryx's Fuzzy Match as a join -- a row
+of a join's condition gained the comparison `~`, similar text: both a value and at most `within` edits apart (2 when
+not said), by the database's `levenshteinDistance` (`$a.who->toOne()->levenshteinDistance($b.name->toOne()) <= 1`). The
+Join window offers it beside =, ≠, <, …, as "≈ similar", with its edits apart beside it; the palette's Fuzzy Match opens
+the window at matching rows only on a similar row ("Add Fuzzy Match"), and a box whose join has one is drawn and set
+again as a Fuzzy Match ("matching rows only, on region ≈ region (within 1)"). A number in a saved page's join is read
+as the page holds one (an ExactNumber: found by Python's test). Python: `page.fuzzy_match(mine, theirs, ('who', 'name'),
+within=1)`, or a join row `{'op': '~', 'within': 1}`. Tested by `join.test.ts` (its condition, its reading, its words,
+its refusals), `flow-sheet.test.ts` (the box's tool), Python's `test_alike_text_matched_as_fuzzy_match` (Jon Smith with
+John Smith, Ana Diaz with Anna Diaz, none at no edits) and the harness (the Filter's regions with the targets').
 
 **Built, the minimap** (M7; `layout/flow-canvas.ts`): the toolbar's Map shows the whole flow small in the canvas's
 corner -- each box a mark, the one shown in its colour, each container its frame -- and the part in view framed; a

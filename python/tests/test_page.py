@@ -2542,6 +2542,16 @@ class Joined(Paged):
         self.assertIn('d_desk', rows.columns)
         self.assertEqual(paired._cube['source']['how']['on'], {'rows': []})
 
+    def test_alike_text_matched_as_fuzzy_match(self):
+        # (M2) page.fuzzy_match: a flow's Fuzzy Match -- a join on text at most so many edits apart, the database's distance
+        page = ll.Page('Fuzzy Match')
+        mine = page.grid(pd.DataFrame({'who': ['Jon Smith', 'Ana Diaz', 'Bob']}), name='people')
+        theirs = page.grid(pd.DataFrame({'name': ['John Smith', 'Anna Diaz', 'Zed'], 'id': [1, 2, 3]}), name='crm')
+        matched = page.fuzzy_match(mine, theirs, ('who', 'name'), within=1)
+        rows = matched.to_pandas()
+        self.assertEqual(sorted(zip(rows['who'], rows['id'].astype(int))), [('Ana Diaz', 2), ('Jon Smith', 1)])
+        self.assertEqual(len(page.fuzzy_match(mine, theirs, ('who', 'name'), within=0).to_pandas()), 0)
+
     def test_placed_on_its_first_inputs_sheet_and_named_as_its_grids_show(self):
         # docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z9: as the tab's Join… places and names one (join-flow.ts), by
         # DataCube's rule (page-commands.ts joinInputOf, headless joinCube)

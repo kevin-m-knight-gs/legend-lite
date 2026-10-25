@@ -3,16 +3,20 @@
 // page with no join loads no more of one (join.ts, what it becomes, is fetched with the first join: bundle-budget). What
 // is wrong with a column's name or type is the compiler's to say, as it types what join.ts writes.
 
-import { ProtocolError, readLambda, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { ExactNumber, ProtocolError, readLambda, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal } from './snapshot.ts';
 
 /** A join's kind: matching rows only, all of mine, all of theirs, everything. */
 export type JoinKindWord = 'inner' | 'left' | 'right' | 'full';
 export const JOIN_KINDS: readonly JoinKindWord[] = ['inner', 'left', 'right', 'full'];
 
-/** A row's comparison. */
-export type JoinOp = '==' | '!=' | '<' | '<=' | '>' | '>=';
-export const JOIN_OPS: readonly JoinOp[] = ['==', '!=', '<', '<=', '>', '>='];
+/** A row's comparison: `~` similar text, at most `within` edits apart (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2: a flow's
+ *  Fuzzy Match, Alteryx's: `levenshteinDistance`). */
+export type JoinOp = '==' | '!=' | '<' | '<=' | '>' | '>=' | '~';
+export const JOIN_OPS: readonly JoinOp[] = ['==', '!=', '<', '<=', '>', '>=', '~'];
+
+/** How many edits apart two similar texts may be, when a row does not say. */
+export const SIMILAR_WITHIN = 2;
 
 /** Which way an as-of join's nearest row is: at or before mine (`>=`), strictly before (`>`), at or after, after. */
 export type AsOfOp = '>=' | '<=' | '>' | '<';
@@ -23,6 +27,8 @@ export interface JoinRow {
   readonly left: string;
   readonly op: JoinOp;
   readonly right: string;
+  /** A `~` row's edits apart at most (SIMILAR_WITHIN when not said); no other row's. */
+  readonly within?: number;
 }
 
 /**
@@ -53,6 +59,10 @@ export type JoinHow =
 export const isEveryPair = (how: JoinHow): boolean =>
   how.form === 'join' && how.kind === 'inner' && 'rows' in how.on && how.on.rows.length === 0;
 
+/** A join pairing rows by similar text: a row of its condition `~` (a flow's Fuzzy Match box). */
+export const isFuzzy = (how: JoinHow): boolean =>
+  how.form === 'join' && 'rows' in how.on && how.on.rows.some((r) => r.op === '~');
+
 export type JoinForm = JoinHow['form'];
 export const JOIN_FORMS: readonly JoinForm[] = ['join', 'asOf', 'semi', 'anti', 'append'];
 
@@ -81,12 +91,21 @@ function name(raw: unknown, what: string): string {
   return raw;
 }
 
-function readRow<Op extends string>(raw: unknown, what: string, ops: readonly Op[]): { left: string; op: Op; right: string } {
-  const o = object(raw, what, ['left', 'op', 'right']);
+function readRow<Op extends string>(raw: unknown, what: string, ops: readonly Op[]): { left: string; op: Op; right: string; within?: number } {
+  const o = object(raw, what, ['left', 'op', 'right', 'within']);
   if (typeof o['op'] !== 'string' || !(ops as readonly string[]).includes(o['op'])) {
     throw new CubeRefusal(`${what}'s comparison is one of ${ops.join(' ')}, not ${JSON.stringify(o['op'])}`);
   }
-  return { left: name(o['left'], `${what}'s left`), op: o['op'] as Op, right: name(o['right'], `${what}'s right`) };
+  // a similar row's edits apart: a whole number from 0, and no other row's -- read as a page's document holds a number
+  // (an ExactNumber, written as Python's JSON is read) or as one
+  const given = o['within'];
+  const within = given instanceof ExactNumber ? Number(given.text) : given;
+  if (within !== undefined && o['op'] !== '~') throw new CubeRefusal(`${what} compares by ${o['op']}: only a ~ row is within some edits`);
+  if (within !== undefined && (typeof within !== 'number' || !Number.isInteger(within) || within < 0)) {
+    throw new CubeRefusal(`${what}'s edits apart are a whole number from 0, not ${given instanceof ExactNumber ? given.text : JSON.stringify(given)}`);
+  }
+  return { left: name(o['left'], `${what}'s left`), op: o['op'] as Op, right: name(o['right'], `${what}'s right`),
+    ...(within !== undefined ? { within: within as number } : {}) };
 }
 
 function readCondition(raw: unknown, what: string): JoinCondition {
