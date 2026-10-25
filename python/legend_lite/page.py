@@ -1255,9 +1255,10 @@ class Chart(Tile):
 
 @_operations
 class Text(Tile):
-    """A text tile: a page's title, a note beside a chart -- its words in DataCube's small Markdown (``# `` a heading,
-    ``**bold**``, ``*italic*``, ``- `` or ``1. `` a list, ``[words](https://...)`` a link; DataCube's page-text.ts),
-    drawn as text, never as HTML."""
+    """A text tile: a page's title, a note beside a chart -- its words in GitHub's Markdown, as DataCube's page-text.ts
+    reads it (``# `` a heading, ``**bold**``, ``*italic*``, ``~~struck~~``, ``- `` or ``1. `` a list, ``- [ ] `` a task,
+    ``> `` a quote, fenced code, a table, ``---`` a rule, ``[words](https://...)`` a link), drawn as text, never as
+    HTML."""
 
     _kind = 'text'
 

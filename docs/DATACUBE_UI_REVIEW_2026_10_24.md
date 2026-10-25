@@ -207,6 +207,25 @@ host's own readout: it is how a person picks where the planner runs.
 - **The columns panel:** pivot leaves folded under their measure by default (found 3).
 - **One icon set,** inline SVG at one weight, for the tile head, the status bar and the bars (found 4).
 
+### 7. The text box, a Markdown editor (agreed with the user, 2026-10-25)
+
+The user chose GitHub's Markdown with a toolbar. **Built 2026-10-25** (`page-text.ts`, still a chunk fetched with the
+first text tile; tested in `test/page-text.test.ts` and `test/page-text-dom.test.ts`).
+
+- **What it reads:** every heading level, including underlined ones; lists nested by indent and task lists; quotes;
+  fenced code, kept exactly as typed; tables with column alignment; rules; bold, italic, both, strikethrough, code,
+  links (in brackets, in angle brackets, or bare). A `_` inside a word stays part of the word, so `trade_id` is not
+  italic.
+- **What it never does:** run HTML or fetch an image. Typed markup shows as text, and an image is its words linked to
+  it. Links are only http(s) and mailto, as before.
+- **The editor:** a toolbar (Bold, Italic, Strikethrough, Inline code, Heading, the three lists, Quote, Link, Code
+  block, Table, Horizontal rule) that writes the marks around the selection, with Ctrl+B, Ctrl+I and Ctrl+K as
+  shortcuts. The words and a live preview sit side by side, one above the other when the tile is narrow. OK, Cancel,
+  Escape and Ctrl+Enter work as before, and a link to GitHub's syntax guide sits in its bar. The toolbar's icons are
+  drawn as the tiles' are, but kept in the editor's chunk.
+- **Exports** write each block as lines: list marks with a task's `[x]`, nested items indented, code line by line,
+  quotes after `>`, table rows with cells between `|`, and `---` for a rule (`cube-page.ts textLines`).
+
 ## The menus: one design language, two scopes
 
 The user, 2026-10-24: the page's ≡ and a grid's right-click are different and stay different, but should share a

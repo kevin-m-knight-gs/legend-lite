@@ -1,11 +1,13 @@
 // A text tile's words drawn on a page (src/page-text.ts textElement): elements whose every word is text -- markup typed
-// is shown, never run -- a link opening in a new tab.
+// is shown, never run -- a link opening in a new tab. And its editor: a toolbar that writes the marks, the words, and
+// what they will look like beside them.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { readText, textEditor, textElement } from '../src/page-text.ts';
+import { textLines } from '../src/page/cube-page.ts';
 
 describe("a text tile's words drawn", () => {
   it('as elements whose every word is text: markup typed is shown, never run', () => {
@@ -17,6 +19,34 @@ describe("a text tile's words drawn", () => {
     const a = el.querySelector('a');
     assert.deepEqual([a?.getAttribute('href'), a?.target, a?.rel], ['https://x.test', '_blank', 'noopener noreferrer']);
     assert.deepEqual([...el.querySelectorAll('ol li')].map((li) => li.textContent), ['one', 'two']);
+  });
+
+  it("GitHub's blocks drawn: a table aligned, code as typed, a quote, a rule, struck words, a task's box shown but not pressed", () => {
+    const doc = new JSDOM('').window.document;
+    const el = textElement(doc, readText([
+      '| Desk | Notional |', '|---|--:|', '| FX | 1,200 |', '',
+      '```', '<script>alert(1)</script>', '```', '',
+      '> quoted', '', '---', '', '~~old~~', '', '- [x] done', '', '#### four', '', '5. five',
+    ].join('\n')));
+    assert.deepEqual([...el.querySelectorAll('th')].map((th) => [th.textContent, th.style.textAlign]), [['Desk', ''], ['Notional', 'right']]);
+    assert.deepEqual([...el.querySelectorAll('td')].map((td) => td.textContent), ['FX', '1,200']);
+    assert.equal(el.querySelector('.dc-text-table > table') !== null, true, 'a table scrolls in its own box');
+    assert.equal(el.querySelector('pre > code')?.textContent, '<script>alert(1)</script>');
+    assert.equal(el.querySelector('script'), null);
+    assert.equal(el.querySelector('blockquote > p')?.textContent, 'quoted');
+    assert.notEqual(el.querySelector('hr'), null);
+    assert.equal(el.querySelector('del')?.textContent, 'old');
+    const box = el.querySelector<HTMLInputElement>('li.dc-text-task > input[type=checkbox]');
+    assert.deepEqual([box?.checked, box?.disabled], [true, true]);
+    assert.equal(el.querySelector('h6')?.textContent, 'four', 'a deep heading, the smallest');
+    assert.equal(el.querySelector('ol')?.getAttribute('start'), '5');
+  });
+
+  it('as an export writes it: a line a block -- a task\u2019s box, a list in a list indented, code, a quote, a table, a rule', () => {
+    const doc = new JSDOM('').window.document;
+    const el = textElement(doc, readText('# Q3\n\n- [x] shipped\n  1. EMEA\n\n```\na\nb\n```\n\n> said\n\n| Desk | N |\n|---|---|\n| FX | 2 |\n\n---'));
+    assert.deepEqual([...el.children].flatMap(textLines),
+      ['Q3', '- [x] shipped', '  1. EMEA', 'a', 'b', '> said', 'Desk | N', 'FX | 2', '---']);
   });
 
   it('its editor: OK judged by the rule first, the words told; Escape cancels; Ctrl+Enter is OK', () => {
@@ -36,5 +66,61 @@ describe("a text tile's words drawn", () => {
     assert.deepEqual(told, ['New']);
     editor.area.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
     assert.equal(cancelled, 1);
+  });
+
+  // the user, 2026-10-25: Markdown with a toolbar, and what it will look like beside it
+  it('its toolbar writes the marks around what is chosen, and the preview beside the words follows them', () => {
+    const dom = new JSDOM('');
+    const doc = dom.window.document;
+    const editor = textEditor(doc, { words: 'Sales up\nEMEA\nAMER', onOk: () => {}, onCancel: () => {} });
+    doc.body.append(...editor.elements);
+    const area = editor.area;
+    // read afresh each time: an assertion on the words narrows `area.value` to what it said
+    const words = (): string => area.value;
+    const tool = (name: string) => doc.querySelector<HTMLButtonElement>(`.dc-text-tool[data-mark="${name}"]`) ?? assert.fail(`no ${name}`);
+    const preview = () => doc.querySelector('.dc-text-preview') ?? assert.fail('no preview');
+    assert.deepEqual([...doc.querySelectorAll('.dc-text-tool')].map((b) => b.getAttribute('aria-label')), [
+      'Bold', 'Italic', 'Strikethrough', 'Inline code', 'Heading', 'Bulleted list', 'Numbered list', 'Task list', 'Quote',
+      'Link', 'Code block', 'Table', 'Horizontal rule',
+    ]);
+    assert.equal(preview().querySelector('p')?.textContent, 'Sales upEMEAAMER', 'drawn from the first');
+    // the preview's words are not the tile's drawn words, which a page exports
+    assert.equal(doc.querySelector('.dc-text-tile'), null);
+
+    area.setSelectionRange(6, 8);
+    tool('Bold').click();
+    assert.equal(words(), 'Sales **up**\nEMEA\nAMER');
+    assert.equal(preview().querySelector('strong')?.textContent, 'up', 'the preview follows');
+
+    // the lines chosen made a list, and again, not
+    area.setSelectionRange(13, words().length);
+    tool('Bulleted list').click();
+    assert.equal(words(), 'Sales **up**\n- EMEA\n- AMER');
+    assert.deepEqual([...preview().querySelectorAll('li')].map((li) => li.textContent), ['EMEA', 'AMER']);
+    tool('Bulleted list').click();
+    assert.equal(words(), 'Sales **up**\nEMEA\nAMER');
+
+    // a heading, one level deeper each press
+    area.setSelectionRange(0, 0);
+    tool('Heading').click();
+    tool('Heading').click();
+    assert.match(words(), /^## Sales \*\*up\*\*\n/);
+
+    // a link: the address chosen, to type over
+    area.setSelectionRange(words().indexOf('EMEA'), words().indexOf('EMEA') + 4);
+    tool('Link').click();
+    assert.equal(words().slice(area.selectionStart, area.selectionEnd), 'https://');
+    assert.match(words(), /\[EMEA\]\(https:\/\/\)/);
+
+    // a table, on lines of its own
+    area.setSelectionRange(words().length, words().length);
+    tool('Table').click();
+    assert.match(words(), /AMER\n\n\| Column \| Column \|\n\| --- \| --- \|\n\| Cell \| Cell \|$/);
+    assert.notEqual(preview().querySelector('table'), null);
+
+    // Ctrl+I, as the toolbar's Italic
+    area.setSelectionRange(words().length - 6, words().length - 4);
+    area.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'i', ctrlKey: true }));
+    assert.match(words(), /\| \*Ce\*ll \|$/);
   });
 });

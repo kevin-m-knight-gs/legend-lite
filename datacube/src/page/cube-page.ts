@@ -311,6 +311,37 @@ interface ChartTile {
   added: boolean;
 }
 
+/**
+ * A drawn text block as an export's lines (page-text.ts textElement): a list's items each after its mark (a task's box
+ * as `[x]`), those under an item indented; code a line a line; a quote's lines after `>`; a table's rows, their cells
+ * between `|`; a rule `---`; any other block its words.
+ */
+export function textLines(block: Element): string[] {
+  const nested = (el: Element): boolean => /^(UL|OL|BLOCKQUOTE|PRE|DIV|P|HR)$/.test(el.tagName);
+  switch (block.tagName) {
+    case 'UL':
+    case 'OL': {
+      const start = Number(block.getAttribute('start') ?? '1');
+      return [...block.children].flatMap((li, i) => {
+        const box = li.querySelector<HTMLInputElement>(':scope > input[type=checkbox]');
+        const mark = `${block.tagName === 'OL' ? `${start + i}.` : '-'}${box ? (box.checked ? ' [x]' : ' [ ]') : ''}`;
+        const words = [...li.childNodes].filter((n) => n.nodeType !== 1 || !nested(n as Element)).map((n) => n.textContent ?? '').join('');
+        return [`${mark} ${words}`, ...[...li.children].filter(nested).flatMap(textLines).map((l) => `  ${l}`)];
+      });
+    }
+    case 'PRE':
+      return (block.textContent ?? '').split('\n');
+    case 'BLOCKQUOTE':
+      return [...block.children].flatMap(textLines).map((l) => `> ${l}`);
+    case 'HR':
+      return ['---'];
+    case 'DIV':
+      return [...block.querySelectorAll('tr')].map((tr) => [...tr.children].map((c) => c.textContent ?? '').join(' | '));
+    default:
+      return [block.textContent ?? ''];
+  }
+}
+
 export class CubePage {
   readonly #doc: Document;
   readonly #options: CubePageOptions;
@@ -1724,10 +1755,7 @@ export class CubePage {
       pre.textContent = text.text;
       return { html: pre.outerHTML, lines: text.text.split('\n') };
     }
-    const lines = [...drawn.children].flatMap((block) => (block.tagName === 'UL' || block.tagName === 'OL'
-      ? [...block.children].map((li, i) => `${block.tagName === 'OL' ? `${i + 1}.` : '-'} ${li.textContent ?? ''}`)
-      : [block.textContent ?? '']));
-    return { html: drawn.outerHTML, lines };
+    return { html: drawn.outerHTML, lines: [...drawn.children].flatMap(textLines) };
   }
 
   /** A text tile off the board, as a step leaves it. */

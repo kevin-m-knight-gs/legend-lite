@@ -51,16 +51,17 @@ const TOOLS: Readonly<Record<ToolIcon, readonly string[]>> = {
 
 /** The icon of a state. */
 export function stateIcon(doc: Document, state: TileState): SVGSVGElement {
-  return drawn(doc, 'dc-tile-state-icon', DRAWN[state], state === 'live');
+  return drawIcon(doc, 'dc-tile-state-icon', DRAWN[state], state === 'live');
 }
 
 /** The icon of a tool. */
 export function toolIcon(doc: Document, tool: ToolIcon): SVGSVGElement {
-  return drawn(doc, 'dc-tool-icon', TOOLS[tool], false);
+  return drawIcon(doc, 'dc-tool-icon', TOOLS[tool], false);
 }
 
-/** `paths` on a 16-unit square, stroked in the current colour, and filled with it when `filled`. */
-function drawn(doc: Document, className: string, paths: readonly string[], filled: boolean): SVGSVGElement {
+/** `paths` on a 16-unit square, stroked in the current colour, and filled with it when `filled`: every icon of the
+ *  set (a text box's toolbar draws its own marks with it, in its own chunk). */
+export function drawIcon(doc: Document, className: string, paths: readonly string[], filled: boolean): SVGSVGElement {
   const svg = doc.createElementNS(NS, 'svg');
   svg.setAttribute('class', className);
   svg.setAttribute('viewBox', '0 0 16 16');
