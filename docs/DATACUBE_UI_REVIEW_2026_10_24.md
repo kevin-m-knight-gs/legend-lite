@@ -226,6 +226,27 @@ first text tile; tested in `test/page-text.test.ts` and `test/page-text-dom.test
 - **Exports** write each block as lines: list marks with a task's `[x]`, nested items indented, code line by line,
   quotes after `>`, table rows with cells between `|`, and `---` for a rule (`cube-page.ts textLines`).
 
+### 8. Files in the text box (the user, 2026-10-25: the end of the roadmap)
+
+Now that the text box reads and edits Markdown, it should also open files. Open or drag-and-drop one file or several
+onto it and preview them in the tile.
+
+| Order | Format | How |
+|---|---|---|
+| 1 | Markdown, plain text, CSV, JSON | `page-text.ts`, as today |
+| 2 | PDF | Mozilla's pdf.js, vendored through Bazel as the other dependencies are, in a chunk fetched with the first PDF |
+| 3 | Images, audio, video | The browser's own `<img>`, `<audio>` and `<video>` over the file's bytes; no library |
+| 4 | Word `.docx` | Converted to the text box's own blocks; the document's HTML is never run |
+| 5 | Email `.eml`, Outlook `.msg` | The mail parsed; sender, subject and body shown as text; attachments listed; no remote image ever fetched (a tracking pixel) |
+| 6 | PowerPoint `.pptx` | The weakest in a browser: each slide's text and images, not a faithful rendering, which may need a server |
+
+Several files make a list in the tile (tabs or a side list), one shown at a time.
+
+**Open: where a file's bytes live.** Saved in the page means a shared link carries them, but pages grow large.
+Referenced means the page asks for the file again when it is reopened, as a grid over a local file does today. The
+recommendation is referenced, perhaps with a small file saved in the page. The user decides when the wave starts.
+Python's `page.text` follows whichever is chosen.
+
 ## The menus: one design language, two scopes
 
 The user, 2026-10-24: the page's ≡ and a grid's right-click are different and stay different, but should share a
@@ -324,6 +345,13 @@ View ▸                                    Properties…                 Ctrl+E
 | 1 | The example-switch bug; the chart options pane closes (×, Escape, click outside) and never clips; the status bar's idle box, labels and error chip; the tile's always-visible chrome cut to the title and what is unusual | Each is small, each is felt on every page |
 | 2 | View mode vs Edit Layout; the menus' design language (the skeleton, words, marks and rules above) for every menu; the title bar (name, tabs, the lone grid's state) | Structural, touches every tile and every menu |
 | 3 | The options pane docked at the page's edge; grouped text columns; the columns panel; one icon set | Larger design work |
+| 4 | Files in the text box (§8): Markdown and text first, then PDF, media, Word, email, PowerPoint | Added by the user, 2026-10-25 |
+
+**Where it stands, 2026-10-25.** Built: numbers right-aligned; the page's ≡ grouped by purpose (§3); one tile header
+(§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Next: the chart options pane (§2). After it:
+the example-switch bug (found 1); the status bar's error as a chip; the title bar (§4); the menus' design language for
+every menu; grouped text columns (found 2); the columns panel (found 3); one icon set (found 4; the tile states, the
+status bar's tools and the editor's toolbar already drawn); the options pane docked at the page's edge; then §8.
 
 Screenshots of each state (the start page, the chart examples and the gallery's KPI dashboard, the chart options at
 1400 and 1024 wide, the page menu, the joins example's error, the status bar) were taken with a scratch Playwright
