@@ -826,12 +826,18 @@ describe("a chart's options in the Properties window's design", () => {
     assert.equal(form.firstElementChild, kind, 'first');
     assert.deepEqual(titles(form), ['Data', 'More values', 'Small multiples', 'Layout', 'Reference lines', 'Labels and legend',
       'Look and interaction']);
+    // the rarer sections folded to start (the user, 2026-10-25: "more of a square"), the rest open
+    const open: Record<string, string> = {};
     for (const section of form.querySelectorAll(':scope > .dc-section')) {
       const title = section.querySelector<HTMLElement>(':scope > .dc-section-title')!;
       assert.ok(section.classList.contains('dc-pe-fold'), `${title.textContent} folds`);
       assert.equal(title.getAttribute('role'), 'button');
-      assert.equal(title.getAttribute('aria-expanded'), 'true', 'open to start');
+      open[title.textContent ?? ''] = title.getAttribute('aria-expanded') ?? '';
     }
+    assert.deepEqual(open, {
+      'Data': 'true', 'More values': 'true', 'Small multiples': 'false', 'Layout': 'true', 'Reference lines': 'false',
+      'Labels and legend': 'true', 'Look and interaction': 'false',
+    });
     // its second value a card, its x at the corner saying what it does; "+ Add a value" a link
     const card = form.querySelector('.dc-chartpanel-measure')!;
     const remove = card.querySelector<HTMLButtonElement>(':scope > .dc-chartpanel-remove');
@@ -869,18 +875,34 @@ describe("a chart's options in the Properties window's design", () => {
     assert.deepEqual(told.option.slice(-2), [['zoom', true], ['zoom', null]]);
   });
 
-  it('a section folded stays folded as the form is painted again (its panel keeps which)', () => {
+  it('a section opened or folded stays so as the form is painted again (its panel keeps which)', () => {
     const folds: { folded?: string[] } = {};
+    const title = (form: HTMLElement, text: string): HTMLElement =>
+      [...form.querySelectorAll<HTMLElement>('.dc-section-title')].find((t) => t.textContent === text)!;
     const first = paint(of('bar'), folds).form;
-    const look = [...first.querySelectorAll<HTMLElement>('.dc-section-title')].find((t) => t.textContent === 'Look and interaction')!;
-    look.click();
-    assert.ok(look.parentElement!.classList.contains('dc-folded'));
-    assert.equal(look.getAttribute('aria-expanded'), 'false');
+    // folded to start: opened by a click
+    title(first, 'Look and interaction').click();
+    assert.ok(!title(first, 'Look and interaction').parentElement!.classList.contains('dc-folded'));
+    assert.equal(title(first, 'Look and interaction').getAttribute('aria-expanded'), 'true');
+    // open to start: folded by a click
+    title(first, 'Data').click();
     const again = paint(of('bar'), folds).form;
-    const kept = [...again.querySelectorAll<HTMLElement>('.dc-section-title')].find((t) => t.textContent === 'Look and interaction')!;
-    assert.ok(kept.parentElement!.classList.contains('dc-folded'), 'still folded');
-    const data = [...again.querySelectorAll<HTMLElement>('.dc-section-title')].find((t) => t.textContent === 'Data')!;
-    assert.ok(!data.parentElement!.classList.contains('dc-folded'), 'the others open');
+    assert.ok(!title(again, 'Look and interaction').parentElement!.classList.contains('dc-folded'), 'still open');
+    assert.ok(title(again, 'Data').parentElement!.classList.contains('dc-folded'), 'still folded');
+    assert.ok(title(again, 'Reference lines').parentElement!.classList.contains('dc-folded'), 'the others as they started');
+  });
+
+  it('a rarer section holding a setting starts open, marked as changed; one holding none starts folded, unmarked', () => {
+    const { form } = paint(of('bar', { facet: { column: 'channel' }, options: { ...OPTIONS, smooth: true } }));
+    const section = (text: string): HTMLElement =>
+      [...form.querySelectorAll<HTMLElement>('.dc-section-title')].find((t) => t.textContent === text)!.parentElement!;
+    for (const text of ['Small multiples', 'Look and interaction']) {
+      assert.ok(!section(text).classList.contains('dc-folded'), `${text} open`);
+      assert.ok(section(text).querySelector('.dc-section-title > .dc-pe-changed'), `${text} marked`);
+    }
+    assert.ok(section('Reference lines').classList.contains('dc-folded'));
+    assert.equal(section('Reference lines').querySelector('.dc-pe-changed'), null);
+    assert.equal(section('Data').querySelector('.dc-pe-changed'), null, 'a section always open is never marked');
   });
 
   it("a KPI: its data and its target, which way is good a choice of two", () => {

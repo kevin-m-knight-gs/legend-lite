@@ -504,7 +504,7 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     // where the chart is on the screen, which jsdom does not lay out (its window 1024 x 768)
     const body = tile(chart).querySelector<HTMLElement>('.dc-chart-tile')!;
     Object.defineProperty(body, 'getBoundingClientRect', {
-      value: () => ({ left: 100, top: 120, right: 500, bottom: 420, width: 400, height: 300, x: 100, y: 120, toJSON: () => ({}) }),
+      value: () => ({ left: 100, top: 120, right: 300, bottom: 420, width: 200, height: 300, x: 100, y: 120, toJSON: () => ({}) }),
       configurable: true,
     });
     assert.equal(win(), null, 'a chart on the page starts without its options');
@@ -521,9 +521,9 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     assert.equal(w.getAttribute('aria-label'), `Properties \u2014 ${name}`, 'titled by its chart');
     assert.equal(w.querySelector('.dc-overlay-close')!.getAttribute('aria-label'), `Close Properties \u2014 ${name}`);
     assert.equal(dom.window.document.activeElement, w, 'the focus in it');
-    // beside the chart, to its right: not over it, and on the screen -- 720 tall, so raised from the chart's top to
-    // fit jsdom's 768; above the page's windows
-    assert.deepEqual(placed(w), [508, 768 - 8 - 720, 300, 720]);
+    // beside the chart, to its right, wide enough for two columns of its sections: not over it, and on the screen --
+    // as tall as jsdom's 768 lets it be, with no layout here to fit it to its form; above the page's windows
+    assert.deepEqual(placed(w), [308, 8, 588, 768 - 16]);
     assert.ok(Number(w.style.zIndex) > 20);
     options();
     assert.equal(host.querySelectorAll('.dc-chart-options').length, 1, 'Properties… again brings it forward, never a second');
@@ -531,13 +531,13 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     // a window, not a popover: a press elsewhere keeps it
     press(tile(a));
     assert.equal(win(), w, 'a press on another tile');
-    // made wider by its right edge, put away by its ×, and opened again at the size it was left
+    // made narrower by its right edge, put away by its ×, and opened again at the size it was left
     const east = w.querySelector('.dc-window-e')!;
     const drag = (type: string, x: number): boolean =>
       east.dispatchEvent(new dom.window.PointerEvent(type, { pointerId: 1, button: 0, clientX: x, clientY: 200, bubbles: true }));
-    drag('pointerdown', 808);
-    drag('pointermove', 848);
-    drag('pointerup', 848);
+    drag('pointerdown', 896);
+    drag('pointermove', 836);
+    drag('pointerup', 836);
     (w.querySelector('.dc-overlay-close') as HTMLButtonElement).click();
     assert.equal(win(), null, 'its \u00d7 put it away');
     // the chart moved meanwhile, to the screen's right edge: it opens at its left now, at its new width
@@ -546,7 +546,7 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
       configurable: true,
     });
     options();
-    assert.deepEqual(placed(win()!), [600 - 8 - 340, 40, 340, 720], 'beside where the chart is now, as wide as it was left');
+    assert.deepEqual(placed(win()!), [600 - 8 - 528, 8, 528, 752], 'beside where the chart is now, as wide as it was left');
     // Escape typed in a field of it is the field's; in it, it puts it away
     await settle();
     const field = win()!.querySelector<HTMLElement>('select, input');

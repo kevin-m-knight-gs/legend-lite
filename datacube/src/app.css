@@ -2877,7 +2877,14 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
    shared); in a narrow column each label sits above its control, the control full width. Its kind in a card at the
    top, as the Join window's grids; a short choice segmented, chosen as a Join kind is; each value after the first a
    card with its x at the corner; "+ Add a value" a link. */
-.dc-chart-options .dc-overlay-body { padding: 12px 14px 14px; }
+.dc-chart-options .dc-overlay-body { padding: 12px 16px 14px; }
+/* TWO COLUMNS WHERE THERE IS ROOM (the user, 2026-10-25: "more of a square"): the sections flow into columns of at
+   least 216px, each whole, so a window opened beside its chart -- about 500px wide or more -- reads Data and Layout side
+   by side and barely scrolls, and one dragged narrow is one column again. Its kind, and the hint under it all, span
+   the columns. */
+.dc-chartpanel-form { column-width: 216px; column-gap: 24px; }
+.dc-chartpanel-form > * { break-inside: avoid; }
+.dc-chartpanel-form > :is(.dc-chartpanel-kind, .dc-chartpanel-hint, .dc-chartpanel-note) { column-span: all; }
 .dc-chartpanel-form .dc-field {
   flex-direction: column;
   align-items: stretch;
@@ -2897,12 +2904,16 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-chartpanel-form .dc-check { display: flex; gap: 6px; margin: 2px 0 6px; font-size: 12px; color: var(--tw-neutral-700); }
 .dc-chartpanel-form .dc-check-box { margin: 0; accent-color: var(--tw-sky-600); }
 .dc-chartpanel-kind {
-  margin: 0 0 14px;
-  padding: 10px 12px 4px;
+  margin: 0 0 16px;
+  padding: 8px 12px;
   border: 1px solid var(--tw-neutral-200);
   border-radius: 8px;
   background: var(--tw-neutral-50);
 }
+/* its one field a row: the word, then the kind -- a header, not a stretched dropdown */
+.dc-chartpanel-kind .dc-field { flex-direction: row; align-items: center; gap: 10px; margin: 0; }
+.dc-chartpanel-kind .dc-field-label { flex: none; font-weight: 600; color: var(--tw-neutral-700); }
+.dc-chartpanel-kind .dc-field-body { flex: 1 1 auto; max-width: 260px; }
 .dc-chartpanel-measure {
   position: relative;
   margin: 0 0 8px;
@@ -4449,6 +4460,8 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-pe-colhead { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .dc-pe-colname { font: 600 14px/20px var(--dc-font-mono, ui-monospace, monospace); }
 .dc-pe-fold > .dc-section-title { cursor: pointer; user-select: none; }
+.dc-pe-fold > .dc-section-title:hover { color: var(--tw-neutral-700); }
+.dc-pe-fold > .dc-section-title:focus-visible { outline: 2px solid var(--tw-sky-600); outline-offset: 2px; }
 .dc-pe-fold > .dc-section-title > .dc-chrome-icon { width: 10px; height: 10px; flex: none; color: var(--tw-neutral-400); }
 .dc-pe-fold.dc-folded > .dc-section-title > .dc-chrome-icon { transform: rotate(-90deg); }
 .dc-pe-fold.dc-folded > :not(.dc-section-title) { display: none; }

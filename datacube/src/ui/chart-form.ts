@@ -37,6 +37,12 @@ const SPLIT_LABELS: Readonly<Partial<Record<ChartMark, string>>> = {
   heatmap: 'Rows:', sankey: 'Flows to:', chord: 'Flows to:', stream: 'Layers:', pie: 'Outer ring:', marimekko: 'Made of:',
 };
 
+/**
+ * The sections folded to start (the user, 2026-10-25: "more of a square"): the rarer ones, opened by a click and kept
+ * open by the chart after -- unless one holds a setting, which starts it open, marked.
+ */
+const FOLDED_TO_START = ['Small multiples', 'Reference lines', 'Look and interaction'] as const;
+
 /** The most values one chart plots side by side (bars, lines). */
 const MAX_MEASURES = 6;
 
@@ -124,11 +130,20 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
     h.set({ mark: v }, true);
   })));
   form.append(kind);
+  // which of the rarer sections hold a setting: marked as changed, and open to start
+  const o = spec.options;
+  const holds: Readonly<Record<string, boolean>> = {
+    'Small multiples': spec.facet !== undefined,
+    'Reference lines': (spec.layers?.length ?? 0) > 0 || spec.tooltip !== undefined || spec.label !== undefined,
+    'Look and interaction': o.smooth === true || o.step === true || o.logAxis === true || o.decal === true
+      || o.brush === true || o.toolbox === true || o.dim === false || o.zoom !== undefined,
+  };
   const folds = h.folds ?? {};
+  folds.folded ??= FOLDED_TO_START.filter((title) => !holds[title]);
   const group = (title: string, ...children: readonly HTMLElement[]): void => {
     if (children.length === 0) return;
     const block = section(doc, title, ...children);
-    foldable(doc, folds, block);
+    foldable(doc, folds, block, holds[title] === true);
     form.append(block);
   };
   if (spec.mark === 'kpi') {

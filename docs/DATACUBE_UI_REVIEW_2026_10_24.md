@@ -216,6 +216,27 @@ Filters, Join"). They were one long column of "Label:" and box-cornered dropdown
 Tested in `test/chart-kinds.test.ts` ("a chart's options in the Properties window's design") and, in a browser,
 `demo/verify-charts.mjs` (the section titles' type and the chosen option's sky colours).
 
+**More of a square, 2026-10-25** (the user: "more of a square vs long thin scroll?"). A bar chart's options were about
+2,100px tall in a 300px column: three or four windowfuls of scrolling, with Data and Layout never in sight together.
+
+- **Two columns where there is room:** the sections flow into columns at least 216px wide, each section kept whole
+  (`app.css` `column-width`). The window opens about 588px wide beside its chart where that fits, and narrower where
+  it does not, down to one column (`ui/chart-panel.ts` `CHART_WINDOW`, placed by `besideWindow`). Dragging it wider or
+  narrower reflows the columns.
+- **No taller than it needs:** once its form is painted, the window shrinks to fit it and is placed beside the chart
+  again at that height (`ui/chart-panel.ts` `#fit`, through `ui/window.ts` `moveWindow`). This happens once, as it
+  opens: a window that changed height with every option would jump under the pointer. It never overrides a size a
+  person gave it.
+- **The rarer sections start folded:** Small multiples, Reference lines, and Look and interaction (`ui/chart-form.ts`
+  `FOLDED_TO_START`). One that holds a setting starts open, marked as changed. Once opened, the chart keeps it open.
+- **Its kind as a header row:** "Chart" and its dropdown on one line in the card at the top. The section titles darken
+  on hover and show a focus ring.
+
+At 1400×900 and at 1024×768, a bar chart's options open in two columns beside the chart, about 590 by 720–740 and 500
+by 720–740, with nothing to scroll. Tested in `test/chart-kinds.test.ts` (sections folded to start, kept, and opened by
+a setting), `test/cube-page-shell.test.ts` (the window's size and place) and, in a browser, `demo/verify-charts.mjs`
+(two columns at 480px or wider, and no empty space under the form).
+
 ### 3. The page's ≡ menu, grouped by purpose
 
 In the order of the menus' shared skeleton (below, "The menus"):

@@ -44,7 +44,7 @@ import type { CubeSnapshot, FilterNode } from '../snapshot.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { lazily } from '../lazily.ts';
 import { chromeIcon } from './tile-icons.ts';
-import { besideWindow, makeWindow, raiseWindow } from './window.ts';
+import { besideWindow, makeWindow, moveWindow, raiseWindow, windowSpecOf } from './window.ts';
 
 /** The kinds with an axis of categories or time across, whose pointer a page's other charts follow (a crosshair). */
 const CROSSHAIRED: ReadonlySet<ChartMark> = new Set(['bar', 'line', 'area', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto']);
@@ -57,8 +57,12 @@ let mapsRegistered = false;
 /** How long a click on a chart that drills waits for a second click (a double-click drills instead of filtering). */
 const DOUBLE_CLICK_MS = 250;
 
-/** The options' window: a column of fields, as tall as the screen lets it be (`besideWindow` makes it smaller to fit). */
-const CHART_WINDOW = { width: 300, height: 720, minWidth: 240, minHeight: 200 } as const;
+/**
+ * The options' window: two columns of sections where the room beside the chart allows (its form flows into them,
+ * app.css), one where it does not -- `besideWindow` makes it narrower to fit, never under one column -- and no taller
+ * than its form, once painted, nor than the screen.
+ */
+const CHART_WINDOW = { width: 588, height: 880, minWidth: 248, minHeight: 200 } as const;
 
 export interface ChartPanelOptions {
   /** The cube as it is NOW (the chart follows it). */
@@ -104,6 +108,8 @@ export class ChartPanel {
   #closing: AbortController | null = null;
   /** The size a person left its window at: its next opening's. */
   #size: { width: number; height: number } | null = null;
+  /** Its window just opened: fitted to its form once the form is painted (`#fit`). */
+  #fitting = false;
   #canvas!: HTMLElement;
   #status!: HTMLElement;
   /** A drilled chart's path, above it (batch 2 item 10). */
@@ -221,12 +227,17 @@ export class ChartPanel {
     close.append(chromeIcon(doc, 'close'));
     close.addEventListener('click', () => this.closeForm());
     head.append(title, close);
+    // the window's body scrolls; the form inside it flows into columns, as tall as its sections (app.css)
+    const scroller = doc.createElement('div');
+    scroller.className = 'dc-overlay-body';
     const body = doc.createElement('div');
-    body.className = 'dc-overlay-body dc-chartpanel-form';
-    win.append(head, body);
+    body.className = 'dc-chartpanel-form';
+    scroller.append(body);
+    win.append(head, scroller);
     host.append(win);
     this.#window = win;
     this.#formBody = body;
+    this.#fitting = this.#size === null;
     this.#retitle(win);
     const closing = new AbortController();
     this.#closing = closing;
@@ -367,7 +378,31 @@ export class ChartPanel {
       const body = this.#formBody;
       if (this.#disposed || body === null) return;
       paintChartForm(this.#formHost, body);
+      if (this.#fitting) this.#fit();
     });
+  }
+
+  /**
+   * The window just opened, its form painted: no taller than the form needs, placed beside the chart again at that
+   * height (a shorter window sits level with the chart's top, where a tall one was raised to fit the screen). Once, as
+   * it opens -- a window that changed height at every option would jump under the pointer -- and never over a size a
+   * person gave it. Where nothing is laid out (no height measured), left as it is.
+   */
+  #fit(): void {
+    this.#fitting = false;
+    const win = this.#window;
+    const body = this.#formBody;
+    const scroller = body?.parentElement;
+    const view = this.#doc.defaultView;
+    const now = win ? windowSpecOf(win) : undefined;
+    if (!win || !body || !scroller || !view || !now || body.scrollHeight === 0) return;
+    const head = win.querySelector<HTMLElement>('.dc-overlay-head');
+    const pad = scroller.offsetHeight - scroller.clientHeight + parseFloat(view.getComputedStyle(scroller).paddingTop)
+      + parseFloat(view.getComputedStyle(scroller).paddingBottom);
+    const needs = Math.ceil((head?.offsetHeight ?? 0) + pad + body.scrollHeight + (win.offsetHeight - win.clientHeight));
+    if (needs >= now.height) return;
+    moveWindow(win, besideWindow(this.#root.getBoundingClientRect(), { width: view.innerWidth, height: view.innerHeight },
+      { ...CHART_WINDOW, width: now.width, height: Math.max(CHART_WINDOW.minHeight, needs) }));
   }
 
 

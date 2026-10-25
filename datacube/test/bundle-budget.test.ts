@@ -335,8 +335,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  the setTextFiles command, the tabs, the reads by handle, file-handles.ts pickTextFiles) and the branch's deep audit's
  *  fixes (the chart options in a shadow root and off a moved tile, the status chips of the view shown, a refusal before
  *  a file is read, handles kept on Save As). The file code could be a chunk of its own, fetched with a box's first file;
- *  not done here). Measured 364,289. */
-const BUDGET = 365_000;
+ *  not done here). Measured 364,289.
+ *  365,000 -> 365,500 (2026-10-25, a chart's options as a window beside its chart, kept on the screen and fitted to its
+ *  form (ui/window.ts besideWindow, onScreen, moveWindow; ui/chart-panel.ts openForm, #fit) -- the window itself comes
+ *  with the chart panel, the form and its segmented choices stay the options form's chunk). Measured 365,218. */
+const BUDGET = 365_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -454,8 +457,10 @@ const BUDGET = 365_000;
  *  4 of docs/DATACUBE_UI_REVIEW_2026_10_24.md): each typed glyph -- a tile's layouts, maximise and remove, the menus'
  *  chevron, every close -- now a small drawing of its own). Measured 348,520.
  *  349,500 -> 353,000 (2026-10-25, files in a text box and the branch's deep audit's fixes -- the grid-only page's note
- *  of the same date). Measured 352,353. */
-const ENGINE_BUDGET = 353_000;
+ *  of the same date). Measured 352,353.
+ *  353,000 -> 353,500 (2026-10-25, a chart's options as a window beside its chart, kept on the screen and fitted to its
+ *  form -- the grid-only page's note of the same date). Measured 353,248. */
+const ENGINE_BUDGET = 353_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -626,8 +631,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  declared in both themes among them -- the grid-only page's note of the same date). Measured 372,941.
  *  373,500 -> 374,000 (2026-10-25, a chart's options as a window beside its chart, kept on the screen (ui/window.ts
  *  besideWindow, makeWindow's viewport), and its fields in the Properties window's design: the window's and the form's
- *  styles, in this module's styles; the segmented control itself is the options form's own chunk). Measured 373,706. */
-const WIDGET_BUDGET = 374_000;
+ *  styles, in this module's styles; the segmented control itself is the options form's own chunk). Measured 373,706.
+ *  374,000 -> 374,500 (2026-10-25, the options window in two columns where there is room and fitted to its form, its
+ *  rarer sections folded to start -- the grid-only page's note of the same date). Measured 374,134. */
+const WIDGET_BUDGET = 374_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

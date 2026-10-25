@@ -252,6 +252,21 @@ try {
     });
     if (look.transform !== 'uppercase' || look.size !== '10px') throw new Error(`its section titles are not Properties': ${JSON.stringify(look)}`);
     if (look.fill !== 'rgb(240, 249, 255)' || !String(look.edge).includes('rgb(2, 132, 199)')) throw new Error(`its chosen choice is not sky: ${JSON.stringify(look)}`);
+    // more of a square (the user, 2026-10-25): two columns of sections where it is 480px wide or more, and no taller
+    // than its form once painted -- no empty space under it
+    await form.locator('.dc-chartpanel-form > .dc-section').first().waitFor();
+    const layout = await page.evaluate(() => {
+      const win = document.querySelector('.dc-chart-options');
+      const scroller = win.querySelector('.dc-overlay-body');
+      const inner = win.querySelector('.dc-chartpanel-form');
+      const style = getComputedStyle(scroller);
+      const lefts = new Set([...inner.querySelectorAll(':scope > .dc-section')].map((s) => Math.round(s.getBoundingClientRect().left)));
+      return { width: Math.round(win.getBoundingClientRect().width), columns: lefts.size,
+        scrolls: scroller.scrollHeight > scroller.clientHeight + 1,
+        slack: Math.round(scroller.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - inner.offsetHeight) };
+    });
+    if (layout.width >= 480 && layout.columns < 2) throw new Error(`its options in one column at ${layout.width}px: ${JSON.stringify(layout)}`);
+    if (!layout.scrolls && layout.slack > 8) throw new Error(`its options' window taller than its form: ${JSON.stringify(layout)}`);
     const fieldNamed = (label) => form.locator(`.dc-field:has(> .dc-field-label:text-is("${label}"))`);
     await fieldNamed('Chart:').locator('select').selectOption('kpi');
     await page.locator(`[data-tile="${id}"] .dc-kpi-value`).waitFor({ timeout: 20_000 });
@@ -277,7 +292,7 @@ try {
     // its x puts the window away
     await form.locator('.dc-overlay-close').click();
     await form.waitFor({ state: 'detached' });
-    return `${id}: ${value}, ${said}, its trend by ${across}; its options beside it at ${placed.win.join(',')}, the chart at ${placed.chart.join(',')}; sections ${look.titles.join('/')}, ${look.chosen} chosen`;
+    return `${id}: ${value}, ${said}, its trend by ${across}; its options beside it at ${placed.win.join(',')}, the chart at ${placed.chart.join(',')}; sections ${look.titles.join('/')}, ${look.chosen} chosen; ${layout.columns} columns at ${layout.width}px`;
   });
 
   // THE EXAMPLE PAGES (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3): each opened from Open…'s Examples, over the

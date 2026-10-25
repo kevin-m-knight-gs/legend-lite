@@ -64,6 +64,22 @@ type Edge = (typeof EDGES)[number];
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.min(Math.max(v, lo), hi);
 
+/** Each window `makeWindow` made: where it is now, and how to put it elsewhere as a drag would. */
+const made = new WeakMap<HTMLElement, { readonly spec: () => WindowSpec; readonly place: (next: WindowSpec) => void }>();
+
+/** Where a window `makeWindow` made is now; undefined for any other element. */
+export function windowSpecOf(el: HTMLElement): WindowSpec | undefined {
+  return made.get(el)?.spec();
+}
+
+/**
+ * Put a window `makeWindow` made at `next`, as a drag would -- its next drag or resize starts from there -- without
+ * telling its `onChange` (a person did not move it: a window fitted to what it shows).
+ */
+export function moveWindow(el: HTMLElement, next: WindowSpec): void {
+  made.get(el)?.place(next);
+}
+
 /** The z-index windows start from, above a cube's own layers. */
 export const WINDOW_Z_BASE = 20;
 /** The top of each window host's stack of windows (`raiseWindow`). */
@@ -268,6 +284,7 @@ export function makeWindow(
     el.style.height = `${next.height}px`;
   };
   place(spec);
+  made.set(el, { spec: () => spec, place: (next) => place(options.viewport ? onScreen(next, screen()) : next) });
 
   const settle = (): void => options.onChange?.(spec);
 
