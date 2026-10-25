@@ -228,6 +228,34 @@ describe('a flow sheet on a page of its own', () => {
     assert.deepEqual(now, ['Filters'], 'one window docked at a time: the shown box\'s');
   });
 
+  it('draws a box whose source was not opened red, why said; a file dropped on the canvas told to the host', async () => {
+    const files: string[] = [];
+    page = new PageApp({
+      host, title: 'flows', empty: (slot) => { slot.textContent = 'Add a data source'; },
+      openBox: async (box) => { throw new Error(`${box}: trades.csv was not given`); },
+      onFlowFile: (file) => { files.push(file.name); },
+    });
+    const back = readPage(JSON.parse(pageToJson(FLOW_PAGE())));
+    page.restore(back, new Map([['grid-1', overCube(back.cubes[0]!.cube)]]));
+    pg().showSheet('sheet-2');
+    await shown(host, '.dc-flow-box[data-tile="grid-3"]');
+    // what each box hands on, as its document says: no query run for it
+    assert.equal(box('grid-3').title, '3 columns out: region, desk, notional');
+    key(box('grid-3'), 'Enter');
+    for (let i = 0; i < 20 && !box('grid-3').classList.contains('dc-flow-refused'); i += 1) await settle();
+    assert.ok(box('grid-3').classList.contains('dc-flow-refused'), 'drawn red');
+    assert.match(box('grid-3').title, /trades\.csv was not given/);
+    assert.match(host.querySelector('.dc-flow-settings-refused')?.textContent ?? '', /trades\.csv was not given/, 'why, in its settings');
+    assert.deepEqual(pg().grids, ['grid-1'], 'no grid made for it');
+    // a file from the desktop over the canvas, let go: an Input over it, the host's to open
+    const drop = new dom.window.Event('drop', { bubbles: true, cancelable: true });
+    const file = new dom.window.File(['region\nEMEA\n'], 'regions.csv', { type: 'text/csv' });
+    Object.defineProperty(drop, 'dataTransfer', { value: { types: ['Files'], files: [file] } });
+    host.querySelector('.dc-flow-canvas')!.dispatchEvent(drop);
+    assert.deepEqual(files, ['regions.csv']);
+    assert.ok(drop.defaultPrevented, 'the browser does not open the file itself');
+  });
+
   it('Create ▸ Flow adds an empty flow, shown: its canvas, not an empty sheet\'s card', async () => {
     page = new PageApp({ host, title: 'q', empty: (slot) => { slot.textContent = 'Add a data source'; } });
     const first = pg().addGrid(overCube(cube(FILE)));

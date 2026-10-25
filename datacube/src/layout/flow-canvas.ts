@@ -98,6 +98,8 @@ export class FlowCanvas {
   #paneHeight: number | undefined;
   /** What the settings pane's placeholder was drawn as. */
   #settingsKey = '';
+  /** The box clicked last: the settings pane's while no box is shown (one whose source was not opened). */
+  #clicked: string | undefined;
 
   constructor(host: HTMLElement, board: FlowBoardState) {
     this.#host = host;
@@ -158,6 +160,23 @@ export class FlowCanvas {
     main.append(top, this.#split, this.#results);
     host.prepend(this.#palette, main);
     this.#canvas.addEventListener('keydown', (e) => this.#onCanvasKey(e));
+    // A FILE DROPPED from the desktop: an Input over it, as the picker opens one
+    const files = (e: DragEvent): boolean => this.#board.editing && (e.dataTransfer?.types ?? []).includes('Files');
+    this.#canvas.addEventListener('dragover', (e) => {
+      if (!files(e)) return;
+      e.preventDefault();
+      this.#canvas.classList.add('dc-flow-dropping');
+    });
+    this.#canvas.addEventListener('dragleave', (e) => {
+      if (e.target === this.#canvas) this.#canvas.classList.remove('dc-flow-dropping');
+    });
+    this.#canvas.addEventListener('drop', (e) => {
+      this.#canvas.classList.remove('dc-flow-dropping');
+      if (!files(e)) return;
+      e.preventDefault();
+      const file = e.dataTransfer?.files[0];
+      if (file !== undefined) this.#board.options.onFile?.(file);
+    });
     this.#canvas.addEventListener('pointerdown', (e) => {
       // a press on the canvas itself, not a box: focus there, so Ctrl+Z reaches the page
       if (e.target === this.#canvas || e.target === this.#plane) this.#canvas.focus({ preventScroll: true });
@@ -352,8 +371,23 @@ export class FlowCanvas {
     return drawn;
   }
 
+  /** The columns a box hands on, as its document says them: its query's columns and calculated columns, but those it
+   *  hides (a Select's) -- read, never run for. */
+  #columnsOf(id: string): string[] {
+    const doc = this.#board.options.documentOf?.(id);
+    if (doc === undefined) return [];
+    const settings = doc.configuration['columns'];
+    const hidden = (name: string): boolean => {
+      if (settings === null || typeof settings !== 'object') return false;
+      const c = (settings as Record<string, unknown>)[name];
+      return c !== null && typeof c === 'object' && (c as Record<string, unknown>)['hidden'] === true;
+    };
+    return [...doc.query.columns.map((c) => c.name), ...doc.query.derived.map((d) => d.name)].filter((n) => !hidden(n));
+  }
+
   /** A box shown, and its settings with it: the window of its grid's that sets what it does (TOOL_EDITORS). */
   #select(id: string): void {
+    this.#clicked = id;
     const said = this.#said(id);
     this.#board.options.onSelect?.(id, said ? TOOL_EDITORS[said.tool] : undefined);
   }
@@ -381,14 +415,19 @@ export class FlowCanvas {
     const says = said === undefined ? '' : said.also.length > 0
       ? `${said.says} · ${said.also.map((t) => FLOW_TOOLS[t].name).join(' · ')}` : said.says;
     const shown = this.#board.shown === id;
-    const key = JSON.stringify([tool, name, says, shown, this.#board.editing]);
+    const refused = this.#board.refusal(id);
+    const columns = this.#columnsOf(id);
+    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns]);
     if (key === drawn.key) return;
     drawn.key = key;
     drawn.root.dataset['tool'] = tool;
     drawn.root.dataset['group'] = FLOW_TOOLS[tool].group;
     drawn.root.classList.toggle('dc-flow-shown', shown);
+    drawn.root.classList.toggle('dc-flow-refused', refused !== undefined);
     drawn.root.setAttribute('aria-pressed', String(shown));
-    drawn.root.setAttribute('aria-label', `${name}: ${says}`);
+    drawn.root.setAttribute('aria-label', `${name}: ${refused ?? says}`);
+    // what it hands on: its columns, as its document says them (no query run for it)
+    drawn.root.title = refused ?? (columns.length > 0 ? `${columns.length} columns out: ${columns.join(', ')}` : '');
     drawn.icon.replaceChildren(icon(this.#doc, tool));
     if (!drawn.renaming) drawn.name.textContent = name;
     drawn.says.textContent = says;
@@ -556,16 +595,25 @@ export class FlowCanvas {
 
   /** The settings pane with nothing docked: the shown box's tool and what it is set to, and how to set it. */
   #paintSettings(): void {
-    const id = this.#board.shown;
+    const clicked = this.#clicked !== undefined && this.#board.layout.boxes.some((b) => b.tile === this.#clicked) ? this.#clicked : undefined;
+    const id = this.#board.shown ?? clicked;
     const said = id === undefined ? undefined : this.#said(id);
     const name = id === undefined ? undefined : this.#nameOf(id, said?.tool ?? 'browse');
     const editor = said ? TOOL_EDITORS[said.tool] : undefined;
-    const key = JSON.stringify([id, name, said, editor !== undefined]);
+    const columns = id === undefined ? [] : this.#columnsOf(id);
+    const refused = id === undefined ? undefined : this.#board.refusal(id);
+    const key = JSON.stringify([id, name, said, editor !== undefined, columns, refused, this.#board.noted]);
     if (key === this.#settingsKey) return;
     this.#settingsKey = key;
     this.#settingsTitle.textContent = name === undefined ? 'Settings' : `Settings · ${name}`;
     const d = this.#doc;
     const parts: (string | HTMLElement)[] = [];
+    if (refused !== undefined) {
+      const why = d.createElement('p');
+      why.className = 'dc-flow-settings-refused';
+      why.textContent = refused;
+      parts.push(why);
+    }
     if (id === undefined || said === undefined) parts.push('Click a box to set what it does.');
     else {
       const what = d.createElement('p');
@@ -574,6 +622,12 @@ export class FlowCanvas {
       now.className = 'dc-flow-settings-now';
       now.textContent = said.says;
       parts.push(what, now);
+      if (columns.length > 0) {
+        const out = d.createElement('p');
+        out.className = 'dc-flow-settings-columns';
+        out.textContent = `${columns.length} columns out: ${columns.join(', ')}`;
+        parts.push(out);
+      }
       if (editor !== undefined) {
         const open = d.createElement('button');
         open.type = 'button';

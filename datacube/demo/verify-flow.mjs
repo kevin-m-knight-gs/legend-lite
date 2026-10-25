@@ -2,7 +2,8 @@
 // box by drag and drop alone -- an Input dragged onto the canvas, a Filter onto the Input, a Formula onto the Filter, a
 // Summarize onto the Formula -- each set in the settings pane by the grid's own window docked there, each previewed in
 // the results pane; a box moved and the move undone; the flow saved, the tab reloaded and the flow opened again (no box
-// opened until it is shown, the last box's rows as before); and shared, the link opening the same flow in a fresh tab.
+// opened until it is shown, the last box's rows as before); shared, the link opening the same flow in a fresh tab; and a
+// file from the desktop dropped onto the canvas, an Input over it.
 //
 //   bazel test //datacube:verify_flow_test        bazel run //datacube:verify_flow (by hand)
 
@@ -248,6 +249,21 @@ try {
   } finally {
     await tab.close();
   }
+
+  // A FILE FROM THE DESKTOP, dropped onto the canvas: an Input over it, its rows shown
+  const csv = 'region,target\nEMEA,10\nAMER,20\nAPAC,30\nLATAM,40\n';
+  const dt = await page.evaluateHandle((text) => {
+    const d = new DataTransfer();
+    d.items.add(new File([text], 'targets.csv', { type: 'text/csv' }));
+    return d;
+  }, csv);
+  await page.dispatchEvent('.dc-flow-canvas', 'dragover', { dataTransfer: dt });
+  await page.dispatchEvent('.dc-flow-canvas', 'drop', { dataTransfer: dt });
+  await boxCount(5);
+  await settled();
+  const dropped = (await boxes()).at(-1);
+  check(dropped?.tool === 'input' && dropped.says === 'targets.csv' && dropped.shown, `a file dropped, an Input over it: ${JSON.stringify(dropped)}`);
+  check(await resultRows() === 4, 'its rows in the results pane');
 } catch (e) {
   bad(`threw: ${e.stack ?? e}`);
 } finally {

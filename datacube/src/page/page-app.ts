@@ -156,6 +156,8 @@ export interface PageAppOptions {
   /** A tool of a flow's palette picked: a box of it on flow `sheet`, after box `after` (none: on its own), made by the
    *  host over the page as it is now -- its settings (`editor`) opened on its grid once it is made (PageGrid.openStep). */
   readonly onFlowTool?: (tool: FlowTool, after: string | undefined, sheet: string, page: PageDocument, editor: StepEditor | undefined) => void;
+  /** A file dropped onto a flow's canvas: an Input box over it, opened by the host as its picker opens a file. */
+  readonly onFlowFile?: (file: File) => void;
 }
 
 export class PageApp {
@@ -993,6 +995,7 @@ export class PageApp {
           return make === undefined || this.#disposed ? undefined : this.#maker(make);
         },
       } : {}),
+      ...(this.#options.onFlowFile ? { onFile: (file: File) => this.#options.onFlowFile?.(file) } : {}),
       ...(this.#options.onFlowTool ? {
         onTool: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined) =>
           this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page, editor),

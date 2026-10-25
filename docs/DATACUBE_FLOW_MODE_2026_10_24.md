@@ -352,6 +352,8 @@ Every milestone ends usable: something a person does from start to finish, saved
 
 ### M2. Combine: Join, Union and ports
 
+- A tool dropped onto a line, inserted there (moved from M1: a link changed by a command, with Freeze and Unfreeze).
+
 - Join with its L, J and R ports; Union of any number of inputs; Append Fields; Find Replace; Fuzzy Match.
 - Ports (FL7): Filter's False, and Unique with its Duplicates.
 - Live or frozen inputs, with Freeze and Unfreeze (FL6).
@@ -515,6 +517,16 @@ none opened until shown, the last box's rows as before); and shared, the link op
 With the Python tests of step 3 (`test_page.py Flows`, `Flowed`), M1's "done when" holds. Found on the way: the column
 editor's sections shrank below their content in a short window, the preview's heading over its own builder's buttons
 (`app.css` `.dc-xc-main > *`).
+
+**Built after step 7, the rest of M1's list** (`layout/flow-canvas.ts`, `flow-board.ts`, `app/datacube-app.ts`): a file
+dropped from the desktop onto the canvas is an Input over it, opened as the picker opens a file it is given; a box
+whose source was not opened the last time it was clicked is drawn red, why said on it and in the settings pane, until
+it is shown; each box says the columns it hands on (on its tooltip, and in the settings pane), read from its document,
+no query run for it. Tested by `flow-page.test.ts` and the harness (a file dropped, an Input over it, its rows).
+
+**Moved to M2:** a tool dropped onto a line, inserted there. It relinks the box after it to the new box: a change of
+that box's source, which no page command makes yet; M2's link commands (Freeze, Unfreeze: FL6) are where relinking
+comes.
 
 **Not yet, said:** an undo of a box's removal brings it back as a new tile, and the boxes after it keep reading its copy until Unfreeze (M2) links them
 again (an undo is the page's structure: page-between.ts leaves the cubes of the grids both pages have as they are); a

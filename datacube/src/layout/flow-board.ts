@@ -32,6 +32,8 @@ export interface FlowBoardOptions {
   readonly onTool?: (tool: FlowTool, after: string | undefined, editor: StepEditor | undefined) => void;
   /** Ctrl+Z (Shift for redo) on the canvas: the page's own undo. */
   readonly onUndo?: (redo: boolean) => void;
+  /** A file dropped onto the canvas (from the desktop): the caller adds an Input box over it. */
+  readonly onFile?: (file: File) => void;
   /** Each box's cube document as the page has it: what it does, and the boxes it reads (the lines into it). */
   readonly documentOf?: (id: string) => CubeDocument | undefined;
 }
@@ -55,6 +57,8 @@ export interface FlowBoardState {
   title(id: string): string | undefined;
   /** The tool a box was added as, while its grid does nothing yet (`addedAs`). */
   addedAs(id: string): FlowTool | undefined;
+  /** Why a box's grid could not be made the last time it was shown (`refuse`), if it could not. */
+  refusal(id: string): string | undefined;
   tile(id: string): BandTile | undefined;
 }
 
@@ -77,6 +81,8 @@ export class FlowBoard implements FlowBoardState {
   /** Each box added from the palette, as the tool it was added as: drawn so while its grid does nothing yet (a Filter
    *  with no condition is a Filter to set, not a Browse) -- the screen's, never the page's. */
   readonly #addedAs = new Map<string, FlowTool>();
+  /** Why each box shown last could not be: its source not opened, refused in words (drawn red until it is shown). */
+  readonly #refused = new Map<string, string>();
   #layout: Flow = EMPTY_FLOW;
   #shown: string | undefined;
   #noted: string | undefined;
@@ -155,6 +161,17 @@ export class FlowBoard implements FlowBoardState {
     return this.#addedAs.get(id);
   }
 
+  refusal(id: string): string | undefined {
+    return this.#refused.get(id);
+  }
+
+  /** A box whose grid could not be made, and why -- or, `why` undefined, one that was made since. */
+  refuse(id: string, why: string | undefined): void {
+    if (why === undefined) this.#refused.delete(id);
+    else this.#refused.set(id, why);
+    this.#paint();
+  }
+
   /** A box added from the palette as `tool`: drawn as one until its grid does something. */
   addAs(id: string, tool: FlowTool): void {
     this.#addedAs.set(id, tool);
@@ -173,6 +190,7 @@ export class FlowBoard implements FlowBoardState {
     this.#hold(tile.id, tile.title, near).tile = tile;
     this.#shown = tile.id;
     this.#noted = undefined;
+    this.#refused.delete(tile.id);
     this.#paint();
   }
 
@@ -208,6 +226,7 @@ export class FlowBoard implements FlowBoardState {
     this.close(id);
     this.#boxes.delete(id);
     this.#addedAs.delete(id);
+    this.#refused.delete(id);
     this.#layout = removeBox(this.#layout, id);
     this.#paint();
   }

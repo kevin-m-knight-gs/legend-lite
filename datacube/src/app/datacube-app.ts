@@ -385,6 +385,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
    *  open sources. */
   let openBox: ((box: string, document: CubeDocument, now: PageDocument) => Promise<GridMaker | undefined>) | undefined;
   let flowTool: ((tool: FlowTool, after: string | undefined, sheet: string, now: PageDocument, editor: StepEditor | undefined) => void) | undefined;
+  let flowFile: ((file: File) => void) | undefined;
   /** JOIN… (§17.5): grid `cube` joined to another of the page -- in the tab, where a grid reads tables of its database; by
    *  the host, on a host's page (B11). Offered on a grid's menu where `offered` says. */
   let joinGrid: { readonly offered: (place: GridPlace) => boolean; readonly open: (cube: string | undefined, ask?: JoinAsk) => void } | undefined;
@@ -519,6 +520,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // a flow's box shown, over the page as it is now; a tool of its palette added
     openBox: (box, document, now) => openBox?.(box, document, now) ?? Promise.resolve(undefined),
     onFlowTool: (tool, after, sheet, now, editor) => flowTool?.(tool, after, sheet, now, editor),
+    onFlowFile: (file) => flowFile?.(file),
     onChange: () => {
       harnessSignal.changes += 1;
       // a grid gone from the page is followed no more
@@ -1336,6 +1338,18 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       }
       if (opened.notes.length > 0) sayResting({ text: opened.notes.join('; '), warn: true });
       return opened.make;
+    };
+    // A FILE DROPPED ONTO A FLOW'S CANVAS: an Input over it, opened as the picker opens a file it is given
+    flowFile = (file) => {
+      void (async () => {
+        const shown = placed;
+        const opened = await sources.opened({ kind: 'file', file }, gridCapped(page.cubes.length + 1));
+        if (placed !== shown) {
+          await opened.discard?.();
+          return;
+        }
+        page.addGrid(opened.make);
+      })().catch((e: unknown) => window.alert(`${file.name}: ${e instanceof Error ? e.message : String(e)}`));
     };
     // A TOOL OF THE PALETTE: an Input, a grid over a source picked now, a box of its own; any other tool, a box after
     // `after` -- a grid over that box's rows, read live -- over the tables that box's grid reads when it is shown

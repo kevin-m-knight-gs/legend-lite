@@ -4498,6 +4498,11 @@
 .dc-flow-box.dc-flow-target { border: 1px dashed var(--dc-active); background: var(--dc-selected-bg); }
 .dc-flow-box.dc-flow-dragging { cursor: grabbing; z-index: 2; transition: none; box-shadow: 0 8px 20px rgb(0 0 0 / 18%); }
 .dc-flow-view .dc-flow-box { cursor: pointer; }
+/* a box whose source was not opened the last time it was shown: red until it is, why in its settings */
+.dc-flow-box.dc-flow-refused { border-color: var(--tw-red-500); }
+.dc-flow-box.dc-flow-refused .dc-flow-says { color: var(--tw-red-600); }
+/* a file from the desktop over the canvas: dropped, an Input over it */
+.dc-flow-canvas.dc-flow-dropping { outline: 2px dashed var(--dc-active); outline-offset: -8px; }
 .dc-flow-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .dc-flow-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dc-flow-says { font-size: 11px; line-height: 14px; color: var(--dc-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -4599,6 +4604,8 @@
 }
 .dc-flow-settings-empty > p { margin: 0; max-width: 48ch; }
 .dc-flow-settings-now { color: var(--tw-black); font-weight: 500; }
+.dc-flow-settings-columns { font-size: 11px; line-height: 15px; overflow-wrap: anywhere; }
+.dc-flow-settings-refused { color: var(--tw-red-600); }
 
 /* the results pane: the box shown's grid, its height the divider's */
 .dc-flow-split {

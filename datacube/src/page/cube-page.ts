@@ -244,6 +244,8 @@ export interface CubePageOptions {
    * undefined when the person gave up. Absent, a page has no flow sheets to show a box of.
    */
   readonly openBox?: (box: string, document: CubeDocument) => Promise<((host: HTMLElement, options: SpawnOptions) => SpawnedGrid) | undefined>;
+  /** A file dropped onto flow `sheet`'s canvas: an Input box over it, added by the page's owner. */
+  readonly onFile?: (file: File, sheet: string) => void;
   /** A tool of a flow's palette picked: a box of it added to flow `sheet`, after box `after` (none: on its own), its
    *  settings (`editor`) opened once it is shown. */
   readonly onTool?: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined) => void;
@@ -514,6 +516,7 @@ export class CubePage {
       },
       onTool: (tool, after, editor) => this.#options.onTool?.(tool, after, id, editor),
       onUndo: (redo) => this.#options.onUndo?.(redo),
+      onFile: (file) => this.#options.onFile?.(file, id),
       documentOf: (tile) => this.#boxes.get(tile)?.document ?? this.documentOf(tile),
     });
     board.setEditing(this.#editing);
@@ -662,7 +665,10 @@ export class CubePage {
     try {
       make = await open(id, document);
     } catch (e) {
-      sheet.board.note(`${this.title(id) ?? id}: ${e instanceof Error ? e.message : String(e)}`);
+      // its source not opened: drawn red, why said in its settings and its results, until it is shown
+      const why = e instanceof Error ? e.message : String(e);
+      sheet.board.refuse(id, why);
+      sheet.board.note(`${this.title(id) ?? id}: ${why}`);
       return;
     } finally {
       this.#showing.delete(id);

@@ -324,8 +324,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  boxes, a document each until shown, the one shown made and closed (page/cube-page.ts), the flow board's state
  *  (layout/flow-board.ts), Create ▸ Flow, the host's box opener and palette tools. Every page read and every board asks
  *  them, so they load with the page; the canvas, its palette and what a box says it does are a chunk of their own
- *  (layout/flow-canvas.ts, flow-boxes.ts), fetched with the first flow). Measured 363,119. */
-const BUDGET = 363_500;
+ *  (layout/flow-canvas.ts, flow-boxes.ts), fetched with the first flow). Measured 363,119.
+ *  363,500 -> 364,000 (2026-10-25, the flow mode's M1 steps 5 and after: a grid's windows that set it docked where its
+ *  host docks them (app.ts dock, openStep), a box's settings opened with it, a file dropped onto a flow, a box refused
+ *  drawn so -- the drawing itself the canvas's chunk still). Measured 363,615. */
+const BUDGET = 364_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -593,8 +596,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  363,000 -> 364,500 (2026-10-25, the flow mode's M1 step 1 -- the grid-only page's note of the same date). Measured
  *  363,850.
  *  364,500 -> 372,500 (2026-10-25, the flow mode's M1 steps 3-4 -- the grid-only page's note of the same date; the
- *  notebook's cube carries the page's styles, a flow sheet's among them). Measured 371,848. */
-const WIDGET_BUDGET = 372_500;
+ *  notebook's cube carries the page's styles, a flow sheet's among them). Measured 371,848.
+ *  372,500 -> 373,000 (2026-10-25, the flow mode's M1 steps 5 and after -- the grid-only page's note of the same date;
+ *  the settings pane's styles among them). Measured 372,674. */
+const WIDGET_BUDGET = 373_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
