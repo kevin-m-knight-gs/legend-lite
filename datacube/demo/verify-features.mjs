@@ -4897,7 +4897,8 @@ try {
     await control('Default font bold', { act: general(() => font().locator('button[title="Bold"]').click()), expect: styleChanged('weight') });
     await control('Default font italic', { act: general(() => font().locator('button[title="Italic"]').click()), expect: styleChanged('italic') });
     await control('Default font underline', { act: general(() => font().locator('button[title="Underline"]').click()), expect: styleChanged('deco') });
-    await control('Default alignment', { act: general(() => font().locator('button[title="Align Right"]').click()), expect: styleChanged('justify') });
+    // centred: neither default (a measure's numbers sit right, the rest left -- the user, 2026-10-25), so a change on any column
+    await control('Default alignment', { act: general(() => font().locator('button[title="Align Center"]').click()), expect: styleChanged('justify') });
     await control('Default case (cube-wide)', { col: 'region',
       act: general(() => fieldOf('Case:').locator('select').selectOption('uppercase')), expect: styleChanged('transform') });
     await control('Default normal foreground', { act: general(() => put(sectionOf('Default Colors').locator('input[title="Normal foreground"]'), '#aa00aa')),
