@@ -151,8 +151,9 @@ describe('source guardrails', () => {
     // 2026-10-25: the page's marks came from four fonts, at four weights and on four baselines; they are drawn now
     // (ui/tile-icons.ts chromeIcon, closeMark). A close button made with its glyph and then drawn says closeMark.
     // the tree carets too (2026-10-25: the grid's, the JSON field picker's, Ad Hoc's member picker's)
-    // a mark alone in its literal, spaced or not; › and ‹ too (2026-10-25 audit: the columns selector's arrows)
-    const typed = /['`"]\s*(×|\\u00d7|≡|\\u2261|⊞|⤢|⤡|▸|\\u25b8|▾|\\u25be|›|\\u203a|‹|\\u2039)\s*['`"]/;
+    // a mark alone in its literal, spaced or not; › and ‹ as an element's whole text (2026-10-25 audit: the columns
+    // selector's arrows) -- as words they are words: a breadcrumb's separator, a code page's table
+    const typed = /['`"]\s*(×|\\u00d7|≡|\\u2261|⊞|⤢|⤡|▸|\\u25b8|▾|\\u25be)\s*['`"]|textContent\s*=\s*['`"]\s*(›|\\u203a|‹|\\u2039)\s*['`"]/;
     const hits: string[] = [];
     for (const file of FILES) {
       SOURCES.read(file).split('\n').forEach((line, i) => {
