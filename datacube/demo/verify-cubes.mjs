@@ -60,12 +60,16 @@ async function check(name, fn) {
   }
 }
 
-/** The status line's text, to wait for it to change. */
-const statusNow = () => page.evaluate(() => document.querySelector('.dc-status-timing')?.textContent ?? '');
+/** The status bar's readout and the view it says (its `data-view`, counting landed views), to wait for it to change. */
+const statusNow = () => page.evaluate(() => {
+  const e = document.querySelector('.dc-status-timing');
+  return e ? `${e.textContent} #${e.dataset.view}` : '';
+});
 async function landed(before) {
   await page.waitForFunction((was) => {
-    const line = document.querySelector('.dc-status-timing')?.textContent ?? '';
-    return line !== was && /rows/.test(line) && document.querySelectorAll('.dc-row').length > 0;
+    const e = document.querySelector('.dc-status-timing');
+    const line = e ? `${e.textContent} #${e.dataset.view}` : '';
+    return line !== was && /rows|groups/.test(line) && document.querySelectorAll('.dc-row').length > 0;
   }, before, { timeout: 60_000 });
   await frames(page);
 }

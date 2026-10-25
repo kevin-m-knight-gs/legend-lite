@@ -293,7 +293,7 @@ async function check(name, fn) {
 const state = () => page.evaluate(() => ({
   pure: document.getElementById('pure')?.textContent ?? '',
   sql: document.getElementById('sql')?.textContent ?? '',
-  status: `${document.querySelector('.dc-status-timing')?.textContent ?? ''}`
+  status: `${document.querySelector('.dc-status-timing')?.title ?? ''}`
     + ` | ${document.getElementById('status')?.textContent ?? ''}`,
   headers: [...document.querySelectorAll('[role=columnheader]')]
     .map((e) => e.textContent?.trim() ?? '').filter(Boolean),
@@ -361,10 +361,9 @@ async function settle(before) {
  * carries the real figure.
  */
 const resultRows = async () => {
-  const text = await statusNow();
-  const m = /([\d,]+) rows/.exec(text);
-  if (!m) throw new Error(`no row count in the status line: ${text}`);
-  return Number(m[1].replace(/,/g, ''));
+  const text = await page.evaluate(() => document.querySelector('.dc-status-timing')?.dataset.rows ?? '');
+  if (!/^\d+$/.test(text)) throw new Error(`no row count in the status bar: "${text}"`);
+  return Number(text);
 };
 
 /**
@@ -375,8 +374,11 @@ const resultRows = async () => {
  * when a query lands -- and a settle that waited on it would wait
  * the full timeout every single time.
  */
-const statusNow = () => page.evaluate(() =>
-  document.querySelector('.dc-status-timing')?.textContent ?? '');
+const statusNow = () => page.evaluate(() => {
+  // its words and which view they say (`data-view`, counting landed views): the words alone need not move
+  const e = document.querySelector('.dc-status-timing');
+  return e ? `${e.textContent} #${e.dataset.view}` : '';
+});
 
 /**
  * Right-click a body cell and walk the menu by LABEL.
@@ -699,8 +701,9 @@ async function freshCube() {
   await openSource();
   await page.waitForFunction(
     (was) => {
-      const line = document.querySelector('.dc-status-timing')?.textContent ?? '';
-      return (line !== was && /rows/.test(line)
+      const e = document.querySelector('.dc-status-timing');
+      const line = e ? `${e.textContent} #${e.dataset.view}` : '';
+      return (line !== was && /rows|groups/.test(line)
         && document.querySelectorAll('.dc-row').length > 0)
         || /could not|error/i.test(
           document.getElementById('status')?.textContent ?? '');
@@ -3902,11 +3905,11 @@ try {
         bar: box('.dc-app-stats'),
         actions: box('.dc-app-stats .dc-status-actions'),
         readout: box('.dc-app-stats .dc-status-readout'),
-        links: [...document.querySelectorAll(
-          '.dc-app-stats .dc-status-actions .dc-status-link')]
-          .map((b) => b.textContent.replace(/^\W+\s*/, '')),
-        timingInReadout: Boolean(document.querySelector(
-          '.dc-app-stats .dc-status-readout .dc-status-timing')),
+        tools: [...document.querySelectorAll(
+          '.dc-app-stats .dc-status-actions .dc-status-tool')]
+          .map((b) => b.textContent),
+        rowsAfterTools: Boolean(document.querySelector(
+          '.dc-app-stats .dc-status-actions .dc-status-tools ~ .dc-status-rows')),
         backend: document.querySelector(
           '.dc-app-stats .dc-status-readout .dc-status-host')
           ?.textContent?.trim() ?? null,
@@ -3926,11 +3929,12 @@ try {
       throw new Error(`the actions sit ${leftGap}px from the left edge and`
         + ` the readouts ${rightGap}px from the right`);
     }
-    if (bar.links.join(', ') !== 'Properties, Filter') {
-      throw new Error(`the links read: ${bar.links.join(', ') || 'none'}`);
+    // its tools as icons, named for a screen reader (the user, 2026-10-25): Join where its host joins
+    if (!/^Properties, Filter, Add Column(, Join)?$/.test(bar.tools.join(', '))) {
+      throw new Error(`the tools read: ${bar.tools.join(', ') || 'none'}`);
     }
-    if (!bar.timingInReadout) {
-      throw new Error('the timing is not among the readouts');
+    if (!bar.rowsAfterTools) {
+      throw new Error('what the grid shows is not after its tools');
     }
     // AND THE BACKEND IN A WORD. Three planes want three words a
     // person can tell apart in a 20px strip, not three sentences:
@@ -4805,6 +4809,7 @@ try {
         titleFolded: document.querySelector('.dc-titlebar')?.classList.contains('dc-collapsed') ?? false,
         zonesHidden: document.querySelector('.dc-zone-bar')?.hidden ?? false,
         timing: document.querySelector('.dc-status-timing')?.textContent ?? '',
+        shown: document.querySelector('.dc-status-timing')?.dataset.rows ?? '',
         warning: document.querySelector('.dc-status-warning')?.textContent ?? null,
         stats: document.querySelector('.dc-status-stats')?.textContent ?? '',
         pure: document.getElementById('pure')?.textContent ?? '',
@@ -4871,7 +4876,7 @@ try {
       expect: (b, a) => (a.tree.filter(Boolean).length > b.tree.filter(Boolean).length ? null : 'no child rows') });
     await control('Row Limit, flat cube, with its warning', {
       act: general(() => put(fieldOf('Row Limit:').locator('input[type=number]').first(), 10)),
-      expect: (b, a) => (/\b10 rows/.test(a.timing) && a.warning ? null : `timing "${a.timing}" warning ${a.warning}`) });
+      expect: (b, a) => (a.shown === '10' && a.warning ? null : `rows on screen "${a.shown}" warning ${a.warning}`) });
     await control('Display warning when truncated, off', {
       setup: general(() => put(fieldOf('Row Limit:').locator('input[type=number]').first(), 10)),
       act: general(() => boxOf('Display warning when truncated').uncheck()),

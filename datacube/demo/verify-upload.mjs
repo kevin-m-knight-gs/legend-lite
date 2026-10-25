@@ -48,7 +48,7 @@ async function sampleFile() {
 
 const { port, close: closeServer } = await serve(ROOT);
 
-/** "50,000 rows × 12 cols": the opened cube's own status line, read as soon as it opened. */
+/** "50,000 rows | 50,000 rows × 12 cols in 40ms: ...": the opened cube's readout and its tooltip, read as soon as it opened. */
 let countsAfterOpen = '';
 const browser = await chromium.launch();
 const page = await browser.newPage();
@@ -119,7 +119,8 @@ try {
   }
 
   // the counts as the opened cube says them, BEFORE any check below regroups it
-  countsAfterOpen = (await page.textContent('.dc-status-timing')) ?? '';
+  // its rows as the readout says them, then its tooltip: the rows on screen, the columns, the query's time
+  countsAfterOpen = `${(await page.textContent('.dc-status-timing')) ?? ''} | ${(await page.getAttribute('.dc-status-timing', 'title')) ?? ''}`;
   console.log(`status after opening: ${countsAfterOpen}`);
   console.log(`#app children: ${await page.$$eval('#app > *',
     (els) => els.map((e) => e.className || e.tagName).join(', '))}`);

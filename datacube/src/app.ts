@@ -145,7 +145,7 @@ import {
   type MenuItem,
 } from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
-import { paintState, stateButton } from './ui/tile-icons.ts';
+import { paintState, stateButton, toolIcon, type ToolIcon } from './ui/tile-icons.ts';
 import { longPressMenus } from './ui/long-press.ts';
 import { makeWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
 import {
@@ -429,6 +429,20 @@ function timingText(view: CubeView, cols: number): string {
 }
 
 /**
+ * What the grid shows, in words a person reads, at the start of its status bar (the user, 2026-10-25;
+ * docs/DATACUBE_UI_REVIEW_2026_10_24.md §5): a flat grid's rows -- all of them, when the row limit cut it (cube.ts
+ * `totalRows`) -- and a grouped grid's groups, "1,000+" when the limit cut them. It said "3 rows" of a cube of 200,000:
+ * the top level's groups, called rows. What it cost is its tooltip (`timingText`).
+ */
+function readoutText(view: CubeView): string {
+  const count = (n: number, one: string, many: string, more = false): string =>
+    `${n.toLocaleString(UI_LOCALE)}${more ? '+' : ''} ${n === 1 && !more ? one : many}`;
+  if (view.snapshot.rows.length === 0) return count(view.totalRows ?? view.rows.rowCount, 'row', 'rows');
+  const groups = view.treeRows.filter((r) => r.level === 1).length;
+  return count(groups, 'group', 'groups', view.truncated.some((t) => t.level === 1));
+}
+
+/**
  * What a cube tells whoever listens (`CubeApp#on`): a page, a pinned chart and the host can all
  * listen at once, where the options' callbacks had room for one (plan F6, blocker #5).
  */
@@ -626,6 +640,9 @@ export class CubeApp {
   #selection: CellRange | null = null;
   /** Where selection statistics are written, inside the status bar. */
   #statsSlot: HTMLElement | null = null;
+  /** The view its status bar's readout last said, and how many it has said: its `data-view`, which a script waits on. */
+  #readoutView: CubeView | null = null;
+  #readoutViews = 0;
   /** Repaints the plane toggle of a grid alone (its title bar's); a grid in a tile says its plane in `#tileStateEl`. */
   #paintSnap: (() => void) | null = null;
   /** The Receipts window's body while it is open (`#paintReceipts`). */
@@ -717,7 +734,9 @@ export class CubeApp {
     zoneBar.append(this.#zoneFold());
     const middle = this.#div(root, 'dc-app-middle');
     this.#middle = middle;
-    middle.append(this.#els.grid);
+    // what runs, as a thin bar along the grid's top edge while it runs (the user, 2026-10-25): it was a bordered box in
+    // the status bar, there and empty when nothing ran
+    middle.append(this.#progress, this.#els.grid);
     const side = this.#doc.createElement('div');
     side.className = 'dc-app-side';
     middle.append(side);
@@ -1474,84 +1493,73 @@ export class CubeApp {
   }
 
   /**
-   * Their status bar: a 20px strip, right-aligned, carrying the row
-   * count in a monospaced face and the truncation warning in orange.
+   * Its status bar, a 20px strip: what you can do and what the grid shows at the left, what is true of it at the right
+   * (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §5). The left: the grid's tools as icons --
+   * Properties, Filter, Add Column, Join -- then its rows or groups, then the selection's figures. The right: a chip
+   * only where there is something to say -- where its rows come from, a filter or a top N in force, the page's filter,
+   * a note, a cut result -- then what answered it (ⓘ) and the host's word.
    *
-   * Monospaced because the number changes as you expand the tree,
-   * and a proportional figure jitters its neighbours every time it
-   * does. The separators are theirs too -- a 1px by 12px neutral
-   * rule between groups rather than padding alone.
+   * Tabular figures (app.css): the count changes as the tree expands, and a proportional figure jitters its
+   * neighbours every time it does.
    */
   #renderStatusBar(view: CubeView, cols: number): void {
     // Ad Hoc owns the bar while it is on (`#renderAdHocStatus`)
     if (this.#adhoc) return;
     const doc = this.#doc;
-
-// WHAT YOU CAN DO ON THE LEFT, WHAT IS TRUE ON THE RIGHT.
-    //
-    // DataCube's own bar is `justify-between` with two link buttons
-    // at the left -- a settings icon and an underlined "Properties",
-    // then a filter icon and an underlined "Filter" -- and its
-    // readouts at the right. Ours had one link and every figure
-    // crowded after it.
-    //
-    // Both editors were reachable only through the grid's
-    // right-click menu, two levels down, and a person looking for
-    // them did not find them.
     const { left, right } = this.#statusFrame();
 
-    const properties = doc.createElement('button');
-    properties.type = 'button';
-    properties.className = 'dc-status-link dc-status-properties';
-    properties.textContent = '\u2699 Properties';
-    properties.title = 'The cube\u2019s settings (Ctrl+E)';
-    properties.addEventListener('click', () => this.openEditor());
-    left.append(properties);
-
-    // The filter SAYS whether one is in force. A cube showing a
-    // subset with nothing on screen to indicate it is how someone
-    // reads a filtered total as the whole book.
+    // THE GRID'S TOOLS, as icons: both editors were reachable only through the right-click, two levels down, and a
+    // person looking for them did not find them; then they were underlined links, the one place the app looked like a
+    // 2005 web page
     const filtered = this.#snapshot.filter !== undefined;
-    const filter = doc.createElement('button');
-    filter.type = 'button';
-    filter.className = filtered
-      ? 'dc-status-link dc-status-filter dc-on'
-      : 'dc-status-link dc-status-filter';
-    filter.textContent = filtered ? '⧨ Filter (on)' : '⧨ Filter';
-    filter.title = filtered
-      ? 'A filter is in force. Click to edit it.'
-      : 'Filter the cube';
-    filter.addEventListener('click', () => this.openFilters());
-    left.append(filter);
+    const tools = doc.createElement('div');
+    tools.className = 'dc-status-tools';
+    tools.append(
+      this.#tool('properties', 'dc-status-properties', 'Properties', 'The grid’s properties (Ctrl+E)', () => this.openEditor()),
+      // a filter in force is state, not decoration: the funnel says so, and so does its chip
+      this.#tool('filter', `dc-status-filter${filtered ? ' dc-on' : ''}`, 'Filter',
+        filtered ? 'Filter: one is in force; click to edit it' : 'Filter the grid', () => this.openFilters()),
+      this.#tool('addColumn', 'dc-status-add-column', 'Add Column', 'Add a calculated column', () => this.openColumnEditor({})),
+    );
+    if (this.#options.joinMenu) tools.append(this.#joinTool());
+    left.append(tools, this.#statusSeparator());
+
+    // WHAT IT SHOWS: what it cost on hover, and for a script the rows on screen and which view this is -- the
+    // readout's own text no longer moves with each query's time
+    const rows = this.#readout(left, readoutText(view));
+    rows.title = `${timingText(view, cols)}: the rows on screen, the columns, and how long the query took`;
+    rows.dataset['rows'] = String(view.rows.rowCount);
+    if (this.#readoutView !== view) {
+      this.#readoutView = view;
+      this.#readoutViews += 1;
+    }
+    rows.dataset['view'] = String(this.#readoutViews);
+    const stats = doc.createElement('div');
+    stats.className = 'dc-status-stats';
+    left.append(stats);
+    this.#statsSlot = stats;
+    this.#renderSelectionStats();
+
+    // WHAT IS TRUE OF IT, each only while it is: where its rows come from (a grid in a tile -- its header shows its
+    // title and its state's icon alone), then what narrows them
+    if (this.#inTile) right.append(this.#statusSourceEl);
+    if (filtered) {
+      right.append(this.#chip('dc-status-filtered', 'Filtered', 'A filter is in force: click to edit it', () => this.openFilters()));
+    }
+    const top = this.#snapshot.topN;
+    if (top !== undefined) {
+      const word = `${top.bottom ? 'Bottom' : 'Top'} ${top.n}`;
+      const by = labelFor(this.#config, top.by);
+      right.append(this.#chip('dc-status-topn', `${word} by ${by}`,
+        `Only the ${top.n} ${top.bottom ? 'smallest' : 'largest'} by ${by}`,
+        undefined, { label: `Clear ${word}`, act: () => void this.#gesture('filter.topNOff', {}, `clear ${word}`) }));
+    }
     // the page's filters on it (a dashboard's: setLens), in words -- each tile says what filters it
     if (this.#lensSaid !== undefined) {
-      const page = doc.createElement('span');
-      page.className = 'dc-status-page-filter';
-      page.textContent = `Page: ${this.#lensSaid}`;
-      page.title = 'The page\u2019s filters on this grid\u2019s class: set and taken off in the page\u2019s filter bar';
-      left.append(page);
+      right.append(this.#chip('dc-status-page-filter', `Page: ${this.#lensSaid}`,
+        'The page’s filters on this grid’s class: set and taken off in the page’s filter bar'));
     }
-
-    // THE RESULT, AND WHAT IT COST, in the one bar that is already
-    // about the result.
-    //
-    // This said "Rows: 29" while the same figure -- plus the column
-    // count and the elapsed time -- went to the host through
-    // `onStatus` and was rendered ABOVE the grid, in the strip that
-    // should say what you are looking at. Two readouts of one fact,
-    // the fuller one in the wrong place. The cube states it here
-    // itself, so a host gets a timing readout without wiring one,
-    // and `onStatus` still fires for hosts that want their own.
-    // WHAT IT READS AND WHERE ITS ROWS ARE, in words, for a grid in a tile (the user, 2026-10-25): its header shows its
-    // title and its state's icon alone; a lone grid has no header at all
-    if (this.#inTile) right.append(this.#statusSourceEl, this.#statusSeparator());
-    const rows = this.#readout(right, timingText(view, cols));
-    rows.title = 'Rows and columns in the result, and how long the '
-      + 'query took.';
-    this.#receiptChip(right, view);
-
     if (this.#note !== undefined) {
-      right.append(this.#statusSeparator());
       const note = doc.createElement('div');
       note.className = 'dc-status-note';
       note.setAttribute('role', 'status');
@@ -1568,26 +1576,102 @@ export class CubeApp {
       note.append(said, away);
       right.append(note);
     }
-
     if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
-      right.append(this.#statusSeparator());
       const warn = doc.createElement('div');
-      warn.className = 'dc-status-warning';
+      warn.className = 'dc-status-chip dc-status-warning';
       const cap = (this.#config.maxRows ?? DEFAULT_MAX_ROWS).toLocaleString(UI_LOCALE);
       // a flat cube says how many there are in all (cube.ts `totalRows`): the first 1,000 of 48,213
       warn.textContent = view.totalRows !== undefined
-        ? `⚠ Showing the first ${cap} of ${view.totalRows.toLocaleString(UI_LOCALE)} rows (row limit)`
-        : `⚠ Results truncated to fit within row limit (${cap})`;
+        ? `⚠ Showing the first ${cap} of ${view.totalRows.toLocaleString(UI_LOCALE)} rows`
+        : `⚠ Truncated at ${cap} rows`;
+      warn.title = `The row limit (${cap}, in Properties) cut the result: what is not shown is in no total either`;
       right.append(warn);
     }
+    this.#receiptChip(right, view);
+    // the host's word, last (what runs is a bar on the grid's top edge: `#progress`)
+    this.#adoptHostStatus();
+  }
 
-    const stats = doc.createElement('div');
-    stats.className = 'dc-status-stats';
-    right.append(this.#statusSeparator(), stats);
-    this.#statsSlot = stats;
-    this.#renderSelectionStats();
+  /** One of the status bar's tools: its icon, its name (for a screen reader and a test), what it does on hover. */
+  #tool(icon: ToolIcon, className: string, label: string, tip: string, act: () => void): HTMLButtonElement {
+    const button = this.#doc.createElement('button');
+    button.type = 'button';
+    button.className = `dc-status-tool ${className}`;
+    const said = this.#doc.createElement('span');
+    said.className = 'dc-status-tool-word';
+    said.textContent = label;
+    button.append(toolIcon(this.#doc, icon), said);
+    button.title = tip;
+    button.addEventListener('click', () => {
+      if (button.getAttribute('aria-disabled') !== 'true') act();
+    });
+    return button;
+  }
 
-    this.#statusTail(right);
+  /**
+   * Join, its host's (`joinMenu`): its right-click's Join ▸ on no column -- Join…, Join a Data Source… -- opened under
+   * it. Greyed, with the host's reason, where nothing can be joined: asked as the pointer or the focus reaches it,
+   * never at a paint -- the host builds its page's document to answer, and keeps what each entry asks until one is
+   * picked, which an open menu's entries need kept.
+   */
+  #joinTool(): HTMLButtonElement {
+    const tip = 'Join another table to this grid’s rows';
+    const ask = (): readonly MenuItem[] | null => {
+      const items = this.#options.joinMenu?.(undefined) ?? [];
+      // its answer to a pick is the host's (#onHostAction), as a right-click's Join ▸ is
+      this.#cellHost = items;
+      const why = items.every((i) => i.disabled === true)
+        ? items.find((i) => i.hint !== undefined)?.hint ?? 'Nothing on this page can be joined to it'
+        : undefined;
+      if (why === undefined) {
+        button.removeAttribute('aria-disabled');
+        button.title = tip;
+      } else {
+        button.setAttribute('aria-disabled', 'true');
+        button.title = `Join: ${why}`;
+      }
+      return why === undefined ? items : null;
+    };
+    const button = this.#tool('join', 'dc-status-join', 'Join', tip, () => {
+      const items = ask();
+      if (items !== null) this.#toggleMenu(button, () => [{ label: '', items: [...items] }]);
+    });
+    button.setAttribute('aria-haspopup', 'menu');
+    const peek = (): void => {
+      if (!this.#menu.open) ask();
+    };
+    button.addEventListener('pointerenter', peek);
+    button.addEventListener('focus', peek);
+    return button;
+  }
+
+  /**
+   * A chip at the right of the status bar: something true of the grid, in a word or two, the rest on hover. `act`: a
+   * click does it (the filter's opens the filter); `close`: a × that takes it away.
+   */
+  #chip(className: string, text: string, tip: string, act?: () => void,
+    close?: { readonly label: string; readonly act: () => void }): HTMLElement {
+    const doc = this.#doc;
+    let chip: HTMLElement = doc.createElement('span');
+    if (act) {
+      const button = doc.createElement('button');
+      button.type = 'button';
+      button.addEventListener('click', act);
+      chip = button;
+    }
+    chip.className = `dc-status-chip ${className}`;
+    chip.textContent = text;
+    chip.title = tip;
+    if (!close) return chip;
+    const away = doc.createElement('button');
+    away.type = 'button';
+    away.className = 'dc-status-chip-close';
+    away.textContent = '×';
+    away.setAttribute('aria-label', close.label);
+    away.title = close.label;
+    away.addEventListener('click', close.act);
+    chip.append(away);
+    return chip;
   }
 
   /**
@@ -1602,11 +1686,16 @@ export class CubeApp {
     chip.type = 'button';
     chip.className = `dc-status-receipt dc-receipt-${main.copy ? 'copy' : main.plane}`;
     const more = view.receipts.length > 1 ? ` (+${view.receipts.length - 1})` : '';
-    chip.textContent = `${receiptLabel(main)}${more}`;
+    // AN ⓘ, its words on hover (the user, 2026-10-25): "this tab (+1)" meant nothing to a person who had not read the
+    // receipts' design; its words stay its name, for a screen reader and a test
+    const said = this.#doc.createElement('span');
+    said.className = 'dc-status-tool-word';
+    said.textContent = `${receiptLabel(main)}${more}`;
+    chip.append(toolIcon(this.#doc, 'info'), said);
     chip.title = `${receiptLines(main).join('\n')}\n\nClick for every query's receipt`
       + (main.check ? ', and to check it with the server.' : '.');
     chip.addEventListener('click', () => this.openReceipts());
-    right.append(this.#statusSeparator(), chip);
+    right.append(chip);
   }
 
   /** Every receipt behind the view on screen, each checkable with its server where it can be. */
@@ -1690,23 +1779,13 @@ export class CubeApp {
     return { left, right };
   }
 
-  /** The row and column readout, at the start of the right side. */
-  #readout(right: HTMLElement, text: string): HTMLElement {
+  /** What the grid shows, after its tools (`readoutText`). */
+  #readout(left: HTMLElement, text: string): HTMLElement {
     const rows = this.#doc.createElement('div');
     rows.className = 'dc-status-rows dc-status-timing';
     rows.textContent = text;
-    right.append(rows);
+    left.append(rows);
     return rows;
-  }
-
-  /**
-   * The end of every status bar: upstream's task progress (a bar while anything runs, what is
-   * running in its tooltip; the same element every rebuild, so a task that outlives a view
-   * keeps showing), then the host's own readout.
-   */
-  #statusTail(right: HTMLElement): void {
-    right.append(this.#statusSeparator(), this.#progress);
-    this.#adoptHostStatus();
   }
 
   /**
@@ -1715,9 +1794,10 @@ export class CubeApp {
    * it (P2-287), and the counts were the hidden cube's (P2-290).
    */
   #renderAdHocStatus(rows: number, cols: number, stale: boolean): void {
-    const { right } = this.#statusFrame();
-    this.#readout(right, `${rows.toLocaleString(UI_LOCALE)} rows \u00d7 ${cols} cols${stale ? ' (not refreshed)' : ''}`);
-    this.#statusTail(right);
+    const { left } = this.#statusFrame();
+    const said = this.#readout(left, `${rows.toLocaleString(UI_LOCALE)} ${rows === 1 ? 'row' : 'rows'}${stale ? ' (not refreshed)' : ''}`);
+    said.title = `${rows.toLocaleString(UI_LOCALE)} rows \u00d7 ${cols} cols`;
+    this.#adoptHostStatus();
   }
 
   /**
@@ -4457,7 +4537,7 @@ export class CubeApp {
     if (!this.#inTile) return;
     // a grid alone become a tile (a second grid on its page): its status bar says its source from now, not at its next view
     const readout = this.#els.stats.querySelector('.dc-status-readout');
-    if (readout && !this.#statusSourceEl.isConnected) readout.prepend(this.#statusSourceEl, this.#statusSeparator());
+    if (readout && !this.#statusSourceEl.isConnected) readout.prepend(this.#statusSourceEl);
     // its source is its title's hover and its status bar's words, its plane its state left of its title (the user,
     // 2026-10-25); no menu button of its own (2026-10-23): its right-click has all a grid's menu had. The zones' way back:
     // in a page's bar, a lone grid's header ends the strip, above the zone bar's own fold

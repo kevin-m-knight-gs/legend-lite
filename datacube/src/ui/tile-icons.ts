@@ -5,6 +5,8 @@
 //
 // The button carries its state's word too, hidden from sight but not from a screen reader or a test: "Snapped",
 // "Pinned". What a click does is its owner's (a grid's snap menu, a chart's states, a text box's editor).
+//
+// A grid's status bar draws its tools the same way (`toolIcon`): one stroke, one square, one set.
 
 /** The states a tile's icon says. */
 export type TileState = 'live' | 'snapped' | 'dynamic' | 'pinned' | 'frozen' | 'detached' | 'viewing' | 'editing';
@@ -30,18 +32,45 @@ const DRAWN: Readonly<Record<TileState, readonly string[]>> = {
   editing: ['M10.5 2.8l2.7 2.7L6 12.7H3.3V10z', 'M9 4.3l2.7 2.7'],
 };
 
+/** The status bar's tools and its receipt (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §5). */
+export type ToolIcon = 'properties' | 'filter' | 'addColumn' | 'join' | 'info';
+
+/** Each tool's drawing, on the states' square and in their stroke. */
+const TOOLS: Readonly<Record<ToolIcon, readonly string[]>> = {
+  // three sliders: the grid's settings
+  properties: ['M2.5 4.5h11', 'M2.5 8h11', 'M2.5 11.5h11', 'M10.5 3v3', 'M5.5 6.5v3', 'M8.5 10v3'],
+  // a funnel
+  filter: ['M2.5 3.5h11l-4.2 4.8v4.4l-2.6 1.3v-5.7z'],
+  // a column, and a plus beside it
+  addColumn: ['M2.5 2.5h4.5v11h-4.5z', 'M11.5 5.5v5', 'M9 8h5'],
+  // two rings that overlap
+  join: ['M6 4.2a3.8 3.8 0 1 1 0 7.6a3.8 3.8 0 1 1 0-7.6z', 'M10 4.2a3.8 3.8 0 1 1 0 7.6a3.8 3.8 0 1 1 0-7.6z'],
+  // an i in a ring: what answered
+  info: ['M8 2.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 1 1 0-11z', 'M8 7.4v3.6', 'M8 5.1v.2'],
+};
+
 /** The icon of a state. */
 export function stateIcon(doc: Document, state: TileState): SVGSVGElement {
+  return drawn(doc, 'dc-tile-state-icon', DRAWN[state], state === 'live');
+}
+
+/** The icon of a tool. */
+export function toolIcon(doc: Document, tool: ToolIcon): SVGSVGElement {
+  return drawn(doc, 'dc-tool-icon', TOOLS[tool], false);
+}
+
+/** `paths` on a 16-unit square, stroked in the current colour, and filled with it when `filled`. */
+function drawn(doc: Document, className: string, paths: readonly string[], filled: boolean): SVGSVGElement {
   const svg = doc.createElementNS(NS, 'svg');
-  svg.setAttribute('class', 'dc-tile-state-icon');
+  svg.setAttribute('class', className);
   svg.setAttribute('viewBox', '0 0 16 16');
   svg.setAttribute('width', '14');
   svg.setAttribute('height', '14');
   svg.setAttribute('aria-hidden', 'true');
-  for (const d of DRAWN[state]) {
+  for (const d of paths) {
     const path = doc.createElementNS(NS, 'path');
     path.setAttribute('d', d);
-    path.setAttribute('fill', state === 'live' ? 'currentColor' : 'none');
+    path.setAttribute('fill', filled ? 'currentColor' : 'none');
     path.setAttribute('stroke', 'currentColor');
     path.setAttribute('stroke-width', '1.4');
     path.setAttribute('stroke-linecap', 'round');

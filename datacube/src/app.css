@@ -94,7 +94,7 @@
 .dc-page-filter-form select, .dc-page-filter-form input { font: inherit; height: 18px; }
 .dc-page-filter-said { color: var(--dc-muted); }
 /* a grid the page's filters reach says so in its status bar, beside its own filter */
-.dc-status-page-filter { color: var(--tw-sky-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dc-status-page-filter { color: var(--tw-sky-700); }
 .dc-page-alone:empty { display: none; }
 .dc-page-alone > .dc-tile-cube { align-self: stretch; }
 
@@ -815,6 +815,7 @@
   align-items: center;
   min-width: 0;
 }
+.dc-status-readout { gap: 6px; padding-right: 2px; }
 
 /* the readout that changes where the planner runs: it says it can be clicked */
 .dc-status-host-pick { cursor: pointer; border-radius: var(--dc-radius-sm); }
@@ -836,8 +837,9 @@
 }
 
 .dc-status-rows {
-  color: var(--tw-neutral-500);
+  color: var(--tw-neutral-600);
   padding: 0 var(--dc-pad-2);
+  white-space: nowrap;
 }
 
 .dc-status-sep {
@@ -846,18 +848,26 @@
   background: var(--tw-neutral-200);
 }
 
-.dc-status-warning {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 var(--dc-pad-2);
-  font-weight: 600;
-  color: var(--tw-orange-500);
-}
+/* a cut result: the one chip in a warning's colours */
+.dc-status-warning { background: var(--tw-amber-50, #fffbeb); color: var(--tw-amber-700, #b45309); font-weight: 500; }
 
+/* the selection's figures, after the rows, while cells are selected */
 .dc-status-stats {
   padding: 0 var(--dc-pad-2);
   color: var(--tw-neutral-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dc-status-stats:empty { display: none; }
+.dc-status-stats::before {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 12px;
+  margin-right: var(--dc-pad-2);
+  vertical-align: middle;
+  background: var(--tw-neutral-200);
 }
 
 /* a note beside the rows until put away (CubeApp.note: what a quick join did) -- cut short, its whole text on hover */
@@ -945,34 +955,64 @@
   flex: 0 0 auto;
 }
 
-.dc-status-link {
-  font: inherit;
-  line-height: 1;
+/* THE GRID'S TOOLS, as icons (the user, 2026-10-25): quiet until pointed at, as a tile's buttons are. They were
+   underlined links, the one place the app looked like a 2005 web page. */
+.dc-status-tools { display: flex; align-items: center; gap: 1px; padding: 0 2px; }
+.dc-status-tool,
+.dc-status-receipt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 18px;
+  padding: 0;
   border: 0;
-  padding: 0 var(--dc-pad-1);
+  border-radius: var(--dc-radius-sm);
   background: transparent;
-  /* Underlined and in the accent, as theirs is: in a strip of
-     read-only figures, the one thing that is clickable has to look
-     it. */
-  color: var(--dc-active, #0284c7);
-  text-decoration: underline;
+  color: var(--tw-neutral-500);
   cursor: pointer;
 }
+.dc-status-tool:hover,
+.dc-status-receipt:hover { background: var(--tw-neutral-200); color: var(--tw-neutral-800, #262626); }
+.dc-status-tool:focus-visible,
+.dc-status-receipt:focus-visible { outline: 1.5px solid var(--dc-active, #0284c7); outline-offset: -1px; }
+.dc-status-tool[aria-disabled='true'] { opacity: .4; cursor: default; }
+.dc-status-tool[aria-disabled='true']:hover { background: transparent; color: var(--tw-neutral-500); }
+/* a filter in force is state, not decoration: it changes what every number in the cube means */
+.dc-status-filter.dc-on { color: var(--dc-active, #0284c7); }
+/* a tool's name: for a screen reader and a test, not the eye (its tooltip says it) */
+.dc-status-tool-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-.dc-status-link:hover {
-  color: var(--tw-black);
+/* WHAT IS TRUE OF THE GRID, at the right: a chip each, only while it is so */
+.dc-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+  max-width: 36ch;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tw-neutral-200);
+  color: var(--tw-neutral-700);
+  font: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
-.dc-status-link:focus-visible {
-  outline: 1.5px solid var(--dc-active, #0284c7);
-  outline-offset: -1px;
+button.dc-status-chip { cursor: pointer; }
+button.dc-status-chip:hover { background: var(--tw-neutral-300); }
+.dc-status-filtered { background: var(--tw-sky-100); color: var(--tw-sky-700); }
+button.dc-status-filtered:hover { background: var(--tw-sky-50); }
+.dc-status-chip-close {
+  border: 0;
+  background: none;
+  padding: 0 0 0 2px;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+  font: inherit;
 }
-
-/* A filter in force is state, not decoration: it changes what every
-   number in the cube means. */
-.dc-status-filter.dc-on {
-  font-weight: 500;
-}
+.dc-status-chip-close:hover { color: var(--tw-neutral-800, #262626); }
 
 /* -- the overlay ------------------------------------------------------ */
 
@@ -2373,15 +2413,21 @@
   color: var(--tw-neutral-600);
 }
 
-/* Upstream's task progress: a 192 x 14 box, a green indeterminate bar
-   while anything runs, the tasks in its tooltip. */
+/* WHAT RUNS: a thin bar along the grid's top edge, only while something does (the user, 2026-10-25). It was upstream's
+   192 x 14 box in the status bar, there and empty when idle, where it looked like an input. */
+.dc-app-middle { position: relative; }
 .dc-status-progress {
-  position: relative;
-  width: 192px;
-  height: 14px;
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
   overflow: hidden;
-  border: 0.5px solid var(--tw-neutral-300);
+  pointer-events: none;
+  z-index: 5;
 }
+.dc-status-progress.dc-busy { display: block; }
 
 .dc-status-progress.dc-busy::after {
   content: '';
@@ -2389,7 +2435,7 @@
   top: 0;
   bottom: 0;
   width: 40%;
-  background: var(--tw-green-500, #22c55e);
+  background: var(--dc-active, #0284c7);
   animation: dc-indeterminate 1.2s ease-in-out infinite;
 }
 
@@ -3302,19 +3348,7 @@
 }
 
 /* THE RECEIPT: what answered the view, as the engine that ran it said. */
-.dc-status-receipt {
-  font: inherit;
-  border: none;
-  background: none;
-  padding: 0 var(--dc-pad-1, 4px);
-  cursor: pointer;
-  color: var(--tw-neutral-600);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 40ch;
-}
-.dc-status-receipt:hover { text-decoration: underline; }
+/* its i, as the tools are (above); a warehouse's or an engine's answer in sky */
 .dc-status-receipt.dc-receipt-warehouse,
 .dc-status-receipt.dc-receipt-engine { color: var(--tw-sky-700); }
 .dc-receipts { padding: var(--dc-pad-2, 8px); overflow: auto; }

@@ -50,7 +50,7 @@ describe('while Ad Hoc Analysis is on, the shell acts on it (B5b)', () => {
     const bar = root.querySelector('.dc-app-stats') as HTMLElement;
     assert.equal(bar.querySelector('.dc-status-filter'), null, 'the cube\'s Filter link under the Ad Hoc grid');
     const view = app.adhoc?.view ?? assert.fail('no Ad Hoc view');
-    assert.match(bar.textContent ?? '', new RegExp(`${view.table.rowCount} rows`), `the Ad Hoc counts: ${bar.textContent}`);
+    assert.match(bar.textContent ?? '', new RegExp(`\\b${view.table.rowCount} rows?\\b`), `the Ad Hoc counts: ${bar.textContent}`);
   });
 
   it('Settings reach Ad Hoc: Max History Stack Size and Debug Mode (P2-283)', async () => {

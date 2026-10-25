@@ -66,14 +66,14 @@ async function openFile(path, n) {
     undefined, { timeout: 120_000 });
   await page.waitForFunction((k) => document.querySelectorAll('[data-tile] .dc-app-grid').length >= k, n, { timeout: 60_000 });
 }
-const rowsOf = async (tile) => Number((/^([\d,]+) rows/.exec((await tile.locator('.dc-status-rows').first().textContent()) ?? '')?.[1]
-  ?? 'NaN').replace(/,/g, ''));
-const untilRows = (tile, n) => tile.locator('.dc-status-rows').filter({ hasText: new RegExp(`^${n} rows`) }).first()
+// a grid's own count of the rows on screen (its status bar's readout keeps it for a script: `data-rows`)
+const rowsOf = async (tile) => Number((await tile.locator('.dc-status-rows').first().getAttribute('data-rows')) ?? 'NaN');
+const untilRows = (tile, n) => tile.locator(`.dc-status-rows[data-rows="${n}"]`).first()
   .waitFor({ timeout: 60_000 }).catch(() => undefined);
 const tileWith = (column) => page.locator('[data-tile^="grid"]').filter({ has: page.locator(`.dc-th[data-column="${column}"]`) });
 const columnsOf = (tile) => tile.locator('.dc-th[data-column]').evaluateAll((ths) => ths.map((t) => t.getAttribute('data-column')));
 /** The trades' own grid: its 40 rows (a join of it has its columns too). */
-const tradesTile = () => tileWith('trade_id').filter({ has: page.locator('.dc-status-rows', { hasText: /^40 rows/ }) }).first();
+const tradesTile = () => tileWith('trade_id').filter({ has: page.locator('.dc-status-rows[data-rows="40"]') }).first();
 /**
  * The trades grid's Join ▸ Join… from a customer_id cell, with the customers' grid (by its name: a join of it, beside it,
  * has the column too), the window's answer to what it will do waited for.
@@ -196,7 +196,7 @@ try {
   await page.locator('.dc-join').waitFor({ state: 'detached', timeout: 60_000 });
   await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length >= 4, undefined, { timeout: 60_000 });
   // its tile wherever the page placed it: the one grid of trades' columns and six rows (the customers' grid has six too)
-  const six = () => tileWith('notional').filter({ has: page.locator('.dc-status-rows', { hasText: /^6 rows/ }) });
+  const six = () => tileWith('notional').filter({ has: page.locator('.dc-status-rows[data-rows="6"]') });
   await six().first().waitFor({ timeout: 60_000 }).catch(() => undefined);
   check(await six().count() === 1, `the trades with no customer: a grid of 6 rows (${await six().count()})`);
 
@@ -243,7 +243,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length >= 4, undefined, { timeout: 60_000 });
   const removeGrid = (tile) => gridEntry(tile, 'View', 'Remove from Page');
   await removeGrid(tileWith('name').filter({ hasNot: page.locator('.dc-th[data-column="trade_id"]') }).first());
-  await removeGrid(tileWith('notional').filter({ has: page.locator('.dc-status-rows', { hasText: /^40 rows/ }) }).first());
+  await removeGrid(tileWith('notional').filter({ has: page.locator('.dc-status-rows[data-rows="40"]') }).first());
   await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length === 2, undefined, { timeout: 30_000 });
   await page.click('.dc-titlebar-menu');
   await item('Save As\u2026').click();

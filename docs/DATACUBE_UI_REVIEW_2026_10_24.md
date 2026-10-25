@@ -183,6 +183,22 @@ was brings it back). No shortcuts are shown yet: the page binds no keys of its o
   as icon buttons, not links.
 - **Receipts and the planner's word behind one "ⓘ" chip** that opens the Receipts window.
 
+**Built 2026-10-25** (`app.ts` `#renderStatusBar`, `#tool`, `#joinTool`, `#chip`, `readoutText`; the icons in
+`ui/tile-icons.ts` `toolIcon`; tested in `test/app-dom.test.ts` "the bar says what you are looking at"). The user chose
+icon buttons for **Properties, Filter, Add Column and Join** at the left; Join is the host's (`joinMenu`) and is absent
+where the host makes no joins. Join is greyed, with the host's reason as its tooltip, when nothing can be joined. That
+is asked when the pointer or the focus reaches it, not on every paint, because the host builds its page's document to
+answer. Then the readout and the selection's figures. The right holds a chip only while it applies: the source with
+Live/Snapped (a grid in a tile), Filtered (opens the filter), Top N (× clears it), the page's filter, a note, and the
+truncation warning. Then the receipt as an ⓘ (its words hidden but still its name) and the host's word. Progress is a
+2px bar on the grid's top edge while something runs. The readout keeps `data-rows` (rows on screen) and `data-view` (a
+count of landed views) for scripts, because its text no longer changes with each query's time.
+
+Changed from the plan above: the readout is "N rows" for a flat grid (all of them when the limit cut it) and "M groups"
+for a grouped one, without the data's row count. The grid does not query that count (its leaf count is asked only with
+Show Leaf Count, per group level), and getting it would add a count query to every view. The planner's word stays the
+host's own readout: it is how a person picks where the planner runs.
+
 ### 6. The rest
 
 - **Fix the example-switch bug** (found 1).

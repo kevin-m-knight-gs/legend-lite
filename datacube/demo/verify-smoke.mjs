@@ -168,13 +168,17 @@ try {
     // THE FILE'S answer, not the built-in cube's: its status line already reads "... rows",
     // so waiting for /rows/ alone read a slower ingest (the JSONL sample) before it landed and
     // checked the built-in cube in its place. Wait for the line to CHANGE.
-    const before = await page.evaluate(() =>
-      document.querySelector('.dc-status-timing')?.textContent ?? '');
+    // the readout and which view it says (its `data-view`): its text alone may say the same of the file's rows
+    const before = await page.evaluate(() => {
+      const e = document.querySelector('.dc-status-timing');
+      return e ? `${e.textContent} #${e.dataset.view}` : '';
+    });
     await openThroughPicker(file);
     await page.waitForFunction(
       (was) => {
-        const line = document.querySelector('.dc-status-timing')?.textContent ?? '';
-        return (line !== was && /rows/.test(line))
+        const e = document.querySelector('.dc-status-timing');
+        const line = e ? `${e.textContent} #${e.dataset.view}` : '';
+        return (line !== was && /rows|groups/.test(line))
           || /could not|error/i.test(document.getElementById('status')?.textContent ?? '');
       },
       before, { timeout: 90_000 },

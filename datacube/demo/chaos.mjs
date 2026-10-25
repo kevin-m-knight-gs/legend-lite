@@ -158,11 +158,11 @@ check('a grouped cube has no filter row, so filters wait for phase two',
 /** Data rows currently rendered (the tree/total rows included). */
 const renderedRows = () => page.locator('.dc-row').count();
 
+/** The rows on screen, as the status bar's readout keeps them for a script (`data-rows`). */
 const statusRows = async () => {
-  const t = await page.locator('.dc-status-rows').first().textContent()
-    .catch(() => '');
-  const m = /([\d,]+)/.exec(t ?? '');
-  return m ? Number(m[1].replace(/,/g, '')) : null;
+  const t = await page.locator('.dc-status-rows').first().getAttribute('data-rows')
+    .catch(() => null);
+  return t !== null && t !== '' ? Number(t) : null;
 };
 
 // ---- the actions, each one a thing a person actually does ----------

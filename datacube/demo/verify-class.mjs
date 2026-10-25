@@ -237,10 +237,10 @@ try {
   // A DASHBOARD'S TILE (§16.1): the grid made Trade gets Create ▸ Grid over Trade -- the class read beside it at the page's
   // pin, its properties its columns, the same rows its table holds
   const columnsOf = (tile) => tile.locator('.dc-th[data-column]').evaluateAll((ths) => ths.map((t) => t.dataset.column));
-  // a grid's own readout of its rows (its status bar's `40 rows × 4 cols in 3ms`), and a wait for it to say `n`
-  const rowsOf = async (tile) => Number((/^([\d,]+) rows/.exec((await tile.locator('.dc-status-rows').first().textContent()) ?? '')?.[1]
-    ?? 'NaN').replace(/,/g, ''));
-  const untilRows = (tile, n) => tile.locator('.dc-status-rows').filter({ hasText: new RegExp(`^${n} rows`) }).first()
+  // a grid's own count of the rows on screen (its status bar's readout keeps it for a script: `data-rows`), and a wait
+  // for it to say `n`
+  const rowsOf = async (tile) => Number((await tile.locator('.dc-status-rows').first().getAttribute('data-rows')) ?? 'NaN');
+  const untilRows = (tile, n) => tile.locator(`.dc-status-rows[data-rows="${n}"]`).first()
     .waitFor({ timeout: 30_000 }).catch(() => undefined);
   const tileWith = (column) => page.locator('[data-tile^="grid"]').filter({ has: page.locator(`.dc-th[data-column="${column}"]`) }).first();
   await gridEntry(gridTiles().nth(0), 'Create', 'Grid over Trade');
