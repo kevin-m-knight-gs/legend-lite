@@ -4442,6 +4442,8 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-text-words li > ul, .dc-text-words li > ol { margin: 0.2em 0 0; }
 .dc-text-words li.dc-text-task { list-style: none; margin-left: -1.2em; }
 .dc-text-words li.dc-text-task > input { margin: 0 0.4em 0 0; vertical-align: -1px; }
+/* a list under a task: past its box, as under any item */
+.dc-text-words li.dc-text-task > ul, .dc-text-words li.dc-text-task > ol { padding-left: 2.6em; }
 .dc-text-table { overflow-x: auto; margin: 0 0 0.6em; }
 .dc-text-words table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .dc-text-words th, .dc-text-words td { padding: 2px 8px; border: 1px solid var(--tw-neutral-200); }
