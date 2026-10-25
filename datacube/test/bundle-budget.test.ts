@@ -316,8 +316,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  entry's why on hover (page-app.ts #menuGroups)). Measured 355,513.
  *  356,000 -> 357,500 (2026-10-25, the one tile header the user agreed: every tile's state an icon left of its title
  *  (ui/tile-icons.ts, drawn), a chart's state menu, a text box's pencil, a grid's Snap / Go Live / Snap Again and its
- *  source and plane in words in its status bar, a lone grid's state in its sheet's tab, ⤢/⤡). Measured 357,039. */
-const BUDGET = 357_500;
+ *  source and plane in words in its status bar, a lone grid's state in its sheet's tab, ⤢/⤡). Measured 357,039.
+ *  357,500 -> 358,500 (2026-10-25, the grid's status bar the user signed off: Properties, Filter, Add Column and Join as
+ *  drawn icons (ui/tile-icons.ts toolIcon), its rows or groups in words, a chip each for what is true of it, the receipt
+ *  an i, a thin bar on the grid's top edge while a query runs -- app.ts #renderStatusBar). Measured 358,056. */
+const BUDGET = 358_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -423,8 +426,10 @@ const BUDGET = 357_500;
  *  338,000 -> 344,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 314,000 -> 324,000 -- the
  *  grid-only page's note of the same date). Measured 343,438.
  *  344,000 -> 345,500 (2026-10-25, the UI waves: a measure's numbers right-aligned, the page's ≡ grouped by purpose and
- *  the one tile header -- the grid-only page's notes of the same date). Measured 345,283. */
-const ENGINE_BUDGET = 345_500;
+ *  the one tile header -- the grid-only page's notes of the same date). Measured 345,283.
+ *  345,500 -> 347,000 (2026-10-25, the grid's status bar -- the grid-only page's note of the same date). Measured
+ *  346,310. */
+const ENGINE_BUDGET = 347_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -581,8 +586,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  357,000 -> 363,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 332,500 -> 342,500 -- the
  *  grid-only page's note of the same date). Measured 362,642.
  *  363,000 -> 365,000 (2026-10-25, the UI waves: a measure's numbers right-aligned, the page's ≡ grouped by purpose and
- *  the one tile header -- the grid-only page's notes of the same date). Measured 364,708. */
-const WIDGET_BUDGET = 365_000;
+ *  the one tile header -- the grid-only page's notes of the same date). Measured 364,708.
+ *  365,000 -> 366,500 (2026-10-25, the grid's status bar -- the grid-only page's note of the same date). Measured
+ *  365,932. */
+const WIDGET_BUDGET = 366_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

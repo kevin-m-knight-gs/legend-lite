@@ -429,6 +429,13 @@ function timingText(view: CubeView, cols: number): string {
 }
 
 /**
+ * Views landed in this document, every cube's in one count: a status bar's readout says which it shows (`data-view`),
+ * so a script waiting for the next sees it change -- across a cube built in the place of another, whose own count would
+ * start again where the last one's did.
+ */
+let viewsLanded = 0;
+
+/**
  * What the grid shows, in words a person reads, at the start of its status bar (the user, 2026-10-25;
  * docs/DATACUBE_UI_REVIEW_2026_10_24.md §5): a flat grid's rows -- all of them, when the row limit cut it (cube.ts
  * `totalRows`) -- and a grouped grid's groups, "1,000+" when the limit cut them. It said "3 rows" of a cube of 200,000:
@@ -640,9 +647,10 @@ export class CubeApp {
   #selection: CellRange | null = null;
   /** Where selection statistics are written, inside the status bar. */
   #statsSlot: HTMLElement | null = null;
-  /** The view its status bar's readout last said, and how many it has said: its `data-view`, which a script waits on. */
+  /** The view its status bar's readout last said, and its number among the views landed (`viewsLanded`): its
+   *  `data-view`, which a script waits on. */
   #readoutView: CubeView | null = null;
-  #readoutViews = 0;
+  #readoutViewNumber = 0;
   /** Repaints the plane toggle of a grid alone (its title bar's); a grid in a tile says its plane in `#tileStateEl`. */
   #paintSnap: (() => void) | null = null;
   /** The Receipts window's body while it is open (`#paintReceipts`). */
@@ -1531,9 +1539,10 @@ export class CubeApp {
     rows.dataset['rows'] = String(view.rows.rowCount);
     if (this.#readoutView !== view) {
       this.#readoutView = view;
-      this.#readoutViews += 1;
+      viewsLanded += 1;
+      this.#readoutViewNumber = viewsLanded;
     }
-    rows.dataset['view'] = String(this.#readoutViews);
+    rows.dataset['view'] = String(this.#readoutViewNumber);
     const stats = doc.createElement('div');
     stats.className = 'dc-status-stats';
     left.append(stats);

@@ -1579,7 +1579,7 @@ describe('the bar says what you are looking at, and nothing else', () => {
     assert.equal(readout.title.startsWith(`${statuses.at(-1)}:`), true, `${readout.title} | ${statuses.at(-1)}`);
     // and for a script: the rows on screen, and which view this is
     assert.equal(readout.dataset['rows'], '2');
-    assert.equal(readout.dataset['view'], '1');
+    assert.match(readout.dataset['view'] ?? '', /^\d+$/);
   });
 
   it('a flat grid says its rows, a grouped one its groups; a repaint that runs no query is not another view', async () => {
@@ -1587,13 +1587,21 @@ describe('the bar says what you are looking at, and nothing else', () => {
     await flat.open();
     const readout = (): HTMLElement => root.querySelector('.dc-status-rows') as HTMLElement;
     assert.equal(readout().textContent, '2 rows');
+    const first = Number(readout().dataset['view']);
     // a presentation change (a note) paints the bar again over the same view
     flat.note('a note');
-    assert.equal(readout().dataset['view'], '1', 'the same view, said again');
+    assert.equal(Number(readout().dataset['view']), first, 'the same view, said again');
     await flat.edit([{ kind: 'group', rows: ['region'] }], 'group');
     await flush();
     assert.equal(readout().textContent, '2 groups');
-    assert.equal(readout().dataset['view'], '2', 'a view landed');
+    assert.equal(Number(readout().dataset['view']), first + 1, 'a view landed');
+    // a cube built in its place, saying the same: its view's number is another, so a script waiting on it sees it land
+    flat.dispose();
+    root.replaceChildren();
+    const again = new CubeApp(root, SNAPSHOT, { engine: new StubEngine(), planner: new StubPlanner() });
+    await again.open();
+    assert.equal(readout().textContent, '2 groups');
+    assert.equal(Number(readout().dataset['view']) > first + 1, true, `${readout().dataset['view']} after ${first + 1}`);
   });
 
   it('puts the grid’s tools and what it shows at the left, and what is true of it at the right', async () => {
