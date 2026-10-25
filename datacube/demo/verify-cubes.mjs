@@ -110,13 +110,13 @@ async function showWin(id, label) {
 }
 /**
  * The source picker (src/ui/source-picker.ts), to open IN PLACE of the page, as a person does:
- * New ▸ Blank Page, then "Add a data source".
+ * New Page, then "Add a data source".
  */
 async function openPicker() {
   for (const other of ['cubeswin', 'querywin', 'sharewin']) {
     if (await page.locator(`#${other}`).isVisible()) await page.click(`#${other} .hostwin-close, #${other} .dc-picker-close`);
   }
-  await burger('Blank Page');
+  await burger('New Page');
   await page.locator('.dc-blank').waitFor({ state: 'visible' });
   await page.click('.dc-blank .dc-primary');
   await page.locator('.dc-picker').waitFor({ state: 'visible' });
@@ -520,7 +520,7 @@ try {
   await check('New ▸ Data Source… on a blank page: its only grid, not capped; the next, beside it, capped', async () => {
     await load();
     page.once('dialog', (d) => { void d.accept(); });
-    await burger('Blank Page');
+    await burger('New Page');
     await page.locator('.dc-blank').waitFor({ state: 'visible' });
     // the picker's "add", the page empty: the grid it makes is the page's only one (cube-document.ts gridCapped)
     await addSample('trades', 200);
@@ -754,8 +754,8 @@ try {
       await landed(before);
       await shape();
       const want = await typed();
-      // Export > Page File (JSON), as a person keeps one -- then marked as written before: its cube version 1
-      const [download] = await Promise.all([page.waitForEvent('download'), burger('Page File (JSON)')]);
+      // Export Page File…, as a person keeps one -- then marked as written before: its cube version 1
+      const [download] = await Promise.all([page.waitForEvent('download'), burger('Export Page File…')]);
       const doc = JSON.parse(await readFile(await download.path(), 'utf8'));
       doc.cubes[0].cube.version = 1;
       const legacy = join(dir, 'legacy-version.page.json');

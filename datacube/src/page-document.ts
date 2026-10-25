@@ -101,7 +101,7 @@ export const oneSheet = (layout: PageLayout): readonly PageSheet[] => [{ id: FIR
  * THE VIEWS A PAGE STARTS WITH, on its one sheet: a new sheet's empty board (bands.ts NEW_SHEET), or with a grid
  * (`grid`: its view's id and its cube's) added to it as any first tile is (bands.ts add: the whole board). The one
  * writer of a starting page: a cube app's page of its grid alone (app.ts pageViews), a cube saved before pages opened as
- * a page (app/datacube-app.ts), and a new page (newPage: Python's and the tab's Blank Page), whose first grid the same add
+ * a page (app/datacube-app.ts), and a new page (newPage: Python's and the tab's New Page), whose first grid the same add
  * places.
  */
 export function startingViews(grid?: { readonly id: string; readonly cube: string }): PageViews {
@@ -114,7 +114,7 @@ export function startingViews(grid?: { readonly id: string; readonly cube: strin
 /**
  * A NEW PAGE, the one skeleton (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D11, B9): no cube yet, its one sheet an empty
  * board (startingViews), unnamed ('': shown as "Untitled page", Save suggesting its first sheet's name) unless `name` is
- * given. Python's new page (headless page.ts pageNew) and the tab's Blank Page (PageApp.clear) both start from it.
+ * given. Python's new page (headless page.ts pageNew) and the tab's New Page (PageApp.clear) both start from it.
  */
 export function newPage(name = ''): PageDocument {
   return writePageOf({ name, cubes: [], views: startingViews() });

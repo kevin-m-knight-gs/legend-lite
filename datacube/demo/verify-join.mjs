@@ -129,8 +129,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   // a blank page, then the two sources
   await page.click('.dc-titlebar-menu');
-  await item('Create').hover();
-  await item('Blank Page').click();
+  await item('New Page').click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
   await openFile(trades, 1);

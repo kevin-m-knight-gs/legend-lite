@@ -81,14 +81,13 @@ let pageErrors = [];
 page.on('pageerror', (e) => pageErrors.push(e.message));
 
 /**
- * The file opened in place of the cube, as a person does now: New ▸ Blank Page, "Add a data source",
+ * The file opened in place of the cube, as a person does now: New Page, "Add a data source",
  * the picker's Files section and ITS file input (src/ui/source-picker.ts). The page no longer has an
  * input of its own for data files -- the one left is the saved cubes' import.
  */
 async function openThroughPicker(file) {
   await page.click('.dc-titlebar-menu');
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
   await page.locator('.dc-picker').waitFor({ timeout: 10_000 });

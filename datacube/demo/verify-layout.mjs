@@ -296,8 +296,8 @@ try {
     if (!same(await boxes(), before)) throw new Error('the page\'s Undo did not put it back');
   });
 
-  await check('Edit Layout unticked locks the page: no handles, and a drag moves nothing', async () => {
-    await titleMenu('Edit Layout');
+  await check('Done Editing Layout locks the page: no handles, and a drag moves nothing', async () => {
+    await titleMenu('Done Editing Layout');
     const before = await boxes();
     if (await page.locator('.dc-band-divider, .dc-band-edge').count()) throw new Error('handles still shown');
     const from = await head(ids.copy);

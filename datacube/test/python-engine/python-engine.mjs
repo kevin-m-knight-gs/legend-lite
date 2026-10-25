@@ -207,8 +207,7 @@ try {
   // grid's rows are Python's over the model that code wrote -- the SQL Python ran, in the Pure & SQL window, reads the
   // file's own table
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.setInputFiles('.dc-picker-file', {
     name: 'books.csv', mimeType: 'text/csv', buffer: Buffer.from('title,pages\nDune,412\nEmma,474\nUlysses,730\n'),
@@ -318,12 +317,11 @@ try {
     dc.on('pageerror', (e) => { console.log(`page error: ${e.message}`); failed = true; });
     await dc.goto(served.link);
     await dc.locator('.dc-row').first().waitFor({ timeout: 60_000 });
-    // on a page of the tab's own (New ▸ Blank Page leaves the page Python serves: D1) -- a page Python serves holds what
+    // on a page of the tab's own (New Page leaves the page Python serves: D1) -- a page Python serves holds what
     // Python holds, its frames, until Python reads more (X1-X5)
     const tiles = 0;
     await dc.click('.dc-titlebar-menu');
-    await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-    await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+    await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
     await dc.locator('.dc-blank .dc-primary').click();
     await dc.locator('.dc-picker').waitFor({ timeout: 5000 });
     await dc.locator('.dc-picker-tab[data-section="saved"]').click();
@@ -361,8 +359,7 @@ try {
   // AN EXAMPLE goes the same way: generated in the page, read into Python's DuckDB as a file is (and the file before it
   // let go of: its grid gone, its table dropped in Python -- forget.json, every answer here a success)
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="examples"]').click();
   // the trades example, a CSV (an example whose rows hold nested values, a Variant, is read too; its queries wait on
@@ -381,8 +378,7 @@ try {
   // NESTED VALUES (a Variant column) on Python's page: the orders example, its customers and items JSON -- planned and
   // run as the tab plans and runs them (PlanAndRun), where Python's legend-engine answer refused a Variant column
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="examples"]').click();
   await cube.click('.dc-picker-card[data-example="orders-json"]');
@@ -398,8 +394,7 @@ try {
   // A REMOTE FILE, read by Python's DuckDB through the httpfs extension the wheel carries: the app's own Remote section,
   // a Parquet file a server on this machine serves (nothing leaves the machine)
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="remote"]').click();
   await cube.fill('.dc-picker-url', served.remote);
@@ -434,8 +429,7 @@ try {
   }
   // a blank page, then the saved one opened from Open…: its grid over its remote file again
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await menuEntry('Open\u2026');
   const row = cube.locator('#cubelib .dc-lib-row', { hasText: 'Books from Python' });
@@ -453,8 +447,7 @@ try {
   // AN ICEBERG TABLE (G5), read by Python's DuckDB through the iceberg extension the wheel carries, every file it names
   // served by the server on this machine: the app's own Remote section, as for a remote file
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="remote"]').click();
   await cube.fill('.dc-picker-url', served.iceberg);
@@ -472,8 +465,7 @@ try {
   // Python signs in as rita, the table opens Live (its rows the warehouse's, its receipt saying so), the grid's plane
   // button snaps it into Python's DuckDB (the button and the receipt saying where the copy is), and goes live again
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="database"]').click();
   await cube.getByLabel('Address').fill(warehouseUrl);
@@ -868,7 +860,7 @@ try {
   if (catchingUp) failed = true;
   await secondTab.close();
 
-  // D1 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P10): New > Blank Page on the page Python serves puts a page of the
+  // D1 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P10): New Page on the page Python serves puts a page of the
   // tab's own on screen and leaves Python's page as it is -- nothing written to it, and Python's next change to it not
   // followed here
   const servedVersion = async () => {
@@ -894,9 +886,8 @@ try {
   const asking = asked > 0;
   tabbed.on('dialog', (d) => { void d.accept(); });
   await tabbed.click('.dc-page-bar .dc-titlebar-menu');
-  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
-  await seen('Blank Page on the page Python serves: a page of the tab\'s own, said',
+  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
+  await seen('New Page on the page Python serves: a page of the tab\'s own, said',
     () => document.querySelector('[data-tile="grid-1"]') === null && /a page of this tab's own/.test(document.body.innerText));
   const askedThen = asked;
   await python('py-page-sheet');

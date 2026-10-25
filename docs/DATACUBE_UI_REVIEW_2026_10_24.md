@@ -100,6 +100,35 @@ statistics · a 192×14 progress box · the planner's word ("local").
 - **One right-click shape for every tile:** Options… (or Properties… for a grid), then the kind's own entries, then
   View ▸ Maximise, Move to Sheet ▸, Remove — the grid's, the chart's, the KPI's and the text tile's alike.
 
+### 1a. One tile header for every kind (agreed with the user, 2026-10-25)
+
+This replaces §1's first bullet: a quiet state is shown too, so every tile reads the same way.
+
+Every tile -- a grid, a chart, a KPI, a text box -- has the same header, in the same places:
+
+```
+[state] Title                                   ⊞ ⤢ ×
+```
+
+- **Left of the title: the tile's state, always shown, as an icon.** Quiet (muted) for the usual state, accented for an
+  exception, so a page of ordinary tiles is calm and the one that is different stands out.
+
+  | Tile | States (quiet first) | Its menu, on a click of the icon |
+  |---|---|---|
+  | A grid | ● Live (quiet) · 📷 Snapped (amber, its time on hover) | Snap Again / Go Live (Snap when live) |
+  | A chart or a KPI | 🔗 Dynamic (grey) · 📌 Pinned (accent) · ❄ Frozen (blue) | Dynamic / Pinned / Frozen, ✓ on the current one (a pick among several) |
+  | A text box | ✎ (quiet when viewing, accented while editing) | none: a click edits; Done ends it |
+
+- **Right: the tile's actions, ⊞ (layout: move and resize) ⤢ (maximise) ×** (remove from page), shown on hover, on
+  keyboard focus, and on a tap on a touch screen -- never permanently, so the header stays quiet.
+- **The source's name leaves the header:** it is the title's tooltip and the status bar's words. The Live/Snapped
+  pills go.
+- **View mode (Edit Layout off):** the state icons stay, and stay clickable (Go Live is no layout change); a text
+  box's ✎ goes (no editing in view mode); ⊞ and × go (nothing moves, nothing is removed); ⤢ stays.
+- **A lone grid** (the only tile on its sheet) has no header at all: its state icon goes in its sheet's tab, its status
+  bar says it in words ("Live", "Snapped 2 min ago"), and there is nothing to lay out, maximise or remove.
+- **A maximised tile** keeps a slim header with ⤡ (restore) in place of ⤢.
+
 ### 2. The chart options panel: a pane that closes
 
 - **A heading with a ×**, Escape closes it, a click on the page outside it closes it. Options… only opens it (or
@@ -119,6 +148,13 @@ In the order of the menus' shared skeleton (below, "The menus"):
 4. **Create ▸**: Data Source…, Sheet, Text Box, then Association…, Data Space…
 5. **Settings…**: the app's, not the first grid's (a grid's own window is its Properties…)
 6. **View ▸**: Hide the Bar (Show the Bar while hidden), Generated Pure & SQL…, Keyboard Shortcuts…
+
+**Built 2026-10-25** (`page/page-app.ts` `#menuGroups`, tested in `test/page-app.test.ts` "the page's ≡, grouped by
+purpose"). An entry that cannot apply is greyed with why on hover: Arrange… and Sheet "Edit Layout first", Settings… and
+Keyboard Shortcuts… "Open a data source first", Export Page File… the page's save refusal. Two notes: Settings… still
+opens through the first grid, but its window holds the app's settings (kept for every grid), so it is the app's in all
+but where its code lives; and "Show the Bar" is never seen in the ≡, which folds away with the bar (the lip where it
+was brings it back). No shortcuts are shown yet: the page binds no keys of its own (a grid's Ctrl+Z is the grid's).
 
 ### 4. The page's title bar
 

@@ -398,7 +398,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let dropUnread: (() => void) | undefined;
   /** The source picker, once the page can open sources: New ▸ Data Source… adds a grid over one; a blank page opens one. */
   let picker: ((purpose: 'add' | 'open', start?: SectionId) => Promise<GridMaker | undefined>) | undefined;
-  /** A blank page, everything gone, for a first data source: as asked (New ▸ Blank Page: `asked`, leaving a page another
+  /** A blank page, everything gone, for a first data source: as asked (New Page: `asked`, leaving a page another
    *  editor serves, D1), or where a start opened nothing (`reason`: why). */
   let blankPage: ((o: { readonly reason: string | undefined } | { readonly asked: true }) => void) | undefined;
   /** Why the page's start opened nothing (a link that failed, a key refused): the empty page says it. */
@@ -431,9 +431,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     hostMenu: () => [
       // saved pages: where the host keeps them (in this browser), over the sources they were built on
       ...(services.pages ? [
+        { id: 'host.open' as const, label: 'Open\u2026', section: 'file' as const },
         { id: 'host.save' as const, label: 'Save', section: 'file' as const },
         { id: 'host.saveAs' as const, label: 'Save As\u2026', section: 'file' as const },
-        { id: 'host.open' as const, label: 'Open\u2026', section: 'file' as const },
       ] : []),
       // the page's settings in a link: never a row of data (src/share/link.ts)
       ...(services.browser.address ? [{ id: 'host.share' as const, label: 'Share\u2026', section: 'file' as const }] : []),
@@ -460,7 +460,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // each edit of the page's structure, written to its keeper, on a page another editor serves; an undo or a redo, the
     // page whole (a restore, N2)
     onPageCommand: (command) => channel?.edit({ page: command }),
-    // THE EMPTY PAGE (New ▸ Blank Page, the last grid removed, a start that opened nothing): what to do first -- a
+    // THE EMPTY PAGE (New Page, the last grid removed, a start that opened nothing): what to do first -- a
     // data source (the picker, opening in place) or a saved page
     empty: (slot) => {
       const doc = document;
@@ -701,7 +701,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         page,
         grid: (id) => madeCubes.get(id),
         pageNow: () => pageNow(page.title, true),
-        // left while a grid of the keeper's page was opened (New ▸ Blank Page, Open…): nothing of it lands on the page
+        // left while a grid of the keeper's page was opened (New Page, Open…): nothing of it lands on the page
         // of this tab's own (the S4 audit's 4)
         open: async (document, grid, several) => {
           const opened = await sources.reopened(document, undefined, several, page.model?.tables[grid], true);
@@ -718,7 +718,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     }
     /**
      * A NEW PAGE ON A PAGE ANOTHER EDITOR SERVES (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D1, P10): Open..., open in place
-     * and Blank Page put a page of this tab's own on screen and leave the served one as it is -- nothing of the new page
+     * and New Page put a page of this tab's own on screen and leave the served one as it is -- nothing of the new page
      * written to it, none of its moves followed here -- said once, in the status line; what is said, for a page that has
      * no grid to show that line (a blank page says it on its card), or undefined: no page served is left.
      */
@@ -1372,7 +1372,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         return null;
       }, start);
 
-    // A BLANK PAGE (New ▸ Blank Page; the user, 2026-10-01): every grid and chart goes, and the page
+    // A BLANK PAGE (New Page; the user, 2026-10-01): every grid and chart goes, and the page
     // says what to do first -- a data source (the picker, opening in place) or a saved page (PageApp's empty page,
     // `empty` above). Asked first when there are unsaved changes; the page stays until the person agrees.
     blankPage = (how) => {
@@ -1461,7 +1461,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       } catch (e) {
         return e instanceof Error ? e.message : String(e);
       }
-      // left while it was read (New ▸ Blank Page, Open…): the page on screen is this tab's own (D1, the S4 audit's 4)
+      // left while it was read (New Page, Open…): the page on screen is this tab's own (D1, the S4 audit's 4)
       if (left) return undefined;
       if (channel) channel.shown = undefined;
       const shown = page.shownSheet;
@@ -1514,7 +1514,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       } catch {
         return openLive();
       }
-      // left while it was asked (New ▸ Blank Page, Open…): the page on screen is this tab's own (the S4 audit's 4)
+      // left while it was asked (New Page, Open…): the page on screen is this tab's own (the S4 audit's 4)
       if (left) return undefined;
       const wasChanged = dirty();
       // the screen put at the keeper's page (live-channel.ts follow, live-converge.ts: an edit made here while the keeper

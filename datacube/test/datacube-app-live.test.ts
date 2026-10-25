@@ -1,7 +1,7 @@
 // DATACUBE'S APP ON A PAGE ANOTHER EDITOR SERVES (src/app/datacube-app.ts, Python's `ll.Page`): the app as a tab opens
 // it -- over a stand-in editor that says the page, its moves and the writes it takes -- following the page from its
 // start: a page of no grid yet followed as Python adds to it, a first read that failed tried again at its next move (the
-// S4 audit's 1: only New ▸ Blank Page leaves the page, D1), and a follow on its way when the page is left landing
+// S4 audit's 1: only New Page leaves the page, D1), and a follow on its way when the page is left landing
 // nothing (the S4 audit's 4).
 
 import assert from 'node:assert/strict';
@@ -80,7 +80,7 @@ async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>
       reading: {},
       // a frame's rows, planned and run here over the fixture's planner and engine: what opening a page's grid asks
       rows: () => ({ planner: new StubPlanner(), engine: new GateEngine() }),
-      // a source to pick: the page offers New ▸ Blank Page; the host's frames, as the test says them
+      // a source to pick: the page offers New Page; the host's frames, as the test says them
       database: { ingestFile: async () => { throw new Error('no file here'); }, ...(frame ? { frame } : {}), ...host },
       ...engine,
     },
@@ -115,7 +115,7 @@ async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>
   };
 }
 
-/** New ▸ Blank Page, from the page's menu. */
+/** New Page, from the page's menu. */
 function blankPage(): void {
   const doc = dom.window.document;
   (doc.querySelector('.dc-page-bar .dc-titlebar-menu') as HTMLElement).click();
@@ -125,14 +125,11 @@ function blankPage(): void {
     assert.ok(found, `no entry '${label}': ${items.map((i) => i.textContent).join(' | ')}`);
     return found;
   };
-  const opener = item('Create');
-  opener.dispatchEvent(new dom.window.MouseEvent('mouseenter', { bubbles: true }));
-  opener.click();
-  item('Blank Page').click();
+  item('New Page').click();
 }
 
 describe("the app on a page Python serves, from its start (the S4 audit's 1)", () => {
-  it('a page of no grid yet is followed as Python moves it: only New ▸ Blank Page leaves it', async () => {
+  it('a page of no grid yet is followed as Python moves it: only New Page leaves it', async () => {
     const editor = new Editor();
     const app = await opened(editor);
     assert.equal(app.unwatched(), false, 'still watched: a start that opened nothing leaves nothing');
@@ -313,7 +310,7 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
   });
 });
 
-describe("New ▸ Blank Page while a follow is on its way (the S4 audit's 4)", () => {
+describe("New Page while a follow is on its way (the S4 audit's 4)", () => {
   it('its page, answered once the page is left, lands nothing: the page is the tab\'s own, said', async () => {
     const editor = new Editor();
     const app = await opened(editor);

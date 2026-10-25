@@ -176,7 +176,7 @@ describe('a page of its own', () => {
     assert.equal(page.document('Q3'), undefined);
   });
 
-  it('cleared (Blank Page), is the new page DataCube starts, unnamed (page-document.ts newPage: D11, B9)', async () => {
+  it('cleared (New Page), is the new page DataCube starts, unnamed (page-document.ts newPage: D11, B9)', async () => {
     newPage();
     page.addGrid(over('trades.csv'));
     await settle();
@@ -388,7 +388,7 @@ describe('a page of its own', () => {
       const original = grid.useSettings.bind(grid);
       grid.useSettings = (values) => { used.push(id); original(values); };
     }
-    entry(pageMenu(), 'Settings...')!.click();
+    entry(pageMenu(), 'Settings…')!.click();
     await settle();
     const save = [...dom.window.document.querySelectorAll<HTMLButtonElement>('button')].find((x) => x.textContent === 'Save');
     assert.ok(save, 'the Settings window, from the page\'s menu');
@@ -988,7 +988,7 @@ describe('a page of its own', () => {
     assert.match(String(await grid.applyGridCommands([{ kind: 'group', rows: ['nope'] }], 'Python')), /nope/, 'refused in words');
   });
 
-  it('its menu: New > Data Source adds a grid through the host\'s picker; the host\'s entries; Page File exports it', async () => {
+  it('its menu: Create > Data Source adds a grid through the host\'s picker; the host\'s entries; Export Page File… exports it', async () => {
     const files: [string, string][] = [];
     const picked: string[] = [];
     newPage({
@@ -1004,11 +1004,108 @@ describe('a page of its own', () => {
     assert.equal(page.grids.length, 1);
     entry(pageMenu(), 'Save')!.click();
     assert.deepEqual(picked, ['host.save']);
-    const exportItem = entry(pageMenu(), 'Export')!;
-    (exportItem.querySelector('[role^="menuitem"]') as HTMLElement).click();
+    entry(pageMenu(), 'Export Page File…')!.click();
     assert.equal(files.length, 1);
     assert.equal(files[0]![0], 'Q3.page.json');
     assert.equal(readPage(files[0]![1]).cubes[0]!.cube.source.name, 'picked.csv');
+  });
+});
+
+describe("the page's ≡, grouped by purpose (docs/DATACUBE_UI_REVIEW_2026_10_24.md §3; the user, 2026-10-25)", () => {
+  /** The menu's top level as a person reads it down: each entry, a line (─) between its groups. */
+  const topLevel = (): string[] => {
+    pageMenu();
+    const menu = dom.window.document.querySelector('.dc-menu')!;
+    return [...menu.children].map((c) => (c.classList.contains('dc-menu-sep') ? '─' : label(c as HTMLElement)));
+  };
+  /** A submenu's entries, by its parent's words. */
+  const under = (parent: string): string[] =>
+    [...entry(pageMenu(), parent)!.querySelectorAll<HTMLElement>(':scope > .dc-submenu > [role^="menuitem"]')].map(label);
+  const sitePage = (o: Partial<PageAppOptions> = {}): PageApp => newPage({
+    openSource: async () => over('picked.csv'),
+    onBlankPage: () => {},
+    download: () => {},
+    hostMenu: () => [
+      { id: 'host.open', label: 'Open…', section: 'file' },
+      { id: 'host.save', label: 'Save', section: 'file' },
+      { id: 'host.saveAs', label: 'Save As…', section: 'file' },
+      { id: 'host.share', label: 'Share…', section: 'file' },
+      { id: 'host.query', label: 'Generated Pure & SQL…', section: 'view' },
+      { id: 'host.association', label: 'Association…', section: 'create' },
+    ],
+    ...o,
+  });
+
+  it('what leaves the app, the history, the layout, Create ▸, then the app\'s Settings… and View ▸', async () => {
+    sitePage();
+    page.addGrid(over('trades.csv'));
+    await settle();
+    assert.deepEqual(topLevel(), [
+      'New Page', 'Open…', 'Save', 'Save As…', 'Share…', 'Export Page File…', '─',
+      'Undo Add Grid', 'Redo', '─',
+      'Done Editing Layout', 'Arrange…', '─',
+      'Create', '─',
+      'Settings…', 'View',
+    ]);
+    assert.deepEqual(under('Create'), ['Data Source…', 'Sheet', 'Text Box', 'Association…']);
+    assert.deepEqual(under('View'), ['Hide the Bar', 'Generated Pure & SQL…', 'Keyboard Shortcuts…']);
+  });
+
+  it('New Page asks the host for a new page; Export Page File… writes the page, one entry', async () => {
+    let asked = 0;
+    const files: string[] = [];
+    sitePage({ onBlankPage: () => { asked += 1; }, download: (name) => files.push(name) });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    entry(pageMenu(), 'New Page')!.click();
+    assert.equal(asked, 1);
+    entry(pageMenu(), 'Export Page File…')!.click();
+    assert.deepEqual(files, ['Q3.page.json']);
+  });
+
+  it('Edit Layout says what it will do and flips; off, Arrange… and Sheet are greyed, saying why', async () => {
+    sitePage();
+    page.addGrid(over('trades.csv'));
+    await settle();
+    entry(pageMenu(), 'Done Editing Layout')!.click();
+    const items = pageMenu();
+    assert.ok(entry(items, 'Edit Layout'), 'flipped');
+    assert.equal(entry(items, 'Done Editing Layout'), undefined);
+    for (const off of ['Arrange…', 'Sheet']) {
+      assert.equal(entry(items, off)!.getAttribute('aria-disabled'), 'true', off);
+      assert.equal(entry(items, off)!.title, 'Edit Layout first', off);
+    }
+    entry(items, 'Edit Layout')!.click();
+    assert.equal(entry(pageMenu(), 'Arrange…')!.getAttribute('aria-disabled'), null);
+  });
+
+  it('Create ▸ Text Box puts a text tile on the page, an empty one too', async () => {
+    sitePage();
+    entry(pageMenu(), 'Text Box')!.click();
+    await settle();
+    assert.equal(page.views().views.filter((v) => v.kind === 'text').length, 1);
+    assert.equal(host.querySelector<HTMLElement>('.dc-page-empty')!.hidden, true);
+  });
+
+  it('View ▸ Hide the Bar folds it; Keyboard Shortcuts… opens their window', async () => {
+    sitePage();
+    page.addGrid(over('trades.csv'));
+    await settle();
+    entry(pageMenu(), 'Keyboard Shortcuts…')!.click();
+    await settle();
+    assert.ok(dom.window.document.querySelector('[data-window="Keyboard Shortcuts"]:not([hidden])'), 'the shortcuts window');
+    entry(pageMenu(), 'Hide the Bar')!.click();
+    assert.equal(page.barFolded, true);
+  });
+
+  it('on an empty page, Settings… and Keyboard Shortcuts… are greyed, saying why', () => {
+    sitePage();
+    const items = pageMenu();
+    for (const off of ['Settings…', 'Keyboard Shortcuts…', 'Arrange…']) {
+      assert.equal(entry(items, off)!.getAttribute('aria-disabled'), 'true', off);
+    }
+    assert.equal(entry(items, 'Settings…')!.title, 'Open a data source first');
+    assert.equal(entry(items, 'Arrange…')!.title, 'Nothing on this page to arrange');
   });
 });
 

@@ -25,7 +25,7 @@ export const WAREHOUSE = process.env.WAREHOUSE
   : undefined;
 
 /**
- * Open the warehouse's table in place of the page, as a person does: New > Blank Page, Add a data
+ * Open the warehouse's table in place of the page, as a person does: New Page, Add a data
  * source, Database, sign in (once: the page keeps the session), then the table.
  */
 export async function openWarehouseTable(page) {
@@ -35,8 +35,7 @@ export async function openWarehouseTable(page) {
     await page.locator('.dc-titlebar-menu').waitFor({ timeout: 10_000 });
   }
   await page.click('.dc-titlebar-menu');
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
   await page.locator('.dc-picker').waitFor({ timeout: 10_000 });

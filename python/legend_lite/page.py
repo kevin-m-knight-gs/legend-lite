@@ -1399,7 +1399,7 @@ class Page:
     def __init__(self, name: str | None = None) -> None:
         from .datacube import _current
         self._session = _current()
-        # the page, started as DataCube starts a page (headless pageNew: page-document.ts newPage, the tab's Blank Page's
+        # the page, started as DataCube starts a page (headless pageNew: page-document.ts newPage, the tab's New Page's
         # too -- unnamed when no name is given, as the tab's, else named by DataCube's rule; no grid yet, its one sheet an
         # empty board: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D11), and kept by its session's keeper from now on: the
         # one copy of it every editor -- this page, a tab or a notebook widget open on it -- writes, versioned

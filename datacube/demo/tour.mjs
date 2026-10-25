@@ -199,11 +199,11 @@ function differs(a, b) {
 }
 
 /**
- * A sample at `rows` rows as a person starts a page: New > Blank Page, "Add a data source", the picker's Examples. A
+ * A sample at `rows` rows as a person starts a page: New Page, "Add a data source", the picker's Examples. A
  * page over a picked sample can be saved and shared (the demo's own first grid knows no source, so it cannot be).
  */
 async function pickSample(id, rows) {
-  await burger('Blank Page');
+  await burger('New Page');
   await page.locator('.dc-blank').waitFor({ state: 'visible' });
   await page.click('.dc-blank .dc-primary');
   await page.locator('.dc-picker').waitFor({ state: 'visible' });
@@ -239,7 +239,7 @@ try {
   await settle();
 
   let start;
-  await step('A page over the sample trades: New > Blank Page, Add a data source, Examples', async () => {
+  await step('A page over the sample trades: New Page, Add a data source, Examples', async () => {
     await pickSample('trades', 2000);
     start = await snapshot();
     const shown = await page.locator(`${FIRST} .dc-row, .dc-app .dc-row`).count();
@@ -469,7 +469,7 @@ try {
   // no older page is read (the user, 2026-10-17: docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.4)
   await step('A page file from before a grid\'s aggregates were its columns\' is refused, and said', async (shot) => {
     const want = await snapshot();
-    const [download] = await Promise.all([page.waitForEvent('download'), burger('Page File (JSON)')]);
+    const [download] = await Promise.all([page.waitForEvent('download'), burger('Export Page File…')]);
     const doc = JSON.parse(await readFile(await download.path(), 'utf8'));
     doc.cubes[0].cube.version = 1;
     const legacy = join(dir, 'older.page.json');

@@ -282,6 +282,8 @@ export type MenuActionId =
   | 'page.undo'
   | 'page.redo'
   | 'page.editLayout'
+  // the page's bar folded or shown (its View ▸ Hide the Bar)
+  | 'page.bar'
   | 'view.properties'
   | 'view.shortcuts'
   | 'filter.valueList'
@@ -387,7 +389,7 @@ export interface MenuItem {
   readonly scale?: HeatmapSpec;
   readonly set?: IconSetName | null;
   readonly rule?: FormatRule;
-  /** A line above it: what follows is apart from what precedes (New ▸ Blank Page, which replaces everything). */
+  /** A line above it: what follows is apart from what precedes (the host's model entries under Create ▸). */
   readonly separated?: boolean;
   /** Said on hover: why a disabled entry is off (Show Grid on a cube on its own). */
   readonly hint?: string;

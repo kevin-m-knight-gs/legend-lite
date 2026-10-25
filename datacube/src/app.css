@@ -3642,10 +3642,10 @@
 .dc-picker-rows { width: 110px; font-variant-numeric: tabular-nums; }
 .dc-picker-choice-actions { display: flex; gap: 8px; }
 
-/* a line above an entry: what follows is apart (New ▸ Blank Page) */
+/* a line above an entry: what follows is apart (New Page) */
 .dc-menu-item.dc-menu-separated { border-top: 1px solid var(--tw-neutral-200); margin-top: 3px; padding-top: 3px; }
 
-/* ---- a blank page (demo New ▸ Blank Page): what to do first ---- */
+/* ---- a blank page (demo New Page): what to do first ---- */
 .dc-blank {
   display: flex;
   align-items: center;

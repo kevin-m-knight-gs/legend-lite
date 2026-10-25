@@ -44,7 +44,7 @@ The tour's job is the pictures, and running the flows in order on one page.
 
 Each step is one section of the gallery. A step's line says what the check found.
 
-1. **A page over the sample trades.** New, then Blank Page, then "Add a data source", then the picker's Examples: the
+1. **A page over the sample trades.** New Page, then "Add a data source", then the picker's Examples: the
    trades sample, as a person starts a page. The demo's own first grid knows no source, so a page built on it cannot
    be saved or shared; a page over a sample from the picker can.
 2. **Grouped from the tool panel.** region, desk, then book, each double-clicked. The grid shows a three-level tree.

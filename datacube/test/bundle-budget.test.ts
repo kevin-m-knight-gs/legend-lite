@@ -385,7 +385,7 @@ const BUDGET = 355_500;
  *  305,000 -> 305,500 (2026-10-21, step S3's audit round -- the grid's note of the same date). Measured 305,177.
  *  305,500 -> 306,000 (2026-10-21, step S4, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md "the host applies the commands":
  *  the page Python serves written as its edits or, undone or redone, whole (a restore), the ids it has held read with it,
- *  and Open..., in place and Blank Page leaving it for a page of the tab's own (D1), said on a blank page's card).
+ *  and Open..., in place and New Page leaving it for a page of the tab's own (D1), said on a blank page's card).
  *  Measured 305,535.
  *  306,000 -> 306,500 (2026-10-22, step S5's B8, B14, B6, B5, Z18, B4 and B13 -- the grid's note of the same date, and
  *  the saved page it is kept with the page and told (savedAs), so either editor saves over one record). Measured

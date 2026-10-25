@@ -78,8 +78,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   // a blank page, then the first source
   await page.click('.dc-titlebar-menu');
-  await item('Create').hover();
-  await item('Blank Page').click();
+  await item('New Page').click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
   await openFile(trades, 1);
@@ -178,8 +177,7 @@ try {
   const downloads = [];
   page.on('download', (d) => downloads.push(d.suggestedFilename()));
   await page.click('.dc-titlebar-menu');
-  await item('Export').hover();
-  await item('Page File (JSON)').click();
+  await item('Export Page File…').click();
   await until(() => alerts.length > 0, 10_000);
   check(alerts.some((a) => /a page file cannot carry them yet/.test(a)) && downloads.length === 0,
     `the page file refused while its classes are only here: ${alerts.join(' | ') || '(nothing said)'}`);
@@ -311,8 +309,7 @@ try {
   await one.goto(`http://127.0.0.1:${port}/demo/index.html`, { waitUntil: 'load', timeout: 120_000 });
   await one.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   await one.click('.dc-titlebar-menu');
-  await pick('Create').hover();
-  await pick('Blank Page').click();
+  await pick('New Page').click();
   await one.click('.dc-blank .dc-primary');
   for (const [i, f] of [trades, customers].entries()) {
     if (i > 0) {
@@ -367,8 +364,7 @@ try {
   await j.goto(`http://127.0.0.1:${port}/demo/index.html`, { waitUntil: 'load', timeout: 120_000 });
   await j.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   await j.click('.dc-titlebar-menu');
-  await jItem('Create').hover();
-  await jItem('Blank Page').click();
+  await jItem('New Page').click();
   await j.click('.dc-blank .dc-primary');
   for (const [i, f] of [trades, customers].entries()) {
     if (i > 0) {

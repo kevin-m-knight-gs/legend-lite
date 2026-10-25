@@ -615,10 +615,9 @@ async function openThroughPicker(file) {
     await page.click('.dc-titlebar-lip');
     await page.locator('.dc-titlebar-menu').waitFor({ timeout: 10_000 });
   }
-  // in place of the page: New ▸ Blank Page, then "Add a data source"
+  // in place of the page: New Page, then "Add a data source"
   await page.click('.dc-titlebar-menu');
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
   await page.locator('.dc-picker').waitFor({ timeout: 10_000 });
@@ -3576,7 +3575,7 @@ try {
     const drawn = () => page.locator('.dc-row').count();
     const before = await drawn();
     await page.click('.dc-titlebar-menu');
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Settings..."))').click();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Settings…"))').click();
     await page.waitForSelector('[data-window="Settings"] .dc-settings', { timeout: 5000 });
     const groups = await page.locator('.dc-settings-group').allTextContents();
     const buffer = page.locator('[data-setting="dataCube.grid.rowBuffer"] input');
@@ -3587,7 +3586,7 @@ try {
     const after = await drawn();
     // Back to the defaults, through the same window.
     await page.click('.dc-titlebar-menu');
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Settings..."))').click();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Settings…"))').click();
     await page.locator('.dc-settings-restore').click();
     await page.locator('.dc-settings-ok').click();
     if (groups.join(',') !== 'Grid,Editor,Debug') throw new Error(`groups ${groups}`);
