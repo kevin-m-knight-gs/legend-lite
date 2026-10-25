@@ -3089,6 +3089,31 @@ class Flows(Paged):
                          {'left': source.id, 'right': source.id})
 
 
+    def test_a_test_that_stops_a_run_writes_no_output(self):
+        # FL8: a Test box set to stop a run (grid.stops_run) -- its checks failing, flow.run writes no Output and says why;
+        # set to warn, it writes; its failing checks read as the canvas reads them (grid.failing)
+        page, flow, source, _big = self.flowed()
+        checked = flow.grid(input=source)
+        checked.test([{'kind': 'between', 'column': 'notional', 'min': 0, 'max': 200}, {'kind': 'notEmpty', 'column': 'desk'}])
+        self.assertEqual(checked.failing, [{'check': 'notional from 0 to 200', 'rows': 1}])
+        out = flow.grid(input=source)
+        out.output('trades out.csv')
+        checked.stops_run()
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, r'stops the run: notional from 0 to 200 \(1 failing\): no Output written'):
+                flow.run(folder)
+            self.assertEqual(os.listdir(folder), [], 'nothing written')
+            checked.stops_run(False)
+            self.assertEqual([p.name for p in flow.run(folder)], ['trades out.csv'], 'a Test that warns: written')
+        with self.assertRaisesRegex(ValueError, 'stops no run'):
+            checked.stops_run(False)
+        with self.assertRaisesRegex(ValueError, 'it checks nothing: it is no Test'):
+            _ = source.failing
+        # saved and loaded: it stops a run still
+        checked.stops_run()
+        again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
+        self.assertTrue(next(b for s in again.to_dict()['sheets'] for b in s['layout'].get('boxes', []) if b['tile'] == checked.id).get('stops'))
+
     def test_a_sample_hands_on_the_rest(self):
         # M3: a Sample a filter makes hands on the rest by its False (Alteryx's Create Samples, its estimation and holdout):
         # the rows it leaves out, by the same seed -- its rows and the rest every row, none in both

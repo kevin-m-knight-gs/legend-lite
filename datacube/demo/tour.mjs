@@ -595,7 +595,15 @@ try {
     await page.locator('.dc-flow-box[data-tile="grid-13"]').click();
     await page.waitForFunction(() => /of [\d,]+ rows|[\d,]+ rows ×/.test([...document.querySelectorAll('.dc-flow-results')].find((r) => r.offsetParent !== null)?.textContent ?? ''), null, { timeout: 120_000 });
     await shot(page, "its Match sheet run: the big orders the join found no country for (its L), counted; the countries no big order is of (its R); every order's country as named");
-    return `wrote ${file.suggestedFilename()}; counted ${counts.filter((c) => c !== '').join(', ')}; reshaped ${reshaped.filter((c) => c !== '').join(', ')}`;
+    // its Checks sheet: three regions unioned again, 2024's kept and written, every order checked -- one check failing
+    await page.locator('.dc-sheet-tab', { hasText: 'Checks' }).click();
+    await page.locator('.dc-flow-box[data-tile="grid-22"]').waitFor({ timeout: 60_000 });
+    await page.locator('.dc-flow-run:visible').click();
+    await ran();
+    await page.waitForFunction(() => document.querySelector('.dc-flow-box[data-tile="grid-22"]')?.classList.contains('dc-flow-failing'), null, { timeout: 60_000 });
+    await shot(page, "its Checks sheet run: three regions' orders unioned again, 2024's kept and written, every order checked -- its discount check failing, said on its box and in the run's log");
+    const tested = await page.locator('.dc-flow-box[data-tile="grid-22"] .dc-flow-says').textContent();
+    return `wrote ${file.suggestedFilename()}; counted ${counts.filter((c) => c !== '').join(', ')}; reshaped ${reshaped.filter((c) => c !== '').join(', ')}; tested: ${tested}`;
   });
 
   await step('No page errors on the way', async () => {

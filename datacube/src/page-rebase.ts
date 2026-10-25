@@ -73,6 +73,7 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'setInput':
       return { ...command, grid: n(command.grid), input: command.input === null ? null : relinkedInput(command.input, n) };
     case 'setOutput':
+    case 'setStops':
       return { ...command, grid: n(command.grid) };
     case 'setJoin':
       return { ...command, grid: n(command.grid), ...(command.more !== undefined ? { more: command.more.map((i) => relinkedInput(i, n)) } : {}) };

@@ -390,8 +390,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  copyText); the Date Filter's rule (date-ranges.ts datesBetweenConditions, grid-gestures.ts filter.dates), its read-back
  *  (page-filters.ts datesKept: beside a Filter's words, so no startup file of its own -- in its own module, read by the
  *  canvas's chunk, it was one, 1,413 bytes) and its window's opener (app.ts); the window a chunk of its own). Measured
- *  379,602. */
-const BUDGET = 380_000;
+ *  379,602.
+ *  380,000 -> 381,000 (2026-10-25, the flow mode's Test and a Test that stops a run: its opener (app.ts #openTest), a
+ *  grid's first row read and a run writing its Outputs after every box, held back by a failing stopping Test
+ *  (page/cube-page.ts firstRowOf, #runFlow), the box's mode read, written and set (page-document.ts, layout/flow.ts
+ *  setStops, page-commands.ts setStops); its rule, window and marks chunks of their own; no startup file added, measured).
+ *  Measured 380,296. */
+const BUDGET = 381_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -544,8 +549,10 @@ const BUDGET = 380_000;
  *  the append of any number opened over one model besides, join.ts and join-open.ts the engine page's at startup).
  *  Measured 366,940.
  *  367,500 -> 368,500 (2026-10-25, the flow mode's Code view and Date Filter -- the grid-only page's note of the same
- *  date). Measured 367,918. */
-const ENGINE_BUDGET = 368_500;
+ *  date). Measured 367,918.
+ *  368,500 -> 369,500 (2026-10-25, the flow mode's Test and a Test that stops a run -- the grid-only page's note of the
+ *  same date). Measured 368,637. */
+const ENGINE_BUDGET = 369_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

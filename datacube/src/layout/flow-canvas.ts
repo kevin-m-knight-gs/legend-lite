@@ -251,6 +251,9 @@ export class FlowCanvas {
   /** The settings' Output: the file a box writes, Write now, and Write no file -- an Output box's. */
   readonly #outputStrip: HTMLElement;
   #outputKey = '';
+  /** A Test's mode, in the settings (#paintStops), and what it was drawn for. */
+  readonly #stopsStrip: HTMLElement;
+  #stopsKey = '';
   /** Each comment drawn, as a note: its card, by its tile's id. */
   readonly #notes = new Map<string, HTMLElement>();
   /** A box's menu (a right-click), made the first time, and what its entry picked does. */
@@ -376,7 +379,8 @@ export class FlowCanvas {
     this.#settingsEmpty = el('div', 'dc-flow-settings-empty');
     this.#inputs = el('div', 'dc-flow-inputs');
     this.#outputStrip = el('div', 'dc-flow-output');
-    this.#settings.append(settingsHead, this.#inputs, this.#outputStrip, board.dock, this.#settingsEmpty);
+    this.#stopsStrip = el('div', 'dc-flow-output dc-flow-stops');
+    this.#settings.append(settingsHead, this.#inputs, this.#outputStrip, this.#stopsStrip, board.dock, this.#settingsEmpty);
     // the canvas on its stage, its own tools at its corner, over it as it scrolls
     const stage = el('div', 'dc-flow-stage');
     this.#toolbar = el('div', 'dc-flow-toolbar');
@@ -988,8 +992,10 @@ export class FlowCanvas {
     }));
     const failing = [...tests.values()].filter((t) => t.failing.length > 0).length;
     const seconds = (ms: number): string => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toLocaleString(UI_LOCALE, { maximumFractionDigits: 1 })} s`);
+    const stoppers = (log.stopped ?? []).map((id) => (this.#board.layout.boxes.some((x) => x.tile === id) ? this.#nameOf(id, 'test') : id));
     head.append(el('span', 'dc-flow-log-title', `Ran ${log.boxes.length} ${log.boxes.length === 1 ? 'box' : 'boxes'} in ${seconds(log.ms)}`
-      + (refused > 0 ? `, ${refused} refused` : '') + (failing > 0 ? `, ${failing} ${failing === 1 ? 'test' : 'tests'} failing` : '')));
+      + (refused > 0 ? `, ${refused} refused` : '') + (failing > 0 ? `, ${failing} ${failing === 1 ? 'test' : 'tests'} failing` : '')
+      + (stoppers.length > 0 ? `; stopped by ${stoppers.join(', ')}: nothing written` : '')));
     const close = el('button', 'dc-flow-log-close', '×') as HTMLButtonElement;
     close.type = 'button';
     close.setAttribute('aria-label', 'Close the run log');
@@ -1412,6 +1418,8 @@ export class FlowCanvas {
       const failing = failingChecks(checks, row).map((f) => `${checkWords(f.check)}: ${f.rows.toLocaleString(UI_LOCALE)} ${f.rows === 1 ? 'row fails' : 'rows fail'}`);
       const now = { chain, viewed, of: checks.length, failing };
       this.#tested.set(id, now);
+      // the board told too: a stopping Test failing stops a run's writes (page/cube-page.ts #runFlow)
+      this.#board.tested(id, failing.length > 0);
       return now;
     }
     return had?.chain === chain ? had : undefined;
@@ -1438,7 +1446,8 @@ export class FlowCanvas {
     const counted = this.#board.count(id);
     const outs = this.#outsOf(id);
     const tested = tool === 'test' ? this.#testOf(id) : undefined;
-    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted, inputs.length, outs, tested]);
+    const stops = this.#board.layout.boxes.find((b) => b.tile === id)?.stops === true;
+    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted, inputs.length, outs, tested, stops]);
     if (key === drawn.key) return;
     drawn.key = key;
     drawn.root.dataset['tool'] = tool;
@@ -1466,6 +1475,8 @@ export class FlowCanvas {
     // a Test's result, once its rows have landed: its failing checks said, the box marked
     drawn.root.classList.toggle('dc-flow-failing', tested !== undefined && tested.failing.length > 0);
     drawn.root.classList.toggle('dc-flow-passing', tested !== undefined && tested.failing.length === 0);
+    // a Test that stops a run: red when it fails (FL8's refuse), amber when it only warns
+    drawn.root.classList.toggle('dc-flow-stops', stops);
     drawn.root.setAttribute('aria-pressed', String(shown));
     const frozenWords = frozen.length > 0 ? `Frozen: reads a copy of what ${frozen.join(' and ')} was` : undefined;
     drawn.root.setAttribute('aria-label', `${name}: ${refused ?? says}${frozenWords !== undefined ? `. ${frozenWords}` : ''}`);
@@ -2436,6 +2447,7 @@ export class FlowCanvas {
     const id = this.#board.shown ?? clicked;
     this.#paintInputs(id);
     this.#paintOutput(id);
+    this.#paintStops(id);
     const said = id === undefined ? undefined : this.#said(id);
     const name = id === undefined ? undefined : this.#nameOf(id, said?.tool ?? 'browse');
     const editor = said ? TOOL_EDITORS[said.tool] : undefined;
@@ -2481,6 +2493,31 @@ export class FlowCanvas {
       }
     }
     this.#settingsEmpty.replaceChildren(...parts);
+  }
+
+  /** THE SETTINGS' MODE OF A TEST (FL8), above its window when docked: Stop a run when a check fails -- no Output
+   *  written -- or (off) warn. */
+  #paintStops(id: string | undefined): void {
+    const test = id !== undefined && this.#said(id)?.tool === 'test';
+    const stops = test && this.#board.layout.boxes.find((b) => b.tile === id)?.stops === true;
+    const key = JSON.stringify([id, test, stops, this.#board.editing]);
+    if (key === this.#stopsKey) return;
+    this.#stopsKey = key;
+    this.#stopsStrip.hidden = !test;
+    if (!test) {
+      this.#stopsStrip.replaceChildren();
+      return;
+    }
+    const d = this.#doc;
+    const label = d.createElement('label');
+    label.className = 'dc-text-tool-check dc-flow-stops-check';
+    const box = d.createElement('input');
+    box.type = 'checkbox';
+    box.checked = stops;
+    box.disabled = !this.#board.editing;
+    box.addEventListener('change', () => this.#board.options.onStops?.(id!, box.checked));
+    label.append(box, Object.assign(d.createElement('span'), { textContent: 'Stop a run when a check fails: no Output is written' }));
+    this.#stopsStrip.replaceChildren(label);
   }
 
   /** THE SETTINGS' OUTPUT (M6): the CSV file an Output box writes, named here (Enter, or leaving the field); Write now

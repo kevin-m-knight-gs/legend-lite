@@ -86,9 +86,11 @@ Each step is one section of the gallery. A step's line says what the check found
     it; its Prepare container folded to its head; then its Reshape sheet run -- the two biggest orders of each region (a
     Sample), chosen and revenue renamed sales (a Select), their money made rows (a Transpose) and summed by measure; then
     its Match sheet run -- the big orders the join found no country for (its L) and how many (Count Records), the
-    countries no big order is of (its R), every order's country as the countries name it (Find Replace). Five pictures
-    (`docs/DATACUBE_FLOW_MODE_2026_10_24.md`: the example, Profile, containers, Sample, Select, Transpose, a Join's L and
-    R, Count Records, Find Replace).
+    countries no big order is of (its R), every order's country as the countries name it (Find Replace); then its
+    Checks sheet run -- three regions' orders unioned again (a Union of three), 2024's kept and written (a Date Filter,
+    an Output), every order checked (a Test: its discount check failing, said on its box and in the run's log). Six
+    pictures (`docs/DATACUBE_FLOW_MODE_2026_10_24.md`: the example, Profile, containers, Sample, Select, Transpose, a
+    Join's L and R, Count Records, Find Replace, a Union of any number, Date Filter, Test).
 19. **No page errors on the way.**
 
 ## When a step fails

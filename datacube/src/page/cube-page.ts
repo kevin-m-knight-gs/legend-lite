@@ -562,6 +562,10 @@ export class CubePage {
         this.#tell(output === null ? 'Write No File' : 'Set Output', pageCommand('setOutput', { grid: tile, output }));
         this.#options.onChange();
       },
+      onStops: (tile, stops) => {
+        this.#tell(stops ? 'Stop Run On Failure' : 'Warn On Failure', pageCommand('setStops', { grid: tile, stops }));
+        this.#options.onChange();
+      },
       onWrite: (tile) => this.#writeBox(tile),
       onSelect: (tile, editor) => void this.#showBox(tile, editor),
       onRemove: (tile) => this.#removeTile(tile),
@@ -827,7 +831,9 @@ export class CubePage {
     const order = [...board.layout.boxes].filter((b) => board.noteOf(b.tile) === undefined).sort((a, b) => a.x - b.x || a.y - b.y).map((b) => b.tile);
     const was = board.shown;
     const started = performance.now();
-    const logged: { id: string; ms: number; rows?: number; refused?: string }[] = [];
+    const logged: { id: string; ms: number; rows?: number; refused?: string; wrote?: string }[] = [];
+    // each Output written once every box has run: none when a Test that stops a run fails (FL8's refuse)
+    const writes: { readonly id: string; readonly name: string; readonly at: number }[] = [];
     board.setRunning({ done: 0, of: order.length });
     try {
       for (const [i, id] of order.entries()) {
@@ -839,23 +845,24 @@ export class CubePage {
           // its log: its rows, how long it took, or why it was refused
           const rows = board.count(id);
           let refused = board.refusal(id);
-          // an Output writes its file, its rows counted
+          // an Output writes its file after every box has run, its rows counted now
           const out = board.layout.boxes.find((b) => b.tile === id)?.output;
-          let wrote: string | undefined;
-          if (out !== undefined && refused === undefined) {
-            const why = await this.#writeBox(id);
-            if (why === null) wrote = out.name;
-            else refused = `could not write ${out.name}: ${why}`;
-          }
-          logged.push({
-            id, ms: Math.round(performance.now() - t0), ...(rows !== undefined ? { rows } : {}), ...(refused !== undefined ? { refused } : {}),
-            ...(wrote !== undefined ? { wrote } : {}),
-          });
+          if (out !== undefined && refused === undefined) writes.push({ id, name: out.name, at: logged.length });
+          logged.push({ id, ms: Math.round(performance.now() - t0), ...(rows !== undefined ? { rows } : {}), ...(refused !== undefined ? { refused } : {}) });
         }
         board.setRunning({ done: i + 1, of: order.length });
       }
+      // a Test that stops a run, failing: no Output written, each saying why
+      const stopped = order.filter((id) => board.layout.boxes.find((b) => b.tile === id)?.stops === true && board.testFails(id) === true);
+      const stoppers = stopped.map((id) => board.title(id) ?? id).join(', ');
+      for (const w of writes) {
+        if (this.#disposed) return;
+        const why = stopped.length > 0 ? `not written: ${stoppers} failed` : await this.#writeBox(w.id);
+        logged[w.at] = why === null ? { ...logged[w.at]!, wrote: w.name }
+          : { ...logged[w.at]!, refused: stopped.length > 0 ? why : `could not write ${w.name}: ${why}` };
+      }
       if (was !== undefined && board.shown !== was && board.layout.boxes.some((b) => b.tile === was)) await this.#showBox(was);
-      board.setLog({ at: new Date(), ms: Math.round(performance.now() - started), boxes: logged });
+      board.setLog({ at: new Date(), ms: Math.round(performance.now() - started), boxes: logged, ...(stopped.length > 0 ? { stopped } : {}) });
     } finally {
       board.setRunning(undefined);
     }

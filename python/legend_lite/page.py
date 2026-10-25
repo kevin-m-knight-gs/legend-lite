@@ -276,6 +276,25 @@ class Grid(Tile):
         self._page._apply_page([_commands.page_set_output(grid=self.id, output=given)])
         return self
 
+    def stops_run(self, stops: bool = True) -> Grid:
+        """This Test box stops its flow's run when one of its checks fails -- no Output written, as the canvas's Run writes
+        none (page-commands.ts setStops; FL8's refuse) -- or, False, only warns. A grid on a board refused in DataCube's
+        words."""
+        self._page._apply_page([_commands.page_set_stops(grid=self.id, stops=stops)])
+        return self
+
+    @property
+    def failing(self) -> list[dict[str, Any]]:
+        """This Test's checks that fail, each ``{'check': words, 'rows': n}`` -- its row read as the canvas reads it
+        (DataCube's checks.ts failingChecks, headless gridFailing); none, every row passes. A grid that checks nothing is
+        refused in DataCube's words."""
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridFailing', self._spec(engine, frames)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return said['failing']
+
     def relink(self, input: Grid, side: str = 'input', port: str | None = None) -> Grid:
         """Its rows read live from grid ``input`` of its page from now on -- a line drawn on its flow from that box's
         output (page-commands.ts setInput; docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) -- its query as it is, the grid then
@@ -1606,12 +1625,19 @@ class Sheet:
     def run(self, folder: str | Path) -> list[Path]:
         """The flow run as the canvas's Run runs it, its Outputs written (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): each
         box that writes a file (``grid.output(name)``) writes every one of its rows -- the columns it shows, those the box
-        after it reads -- to ``folder``/its name, as CSV. The files written, in the order of the flow's boxes. A board
+        after it reads -- to ``folder``/its name, as CSV. The files written, in the order of the flow's boxes. A Test that
+        stops a run (``grid.stops_run()``), failing, writes none: refused, its failing checks said (FL8's refuse). A board
         has no Outputs: refused."""
         layout = self._doc['layout']
         if layout.get('kind') != 'flow':
             raise ValueError(f'{self!r} is a board: a flow runs its Outputs')
         out = Path(folder)
+        # a Test that stops a run, failing (grid.stops_run; FL8's refuse): no Output written, said in its checks' words
+        stopping = [(box['tile'], self._page._tile(box['tile'], Grid).failing) for box in layout['boxes'] if box.get('stops')]
+        failed = [(tile, f) for tile, f in stopping if f]
+        if failed:
+            raise ValueError('; '.join(f"{tile} stops the run: " + ', '.join(f"{c['check']} ({c['rows']} failing)" for c in f)
+                                       for tile, f in failed) + ': no Output written')
         out.mkdir(parents=True, exist_ok=True)
         doc = self._page._doc
         written: list[Path] = []

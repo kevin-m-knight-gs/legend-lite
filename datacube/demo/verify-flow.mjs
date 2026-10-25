@@ -1481,7 +1481,21 @@ try {
   check(await page.locator('.dc-flow-box[data-tile="grid-22"].dc-flow-failing').count() === 1
     && await page.locator('.dc-flow-box[data-tile="grid-22"] .dc-flow-says').textContent() === '1 of 3 checks fail', 'its discount check fails, said on its box');
   check(/1 test failing/.test(await page.locator('.dc-flow-log:visible .dc-flow-log-title').textContent() ?? ''), 'and in the run\'s log');
+  const logRow = async (name) => page.locator('.dc-flow-log:visible .dc-flow-log-item', { hasText: name }).locator('.dc-flow-log-rows').textContent();
+  check(/wrote orders of 2024\.csv/.test(await logRow('Orders of 2024') ?? ''), 'a Test that warns: 2024\'s orders written');
   await page.screenshot({ path: outPath('flow-example-checks.png') });
+  // A TEST THAT STOPS A RUN (FL8's refuse): set so from its settings, run again -- red, and no Output written
+  await page.locator('.dc-flow-log-close:visible').click();
+  await page.locator('.dc-flow-box[data-tile="grid-22"]').click();
+  await page.locator('.dc-flow-settings:visible .dc-flow-stops .dc-flow-stops-check input').check();
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Stop Run On Failure', 'one step: Stop Run On Failure');
+  await page.locator('.dc-flow-run:visible').click();
+  await page.waitForFunction(() => [...document.querySelectorAll('.dc-flow-run')].every((b) => /Run$/.test(b.textContent ?? '')), undefined, { timeout: 240_000 });
+  const stoppedTitle = await page.locator('.dc-flow-log:visible .dc-flow-log-title').textContent() ?? '';
+  check(/stopped by Orders checked: nothing written/.test(stoppedTitle), `its log says what stopped it: ${stoppedTitle}`);
+  check(/not written: Orders checked failed/.test(await logRow('Orders of 2024') ?? ''), '2024\'s orders not written, said why');
+  check(await page.locator('.dc-flow-box[data-tile="grid-22"].dc-flow-failing.dc-flow-stops').count() === 1, 'the Test red: it stops a run, failing');
+  await page.screenshot({ path: outPath('flow-example-stopped.png') });
 } catch (e) {
   bad(`threw: ${e.stack ?? e}`);
 } finally {

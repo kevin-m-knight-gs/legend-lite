@@ -21,6 +21,9 @@ export interface FlowBox {
   /** A box that writes its rows to a file (an Output: Alteryx's Output Data, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6),
    *  when it is told to and when the flow runs. A grid's only. */
   readonly output?: Output;
+  /** A Test box (checks.ts) that stops a run when one of its checks fails, before the run writes any Output (FL8's
+   *  refuse); absent, it warns -- the run writes on, its failure said. A grid's only. */
+  readonly stops?: true;
 }
 
 /** Where an Output box writes its rows: a file of a format, by its name (no folder: where it lands is its host's -- the
@@ -112,7 +115,8 @@ export function moveBox(flow: Flow, tile: string, x: number, y: number, frame?: 
       if (b.tile !== tile) return b;
       // its frame given, else the one it has (null: none)
       const kept = frame === undefined ? b.frame : frame === null ? undefined : framed(frame);
-      return { tile, x: Math.round(x), y: Math.round(y), ...(kept !== undefined ? { frame: kept } : {}), ...(b.output !== undefined ? { output: b.output } : {}) };
+      return { tile, x: Math.round(x), y: Math.round(y), ...(kept !== undefined ? { frame: kept } : {}), ...(b.output !== undefined ? { output: b.output } : {}),
+        ...(b.stops === true ? { stops: true as const } : {}) };
     }),
   };
 }
@@ -148,6 +152,19 @@ export function setOutput(flow: Flow, tile: string, output: Output | null): Flow
       if (b.tile !== tile) return b;
       const { output: _was, ...rest } = b;
       return output === null ? rest : { ...rest, output: { format: output.format, name: output.name.trim() } };
+    }),
+  };
+}
+
+/** A box set to stop a run when its checks fail (`stops`: a Test's refuse, FL8), or to warn. Refused when it is no box of
+ *  the flow. */
+export function setStops(flow: Flow, tile: string, stops: boolean): Flow {
+  if (!flow.boxes.some((b) => b.tile === tile)) throw new FlowRefusal(`'${tile}' is no box of this flow`);
+  return {
+    boxes: flow.boxes.map((b) => {
+      if (b.tile !== tile) return b;
+      const { stops: _was, ...rest } = b;
+      return stops ? { ...rest, stops: true } : rest;
     }),
   };
 }
@@ -200,9 +217,10 @@ export function arranged(flow: Flow, reads: (tile: string) => readonly string[])
       next = at + 1;
     }
   }
+  // each box as it was but for its place: an Output's file and a Test's stopping kept
   return {
     boxes: flow.boxes.map((b) => ({
-      tile: b.tile, x: MARGIN + depth.get(b.tile)! * (BOX_WIDTH + GAP_X), y: MARGIN + row.get(b.tile)! * (BOX_HEIGHT + GAP_Y),
+      ...b, x: MARGIN + depth.get(b.tile)! * (BOX_WIDTH + GAP_X), y: MARGIN + row.get(b.tile)! * (BOX_HEIGHT + GAP_Y),
     })),
   };
 }

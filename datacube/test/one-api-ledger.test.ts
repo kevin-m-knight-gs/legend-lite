@@ -515,6 +515,8 @@ const PASS_THROUGH: Record<string, string> = {
   setJoin: "the join a flow's Join box's window made (ui/join-dialog.ts, as the board's Join… makes one), its Right with it when it changed; setJoin judges it",
   // 2026-10-25 (the flow mode's Output, M6)
   setOutput: "the file name typed in an Output's settings, or none (its Write no file); setOutput judges it",
+  // 2026-10-25 (the flow mode's Test that stops a run, FL8)
+  setStops: "a Test box's settings' checkbox, ticked or not; setStops judges it",
 };
 /** Functions that make commands a screen file calls and no headless function asks, each the screen's own (2026-10-22,
  *  S8): a person's input passed through, a form's edits, the board's hand or a tab's drag. */

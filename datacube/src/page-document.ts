@@ -625,6 +625,8 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     // an output is a grid's: a comment writes no rows
     const textOut = sheet.layout.boxes.find((b) => b.output !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'grid');
     if (textOut !== undefined) throw new PageDocumentError(`${textOut.tile} has an output: an output is a grid's rows, not a comment`);
+    const textStops = sheet.layout.boxes.find((b) => b.stops === true && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+    if (textStops !== undefined) throw new PageDocumentError(`${textStops.tile} stops a run: a Test is a grid's, not a comment`);
   }
   const twice = placed.filter((id, i) => placed.indexOf(id) !== i);
   if (twice.length > 0) throw new PageDocumentError(`${[...new Set(twice)].join(', ')} on two sheets`);
@@ -850,13 +852,15 @@ function readFlow(l: Record<string, unknown>, views: ReadonlySet<string>, what: 
       throw new PageDocumentError(`box ${i + 1} of ${what} is not a tile and its place (x, y)`);
     }
     if (!views.has(b['tile'])) throw new PageDocumentError(`a box shows no view of this page (${b['tile']})`);
-    const odd = Object.keys(b).filter((k) => !['tile', 'x', 'y', 'frame', 'output'].includes(k));
-    if (odd.length > 0) throw new PageDocumentError(`box ${i + 1} of ${what} is a tile, its place, a frame and an output, not ${odd.join(', ')}`);
+    const odd = Object.keys(b).filter((k) => !['tile', 'x', 'y', 'frame', 'output', 'stops'].includes(k));
+    if (odd.length > 0) throw new PageDocumentError(`box ${i + 1} of ${what} is a tile, its place, a frame, an output and its stopping, not ${odd.join(', ')}`);
+    if (b['stops'] !== undefined && b['stops'] !== true) throw new PageDocumentError(`box ${i + 1} of ${what} stops a run (true) or is without it, not ${JSON.stringify(b['stops'])}`);
     const o = b['output'];
     if (o !== undefined && (!isObject(o) || o['format'] !== 'csv' || typeof o['name'] !== 'string' || Object.keys(o).some((k) => k !== 'format' && k !== 'name'))) {
       throw new PageDocumentError(`box ${i + 1} of ${what}'s output is {format: 'csv', name}, not ${JSON.stringify(o)}`);
     }
-    const output = o === undefined ? {} : { output: { format: 'csv' as const, name: o['name'] as string } };
+    const output = { ...(o === undefined ? {} : { output: { format: 'csv' as const, name: o['name'] as string } }),
+      ...(b['stops'] === true ? { stops: true as const } : {}) };
     const f = b['frame'];
     if (f === undefined) return { tile: b['tile'], x: b['x'], y: b['y'], ...output };
     if (!isObject(f) || typeof f['w'] !== 'number' || typeof f['h'] !== 'number' || (f['collapsed'] !== undefined && f['collapsed'] !== true)

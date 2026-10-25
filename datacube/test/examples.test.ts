@@ -48,6 +48,9 @@ describe('the example pages', () => {
       'grid-17': 'filter', 'grid-18': 'filter', 'grid-19': 'filter', 'grid-20': 'union', 'grid-21': 'dateFilter', 'grid-22': 'test',
     });
     assert.deepEqual(liveGrids(cube('grid-20').source), ['grid-17', 'grid-18', 'grid-19'], 'a Union of three, read live');
+    const checksLayout = page.sheets[3]!.layout;
+    assert.ok(checksLayout.kind === 'flow');
+    assert.deepEqual(checksLayout.boxes.find((b) => b.tile === 'grid-21')?.output, { format: 'csv', name: 'orders of 2024.csv' }, "2024's orders written");
     assert.deepEqual(['grid-20', 'grid-21', 'grid-22'].map((id) => boxSays(cube(id)).says), [
       'the rows of all 3, columns by name', 'sold from 2024-01-01 to 2024-12-31',
       'order_id repeats no value, country has no empty value, discount from 0 to 0.15',

@@ -10,7 +10,7 @@ import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.t
 import {
   chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridExport,
   gridFilter, gridGesture, gridMeasure, gridModelMeasure, gridOpened, gridPreset, gridRelated, leafCube, gridRelation, gridSetUp, gridSnapPull,
-  gridView, rowsCube, snapRefused, sourceCube,
+  gridView, gridFailing, rowsCube, snapRefused, sourceCube,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in.ts';
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
@@ -36,6 +36,9 @@ export {
   cubeLeaves, gridApply, gridBaseOn, gridChart, gridCube, gridExport, gridFilter, gridOpened, leafCube,
   gridRelation, gridSnapPull, gridView,
 };
+
+/** A Test grid's failing checks (gridFailing: Python's flow.run, which writes no Output when a stopping Test fails). */
+export { gridFailing };
 
 /** One condition added to a grid's filter, as a cell's Add Filter adds one (gridAddFilter: Python's grid.add_filter), and
  *  a grid's copy, as Copy of Grid makes it (gridCopied: Python's grid.copy). */

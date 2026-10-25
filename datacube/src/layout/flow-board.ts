@@ -41,6 +41,9 @@ export interface FlowBoardOptions {
   readonly onEditText?: (id: string) => void;
   /** A box set to write its rows to a file (an Output), or no longer (null): the caller tells it (setOutput). */
   readonly onOutput?: (id: string, output: Output | null) => void;
+  /** A Test box set to stop a run when its checks fail (its settings' checkbox), or to warn: the caller tells it
+   *  (setStops). */
+  readonly onStops?: (id: string, stops: boolean) => void;
   /** An Output's Write now: the caller writes its rows to its file, and says why not when it could not. */
   readonly onWrite?: (id: string) => Promise<string | null>;
   /** A box clicked, or Enter on it: the caller shows its rows (its grid made, `add`) -- and its settings, `editor` (the
@@ -110,6 +113,8 @@ export interface RunLog {
     /** An Output's file, written this run. */
     readonly wrote?: string;
   }[];
+  /** The Tests that stopped it (a stopping Test's checks failing: FL8's refuse), by box: no Output written. */
+  readonly stopped?: readonly string[];
 }
 
 /** A point of a flow's canvas, in its own units: where a tool or a line was let go, the box made there placed at it. */
@@ -149,6 +154,11 @@ export interface FlowBoardState {
   count(id: string): number | undefined;
   /** How many views box `id`'s grid has landed: its Code is asked again with each. */
   viewed(id: string): number;
+  /** A Test box found failing (true) or passing, the last time its rows landed, while its chain is as it was then
+   *  (`tested`, the canvas's: it reads its row); undefined, not known. */
+  testFails(id: string): boolean | undefined;
+  /** A Test box's result, as the canvas read it off its row: kept for its chain as it is now. */
+  tested(id: string, fails: boolean): void;
   /** A run in progress (Run): how many boxes are done, of how many. */
   readonly running: { readonly done: number; readonly of: number } | undefined;
   /** The last run's log, if one has run. */
@@ -193,6 +203,8 @@ export class FlowBoard implements FlowBoardState {
   readonly #counts = new Map<string, { readonly n: number; readonly chain: string }>();
   /** How many views each box's grid has landed: what its Code is of changes with each. */
   readonly #views = new Map<string, number>();
+  /** Each Test box's result, for the chain it was read for. */
+  readonly #tests = new Map<string, { readonly fails: boolean; readonly chain: string }>();
   #running: { readonly done: number; readonly of: number } | undefined;
   #log: RunLog | undefined;
   #layout: Flow = EMPTY_FLOW;
@@ -287,6 +299,15 @@ export class FlowBoard implements FlowBoardState {
   count(id: string): number | undefined {
     const c = this.#counts.get(id);
     return c !== undefined && c.chain === this.#chain(id) ? c.n : undefined;
+  }
+
+  testFails(id: string): boolean | undefined {
+    const t = this.#tests.get(id);
+    return t !== undefined && t.chain === this.#chain(id) ? t.fails : undefined;
+  }
+
+  tested(id: string, fails: boolean): void {
+    this.#tests.set(id, { fails, chain: this.#chain(id) });
   }
 
   /** How many views box `id`'s grid has landed (its Code asked again with each). */
@@ -414,6 +435,7 @@ export class FlowBoard implements FlowBoardState {
     this.#refused.delete(id);
     this.#counts.delete(id);
     this.#views.delete(id);
+    this.#tests.delete(id);
     this.#layout = removeBox(this.#layout, id);
     this.#paint();
   }

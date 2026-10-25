@@ -832,12 +832,27 @@ hidden. So its one row is each check's failing rows, counted by the database -- 
 land for what it is now (shown, or the flow run), the canvas reads its row (`firstRowOf`, the box's grid's) and marks
 the box: amber, saying "1 of 2 checks fail" with each failing check and its rows in its title, or its words green when
 every check passes; the result is kept for what its rows are made of (its chain), so it shows after another box is
-shown, and a run's log says it ("2 tests failing"). A check's mode (warn or refuse, a run stopping on a refusal) and a
-row-count check are next. Python: `grid.test([{'kind': 'notEmpty', 'column': ...}, ...])`, its row by `to_pandas`.
+shown, and a run's log says it ("2 tests failing"). A Test's mode (below) is
+built; a row-count check is next. Python: `grid.test([{'kind': 'notEmpty', 'column': ...}, ...])`, its row by `to_pandas`.
 Tested by `flow-sheet.test.ts` (the counts made and read back whole, one bound, set again, which fail, refusals, read
 from JSON), Python's `test_rows_checked_as_a_test_box_checks_them` (over DuckDB: an empty region, a repeated id, a
 notional outside its bounds, each 1; set again, passing) and the harness (a Test over the Filter: its trade ids unique,
 its notionals to 950,000 -- one of two failing, marked; set again, passing).
+
+**Built, a Test that stops a run** (FL8's refuse; `layout/flow.ts` `FlowBox.stops`, `setStops`; `page-commands.ts`
+`setStops`; `page/cube-page.ts` `#runFlow`; 2026-10-25): a Test box's settings have **Stop a run when a check fails**.
+Its mode is the box's, on the flow (`stops: true`; absent, it warns), set by its own page command, undone as any is. A
+run now shows and counts every box first, then writes its Outputs -- and writes none when a Test that stops a run
+fails: each Output's line says "not written: Orders checked failed", the log's title "stopped by Orders checked: nothing
+written", and the Test is drawn red, as a refusal is (amber is a warning's). The canvas tells the board each Test's
+result as it reads its row (`tested`, kept for its chain), which is what the run asks. Python: `grid.stops_run()`
+(False: warn), `grid.failing` (the headless `gridFailing`: its row read by the same rule), and `flow.run(folder)`
+writes no file and is refused, its failing checks said, when a stopping Test fails. Also fixed on the way: Tidy Up
+(`arranged`) rebuilt each box from its place alone, dropping an Output's file; each box is now kept as it was but for
+its place. Tested by `flow-sheet.test.ts` (set, read, written, renamed, undone, refused; Tidy keeping an Output and a
+stop), Python's `test_a_test_that_stops_a_run_writes_no_output` (refused, nothing written; set to warn, written; saved
+and loaded) and the harness (the example's Checks sheet: run, 2024's orders written; its Test set to stop a run and run
+again: nothing written, said, the Test red).
 
 **The example flow's Reshape sheet** (`examples/prep-flow.ts`): a second sheet showing the tools that reshape rows over the
 same orders -- the two biggest orders of each region (a Sample: last 2 of each region by revenue), their columns chosen

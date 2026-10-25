@@ -133,6 +133,29 @@ describe("a flow's layout (layout/flow.ts)", () => {
     assert.deepEqual([at('sort'), at('filter')], [{ tile: 'sort', x: col(1), y: row(0) }, { tile: 'filter', x: col(1), y: row(1) }]);
     assert.deepEqual(at('join'), { tile: 'join', x: col(2), y: row(1) }, 'level with the boxes it reads');
     assert.deepEqual(arranged(tidy, (t) => reads[t] ?? []), tidy, 'tidy already: as it is');
+    // each box as it was but for its place: an Output's file and a Test's stopping kept (they were dropped, 2026-10-25)
+    const kept = arranged({ boxes: [{ tile: 'input', x: 9, y: 9, output: { format: 'csv', name: 'out.csv' } }, { tile: 'filter', x: 0, y: 0, stops: true }] },
+      (t) => reads[t] ?? []);
+    assert.deepEqual(kept.boxes.map((b) => [b.output?.name, b.stops]), [['out.csv', undefined], [undefined, true]]);
+  });
+
+  it('sets a Test box to stop a run (setStops), or to warn; read, written, renamed, undone', () => {
+    const d = apply(FLOW(), { kind: 'setStops', grid: 'grid-3', stops: true });
+    assert.equal(at(d.page, 'grid-3')?.stops, true);
+    assert.equal(pageToJson(readPage(JSON.parse(pageToJson(d.page)))), pageToJson(d.page), 'written and read back the same');
+    refused(() => apply(d, { kind: 'setStops', grid: 'grid-3', stops: true }), /'grid-3' stops a run already/);
+    refused(() => apply(FLOW(), { kind: 'setStops', grid: 'grid-3', stops: false }), /'grid-3' stops no run/);
+    refused(() => apply(FLOW(), { kind: 'setStops', grid: 'grid-1', stops: true }), /'grid-1' is no box of a flow: a run is a flow's/);
+    assert.equal(at(apply(d, { kind: 'setStops', grid: 'grid-3', stops: false }).page, 'grid-3')?.stops, undefined);
+    assert.deepEqual(readPageCommand({ kind: 'setStops', grid: 'grid-3', stops: true }), { kind: 'setStops', grid: 'grid-3', stops: true });
+    refused(() => readPageCommand({ kind: 'setStops', grid: 'grid-3', stops: 'yes' }), /a Test stops a run \(true\) or warns \(false\), not "yes"/);
+    assert.deepEqual(renamedCommand({ kind: 'setStops', grid: 'grid-3', stops: true }, new Map([['grid-3', 'grid-9']])), { kind: 'setStops', grid: 'grid-9', stops: true });
+    const back = applyPlanned({ page: d.page, held: idsOf(d.page) }, pageBetween(d.page, FLOW().page, 'history'), false).draft.page;
+    assert.equal(at(back, 'grid-3')?.stops, undefined, 'undone by the commands between');
+    // a page whose box stops otherwise is refused as it is read
+    const bad = JSON.parse(pageToJson(d.page));
+    bad.sheets[1].layout.boxes.find((b: { tile: string }) => b.tile === 'grid-3').stops = false;
+    assert.throws(() => readPage(bad), /stops a run \(true\) or is without it, not false/);
   });
 
   it('says what is wrong with a flow read from somewhere', () => {

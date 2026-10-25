@@ -4913,6 +4913,10 @@
 .dc-flow-box.dc-flow-failing { border-color: var(--tw-amber-500, #f59e0b); box-shadow: 0 0 0 1px var(--tw-amber-500, #f59e0b); }
 .dc-flow-box.dc-flow-failing .dc-flow-says { color: var(--tw-amber-700, #b45309); }
 .dc-flow-box.dc-flow-passing .dc-flow-says { color: var(--tw-green-600, #16a34a); }
+/* a Test that stops a run, failing (FL8's refuse): red, as a refusal is */
+.dc-flow-box.dc-flow-failing.dc-flow-stops { border-color: var(--tw-red-500); box-shadow: 0 0 0 1px var(--tw-red-500); }
+.dc-flow-box.dc-flow-failing.dc-flow-stops .dc-flow-says { color: var(--tw-red-600); }
+.dc-flow-stops-check { margin-top: 8px; }
 /* a Test's checks: a row each, and Add a check below them */
 .dc-test-checks { display: flex; flex-direction: column; gap: 6px; }
 .dc-test-check .dc-sample-n[hidden] { display: none; }
