@@ -293,7 +293,7 @@ async function check(name, fn) {
 const state = () => page.evaluate(() => ({
   pure: document.getElementById('pure')?.textContent ?? '',
   sql: document.getElementById('sql')?.textContent ?? '',
-  status: `${document.querySelector('.dc-status-timing')?.title ?? ''}`
+  status: `${document.querySelector('.dc-status-timing')?.textContent ?? ''}`
     + ` | ${document.getElementById('status')?.textContent ?? ''}`,
   headers: [...document.querySelectorAll('[role=columnheader]')]
     .map((e) => e.textContent?.trim() ?? '').filter(Boolean),

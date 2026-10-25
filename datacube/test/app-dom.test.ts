@@ -1562,9 +1562,8 @@ describe('the bar says what you are looking at, and nothing else', () => {
     );
   });
 
-  it('says what the grid shows in words a person reads, and what it cost on hover', async () => {
-    // "2 rows × 3 cols in 1ms" said a grouped grid's top level, its groups, as rows -- of a cube of 200,000 (the
-    // start page's) -- and its cost to a person reading the result (the user, 2026-10-25)
+  it('says what the last query returned and what it cost, as a host is told it', async () => {
+    // the user, 2026-10-25: "just show stats/num rows of the last query" -- its own figures, nothing summed or guessed
     const statuses: string[] = [];
     const app = new CubeApp(root, SNAPSHOT, {
       engine: new StubEngine(),
@@ -1573,34 +1572,30 @@ describe('the bar says what you are looking at, and nothing else', () => {
     });
     await app.open();
     const readout = root.querySelector('.dc-status-rows') as HTMLElement;
-    assert.equal(readout.textContent, '2 groups');
-    // its cost on hover, the very line a host is told, so the two cannot drift apart
-    assert.match(readout.title, /^2 rows × \d+ cols in \d+ms: /);
-    assert.equal(readout.title.startsWith(`${statuses.at(-1)}:`), true, `${readout.title} | ${statuses.at(-1)}`);
+    assert.match(readout.textContent ?? '', /^2 rows × \d+ cols in \d+ms$/);
+    // the very line a host is told, so the two cannot drift apart
+    assert.equal(readout.textContent, statuses.at(-1));
     // and for a script: the rows on screen, and which view this is
     assert.equal(readout.dataset['rows'], '2');
     assert.match(readout.dataset['view'] ?? '', /^\d+$/);
   });
 
-  it('a flat grid says its rows, a grouped one its groups; a repaint that runs no query is not another view', async () => {
+  it('which view the readout says: a repaint that runs no query is not another; a cube built in another\u2019s place is', async () => {
     const flat = new CubeApp(root, { ...SNAPSHOT, rows: [] }, { engine: new StubEngine(), planner: new StubPlanner() });
     await flat.open();
     const readout = (): HTMLElement => root.querySelector('.dc-status-rows') as HTMLElement;
-    assert.equal(readout().textContent, '2 rows');
     const first = Number(readout().dataset['view']);
     // a presentation change (a note) paints the bar again over the same view
     flat.note('a note');
     assert.equal(Number(readout().dataset['view']), first, 'the same view, said again');
     await flat.edit([{ kind: 'group', rows: ['region'] }], 'group');
     await flush();
-    assert.equal(readout().textContent, '2 groups');
     assert.equal(Number(readout().dataset['view']), first + 1, 'a view landed');
     // a cube built in its place, saying the same: its view's number is another, so a script waiting on it sees it land
     flat.dispose();
     root.replaceChildren();
     const again = new CubeApp(root, SNAPSHOT, { engine: new StubEngine(), planner: new StubPlanner() });
     await again.open();
-    assert.equal(readout().textContent, '2 groups');
     assert.equal(Number(readout().dataset['view']) > first + 1, true, `${readout().dataset['view']} after ${first + 1}`);
   });
 

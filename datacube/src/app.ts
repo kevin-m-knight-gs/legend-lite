@@ -436,20 +436,6 @@ function timingText(view: CubeView, cols: number): string {
 let viewsLanded = 0;
 
 /**
- * What the grid shows, in words a person reads, at the start of its status bar (the user, 2026-10-25;
- * docs/DATACUBE_UI_REVIEW_2026_10_24.md §5): a flat grid's rows -- all of them, when the row limit cut it (cube.ts
- * `totalRows`) -- and a grouped grid's groups, "1,000+" when the limit cut them. It said "3 rows" of a cube of 200,000:
- * the top level's groups, called rows. What it cost is its tooltip (`timingText`).
- */
-function readoutText(view: CubeView): string {
-  const count = (n: number, one: string, many: string, more = false): string =>
-    `${n.toLocaleString(UI_LOCALE)}${more ? '+' : ''} ${n === 1 && !more ? one : many}`;
-  if (view.snapshot.rows.length === 0) return count(view.totalRows ?? view.rows.rowCount, 'row', 'rows');
-  const groups = view.treeRows.filter((r) => r.level === 1).length;
-  return count(groups, 'group', 'groups', view.truncated.some((t) => t.level === 1));
-}
-
-/**
  * What a cube tells whoever listens (`CubeApp#on`): a page, a pinned chart and the host can all
  * listen at once, where the options' callbacks had room for one (plan F6, blocker #5).
  */
@@ -1532,10 +1518,10 @@ export class CubeApp {
     if (this.#options.joinMenu) tools.append(this.#joinTool());
     left.append(tools, this.#statusSeparator());
 
-    // WHAT IT SHOWS: what it cost on hover, and for a script the rows on screen and which view this is -- the
-    // readout's own text no longer moves with each query's time
-    const rows = this.#readout(left, readoutText(view));
-    rows.title = `${timingText(view, cols)}: the rows on screen, the columns, and how long the query took`;
+    // WHAT THE LAST QUERY RETURNED, and what it cost: its own figures, nothing summed or guessed (the user, 2026-10-25:
+    // "just show stats/num rows of the last query"); for a script, the rows on screen and which view this is
+    const rows = this.#readout(left, timingText(view, cols));
+    rows.title = 'What the last query returned -- its rows and columns -- and how long it took';
     rows.dataset['rows'] = String(view.rows.rowCount);
     if (this.#readoutView !== view) {
       this.#readoutView = view;
@@ -1788,7 +1774,7 @@ export class CubeApp {
     return { left, right };
   }
 
-  /** What the grid shows, after its tools (`readoutText`). */
+  /** What the last query returned, after its tools (`timingText`). */
   #readout(left: HTMLElement, text: string): HTMLElement {
     const rows = this.#doc.createElement('div');
     rows.className = 'dc-status-rows dc-status-timing';
@@ -1804,8 +1790,7 @@ export class CubeApp {
    */
   #renderAdHocStatus(rows: number, cols: number, stale: boolean): void {
     const { left } = this.#statusFrame();
-    const said = this.#readout(left, `${rows.toLocaleString(UI_LOCALE)} ${rows === 1 ? 'row' : 'rows'}${stale ? ' (not refreshed)' : ''}`);
-    said.title = `${rows.toLocaleString(UI_LOCALE)} rows \u00d7 ${cols} cols`;
+    this.#readout(left, `${rows.toLocaleString(UI_LOCALE)} rows \u00d7 ${cols} cols${stale ? ' (not refreshed)' : ''}`);
     this.#adoptHostStatus();
   }
 

@@ -127,12 +127,10 @@ try {
   await page.click('.dc-picker-card[data-example="orders-json"]');
   await page.fill('.dc-picker-rows', '300');
   await page.click('.dc-picker-choice .dc-primary');
-  // the readout says the rows; its tooltip the columns, and what the query cost
-  await page.waitForFunction(() => {
-    const e = document.querySelector('.dc-status-timing');
-    return e?.textContent === '300 rows' && /^300 rows \u00d7 8 cols/.test(e.title);
-  }, null, { timeout: 60_000 });
-  console.log(`opened: ${await page.getAttribute('.dc-status-timing', 'title')}`);
+  await page.waitForFunction(() => /^300 rows \u00d7 8 cols/.test(
+    document.querySelector('.dc-status-timing')?.textContent ?? ''),
+  null, { timeout: 60_000 });
+  console.log(`opened: ${await page.textContent('.dc-status-timing')}`);
 
   // THE PAGE MUST STILL SAY WHERE PLANNING HAPPENS.
   //
