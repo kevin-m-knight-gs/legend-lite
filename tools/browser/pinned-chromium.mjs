@@ -12,6 +12,9 @@ import { existsSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 
+// behind a proxy: the proxy the environment names, given as Chromium's own flags (proxy-args.mjs)
+import { proxyArgs } from './proxy-args.mjs';
+
 const pinned = process.env.PINNED_CHROMIUM;
 // Bazel gives a test HOME = TEST_TMPDIR but passes the host's TMPDIR through on macOS
 // (/var/folders/...), where Playwright would put the browser profile and artifacts: keep them in
@@ -60,25 +63,6 @@ if (pinned) {
 // that loads Playwright from elsewhere calls `hermetic` on the one it uses (site/verify.mjs).
 // //datacube:browser_guard_test fails when a launch stops being guarded (a Playwright upgrade, or this file changed).
 export const HERMETIC_ARGS = ['--host-resolver-rules=MAP extensions.duckdb.org ~NOTFOUND'];
-
-/**
- * BEHIND A PROXY (2026-10-25, a cloud session: its ~/.bazelrc passes HTTPS_PROXY and NO_PROXY to every test): Chromium
- * hands a proxied request's host to the proxy unresolved, so the resolver's rule above never met extensions.duckdb.org
- * -- //datacube:browser_guard_test met the proxy's certificate instead (ERR_CERT_AUTHORITY_INVALID), and a Chromium
- * that trusts that certificate downloaded the extension. The proxy the environment names is given as Chromium's own
- * flag, each scheme to its own as the environment has it, with that host (and NO_PROXY's) bypassing it: so it is
- * resolved here, and refused; every other host still goes through the proxy. No proxy named: no flag.
- */
-export function proxyArgs(env = process.env) {
-  const https = env.HTTPS_PROXY || env.https_proxy;
-  const http = env.HTTP_PROXY || env.http_proxy;
-  const all = env.ALL_PROXY || env.all_proxy;
-  const schemes = [...(https ? [`https=${https}`] : []), ...(http ? [`http=${http}`] : [])];
-  const server = schemes.length > 0 ? schemes.join(';') : all;
-  if (!server) return [];
-  const bypass = (env.NO_PROXY || env.no_proxy || '').split(',').map((h) => h.trim()).filter(Boolean);
-  return [`--proxy-server=${server}`, `--proxy-bypass-list=${['extensions.duckdb.org', ...bypass].join(';')}`];
-}
 
 /** Guards every launch of `chromium` (Playwright's BrowserType) with HERMETIC_ARGS, behind a proxy too; answers it. */
 export function hermetic(chromium) {
