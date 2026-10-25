@@ -156,9 +156,11 @@ type OpenedHow = {
   readonly kept?: readonly string[];
 };
 
-/** A JOIN FOR A GRID (sources.ts openedJoin's): its model, its relation, its grid; undefined when a file was not given. */
-export async function openedJoin(h: JoinSourcesHost, source: JoinSource, how: OpenedHow = {}): Promise<Opened | undefined> {
-  return openedOver(h, source, source.name, (o) => openJoin(source, o),
+/** A JOIN FOR A GRID (sources.ts openedJoin's): its model, its relation, its grid; undefined when a file was not given.
+ *  `resolved`, its source with its links resolved against its page (a flow's Join box's); `source`, as the page keeps it. */
+export async function openedJoin(h: JoinSourcesHost, source: JoinSource, resolved: JoinSource, how: OpenedHow = {}):
+  Promise<Opened | undefined> {
+  return openedOver(h, resolved, source.name, (o) => openJoin(resolved, o),
     // the join as it opened: a kept column of theirs gone since is left out of it, as the notes say
     (opened) => ({ ...source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) }), how);
 }

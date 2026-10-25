@@ -36,7 +36,11 @@ export interface JoinDialogOptions {
    * Where the window starts (a right-click's Join ▸: the column clicked, or a quick join that would repeat rows of mine):
    * their grid, the key it starts on in place of a suggestion, and the form chosen.
    */
-  readonly start?: { readonly their?: string; readonly row?: JoinRow; readonly form?: Choice };
+  readonly start?: { readonly their?: string; readonly row?: JoinRow; readonly form?: Choice; readonly how?: JoinHow };
+  /** What the window is for, under its title (none: a new grid of the page's two); its button's word (none: Join). A
+   *  flow's Join box set again says so (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2). */
+  readonly lead?: string;
+  readonly action?: string;
 }
 
 /** What the window's form offers, each a form of join.ts's `how`. */
@@ -132,7 +136,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     const head = el(doc, 'div', 'dc-picker-head', win);
     const titles = el(doc, 'div', 'dc-picker-titles', head);
     el(doc, 'h2', 'dc-picker-title', titles, 'Join').id = 'dc-join-title';
-    el(doc, 'p', 'dc-picker-subtitle', titles, `Combine ${o.mine} with another grid of the page: a new grid of the rows they make together.`);
+    el(doc, 'p', 'dc-picker-subtitle', titles, o.lead ?? `Combine ${o.mine} with another grid of the page: a new grid of the rows they make together.`);
     const close = el(doc, 'button', 'dc-picker-close', head, '×');
     close.type = 'button';
     close.setAttribute('aria-label', 'Close');
@@ -236,7 +240,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     cancel.type = 'button';
     cancel.addEventListener('click', () => { if (!busy) finish(); });
     el(doc, 'span', 'dc-save-spacer', foot).setAttribute('aria-hidden', 'true');
-    const primary = el(doc, 'button', 'dc-picker-button dc-primary', foot, 'Join');
+    const primary = el(doc, 'button', 'dc-picker-button dc-primary', foot, o.action ?? 'Join');
     primary.type = 'button';
     primary.disabled = true;
     const say = (text: string, kind: 'working' | 'failed' | 'ok' | ''): void => {
@@ -349,17 +353,23 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
         });
       }
       rowsBox.replaceChildren();
+      // a join set again (a flow's Join box): its own condition, match, prefix and columns, while their grid is its own
+      const was = o.start?.how !== undefined && their.value === o.start.their ? o.start.how : undefined;
+      const wasRows = was !== undefined && was.form !== 'append' && 'rows' in was.on && was.on.rows.length > 0 ? was.on.rows : undefined;
       // the key it was opened on, while their grid is the one it was opened at; else one plain key; else a row to fill
       const given = o.start?.row !== undefined && their.value === o.start.their ? o.start.row : undefined;
-      rowLine(rowsBox, JOIN_OPS, given ?? (keys.length === 1 ? keys[0]!.row : { op: '==' }), true);
-      rowLine(matchLine, AS_OF_OPS, { op: '>=' }, false);
+      if (wasRows !== undefined) for (const r of wasRows) rowLine(rowsBox, JOIN_OPS, r, true);
+      else rowLine(rowsBox, JOIN_OPS, given ?? (keys.length === 1 ? keys[0]!.row : { op: '==' }), true);
+      rowLine(matchLine, AS_OF_OPS, was?.form === 'asOf' ? was.match : { op: '>=' }, false);
+      if (was !== undefined && (was.form === 'join' || was.form === 'asOf')) prefix.value = was.prefix;
+      const kept = was !== undefined && (was.form === 'join' || was.form === 'asOf') ? was.keep : null;
       columnList.replaceChildren();
       for (const c of inputs.right.columns) {
         const label = el(doc, 'label', 'dc-join-column', columnList);
         const box = el(doc, 'input', '', label);
         box.type = 'checkbox';
         box.value = c.name;
-        box.checked = true;
+        box.checked = kept === null || kept.includes(c.name);
         el(doc, 'span', 'dc-join-column-name', label, c.name);
         el(doc, 'span', 'dc-join-column-out', label);
         el(doc, 'span', 'dc-join-column-type', label, c.type);
@@ -464,7 +474,8 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       }
     })());
 
-    choose(o.start?.form ?? 'left');
+    const startHow = o.start?.how;
+    choose(o.start?.form ?? (startHow === undefined ? 'left' : startHow.form === 'join' ? startHow.kind : startHow.form));
     void load();
   });
 }

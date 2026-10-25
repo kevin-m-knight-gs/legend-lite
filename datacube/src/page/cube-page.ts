@@ -34,7 +34,7 @@ import { MenuView } from '../ui/menu-view.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
-import { FlowBoard } from '../layout/flow-board.ts';
+import { FlowBoard, type LineEnd } from '../layout/flow-board.ts';
 import { EMPTY_FLOW, flowTiles } from '../layout/flow.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
@@ -247,8 +247,9 @@ export interface CubePageOptions {
   /** A file dropped onto flow `sheet`'s canvas: an Input box over it, added by the page's owner. */
   readonly onFile?: (file: File, sheet: string) => void;
   /** A tool of a flow's palette picked: a box of it added to flow `sheet`, after box `after` (none: on its own), its
-   *  settings (`editor`) opened once it is shown. */
-  readonly onTool?: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined) => void;
+   *  settings (`editor`) opened once it is shown -- dropped on a line, `into` the box that line goes into, which reads
+   *  the new box from then on. */
+  readonly onTool?: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined, into?: LineEnd) => void;
 }
 
 /** An edit of the page's structure: its page commands, and what it is called (the page's Undo names it). */
@@ -514,7 +515,16 @@ export class CubePage {
         if (this.#saved(tile)) this.#tell('Rename Tile', pageCommand('renameTile', { tile, title }));
         this.#options.onChange();
       },
-      onTool: (tool, after, editor) => this.#options.onTool?.(tool, after, id, editor),
+      onTool: (tool, after, editor, into) => this.#options.onTool?.(tool, after, id, editor, into),
+      // a line drawn, taken off, or set in a box's settings: what the box reads (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
+      onConnect: (tile, side, from) => {
+        this.#tell('Link Box', pageCommand('setInput', { grid: tile, side, input: { grid: from } }));
+        this.#options.onChange();
+      },
+      onFreeze: (tile, side) => {
+        this.#tell('Freeze Box', pageCommand('setInput', { grid: tile, side, input: null }));
+        this.#options.onChange();
+      },
       onUndo: (redo) => this.#options.onUndo?.(redo),
       onFile: (file) => this.#options.onFile?.(file, id),
       documentOf: (tile) => this.#boxes.get(tile)?.document ?? this.documentOf(tile),

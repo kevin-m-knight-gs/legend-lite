@@ -5,7 +5,7 @@
 //
 // PURE: no DOM, no planner. The tools a person adds from the palette are here too, by the words the canvas shows.
 
-import type { CubeDocument } from './cube-document.ts';
+import { inputCube, inputOn, inputSides, isLive, type CubeDocument, type InputSide, type JoinInput } from './cube-document.ts';
 import { conditionWords } from './page-filters.ts';
 import type { EditorTab } from './ui/editor.ts';
 
@@ -82,4 +82,48 @@ function hiddenColumns(cube: CubeDocument): string[] {
   return Object.entries(columns as Record<string, unknown>)
     .filter(([, c]) => c !== null && typeof c === 'object' && (c as Record<string, unknown>)['hidden'] === true)
     .map(([name]) => name);
+}
+
+/** AN INPUT OF A BOX (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): the side of its source that reads another grid's rows --
+ *  a box's one input, a join's left and right -- and the box it reads there live, or the name of the copy it reads
+ *  (frozen: FL6). The line into it, and its settings' Input. */
+export type BoxInput =
+  | { readonly side: InputSide; readonly grid: string }
+  | { readonly side: InputSide; readonly frozen: string };
+
+/** A box's inputs, from its cube document: none for an Input (it reads a source of its own). */
+export function boxInputs(cube: CubeDocument): BoxInput[] {
+  return inputSides(cube.source).map((side) => {
+    const input = inputOn(cube.source, side);
+    return isLive(input) ? { side, grid: input.grid } : { side, frozen: copyName(input) };
+  });
+}
+
+/** What a frozen copy is called on a flow: the box it copies, as the canvas named it -- its title, else its tool's
+ *  name (a copy of a Filter is "Filter", never the file under it); an Input's, its source's. */
+function copyName(input: JoinInput): string {
+  if (input.name !== input.source.name) return input.name;
+  const tool = boxSays(inputCube(input)).tool;
+  return tool === 'input' ? input.name : FLOW_TOOLS[tool].name;
+}
+
+/**
+ * THE BOXES THAT READ `id`, through others too (`documentOf`: each box's document; `boxes`, the flow's): what `id` can
+ * never be linked to, a box reading its own rows.
+ */
+export function readersOf(id: string, boxes: readonly string[], documentOf: (id: string) => CubeDocument | undefined): Set<string> {
+  const readers = new Set<string>();
+  const reads = new Map(boxes.map((b) => {
+    const doc = documentOf(b);
+    return [b, doc === undefined ? [] : boxInputs(doc).flatMap((i) => ('grid' in i ? [i.grid] : []))] as const;
+  }));
+  for (let grown = true; grown;) {
+    grown = false;
+    for (const [b, inputs] of reads) {
+      if (readers.has(b) || !inputs.some((g) => g === id || readers.has(g))) continue;
+      readers.add(b);
+      grown = true;
+    }
+  }
+  return readers;
 }

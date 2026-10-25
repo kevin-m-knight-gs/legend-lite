@@ -3,14 +3,16 @@
 // Summarize onto the Formula -- each set in the settings pane by the grid's own window docked there, each previewed in
 // the results pane; a box moved and the move undone; the flow saved, the tab reloaded and the flow opened again (no box
 // opened until it is shown, the last box's rows as before); shared, the link opening the same flow in a fresh tab; and a
-// file from the desktop dropped onto the canvas, an Input over it.
+// file from the desktop dropped onto the canvas, an Input over it. And its lines (M2): one drawn from a box's output onto
+// another, and undone; one taken off, the box it went into frozen, and linked again from its settings; a tool dropped on
+// a line, between its boxes, and undone in one step.
 //
 //   bazel test //datacube:verify_flow_test        bazel run //datacube:verify_flow (by hand)
 
 // first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
 import '../../tools/browser/pinned-chromium.mjs';
 import { chromium } from 'playwright';
-import { serve, siteRoot } from './harness.mjs';
+import { outPath, serve, siteRoot } from './harness.mjs';
 
 let failed = false;
 function bad(m) { console.log(`FAIL: ${m}`); failed = true; }
@@ -77,6 +79,30 @@ async function drag(tool, target) {
   await page.mouse.move(to.x, to.y, { steps: 12 });
   await page.mouse.up();
 }
+/** The lines drawn (each beside the wider stroke a pointer finds). */
+const lineCount = () => page.locator('.dc-flow-lines path.dc-flow-line').count();
+/** What a box reads, as the page has it: each side's live grid, or 'copy'. */
+const readsOf = (id) => page.evaluate((tile) => {
+  const doc = window.__dataPage.document('x');
+  const view = doc.views.find((v) => v.id === tile);
+  const source = doc.cubes.find((c) => c.id === view.cube).cube.source;
+  const side = (i) => ('grid' in i ? i.grid : 'copy');
+  return source._type === 'rows' ? side(source.input) : source._type === 'join' ? [side(source.left), side(source.right)] : null;
+}, id);
+/** The middle of the line into `tile`, in the window's points. */
+const lineMiddle = (tile) => page.evaluate((t) => {
+  const hit = document.querySelector(`.dc-flow-lines path.dc-flow-hit[data-tile="${t}"]`);
+  const p = hit.getPointAtLength(hit.getTotalLength() / 2);
+  const r = document.querySelector('.dc-flow-plane').getBoundingClientRect();
+  return { x: r.left + p.x, y: r.top + p.y };
+}, tile);
+/** A box shown, its rows once they have come. */
+async function show(id) {
+  await page.locator(`.dc-flow-box[data-tile="${id}"]`).click();
+  await page.waitForFunction((t) => document.querySelector(`.dc-flow-box[data-tile="${t}"]`)?.classList.contains('dc-flow-shown'), id);
+  await settled();
+  return resultRows();
+}
 /** The window docked in the settings pane, once it is there. */
 const docked = (name) => page.locator(`.dc-flow-dock > .dc-app-overlay[data-window^="${name}"]`).waitFor({ timeout: 20_000 });
 /** The box that is not one of `known`: the one just added. */
@@ -130,7 +156,7 @@ try {
   const set = (await boxes()).find((b) => b.id === filter.id);
   check(/notional .* 500000/.test(set?.says ?? ''), `the Filter says what it keeps: ${set?.says}`);
   check(filtered > 0 && filtered < all, `its rows, the Input's filtered: ${filtered} of ${all}`);
-  check(await page.locator('.dc-flow-lines path').count() === 1, 'a line from the Input into the Filter');
+  check(await lineCount() === 1, 'a line from the Input into the Filter');
 
   // A FORMULA, dragged onto the Filter: a calculated column, in its editor docked
   await drag('formula', filter.id);
@@ -168,7 +194,7 @@ try {
   const summed = (await boxes()).find((b) => b.id === summary.id);
   check(summed?.tool === 'summarize' && summed.says === 'by region', `the Summarize says its groups: ${JSON.stringify(summed)}`);
   check(groups > 0 && groups < 10, `a row per region: ${groups}`);
-  check(await page.locator('.dc-flow-lines path').count() === 3, 'a line into each box after the first');
+  check(await lineCount() === 3, 'a line into each box after the first');
 
   // EACH BOX PREVIEWED, the one shown before closed: only the shown box has a grid
   const previews = {};
@@ -183,6 +209,66 @@ try {
   const open = await page.evaluate(() => window.__dataPage.grids);
   check(open.includes(summary.id) && ![input.id, filter.id, formula.id].some((id) => open.includes(id)),
     `one box's grid made, the shown one's: ${open}`);
+
+  // A LINE DRAWN by hand: from the Input's output onto the Formula, which reads the Input from then on -- one step, undone
+  const outPort = await page.locator(`.dc-flow-box[data-tile="${input.id}"] .dc-flow-port-out`).boundingBox();
+  const onto = await page.locator(`.dc-flow-box[data-tile="${formula.id}"]`).boundingBox();
+  await page.mouse.move(outPort.x + outPort.width / 2, outPort.y + outPort.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(onto.x + onto.width / 2, onto.y + onto.height / 2, { steps: 12 });
+  await page.mouse.up();
+  check(await readsOf(formula.id) === input.id, `the Formula reads the Input now: ${await readsOf(formula.id)}`);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Link Box', 'one step: Link Box');
+  check(await show(formula.id) === all, 'its rows the Input\'s, every one');
+  check(await lineCount() === 3, 'still a line into each box after the first');
+  await page.locator('.dc-flow-canvas').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Control+z');
+  check(await readsOf(formula.id) === filter.id, `undone: the Formula reads the Filter again: ${await readsOf(formula.id)}`);
+  await settled();
+  check(await resultRows() === filtered, 'its rows the Filter\'s again');
+
+  // A LINE TAKEN OFF: clicked, then Delete -- the Formula reads a copy of what the Filter was (frozen), its rows the same
+  const middle = await lineMiddle(formula.id);
+  await page.mouse.click(middle.x, middle.y);
+  // a level line's box has no height: attached, not "visible"
+  await page.locator('.dc-flow-lines path.dc-flow-line-selected').waitFor({ state: 'attached', timeout: 5_000 });
+  check(await page.locator('.dc-flow-unlink').isVisible(), 'a selected line shows its ×');
+  await page.screenshot({ path: outPath('flow-line-selected.png') });
+  await page.keyboard.press('Delete');
+  check(await readsOf(formula.id) === 'copy', `taken off: the Formula reads a copy: ${await readsOf(formula.id)}`);
+  check(await lineCount() === 2, 'its line gone');
+  check(await page.locator(`.dc-flow-box[data-tile="${formula.id}"].dc-flow-frozen`).count() === 1, 'the Formula drawn frozen');
+  await page.screenshot({ path: outPath('flow-frozen.png') });
+  await settled();
+  check(await resultRows() === filtered, `frozen, its rows as they were: ${filtered}`);
+  // linked again from its settings: Input, the Filter
+  await page.locator('.dc-flow-inputs select').selectOption(`grid:${filter.id}`);
+  check(await readsOf(formula.id) === filter.id, 'linked again from its settings: it reads the Filter');
+  check(await lineCount() === 3, 'its line back');
+  await settled();
+
+  // A TOOL DROPPED ON A LINE: a Sort between the Filter and the Formula -- the Formula reads the Sort; one step, undone
+  const on = await lineMiddle(formula.id);
+  const sortTool = await page.locator('.dc-flow-tool[data-tool="sort"]').boundingBox();
+  await page.mouse.move(sortTool.x + sortTool.width / 2, sortTool.y + sortTool.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(on.x, on.y, { steps: 12 });
+  check(await page.locator('.dc-flow-lines path.dc-flow-line-target').count() === 1, 'the line under the tool marked');
+  await page.screenshot({ path: outPath('flow-insert.png') });
+  await page.mouse.up();
+  await boxCount(5);
+  const sorted = await added([input.id, filter.id, formula.id, summary.id]);
+  check(sorted.tool === 'sort', `a Sort box: ${JSON.stringify(sorted)}`);
+  check(await readsOf(sorted.id) === filter.id && await readsOf(formula.id) === sorted.id,
+    `between them: the Sort reads the Filter, the Formula the Sort: ${await readsOf(sorted.id)}, ${await readsOf(formula.id)}`);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Insert Box', 'one step: Insert Box');
+  check(await lineCount() === 4, 'a line into each box after the first, the Sort\'s too');
+  await settled();
+  await page.locator('.dc-flow-canvas').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Control+z');
+  await boxCount(4);
+  check(await readsOf(formula.id) === filter.id, `undone in one step: the Sort gone, the Formula reads the Filter: ${await readsOf(formula.id)}`);
+  await settled();
 
   // A BOX MOVED BY HAND, and the move undone
   const placeOf = () => page.evaluate((id) => {

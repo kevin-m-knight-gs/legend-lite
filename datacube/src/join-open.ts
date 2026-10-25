@@ -7,7 +7,7 @@
 
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 import {
-  inputCube, isLive, leavesOf, openCube, type CubeSource, type JoinInput, type JoinSource, type LeafSource, type RowsSource,
+  frozenInput, inputCube, leavesOf, openCube, type CubeSource, type JoinInput, type JoinSource, type LeafSource, type RowsSource,
 } from './cube-document.ts';
 import type { CatalogColumn, TableModels } from './infer.ts';
 import { MOST_REPEATS, REPEATED_KEYS, joinRelation, type JoinHow, type JoinSide, type JoinSummaryCounts, type JoinSummaryQueries } from './join.ts';
@@ -137,14 +137,12 @@ async function overOneModel(leaves: readonly LeafSource[], o: JoinOpening): Prom
   let next = 0;
 
   const relation = async (s: CubeSource): Promise<ValueSpecification> => {
-    if (s._type === 'rows') {
-      // another grid's rows, resolved against its page (live-inputs.ts resolvedSource): that grid's rows as it is
-      if (isLive(s.input)) throw new Error(`${s.name} reads grid '${s.input.grid}' live: resolve it against its page first`);
-      return (await side(s.input)).relation;
-    }
+    // another grid's rows, a join's inputs, resolved against their page (live-inputs.ts resolvedSource): those grids'
+    // rows as they are
+    if (s._type === 'rows') return (await side(frozenInput(s.input, s.name))).relation;
     if (s._type !== 'join') return relationOf.get(o.tables[next++]!)!;
-    const l = await side(s.left);
-    const r = await side(s.right);
+    const l = await side(frozenInput(s.left, s.name));
+    const r = await side(frozenInput(s.right, s.name));
     return joinRelation(l, r, reconciled(s.how, r, notes));
   };
   const side = async (input: JoinInput): Promise<JoinSide> => inputRows(input, await relation(input.source), typer, notes);
@@ -188,7 +186,7 @@ export async function openRows(source: RowsSource, o: JoinOpening): Promise<Open
 
 /** A JOIN SOURCE OPENED (§17.4): its inputs over one model (openInputs), joined, typed. */
 export async function openJoin(source: JoinSource, o: JoinOpening): Promise<OpenedJoin> {
-  const inputs = await openInputs(source.left, source.right, o);
+  const inputs = await openInputs(frozenInput(source.left, source.name), frozenInput(source.right, source.name), o);
   const notes = [...inputs.notes];
   const how = reconciled(source.how, inputs.right, notes);
   const relation = joinRelation(inputs.left, inputs.right, how);

@@ -131,7 +131,7 @@ describe('a flow sheet on a page of its own', () => {
     // drawn by what each does: an Input, and a box that browses its rows; the line between them
     assert.equal(box('grid-2').dataset['tool'], 'input');
     assert.equal(box('grid-3').dataset['tool'], 'browse');
-    assert.equal(host.querySelectorAll('.dc-flow-lines path').length, 1, 'one line: grid-3 reads grid-2');
+    assert.equal(host.querySelectorAll('.dc-flow-lines path.dc-flow-line').length, 1, 'one line: grid-3 reads grid-2');
     // each box's cube as it was saved (an open grid writes its own as it opened it)
     const saved = readPage(JSON.parse(pageToJson(FLOW_PAGE())));
     for (const id of ['grid-2', 'grid-3']) assert.deepEqual(cubeOf(written(), id), cubeOf(saved, id), `${id} written as saved`);
@@ -183,8 +183,8 @@ describe('a flow sheet on a page of its own', () => {
     assert.deepEqual(cubeOf(back, 'grid-4'), cubeOf(FLOW_PAGE(), 'grid-2'));
     assert.ok(box('grid-4'));
     assert.deepEqual(pg().grids, ['grid-1']);
-    // an undo is the page's structure (page-between.ts, history): the box after it reads the copy until Unfreeze (M2)
-    assert.deepEqual(liveGrids(cubeOf(back, 'grid-3').source), []);
+    // an undo is the page's structure, its lines too (page-between.ts 2c, M2): the box after it reads it live again
+    assert.deepEqual(liveGrids(cubeOf(back, 'grid-3').source), ['grid-4']);
   });
 
   it('moves a box by its arrow keys, one step of the page each, and tells the host a tool picked', async () => {

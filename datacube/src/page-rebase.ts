@@ -6,7 +6,7 @@
 
 import type { CubeDocument } from './cube-document.ts';
 import { leavesOf } from './cube-document.ts';
-import { relinked, resolvedSource } from './live-inputs.ts';
+import { relinked, relinkedInput, resolvedSource } from './live-inputs.ts';
 import { flowTiles, placeAfter, type Flow } from './layout/flow.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { add, asSaved, remove, tiles, type Bands } from './layout/bands.ts';
@@ -70,6 +70,8 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     // a source's links name grids: they follow too (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1)
     case 'rebuilt':
       return { ...command, cube: n(command.cube), source: relinked(command.source, n) };
+    case 'setInput':
+      return { ...command, grid: n(command.grid), input: command.input === null ? null : relinkedInput(command.input, n) };
     case 'renameSheet':
     case 'moveSheet':
     case 'removeSheet':

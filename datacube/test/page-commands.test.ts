@@ -320,6 +320,9 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'modelPin', revision: 'r2' },
     { kind: 'modelKeep', cube: 'grid', tables: ['t_trades'], class: null },
     { kind: 'rebuilt', cube: 'grid', source: trades.cubes[0]!.cube.source },
+    { kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2' } },
+    { kind: 'setInput', grid: 'grid-3', side: 'right', input: { name: 'trades', source: trades.cubes[0]!.cube.source, query: trades.cubes[0]!.cube.query } },
+    { kind: 'setInput', grid: 'grid-3', side: 'left', input: null },
   ];
 
   it('every kind, through JSON and back', () => {

@@ -41,7 +41,7 @@ import {
   type RowsSource,
   type WarehouseSource,
 } from '../cube-document.ts';
-import { resolvedSource } from '../live-inputs.ts';
+import { liveGrids, resolvedSource } from '../live-inputs.ts';
 import { pageToJson, type PageDocument } from '../page-document.ts';
 import { canKeepHandles, handleKey, pickDataFile, readHandle, type FileHandle } from '../file-handles.ts';
 import type { InferredModel } from '../infer.ts';
@@ -250,7 +250,7 @@ export interface PageSources {
    * Refused where the page has no database of its own (§17.3).
    */
   openedJoin(source: JoinSource, how?: { readonly saved?: CubeDocument; readonly capped?: boolean; readonly tables?: readonly string[];
-    readonly page?: string; readonly kept?: readonly string[] }): Promise<Opened | undefined>;
+    readonly page?: string; readonly kept?: readonly string[]; readonly on?: GridOn }): Promise<Opened | undefined>;
   /** The frames a grid reads, by its id -- its leaves' (cube-document.ts leavesOf): what following the host's frames
    *  refreshes. */
   framesOf(id: string): string[];
@@ -884,10 +884,21 @@ export function pageSources(d: SourcesOf): PageSources {
   // -- a join of two grids' results (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17): app/join-sources.ts, fetched with it
 
   async function openedJoin(source: JoinSource, how: { readonly saved?: CubeDocument; readonly capped?: boolean;
-    readonly tables?: readonly string[]; readonly page?: string; readonly kept?: readonly string[] } = {}): Promise<Opened | undefined> {
+    readonly tables?: readonly string[]; readonly page?: string; readonly kept?: readonly string[]; readonly on?: GridOn } = {}):
+    Promise<Opened | undefined> {
     if (!local) throw new Error(`${source.name} is a join, read in this tab's own database: this page has none`);
+    // a flow's Join box reads its inputs live (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): resolved against its page, as
+    // another grid's rows are -- a join of copies is as it is
+    const { on, ...rest } = how;
+    const resolved = on === undefined ? source : resolvedSource(on.page, source, gridOf(on));
+    if (resolved._type !== 'join') throw new Error(`${source.name} resolved as another kind of source (${resolved._type})`);
     const { openedJoin: opened } = await joinSources();
-    return opened(tablesHost(local), source, how);
+    return opened(tablesHost(local), source, resolved, rest);
+  }
+
+  /** The grid of `on`'s cube on its page, when it is one of the page's (a new one is none yet). */
+  function gridOf(on: GridOn): string | undefined {
+    return on.page.views.find((v) => v.kind === 'grid' && v.cube === on.cube)?.id;
   }
 
   /** Another grid's rows opened where its page reads: on a host's page by the host, over what it reads -- this page has
@@ -909,8 +920,7 @@ export function pageSources(d: SourcesOf): PageSources {
     readonly capped?: boolean; readonly page?: string; readonly kept?: readonly string[]; readonly tables?: readonly string[] } = {}):
     Promise<Opened | undefined> {
     if (!local) throw new Error(`${source.name} reads another grid's rows, opened in this tab's own database: this page has none`);
-    const grid = cube === undefined ? undefined : page.views.find((v) => v.kind === 'grid' && v.cube === cube)?.id;
-    const resolved = resolvedSource(page, source, grid);
+    const resolved = resolvedSource(page, source, cube === undefined ? undefined : gridOf({ page, cube }));
     if (resolved._type !== 'rows') throw new Error(`${source.name} resolved as another kind of source (${resolved._type})`);
     const { openedRows: opened } = await joinSources();
     return opened(tablesHost(local), source, resolved, how);
@@ -980,8 +990,7 @@ export function pageSources(d: SourcesOf): PageSources {
    */
   async function openedOnHost(src: CubeSource, doc: CubeDocument, capped: boolean, on?: GridOn): Promise<Opened> {
     // a grid over another grid's rows reads what that grid reads: resolved on the page it opens on
-    const reads = on && src._type === 'rows'
-      ? resolvedSource(on.page, src, on.page.views.find((v) => v.kind === 'grid' && v.cube === on.cube)?.id) : undefined;
+    const reads = on && liveGrids(src).length > 0 ? resolvedSource(on.page, src, gridOf(on)) : undefined;
     // its page given: a grid over another grid's rows is opened over that grid as the page has it (§3.1)
     const opened = await database.opened!(cubeToJson(doc), doc.name, capped ? 2 : 1,
       on ? { page: pageToJson(on.page), id: on.cube } : undefined);
@@ -1219,7 +1228,7 @@ export function pageSources(d: SourcesOf): PageSources {
     const src = doc.source;
     // another grid's rows (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): over that grid as its page has it -- a page with
     // no page given cannot say what it reads
-    if (src._type === 'rows' && on === undefined) throw new Error(`${src.name} reads another grid of its page: it is opened with its page`);
+    if (liveGrids(src).length > 0 && on === undefined) throw new Error(`${src.name} reads another grid of its page: it is opened with its page`);
     // a grid of the page its other editor serves: every kind but a frame's opened by the host, where it reads it (H-2,
     // H-3). A page of this tab's own on a host opens its sources the tab's way -- the host holds only what was read
     // there this session, and refuses a file it does not (the S7 confirmation audit's H2-1)
@@ -1243,8 +1252,9 @@ export function pageSources(d: SourcesOf): PageSources {
     // page's model keeps for it
     if (src._type === 'join') {
       // on a host's page, the host opens it over the tables it holds -- this page has no database or compiler of its own
-      if (!local && database.opened) return openedOnHost(src, doc, several);
-      return openedJoin(src, { saved: doc, capped: several, ...(page !== undefined ? { page } : {}), ...(tables ? { kept: tables } : {}) });
+      if (!local && database.opened) return openedOnHost(src, doc, several, on);
+      return openedJoin(src, { saved: doc, capped: several, ...(page !== undefined ? { page } : {}), ...(tables ? { kept: tables } : {}),
+        ...(on !== undefined ? { on } : {}) });
     }
     if (!isFileCube(doc)) throw new Error(`"${doc.name}" reads a source this page cannot open`);
     const got = await fileFor(doc.source, doc.name, page);

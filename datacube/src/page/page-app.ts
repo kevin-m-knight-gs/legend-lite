@@ -57,6 +57,7 @@ import type { GridCommand } from '../grid-commands.ts';
 import { lazily } from '../lazily.ts';
 import { longPressMenus } from '../ui/long-press.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
+import type { LineEnd } from '../layout/flow-board.ts';
 
 /** What the page needs of a grid on it (a CubeApp in a tile). */
 export interface PageGrid extends SpawnedGrid {
@@ -155,7 +156,8 @@ export interface PageAppOptions {
   readonly openBox?: (box: string, document: CubeDocument, page: PageDocument) => Promise<GridMaker | undefined>;
   /** A tool of a flow's palette picked: a box of it on flow `sheet`, after box `after` (none: on its own), made by the
    *  host over the page as it is now -- its settings (`editor`) opened on its grid once it is made (PageGrid.openStep). */
-  readonly onFlowTool?: (tool: FlowTool, after: string | undefined, sheet: string, page: PageDocument, editor: StepEditor | undefined) => void;
+  readonly onFlowTool?: (tool: FlowTool, after: string | undefined, sheet: string, page: PageDocument, editor: StepEditor | undefined,
+    into?: LineEnd) => void;
   /** A file dropped onto a flow's canvas: an Input box over it, opened by the host as its picker opens a file. */
   readonly onFlowFile?: (file: File) => void;
 }
@@ -647,7 +649,12 @@ export class PageApp {
    * A GRID ON THE PAGE, made by `make` in a tile like any other: beside `near` while its band has room, else below;
    * a saved page's under its saved `id` and `title`. Returns its id.
    */
-  addGrid(make: GridMaker, how: { readonly id?: string; readonly title?: string; readonly near?: string } = {}): string {
+  addGrid(make: GridMaker, how: {
+    readonly id?: string; readonly title?: string; readonly near?: string;
+    /** The step it is part of: its name, and the commands told after its addGrid (a box put on a line: the box the line
+     *  went into reading it). */
+    readonly label?: string; readonly after?: (id: string) => readonly PageCommand[];
+  } = {}): string {
     const id = this.#page.addGridOver(this.#maker(make), how);
     this.#paintEmpty();
     return id;
@@ -997,8 +1004,8 @@ export class PageApp {
       } : {}),
       ...(this.#options.onFlowFile ? { onFile: (file: File) => this.#options.onFlowFile?.(file) } : {}),
       ...(this.#options.onFlowTool ? {
-        onTool: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined) =>
-          this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page, editor),
+        onTool: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined, into?: LineEnd) =>
+          this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page, editor, into),
       } : {}),
     });
   }

@@ -13,7 +13,7 @@
 
 import type { BandTile } from './band-board.ts';
 import { EMPTY_FLOW, placeAfter, removeBox, type Flow } from './flow.ts';
-import type { CubeDocument } from '../cube-document.ts';
+import type { CubeDocument, InputSide } from '../cube-document.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import { lazily } from '../lazily.ts';
 
@@ -28,14 +28,27 @@ export interface FlowBoardOptions {
   /** A box renamed in place. */
   readonly onRename?: (id: string, title: string) => void;
   /** A tool of the palette picked -- clicked, after the box shown, or dropped on a box, after it; dropped on the canvas,
-   *  after none: the caller adds a box of it. */
-  readonly onTool?: (tool: FlowTool, after: string | undefined, editor: StepEditor | undefined) => void;
+   *  after none; dropped on a line, after the box it comes out of and `into` the box it goes into, on that side, which
+   *  reads the new box from then on: the caller adds a box of it. */
+  readonly onTool?: (tool: FlowTool, after: string | undefined, editor: StepEditor | undefined, into?: LineEnd) => void;
+  /** A line drawn by hand from box `from`'s output into box `tile`'s input on `side` (docs/DATACUBE_FLOW_MODE_2026_10_24.md
+   *  M2): the caller links it (setInput, live). */
+  readonly onConnect?: (tile: string, side: InputSide, from: string) => void;
+  /** A line into box `tile` on `side` taken off, or its settings' Freeze: the caller freezes it -- it reads a copy of what
+   *  it read (setInput, a copy: FL6). */
+  readonly onFreeze?: (tile: string, side: InputSide) => void;
   /** Ctrl+Z (Shift for redo) on the canvas: the page's own undo. */
   readonly onUndo?: (redo: boolean) => void;
   /** A file dropped onto the canvas (from the desktop): the caller adds an Input box over it. */
   readonly onFile?: (file: File) => void;
   /** Each box's cube document as the page has it: what it does, and the boxes it reads (the lines into it). */
   readonly documentOf?: (id: string) => CubeDocument | undefined;
+}
+
+/** Where a line goes in: the box, and the side of it (a join's left or right, any other box's one input). */
+export interface LineEnd {
+  readonly tile: string;
+  readonly side: InputSide;
 }
 
 /** A box as the board holds it: what it is called, and -- shown -- its grid's tile. */

@@ -6,9 +6,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { rawRows, writeCube, type CubeDocument, type CubeSource, type FileSource, type RowsSource } from '../src/cube-document.ts';
+import { isLive, rawRows, writeCube, type CubeDocument, type CubeSource, type FileSource, type RowsSource } from '../src/cube-document.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
-import { boxSays } from '../src/flow-boxes.ts';
+import { boxInputs, boxSays, readersOf } from '../src/flow-boxes.ts';
 import { add, NEW_SHEET } from '../src/layout/bands.ts';
 import {
   BOX_HEIGHT, BOX_WIDTH, EMPTY_FLOW, FlowRefusal, GAP_X, GAP_Y, MARGIN, flowProblems, moveBox, placeAfter, removeBox,
@@ -19,6 +19,7 @@ import {
   boxCubes, layoutTiles, pageToJson, readPage, unnamedLabel, writePageOf, PageDocumentError, type PageDocument,
 } from '../src/page-document.ts';
 import { renamedCommand, rearranged } from '../src/page-rebase.ts';
+import { applyPlanned, pageBetween } from '../src/page-between.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor } from '../../pure-protocol/src/index.ts';
@@ -116,6 +117,21 @@ describe('what a box says it does (flow-boxes.ts boxSays): its query, never a fi
     assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => q, { columns: { region: { hidden: true } } })),
       { tool: 'select', also: [], says: '1 of 2 columns left out' });
   });
+
+  it("a box's inputs, live or a copy named as the box it copies; the boxes that read it, through others", () => {
+    assert.deepEqual(boxInputs(cube(FILE)), []);
+    assert.deepEqual(boxInputs(cube(rows('grid-2'))), [{ side: 'input', grid: 'grid-2' }]);
+    const { page } = apply(FLOW(), { kind: 'removeTile', tile: 'grid-2' }, { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3' } });
+    // grid-3 read a copy of the Input; grid-4 reads grid-3 live, then frozen: a copy of the Filter
+    const documentOf = (id: string) => page.cubes.find((c) => c.id === id)?.cube;
+    assert.deepEqual(boxInputs(documentOf('grid-3')!), [{ side: 'input', frozen: 'trades.csv' }]);
+    const frozen = apply({ page, held: idsOf(page) }, { kind: 'setInput', grid: 'grid-4', side: 'input', input: null }).page;
+    assert.deepEqual(boxInputs(frozen.cubes.find((c) => c.id === 'grid-4')!.cube), [{ side: 'input', frozen: 'Filter' }]);
+    const chain = apply(FLOW(), { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3' } }).page;
+    const of = (id: string) => chain.cubes.find((c) => c.id === id)?.cube;
+    assert.deepEqual([...readersOf('grid-2', ['grid-2', 'grid-3', 'grid-4'], of)].sort(), ['grid-3', 'grid-4']);
+    assert.deepEqual([...readersOf('grid-4', ['grid-2', 'grid-3', 'grid-4'], of)], []);
+  });
 });
 
 describe("a flow sheet's page commands", () => {
@@ -195,6 +211,94 @@ describe("a flow sheet's page commands", () => {
     if (now.kind !== 'layout' || now.layout.kind !== 'flow') throw new Error('not a flow layout');
     assert.deepEqual(now.layout.boxes.find((b) => b.tile === 'grid-2'), { tile: 'grid-2', x: 400, y: 400 });
     assert.deepEqual(now.layout.boxes.map((b) => b.tile).sort(), ['grid-2', 'grid-3', 'grid-4']);
+  });
+});
+
+describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)", () => {
+  const sourceOf = (page: PageDocument, id: string): CubeSource => page.cubes.find((c) => c.id === id)!.cube.source;
+
+  it('links a box to another of the page, live; freezes it to a copy of what its input is now', () => {
+    const d = FLOW();
+    // the Sort after the Filter, not the Input: a line drawn from the Filter's output
+    const relinked = apply(d, { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3' } });
+    assert.deepEqual(liveGrids(sourceOf(relinked.page, 'grid-4')), ['grid-3']);
+    // its query as it is: only what it reads moved
+    assert.deepEqual(relinked.page.cubes.find((c) => c.id === 'grid-4')!.cube.query, d.page.cubes.find((c) => c.id === 'grid-4')!.cube.query);
+    const frozen = apply(relinked, { kind: 'setInput', grid: 'grid-4', side: 'input', input: null }).page;
+    const s = sourceOf(frozen, 'grid-4');
+    if (s._type !== 'rows' || isLive(s.input)) throw new Error('not frozen');
+    assert.equal(s.input.source._type, 'rows', "a copy of the Filter: its source the Filter's, resolved");
+    assert.deepEqual(liveGrids(s), []);
+    readPage(JSON.parse(pageToJson(frozen)));
+  });
+
+  it('refuses in words: a cycle, a grid the page has not, a side the source has not, the same input, a board grid frozen twice', () => {
+    const d = FLOW();
+    refused(() => apply(d, { kind: 'setInput', grid: 'grid-2', side: 'input', input: { grid: 'grid-3' } }),
+      /trades\.csv reads no other grid: it has no input/);
+    const chain = apply(d, { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3' } });
+    refused(() => apply(chain, { kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-4' } }), /reads its own rows/);
+    refused(() => apply(d, { kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-3' } }), /reads its own rows/);
+    refused(() => apply(d, { kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-9' } }), /'grid-9' is no grid of this page/);
+    refused(() => apply(d, { kind: 'setInput', grid: 'grid-3', side: 'left', input: { grid: 'grid-1' } }), /its one input is its input, not its left/);
+    refused(() => apply(d, { kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2' } }), /reads 'grid-2' already/);
+    const frozen = apply(d, { kind: 'setInput', grid: 'grid-3', side: 'input', input: null });
+    refused(() => apply(frozen, { kind: 'setInput', grid: 'grid-3', side: 'input', input: null }), /reads a copy already: it is frozen/);
+  });
+
+  it("sets a join's left and right, each live or a copy", () => {
+    const join = (left: { grid: string }, right: { grid: string }): CubeSource => ({
+      _type: 'join', name: 'trades ⋈ trades', left, right, columns: COLUMNS,
+      how: { form: 'join', kind: 'inner', on: { rows: [{ left: 'region', op: '==', right: 'region' }] }, prefix: 'their_', keep: null },
+    });
+    const d = apply(FLOW(), addGrid(cube(join({ grid: 'grid-3' }, { grid: 'grid-4' })), 'sheet-2', 'grid-3'));
+    assert.deepEqual(liveGrids(sourceOf(d.page, 'grid-5')), ['grid-3', 'grid-4']);
+    const right = apply(d, { kind: 'setInput', grid: 'grid-5', side: 'right', input: { grid: 'grid-2' } }).page;
+    assert.deepEqual(liveGrids(sourceOf(right, 'grid-5')), ['grid-3', 'grid-2']);
+    refused(() => apply(d, { kind: 'setInput', grid: 'grid-5', side: 'input', input: { grid: 'grid-2' } }), /is a join: its inputs are its left and its right/);
+    // a box of the join's inputs taken off: the join reads a copy of it, its other input still live (FL6)
+    const gone = apply(d, { kind: 'removeTile', tile: 'grid-4' }).page;
+    assert.deepEqual(liveGrids(sourceOf(gone, 'grid-5')), ['grid-3']);
+    readPage(JSON.parse(pageToJson(gone)));
+  });
+
+  it('reads and writes it, follows renames, and is the undo of a removal that froze its readers', () => {
+    for (const c of [
+      { kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2' } },
+      { kind: 'setInput', grid: 'grid-5', side: 'right', input: null },
+    ]) assert.deepEqual(readPageCommand(JSON.parse(JSON.stringify(c))), c);
+    assert.throws(() => readPageCommand({ kind: 'setInput', grid: 'grid-3', side: 'top', input: null }), /its input, or a join's left or right, not "top"/);
+    assert.throws(() => readPageCommand({ kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2', x: 1 } }), /a live input is its grid alone, not x/);
+    const renamed = new Map([['grid-2', 'grid-8'], ['grid-3', 'grid-7']]);
+    assert.deepEqual(renamedCommand({ kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2' } }, renamed),
+      { kind: 'setInput', grid: 'grid-7', side: 'input', input: { grid: 'grid-8' } });
+    // a box taken off, and back: its readers live on it again, by the commands between the two pages
+    const before = FLOW().page;
+    const after = apply(FLOW(), { kind: 'removeTile', tile: 'grid-2' }).page;
+    const back = pageBetween(after, before, 'history');
+    assert.ok(back.some((c) => c.kind === 'setInput'), 'a setInput among the undo');
+    const undone = applyPlanned({ page: after, held: idsOf(after) }, back, false).draft.page;
+    for (const id of ['grid-3', 'grid-4']) assert.deepEqual(liveGrids(sourceOf(undone, id)), ['grid-2'], `${id} live on the Input again`);
+  });
+
+  it('undoes a swap of two boxes, each frozen first where setting it at once would read its own rows', () => {
+    const d = apply(FLOW(), { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3' } });
+    // grid-2 → grid-3 → grid-4, then grid-2 → grid-4 → grid-3
+    const swapped = apply(d, { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-2' } },
+      { kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-4' } });
+    for (const [from, to] of [[d.page, swapped.page], [swapped.page, d.page]] as const) {
+      const made = applyPlanned({ page: from, held: idsOf(from) }, pageBetween(from, to, 'history'), false).draft.page;
+      for (const id of ['grid-3', 'grid-4']) assert.deepEqual(sourceOf(made, id), sourceOf(to, id), id);
+    }
+  });
+
+  it("a flow sheet's removal undone makes a flow sheet, its boxes where they were", () => {
+    const before = FLOW().page;
+    const after = apply(FLOW(), { kind: 'removeSheet', sheet: 'sheet-2' }).page;
+    const back = pageBetween(after, before, 'history');
+    assert.ok(back.some((c) => c.kind === 'addFlow'), 'an addFlow among the undo');
+    const undone = applyPlanned({ page: after, held: idsOf(after) }, back, false).draft.page;
+    assert.deepEqual(flowOf(undone), flowOf(before));
   });
 });
 

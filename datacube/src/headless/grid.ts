@@ -467,8 +467,10 @@ async function openedOn(was: CubeDocument, cube: string, host: HostTables, name:
     const now = readCube(fromJson(made.cube)).source;
     return openedAgain(was, now, now._type === 'file' ? fileChanged(was.source, now) : [], base);
   }
+  // a join: over its inputs resolved (a flow's Join box reads them live); the source as the page holds it (its links)
+  if (was.source._type !== 'join') throw new Error(`${was.source.name} opened as a join`);
   const opened = await joinOpenedOn(on.join, on.tables);
-  const now: JoinSource = { ...on.join, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) };
+  const now: JoinSource = { ...was.source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) };
   return openedAgain(was, now, opened.notes, { model: opened.model, runtime: opened.runtime,
     relation: toJson({ _type: 'lambda', parameters: [], body: [opened.relation] }) });
 }

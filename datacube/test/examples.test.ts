@@ -13,7 +13,7 @@ import { pageToJson, readPage } from '../src/page-document.ts';
 import { tiles } from '../src/layout/bands.ts';
 import { COUNTRY_COLUMNS, countriesCsv, salesCsv, SALES_COLUMNS } from '../src/samples.ts';
 import { COUNTRY_SPECS, prepJoinsPage } from '../src/examples/prep-joins.ts';
-import { openCube } from '../src/cube-document.ts';
+import { frozenInput, openCube } from '../src/cube-document.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 import { layoutTiles } from '../src/page-document.ts';
 
@@ -110,7 +110,7 @@ describe('the example pages', () => {
     const unmatched = cube('unmatched').source;
     assert.ok(joined._type === 'join' && unmatched._type === 'join');
     for (const j of [joined, unmatched]) {
-      assert.deepEqual([j.left.source, j.right.source], [cube('orders').source, cube('countries').source]);
+      assert.deepEqual([frozenInput(j.left, j.name).source, frozenInput(j.right, j.name).source], [cube('orders').source, cube('countries').source]);
       assert.ok('on' in j.how && 'rows' in j.how.on);
       assert.deepEqual(j.how.on.rows, [{ left: 'country_code', op: '==', right: 'code' }]);
     }

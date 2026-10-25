@@ -4459,6 +4459,37 @@
 .dc-flow-plane { position: relative; min-width: 100%; min-height: 100%; }
 .dc-flow-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .dc-flow-lines path { fill: none; stroke: var(--tw-neutral-400); stroke-width: 1.5; }
+/* a line's wider stroke beneath it, what a pointer finds: pressed, the line selected */
+.dc-flow-lines path.dc-flow-hit { stroke: transparent; stroke-width: 14; pointer-events: stroke; cursor: pointer; }
+.dc-flow-view .dc-flow-lines path.dc-flow-hit { pointer-events: none; }
+.dc-flow-lines path.dc-flow-hit:hover + .dc-flow-line { stroke: var(--tw-neutral-600); stroke-width: 2; }
+.dc-flow-lines path.dc-flow-line-selected { stroke: var(--dc-active); stroke-width: 2.5; }
+/* a line a dragged tool would go between, and the line being drawn from a box's output */
+.dc-flow-lines path.dc-flow-line-target { stroke: var(--dc-active); stroke-width: 2.5; stroke-dasharray: 6 4; }
+.dc-flow-lines path.dc-flow-wire { stroke: var(--dc-active); stroke-width: 2; stroke-dasharray: 5 4; }
+.dc-flow-wiring, .dc-flow-wiring * { cursor: crosshair !important; }
+/* a selected line's ×, at its middle: the box it goes into then reads a copy of its rows */
+.dc-flow-unlink {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--dc-active);
+  border-radius: 50%;
+  background: var(--dc-bg);
+  color: var(--dc-active);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+}
+.dc-flow-unlink[hidden] { display: none; }
+.dc-flow-unlink:hover { background: var(--dc-active); color: var(--dc-bg); }
 .dc-flow-hint {
   position: absolute;
   inset: 0;
@@ -4537,8 +4568,32 @@
   background: var(--dc-bg);
 }
 .dc-flow-port-in { left: -5px; }
-.dc-flow-port-out { right: -5px; }
+.dc-flow-port-out { right: -5px; cursor: crosshair; transition: transform 100ms ease, border-color 100ms ease; }
+.dc-flow-port-out:hover { transform: scale(1.4); border-color: var(--dc-active); background: var(--dc-selected-bg); }
+.dc-flow-view .dc-flow-port-out { cursor: inherit; }
+.dc-flow-view .dc-flow-port-out:hover { transform: none; border-color: var(--dc-line-strong); background: var(--dc-bg); }
+/* its input ports: one, a join's left and right (L above R, where the lines into them come in) -- an Input has none */
+.dc-flow-port-left, .dc-flow-port-right {
+  display: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -7px;
+  left: -7px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  color: var(--dc-muted);
+}
+.dc-flow-port-left { top: 30%; }
+.dc-flow-port-right { top: 70%; }
 .dc-flow-box[data-tool='input'] > .dc-flow-port-in { display: none; }
+.dc-flow-box[data-tool='join'] > .dc-flow-port-in, .dc-flow-box[data-tool='union'] > .dc-flow-port-in { display: none; }
+.dc-flow-box[data-tool='join'] > .dc-flow-port-left, .dc-flow-box[data-tool='join'] > .dc-flow-port-right,
+.dc-flow-box[data-tool='union'] > .dc-flow-port-left, .dc-flow-box[data-tool='union'] > .dc-flow-port-right { display: block; }
+/* a box reading a copy on a side (a line taken off): its input hollow and dashed, said in its title */
+.dc-flow-box.dc-flow-frozen > .dc-flow-port-in { border-style: dashed; border-color: var(--tw-sky-600); }
+.dc-flow-box.dc-flow-frozen .dc-flow-says::before { content: '❄ '; color: var(--tw-sky-600); }
 .dc-flow-ghost {
   position: fixed;
   left: 0;
@@ -4580,6 +4635,20 @@
 }
 .dc-flow-settings-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dc-flow-settings:has(> .dc-flow-dock:not(:empty)) > .dc-flow-settings-head { display: none; }
+/* the box's inputs, above its settings: what it reads on each side, a box of the flow or a frozen copy */
+.dc-flow-inputs {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 6px var(--dc-pad-2);
+  border-bottom: 1px solid var(--dc-line-faint);
+  background: var(--dc-fill-faint);
+}
+.dc-flow-inputs[hidden] { display: none; }
+.dc-flow-input { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dc-flow-input-side { color: var(--dc-muted); font-size: 12px; }
+.dc-flow-input > .dc-select { min-width: 10em; max-width: 22em; }
 .dc-flow-dock { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .dc-flow-dock:empty { display: none; }
 .dc-flow-dock:not(:empty) ~ .dc-flow-settings-empty { display: none; }

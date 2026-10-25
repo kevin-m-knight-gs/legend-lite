@@ -64,12 +64,17 @@ function resolvedOn(page: PageDocument, source: CubeSource, through: readonly st
 /** A source with every grid its links name renamed (`n`: an id to the id it is now), as the page's ids are renamed
  *  (page-rebase.ts renamedCommand). */
 export function relinked(source: CubeSource, n: (id: string) => string): CubeSource {
-  const input = (i: CubeInput): CubeInput => (isLive(i) ? { grid: n(i.grid) } : { ...i, source: relinked(i.source, n) });
+  const input = (i: CubeInput): CubeInput => relinkedInput(i, n);
   switch (source._type) {
     case 'rows': return { ...source, input: input(source.input) };
-    case 'join': return { ...source, left: { ...source.left, source: relinked(source.left.source, n) }, right: { ...source.right, source: relinked(source.right.source, n) } };
+    case 'join': return { ...source, left: input(source.left), right: input(source.right) };
     default: return source;
   }
+}
+
+/** An input with every grid its links name renamed (relinked's rule, a page command's input: setInput). */
+export function relinkedInput(input: CubeInput, n: (id: string) => string): CubeInput {
+  return isLive(input) ? { grid: n(input.grid) } : { ...input, source: relinked(input.source, n) };
 }
 
 /**
@@ -80,13 +85,7 @@ export function frozenFrom(source: CubeSource, grid: string, copy: JoinInput): C
   const input = (i: CubeInput): CubeInput => (isLive(i) ? (i.grid === grid ? copy : i) : { ...i, source: frozenFrom(i.source, grid, copy) });
   switch (source._type) {
     case 'rows': return { ...source, input: input(source.input) };
-    case 'join': {
-      const left = input(source.left);
-      const right = input(source.right);
-      // a join's inputs are copies already (JoinInput): a live one is none of its own
-      if (isLive(left) || isLive(right)) throw new Error(`${source.name}: a join's inputs are copies, never live`);
-      return { ...source, left, right };
-    }
+    case 'join': return { ...source, left: input(source.left), right: input(source.right) };
     default: return source;
   }
 }

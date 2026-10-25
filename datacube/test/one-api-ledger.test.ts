@@ -508,6 +508,8 @@ const PASS_THROUGH: Record<string, string> = {
   // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4, the flow sheet): Create ▸ Flow, and a box let go
   addFlow: "a new flow sheet's id, as the page numbers ids, unnamed",
   placeBox: "where the box was let go, or its arrow key took it (placeBox rounds and judges it: layout/flow.ts moveBox)",
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2, a flow's lines)
+  setInput: "the box a line was drawn from, the box and side it was let go on (or a box's settings' Input picked), or none -- Freeze, a line taken off; setInput judges it (a cycle, a side the source has not) and makes the copy",
 };
 /** Functions that make commands a screen file calls and no headless function asks, each the screen's own (2026-10-22,
  *  S8): a person's input passed through, a form's edits, the board's hand or a tab's drag. */

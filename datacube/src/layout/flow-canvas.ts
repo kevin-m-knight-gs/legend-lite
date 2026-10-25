@@ -11,12 +11,19 @@
 // told once, on drop. A gesture owns its pointer to the end: let go (applied), Escape, a lost capture (undone).
 //
 // THE KEYBOARD: Tab moves among the palette's tools and the boxes; Enter shows a box, the arrows move it (Shift: further),
-// Delete takes it off, F2 renames it; Enter on a tool adds a box of it after the box shown.
+// Delete takes it off, F2 renames it; Enter on a tool adds a box of it after the box shown. A box's inputs are set in its
+// settings too (Input, a join's Left and Right): a box of the flow, or a frozen copy.
+//
+// LINES (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): drawn from a box's output port onto another box, a line links it (a
+// join's left or right by where it is let go: its top half, its bottom); a line clicked is selected, and Delete (or its
+// ×) takes it off -- the box reading it then reads a copy of what it read (frozen); a tool dropped on a line goes between
+// the two boxes.
 
 import { BOX_HEIGHT, BOX_WIDTH, MARGIN, type Flow } from './flow.ts';
 import type { FlowBoardState } from './flow-board.ts';
-import { boxSays, FLOW_TOOLS, PALETTE, TOOL_EDITORS, type BoxSays, type FlowTool } from '../flow-boxes.ts';
-import { liveGrids } from '../live-inputs.ts';
+import type { LineEnd } from './flow-board.ts';
+import type { InputSide } from '../cube-document.ts';
+import { boxInputs, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowTool } from '../flow-boxes.ts';
 import { gridTitle } from '../page-ids.ts';
 
 /** How far a pressed box or tool moves before it is dragged rather than clicked, in pixels. */
@@ -31,6 +38,16 @@ const LEAST_SETTINGS = 320;
 const LEAST_CANVAS = 240;
 
 const SVG = 'http://www.w3.org/2000/svg';
+
+/** Where a side's port is on a box's left edge, from its top: a join's left above its right, any other box's in the
+ *  middle (as Alteryx's Join has its L and R anchors). */
+const portY = (side: InputSide): number => (side === 'left' ? BOX_HEIGHT * 0.3 : side === 'right' ? BOX_HEIGHT * 0.7 : BOX_HEIGHT / 2);
+
+/** A side's name, as a port and the settings say it. */
+const SIDE_WORDS: Readonly<Record<InputSide, string>> = { input: 'Input', left: 'Left', right: 'Right' };
+
+/** A line's key: the box it goes into, and its side. */
+const lineKey = (end: LineEnd): string => `${end.tile}:${end.side}`;
 
 /** Each tool's icon, as strokes in a 16-unit square. */
 const ICONS: Readonly<Record<FlowTool, string>> = {
@@ -100,6 +117,16 @@ export class FlowCanvas {
   #settingsKey = '';
   /** The box clicked last: the settings pane's while no box is shown (one whose source was not opened). */
   #clicked: string | undefined;
+  /** The line selected (clicked), which Delete takes off; and the one a dragged tool is over. */
+  #line: LineEnd | undefined;
+  #lineTarget: LineEnd | undefined;
+  /** The line being drawn from a box's output, as the pointer has it (the plane's units), and the side it would go into. */
+  #wire: { readonly from: string; x: number; y: number; to?: LineEnd } | undefined;
+  /** A selected line's ×, at its middle. */
+  readonly #unlink: HTMLButtonElement;
+  /** The settings' inputs: a box's Input (a join's Left and Right), each a box of the flow or a frozen copy. */
+  readonly #inputs: HTMLElement;
+  #inputsKey = '';
 
   constructor(host: HTMLElement, board: FlowBoardState) {
     this.#host = host;
@@ -125,7 +152,16 @@ export class FlowCanvas {
     this.#lines.setAttribute('aria-hidden', 'true');
     this.#hint = el('div', 'dc-flow-hint');
     this.#hint.textContent = 'Drag an Input onto the canvas to start, then add tools after it: each box is one step, and its rows show below.';
-    this.#plane.append(this.#lines);
+    this.#unlink = doc.createElement('button');
+    this.#unlink.type = 'button';
+    this.#unlink.className = 'dc-flow-unlink';
+    this.#unlink.textContent = '×';
+    this.#unlink.title = 'Disconnect: the box it goes into keeps the rows it has now, frozen';
+    this.#unlink.setAttribute('aria-label', 'Disconnect this line');
+    this.#unlink.hidden = true;
+    this.#unlink.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.#unlink.addEventListener('click', () => this.#takeOffLine());
+    this.#plane.append(this.#lines, this.#unlink);
     this.#canvas.append(this.#plane, this.#hint);
     // THE SETTINGS PANE (§3.4, Alteryx's Configuration window): the shown box's grid docks the window that sets it here;
     // with none docked, what the box does and how to set it
@@ -140,7 +176,8 @@ export class FlowCanvas {
     this.#settingsTitle = el('div', 'dc-flow-settings-title');
     settingsHead.append(this.#settingsTitle);
     this.#settingsEmpty = el('div', 'dc-flow-settings-empty');
-    this.#settings.append(settingsHead, board.dock, this.#settingsEmpty);
+    this.#inputs = el('div', 'dc-flow-inputs');
+    this.#settings.append(settingsHead, this.#inputs, board.dock, this.#settingsEmpty);
     const top = el('div', 'dc-flow-top');
     top.append(this.#canvas, this.#side, this.#settings);
     this.#split = el('div', 'dc-flow-split');
@@ -178,8 +215,11 @@ export class FlowCanvas {
       if (file !== undefined) this.#board.options.onFile?.(file);
     });
     this.#canvas.addEventListener('pointerdown', (e) => {
-      // a press on the canvas itself, not a box: focus there, so Ctrl+Z reaches the page
-      if (e.target === this.#canvas || e.target === this.#plane) this.#canvas.focus({ preventScroll: true });
+      // a press on the canvas itself, not a box: focus there, so Ctrl+Z reaches the page -- and any line let go
+      if (e.target === this.#canvas || e.target === this.#plane || e.target === this.#lines) {
+        this.#canvas.focus({ preventScroll: true });
+        this.#selectLine(undefined);
+      }
     });
     this.#split.addEventListener('pointerdown', (e) => this.#startSplit(e));
     this.#side.addEventListener('pointerdown', (e) => this.#startSide(e));
@@ -288,11 +328,16 @@ export class FlowCanvas {
         this.#doc.body.append(ghost);
       }
       ghost.style.transform = `translate(${ev.clientX + 8}px, ${ev.clientY + 8}px)`;
-      this.#mark(this.#boxAt(ev.clientX, ev.clientY));
+      const box = this.#boxAt(ev.clientX, ev.clientY);
+      this.#mark(box);
+      // over a line, not a box: the tool goes between the boxes it links (an Input reads none: never between)
+      this.#markLine(box === undefined && tool !== 'input' ? this.#lineAt(ev.clientX, ev.clientY) : undefined);
     }, (apply, ev) => {
       ghost?.remove();
       const over = ev ? this.#boxAt(ev.clientX, ev.clientY) : undefined;
+      const line = this.#lineTarget;
       this.#mark(undefined);
+      this.#markLine(undefined);
       if (!apply) return;
       const editor = TOOL_EDITORS[tool];
       if (ghost === undefined) {
@@ -300,8 +345,9 @@ export class FlowCanvas {
         this.#board.options.onTool?.(tool, this.#board.shown, editor);
         return;
       }
-      // let go on a box: after it; on the canvas: after none; anywhere else: nothing
+      // let go on a box: after it; on a line: between its boxes; on the canvas: after none; anywhere else: nothing
       if (over !== undefined) this.#board.options.onTool?.(tool, over, editor);
+      else if (line !== undefined) this.#board.options.onTool?.(tool, this.#fromOf(line), editor, line);
       else if (ev && this.#onCanvas(ev.clientX, ev.clientY)) this.#board.options.onTool?.(tool, undefined, editor);
     });
   }
@@ -336,10 +382,20 @@ export class FlowCanvas {
     root.dataset['tile'] = id;
     root.tabIndex = 0;
     root.setAttribute('role', 'button');
-    const into = doc.createElement('span');
-    into.className = 'dc-flow-port dc-flow-port-in';
-    const out = doc.createElement('span');
-    out.className = 'dc-flow-port dc-flow-port-out';
+    const port = (cls: string, label?: string): HTMLElement => {
+      const p = doc.createElement('span');
+      p.className = `dc-flow-port ${cls}`;
+      if (label !== undefined) p.textContent = label;
+      return p;
+    };
+    // its inputs: one, or a join's left and right (CSS shows the ones its tool has)
+    const into = port('dc-flow-port-in');
+    const left = port('dc-flow-port-in dc-flow-port-left', 'L');
+    const right = port('dc-flow-port-in dc-flow-port-right', 'R');
+    // its output: pressed and dragged onto another box, a line linking them
+    const out = port('dc-flow-port-out');
+    out.title = 'Drag onto another box to link it here';
+    out.addEventListener('pointerdown', (e) => this.#startWire(id, out, e));
     const glyph = doc.createElement('span');
     glyph.className = 'dc-flow-icon';
     const text = doc.createElement('div');
@@ -358,7 +414,7 @@ export class FlowCanvas {
       e.stopPropagation();
       this.#board.options.onRemove?.(id);
     });
-    root.append(into, glyph, text, remove, out);
+    root.append(into, left, right, glyph, text, remove, out);
     const drawn: Drawn = { root, icon: glyph, name, says, remove, key: '', renaming: false };
     root.addEventListener('pointerdown', (e) => this.#startBox(id, drawn, e));
     root.addEventListener('keydown', (e) => this.#onBoxKey(id, drawn, e));
@@ -417,17 +473,22 @@ export class FlowCanvas {
     const shown = this.#board.shown === id;
     const refused = this.#board.refusal(id);
     const columns = this.#columnsOf(id);
-    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns]);
+    // a side read from a copy (FL6, a line taken off): frozen, said so
+    const frozen = this.#inputsOf(id).flatMap((i) => ('frozen' in i ? [i.frozen] : []));
+    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen]);
     if (key === drawn.key) return;
     drawn.key = key;
     drawn.root.dataset['tool'] = tool;
     drawn.root.dataset['group'] = FLOW_TOOLS[tool].group;
     drawn.root.classList.toggle('dc-flow-shown', shown);
     drawn.root.classList.toggle('dc-flow-refused', refused !== undefined);
+    drawn.root.classList.toggle('dc-flow-frozen', frozen.length > 0);
     drawn.root.setAttribute('aria-pressed', String(shown));
-    drawn.root.setAttribute('aria-label', `${name}: ${refused ?? says}`);
+    const frozenWords = frozen.length > 0 ? `Frozen: reads a copy of what ${frozen.join(' and ')} was` : undefined;
+    drawn.root.setAttribute('aria-label', `${name}: ${refused ?? says}${frozenWords !== undefined ? `. ${frozenWords}` : ''}`);
     // what it hands on: its columns, as its document says them (no query run for it)
-    drawn.root.title = refused ?? (columns.length > 0 ? `${columns.length} columns out: ${columns.join(', ')}` : '');
+    drawn.root.title = refused ?? [frozenWords, columns.length > 0 ? `${columns.length} columns out: ${columns.join(', ')}` : undefined]
+      .filter((t) => t !== undefined).join('\n');
     drawn.icon.replaceChildren(icon(this.#doc, tool));
     if (!drawn.renaming) drawn.name.textContent = name;
     drawn.says.textContent = says;
@@ -499,6 +560,16 @@ export class FlowCanvas {
   }
 
   #onCanvasKey(e: KeyboardEvent): void {
+    // a line selected: Delete takes it off, Escape lets it go
+    if (this.#line !== undefined && (e.key === 'Delete' || e.key === 'Backspace')) {
+      e.preventDefault();
+      this.#takeOffLine();
+      return;
+    }
+    if (this.#line !== undefined && e.key === 'Escape') {
+      this.#selectLine(undefined);
+      return;
+    }
     if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z') return;
     const target = e.target as HTMLElement | null;
     // a field (a box being renamed) keeps its own undo
@@ -542,32 +613,162 @@ export class FlowCanvas {
 
   // -- the lines ----------------------------------------------------------------------------------------------------
 
-  /** A line into each box from each box it reads live: out of its right side, into the left of the box reading it. */
+  /** Each box's inputs, from its document (flow-boxes.ts boxInputs): none for one with no document. */
+  #inputsOf(id: string): BoxInput[] {
+    const doc = this.#board.options.documentOf?.(id);
+    return doc === undefined ? [] : boxInputs(doc);
+  }
+
+  /** The box a line comes out of. */
+  #fromOf(line: LineEnd): string | undefined {
+    const i = this.#inputsOf(line.tile).find((x) => x.side === line.side);
+    return i !== undefined && 'grid' in i ? i.grid : undefined;
+  }
+
+  /**
+   * A line into each box from each box it reads live: out of its right side, into the left of the box reading it (a
+   * join's left above its right) -- each with a wider stroke beneath it that a pointer finds, and the line being drawn
+   * from a box's output.
+   */
   #paintLines(flow: Flow): void {
     const at = new Map(flow.boxes.map((b) => [b.tile, b]));
-    const paths: string[] = [];
+    const curve = (x1: number, y1: number, x2: number, y2: number): string => {
+      const bend = Math.max(32, Math.abs(x2 - x1) / 2);
+      return `M${x1} ${y1}C${x1 + bend} ${y1} ${x2 - bend} ${y2} ${x2} ${y2}`;
+    };
+    const lines: { readonly end: LineEnd; readonly d: string; readonly mid: { x: number; y: number } }[] = [];
     for (const box of flow.boxes) {
-      const doc = this.#board.options.documentOf?.(box.tile);
-      if (!doc) continue;
-      for (const from of liveGrids(doc.source)) {
-        const a = at.get(from);
+      for (const input of this.#inputsOf(box.tile)) {
+        if (!('grid' in input)) continue;
+        const a = at.get(input.grid);
         if (!a) continue;
         const x1 = a.x + BOX_WIDTH;
         const y1 = a.y + BOX_HEIGHT / 2;
         const x2 = box.x;
-        const y2 = box.y + BOX_HEIGHT / 2;
-        const bend = Math.max(32, Math.abs(x2 - x1) / 2);
-        paths.push(`M${x1} ${y1}C${x1 + bend} ${y1} ${x2 - bend} ${y2} ${x2} ${y2}`);
+        const y2 = box.y + portY(input.side);
+        lines.push({ end: { tile: box.tile, side: input.side }, d: curve(x1, y1, x2, y2), mid: { x: (x1 + x2) / 2, y: (y1 + y2) / 2 } });
       }
     }
-    const key = paths.join('|');
-    if (this.#lines.dataset['key'] === key) return;
-    this.#lines.dataset['key'] = key;
-    this.#lines.replaceChildren(...paths.map((d) => {
-      const path = this.#doc.createElementNS(SVG, 'path');
-      path.setAttribute('d', d);
-      return path;
-    }));
+    const w = this.#wire;
+    const wire = w === undefined ? undefined : (() => {
+      const a = at.get(w.from);
+      return a === undefined ? undefined : curve(a.x + BOX_WIDTH, a.y + BOX_HEIGHT / 2, w.x, w.y);
+    })();
+    // a line selected or marked that is gone (its box taken off, linked elsewhere) is let go
+    const keys = new Set(lines.map((l) => lineKey(l.end)));
+    if (this.#line !== undefined && !keys.has(lineKey(this.#line))) this.#line = undefined;
+    const selected = this.#line === undefined ? undefined : lineKey(this.#line);
+    const target = this.#lineTarget === undefined ? undefined : lineKey(this.#lineTarget);
+    const key = JSON.stringify([lines.map((l) => [lineKey(l.end), l.d]), wire, selected, target, this.#board.editing]);
+    if (this.#lines.dataset['key'] !== key) {
+      this.#lines.dataset['key'] = key;
+      const path = (d: string, cls: string): SVGPathElement => {
+        const p = this.#doc.createElementNS(SVG, 'path');
+        p.setAttribute('d', d);
+        p.setAttribute('class', cls);
+        return p;
+      };
+      this.#lines.replaceChildren(...lines.flatMap((l) => {
+        const k = lineKey(l.end);
+        const state = k === selected ? ' dc-flow-line-selected' : k === target ? ' dc-flow-line-target' : '';
+        const hit = path(l.d, 'dc-flow-hit');
+        hit.dataset['tile'] = l.end.tile;
+        hit.dataset['side'] = l.end.side;
+        if (this.#board.editing) hit.addEventListener('pointerdown', (e) => this.#pressLine(l.end, e));
+        return [hit, path(l.d, `dc-flow-line${state}`)];
+      }), ...(wire === undefined ? [] : [path(wire, 'dc-flow-line dc-flow-wire')]));
+    }
+    // the selected line's ×, at its middle
+    const mid = selected === undefined ? undefined : lines.find((l) => lineKey(l.end) === selected)?.mid;
+    this.#unlink.hidden = mid === undefined || !this.#board.editing;
+    if (mid !== undefined) this.#unlink.style.transform = `translate(${mid.x - 9}px, ${mid.y - 9}px)`;
+  }
+
+  /** A line pressed: selected (its × shown, Delete takes it off). */
+  #pressLine(end: LineEnd, e: PointerEvent): void {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.#canvas.focus({ preventScroll: true });
+    this.#selectLine(end);
+  }
+
+  #selectLine(end: LineEnd | undefined): void {
+    if ((end === undefined ? undefined : lineKey(end)) === (this.#line === undefined ? undefined : lineKey(this.#line))) return;
+    this.#line = end;
+    this.#paintLines(this.#placed(this.#board.layout));
+  }
+
+  /** The selected line taken off: the box it goes into frozen on that side (onFreeze). */
+  #takeOffLine(): void {
+    const line = this.#line;
+    if (line === undefined || !this.#board.editing) return;
+    this.#line = undefined;
+    this.#paintLines(this.#placed(this.#board.layout));
+    this.#board.options.onFreeze?.(line.tile, line.side);
+  }
+
+  /** The line under a point of the window, if one is (its wider stroke found). */
+  #lineAt(x: number, y: number): LineEnd | undefined {
+    for (const hit of this.#doc.elementsFromPoint(x, y)) {
+      if (!(hit instanceof SVGPathElement) || !hit.classList.contains('dc-flow-hit')) continue;
+      const tile = hit.dataset['tile'];
+      const side = hit.dataset['side'] as InputSide | undefined;
+      if (tile !== undefined && side !== undefined) return { tile, side };
+    }
+    return undefined;
+  }
+
+  #markLine(end: LineEnd | undefined): void {
+    if ((end === undefined ? undefined : lineKey(end)) === (this.#lineTarget === undefined ? undefined : lineKey(this.#lineTarget))) return;
+    this.#lineTarget = end;
+    this.#paintLines(this.#placed(this.#board.layout));
+  }
+
+  /** Where a line let go at a point of the window goes in: the box under it that reads another's rows -- a join's left
+   *  or right by the half it is let go on -- never `from` itself, nor a box that reads `from` already on that side. */
+  #endAt(from: string, x: number, y: number): LineEnd | undefined {
+    const tile = this.#boxAt(x, y);
+    if (tile === undefined || tile === from) return undefined;
+    const inputs = this.#inputsOf(tile);
+    if (inputs.length === 0) return undefined;
+    const r = this.#boxes.get(tile)!.root.getBoundingClientRect();
+    const side: InputSide = inputs.length === 1 ? inputs[0]!.side : (y - r.top < r.height / 2 ? 'left' : 'right');
+    const now = inputs.find((i) => i.side === side);
+    if (now !== undefined && 'grid' in now && now.grid === from) return undefined;
+    return { tile, side };
+  }
+
+  /** A line drawn from box `from`'s output: it follows the pointer, and let go on a box that reads another's rows, links
+   *  it (onConnect). */
+  #startWire(from: string, port: HTMLElement, e: PointerEvent): void {
+    if (e.button !== 0 || !this.#board.editing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.#selectLine(undefined);
+    const plane = (ev: PointerEvent): { x: number; y: number } => {
+      const r = this.#plane.getBoundingClientRect();
+      return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+    };
+    this.#wire = { from, ...plane(e) };
+    this.#host.classList.add('dc-flow-wiring');
+    this.#own(port, e, (ev) => {
+      const w = this.#wire;
+      if (w === undefined) return;
+      const to = this.#endAt(from, ev.clientX, ev.clientY);
+      this.#mark(to?.tile);
+      // drawn to the port it would go into, else to the pointer
+      const box = to === undefined ? undefined : this.#placed(this.#board.layout).boxes.find((b) => b.tile === to.tile);
+      Object.assign(w, box !== undefined && to !== undefined ? { x: box.x, y: box.y + portY(to.side), to } : { ...plane(ev), to: undefined });
+      this.#paintLines(this.#placed(this.#board.layout));
+    }, (apply) => {
+      const to = this.#wire?.to;
+      this.#wire = undefined;
+      this.#host.classList.remove('dc-flow-wiring');
+      this.#mark(undefined);
+      this.#paintLines(this.#placed(this.#board.layout));
+      if (apply && to !== undefined) this.#board.options.onConnect?.(to.tile, to.side, from);
+    });
   }
 
   // -- the results pane ---------------------------------------------------------------------------------------------
@@ -593,10 +794,55 @@ export class FlowCanvas {
     }
   }
 
+  /**
+   * THE SETTINGS' INPUTS, docked window or none (M2): what the box reads on each side -- a box of the flow (none that
+   * reads it: a box reading its own rows), or the copy it reads, frozen -- each changed there as a line drawn to it would.
+   */
+  #paintInputs(id: string | undefined): void {
+    const inputs = id === undefined ? [] : this.#inputsOf(id);
+    const boxes = this.#board.layout.boxes.map((b) => b.tile);
+    const readers = id === undefined || inputs.length === 0 ? new Set<string>()
+      : readersOf(id, boxes, (b) => this.#board.options.documentOf?.(b));
+    const offered = boxes.filter((b) => b !== id && !readers.has(b)).map((b) => ({ id: b, name: this.#nameOf(b, this.#said(b)?.tool ?? 'browse') }));
+    const key = JSON.stringify([id, inputs, offered, this.#board.editing]);
+    if (key === this.#inputsKey) return;
+    this.#inputsKey = key;
+    this.#inputs.hidden = inputs.length === 0;
+    const d = this.#doc;
+    this.#inputs.replaceChildren(...inputs.map((input) => {
+      const row = d.createElement('label');
+      row.className = 'dc-flow-input';
+      const words = d.createElement('span');
+      words.className = 'dc-flow-input-side';
+      words.textContent = SIDE_WORDS[input.side];
+      const pick = d.createElement('select');
+      pick.className = 'dc-select';
+      pick.disabled = !this.#board.editing;
+      const option = (label: string, value: string, on: boolean): HTMLOptionElement => {
+        const o = d.createElement('option');
+        o.textContent = label;
+        o.value = value;
+        o.selected = on;
+        return o;
+      };
+      for (const o of offered) pick.append(option(o.name, `grid:${o.id}`, 'grid' in input && input.grid === o.id));
+      // a copy: what it reads when frozen -- or, live, Freeze: a copy of what it reads now
+      pick.append(option('frozen' in input ? `A frozen copy of ${input.frozen}` : 'Freeze: a copy of its rows now', 'frozen', 'frozen' in input));
+      pick.addEventListener('change', () => {
+        const v = pick.value;
+        if (v === 'frozen') this.#board.options.onFreeze?.(id!, input.side);
+        else this.#board.options.onConnect?.(id!, input.side, v.slice('grid:'.length));
+      });
+      row.append(words, pick);
+      return row;
+    }));
+  }
+
   /** The settings pane with nothing docked: the shown box's tool and what it is set to, and how to set it. */
   #paintSettings(): void {
     const clicked = this.#clicked !== undefined && this.#board.layout.boxes.some((b) => b.tile === this.#clicked) ? this.#clicked : undefined;
     const id = this.#board.shown ?? clicked;
+    this.#paintInputs(id);
     const said = id === undefined ? undefined : this.#said(id);
     const name = id === undefined ? undefined : this.#nameOf(id, said?.tool ?? 'browse');
     const editor = said ? TOOL_EDITORS[said.tool] : undefined;

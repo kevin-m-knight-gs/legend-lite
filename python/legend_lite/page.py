@@ -267,6 +267,42 @@ class Grid(Tile):
         self._page._apply_page([_commands.page_place_box(tile=self._id, x=x, y=y)])
         return self
 
+    def relink(self, input: Grid, side: str = 'input') -> Grid:
+        """Its rows read live from grid ``input`` of its page from now on -- a line drawn on its flow from that box's
+        output (page-commands.ts setInput; docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) -- its query as it is, the grid then
+        opened over ``input`` as it is now (what changed said, as a load says it). ``side``: a join's ``'left'`` or
+        ``'right'``. Refused in DataCube's words: a grid that reads no other grid's rows, one that would read its own."""
+        _ = self._view, input._view
+        with self._page._batch():
+            self._page._apply_page([_commands.page_set_input(grid=self._id, side=side, input={'grid': input._id})], 'a relink')
+            self._page._current(self._view['cube'], 3)
+        return self
+
+    def freeze(self, side: str = 'input') -> Grid:
+        """Its rows read from a copy of what its live input is now, from now on (page-commands.ts setInput with no input:
+        a box's Freeze, as a box taken off freezes the boxes that read it): an edit of that grid no longer reaches this
+        one. ``side``: a join's ``'left'`` or ``'right'``. Refused in DataCube's words when it reads a copy already."""
+        _ = self._view
+        self._page._apply_page([_commands.page_set_input(grid=self._id, side=side, input=None)], 'a freeze')
+        return self
+
+    @property
+    def input(self) -> Grid | None:
+        """The grid of its page it reads live (a flow's box after another), or None: it reads a source of its own, or a
+        copy (frozen). A join reads two: see ``inputs``."""
+        inputs = self.inputs
+        if len(inputs) > 1:
+            raise ValueError('this grid is a join of two inputs: see inputs')
+        return next(iter(inputs.values()), None)
+
+    @property
+    def inputs(self) -> dict[str, Grid]:
+        """The grids of its page it reads live, by side -- ``'input'``, a join's ``'left'`` and ``'right'`` -- each one
+        a live link of its source (live-inputs.ts liveGrids); a side read from a copy is left out."""
+        source = self._cube['source']
+        sides = {'rows': ('input',), 'join': ('left', 'right')}.get(source['_type'], ())
+        return {side: self._page._tile(source[side]['grid'], Grid) for side in sides if 'grid' in source[side]}
+
     def _apply(self, commands: list[dict[str, Any]]) -> Grid:
         """The grid edited by commands, each the one DataCube's screen builds for the same edit (grid-commands.ts:
         docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md), each written by its generated builder (``_commands``: D17) --

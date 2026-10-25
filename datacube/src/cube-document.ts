@@ -168,14 +168,16 @@ export interface ClassSource {
 /**
  * A JOIN of two inputs (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17): each a cube -- a source and its saved query --
  * read as its rows at its finest level (query.ts classLambda, what Create a Class reads), and how they combine
- * (join.ts JoinHow). Kept by value, so a saved join reopens alone: an input is what its grid was when it was joined.
+ * (join.ts JoinHow). Kept by value, so a saved join reopens alone: an input is what its grid was when it was joined --
+ * or, a flow's Join box (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2), LIVE: the grid of that id on the same page, read as
+ * it is now, as a box's one input is (RowsSource).
  */
 export interface JoinSource {
   readonly _type: 'join';
   /** What a person calls it: `trades ⋈ customers` (join.ts joinTitle). */
   readonly name: string;
-  readonly left: JoinInput;
-  readonly right: JoinInput;
+  readonly left: CubeInput;
+  readonly right: CubeInput;
   readonly how: JoinHow;
   /** What it answered when the cube was saved. */
   readonly columns: readonly { readonly name: string; readonly type: string }[];
@@ -224,6 +226,38 @@ export function inputCube(input: JoinInput): CubeDocument {
 /** Whether an input is live: a grid of its page, read as it is now. */
 export const isLive = (input: CubeInput): input is LiveInput => 'grid' in input;
 
+/** An input resolved against its page (live-inputs.ts resolvedSource): the copy it is -- a live one, read before it was
+ *  resolved, refused (`of`: the source it is an input of), never guessed. */
+export function frozenInput(input: CubeInput, of: string): JoinInput {
+  if (isLive(input)) throw new Error(`${of} reads grid '${input.grid}' of its page live: resolve it against the page first`);
+  return input;
+}
+
+/** Which input of a grid over others' rows: another grid's rows have one (`input`), a join two (`left`, `right`). */
+export type InputSide = 'input' | 'left' | 'right';
+
+/** The input on `side` of `source`, refused in words when the source has none there. */
+export function inputOn(source: CubeSource, side: InputSide): CubeInput {
+  if (source._type === 'rows' && side === 'input') return source.input;
+  if (source._type === 'join' && side !== 'input') return source[side];
+  throw new CubeRefusal(source._type === 'join' ? `${source.name} is a join: its inputs are its left and its right`
+    : source._type === 'rows' ? `${source.name} reads another grid's rows: its one input is its input, not its ${side}`
+      : `${source.name} reads no other grid: it has no input`);
+}
+
+/** `source` with its input on `side` replaced (inputOn's sides, refused as it refuses them). */
+export function withInputOn(source: CubeSource, side: InputSide, input: CubeInput): CubeSource {
+  inputOn(source, side);
+  if (source._type === 'rows') return { ...source, input };
+  if (source._type === 'join') return side === 'left' ? { ...source, left: input } : { ...source, right: input };
+  throw new Error('unreachable: inputOn refused it');
+}
+
+/** The sides of `source` that read another grid's rows, in its order (none: it reads no other grid). */
+export function inputSides(source: CubeSource): readonly InputSide[] {
+  return source._type === 'rows' ? ['input'] : source._type === 'join' ? ['left', 'right'] : [];
+}
+
 /** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe, a class, a join,
  *  another grid's rows. */
 export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource | FrameSource | ClassSource | JoinSource
@@ -241,12 +275,8 @@ export type LeafSource = Exclude<CubeSource, JoinSource | RowsSource>;
  */
 export function leavesOf(source: CubeSource): LeafSource[] {
   switch (source._type) {
-    case 'join': return [...leavesOf(source.left.source), ...leavesOf(source.right.source)];
-    case 'rows':
-      if (isLive(source.input)) {
-        throw new Error(`${source.name} reads grid '${source.input.grid}' of its page live: resolve it against the page first`);
-      }
-      return leavesOf(source.input.source);
+    case 'join': return [...leavesOf(frozenInput(source.left, source.name).source), ...leavesOf(frozenInput(source.right, source.name).source)];
+    case 'rows': return leavesOf(frozenInput(source.input, source.name).source);
     default: return [source];
   }
 }
@@ -497,10 +527,10 @@ function readJoinSource(s: Record<string, unknown>): JoinSource {
   if (typeof s['name'] !== 'string' || s['name'] === '') throw new CubeDocumentError('the join source has no name');
   const columns = plain(s['columns']);
   if (!hasColumns({ columns })) throw new CubeDocumentError('the join source has no columns');
-  const input = (which: 'left' | 'right'): JoinInput => {
+  const input = (which: 'left' | 'right'): CubeInput => {
     const i = s[which];
     if (!isObject(i)) throw new CubeDocumentError(`the join source has no ${which} input`);
-    return readFrozenInput(i, `the join source's ${which} input`);
+    return readInput(i, `the join source's ${which} input`);
   };
   let how: JoinHow;
   try {
@@ -525,18 +555,25 @@ function readRowsSource(s: Record<string, unknown>): RowsSource {
   if (!hasColumns({ columns })) throw new CubeDocumentError("the source of another grid's rows has no columns");
   const i = s['input'];
   if (!isObject(i)) throw new CubeDocumentError("the source of another grid's rows has no input");
-  let input: CubeInput;
-  if ('grid' in i) {
-    const extra = Object.keys(i).filter((k) => k !== 'grid');
-    if (extra.length > 0) throw new CubeDocumentError(`a live input is its grid alone, not ${extra.join(', ')}`);
-    if (typeof i['grid'] !== 'string' || !idShape('grid').test(i['grid'])) {
-      throw new CubeDocumentError(`a live input names a grid of its page ('grid-3'), not ${JSON.stringify(plain(i['grid']) ?? null)}`);
-    }
-    input = { grid: i['grid'] };
-  } else {
-    input = readFrozenInput(i, "the source of another grid's rows' input");
-  }
+  const input = readInput(i, "the source of another grid's rows' input");
   return { _type: 'rows', name: s['name'], input, columns: columns as RowsSource['columns'] };
+}
+
+/** An input (`what`, as said), live -- `{grid}`, a grid of its page -- or frozen, a copy of what a grid was. */
+function readInput(i: Record<string, unknown>, what: string): CubeInput {
+  if (!('grid' in i)) return readFrozenInput(i, what);
+  const extra = Object.keys(i).filter((k) => k !== 'grid');
+  if (extra.length > 0) throw new CubeDocumentError(`a live input is its grid alone, not ${extra.join(', ')}`);
+  if (typeof i['grid'] !== 'string' || !idShape('grid').test(i['grid'])) {
+    throw new CubeDocumentError(`a live input names a grid of its page ('grid-3'), not ${JSON.stringify(plain(i['grid']) ?? null)}`);
+  }
+  return { grid: i['grid'] };
+}
+
+/** An input read from JSON (a page command's: setInput), refused in words as a cube's own reader refuses it. */
+export function readCubeInput(raw: unknown, what: string): CubeInput {
+  if (!isObject(raw)) throw new CubeDocumentError(`${what} is {grid} or a copy of a grid {name, source, query}, not ${JSON.stringify(raw)}`);
+  return readInput(raw, what);
 }
 
 function readQuerySource(s: Record<string, unknown>): QuerySource {

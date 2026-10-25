@@ -125,6 +125,19 @@ const over = (name: string): GridMaker => (gridHost, spawned, start) => {
   return made;
 };
 
+/** A grid over grid `of`'s rows, read live: a flow's box after another (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2). */
+const overRows = (of: string): GridMaker => (gridHost, spawned, start) => {
+  const made = new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
+    engine, planner: new StubPlanner(), compact: true, sourceLabel: 'desks.csv',
+    cubeSource: { _type: 'rows', name: 'desks.csv', input: { grid: of }, columns: SNAPSHOT.columns.map((c) => ({ name: c.name, type: c.type })) },
+    configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: 'desks.csv' },
+    ...(page ? { windowHost: page.root } : {}), ...spawned,
+    onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
+  });
+  if (spawned.id !== undefined) cubes.set(spawned.id, made);
+  return made;
+};
+
 /** The statement a snap counts its rows by, here: the fixture's engine answers it with the fixture's two rows. */
 const COUNT = 'count the rows';
 class CountingGate extends GateEngine {
@@ -504,6 +517,22 @@ const withFlow = async (): Promise<Record<string, string>> => {
   return { ...g, box };
 };
 
+/** A flow of three boxes (M2): its Input (`box`), another Input (`other`), and a box over `box`'s rows, live -- shown. */
+const withLinkedFlow = async (): Promise<Record<string, string>> => {
+  const g = await withFlow();
+  const other = pg().addGrid(over('orders.csv'));
+  const linked = pg().addGrid(overRows(g.box!), { near: g.box! });
+  await shown(host, `.dc-flow-box[data-tile="${linked}"]`);
+  await shown(host, '.dc-flow-inputs select');
+  return { ...g, other, linked };
+};
+/** The shown box's settings' Input picked: `value`, a box of the flow (`grid:<id>`) or `frozen`. */
+const pickInput = (value: string): void => {
+  const pick = host.querySelector<HTMLSelectElement>('.dc-flow-inputs select')!;
+  pick.value = value;
+  pick.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+};
+
 const GESTURES: readonly Gesture[] = [
   // the page
   { name: 'a grid added', setUp: twoGrids, make: async ({ a }) => { pg().addGrid(over('desks.csv'), { near: a! }); } },
@@ -540,6 +569,9 @@ const GESTURES: readonly Gesture[] = [
         .dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     },
   },
+  // a flow's lines (M2): a box frozen, and linked to another box, from its settings' Input
+  { name: 'a box frozen', setUp: withLinkedFlow, make: () => pickInput('frozen') },
+  { name: 'a box linked to another', setUp: withLinkedFlow, make: ({ other }) => pickInput(`grid:${other!}`) },
   {
     name: 'a text tile edited in place',
     setUp: async () => {
@@ -916,8 +948,9 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). 2026-10-22 (the S7 confirmation
  *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it.
  *  2026-10-24 (BI parity P4, text tiles): 51 -> 53, a text box added and a text tile edited in place.
- *  2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4): 53 -> 55, a flow added and a box moved. */
-const GESTURES_AT_LEAST = 55;
+ *  2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4): 53 -> 55, a flow added and a box moved.
+ *  2026-10-25 (M2, a flow's lines): 55 -> 57, a box frozen and a box linked to another. */
+const GESTURES_AT_LEAST = 57;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

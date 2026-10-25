@@ -17,6 +17,7 @@ import { CubeApp, type CubeAppQuerySource } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import { gridCapped, type CubeDocument, type RowsSource } from '../cube-document.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
+import type { LineEnd } from '../layout/flow-board.ts';
 import { gridInput } from '../live-inputs.ts';
 import { handleKey } from '../file-handles.ts';
 import { Latest, TabWork, mayLeave } from '../host.ts';
@@ -384,7 +385,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   /** A FLOW'S BOX SHOWN, and a tool of its palette added (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1), once the page can
    *  open sources. */
   let openBox: ((box: string, document: CubeDocument, now: PageDocument) => Promise<GridMaker | undefined>) | undefined;
-  let flowTool: ((tool: FlowTool, after: string | undefined, sheet: string, now: PageDocument, editor: StepEditor | undefined) => void) | undefined;
+  let flowTool: ((tool: FlowTool, after: string | undefined, sheet: string, now: PageDocument, editor: StepEditor | undefined,
+    into?: LineEnd) => void) | undefined;
   let flowFile: ((file: File) => void) | undefined;
   /** JOIN… (§17.5): grid `cube` joined to another of the page -- in the tab, where a grid reads tables of its database; by
    *  the host, on a host's page (B11). Offered on a grid's menu where `offered` says. */
@@ -519,7 +521,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     ...(picks || services.pages ? { onBlankPage: () => blankPage?.({ asked: true }) } : {}),
     // a flow's box shown, over the page as it is now; a tool of its palette added
     openBox: (box, document, now) => openBox?.(box, document, now) ?? Promise.resolve(undefined),
-    onFlowTool: (tool, after, sheet, now, editor) => flowTool?.(tool, after, sheet, now, editor),
+    onFlowTool: (tool, after, sheet, now, editor, into) => flowTool?.(tool, after, sheet, now, editor, into),
     onFlowFile: (file) => flowFile?.(file),
     onChange: () => {
       harnessSignal.changes += 1;
@@ -1352,8 +1354,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       })().catch((e: unknown) => window.alert(`${file.name}: ${e instanceof Error ? e.message : String(e)}`));
     };
     // A TOOL OF THE PALETTE: an Input, a grid over a source picked now, a box of its own; any other tool, a box after
-    // `after` -- a grid over that box's rows, read live -- over the tables that box's grid reads when it is shown
-    flowTool = (tool, after, sheet, now, editor) => {
+    // `after` -- a grid over that box's rows, read live -- over the tables that box's grid reads when it is shown. Dropped
+    // on a line, the box that line went into reads the new one, told in the same step (docs/DATACUBE_FLOW_MODE_2026_10_24.md
+    // M2): one undo takes the box off and the line back
+    flowTool = (tool, after, sheet, now, editor, into) => {
       void (async () => {
         const shown = placed;
         if (tool === 'input') {
@@ -1372,7 +1376,14 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           await opened.discard?.();
           return;
         }
-        const box = page.addGrid(opened.make, { near: after });
+        const { pageCommand } = await lazily(() => import('../page-gestures.ts'));
+        const box = page.addGrid(opened.make, {
+          near: after,
+          ...(into !== undefined ? {
+            label: 'Insert Box',
+            after: (id: string) => [pageCommand('setInput', { grid: into.tile, side: into.side, input: { grid: id } })],
+          } : {}),
+        });
         // drawn as the tool it was added as, and its settings docked in the flow's settings pane: what the tool is for
         page.boxAddedAs(box, tool);
         if (editor !== undefined) page.grid(box)?.openStep?.(editor);

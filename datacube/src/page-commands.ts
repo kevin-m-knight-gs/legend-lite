@@ -8,7 +8,8 @@
 import { fieldNames, type CommandFields, type MissingFields } from './command-fields.ts';
 import { followCube, readChart, type ChartSpec } from './chart-spec.ts';
 import {
-  CubeDocumentError, cubeOpenedAgain, readCube, readCubeSource, type CubeDocument, type CubeSource, type JoinInput,
+  CubeDocumentError, cubeOpenedAgain, inputOn, isLive, readCube, readCubeInput, readCubeSource, withInputOn, type CubeDocument,
+  type CubeInput, type CubeSource, type InputSide, type JoinInput,
 } from './cube-document.ts';
 import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, type Bands, type Preset,
@@ -18,7 +19,7 @@ import {
   PageDocumentError, keptFor, layoutTiles, readGridCopy, readLayout, unnamedLabel, writePageOf, type ChartView, type FlowLayout,
   type GridCopy, type GridView, type PageDocument, type PageLayout, type PageSheet, type PageView, type TextView,
 } from './page-document.ts';
-import { frozenFrom, gridInput, liveGrids } from './live-inputs.ts';
+import { frozenFrom, gridInput, liveGrids, liveProblem } from './live-inputs.ts';
 import { givenName } from './page-names.ts';
 import type { PageModelRef } from './page-model.ts';
 import { chartTitle, gridTitle, idShape, nextPageId, textTitle } from './page-ids.ts';
@@ -26,7 +27,7 @@ import { textProblem } from './page-text-rule.ts';
 import { namedProperties, type PageFilter } from './page-filters.ts';
 import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageState } from './page-state.ts';
-import { CubeRefusal, withoutConditions, type CubeShape, type FilterNode } from './snapshot.ts';
+import { CubeRefusal, sameValue, withoutConditions, type CubeShape, type FilterNode } from './snapshot.ts';
 
 // -- the page's model (page-model.ts keeps its record; its rules are here, the commands' own) --
 
@@ -151,6 +152,14 @@ export type PageCommand =
    *  the cube opened over it by one rule whatever it is now (cube-document.ts cubeOpenedAgain) -- made by whichever
    *  side opened it again (the frames' host, or a tab opening its page). */
   | { readonly kind: 'rebuilt'; readonly cube: string; readonly source: CubeSource }
+  /**
+   * A grid's input set (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2: a line drawn on a flow, a box frozen or linked again,
+   * a removal's freeze undone): grid `grid` reads, on `side` -- another grid's rows' one input, a join's left or right --
+   * `input`: live, `{grid}`, a grid of the page as it is now; a copy of what a grid was; or, null, a copy of what its live
+   * input is now (Freeze). Its query as it is: what its input answers now is read when it opens again (a new column
+   * hidden, a gone one's parts left out: cube-document.ts cubeOpenedAgain). Refused when it would read its own rows.
+   */
+  | { readonly kind: 'setInput'; readonly grid: string; readonly side: InputSide; readonly input: CubeInput | null }
   /** The page's model made by its first model action (Create a Class…, a Data Space): its project, DataCube's workspace
    *  in it, the package its classes go in (modelMade, above). */
   | { readonly kind: 'modelInto'; readonly project: string; readonly workspace: string; readonly package: string }
@@ -163,7 +172,7 @@ export const PAGE_COMMAND_KINDS = [
   'renamePage', 'savedAs', 'addSheet', 'addFlow', 'placeBox', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid',
   'addChart', 'setChart',
   'addText', 'setText', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter',
-  'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto', 'modelPin', 'modelKeep',
+  'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
 /** Each page command's fields, by kind (`?` one it may leave out): what readPageCommand takes, and what Python's generated
@@ -176,7 +185,7 @@ export const PAGE_COMMAND_FIELDS = {
   setText: ['tile', 'text'], followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
-  removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'],
+  removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'],
   modelInto: ['project', 'workspace', 'package'], modelPin: ['revision'], modelKeep: ['cube', 'tables', 'class'],
 } as const satisfies CommandFields<PageCommand>;
 // every field of every kind listed: a field the list leaves out is a type error naming it
@@ -743,6 +752,29 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       return done(followedPage(rewritten(page, { cubes: page.cubes.map((c) => (c.id === command.cube ? { id: c.id, cube: document } : c)) }),
         command.cube, page));
     }
+    case 'setInput': {
+      const view = viewNamed(page, command.grid);
+      if (view.kind !== 'grid') throw new CubeRefusal(`'${command.grid}' is ${kindWords(view)}: a grid reads another grid's rows`);
+      const held = page.cubes.find((c) => c.id === view.cube);
+      if (held === undefined) throw new CubeRefusal(`'${command.grid}' shows no cube the page writes down`);
+      if (page.copies?.[view.cube] !== undefined) {
+        throw new CubeRefusal(`'${command.grid}' reads its snap: its input moves it once it goes live`);
+      }
+      const source = held.cube.source;
+      const was = inputOn(source, command.side);
+      let input: CubeInput;
+      if (command.input !== null) input = command.input;
+      else if (isLive(was)) input = gridInput(page, was.grid);
+      else throw new CubeRefusal(`'${command.grid}' reads a copy already: it is frozen`);
+      if (sameValue(was, input)) throw new CubeRefusal(`'${command.grid}' reads ${isLive(input) ? `'${input.grid}'` : 'that copy'} already`);
+      const next = rewritten(page, {
+        cubes: page.cubes.map((c) => (c.id === held.id ? { id: c.id, cube: { ...c.cube, source: withInputOn(source, command.side, input) } } : c)),
+      });
+      // a grid of the page, never one that reads its own rows (live-inputs.ts liveProblem: the page's reader's rule)
+      const problem = liveProblem(next);
+      if (problem !== undefined) throw new CubeRefusal(problem);
+      return done(next);
+    }
     case 'modelInto':
       return done(rewritten({ ...page, model: modelMade(page.model, command.project, command.workspace, command.package) }, {}));
     case 'modelPin':
@@ -875,6 +907,16 @@ export function opensAgain(page: PageDocument, cube: string): boolean {
   return page.copies?.[cube] === undefined;
 }
 
+/** A grid's input, read by the cube document's own reader: what it refuses, refused in its words. */
+function inputOf(v: unknown): CubeInput {
+  try {
+    return readCubeInput(v, "a grid's input");
+  } catch (e) {
+    if (e instanceof CubeDocumentError) throw new CubeRefusal(e.message);
+    throw e;
+  }
+}
+
 /** A cube's source, read by the cube document's own reader: what it refuses, refused in its words. */
 function sourceOf(v: unknown): CubeSource {
   try {
@@ -886,9 +928,9 @@ function sourceOf(v: unknown): CubeSource {
 }
 
 /** The field of a page command a host reads with its exact numbers (a calculated column's 1.10, a join condition's
- *  decimal), as the page's cubes are read: a cube's document, or a source. */
-export const EXACT_FIELD: Partial<Record<PageCommand['kind'], 'document' | 'source'>> = {
-  addGrid: 'document', rebuilt: 'source',
+ *  decimal), as the page's cubes are read: a cube's document, a source, or a grid's input (a copy holds a query). */
+export const EXACT_FIELD: Partial<Record<PageCommand['kind'], 'document' | 'source' | 'input'>> = {
+  addGrid: 'document', rebuilt: 'source', setInput: 'input',
 };
 
 /**
@@ -1055,6 +1097,14 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'rebuilt':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, cube: text(o['cube'], "a grid's cube"), source: sourceOf(o['source']) };
+    case 'setInput': {
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      const side = o['side'];
+      if (side !== 'input' && side !== 'left' && side !== 'right') {
+        throw new CubeRefusal(`a grid's input is its input, or a join's left or right, not ${JSON.stringify(side)}`);
+      }
+      return { kind, grid: text(o['grid'], 'a grid'), side, input: o['input'] === null ? null : inputOf(o['input']) };
+    }
     case 'modelInto':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, project: text(o['project'], "a page model's project"), workspace: text(o['workspace'], "a page model's workspace"),

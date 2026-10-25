@@ -2642,6 +2642,31 @@ class Flows(Paged):
         self.assertEqual(again.to_dict()['sheets'], saved['sheets'])
         self.assertTrue(again.sheets[1].flow)
 
+    def test_a_box_relinked_and_frozen(self):
+        # docs/DATACUBE_FLOW_MODE_2026_10_24.md M2: a line drawn from another box's output, a box frozen
+        page, flow, source, big = self.flowed()
+        top = flow.grid(input=source)
+        top.sort('notional', 'desc')
+        self.assertEqual(top.input, source)
+        self.assertEqual(len(top.to_pandas()), 3)
+        top.relink(big)
+        self.assertEqual(top.input, big)
+        self.assertEqual(sorted(top.to_pandas()['notional']), [100.0, 250.0], 'the Filter\'s rows')
+        # frozen: an edit of the box it read no longer reaches it
+        top.freeze()
+        self.assertIsNone(top.input)
+        big.filter([('notional', 'greaterThan', 200)])
+        self.assertEqual(sorted(top.to_pandas()['notional']), [100.0, 250.0])
+        top.relink(big)
+        self.assertEqual(sorted(top.to_pandas()['notional']), [250.0])
+        with self.assertRaisesRegex(ValueError, 'a relink: .*reads its own rows'):
+            big.relink(top)
+        with self.assertRaisesRegex(ValueError, 'a freeze: .*reads no other grid: it has no input'):
+            source.freeze()
+        # saved and loaded: the link kept
+        again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
+        self.assertEqual(next(g for g in again.grids if g.id == top.id).input.id, big.id)
+
 
 class Snapped(Paged):
     """Snap as page state (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): grid.snap() copies the grid's base query by

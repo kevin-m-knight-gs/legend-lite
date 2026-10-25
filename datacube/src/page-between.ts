@@ -19,7 +19,8 @@
 // again over its source as it is now: `rebuilt`) is refused in words, and the screen opens the page again instead.
 
 import { applyPageCommand, idsOf, nextPageId, takenIds, type PageCommand, type PageDraft } from './page-commands.ts';
-import type { CubeDocument } from './cube-document.ts';
+import { inputOn, inputSides, isLive, type CubeDocument } from './cube-document.ts';
+import { relinkedInput } from './live-inputs.ts';
 import { layoutTiles, type ChartView, type GridCopy, type GridView, type PageDocument, type PageSheet, type PageView, type TextView } from './page-document.ts';
 import { rearranged, renamedCommand } from './page-rebase.ts';
 import { CubeRefusal, sameValue } from './snapshot.ts';
@@ -28,12 +29,13 @@ import { CubeRefusal, sameValue } from './snapshot.ts';
 export type PageScope = 'history' | 'whole';
 
 /** The commands that make a tile or a sheet: their id is theirs to give out afresh. */
-const MAKERS = new Set<PageCommand['kind']>(['addSheet', 'addGrid', 'addChart', 'addText']);
+const MAKERS = new Set<PageCommand['kind']>(['addSheet', 'addFlow', 'addGrid', 'addChart', 'addText']);
 
 /** The kind of id a making command gives out. */
 function kindMade(command: PageCommand): 'grid' | 'chart' | 'text' | 'sheet' | 'filter' {
   switch (command.kind) {
-    case 'addSheet': return 'sheet';
+    case 'addSheet':
+    case 'addFlow': return 'sheet';
     case 'addGrid': return 'grid';
     case 'addChart': return 'chart';
     case 'addText': return 'text';
@@ -127,8 +129,12 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
   const inFrom = (id: string): boolean => from.views.some((v) => v.id === id);
   const inTo = (id: string): boolean => to.views.some((v) => v.id === id);
 
-  // 1. sheets `to` has
-  for (const s of to.sheets) if (!from.sheets.some((x) => x.id === s.id)) emit({ kind: 'addSheet', id: s.id, name: s.name ?? null });
+  // 1. sheets `to` has: a board, or a flow sheet (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4) -- made as it is, never the
+  //    other kind (a flow sheet's removal undone made a board, its boxes' layout then refused: 2026-10-25)
+  for (const s of to.sheets) {
+    if (from.sheets.some((x) => x.id === s.id)) continue;
+    emit({ kind: s.layout.kind === 'flow' ? 'addFlow' : 'addSheet', id: s.id, name: s.name ?? null });
+  }
 
   // 2. grids `to` has, with their cubes, on their sheets (a band of their own: the layout follows below)
   for (const v of to.views) {
@@ -155,6 +161,38 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     if (here.text !== v.text) emit({ kind: 'setText', tile: v.id, text: v.text });
     if ((here.title ?? null) !== (v.title ?? null)) emit({ kind: 'renameTile', tile: v.id, title: v.title ?? null });
   }
+
+  // 2c. the inputs of the grids both have, as `to` has them (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2: a flow's lines are
+  //     the page's, its boxes' queries their own) -- a box's removal undone links again the boxes it froze. Each set when
+  //     it reads no grid back meanwhile; those that would (two boxes swapped) frozen first, then set: every page between
+  //     then reads a part of `to`'s links, which read none back
+  const relinks: Extract<PageCommand, { kind: 'setInput' }>[] = [];
+  for (const v of to.views) {
+    if (v.kind !== 'grid' || !inFrom(v.id)) continue;
+    const want = to.cubes.find((c) => c.id === v.cube)?.cube.source;
+    const here = cur().views.find((x): x is GridView => x.kind === 'grid' && x.id === n(v.id));
+    const have = here === undefined ? undefined : cur().cubes.find((c) => c.id === here.cube)?.cube.source;
+    // a snapped grid's input moves once it goes live (setInput refuses it): its rows are its copy's meanwhile
+    if (want === undefined || have === undefined || want._type !== have._type || (cur().copies ?? {})[here!.cube] !== undefined) continue;
+    for (const side of inputSides(want)) {
+      if (!sameValue(inputOn(have, side), relinkedInput(inputOn(want, side), n))) relinks.push({ kind: 'setInput', grid: v.id, side, input: inputOn(want, side) });
+    }
+  }
+  const tried = (c: PageCommand): boolean => {
+    try {
+      emit(c);
+      return true;
+    } catch (e) {
+      if (e instanceof CubeRefusal) return false;
+      throw e;
+    }
+  };
+  const left = relinks.filter((c) => !tried(c));
+  for (const c of left) {
+    const at = cur().views.find((x): x is GridView => x.kind === 'grid' && x.id === n(c.grid))!;
+    if (isLive(inputOn(cur().cubes.find((x) => x.id === at.cube)!.cube.source, c.side))) emit({ ...c, input: null });
+  }
+  for (const c of left) emit(c);
 
   // 3. the charts both have: pointed at their grid in `to` (before the grid they read goes) -- or, detached in `to` (no
   //    grid shows their cube), on that kept cube as `to` holds it (`detach`, W19), unless a grid here still shows it (its

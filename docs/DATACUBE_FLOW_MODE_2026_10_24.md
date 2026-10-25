@@ -524,15 +524,41 @@ whose source was not opened the last time it was clicked is drawn red, why said 
 it is shown; each box says the columns it hands on (on its tooltip, and in the settings pane), read from its document,
 no query run for it. Tested by `flow-page.test.ts` and the harness (a file dropped, an Input over it, its rows).
 
-**Moved to M2:** a tool dropped onto a line, inserted there. It relinks the box after it to the new box: a change of
-that box's source, which no page command makes yet; M2's link commands (Freeze, Unfreeze: FL6) are where relinking
-comes.
+**Moved to M2, and built there:** a tool dropped onto a line, inserted there (M2 step 2, below).
 
-**Not yet, said:** an undo of a box's removal brings it back as a new tile, and the boxes after it keep reading its copy until Unfreeze (M2) links them
-again (an undo is the page's structure: page-between.ts leaves the cubes of the grids both pages have as they are); a
-chart or a text box of a box's rows (refused, said: they go on a board sheet); a tool added from the tab on a page
-Python serves (refused in words: Python adds one, `flow.grid(input=box)`); a grid on a board reading a box that is shown
-re-read when that box is edited.
+**Not yet, said:** a chart or a text box of a box's rows (refused, said: they go on a board sheet); a tool added from
+the tab on a page Python serves (refused in words: Python adds one, `flow.grid(input=box)`); a grid on a board reading a
+box that is shown re-read when that box is edited.
+
+### M2's own steps (2026-10-25)
+
+**Built in step 1, a box's input set** (`datacube/src/page-commands.ts` `setInput`, `cube-document.ts` `inputOn`,
+`withInputOn`, `inputSides`, `readCubeInput`, `live-inputs.ts` `relinkedInput`, `page-between.ts` 2c, `page-rebase.ts`):
+one page command sets what a grid reads on a side -- another grid's rows' one `input`, a join's `left` or `right` -- to
+a grid of the page read live, a copy of what a grid was, or, `input: null`, a copy of what it reads live now (Freeze).
+Its query is kept; what its input answers now is read when it opens again. Refused in words: a source with no such side,
+the input it reads already, a box frozen twice, a snapped grid, and a link that would read its own rows (the page
+reader's rule, live-inputs.ts `liveProblem`). A join's inputs may be live now (`JoinSource.left`, `right`: FL6's "new
+joins are live"), resolved against the page wherever they are read (`frozenInput`, the tab's `openedJoin` and the
+host's `gridOpened` given the page), the source keeping its links. The page's history covers a flow's lines: the
+commands between two pages set each input that differs, so **an undo of a box's removal links the boxes it froze again**
+(a swap of two boxes undone freezes each first where setting it at once would read its own rows). Found on the way: a
+flow sheet's removal undone made a board (page-between.ts made every sheet by `addSheet`), its boxes' layout then
+refused; it makes a flow now. Python: `grid.relink(box)` (a join's `side='left'`/`'right'`), `grid.freeze()`, and
+`grid.input` / `grid.inputs`, the grids it reads live (`python/tests/test_page.py Flows`). Tested by
+`datacube/test/flow-sheet.test.ts` and `page-commands.test.ts`.
+
+**Built in step 2, a flow's lines** (`layout/flow-canvas.ts`, `flow-board.ts`, `flow-boxes.ts` `boxInputs`, `readersOf`;
+`page/cube-page.ts`, `app/datacube-app.ts`): a line drawn by hand from a box's output port onto another box links it
+(`Link Box`; a join's left or right by the half it is let go on, its L and R ports above and below); a line clicked is
+selected, its × at its middle, and Delete (or the ×) takes it off -- the box it went into then reads a copy of what it
+read, drawn frozen (a dashed input, ❄ before what it says; `Freeze Box`); a tool dropped onto a line goes between its two
+boxes (`Insert Box`: the box added and the box after it reading it, one step, one undo). The settings pane says what the
+shown box reads on each side -- a box of the flow (none that reads it), or the frozen copy, named as the box it copied
+-- and sets it there too, the keyboard's way to every line. Tested by the gestures ledger (`a box frozen`, `a box linked
+to another`), `flow-page.test.ts` and the harness: a line drawn and undone, a line taken off and linked again from the
+settings, a Sort dropped on a line and the insert undone in one step (`//datacube:verify_flow_test`).
+
 
 ---
 
