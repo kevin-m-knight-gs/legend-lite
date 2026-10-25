@@ -27,11 +27,24 @@ export interface ColumnProfile {
   readonly largest?: Scalar;
 }
 
-/** The profile of a box's rows: how many, and each column's. */
+/** The profile of a box's rows: how many, each column's, and how its number columns move together. */
 export interface Profile {
   readonly rows: number;
   readonly columns: readonly ColumnProfile[];
+  readonly correlations?: Correlations;
 }
+
+/**
+ * HOW A BOX'S NUMBER COLUMNS MOVE TOGETHER (Alteryx's Pearson Correlation): each pair's Pearson correlation, from -1 to 1,
+ * the database's `corr` -- a matrix, each column with itself 1, empty where a column does not vary.
+ */
+export interface Correlations {
+  readonly columns: readonly string[];
+  readonly r: readonly (readonly (number | null)[])[];
+}
+
+/** How many number columns a profile correlates at most: the first of them, so its question stays one row of a few. */
+export const CORRELATED = 10;
 
 const ROWS = '__profile_rows__';
 const KEY = '__profile_key__';
@@ -66,6 +79,41 @@ export function profileLambda(rows: ValueSpecification, columns: readonly Profil
     .extend([derive(KEY, lambda(['x'], lit.string('all')))])
     .groupBy([KEY], specs)
     .lambda();
+}
+
+/** Each pair's correlation's column: the two columns' places, never their names. */
+const pair = (i: number, j: number): string => `r${i}_${j}`;
+
+/**
+ * THE CORRELATIONS' QUESTION over `rows`: one row -- every row under one key -- each pair of `columns` (numbers, by name)
+ * mapped a row each and reduced by `corr`, as a grid's paired measure is (query.ts aggregateSpec).
+ */
+export function correlationLambda(rows: ValueSpecification, columns: readonly string[]): Lambda {
+  const x = (c: string): ValueSpecification => property(variable('x'), c);
+  const specs: ColSpec[] = [];
+  for (let i = 0; i < columns.length; i++) {
+    for (let j = i + 1; j < columns.length; j++) {
+      specs.push(agg(pair(i, j), lambda(['x'], fn('rowMapper', x(columns[i]!), x(columns[j]!))), lambda(['y'], fn('corr', variable('y')))));
+    }
+  }
+  return from(rows)
+    .extend([derive(KEY, lambda(['x'], lit.string('all')))])
+    .groupBy([KEY], specs)
+    .lambda();
+}
+
+/** The correlations read back off their question's one row (`table`), each column named as given (`names`). */
+export function correlationsOf(table: ResultTable, names: readonly string[]): Correlations {
+  const value = (name: string): number | null => {
+    const c = table.columns.find((col) => col.name === name);
+    if (c === undefined) throw new Error(`the correlations' answer has no column ${name}`);
+    const v = table.rowCount === 0 ? null : c.values[0] ?? null;
+    return v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
+  };
+  return {
+    columns: names,
+    r: names.map((_, i) => names.map((__, j) => (i === j ? 1 : value(i < j ? pair(i, j) : pair(j, i))))),
+  };
 }
 
 /** The question that types the rows profiled: none of them (`limit(0)`), its columns typed by the plan. */

@@ -3713,7 +3713,7 @@ export class CubeApp {
   async profile(): Promise<Profile> {
     const s = this.#snapshot;
     if (s.pivotOn.length > 0) throw new CubeRefusal('a pivoted grid\'s columns are its values: take its pivot off to profile it');
-    const { columnsLambda, profileLambda, profileOf } = await lazily(() => import('./profile.ts'));
+    const { CORRELATED, columnsLambda, correlationLambda, correlationsOf, profileLambda, profileOf } = await lazily(() => import('./profile.ts'));
     const rows = classLambda(s).body[0]!;
     const typed = await this.#controller.runQuery(columnsLambda(rows), s);
     // the columns it hands on: what the box after it reads (box-columns.ts), each said by the name it hands it on by
@@ -3721,7 +3721,14 @@ export class CubeApp {
     const columns = on.map((c) => ({ name: c.name, type: typed.rows.columns.find((t) => t.name === c.name)!.type }));
     const answer = await this.#controller.runQuery(profileLambda(rows, columns), s);
     const profile = profileOf(answer.rows, columns);
-    return { ...profile, columns: profile.columns.map((c, i) => ({ ...c, name: on[i]!.as })) };
+    // its measures, how they move together (Alteryx's Pearson Correlation): a second row of aggregates -- an id's or a
+    // year's correlation, a dimension's, says nothing
+    const kinds = new Map(rowColumns(s).map((c) => [c.name, c.kind] as const));
+    const numbers = columns.map((c, i) => ({ c, as: on[i]!.as }))
+      .filter(({ c }) => familyOf(c.type) === 'numeric' && kinds.get(c.name) === 'measure').slice(0, CORRELATED);
+    const correlations = numbers.length < 2 || profile.rows < 2 ? undefined : correlationsOf(
+      (await this.#controller.runQuery(correlationLambda(rows, numbers.map(({ c }) => c.name)), s)).rows, numbers.map(({ as }) => as));
+    return { ...profile, columns: profile.columns.map((c, i) => ({ ...c, name: on[i]!.as })), ...(correlations !== undefined ? { correlations } : {}) };
   }
 
   /**

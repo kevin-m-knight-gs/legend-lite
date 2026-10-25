@@ -1818,6 +1818,34 @@ export class FlowCanvas {
       el('td', 'dc-flow-profile-value', tr, 'smallest' in c ? said(c.smallest) : '');
       el('td', 'dc-flow-profile-value', tr, 'largest' in c ? said(c.largest) : '');
     }
+    // how its number columns move together (Alteryx's Pearson Correlation): each pair's r, tinted by its sign and strength
+    const corr = p.answer.correlations;
+    if (corr === undefined) return;
+    const section = el('section', 'dc-flow-corr', view);
+    el('div', 'dc-flow-corr-sum', section, 'How its number columns move together: each pair\'s correlation, from -1 to 1');
+    const matrix = el('table', 'dc-flow-corr-table', section);
+    const top = el('tr', '', el('thead', '', matrix));
+    el('th', '', top);
+    for (const c of corr.columns) el('th', 'dc-flow-corr-head', top, c).title = c;
+    const rowsOf = el('tbody', '', matrix);
+    corr.r.forEach((line, i) => {
+      const tr = el('tr', '', rowsOf);
+      tr.dataset['column'] = corr.columns[i]!;
+      el('th', 'dc-flow-corr-name', tr, corr.columns[i]!);
+      line.forEach((r, j) => {
+        // to two places, a negative zero none
+        const shown = r === null ? undefined : Math.round(r * 100) / 100 || 0;
+        const td = el('td', 'dc-flow-corr-cell', tr, shown === undefined ? '—' : shown.toLocaleString(UI_LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        td.dataset['r'] = r === null ? '' : String(r);
+        if (r !== null && i !== j) {
+          td.style.setProperty('--dc-corr', String(Math.min(1, Math.abs(r))));
+          td.classList.add(r < 0 ? 'dc-flow-corr-negative' : 'dc-flow-corr-positive');
+          if (Math.abs(r) >= 0.6) td.classList.add('dc-flow-corr-strong');
+        }
+        if (i === j) td.classList.add('dc-flow-corr-self');
+        td.title = `${corr.columns[i]} and ${corr.columns[j]}: ${r === null ? 'no correlation (one does not vary)' : r.toFixed(3)}`;
+      });
+    });
   }
 
   /**

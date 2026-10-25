@@ -23,7 +23,7 @@ import { tidyCommands } from '../src/page-gestures.ts';
 import { applyPlanned, pageBetween } from '../src/page-between.ts';
 import { CubeRefusal, type CubeSnapshot, type DerivedColumn, type FilterNode } from '../src/snapshot.ts';
 import { readUnique, uniqueCommands, uniqueOf } from '../src/unique.ts';
-import { profileLambda, profileOf } from '../src/profile.ts';
+import { correlationLambda, correlationsOf, profileLambda, profileOf } from '../src/profile.ts';
 import { imputeCommands, imputedOf, readImputation } from '../src/impute.ts';
 import { dateToolCommands, dateToolOf, readDateTool } from '../src/date-tools.ts';
 import { multiFieldOf } from '../src/multi-field.ts';
@@ -556,6 +556,15 @@ describe("a box's Profile (profile.ts): one row of aggregates asked of the datab
     ] });
     assert.deepEqual(profileOf({ rowCount: 0, epoch: 0, elapsedMs: 0, columns: [] } as never, columns).columns[0],
       { name: 'region', type: 'String', filled: 0, distinct: 0 });
+  });
+
+  it("asks each pair of number columns' correlation, and reads them back a matrix: each with itself 1, empty where none", () => {
+    const asked = JSON.stringify(correlationLambda(accessor('local::DB', 'trades'), ['a', 'b', 'c']));
+    for (const p of ['r0_1', 'r0_2', 'r1_2']) assert.ok(asked.includes(`"${p}"`), `asks ${p}`);
+    assert.ok(asked.includes('"corr"') && asked.includes('"rowMapper"'), 'by corr over rows mapped a pair each');
+    const col = (name: string, v: unknown) => ({ name, type: 'Float', values: [v] });
+    const table = { rowCount: 1, epoch: 0, elapsedMs: 0, columns: [col('r0_1', 0.5), col('r0_2', -1), col('r1_2', null)] } as never;
+    assert.deepEqual(correlationsOf(table, ['a', 'b', 'c']), { columns: ['a', 'b', 'c'], r: [[1, 0.5, -1], [0.5, 1, null], [-1, null, 1]] });
   });
 });
 

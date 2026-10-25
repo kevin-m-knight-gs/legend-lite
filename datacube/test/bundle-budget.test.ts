@@ -709,8 +709,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  385,500 -> 386,500 (2026-10-25, the flow mode's Multi-Field Formula -- the grid-only page's note of the same date).
  *  Measured 385,655.
  *  386,500 -> 387,500 (2026-10-25, the flow mode's Transpose, Select and Sample's other ways -- the grid-only page's note
- *  of the same date; the Select's and the Transpose's windows' styles among them). Measured 386,857. */
-const WIDGET_BUDGET = 387_500;
+ *  of the same date; the Select's and the Transpose's windows' styles among them). Measured 386,857.
+ *  387,500 -> 388,500 (2026-10-25, the flow mode's minimap, Fuzzy Match, Select's retype and a box's correlations: the
+ *  minimap's and the correlation matrix's styles, the Join window's edits-apart field and the Select's type choice;
+ *  their code the canvas's and the windows' chunks). Measured 387,738. */
+const WIDGET_BUDGET = 388_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

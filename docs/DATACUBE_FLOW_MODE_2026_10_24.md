@@ -294,7 +294,7 @@ How to read the status column:
 |---|---|---|
 | Field Summary, Basic Data Profile | Step | **Profile** (§17.6): per column, the count, empties, distinct values and top values |
 | Frequency Table, Histogram, Scatterplot | Built | Charts on a box's grid: bars over bins, scatter, box plot |
-| Pearson Correlation | Step | `corr` as an aggregate |
+| Pearson Correlation | Built (2026-10-25) | In every box's Profile, under its columns: each pair of its measures' `corr`, a matrix asked of the database as one row of aggregates |
 | Charts, Table, Layout, Render, Email | Built | Charts, KPIs, pages, exports and the email draft |
 
 ### Developer, apps, macros and the canvas
@@ -758,6 +758,15 @@ found by the harness, a Filter's port under it), and its button off while every 
 **Run from the keys** (`layout/flow-canvas.ts`): Ctrl+Enter (⌘+Enter) anywhere on the canvas runs the flow, as its
 button does, while no run is going; the keys panel and the button's title say so. Tested by the harness (a run from a
 box's keys writes its Output).
+
+**Built, correlations in the Profile** (M5; `profile.ts correlationLambda`, `layout/flow-canvas.ts`): Alteryx's Pearson
+Correlation without a box of its own -- a box's Profile shows, under its columns, how its measures move together: each
+pair's correlation, from -1 to 1, the database's `corr` over the rows mapped a pair each (as a grid's paired measure
+is), asked as one more row of aggregates when the Profile is shown, its first ten measures at most. A matrix, each
+column with itself 1, empty where one does not vary, each cell tinted by its sign and strength (blue together, red
+against). Measures only: an id's or a dimension's correlation says nothing, and a column's kind is the grid's to set.
+Tested by `flow-sheet.test.ts` (its question, its matrix read back) and the harness (the trades' measures, each with
+itself 1, every pair between -1 and 1; a picture).
 
 **Built, Select's retype** (`select-columns.ts`, `ui/select-form.ts`): the Select window's Type is a choice wherever a
 column can be made something else -- text a whole number, a fraction, a decimal, true or false, a date (`parseInteger`,

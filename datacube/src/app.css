@@ -5070,6 +5070,18 @@
 .dc-transpose-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dc-transpose-name-input, .dc-transpose-value-input { width: 9em; }
 
+/* ---- a box's correlations (layout/flow-canvas.ts, under its profile): each pair's r, tinted by sign and strength ---- */
+.dc-flow-corr { margin-top: 14px; }
+.dc-flow-corr-sum { margin: 0 0 6px; color: var(--dc-muted-strong); font-size: 12px; }
+.dc-flow-corr-table { border-collapse: separate; border-spacing: 2px; font-variant-numeric: tabular-nums; font-size: 12px; }
+.dc-flow-corr-head { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--dc-muted-strong); padding: 2px 6px; }
+.dc-flow-corr-name { text-align: left; font-weight: 600; padding: 2px 8px 2px 0; white-space: nowrap; }
+.dc-flow-corr-cell { min-width: 52px; padding: 4px 6px; text-align: center; border-radius: 4px; background: var(--tw-neutral-50); }
+.dc-flow-corr-positive { background: color-mix(in srgb, var(--dc-active) calc(var(--dc-corr) * 70%), var(--tw-white)); }
+.dc-flow-corr-negative { background: color-mix(in srgb, var(--tw-red-600) calc(var(--dc-corr) * 60%), var(--tw-white)); }
+.dc-flow-corr-self { color: var(--dc-muted); background: transparent; }
+.dc-flow-corr-strong { color: var(--tw-white); }
+
 /* ---- a flow's minimap (layout/flow-canvas.ts): the whole flow small, the part in view framed, while it does not fit ---- */
 .dc-flow-minimap {
   position: absolute; right: 12px; bottom: 12px; z-index: 3;
