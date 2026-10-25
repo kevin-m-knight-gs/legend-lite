@@ -875,7 +875,7 @@ describe('the app', () => {
     ]);
   });
 
-  it('adds and removes a heatmap from the menu (Conditional Formatting ▸ Color Scales ▸)', async () => {
+  it('adds and removes a heatmap from the menu (Conditional Formatting ▸ Heatmap, then Remove Heatmap)', async () => {
     rightClick('.dc-cell:not(.dc-dim)');
     pick('Heatmap');
     const column = Object.entries(app.configuration.columns).find(
@@ -883,7 +883,7 @@ describe('the app', () => {
     );
     assert.notEqual(column, undefined);
     rightClick('.dc-cell:not(.dc-dim)');
-    pick('No Color Scale');
+    pick('Remove Heatmap');
     assert.equal(
       Object.values(app.configuration.columns).some((c) => c.heatmap),
       false,
@@ -1410,7 +1410,7 @@ describe('the app', () => {
     assert.equal(app.configuration.columns['notional']?.heatmap, undefined, "its measure's is left alone");
     assert.ok(cells(total).some((c) => c.style.backgroundColor !== ''), 'the total is painted');
     assert.ok(cells('A__|__notional').every((c) => c.style.backgroundColor === ''), 'the cells are not');
-    await pickOnTotal('No Color Scale');
+    await pickOnTotal('Remove Heatmap');
     assert.equal(app.configuration.columns[total]?.heatmap, undefined);
     assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'taken off');
     app.dispose();

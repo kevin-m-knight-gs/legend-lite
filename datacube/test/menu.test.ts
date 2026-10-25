@@ -770,23 +770,22 @@ describe('Conditional Formatting ▸: data bars, colour scales, icon sets, one-c
   it("each a gesture carrying its choice; Data Bars a toggle; the column's icon set checked", () => {
     const none = { dataBar: false, scale: false, rules: 0 };
     assert.deepEqual(top({ snapshot: CUBE, column: 'notional', conditional: none }).map((i) => i.label),
-      ['Data Bars', 'Color Scales', 'Icon Sets', 'Highlight Rules', 'Clear Formatting from Column']);
-    assert.deepEqual(menuGesture(top({ snapshot: CUBE, column: 'notional', conditional: none })[0]!), { name: 'format.dataBar', args: { column: 'notional', on: true } });
-    assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: { ...none, dataBar: true } })[0]!.label, 'Remove Data Bars');
+      ['Heatmap', 'Data Bars', 'Color Scales', 'Icon Sets', 'Highlight Rules', 'Clear Formatting from Column']);
+    assert.deepEqual(menuGesture(top({ snapshot: CUBE, column: 'notional', conditional: none })[1]!), { name: 'format.dataBar', args: { column: 'notional', on: true } });
+    assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: { ...none, dataBar: true } })[1]!.label, 'Remove Data Bars');
     const icons = sub({ snapshot: CUBE, column: 'notional', conditional: { ...none, iconSet: 'flags' } }, 'Icon Sets');
     assert.deepEqual(icons.map((i) => [i.label, Boolean(i.checked)]),
       [['Arrows', false], ['Traffic Lights', false], ['Symbols', false], ['Flags', true], ['No Icons', false]]);
     assert.deepEqual(menuGesture(icons.at(-1)!), { name: 'format.iconSet', args: { column: 'notional', set: null } });
     const rules = sub({ snapshot: CUBE, column: 'notional', conditional: none }, 'Highlight Rules');
     assert.deepEqual(menuGesture(rules[0]!)?.args, { column: 'notional', rule: { when: { op: 'top', count: 10 }, style: { foreground: '#006100', background: '#c6efce' } } });
-    // the heatmap is a colour scale, the grid's own: it leads Color Scales ▸, and No Color Scale takes either off (the user,
-    // 2026-10-24: one place)
-    const scales = (hasHeatmap: boolean) => sub({ snapshot: CUBE, column: 'notional', conditional: none, hasHeatmap }, 'Color Scales');
-    assert.deepEqual(scales(false).map((i) => `${i.separated ? '| ' : ''}${i.label}${i.disabled ? ' [off]' : ''}`),
-      ['Heatmap', 'Green - Yellow - Red', 'Red - Yellow - Green', 'Blue - White - Red', 'White - Orange', '| No Color Scale [off]']);
-    assert.deepEqual(menuGesture(scales(false)[0]!), { name: 'heatmap.add', args: { column: 'notional' } });
-    assert.deepEqual([scales(true)[0]!.disabled, scales(true).at(-1)!.disabled], [true, false]);
-    assert.deepEqual(menuGesture(scales(true).at(-1)!), { name: 'heatmap.remove', args: { column: 'notional' } });
+    // the heatmap first, one click, saying what it will do (the user, 2026-10-25: it was lost under Color Scales ▸); the
+    // colour scales' presets under Color Scales ▸, the heatmap's Remove taking any of them off
+    const heat = (hasHeatmap: boolean) => top({ snapshot: CUBE, column: 'notional', conditional: none, hasHeatmap })[0]!;
+    assert.deepEqual([heat(false).label, menuGesture(heat(false))], ['Heatmap', { name: 'heatmap.add', args: { column: 'notional' } }]);
+    assert.deepEqual([heat(true).label, menuGesture(heat(true))], ['Remove Heatmap', { name: 'heatmap.remove', args: { column: 'notional' } }]);
+    assert.deepEqual(sub({ snapshot: CUBE, column: 'notional', conditional: none }, 'Color Scales').map((i) => i.label),
+      ['Green - Yellow - Red', 'Red - Yellow - Green', 'Blue - White - Red', 'White - Orange']);
     // nothing to clear, nothing offered to clear; something, offered
     assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: none }).at(-1)?.disabled, true);
     assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: { ...none, rules: 1 } }).at(-1)?.disabled, false);

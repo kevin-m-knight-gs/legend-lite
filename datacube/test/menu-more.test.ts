@@ -117,7 +117,7 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
       'Copy Column', 'Ascending', 'Descending', 'Add Ascending', 'Add Descending',
       'Vertical Pivot', 'Add Vertical Pivot', 'Remove Vertical Pivot', 'Horizontal Pivot', 'Add Horizontal Pivot',
       'Remove Horizontal Pivot', 'Auto-size to Fit Content', 'Minimize Column', 'Pin Left', 'Pin Right', 'Unpin', 'Hide',
-      'Heatmap', 'No Color Scale',
+      'Heatmap',
     ]) {
       assert.ok(off.includes(`${want} [off]`), `${want}: ${off.join(' | ')}`);
     }
@@ -129,10 +129,11 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     }
   });
 
-  it('a heatmap is added to a column that has none and removed from one that has (Conditional Formatting ▸ Color Scales ▸)', () => {
+  // the user, 2026-10-25: one click in Conditional Formatting ▸, saying what it will do
+  it('a heatmap is added to a column that has none and removed from one that has (Conditional Formatting ▸, first)', () => {
     const heat = (ctx: MenuContext) => labels(items(ctx).filter((i) => i.id === 'heatmap.add' || i.id === 'heatmap.remove'));
-    assert.deepEqual(heat({ snapshot: CUBE, column: 'notional' }), ['Heatmap', 'No Color Scale [off]']);
-    assert.deepEqual(heat({ snapshot: CUBE, column: 'notional', hasHeatmap: true }), ['Heatmap [off]', 'No Color Scale']);
+    assert.deepEqual(heat({ snapshot: CUBE, column: 'notional' }), ['Heatmap']);
+    assert.deepEqual(heat({ snapshot: CUBE, column: 'notional', hasHeatmap: true }), ['Remove Heatmap']);
   });
 
   it('the cube itself is exported as a file only when the host knows its source; the grid\'s exports always', () => {
@@ -175,7 +176,7 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     // a pivot's result is not pinned, as upstream's
     for (const label of ['Pin Left', 'Pin Right']) assert.equal(find(ctx, label)?.disabled, true, label);
     // with its own heatmap on (the app's hasHeatmap: heatmapSetting, a total's alone), its menu offers to take it off
-    assert.equal(find({ ...ctx, hasHeatmap: true }, 'No Color Scale')?.disabled, false);
+    assert.equal(find({ ...ctx, hasHeatmap: true }, 'Remove Heatmap')?.disabled, false);
     // named as its header names it: Properties' Pivot Statistic Column Name, when renamed
     assert.equal(find({ ...ctx, totalLabel: 'All years' }, 'Hide All years / notional')?.column, total);
     // nothing about it as a calculated column (the app finds no stage for it: calcStageOf), nor as a dimension

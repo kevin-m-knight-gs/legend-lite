@@ -1776,7 +1776,7 @@ try {
       isNumeric(view.find((c) => c.name === n)?.type));
     if (measure < 0) throw new Error('no measure column to shade');
     heatCol = measure;
-    await menu(['Conditional Formatting', 'Color Scales', 'Heatmap'], { col: heatCol });
+    await menu(['Conditional Formatting', 'Heatmap'], { col: heatCol });
     const after = await page.evaluate(() =>
       [...document.querySelectorAll('.dc-cell')]
         .filter((c) => c.style.backgroundColor).length);
@@ -1791,7 +1791,7 @@ try {
       [...document.querySelectorAll('.dc-cell')]
         .filter((c) => c.style.backgroundColor).length);
     if (!before) throw new Error('could not set up: no cell was coloured');
-    await menu(['Conditional Formatting', 'Color Scales', 'No Color Scale'], { col: heatCol });
+    await menu(['Conditional Formatting', 'Remove Heatmap'], { col: heatCol });
     const left = await page.evaluate(() =>
       [...document.querySelectorAll('.dc-cell')]
         .filter((c) => c.style.backgroundColor).length);
@@ -2287,7 +2287,7 @@ try {
     ['pinning a column', ['Pin', 'Pin Left'], {}],
     // a NUMERIC column as the grid shows it NOW: the index the heatmap check found is stale
     // once a later check has reordered the columns
-    ['a heatmap', ['Conditional Formatting', 'Color Scales', 'Heatmap'], async () => {
+    ['a heatmap', ['Conditional Formatting', 'Heatmap'], async () => {
       const view = await readView(page);
       return { col: (await headerNames()).findIndex((n) => isNumeric(view.find((c) => c.name === n)?.type)) };
     }],

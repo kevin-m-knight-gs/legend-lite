@@ -560,11 +560,11 @@ function modelMeasureItems(ctx: MenuContext): MenuItem[] {
 }
 
 /**
- * Conditional Formatting ▸ (Excel's; conditional.ts): Data Bars on or off, a colour scale, an icon set, the one-click
- * rules -- a rule of a value of one's own is the column's Properties' -- and the column's formats cleared. Each on what
- * a heatmap is on (a pivoted column's measure). The heatmap is a colour scale -- the grid's own, one setting with the
- * presets -- so it leads Color Scales ▸, and No Color Scale takes either off (the user, 2026-10-24: one place, the menu
- * shorter).
+ * Conditional Formatting ▸ (Excel's; conditional.ts): the heatmap and Data Bars on or off, a colour scale, an icon set,
+ * the one-click rules -- a rule of a value of one's own is the column's Properties' -- and the column's formats cleared.
+ * Each on what a heatmap is on (a pivoted column's measure). The heatmap is the grid's colour scale, one setting with the
+ * presets: its entry comes first, one click, and says what it will do -- Heatmap, or Remove Heatmap while a scale is on
+ * (the user, 2026-10-25: it was lost two levels down, under Color Scales ▸; a toggle names its action and flips).
  */
 function conditionalItems(ctx: MenuContext, column: string | undefined): MenuItem[] {
   const c = ctx.conditional;
@@ -572,14 +572,13 @@ function conditionalItems(ctx: MenuContext, column: string | undefined): MenuIte
   return [{
     label: 'Conditional Formatting',
     submenu: [
+      ctx.hasHeatmap
+        ? { id: 'heatmap.remove' as const, label: 'Remove Heatmap', disabled: !column, ...on }
+        : { id: 'heatmap.add' as const, label: 'Heatmap', disabled: !column, ...on },
       { id: 'format.dataBar', label: c?.dataBar ? 'Remove Data Bars' : 'Data Bars', disabled: !column, on: !c?.dataBar, ...on },
       {
         label: 'Color Scales',
-        submenu: [
-          { id: 'heatmap.add' as const, label: 'Heatmap', disabled: !column || Boolean(ctx.hasHeatmap), ...on },
-          ...COLOR_SCALES.map((s) => ({ id: 'format.colorScale' as const, label: s.label, disabled: !column, scale: s.scale, ...on })),
-          { id: 'heatmap.remove' as const, label: 'No Color Scale', disabled: !column || !ctx.hasHeatmap, separated: true, ...on },
-        ],
+        submenu: COLOR_SCALES.map((s) => ({ id: 'format.colorScale' as const, label: s.label, disabled: !column, scale: s.scale, ...on })),
       },
       {
         label: 'Icon Sets',

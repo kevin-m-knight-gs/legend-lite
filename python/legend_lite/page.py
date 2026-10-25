@@ -464,8 +464,8 @@ class Grid(Tile):
         return self._gesture('format.clear', {'column': column})
 
     def heatmap(self, column: str, on: bool = True) -> Grid:
-        """A heatmap on ``column`` -- or, ``on=False``, off -- as the menu's Conditional Formatting > Color Scales >
-        Heatmap and No Color Scale paint it (the gestures ``heatmap.add`` and ``heatmap.remove``): on a pivoted
+        """A heatmap on ``column`` -- or, ``on=False``, off -- as the menu's Conditional Formatting > Heatmap and
+        Remove Heatmap paint it (the gestures ``heatmap.add`` and ``heatmap.remove``): on a pivoted
         column's measure, so every value's column under it has it; a pivot total's its own. The heatmap it has already, or none to take off, changes nothing."""
         return self._gesture('heatmap.add' if on else 'heatmap.remove', {'column': column})
 
