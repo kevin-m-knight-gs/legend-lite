@@ -547,6 +547,29 @@ const GESTURES: readonly Gesture[] = [
       [...tile(text!).querySelectorAll('button')].find((b) => b.textContent === 'OK')!.click();
     },
   },
+  // a file opened on a text box (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): its right-click's Open Files…, picked through
+  // the file input a browser with no handles to give puts in the page; told once fingerprinted (its tab then drawn)
+  {
+    name: 'a file opened on a text box',
+    setUp: async () => {
+      const g = await twoGrids();
+      gridMenuItem(g.a, 'Text Box').click();
+      await settle();
+      return { ...g, text: [...host.querySelectorAll<HTMLElement>('[data-tile^="text-"]')].at(-1)!.dataset['tile']! };
+    },
+    make: async ({ text }) => {
+      escape();
+      contextMenu(tile(text!).querySelector('.dc-text-host')!);
+      entry('Open Files\u2026').click();
+      const input = await shown<HTMLInputElement>(dom.window.document, 'input.dc-file-input');
+      Object.defineProperty(input, 'files', { value: [new File(['# Plan'], 'plan.md')] });
+      input.dispatchEvent(new dom.window.Event('change'));
+      const tabbed = (): boolean => [...tile(text!).querySelectorAll('.dc-text-file-name')].some((t) => t.textContent === 'plan.md');
+      for (let i = 0; i < 200 && !tabbed(); i++) {
+        await new Promise((r) => setTimeout(r, 5));
+      }
+    },
+  },
   {
     name: 'a sheet arranged',
     setUp: twoGrids,
@@ -904,8 +927,9 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). 2026-10-22 (the S7 confirmation
  *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it.
- *  2026-10-24 (BI parity P4, text tiles): 51 -> 53, a text box added and a text tile edited in place. */
-const GESTURES_AT_LEAST = 53;
+ *  2026-10-24 (BI parity P4, text tiles): 51 -> 53, a text box added and a text tile edited in place.
+ *  2026-10-25 (§8 step 1, files in a text box): 53 -> 54, a file opened on a text box. */
+const GESTURES_AT_LEAST = 54;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

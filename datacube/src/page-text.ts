@@ -119,10 +119,19 @@ function startsBlock(lines: readonly string[], at: number): boolean {
  * cells over a row of `---` a table.
  */
 export function readText(text: string): TextBlock[] {
-  return readLines(text.replace(/\r\n?/g, '\n').split('\n'));
+  return readLines(text.replace(/\r\n?/g, '\n').split('\n'), 0);
 }
 
-function readLines(lines: readonly string[]): TextBlock[] {
+/** How deep blocks (a quote in a quote, a list in a list) and marks (bold in a link in bold) are read: deeper, their
+ *  words are text (the 2026-10-25 audit: a file of 3,000 nested quotes overflowed the stack; 2,000 nested lists took
+ *  17 s). */
+const DEEPEST = 16;
+
+function readLines(lines: readonly string[], depth: number): TextBlock[] {
+  if (depth > DEEPEST) {
+    return [{ kind: 'paragraph', runs: lines.filter((l) => l.trim() !== '')
+      .flatMap((l, i): TextRun[] => [...(i > 0 ? [{ kind: 'break' } as const] : []), { kind: 'text', text: l.trim() }]) }];
+  }
   const out: TextBlock[] = [];
   let paragraph: string[] = [];
   const flush = (): void => {
@@ -189,7 +198,7 @@ function readLines(lines: readonly string[]): TextBlock[] {
         else break;
         i += 1;
       }
-      out.push({ kind: 'quote', blocks: readLines(inner) });
+      out.push({ kind: 'quote', blocks: readLines(inner, depth + 1) });
       continue;
     }
     if (tableAt(lines, i)) {
@@ -213,7 +222,7 @@ function readLines(lines: readonly string[]): TextBlock[] {
     }
     if (ITEM.test(line)) {
       flush();
-      const { block, next } = readList(lines, i);
+      const { block, next } = readList(lines, i, depth);
       out.push(block);
       i = next;
       continue;
@@ -226,7 +235,7 @@ function readLines(lines: readonly string[]): TextBlock[] {
 }
 
 /** The list starting at `lines[at]`, and the line after it. */
-function readList(lines: readonly string[], at: number): { block: TextBlock; next: number } {
+function readList(lines: readonly string[], at: number, depth: number): { block: TextBlock; next: number } {
   const first = ITEM.exec(lines[at]!)!;
   const indent = indentOf(first[1]!);
   const ordered = first[3] !== undefined;
@@ -284,7 +293,7 @@ function readList(lines: readonly string[], at: number): { block: TextBlock; nex
       items: items.map((it): TextItem => {
         const under = it.under.map((l) => dedent(l, it.at));
         while (under.length > 0 && under.at(-1)!.trim() === '') under.pop();
-        const blocks = under.length > 0 ? readLines(under) : [];
+        const blocks = under.length > 0 ? readLines(under, depth + 1) : [];
         return {
           runs: linesRuns(it.words),
           ...(it.checked !== undefined ? { checked: it.checked } : {}),
@@ -307,36 +316,78 @@ export function followable(href: string): boolean {
 }
 
 const WORD = /[\p{L}\p{N}]/u;
-const BARE_LINK = /^https?:\/\/[^\s<]+/i;
+/** A bare address at the index it is tried from (`lastIndex`): sticky, so no copy of the line's rest is made for it. */
+const BARE_LINK = /https?:\/\/[^\s<]+/iy;
+
+/**
+ * Each `open` of `line` paired with its `close` at the same depth (`\` keeps the next character as text): a link's `]`
+ * past the brackets inside its words, its address's `)` past the parentheses inside it (`.../Foo_(bar)`). One pass.
+ */
+function pairs(line: string, open: string, close: string): Map<number, number> {
+  const out = new Map<number, number>();
+  const stack: number[] = [];
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '\\') i++;
+    else if (c === open) stack.push(i);
+    else if (c === close && stack.length > 0) out.set(stack.pop()!, i);
+  }
+  return out;
+}
+
+/** Runs with their links let go, their words kept: a link's words hold no link (`[https://a](https://b)`). */
+function unlinked(list: readonly TextRun[]): TextRun[] {
+  return list.flatMap((r): TextRun[] => {
+    if (r.kind === 'link') return unlinked(r.runs);
+    if (r.kind === 'bold' || r.kind === 'italic' || r.kind === 'strike') return [{ ...r, runs: unlinked(r.runs) }];
+    return [r];
+  });
+}
 
 /**
  * A line's runs: `**bold**` or `__bold__`, `*italic*` or `_italic_` (an `_` inside a word is the word's: `trade_id`),
  * `***both***`, `~~struck~~`, `` `code` ``, `[words](address)`, `<address>` and a bare `https://...`; an image
  * (`![words](address)`) its words linked to it. A `\` keeps the next mark as text; a mark with no end is text.
  */
-export function readRuns(line: string): TextRun[] {
+export function readRuns(line: string, depth = 0): TextRun[] {
+  if (depth > DEEPEST) return line === '' ? [] : [{ kind: 'text', text: line }];
   const out: TextRun[] = [];
   let text = '';
   const keep = (): void => {
     if (text !== '') out.push({ kind: 'text', text });
     text = '';
   };
+  // LINEAR IN THE LINE (the 2026-10-25 audit: a file's line of 60 KB of unclosed `*a ` took 4 s): what each search
+  // found is remembered -- the first `needle` at or after an index, and the first close of a mark (whether one closes
+  // depends on it alone, never on its opener) -- so the opener after reads it, not the line's rest again
+  const searched = new Map<string, { from: number; at: number }>();
+  const remembered = (key: string, from: number, find: () => number): number => {
+    const known = searched.get(key);
+    if (known && from >= known.from && (known.at < 0 || from <= known.at)) return known.at;
+    const at = find();
+    searched.set(key, { from, at });
+    return at;
+  };
+  const next = (needle: string, from: number): number => remembered(`=${needle}`, from, () => line.indexOf(needle, from));
   /** A span from `i`: `mark` ... `mark`, its inside read as runs; `word` marks (`_`) neither open nor close inside a
    *  word. The index after it, or -1. */
   const span = (i: number, mark: string, word: boolean): { inside: string; end: number } | null => {
     if (!line.startsWith(mark, i) || line[i + mark.length] === ' ' || line[i + mark.length] === undefined) return null;
     if (word && i > 0 && WORD.test(line[i - 1]!)) return null;
-    let from = i + mark.length + 1;
-    for (;;) {
-      const close = line.indexOf(mark, from);
-      if (close < 0) return null;
-      const after = line[close + mark.length];
-      if (line[close - 1] !== ' ' && line[close - 1] !== '\\' && !(word && after !== undefined && WORD.test(after))) {
-        return { inside: line.slice(i + mark.length, close), end: close + mark.length };
+    const from = i + mark.length + 1;
+    const close = remembered(`${word ? 'w' : 'm'}${mark}`, from, () => {
+      for (let at = from; ;) {
+        const c = line.indexOf(mark, at);
+        if (c < 0) return -1;
+        const after = line[c + mark.length];
+        if (line[c - 1] !== ' ' && line[c - 1] !== '\\' && !(word && after !== undefined && WORD.test(after))) return c;
+        at = c + 1;
       }
-      from = close + 1;
-    }
+    });
+    return close < 0 ? null : { inside: line.slice(i + mark.length, close), end: close + mark.length };
   };
+  let brackets: Map<number, number> | undefined;
+  let parens: Map<number, number> | undefined;
   let i = 0;
   while (i < line.length) {
     const c = line[i]!;
@@ -346,8 +397,10 @@ export function readRuns(line: string): TextRun[] {
       continue;
     }
     if (c === '`') {
-      const ticks = /^`+/.exec(line.slice(i))![0];
-      const end = line.indexOf(ticks, i + ticks.length);
+      let n = 1;
+      while (line[i + n] === '`') n++;
+      const ticks = '`'.repeat(n);
+      const end = next(ticks, i + n);
       if (end >= 0) {
         keep();
         const inside = line.slice(i + ticks.length, end);
@@ -362,40 +415,44 @@ export function readRuns(line: string): TextRun[] {
     const both = span(i, '***', false) ?? span(i, '___', true);
     if (both) {
       keep();
-      out.push({ kind: 'bold', runs: [{ kind: 'italic', runs: readRuns(both.inside) }] });
+      out.push({ kind: 'bold', runs: [{ kind: 'italic', runs: readRuns(both.inside, depth + 1) }] });
       i = both.end;
       continue;
     }
     const bold = span(i, '**', false) ?? span(i, '__', true);
     if (bold) {
       keep();
-      out.push({ kind: 'bold', runs: readRuns(bold.inside) });
+      out.push({ kind: 'bold', runs: readRuns(bold.inside, depth + 1) });
       i = bold.end;
       continue;
     }
     const struck = span(i, '~~', false);
     if (struck) {
       keep();
-      out.push({ kind: 'strike', runs: readRuns(struck.inside) });
+      out.push({ kind: 'strike', runs: readRuns(struck.inside, depth + 1) });
       i = struck.end;
       continue;
     }
     const italic = c === '*' || c === '_' ? span(i, c, c === '_') : null;
     if (italic) {
       keep();
-      out.push({ kind: 'italic', runs: readRuns(italic.inside) });
+      out.push({ kind: 'italic', runs: readRuns(italic.inside, depth + 1) });
       i = italic.end;
       continue;
     }
     const image = c === '!' && line[i + 1] === '[';
     if (c === '[' || image) {
       const open = image ? i + 1 : i;
-      const close = line.indexOf('](', open + 1);
-      const end = close < 0 ? -1 : line.indexOf(')', close + 2);
+      // its own `]`, past brackets in its words -- `[1] or [docs](...)` is two, the first no link (the 2026-10-25 audit)
+      // -- then its `(`, and the `)` that closes it, past parentheses in its address
+      brackets ??= pairs(line, '[', ']');
+      const close = brackets.get(open) ?? -1;
+      parens ??= pairs(line, '(', ')');
+      const end = close < 0 || line[close + 1] !== '(' ? -1 : parens.get(close + 1) ?? -1;
       if (close > open + 1 && end > close + 2) {
         // the address, without a title after it (`[x](https://... "title")`)
         const href = line.slice(close + 2, end).trim().split(/\s+/)[0] ?? '';
-        const words = readRuns(line.slice(open + 1, close));
+        const words = unlinked(readRuns(line.slice(open + 1, close), depth + 1));
         keep();
         if (followable(href)) out.push({ kind: 'link', href, runs: words });
         else out.push(...words);
@@ -404,7 +461,7 @@ export function readRuns(line: string): TextRun[] {
       }
     }
     if (c === '<') {
-      const end = line.indexOf('>', i + 1);
+      const end = next('>', i + 1);
       const href = end < 0 ? '' : line.slice(i + 1, end);
       if (followable(href)) {
         keep();
@@ -414,7 +471,8 @@ export function readRuns(line: string): TextRun[] {
       }
     }
     if ((c === 'h' || c === 'H') && (i === 0 || !WORD.test(line[i - 1]!))) {
-      const bare = BARE_LINK.exec(line.slice(i));
+      BARE_LINK.lastIndex = i;
+      const bare = BARE_LINK.exec(line);
       if (bare) {
         // a sentence's last mark is the sentence's, not the address's
         const href = bare[0].replace(/[.,;:!?'")\]]+$/, '');
@@ -448,14 +506,18 @@ export function textElement(doc: Document, blocks: readonly TextBlock[], preview
 
 /** The rows of a CSV file a text box draws; the rest are counted. */
 export const FILE_ROWS = 200;
+/** The columns of a CSV file a text box draws; the rest are counted (the 2026-10-25 audit: a file of commas was a header
+ *  of two million cells). */
+export const FILE_COLUMNS = 100;
 
 /**
  * A FILE IN A TEXT BOX (text-files.ts; docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): Markdown drawn as the box draws its own
  * words, plain text as it is, JSON indented (as it is, and said, when it does not read), CSV as a table -- its first line
- * the header, its first FILE_ROWS rows, the rest counted. Every word a text node: a file's own markup is never run. The
- * words' type, not the tile's drawn words (`.dc-text-tile`: what a page exports is the box's own words).
+ * the header, its first FILE_ROWS rows and FILE_COLUMNS columns, the rest counted. Every word a text node: a file's own
+ * markup is never run. The words' type, not the tile's drawn words (`.dc-text-tile`: what a page exports is the box's
+ * own words). `cut`: the text is the file's start, said so (`its first 2 MB`) -- JSON then shown as it is, unread.
  */
-export function fileElement(doc: Document, format: TextFileFormat, text: string, separator: ',' | '\t'): HTMLElement {
+export function fileElement(doc: Document, format: TextFileFormat, text: string, separator: ',' | '\t', cut?: string): HTMLElement {
   const box = doc.createElement('div');
   box.className = 'dc-text-file dc-text-words';
   const pre = (words: string): void => {
@@ -478,6 +540,11 @@ export function fileElement(doc: Document, format: TextFileFormat, text: string,
       pre(text);
       break;
     case 'json': {
+      // its start is no JSON a browser reads: shown as it is, the cut said by its caller, not as a fault of the file
+      if (cut !== undefined) {
+        pre(text);
+        break;
+      }
       let indented: string | undefined;
       try {
         indented = JSON.stringify(JSON.parse(text), null, 2);
@@ -498,7 +565,8 @@ export function fileElement(doc: Document, format: TextFileFormat, text: string,
       table.className = 'dc-text-file-table';
       const thead = doc.createElement('thead');
       const tr = doc.createElement('tr');
-      for (const cell of head) {
+      const wide = Math.max(head.length, ...body.map((r) => r.length));
+      for (const cell of head.slice(0, FILE_COLUMNS)) {
         const th = doc.createElement('th');
         th.textContent = cell;
         tr.append(th);
@@ -507,7 +575,7 @@ export function fileElement(doc: Document, format: TextFileFormat, text: string,
       const tbody = doc.createElement('tbody');
       for (const row of body) {
         const line = doc.createElement('tr');
-        for (const cell of row) {
+        for (const cell of row.slice(0, FILE_COLUMNS)) {
           const td = doc.createElement('td');
           td.textContent = cell;
           line.append(td);
@@ -516,7 +584,12 @@ export function fileElement(doc: Document, format: TextFileFormat, text: string,
       }
       table.append(thead, tbody);
       box.append(table);
-      if (more > 0) note(`and ${more.toLocaleString(UI_LOCALE)} more row${more === 1 ? '' : 's'}`);
+      const within = cut === undefined ? '' : ` in ${cut}`;
+      if (more > 0) note(`and ${more.toLocaleString(UI_LOCALE)} more row${more === 1 ? '' : 's'}${within}`);
+      if (wide > FILE_COLUMNS) {
+        const over = wide - FILE_COLUMNS;
+        note(`and ${over.toLocaleString(UI_LOCALE)} more column${over === 1 ? '' : 's'}`);
+      }
       break;
     }
   }
@@ -626,7 +699,8 @@ function drawBlocks(doc: Document, into: HTMLElement, blocks: readonly TextBlock
             li.className = 'dc-text-task';
             const box = doc.createElement('input');
             box.type = 'checkbox';
-            box.checked = item.checked;
+            // its attribute, not only its property: an export writes the element's HTML (the 2026-10-25 audit)
+            box.toggleAttribute('checked', item.checked);
             box.disabled = true;
             li.append(box);
           }
@@ -728,26 +802,48 @@ function wrap(area: HTMLTextAreaElement, before: string, after: string, placehol
 }
 
 /**
- * Each line the selection touches started with `prefix` (its number, for a numbered list), or -- all of them already
- * started so -- no longer.
+ * Each line the selection touches started with `prefix` (its number, for a numbered list) in place of any mark of
+ * `kind` it had -- a bulleted list made a task list, not taken apart (the 2026-10-25 audit) -- or, all of them already
+ * marked as `own` says, no longer. A blank line is left blank, and counts no number.
  */
-function prefixLines(area: HTMLTextAreaElement, prefix: (n: number) => string, matches: RegExp): void {
+function prefixLines(area: HTMLTextAreaElement, prefix: (n: number) => string, own: RegExp, kind: RegExp = own): void {
   const { selectionStart, selectionEnd, value } = area;
   const from = value.lastIndexOf('\n', selectionStart - 1) + 1;
   const endAt = value.indexOf('\n', selectionEnd);
   const to = endAt < 0 ? value.length : endAt;
   const lines = value.slice(from, to).split('\n');
-  const off = lines.every((l) => matches.test(l));
-  const next = lines.map((l, n) => (off ? l.replace(matches, '') : `${prefix(n + 1)}${l.replace(matches, '')}`)).join('\n');
+  const words = lines.filter((l) => l.trim() !== '');
+  const off = words.length > 0 && words.every((l) => own.test(l));
+  let n = 0;
+  const next = lines.map((l) => {
+    if (l.trim() === '') return l;
+    const bare = l.replace(kind, '');
+    n += 1;
+    return off ? bare : `${prefix(n)}${bare}`;
+  }).join('\n');
   replace(area, from, to, next, from, from + next.length);
 }
 
-/** `value[from, to)` replaced by `text`, `select` chosen after, told as an edit is (an `input` event: the preview). */
+/**
+ * `value[from, to)` replaced by `text`, `select` chosen after, told as an edit is (an `input` event: the preview). Typed
+ * where the browser types (`insertText`), so its undo takes it back as it would a person's typing (the 2026-10-25
+ * audit: a toolbar's edit was no step of the textarea's undo); else written in place.
+ */
 function replace(area: HTMLTextAreaElement, from: number, to: number, text: string, start: number, end: number): void {
   area.focus();
-  area.setRangeText(text, from, to, 'preserve');
+  area.setSelectionRange(from, to);
+  const doc = area.ownerDocument as Document & { execCommand?: (command: string, ui: boolean, value: string) => boolean };
+  let typed = false;
+  try {
+    typed = typeof doc.execCommand === 'function' && doc.execCommand('insertText', false, text) && area.value.slice(from, from + text.length) === text;
+  } catch {
+    typed = false;
+  }
+  if (!typed) {
+    area.setRangeText(text, from, to, 'preserve');
+    area.dispatchEvent(new (doc.defaultView ?? globalThis).Event('input', { bubbles: true }));
+  }
   area.setSelectionRange(start, end);
-  area.dispatchEvent(new (area.ownerDocument.defaultView ?? globalThis).Event('input', { bubbles: true }));
 }
 
 /** At the line's start, a block of its own (code, a table, a rule): on a line of its own, blank lines about it. */
@@ -762,6 +858,10 @@ function insertBlock(area: HTMLTextAreaElement, block: string, chooseFrom: numbe
 }
 
 const LIST_MARK = /^\s*(?:[-*+]|\d{1,9}[.)])\s+(?:\[[ xX]\]\s+)?/;
+/** Each list's own mark: what its button takes off again (a bullet that is not a task's, a number, a task's box). */
+const BULLET_MARK = /^\s*[-*+]\s+(?!\[[ xX]\])/;
+const NUMBER_MARK = /^\s*\d{1,9}[.)]\s+/;
+const TASK_MARK = /^\s*[-*+]\s+\[[ xX]\]\s+/;
 
 const MARKS: readonly (Mark | null)[] = [
   { name: 'Bold', face: 'B', key: 'b', act: (a) => wrap(a, '**', '**', 'bold') },
@@ -784,9 +884,9 @@ const MARKS: readonly (Mark | null)[] = [
       replace(a, from, to, next, from + next.length - words.length, from + next.length);
     },
   },
-  { name: 'Bulleted list', face: { icon: 'bullets' }, act: (a) => prefixLines(a, () => '- ', LIST_MARK) },
-  { name: 'Numbered list', face: { icon: 'numbers' }, act: (a) => prefixLines(a, (n) => `${n}. `, LIST_MARK) },
-  { name: 'Task list', face: { icon: 'tasks' }, act: (a) => prefixLines(a, () => '- [ ] ', LIST_MARK) },
+  { name: 'Bulleted list', face: { icon: 'bullets' }, act: (a) => prefixLines(a, () => '- ', BULLET_MARK, LIST_MARK) },
+  { name: 'Numbered list', face: { icon: 'numbers' }, act: (a) => prefixLines(a, (n) => `${n}. `, NUMBER_MARK, LIST_MARK) },
+  { name: 'Task list', face: { icon: 'tasks' }, act: (a) => prefixLines(a, () => '- [ ] ', TASK_MARK, LIST_MARK) },
   { name: 'Quote', face: { icon: 'quote' }, act: (a) => prefixLines(a, () => '> ', /^\s{0,3}>\s?/) },
   null,
   {

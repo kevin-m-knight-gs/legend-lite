@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { MAX_TEXT_FILES, bytesWords, csvSeparator, readTextFiles, textFileFormat } from '../src/text-files.ts';
+import { MAX_TEXT_FILES, MAX_TEXT_FILE_SIZE, bytesWords, csvSeparator, pickedRefusal, readTextFiles, textFileFormat } from '../src/text-files.ts';
 
 const SHA = 'a'.repeat(64);
 const file = (name: string, sha = SHA, size = 10): Record<string, unknown> => ({ name, size, sha256: sha });
@@ -42,6 +42,17 @@ describe('a text box\'s files', () => {
     assert.equal(readTextFiles([file('notes.md', 'ABC')]), "notes.md's sha256 is 64 lower-case hex digits");
     assert.match(readTextFiles([file('deck.pptx')]) as string, /^deck\.pptx is not a kind of file a text box shows: Markdown, text, CSV or JSON/);
     assert.equal(readTextFiles([file('a.md'), file('b.md')]), 'b.md is in the text box twice');
+    assert.equal(readTextFiles([file('huge.log', SHA, 100 * 1024 * 1024)]), 'huge.log is 100 MB, larger than the 64 MB a text box takes');
+    assert.deepEqual(readTextFiles([file('big.log', SHA, MAX_TEXT_FILE_SIZE)]), [{ name: 'big.log', size: MAX_TEXT_FILE_SIZE, sha256: SHA }]);
+  });
+
+  it('picked, are refused in the same words before they are read: too many, a kind it does not show, too big', () => {
+    // the screen reads each whole to fingerprint it (the 2026-10-25 audit: a gigabyte read before its kind was looked at)
+    assert.equal(pickedRefusal([{ name: 'notes.md', size: 10 }, { name: 't.csv', size: 0 }]), undefined);
+    assert.match(pickedRefusal([{ name: 'notes.md', size: 10 }, { name: 'clip.mp4', size: 4e9 }])!, /^clip\.mp4 is not a kind of file a text box shows/);
+    assert.equal(pickedRefusal([{ name: 'huge.log', size: MAX_TEXT_FILE_SIZE + 1 }]), 'huge.log is 64.0 MB, larger than the 64 MB a text box takes');
+    assert.equal(pickedRefusal(Array.from({ length: MAX_TEXT_FILES + 1 }, (_, i) => ({ name: `n${i}.md`, size: 1 }))),
+      `a text box shows ${MAX_TEXT_FILES} files at most`);
   });
 
   it('say their size as a person reads it', () => {
@@ -49,5 +60,6 @@ describe('a text box\'s files', () => {
     assert.equal(bytesWords(812), '812 bytes');
     assert.equal(bytesWords(14 * 1024), '14 KB');
     assert.equal(bytesWords(3.25 * 1024 * 1024), '3.3 MB');
+    assert.equal(bytesWords(2 * 1024 * 1024), '2 MB');
   });
 });

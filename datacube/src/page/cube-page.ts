@@ -58,7 +58,7 @@ import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { lazily } from '../lazily.ts';
 import { sha256 } from '../cube-document.ts';
 import { isFileHandle, pickTextFiles, type FileHandle, type HandleRead } from '../file-handles.ts';
-import { TEXT_FILE_EXTENSIONS, TEXT_FILE_SHOWN, bytesWords, csvSeparator, textFileFormat, type TextFile } from '../text-files.ts';
+import { TEXT_FILE_EXTENSIONS, TEXT_FILE_SHOWN, bytesWords, csvSeparator, pickedRefusal, textFileFormat, type TextFile } from '../text-files.ts';
 
 /** How many arrangements Undo Layout goes back through. */
 const LAYOUT_STEPS = 50;
@@ -198,6 +198,12 @@ export interface CubePageOptions {
    * place the browser lets a page ask. Absent, or nothing kept: the text box asks for the file again.
    */
   readonly textFile?: (sha256: string, click: boolean) => Promise<HandleRead | undefined>;
+  /** A text box's file picked again (its own name's Open…) with the handle the browser gave: kept by the host now, for
+   *  the saved page it is -- the page unchanged, no save would keep it (the 2026-10-25 audit). */
+  readonly keepTextFile?: (sha256: string, handle: FileHandle) => void;
+  /** What the board refuses before it tells a command (a file too big to read, of a kind a text box does not show), said
+   *  as the page's refusals are; absent, on its board. */
+  readonly refuse?: (words: string) => void;
   /** Create ▸ Data Source… from a chart's or a text box's right-click: the host's picker, a grid over what is picked
    *  beside `near` (a page of its own: page-app.ts addSource); absent, a tile's Create ▸ offers none, as a grid's. */
   readonly addSource?: (near: string) => void;
@@ -307,6 +313,8 @@ interface TextTile {
   files: readonly TextFile[];
   /** The file its tabs show, by its fingerprint; null: its own words. */
   shown: string | null;
+  /** Its words as last drawn, shown or not (a file's tab in front): what an export writes. */
+  drawn: HTMLElement | null;
   readonly body: HTMLElement;
   /** Its pencil, left of its title: a click edits its words. */
   readonly edit: HTMLButtonElement;
@@ -1150,7 +1158,8 @@ export class CubePage {
     const made = gridTitle(id);
     this.#titles.set(id, made);
     const near = how.near ?? (this.#options.grid ? GRID : undefined);
-    const beside = near !== undefined && (this.#grids.has(near) || this.#charts.has(near)) ? near : undefined;
+    // beside a grid, a chart or a text box (a text box's Create ▸ Data Source…: the 2026-10-25 audit)
+    const beside = near !== undefined && (this.#grids.has(near) || this.#charts.has(near) || this.#texts.has(near)) ? near : undefined;
     const about = cube.tileAbout();
     const tile: BandTile = { id, title: how.title ?? made, element: host, actions: [cube.tileHead()], state: cube.tileState(),
       ...(about !== undefined ? { about } : {}) };
@@ -1270,7 +1279,9 @@ export class CubePage {
         ...sheets.map((s) => ({ id: `sheet.to.${s.id}` as const, label: s.label })),
         { id: 'sheet.toNew' as const, label: 'New Sheet', ...(sheets.length > 0 ? { separated: true } : {}) },
       ] } : { disabled: true, hint: 'Edit Layout first' }) }] : []),
-      { id: 'tile.remove', label: 'Remove from Page', ...(this.#options.sheetLabel ? {} : { separated: true }) },
+      // off while the page is locked, as its x is (the 2026-10-25 audit)
+      { id: 'tile.remove', label: 'Remove from Page', ...(this.#options.sheetLabel ? {} : { separated: true }),
+        ...(this.#editing ? {} : { disabled: true, hint: 'Edit Layout first' }) },
     ] };
   }
 
@@ -1761,7 +1772,7 @@ export class CubePage {
     // accented while they are edited -- a click edits them; in view mode it goes (app.css), nothing is edited there
     const edit = stateButton(doc);
     edit.classList.add('dc-text-edit');
-    this.#texts.set(view.id, { text: view.text, files: view.files ?? [], shown: null, body, edit, editing: false });
+    this.#texts.set(view.id, { text: view.text, files: view.files ?? [], shown: null, drawn: null, body, edit, editing: false });
     this.#paintTextState(view.id);
     this.#drawText(view.id);
     // FILES DROPPED ON IT (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): shown beside its words, pointed to (text-files.ts)
@@ -1787,7 +1798,12 @@ export class CubePage {
         return p.file === null ? null : { file: p.file, ...(isFileHandle(handle) ? { handle } : {}) };
       })).then((got) => this.addTextFiles(view.id, got.filter((g): g is { file: File; handle?: FileHandle } => g !== null)));
     });
-    body.addEventListener('dblclick', () => this.editText(view.id));
+    // its words double-clicked: a file's tab or its preview is not its words (the 2026-10-25 audit: a word selected in a
+    // CSV opened the editor over it)
+    body.addEventListener('dblclick', (e) => {
+      if ((e.target as Element | null)?.closest?.('.dc-text-files, .dc-text-file, .dc-text-file-missing')) return;
+      this.editText(view.id);
+    });
     edit.addEventListener('click', () => this.editText(view.id));
     // RIGHT-CLICK: its window, then how it is shown and where, as a chart's (#tileView); its editor's own words keep the
     // browser's (copy, paste)
@@ -1819,12 +1835,13 @@ export class CubePage {
 
   /** A text tile's words drawn (page-text.ts, a chunk of its own fetched with the first drawn), unless its editor is
    *  open by the time they are. */
-  #drawText(id: string): void {
+  #drawText(id: string, focusTab = false): void {
     this.#paintTextState(id);
     void lazily(() => import('../page-text.ts')).then((chunk) => {
       const text = this.#texts.get(id);
       if (!text || text.editing) return;
       const words = chunk.textElement(this.#doc, chunk.readText(text.text));
+      text.drawn = words;
       if (text.files.length === 0) {
         text.body.replaceChildren(words);
         return;
@@ -1832,31 +1849,37 @@ export class CubePage {
       // its files beside its words: a tab each, the one shown below them
       const pane = this.#doc.createElement('div');
       pane.className = 'dc-text-pane';
-      text.body.replaceChildren(this.#fileTabs(id, text), pane);
+      const strip = this.#fileTabs(id, text);
+      text.body.replaceChildren(strip, pane);
+      // a tab pressed by the keyboard keeps it: the strip is drawn again (the 2026-10-25 audit)
+      if (focusTab) strip.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
       const shown = text.files.find((f) => f.sha256 === text.shown);
       if (shown === undefined) pane.append(words);
       else void this.#drawFile(id, shown, pane, chunk.fileElement, false);
     });
   }
 
-  /** A text box's tabs: its own words, then each of its files with its x, the one shown pressed. */
+  /**
+   * A text box's tabs: its own words, then each of its files with its x, the one shown pressed -- buttons, each pressed
+   * or not (a tab list holds tabs alone, and each file's x is beside its name: the 2026-10-25 audit).
+   */
   #fileTabs(id: string, text: TextTile): HTMLElement {
     const doc = this.#doc;
     const strip = doc.createElement('div');
     strip.className = 'dc-text-files';
-    strip.setAttribute('role', 'tablist');
+    strip.setAttribute('role', 'group');
+    strip.setAttribute('aria-label', 'What the text box shows');
     const tab = (label: string, sha: string | null): HTMLElement => {
       const holder = doc.createElement('span');
       holder.className = 'dc-text-file-tab';
       const button = doc.createElement('button');
       button.type = 'button';
       button.className = 'dc-text-file-name';
-      button.setAttribute('role', 'tab');
-      button.setAttribute('aria-selected', String(text.shown === sha));
+      button.setAttribute('aria-pressed', String(text.shown === sha));
       button.textContent = label;
       button.addEventListener('click', () => {
         text.shown = sha;
-        this.#drawText(id);
+        this.#drawText(id, true);
       });
       holder.append(button);
       strip.append(holder);
@@ -1870,8 +1893,9 @@ export class CubePage {
       off.type = 'button';
       off.className = 'dc-text-file-close';
       off.setAttribute('aria-label', `Take ${file.name} off`);
+      // by its fingerprint: the files a step draws again are equal, not the same objects (the 2026-10-25 audit)
       off.addEventListener('click', () => {
-        this.#tell(`Take ${file.name} Off`, pageCommand('setTextFiles', { tile: id, files: text.files.filter((f) => f !== file) }));
+        this.#tell(`Take ${file.name} Off`, pageCommand('setTextFiles', { tile: id, files: text.files.filter((f) => f.sha256 !== file.sha256) }));
       });
       holder.append(off);
     }
@@ -1880,11 +1904,12 @@ export class CubePage {
 
   /**
    * A text box's file drawn in `pane` (page-text.ts fileElement): read from this session's copy, else again from where it
-   * was picked (the host's kept handle); the browser asking first, a click of the person's lets it -- missing, it is asked
-   * for again by its name. Read as it is now: changed since it was added, that is said.
+   * was picked (the host's kept handle); the browser asking first, a click of the person's lets it -- missing, or not
+   * read, it is asked for again by its name. Read as it is now: changed since it was added, that is said. Only its first
+   * TEXT_FILE_SHOWN bytes are drawn: a copy already fingerprinted is read no further.
    */
   async #drawFile(id: string, file: TextFile, pane: HTMLElement,
-    draw: (doc: Document, format: NonNullable<ReturnType<typeof textFileFormat>>, text: string, separator: ',' | '\t') => HTMLElement,
+    draw: (doc: Document, format: NonNullable<ReturnType<typeof textFileFormat>>, text: string, separator: ',' | '\t', cut?: string) => HTMLElement,
     click: boolean): Promise<void> {
     const doc = this.#doc;
     const kept = this.#textFiles.get(file.sha256);
@@ -1892,28 +1917,47 @@ export class CubePage {
       : (await this.#options.textFile?.(file.sha256, click).catch((e: unknown) => ({ state: 'unavailable' as const, why: e instanceof Error ? e.message : String(e) })))
         ?? { state: 'unavailable', why: 'this browser keeps nothing of it' };
     // moved on meanwhile: another tab shown, the box redrawn
-    if (this.#texts.get(id)?.shown !== file.sha256 || !pane.isConnected) return;
+    const away = (): boolean => this.#texts.get(id)?.shown !== file.sha256 || !pane.isConnected;
+    if (away()) return;
     if (read.state === 'needs-click') {
       pane.replaceChildren(this.#fileAsk(`The browser asks before this page reads ${file.name} again.`, `Allow reading ${file.name}`,
         () => void this.#drawFile(id, file, pane, draw, true)));
       return;
     }
-    if (read.state === 'unavailable') {
-      pane.replaceChildren(this.#fileAsk(`${file.name} is not here (${read.why}): a page points to its files, never copies them.`,
+    const missing = (why: string): void => {
+      pane.replaceChildren(this.#fileAsk(`${file.name} is not here (${why}): a page points to its files, never copies them.`,
         `Open ${file.name}\u2026`, () => void this.#openAgain(id, file)));
+    };
+    if (read.state === 'unavailable') {
+      missing(read.why);
       return;
     }
     const format = textFileFormat(file.name);
     if (format === undefined) throw new Error(`${file.name} is a kind of file a text box does not show, yet it is on one`);
-    const bytes = await read.file.arrayBuffer();
-    const changed = !kept && (await sha256(bytes)) !== file.sha256;
-    if (!kept) this.#textFiles.set(file.sha256, { file: read.file });
-    if (this.#texts.get(id)?.shown !== file.sha256 || !pane.isConnected) return;
-    const shown = draw(doc, format, new TextDecoder().decode(bytes.slice(0, TEXT_FILE_SHOWN)), csvSeparator(file.name));
+    let shownBytes: ArrayBuffer;
+    let changed = false;
+    try {
+      if (kept) shownBytes = await read.file.slice(0, TEXT_FILE_SHOWN).arrayBuffer();
+      else {
+        // read whole once, to know it is the file added: kept for this session only then (the 2026-10-25 audit: a
+        // changed file kept under the old fingerprint was shown, the next time, as the one added)
+        const bytes = await read.file.arrayBuffer();
+        changed = (await sha256(bytes)) !== file.sha256;
+        if (!changed) this.#textFiles.set(file.sha256, { file: read.file });
+        shownBytes = bytes.slice(0, TEXT_FILE_SHOWN);
+      }
+    } catch (e) {
+      // moved, or changed on disk since it was picked (the browser's NotReadableError): asked for again
+      missing(e instanceof Error ? e.message : String(e));
+      return;
+    }
+    if (away()) return;
+    const cut = read.file.size > TEXT_FILE_SHOWN ? `its first ${bytesWords(TEXT_FILE_SHOWN)}` : undefined;
+    const shown = draw(doc, format, new TextDecoder().decode(shownBytes), csvSeparator(file.name), cut);
     const said: string[] = [];
     if (changed) said.push(`${file.name} has changed since it was added to this text box.`);
-    if (bytes.byteLength > TEXT_FILE_SHOWN) said.push(`The first ${bytesWords(TEXT_FILE_SHOWN)} of ${file.name} (${bytesWords(bytes.byteLength)}) are shown.`);
-    for (const words of said) {
+    if (cut !== undefined) said.push(`The first ${bytesWords(TEXT_FILE_SHOWN)} of ${file.name} (${bytesWords(read.file.size)}) are shown.`);
+    for (const words of said.reverse()) {
       const note = doc.createElement('p');
       note.className = 'dc-text-file-note';
       note.textContent = words;
@@ -1937,12 +1981,42 @@ export class CubePage {
     return box;
   }
 
-  /** A missing file picked again: the same one (its fingerprint) shown; another one in its place, told as the box's files. */
+  /** What the board refuses before telling a command, said as the page's refusals are (`refuse`). */
+  #refuse(words: string): void {
+    if (this.#options.refuse) this.#options.refuse(words);
+    else this.say(words);
+  }
+
+  /** Each picked file's fingerprint, its bytes read whole; undefined when one is not read -- a folder dropped, a file
+   *  moved or changed since -- refused in words (`#refuse`). */
+  async #fingerprinted(picked: readonly { readonly file: File }[]): Promise<string[] | undefined> {
+    const out: string[] = [];
+    for (const p of picked) {
+      try {
+        out.push(await sha256(await p.file.arrayBuffer()));
+      } catch (e) {
+        this.#refuse(`${p.file.name} could not be read (${e instanceof Error ? e.message : String(e)}): a folder, or a file moved since it was picked`);
+        return undefined;
+      }
+    }
+    return out;
+  }
+
+  /** A missing file picked again: the same one (its fingerprint) shown, its handle kept by the host; another one in its
+   *  place, told as the box's files. */
   async #openAgain(id: string, file: TextFile): Promise<void> {
     const [got] = await pickTextFiles(this.#doc, TEXT_FILE_EXTENSIONS, false);
     if (!got) return;
-    const sha = await sha256(await got.file.arrayBuffer());
+    // judged by name and size before it is read, by the page's own rule (text-files.ts pickedRefusal)
+    const refused = pickedRefusal([{ name: got.file.name, size: got.file.size }]);
+    if (refused !== undefined) {
+      this.#refuse(refused);
+      return;
+    }
+    const [sha] = (await this.#fingerprinted([got])) ?? [];
+    if (sha === undefined) return;
     this.#textFiles.set(sha, got);
+    if (got.handle) this.#options.keepTextFile?.(sha, got.handle);
     const text = this.#texts.get(id);
     if (!text) return;
     if (sha === file.sha256) {
@@ -1952,9 +2026,8 @@ export class CubePage {
     const other: TextFile = { name: got.file.name, size: got.file.size, sha256: sha };
     const was = text.shown;
     text.shown = sha;
-    if (!this.#tell(`Replace ${file.name}`, pageCommand('setTextFiles', { tile: id, files: text.files.map((f) => (f === file ? other : f)) }))) {
-      text.shown = was;
-    }
+    const files = text.files.map((f) => (f.sha256 === file.sha256 ? other : f));
+    if (!this.#tell(`Replace ${file.name}`, pageCommand('setTextFiles', { tile: id, files }))) text.shown = was;
   }
 
   /** Open Files… on a text box's right-click: the files picked, shown beside its words (`addTextFiles`). */
@@ -1965,17 +2038,21 @@ export class CubePage {
 
   /**
    * FILES ON A TEXT BOX (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): each fingerprinted and added to its files, told as the
-   * page's command (setTextFiles: its rule refuses, in its words, a kind it does not show or too many) -- one it shows
-   * already left as it is; the first new one shown. Their bytes stay this session's, their handles kept when the page is
-   * saved; the page keeps only where they are.
+   * page's command (setTextFiles: its rule refuses, in its words, a kind it does not show, too many, too big -- asked by
+   * name and size before any is read) -- one it shows already left as it is; the first new one shown. Their bytes stay
+   * this session's, their handles kept when the page is saved; the page keeps only where they are.
    */
   async addTextFiles(id: string, picked: readonly { readonly file: File; readonly handle?: FileHandle }[]): Promise<void> {
-    const added: TextFile[] = [];
-    for (const p of picked) {
-      const sha = await sha256(await p.file.arrayBuffer());
-      added.push({ name: p.file.name, size: p.file.size, sha256: sha });
-      this.#textFiles.set(sha, p);
+    if (!this.#texts.has(id)) return;
+    const refused = pickedRefusal(picked.map((p) => ({ name: p.file.name, size: p.file.size })));
+    if (refused !== undefined) {
+      this.#refuse(refused);
+      return;
     }
+    const shas = await this.#fingerprinted(picked);
+    if (shas === undefined) return;
+    const added = picked.map((p, i): TextFile => ({ name: p.file.name, size: p.file.size, sha256: shas[i]! }));
+    picked.forEach((p, i) => this.#textFiles.set(shas[i]!, p));
     const text = this.#texts.get(id);
     if (!text) return;
     const fresh = added.filter((a, i) => !text.files.some((f) => f.sha256 === a.sha256) && added.findIndex((b) => b.sha256 === a.sha256) === i);
@@ -1986,11 +2063,15 @@ export class CubePage {
     if (!this.#tell(label, pageCommand('setTextFiles', { tile: id, files: [...text.files, ...fresh] }))) text.shown = was;
   }
 
-  /** The text boxes' files read this session with the handle each was picked with: kept by the host when the page is
-   *  saved, so opening it again reads each from there (file-handles.ts handleKey). */
-  textFilesNow(): { readonly sha256: string; readonly handle: FileHandle }[] {
+  /** Each file on the page's text boxes, with the handle it was picked with this session where the browser gave one:
+   *  kept by the host when the page is saved -- one with none here, the handle the page it was saved as kept (Save As:
+   *  the 2026-10-25 audit) -- so opening it again reads each from there (file-handles.ts handleKey). */
+  textFilesNow(): { readonly sha256: string; readonly handle?: FileHandle }[] {
     const on = new Set([...this.#texts.values()].flatMap((t) => t.files.map((f) => f.sha256)));
-    return [...this.#textFiles].flatMap(([sha, f]) => (on.has(sha) && f.handle ? [{ sha256: sha, handle: f.handle }] : []));
+    return [...on].map((sha) => {
+      const handle = this.#textFiles.get(sha)?.handle;
+      return handle ? { sha256: sha, handle } : { sha256: sha };
+    });
   }
 
   /**
@@ -2027,7 +2108,8 @@ export class CubePage {
   /** A text tile as an export writes it: as the board drew it -- its HTML, a line a block -- or, not yet drawn, its
    *  words as typed. */
   #exportedText(text: TextTile): { readonly html: string; readonly lines: readonly string[] } {
-    const drawn = text.body.querySelector('.dc-text-tile');
+    // its words as drawn, a file's tab in front or not (the 2026-10-25 audit: an export depended on the tab shown)
+    const drawn = text.drawn ?? text.body.querySelector('.dc-text-tile');
     if (drawn === null) {
       const pre = this.#doc.createElement('pre');
       pre.textContent = text.text;

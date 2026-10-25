@@ -93,8 +93,9 @@
 .dc-page-filter-form[hidden] { display: none; }
 .dc-page-filter-form select, .dc-page-filter-form input { font: inherit; height: 18px; }
 .dc-page-filter-said { color: var(--dc-muted); }
-/* a grid the page's filters reach says so in its status bar, beside its own filter */
-.dc-status-page-filter { color: var(--tw-sky-700); }
+/* a grid the page's filters reach says so in its status bar, beside its own filter: a chip in the filter's colours (as
+   a chip's own: .dc-status-chip, later in this sheet, took them -- the 2026-10-25 audit) */
+.dc-status-chip.dc-status-page-filter { background: var(--tw-sky-100); color: var(--tw-sky-700); }
 .dc-page-alone:empty { display: none; }
 .dc-page-alone > .dc-tile-cube { align-self: stretch; }
 
@@ -817,6 +818,9 @@
   display: flex;
   align-items: center;
   min-width: 0;
+  /* a narrow tile: each group gives way, its words cut short, never pushed out of the bar (the 2026-10-25 audit) */
+  flex: 0 1 auto;
+  overflow: hidden;
 }
 .dc-status-readout { gap: 6px; padding-right: 2px; }
 
@@ -843,6 +847,9 @@
   color: var(--tw-neutral-600);
   padding: 0 var(--dc-pad-2);
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dc-status-sep {
@@ -851,8 +858,8 @@
   background: var(--tw-neutral-200);
 }
 
-/* a cut result: the one chip in a warning's colours */
-.dc-status-warning { background: var(--tw-amber-50, #fffbeb); color: var(--tw-amber-700, #b45309); font-weight: 500; }
+/* a cut result: the one chip in a warning's colours (as a chip's own, which come later: the 2026-10-25 audit) */
+.dc-status-chip.dc-status-warning { background: var(--tw-amber-50, #fffbeb); color: var(--tw-amber-700, #b45309); font-weight: 500; }
 
 /* the selection's figures, after the rows, while cells are selected */
 .dc-status-stats {
@@ -960,7 +967,7 @@
 
 /* THE GRID'S TOOLS, as icons (the user, 2026-10-25): quiet until pointed at, as a tile's buttons are. They were
    underlined links, the one place the app looked like a 2005 web page. */
-.dc-status-tools { display: flex; align-items: center; gap: 1px; padding: 0 2px; }
+.dc-status-tools { display: flex; flex: none; align-items: center; gap: 1px; padding: 0 2px; }
 .dc-status-tool,
 .dc-status-receipt {
   display: inline-flex;
@@ -988,6 +995,8 @@
 
 /* WHAT IS TRUE OF THE GRID, at the right: a chip each, only while it is so */
 .dc-status-chip {
+  flex: 0 1 auto;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -1809,6 +1818,9 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 }
 
 .dc-selector-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
   font-size: var(--dc-text-lg-size);
   line-height: 1;
@@ -2469,6 +2481,7 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 
 /* ---- Ad Hoc Analysis mode ------------------------------------------- */
 .dc-adhoc {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -2851,7 +2864,9 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
   overflow: auto;
   border-right: 1px solid var(--dc-line);
 }
-.dc-chartpanel-form:focus { outline: none; }
+/* moved into by the keyboard, it says so (the 2026-10-25 audit: the one cue was taken away) */
+.dc-chartpanel-form:focus:not(:focus-visible) { outline: none; }
+.dc-chartpanel-form:focus-visible { outline: 2px solid var(--dc-active); outline-offset: -2px; }
 .dc-chartpanel-form-body { padding: 0 var(--dc-pad-2) var(--dc-pad-2); }
 /* its heading and its ×, kept in sight as its fields scroll */
 .dc-chartpanel-form-head {
@@ -4388,8 +4403,8 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-pe-colhead { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .dc-pe-colname { font: 600 14px/20px var(--dc-font-mono, ui-monospace, monospace); }
 .dc-pe-fold > .dc-section-title { cursor: pointer; user-select: none; }
-.dc-pe-fold > .dc-section-title::before { content: '\25be'; width: 10px; font-size: 10px; color: var(--tw-neutral-400); }
-.dc-pe-fold.dc-folded > .dc-section-title::before { content: '\25b8'; }
+.dc-pe-fold > .dc-section-title > .dc-chrome-icon { width: 10px; height: 10px; flex: none; color: var(--tw-neutral-400); }
+.dc-pe-fold.dc-folded > .dc-section-title > .dc-chrome-icon { transform: rotate(-90deg); }
 .dc-pe-fold.dc-folded > :not(.dc-section-title) { display: none; }
 
 /* THE APP'S STATUS LINE (src/app/datacube-app.ts): what the planner says as it starts, the page's errors, and that it no
@@ -4482,7 +4497,7 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
   border-radius: var(--dc-radius-sm) var(--dc-radius-sm) 0 0; background: transparent; color: var(--dc-muted); cursor: pointer;
 }
 .dc-text-file-name:hover { color: inherit; background: var(--dc-hover); }
-.dc-text-file-name[aria-selected='true'] { color: inherit; border-color: var(--dc-line); background: var(--tw-white); }
+.dc-text-file-name[aria-pressed='true'] { color: inherit; border-color: var(--dc-line); background: var(--tw-white); }
 .dc-text-file-close {
   display: inline-flex; align-items: center; padding: 2px; margin-left: -4px; border: 0; background: transparent;
   color: var(--dc-muted); cursor: pointer; font-size: 10px;
@@ -4507,7 +4522,7 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-text-words p { margin: 0 0 0.6em; }
 .dc-text-words ul, .dc-text-words ol { margin: 0 0 0.6em; padding-left: 1.4em; }
 .dc-text-words code { font-family: var(--dc-mono, ui-monospace, monospace); background: var(--dc-hover, rgba(127, 127, 127, 0.12)); padding: 0 0.25em; border-radius: 3px; }
-.dc-text-words a { color: var(--dc-accent, #2f6fde); }
+.dc-text-words a { color: var(--tw-blue-600, #2563eb); }
 .dc-text-area { flex: 1 1 auto; min-height: 4em; resize: none; margin: var(--dc-pad-2); font: inherit; font-family: var(--dc-mono, ui-monospace, monospace); }
 .dc-text-words blockquote { margin: 0 0 0.6em; padding: 0 0 0 0.8em; border-left: 3px solid var(--tw-neutral-300); color: var(--tw-neutral-600); }
 .dc-text-words pre { margin: 0 0 0.6em; padding: 0.5em 0.7em; overflow: auto; border-radius: var(--dc-radius-sm); background: var(--dc-hover, rgba(127, 127, 127, 0.12)); }

@@ -11,7 +11,7 @@ const doc = new JSDOM('<!doctype html><body></body>').window.document;
 
 describe("the chrome's marks", () => {
   it('are drawn on the set\'s square in its stroke, named for a test, hidden from a screen reader', () => {
-    const names: readonly ChromeIcon[] = ['layout', 'maximise', 'restore', 'close', 'menu', 'more', 'chevronRight', 'chevronDown'];
+    const names: readonly ChromeIcon[] = ['layout', 'maximise', 'restore', 'close', 'menu', 'more', 'chevronRight', 'chevronDown', 'chevronLeft'];
     for (const name of names) {
       const svg = chromeIcon(doc, name);
       assert.equal(svg.getAttribute('data-icon'), name);

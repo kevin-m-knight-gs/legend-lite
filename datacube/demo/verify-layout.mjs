@@ -317,6 +317,15 @@ try {
     const lefts = new Set(Object.values(narrow).map((t) => t.x));
     if (lefts.size !== 1 || Object.values(narrow).some((t) => !near(t.w, b.w, 2))) throw new Error(`not stacked: ${JSON.stringify(narrow)}`);
     if (await page.locator('.dc-band-divider, .dc-band-edge').count()) throw new Error('handles on a narrow page');
+    // narrower still: each grid's status bar gives way, nothing pushed out of it (the 2026-10-25 audit)
+    await page.setViewportSize({ width: 320, height: 900 });
+    await frames(page, 4);
+    await settle();
+    const spilt = await page.evaluate(() => [...document.querySelectorAll('.dc-app-stats')]
+      .filter((bar) => bar.getBoundingClientRect().width > 0)
+      .map((bar) => [...bar.children].filter((c) => c.getBoundingClientRect().right > bar.getBoundingClientRect().right + 1).length)
+      .reduce((a, b) => a + b, 0));
+    if (spilt > 0) throw new Error(`${spilt} part(s) of a status bar pushed out at 320px`);
     await page.setViewportSize({ width: 1400, height: 900 });
     await frames(page, 4);
     await settle();

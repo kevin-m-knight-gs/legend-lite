@@ -33,11 +33,16 @@ export const MAX_TEXT_FILES = 12;
 /** How much of a file a text box draws: the rest is said, not read into the page. */
 export const TEXT_FILE_SHOWN = 2 * 1024 * 1024;
 
-/** A file's size as a person reads it: 812 bytes, 14 KB, 3.2 MB. */
+/** The largest file a text box takes: each is read whole once, to fingerprint it (the 2026-10-25 audit: a log of a
+ *  gigabyte was read and hashed before its kind was looked at). */
+export const MAX_TEXT_FILE_SIZE = 64 * 1024 * 1024;
+
+/** A file's size as a person reads it: 812 bytes, 14 KB, 3.2 MB, 64 MB. */
 export function bytesWords(bytes: number): string {
   if (bytes < 1024) return `${bytes} byte${bytes === 1 ? '' : 's'}`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  const mb = bytes / (1024 * 1024);
+  return `${Number.isInteger(mb) ? mb : mb.toFixed(1)} MB`;
 }
 
 /** The extensions a text box opens, as a file picker takes them. */
@@ -56,9 +61,33 @@ export function csvSeparator(name: string): ',' | '\t' {
 
 const FIELDS = ['name', 'size', 'sha256'] as const;
 
+/** Why a file of this name and size is no text box's, in words; undefined: a kind it shows, of a size it takes. */
+function fileRefusal(name: string, size: number): string | undefined {
+  if (textFileFormat(name) === undefined) {
+    return `${name} is not a kind of file a text box shows: Markdown, text, CSV or JSON (${TEXT_FILE_EXTENSIONS.join(' ')})`;
+  }
+  if (size > MAX_TEXT_FILE_SIZE) return `${name} is ${bytesWords(size)}, larger than the ${bytesWords(MAX_TEXT_FILE_SIZE)} a text box takes`;
+  return undefined;
+}
+
+/**
+ * Why files picked (their names and sizes) would be refused, in the words `readTextFiles` says it -- too many, a kind a
+ * text box does not show, too big -- asked before they are read (the screen fingerprints each by reading it whole);
+ * undefined: they may be read.
+ */
+export function pickedRefusal(files: readonly { readonly name: string; readonly size: number }[]): string | undefined {
+  if (files.length > MAX_TEXT_FILES) return `a text box shows ${MAX_TEXT_FILES} files at most`;
+  for (const f of files) {
+    const why = fileRefusal(f.name, f.size);
+    if (why !== undefined) return why;
+  }
+  return undefined;
+}
+
 /**
  * `files` read as a text box's files: each its name, size and fingerprint, in order -- or why not, in words: not a list,
- * too many, a file missing one of the three or carrying another, a kind a text box does not show, the same file twice.
+ * too many, a file missing one of the three or carrying another, a kind a text box does not show, one too big, the same
+ * file twice.
  */
 export function readTextFiles(files: unknown): readonly TextFile[] | string {
   if (!Array.isArray(files)) return "a text box's files are a list";
@@ -74,9 +103,8 @@ export function readTextFiles(files: unknown): readonly TextFile[] | string {
     if (typeof name !== 'string' || name.trim() === '') return 'a file has a name';
     if (typeof size !== 'number' || !Number.isInteger(size) || size < 0) return `${name}'s size is a whole number of bytes`;
     if (typeof sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(sha256)) return `${name}'s sha256 is 64 lower-case hex digits`;
-    if (textFileFormat(name) === undefined) {
-      return `${name} is not a kind of file a text box shows: Markdown, text, CSV or JSON (${TEXT_FILE_EXTENSIONS.join(' ')})`;
-    }
+    const why = fileRefusal(name, size);
+    if (why !== undefined) return why;
     if (seen.has(sha256)) return `${name} is in the text box twice`;
     seen.add(sha256);
     out.push({ name, size, sha256 });

@@ -510,6 +510,8 @@ _HEADLESS_TESTS = [
     "page-gestures",
     # a text tile's words read, and written by an export (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md P4)
     "page-text",
+    # a text box's files (§8 step 1, 2026-10-25): the one rule, pure
+    "text-files",
     # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
     "cube-round-trip",
     "cube-state",

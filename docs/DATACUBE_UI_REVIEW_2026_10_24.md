@@ -103,9 +103,10 @@ statistics · a 192×14 progress box · the planner's word ("local").
    to the text of its button. That covers the tile header's layouts, maximise / restore and remove; the page's and a
    lone grid's ≡; the sheet list's caret and each tab's ×; the menus' submenu chevron; the columns panel's fold and
    collapse chevrons; and every close or take-off ×, in windows, chips, the status bar and the editors. A button whose
-   glyph was its only name is now named for a screen reader. A guard in `test/guardrails.test.ts` fails on a typed ×,
-   ≡, ⊞, ⤢ or ⤡. Still typed: the grid's tree carets (▸ ▾, also in the JSON field picker and Ad Hoc's member
-   picker), and the columns selector's search mark and move arrows.
+   glyph was its only name is now named for a screen reader. The grid's tree carets followed (▸ ▾, also in the JSON
+   field picker and Ad Hoc's member picker), then -- found by the branch's audit, 2026-10-25 -- the columns selector's
+   move arrows (› ‹) and Column Properties' fold carets, which were typed in the stylesheet. A guard in
+   `test/guardrails.test.ts` fails on a typed ×, ≡, ⊞, ⤢, ⤡, ▸, ▾, › or ‹, spaced or not.
 
 ## What to change
 
@@ -217,7 +218,7 @@ tab and the state icons were in place already.
   as icon buttons, not links.
 - **Receipts and the planner's word behind one "ⓘ" chip** that opens the Receipts window.
 
-**Built 2026-10-25** (`app.ts` `#renderStatusBar`, `#tool`, `#joinTool`, `#chip`, `readoutText`; the icons in
+**Built 2026-10-25** (`app.ts` `#renderStatusBar`, `#tool`, `#joinTool`, `#chip`, `timingText`; the icons in
 `ui/tile-icons.ts` `toolIcon`; tested in `test/app-dom.test.ts` "the bar says what you are looking at"). The user chose
 icon buttons for **Properties, Filter, Add Column and Join** at the left; Join is the host's (`joinMenu`) and is absent
 where the host makes no joins. Join is greyed, with the host's reason as its tooltip, when nothing can be joined. That
@@ -293,9 +294,23 @@ grid over a local file is kept today (`file-handles.ts`):
 - **Python:** a text box's files are read and written through the page's one command (`setTextFiles`), Python
   fingerprinting a file it is given by path; the browser tab then finds it as above.
 
-**Step 1 (planned, 2026-10-25):** Markdown, plain text, CSV and JSON. Open Files… on the text box's right-click, or a
-drop onto it; one tab a file beside the box's own words; × takes a file off; Markdown drawn as the box draws its own
-words, text and JSON as they are (JSON indented), CSV as a small table.
+**Step 1 (built 2026-10-25):** Markdown, plain text, CSV and JSON (`text-files.ts`, the one rule; the command
+`setTextFiles`; `page-text.ts` `fileElement`; `cube-page.ts`; Python's `Text.files`). Open Files… on the text box's
+right-click, or a drop onto it; one tab a file beside the box's own words; × takes a file off; Markdown drawn as the box
+draws its own words, text and JSON as they are (JSON indented), CSV as a table of its first 200 rows and 100 columns,
+the rest counted. Up to 12 files a box, each up to 64 MB (it is read whole once, to fingerprint it); the first 2 MB of
+one are drawn, and that is said. A file of a kind a box does not show, or too big, is refused by its name and size
+before it is read.
+
+The branch's audit (2026-10-25) found and fixed: a tab's × and Replace matched files by object, so a step that drew
+equal files again left the × doing nothing; a file read through a kept handle, or picked again after it went missing,
+had its handle kept nowhere (Save As now takes the handles the page it was saved as kept, and a file picked again is
+kept at once); a file changed since it was added was said to have changed only the first time; a file that could not
+be read (a folder dropped, a file changed on disk) failed silently; a double-click in a preview opened the editor over
+it; an export wrote the box's Markdown source while a file's tab was in front; a JSON file over 2 MB was called no JSON;
+and the Markdown reader took time in the square of a line's length (a 120 KB line, 13 s) and overflowed on deep
+nesting. Left as designed: two editors adding files at once each send the whole list, so one list wins, as with
+`setText`.
 
 ## The menus: one design language, two scopes
 
@@ -375,8 +390,9 @@ The marks and words are now the same in every menu:
   page's ≡ shows none: its Undo has no key of its own, and there is no Ctrl+S.
 - **A chart's menu** is Show Grid; Properties… (once "Options..."); then View ▸ with Maximise / Restore, Move to
   Sheet ▸ and Remove from Page (once a bare "Remove").
-- **A text box has a right-click:** Edit Text…, then the same View ▸. While its words are being edited, its editor
-  keeps the browser's own menu (copy, paste).
+- **A text box has a right-click:** Create ▸, Edit Text…, Open Files… (§8), then the same View ▸. While its words are
+  being edited, its editor keeps the browser's own menu (copy, paste). On a locked page, View ▸ Remove from Page is
+  offered off, as a tile's × is hidden there (the audit, 2026-10-25) -- a grid's and a chart's too.
 - **On/off entries say what they will do and flip,** with no check mark: Edit Layout / Done Editing Layout, Measures
   First / Values First in Column Headers, Add / Remove Heatmap, Add / Remove Data Bars.
 - **A sheet tab's menu** says Rename… and Delete Sheet. Each disabled entry there says why on hover ("Edit Layout
@@ -426,8 +442,11 @@ View ▸                                    Properties…                 Ctrl+E
 **Where it stands, 2026-10-25.** Built: numbers right-aligned; the page's ≡ grouped by purpose (§3); one tile header
 (§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2); the example-switch bug fixed (found 1); the status bar's error as a chip; the title bar (§4); the columns panel (found 3); the menus' marks and words (step 1
 of the menus); one icon set for the page's chrome (found 4). Grouped text columns (found 2) kept as they
-are (the user). Next: the rest of the menus (Create ▸ on a chart and a text box, Settings…); the tree carets drawn too;
-the options pane docked at the page's edge; then §8.
+are (the user). Built since: Create ▸ on a chart's and a text box's right-click; the tree carets drawn; files in the
+text box, step 1 (§8); then the branch's deep audit and its fixes (above, and the notes in each section). Open: the
+chart options' place (docked, in its tile, or Focus to edit -- the user's choice); Settings… (kept in the page's ≡ for
+now); a closed group's row count. Known and left: a join being opened when the page Python serves is left keeps the
+table it borrowed from a grid until the tab closes (rare; no test reaches it cheaply).
 
 Screenshots of each state (the start page, the chart examples and the gallery's KPI dashboard, the chart options at
 1400 and 1024 wide, the page menu, the joins example's error, the status bar) were taken with a scratch Playwright

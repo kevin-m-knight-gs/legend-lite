@@ -227,9 +227,12 @@ export class MenuView {
     // -- or a test DOM -- the check is false and focus is silently
     // dropped. This is the second place that bit; it is a property of
     // cross-realm DOM, not of any one call site.
-    const back = this.#returnFocus as { focus?: unknown } | null;
+    const back = this.#returnFocus as { focus?: unknown; disabled?: unknown; parentElement?: HTMLElement | null } | null;
     if (back && typeof back.focus === 'function') {
-      (back as HTMLElement).focus();
+      // an entry that disabled the button it was opened from (a grid's Snap, while it snaps): focus in what holds it
+      // instead, or it falls to the body (the 2026-10-25 audit)
+      const holder = back.disabled === true ? back.parentElement?.closest<HTMLElement>('[tabindex]') : null;
+      (holder ?? (back as HTMLElement)).focus();
     }
     this.#returnFocus = null;
     this.#options.onClose?.();

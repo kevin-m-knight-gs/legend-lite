@@ -55,7 +55,7 @@ Each step is one section of the gallery. A step's line says what the check found
 5. **A sort, from a cell's menu.** Sort, then Descending, on a cell of that column. The groups reorder, largest first.
 6. **A calculated column.** Extended Columns, then Add New Column…. It is a formula over the numeric column, and the
    compiler checks it live. There are two pictures: the editor with its check, and the grid with the new column.
-7. **Insert, then Visualization.** A chart that follows the grid, with its pill reading Dynamic.
+7. **Create ▸ Visualization.** A chart that follows the grid, its state reading Dynamic.
 8. **The Aggregation changed again.** The following chart plots its column at the new Aggregation.
 9. **Two values of one column.** The grid is first left with one row group and no pivot, because a split draws one
    value per series. The chart is then frozen and a second value of the same column is added under another

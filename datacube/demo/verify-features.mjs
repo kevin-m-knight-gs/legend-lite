@@ -4836,6 +4836,11 @@ try {
         timing: document.querySelector('.dc-status-timing')?.textContent ?? '',
         shown: document.querySelector('.dc-status-timing')?.dataset.rows ?? '',
         warning: document.querySelector('.dc-status-warning')?.textContent ?? null,
+        // its colours: a warning's, not any chip's (the 2026-10-25 audit: the chip's rule came later and won)
+        warningBackground: (() => {
+          const w = document.querySelector('.dc-status-warning');
+          return w ? getComputedStyle(w).backgroundColor : null;
+        })(),
         stats: document.querySelector('.dc-status-stats')?.textContent ?? '',
         pure: document.getElementById('pure')?.textContent ?? '',
       };
@@ -4901,7 +4906,8 @@ try {
       expect: (b, a) => (a.tree.filter(Boolean).length > b.tree.filter(Boolean).length ? null : 'no child rows') });
     await control('Row Limit, flat cube, with its warning', {
       act: general(() => put(fieldOf('Row Limit:').locator('input[type=number]').first(), 10)),
-      expect: (b, a) => (a.shown === '10' && a.warning ? null : `rows on screen "${a.shown}" warning ${a.warning}`) });
+      expect: (b, a) => (a.shown === '10' && a.warning && a.warningBackground === 'rgb(255, 251, 235)' ? null
+        : `rows on screen "${a.shown}" warning ${a.warning} on ${a.warningBackground}`) });
     await control('Display warning when truncated, off', {
       setup: general(() => put(fieldOf('Row Limit:').locator('input[type=number]').first(), 10)),
       act: general(() => boxOf('Display warning when truncated').uncheck()),

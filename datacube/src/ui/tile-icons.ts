@@ -52,7 +52,7 @@ const TOOLS: Readonly<Record<ToolIcon, readonly string[]>> = {
 };
 
 /** The page's chrome: a tile's layouts, filling the page and back, closing, a menu, a disclosure. */
-export type ChromeIcon = 'layout' | 'maximise' | 'restore' | 'close' | 'menu' | 'more' | 'chevronRight' | 'chevronDown';
+export type ChromeIcon = 'layout' | 'maximise' | 'restore' | 'close' | 'menu' | 'more' | 'chevronRight' | 'chevronDown' | 'chevronLeft';
 
 /** Each mark's drawing, on the states' square and in their stroke. */
 const CHROME: Readonly<Record<ChromeIcon, readonly string[]>> = {
@@ -71,6 +71,7 @@ const CHROME: Readonly<Record<ChromeIcon, readonly string[]>> = {
   // a chevron: a submenu, a fold to open, the way a panel goes
   chevronRight: ['M6.5 3.5 11 8l-4.5 4.5'],
   chevronDown: ['M3.5 6.5 8 11l4.5-4.5'],
+  chevronLeft: ['M9.5 3.5 5 8l4.5 4.5'],
 };
 
 /** A mark of the page's chrome, said by its name to a test (`data-icon`), hidden from a screen reader: its button's own

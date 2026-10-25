@@ -1504,8 +1504,9 @@ export class CubeApp {
 
     // THE GRID'S TOOLS, as icons: both editors were reachable only through the right-click, two levels down, and a
     // person looking for them did not find them; then they were underlined links, the one place the app looked like a
-    // 2005 web page
-    const filtered = this.#snapshot.filter !== undefined;
+    // 2005 web page. What it says is of the view shown, as its readout is -- not of a change still running (the
+    // 2026-10-25 audit: Top 10 beside the last query's rows, its x acting on what was not shown yet)
+    const filtered = view.snapshot.filter !== undefined;
     const tools = doc.createElement('div');
     tools.className = 'dc-status-tools';
     tools.append(
@@ -1541,7 +1542,7 @@ export class CubeApp {
     if (filtered) {
       right.append(this.#chip('dc-status-filtered', 'Filtered', 'A filter is in force: click to edit it', () => this.openFilters()));
     }
-    const top = this.#snapshot.topN;
+    const top = view.snapshot.topN;
     if (top !== undefined) {
       const word = `${top.bottom ? 'Bottom' : 'Top'} ${top.n}`;
       const by = labelFor(this.#config, top.by);
@@ -3591,6 +3592,8 @@ export class CubeApp {
     });
     this.#adhoc = mode;
     this.#els.root.classList.add('dc-adhoc-on');
+    // what runs, along Ad Hoc's top edge while it is on: the grid's own is hidden with it (the 2026-10-25 audit)
+    host.prepend(this.#progress);
     middle.hidden = true;
     this.#els.zoneBar.hidden = true;
     await mode.refresh();
@@ -3608,6 +3611,7 @@ export class CubeApp {
       if (key.startsWith('Member Selection: ') || key === 'Ad Hoc Options') this.#closeWindow(key);
     }
     this.#els.root.classList.remove('dc-adhoc-on');
+    (this.#els.grid.parentElement as HTMLElement).prepend(this.#progress);
     (this.#els.grid.parentElement as HTMLElement).hidden = false;
     this.#applyChrome();
     // the cube's own status bar back

@@ -524,6 +524,44 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     assert.equal(form().hidden, true, 'Escape on its tile');
   });
 
+  it("the options in a shadow root (marimo's page): a press in them keeps them; Escape on a filled chart puts them away first; closed, the focus on its tile", async () => {
+    // the 2026-10-25 audit: the document's listeners saw the root's host as every press's target -- each press in the
+    // options put them away; Escape on a filled tile filled it no more and left the options where it had been
+    const shell = dom.window.document.createElement('div');
+    dom.window.document.body.append(shell);
+    const shadow = shell.attachShadow({ mode: 'open' });
+    host = dom.window.document.createElement('div');
+    shadow.append(host);
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    const form = (): HTMLElement => tile(chart).querySelector('.dc-chartpanel-form') as HTMLElement;
+    const options = (): void => chartMenu(chart).find((i) => label(i) === 'Properties…')!.click();
+    const escape = (on: Element): void => {
+      on.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true, cancelable: true }));
+    };
+    options();
+    const field = form().querySelector<HTMLElement>('select, input') ?? form();
+    field.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true, composed: true }));
+    assert.equal(form().hidden, false, 'a press in them, in a shadow root');
+    // put away with the focus in them: the focus on the chart's tile, never the body
+    form().focus();
+    (form().querySelector('.dc-chartpanel-form-close') as HTMLButtonElement).click();
+    assert.equal(form().hidden, true);
+    assert.equal(shadow.activeElement, tile(chart), "the focus on the chart's tile");
+    // a filled chart: Escape puts its options away, and only the next fills it no more
+    options();
+    tile(chart).querySelector<HTMLButtonElement>('.dc-tile-maximise')!.click();
+    const board = host.querySelector<HTMLElement>('.dc-sheet')!;
+    assert.ok(board.classList.contains('dc-bands-maximised'));
+    escape(tile(chart));
+    assert.equal(form().hidden, true, 'the options put away first');
+    assert.ok(board.classList.contains('dc-bands-maximised'), 'still filling the page');
+    escape(tile(chart));
+    assert.equal(board.classList.contains('dc-bands-maximised'), false, 'the next Escape: back to the page');
+  });
+
   it("is in the menus' one order: Show Grid, Create ▸, Properties…, then View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page", async () => {
     // the menus (docs/DATACUBE_UI_REVIEW_2026_10_24.md): a chart's own window is Properties…, as a grid's is, and what is
     // done to its tile is under View ▸, as a grid's is -- Remove from Page, never a bare Remove

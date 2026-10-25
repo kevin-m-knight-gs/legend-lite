@@ -472,6 +472,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const kept = id === undefined ? undefined : await (await services.pages)?.handles?.get(handleKey(id, sha));
       return kept ? readHandle(kept, click) : undefined;
     },
+    // a missing one picked again: kept now, for the saved page it is -- the page is unchanged, no save would keep it
+    keepTextFile: (sha, handle) => {
+      const id = page.record;
+      if (id !== undefined) void (async () => (await services.pages)?.handles?.put(handleKey(id, sha), handle))();
+    },
     hostMenu: () => [
       // saved pages: where the host keeps them (in this browser), over the sources they were built on
       ...(services.pages ? [
@@ -964,10 +969,15 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      * detached chart included): kept by the page and the file's contents (file-handles.ts handleKey), so opening the
      * page again reads it from there.
      */
-    async function keepHandles(pageId: string): Promise<void> {
+    async function keepHandles(pageId: string, from?: string): Promise<void> {
       for (const f of sources.filesNow()) if (f.handle) await pages?.handles?.put(handleKey(pageId, f.sha256), f.handle);
-      // and each text box's file, picked with a handle, as a grid's is (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8)
-      for (const f of page.textFilesNow()) await pages?.handles?.put(handleKey(pageId, f.sha256), f.handle);
+      // and each text box's file, as a grid's is (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): its handle picked this
+      // session, else -- saved as another page (`from`, Save As) -- the one that page kept: a file never shown this
+      // session is read from nowhere else (the 2026-10-25 audit)
+      for (const f of page.textFilesNow()) {
+        const handle = f.handle ?? (from !== undefined && from !== pageId ? await pages?.handles?.get(handleKey(from, f.sha256)) : undefined);
+        if (handle) await pages?.handles?.put(handleKey(pageId, f.sha256), handle);
+      }
     }
 
     /** The grid a saved page's cube is shown in (its grid view's id), or the cube's own id (a detached chart's). */
@@ -990,9 +1000,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       if ('refused' in saving) throw new Error(saving.refused);
       const { record } = saving;
       const id = record.id;
+      // the saved page it was: Save As takes the handles it kept (keepHandles)
+      const was = page.record;
       if (saving.over) await store.update(id, record);
       else await store.create(record);
-      await keepHandles(id);
+      await keepHandles(id, was);
       current = { ...current, savedName: record.name, baseline: pageDefinitionText(doc), lost: [] };
       // the saved page it is, applied to the page's state by its command and told: its other editor saves over the same
       // record (B13)

@@ -140,6 +140,20 @@ describe('MenuView', () => {
     assert.equal(doc.activeElement, origin);
   });
 
+  it('an entry that disabled the button it was opened from: focus in what holds it, never the body (the 2026-10-25 audit)', () => {
+    // a grid's Snap disables its state button while it snaps: focus fell to the body
+    const tile = doc.createElement('div');
+    tile.tabIndex = 0;
+    const state = doc.createElement('button');
+    tile.append(state);
+    doc.body.append(tile);
+    state.focus();
+    const snapping = new MenuView(doc, { onSelect: () => { state.disabled = true; } });
+    snapping.show(GROUPS, 10, 10);
+    (doc.querySelector('.dc-menu [role^="menuitem"]') as HTMLElement).click();
+    assert.equal(doc.activeElement, tile);
+  });
+
   it('closes an already-open menu before opening another', () => {
     view.show(GROUPS, 10, 10);
     view.show(GROUPS, 50, 50);

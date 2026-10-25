@@ -58,6 +58,7 @@ import {
 import { colourGrid, fontControls } from './panel-general.ts';
 import { dataTypeOf } from './filter-editor.ts';
 import { docHint } from './docs.ts';
+import { chromeIcon } from './tile-icons.ts';
 import {
   SORT_DIRECTION_OPTIONS,
   panelShell,
@@ -686,6 +687,8 @@ function foldable(doc: Document, ui: ColumnPanelUi, section: HTMLElement, change
   if (!title) return;
   const key = title.textContent ?? '';
   section.classList.add('dc-pe-fold');
+  // its caret drawn in the chrome's set, turned when folded (app.css; the 2026-10-25 audit: typed in the CSS)
+  title.prepend(chromeIcon(doc, 'chevronDown'));
   const folded = ui.folded?.includes(key) === true;
   section.classList.toggle('dc-folded', folded);
   title.setAttribute('role', 'button');

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
-import { FILE_ROWS, csvRows, fileElement, readText, textEditor, textElement } from '../src/page-text.ts';
+import { FILE_COLUMNS, FILE_ROWS, csvRows, fileElement, readText, textEditor, textElement } from '../src/page-text.ts';
 import { textLines } from '../src/page/cube-page.ts';
 
 describe("a text tile's words drawn", () => {
@@ -38,6 +38,8 @@ describe("a text tile's words drawn", () => {
     assert.equal(el.querySelector('del')?.textContent, 'old');
     const box = el.querySelector<HTMLInputElement>('li.dc-text-task > input[type=checkbox]');
     assert.deepEqual([box?.checked, box?.disabled], [true, true]);
+    // done in its HTML too, as an export writes it (the 2026-10-25 audit: the property alone exported an empty box)
+    assert.ok(box?.outerHTML.includes('checked'), box?.outerHTML ?? 'no box');
     assert.equal(el.querySelector('h6')?.textContent, 'four', 'a deep heading, the smallest');
     assert.equal(el.querySelector('ol')?.getAttribute('start'), '5');
   });
@@ -99,6 +101,16 @@ describe("a text tile's words drawn", () => {
     assert.deepEqual([...preview().querySelectorAll('li')].map((li) => li.textContent), ['EMEA', 'AMER']);
     tool('Bulleted list').click();
     assert.equal(words(), 'Sales **up**\nEMEA\nAMER');
+    // one kind of list made another, not taken apart; a blank line left blank (the 2026-10-25 audit)
+    area.value = '- a\n\n- b';
+    area.setSelectionRange(0, area.value.length);
+    tool('Task list').click();
+    assert.equal(words(), '- [ ] a\n\n- [ ] b');
+    tool('Numbered list').click();
+    assert.equal(words(), '1. a\n\n2. b');
+    tool('Numbered list').click();
+    assert.equal(words(), 'a\n\nb');
+    area.value = 'Sales **up**\nEMEA\nAMER';
 
     // a heading, one level deeper each press
     area.setSelectionRange(0, 0);
@@ -122,6 +134,18 @@ describe("a text tile's words drawn", () => {
     area.setSelectionRange(words().length - 6, words().length - 4);
     area.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'i', ctrlKey: true }));
     assert.match(words(), /\| \*Ce\*ll \|$/);
+
+    // typed where the browser types (insertText), so its undo takes a toolbar's edit back (the 2026-10-25 audit)
+    const typed: string[] = [];
+    (doc as unknown as { execCommand: (c: string, ui: boolean, text: string) => boolean }).execCommand = (c, _ui, text) => {
+      typed.push(c);
+      area.setRangeText(text, area.selectionStart, area.selectionEnd, 'end');
+      return true;
+    };
+    area.value = 'up';
+    area.setSelectionRange(0, 2);
+    tool('Bold').click();
+    assert.deepEqual([words(), typed], ['**up**', ['insertText']]);
   });
 });
 
@@ -142,6 +166,10 @@ describe("a text box's file, drawn (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8)",
     const broken = fileElement(doc, 'json', '{"a":', ',');
     assert.match(broken.querySelector('.dc-text-file-note')?.textContent ?? '', /^This is not JSON a browser reads/);
     assert.equal(broken.querySelector('pre')?.textContent, '{"a":');
+    // a file's start (over 2 MB): shown as it is, never said to be no JSON (the 2026-10-25 audit)
+    const cut = fileElement(doc, 'json', '{"a": [1, 2', ',', 'its first 2 MB');
+    assert.equal(cut.querySelector('.dc-text-file-note'), null);
+    assert.equal(cut.querySelector('pre')?.textContent, '{"a": [1, 2');
   });
 
   it('CSV as a table: its first line the header, its first rows, the rest counted', () => {
@@ -154,6 +182,13 @@ describe("a text box's file, drawn (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8)",
     assert.equal(many.querySelectorAll('tbody tr').length, FILE_ROWS);
     assert.equal(many.querySelector('.dc-text-file-note')?.textContent, 'and 3 more rows');
     assert.equal(fileElement(doc, 'csv', '', ',').querySelector('.dc-text-file-note')?.textContent, 'The file is empty.');
+    // counted in the part read, when that is the file's start; its columns past FILE_COLUMNS counted (the 2026-10-25
+    // audit: a file of commas drew a header of two million cells)
+    assert.equal(fileElement(doc, 'csv', long, ',', 'its first 2 MB').querySelector('.dc-text-file-note')?.textContent,
+      'and 3 more rows in its first 2 MB');
+    const wide = fileElement(doc, 'csv', `${','.repeat(FILE_COLUMNS + 4)}\n1,2`, ',');
+    assert.equal(wide.querySelectorAll('th').length, FILE_COLUMNS);
+    assert.equal(wide.querySelector('.dc-text-file-note')?.textContent, 'and 5 more columns');
   });
 
   it('reads CSV by RFC 4180: quoted separators, line breaks and quotes; CRLF; tabs for a TSV; no row for a last empty line', () => {

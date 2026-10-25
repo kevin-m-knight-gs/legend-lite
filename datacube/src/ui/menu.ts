@@ -927,7 +927,9 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
   const tile: MenuItem[] = [
     ...(ctx.sheets === undefined ? []
       : [{ label: 'Move to Sheet', ...(ctx.sheets === 'locked' ? { disabled: true, hint: 'Edit Layout first' } : { submenu: ctx.sheets }) }]),
-    ...(ctx.canRemove === true ? [{ id: 'grid.remove' as const, label: 'Remove from Page' }] : []),
+    // off while the page is locked, as its tile's x is (nothing moves by accident: the 2026-10-25 audit)
+    ...(ctx.canRemove === true ? [{ id: 'grid.remove' as const, label: 'Remove from Page',
+      ...(ctx.sheets === 'locked' ? { disabled: true, hint: 'Edit Layout first' } : {}) }] : []),
   ];
   push('', [{
     label: 'View',

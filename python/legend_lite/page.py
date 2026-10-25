@@ -1259,7 +1259,7 @@ class Text(Tile):
     """A text tile: a page's title, a note beside a chart -- its words in GitHub's Markdown, as DataCube's page-text.ts
     reads it (``# `` a heading, ``**bold**``, ``*italic*``, ``~~struck~~``, ``- `` or ``1. `` a list, ``- [ ] `` a task,
     ``> `` a quote, fenced code, a table, ``---`` a rule, ``[words](https://...)`` a link), drawn as text, never as
-    HTML."""
+    HTML -- and the files it shows beside them (``files``: Markdown, text, CSV, JSON), pointed to, never copied."""
 
     _kind = 'text'
 
@@ -1288,6 +1288,9 @@ class Text(Tile):
         judged by DataCube in its words: a kind a text box does not show (Markdown, text, CSV, JSON), too many, the same
         file twice."""
         _ = self._view
+        # one path is no list: its letters would be read as paths (the 2026-10-25 audit)
+        if isinstance(files, (str, Path, Mapping)):
+            raise TypeError("a text box's files are a list: [path] for one")
         given: list[dict[str, Any]] = []
         for f in files:
             if isinstance(f, Mapping):
@@ -1295,8 +1298,14 @@ class Text(Tile):
                 given.append(dict(f))
                 continue
             path = Path(f)
-            data = path.read_bytes()
-            given.append({'name': path.name, 'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
+            if path.is_dir():
+                raise ValueError(f'{path} is a folder: a text box shows files')
+            # fingerprinted a piece at a time: a big file is never held whole (DataCube refuses it by its size)
+            digest = hashlib.sha256()
+            with path.open('rb') as handle:
+                for piece in iter(lambda: handle.read(1 << 20), b''):
+                    digest.update(piece)
+            given.append({'name': path.name, 'size': path.stat().st_size, 'sha256': digest.hexdigest()})
         self._page._apply_page([_commands.page_set_text_files(tile=self._id, files=given)])
 
 

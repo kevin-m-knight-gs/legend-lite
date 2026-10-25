@@ -191,11 +191,15 @@ export class ChartPanel {
     form.focus({ preventScroll: true });
   }
 
-  /** The options put away. */
+  /** The options put away -- the focus, when it was in them, back on their chart's tile (the 2026-10-25 audit: it fell
+   *  to the body). */
   closeForm(): void {
     if (this.#form.hidden) return;
+    const root = this.#form.getRootNode() as Document | ShadowRoot;
+    const focused = root.activeElement !== null && this.#form.contains(root.activeElement);
     this.#form.hidden = true;
     this.#listen(false);
+    if (focused) this.#root.closest<HTMLElement>('[tabindex]')?.focus({ preventScroll: true });
   }
 
   /** Whether the options are open. */
@@ -203,44 +207,67 @@ export class ChartPanel {
     return !this.#form.hidden;
   }
 
+  /** What an event happened on: inside a shadow root (marimo's page), its own element, not the root's host (the 2026-10-25
+   *  audit: every press in the options was outside them there, and put them away). */
+  #targetOf(event: Event): Element | null {
+    return (event.composedPath()[0] ?? event.target) as Element | null;
+  }
+
   /** A press outside the options (or a menu over them) puts them away. */
   readonly #onPressAway = (event: Event): void => {
-    const target = event.target as Element | null;
+    const target = this.#targetOf(event);
     if (target !== null && (this.#form.contains(target) || target.closest?.('.dc-menu'))) return;
     this.closeForm();
   };
 
   /**
    * Escape puts them away -- not one meant for another window, nor typed in a field elsewhere. (The board keeps the
-   * focus on a chart's tile, not in it: "in its chart" missed the Escape a person presses after Options....)
+   * focus on a chart's tile, not in it: "in its chart" missed the Escape a person presses after Options....) Heard before
+   * the tile's own keys (capture): Escape on a filled tile puts the options away first, and only the next fills it no
+   * more (the 2026-10-25 audit: the tile went back, the options stayed where it had been).
    */
   readonly #onKey = (event: KeyboardEvent): void => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
-    const target = event.target as Element | null;
+    const target = this.#targetOf(event);
     if (target !== null && !this.#form.contains(target)) {
-      if (target.closest?.('.dc-app-overlay, .hostwin, .dc-picker, .dc-layout-picker, [role="dialog"]')) return;
+      if (target.closest?.('.dc-menu, .dc-app-overlay, .hostwin, .dc-picker, .dc-layout-picker, [role="dialog"]')) return;
       if (target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
     }
     event.preventDefault();
     this.closeForm();
   };
 
-  /** The page scrolled or the window changed: the options stay beside their chart. */
-  readonly #onMove = (): void => this.#placeForm();
+  /** The page scrolled, the window or the chart's tile changed: the options stay beside their chart -- put away once it
+   *  is not on the page (its sheet left, moved to another: the 2026-10-25 audit). */
+  readonly #onMove = (): void => {
+    const at = this.#root.getBoundingClientRect();
+    if (!this.#root.isConnected || (at.width === 0 && at.height === 0)) this.closeForm();
+    else this.#placeForm();
+  };
+
+  /** Watching the chart's tile change size (filled, back, a divider dragged), while the options are open. */
+  #watch: ResizeObserver | null = null;
 
   #listen(on: boolean): void {
     const doc = this.#doc;
     const view = doc.defaultView;
     if (on) {
       doc.addEventListener('pointerdown', this.#onPressAway, true);
-      doc.addEventListener('keydown', this.#onKey);
+      doc.addEventListener('keydown', this.#onKey, true);
       doc.addEventListener('scroll', this.#onMove, true);
       view?.addEventListener('resize', this.#onMove);
+      const Watch = (view as (Window & { ResizeObserver?: typeof ResizeObserver }) | null)?.ResizeObserver;
+      if (Watch) {
+        this.#watch = new Watch(this.#onMove);
+        this.#watch.observe(this.#root);
+      }
     } else {
       doc.removeEventListener('pointerdown', this.#onPressAway, true);
-      doc.removeEventListener('keydown', this.#onKey);
+      doc.removeEventListener('keydown', this.#onKey, true);
       doc.removeEventListener('scroll', this.#onMove, true);
       view?.removeEventListener('resize', this.#onMove);
+      this.#watch?.disconnect();
+      this.#watch = null;
     }
   }
 

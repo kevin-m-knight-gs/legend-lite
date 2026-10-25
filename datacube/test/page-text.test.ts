@@ -31,7 +31,32 @@ describe("a text tile's words", () => {
       { kind: 'link', href: 'https://x.test/d', runs: [t('the deck')] },
     ]);
     assert.deepEqual(readRuns('2 * 3 and \\*kept\\* and **open'), [t('2 * 3 and *kept* and **open')]);
-    assert.deepEqual(readRuns('[run](javascript:alert(1))'), [t('run'), t(')')]);
+    // its address to the parenthesis that closes it (a balanced pair inside it its own): no link, its words kept
+    assert.deepEqual(readRuns('[run](javascript:alert(1))'), [t('run')]);
+  });
+
+  it('a link\'s words to their own bracket, its address past parentheses in it, no link in a link (the 2026-10-25 audit)', () => {
+    // a bracket before a link was the link's first: `[1] or [docs](...)` drew one link saying "1] or [docs"
+    assert.deepEqual(readRuns('See [1] or [docs](https://x.test)'), [t('See [1] or '), { kind: 'link', href: 'https://x.test', runs: [t('docs')] }]);
+    assert.deepEqual(readRuns('[Foo](https://w.test/Foo_(bar)) end'),
+      [{ kind: 'link', href: 'https://w.test/Foo_(bar)', runs: [t('Foo')] }, t(' end')]);
+    assert.deepEqual(readRuns('[a [b] c](https://x.test)'), [{ kind: 'link', href: 'https://x.test', runs: [t('a [b] c')] }]);
+    assert.deepEqual(readRuns('[https://a.test](https://b.test)'), [{ kind: 'link', href: 'https://b.test', runs: [t('https://a.test')] }]);
+  });
+
+  it('reads a long line in time linear in it, and deep nesting as words (the 2026-10-25 audit: a file is 2 MB)', () => {
+    // each unclosed mark searched to the line's end: 60 KB of `*a ` took 4 s; 3,000 nested quotes overflowed the stack
+    for (const line of ['*a '.repeat(40_000), '**a '.repeat(30_000), '['.repeat(100_000), '<'.repeat(100_000), '`` a '.repeat(30_000)]) {
+      const started = performance.now();
+      readRuns(line);
+      assert.ok(performance.now() - started < 1500, `${line.slice(0, 6)}... read in ${Math.round(performance.now() - started)} ms`);
+    }
+    const quotes = readText(`${'> '.repeat(3000)}deep`);
+    let depth = 0;
+    for (let b: TextBlock | undefined = quotes[0]; b?.kind === 'quote'; b = b.blocks[0]) depth++;
+    assert.equal(depth, 17, 'quotes read to the deepest, the rest their words');
+    assert.doesNotThrow(() => readText(Array.from({ length: 500 }, (_, i) => `${'  '.repeat(i)}- item`).join('\n')));
+    assert.doesNotThrow(() => readRuns(`${'['.repeat(5000)}x${'](https://a.test)'.repeat(5000)}`));
   });
 
   // the user, 2026-10-25: a full Markdown editor -- GitHub's

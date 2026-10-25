@@ -338,7 +338,7 @@ describe('a page of its own', () => {
     assert.deepEqual(told, [{ kind: 'setTextFiles', tile: id, files: [{ name: 'plan.md', size: plan.size, sha256: sha }] }]);
     assert.deepEqual(tabs(id), ['Text', 'plan.md']);
     assert.equal(tile(id).querySelector('.dc-text-file h3')?.textContent, 'Plan');
-    assert.equal(tile(id).querySelector('[role="tab"][aria-selected="true"]')?.textContent, 'plan.md', 'the file added shown');
+    assert.equal(tile(id).querySelector('.dc-text-file-name[aria-pressed="true"]')?.textContent, 'plan.md', 'the file added shown');
     // its words a tab away
     [...tile(id).querySelectorAll<HTMLElement>('.dc-text-file-name')].find((t) => t.textContent === 'Text')!.click();
     await until(() => tile(id).querySelector('.dc-text-tile'));
@@ -391,14 +391,110 @@ describe('a page of its own', () => {
     assert.deepEqual(asked, [false, true], 'asked once without a click, then with the click');
   });
 
-  it("a text tile's right-click, in the menus' one order: Create ▸, Edit Text…, then View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page", async () => {
+  it("a text box's files, as the 2026-10-25 audit found them: refused before they are read, a read that fails said, by fingerprint, a changed file said each time, its preview no editor, an export its words", async () => {
+    const told: PageCommand[] = [];
+    const said: string[] = [];
+    const until = async (shown: () => unknown): Promise<void> => {
+      for (let i = 0; i < 200 && !shown(); i++) await new Promise((r) => setTimeout(r, 5));
+    };
+    const pick = async (...files: File[]): Promise<void> => {
+      await until(() => dom.window.document.querySelector('input.dc-file-input'));
+      const input = dom.window.document.querySelector<HTMLInputElement>('input.dc-file-input')!;
+      Object.defineProperty(input, 'files', { value: files });
+      input.dispatchEvent(new dom.window.Event('change'));
+    };
+    const open = (id: string, entry: string): void => {
+      dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      tile(id).querySelector('.dc-text-host')!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')].find((i) => label(i) === entry)!.click();
+    };
+    const show = (id: string, name: string): void => {
+      [...tile(id).querySelectorAll<HTMLElement>('.dc-text-file-name')].find((t) => t.textContent === name)!.click();
+    };
+    // a maker that keeps each grid's export, as its CubeApp would call it
+    const exports = new Map<string, () => ExportPage | undefined>();
+    const keep = (name: string): GridMaker => (gridHost, spawned, start) => {
+      if (spawned.id !== undefined && spawned.exportPage) exports.set(spawned.id, spawned.exportPage);
+      return over(name)(gridHost, spawned, start);
+    };
+    newPage({ confirm: () => true, onPageCommand: (c) => told.push(c), refuse: (t) => said.push(t) });
+    const a = page.addGrid(keep('trades.csv'));
+    await settle();
+    await chartOf(a);
+    gridMenuItem(a, 'Text Box').click();
+    await settle();
+    const id = page.views().views.find((v) => v.kind === 'text')!.id;
+    await until(() => tile(id).querySelector('textarea'));
+    tile(id).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    told.length = 0;
+    // a kind it does not show: refused by its name, never read (a gigabyte was read and hashed before its kind was seen)
+    let read = false;
+    class Watched extends File {
+      override arrayBuffer(): Promise<ArrayBuffer> {
+        read = true;
+        return super.arrayBuffer();
+      }
+    }
+    open(id, 'Open Files…');
+    await pick(new Watched(['not text'], 'clip.mp4'));
+    await until(() => said.length > 0);
+    assert.match(said.at(-1) ?? '', /^clip\.mp4 is not a kind of file a text box shows: Markdown, text, CSV or JSON/);
+    assert.equal(read, false, 'refused before it was read');
+    // a file that cannot be read (a folder dropped, a file changed since it was picked): said, never a silent nothing
+    class Unread extends File {
+      override arrayBuffer(): Promise<ArrayBuffer> {
+        return Promise.reject(new Error('The file could not be read'));
+      }
+    }
+    open(id, 'Open Files…');
+    await pick(new Unread(['x'], 'notes.md'));
+    await until(() => said.length > 1);
+    assert.match(said.at(-1) ?? '', /^notes\.md could not be read \(The file could not be read\)/);
+    assert.deepEqual(told, [], 'nothing told for either');
+    // added: its preview double-clicked opens no editor over it; an export writes the box's words, the file in front
+    const plan = new File(['# Plan\n\nBy **desk**'], 'plan.md');
+    open(id, 'Open Files…');
+    await pick(plan);
+    await until(() => tile(id).querySelector('.dc-text-file h3'));
+    tile(id).querySelector('.dc-text-file h3')!.dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+    await settle();
+    assert.equal(tile(id).querySelector('textarea'), null, "its preview's words are not the box's");
+    const exported = exports.get(a)?.()?.tiles.find((t) => t.id === id) as { readonly text?: { readonly html: string } } | undefined;
+    assert.ok(exported?.text?.html.includes('dc-text-tile'), `its words drawn, not their Markdown: ${exported?.text?.html}`);
+    const withPlan = page.document('Q3')!;
+    // taken off by its fingerprint: a step that draws the same files again draws equal ones, not the same objects
+    page.putBack(readPage(pageToJson(withPlan)), []);
+    await settle();
+    told.length = 0;
+    tile(id).querySelector<HTMLButtonElement>('.dc-text-file-close')!.click();
+    await settle();
+    assert.deepEqual(told.at(-1), { kind: 'setTextFiles', tile: id, files: [] });
+    // reopened where the file changed since: said each time it is shown, never kept as the one added
+    const back = readPage(pageToJson(withPlan));
+    page.dispose();
+    newPage({ textFile: async () => ({ state: 'file', file: new File(['# Plan, again'], 'plan.md') }) });
+    page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])));
+    await settle();
+    await until(() => tile(id)?.querySelector('.dc-text-files'));
+    for (let time = 0; time < 2; time++) {
+      show(id, 'plan.md');
+      await until(() => tile(id).querySelector('.dc-text-file h3'));
+      assert.equal(tile(id).querySelector('.dc-text-file-note')?.textContent, 'plan.md has changed since it was added to this text box.', `shown ${time + 1}`);
+      show(id, 'Text');
+      await until(() => tile(id).querySelector('.dc-text-tile'));
+    }
+  });
+
+  it("a text tile's right-click, in the menus' one order: Create ▸, Edit Text…, Open Files…, then View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page", async () => {
     // the menus (docs/DATACUBE_UI_REVIEW_2026_10_24.md): a text box had no right-click; its own window first, then how
     // it is shown and where, as a chart's and a grid's
     const told: PageCommand[] = [];
     const until = async (shown: () => unknown): Promise<void> => {
       for (let i = 0; i < 100 && !shown(); i++) await new Promise((r) => setTimeout(r, 5));
     };
-    newPage({ confirm: () => true, onPageCommand: (c) => told.push(c) });
+    // a host with a picker: Create ▸ Data Source… on it (its grid beside the text box: the 2026-10-25 audit)
+    newPage({ confirm: () => true, onPageCommand: (c) => told.push(c), openSource: async () => over('orders.csv') });
     const a = page.addGrid(over('trades.csv'));
     await settle();
     gridMenuItem(a, 'Text Box').click();
@@ -428,10 +524,10 @@ describe('a page of its own', () => {
     tile(id).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await until(() => tile(id).querySelector('.dc-text-tile'));
     const first = menu();
-    assert.deepEqual(first.top, ['Create', 'Edit Text\u2026', 'View']);
+    assert.deepEqual(first.top, ['Create', 'Edit Text\u2026', 'Open Files\u2026', 'View']);
     assert.deepEqual(first.view, ['Maximise', 'Move to Sheet', 'Remove from Page']);
     // Create ▸ in the grid's own words; what needs a grid is off, and says why
-    assert.deepEqual(first.create, ['Copy of This Grid', 'Visualization', 'Text Box']);
+    assert.deepEqual(first.create, ['Data Source\u2026', 'Copy of This Grid', 'Visualization', 'Text Box']);
     for (const off of ['Copy of This Grid', 'Visualization']) {
       assert.equal(first.entry(off).getAttribute('aria-disabled'), 'true', off);
       assert.equal(first.entry(off).title, 'A text box reads no grid');
@@ -447,6 +543,18 @@ describe('a page of its own', () => {
     assert.ok(tile(id).querySelector('textarea'), 'Edit Text\u2026 opens its editor');
     tile(id).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await until(() => tile(id).querySelector('.dc-text-tile'));
+    // Create ▸ Data Source…: the host's picker, its grid told beside the text box (the 2026-10-25 audit: placed as one
+    // beside nothing)
+    told.length = 0;
+    menu().entry('Data Source\u2026').click();
+    await settle();
+    const added = told.find((c) => c.kind === 'addGrid');
+    assert.equal(added?.kind === 'addGrid' ? added.near : undefined, id, 'beside the text box');
+    // a locked page: its Remove from Page offered off, as its x is hidden (the 2026-10-25 audit)
+    page.setLayoutEditing(false);
+    const locked = menu().entry('Remove from Page');
+    assert.deepEqual([locked.getAttribute('aria-disabled'), locked.title], ['true', 'Edit Layout first']);
+    page.setLayoutEditing(true);
     // Maximise fills the page with it, and the same entry then says Restore
     menu().entry('Maximise').click();
     assert.ok(host.querySelector('.dc-bands-maximised'), 'the page filled with it');
@@ -801,7 +909,7 @@ describe('a page of its own', () => {
     assert.deepEqual(page.views(), { views: doc.views, sheets: doc.sheets });
   });
 
-  it('on a locked page offers Move to Sheet disabled, in a grid\'s menu and a chart\'s, and moves nothing', async () => {
+  it('on a locked page offers Move to Sheet and Remove from Page disabled, in a grid\'s menu and a chart\'s, and moves nothing', async () => {
     newPage();
     const a = page.addGrid(over('trades.csv'));
     await settle();
@@ -812,10 +920,15 @@ describe('a page of its own', () => {
     await settle();
     const move = gridMenuItem(a, 'Move to Sheet');
     assert.equal(move.getAttribute('aria-disabled'), 'true', 'the grid\'s');
+    // Remove from Page too, as a tile's x is hidden on a locked page (the 2026-10-25 audit)
+    const remove = gridMenuItem(a, 'Remove from Page');
+    assert.deepEqual([remove.getAttribute('aria-disabled'), remove.title], ['true', 'Edit Layout first'], "the grid's Remove");
     (tile(chart).querySelector('.dc-chart-tile') as HTMLElement)
       .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     const chartMove = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Move to Sheet');
     assert.equal(chartMove?.getAttribute('aria-disabled'), 'true', 'the chart\'s');
+    const chartRemove = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Remove from Page');
+    assert.equal(chartRemove?.getAttribute('aria-disabled'), 'true', "the chart's Remove");
     // and its entries, reached anyway, move nothing
     [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'New Sheet')?.click();
     await settle();

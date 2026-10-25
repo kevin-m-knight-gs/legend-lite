@@ -115,6 +115,8 @@ export interface PageAppOptions {
   readonly host: HTMLElement;
   /** A text box's file read again by its fingerprint, from what the host kept for this page (cube-page.ts textFile). */
   readonly textFile?: (sha256: string, click: boolean) => Promise<HandleRead | undefined>;
+  /** A text box's file picked again with its handle: kept for the saved page it is (cube-page.ts keepTextFile). */
+  readonly keepTextFile?: (sha256: string, handle: FileHandle) => void;
   /** The page's name, in its bar's name box, until `setTitle`. */
   readonly title?: string;
   /**
@@ -653,8 +655,9 @@ export class PageApp {
     await this.#page.opened();
   }
 
-  /** The text boxes' files read this session with their handles: the host keeps them when the page is saved. */
-  textFilesNow(): { readonly sha256: string; readonly handle: FileHandle }[] {
+  /** Each file on the page's text boxes, with its handle where this session has one: the host keeps them when the page
+   *  is saved (CubePage.textFilesNow). */
+  textFilesNow(): { readonly sha256: string; readonly handle?: FileHandle }[] {
     return this.#page.textFilesNow();
   }
 
@@ -942,6 +945,9 @@ export class PageApp {
       // a chart's or a text box's Create ▸ Data Source…: the host's picker, as the page's ≡ has it, beside that tile
       ...(this.#options.openSource ? { addSource: (near: string) => { void this.addSource(near); } } : {}),
       ...(this.#options.textFile ? { textFile: this.#options.textFile } : {}),
+      ...(this.#options.keepTextFile ? { keepTextFile: this.#options.keepTextFile } : {}),
+      // what the board refuses before a command, said as a refused command is (`#refused`)
+      refuse: (words) => this.#refused(new CubeRefusal(words)),
       onSettingsChanged: (values) => {
         for (const grid of this.#live()) grid.useSettings(values);
         this.#options.onSettingsChanged?.(values);
@@ -1427,7 +1433,8 @@ export class PageApp {
       { label: '', items: [
         { id: 'view.settings', label: 'Settings…', ...off(noGrid) },
         ...submenu('View', [
-          { id: 'page.bar', label: this.barFolded ? 'Show the Bar' : 'Hide the Bar' },
+          // only ever Hide: folded, the ≡ folds away with the bar, and its lip shows it again (the 2026-10-25 audit)
+          { id: 'page.bar', label: 'Hide the Bar' },
           ...this.#hostItems('view'),
           { id: 'view.shortcuts', label: 'Keyboard Shortcuts…', ...off(noGrid) },
         ]),

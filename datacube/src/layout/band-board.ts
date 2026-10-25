@@ -1073,7 +1073,8 @@ export class BandBoard {
 
   #onKey(id: string, e: KeyboardEvent): void {
     const p = this.#tiles.get(id);
-    if (e.key === 'Escape' && this.#maximised === id && e.target === p?.root) {
+    // one another listener used (a chart's options put away: ui/chart-panel.ts) fills it no less
+    if (e.key === 'Escape' && !e.defaultPrevented && this.#maximised === id && e.target === p?.root) {
       e.preventDefault();
       this.maximise(null);
       p.root.focus();

@@ -833,6 +833,11 @@ class Document(Paged):
                 note.files = [deck]
             with self.assertRaisesRegex(ValueError, 'is in the text box twice'):
                 note.files = [plan, plan]
+            # one path is no list; a folder is no file (the 2026-10-25 audit: its letters were read as paths)
+            with self.assertRaisesRegex(TypeError, r"a text box's files are a list: \[path\] for one"):
+                note.files = str(plan)
+            with self.assertRaisesRegex(ValueError, 'is a folder: a text box shows files'):
+                note.files = [d]
         sha = 'a' * 64
         self.assertEqual(note.files, [
             {'name': 'plan.md', 'size': 7, 'sha256': hashlib.sha256(b'# Plan\n').hexdigest()},

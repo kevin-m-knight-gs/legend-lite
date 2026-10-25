@@ -147,7 +147,8 @@ describe('tooltips', () => {
   });
 });
 
-describe('a cell\'s alignment when none is set (the user, 2026-10-25): figures right, the rest left, headers centred', () => {
+// (its headers stay centred: grid.css's rule, which no DOM without the stylesheet reads -- not claimed here)
+describe('a cell\'s alignment when none is set (the user, 2026-10-25): figures right, the rest left', () => {
   const justify = (name: string): string =>
     (container.querySelector(`.dc-cell[data-column="${name}"]`) as HTMLElement).style.getPropertyValue('justify-content');
 

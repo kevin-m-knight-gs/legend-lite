@@ -6452,6 +6452,9 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/style.ts",
     ],
+    "text-files": [
+        "src/text-files.ts",
+    ],
     "tile-icons": [
         "src/ui/tile-icons.ts",
     ],
