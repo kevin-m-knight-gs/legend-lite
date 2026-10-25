@@ -4,7 +4,10 @@
 // by continent and written out as a CSV by an Output, the top order of each country kept by a Unique, and a comment
 // saying where to start. Built by DataCube's own writers (cube-document.ts writeCube, join.ts theirNames, unique.ts's
 // shape), as the other example pages are; it opens as a saved page does, each sample rebuilt and each box a document
-// until it is shown. test/examples.test.ts reads it back.
+// until it is shown. A second sheet, Reshape, shows the tools that reshape rows: the top orders of each region kept by a
+// Sample, chosen and renamed by a Select, their money made rows by a Transpose and summed by measure -- each made by its
+// tool's own rule (row-sample.ts, select-columns.ts, transpose.ts), applied as the screen applies it (grid-commands.ts).
+// test/examples.test.ts reads it back.
 
 import { element, fn, lambda, property, variable } from '../../../pure-protocol/src/index.ts';
 import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../config.ts';
@@ -17,6 +20,10 @@ import { COUNTRIES_SAMPLE } from '../samples.ts';
 import type { ColumnSpec, CubeSnapshot, DerivedColumn } from '../snapshot.ts';
 import { TreeState } from '../tree.ts';
 import { UNIQUE_COLUMN } from '../unique.ts';
+import { applyGridCommands, type GridCommand } from '../grid-commands.ts';
+import { rowSampleCommands } from '../row-sample.ts';
+import { selectCommands } from '../select-columns.ts';
+import { transposeCommands } from '../transpose.ts';
 import { EXAMPLE_ROWS, EXAMPLE_SAMPLE, SALES_SPECS } from './charts-dashboard.ts';
 import { COUNTRY_SPECS, sampleSource } from './prep-joins.ts';
 
@@ -29,6 +36,13 @@ const flat = (name: string, columns: readonly ColumnSpec[], over: Partial<CubeSn
 function box(name: string, source: CubeSource, snapshot: CubeSnapshot, configuration: CubeConfiguration = DEFAULT_CONFIGURATION): CubeDocument {
   const state = openedState(snapshot, configuration, TreeState.fromPaths([], false));
   return writeCube({ name, source, snapshot: state.snapshot, configuration: state.configuration, tree: state.tree });
+}
+
+/** A box set by its tool's own commands (`commands`, made of the snapshot), applied as the screen applies them. */
+function stepped(name: string, source: CubeSource, snapshot: CubeSnapshot, configuration: CubeConfiguration,
+  commands: (s: CubeSnapshot) => GridCommand[]): CubeDocument {
+  const draft = applyGridCommands({ snapshot, config: configuration }, commands(snapshot));
+  return box(name, source, draft.snapshot, draft.config);
 }
 
 /** A box over another box's rows, read live: its input the grid of that id on the page. */
@@ -85,12 +99,40 @@ export async function prepFlowPage(): Promise<PageDocument> {
       filter: { kind: 'condition', column: UNIQUE_COLUMN, operator: 'equal', value: 1 },
     }), { ...MONEYED, columns: { ...MONEYED.columns, [UNIQUE_COLUMN]: { hidden: true } } }) },
   ];
+  // RESHAPE: the top two orders of each region by revenue, chosen and renamed, their money made rows and summed by measure
+  const chosen: readonly ColumnSpec[] = [
+    { name: 'order_id', type: 'Integer', kind: 'dimension' }, { name: 'region', type: 'String' },
+    { name: 'sales', type: 'Float', kind: 'measure' }, { name: 'cost', type: 'Float', kind: 'measure' }, { name: 'profit', type: 'Float', kind: 'measure' },
+  ];
+  const turned: readonly ColumnSpec[] = [
+    { name: 'order_id', type: 'Integer', kind: 'dimension' }, { name: 'region', type: 'String' },
+    { name: 'measure', type: 'String' }, { name: 'amount', type: 'Float', kind: 'measure' },
+  ];
+  cubes.push(
+    { id: 'grid-9', cube: stepped('Top orders of each region', rowsOf('grid-1', 'Orders', SALES_SPECS), flat('top orders', SALES_SPECS), MONEYED,
+      (s) => rowSampleCommands(s, { kind: 'last', n: 2, by: 'revenue', groups: ['region'] })) },
+    { id: 'grid-10', cube: stepped('Chosen', rowsOf('grid-9', 'Top orders of each region', SALES_SPECS), flat('chosen', SALES_SPECS), MONEYED,
+      (s) => selectCommands(s, { keep: ['order_id', 'region', 'revenue', 'cost', 'profit'], rename: { revenue: 'sales' } })) },
+    { id: 'grid-11', cube: stepped('Money to rows', rowsOf('grid-10', 'Chosen', chosen), flat('to rows', chosen), DEFAULT_CONFIGURATION,
+      (s) => transposeCommands(s, { columns: ['sales', 'cost', 'profit'], keys: ['order_id', 'region'], name: 'measure', value: 'amount' })) },
+    { id: 'grid-12', cube: box('By measure', rowsOf('grid-11', 'Money to rows', turned), flat('by measure', turned, {
+      rows: ['measure'], sorts: [{ column: 'amount', direction: 'desc' }],
+    }), { ...DEFAULT_CONFIGURATION, columns: { amount: MONEY } }) },
+  );
   const grids: PageView[] = cubes.map((c) => ({ id: c.id, kind: 'grid', cube: c.id, title: c.cube.name }));
   const notes: PageView[] = [
     { id: 'text-1', kind: 'text', text: 'Inputs' },
     { id: 'text-2', kind: 'text', text: 'Prepare' },
     { id: 'text-4', kind: 'text', text: 'Report' },
     { id: 'text-3', kind: 'text', text: '**Start here.** Click a box to see its rows below, and its settings beside. Drop a tool from the left onto a box to add a step after it; drag from a box\'s right edge to another box to link them; ▶ Run counts every box and writes the Output.' },
+    { id: 'text-5', kind: 'text', text: '**Reshape.** The two biggest orders of each region (a Sample), their columns chosen and revenue renamed sales (a Select), their money made rows (a Transpose) and summed by measure.' },
+  ];
+  const reshape: FlowBox[] = [
+    { tile: 'grid-9', x: 40, y: 60 },
+    { tile: 'grid-10', x: 288, y: 60 },
+    { tile: 'grid-11', x: 536, y: 60 },
+    { tile: 'grid-12', x: 536, y: 210 },
+    { tile: 'text-5', x: 40, y: 210 },
   ];
   // three columns wide, so the whole of it is in sight beside the settings: its inputs, its steps, its report
   const boxes: FlowBox[] = [
@@ -110,6 +152,9 @@ export async function prepFlowPage(): Promise<PageDocument> {
   return writePageOf({
     name: 'A data flow',
     cubes,
-    views: { views: [...grids, ...notes], sheets: [{ id: 'sheet-1', name: 'Sales prep', layout: { kind: 'flow', boxes } }] },
+    views: { views: [...grids, ...notes], sheets: [
+      { id: 'sheet-1', name: 'Sales prep', layout: { kind: 'flow', boxes } },
+      { id: 'sheet-2', name: 'Reshape', layout: { kind: 'flow', boxes: reshape } },
+    ] },
   });
 }

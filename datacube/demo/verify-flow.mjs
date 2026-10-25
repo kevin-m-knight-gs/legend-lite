@@ -1099,23 +1099,44 @@ try {
   await page.click('.dc-titlebar-menu');
   await item('Open…').click();
   await page.locator('#cubeswin .dc-open-example[data-example="prep-flow"]').click();
-  await page.waitForFunction(() => document.querySelectorAll('.dc-flow-box').length === 8, undefined, { timeout: 120_000 });
-  const exampleTools = await page.locator('.dc-flow-box').evaluateAll((els) => els.map((e) => e.dataset.tool).sort());
+  // its first sheet's boxes (its Reshape sheet's are on the page too, out of sight)
+  await page.waitForFunction(() => [...document.querySelectorAll('.dc-flow-box')].filter((e) => e.offsetParent !== null).length === 8, undefined, { timeout: 120_000 });
+  const exampleTools = await page.locator('.dc-flow-box:visible').evaluateAll((els) => els.map((e) => e.dataset.tool).sort());
   check(JSON.stringify(exampleTools) === JSON.stringify(['filter', 'formula', 'input', 'input', 'join', 'output', 'summarize', 'unique']),
     `the example's boxes: ${exampleTools}`);
-  check(await page.locator('.dc-flow-container').count() === 3 && await page.locator('.dc-flow-note:not(.dc-flow-container)').count() === 1,
+  check(await page.locator('.dc-flow-container:visible').count() === 3 && await page.locator('.dc-flow-note:not(.dc-flow-container):visible').count() === 1,
     'its three containers and its comment');
-  const [exampleFile] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.locator('.dc-flow-run').click()]);
+  const [exampleFile] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.locator('.dc-flow-run:visible').click()]);
   check(exampleFile.suggestedFilename() === 'revenue by continent.csv', `Run writes its Output: ${exampleFile.suggestedFilename()}`);
-  await page.waitForFunction(() => /Run$/.test(document.querySelector('.dc-flow-run')?.textContent ?? ''), undefined, { timeout: 240_000 });
-  const exampleCounts = await page.locator('.dc-flow-box').evaluateAll((els) => Object.fromEntries(els.map((e) => [e.dataset.tile, e.querySelector('.dc-flow-count')?.textContent ?? ''])));
+  await page.waitForFunction(() => [...document.querySelectorAll('.dc-flow-run')].every((b) => /Run$/.test(b.textContent ?? '')), undefined, { timeout: 240_000 });
+  const exampleCounts = await page.locator('.dc-flow-box:visible').evaluateAll((els) => Object.fromEntries(els.map((e) => [e.dataset.tile, e.querySelector('.dc-flow-count')?.textContent ?? ''])));
   check(Object.values(exampleCounts).every((c) => /^[\d,]+$/.test(c)), `every box counted: ${JSON.stringify(exampleCounts)}`);
   const continents = Number(exampleCounts['grid-6'].replaceAll(',', ''));
   check(continents >= 5 && continents <= 6, `a row a continent (and the orders with no country): ${continents}`);
-  await page.locator('.dc-flow-log-close').click();
+  await page.locator('.dc-flow-log-close:visible').click();
   check(!/no longer in its input/.test(await page.locator('.dc-app-status').first().textContent().catch(() => '') ?? ''),
     'nothing of the page before it said on its status line, nor anything gone');
   await page.screenshot({ path: outPath('flow-example.png') });
+
+  // ITS RESHAPE SHEET: the top two orders of each region, chosen and renamed, their money made rows and summed by measure
+  await page.locator('.dc-sheet-tab', { hasText: 'Reshape' }).click();
+  await page.waitForFunction(() => document.querySelector('.dc-flow-box[data-tile="grid-12"]')?.offsetParent != null, undefined, { timeout: 60_000 });
+  await page.locator('.dc-flow-run:visible').click();
+  await page.waitForFunction(() => [...document.querySelectorAll('.dc-flow-run')].every((b) => /Run$/.test(b.textContent ?? '')), undefined, { timeout: 240_000 });
+  const reshapeCounts = await page.locator('.dc-flow-box:visible').evaluateAll((els) => Object.fromEntries(els.map((e) => [e.dataset.tile, Number((e.querySelector('.dc-flow-count')?.textContent ?? '').replaceAll(',', ''))])));
+  const topOrders = reshapeCounts['grid-9'];
+  check(topOrders > 0 && topOrders % 2 === 0 && reshapeCounts['grid-10'] === topOrders && reshapeCounts['grid-11'] === topOrders * 3 && reshapeCounts['grid-12'] === 3,
+    `Reshape: two of each region, chosen, three rows each, summed by measure: ${JSON.stringify(reshapeCounts)}`);
+  await page.locator('.dc-flow-log-close:visible').click();
+  await page.locator('.dc-flow-box[data-tile="grid-11"]').click();
+  // the box clicked shown (Run leaves its last box's), its rows in
+  await page.waitForFunction(() => {
+    const shown = [...document.querySelectorAll('.dc-flow-results')].find((r) => r.offsetParent != null);
+    return shown?.querySelector('.dc-flow-results-title')?.textContent === 'Money to rows' && /of [\d,]+ rows|[\d,]+ rows ×/.test(shown.textContent ?? '');
+  }, undefined, { timeout: 60_000 });
+  const turnedOut = await page.locator('.dc-flow-results:visible .dc-th[data-column]').evaluateAll((els) => els.map((e) => e.dataset.column));
+  check(JSON.stringify(turnedOut) === JSON.stringify(['order_id', 'region', 'measure', 'amount']), `its Transpose reads the Select's sales: ${turnedOut}`);
+  await page.screenshot({ path: outPath('flow-example-reshape.png') });
 } catch (e) {
   bad(`threw: ${e.stack ?? e}`);
 } finally {

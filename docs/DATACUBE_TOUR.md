@@ -82,8 +82,9 @@ Each step is one section of the gallery. A step's line says what the check found
     (`docs/DATACUBE_FLOW_MODE_2026_10_24.md` M1, M5).
 18. **The example flow.** Open… ▸ "A data flow": the orders and their countries on a canvas, in Inputs, Prepare and
     Report containers; Run counts every box and writes its Output ("revenue by continent.csv"); the join's Profile below
-    it; its Prepare container folded to its head. Three pictures (`docs/DATACUBE_FLOW_MODE_2026_10_24.md`: the example,
-    Profile, containers).
+    it; its Prepare container folded to its head; then its Reshape sheet run -- the two biggest orders of each region (a
+    Sample), chosen and revenue renamed sales (a Select), their money made rows (a Transpose) and summed by measure. Four
+    pictures (`docs/DATACUBE_FLOW_MODE_2026_10_24.md`: the example, Profile, containers, Sample, Select, Transpose).
 19. **No page errors on the way.**
 
 ## When a step fails

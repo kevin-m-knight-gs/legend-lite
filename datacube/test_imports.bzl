@@ -2874,6 +2874,7 @@ TEST_IMPORTS = {
         "src/runner.ts",
         "src/sample-trades.ts",
         "src/samples.ts",
+        "src/select-columns.ts",
         "src/snapshot.ts",
         "src/state-owner.ts",
         "src/style.ts",

@@ -32,7 +32,7 @@ describe('the example pages', () => {
   // a flow to open, rather than one to build first (docs/DATACUBE_FLOW_MODE_2026_10_24.md)
   it('the flow example: its boxes each the tool it is, read live, in its containers, its Output writing a CSV', async () => {
     const page = readPage(pageToJson(await prepFlowPage()));
-    assert.equal(page.sheets.length, 1);
+    assert.equal(page.sheets.length, 2);
     const layout = page.sheets[0]!.layout;
     assert.ok(layout.kind === 'flow');
     const cube = (id: string) => page.cubes.find((c) => c.id === id)!.cube;
@@ -40,7 +40,13 @@ describe('the example pages', () => {
     assert.deepEqual(tools, {
       'grid-1': 'input', 'grid-2': 'input', 'grid-3': 'filter', 'grid-4': 'join', 'grid-5': 'formula', 'grid-6': 'summarize',
       'grid-7': 'browse', 'grid-8': 'unique',
+      // its Reshape sheet: a Sample, a Select, a Transpose and a Summarize
+      'grid-9': 'sample', 'grid-10': 'select', 'grid-11': 'transpose', 'grid-12': 'summarize',
     });
+    assert.deepEqual(['grid-9', 'grid-10', 'grid-11', 'grid-12'].map((id) => boxSays(cube(id)).says), [
+      'last 2 of each region by revenue', 'revenue → sales; 12 of 17 columns left out', 'sales, cost, profit to rows', 'by measure',
+    ]);
+    assert.deepEqual(['grid-10', 'grid-11', 'grid-12'].map((id) => liveGrids(cube(id).source)), [['grid-9'], ['grid-10'], ['grid-11']]);
     // each box after the first reads the box before it live
     assert.deepEqual(['grid-3', 'grid-4', 'grid-5', 'grid-6', 'grid-7', 'grid-8'].map((id) => liveGrids(cube(id).source)),
       [['grid-1'], ['grid-3', 'grid-2'], ['grid-4'], ['grid-5'], ['grid-6'], ['grid-1']]);

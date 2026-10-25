@@ -729,6 +729,15 @@ in words. A box says "region → area; 1 of 12 columns left out". Python: `grid.
 Python's `test_a_select_keeps_and_renames_for_what_reads_it` and the harness (a Select of the Filter, the Sort after it
 reading `area`, no `region`, no `book`).
 
+**The example flow's Reshape sheet** (`examples/prep-flow.ts`): a second sheet showing the tools that reshape rows over the
+same orders -- the two biggest orders of each region (a Sample: last 2 of each region by revenue), their columns chosen
+and revenue renamed sales (a Select), their money made rows (a Transpose: sales, cost, profit to rows, beside each
+order's id and region) and summed by measure (a Summarize) -- each box made by its tool's own rule, applied as the
+screen applies it (`grid-commands.ts applyGridCommands`), so the example cannot drift from what the tools make. Tested by
+`examples.test.ts` (each box's tool and words, each read live), the harness (run: 6, 6, 18, 3; the Transpose reading the
+Select's `sales`) and the tour (its picture). A page of two flow sheets keeps both canvases on the page, so the harness
+and the tour count and click what is shown.
+
 **Built, Fuzzy Match** (M2; `join-how.ts`, `join.ts`, `ui/join-dialog.ts`): Alteryx's Fuzzy Match as a join -- a row
 of a join's condition gained the comparison `~`, similar text: both a value and at most `within` edits apart (2 when
 not said), by the database's `levenshteinDistance` (`$a.who->toOne()->levenshteinDistance($b.name->toOne()) <= 1`). The
