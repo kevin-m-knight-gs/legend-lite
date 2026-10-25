@@ -432,8 +432,11 @@ const BUDGET = 359_500;
  *  344,000 -> 345,500 (2026-10-25, the UI waves: a measure's numbers right-aligned, the page's ≡ grouped by purpose and
  *  the one tile header -- the grid-only page's notes of the same date). Measured 345,283.
  *  345,500 -> 347,000 (2026-10-25, the grid's status bar -- the grid-only page's note of the same date). Measured
- *  346,310. */
-const ENGINE_BUDGET = 347_000;
+ *  346,310.
+ *  347,000 -> 348,000 (2026-10-25, the text box's Markdown styles -- the grid-only page's note of the same date -- and a
+ *  chart's options as a popover that closes: its heading and x, Escape and a press elsewhere, placed beside its chart
+ *  (ui/chart-panel.ts openForm)). Measured 347,245. */
+const ENGINE_BUDGET = 348_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
