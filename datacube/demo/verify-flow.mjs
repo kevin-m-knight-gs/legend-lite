@@ -523,6 +523,10 @@ try {
   const reads = async (id) => JSON.stringify(await readsOf(id));
   check(await reads(union.id) === JSON.stringify([filter.id, input.id, input.id]), `a third input: ${await reads(union.id)}`);
   check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Link Box', 'one step: Link Box');
+  // said to a screen reader (M7): what changed, by the flow shown's live region
+  const told = await page.evaluate(() => [...document.querySelectorAll('.dc-flow')].find((f) => f.offsetParent !== null)
+    ?.querySelector(':scope > .dc-board-live')?.textContent ?? '');
+  check(told === 'Union reads Filter and Input and Input now.', `its change said: ${told}`);
   check(JSON.stringify(await page.locator(`.dc-flow-box[data-tile="${union.id}"] > .dc-flow-port-in:visible`).allTextContents()) === '["1","2","3","+"]',
     'its ports numbered, and its +');
   check(await show(union.id) === fewer + 2 * all, `the rows of all three: ${fewer} + ${all} + ${all}`);

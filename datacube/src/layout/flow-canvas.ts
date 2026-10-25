@@ -274,6 +274,8 @@ export class FlowCanvas {
   readonly #commandList: HTMLElement;
   #commandsFound: readonly Command[] = [];
   #commandAt = 0;
+  /** What the live region was told of each box last (#announce): its name and what it reads. */
+  #told: ReadonlyMap<string, { readonly name: string; readonly reads: string }> | undefined;
   /** The toolbar's buttons a command presses, by what it is called. */
   #toolbarCommands: readonly (readonly [string, HTMLButtonElement])[] = [];
   /** The last run's log, at the canvas's corner: drawn for the log it was drawn for, closed until the next run. */
@@ -628,6 +630,36 @@ export class FlowCanvas {
     this.#paintLog();
     this.#paintResults();
     this.#paintSettings();
+    this.#announce([...this.#boxes.keys()]);
+  }
+
+  /**
+   * WHAT CHANGED, SAID (M7, a screen reader's): each box added (and what it reads), taken off, renamed, or reading other
+   * boxes now -- whatever made the change, a gesture, an undo or Python -- told in the board's live region in a sentence
+   * or two; nothing the first time it is drawn, nor when only how it looks changed.
+   */
+  #announce(ids: readonly string[]): void {
+    const nameOf = (id: string): string => this.#nameOf(id, this.#said(id)?.tool ?? 'browse');
+    const now = new Map(ids.map((id) => [id, {
+      name: nameOf(id),
+      reads: this.#inputsOf(id).map((i) => ('grid' in i
+        ? `${nameOf(i.grid)}${i.port !== undefined ? ` (${portWord(this.#said(i.grid)?.tool, i.port)})` : ''}` : `a copy of ${i.frozen}`)).join(' and '),
+    }] as const));
+    const was = this.#told;
+    this.#told = now;
+    if (was === undefined) return;
+    const said: string[] = [];
+    for (const [id, n] of now) {
+      const w = was.get(id);
+      if (w === undefined) said.push(n.reads === '' ? `Added ${n.name}` : `Added ${n.name}, reading ${n.reads}`);
+      else {
+        if (w.name !== n.name) said.push(`${w.name} renamed ${n.name}`);
+        if (w.reads !== n.reads) said.push(n.reads === '' ? `${n.name} reads no box now` : `${n.name} reads ${n.reads} now`);
+      }
+    }
+    for (const [id, w] of was) if (!now.has(id)) said.push(`Removed ${w.name}`);
+    if (said.length === 0) return;
+    this.#board.say(`${said.slice(0, 3).join('. ')}${said.length > 3 ? `. And ${said.length - 3} more` : ''}.`);
   }
 
   /** Undo and Redo as the page has them now: each on while it has a step, its title the step's name; neither on a

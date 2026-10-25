@@ -861,6 +861,14 @@ Escape or a click elsewhere closes. No command of its own: each is its button's,
 gesture, so it adds nothing to undo or to Python. Listed among the keys (?). Tested by the harness (zoomed in and back,
 a Browse added after the box shown and undone, a box shown by its name, Escape).
 
+**Built, what changed said** (M7, accessible announcements; `layout/flow-canvas.ts` `#announce`, 2026-10-25): after each
+time the canvas draws, it compares its boxes -- each one's name and what it reads -- with what it told last, and says
+what changed in the board's live region (polite): a box added ("Added Sort, reading Filter"), taken off, renamed, or
+reading other boxes now ("Union reads Filter and Input and Input now", "Formula reads a copy of Filter now"), three
+changes at most and how many more. It says whatever made the change -- a gesture, an undo, a redo, Python's edit -- since
+it reads the boxes, not the gestures; nothing the first time a flow is drawn, nor when only how it looks changed. Tested
+by the harness (a third line onto the Union, said).
+
 **Run from the keys** (`layout/flow-canvas.ts`): Ctrl+Enter (⌘+Enter) anywhere on the canvas runs the flow, as its
 button does, while no run is going; the keys panel and the button's title say so. Tested by the harness (a run from a
 box's keys writes its Output).
