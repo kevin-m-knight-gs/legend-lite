@@ -1607,6 +1607,11 @@ class Abilities(Paged):
         self.assertEqual([r['who_clean'] for r in rows], ['', 'ANA DIAZ', 'BEN ROSS'])
         with self.assertRaisesRegex(ValueError, 'it splits on a delimiter: type one'):
             grid.split('code', '', 2)
+        # into rows: each part its own row, by an explode
+        tags = page.grid(pd.DataFrame({'id': [1, 2], 'tags': ['a,b,c', 'd']}), name='tags')
+        tags.split('tags', ',', name='tag', rows=True)
+        self.assertEqual(sorted((int(r['id']), r['tag']) for r in tags.to_pandas().to_dict('records')),
+                         [(1, 'a'), (1, 'b'), (1, 'c'), (2, 'd')])
         with self.assertRaisesRegex(ValueError, 'its mode is match, replace or extract, not "find"'):
             grid.regex('code', 'x', 'find')
         with self.assertRaisesRegex(ValueError, 'pick what to do to them'):

@@ -35,7 +35,7 @@ import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi
 import { TreeState } from '../src/tree.ts';
 import { accessor, fn, lambda, lit, property, variable } from '../../pure-protocol/src/index.ts';
 import { textToolOf } from '../src/text-tools.ts';
-import { textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
+import { readTextTool, textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
 import { grainColumn, grainOf } from '../src/calc-presets.ts';
 import { pastedCells, tableCsv, tableProblem } from '../src/ui/text-input-dialog.ts';
 
@@ -204,6 +204,13 @@ describe('the text tools (text-tools.ts): calculated columns, read back off thei
     assert.deepEqual(parts.map((p) => p.name), ['book_1', 'book_2', 'book_3']);
     assert.equal(body(parts[2]!), JSON.stringify(fn('splitPart', property(variable('x'), 'book'), lit.string(' '), lit.integer(2))));
     assert.deepEqual(said(parts), { tool: 'textToColumns', also: [], says: "book split on ' '" });
+    // into rows: one column, exploded over split -- a row a part
+    const rowsOf = textToolColumns({ kind: 'split', column: 'book', delimiter: ',', parts: 1, name: 'part', rows: true });
+    assert.deepEqual(rowsOf.map((p) => [p.name, p.unnest]), [['part', true]]);
+    assert.equal(body(rowsOf[0]!), JSON.stringify(fn('split', fn('toOne', property(variable('x'), 'book')), lit.string(','))));
+    assert.deepEqual(said(rowsOf), { tool: 'textToColumns', also: [], says: "book split on ',' to rows" });
+    assert.deepEqual(readTextTool({ kind: 'split', column: 'book', delimiter: ',', name: 'part', rows: true }),
+      { kind: 'split', column: 'book', delimiter: ',', parts: 1, name: 'part', rows: true });
   });
 
   it('RegEx: a match, a replacement or the first match, each over the column itself', () => {

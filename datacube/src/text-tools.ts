@@ -4,7 +4,8 @@
 // What a tool is set to is the expression it makes; what a box says it does is read back off that expression's shape
 // (`textToolOf`), never off a column's name.
 //
-//   Text To Columns   a text column split on a delimiter into its first N parts: `splitPart`, a column a part
+//   Text To Columns   a text column split on a delimiter into its first N parts: `splitPart`, a column a part -- or
+//                     into rows: every part its own row (`split`, exploded: one column, each row once a part)
 //   RegEx             a pattern over a text column: whether it matches (`regexpLike`), the text with each match
 //                     replaced (`regexpReplace`), or its first match (`regexpExtract`)
 //   Data Cleansing    text columns tidied, a column each: empties made blank (`coalesce`), punctuation taken out,
@@ -37,7 +38,9 @@ export interface Cleansing {
 
 /** The tools, as their windows set them. */
 export type TextTool =
-  | { readonly kind: 'split'; readonly column: string; readonly delimiter: string; readonly parts: number; readonly name: string }
+  /** `rows`: each part its own row (one column, exploded), `parts` unread; else its first `parts` parts, a column each. */
+  | { readonly kind: 'split'; readonly column: string; readonly delimiter: string; readonly parts: number; readonly name: string;
+    readonly rows?: boolean }
   | { readonly kind: 'regex'; readonly column: string; readonly pattern: string; readonly mode: RegexMode; readonly replacement?: string;
     readonly name: string }
   | { readonly kind: 'cleanse'; readonly columns: readonly string[]; readonly cleansing: Cleansing };
@@ -79,6 +82,12 @@ export function textToolOf(d: DerivedColumn): TextToolSaid | undefined {
     const column = read(first);
     const on = text(second);
     return column !== undefined && on !== undefined ? { tool: 'textToColumns', says: `${column} split on '${on}'` } : undefined;
+  }
+  // each part its own row: an exploded split
+  if (top.function === 'split' && d.unnest === true) {
+    const column = read(first);
+    const on = text(second);
+    return column !== undefined && on !== undefined ? { tool: 'textToColumns', says: `${column} split on '${on}' to rows` } : undefined;
   }
   // a pattern straight over a column
   const inner = top.function === 'first' && first?._type === 'func' && first.function === 'regexpExtract' ? first : top;

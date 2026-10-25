@@ -93,15 +93,34 @@ export function textToolForm(host: HTMLElement, o: TextToolFormOptions): void {
       parts.min = '1';
       parts.max = '50';
       row.append(parts);
-      el('span', 'dc-sample-word', row, 'columns');
+      // into columns, a part each, or into rows, a row a part (Alteryx's Split to rows)
+      const into = doc.createElement('select');
+      into.className = 'dc-select dc-text-tool-into';
+      into.setAttribute('aria-label', 'Columns or rows');
+      for (const [value, label] of [['columns', 'columns'], ['rows', 'rows: a row a part']] as const) {
+        const opt = doc.createElement('option');
+        opt.value = value;
+        opt.textContent = label;
+        into.append(opt);
+      }
+      row.append(into);
       const name = input('dc-text-tool-name', 'Their name', column.value);
       field('Named', name);
-      el('p', 'dc-sample-hint', body, 'Its columns are the name and each part\'s number: region_1, region_2… A value with fewer parts has its last columns empty.');
+      const hint = el('p', 'dc-sample-hint', body);
+      const shape = (): void => {
+        const rows = into.value === 'rows';
+        parts.hidden = rows;
+        hint.textContent = rows ? 'One column, the name: each row once for each of its parts -- a, b, c three rows.'
+          : 'Its columns are the name and each part\'s number: region_1, region_2… A value with fewer parts has its last columns empty.';
+      };
+      into.addEventListener('change', () => { shape(); check(); });
+      shape();
       // the name follows the column until it is typed
       let named = false;
       name.addEventListener('input', () => { named = true; });
       column.addEventListener('change', () => { if (!named) name.value = column.value; });
-      read = () => ({ kind: 'split', column: column.value, delimiter: delimiter.value, parts: Number(parts.value), name: name.value });
+      read = () => ({ kind: 'split', column: column.value, delimiter: delimiter.value, parts: Number(parts.value), name: name.value,
+        ...(into.value === 'rows' ? { rows: true } : {}) });
       for (const i of [delimiter, parts, name]) i.addEventListener('input', () => check());
       break;
     }

@@ -19,7 +19,7 @@ export function textToolProblem(t: TextTool): string | undefined {
   switch (t.kind) {
     case 'split':
       if (t.delimiter === '') return 'it splits on a delimiter: type one';
-      if (!Number.isInteger(t.parts) || t.parts < 1 || t.parts > 50) return 'it makes from 1 to 50 columns';
+      if (t.rows !== true && (!Number.isInteger(t.parts) || t.parts < 1 || t.parts > 50)) return 'it makes from 1 to 50 columns';
       return t.name.trim() === '' ? 'its columns need a name' : undefined;
     case 'regex':
       if (t.pattern === '') return 'it needs a pattern';
@@ -34,7 +34,8 @@ export function textToolProblem(t: TextTool): string | undefined {
 
 /**
  * The calculated columns a tool adds: Text To Columns a column a part, `<name>_1`..`<name>_N` (its parts counted from
- * 1, as a person counts them; `splitPart` counts from 0); RegEx one, `name`; Data Cleansing a column each,
+ * 1, as a person counts them; `splitPart` counts from 0), or into rows one, `name`, exploded; RegEx one, `name`; Data
+ * Cleansing a column each,
  * `<column>_clean`. Each a dimension. Its settings refused in words when they make no column.
  */
 export function textToolColumns(t: TextTool): DerivedColumn[] {
@@ -42,6 +43,10 @@ export function textToolColumns(t: TextTool): DerivedColumn[] {
   if (problem !== undefined) throw new CubeRefusal(problem);
   switch (t.kind) {
     case 'split':
+      // into rows: one column, each row once for each of its parts (an explode, as the column editor's Explode makes)
+      if (t.rows === true) {
+        return [{ name: t.name.trim(), lambda: row(fn('split', one(t.column), lit.string(t.delimiter))), kind: 'dimension', unnest: true }];
+      }
       return Array.from({ length: t.parts }, (_, i) => ({
         name: `${t.name.trim()}_${i + 1}`,
         lambda: row(fn('splitPart', col(t.column), lit.string(t.delimiter), lit.integer(i))),
@@ -109,10 +114,12 @@ export function readTextTool(raw: unknown): TextTool {
   let tool: TextTool;
   switch (o['kind']) {
     case 'split': {
-      only(['column', 'delimiter', 'parts', 'name']);
-      const parts = o['parts'];
+      only(['column', 'delimiter', 'parts', 'name', 'rows']);
+      const rows = yes('rows');
+      // into rows, no number of parts asked
+      const parts = o['parts'] ?? (rows ? 1 : undefined);
       if (typeof parts !== 'number') throw new CubeRefusal(`its parts is a number, not ${JSON.stringify(parts)}`);
-      tool = { kind: 'split', column: text('column'), delimiter: text('delimiter'), parts, name: text('name') };
+      tool = { kind: 'split', column: text('column'), delimiter: text('delimiter'), parts, name: text('name'), ...(rows ? { rows } : {}) };
       break;
     }
     case 'regex': {

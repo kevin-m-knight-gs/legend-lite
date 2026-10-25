@@ -837,12 +837,14 @@ class Grid(Tile):
         return self._preset({'kind': 'bins', 'column': column, 'bins': {
             **({'width': width} if width is not None else {}), **({'count': count} if count is not None else {})}})
 
-    def split(self, column: str, delimiter: str, parts: int, *, name: str | None = None) -> Grid:
+    def split(self, column: str, delimiter: str, parts: int | None = None, *, name: str | None = None, rows: bool = False) -> Grid:
         """The text ``column`` split on ``delimiter`` into its first ``parts`` parts, a new column each -- a flow's Text
         To Columns (DataCube's code: text-tool-columns.ts textToolCommands) -- named ``<name>_1`` ... ``<name>_<parts>``
-        (``name`` the column's own by default); a value with fewer parts has its last columns empty."""
-        return self._preset({'kind': 'split', 'column': column, 'delimiter': delimiter, 'parts': parts,
-                             'name': column if name is None else name})
+        (``name`` the column's own by default); a value with fewer parts has its last columns empty. ``rows``: into rows
+        instead -- one column, ``name``, each row once for each of its parts (an explode)."""
+        return self._preset({'kind': 'split', 'column': column, 'delimiter': delimiter,
+                             **({'parts': parts} if parts is not None else {}), 'name': column if name is None else name,
+                             **({'rows': True} if rows else {})})
 
     def regex(self, column: str, pattern: str, mode: str = 'match', *, replacement: str | None = None,
               name: str | None = None) -> Grid:

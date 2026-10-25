@@ -270,7 +270,7 @@ How to read the status column:
 | Tool | Status | How |
 |---|---|---|
 | Text To Columns (to columns) | Built (2026-10-25) | `splitPart`, one calculated column per part |
-| Text To Columns (to rows) | Step | `split`, then Expand |
+| Text To Columns (to rows) | Built (2026-10-25) | `split`, exploded: one column, each row once a part |
 | RegEx | Built (2026-10-25) | `regexpLike` (Match), `regexpReplace` (Replace), `regexpExtract`'s first (Extract), one tool. Tokenize (each match a row) is Expand's, later |
 | DateTime | Built (2026-10-25) | One tool, three ways: a date to its period (the grain preset), a date's part (`year`, `monthNumber`, `dayOfMonth`, `weekOfYear`, `hour`), text read as a date by a format (`convertDateFormat` / `convertDateTimeFormat`: strptime). A date written as text waits for a format the compiler takes as text (`formatDate` takes an enum) |
 | JSON Parse | Built | JSON fields (`datacube/src/ui/json-fields.ts`) and Expand |
@@ -709,6 +709,13 @@ keys=..., name='Name', value='Value')`. Tested by `flow-sheet.test.ts` (its colu
 Python's `test_columns_made_rows_as_a_flow_box_transposes_them` (DuckDB's rows, a desk's quarters) and the harness
 (the Filter's 503 rows twice, its key, Name and Value alone). Composed of select-per-column unions (FL14) it would
 need a source kind of its own; an explode needs none.
+
+**Built, Text To Columns into rows** (`text-tools.ts`, `text-tool-columns.ts`, `ui/text-tool-form.ts`): the split's other
+way, Alteryx's Split to rows -- each part of a text its own row: one column, `split($x.c->toOne(), ',')` exploded
+(DataCube's Explode), each row once for each part. The window's "into N columns" gained "into rows"; a box says "book
+split on ' ' to rows". Python: `grid.split(column, delimiter, name=..., rows=True)`. Tested by `flow-sheet.test.ts`,
+Python's text tools test (a, b, c three rows, d one) and the harness (the Filter's books split on a space: more rows
+than the Filter's).
 
 Fixed with it: what opening a box left out (a column no longer in its input, a calculated column that read one) was
 said on the page's status line, where it stayed under every box shown after it; it is said on the box's own status bar

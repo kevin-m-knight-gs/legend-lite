@@ -640,12 +640,20 @@ try {
     for (const c of expect.columns) {
       check(await page.locator(`.dc-flow-results .dc-th[data-column="${c}"]`).count() > 0, `its column ${c} in its rows`);
     }
-    check(await resultRows() === fewer, `${window}: its input's rows, each kept`);
+    // into rows: each row once a part, more rows than its input's
+    const n = await resultRows();
+    check(expect.more ? n > fewer : n === fewer, `${window}: ${expect.more ? `a row a part, more than its input's ${fewer}` : "its input's rows, each kept"}: ${n}`);
   };
   await textStep('textToColumns', 'Text To Columns', async (w) => {
     await w.locator('.dc-text-tool-column').selectOption('book');
     await w.locator('.dc-text-tool-delimiter').fill(' ');
   }, { says: "book split on ' '", columns: ['book_1', 'book_2'] });
+  await textStep('textToColumns', 'Text To Columns', async (w) => {
+    await w.locator('.dc-text-tool-column').selectOption('book');
+    await w.locator('.dc-text-tool-delimiter').fill(' ');
+    await w.locator('.dc-text-tool-into').selectOption('rows');
+    await w.locator('.dc-text-tool-name').fill('word');
+  }, { says: "book split on ' ' to rows", columns: ['word'], more: true });
   await textStep('regex', 'RegEx', async (w) => {
     await w.locator('.dc-text-tool-column').selectOption('desk');
     await w.locator('.dc-text-tool-pattern').fill('^[A-Z][a-z]+');
