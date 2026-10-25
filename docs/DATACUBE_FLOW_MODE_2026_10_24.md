@@ -729,6 +729,10 @@ in words. A box says "region → area; 1 of 12 columns left out". Python: `grid.
 Python's `test_a_select_keeps_and_renames_for_what_reads_it` and the harness (a Select of the Filter, the Sort after it
 reading `area`, no `region`, no `book`).
 
+**Run from the keys** (`layout/flow-canvas.ts`): Ctrl+Enter (⌘+Enter) anywhere on the canvas runs the flow, as its
+button does, while no run is going; the keys panel and the button's title say so. Tested by the harness (a run from a
+box's keys writes its Output).
+
 **A Summarize gives its keys and its aggregates** (`snapshot.ts ungroupedDimensions`): a box after a grouped box read
 a row per group with every dimension beside it, each its "unique value" (empty where a group's rows differ) -- the
 example flow hid them by hand. Now, as Alteryx's Summarize, a grouped flow box hands on its group keys and its

@@ -1036,8 +1036,12 @@ try {
   check(outFile.suggestedFilename() === "big trades.csv", `its file: ${outFile.suggestedFilename()}`);
   check(csvLines[0].startsWith('trade_id,trade_date,') && csvLines.length === fewer + 1, `every row it gives, its head first: ${csvLines.length - 1} rows, ${csvLines[0].slice(0, 40)}`);
   await page.locator('.dc-flow-output-said', { hasText: 'Wrote big trades.csv' }).waitFor({ timeout: 10_000 });
-  const [ranOut] = await Promise.all([page.waitForEvent('download', { timeout: 180_000 }), page.locator('.dc-flow-run').click()]);
-  check(ranOut.suggestedFilename() === 'big trades.csv', 'Run writes it too');
+  // Run from the keys: Ctrl+Enter on a box of the flow
+  const [ranOut] = await Promise.all([page.waitForEvent('download', { timeout: 180_000 }), (async () => {
+    await page.locator(`.dc-flow-box[data-tile="${outBox.id}"]`).focus();
+    await page.keyboard.press('Control+Enter');
+  })()]);
+  check(ranOut.suggestedFilename() === 'big trades.csv', 'Run (Ctrl+Enter) writes it too');
   await page.waitForFunction(() => /Run$/.test(document.querySelector('.dc-flow-run')?.textContent ?? ''), undefined, { timeout: 180_000 });
   check(/wrote big trades\.csv/.test(await page.locator('.dc-flow-log').textContent() ?? ''), 'its log says it wrote it');
   await page.locator('.dc-flow-log-close').click();

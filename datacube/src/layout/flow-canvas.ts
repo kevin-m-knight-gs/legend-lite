@@ -75,6 +75,7 @@ const KEYS: readonly (readonly [string, string])[] = [
   ['Ctrl+C, X, V', 'copy, cut, paste where the pointer is'],
   ['Ctrl+D, F2', 'duplicate a box, rename it'],
   ['Ctrl+Z, Ctrl+Shift+Z', 'undo, redo'],
+  ['Ctrl+Enter', 'run the flow'],
   ['Ctrl+A, Escape', 'pick every box, none'],
   ['Ctrl+G', 'a container round the boxes picked'],
   ['Ctrl+wheel', 'zoom about the pointer'],
@@ -329,7 +330,7 @@ export class FlowCanvas {
       b.addEventListener('click', act);
       return b;
     };
-    this.#run = tool('dc-flow-run', '▶ Run', 'Run every box, left to right, and count the rows each gives', () => this.#board.options.onRun?.());
+    this.#run = tool('dc-flow-run', '▶ Run', 'Run every box, left to right, and count the rows each gives (Ctrl+Enter)', () => this.#board.options.onRun?.());
     this.#tidy = tool('dc-flow-tidy', 'Tidy Up', 'Place every box a column after the boxes it reads, level with them', () => this.#board.options.onTidy?.());
     // the page's own Undo and Redo, each saying what it would undo or redo
     this.#undo = tool('dc-flow-undo', '↶', 'Undo (Ctrl+Z)', () => this.#board.options.onUndo?.(false));
@@ -1277,7 +1278,8 @@ export class FlowCanvas {
   #onBoxKey(id: string, drawn: Drawn, e: KeyboardEvent): void {
     if (drawn.renaming || e.target !== drawn.root) return;
     const o = this.#board.options;
-    if (e.key === 'Enter' || e.key === ' ') {
+    // Ctrl+Enter is the canvas's: Run (#onCanvasKey)
+    if ((e.key === 'Enter' || e.key === ' ') && !(e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       // as a click: picked, and shown
       this.#pick([id]);
@@ -1349,6 +1351,12 @@ export class FlowCanvas {
       if (this.#copied([...this.#picked][0]!, e)) return;
     }
     if (!(e.ctrlKey || e.metaKey)) return;
+    // Run, from the keys: as its button, while no run is going
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!this.#run.disabled) this.#board.options.onRun?.();
+      return;
+    }
     const key = e.key.toLowerCase();
     if (key === 'a' && target === this.#canvas) {
       e.preventDefault();
