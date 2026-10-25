@@ -461,8 +461,12 @@ const CHART_BUDGET = 303_500;
  *  timeseries-option.ts), its viewer (ui/timeseries-view.ts) and its renderer (timeseries-render.ts). Set 2026-10-25 at
  *  its first measure (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md), 29,593, with room for its next functions.
  *  31,000 -> 33,000 (2026-10-25, candles: ohlc's words, its query, its drawing and hover, and a candle of a column made by
- *  the series editor -- the candlestick chart itself with the rarer kinds, above). Measured 31,228. */
-const TIMESERIES_BUDGET = 33_000;
+ *  the series editor -- the candlestick chart itself with the rarer kinds, above). Measured 31,228.
+ *  33,000 -> 34,500 (2026-10-25, the review's fixes, docs/TIMESERIES_REVIEW_2026_10_25.md: the query compiler written
+ *  part by part, each operand on its own dates (Q1), the periods a year inferred (Q3), levels apart from units (Q2);
+ *  the tile's edits one rule, timeseries-edit.ts, which Python asks too (A2) -- the headroom kept to ~2% where it was
+ *  5.7%, as the review's G8 asked). Measured 33,858. */
+const TIMESERIES_BUDGET = 34_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

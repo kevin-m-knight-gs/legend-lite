@@ -499,9 +499,10 @@ const PASS_THROUGH: Record<string, string> = {
   setChart: "the spec as the chart's panel made it (chart-spec.ts editChart)",
   addText: "a new text tile's id, as the page numbers ids, on the sheet it was asked for, with its starting words",
   setText: "the words as typed in the text tile's editor (setText judges them, by page-text.ts textProblem)",
-  // 2026-10-25 (the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7)
-  addTimeseries: "a new timeseries tile's id, as the page numbers ids, under the grid it was asked from, its first series DataCube's rule over that grid's columns (ui/timeseries-view.ts firstTimeseries: timeseries-expr.ts defaultTimeseries, as Python's headless timeseriesMade)",
-  setTimeseries: "the spec as the timeseries tile's editors made it (read by timeseries-spec.ts readTimeseries, as setTimeseries reads it)",
+  // 2026-10-25 (the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7); corrected the same day by the
+  // review's A2 and A3 (docs/TIMESERIES_REVIEW_2026_10_25.md): the rules were the viewer's own, Python's apart
+  addTimeseries: "a new timeseries tile's id, as the page numbers ids, under the grid it was asked from, its first series DataCube's rule over that grid's columns (timeseries-edit.ts firstTimeseries and firstPlotOf, which Python's headless timeseriesMade asks)",
+  setTimeseries: "the spec as the timeseries tile's editors made it (timeseries-edit.ts editTimeseries, which Python's Timeseries methods ask headless: timeseriesEdit)",
   renamePage: 'the name as typed (renamePage judges it)', savedAs: "the page store's record the page was saved as",
   setPageFilter: "the filter as the page's filter bar made it", removePageFilter: 'the page filter whose x was clicked',
 };

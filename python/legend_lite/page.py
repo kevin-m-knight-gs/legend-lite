@@ -1280,6 +1280,13 @@ class Text(Tile):
         self._page._apply_page([_commands.page_set_text(tile=self._id, text=text)])
 
 
+def _series_told(expr: str, name: str | None, split: str | None, pane: int | None, axis: str | None,
+                 style: Mapping[str, Any] | None) -> dict[str, Any]:
+    """A series as Python's plot and edit tell it: its expression's text (read by DataCube's parser) and the slots given."""
+    told = {'expr': expr, 'name': name, 'split': split, 'pane': pane, 'axis': axis, 'style': dict(style) if style is not None else None}
+    return {k: v for k, v in told.items() if v is not None}
+
+
 def _timeseries_sources(sources: Any) -> list[dict[str, Any]]:
     """A timeseries' sources as ``Page.timeseries`` takes them -- a grid; a list of grids; or by alias, each a grid or a
     mapping of its grid and what DataCube's defaults would otherwise choose (``date``, ``key``) -- as DataCube is told them
@@ -1292,7 +1299,11 @@ def _timeseries_sources(sources: Any) -> list[dict[str, Any]]:
         else:
             raise ValueError(f'a timeseries reads grids: {given!r} is not one')
         return told if alias is None else {'alias': alias, **told}
-    if isinstance(sources, (Grid, Mapping)) and not (isinstance(sources, Mapping) and 'grid' in sources):
+    # one source told as a mapping: its grid and its own slots alone (``{'grid': g, 'date': 'day'}``) -- a mapping with any
+    # other key is by alias, each value a grid or a source (the review's A10: an alias named ``grid`` misread it)
+    single = isinstance(sources, Mapping) and 'grid' in sources and set(sources) <= {'grid', 'alias', 'date', 'key'} \
+        and not any(isinstance(v, (Grid, Mapping)) for k, v in sources.items() if k != 'grid')
+    if isinstance(sources, (Grid, Mapping)) and not single:
         if isinstance(sources, Grid):
             return [one(None, sources)]
         return [one(alias, given) for alias, given in sources.items()]
@@ -1325,38 +1336,72 @@ class Timeseries(Tile):
         """Its series, each its id (``A``), its expression as DataCube keeps it, and how it is drawn."""
         return copy.deepcopy(self._view['spec']['series'])
 
+    # Every change below is one of the tile's changes, made by its one rule -- timeseries-edit.ts editTimeseries, which
+    # its viewer's editors ask too (headless timeseriesEdit) -- and judged as a tile Python makes is: no rule of Python's
+    # own (the review's A2, docs/TIMESERIES_REVIEW_2026_10_25.md).
+
     def plot(self, expr: str, *, name: str | None = None, split: str | None = None, pane: int | None = None,
              axis: str | None = None, style: Mapping[str, Any] | None = None) -> Timeseries:
         """A series more, after its others: ``expr`` in DataCube's expression language, its id the next letter (``$B``
-        reads it), drawn in ``pane`` (0 the main one) on ``axis`` as ``style`` says -- what the viewer's + Series adds."""
-        spec = self.spec
-        told = {'expr': expr, 'name': name, 'split': split, 'pane': pane, 'axis': axis,
-                'style': dict(style) if style is not None else None}
-        spec['series'] = [*spec['series'], {k: v for k, v in told.items() if v is not None}]
-        self._set(spec)
-        return self
+        reads it), a line per value of ``split`` (a text column of the grid it reads first), drawn in ``pane`` (0 the
+        main one) on ``axis`` as ``style`` says -- what the viewer's + Series adds."""
+        return self._edit({'kind': 'plot', 'series': _series_told(expr, name, split, pane, axis, style)})
+
+    def edit(self, id: str, expr: str, *, name: str | None = None, split: str | None = None, pane: int | None = None,
+             axis: str | None = None, style: Mapping[str, Any] | None = None) -> Timeseries:
+        """Series ``id`` written again, in place -- what the viewer's series editor's OK makes: its expression and how it is
+        drawn, each as told (None: none), hidden if it was. Refused when it has no series ``id``."""
+        return self._edit({'kind': 'plot', 'replace': True, 'series': {'id': id, **_series_told(expr, name, split, pane, axis, style)}})
 
     def unplot(self, id: str) -> Timeseries:
         """Series ``id`` taken off (refused in DataCube's words while another reads it)."""
-        spec = self.spec
-        if not any(s['id'] == id for s in spec['series']):
-            raise ValueError(f'{self!r} has no series {id}')
-        spec['series'] = [s for s in spec['series'] if s['id'] != id]
-        self._set(spec)
-        return self
+        return self._edit({'kind': 'unplot', 'id': id})
+
+    def hide(self, id: str) -> Timeseries:
+        """Series ``id`` left out of the drawing, its legend entry kept (its legend chip, clicked)."""
+        return self._edit({'kind': 'hide', 'id': id, 'hidden': True})
+
+    def show(self, id: str) -> Timeseries:
+        """Series ``id`` drawn again."""
+        return self._edit({'kind': 'hide', 'id': id, 'hidden': False})
 
     def options(self, **slots: Any) -> Timeseries:
         """Its other slots told -- ``grain`` (``'day'`` ... ``'year'``), ``range`` (``{'last': '1y'}``, ``{'from': ...,
         'to': ...}``), ``view`` (``{'compare': 'rebase', 'stats': True}``), ``panes``, ``annotations`` -- each replacing
         what it had, None taking it off: the words DataCube's reader takes."""
-        spec = self.spec
-        for key, value in slots.items():
-            if value is None:
-                spec.pop(key, None)
-            else:
-                spec[key] = value
-        self._set(spec)
-        return self
+        return self._edit({'kind': 'slots', 'slots': slots})
+
+    def annotate(self, annotation: Mapping[str, Any]) -> Timeseries:
+        """An annotation more: ``{'kind': 'level', 'value': 70, 'pane': 1, 'label': 'overbought'}``, ``{'kind': 'event',
+        'date': ..., 'label': ...}`` or ``{'kind': 'period', 'from': ..., 'to': ..., 'label': ...}`` -- Settings' Add."""
+        return self._edit({'kind': 'annotate', 'annotation': dict(annotation)})
+
+    def unannotate(self, index: int) -> Timeseries:
+        """Its annotation at ``index`` (0 its first) taken off."""
+        return self._edit({'kind': 'unannotate', 'index': index})
+
+    def source(self, alias: str, *, rename: str | None = None, date: str | None = None, key: Any = _KEEP) -> Timeseries:
+        """Source ``alias`` changed, as Settings changes it: called ``rename`` (every expression naming it follows), read
+        along ``date``, its instruments named by ``key`` (None: none)."""
+        told: dict[str, Any] = {'kind': 'source', 'alias': alias}
+        if rename is not None:
+            told['rename'] = rename
+        if date is not None:
+            told['date'] = date
+        if key is not _KEEP:
+            told['key'] = key
+        return self._edit(told)
+
+    def read(self, grid: Grid) -> Timeseries:
+        """Grid ``grid`` read as a source more, its alias, date and instrument column DataCube's rule's (Settings' Read
+        another grid)."""
+        if not isinstance(grid, Grid):
+            raise ValueError(f'a timeseries reads grids: {grid!r} is not one')
+        return self._edit({'kind': 'read', 'grid': grid._id})
+
+    def unread(self, alias: str) -> Timeseries:
+        """Source ``alias`` no longer read (refused while a series reads it, or when it is the only one)."""
+        return self._edit({'kind': 'unread', 'alias': alias})
 
     def frame(self, series: str | None = None, *, start: str | None = None, end: str | None = None) -> Any:
         """Series ``series`` (None: its first) as a pandas DataFrame, every figure the database's: its query written by
@@ -1412,6 +1457,16 @@ class Timeseries(Tile):
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
         page._apply_page([_commands.page_set_timeseries(tile=self._id, spec=said['spec'])])
+
+    def _edit(self, change: dict[str, Any]) -> Timeseries:
+        """``change`` (a timeseries-edit.ts TsChange) made by the tile's one rule, headless, and told as setTimeseries."""
+        _ = self._view
+        page = self._page
+        said = json.loads(page._session.headless().call('timeseriesEdit', _json.dumps(page._doc), self._id, _json.dumps(change)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        page._apply_page([_commands.page_set_timeseries(tile=self._id, spec=said['spec'])])
+        return self
 
     def __repr__(self) -> str:
         return f'<Timeseries {self._id}>'

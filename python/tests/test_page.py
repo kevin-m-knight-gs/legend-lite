@@ -884,6 +884,71 @@ class Document(Paged):
         page.remove(alone)
         self.assertNotIn(alone, page.timeseries_tiles)
 
+    def test_a_timeseries_is_changed_by_its_viewers_one_rule_and_refused_what_its_viewer_cannot_draw(self):
+        # the review's A2, A3, A5, A6, A10 (docs/TIMESERIES_REVIEW_2026_10_25.md): every change Python makes is the tile's
+        # one rule (timeseries-edit.ts editTimeseries, headless timeseriesEdit) -- the rule its viewer's editors ask -- and
+        # what the viewer would say it cannot draw is refused here, in its words
+        page = ll.Page('Markets')
+        days = pd.to_datetime(['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05']).date
+        prices = pd.DataFrame({'symbol': ['SPX'] * 4, 'day': days, 'close': [100.0, 101.0, 99.5, 102.0], 'desk': ['A'] * 4})
+        yields = pd.DataFrame({'tenor': ['10Y'] * 4, 'obs_date': days, 'yield': [4.0, 4.1, 3.9, 4.2]})
+        px = page.grid(prices, name='prices')
+        rates = page.grid(yields, name='rates')
+        tile = page.timeseries({'px': px, 'rates': rates}, ['close[SPX]', 'returns($A)'])
+        # a series another reads is not taken off; a source a series reads -- by a column of no alias too -- is not let go
+        with self.assertRaisesRegex(ValueError, r'series B reads \$A'):
+            tile.unplot('A')
+        with self.assertRaisesRegex(ValueError, 'series A, B read source px'):
+            tile.unread('px')
+        tile.unread('rates')
+        self.assertEqual([s['alias'] for s in tile.spec['sources']], ['px'])
+        with self.assertRaisesRegex(ValueError, 'source px is the only grid the tile reads'):
+            tile.unread('px')
+        # another grid read, by DataCube's rule over its columns; read twice, refused
+        tile.read(rates)
+        read = tile.spec['sources'][1]
+        self.assertEqual((read['cube'], read['date'], read.get('key')), (rates.id, 'obs_date', 'tenor'))
+        with self.assertRaisesRegex(ValueError, 'is read already'):
+            tile.read(rates)
+        # a source renamed: every expression naming it follows
+        tile.plot(f"{read['alias']}:yield[10Y]")
+        tile.source(read['alias'], rename='curve')
+        self.assertEqual(tile.series[2]['expr']['source'], 'curve')
+        # a line hidden and shown, an edit in place keeping it hidden; an edit of a series it has not, refused
+        tile.hide('C')
+        tile.edit('C', 'curve:yield[10Y] * 2', name='twice')
+        self.assertEqual((tile.series[2]['name'], tile.series[2]['hidden']), ('twice', True))
+        tile.show('C')
+        self.assertNotIn('hidden', tile.series[2])
+        with self.assertRaisesRegex(ValueError, 'there is no series Q'):
+            tile.edit('Q', 'close')
+        # an annotation on a pane, and taken off
+        tile.annotate({'kind': 'level', 'value': 0, 'pane': 1, 'label': 'zero'})
+        self.assertEqual(tile.spec['annotations'], [{'kind': 'level', 'value': 0, 'pane': 1, 'label': 'zero'}])
+        tile.unannotate(0)
+        self.assertNotIn('annotations', tile.spec)
+        # a line per value of any text column, as the viewer's editor offers it
+        tile.plot('close', split='desk')
+        self.assertEqual(tile.series[-1]['split'], 'desk')
+        # what the viewer cannot draw: a column there is not, a text plotted, a series there is not, a date that is text
+        with self.assertRaisesRegex(ValueError, "reads 'nosuch', which source px has not"):
+            tile.plot('nosuch')
+        with self.assertRaisesRegex(ValueError, "plots 'symbol', which is not a number"):
+            tile.plot('symbol')
+        with self.assertRaisesRegex(ValueError, r'reads \$Z, which there is not'):
+            tile.plot('$Z')
+        with self.assertRaisesRegex(ValueError, "'symbol' is not a date"):
+            page.timeseries({'px': {'grid': px, 'date': 'symbol'}}, ['close'])
+        with self.assertRaisesRegex(ValueError, 'is 5, not a word'):
+            page.timeseries({'px': {'grid': px, 'date': 5}}, ['close'])
+        # the screen's first-tile rule: a grid with a date and no number to plot, refused in the screen's words
+        dates = page.grid(pd.DataFrame({'symbol': ['SPX'] * 4, 'day': days}), name='dates')
+        with self.assertRaisesRegex(ValueError, 'has no date column with a number to plot along it'):
+            dates.timeseries()
+        # an alias named `grid`, by alias: two sources, not one
+        both = page.timeseries({'grid': px, 'curve': rates}, ['grid:close[SPX]'])
+        self.assertEqual([s['alias'] for s in both.spec['sources']], ['grid', 'curve'])
+
     def test_a_grid_is_edited_as_datacubes_screen_edits_it_and_refused_in_its_words(self):
         # grouping, pivot, Column Properties and sorts by the one module the screen's panels, header menu and drag zones
         # call (grid-commands.ts, headless gridApply: docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md), the grid compiled as

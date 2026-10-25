@@ -20,7 +20,7 @@ import {
   pageReads, pageRebase, pageRecord, pageSaved, pageSearch, pageWithCube,
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides, joinTogether } from './join.ts';
-import { timeseriesMade, timeseriesQuery } from './timeseries.ts';
+import { timeseriesEdit, timeseriesMade, timeseriesQuery } from './timeseries.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
 export { REQUEST_KINDS };
@@ -130,6 +130,9 @@ export { joinCube, joinQuestions, joinSides, joinTogether };
  *  source's columns by its defaults -- and read by the tile's one reader (timeseriesMade: Python's page.timeseries and
  *  Timeseries's setters; docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7). */
 export { timeseriesMade };
+/** A timeseries tile changed by its one rule (timeseries-edit.ts editTimeseries, which its viewer asks): Python's
+ *  Timeseries methods. */
+export { timeseriesEdit };
 /** A timeseries tile's series as its query (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5), over the host's tables, for
  *  the host to plan and run where the rows are: Python's Timeseries.frame. */
 export { timeseriesQuery };

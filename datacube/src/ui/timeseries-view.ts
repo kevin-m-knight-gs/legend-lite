@@ -21,12 +21,15 @@ import type { ChartPicture } from '../chart-render.ts';
 import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import {
   MAX_PANES, readTimeseries, TS_RANGES, viewSetting, type TimeseriesSpec, type TsAnnotation, type TsExpr,
-  type TsRangeWord, type TsSeries, type TsSource, type TsStyleKind, type TsView,
+  type TsRangeWord, type TsSeries, type TsSource, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
-  aliasFor, candleOf, columnRef, defaultTimeseries, exprText, functionNamed, inlined, nextSeriesId, parseExpr, seriesName,
-  sourceOf, sourcesOf, timeseriesProblems, TsSyntaxError, type TsColumn, TS_FUNCTIONS, type TsFamily,
+  candleOf, columnRef, exprText, functionNamed, inlined, nextSeriesId, parseExpr, seriesName,
+  sourcesOf, timeseriesProblems, TsSyntaxError, type TsColumn, TS_FUNCTIONS, type TsFamily,
 } from '../timeseries-expr.ts';
+import {
+  editTimeseries, firstTimeseries as firstOf, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
+} from '../timeseries-edit.ts';
 import {
   boundsQuery, keyValuesQuery, rangeStartName, readsAnchor, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_LATEST,
   TS_SPLIT, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
@@ -84,15 +87,15 @@ export interface TimeseriesHost {
   readonly mount?: (el: HTMLElement, on: MountOn) => MountedTimeseries;
 }
 
-/**
- * A FIRST TIMESERIES OF A GRID (Create ▸ Timeseries): DataCube's rule over the grid's columns as it is now
- * (timeseries-expr.ts defaultTimeseries -- the rule Python's headless timeseriesMade asks too), its source called after
- * the grid's title; or why the grid cannot be read as one, in words.
- */
+/** A grid of the page as the tile's edits read it (timeseries-edit.ts TsGridColumns): its columns as its query is now. */
+function gridColumns(grid: TsGrid): TsGridColumns {
+  return { cube: grid.cube, title: grid.title, columns: rowColumns(grid.snapshot).map((c) => ({ name: c.name, type: c.type })), rows: grid.snapshot.rows };
+}
+
+/** A FIRST TIMESERIES OF A GRID (Create ▸ Timeseries): timeseries-edit.ts firstTimeseries, the rule Python's
+ *  page.timeseries asks too, over the grid as it is now. */
 export function firstTimeseries(grid: TsGrid): TimeseriesSpec | string {
-  const columns = rowColumns(grid.snapshot).map((c) => ({ name: c.name, type: c.type }));
-  const made = defaultTimeseries(columns, grid.snapshot.rows, grid.cube, aliasFor(grid.title, []));
-  return made ?? `${grid.title} has no date column with a number to plot along it: a timeseries is read along a date.`;
+  return firstOf(gridColumns(grid));
 }
 
 /** What the renderer tells the viewer. */
@@ -570,14 +573,11 @@ export class TimeseriesView {
     const spec = this.#spec;
     this.#ranges = el(doc, 'div', 'dc-ts-ranges', undefined, { role: 'group', 'aria-label': 'Range' });
     this.#paintRanges();
-    const grain = select(doc, GRAINS, spec.grain ?? '', (v) => {
-      const { grain: _g, ...rest } = this.#spec;
-      this.#set(v === '' ? rest : { ...rest, grain: v as NonNullable<TimeseriesSpec['grain']> });
-    }, 'Frequency');
-    const compare = select(doc, COMPARES, spec.view?.compare ?? '', (v) => this.#setView({ compare: v === '' ? null : v as 'rebase' | 'percent' }), 'Compare');
-    const log = button(doc, 'Log', 'The main pane on a log scale', () => this.#setPane(0, { log: !(this.#spec.panes?.[0]?.log ?? false) }));
+    const grain = select(doc, GRAINS, spec.grain ?? '', (v) => this.#edit({ kind: 'grain', grain: v === '' ? null : v as NonNullable<TimeseriesSpec['grain']> }), 'Frequency');
+    const compare = select(doc, COMPARES, spec.view?.compare ?? '', (v) => this.#edit({ kind: 'view', view: { compare: v === '' ? null : v as 'rebase' | 'percent' } }), 'Compare');
+    const log = button(doc, 'Log', 'The main pane on a log scale', () => this.#edit({ kind: 'pane', index: 0, log: !(this.#spec.panes?.[0]?.log ?? false) }));
     log.setAttribute('aria-pressed', String(spec.panes?.[0]?.log === true));
-    const stats = button(doc, 'Stats', 'The statistics of every line over the dates shown', () => this.#setView({ stats: !viewSetting(this.#spec, 'stats') }));
+    const stats = button(doc, 'Stats', 'The statistics of every line over the dates shown', () => this.#edit({ kind: 'view', view: { stats: !viewSetting(this.#spec, 'stats') } }));
     stats.setAttribute('aria-pressed', String(viewSetting(spec, 'stats')));
     const add = button(doc, '+ Series', 'Plot another series: an expression, gs-quant\'s functions', () => this.#editSeries(null), 'dc-button dc-primary dc-ts-btn');
     const settings = button(doc, 'Settings', 'Sources, panes, annotations, view and export', () => this.#editSettings());
@@ -607,7 +607,7 @@ export class TimeseriesView {
 
   #setRange(word: TsRangeWord): void {
     this.#zoom = null;
-    const spec = { ...this.#spec, range: { last: word } };
+    const spec = editTimeseries(this.#spec, { kind: 'range', range: { last: word } });
     this.#range = JSON.stringify(spec.range);
     this.#spec = spec;
     this.#host.setSpec(spec);
@@ -617,21 +617,19 @@ export class TimeseriesView {
     void this.#windowed();
   }
 
-  #setView(change: { readonly [K in keyof TsView]?: TsView[K] | null }): void {
-    const view: Record<string, unknown> = { ...(this.#spec.view ?? {}) };
-    for (const [k, v] of Object.entries(change)) {
-      if (v === null || v === undefined) delete view[k];
-      else view[k] = v;
+  /** A change the person made, by the tile's one rule (timeseries-edit.ts editTimeseries, which Python asks too): kept
+   *  and drawn, or refused in its words. */
+  #edit(change: TsChange): boolean {
+    let made: TimeseriesSpec;
+    try {
+      made = editTimeseries(this.#spec, change);
+    } catch (e) {
+      if (!(e instanceof TsEditRefusal)) throw e;
+      this.#say([e.message], true);
+      return false;
     }
-    const { view: _v, ...rest } = this.#spec;
-    this.#set(Object.keys(view).length === 0 ? rest : { ...rest, view: view as TsView });
-  }
-
-  #setPane(index: number, change: { readonly height?: number; readonly log?: boolean }): void {
-    const panes = Array.from({ length: Math.max(index + 1, this.#spec.panes?.length ?? 0) }, (_, i) => ({ ...(this.#spec.panes?.[i] ?? {}) }));
-    panes[index] = { ...panes[index], ...change };
-    if (panes[index]!.log === false) delete panes[index]!.log;
-    this.#set({ ...this.#spec, panes });
+    this.#set(made);
+    return true;
   }
 
   #paintLegend(): void {
@@ -660,7 +658,7 @@ export class TimeseriesView {
       if (pct !== null && (l.unit === 'same' || l.unit === 'index')) {
         chip.append(el(doc, 'span', `dc-ts-chip-change ${pct >= 0 ? 'dc-ts-up' : 'dc-ts-down'}`, `${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct * 100).toLocaleString(UI_LOCALE, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}%`));
       }
-      chip.addEventListener('click', () => this.#setSeries(l.series.id, { hidden: l.series.hidden === true ? null : true }));
+      chip.addEventListener('click', () => this.#edit({ kind: 'hide', id: l.series.id, hidden: l.series.hidden !== true }));
       chip.addEventListener('dblclick', () => this.#editSeries(l.series.id));
       chip.addEventListener('mouseenter', () => this.#chart?.highlight(l.key));
       chip.addEventListener('mouseleave', () => this.#chart?.highlight(null));
@@ -748,19 +746,6 @@ export class TimeseriesView {
 
   // -- editing -------------------------------------------------------------------------------------------------------
 
-  #setSeries(id: string, change: Readonly<Record<string, unknown>>): void {
-    const series = this.#spec.series.map((s) => {
-      if (s.id !== id) return s;
-      const next: Record<string, unknown> = { ...s };
-      for (const [k, v] of Object.entries(change)) {
-        if (v === null || v === undefined) delete next[k];
-        else next[k] = v;
-      }
-      return next as unknown as TsSeries;
-    });
-    this.#set({ ...this.#spec, series });
-  }
-
   #open(title: string, ...content: HTMLElement[]): void {
     const doc = this.#doc;
     const close = button(doc, '×', 'Close (Escape)', () => this.#close(), 'dc-ts-close');
@@ -811,19 +796,19 @@ export class TimeseriesView {
       spec.sources[0]?.alias ?? '', () => paintPickers(), 'Source');
     const columnSel = select(doc, [], '', () => undefined, 'Column');
     const keySel = select(doc, [['', 'Every row']], '', () => undefined, 'Instrument');
-    const splitBox = el(doc, 'input', undefined, undefined, { type: 'checkbox', 'aria-label': 'One line per instrument' });
-    splitBox.checked = was?.split !== undefined;
-    const splitLabel = el(doc, 'label', 'dc-ts-check');
-    const splitText = el(doc, 'span', undefined, 'One line per instrument');
-    splitLabel.append(splitBox, splitText);
+    // a line per value of any text column of the series' first source -- Python's split too (the review's A6: the box
+    // made it its source's instrument column, so a series split otherwise was rewritten by an edit)
+    const splitSel = el(doc, 'select', 'dc-select dc-ts-select', undefined, { 'aria-label': 'Lines' });
     const paintPickers = (): void => {
       const src = spec.sources.find((s) => s.alias === sourceSel.value);
       const cols = (src ? columns.get(src.alias) : undefined) ?? [];
       const numbers = cols.filter((c) => isNumeric(c.type) && c.name !== src?.date);
       columnSel.replaceChildren(...numbers.map((c) => option(doc, c.name, c.name)));
       keySel.replaceChildren(option(doc, 'Every row', ''));
-      splitText.textContent = src?.key ? `One line per ${src.key}` : 'One line per instrument (no instrument column)';
-      splitBox.disabled = src?.key === undefined;
+      const texts = cols.filter((c) => !isNumeric(c.type) && !isTemporal(c.type)).map((c) => c.name);
+      const chosen = splitSel.value !== '' ? splitSel.value : was?.split ?? '';
+      splitSel.replaceChildren(option(doc, 'One line', ''), ...[...new Set([...texts, ...(chosen !== '' ? [chosen] : [])])].map((c) => option(doc, `A line per ${c}`, c)));
+      splitSel.value = chosen;
       if (src?.key !== undefined) void this.#keyValues(src).then((values) => {
         for (const v of values) keySel.append(option(doc, v, v));
       });
@@ -908,30 +893,26 @@ export class TimeseriesView {
         if (expr.value.trim() === '') error.textContent = 'Write an expression, or build one from a column.';
         return;
       }
-      const src = spec.sources.find((s) => s.alias === sourceSel.value);
       const style: Record<string, unknown> = {
         ...(kind.value !== 'line' ? { kind: kind.value } : {}), ...(color !== undefined ? { color } : {}),
         ...(width.value !== '2' ? { width: Number(width.value) } : {}), ...(dash.value !== '' ? { dash: dash.value } : {}),
       };
-      const made: TsSeries = {
+      const made: TsSeriesTold = {
         id: sid, expr: parsed,
         ...(name.value.trim() !== '' ? { name: name.value.trim() } : {}),
-        ...(splitBox.checked && !splitBox.disabled && src?.key !== undefined ? { split: src.key } : {}),
+        ...(splitSel.value !== '' ? { split: splitSel.value } : {}),
         ...(Object.keys(style).length > 0 ? { style } : {}),
         ...(pane.value !== '0' ? { pane: Number(pane.value) } : {}),
         ...(axis.value !== '' ? { axis: axis.value as 'left' | 'right' } : {}),
         ...(was?.hidden ? { hidden: true } : {}),
       };
-      const series = was ? spec.series.map((s) => (s.id === sid ? made : s)) : [...spec.series, made];
-      this.#close();
-      this.#set({ ...this.#spec, series });
+      if (this.#edit({ kind: 'plot', series: made, ...(was ? { replace: true } : {}) })) this.#close();
     }, 'dc-button dc-primary');
     expr.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') ok.click();
     });
     const remove = button(doc, 'Remove', 'Take this series off', () => {
-      this.#close();
-      this.#set({ ...this.#spec, series: this.#spec.series.filter((s) => s.id !== sid) });
+      if (this.#edit({ kind: 'unplot', id: sid })) this.#close();
     });
     remove.hidden = was === undefined;
     const reference = el(doc, 'details', 'dc-ts-reference');
@@ -949,7 +930,7 @@ export class TimeseriesView {
     const actions = el(doc, 'div', 'dc-ts-actions');
     actions.append(remove, el(doc, 'span', 'dc-ts-gap'), button(doc, 'Cancel', 'Leave it as it was (Escape)', () => this.#close()), ok);
     this.#open(was ? `Series ${sid}` : `New series ${sid}`,
-      labelled(doc, 'Expression', expr), error, reads, builder, splitLabel, fnSel, about,
+      labelled(doc, 'Expression', expr), error, reads, builder, splitSel, fnSel, about,
       labelled(doc, 'Name', name), style, swatches, reference, actions);
     check();
   }
@@ -980,24 +961,24 @@ export class TimeseriesView {
       const row = el(doc, 'div', 'dc-ts-row');
       const alias = el(doc, 'input', 'dc-input dc-ts-alias', undefined, { 'aria-label': 'Alias' });
       alias.value = s.alias;
-      alias.addEventListener('change', () => this.#setSource(s.alias, { alias: alias.value.trim() }));
+      alias.addEventListener('change', () => this.#edit({ kind: 'source', alias: s.alias, rename: alias.value.trim() }));
       const date = select(doc, cols.filter((c) => isTemporal(c.type) && !isTimeOfDay(c.type)).map((c) => [c.name, c.name] as const), s.date,
-        (v) => this.#setSource(s.alias, { date: v }), 'Date column');
+        (v) => this.#edit({ kind: 'source', alias: s.alias, date: v }), 'Date column');
       const key = select(doc, [['', 'No instruments'], ...cols.filter((c) => !isNumeric(c.type) && !isTemporal(c.type)).map((c) => [c.name, c.name] as const)],
-        s.key ?? '', (v) => this.#setSource(s.alias, { key: v === '' ? null : v }), 'Instrument column');
+        s.key ?? '', (v) => this.#edit({ kind: 'source', alias: s.alias, key: v === '' ? null : v }), 'Instrument column');
       const where = el(doc, 'span', 'dc-ts-hint', grid ? grid.title : 'its grid was removed: undo brings it back');
-      const reads = spec.series.some((x) => {
-        try {
-          return sourcesOf(spec, inlined(x.expr, spec.series)).includes(s.alias);
-        } catch {
-          return false;
-        }
-      });
-      const off = button(doc, '×', reads ? 'A series reads it' : 'Stop reading this grid', () => {
-        this.#set({ ...this.#spec, sources: this.#spec.sources.filter((x) => x.alias !== s.alias) });
-        this.#editSettings();
+      // the tile's own rule says whether it may stop reading this grid, and why not
+      let refused: string | undefined;
+      try {
+        editTimeseries(spec, { kind: 'unread', alias: s.alias });
+      } catch (e) {
+        if (!(e instanceof TsEditRefusal)) throw e;
+        refused = e.message;
+      }
+      const off = button(doc, '×', refused ?? 'Stop reading this grid', () => {
+        if (this.#edit({ kind: 'unread', alias: s.alias })) this.#editSettings();
       }, 'dc-ts-close');
-      off.disabled = reads || spec.sources.length === 1;
+      off.disabled = refused !== undefined;
       row.append(alias, where, date, key, off);
       parts.push(row);
     }
@@ -1006,14 +987,7 @@ export class TimeseriesView {
       const addGrid = select(doc, [['', 'Read another grid…'], ...others.map((g) => [g.cube, g.title] as const)], '', (cube) => {
         const g = others.find((x) => x.cube === cube);
         if (!g) return;
-        const cols = rowColumns(g.snapshot).map((c) => ({ name: c.name, type: c.type }));
-        const made = sourceOf(cols, g.snapshot.rows, g.cube, aliasFor(g.title, this.#spec.sources.map((s) => s.alias)));
-        if (!made) {
-          this.#say([`${g.title} has no date column: a timeseries is read along a date.`], true);
-          return;
-        }
-        this.#set({ ...this.#spec, sources: [...this.#spec.sources, made] });
-        this.#editSettings();
+        if (this.#edit({ kind: 'read', grid: gridColumns(g) })) this.#editSettings();
       }, 'Read another grid');
       parts.push(addGrid);
     }
@@ -1023,7 +997,7 @@ export class TimeseriesView {
     for (const [key, label] of [['legend', 'Legend'], ['lastValues', 'Latest values'], ['navigator', 'Navigator'], ['crosshair', 'Crosshair'], ['stats', 'Statistics']] as const) {
       const box = el(doc, 'input', undefined, undefined, { type: 'checkbox' });
       box.checked = viewSetting(spec, key);
-      box.addEventListener('change', () => this.#setView({ [key]: box.checked }));
+      box.addEventListener('change', () => this.#edit({ kind: 'view', view: { [key]: box.checked } }));
       const l = el(doc, 'label', 'dc-ts-check');
       l.append(box, doc.createTextNode(label));
       toggles.append(l);
@@ -1039,7 +1013,7 @@ export class TimeseriesView {
     }
     const dates = el(doc, 'div', 'dc-ts-row');
     dates.append(el(doc, 'span', 'dc-ts-field-label', 'Dates'), from, to, button(doc, 'Show', 'Show these dates', () => {
-      this.#set({ ...this.#spec, range: { ...(from.value ? { from: from.value } : {}), ...(to.value ? { to: to.value } : {}) } });
+      this.#edit({ kind: 'range', range: { ...(from.value ? { from: from.value } : {}), ...(to.value ? { to: to.value } : {}) } });
     }));
     parts.push(dates);
     // the panes in use: each its share of the height, its scale
@@ -1049,10 +1023,10 @@ export class TimeseriesView {
       const row = el(doc, 'div', 'dc-ts-row');
       const height = el(doc, 'input', 'dc-input dc-ts-small', undefined, { type: 'number', min: '1', max: '10', step: '1', 'aria-label': 'Height' });
       height.value = String(spec.panes?.[p]?.height ?? (p === 0 ? 3 : 1));
-      height.addEventListener('change', () => this.#setPane(p, { height: Math.min(10, Math.max(1, Number(height.value) || 1)) }));
+      height.addEventListener('change', () => this.#edit({ kind: 'pane', index: p, height: Math.min(10, Math.max(1, Number(height.value) || 1)) }));
       const log = el(doc, 'input', undefined, undefined, { type: 'checkbox' });
       log.checked = spec.panes?.[p]?.log === true;
-      log.addEventListener('change', () => this.#setPane(p, { log: log.checked }));
+      log.addEventListener('change', () => this.#edit({ kind: 'pane', index: p, log: log.checked }));
       const l = el(doc, 'label', 'dc-ts-check');
       l.append(log, doc.createTextNode('Log scale'));
       row.append(el(doc, 'span', 'dc-ts-field-label', p === 0 ? 'Main' : `Pane ${p + 1}`), height, l);
@@ -1063,9 +1037,8 @@ export class TimeseriesView {
     for (const [i, a] of (spec.annotations ?? []).entries()) {
       const row = el(doc, 'div', 'dc-ts-row');
       const said = a.kind === 'level' ? `Level ${a.value}` : a.kind === 'event' ? `Event ${a.date}` : `Period ${a.from} – ${a.to}`;
-      row.append(el(doc, 'span', undefined, `${said}${a.label ? `: ${a.label}` : ''}`), button(doc, '×', 'Take it off', () => {
-        this.#set({ ...this.#spec, annotations: (this.#spec.annotations ?? []).filter((_, j) => j !== i) });
-        this.#editSettings();
+      row.append(el(doc, 'span', undefined, `${said}${a.kind === 'level' && a.pane ? ` (pane ${a.pane + 1})` : ''}${a.label ? `: ${a.label}` : ''}`), button(doc, '×', 'Take it off', () => {
+        if (this.#edit({ kind: 'unannotate', index: i })) this.#editSettings();
       }, 'dc-ts-close'));
       parts.push(row);
     }
@@ -1073,42 +1046,28 @@ export class TimeseriesView {
     const a1 = el(doc, 'input', 'dc-input dc-ts-small');
     const a2 = el(doc, 'input', 'dc-input dc-ts-small', undefined, { type: 'date' });
     const label = el(doc, 'input', 'dc-input', undefined, { placeholder: 'Label', 'aria-label': 'Label' });
+    // a level on a pane of its own (an RSI's 70), as Python's annotations say it
+    const levelPane = select(doc, used.map((p) => [String(p), p === 0 ? 'Main pane' : `Pane ${p + 1}`] as const), '0', () => undefined, 'Pane');
     const paintAdd = (): void => {
       a1.type = kind.value === 'level' ? 'number' : 'date';
       a1.setAttribute('aria-label', kind.value === 'level' ? 'Value' : kind.value === 'event' ? 'Date' : 'From');
       a2.hidden = kind.value !== 'period';
+      levelPane.hidden = kind.value !== 'level';
     };
     paintAdd();
     const addRow = el(doc, 'div', 'dc-ts-row');
-    addRow.append(kind, a1, a2, label, button(doc, 'Add', 'Draw it over the series', () => {
+    addRow.append(kind, a1, a2, levelPane, label, button(doc, 'Add', 'Draw it over the series', () => {
       const text = label.value.trim();
       const made: TsAnnotation | undefined = kind.value === 'level' && a1.value !== ''
-        ? { kind: 'level', value: Number(a1.value), ...(text ? { label: text } : {}) }
+        ? { kind: 'level', value: Number(a1.value), ...(levelPane.value !== '0' ? { pane: Number(levelPane.value) } : {}), ...(text ? { label: text } : {}) }
         : kind.value === 'event' && a1.value !== '' ? { kind: 'event', date: a1.value, ...(text ? { label: text } : {}) }
           : kind.value === 'period' && a1.value !== '' && a2.value !== '' ? { kind: 'period', from: a1.value, to: a2.value, ...(text ? { label: text } : {}) }
             : undefined;
       if (!made) return;
-      this.#set({ ...this.#spec, annotations: [...(this.#spec.annotations ?? []), made] });
-      this.#editSettings();
+      if (this.#edit({ kind: 'annotate', annotation: made })) this.#editSettings();
     }));
     parts.push(addRow, el(doc, 'div', 'dc-ts-hint', 'Double-click the chart to put an event at that date.'));
     this.#open('Timeseries settings', ...parts);
-  }
-
-  #setSource(alias: string, change: Readonly<Record<string, string | null>>): void {
-    const sources = this.#spec.sources.map((s) => {
-      if (s.alias !== alias) return s;
-      const next: Record<string, unknown> = { ...s };
-      for (const [k, v] of Object.entries(change)) {
-        if (v === null) delete next[k];
-        else next[k] = v;
-      }
-      return next as unknown as TsSource;
-    });
-    // an alias renamed: the expressions that name it follow
-    const renamed = change['alias'];
-    const series = renamed && renamed !== alias ? this.#spec.series.map((s) => ({ ...s, expr: renameSource(s.expr, alias, renamed) })) : this.#spec.series;
-    this.#set({ ...this.#spec, sources, series });
   }
 
   /** A double-click on the chart: an event at that date, labelled. */
@@ -1117,8 +1076,7 @@ export class TimeseriesView {
     const label = el(doc, 'input', 'dc-input', undefined, { placeholder: 'What happened (optional)', 'aria-label': 'Label' });
     const add = (): void => {
       const text = label.value.trim();
-      this.#close();
-      this.#set({ ...this.#spec, annotations: [...(this.#spec.annotations ?? []), { kind: 'event', date, ...(text ? { label: text } : {}) }] });
+      if (this.#edit({ kind: 'annotate', annotation: { kind: 'event', date, ...(text ? { label: text } : {}) } })) this.#close();
     };
     label.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') add();
@@ -1129,12 +1087,3 @@ export class TimeseriesView {
   }
 }
 
-/** An expression with its columns of source `from` reading `to` instead (an alias renamed). */
-function renameSource(e: TsExpr, from: string, to: string): TsExpr {
-  switch (e.kind) {
-    case 'column': return e.source === from ? { ...e, source: to } : e;
-    case 'binary': return { ...e, left: renameSource(e.left, from, to), right: renameSource(e.right, from, to) };
-    case 'call': return { ...e, args: e.args.map((a) => renameSource(a, from, to)) };
-    default: return e;
-  }
-}

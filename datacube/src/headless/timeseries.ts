@@ -16,13 +16,14 @@ import { leafTables, type HostTables } from './host-tables.ts';
 import { sourcesOpenedOn } from './join.ts';
 import { readTimeseries, type TimeseriesSpec, type TsExpr, type TsSeries, type TsSource } from '../timeseries-spec.ts';
 import {
-  aliasFor, firstPlot, nextSeriesId, parseExpr, sourceOf, TsSyntaxError, type TsColumn
+  aliasFor, nextSeriesId, parseExpr, sourceOf, timeseriesProblems, TsSyntaxError, type TsColumn
 } from '../timeseries-expr.ts';
+import { editTimeseries, firstPlotOf, TsEditRefusal, type TsChange, type TsGridColumns } from '../timeseries-edit.ts';
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /** A grid of the page by its tile's id: its cube's id and its columns as the cube's query types them. */
-function gridOf(page: PageDocument, grid: string): { readonly cube: string; readonly title: string; readonly columns: TsColumn[]; readonly rows: readonly string[] } {
+function gridOf(page: PageDocument, grid: string): TsGridColumns {
   const view = page.views.find((v) => v.id === grid);
   if (!view || view.kind !== 'grid') throw new Problem(`'${grid}' is no grid of the page`);
   const held = page.cubes.find((c) => c.id === view.cube);
@@ -34,11 +35,39 @@ function gridOf(page: PageDocument, grid: string): { readonly cube: string; read
 
 class Problem extends Error {}
 
-/** A first plot of a source told by its grid, as the screen's Create ▸ Timeseries makes one (timeseries-expr.ts
- *  firstPlot: its price-like value, a line per instrument, a price's rebased). */
+/** A first plot of a source told by its grid, by the screen's Create ▸ Timeseries' rule (timeseries-edit.ts firstPlotOf:
+ *  its price-like value, a line per instrument, a price's rebased) -- refused in its words where the screen refuses
+ *  (the review's A3: a grid of a date and no number made a tile of no series). */
 function firstOf(doc: PageDocument, told: unknown, source: TsSource | undefined): Pick<TimeseriesSpec, 'series' | 'view'> | undefined {
   if (!isRecord(told) || typeof told['grid'] !== 'string' || source === undefined) return undefined;
-  return firstPlot(gridOf(doc, told['grid']).columns, source);
+  const plot = firstPlotOf(gridOf(doc, told['grid']), source);
+  if (typeof plot === 'string') throw new Problem(plot);
+  return plot;
+}
+
+/** A slot Python told, a word or absent: of any other kind, refused by name (the review's G2: swapped for the default). */
+function wordOf(v: unknown, what: string): string | undefined {
+  if (v === undefined) return undefined;
+  if (typeof v !== 'string') throw new Problem(`${what} is ${JSON.stringify(v)}, not a word`);
+  return v;
+}
+
+/** The columns each source of `spec` reads, as the page holds its cube (its query's), by alias: what the viewer reads. */
+function columnsByAlias(doc: PageDocument, spec: TimeseriesSpec): Map<string, TsColumn[] | undefined> {
+  return new Map(spec.sources.map((s) => {
+    const held = doc.cubes.find((c) => c.id === s.cube);
+    return [s.alias, held ? rowColumns(held.cube.query).map((c) => ({ name: c.name, type: c.type })) : undefined] as const;
+  }));
+}
+
+/** A spec Python made, read by the tile's one reader and judged by its rules against the grids it reads: what the viewer
+ *  would say it cannot draw is refused here, in its words, as a chart's is (the review's A5). */
+function judged(doc: PageDocument, made: unknown): TimeseriesSpec {
+  const spec = readTimeseries(made);
+  if (typeof spec === 'string') throw new Problem(spec);
+  const problems = timeseriesProblems(spec, columnsByAlias(doc, spec));
+  if (problems.length > 0) throw new Problem(problems.join(' '));
+  return spec;
 }
 
 /** An expression as Python gives it: its text, read by DataCube's parser (refused where it is, in DataCube's words), or a tree. */
@@ -77,11 +106,11 @@ export function timeseriesMade(page: string, given: string): string {
       }
       if (typeof grid !== 'string') throw new Problem(`source ${i + 1}'s grid is not a tile's id`);
       const g = gridOf(doc, grid);
-      const alias = typeof rest['alias'] === 'string' ? rest['alias'] : aliasFor(g.title, sources.map((s) => s.alias));
+      const alias = wordOf(rest['alias'], `source ${i + 1}'s alias`) ?? aliasFor(g.title, sources.map((s) => s.alias));
       const made = sourceOf(g.columns, g.rows, g.cube, alias);
-      const date = typeof rest['date'] === 'string' ? rest['date'] : made?.date;
+      const date = wordOf(rest['date'], `source ${alias}'s date`) ?? made?.date;
       if (date === undefined) throw new Problem(`${grid} has no date column to read its series along: say its date`);
-      const key = typeof rest['key'] === 'string' ? rest['key'] : rest['key'] === null ? undefined : made?.key;
+      const key = rest['key'] === null ? undefined : wordOf(rest['key'], `source ${alias}'s key`) ?? made?.key;
       const extra = Object.keys(rest).filter((k) => !['alias', 'date', 'key'].includes(k));
       sources.push({ alias, cube: g.cube, date, ...(key !== undefined ? { key } : {}), ...Object.fromEntries(extra.map((k) => [k, rest[k]])) } as TsSource);
     }
@@ -93,14 +122,50 @@ export function timeseriesMade(page: string, given: string): string {
     for (const [i, raw] of rawSeries.entries()) {
       const s = typeof raw === 'string' ? { expr: raw } : raw;
       if (!isRecord(s)) throw new Problem(`series ${i + 1} is not an expression or an object`);
-      const id = typeof s['id'] === 'string' ? s['id'] : nextSeriesId(series);
+      const id = wordOf(s['id'], `series ${i + 1}'s id`) ?? nextSeriesId(series);
       series.push({ ...s, id, expr: exprOf(s['expr'], `series ${id}`) } as unknown as TsSeries);
     }
-    const spec = readTimeseries({ ...told, sources, series, ...(told['view'] === undefined && first?.view ? { view: first.view } : {}) });
-    if (typeof spec === 'string') throw new Problem(spec);
+    const spec = judged(doc, { ...told, sources, series, ...(told['view'] === undefined && first?.view ? { view: first.view } : {}) });
     return JSON.stringify({ spec: spec satisfies TimeseriesSpec });
   } catch (e) {
     if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
+    throw e;
+  }
+}
+
+/**
+ * A TIMESERIES TILE CHANGED, HEADLESS: tile `tile` of `page` (JSON, as Python holds it) changed by `given` (JSON, a
+ * timeseries-edit.ts TsChange as Python tells it: a series' expression may be its text, read by DataCube's parser; a grid
+ * read is named by its tile, `{kind: 'read', grid: 'grid-2'}`) by the tile's one rule, editTimeseries -- the rule its
+ * viewer's editors ask -- and judged as timeseriesMade judges a tile. JSON: `{spec}`, for Python's setTimeseries, or
+ * `{problems}`, in DataCube's words.
+ */
+export function timeseriesEdit(page: string, tile: string, given: string): string {
+  try {
+    const doc = readPage(JSON.parse(page));
+    const view = doc.views.find((v) => v.id === tile);
+    if (!view || view.kind !== 'timeseries') throw new Problem(`'${tile}' is no timeseries tile of the page`);
+    const told: unknown = JSON.parse(given);
+    if (!isRecord(told) || typeof told['kind'] !== 'string') throw new Problem('a change to a timeseries is an object of its kind');
+    let change = told as unknown as TsChange;
+    if (told['kind'] === 'plot') {
+      const s = told['series'];
+      if (!isRecord(s)) throw new Problem('a series plotted is an object of its expression and how it is drawn');
+      const id = wordOf(s['id'], "the series' id");
+      if (told['replace'] !== undefined && typeof told['replace'] !== 'boolean') throw new Problem("a plot's replace is true or false");
+      change = {
+        kind: 'plot', series: { ...s, expr: exprOf(s['expr'], `series ${id ?? nextSeriesId(view.spec.series)}`) } as never,
+        ...(told['replace'] === true ? { replace: true } : {}),
+      };
+    } else if (told['kind'] === 'read') {
+      const grid = wordOf(told['grid'], 'the grid read');
+      if (grid === undefined) throw new Problem("a grid read is named by its tile's id");
+      change = { kind: 'read', grid: gridOf(doc, grid) };
+    }
+    const spec = judged(doc, editTimeseries(view.spec, change));
+    return JSON.stringify({ spec: spec satisfies TimeseriesSpec });
+  } catch (e) {
+    if (e instanceof Problem || e instanceof TsEditRefusal) return JSON.stringify({ problems: [e.message] });
     throw e;
   }
 }
