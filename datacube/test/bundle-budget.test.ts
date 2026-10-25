@@ -597,8 +597,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  365,000 -> 366,500 (2026-10-25, the grid's status bar -- the grid-only page's note of the same date). Measured
  *  365,932.
  *  366,500 -> 367,500 (2026-10-25, the text box as a Markdown editor -- the grid-only page's note of the same date).
- *  Measured 366,944. */
-const WIDGET_BUDGET = 367_500;
+ *  Measured 366,944.
+ *  367,500 -> 368,500 (2026-10-25, a chart's options as a popover that closes -- the engine page's note of the same date
+ *  -- and a join reopened borrowing a grid's table (app/sources.ts borrow: the example-switch bug)). Measured 367,526. */
+const WIDGET_BUDGET = 368_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

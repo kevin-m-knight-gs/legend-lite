@@ -310,7 +310,8 @@ try {
   await item('Open…').click();
   await page.locator('#cubeswin .dc-open-example[data-example="charts-gallery"]').click();
   await page.waitForFunction(() => (window.__dataPage?.views().views ?? []).some((v) => v.kind === 'chart'), undefined, { timeout: 120_000 });
-  await page.locator('[data-tile] .dc-row').first().waitFor({ timeout: 120_000 });
+  // its first sheet charts alone: one drawn, its rows read
+  await page.locator('[data-tile] .dc-chartpanel-chart canvas:visible').first().waitFor({ timeout: 120_000 });
 
   // THE JOIN EXAMPLE (the user, 2026-10-23: join prep was on the site, but nothing showed it): opened from Open…'s
   // examples, its two samples made in this tab and its two joins made again -- every order beside its country, by
