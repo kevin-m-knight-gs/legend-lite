@@ -489,17 +489,35 @@ describe('a chart\'s right-click menu: Options..., and Show Grid offered only wh
   beforeEach(setUpPage);
   afterEach(tearDownPage);
 
-  it('Options... shows the chart\'s form, and again hides it', async () => {
+  // the user, 2026-10-25 (docs/DATACUBE_UI_REVIEW_2026_10_24.md §2): a pane that closes -- Options... was a toggle, and
+  // the pane had no way out of its own
+  it('Options... opens the chart\'s options or brings them forward; their \u00d7, Escape and a press elsewhere put them away', async () => {
     newPage();
     const a = pg().addGrid(over('trades.csv'));
     await settle();
     const chart = await chartOf(a);
     const form = (): HTMLElement => tile(chart).querySelector('.dc-chartpanel-form') as HTMLElement;
+    const options = (): void => chartMenu(chart).find((i) => label(i) === 'Options...')!.click();
+    const press = (on: Element): boolean => on.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true }));
     assert.equal(form().hidden, true, 'a chart on the page starts without its form');
-    chartMenu(chart).find((i) => label(i) === 'Options...')!.click();
+    options();
     assert.equal(form().hidden, false);
-    chartMenu(chart).find((i) => label(i) === 'Options...')!.click();
-    assert.equal(form().hidden, true);
+    options();
+    assert.equal(form().hidden, false, 'Options... again brings them forward, never away');
+    assert.equal(form().querySelector('.dc-chartpanel-form-title')?.textContent, 'Options');
+    // its ×
+    (form().querySelector('.dc-chartpanel-form-close') as HTMLButtonElement).click();
+    assert.equal(form().hidden, true, 'its \u00d7 put them away');
+    // a press in them keeps them; one anywhere else puts them away
+    options();
+    press(form().querySelector('.dc-chartpanel-form-body') ?? form());
+    assert.equal(form().hidden, false, 'a press in them');
+    press(tile(a));
+    assert.equal(form().hidden, true, 'a press on another tile');
+    // Escape, in them
+    options();
+    form().dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(form().hidden, true, 'Escape');
   });
 
   // the user, 2026-10-23: Show Grid on every chart. A chart of rows, of places or of one figure takes nothing of its

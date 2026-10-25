@@ -2846,9 +2846,37 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-chartpanel-form {
   flex: 0 0 220px;
   overflow: auto;
-  padding: var(--dc-pad-2);
   border-right: 1px solid var(--dc-line);
 }
+.dc-chartpanel-form:focus { outline: none; }
+.dc-chartpanel-form-body { padding: 0 var(--dc-pad-2) var(--dc-pad-2); }
+/* its heading and its ×, kept in sight as its fields scroll */
+.dc-chartpanel-form-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--dc-pad-1) var(--dc-pad-1) var(--dc-pad-1) var(--dc-pad-2);
+  background: var(--dc-bg);
+  border-bottom: 1px solid var(--dc-line);
+  margin-bottom: var(--dc-pad-2);
+}
+.dc-chartpanel-form-title { font-weight: 600; color: var(--dc-muted-strong); }
+.dc-chartpanel-form-close {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--dc-radius-sm);
+  background: transparent;
+  color: var(--tw-neutral-500);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dc-chartpanel-form-close:hover { background: var(--tw-neutral-200); color: var(--tw-neutral-800, #262626); }
 
 /* a narrow column: each label above its control, the control full width */
 .dc-chartpanel-form .dc-field {
@@ -3334,15 +3362,15 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
   color: var(--dc-muted-strong); font-size: var(--dc-text-sm-size); font-weight: 600;
 }
 
-/* In a tile the options float over the chart, from its left edge, rather
-   than taking width from it: a small tile keeps its chart whole. */
+/* IN A TILE THE OPTIONS FLOAT OVER THE PAGE, beside their chart (chart-panel.ts #placeForm sets where and how tall):
+   above the tiles and windows, under a menu. They floated inside the tile, clipped by it -- a KPI's left a sliver
+   (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §2). */
 .dc-chart-tile .dc-chartpanel { position: relative; }
 .dc-chart-tile .dc-chartpanel-form {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 220px;
-  max-width: 85%;
-  z-index: 1;
+  position: fixed;
+  z-index: 30;
+  border: 1px solid var(--dc-line);
+  border-radius: var(--dc-radius-sm);
   background: var(--dc-bg);
   box-shadow: var(--dc-popup-shadow);
 }

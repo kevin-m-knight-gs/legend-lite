@@ -146,6 +146,13 @@ back, while folded, stays among a tile's buttons (a lone grid's, at the page bar
   Properties pattern), the chart left whole beside it and its marks highlighted — or, at least, a popover anchored to
   the tile that may overflow it and scrolls within the window, so a small tile never clips it.
 
+**Built 2026-10-25, the popover** (`ui/chart-panel.ts` `openForm`, `closeForm`, `#placeForm`; tested in
+`test/cube-page-shell.test.ts` "a chart's right-click menu"). Options… opens the options or brings them forward;
+they have a heading with ×, and Escape or a press anywhere else closes them. They float over the page beside their
+chart: to its right if there is room, else to its left, else over it. They sit above tiles and windows and under
+menus, as tall as the window allows, so a small tile never clips them. The pane docked at the page's edge is still to
+come.
+
 ### 3. The page's ≡ menu, grouped by purpose
 
 In the order of the menus' shared skeleton (below, "The menus"):
@@ -348,7 +355,7 @@ View ▸                                    Properties…                 Ctrl+E
 | 4 | Files in the text box (§8): Markdown and text first, then PDF, media, Word, email, PowerPoint | Added by the user, 2026-10-25 |
 
 **Where it stands, 2026-10-25.** Built: numbers right-aligned; the page's ≡ grouped by purpose (§3); one tile header
-(§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Next: the chart options pane (§2). After it:
+(§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2). Next:
 the example-switch bug (found 1); the status bar's error as a chip; the title bar (§4); the menus' design language for
 every menu; grouped text columns (found 2); the columns panel (found 3); one icon set (found 4; the tile states, the
 status bar's tools and the editor's toolbar already drawn); the options pane docked at the page's edge; then §8.

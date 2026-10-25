@@ -87,6 +87,8 @@ export class ChartPanel {
   readonly #options: ChartPanelOptions;
   #spec: ChartSpec | null;
   #form!: HTMLElement;
+  /** The options' fields, under their heading and ×: what the form (ui/chart-form.ts) paints. */
+  #formBody!: HTMLElement;
   #canvas!: HTMLElement;
   #status!: HTMLElement;
   /** A drilled chart's path, above it (batch 2 item 10). */
@@ -171,15 +173,92 @@ export class ChartPanel {
     this.#timer = setTimeout(() => void this.#draw(), delay);
   }
 
-  /** Show or hide the options; answers whether they are now shown. */
-  toggleForm(): boolean {
-    this.#form.hidden = !this.#form.hidden;
-    if (!this.#form.hidden && this.#formStale) this.#paintForm();
+  /**
+   * THE OPTIONS, OPEN (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §2): over the page beside the chart --
+   * to its right where there is room, else its left, else over it -- above everything but a menu, and as tall as the
+   * window lets them, so a small tile never clips them. Their ×, Escape, or a press anywhere else puts them away; Options...
+   * again brings them forward (it was a toggle, and put them away as often as it showed them).
+   */
+  openForm(): void {
+    const form = this.#form;
+    if (form.hidden) {
+      form.hidden = false;
+      if (this.#formStale) this.#paintForm();
+      this.#listen(true);
+    }
+    this.#placeForm();
+    form.focus({ preventScroll: true });
+  }
+
+  /** The options put away. */
+  closeForm(): void {
+    if (this.#form.hidden) return;
+    this.#form.hidden = true;
+    this.#listen(false);
+  }
+
+  /** Whether the options are open. */
+  get formOpen(): boolean {
     return !this.#form.hidden;
+  }
+
+  /** A press outside the options (or a menu over them) puts them away. */
+  readonly #onPressAway = (event: Event): void => {
+    const target = event.target as Element | null;
+    if (target !== null && (this.#form.contains(target) || target.closest?.('.dc-menu'))) return;
+    this.closeForm();
+  };
+
+  /** Escape in the options, on its chart, or with nothing focused puts them away -- not one meant for a window. */
+  readonly #onKey = (event: KeyboardEvent): void => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    const target = event.target as Node | null;
+    if (target !== null && target !== this.#doc.body && !this.#root.contains(target)) return;
+    event.preventDefault();
+    this.closeForm();
+  };
+
+  /** The page scrolled or the window changed: the options stay beside their chart. */
+  readonly #onMove = (): void => this.#placeForm();
+
+  #listen(on: boolean): void {
+    const doc = this.#doc;
+    const view = doc.defaultView;
+    if (on) {
+      doc.addEventListener('pointerdown', this.#onPressAway, true);
+      doc.addEventListener('keydown', this.#onKey);
+      doc.addEventListener('scroll', this.#onMove, true);
+      view?.addEventListener('resize', this.#onMove);
+    } else {
+      doc.removeEventListener('pointerdown', this.#onPressAway, true);
+      doc.removeEventListener('keydown', this.#onKey);
+      doc.removeEventListener('scroll', this.#onMove, true);
+      view?.removeEventListener('resize', this.#onMove);
+    }
+  }
+
+  /** Where the open options go: beside the chart, inside the window (app.css .dc-chartpanel-form, fixed). */
+  #placeForm(): void {
+    const form = this.#form;
+    const view = this.#doc.defaultView;
+    if (form.hidden || view === null) return;
+    const at = this.#root.getBoundingClientRect();
+    const margin = 8;
+    const width = Math.min(280, Math.max(0, view.innerWidth - 2 * margin));
+    const room = view.innerWidth - margin;
+    const left = at.right + margin + width <= room ? at.right + margin
+      : at.left - margin - width >= margin ? at.left - margin - width
+        : Math.max(margin, Math.min(at.left, room - width));
+    const top = Math.max(margin, Math.min(at.top, view.innerHeight - margin - 240));
+    form.style.left = `${Math.round(left)}px`;
+    form.style.top = `${Math.round(top)}px`;
+    form.style.width = `${Math.round(width)}px`;
+    form.style.maxHeight = `${Math.round(Math.max(120, view.innerHeight - top - margin))}px`;
   }
 
   dispose(): void {
     this.#disposed = true;
+    this.#listen(false);
     clearTimeout(this.#timer);
     clearTimeout(this.#clickTimer);
     this.#inflight?.abort();
@@ -197,6 +276,25 @@ export class ChartPanel {
     this.#root.classList.add('dc-chartpanel');
     this.#form = doc.createElement('div');
     this.#form.className = 'dc-chartpanel-form';
+    this.#form.tabIndex = -1;
+    this.#form.setAttribute('role', 'dialog');
+    this.#form.setAttribute('aria-label', 'Chart options');
+    const head = doc.createElement('div');
+    head.className = 'dc-chartpanel-form-head';
+    const title = doc.createElement('span');
+    title.className = 'dc-chartpanel-form-title';
+    title.textContent = 'Options';
+    const close = doc.createElement('button');
+    close.type = 'button';
+    close.className = 'dc-chartpanel-form-close';
+    close.textContent = '\u00d7';
+    close.title = 'Close the options (Escape)';
+    close.setAttribute('aria-label', 'Close the options');
+    close.addEventListener('click', () => this.closeForm());
+    head.append(title, close);
+    this.#formBody = doc.createElement('div');
+    this.#formBody.className = 'dc-chartpanel-form-body';
+    this.#form.append(head, this.#formBody);
     const right = doc.createElement('div');
     right.className = 'dc-chartpanel-main';
     this.#canvas = doc.createElement('div');
@@ -211,7 +309,8 @@ export class ChartPanel {
     this.#crumbs.hidden = true;
     right.append(this.#crumbs, this.#canvas, this.#status);
     this.#root.append(this.#form, right);
-    this.#form.hidden = this.#options.formOpen === false;
+    this.#form.hidden = true;
+    if (this.#options.formOpen !== false) this.openForm();
     this.#paintForm();
   }
 
@@ -244,7 +343,7 @@ export class ChartPanel {
     this.#formStale = false;
     void lazily(() => import('./chart-form.ts')).then(({ paintChartForm }) => {
       if (this.#disposed || this.#form.hidden) return;
-      paintChartForm(this.#formHost, this.#form);
+      paintChartForm(this.#formHost, this.#formBody);
     });
   }
 

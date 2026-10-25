@@ -1295,7 +1295,8 @@ export class CubePage {
       const way = spec === null ? null : showGridWay(spec, link.grid !== null);
       const refused = way === 'own' ? this.#ownGridRefusal() : null;
       this.#menuFor = (item) => {
-        if (item.id === 'tile.options') panel.toggleForm();
+        // opens its options, or brings them forward: their ×, Escape or a press elsewhere puts them away
+        if (item.id === 'tile.options') panel.openForm();
         if (item.id === 'tile.grid') this.#showGrid(id);
         if (item.id === 'tile.remove') this.#removeTile(id);
         if (item.id === 'sheet.toNew') this.moveToSheet(id, null);

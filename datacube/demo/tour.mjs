@@ -360,8 +360,8 @@ try {
     const frozen = (await charts()).find((c) => c.id === chart.id);
     if (!same(frozen.y, [[column, fn], [column, other]])) throw new Error(`the frozen chart plots ${JSON.stringify(frozen.y)}`);
     await shot(page, 'frozen, two values');
-    // Options... again puts the form away
-    await chartMenu(chart.id, 'Options...');
+    // its × puts the options away (Options... only opens them: the user, 2026-10-25)
+    await form.locator('.dc-chartpanel-form-close').click();
     await form.waitFor({ state: 'hidden' });
     await choose(chart.id, 'Dynamic');
     await settle();
