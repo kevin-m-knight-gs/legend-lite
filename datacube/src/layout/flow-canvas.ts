@@ -26,6 +26,7 @@ import type { FlowBoardState } from './flow-board.ts';
 import type { LineEnd } from './flow-board.ts';
 import type { InputSide } from '../cube-document.ts';
 import { boxInputs, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowTool } from '../flow-boxes.ts';
+import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { gridTitle } from '../page-ids.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { MenuView } from '../ui/menu-view.ts';
@@ -93,6 +94,8 @@ interface Drawn {
   readonly icon: HTMLElement;
   readonly name: HTMLElement;
   readonly says: HTMLElement;
+  /** How many rows it gave when its grid ran last, while its chain is as it was. */
+  readonly count: HTMLElement;
   readonly remove: HTMLButtonElement;
   /** What it was drawn as, to draw it again only when that changes. */
   key: string;
@@ -145,8 +148,10 @@ export class FlowCanvas {
   /** A box's menu (a right-click), made the first time, and what its entry picked does. */
   #menu: MenuView | undefined;
   #menuAct: ((item: MenuItem) => void) | undefined;
-  /** The canvas's own tools, at its corner: Tidy Up. */
+  /** The canvas's own tools, at its corner: Run, Tidy Up. */
   readonly #toolbar: HTMLElement;
+  readonly #run: HTMLButtonElement;
+  readonly #tidy: HTMLButtonElement;
   /** The palette's find field, and its tools by name. */
   readonly #find: HTMLInputElement;
   readonly #tools = new Map<FlowTool, HTMLButtonElement>();
@@ -239,13 +244,18 @@ export class FlowCanvas {
     // the canvas on its stage, its own tools at its corner, over it as it scrolls
     const stage = el('div', 'dc-flow-stage');
     this.#toolbar = el('div', 'dc-flow-toolbar');
-    const tidy = doc.createElement('button');
-    tidy.type = 'button';
-    tidy.className = 'dc-flow-tidy';
-    tidy.textContent = 'Tidy Up';
-    tidy.title = 'Place every box a column after the boxes it reads, level with them';
-    tidy.addEventListener('click', () => this.#board.options.onTidy?.());
-    this.#toolbar.append(tidy);
+    const tool = (cls: string, text: string, title: string, act: () => void): HTMLButtonElement => {
+      const b = doc.createElement('button');
+      b.type = 'button';
+      b.className = `dc-flow-act ${cls}`;
+      b.textContent = text;
+      b.title = title;
+      b.addEventListener('click', act);
+      return b;
+    };
+    this.#run = tool('dc-flow-run', '▶ Run', 'Run every box, left to right, and count the rows each gives', () => this.#board.options.onRun?.());
+    this.#tidy = tool('dc-flow-tidy', 'Tidy Up', 'Place every box a column after the boxes it reads, level with them', () => this.#board.options.onTidy?.());
+    this.#toolbar.append(this.#run, this.#tidy);
     stage.append(this.#canvas, this.#toolbar);
     const top = el('div', 'dc-flow-top');
     top.append(stage, this.#side, this.#settings);
@@ -330,7 +340,12 @@ export class FlowCanvas {
     this.#plane.style.width = `${right}px`;
     this.#plane.style.height = `${bottom}px`;
     this.#hint.hidden = layout.boxes.length > 0 || !editing;
-    this.#toolbar.hidden = !editing || layout.boxes.length < 2;
+    // Run on a locked page too: it changes nothing of the page's
+    const running = board.running;
+    this.#toolbar.hidden = layout.boxes.length === 0;
+    this.#tidy.hidden = !editing || layout.boxes.length < 2;
+    this.#run.disabled = running !== undefined;
+    this.#run.textContent = running === undefined ? '▶ Run' : `Running ${Math.min(running.done + 1, running.of)} of ${running.of}…`;
     this.#paintResults();
     this.#paintSettings();
   }
@@ -488,6 +503,8 @@ export class FlowCanvas {
     const says = doc.createElement('div');
     says.className = 'dc-flow-says';
     text.append(name, says);
+    const count = doc.createElement('span');
+    count.className = 'dc-flow-count';
     const remove = doc.createElement('button');
     remove.type = 'button';
     remove.className = 'dc-flow-x';
@@ -497,8 +514,8 @@ export class FlowCanvas {
       e.stopPropagation();
       this.#board.options.onRemove?.(id);
     });
-    root.append(into, left, right, glyph, text, remove, out);
-    const drawn: Drawn = { root, icon: glyph, name, says, remove, key: '', renaming: false };
+    root.append(into, left, right, glyph, text, count, remove, out);
+    const drawn: Drawn = { root, icon: glyph, name, says, count, remove, key: '', renaming: false };
     root.addEventListener('pointerdown', (e) => this.#startBox(id, drawn, e));
     root.addEventListener('keydown', (e) => this.#onBoxKey(id, drawn, e));
     // right-clicked: what can be done to it, each the gesture it is besides (a click, F2, Ctrl+D, Delete)
@@ -597,7 +614,8 @@ export class FlowCanvas {
     const columns = this.#columnsOf(id);
     // a side read from a copy (FL6, a line taken off): frozen, said so
     const frozen = this.#inputsOf(id).flatMap((i) => ('frozen' in i ? [i.frozen] : []));
-    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen]);
+    const counted = this.#board.count(id);
+    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted]);
     if (key === drawn.key) return;
     drawn.key = key;
     drawn.root.dataset['tool'] = tool;
@@ -615,6 +633,10 @@ export class FlowCanvas {
     if (!drawn.renaming) drawn.name.textContent = name;
     drawn.says.textContent = says;
     drawn.says.title = says;
+    // its rows when its grid ran last (Run, or shown), while its chain is as it was then
+    drawn.count.hidden = counted === undefined;
+    drawn.count.textContent = counted === undefined ? '' : counted.toLocaleString(UI_LOCALE);
+    drawn.count.title = counted === undefined ? '' : `${counted.toLocaleString(UI_LOCALE)} ${counted === 1 ? 'row' : 'rows'} when it ran last`;
     drawn.remove.hidden = !this.#board.editing;
     drawn.remove.title = `Remove ${name}`;
     drawn.remove.setAttribute('aria-label', `Remove ${name}`);

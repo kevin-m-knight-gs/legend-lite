@@ -483,6 +483,14 @@ try {
   check(await readsOf(copy.id) === filter.id, 'reading what it reads');
   check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Duplicate Box', 'one step: Duplicate Box');
 
+  // RUN (M5, M6): each box shown in turn, its rows counted beside its output; an edit upstream drops the counts after it
+  await page.locator('.dc-flow-run').click();
+  await page.waitForFunction(() => /Run$/.test(document.querySelector('.dc-flow-run')?.textContent ?? ''), undefined, { timeout: 120_000 });
+  const counts = await page.locator('.dc-flow-box').evaluateAll((els) => Object.fromEntries(els.map((e) => [e.dataset.tile, e.querySelector('.dc-flow-count')?.textContent ?? ''])));
+  check(counts[input.id] === '5,000' && counts[filter.id] === fewer.toLocaleString() && counts[union.id] === (fewer + all).toLocaleString(),
+    `each box counted: ${JSON.stringify(counts)}`);
+  await page.screenshot({ path: outPath('flow-run.png') });
+
   // THE PALETTE'S FIND: its tools narrowed to what is typed
   await page.fill('.dc-flow-find', 'join');
   const visible = await page.locator('.dc-flow-tool:visible').evaluateAll((els) => els.map((e) => e.dataset.tool));

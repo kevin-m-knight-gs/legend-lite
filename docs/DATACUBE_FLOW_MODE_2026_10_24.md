@@ -603,6 +603,19 @@ tools narrowed to the ones whose name or words hold what is typed, Enter adding 
 by `flow-sheet.test.ts` (the rule), Python's `Flows` (`flow.tidy`) and the harness (a box pushed out of place and tidied,
 the Formula duplicated from its menu, the palette narrowed to Join).
 
+### M5 and M6, first steps (2026-10-25)
+
+**Built, record counts and Run** (`layout/flow-board.ts` `counted`, `count`, `layout/flow-canvas.ts`, `page/cube-page.ts`
+`#runFlow`): a box's rows are counted as its grid's view lands (a flat grid's all of them, its total when the row cap
+cut it; a grouped one's groups) and drawn beside its output, under the lines out of it, as Alteryx counts a connection
+(FL7: after a run, never kept live) -- kept only while the box's chain is as it was then (its source and query, each
+live input the chain of the box it reads): an edit up the chain drops the counts after it until they run again. **Run**,
+at the canvas's corner beside Tidy Up, shows each box in turn, left to right, each counted, then the box shown before
+shown again ("Running 3 of 9…" meanwhile). The screen's: no step of the page's. Tested by `flow-page.test.ts` (a count
+dropped by an edit up its chain) and the harness (Run: each box counted -- the Input's 5,000, the Filter's, the Union's
+both). Still to come: a run's log (each box's time and what it said), and Run on a page Python serves counting by
+Python's engine without showing each box.
+
 **Still open in M2:** ports with several outputs (FL7: a Filter's False, a Unique's Duplicates), a Union of more than
 two inputs, Append Fields, Find Replace and Fuzzy Match; and the board's own Join… making live joins too (FL6's "new
 joins are live": the flow's are; the board's still copies, as Python's `page.join` of two board grids).

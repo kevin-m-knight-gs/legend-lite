@@ -450,8 +450,10 @@ const BUDGET = 367_500;
  *  353,500 -> 354,500 (2026-10-25, the flow mode's M2 step 3 and M3's first tools -- the grid-only page's note of the
  *  same date). Measured 353,829.
  *  354,500 -> 355,500 (2026-10-25, the flow mode's M7 first steps -- the grid-only page's note of the same date).
- *  Measured 355,267. */
-const ENGINE_BUDGET = 355_500;
+ *  Measured 355,267.
+ *  355,500 -> 356,000 (2026-10-25, the flow mode's M5 and M6 first steps: a box's count kept for its chain, Run showing
+ *  each box in turn; the drawing the canvas's chunk). Measured 355,733. */
+const ENGINE_BUDGET = 356_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -618,8 +620,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  374,500 -> 375,500 (2026-10-25, the flow mode's M2 step 3 and M3's first tools -- the grid-only page's note of the
  *  same date; the palette's group headings' styles among them). Measured 375,094.
  *  375,500 -> 377,000 (2026-10-25, the flow mode's M7 first steps -- the grid-only page's note of the same date; the
- *  canvas's toolbar and the palette's find field's styles among them). Measured 376,663. */
-const WIDGET_BUDGET = 377_000;
+ *  canvas's toolbar and the palette's find field's styles among them). Measured 376,663.
+ *  377,000 -> 377,500 (2026-10-25, the flow mode's M5 and M6 first steps -- the engine page's note of the same date; the
+ *  Run button's and a box's count's styles among them). Measured 377,210. */
+const WIDGET_BUDGET = 377_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

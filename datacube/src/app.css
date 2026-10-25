@@ -4462,7 +4462,7 @@
 .dc-flow-stage { flex: 1 1 auto; min-width: 240px; position: relative; display: flex; }
 .dc-flow-toolbar { position: absolute; top: 10px; right: 14px; z-index: 4; display: flex; gap: 6px; }
 .dc-flow-toolbar[hidden] { display: none; }
-.dc-flow-tidy {
+.dc-flow-act {
   height: 26px;
   padding: 0 10px;
   border: 1px solid var(--dc-line);
@@ -4474,8 +4474,25 @@
   cursor: pointer;
   box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
 }
-.dc-flow-tidy:hover { border-color: var(--dc-line-strong); color: var(--tw-black); }
-.dc-flow-tidy:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
+.dc-flow-act:hover { border-color: var(--dc-line-strong); color: var(--tw-black); }
+.dc-flow-act:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
+.dc-flow-act[hidden] { display: none; }
+.dc-flow-run { color: var(--dc-active); border-color: color-mix(in srgb, var(--dc-active) 45%, transparent); }
+.dc-flow-run:disabled { cursor: progress; opacity: 0.8; }
+/* a box's rows when its grid ran last: beside its output, under the lines out of it, as a connection's count is */
+.dc-flow-count {
+  position: absolute;
+  left: 100%;
+  top: calc(50% + 6px);
+  margin-left: 6px;
+  pointer-events: auto;
+  white-space: nowrap;
+  font-size: 10px;
+  line-height: 12px;
+  color: var(--dc-muted);
+  font-variant-numeric: tabular-nums;
+}
+.dc-flow-count[hidden] { display: none; }
 /* the palette's find field: its tools narrowed to what it holds */
 .dc-flow-find {
   flex: none;

@@ -15,6 +15,7 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { openCube, writeCube, type CubeDocument, type CubeSource, type FileSource, type RowsSource } from '../src/cube-document.ts';
 import type { FlowTool } from '../src/flow-boxes.ts';
 import { liveGrids } from '../src/live-inputs.ts';
+import { FlowBoard } from '../src/layout/flow-board.ts';
 import { PageApp, type GridMaker } from '../src/page/page-app.ts';
 import { layoutTiles, pageToJson, readPage, writePageOf, type PageDocument } from '../src/page-document.ts';
 import { TreeState } from '../src/tree.ts';
@@ -185,6 +186,21 @@ describe('a flow sheet on a page of its own', () => {
     assert.deepEqual(pg().grids, ['grid-1']);
     // an undo is the page's structure, its lines too (page-between.ts 2c, M2): the box after it reads it live again
     assert.deepEqual(liveGrids(cubeOf(back, 'grid-3').source), ['grid-4']);
+  });
+
+  it("keeps a box's count while its chain is as it was when it ran: an edit up the chain drops it", async () => {
+    const docs = new Map<string, CubeDocument>([['grid-2', cube(FILE)], ['grid-3', cube(rows('grid-2'))]]);
+    const board = new FlowBoard(host, { documentOf: (id) => docs.get(id) });
+    board.counted('grid-3', 2404);
+    assert.equal(board.count('grid-3'), 2404);
+    // the box it reads changed (a filter set there): its count is none until it runs again
+    docs.set('grid-2', cube(FILE, ['region']));
+    assert.equal(board.count('grid-3'), undefined);
+    board.counted('grid-3', 3);
+    assert.equal(board.count('grid-3'), 3);
+    board.setRunning({ done: 1, of: 2 });
+    assert.deepEqual(board.running, { done: 1, of: 2 });
+    board.dispose();
   });
 
   it('moves a box by its arrow keys, one step of the page each, and tells the host a tool picked', async () => {

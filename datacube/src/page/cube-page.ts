@@ -162,6 +162,8 @@ export interface SpawnedGrid {
   cubeDocument?(name: string): CubeDocument | undefined;
   /** The window that sets a flow's step (flow-boxes.ts TOOL_EDITORS), opened -- docked where its options dock it. */
   openStep?(editor: StepEditor): void;
+  /** Its view as it landed last: its rows, and a flat grid's total when the row cap cut them -- a flow's box's count. */
+  readonly view?: { readonly rows: { readonly rowCount: number }; readonly totalRows?: number } | null;
 }
 
 export interface CubePageOptions {
@@ -535,6 +537,7 @@ export class CubePage {
       onFile: (file) => this.#options.onFile?.(file, id),
       documentOf: (tile) => this.#boxes.get(tile)?.document ?? this.documentOf(tile),
       onTidy: () => this.#options.onTidy?.(id),
+      onRun: () => void this.#runFlow(id),
       onDuplicate: (tile) => this.#duplicateBox(id, tile),
     });
     board.setEditing(this.#editing);
@@ -711,6 +714,33 @@ export class CubePage {
       this.#planned.delete(id);
     }
     if (editor !== undefined) this.#grids.get(id)?.added?.cube.openStep?.(editor);
+  }
+
+  /**
+   * RUN (the canvas's button: docs/DATACUBE_FLOW_MODE_2026_10_24.md M5, M6): each box of flow `sheet` shown in turn, left
+   * to right -- its grid made over the page as it is, its rows counted as they land -- then the box shown before shown
+   * again. The screen's, no step of the page's: which box is shown is the screen's.
+   */
+  async #runFlow(sheetId: string): Promise<void> {
+    const sheet = this.#sheets.find((s) => s.id === sheetId);
+    if (sheet?.kind !== 'flow' || sheet.board.running !== undefined) return;
+    const board = sheet.board;
+    const order = [...board.layout.boxes].sort((a, b) => a.x - b.x || a.y - b.y).map((b) => b.tile);
+    const was = board.shown;
+    board.setRunning({ done: 0, of: order.length });
+    try {
+      for (const [i, id] of order.entries()) {
+        if (this.#disposed) return;
+        if (board.layout.boxes.some((b) => b.tile === id)) {
+          await this.#showBox(id);
+          await this.#opening.get(id)?.catch(() => undefined);
+        }
+        board.setRunning({ done: i + 1, of: order.length });
+      }
+      if (was !== undefined && board.shown !== was && board.layout.boxes.some((b) => b.tile === was)) await this.#showBox(was);
+    } finally {
+      board.setRunning(undefined);
+    }
   }
 
   /** A BOX DUPLICATED (Ctrl+D, its menu: docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): a copy of its cube as the page has
@@ -1380,6 +1410,10 @@ export class CubePage {
       cube.on('view', () => {
         this.#refreshGrid(id);
         this.#reconcileGrid(id, cube.snapshot.filter);
+        // a flow's box counted as its rows land (M5): what it gave, for its chain as it is
+        const on = this.#sheetOf(id);
+        const v = cube.view;
+        if (on?.kind === 'flow' && v) on.board.counted(id, v.totalRows ?? v.rows.rowCount);
       }),
       // its own changes are the page's: "changed since saved" re-reads the page
       cube.on('change', () => {

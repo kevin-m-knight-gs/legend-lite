@@ -13,7 +13,8 @@
 
 import type { BandTile } from './band-board.ts';
 import { EMPTY_FLOW, placeAfter, removeBox, type Flow } from './flow.ts';
-import type { CubeDocument, InputSide } from '../cube-document.ts';
+import { isLive, type CubeDocument, type CubeInput, type InputSide } from '../cube-document.ts';
+import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import { lazily } from '../lazily.ts';
 
@@ -43,6 +44,8 @@ export interface FlowBoardOptions {
   readonly onFile?: (file: File) => void;
   /** Tidy Up (the canvas's button): the caller places every box by the flow's own rule (page-gestures.ts tidyCommands). */
   readonly onTidy?: () => void;
+  /** Run (the canvas's button): the caller shows each box in turn, so each is counted (`counted`). */
+  readonly onRun?: () => void;
   /** Duplicate (Ctrl+D on a box, or its menu): the caller adds a copy of it, reading what it reads. */
   readonly onDuplicate?: (id: string) => void;
   /** Each box's cube document as the page has it: what it does, and the boxes it reads (the lines into it). */
@@ -76,6 +79,10 @@ export interface FlowBoardState {
   addedAs(id: string): FlowTool | undefined;
   /** Why a box's grid could not be made the last time it was shown (`refuse`), if it could not. */
   refusal(id: string): string | undefined;
+  /** How many rows a box gave the last time its grid ran, while its chain is as it was then (`counted`). */
+  count(id: string): number | undefined;
+  /** A run in progress (Run): how many boxes are done, of how many. */
+  readonly running: { readonly done: number; readonly of: number } | undefined;
   tile(id: string): BandTile | undefined;
 }
 
@@ -100,6 +107,10 @@ export class FlowBoard implements FlowBoardState {
   readonly #addedAs = new Map<string, FlowTool>();
   /** Why each box shown last could not be: its source not opened, refused in words (drawn red until it is shown). */
   readonly #refused = new Map<string, string>();
+  /** Each box's rows the last time its grid ran (docs/DATACUBE_FLOW_MODE_2026_10_24.md M5, FL7: counted after a run, not
+   *  kept live), and its chain then: a count of a chain that has changed since is no count of it. The screen's. */
+  readonly #counts = new Map<string, { readonly n: number; readonly chain: string }>();
+  #running: { readonly done: number; readonly of: number } | undefined;
   #layout: Flow = EMPTY_FLOW;
   #shown: string | undefined;
   #noted: string | undefined;
@@ -189,6 +200,42 @@ export class FlowBoard implements FlowBoardState {
     this.#paint();
   }
 
+  count(id: string): number | undefined {
+    const c = this.#counts.get(id);
+    return c !== undefined && c.chain === this.#chain(id) ? c.n : undefined;
+  }
+
+  /** A box's grid ran and gave `n` rows: its count, for its chain as it is now. */
+  counted(id: string, n: number): void {
+    const was = this.#counts.get(id);
+    const chain = this.#chain(id);
+    if (was?.n === n && was.chain === chain) return;
+    this.#counts.set(id, { n, chain });
+    this.#paint();
+  }
+
+  get running(): { readonly done: number; readonly of: number } | undefined {
+    return this.#running;
+  }
+
+  setRunning(running: { readonly done: number; readonly of: number } | undefined): void {
+    this.#running = running;
+    this.#paint();
+  }
+
+  /** A box's chain as its documents say it: its source and query, each live input in it the chain of the box it reads --
+   *  what its count is a count of. */
+  #chain(id: string, seen: ReadonlySet<string> = new Set()): string {
+    const doc = this.options.documentOf?.(id);
+    if (doc === undefined || seen.has(id)) return '';
+    const through = new Set([...seen, id]);
+    const input = (i: CubeInput): string => (isLive(i) ? `<${this.#chain(i.grid, through)}>` : toJson(i));
+    const s = doc.source;
+    const source = s._type === 'rows' ? `rows ${input(s.input)}` : s._type === 'join'
+      ? `join ${input(s.left)} ${input(s.right)} ${toJson(s.how)}` : toJson(s);
+    return `${source}|${toJson(doc.query)}`;
+  }
+
   /** A box added from the palette as `tool`: drawn as one until its grid does something. */
   addAs(id: string, tool: FlowTool): void {
     this.#addedAs.set(id, tool);
@@ -244,6 +291,7 @@ export class FlowBoard implements FlowBoardState {
     this.#boxes.delete(id);
     this.#addedAs.delete(id);
     this.#refused.delete(id);
+    this.#counts.delete(id);
     this.#layout = removeBox(this.#layout, id);
     this.#paint();
   }
