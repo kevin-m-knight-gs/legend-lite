@@ -1612,6 +1612,25 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, 'pick what to do to them'):
             grid.cleanse(['who'], trim=False)
 
+    def test_empties_imputed_as_a_flow_box_fills_them(self):
+        # (M3) grid.impute: a flow's Imputation (impute.ts imputeCommands) -- a value, or the column's own average,
+        # smallest or largest across every row, the database's
+        holes = pd.DataFrame({'desk': ['FX', 'Rates', 'Rates', 'FX'], 'notional': [100.0, None, 300.0, None],
+                              'qty': pd.array([1, None, 3, 4], dtype='Int64')})
+        page = ll.Page('Imputation')
+        grid = page.grid(holes, name='holes')
+        grid.impute(['notional'], fill='average')
+        grid.impute(['qty'], fill=0)
+        rows = grid.to_pandas().sort_values(['desk', 'notional'], na_position='last').to_dict('records')
+        self.assertEqual(sorted(r['notional_filled'] for r in rows), [100.0, 200.0, 200.0, 300.0])
+        self.assertEqual(sorted(int(r['qty_filled']) for r in rows), [0, 1, 3, 4])
+        with self.assertRaisesRegex(ValueError, "only a number's empties are filled"):
+            grid.impute(['desk'])
+        with self.assertRaisesRegex(ValueError, 'holds whole numbers: fill it with one'):
+            grid.impute(['qty'], fill=0.5)
+        with self.assertRaisesRegex(ValueError, "'notional_filled' is already a column"):
+            grid.impute(['notional'], fill='largest')
+
     def test_a_named_dimension_is_used_and_drilled(self):
         # (K6) grid.dimension, grid.drill, grid.drill_up: a dimension of the grid's configuration (the Dimensions tab's),
         # by dimensions.ts's own rules (useDimension, drillDown, drillUp), as the group command the Rows zone builds

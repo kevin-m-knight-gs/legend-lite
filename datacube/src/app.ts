@@ -463,7 +463,8 @@ const windowStack = new WeakMap<HTMLElement, number>();
  *  docks them (CubeAppOptions.dock); every other window floats. */
 /** The text tools' windows, by the tool each sets (text-tools.ts). */
 const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
-const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Date Period'
+const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation'
+  || key === 'Date Period'
   || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
@@ -3630,6 +3631,9 @@ export class CubeApp {
       case 'unique':
         void this.#openUnique();
         return;
+      case 'impute':
+        void this.#openImpute();
+        return;
       // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
       case 'join':
         return;
@@ -3712,6 +3716,28 @@ export class CubeApp {
     });
     if (parts.length === 0) parts.push(toCsv({ columns: shown.map((n) => ({ name: n, values: [] })), rowCount: 0, epoch: 0, elapsedMs: 0 } as never));
     download(name, 'text/csv', parts.join(''));
+  }
+
+  /** A FLOW'S IMPUTATION (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): number columns' empties filled -- a value, or the
+   *  column's average, smallest or largest across every row, by the database (impute.ts, the rule Python's grid.impute
+   *  asks) -- in a window of its own (ui/impute-form.ts). Both fetched with the first. */
+  async #openImpute(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ imputeForm }, { imputeCommands }] = await Promise.all([
+      lazily(() => import('./ui/impute-form.ts')), lazily(() => import('./impute.ts')),
+    ]);
+    this.#showOverlay('Imputation', (host, close) => imputeForm(host, {
+      columns: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'numeric').map((c) => c.name),
+      apply: async (imputation) => {
+        try {
+          return await this.#apply(imputeCommands(this.#snapshot, imputation), 'Imputation');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
   }
 
   /** A FLOW'S UNIQUE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): a row of each key, its first in an order -- a row

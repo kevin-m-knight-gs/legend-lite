@@ -871,6 +871,13 @@ class Grid(Tile):
         return self._preset({'kind': 'unique', 'keys': list(keys),
                              **({'by': _sort_given(by, 'an order')} if by is not None else {})})
 
+    def impute(self, columns: Sequence[str], *, fill: float | str = 'average') -> Grid:
+        """The number ``columns``' empty values filled, a ``<column>_filled`` each -- a flow's Imputation (DataCube's code:
+        impute.ts imputeCommands): with ``fill``, a number, or the column's own ``'average'``, ``'smallest'`` or
+        ``'largest'`` across every row, which the database computes (a window column, hidden). A column that is no
+        number, or a whole-number column filled with a fraction, refused in DataCube's words."""
+        return self._preset({'kind': 'impute', 'columns': list(columns), 'with': fill})
+
     def dimension(self, name: str) -> Grid:
         """Grouped by the named dimension ``name``'s first level (its configuration's ``dimensions``: a name and its
         columns, coarsest first), as Properties' Dimensions tab's Group Rows by uses one (the gesture

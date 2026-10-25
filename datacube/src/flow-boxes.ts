@@ -11,6 +11,7 @@ import {
 import { grainOf } from './calc-presets.ts';
 import { textToolOf, type TextTool } from './text-tools.ts';
 import { uniqueOf } from './unique.ts';
+import { imputedOf } from './impute.ts';
 import { joinWords } from './join-words.ts';
 import { conditionWords } from './page-filters.ts';
 import type { DerivedColumn } from './snapshot.ts';
@@ -20,7 +21,7 @@ import type { EditorTab } from './ui/editor.ts';
 /** A tool of the flow's palette, and what a box is drawn as. */
 export type FlowTool = 'input' | 'textInput' | 'output' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile'
-  | 'datetime' | 'cleanse' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment' | 'container';
+  | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment' | 'container';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
 export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: FlowGroup; readonly does: string }>> = {
@@ -40,6 +41,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   tile: { name: 'Tile', group: 'prepare', does: 'each row put in one of a number of equal buckets, by an order' },
   datetime: { name: 'DateTime', group: 'prepare', does: 'a date taken to its day, week, month, quarter or year' },
   cleanse: { name: 'Data Cleansing', group: 'prepare', does: 'text tidied: blanks, punctuation, spaces, its case' },
+  impute: { name: 'Imputation', group: 'prepare', does: 'empty numbers filled: a value, or the column\'s average, smallest or largest' },
   textToColumns: { name: 'Text To Columns', group: 'parse', does: 'a text column split on a delimiter, a column a part' },
   regex: { name: 'RegEx', group: 'parse', does: 'a pattern over text: whether it matches, its matches replaced or taken out' },
   runningTotal: { name: 'Running Total', group: 'transform', does: 'a column\'s total so far, row by row' },
@@ -55,7 +57,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'textInput', 'output', 'filter', 'formula', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse',
+  'input', 'textInput', 'output', 'filter', 'formula', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
   'join', 'union', 'textToColumns', 'regex', 'summarize', 'crosstab', 'runningTotal', 'comment', 'container',
 ];
 
@@ -71,6 +73,8 @@ export type StepEditor =
   | { readonly window: 'properties'; readonly tab: EditorTab }
   /** The Sample window (ui/sample-form.ts): the grid's Top N, said as its first or last rows by a column. */
   | { readonly window: 'sample' }
+  /** The Imputation window (ui/impute-form.ts): the number columns filled, and with what. */
+  | { readonly window: 'impute' }
   /** The Unique window (ui/unique-form.ts): the columns a key is, and the order a key's first row is first in. */
   | { readonly window: 'unique' }
   /** The DateTime window (ui/date-form.ts): a date column taken to its period, the grid's own period preset. */
@@ -90,6 +94,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   crosstab: { window: 'properties', tab: 'Horizontal Pivots' },
   sample: { window: 'sample' },
   unique: { window: 'unique' },
+  impute: { window: 'impute' },
   datetime: { window: 'datetime' },
   cleanse: { window: 'text', kind: 'cleanse' },
   textToColumns: { window: 'text', kind: 'split' },
@@ -126,12 +131,14 @@ export function boxSays(cube: CubeDocument): BoxSays {
   // Unique: a row number per key, its first rows kept, the number hidden (unique.ts) -- one step, before the others
   const unique = uniqueOf(q);
   if (unique !== undefined) steps.push({ tool: 'unique', says: `by ${unique.keys.join(', ')}` });
+  // Imputation's window columns (an average across every row) are its own, said with the column they fill
+  const helpers = new Set(q.derived.flatMap((d) => imputedOf(d, q.derived)?.helper ?? []));
   // its calculated columns, each by the tool that makes one so -- the ones of a tool together, in the order they come
   for (const d of q.derived) {
-    if (d.name === unique?.column) continue;
-    const tool = columnTool(d);
+    if (d.name === unique?.column || helpers.has(d.name)) continue;
+    const tool = columnTool(d, q.derived);
     const last = steps.at(-1);
-    const said = columnWords(d);
+    const said = columnWords(d, q.derived);
     // a tool's columns said once each way: a split's parts are one split
     if (last?.tool === tool) last.says = last.says.split(', ').includes(said) ? last.says : `${last.says}, ${said}`;
     else steps.push({ tool, says: said });
@@ -142,7 +149,7 @@ export function boxSays(cube: CubeDocument): BoxSays {
     steps.push({ tool: 'crosstab', says: `${q.pivotOn.join(', ')} across${q.rows.length > 0 ? `, by ${q.rows.join(', ')}` : ''}` });
   } else if (q.rows.length > 0) steps.push({ tool: 'summarize', says: `by ${q.rows.join(', ')}` });
   if (q.sorts.length > 0) steps.push({ tool: 'sort', says: q.sorts.map((s) => `${s.column} ${s.direction === 'desc' ? '↓' : '↑'}`).join(', ') });
-  const hidden = hiddenColumns(cube).filter((c) => c !== unique?.column);
+  const hidden = hiddenColumns(cube).filter((c) => c !== unique?.column && !helpers.has(c));
   if (hidden.length > 0) steps.push({ tool: 'select', says: `${hidden.length} of ${q.columns.length} columns left out` });
   const first = steps[0];
   if (first === undefined) return { tool: 'browse', also: [], says: 'every row' };
@@ -151,9 +158,11 @@ export function boxSays(cube: CubeDocument): BoxSays {
 
 /** The tool a calculated column is made by: a window column's by its function (a row number, the row before or after,
  *  a bucket, a running total), any other a Formula's. */
-function columnTool(d: DerivedColumn): FlowTool {
+function columnTool(d: DerivedColumn, derived: readonly DerivedColumn[]): FlowTool {
   const w = d.window;
-  if (w === undefined) return grainOf(d) !== undefined ? 'datetime' : textToolOf(d)?.tool ?? 'formula';
+  if (w === undefined) {
+    return grainOf(d) !== undefined ? 'datetime' : imputedOf(d, derived) !== undefined ? 'impute' : textToolOf(d)?.tool ?? 'formula';
+  }
   if (w.fn === 'rowNumber') return 'recordId';
   if (w.fn === 'lag' || w.fn === 'lead') return 'multiRow';
   if (w.fn === 'ntile') return 'tile';
@@ -162,9 +171,11 @@ function columnTool(d: DerivedColumn): FlowTool {
 
 /** A calculated column, as its box says it: its name -- a period's, what it takes to what (`trade_date by month`); a
  *  text tool's, what it does to which (text-tools.ts textToolOf: `desk split on ','`). */
-function columnWords(d: DerivedColumn): string {
+function columnWords(d: DerivedColumn, derived: readonly DerivedColumn[]): string {
   const grain = grainOf(d);
   if (grain !== undefined) return `${grain.column} by ${grain.grain}`;
+  const filled = imputedOf(d, derived);
+  if (filled !== undefined) return `${filled.column}'s empties → ${filled.with.kind === 'value' ? filled.with.value : `its ${filled.with.kind}`}`;
   return textToolOf(d)?.says ?? d.name;
 }
 

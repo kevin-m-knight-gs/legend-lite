@@ -24,6 +24,7 @@ import { applyPlanned, pageBetween } from '../src/page-between.ts';
 import { CubeRefusal, type DerivedColumn, type FilterNode } from '../src/snapshot.ts';
 import { readUnique, uniqueCommands, uniqueOf } from '../src/unique.ts';
 import { profileLambda, profileOf } from '../src/profile.ts';
+import { imputeCommands, imputedOf, readImputation } from '../src/impute.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, fn, lambda, lit, property, variable } from '../../pure-protocol/src/index.ts';
 import { textToolOf } from '../src/text-tools.ts';
@@ -261,6 +262,32 @@ describe('Unique (unique.ts): a row number per key, its first kept, the number h
     assert.equal((uniqueCommands(taken, { keys: ['region'] })[0] as { column: DerivedColumn }).column.name, 'UniqueRow_2');
     assert.deepEqual(readUnique({ kind: 'unique', keys: ['region'], by: 'notional' }), { keys: ['region'], by: { column: 'notional', direction: 'asc' } });
     assert.throws(() => readUnique({ kind: 'unique', keys: 'region' }), /its keys are a list of column names/);
+  });
+});
+
+describe("Imputation (impute.ts): a number's empties filled, a value or the column's own across every row", () => {
+  const typed = { ...rawRows(accessor('local::DB', 'trades'), [...COLUMNS, { name: 'qty', type: 'Integer' }]) };
+
+  it("fills with a value -- a whole number's with a whole number -- or over a window column of its average, hidden", () => {
+    const [byValue] = imputeCommands(typed, { columns: ['qty'], with: { kind: 'value', value: 0 } }) as unknown as [{ column: DerivedColumn }];
+    assert.equal(byValue.column.name, 'qty_filled');
+    assert.equal(JSON.stringify(byValue.column.lambda?.body[0]), JSON.stringify(fn('coalesce', property(variable('x'), 'qty'), lit.integer(0))));
+    const avg = imputeCommands(typed, { columns: ['notional'], with: { kind: 'average' } });
+    assert.deepEqual(avg.map((c) => c.kind), ['calculate', 'calculate', 'configure']);
+    const [helper, filled] = avg as unknown as [{ column: DerivedColumn }, { column: DerivedColumn }];
+    assert.deepEqual(helper.column.window, { fn: 'average', column: 'notional', partition: [], order: [], frame: 'partition' });
+    // a box made so says Imputation, its window column none of its words, none of a Select's
+    const box = cube(rows('grid-1'), (q) => ({ ...q, derived: [helper.column, filled.column] }), { columns: { notional__average: { hidden: true } } });
+    assert.deepEqual(boxSays(box), { tool: 'impute', also: [], says: "notional's empties → its average" });
+    assert.deepEqual(imputedOf(filled.column, [helper.column, filled.column]), { column: 'notional', with: { kind: 'average' }, helper: 'notional__average' });
+  });
+
+  it('refuses in words what it cannot fill', () => {
+    assert.throws(() => imputeCommands(typed, { columns: [], with: { kind: 'average' } }), /pick a column to fill/);
+    assert.throws(() => imputeCommands(typed, { columns: ['region'], with: { kind: 'average' } }), /only a number's empties are filled/);
+    assert.throws(() => imputeCommands(typed, { columns: ['qty'], with: { kind: 'value', value: 0.5 } }), /holds whole numbers/);
+    assert.deepEqual(readImputation({ kind: 'impute', columns: ['qty'], with: 3 }), { columns: ['qty'], with: { kind: 'value', value: 3 } });
+    assert.throws(() => readImputation({ kind: 'impute', columns: ['qty'], with: 'median' }), /not "median"/);
   });
 });
 

@@ -247,7 +247,7 @@ How to read the status column:
 | Record ID | Built | A window column: `rowNumber` |
 | Tile | Built | A window column: `ntile` |
 | Data Cleansing | Built (2026-10-25) | Calculated columns, a `<column>_clean` each: empties made blank (`coalesce`), punctuation out and repeated spaces one (`regexpReplace`), `trim`, `toUpper` / `toLower` (§17.6). In place, as Alteryx's, needs a relation `rename` |
-| Imputation | Step | A preset: `coalesce` with the column's average, median or a value |
+| Imputation | Built (2026-10-25) | `coalesce` with a value, or with a window column of the column's average, smallest or largest across every row (hidden): a `<column>_filled` each. A median waits for a window `median` |
 | Date Filter | Built | The filter, on a date column |
 | Generate Rows | Later | Core has no relation that makes rows from a rule; needs a design |
 | Auto Field | Out | Every column already has its type from the compiler; there is nothing to guess |
@@ -634,7 +634,17 @@ of two grids always has. Tested by `flow-sheet.test.ts` (Unique's commands, its 
 `test_unique_and_its_duplicates` (each region's largest, its duplicates, the columns the next box reads for a Unique and
 a Select) and the harness (a Unique of the Input by region: 3 rows, U and D, a Browse of its Duplicates: 5000 - 3).
 
-Still to come in M3: Imputation, the DateTime tool's parse and format, Multi-Field Formula.
+**Built, Imputation** (`impute.ts`, `ui/impute-form.ts`, `app.ts` `#openImpute`): Alteryx's Imputation -- number
+columns' empty values filled, a `<column>_filled` each: with a value (a whole number for a whole-number column), or with
+the column's own average, smallest or largest across every row -- a window column the database computes (`average`,
+`min`, `max` over every row, its frame the whole of them), hidden -- then `coalesce($x.c, ...)`. A box says
+"notional's empties → its average", read back off its columns (`imputedOf`: the window column said with the column it
+fills, never a Formula's or a Select's). Python: `grid.impute(columns, fill='average' | 'smallest' | 'largest' | n)`
+(headless `gridPreset`, the same rule). Tested by `flow-sheet.test.ts` (its expressions, its words, its refusals),
+Python's `test_empties_imputed_as_a_flow_box_fills_them` (the values DuckDB fills: an average of 200 in two empties, a
+0) and the harness (an Imputation of the Filter's notional, its column in its rows, its average hidden).
+
+Still to come in M3: the DateTime tool's parse and format, Multi-Field Formula.
 
 ### M7's first steps (2026-10-25)
 

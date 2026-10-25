@@ -597,6 +597,23 @@ try {
     await w.locator('.dc-text-tool-case').selectOption('lower');
   }, { says: 'region cleansed', columns: ['region_clean'] });
 
+  // IMPUTATION (M3), dragged onto the Filter: notional's empties filled with its average across every row
+  const beforeImpute = (await boxes()).map((b) => b.id);
+  await drag('impute', filter.id);
+  await boxCount(beforeImpute.length + 1);
+  const filling = await added(beforeImpute);
+  await docked('Imputation');
+  await page.locator('.dc-flow-dock .dc-impute input[value="notional"]').check();
+  await page.locator('.dc-flow-dock .dc-impute-with').selectOption('average');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  const filledBox = (await boxes()).find((b) => b.id === filling.id);
+  const imputeRefused = await page.locator('.dc-flow-dock .dc-sample-status').textContent().catch(() => '');
+  check(filledBox?.tool === 'impute' && filledBox.says === "notional's empties → its average", `an Imputation box: ${JSON.stringify(filledBox)}${imputeRefused ? `, refused: ${imputeRefused}` : ''}`);
+  check(await page.locator('.dc-flow-results .dc-th[data-column="notional_filled"]').count() > 0
+    && await page.locator('.dc-flow-results .dc-th[data-column="notional__average"]').count() === 0, 'its column in its rows, its average hidden');
+  check(await resultRows() === fewer, "Imputation: its input's rows, each kept");
+
   // UNIQUE (M3), dragged onto the Input: a row of each region, its U output; a Browse off its D, the duplicates
   const beforeUnique = (await boxes()).map((b) => b.id);
   await drag('unique', input.id);
