@@ -526,7 +526,14 @@ try {
   const counts = await page.locator('.dc-flow-box').evaluateAll((els) => Object.fromEntries(els.map((e) => [e.dataset.tile, e.querySelector('.dc-flow-count')?.textContent ?? ''])));
   check(counts[input.id] === '5,000' && counts[filter.id] === fewer.toLocaleString() && counts[union.id] === (fewer + all).toLocaleString(),
     `each box counted: ${JSON.stringify(counts)}`);
+  // its log (M6): every box, its rows and its time
+  const logged = await page.locator('.dc-flow-log .dc-flow-log-item').count();
+  check(await page.locator('.dc-flow-log').isVisible() && logged === Object.keys(counts).length,
+    `the run's log, a line a box: ${logged} of ${Object.keys(counts).length}`);
+  check(/^Ran \d+ boxes in /.test(await page.locator('.dc-flow-log-title').textContent() ?? ''), 'it says what it ran, and how long it took');
   await page.screenshot({ path: outPath('flow-run.png') });
+  await page.locator('.dc-flow-log-close').click();
+  check(!(await page.locator('.dc-flow-log').isVisible()), 'closed by its ×');
 
   // A SAMPLE (M3), dragged onto the Filter: the first five rows by trade_id, in its window docked
   const beforeSample = (await boxes()).map((b) => b.id);

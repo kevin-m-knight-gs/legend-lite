@@ -728,17 +728,25 @@ export class CubePage {
     const board = sheet.board;
     const order = [...board.layout.boxes].sort((a, b) => a.x - b.x || a.y - b.y).map((b) => b.tile);
     const was = board.shown;
+    const started = performance.now();
+    const logged: { id: string; ms: number; rows?: number; refused?: string }[] = [];
     board.setRunning({ done: 0, of: order.length });
     try {
       for (const [i, id] of order.entries()) {
         if (this.#disposed) return;
         if (board.layout.boxes.some((b) => b.tile === id)) {
+          const t0 = performance.now();
           await this.#showBox(id);
           await this.#opening.get(id)?.catch(() => undefined);
+          // its log: its rows, how long it took, or why it was refused
+          const rows = board.count(id);
+          const refused = board.refusal(id);
+          logged.push({ id, ms: Math.round(performance.now() - t0), ...(rows !== undefined ? { rows } : {}), ...(refused !== undefined ? { refused } : {}) });
         }
         board.setRunning({ done: i + 1, of: order.length });
       }
       if (was !== undefined && board.shown !== was && board.layout.boxes.some((b) => b.tile === was)) await this.#showBox(was);
+      board.setLog({ at: new Date(), ms: Math.round(performance.now() - started), boxes: logged });
     } finally {
       board.setRunning(undefined);
     }

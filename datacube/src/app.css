@@ -4722,6 +4722,47 @@
 }
 .dc-flow-settings-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dc-flow-settings:has(> .dc-flow-dock:not(:empty)) > .dc-flow-settings-head { display: none; }
+/* the run's log, at the canvas's bottom corner: each box's rows and time, a refusal red, each a button that shows it */
+.dc-flow-log {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 4;
+  width: min(340px, calc(100% - 24px));
+  max-height: 45%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--dc-line);
+  border-radius: 10px;
+  background: var(--dc-bg);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 12%);
+  font-size: 12px;
+}
+.dc-flow-log[hidden] { display: none; }
+.dc-flow-log-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-bottom: 1px solid var(--dc-line-faint); }
+.dc-flow-log-title { flex: 1 1 auto; font-weight: 600; }
+.dc-flow-log-close { border: none; background: transparent; color: var(--dc-muted); font-size: 15px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 50%; }
+.dc-flow-log-close:hover { background: var(--dc-fill); color: var(--tw-black); }
+.dc-flow-log-list { margin: 0; padding: 4px; list-style: none; overflow: auto; }
+.dc-flow-log-box {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 3px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dc-flow-log-box:hover { background: var(--dc-fill-faint); }
+.dc-flow-log-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-log-rows, .dc-flow-log-ms { color: var(--dc-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dc-flow-log-refused .dc-flow-log-rows { color: var(--tw-red-600); white-space: normal; }
 /* a flow's Sample (ui/sample-form.ts): its first or last rows, in the order of a column */
 .dc-sample { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
 .dc-sample-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

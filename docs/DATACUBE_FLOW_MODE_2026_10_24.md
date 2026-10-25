@@ -622,8 +622,10 @@ live input the chain of the box it reads): an edit up the chain drops the counts
 at the canvas's corner beside Tidy Up, shows each box in turn, left to right, each counted, then the box shown before
 shown again ("Running 3 of 9…" meanwhile). The screen's: no step of the page's. Tested by `flow-page.test.ts` (a count
 dropped by an edit up its chain) and the harness (Run: each box counted -- the Input's 5,000, the Filter's, the Union's
-both). Still to come: a run's log (each box's time and what it said), and Run on a page Python serves counting by
-Python's engine without showing each box.
+both). **Its log** (`flow-board.ts` `RunLog`): when Run is done, a panel at the canvas's corner says how many boxes it
+ran and how long it took, then each box -- its rows, its time, or why it was refused, red -- each a button that shows
+it; closed by its ×, until the next run. Tested by the harness (a line a box). Still to come: Run on a page Python
+serves counting by Python's engine without showing each box.
 
 **Built, a Filter's False** (FL7; `cube-document.ts` `LiveInput.port`, `live-inputs.ts` `gridInput`'s port,
 `layout/flow-canvas.ts`): a live input may name a box's port -- `{grid, port: 'false'}`, its False: the same query with

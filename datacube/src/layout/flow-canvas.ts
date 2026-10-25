@@ -23,7 +23,7 @@
 
 import { BOX_HEIGHT, BOX_WIDTH, MARGIN, type Flow } from './flow.ts';
 import type { FlowBoardState } from './flow-board.ts';
-import type { FlowPoint, LineEnd } from './flow-board.ts';
+import type { FlowPoint, LineEnd, RunLog } from './flow-board.ts';
 import type { InputPort, InputSide } from '../cube-document.ts';
 import { boxInputs, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowTool } from '../flow-boxes.ts';
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
@@ -164,6 +164,10 @@ export class FlowCanvas {
   /** The canvas's zoom (the screen's, never the page's): its boxes drawn at this size, and the level said between − and +. */
   #zoom = 1;
   readonly #zoomLevel: HTMLButtonElement;
+  /** The last run's log, at the canvas's corner: drawn for the log it was drawn for, closed until the next run. */
+  readonly #logPanel: HTMLElement;
+  #logDrawn: RunLog | undefined;
+  #logClosed: RunLog | undefined;
   /** The palette's find field, and its tools by name. */
   readonly #find: HTMLInputElement;
   readonly #tools = new Map<FlowTool, HTMLButtonElement>();
@@ -280,7 +284,10 @@ export class FlowCanvas {
       e.preventDefault();
       this.#zoomBy(e.deltaY < 0 ? 1 : -1, { x: e.clientX, y: e.clientY });
     }, { passive: false });
-    stage.append(this.#canvas, this.#toolbar);
+    this.#logPanel = el('section', 'dc-flow-log');
+    this.#logPanel.setAttribute('aria-label', 'Run log');
+    this.#logPanel.hidden = true;
+    stage.append(this.#canvas, this.#toolbar, this.#logPanel);
     const top = el('div', 'dc-flow-top');
     top.append(stage, this.#side, this.#settings);
     this.#split = el('div', 'dc-flow-split');
@@ -370,6 +377,7 @@ export class FlowCanvas {
     this.#tidy.hidden = !editing || layout.boxes.length < 2;
     this.#run.disabled = running !== undefined;
     this.#run.textContent = running === undefined ? '▶ Run' : `Running ${Math.min(running.done + 1, running.of)} of ${running.of}…`;
+    this.#paintLog();
     this.#paintResults();
     this.#paintSettings();
   }
@@ -514,6 +522,55 @@ export class FlowCanvas {
     for (const heading of this.#palette.querySelectorAll<HTMLElement>('.dc-flow-group')) {
       heading.hidden = PALETTE.every((t) => FLOW_TOOLS[t].group !== heading.dataset['group'] || this.#tools.get(t)!.hidden);
     }
+  }
+
+  /**
+   * THE RUN'S LOG (M6), at the canvas's bottom corner: when it ran and how long it took, then each box -- its name, its
+   * rows, its time, or why it was refused, red -- each a button that shows it. Closed by its ×, until the next run.
+   */
+  #paintLog(): void {
+    const log = this.#board.log;
+    const shown = log !== undefined && log !== this.#logClosed && this.#board.running === undefined;
+    this.#logPanel.hidden = !shown;
+    if (!shown || log === this.#logDrawn) return;
+    this.#logDrawn = log;
+    const d = this.#doc;
+    const el = (tag: string, cls: string, text?: string): HTMLElement => {
+      const e = d.createElement(tag);
+      e.className = cls;
+      if (text !== undefined) e.textContent = text;
+      return e;
+    };
+    const head = el('div', 'dc-flow-log-head');
+    const refused = log.boxes.filter((b) => b.refused !== undefined).length;
+    const seconds = (ms: number): string => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toLocaleString(UI_LOCALE, { maximumFractionDigits: 1 })} s`);
+    head.append(el('span', 'dc-flow-log-title', `Ran ${log.boxes.length} ${log.boxes.length === 1 ? 'box' : 'boxes'} in ${seconds(log.ms)}`
+      + (refused > 0 ? `, ${refused} refused` : '')));
+    const close = el('button', 'dc-flow-log-close', '×') as HTMLButtonElement;
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Close the run log');
+    close.addEventListener('click', () => {
+      this.#logClosed = log;
+      this.#paintLog();
+    });
+    head.append(close);
+    const list = el('ol', 'dc-flow-log-list');
+    for (const b of log.boxes) {
+      const item = el('li', `dc-flow-log-item${b.refused !== undefined ? ' dc-flow-log-refused' : ''}`);
+      const go = el('button', 'dc-flow-log-box') as HTMLButtonElement;
+      go.type = 'button';
+      const name = this.#board.layout.boxes.some((x) => x.tile === b.id) ? this.#nameOf(b.id, this.#said(b.id)?.tool ?? 'browse') : b.id;
+      go.append(el('span', 'dc-flow-log-name', name),
+        el('span', 'dc-flow-log-rows', b.refused ?? (b.rows === undefined ? '' : `${b.rows.toLocaleString(UI_LOCALE)} ${b.rows === 1 ? 'row' : 'rows'}`)),
+        el('span', 'dc-flow-log-ms', seconds(b.ms)));
+      go.title = b.refused ?? `Show ${name}`;
+      go.addEventListener('click', () => {
+        if (this.#board.layout.boxes.some((x) => x.tile === b.id)) this.#select(b.id);
+      });
+      item.append(go);
+      list.append(item);
+    }
+    this.#logPanel.replaceChildren(head, list);
   }
 
   /** A box's place to be made at a point of the window: its middle there, in the canvas's own units. */

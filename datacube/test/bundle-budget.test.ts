@@ -628,8 +628,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  377,000 -> 377,500 (2026-10-25, the flow mode's M5 and M6 first steps -- the engine page's note of the same date; the
  *  Run button's and a box's count's styles among them). Measured 377,210.
  *  377,500 -> 378,000 (2026-10-25, the flow mode's False port -- the engine page's note of the same date; a Filter's T
- *  and F ports' styles among them). Measured 377,821. */
-const WIDGET_BUDGET = 378_000;
+ *  and F ports' styles among them). Measured 377,821.
+ *  378,000 -> 378,500 (2026-10-25, the flow mode's run log: its panel's styles; its drawing the canvas's chunk). Measured
+ *  378,157. */
+const WIDGET_BUDGET = 378_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

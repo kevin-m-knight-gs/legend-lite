@@ -53,6 +53,14 @@ export interface FlowBoardOptions {
   readonly documentOf?: (id: string) => CubeDocument | undefined;
 }
 
+/** A RUN'S LOG (Run: docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): when it ran, how long it took, and each box -- its rows,
+ *  how long its grid took to open and answer, or why it was refused -- in the order it ran them. The screen's. */
+export interface RunLog {
+  readonly at: Date;
+  readonly ms: number;
+  readonly boxes: readonly { readonly id: string; readonly ms: number; readonly rows?: number; readonly refused?: string }[];
+}
+
 /** A point of a flow's canvas, in its own units: where a tool or a line was let go, the box made there placed at it. */
 export interface FlowPoint {
   readonly x: number;
@@ -90,6 +98,8 @@ export interface FlowBoardState {
   count(id: string): number | undefined;
   /** A run in progress (Run): how many boxes are done, of how many. */
   readonly running: { readonly done: number; readonly of: number } | undefined;
+  /** The last run's log, if one has run. */
+  readonly log: RunLog | undefined;
   tile(id: string): BandTile | undefined;
 }
 
@@ -118,6 +128,7 @@ export class FlowBoard implements FlowBoardState {
    *  kept live), and its chain then: a count of a chain that has changed since is no count of it. The screen's. */
   readonly #counts = new Map<string, { readonly n: number; readonly chain: string }>();
   #running: { readonly done: number; readonly of: number } | undefined;
+  #log: RunLog | undefined;
   #layout: Flow = EMPTY_FLOW;
   #shown: string | undefined;
   #noted: string | undefined;
@@ -227,6 +238,16 @@ export class FlowBoard implements FlowBoardState {
 
   setRunning(running: { readonly done: number; readonly of: number } | undefined): void {
     this.#running = running;
+    this.#paint();
+  }
+
+  get log(): RunLog | undefined {
+    return this.#log;
+  }
+
+  /** A run done: its log, drawn (layout/flow-canvas.ts). */
+  setLog(log: RunLog): void {
+    this.#log = log;
     this.#paint();
   }
 
