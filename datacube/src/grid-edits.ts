@@ -68,9 +68,10 @@ export function offeredAggregates(type: string | undefined): AggregateFn[] {
  *  column). */
 export type SummaryAction = 'group' | AggregateFn;
 
-/** What a Summarize can do with a column of `type`: group by it, or each aggregate of one column offered for it. */
+/** What a Summarize can do with a column of `type`: group by it, or each aggregate offered for it -- one of two columns
+ *  (a weighted average, a distinct count, ...) with its second chosen beside it. */
 export function summaryActions(type: string | undefined): SummaryAction[] {
-  return ['group', ...offeredAggregates(type).filter((fn) => !TWO_COLUMN_AGGREGATES.includes(fn))];
+  return ['group', ...offeredAggregates(type)];
 }
 
 /**
@@ -78,8 +79,10 @@ export function summaryActions(type: string | undefined): SummaryAction[] {
  * by, aggregated -- by its Aggregation, else its default -- or left out (hidden, or a dimension it does not group by),
  * and what it could do with each. Here, beside the offers it reads, so the Summarize's own rule fetches none of them.
  */
-export function summaryOf(s: Pick<CubeShape, 'columns' | 'derived' | 'rows' | 'pivotOn'>, configuration: Readonly<Record<string, unknown>>):
-  { readonly name: string; readonly type: string; readonly action?: SummaryAction; readonly actions: readonly SummaryAction[] }[] {
+export function summaryOf(s: Pick<CubeShape, 'columns' | 'derived' | 'rows' | 'pivotOn'>, configuration: Readonly<Record<string, unknown>>): {
+  readonly name: string; readonly type: string; readonly numeric: boolean; readonly action?: SummaryAction; readonly second?: string;
+  readonly actions: readonly SummaryAction[];
+}[] {
   const settings = configuration['columns'];
   const of = (name: string): Readonly<Record<string, unknown>> => {
     const c = settings !== null && typeof settings === 'object' ? (settings as Record<string, unknown>)[name] : undefined;
@@ -91,7 +94,14 @@ export function summaryOf(s: Pick<CubeShape, 'columns' | 'derived' | 'rows' | 'p
       : defaultAggregate({ name: c.name, ...(c.type !== undefined ? { type: c.type } : {}), kind: c.kind });
     const action: SummaryAction | undefined = s.rows.includes(c.name) ? 'group'
       : set['hidden'] === true || c.kind !== 'measure' ? undefined : fn;
-    return { name: c.name, type: c.type ?? '', ...(action !== undefined ? { action } : {}), actions: summaryActions(c.type) };
+    // the second column an aggregate of two reads (its weight, its pair, ...), as its Aggregation keeps it
+    const params = set['aggregationParameters'];
+    const second = action !== undefined && action !== 'group' && SECOND_COLUMN[action] !== undefined && Array.isArray(params)
+      && typeof params[0] === 'string' ? params[0] : undefined;
+    return {
+      name: c.name, type: c.type ?? '', numeric: isNumeric(c.type), ...(action !== undefined ? { action } : {}),
+      ...(second !== undefined ? { second } : {}), actions: summaryActions(c.type),
+    };
   });
 }
 

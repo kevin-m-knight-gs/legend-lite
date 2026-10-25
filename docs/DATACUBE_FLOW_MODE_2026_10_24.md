@@ -739,6 +739,14 @@ conversions in their places aside. Python: `grid.select(keep, ..., order=[...])`
 `live-inputs.test.ts`, `join-open.test.ts` (DuckDB: the columns selected in that order), Python's Select test and the
 harness (desk moved above region: the box after it reads desk before area, quantity where it was).
 
+**Built, Summarize's aggregates of two columns and Select's Dynamic Rename** (2026-10-25): a Summarize offers every
+aggregate its column is offered -- a weighted average, a distinct count, a correlation, max by and min by among them --
+an aggregate of two columns with its second chosen beside it (a weighted average's weight: the grid's own Aggregation
+and its second column, `snapshot.ts SECOND_COLUMN`; one that must name it refused until it does). Python:
+`grid.summarize(group, {'px': ('wavg', 'qty')})`. A Select renames many at once, Alteryx's Dynamic Rename: a prefix and
+a suffix given to each kept column in sight ("Rename"), or each its own name again ("Own names"). Tested by
+`flow-sheet.test.ts`, Python's Summarize test (a desk's prices weighted by their quantities: 17.5) and the harness.
+
 **The example flow's Reshape sheet** (`examples/prep-flow.ts`): a second sheet showing the tools that reshape rows over the
 same orders -- the two biggest orders of each region (a Sample: last 2 of each region by revenue), their columns chosen
 and revenue renamed sales (a Select), their money made rows (a Transpose: sales, cost, profit to rows, beside each

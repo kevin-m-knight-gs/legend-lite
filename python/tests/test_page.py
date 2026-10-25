@@ -1698,6 +1698,12 @@ class Abilities(Paged):
             grid.summarize([], {'notional': 'sum'})
         with self.assertRaisesRegex(ValueError, "'sum' is not offered on book"):
             grid.summarize(['desk'], {'book': 'sum'})
+        # an aggregate of two columns: a weighted average, its weight beside it
+        priced = page.grid(pd.DataFrame({'desk': ['FX', 'FX', 'Rates'], 'px': [10.0, 20.0, 5.0], 'qty': [1.0, 3.0, 2.0]}), name='priced')
+        priced.summarize(['desk'], {'px': ('wavg', 'qty')})
+        self.assertEqual(sorted((r['desk'], r['px']) for r in priced.to_pandas().to_dict('records')), [('FX', 17.5), ('Rates', 5.0)])
+        with self.assertRaisesRegex(ValueError, 'reads its weight column: name it'):
+            priced.summarize(['desk'], {'px': 'wavg'})
 
     def test_rows_sampled_as_a_flow_box_samples_them(self):
         # (M3) grid.sample: a flow's Sample (row-sample.ts sampleCommands) -- the first of each group, all but the first,

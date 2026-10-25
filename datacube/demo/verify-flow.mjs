@@ -203,7 +203,13 @@ try {
   const okSummary = page.locator('.dc-flow-dock .dc-sample-foot .dc-primary');
   check(await okSummary.isDisabled(), 'a Summarize waits for a group');
   const actions = await page.locator('.dc-flow-dock .dc-summarize-row[data-column="notional"] .dc-summarize-action option').allTextContents();
-  check(actions.includes('Group by') && actions.some((a) => /^Sum/.test(a)), `a number's actions: ${actions.join(', ')}`);
+  check(actions.includes('Group by') && actions.some((a) => /^Sum/.test(a)) && actions.includes('Weighted average'), `a number's actions: ${actions.join(', ')}`);
+  // an aggregate of two columns: its second chosen beside it, then let be
+  const notionalAction = page.locator('.dc-flow-dock .dc-summarize-row[data-column="notional"] .dc-summarize-action');
+  await notionalAction.selectOption('wavg');
+  check(await page.locator('.dc-flow-dock .dc-summarize-row[data-column="notional"] .dc-summarize-second option').count() > 0,
+    'a weighted average\'s weight offered beside it');
+  await notionalAction.selectOption('sum');
   await page.locator('.dc-flow-dock .dc-summarize-row[data-column="region"] .dc-summarize-action').selectOption('group');
   await okSummary.click();
   await settled();
@@ -792,6 +798,12 @@ try {
   const chose = await added(beforeSelect);
   await docked('Select');
   const sw = page.locator('.dc-flow-dock .dc-select-form');
+  // many renamed at once (Dynamic Rename): a prefix given to each kept column, then their own names again
+  await sw.locator('.dc-select-prefix').fill('x_');
+  await sw.locator('.dc-select-affix').click();
+  check(await sw.locator('.dc-select-row[data-column="desk"] .dc-select-rename').inputValue() === 'x_desk', 'each kept one prefixed');
+  await sw.locator('.dc-select-unname').click();
+  check(await sw.locator('.dc-select-row[data-column="desk"] .dc-select-rename').inputValue() === '', 'and its own name again');
   await sw.locator('.dc-select-row[data-column="region"] .dc-select-rename').fill('area');
   await sw.locator('.dc-select-row[data-column="book"] .dc-select-keep').uncheck();
   // and a number made text: a conversion of it, handed on by its name, in its place

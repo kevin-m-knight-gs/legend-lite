@@ -10,15 +10,16 @@
 //
 // PURE: no DOM, no planner.
 
-import { AGGREGATE_FNS, CubeRefusal, TWO_COLUMN_AGGREGATES, rowColumns, type CubeSnapshot } from './snapshot.ts';
+import { AGGREGATE_FNS, CubeRefusal, SECOND_COLUMN, rowColumns, type AggregateFn, type CubeSnapshot } from './snapshot.ts';
 import type { GridCommand } from './grid-commands.ts';
 import type { SummaryAction } from './grid-edits.ts';
 
 export type { SummaryAction } from './grid-edits.ts';
 
-/** A Summarize, as its window and Python set it: its columns, each grouped by or aggregated; any other left out. */
+/** A Summarize, as its window and Python set it: its columns, each grouped by or aggregated -- an aggregate of two
+ *  columns with its second (a weighted average's weight, ...); any other left out. */
 export interface Summary {
-  readonly columns: readonly { readonly name: string; readonly action: SummaryAction }[];
+  readonly columns: readonly { readonly name: string; readonly action: SummaryAction; readonly second?: string }[];
 }
 
 /**
@@ -26,7 +27,8 @@ export interface Summary {
  * what it is used as (a group a dimension, an aggregate a measure: Column Properties' rule), its grouping put on, each
  * aggregate set, and every column it does not use hidden -- one step. Refused in words: no group (a summary of every
  * row is its Profile), a column the grid has not, a calculated column asked to be what its editor did not make it, an
- * aggregate of two columns -- and an aggregate not offered on its column as it is applied (grid-edits.ts setColumn).
+ * aggregate of two columns with no second -- and an aggregate not offered on its column, or a second column it cannot
+ * read, as it is applied (grid-edits.ts setColumn).
  */
 export function summarizeCommands(s: CubeSnapshot, t: Summary): GridCommand[] {
   const columns = rowColumns(s);
@@ -38,16 +40,19 @@ export function summarizeCommands(s: CubeSnapshot, t: Summary): GridCommand[] {
   if (groups.length === 0) throw new CubeRefusal('group by a column: a row of each group, its aggregates beside it (a summary of every row is its Profile)');
   const commands: GridCommand[] = s.rows.length > 0 ? [{ kind: 'group', rows: [] }] : [];
   const aggregates: GridCommand[] = [];
-  for (const { name, action } of t.columns) {
+  for (const { name, action, second } of t.columns) {
     const c = byName.get(name)!;
     const want = action === 'group' ? 'dimension' : 'measure';
     if (action !== 'group') {
       // an aggregate of one column -- whether its column is offered it, setColumn's to judge as it is applied
       if (!(AGGREGATE_FNS as readonly string[]).includes(action)) {
-        throw new CubeRefusal(`'${String(action)}' is no aggregate: ${AGGREGATE_FNS.filter((fn) => !TWO_COLUMN_AGGREGATES.includes(fn)).join(', ')}`);
+        throw new CubeRefusal(`'${String(action)}' is no aggregate: ${AGGREGATE_FNS.join(', ')}`);
       }
-      if (TWO_COLUMN_AGGREGATES.includes(action)) throw new CubeRefusal(`'${action}' reads a second column: Column Properties sets it`);
-      aggregates.push({ kind: 'column', name, change: { aggregate: action } });
+      // an aggregate of two columns reads its second (a weighted average's weight); any other, none (one kept is cleared)
+      const two = SECOND_COLUMN[action];
+      if (two?.required === true && second === undefined) throw new CubeRefusal(`${name}'s ${two.words} reads its ${two.role} column: name it`);
+      if (two === undefined && second !== undefined) throw new CubeRefusal(`${name}'s ${action} reads no second column, not '${second}'`);
+      aggregates.push({ kind: 'column', name, change: { aggregate: action, weight: second ?? null } });
     }
     if (c.kind === want) continue;
     // a calculated column's kind is its editor's (Edit Column); a source column's, Column Properties'
@@ -72,9 +77,16 @@ export function readSummary(raw: unknown): Summary {
     throw new CubeRefusal(`what it groups by is a list of column names, not ${JSON.stringify(group)}`);
   }
   const aggregate = o['aggregate'] ?? {};
-  if (aggregate === null || typeof aggregate !== 'object' || Array.isArray(aggregate) || !Object.values(aggregate).every((v) => typeof v === 'string')) {
-    throw new CubeRefusal(`its aggregates are {column: ${AGGREGATE_FNS.filter((fn) => !TWO_COLUMN_AGGREGATES.includes(fn)).join(' | ')}}, not ${JSON.stringify(aggregate)}`);
+  // each an aggregate's name, or one of two columns with its second: {fn, by}
+  const read = (v: unknown): { action: SummaryAction; second?: string } | undefined => {
+    if (typeof v === 'string') return { action: v as AggregateFn };
+    if (v === null || typeof v !== 'object' || Array.isArray(v)) return undefined;
+    const { fn, by, ...odd } = v as Record<string, unknown>;
+    return typeof fn === 'string' && typeof by === 'string' && Object.keys(odd).length === 0 ? { action: fn as AggregateFn, second: by } : undefined;
+  };
+  if (aggregate === null || typeof aggregate !== 'object' || Array.isArray(aggregate) || !Object.values(aggregate).every((v) => read(v) !== undefined)) {
+    throw new CubeRefusal(`its aggregates are {column: ${AGGREGATE_FNS.join(' | ')}, or {fn, by} for one of two columns}, not ${JSON.stringify(aggregate)}`);
   }
   return { columns: [...group.map((name) => ({ name, action: 'group' as const })),
-    ...Object.entries(aggregate as Record<string, string>).map(([name, fn]) => ({ name, action: fn as SummaryAction }))] };
+    ...Object.entries(aggregate as Record<string, unknown>).map(([name, v]) => ({ name, ...read(v)! }))] };
 }

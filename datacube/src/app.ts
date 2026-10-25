@@ -45,7 +45,7 @@ import { classLambda, columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, 
 import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
 import { valueList } from './ui/value-list.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import { CubeRefusal, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
+import { CubeRefusal, SECOND_COLUMN, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
 import { columnKind, headerSorts, summaryOf, type GridDraft } from './grid-edits.ts';
 import { applyGridCommands, draftCommands, type GridCommand } from './grid-commands.ts';
 import {
@@ -3822,6 +3822,7 @@ export class CubeApp {
     this.#showOverlay('Summarize', (host, close) => summarizeForm(host, {
       columns: summaryOf(this.#snapshot, this.#config as unknown as Record<string, unknown>),
       label: (fn) => AGGREGATES.find((a) => a.value === fn)!.label,
+      second: (fn) => SECOND_COLUMN[fn],
       apply: async (summary) => {
         try {
           return await this.#apply(summarizeCommands(this.#snapshot, summary), 'Summarize');

@@ -930,13 +930,15 @@ class Grid(Tile):
         return self._preset({'kind': 'selectColumns', 'keep': list(keep), 'rename': dict(rename or {}),
                              **({'retype': dict(retype)} if retype else {}), **({'order': list(order)} if order is not None else {})})
 
-    def summarize(self, group: Sequence[str], aggregate: Mapping[str, str] | None = None) -> Grid:
+    def summarize(self, group: Sequence[str], aggregate: Mapping[str, str | tuple[str, str]] | None = None) -> Grid:
         """A row of each ``group`` of its rows, ``aggregate``'s columns beside it, each by its aggregate (``{'notional':
         'average', 'trade_id': 'count'}``: ``'sum'``, ``'average'``, ``'count'``, ``'min'``, ``'max'``, ``'median'``,
-        ``'distinctCount'``, ``'joinStrings'``, ... as its column is offered them) -- a flow's Summarize (DataCube's code:
+        ``'distinctCount'``, ``'joinStrings'``, ... as its column is offered them; an aggregate of two columns with its
+        second, ``{'px': ('wavg', 'qty')}``: a weighted average, its weight) -- a flow's Summarize (DataCube's code:
         summarize.ts summarizeCommands): its grouping, each column's kind and Aggregation, every other column left out.
         The database groups and aggregates."""
-        return self._preset({'kind': 'summarize', 'group': list(group), 'aggregate': dict(aggregate or {})})
+        given = {c: ({'fn': a[0], 'by': a[1]} if isinstance(a, tuple) else a) for c, a in (aggregate or {}).items()}
+        return self._preset({'kind': 'summarize', 'group': list(group), 'aggregate': given})
 
     def multi_field(self, columns: Sequence[str], expression: str, *, suffix: str = '_new', in_place: bool = False) -> Grid:
         """One ``expression`` over each of ``columns`` -- a flow's Multi-Field Formula (DataCube's code:

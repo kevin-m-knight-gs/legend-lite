@@ -33,6 +33,21 @@ export function selectForm(host: HTMLElement, o: SelectFormOptions): void {
   all.type = 'button';
   const none = el('button', 'dc-picker-button dc-quiet dc-select-none', tools, 'None');
   none.type = 'button';
+  // many renamed at once (Alteryx's Dynamic Rename): a prefix and a suffix given to each kept column in sight
+  const names = el('div', 'dc-sample-line dc-select-names', body);
+  el('span', 'dc-sample-word', names, 'Rename the kept ones');
+  const prefix = el('input', 'dc-picker-input dc-select-prefix', names);
+  prefix.placeholder = 'prefix_';
+  prefix.setAttribute('aria-label', 'A prefix for each kept column');
+  el('span', 'dc-sample-word', names, 'name');
+  const suffix = el('input', 'dc-picker-input dc-select-suffix', names);
+  suffix.placeholder = '_suffix';
+  suffix.setAttribute('aria-label', 'A suffix for each kept column');
+  const affix = el('button', 'dc-picker-button dc-quiet dc-select-affix', names, 'Rename');
+  affix.type = 'button';
+  const unname = el('button', 'dc-picker-button dc-quiet dc-select-unname', names, 'Own names');
+  unname.type = 'button';
+  unname.title = 'Each kept column in sight handed on by its own name again';
   const head = el('div', 'dc-select-row dc-select-head', body);
   for (const h of ['', 'Column', 'Type', 'Renamed', '']) el('span', '', head, h);
   const list = el('div', 'dc-select-list', body);
@@ -130,6 +145,12 @@ export function selectForm(host: HTMLElement, o: SelectFormOptions): void {
   };
   all.addEventListener('click', () => every(true));
   none.addEventListener('click', () => every(false));
+  const renameEach = (to: (name: string) => string): void => {
+    for (const r of rows) if (!r.row.hidden && r.keep.checked) r.rename.value = to(r.name) === r.name ? '' : to(r.name);
+    check();
+  };
+  affix.addEventListener('click', () => renameEach((n) => `${prefix.value.trim()}${n}${suffix.value.trim()}`));
+  unname.addEventListener('click', () => renameEach((n) => n));
   check();
   ok.addEventListener('click', () => void (async () => {
     status.textContent = '';

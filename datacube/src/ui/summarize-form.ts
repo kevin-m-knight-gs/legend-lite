@@ -8,9 +8,15 @@ import type { Summary, SummaryAction } from '../summarize.ts';
 
 export interface SummarizeFormOptions {
   /** Its columns, in order, as its Summarize has them now (grid-edits.ts summaryOf). */
-  readonly columns: readonly { readonly name: string; readonly type: string; readonly action?: SummaryAction; readonly actions: readonly SummaryAction[] }[];
+  readonly columns: readonly {
+    readonly name: string; readonly type: string; readonly numeric: boolean; readonly action?: SummaryAction; readonly second?: string;
+    readonly actions: readonly SummaryAction[];
+  }[];
   /** An aggregate in DataCube's words, as Column Properties' Aggregation says it (ui/panel-column.ts AGGREGATES). */
   readonly label: (fn: AggregateFn) => string;
+  /** The second column an aggregate of two reads (snapshot.ts SECOND_COLUMN): its role, whether a number, whether it
+   *  must be named; undefined for an aggregate of one. */
+  readonly second: (fn: AggregateFn) => { readonly role: string; readonly numeric: boolean; readonly required: boolean } | undefined;
   /** Its rows summarised: null when they were, else why not (the form stays, saying it). */
   apply(summary: Summary): Promise<string | null>;
   close(): void;
@@ -34,7 +40,7 @@ export function summarizeForm(host: HTMLElement, o: SummarizeFormOptions): void 
   find.placeholder = 'Find a column';
   find.setAttribute('aria-label', 'Find a column');
   const head = el('div', 'dc-summarize-row dc-select-head', body);
-  for (const h of ['Column', 'Type', 'Action']) el('span', '', head, h);
+  for (const h of ['Column', 'Type', 'Action', '']) el('span', '', head, h);
   const list = el('div', 'dc-select-list', body);
   const rows = o.columns.map((c) => {
     const row = el('div', 'dc-summarize-row', list);
@@ -46,7 +52,24 @@ export function summarizeForm(host: HTMLElement, o: SummarizeFormOptions): void 
     el('option', '', action, '— left out').value = '';
     for (const a of c.actions) el('option', '', action, said(a)).value = a;
     action.value = c.action ?? '';
-    return { name: c.name, row, action };
+    // an aggregate of two columns: its second beside it (a weighted average's weight, ...)
+    const second = el('select', 'dc-select dc-summarize-second', row);
+    const paint = (): void => {
+      const two = action.value === '' || action.value === 'group' ? undefined : o.second(action.value as AggregateFn);
+      second.hidden = two === undefined;
+      if (two === undefined) return;
+      const was = second.value || c.second;
+      second.replaceChildren();
+      second.setAttribute('aria-label', `${c.name}'s ${two.role} column`);
+      if (!two.required) el('option', '', second, `— its own`).value = '';
+      for (const other of o.columns) {
+        if (other.name !== c.name && (!two.numeric || other.numeric)) el('option', '', second, `${two.role}: ${other.name}`).value = other.name;
+      }
+      if (was !== undefined && [...second.options].some((x) => x.value === was)) second.value = was;
+    };
+    action.addEventListener('change', paint);
+    paint();
+    return { name: c.name, row, action, second };
   });
   const summary = el('p', 'dc-sample-hint', body);
   const status = el('p', 'dc-sample-status', body);
@@ -59,7 +82,9 @@ export function summarizeForm(host: HTMLElement, o: SummarizeFormOptions): void 
   const ok = el('button', 'dc-picker-button dc-primary', foot, 'OK');
   ok.type = 'button';
   const chosen = (): Summary => ({
-    columns: rows.filter((r) => r.action.value !== '').map((r) => ({ name: r.name, action: r.action.value as SummaryAction })),
+    columns: rows.filter((r) => r.action.value !== '').map((r) => ({
+      name: r.name, action: r.action.value as SummaryAction, ...(!r.second.hidden && r.second.value !== '' ? { second: r.second.value } : {}),
+    })),
   });
   const check = (): void => {
     const t = chosen().columns;
@@ -71,7 +96,10 @@ export function summarizeForm(host: HTMLElement, o: SummarizeFormOptions): void 
     ok.disabled = groups.length === 0;
     ok.title = groups.length === 0 ? 'Not yet: group by a column' : '';
   };
-  for (const r of rows) r.action.addEventListener('change', check);
+  for (const r of rows) {
+    r.action.addEventListener('change', check);
+    r.second.addEventListener('change', check);
+  }
   find.addEventListener('input', () => {
     const q = find.value.trim().toLowerCase();
     for (const r of rows) r.row.hidden = q !== '' && !r.name.toLowerCase().includes(q);
