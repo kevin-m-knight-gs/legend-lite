@@ -4998,6 +4998,23 @@
 .dc-flow-chart-host > .dc-chartpanel { flex: 1; min-width: 0; }
 .dc-flow-profile { height: 100%; overflow: auto; padding: 10px 14px; box-sizing: border-box; }
 .dc-flow-profile-wait { color: var(--dc-muted); padding: 8px 0; }
+/* a box's Code: its query as Pure and the SQL the database ran, each with its Copy */
+.dc-flow-code { display: flex; flex-direction: column; gap: 12px; }
+.dc-flow-code-part { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dc-flow-code-head { display: flex; align-items: center; gap: 8px; }
+.dc-flow-code-head > h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--dc-muted-strong); }
+.dc-flow-code-said { color: var(--dc-muted); font-size: 12px; }
+.dc-flow-code-text {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--dc-line-faint);
+  border-radius: 6px;
+  background: var(--dc-fill-faint);
+  font: 12px/1.5 var(--dc-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
 .dc-flow-profile-refused { color: var(--tw-red-600); }
 .dc-flow-profile-sum { margin-bottom: 8px; color: var(--dc-muted-strong); font-size: 12px; }
 .dc-flow-profile-table { border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }

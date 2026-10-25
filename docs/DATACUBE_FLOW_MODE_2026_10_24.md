@@ -1012,6 +1012,15 @@ fetches no chart code and ECharts comes with the first chart, as on a board. Mou
 sight, as the Profile keeps it. A mark clicked filters nothing: a box's query is its step. Tested by the harness (a
 Summarize's regions drawn, its Options beside the title; its rows again, the chart taken down).
 
+**Built, a box's Code** (M5 and FL12's "each box's Pure is shown"; `layout/flow-canvas.ts` `#paintCode`,
+`layout/flow-board.ts` `codeOf`, `viewed`; `app.ts` `code`; 2026-10-25): the results pane's fourth view -- the query the
+shown box's grid ran last, as the compiler prints it, and the SQL the database ran, each with its Copy: what the app's
+Generated Pure & SQL window shows for a grid, for any box of a flow. A box over others' rows reads them in its own
+query, so its Pure is the whole chain to it, one expression. Asked again each time its grid lands a view (`viewed`, the
+board's count of them: a step changed upstream moves its query), nothing run for it; refused in words before its rows
+are first read. Python's counterpart of its Pure is `grid.relation` (its rows at their finest level, as Pure). Tested by
+the harness (a Summarize's Pure, by region over notional, and its SQL grouped; Copy said; its rows again).
+
 **Built, Output** (`layout/flow.ts` `Output`, `setOutput`; `page-commands.ts` `setOutput`; `page-gestures.ts`
 `outputCommand`; `layout/flow-canvas.ts` `#paintOutput`; `page/cube-page.ts` `#writeBox`; `app.ts` `writeOutput`):
 Alteryx's Output Data, the flow's end -- a box whose place on the flow says it writes its rows to a CSV file, by its name

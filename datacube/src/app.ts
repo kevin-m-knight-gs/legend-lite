@@ -3742,6 +3742,24 @@ export class CubeApp {
   }
 
   /**
+   * THE QUERY THE GRID RAN LAST (a flow's box's Code, docs/DATACUBE_FLOW_MODE_2026_10_24.md M5 and FL12: each box's Pure
+   * shown), as the "Generated Pure & SQL" window shows it: the query this product built, as the compiler prints it, and
+   * the SQL the planner made of it and the database ran -- read, nothing run. Refused in words before its rows are read.
+   */
+  async code(): Promise<{ readonly pure: string; readonly sql: string }> {
+    const view = this.#view;
+    if (!view) throw new CubeRefusal('its rows are not read yet: its query is the one they are read by');
+    return { pure: await this.printQuery(view.query, 'PRETTY'), sql: view.sql };
+  }
+
+  /** Text onto the clipboard, by its host's (a flow's box's Code copied); refused in words where its host has none. */
+  async copyText(text: string): Promise<void> {
+    const write = this.#options.writeClipboard;
+    if (!write) throw new Error('this page has no clipboard to copy to');
+    await write(text);
+  }
+
+  /**
    * THE GRID'S ROWS WRITTEN TO A FILE (a flow's Output, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every row at its finest
    * level, the columns it shows -- the rows the box after it reads -- streamed from the database a chunk at a time, each
    * chunk written as CSV (export.ts toCsv: its raw values, a field quoted where it must be) and let go, the file handed

@@ -83,6 +83,10 @@ export interface FlowBoardOptions {
   readonly onCopy?: (ids: readonly string[], cut: boolean) => void;
   /** The shown box's Profile (its results pane's): its columns summarised, asked of the database (profile.ts). */
   readonly profileOf?: (id: string) => Promise<Profile>;
+  /** The shown box's Code (its results pane's): the query its grid ran last, as the compiler prints it, and its SQL. */
+  readonly codeOf?: (id: string) => Promise<{ readonly pure: string; readonly sql: string }>;
+  /** Text onto the clipboard, by box `id`'s grid's host (its Code copied). */
+  readonly copyText?: (id: string, text: string) => Promise<void>;
   /** The shown box's Chart (its results pane's): its rows drawn by its grid's chart panel, mounted into `host` (the
    *  caller's, which holds the panel: the canvas fetches no chart code) -- its options shown and hidden, and taken down. */
   readonly chartOf?: (id: string, host: HTMLElement) => FlowChart;
@@ -140,6 +144,8 @@ export interface FlowBoardState {
   refusal(id: string): string | undefined;
   /** How many rows a box gave the last time its grid ran, while its chain is as it was then (`counted`). */
   count(id: string): number | undefined;
+  /** How many views box `id`'s grid has landed: its Code is asked again with each. */
+  viewed(id: string): number;
   /** A run in progress (Run): how many boxes are done, of how many. */
   readonly running: { readonly done: number; readonly of: number } | undefined;
   /** The last run's log, if one has run. */
@@ -182,6 +188,8 @@ export class FlowBoard implements FlowBoardState {
   /** Each box's rows the last time its grid ran (docs/DATACUBE_FLOW_MODE_2026_10_24.md M5, FL7: counted after a run, not
    *  kept live), and its chain then: a count of a chain that has changed since is no count of it. The screen's. */
   readonly #counts = new Map<string, { readonly n: number; readonly chain: string }>();
+  /** How many views each box's grid has landed: what its Code is of changes with each. */
+  readonly #views = new Map<string, number>();
   #running: { readonly done: number; readonly of: number } | undefined;
   #log: RunLog | undefined;
   #layout: Flow = EMPTY_FLOW;
@@ -278,11 +286,21 @@ export class FlowBoard implements FlowBoardState {
     return c !== undefined && c.chain === this.#chain(id) ? c.n : undefined;
   }
 
+  /** How many views box `id`'s grid has landed (its Code asked again with each). */
+  viewed(id: string): number {
+    return this.#views.get(id) ?? 0;
+  }
+
   /** A box's grid ran and gave `n` rows: its count, for its chain as it is now. */
   counted(id: string, n: number): void {
+    this.#views.set(id, this.viewed(id) + 1);
     const was = this.#counts.get(id);
     const chain = this.#chain(id);
-    if (was?.n === n && was.chain === chain) return;
+    // the same count: drawn again only where its Code may be shown
+    if (was?.n === n && was.chain === chain) {
+      if (this.shown === id) this.#paint();
+      return;
+    }
     this.#counts.set(id, { n, chain });
     this.#paint();
   }
@@ -392,6 +410,7 @@ export class FlowBoard implements FlowBoardState {
     this.#addedAs.delete(id);
     this.#refused.delete(id);
     this.#counts.delete(id);
+    this.#views.delete(id);
     this.#layout = removeBox(this.#layout, id);
     this.#paint();
   }

@@ -106,6 +106,9 @@ function sideWords(side: InputSide, union: boolean): string {
   return union ? (side === 'left' ? 'Input 1' : 'Input 2') : side === 'left' ? 'Left' : 'Right';
 }
 
+/** A box's Code as asked (its key: the box, and how many views its grid had landed), answered or refused. */
+type Coded = { readonly key: string; readonly answer?: { readonly pure: string; readonly sql: string }; readonly refused?: string };
+
 /** A line's key: the box it goes into, and its side. */
 const lineKey = (end: LineEnd): string => `${end.tile}:${end.side}`;
 
@@ -194,7 +197,10 @@ export class FlowCanvas {
   readonly #headActions: HTMLElement;
   /** The results pane's Rows and Profile, and which it shows (the screen's): the box's grid, or its columns summarised. */
   readonly #modes: HTMLElement;
-  #mode: 'rows' | 'profile' | 'chart' = 'rows';
+  #mode: 'rows' | 'profile' | 'chart' | 'code' = 'rows';
+  /** The shown box's Code as last asked (its key: the box and how many views its grid has landed), and its view. */
+  #coded: Coded | undefined;
+  readonly #codeView: HTMLElement;
   /** The shown box's chart, while the results pane draws it: for which box and chain, and the panel mounted. */
   #charted: { readonly key: string; readonly chart: FlowChart } | undefined;
   readonly #chartView: HTMLElement;
@@ -441,11 +447,12 @@ export class FlowCanvas {
     this.#headActions = el('div', 'dc-flow-results-actions');
     this.#modes = el('div', 'dc-flow-modes');
     this.#modes.setAttribute('role', 'tablist');
-    this.#modes.setAttribute('aria-label', 'Rows, profile or chart');
+    this.#modes.setAttribute('aria-label', 'Rows, profile, chart or code');
     for (const [mode, label, title] of [
       ['rows', 'Rows', 'Its rows, as its grid shows them'],
       ['profile', 'Profile', 'Each column summarised: its values, its different values, its smallest and largest'],
       ['chart', 'Chart', 'Its rows drawn: a chart of what it groups by, its options a click away'],
+      ['code', 'Code', 'Its query, as Pure, and the SQL the database ran: to read, copy or keep'],
     ] as const) {
       const b = doc.createElement('button');
       b.type = 'button';
@@ -462,6 +469,7 @@ export class FlowCanvas {
     }
     this.#profileView = el('div', 'dc-flow-profile');
     this.#chartView = el('div', 'dc-flow-chart');
+    this.#codeView = el('div', 'dc-flow-profile dc-flow-code');
     this.#head.append(this.#headTitle, this.#modes, this.#headActions);
     this.#body = el('div', 'dc-flow-results-body');
     this.#empty = el('div', 'dc-flow-results-empty');
@@ -1829,17 +1837,31 @@ export class FlowCanvas {
       this.#modes.hidden = true;
       this.#body.classList.remove('dc-flow-profiling');
       this.#profileView.remove();
+      this.#codeView.remove();
       this.#unchart();
       return;
     }
     this.#headTitle.textContent = this.#nameOf(id!, this.#said(id!)?.tool ?? 'browse');
-    const { profileOf, chartOf } = this.#board.options;
-    this.#modes.hidden = profileOf === undefined && chartOf === undefined;
+    const { profileOf, chartOf, codeOf } = this.#board.options;
+    this.#modes.hidden = profileOf === undefined && chartOf === undefined && codeOf === undefined;
     for (const b of this.#modes.querySelectorAll<HTMLElement>('.dc-flow-mode')) {
       const on = b.dataset['mode'] === this.#mode;
       b.classList.toggle('dc-chosen', on);
       b.setAttribute('aria-selected', String(on));
-      b.hidden = (b.dataset['mode'] === 'profile' && profileOf === undefined) || (b.dataset['mode'] === 'chart' && chartOf === undefined);
+      b.hidden = (b.dataset['mode'] === 'profile' && profileOf === undefined) || (b.dataset['mode'] === 'chart' && chartOf === undefined)
+        || (b.dataset['mode'] === 'code' && codeOf === undefined);
+    }
+    if (this.#mode !== 'code') this.#codeView.remove();
+    if (this.#mode === 'code' && codeOf !== undefined) {
+      // its grid kept where it is, out of sight, as the Profile keeps it; its query beside it
+      this.#body.classList.add('dc-flow-profiling');
+      this.#profileView.remove();
+      this.#unchart();
+      if (!this.#body.contains(tile.element)) this.#body.replaceChildren(tile.element);
+      if (!this.#body.contains(this.#codeView)) this.#body.append(this.#codeView);
+      this.#paintCode(id!, codeOf);
+      this.#headActions.replaceChildren();
+      return;
     }
     if (this.#mode === 'chart' && chartOf !== undefined) {
       // its grid kept where it is, out of sight, as the Profile keeps it; its chart beside it
@@ -1893,6 +1915,72 @@ export class FlowCanvas {
     options.title = 'Its kind, its columns and its look';
     options.addEventListener('click', () => this.#charted?.chart.toggleForm());
     this.#headActions.replaceChildren(options);
+  }
+
+  /**
+   * THE SHOWN BOX'S CODE (M5; FL12, each box's Pure shown): the query its grid ran last, as the compiler prints it, and the
+   * SQL the database ran -- each with its Copy -- asked again each time its grid lands a view (its query moves with it).
+   */
+  #paintCode(id: string, codeOf: NonNullable<FlowBoardState['options']['codeOf']>): void {
+    const key = `${id}|${this.#board.viewed(id)}`;
+    const view = this.#codeView;
+    if (this.#coded?.key !== key) {
+      this.#coded = { key };
+      if (view.childElementCount === 0 || view.dataset['box'] !== id) {
+        view.replaceChildren(Object.assign(this.#doc.createElement('div'), { className: 'dc-flow-profile-wait', textContent: 'Reading its query…' }));
+      }
+      void codeOf(id).then(
+        (answer) => { if (this.#coded?.key === key) this.#coded = { key, answer }; },
+        (e: unknown) => { if (this.#coded?.key === key) this.#coded = { key, refused: e instanceof Error ? e.message : String(e) }; },
+      ).then(() => {
+        if (this.#coded?.key === key && this.#mode === 'code' && this.#board.shown === id) this.#drawCode(id, view, this.#coded);
+      });
+      return;
+    }
+    const c = this.#coded;
+    if (view.dataset['drawn'] !== key && (c.answer !== undefined || c.refused !== undefined)) this.#drawCode(id, view, c);
+  }
+
+  #drawCode(id: string, view: HTMLElement, c: Coded): void {
+    const doc = this.#doc;
+    view.dataset['drawn'] = c.key;
+    view.dataset['box'] = id;
+    if (c.answer === undefined) {
+      view.replaceChildren(Object.assign(doc.createElement('div'), { className: 'dc-flow-profile-refused', textContent: c.refused ?? '' }));
+      return;
+    }
+    const part = (title: string, text: string, what: string): HTMLElement => {
+      const section = doc.createElement('section');
+      section.className = 'dc-flow-code-part';
+      const head = doc.createElement('div');
+      head.className = 'dc-flow-code-head';
+      const h = doc.createElement('h3');
+      h.textContent = title;
+      const copy = doc.createElement('button');
+      copy.type = 'button';
+      copy.className = 'dc-picker-button dc-quiet dc-flow-code-copy';
+      copy.textContent = 'Copy';
+      copy.title = `Its ${what} onto the clipboard`;
+      const said = doc.createElement('span');
+      said.className = 'dc-flow-code-said';
+      said.setAttribute('role', 'status');
+      copy.addEventListener('click', () => {
+        void (this.#board.options.copyText?.(id, text) ?? Promise.reject(new Error('this page has no clipboard to copy to'))).then(
+          () => { said.textContent = 'Copied'; },
+          (e: unknown) => { said.textContent = e instanceof Error ? e.message : String(e); },
+        );
+      });
+      head.append(h, copy, said);
+      const pre = doc.createElement('pre');
+      pre.className = 'dc-flow-code-text';
+      pre.textContent = text;
+      section.append(head, pre);
+      return section;
+    };
+    view.replaceChildren(
+      part('Pure', c.answer.pure, 'Pure'),
+      part('SQL', c.answer.sql === '' ? '(no SQL: its database is not asked in SQL)' : c.answer.sql, 'SQL'),
+    );
   }
 
   /** The chart taken down, out of the pane. */

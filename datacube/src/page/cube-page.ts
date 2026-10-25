@@ -170,6 +170,10 @@ export interface SpawnedGrid {
   profile?(): Promise<Profile>;
   /** Its rows -- every one, the columns it shows -- written to a CSV file named `name` (a flow's Output). */
   writeOutput?(name: string): Promise<void>;
+  /** The query it ran last, as the compiler prints it, and its SQL (a flow's box's Code). */
+  code?(): Promise<{ readonly pure: string; readonly sql: string }>;
+  /** Text onto its host's clipboard (a flow's box's Code copied). */
+  copyText?(text: string): Promise<void>;
 }
 
 export interface CubePageOptions {
@@ -593,6 +597,14 @@ export class CubePage {
       profileOf: (tile) => {
         const grid = this.#grids.get(tile)?.added?.cube;
         return grid?.profile === undefined ? Promise.reject(new Error(`${tile} is not shown`)) : grid.profile();
+      },
+      codeOf: (tile) => {
+        const grid = this.#grids.get(tile)?.added?.cube;
+        return grid?.code === undefined ? Promise.reject(new Error(`${tile} is not shown`)) : grid.code();
+      },
+      copyText: (tile, text) => {
+        const grid = this.#grids.get(tile)?.added?.cube;
+        return grid?.copyText === undefined ? Promise.reject(new Error(`${tile} is not shown`)) : grid.copyText(text);
       },
       // its rows drawn as a chart tile draws its grid's (a mark clicked filters nothing: a box's query is its step)
       chartOf: (tile, host) => {

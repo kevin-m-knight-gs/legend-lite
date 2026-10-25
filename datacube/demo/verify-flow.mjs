@@ -227,6 +227,17 @@ try {
   await page.screenshot({ path: outPath('flow-chart.png') });
   await page.locator('.dc-flow-mode[data-mode="rows"]').click();
   check(await page.locator('.dc-flow-chart').count() === 0 && await resultRows() === groups, 'its rows again, the chart taken down');
+  // its Code (M5, FL12): the query its grid ran, as Pure, and the SQL the database ran -- each with its Copy
+  await page.locator('.dc-flow-mode[data-mode="code"]').click();
+  await page.locator('.dc-flow-code .dc-flow-code-text').first().waitFor({ timeout: 30_000 });
+  const [pure, sql] = await page.locator('.dc-flow-code .dc-flow-code-text').allTextContents();
+  check(/region/.test(pure ?? '') && /notional/.test(pure ?? ''), `its Pure, by region over notional: ${(pure ?? '').slice(0, 300)}`);
+  check(/select/i.test(sql ?? '') && /group by/i.test(sql ?? ''), `its SQL, grouped: ${(sql ?? '').slice(0, 300)}`);
+  await page.locator('.dc-flow-code .dc-flow-code-copy').first().click();
+  await page.waitForFunction(() => document.querySelector('.dc-flow-code .dc-flow-code-said')?.textContent === 'Copied', undefined, { timeout: 5_000 });
+  await page.screenshot({ path: outPath('flow-code.png') });
+  await page.locator('.dc-flow-mode[data-mode="rows"]').click();
+  check(await page.locator('.dc-flow-code').count() === 0 && await resultRows() === groups, 'its rows again, its code taken down');
   check(await lineCount() === 3, 'a line into each box after the first');
 
   // EACH BOX PREVIEWED, the one shown before closed: only the shown box has a grid
