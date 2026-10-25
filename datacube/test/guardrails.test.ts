@@ -117,11 +117,15 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
    * The text a person edits, and what it may say: the calculated-column editor's typing
    * help (its examples and completions are inserted into what the person types), one
    * refusal that suggests an expression to type, and one that names the accessor a table's
-   * name cannot be read through.
+   * name cannot be read through. Added 2026-10-25 (the flow mode's Multi-Field Formula,
+   * docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): its window's example expressions, one per kind
+   * of column, put in its box for the person to edit -- the compiler parses what they leave
+   * there, as it parses the column editor's.
    */
   const FOR_A_PERSON = new Map([
     ['src/calc.ts', 'the column editor\'s examples and completions'],
     ['src/query.ts', 'a refusal suggesting what to type'],
+    ['src/ui/multi-field-form.ts', 'the Multi-Field Formula window\'s examples'],
   ]);
 
   it('builds no Pure text outside what a person types', () => {

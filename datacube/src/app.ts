@@ -464,7 +464,7 @@ const windowStack = new WeakMap<HTMLElement, number>();
 /** The text tools' windows, by the tool each sets (text-tools.ts). */
 const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
 const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation'
-  || key === 'Date Period'
+  || key === 'Date Period' || key === 'Multi-Field Formula'
   || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
@@ -3634,6 +3634,9 @@ export class CubeApp {
       case 'impute':
         void this.#openImpute();
         return;
+      case 'multiField':
+        void this.#openMultiField();
+        return;
       // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
       case 'join':
         return;
@@ -3736,6 +3739,39 @@ export class CubeApp {
       apply: async (imputation) => {
         try {
           return await this.#apply(imputeCommands(this.#snapshot, imputation), 'Imputation');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S MULTI-FIELD FORMULA (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): one expression over several columns, each
+   *  one's value `$v` -- parsed by the compiler, a calculated column each (multi-field-columns.ts, the rule Python's
+   *  grid.multi_field asks) -- in a window of its own (ui/multi-field-form.ts). Both fetched with the first. */
+  async #openMultiField(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ multiFieldForm }, { multiFieldCommands, multiFieldText }] = await Promise.all([
+      lazily(() => import('./ui/multi-field-form.ts')), lazily(() => import('./multi-field-columns.ts')),
+    ]);
+    const family = (type: string | undefined): 'text' | 'numeric' | 'temporal' | 'other' => {
+      const f = familyOf(type);
+      return f === 'text' || f === 'numeric' ? f : isTemporal(type) ? 'temporal' : 'other';
+    };
+    this.#showOverlay('Multi-Field Formula', (host, close) => multiFieldForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => ({ name: c.name, family: family(c.type) })),
+      apply: async (columns, expression, suffix) => {
+        let lambda: Lambda;
+        try {
+          lambda = await this.#check(this.#controller.parse(multiFieldText(expression)));
+        } catch (e) {
+          // the parser's refusal, as the column editor says it
+          return e instanceof Error ? e.message : String(e);
+        }
+        try {
+          return await this.#apply(multiFieldCommands(this.#snapshot, { columns, lambda, suffix }), 'Multi-Field Formula');
         } catch (e) {
           if (e instanceof CubeRefusal) return e.message;
           throw e;

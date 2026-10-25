@@ -21,6 +21,8 @@ import { readTextTool, TEXT_TOOL_KINDS, textToolCommands } from '../text-tool-co
 import type { TextTool } from '../text-tools.ts';
 import { readUnique, uniqueCommands, type Unique } from '../unique.ts';
 import { imputeCommands, readImputation, type Imputation } from '../impute.ts';
+import { multiFieldCommands, multiFieldText, readMultiField } from '../multi-field-columns.ts';
+import type { MultiFieldAsked } from '../multi-field.ts';
 import { DATE_TOOL_KINDS, dateToolCommands, readDateTool, type DateTool } from '../date-tools.ts';
 import {
   argumentsGiven, gestureNamed, gestureReadsView, gridGestureGiven, type GestureArgs, type GestureView, type GridGestureName,
@@ -757,17 +759,20 @@ export async function gridModelMeasure(spec: GridSpec, given: string): Promise<s
  * a number to its bin -- Python's grid.grain, grid.show_as, grid.bins), or A FLOW'S TOOL AS ITS WINDOW SETS IT: a text
  * tool's columns (text-tool-columns.ts textToolCommands: Text To Columns, RegEx, Data Cleansing -- grid.split,
  * grid.regex, grid.cleanse), Unique (unique.ts uniqueCommands: grid.unique) or Imputation (impute.ts imputeCommands:
- * grid.impute), or a DateTime's part or text read as a date (date-tools.ts dateToolCommands: grid.date_part, grid.parse_date). `given`, the preset or the tool as JSON
- * (readGridPreset, readTextTool, readUnique, readImputation, by its kind), over the grid's columns as the compiler types them now.
+ * grid.impute), a DateTime's part or text read as a date (date-tools.ts dateToolCommands: grid.date_part, grid.parse_date),
+ * or a Multi-Field Formula (multi-field-columns.ts multiFieldCommands, its expression parsed by the compiler: grid.multi_field).
+ * `given`, the preset or the tool as JSON (readGridPreset, readTextTool, readUnique, readImputation, readMultiField, by
+ * its kind), over the grid's columns as the compiler types them now.
  * JSON: as gridApply's, or `{problems}`, in DataCube's words.
  */
 export async function gridPreset(spec: GridSpec, given: string): Promise<string> {
   let asked: { readonly preset: GridPreset } | { readonly tool: TextTool } | { readonly unique: Unique } | { readonly impute: Imputation }
-    | { readonly date: DateTool };
+    | { readonly date: DateTool } | { readonly multi: MultiFieldAsked };
   try {
     const raw: unknown = JSON.parse(given);
     const kind = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>)['kind'] : undefined;
     asked = kind === 'unique' ? { unique: readUnique(raw) } : kind === 'impute' ? { impute: readImputation(raw) }
+      : kind === 'multiField' ? { multi: readMultiField(raw) }
       : (DATE_TOOL_KINDS as readonly unknown[]).includes(kind) ? { date: readDateTool(raw) }
       : (TEXT_TOOL_KINDS as readonly unknown[]).includes(kind) ? { tool: readTextTool(raw) } : { preset: readGridPreset(raw) };
   } catch (e) {
@@ -776,8 +781,19 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
   }
   return using(spec, async (o) => {
     let commands: GridCommand[];
+    // a Multi-Field Formula's expression, parsed as the window parses it: a refusal the parser's
+    let lambda: Lambda | undefined;
+    if ('multi' in asked) {
+      try {
+        lambda = await o.planner.parse(multiFieldText(asked.multi.expression));
+      } catch (e) {
+        if (!(e instanceof PlanError)) throw e;
+        return JSON.stringify({ problems: [e.message] });
+      }
+    }
     try {
       commands = 'tool' in asked ? textToolCommands(asked.tool) : 'date' in asked ? dateToolCommands(asked.date)
+        : 'multi' in asked ? multiFieldCommands(await typedColumns(o.runner, o.state.snapshot), { ...asked.multi, lambda: lambda! })
         : 'unique' in asked ? uniqueCommands(await typedColumns(o.runner, o.state.snapshot), asked.unique)
           : 'impute' in asked ? imputeCommands(await typedColumns(o.runner, o.state.snapshot), asked.impute)
           : presetCommands(await typedColumns(o.runner, o.state.snapshot), asked.preset);

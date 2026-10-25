@@ -5044,6 +5044,11 @@
 .dc-text-tool-delimiter { width: 5em; }
 .dc-text-tool-columns { display: flex; flex-wrap: wrap; gap: 6px 14px; max-height: 140px; overflow-y: auto; }
 .dc-text-tool-check { display: inline-flex; align-items: center; gap: 6px; color: var(--dc-muted-strong); }
+.dc-text-tool-check[hidden] { display: none; }
+/* a Multi-Field Formula's expression (ui/multi-field-form.ts): Pure, typed as the column editor's is */
+.dc-multi-field .dc-text-tool-field { max-width: none; }
+.dc-multi-field-expression { width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--dc-mono, ui-monospace, monospace); }
+.dc-multi-field-suffix { width: 8em; }
 
 /* ---- a flow's containers (Alteryx's Tool Container: a comment with a frame) -- behind the lines and the boxes, its inside
    the canvas's own (a band, a tool let go), its head and its corner its own ---- */

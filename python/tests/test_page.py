@@ -1650,6 +1650,25 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, 'Could not parse string'):
             odd.to_pandas()
 
+    def test_one_formula_over_several_columns_as_a_flow_box_does(self):
+        # (M3) grid.multi_field: a flow's Multi-Field Formula (multi-field-columns.ts multiFieldCommands) -- one expression over
+        # $v, a column of each, parsed and typed by the compiler; $x the row, for its other columns
+        prices = pd.DataFrame({'name': [' tea ', 'Coffee'], 'shop': ['a ', ' b'], 'price': [2.0, 3.0], 'cost': [1.0, 2.5]})
+        page = ll.Page('Multi-Field')
+        grid = page.grid(prices, name='prices')
+        grid.multi_field(['name', 'shop'], '$v->toOne()->trim()->toUpper()', suffix='_clean')
+        grid.multi_field(['price', 'cost'], '$v->toOne() * 2 + $x.price->toOne()')
+        rows = grid.to_pandas().sort_values('price').to_dict('records')
+        self.assertEqual([(r['name_clean'], r['shop_clean']) for r in rows], [('TEA', 'A'), ('COFFEE', 'B')])
+        self.assertEqual([(r['price_new'], r['cost_new']) for r in rows], [(6.0, 4.0), (9.0, 8.0)])
+        # the compiler judges each column's: trim is no number's
+        with self.assertRaisesRegex(ValueError, 'trim'):
+            grid.multi_field(['price'], '$v->toOne()->trim()', suffix='_t')
+        with self.assertRaisesRegex(ValueError, "'price_new' is already a column"):
+            grid.multi_field(['price'], '$v')
+        with self.assertRaisesRegex(ValueError, 'pick a column'):
+            grid.multi_field([], '$v')
+
     def test_a_named_dimension_is_used_and_drilled(self):
         # (K6) grid.dimension, grid.drill, grid.drill_up: a dimension of the grid's configuration (the Dimensions tab's),
         # by dimensions.ts's own rules (useDimension, drillDown, drillUp), as the group command the Rows zone builds

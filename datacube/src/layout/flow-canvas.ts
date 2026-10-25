@@ -112,6 +112,7 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   container: 'M2 3.5h12v10H2zM2 6.5h12M4 5h3M5 9h2.5v2.5H5zM9 9h2.5v2.5H9z',
   filter: 'M2 3h12l-4.5 5.5V13l-3 1.5V8.5z',
   formula: 'M10.5 2.5c-2 0-2.5 1-2.8 3L6.8 11c-.3 2-.8 3-2.8 3M5 6.5h5.5M10 9l3.5 4M13.5 9L10 13',
+  multiField: 'M7 2.5c-1.5 0-2 .8-2.2 2.3L4.2 9.2c-.2 1.5-.7 2.3-2.2 2.3M3 5.5h4M10 4.5h4M10 8h4M10 11.5h4',
   select: 'M2 3h3v3H2zM7.5 4.5H14M2 10h3v3H2zM7.5 11.5H14M2.8 4.5l.7.7 1-1.4',
   sort: 'M4 2v12M1.5 11.5L4 14l2.5-2.5M9 4h6M9 8h4M9 12h2',
   summarize: 'M12.5 3H3.5l4.5 5-4.5 5h9',

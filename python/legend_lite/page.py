@@ -893,6 +893,14 @@ class Grid(Tile):
         number, or a whole-number column filled with a fraction, refused in DataCube's words."""
         return self._preset({'kind': 'impute', 'columns': list(columns), 'with': fill})
 
+    def multi_field(self, columns: Sequence[str], expression: str, *, suffix: str = '_new') -> Grid:
+        """One ``expression`` over each of ``columns`` -- a flow's Multi-Field Formula (DataCube's code:
+        multi-field-columns.ts multiFieldCommands): Pure over ``$v``, each column's value in turn (``'$v->toOne()->trim()'``, ``'$v->toOne() *
+        1.1'``; ``$x`` the row, for its other columns), a new column of each named ``<column><suffix>``. The compiler
+        parses and types each, and refuses one in its words: ``trim`` over a number column, say."""
+        _expression(expression)
+        return self._preset({'kind': 'multiField', 'columns': list(columns), 'expression': expression, 'suffix': suffix})
+
     def dimension(self, name: str) -> Grid:
         """Grouped by the named dimension ``name``'s first level (its configuration's ``dimensions``: a name and its
         columns, coarsest first), as Properties' Dimensions tab's Group Rows by uses one (the gesture

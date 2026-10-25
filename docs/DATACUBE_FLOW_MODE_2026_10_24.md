@@ -238,7 +238,7 @@ How to read the status column:
 | Filter (True, False) | Step | The grid's filter; the False port (§3.3) |
 | Formula | Built | A calculated column, checked by the compiler as it is typed |
 | Multi-Row Formula | Built | A window column: `lag`, `lead`, `first`, `last` |
-| Multi-Field Formula | Step | One formula over several columns, made as one calculated column each |
+| Multi-Field Formula | Built (2026-10-25) | One expression over `$v`, each column's value, parsed by the compiler: a calculated column of each (`<column><suffix>`). In place, as Alteryx's "change existing fields", needs a relation `rename` |
 | Select (choose, rename, retype) | Step | Choosing is the grid's shown columns. Renaming is a display name today, not the relation's `rename`; both as relation steps (§17.8). Retyping is `cast` |
 | Sort | Built | The grid's sorts |
 | Sample (first, last, every Nth, N per group) | Step | `limit`, `drop`, `slice`, and a row number for N per group |
@@ -655,7 +655,22 @@ dd/MM/yyyy". Python: `grid.date_part(column, part)`, `grid.parse_date(column, fo
 Python's `test_dates_read_and_taken_apart_as_a_flow_box_does` (DuckDB's dates and months; the refusal) and the harness
 (a year of the trade date).
 
-Still to come in M3: Multi-Field Formula; a date written as text by a format.
+**Built, Multi-Field Formula** (`multi-field.ts`, `multi-field-columns.ts`, `ui/multi-field-form.ts`, `app.ts`
+`#openMultiField`): Alteryx's Multi-Field Formula -- one expression over several columns, written once over `$v`, each
+column's value in turn (Alteryx's `[_CurrentField_]`; `$x` is the row, for its other columns: `$v / $x.total`), parsed
+by the compiler as `v|...` and made a calculated column per column (`<column><suffix>`, `_new` unless named), `$v` made
+`$x.<column>` in each, its kind its column's. The window shows the columns by kind (Text, Numbers, Dates, All, as
+Alteryx's field types) and starts the expression with an example for the kind; what the compiler refuses -- `trim` of a
+number -- it says in its words ("argument 1: expected String, got Float") and adds nothing. A box says "over region,
+desk", read back off its columns' shapes (`multiFieldOf`: two or more side by side whose expressions are one with a
+different column in each place; a lone one is a Formula's, and a shape a tool of its own makes is that tool's -- a trim
+over two columns is Data Cleansing's). The commands are a chunk of their own, fetched with the first, so a page without
+one loads only the reading. Python: `grid.multi_field(columns, expression, suffix='_new')` (headless `gridPreset`, the
+expression parsed by the same compiler). Tested by `flow-sheet.test.ts` (its columns, its reading, its refusals),
+Python's `test_one_formula_over_several_columns_as_a_flow_box_does` (DuckDB's trimmed and upper-cased text, doubled
+numbers plus another column; the compiler's refusal) and the harness (a refused one, then one over region and desk).
+
+Still to come in M3: a date written as text by a format.
 
 **Built, an example flow** (`examples/prep-flow.ts`, in Open…'s examples as "A data flow"): a flow to open rather than
 one to build first -- the sales sample's orders and its countries in an Inputs container; the orders over $1,000, joined

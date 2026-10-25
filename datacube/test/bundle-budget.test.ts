@@ -360,8 +360,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  setOutput command and its reading (page-commands.ts, page-document.ts), the page's Write now and Run writing it
  *  (page/cube-page.ts), its rows streamed to CSV (app.ts writeOutput, export.ts toCsv imported as it was, not fetched
  *  again: fetching a module the page has split its shared code into two more startup files, +2,200 bytes, measured and
- *  undone). Measured 373,513. */
-const BUDGET = 374_000;
+ *  undone). Measured 373,513.
+ *  374,000 -> 375,000 (2026-10-25, the flow mode's Multi-Field Formula: the palette's tool, its columns read back off
+ *  their shapes to say a box (multi-field.ts multiFieldOf), the step that opens its window (app.ts); its window and its
+ *  commands chunks of their own, ui/multi-field-form.ts and multi-field-columns.ts, fetched with the first). Measured
+ *  374,121. */
+const BUDGET = 375_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -692,8 +696,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  382,500 -> 384,000 (2026-10-25, the flow mode's containers -- the grid-only page's note of the same date; a container's
  *  frame, head, fold and corner, and the keys' panel, styles among them). Measured 383,671.
  *  384,000 -> 385,500 (2026-10-25, the flow mode's Output -- the grid-only page's note of the same date; its settings'
- *  styles among them). Measured 385,054. */
-const WIDGET_BUDGET = 385_500;
+ *  styles among them). Measured 385,054.
+ *  385,500 -> 386,500 (2026-10-25, the flow mode's Multi-Field Formula -- the grid-only page's note of the same date).
+ *  Measured 385,655. */
+const WIDGET_BUDGET = 386_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

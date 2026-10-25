@@ -630,6 +630,35 @@ try {
     && await page.locator('.dc-flow-results .dc-th[data-column="notional__average"]').count() === 0, 'its column in its rows, its average hidden');
   check(await resultRows() === fewer, "Imputation: its input's rows, each kept");
 
+  // MULTI-FIELD FORMULA (M3), dragged onto the Filter: one expression over two text columns, a column of each; then one
+  // the compiler refuses (trim of a number), said in the window
+  const beforeMulti = (await boxes()).map((b) => b.id);
+  await drag('multiField', filter.id);
+  await boxCount(beforeMulti.length + 1);
+  const multi = await added(beforeMulti);
+  await docked('Multi-Field Formula');
+  const mf = page.locator('.dc-flow-dock .dc-multi-field');
+  await mf.locator('.dc-multi-field-kind').selectOption('numeric');
+  await mf.locator('input[value="notional"]').check();
+  await mf.locator('.dc-multi-field-expression').fill('$v->toOne()->trim()');
+  await mf.locator('.dc-sample-foot .dc-primary').click();
+  await page.waitForFunction(() => (document.querySelector('.dc-flow-dock .dc-multi-field .dc-sample-status')?.textContent ?? '') !== '', null, { timeout: 60_000 });
+  const multiRefusal = await mf.locator('.dc-sample-status').textContent();
+  check(/trim/.test(multiRefusal ?? ''), `a Multi-Field the compiler refuses, said in its window: ${multiRefusal}`);
+  await mf.locator('.dc-multi-field-kind').selectOption('text');
+  for (const c of ['region', 'desk']) await mf.locator(`input[value="${c}"]`).check();
+  await mf.locator('.dc-multi-field-expression').fill('$v->toOne()->length()');
+  await mf.locator('.dc-multi-field-suffix').fill('_len');
+  await mf.locator('.dc-sample-foot .dc-primary').click();
+  await settled();
+  const multiBox = (await boxes()).find((b) => b.id === multi.id);
+  check(multiBox?.tool === 'multiField' && multiBox.says === 'over region, desk', `a Multi-Field Formula box: ${JSON.stringify(multiBox)}`);
+  for (const c of ['region_len', 'desk_len']) {
+    check(await page.locator(`.dc-flow-results .dc-th[data-column="${c}"]`).count() > 0, `its column ${c} in its rows`);
+  }
+  check(await page.locator('.dc-flow-results .dc-th[data-column="notional_new"]').count() === 0, 'the refused one added nothing');
+  check(await resultRows() === fewer, "Multi-Field Formula: its input's rows, each kept");
+
   // UNIQUE (M3), dragged onto the Input: a row of each region, its U output; a Browse off its D, the duplicates
   const beforeUnique = (await boxes()).map((b) => b.id);
   await drag('unique', input.id);

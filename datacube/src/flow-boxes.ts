@@ -12,6 +12,7 @@ import { grainOf } from './calc-presets.ts';
 import { textToolOf, type TextTool } from './text-tools.ts';
 import { uniqueOf } from './unique.ts';
 import { imputedOf } from './impute.ts';
+import { multiFieldOf, type MultiFieldColumn } from './multi-field.ts';
 import { dateToolOf } from './date-tools.ts';
 import { joinWords } from './join-words.ts';
 import { conditionWords } from './page-filters.ts';
@@ -20,7 +21,7 @@ import type { ColumnEditorStart } from './ui/column-editor.ts';
 import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
-export type FlowTool = 'input' | 'textInput' | 'output' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
+export type FlowTool = 'input' | 'textInput' | 'output' | 'join' | 'union' | 'filter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile'
   | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment' | 'container';
 
@@ -33,6 +34,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   union: { name: 'Union', group: 'join', does: 'the rows of two inputs, one under the other, columns by name' },
   filter: { name: 'Filter', group: 'prepare', does: 'the rows that meet its conditions' },
   formula: { name: 'Formula', group: 'prepare', does: 'columns calculated from each row' },
+  multiField: { name: 'Multi-Field', group: 'prepare', does: 'one formula over several columns, a new column of each' },
   select: { name: 'Select', group: 'prepare', does: 'the columns it keeps' },
   sort: { name: 'Sort', group: 'prepare', does: 'its rows in the order it sorts them' },
   sample: { name: 'Sample', group: 'prepare', does: 'its first or its last rows, in the order of a column' },
@@ -58,7 +60,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'textInput', 'output', 'filter', 'formula', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
+  'input', 'textInput', 'output', 'filter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
   'join', 'union', 'textToColumns', 'regex', 'summarize', 'crosstab', 'runningTotal', 'comment', 'container',
 ];
 
@@ -78,6 +80,8 @@ export type StepEditor =
   | { readonly window: 'impute' }
   /** The Unique window (ui/unique-form.ts): the columns a key is, and the order a key's first row is first in. */
   | { readonly window: 'unique' }
+  /** The Multi-Field Formula window (ui/multi-field-form.ts): its columns, its expression over each one's value. */
+  | { readonly window: 'multiField' }
   /** The DateTime window (ui/date-form.ts): a date column taken to its period, the grid's own period preset. */
   | { readonly window: 'datetime' }
   /** A text tool's window (ui/text-tool-form.ts): Text To Columns, RegEx or Data Cleansing (text-tools.ts). */
@@ -89,6 +93,7 @@ export type StepEditor =
 export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   filter: { window: 'filters' },
   formula: { window: 'column' },
+  multiField: { window: 'multiField' },
   select: { window: 'properties', tab: 'Columns' },
   sort: { window: 'properties', tab: 'Sorts' },
   summarize: { window: 'properties', tab: 'Vertical Pivots' },
@@ -134,14 +139,16 @@ export function boxSays(cube: CubeDocument): BoxSays {
   if (unique !== undefined) steps.push({ tool: 'unique', says: `by ${unique.keys.join(', ')}` });
   // Imputation's window columns (an average across every row) are its own, said with the column they fill
   const helpers = new Set(q.derived.flatMap((d) => imputedOf(d, q.derived)?.helper ?? []));
+  // a Multi-Field Formula's columns: one formula, each over its own column
+  const multi = multiFieldOf(q.derived);
   // its calculated columns, each by the tool that makes one so -- the ones of a tool together, in the order they come
   for (const d of q.derived) {
     if (d.name === unique?.column || helpers.has(d.name)) continue;
-    const tool = columnTool(d, q.derived);
+    const tool = columnTool(d, q.derived, multi.get(d.name));
     const last = steps.at(-1);
-    const said = columnWords(d, q.derived);
-    // a tool's columns said once each way: a split's parts are one split
-    if (last?.tool === tool) last.says = last.says.split(', ').includes(said) ? last.says : `${last.says}, ${said}`;
+    const said = columnWords(d, q.derived, multi.get(d.name));
+    // a tool's columns said once each way: a split's parts are one split, a Multi-Field's columns one formula
+    if (last?.tool === tool) last.says = last.says === said || last.says.split(', ').includes(said) ? last.says : `${last.says}, ${said}`;
     else steps.push({ tool, says: said });
   }
   if (q.filter !== undefined && unique === undefined) steps.push({ tool: 'filter', says: conditionWords(q.filter) });
@@ -158,12 +165,13 @@ export function boxSays(cube: CubeDocument): BoxSays {
 }
 
 /** The tool a calculated column is made by: a window column's by its function (a row number, the row before or after,
- *  a bucket, a running total), any other a Formula's. */
-function columnTool(d: DerivedColumn, derived: readonly DerivedColumn[]): FlowTool {
+ *  a bucket, a running total); one of a formula over several columns (`multi`: multiFieldOf), a Multi-Field's; any
+ *  other a Formula's. */
+function columnTool(d: DerivedColumn, derived: readonly DerivedColumn[], multi: MultiFieldColumn | undefined): FlowTool {
   const w = d.window;
   if (w === undefined) {
     return grainOf(d) !== undefined || dateToolOf(d) !== undefined ? 'datetime'
-      : imputedOf(d, derived) !== undefined ? 'impute' : textToolOf(d)?.tool ?? 'formula';
+      : imputedOf(d, derived) !== undefined ? 'impute' : textToolOf(d)?.tool ?? (multi !== undefined ? 'multiField' : 'formula');
   }
   if (w.fn === 'rowNumber') return 'recordId';
   if (w.fn === 'lag' || w.fn === 'lead') return 'multiRow';
@@ -173,14 +181,17 @@ function columnTool(d: DerivedColumn, derived: readonly DerivedColumn[]): FlowTo
 
 /** A calculated column, as its box says it: its name -- a period's, what it takes to what (`trade_date by month`); a
  *  text tool's, what it does to which (text-tools.ts textToolOf: `desk split on ','`). */
-function columnWords(d: DerivedColumn, derived: readonly DerivedColumn[]): string {
+function columnWords(d: DerivedColumn, derived: readonly DerivedColumn[], multi: MultiFieldColumn | undefined): string {
   const grain = grainOf(d);
   if (grain !== undefined) return `${grain.column} by ${grain.grain}`;
   const dated = dateToolOf(d);
   if (dated !== undefined) return dated.says;
   const filled = imputedOf(d, derived);
   if (filled !== undefined) return `${filled.column}'s empties → ${filled.with.kind === 'value' ? filled.with.value : `its ${filled.with.kind}`}`;
-  return textToolOf(d)?.says ?? d.name;
+  const tool = textToolOf(d);
+  if (tool !== undefined) return tool.says;
+  // a Multi-Field Formula said once, by the columns it is over
+  return multi !== undefined ? `over ${multi.all.join(', ')}` : d.name;
 }
 
 /** The columns a cube's configuration hides (Column Properties' Hide): what a Select box leaves out. */

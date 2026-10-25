@@ -26,6 +26,8 @@ import { readUnique, uniqueCommands, uniqueOf } from '../src/unique.ts';
 import { profileLambda, profileOf } from '../src/profile.ts';
 import { imputeCommands, imputedOf, readImputation } from '../src/impute.ts';
 import { dateToolCommands, dateToolOf, readDateTool } from '../src/date-tools.ts';
+import { multiFieldOf } from '../src/multi-field.ts';
+import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi-field-columns.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, fn, lambda, lit, property, variable } from '../../pure-protocol/src/index.ts';
 import { textToolOf } from '../src/text-tools.ts';
@@ -289,6 +291,57 @@ describe("Imputation (impute.ts): a number's empties filled, a value or the colu
     assert.throws(() => imputeCommands(typed, { columns: ['qty'], with: { kind: 'value', value: 0.5 } }), /holds whole numbers/);
     assert.deepEqual(readImputation({ kind: 'impute', columns: ['qty'], with: 3 }), { columns: ['qty'], with: { kind: 'value', value: 3 } });
     assert.throws(() => readImputation({ kind: 'impute', columns: ['qty'], with: 'median' }), /not "median"/);
+  });
+});
+
+describe('Multi-Field Formula (multi-field.ts): one expression over several columns, a column each', () => {
+  const typed = { ...rawRows(accessor('local::DB', 'trades'), [...COLUMNS, { name: 'desk', type: 'String' }, { name: 'qty', type: 'Integer', kind: 'measure' as const },
+    { name: 'price', type: 'Float' }]) };
+  const v = variable('v');
+  // $v->trim(), and $v * 2 + $x.qty: the value, and the row's other column
+  const trimmed = lambda(['v'], fn('trim', fn('toOne', v)));
+  const doubled = lambda(['v'], fn('plus', fn('times', fn('toOne', v), lit.integer(2)), property(variable('x'), 'qty')));
+  const made = (columns: string[], l = trimmed, suffix = '_new') =>
+    (multiFieldCommands(typed, { columns, lambda: l, suffix }) as unknown as { column: DerivedColumn }[]).map((c) => c.column);
+
+  it("makes a column of each, $v its column and $x the row; its kind its column's", () => {
+    const [a, b] = made(['region', 'desk']);
+    assert.deepEqual([a!.name, b!.name], ['region_new', 'desk_new']);
+    assert.equal(JSON.stringify(b!.lambda), JSON.stringify(lambda(['x'], fn('trim', fn('toOne', property(variable('x'), 'desk'))))));
+    assert.equal(a!.kind, 'dimension');
+    const [q] = made(['qty'], doubled, '_x2');
+    assert.equal(q!.kind, 'measure');
+    assert.equal(JSON.stringify(q!.lambda?.body[0]), JSON.stringify(
+      fn('plus', fn('times', fn('toOne', property(variable('x'), 'qty')), lit.integer(2)), property(variable('x'), 'qty'))));
+    assert.equal(multiFieldText('$v->trim()'), 'v|$v->trim()');
+    assert.equal(multiFieldText(' w | $w '), 'w | $w');
+  });
+
+  it('is read back off its columns: two or more of one shape, each over its own; a lone one a Formula', () => {
+    const columns = made(['region', 'desk'], lambda(['v'], fn('length', fn('toOne', v))));
+    const box = cube(rows('grid-1'), (q) => ({ ...q, derived: columns }));
+    assert.deepEqual(boxSays(box), { tool: 'multiField', also: [], says: 'over region, desk' });
+    // a shape a tool of its own makes is that tool's: a trim, Data Cleansing's
+    assert.equal(boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived: made(['region', 'desk']) }))).tool, 'cleanse');
+    assert.deepEqual(multiFieldOf(columns).get('desk_new'), { over: 'desk', all: ['region', 'desk'] });
+    // one over $x.qty besides its own value: the column it is over is the one its name says
+    const twice = made(['notional', 'price'], doubled);
+    assert.deepEqual([...multiFieldOf(twice).values()].map((m) => m.over), ['notional', 'price']);
+    assert.equal(boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived: made(['desk'], doubled) }))).tool, 'formula');
+    // two formulas of two shapes, side by side: Formulas
+    assert.equal(multiFieldOf([...made(['desk']), ...made(['qty'], doubled)]).size, 0);
+  });
+
+  it('refuses in words what it cannot make', () => {
+    assert.throws(() => made([]), /pick a column/);
+    assert.throws(() => made(['nope']), /the grid has no column 'nope'/);
+    assert.throws(() => made(['region'], lambda(['x'], variable('x'))), /its value is \$v/);
+    assert.throws(() => made(['region'], lambda(['v'], fn('map', v, lambda(['x'], variable('x'))))), /names its parameter x/);
+    assert.throws(() => made(['region'], trimmed, ' '), /suffix/);
+    const taken = { ...typed, derived: made(['region']) };
+    assert.throws(() => multiFieldCommands(taken, { columns: ['region'], lambda: trimmed, suffix: '_new' }), /'region_new' is already a column/);
+    assert.deepEqual(readMultiField({ kind: 'multiField', columns: ['a'], expression: '$v' }), { columns: ['a'], expression: '$v', suffix: '_new' });
+    assert.throws(() => readMultiField({ kind: 'multiField', columns: ['a'], expression: '' }), /its expression is over each column's value/);
   });
 });
 
