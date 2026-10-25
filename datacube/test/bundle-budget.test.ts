@@ -441,8 +441,11 @@ const BUDGET = 360_500;
  *  chart's options as a popover that closes: its heading and x, Escape and a press elsewhere, placed beside its chart
  *  (ui/chart-panel.ts openForm)). Measured 347,245.
  *  348,000 -> 348,500 (2026-10-25, the menus' one design language -- the grid-only page's note of the same date).
- *  Measured 348,087. */
-const ENGINE_BUDGET = 348_500;
+ *  Measured 348,087.
+ *  348,500 -> 349,500 (2026-10-25, the page's chrome drawn in one icon set (ui/tile-icons.ts chromeIcon, closeMark; found
+ *  4 of docs/DATACUBE_UI_REVIEW_2026_10_24.md): each typed glyph -- a tile's layouts, maximise and remove, the menus'
+ *  chevron, every close -- now a small drawing of its own). Measured 348,520. */
+const ENGINE_BUDGET = 349_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -605,8 +608,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  366,500 -> 367,500 (2026-10-25, the text box as a Markdown editor -- the grid-only page's note of the same date).
  *  Measured 366,944.
  *  367,500 -> 368,500 (2026-10-25, a chart's options as a popover that closes -- the engine page's note of the same date
- *  -- and a join reopened borrowing a grid's table (app/sources.ts borrow: the example-switch bug)). Measured 367,526. */
-const WIDGET_BUDGET = 368_500;
+ *  -- and a join reopened borrowing a grid's table (app/sources.ts borrow: the example-switch bug)). Measured 367,526.
+ *  368,500 -> 370,000 (2026-10-25, the menus' one design language (a key beside its entry, a chart's and a text box's
+ *  View ▸, a sheet tab's reasons) and the page's chrome drawn in one icon set -- the grid-only and engine pages' notes of
+ *  the same date). Measured 368,722. */
+const WIDGET_BUDGET = 370_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
