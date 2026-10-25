@@ -657,6 +657,17 @@ Python's `test_dates_read_and_taken_apart_as_a_flow_box_does` (DuckDB's dates an
 
 Still to come in M3: Multi-Field Formula; a date written as text by a format.
 
+**Built, an example flow** (`examples/prep-flow.ts`, in Open…'s examples as "A data flow"): a flow to open rather than
+one to build first -- the sales sample's orders and its countries in an Inputs container; the orders over $1,000, joined
+live to their countries by ISO code and given a margin, in a Prepare one; a summary by continent (the continent and its
+sums alone shown, so its Output writes them) and its Output writing "revenue by continent.csv", in a Report one; the top
+order of each country kept by a Unique; and a comment saying where to start -- laid out three columns wide, so the whole
+of it is in sight beside the settings. Tested by `examples.test.ts` (each box the tool it is, each read live, the
+containers holding their boxes, the Output's file) and the harness (opened from Open…, run: 6,000 orders, 4,778 over
+$1,000, a row a continent and one for the orders with no country, 10 countries' top orders; its Output's file written).
+Fixed with it: a note a flow's box left on the status line (columns gone from its input) outlived its page; a page
+put on screen now starts with none of it.
+
 ### M7's first steps (2026-10-25)
 
 **Built, the canvas's own tools** (`layout/flow.ts` `arranged`, `page-gestures.ts` `tidyCommands` and the `flow.tidy`

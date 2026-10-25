@@ -768,6 +768,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     let placed = 0;
     const place = (): (() => boolean) => {
       const mine = (placed += 1);
+      // what the status line said at rest was the page's before: a new page starts with none of it
+      if (resting.warn) sayResting({ text: label, warn: false });
       return () => placed === mine;
     };
 

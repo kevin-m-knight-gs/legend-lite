@@ -16,13 +16,43 @@ import { COUNTRY_SPECS, prepJoinsPage } from '../src/examples/prep-joins.ts';
 import { frozenInput, openCube } from '../src/cube-document.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 import { layoutTiles } from '../src/page-document.ts';
+import { prepFlowPage } from '../src/examples/prep-flow.ts';
+import { boxSays } from '../src/flow-boxes.ts';
+import { framedBy } from '../src/layout/flow.ts';
+import { liveGrids } from '../src/live-inputs.ts';
 
 /** The pages of charts over the sales sample; the join example is read below. */
 const CHART_PAGES = EXAMPLE_PAGES.filter((e) => e.id.startsWith('charts-'));
 
 describe('the example pages', () => {
-  it('each is a page of charts, or the join example', () => {
-    assert.deepEqual(EXAMPLE_PAGES.filter((e) => !CHART_PAGES.includes(e)).map((e) => e.id), ['prep-joins']);
+  it('each is a page of charts, the join example or the flow example', () => {
+    assert.deepEqual(EXAMPLE_PAGES.filter((e) => !CHART_PAGES.includes(e)).map((e) => e.id), ['prep-joins', 'prep-flow']);
+  });
+
+  // a flow to open, rather than one to build first (docs/DATACUBE_FLOW_MODE_2026_10_24.md)
+  it('the flow example: its boxes each the tool it is, read live, in its containers, its Output writing a CSV', async () => {
+    const page = readPage(pageToJson(await prepFlowPage()));
+    assert.equal(page.sheets.length, 1);
+    const layout = page.sheets[0]!.layout;
+    assert.ok(layout.kind === 'flow');
+    const cube = (id: string) => page.cubes.find((c) => c.id === id)!.cube;
+    const tools = Object.fromEntries(page.views.filter((v) => v.kind === 'grid').map((v) => [v.id, boxSays(cube(v.id)).tool]));
+    assert.deepEqual(tools, {
+      'grid-1': 'input', 'grid-2': 'input', 'grid-3': 'filter', 'grid-4': 'join', 'grid-5': 'formula', 'grid-6': 'summarize',
+      'grid-7': 'browse', 'grid-8': 'unique',
+    });
+    // each box after the first reads the box before it live
+    assert.deepEqual(['grid-3', 'grid-4', 'grid-5', 'grid-6', 'grid-7', 'grid-8'].map((id) => liveGrids(cube(id).source)),
+      [['grid-1'], ['grid-3', 'grid-2'], ['grid-4'], ['grid-5'], ['grid-6'], ['grid-1']]);
+    assert.deepEqual(framedBy(layout, 'text-1'), ['grid-1', 'grid-2'], 'the Inputs container holds the two inputs');
+    assert.deepEqual(framedBy(layout, 'text-2'), ['grid-3', 'grid-4', 'grid-5'], 'the Prepare one, the steps between');
+    assert.deepEqual(framedBy(layout, 'text-4'), ['grid-6', 'grid-7'], 'the Report one, the summary and its Output');
+    assert.deepEqual(layout.boxes.find((b) => b.tile === 'grid-7')?.output, { format: 'csv', name: 'revenue by continent.csv' });
+    // its samples rebuilt on opening
+    for (const [id, sample] of [['grid-1', 'sales'], ['grid-2', 'countries']] as const) {
+      const source = cube(id).source;
+      assert.ok(source._type === 'file' && source.sample?.id === sample, `${id} is the ${sample} sample`);
+    }
   });
 
   for (const example of CHART_PAGES) {

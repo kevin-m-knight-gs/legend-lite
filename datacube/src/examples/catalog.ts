@@ -51,4 +51,13 @@ export const EXAMPLE_PAGES: readonly ExamplePage[] = [
       + 'whose country the table lacks.',
     build: async () => (await lazily(() => import('./prep-joins.ts'))).prepJoinsPage(),
   },
+  {
+    // a flow to open, rather than one to build first (docs/DATACUBE_FLOW_MODE_2026_10_24.md)
+    id: 'prep-flow',
+    label: 'A data flow',
+    about: 'The orders and their countries prepared on a flow\'s canvas, as Alteryx prepares them: two Inputs, the big '
+      + 'orders filtered, joined live to their countries and given a margin, summarized by continent and written out as '
+      + 'a CSV, the top order of each country kept -- each box a step, its rows below it when clicked.',
+    build: async () => (await lazily(() => import('./prep-flow.ts'))).prepFlowPage(),
+  },
 ];

@@ -920,6 +920,29 @@ try {
   const visible = await page.locator('.dc-flow-tool:visible').evaluateAll((els) => els.map((e) => e.dataset.tool));
   check(JSON.stringify(visible) === JSON.stringify(['join']), `found: ${visible}`);
   await page.fill('.dc-flow-find', '');
+
+  // THE FLOW EXAMPLE, opened from Open…'s examples: its boxes on its canvas, each the tool it is, in its containers; Run
+  // counts every box -- the continents, the countries' top orders -- and writes its Output
+  await page.click('.dc-titlebar-menu');
+  await item('Open…').click();
+  await page.locator('#cubeswin .dc-open-example[data-example="prep-flow"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('.dc-flow-box').length === 8, undefined, { timeout: 120_000 });
+  const exampleTools = await page.locator('.dc-flow-box').evaluateAll((els) => els.map((e) => e.dataset.tool).sort());
+  check(JSON.stringify(exampleTools) === JSON.stringify(['filter', 'formula', 'input', 'input', 'join', 'output', 'summarize', 'unique']),
+    `the example's boxes: ${exampleTools}`);
+  check(await page.locator('.dc-flow-container').count() === 3 && await page.locator('.dc-flow-note:not(.dc-flow-container)').count() === 1,
+    'its three containers and its comment');
+  const [exampleFile] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.locator('.dc-flow-run').click()]);
+  check(exampleFile.suggestedFilename() === 'revenue by continent.csv', `Run writes its Output: ${exampleFile.suggestedFilename()}`);
+  await page.waitForFunction(() => /Run$/.test(document.querySelector('.dc-flow-run')?.textContent ?? ''), undefined, { timeout: 240_000 });
+  const exampleCounts = await page.locator('.dc-flow-box').evaluateAll((els) => Object.fromEntries(els.map((e) => [e.dataset.tile, e.querySelector('.dc-flow-count')?.textContent ?? ''])));
+  check(Object.values(exampleCounts).every((c) => /^[\d,]+$/.test(c)), `every box counted: ${JSON.stringify(exampleCounts)}`);
+  const continents = Number(exampleCounts['grid-6'].replaceAll(',', ''));
+  check(continents >= 5 && continents <= 6, `a row a continent (and the orders with no country): ${continents}`);
+  await page.locator('.dc-flow-log-close').click();
+  check(!/no longer in its input/.test(await page.locator('.dc-app-status').first().textContent().catch(() => '') ?? ''),
+    'nothing of the page before it said on its status line, nor anything gone');
+  await page.screenshot({ path: outPath('flow-example.png') });
 } catch (e) {
   bad(`threw: ${e.stack ?? e}`);
 } finally {
