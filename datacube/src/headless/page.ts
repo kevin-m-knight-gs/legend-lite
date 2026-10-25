@@ -389,12 +389,14 @@ export function pageSearch(term: unknown, sort: unknown, limit: unknown): string
  * by its own reader (readCube: a calculated column's numbers exact, every other number plain, as DataCube holds a
  * cube), and the fields a newer writer added kept aside, as the page's own reader keeps them (`unknown`).
  */
-/** A page command as read plainly, the field it carries a cube's document or source in taken from its exact reading
+/** A page command as read plainly, the fields it carries a cube's document or source in taken from its exact reading
  *  (its numbers as the protocol's, as the page's cubes are read: page-commands.ts EXACT_FIELD). */
 export function exactly(plainly: unknown, exact: unknown): unknown {
   const c = plainly as { kind?: unknown } | null;
-  const field = typeof c?.kind === 'string' ? EXACT_FIELD[c.kind as keyof typeof EXACT_FIELD] : undefined;
-  return field === undefined ? plainly : { ...(plainly as object), [field]: (exact as Record<string, unknown>)[field] };
+  const fields = typeof c?.kind === 'string' ? EXACT_FIELD[c.kind as keyof typeof EXACT_FIELD] : undefined;
+  const of = exact as Record<string, unknown>;
+  return fields === undefined ? plainly
+    : { ...(plainly as object), ...Object.fromEntries(fields.filter((f) => of[f] !== undefined).map((f) => [f, of[f]])) };
 }
 
 export function heldPage(text: string): PageDocument {

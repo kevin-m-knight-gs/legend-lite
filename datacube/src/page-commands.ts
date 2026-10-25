@@ -8,8 +8,8 @@
 import { fieldNames, type CommandFields, type MissingFields } from './command-fields.ts';
 import { followCube, readChart, type ChartSpec } from './chart-spec.ts';
 import {
-  CubeDocumentError, cubeOpenedAgain, inputOn, isLive, readCube, readCubeInput, readCubeSource, withInputOn, type CubeDocument,
-  type CubeInput, type CubeSource, type InputPort, type InputSide, type JoinInput,
+  CubeDocumentError, cubeOpenedAgain, inputOn, isLive, moreIndex, readCube, readCubeInput, readCubeSource, withInputOn, type CubeDocument,
+  type CubeInput, type CubeSource, type InputPort, type InputSide, type JoinInput, type JoinSource,
 } from './cube-document.ts';
 import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, type Bands, type Preset,
@@ -157,15 +157,18 @@ export type PageCommand =
   | { readonly kind: 'rebuilt'; readonly cube: string; readonly source: CubeSource }
   /**
    * A grid's input set (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2: a line drawn on a flow, a box frozen or linked again,
-   * a removal's freeze undone): grid `grid` reads, on `side` -- another grid's rows' one input, a join's left or right --
+   * a removal's freeze undone): grid `grid` reads, on `side` -- another grid's rows' one input, a join's left or right, a
+   * Union's more1, more2, ... (its next one, one past its last, an input added) --
    * `input`: live, `{grid}`, a grid of the page as it is now; a copy of what a grid was; or, null, a copy of what its live
    * input is now (Freeze). Its query as it is: what its input answers now is read when it opens again (a new column
    * hidden, a gone one's parts left out: cube-document.ts cubeOpenedAgain). Refused when it would read its own rows.
    */
   | { readonly kind: 'setInput'; readonly grid: string; readonly side: InputSide; readonly input: CubeInput | null }
   /** A join's how, whole (a flow's Join or Union box set again by the Join window: docs/DATACUBE_FLOW_MODE_2026_10_24.md
-   *  M2): its inputs as they are, its columns read again when it opens (cube-document.ts cubeOpenedAgain). */
-  | { readonly kind: 'setJoin'; readonly grid: string; readonly how: JoinHow }
+   *  M2), and a Union's inputs after its right (`more`, whole: an input added on the canvas, one taken off; [] none; left
+   *  out, as they are): its left and right as they are, its columns read again when it opens (cube-document.ts
+   *  cubeOpenedAgain). Refused when a join of two would take more, or one would read its own rows. */
+  | { readonly kind: 'setJoin'; readonly grid: string; readonly how: JoinHow; readonly more?: readonly CubeInput[] }
   /** A flow's box set to write its rows to a file (an Output, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6: when told to,
    *  and when the flow runs), or (null) no longer. */
   | { readonly kind: 'setOutput'; readonly grid: string; readonly output: Output | null }
@@ -194,7 +197,7 @@ export const PAGE_COMMAND_FIELDS = {
   setText: ['tile', 'text'], followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
-  removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how'], setOutput: ['grid', 'output'],
+  removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how', 'more?'], setOutput: ['grid', 'output'],
   modelInto: ['project', 'workspace', 'package'], modelPin: ['revision'], modelKeep: ['cube', 'tables', 'class'],
 } as const satisfies CommandFields<PageCommand>;
 // every field of every kind listed: a field the list leaves out is a type error naming it
@@ -776,11 +779,15 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
         throw new CubeRefusal(`'${command.grid}' reads its snap: its input moves it once it goes live`);
       }
       const source = held.cube.source;
-      const was = inputOn(source, command.side);
+      // a Union's next side (more, one past its last): an input added, where nothing was
+      const k = moreIndex(command.side);
+      const adds = source._type === 'join' && k !== undefined && k === (source.more?.length ?? 0) + 1;
+      const was = adds ? undefined : inputOn(source, command.side);
       let input: CubeInput;
       if (command.input !== null) input = command.input;
-      else if (isLive(was)) input = gridInput(page, was.grid, [], was.port);
-      else throw new CubeRefusal(`'${command.grid}' reads a copy already: it is frozen`);
+      else if (was !== undefined && isLive(was)) input = gridInput(page, was.grid, [], was.port);
+      else throw new CubeRefusal(was === undefined ? `'${command.grid}' has no ${command.side} to freeze: it is added live or as a copy`
+        : `'${command.grid}' reads a copy already: it is frozen`);
       if (sameValue(was, input)) throw new CubeRefusal(`'${command.grid}' reads ${isLive(input) ? `'${input.grid}'` : 'that copy'} already`);
       const next = rewritten(page, {
         cubes: page.cubes.map((c) => (c.id === held.id ? { id: c.id, cube: { ...c.cube, source: withInputOn(source, command.side, input) } } : c)),
@@ -800,11 +807,18 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       if (page.copies?.[view.cube] !== undefined) {
         throw new CubeRefusal(`'${command.grid}' reads its snap: its join moves it once it goes live`);
       }
-      if (sameValue(source.how, command.how)) throw new CubeRefusal(`'${command.grid}' joins so already`);
+      const more = command.more ?? source.more ?? [];
+      if (more.length > 0 && command.how.form !== 'append') {
+        throw new CubeRefusal(`'${command.grid}' would join ${2 + more.length} inputs: only a Union takes more than two`);
+      }
+      if (sameValue(source.how, command.how) && sameValue(source.more ?? [], more)) throw new CubeRefusal(`'${command.grid}' joins so already`);
+      const { more: _had, ...two } = source;
+      const joined: JoinSource = { ...two, how: command.how, ...(more.length > 0 ? { more } : {}) };
       const next = rewritten(page, {
-        cubes: page.cubes.map((c) => (c.id === held.id ? { id: c.id, cube: { ...c.cube, source: { ...source, how: command.how } } } : c)),
+        cubes: page.cubes.map((c) => (c.id === held.id ? { id: c.id, cube: { ...c.cube, source: joined } } : c)),
       });
-      // a box reading its L or R reads it still (live-inputs.ts liveProblem: the page's reader's rule)
+      // a box reading its L or R reads it still, an input added is a grid of the page that does not read it (live-inputs.ts
+      // liveProblem: the page's reader's rule)
       const problem = liveProblem(next);
       if (problem !== undefined) throw new CubeRefusal(problem);
       return done(next);
@@ -971,10 +985,11 @@ function sourceOf(v: unknown): CubeSource {
   }
 }
 
-/** The field of a page command a host reads with its exact numbers (a calculated column's 1.10, a join condition's
- *  decimal), as the page's cubes are read: a cube's document, a source, or a grid's input (a copy holds a query). */
-export const EXACT_FIELD: Partial<Record<PageCommand['kind'], 'document' | 'source' | 'input' | 'how'>> = {
-  addGrid: 'document', rebuilt: 'source', setInput: 'input', setJoin: 'how',
+/** The fields of a page command a host reads with their exact numbers (a calculated column's 1.10, a join condition's
+ *  decimal), as the page's cubes are read: a cube's document, a source, a grid's input (a copy holds a query), a join's
+ *  how and a Union's more inputs. */
+export const EXACT_FIELD: Partial<Record<PageCommand['kind'], readonly ('document' | 'source' | 'input' | 'how' | 'more')[]>> = {
+  addGrid: ['document'], rebuilt: ['source'], setInput: ['input'], setJoin: ['how', 'more'],
 };
 
 /**
@@ -1144,14 +1159,20 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'setInput': {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       const side = o['side'];
-      if (side !== 'input' && side !== 'left' && side !== 'right') {
-        throw new CubeRefusal(`a grid's input is its input, or a join's left or right, not ${JSON.stringify(side)}`);
+      if (side !== 'input' && side !== 'left' && side !== 'right' && (typeof side !== 'string' || moreIndex(side) === undefined)) {
+        throw new CubeRefusal(`a grid's input is its input, a join's left or right, or a Union's more1, more2, ..., not ${JSON.stringify(side)}`);
       }
-      return { kind, grid: text(o['grid'], 'a grid'), side, input: o['input'] === null ? null : inputOf(o['input']) };
+      return { kind, grid: text(o['grid'], 'a grid'), side: side as InputSide, input: o['input'] === null ? null : inputOf(o['input']) };
     }
-    case 'setJoin':
+    case 'setJoin': {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
-      return { kind, grid: text(o['grid'], 'a grid'), how: readJoinHow(o['how']) };
+      const more = o['more'];
+      if (more !== undefined && !Array.isArray(more)) throw new CubeRefusal(`a Union's inputs after its right are a list, not ${JSON.stringify(more)}`);
+      return {
+        kind, grid: text(o['grid'], 'a grid'), how: readJoinHow(o['how']),
+        ...(more !== undefined ? { more: (more as unknown[]).map(inputOf) } : {}),
+      };
+    }
     case 'setOutput': {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       const out = o['output'];

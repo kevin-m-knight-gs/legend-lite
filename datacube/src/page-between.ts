@@ -19,7 +19,7 @@
 // again over its source as it is now: `rebuilt`) is refused in words, and the screen opens the page again instead.
 
 import { applyPageCommand, idsOf, nextPageId, takenIds, type PageCommand, type PageDraft } from './page-commands.ts';
-import { inputOn, inputSides, isLive, type CubeDocument } from './cube-document.ts';
+import { inputOn, inputSides, isLive, moreIndex, type CubeDocument } from './cube-document.ts';
 import { relinkedInput } from './live-inputs.ts';
 import { layoutTiles, type ChartView, type GridCopy, type GridView, type PageDocument, type PageSheet, type PageView, type TextView } from './page-document.ts';
 import { rearranged, renamedCommand } from './page-rebase.ts';
@@ -174,11 +174,17 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     const have = here === undefined ? undefined : cur().cubes.find((c) => c.id === here.cube)?.cube.source;
     // a snapped grid's input moves once it goes live (setInput refuses it): its rows are its copy's meanwhile
     if (want === undefined || have === undefined || want._type !== have._type || (cur().copies ?? {})[here!.cube] !== undefined) continue;
+    // a Union with more inputs or fewer (one added on the canvas, one taken off): its more set whole, with its how
+    const more = want._type === 'join' && have._type === 'join' && (want.more?.length ?? 0) !== (have.more?.length ?? 0)
+      ? want.more ?? [] : undefined;
     for (const side of inputSides(want)) {
+      if (more !== undefined && moreIndex(side) !== undefined) continue;
       if (!sameValue(inputOn(have, side), relinkedInput(inputOn(want, side), n))) relinks.push({ kind: 'setInput', grid: v.id, side, input: inputOn(want, side) });
     }
     // a join's how, as its box's Join window set it: the page's too
-    if (want._type === 'join' && have._type === 'join' && !sameValue(want.how, have.how)) emit({ kind: 'setJoin', grid: v.id, how: want.how });
+    if (want._type === 'join' && have._type === 'join' && (more !== undefined || !sameValue(want.how, have.how))) {
+      emit({ kind: 'setJoin', grid: v.id, how: want.how, ...(more !== undefined ? { more } : {}) });
+    }
   }
   const tried = (c: PageCommand): boolean => {
     try {

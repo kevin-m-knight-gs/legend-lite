@@ -7,7 +7,7 @@
 
 import { colSpec, colSpecs, fn, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import {
-  frozenInput, inputCube, leavesOf, openCube, type CubeSource, type JoinInput, type JoinSource, type LeafSource, type RowsSource,
+  frozenInput, inputCube, inputLeaves, joinInputs, leavesOf, openCube, type CubeSource, type JoinInput, type JoinSource, type LeafSource, type RowsSource,
 } from './cube-document.ts';
 import type { CatalogColumn, TableModels } from './infer.ts';
 import { MOST_REPEATS, REPEATED_KEYS, joinRelation, type JoinHow, type JoinSide, type JoinSummaryCounts, type JoinSummaryQueries } from './join.ts';
@@ -67,6 +67,8 @@ export interface OpenedInputs {
   readonly typer: RelationTyper;
   readonly left: JoinSide;
   readonly right: JoinSide;
+  /** A Union's inputs after its right (JoinSource.more), in order; absent, two. */
+  readonly more?: readonly JoinSide[];
   /** What drifted in an input since it was joined, in words, each with the input's name. */
   readonly notes: readonly string[];
 }
@@ -156,9 +158,11 @@ async function overOneModel(leaves: readonly LeafSource[], o: JoinOpening): Prom
     // rows as they are
     if (s._type === 'rows') return (await side(frozenInput(s.input, s.name))).relation;
     if (s._type !== 'join') return relationOf.get(o.tables[next++]!)!;
-    const l = await side(frozenInput(s.left, s.name));
-    const r = await side(frozenInput(s.right, s.name));
-    return joinRelation(l, r, reconciled(s.how, r, notes));
+    // its inputs in order, a Union's more after its right (each opened in the leaves' order)
+    const sides: JoinSide[] = [];
+    for (const i of joinInputs(s)) sides.push(await side(frozenInput(i, s.name)));
+    const [l, r, ...more] = sides;
+    return joinRelation(l!, r!, reconciled(s.how, r!, notes), more);
   };
   const side = async (input: JoinInput): Promise<JoinSide> => {
     let rows = await inputRows(input, await relation(input.source), typer, notes);
@@ -170,15 +174,17 @@ async function overOneModel(leaves: readonly LeafSource[], o: JoinOpening): Prom
 }
 
 /**
- * THE TWO INPUTS OF A JOIN over one model (overOneModel): each input its cube's rows at their finest level over its
- * source -- refused in words when a leaf is read elsewhere (leafRefusal) or an input is pivoted (its columns are its
- * values).
+ * THE INPUTS OF A JOIN over one model (overOneModel): its two -- a Union's `more` after them -- each its cube's rows at
+ * their finest level over its source, the leaves of each in turn (cube-document.ts inputLeaves) -- refused in words when
+ * a leaf is read elsewhere (leafRefusal) or an input is pivoted (its columns are its values).
  */
-export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpening): Promise<OpenedInputs> {
-  const m = await overOneModel([...leavesOf(left.source), ...leavesOf(right.source)], o);
-  const l = await m.side(left);
-  const r = await m.side(right);
-  return { model: m.model, runtime: m.runtime, typer: m.typer, left: l, right: r, notes: m.notes };
+export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpening, more: readonly JoinInput[] = []): Promise<OpenedInputs> {
+  const all = [left, right, ...more];
+  const m = await overOneModel(all.flatMap(inputLeaves), o);
+  const sides: JoinSide[] = [];
+  for (const i of all) sides.push(await m.side(i));
+  const [l, r, ...after] = sides;
+  return { model: m.model, runtime: m.runtime, typer: m.typer, left: l!, right: r!, ...(after.length > 0 ? { more: after } : {}), notes: m.notes };
 }
 
 /** Another grid's rows opened over the host's tables (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): its model, its
@@ -206,10 +212,11 @@ export async function openRows(source: RowsSource, o: JoinOpening): Promise<Open
 
 /** A JOIN SOURCE OPENED (§17.4): its inputs over one model (openInputs), joined, typed. */
 export async function openJoin(source: JoinSource, o: JoinOpening): Promise<OpenedJoin> {
-  const inputs = await openInputs(frozenInput(source.left, source.name), frozenInput(source.right, source.name), o);
+  const inputs = await openInputs(frozenInput(source.left, source.name), frozenInput(source.right, source.name), o,
+    (source.more ?? []).map((i) => frozenInput(i, source.name)));
   const notes = [...inputs.notes];
   const how = reconciled(source.how, inputs.right, notes);
-  const relation = joinRelation(inputs.left, inputs.right, how);
+  const relation = joinRelation(inputs.left, inputs.right, how, inputs.more);
   const columns = await sourceColumns(inputs.typer, relation);
   return { ...inputs, notes, how, relation, columns };
 }

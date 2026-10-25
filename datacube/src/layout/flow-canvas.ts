@@ -24,7 +24,7 @@
 import { BOX_HEIGHT, BOX_WIDTH, CONTAINER_FRAME, FRAME_HEAD, FRAME_MIN, MARGIN, framedBy, type Flow, type FlowBox, type Frame } from './flow.ts';
 import type { FlowBoardState, FlowChart } from './flow-board.ts';
 import type { FlowPoint, LineEnd, RunLog } from './flow-board.ts';
-import type { InputPort, InputSide } from '../cube-document.ts';
+import { moreIndex, type InputPort, type InputSide } from '../cube-document.ts';
 import {
   boxInputs, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowGroup, type FlowTool,
 } from '../flow-boxes.ts';
@@ -50,9 +50,9 @@ const SVG = 'http://www.w3.org/2000/svg';
 /** The minimap's room, at most: the plane drawn within it. */
 const MINIMAP = { w: 168, h: 108 } as const;
 
-/** Where a side's port is on a box's left edge, from its top: a join's left above its right, any other box's in the
- *  middle (as Alteryx's Join has its L and R anchors). */
-const portY = (side: InputSide): number => (side === 'left' ? BOX_HEIGHT * 0.3 : side === 'right' ? BOX_HEIGHT * 0.7 : BOX_HEIGHT / 2);
+/** Where the `i`th of `n` input ports is on a box's left edge, a share of its height from its top: one in the middle, a
+ *  join's left above its right (as Alteryx's Join has its L and R anchors), more -- a Union's, and its + -- spread out. */
+const portShare = (i: number, n: number): number => (n <= 1 ? 0.5 : n === 2 ? (i === 0 ? 0.3 : 0.7) : 0.18 + (0.64 * i) / (n - 1));
 
 /** The zoom levels the canvas steps through (−, +, Ctrl+wheel), 1 its own size. */
 const ZOOMS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5] as const;
@@ -98,8 +98,13 @@ function portWord(tool: FlowTool | undefined, port: InputPort | undefined): stri
   return port === 'false' ? 'False' : 'True';
 }
 
-/** A side's name, as a port and the settings say it. */
-const SIDE_WORDS: Readonly<Record<InputSide, string>> = { input: 'Input', left: 'Left', right: 'Right' };
+/** A side's name, as a port and the settings say it: a join's Left and Right, a Union's inputs numbered. */
+function sideWords(side: InputSide, union: boolean): string {
+  const k = moreIndex(side);
+  if (k !== undefined) return `Input ${k + 2}`;
+  if (side === 'input') return 'Input';
+  return union ? (side === 'left' ? 'Input 1' : 'Input 2') : side === 'left' ? 'Left' : 'Right';
+}
 
 /** A line's key: the box it goes into, and its side. */
 const lineKey = (end: LineEnd): string => `${end.tile}:${end.side}`;
@@ -1219,14 +1224,18 @@ export class FlowCanvas {
     const said = this.#said(id);
     const editor = said ? TOOL_EDITORS[said.tool] : undefined;
     const editing = this.#board.editing;
-    const live = this.#inputsOf(id).filter((i) => 'grid' in i);
+    const inputs = this.#inputsOf(id);
+    const live = inputs.filter((i) => 'grid' in i);
+    const union = this.#isUnion(id, inputs);
+    const off = this.#takesOff(id) ? inputs : [];
     const items: MenuItem[] = [
       { id: 'tile.box.show', label: 'Show its rows' },
       ...(editing ? [
         { id: 'tile.box.settings', label: 'Open its settings', ...(editor === undefined ? { disabled: true } : {}) } as const,
         { id: 'tile.box.rename', label: 'Rename (F2)' } as const,
         { id: 'tile.box.duplicate', label: 'Duplicate (Ctrl+D)' } as const,
-        ...live.map((i) => ({ id: `tile.box.freeze.${i.side}` as const, label: `Freeze its ${SIDE_WORDS[i.side]}: a copy of its rows now` })),
+        ...live.map((i) => ({ id: `tile.box.freeze.${i.side}` as const, label: `Freeze its ${sideWords(i.side, union)}: a copy of its rows now` })),
+        ...off.map((i) => ({ id: `tile.box.takeOff.${i.side}` as const, label: `Take off its ${sideWords(i.side, union)}` })),
         { id: 'tile.box.remove', label: 'Remove (Delete)' } as const,
       ] : []),
     ];
@@ -1239,6 +1248,7 @@ export class FlowCanvas {
       else if (act === 'tile.box.duplicate') o.onDuplicate?.(id);
       else if (act === 'tile.box.remove') o.onRemove?.(id);
       else if (act.startsWith('tile.box.freeze.')) o.onFreeze?.(id, act.slice('tile.box.freeze.'.length) as InputSide);
+      else if (act.startsWith('tile.box.takeOff.')) o.onTakeOff?.(id, act.slice('tile.box.takeOff.'.length) as InputSide);
     };
     this.#menu.show([{ label: '', items }], x, y);
   }
@@ -1297,13 +1307,15 @@ export class FlowCanvas {
     const refused = this.#board.refusal(id);
     const columns = this.#columnsOf(id);
     // a side read from a copy (FL6, a line taken off): frozen, said so
-    const frozen = this.#inputsOf(id).flatMap((i) => ('frozen' in i ? [i.frozen] : []));
+    const inputs = this.#inputsOf(id);
+    const frozen = inputs.flatMap((i) => ('frozen' in i ? [i.frozen] : []));
     const counted = this.#board.count(id);
-    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted]);
+    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted, inputs.length]);
     if (key === drawn.key) return;
     drawn.key = key;
     drawn.root.dataset['tool'] = tool;
     drawn.root.dataset['group'] = FLOW_TOOLS[tool].group;
+    this.#paintIns(drawn.root, tool === 'union' && inputs.length >= 2 ? inputs.map((i) => i.side) : undefined);
     // its outputs, where it has several: a Filter's T and F, a Unique's U and D, a Join's J between its L and R
     const [outTrue, outFalse] = drawn.root.querySelectorAll<HTMLElement>(':scope > .dc-flow-port-out');
     if (outTrue !== undefined && outFalse !== undefined) {
@@ -1554,6 +1566,56 @@ export class FlowCanvas {
     return i !== undefined && 'grid' in i ? { grid: i.grid, ...(i.port !== undefined ? { port: i.port } : {}) } : undefined;
   }
 
+  /** Whether a box is a Union (`inputs`, its own): an append, of two inputs or more. */
+  #isUnion(id: string, inputs: readonly BoxInput[] = this.#inputsOf(id)): boolean {
+    return inputs.length >= 2 && this.#said(id)?.tool === 'union';
+  }
+
+  /** Whether a line into box `id` taken off takes its input off too: a Union's of more than two (any other's freezes). */
+  #takesOff(id: string): boolean {
+    const inputs = this.#inputsOf(id);
+    return inputs.length > 2 && this.#isUnion(id, inputs);
+  }
+
+  /** Where box `id`'s input on `side` is on its left edge, from its top (portShare): a Union's, each in turn above its +,
+   *  where a side it has not yet goes in. */
+  #inY(id: string, side: InputSide): number {
+    const inputs = this.#inputsOf(id);
+    const i = inputs.findIndex((x) => x.side === side);
+    if (this.#isUnion(id, inputs)) return BOX_HEIGHT * portShare(i < 0 ? inputs.length : i, inputs.length + 1);
+    return BOX_HEIGHT * portShare(Math.max(0, i), inputs.length);
+  }
+
+  /** A box's input ports drawn: a Union's numbered (`union`, its sides), one a side, and its + below them, where a line
+   *  let go adds one; any other's as made -- one, or a join's L and R. */
+  #paintIns(root: HTMLElement, union: readonly InputSide[] | undefined): void {
+    for (const p of root.querySelectorAll(':scope > .dc-flow-port-more, :scope > .dc-flow-port-add')) p.remove();
+    const left = root.querySelector<HTMLElement>(':scope > .dc-flow-port-left')!;
+    const right = root.querySelector<HTMLElement>(':scope > .dc-flow-port-right')!;
+    root.classList.toggle('dc-flow-many', union !== undefined && union.length >= 3);
+    if (union === undefined) {
+      left.textContent = 'L';
+      right.textContent = 'R';
+      left.style.top = right.style.top = '';
+      return;
+    }
+    const at = (i: number): string => `${portShare(i, union.length + 1) * 100}%`;
+    const port = (cls: string, label: string, i: number): HTMLElement => {
+      const p = this.#doc.createElement('span');
+      p.className = `dc-flow-port dc-flow-port-in ${cls}`;
+      p.textContent = label;
+      p.style.top = at(i);
+      return p;
+    };
+    left.textContent = '1';
+    left.style.top = at(0);
+    right.textContent = '2';
+    right.style.top = at(1);
+    const add = port('dc-flow-port-add', '+', union.length);
+    add.title = 'Let a line go on this Union to add an input';
+    right.after(...union.slice(2).map((_, i) => port('dc-flow-port-more', String(i + 3), i + 2)), add);
+  }
+
   /** How a box's outputs are drawn: a Filter's True and False, a Unique's U and D (its filter's, turned round); a Join's
    *  (a Fuzzy Match's too) L, J and R; any other box's one. */
   #outsOf(id: string): Outs {
@@ -1593,7 +1655,7 @@ export class FlowCanvas {
         const x1 = from !== undefined ? from.x + from.frame!.w : a.x + BOX_WIDTH;
         const y1 = from !== undefined ? from.y + FRAME_HEAD / 2 : a.y + outY(this.#outsOf(input.grid), input.port);
         const x2 = into !== undefined ? into.x : box.x;
-        const y2 = into !== undefined ? into.y + FRAME_HEAD / 2 : box.y + portY(input.side);
+        const y2 = into !== undefined ? into.y + FRAME_HEAD / 2 : box.y + this.#inY(box.tile, input.side);
         lines.push({
           end: { tile: box.tile, side: input.side }, d: curve(x1, y1, x2, y2), mid: { x: (x1 + x2) / 2, y: (y1 + y2) / 2 },
           says: this.#lineWords(input.grid, input.port, box.tile),
@@ -1674,7 +1736,9 @@ export class FlowCanvas {
     if (line === undefined || !this.#board.editing) return;
     this.#line = undefined;
     this.#paintLines(this.#placed(this.#board.layout));
-    this.#board.options.onFreeze?.(line.tile, line.side);
+    // a Union of more than two: that input taken off, those after it moved up; any other's, frozen
+    if (this.#takesOff(line.tile)) this.#board.options.onTakeOff?.(line.tile, line.side);
+    else this.#board.options.onFreeze?.(line.tile, line.side);
   }
 
   /** The line under a point of the window, if one is (its wider stroke found). */
@@ -1695,12 +1759,17 @@ export class FlowCanvas {
   }
 
   /** Where a line let go at a point of the window goes in: the box under it that reads another's rows -- a join's left
-   *  or right by the half it is let go on -- never `from` itself, nor a box that reads `from` already on that side. */
+   *  or right by the half it is let go on; a Union's first side read from a copy, else one input more (Alteryx's Union
+   *  takes any number) -- never `from` itself, nor a box that reads `from` already on that side. */
   #endAt(from: string, x: number, y: number, port?: InputPort): LineEnd | undefined {
     const tile = this.#boxAt(x, y);
     if (tile === undefined || tile === from) return undefined;
     const inputs = this.#inputsOf(tile);
     if (inputs.length === 0) return undefined;
+    if (this.#isUnion(tile, inputs)) {
+      const frozen = inputs.find((i) => 'frozen' in i);
+      return { tile, side: frozen?.side ?? (`more${inputs.length - 1}` as InputSide) };
+    }
     const r = this.#boxes.get(tile)!.root.getBoundingClientRect();
     const side: InputSide = inputs.length === 1 ? inputs[0]!.side : (y - r.top < r.height / 2 ? 'left' : 'right');
     const now = inputs.find((i) => i.side === side);
@@ -1728,7 +1797,7 @@ export class FlowCanvas {
       this.#mark(to?.tile);
       // drawn to the port it would go into, else to the pointer
       const box = to === undefined ? undefined : this.#placed(this.#board.layout).boxes.find((b) => b.tile === to.tile);
-      Object.assign(w, box !== undefined && to !== undefined ? { x: box.x, y: box.y + portY(to.side), to } : { ...plane(ev), to: undefined });
+      Object.assign(w, box !== undefined && to !== undefined ? { x: box.x, y: box.y + this.#inY(to.tile, to.side), to } : { ...plane(ev), to: undefined });
       this.#paintLines(this.#placed(this.#board.layout));
     }, (apply, ev) => {
       const to = this.#wire?.to;
@@ -1945,44 +2014,75 @@ export class FlowCanvas {
       const ports: readonly (InputPort | undefined)[] = outs === 'two' ? [undefined, 'false'] : [undefined, 'left', 'right'];
       return ports.map((port) => ({ id: b, name: `${name} (${portWord(tool, port)})`, ...(port !== undefined ? { port } : {}) }));
     });
-    const key = JSON.stringify([id, inputs, offered, this.#board.editing]);
+    const union = id !== undefined && this.#isUnion(id, inputs);
+    const takesOff = id !== undefined && this.#takesOff(id);
+    const key = JSON.stringify([id, inputs, offered, this.#board.editing, union]);
     if (key === this.#inputsKey) return;
     this.#inputsKey = key;
     this.#inputs.hidden = inputs.length === 0;
     const d = this.#doc;
-    this.#inputs.replaceChildren(...inputs.map((input) => {
-      const row = d.createElement('label');
-      row.className = 'dc-flow-input';
-      const words = d.createElement('span');
-      words.className = 'dc-flow-input-side';
-      words.textContent = SIDE_WORDS[input.side];
-      const pick = d.createElement('select');
-      pick.className = 'dc-select';
-      pick.disabled = !this.#board.editing;
-      const option = (label: string, value: string, on: boolean): HTMLOptionElement => {
-        const o = d.createElement('option');
-        o.textContent = label;
-        o.value = value;
-        o.selected = on;
-        return o;
-      };
+    const option = (label: string, value: string, on: boolean): HTMLOptionElement => {
+      const o = d.createElement('option');
+      o.textContent = label;
+      o.value = value;
+      o.selected = on;
+      return o;
+    };
+    const boxOptions = (pick: HTMLSelectElement, on: (grid: string, port: InputPort | undefined) => boolean): void => {
       for (const o of offered) {
         const port = 'port' in o ? o.port : undefined;
-        pick.append(option(o.name, `grid:${o.id}${port !== undefined ? `:${port}` : ''}`, 'grid' in input && input.grid === o.id && input.port === port));
+        pick.append(option(o.name, `grid:${o.id}${port !== undefined ? `:${port}` : ''}`, on(o.id, port)));
       }
+    };
+    // a box picked: linked on `side` as a line drawn to it would be
+    const link = (side: InputSide, v: string): void => {
+      const [grid, port] = v.slice('grid:'.length).split(':');
+      this.#board.options.onConnect?.(id!, side, grid!, port === 'false' || port === 'left' || port === 'right' ? port : undefined);
+    };
+    const row = (side: string, pick: HTMLSelectElement, ...after: HTMLElement[]): HTMLElement => {
+      const r = d.createElement('label');
+      r.className = 'dc-flow-input';
+      const words = d.createElement('span');
+      words.className = 'dc-flow-input-side';
+      words.textContent = side;
+      pick.className = 'dc-select';
+      pick.disabled = !this.#board.editing;
+      r.append(words, pick, ...after);
+      return r;
+    };
+    this.#inputs.replaceChildren(...inputs.map((input) => {
+      const pick = d.createElement('select');
+      boxOptions(pick, (grid, port) => 'grid' in input && input.grid === grid && input.port === port);
       // a copy: what it reads when frozen -- or, live, Freeze: a copy of what it reads now
       pick.append(option('frozen' in input ? `A frozen copy of ${input.frozen}` : 'Freeze: a copy of its rows now', 'frozen', 'frozen' in input));
       pick.addEventListener('change', () => {
-        const v = pick.value;
-        if (v === 'frozen') this.#board.options.onFreeze?.(id!, input.side);
-        else {
-          const [grid, port] = v.slice('grid:'.length).split(':');
-          this.#board.options.onConnect?.(id!, input.side, grid!, port === 'false' || port === 'left' || port === 'right' ? port : undefined);
-        }
+        if (pick.value === 'frozen') this.#board.options.onFreeze?.(id!, input.side);
+        else link(input.side, pick.value);
       });
-      row.append(words, pick);
-      return row;
-    }));
+      // a Union's of more than two: taken off, as its line deleted
+      const off = d.createElement('button');
+      off.type = 'button';
+      off.className = 'dc-flow-input-off';
+      off.textContent = '×';
+      off.title = `Take off its ${sideWords(input.side, union)}: the inputs after it move up`;
+      off.setAttribute('aria-label', `Take off its ${sideWords(input.side, union)}`);
+      off.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.#board.options.onTakeOff?.(id!, input.side);
+      });
+      return row(sideWords(input.side, union), pick, ...(takesOff && this.#board.editing ? [off] : []));
+    }), ...(union && this.#board.editing ? [(() => {
+      // a Union's next input: a box picked, appended after its last (Alteryx's Union takes any number)
+      const pick = d.createElement('select');
+      pick.append(option('Add an input…', '', true));
+      boxOptions(pick, () => false);
+      pick.addEventListener('change', () => {
+        if (pick.value !== '') link(`more${inputs.length - 1}` as InputSide, pick.value);
+      });
+      const r = row(`Input ${inputs.length + 1}`, pick);
+      r.classList.add('dc-flow-input-add');
+      return r;
+    })()] : []));
   }
 
   /** The settings pane with nothing docked: the shown box's tool and what it is set to, and how to set it. */

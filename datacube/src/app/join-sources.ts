@@ -5,7 +5,7 @@
 // a page with no join loads none of it (test/bundle-budget.test.ts).
 
 import {
-  inputCube, isLive, leavesOf, rebuilt, sha256, type CubeDocument, type CubeInput, type CubeSource, type FileSource, type JoinInput,
+  inputCube, inputLeaves, isLive, leavesOf, rebuilt, sha256, type CubeDocument, type CubeInput, type CubeSource, type FileSource, type JoinInput,
   type JoinSource,
   type LeafSource, type RowsSource,
 } from '../cube-document.ts';
@@ -304,7 +304,7 @@ function tabOpening(h: JoinSourcesHost, tables: readonly string[], made: (rows: 
  */
 export async function openedInputsOf(h: JoinSourcesHost, left: JoinInput, right: JoinInput, name: string, page?: string):
   Promise<{ readonly inputs: OpenedInputs; readonly rows: GridRows; dispose(): Promise<void> } | undefined> {
-  const read = await leafTablesOf(h, [...leavesOf(left.source), ...leavesOf(right.source)], name, page, undefined);
+  const read = await leafTablesOf(h, [...inputLeaves(left), ...inputLeaves(right)], name, page, undefined);
   if (read === undefined) return undefined;
   let rows: GridRows | undefined;
   try {

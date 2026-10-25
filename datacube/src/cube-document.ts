@@ -179,6 +179,9 @@ export interface JoinSource {
   readonly left: CubeInput;
   readonly right: CubeInput;
   readonly how: JoinHow;
+  /** A Union's inputs after its right, in order (Alteryx's Union of any number: an append's only), each appended in turn
+   *  -- its sides `more1`, `more2`, ... Absent, two. */
+  readonly more?: readonly CubeInput[];
   /** What it answered when the cube was saved. */
   readonly columns: readonly { readonly name: string; readonly type: string }[];
 }
@@ -259,29 +262,60 @@ export function frozenInput(input: CubeInput, of: string): JoinInput {
   return input;
 }
 
-/** Which input of a grid over others' rows: another grid's rows have one (`input`), a join two (`left`, `right`). */
-export type InputSide = 'input' | 'left' | 'right';
+/** Which input of a grid over others' rows: another grid's rows have one (`input`), a join two (`left`, `right`), a Union
+ *  any number more after them (`more1`, `more2`, ...: JoinSource.more). */
+export type InputSide = 'input' | 'left' | 'right' | `more${number}`;
+
+/** Which of a Union's inputs after its right a side is (`more2`: 2), or undefined for any other side. */
+export function moreIndex(side: string): number | undefined {
+  const m = /^more([1-9]\d*)$/.exec(side);
+  return m === null ? undefined : Number(m[1]);
+}
 
 /** The input on `side` of `source`, refused in words when the source has none there. */
 export function inputOn(source: CubeSource, side: InputSide): CubeInput {
   if (source._type === 'rows' && side === 'input') return source.input;
-  if (source._type === 'join' && side !== 'input') return source[side];
+  const k = moreIndex(side);
+  if (source._type === 'join' && k !== undefined) {
+    const i = source.more?.[k - 1];
+    if (i !== undefined) return i;
+    throw new CubeRefusal(`${source.name} has ${2 + (source.more?.length ?? 0)} inputs: it has no input ${k + 2}`);
+  }
+  if (source._type === 'join' && (side === 'left' || side === 'right')) return source[side];
   throw new CubeRefusal(source._type === 'join' ? `${source.name} is a join: its inputs are its left and its right`
     : source._type === 'rows' ? `${source.name} reads another grid's rows: its one input is its input, not its ${side}`
       : `${source.name} reads no other grid: it has no input`);
 }
 
-/** `source` with its input on `side` replaced (inputOn's sides, refused as it refuses them). */
+/** `source` with its input on `side` replaced (inputOn's sides, refused as it refuses them) -- or, a Union's next side
+ *  (`more` one past its last), one more input appended. */
 export function withInputOn(source: CubeSource, side: InputSide, input: CubeInput): CubeSource {
+  const k = moreIndex(side);
+  if (source._type === 'join' && k !== undefined && k === (source.more?.length ?? 0) + 1) {
+    if (source.how.form !== 'append') throw new CubeRefusal(`${source.name} is a join of two: only a Union takes more inputs`);
+    return { ...source, more: [...(source.more ?? []), input] };
+  }
   inputOn(source, side);
   if (source._type === 'rows') return { ...source, input };
+  if (source._type === 'join' && k !== undefined) return { ...source, more: source.more!.map((i, n) => (n === k - 1 ? input : i)) };
   if (source._type === 'join') return side === 'left' ? { ...source, left: input } : { ...source, right: input };
   throw new Error('unreachable: inputOn refused it');
 }
 
+/** A join's inputs in order: its left, its right, and a Union's more after them (JoinSource.more). */
+export function joinInputs<I extends CubeInput>(source: { readonly left: I; readonly right: I; readonly more?: readonly I[] }): I[] {
+  return [source.left, source.right, ...(source.more ?? [])];
+}
+
+/** A join with `f` made of each of its inputs (joinInputs'), a Union's more as well. */
+export function withJoinInputs(source: JoinSource, f: (i: CubeInput) => CubeInput): JoinSource {
+  return { ...source, left: f(source.left), right: f(source.right), ...(source.more !== undefined ? { more: source.more.map(f) } : {}) };
+}
+
 /** The sides of `source` that read another grid's rows, in its order (none: it reads no other grid). */
 export function inputSides(source: CubeSource): readonly InputSide[] {
-  return source._type === 'rows' ? ['input'] : source._type === 'join' ? ['left', 'right'] : [];
+  return source._type === 'rows' ? ['input'] : source._type === 'join'
+    ? ['left', 'right', ...(source.more ?? []).map((_, i): InputSide => `more${i + 1}`)] : [];
 }
 
 /** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe, a class, a join,
@@ -301,14 +335,14 @@ export type LeafSource = Exclude<CubeSource, JoinSource | RowsSource>;
  */
 export function leavesOf(source: CubeSource): LeafSource[] {
   switch (source._type) {
-    case 'join': return [...inputLeaves(frozenInput(source.left, source.name)), ...inputLeaves(frozenInput(source.right, source.name))];
+    case 'join': return joinInputs(source).flatMap((i) => inputLeaves(frozenInput(i, source.name)));
     case 'rows': return inputLeaves(frozenInput(source.input, source.name));
     default: return [source];
   }
 }
 
 /** An input's leaves: its source's, then each input its rows are matched against (JoinInput.unmatched), in turn. */
-function inputLeaves(input: JoinInput): LeafSource[] {
+export function inputLeaves(input: JoinInput): LeafSource[] {
   return [...leavesOf(input.source), ...(input.unmatched ?? []).flatMap((u) => inputLeaves(u.by))];
 }
 
@@ -570,7 +604,17 @@ function readJoinSource(s: Record<string, unknown>): JoinSource {
     if (e instanceof CubeRefusal) throw new CubeDocumentError(`the join source: ${e.message}`);
     throw e;
   }
-  return { _type: 'join', name: s['name'], left: input('left'), right: input('right'), how, columns: columns as JoinSource['columns'] };
+  // a Union's inputs after its right, each read as its others are
+  const more = s['more'];
+  if (more !== undefined && !(Array.isArray(more) && more.length > 0 && more.every(isObject))) {
+    throw new CubeDocumentError(`the join source's inputs after its right are a list of inputs, not ${JSON.stringify(plain(more) ?? null)}`);
+  }
+  if (more !== undefined && how.form !== 'append') throw new CubeDocumentError('the join source is a join of two: only a Union takes more inputs');
+  return {
+    _type: 'join', name: s['name'], left: input('left'), right: input('right'), how,
+    ...(more !== undefined ? { more: (more as Record<string, unknown>[]).map((i, n) => readInput(i, `the join source's input ${n + 3}`)) } : {}),
+    columns: columns as JoinSource['columns'],
+  };
 }
 
 /** A frozen input (`what`, as said: "the join source's left input"): what a grid was -- its name, source and query. */

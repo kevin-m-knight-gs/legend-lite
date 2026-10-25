@@ -4714,7 +4714,7 @@
 .dc-flow-view .dc-flow-port-out { cursor: inherit; }
 .dc-flow-view .dc-flow-port-out:hover { transform: none; border-color: var(--dc-line-strong); background: var(--dc-bg); }
 /* its input ports: one, a join's left and right (L above R, where the lines into them come in) -- an Input has none */
-.dc-flow-port-left, .dc-flow-port-right {
+.dc-flow-port-left, .dc-flow-port-right, .dc-flow-port-more, .dc-flow-port-add {
   display: none;
   width: 12px;
   height: 12px;
@@ -4732,6 +4732,13 @@
 /* every tool of the Join group reads two: a Join's, a Union's, an Append Fields', a Fuzzy Match's */
 .dc-flow-box[data-group='join'] > .dc-flow-port-in { display: none; }
 .dc-flow-box[data-group='join'] > .dc-flow-port-left, .dc-flow-box[data-group='join'] > .dc-flow-port-right { display: block; }
+/* a Union's inputs numbered, one a port, and its + below them: a line let go on it adds one (none to add on a locked page) */
+.dc-flow-box[data-tool='union'] > .dc-flow-port-more, .dc-flow-box[data-tool='union'] > .dc-flow-port-add { display: block; }
+.dc-flow-port-add { border-style: dashed; color: var(--dc-active); }
+.dc-flow-wiring .dc-flow-box.dc-flow-target > .dc-flow-port-add { border-style: solid; border-color: var(--dc-active); background: var(--dc-selected-bg); }
+.dc-flow-view .dc-flow-box[data-tool='union'] > .dc-flow-port-add { display: none; }
+/* three inputs or more: smaller ports, so each has its own room on the box's edge */
+.dc-flow-box.dc-flow-many > .dc-flow-port-in { width: 9px; height: 9px; margin-top: -5.5px; left: -5.5px; font-size: 6px; line-height: 9px; }
 /* a box reading a copy on a side (a line taken off): its input hollow and dashed, said in its title */
 .dc-flow-box.dc-flow-frozen > .dc-flow-port-in { border-style: dashed; border-color: var(--tw-sky-600); }
 .dc-flow-box.dc-flow-frozen .dc-flow-says::before { content: '❄ '; color: var(--tw-sky-600); }
@@ -4894,6 +4901,21 @@
 .dc-flow-output-said { color: var(--dc-muted); font-size: 12px; }
 .dc-flow-input-side { color: var(--dc-muted); font-size: 12px; }
 .dc-flow-input > .dc-select { min-width: 10em; max-width: 22em; }
+/* a Union's input taken off (one of more than two), and its next one added */
+.dc-flow-input-off {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--dc-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dc-flow-input-off:hover { background: var(--dc-fill); color: var(--tw-black); }
+.dc-flow-input-add > .dc-select { color: var(--dc-muted); }
 .dc-flow-dock { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .dc-flow-dock:empty { display: none; }
 .dc-flow-dock:not(:empty) ~ .dc-flow-settings-empty { display: none; }

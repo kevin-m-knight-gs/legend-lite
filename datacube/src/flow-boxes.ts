@@ -162,7 +162,9 @@ export function boxSays(cube: CubeDocument): BoxSays {
     const replaced = cube.query.derived.map(findReplaceOf).find((r) => r !== undefined
       && inPlaceOf(cube.query.derived, cube.configuration, () => [r.column]).some((p) => p.column === r.column));
     if (replaced !== undefined) return { tool: 'findReplace', also: [], says: `${replaced.column} replaced by ${replaced.with}` };
-    return { tool: joinTool(source.how), also: [], says: joinWords(source.how) };
+    // a Union of more than two: the rows of each
+    const n = 2 + (source.more?.length ?? 0);
+    return { tool: joinTool(source.how), also: [], says: n > 2 ? `the rows of all ${n}, columns by name` : joinWords(source.how) };
   }
   if (source._type !== 'rows') return { tool: 'input', also: [], says: source.name };
   const q = cube.query;

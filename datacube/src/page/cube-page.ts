@@ -50,6 +50,7 @@ import {
 } from '../page-document.ts';
 import {
   layoutCommand, movedCommand, moveSheetCommand, moveToSheetCommands, pageCommand, renameSheetCommand, savedLayout, showGridCommands,
+  takeOffCommands,
 } from '../page-gestures.ts';
 import { chartTitle, gridTitle, nextPageId, textTitle } from '../page-ids.ts';
 import type { PageCommand } from '../page-commands.ts';
@@ -573,6 +574,12 @@ export class CubePage {
       },
       onFreeze: (tile, side) => {
         this.#tell('Freeze Box', pageCommand('setInput', { grid: tile, side, input: null }));
+        this.#options.onChange();
+      },
+      onTakeOff: (tile, side) => {
+        const source = (this.#boxes.get(tile)?.document ?? this.documentOf(tile))?.source;
+        if (source === undefined) return;
+        this.#tell('Take Off Input', ...takeOffCommands(tile, source, side));
         this.#options.onChange();
       },
       onUndo: (redo) => this.#options.onUndo?.(redo),

@@ -14,7 +14,8 @@ import { readPage, type PageDocument, type PageLayout } from './page-document.ts
 import { arranged } from './layout/flow.ts';
 import { liveGrids } from './live-inputs.ts';
 import { givenName } from './page-names.ts';
-import { CubeRefusal } from './snapshot.ts';
+import { CubeRefusal, sameValue } from './snapshot.ts';
+import { inputOn, inputSides, joinInputs, type CubeSource, type InputSide } from './cube-document.ts';
 
 /** A page command of `kind` whose every field is the person's input -- what they typed, picked or pointed at -- built
  *  as Python's generated builder builds it (_commands.py, from the same list): its kind, then its fields in the order
@@ -135,6 +136,25 @@ export function tidyCommands(page: PageDocument, sheet: string): PageCommand[] {
   const placed = new Map(arranged({ boxes: layout.boxes.filter((b) => isBox(b.tile)) }, reads).boxes.map((b) => [b.tile, b]));
   const boxes = layout.boxes.map((b) => placed.get(b.tile) ?? b);
   return JSON.stringify(boxes) === JSON.stringify(layout.boxes) ? [] : [{ kind: 'layout', sheet, layout: { kind: 'flow', boxes } }];
+}
+
+/**
+ * A UNION'S INPUT TAKEN OFF (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2: a line into it deleted, its settings' ×): grid
+ * `grid`'s input on `side` gone, those after it each moved up one -- told as a setInput of its left and of its right when
+ * either changes, then its more whole (setJoin). Refused in words: a join of two, whose line taken off freezes it.
+ */
+export function takeOffCommands(grid: string, source: CubeSource, side: InputSide): PageCommand[] {
+  inputOn(source, side);
+  if (source._type !== 'join' || source.more === undefined) {
+    throw new CubeRefusal(`'${grid}' reads two inputs: one taken off is frozen (a copy of its rows), not removed`);
+  }
+  const at = inputSides(source).indexOf(side);
+  const [left, right, ...more] = joinInputs(source).filter((_, i) => i !== at);
+  return [
+    ...(sameValue(left, source.left) ? [] : [pageCommand('setInput', { grid, side: 'left', input: left! })]),
+    ...(sameValue(right, source.right) ? [] : [pageCommand('setInput', { grid, side: 'right', input: right! })]),
+    pageCommand('setJoin', { grid, how: source.how, more }),
+  ];
 }
 
 /** The page's gestures Python asks by name (headless pageGesture), with their arguments read from JSON: those whose

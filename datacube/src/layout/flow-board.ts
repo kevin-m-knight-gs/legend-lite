@@ -63,6 +63,9 @@ export interface FlowBoardOptions {
   /** A line into box `tile` on `side` taken off, or its settings' Freeze: the caller freezes it -- it reads a copy of what
    *  it read (setInput, a copy: FL6). */
   readonly onFreeze?: (tile: string, side: InputSide) => void;
+  /** A Union's input taken off (one of more than two: its line deleted, its settings' ×, its menu's Take off): the
+   *  caller takes it off, those after it moved up (page-gestures.ts takeOffCommands). */
+  readonly onTakeOff?: (tile: string, side: InputSide) => void;
   /** Ctrl+Z (Shift for redo) on the canvas, or its Undo and Redo: the page's own undo. */
   readonly onUndo?: (redo: boolean) => void;
   /** What the page's Undo and Redo would undo and redo now, by name (undefined: nothing): the canvas's Undo and Redo. */

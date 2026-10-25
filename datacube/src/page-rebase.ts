@@ -75,7 +75,7 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'setOutput':
       return { ...command, grid: n(command.grid) };
     case 'setJoin':
-      return { ...command, grid: n(command.grid) };
+      return { ...command, grid: n(command.grid), ...(command.more !== undefined ? { more: command.more.map((i) => relinkedInput(i, n)) } : {}) };
     case 'renameSheet':
     case 'moveSheet':
     case 'removeSheet':

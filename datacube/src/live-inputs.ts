@@ -3,7 +3,7 @@
 // resolved against its page -- every live input the copy of what its grid is now, as the Join window copies a grid it
 // joins (page-commands.ts joinInputOf) -- and the order a page's cubes open in, so a grid opens after the grids it reads.
 
-import { isLive, type CubeInput, type CubeSource, type InputPort, type JoinInput } from './cube-document.ts';
+import { isLive, withJoinInputs, joinInputs, type CubeInput, type CubeSource, type InputPort, type JoinInput } from './cube-document.ts';
 import type { PageDocument } from './page-document.ts';
 import { boxOmitted, boxOrder, boxRenamed } from './box-columns.ts';
 import { unmatchedOn } from './join-how.ts';
@@ -20,10 +20,7 @@ export function liveGrids(source: CubeSource): string[] {
       } else if (!grids.includes(i.grid)) grids.push(i.grid);
     };
     if (s._type === 'rows') input(s.input);
-    else if (s._type === 'join') {
-      input(s.left);
-      input(s.right);
-    }
+    else if (s._type === 'join') joinInputs(s).forEach(input);
   };
   visit(source);
   return grids;
@@ -105,7 +102,7 @@ function resolvedOn(page: PageDocument, source: CubeSource, through: readonly st
   const input = (i: CubeInput): JoinInput => resolvedInput(page, i, through);
   switch (source._type) {
     case 'rows': return { ...source, input: input(source.input) };
-    case 'join': return { ...source, left: input(source.left), right: input(source.right) };
+    case 'join': return withJoinInputs(source, input);
     default: return source;
   }
 }
@@ -116,7 +113,7 @@ export function relinked(source: CubeSource, n: (id: string) => string): CubeSou
   const input = (i: CubeInput): CubeInput => relinkedInput(i, n);
   switch (source._type) {
     case 'rows': return { ...source, input: input(source.input) };
-    case 'join': return { ...source, left: input(source.left), right: input(source.right) };
+    case 'join': return withJoinInputs(source, input);
     default: return source;
   }
 }
@@ -135,7 +132,7 @@ export function frozenFrom(source: CubeSource, grid: string, copy: (port: InputP
   const input = (i: CubeInput): CubeInput => (isLive(i) ? (i.grid === grid ? copy(i.port) : i) : copyWith(i, (s) => frozenFrom(s, grid, copy)));
   switch (source._type) {
     case 'rows': return { ...source, input: input(source.input) };
-    case 'join': return { ...source, left: input(source.left), right: input(source.right) };
+    case 'join': return withJoinInputs(source, input);
     default: return source;
   }
 }

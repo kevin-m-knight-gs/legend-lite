@@ -85,7 +85,8 @@ function asOfCondition(how: Extract<JoinHow, { form: 'asOf' }>, named: (c: strin
  * in as written: a column an input lacks, a name taken twice, an append's column of two types are the compiler's to
  * refuse, as it types what this writes.
  */
-export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow): ValueSpecification {
+export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow, more: readonly JoinSide[] = []): ValueSpecification {
+  if (more.length > 0 && how.form !== 'append') throw new Error(`a ${how.form} joins two inputs, not ${2 + more.length}: only an append takes more`);
   const mine = left.columns.map((c) => c.name);
   switch (how.form) {
     case 'join':
@@ -106,17 +107,18 @@ export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow): Val
     case 'anti':
       return semi(left, from(right.relation), conditionLambda(how.on, (c) => c), how.form === 'semi' ? 'isNotEmpty' : 'isEmpty').node;
     case 'append':
-      return appended(left, right).node;
+      return appended([left, right, ...more]).node;
   }
 }
 
 /**
- * An append: mine in my order, then theirs I lack; each side extended by the columns only the other has -- `[]` of the
- * type the compiler gave that column -- and selected in that order when its own differs.
+ * An append of any number (a Union's, JoinSource.more): the first's columns in its order, then each next one's it lacks,
+ * in turn; each side extended by the columns only the others have -- `[]` of the type the compiler gave that column (the
+ * first side to have it) -- and selected in that order when its own differs; concatenated in the sides' order.
  */
-function appended(left: JoinSide, right: JoinSide): Relation {
-  const mine = new Set(left.columns.map((c) => c.name));
-  const all = [...left.columns, ...right.columns.filter((c) => !mine.has(c.name))];
+function appended(sides: readonly JoinSide[]): Relation {
+  const all: JoinSide['columns'][number][] = [];
+  for (const s of sides) for (const c of s.columns) if (!all.some((a) => a.name === c.name)) all.push(c);
   const order = all.map((c) => c.name);
   const side = (s: JoinSide): Relation => {
     const own = new Set(s.columns.map((c) => c.name));
@@ -126,7 +128,7 @@ function appended(left: JoinSide, right: JoinSide): Relation {
     const now = [...s.columns.map((c) => c.name), ...lacking.map((c) => c.name)];
     return now.every((c, i) => c === order[i]) ? rel : rel.select(order);
   };
-  return side(left).concatenate(side(right));
+  return sides.slice(1).reduce((rel, s) => rel.concatenate(side(s)), side(sides[0]!));
 }
 
 // ---------------------------------------------------------------- what it will do, before it is applied
