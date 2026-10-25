@@ -209,11 +209,17 @@ export class ChartPanel {
     this.closeForm();
   };
 
-  /** Escape in the options, on its chart, or with nothing focused puts them away -- not one meant for a window. */
+  /**
+   * Escape puts them away -- not one meant for another window, nor typed in a field elsewhere. (The board keeps the
+   * focus on a chart's tile, not in it: "in its chart" missed the Escape a person presses after Options....)
+   */
   readonly #onKey = (event: KeyboardEvent): void => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
-    const target = event.target as Node | null;
-    if (target !== null && target !== this.#doc.body && !this.#root.contains(target)) return;
+    const target = event.target as Element | null;
+    if (target !== null && !this.#form.contains(target)) {
+      if (target.closest?.('.dc-app-overlay, .hostwin, .dc-picker, .dc-layout-picker, [role="dialog"]')) return;
+      if (target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+    }
     event.preventDefault();
     this.closeForm();
   };

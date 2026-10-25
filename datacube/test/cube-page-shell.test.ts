@@ -191,7 +191,8 @@ async function togglePill(chart: string): Promise<void> {
 }
 /** A chart's right-click menu, opened on its body. */
 function chartMenu(chart: string): HTMLElement[] {
-  dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+  // a menu still open put away, as a person would -- with none open, Escape is a chart's open options' (2026-10-25)
+  if (dom.window.document.querySelector('.dc-menu')) dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
   (tile(chart).querySelector('.dc-chart-tile') as HTMLElement)
     .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
   return menuItems();
@@ -514,10 +515,13 @@ describe('a chart\'s right-click menu: Options..., and Show Grid offered only wh
     assert.equal(form().hidden, false, 'a press in them');
     press(tile(a));
     assert.equal(form().hidden, true, 'a press on another tile');
-    // Escape, in them
+    // Escape, in them -- and on the chart's tile, where the board keeps the focus after Options...
     options();
     form().dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     assert.equal(form().hidden, true, 'Escape');
+    options();
+    tile(chart).dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(form().hidden, true, 'Escape on its tile');
   });
 
   // the user, 2026-10-23: Show Grid on every chart. A chart of rows, of places or of one figure takes nothing of its
