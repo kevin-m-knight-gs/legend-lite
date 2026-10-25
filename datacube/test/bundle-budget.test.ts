@@ -313,8 +313,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  355,500 -> 356,000 (2026-10-25, the UI waves the user asked for: a measure's numbers right-aligned in the grid and
  *  every export (style.ts autoTextAlign, grid-edits.ts isMeasureLeaf); the page's ≡ grouped by purpose -- New Page,
  *  Export Page File…, Edit Layout that flips, Create ▸ Text Box, View ▸ Hide the Bar and Keyboard Shortcuts…, each greyed
- *  entry's why on hover (page-app.ts #menuGroups)). Measured 355,513. */
-const BUDGET = 356_000;
+ *  entry's why on hover (page-app.ts #menuGroups)). Measured 355,513.
+ *  356,000 -> 357,500 (2026-10-25, the one tile header the user agreed: every tile's state an icon left of its title
+ *  (ui/tile-icons.ts, drawn), a chart's state menu, a text box's pencil, a grid's Snap / Go Live / Snap Again and its
+ *  source and plane in words in its status bar, a lone grid's state in its sheet's tab, ⤢/⤡). Measured 357,039. */
+const BUDGET = 357_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -418,8 +421,10 @@ const BUDGET = 356_000;
  *  337,000 -> 338,000 (2026-10-24, a long press on an iPad and Count in Column Properties -- the grid's note of the same
  *  date). Measured 337,265.
  *  338,000 -> 344,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 314,000 -> 324,000 -- the
- *  grid-only page's note of the same date). Measured 343,438. */
-const ENGINE_BUDGET = 344_000;
+ *  grid-only page's note of the same date). Measured 343,438.
+ *  344,000 -> 345,500 (2026-10-25, the UI waves: a measure's numbers right-aligned, the page's ≡ grouped by purpose and
+ *  the one tile header -- the grid-only page's notes of the same date). Measured 345,283. */
+const ENGINE_BUDGET = 345_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -574,8 +579,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  356,000 -> 357,000 (2026-10-24, a long press on an iPad and Count in Column Properties -- the grid's note of the same
  *  date). Measured 356,493.
  *  357,000 -> 363,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 332,500 -> 342,500 -- the
- *  grid-only page's note of the same date). Measured 362,642. */
-const WIDGET_BUDGET = 363_000;
+ *  grid-only page's note of the same date). Measured 362,642.
+ *  363,000 -> 365,000 (2026-10-25, the UI waves: a measure's numbers right-aligned, the page's ≡ grouped by purpose and
+ *  the one tile header -- the grid-only page's notes of the same date). Measured 364,708. */
+const WIDGET_BUDGET = 365_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

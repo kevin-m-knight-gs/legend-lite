@@ -795,8 +795,10 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   // -- a grid (app.ts) --
   'src/app.ts:constructor:options.runner': { count: 3, other: `${BOTH} a grid's rows run by the host's runner, or the tab's planner`, ability: 'rows' },
   'src/app.ts:#signInOffer:options.runner': { other: `${BOTH} signed in again by the tab's warehouse engine, or the host's own sign-in`, ability: 'warehouse' },
-  'src/app.ts:#snapPill:options.runner': { count: 2, other: `${BOTH} Snap into the tab's copy, or the host's`, ability: 'snap' },
-  'src/app.ts:paint:options.runner': { count: 2, other: `${BOTH} where the rows are, said for the tab's or the host's`, ability: 'rows' },
+  // 2026-10-25 (the one tile header, docs/DATACUBE_UI_REVIEW_2026_10_24.md §1a): #snapPill's two and its paint's two,
+  // moved as they were into #plane -- one description of where a grid's rows are, for a grid alone's pill and a tile's
+  // state -- no branch added
+  'src/app.ts:#plane:options.runner': { count: 4, other: `${BOTH} where the rows are, and Snap into the tab's copy or the host's`, ability: 'snap' },
 };
 
 /** What a `both:` branch is a way to on each host: an ability, proved on each (HOST_ABILITIES). */
