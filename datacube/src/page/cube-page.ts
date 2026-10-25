@@ -35,7 +35,7 @@ import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import { FlowBoard, type FlowPoint, type LineEnd } from '../layout/flow-board.ts';
-import { liveGrids } from '../live-inputs.ts';
+import { liveGrids, relinked } from '../live-inputs.ts';
 import { EMPTY_FLOW, flowTiles } from '../layout/flow.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
@@ -310,6 +310,13 @@ const sheetTiles = (sheet: Sheet): string[] => (sheet.kind === 'flow' ? flowTile
 const layoutTilesOf = (layout: PageLayout): string[] => (layout.kind === 'flow' ? flowTiles(layout) : tiles(layout));
 
 /** A FLOW'S BOX NOT SHOWN: no grid made for it, its view and its cube as the page has them (M1's design, 3). */
+/** A box or a note a flow's Ctrl+C kept: its cube (or its words), and where it was. */
+type ClipItem = { readonly tile: string; readonly x: number; readonly y: number }
+  & ({ readonly document: CubeDocument } | { readonly text: string });
+
+/** How far down and right of where they were boxes are pasted, given no place: their copies seen beside them. */
+const PASTE_OFFSET = 32;
+
 interface ClosedBox {
   view: GridView;
   document: CubeDocument;
@@ -387,8 +394,9 @@ export class CubePage {
   readonly #grids = new Map<string, GridTile>();
   /** The text tiles (page-text.ts): each one's words as the page has them, its body, whether its editor is open. */
   readonly #texts = new Map<string, TextTile>();
-  /** What a flow's Ctrl+C kept to paste: a box's cube, or a note's words. */
-  #clipboard: { readonly document: CubeDocument } | { readonly text: string } | undefined;
+  /** What a flow's Ctrl+C kept to paste: boxes' cubes and notes' words, each where it was, in the order they read each
+   *  other. */
+  #clipboard: readonly ClipItem[] | undefined;
   /** A flow's boxes not shown, by id: documents, no grid made for them until one is (`#showBox`). */
   readonly #boxes = new Map<string, ClosedBox>();
   /** The boxes whose grids are being made (their sources opening), each once. */
@@ -522,8 +530,13 @@ export class CubePage {
         this.#tell('Move Box', pageCommand('placeBox', { tile, x, y }));
         this.#options.onChange();
       },
+      onMoveMany: (moves) => {
+        this.#tell('Move Boxes', ...moves.map((m) => pageCommand('placeBox', { tile: m.id, x: m.x, y: m.y })));
+        this.#options.onChange();
+      },
       onSelect: (tile, editor) => void this.#showBox(tile, editor),
       onRemove: (tile) => this.#removeTile(tile),
+      onRemoveMany: (tiles) => this.#removeTiles(tiles),
       onRename: (tile, title) => {
         if (this.#saved(tile)) this.#tell('Rename Tile', pageCommand('renameTile', { tile, title }));
         this.#options.onChange();
@@ -547,7 +560,7 @@ export class CubePage {
       onTidy: () => this.#options.onTidy?.(id),
       onRun: () => void this.#runFlow(id),
       onDuplicate: (tile) => this.#duplicateBox(id, tile),
-      onCopy: (tile, cut) => this.#copyBox(tile, cut),
+      onCopy: (tiles, cut) => this.#copyBoxes(tiles, cut),
       onPaste: (at) => this.#pasteBox(id, at),
     });
     board.setEditing(this.#editing);
@@ -558,9 +571,9 @@ export class CubePage {
 
   /** The next id of `kind` (page-ids.ts nextPageId): after every id the page's state has held and every one on the board
    *  now -- a tile a gesture made that its command has not placed yet among them. */
-  #nextId(kind: 'grid' | 'chart' | 'text' | 'sheet'): string {
+  #nextId(kind: 'grid' | 'chart' | 'text' | 'sheet', reserved: Iterable<string> = []): string {
     const board = [...this.#sheets.map((s) => s.id), ...this.#grids.keys(), ...this.#charts.keys(), ...this.#kept.keys(),
-      ...this.#unavailable.keys(), ...this.#pending.keys(), ...this.#texts.keys(), ...this.#boxes.keys()];
+      ...this.#unavailable.keys(), ...this.#pending.keys(), ...this.#texts.keys(), ...this.#boxes.keys(), ...reserved];
     return nextPageId([...this.#options.taken(), ...board], kind, this.#options.idTag?.());
   }
 
@@ -789,38 +802,92 @@ export class CubePage {
   }
 
   /**
-   * A BOX COPIED (Ctrl+C on it, Ctrl+X to cut it: docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): its cube as the page has it
-   * -- reading what it reads -- or a note's words, kept by the page to paste on any of its flows; cut, taken off as its ×
-   * takes it (its own step). The page's alone: what a box reads is a grid of this page.
+   * BOXES COPIED (Ctrl+C on a box, or on the boxes picked together; Ctrl+X to cut them: docs/DATACUBE_FLOW_MODE_2026_10_24.md
+   * M7): each one's cube as the page has it -- reading what it reads -- or a note's words, and its place, kept by the
+   * page to paste on any of its flows, in the order they read each other; cut, taken off as their × takes them (a step of
+   * its own). The page's alone: what a box reads is a grid of this page.
    */
-  #copyBox(tile: string, cut: boolean): void {
-    const sheet = this.#sheetOf(tile);
+  #copyBoxes(tiles: readonly string[], cut: boolean): void {
+    const sheet = this.#sheetOf(tiles[0]!);
     if (sheet?.kind !== 'flow') return;
-    const text = this.#texts.get(tile);
-    const document = text === undefined ? this.#boxes.get(tile)?.document ?? this.documentOf(tile) : undefined;
-    if (text !== undefined) this.#clipboard = { text: text.text };
-    else if (document !== undefined) this.#clipboard = { document };
-    else return;
-    const name = sheet.board.title(tile) ?? tile;
-    if (cut) this.#removeTile(tile);
+    const placeOf = new Map(sheet.board.layout.boxes.map((b) => [b.tile, b] as const));
+    const items: ClipItem[] = [];
+    for (const tile of tiles) {
+      const at = placeOf.get(tile);
+      if (at === undefined) continue;
+      const text = this.#texts.get(tile);
+      const document = text === undefined ? this.#boxes.get(tile)?.document ?? this.documentOf(tile) : undefined;
+      if (text !== undefined) items.push({ tile, text: text.text, x: at.x, y: at.y });
+      else if (document !== undefined) items.push({ tile, document, x: at.x, y: at.y });
+    }
+    if (items.length === 0) return;
+    // a box before the boxes that read it, so a paste adds each after what it reads
+    const copied = new Set(items.map((i) => i.tile));
+    const ordered: ClipItem[] = [];
+    const visit = (item: ClipItem, seen: ReadonlySet<string>): void => {
+      if (ordered.includes(item) || seen.has(item.tile)) return;
+      const reads = 'document' in item ? liveGrids(item.document.source).filter((g) => copied.has(g)) : [];
+      for (const g of reads) visit(items.find((i) => i.tile === g)!, new Set([...seen, item.tile]));
+      ordered.push(item);
+    };
+    for (const item of items) visit(item, new Set());
+    this.#clipboard = ordered;
+    const name = items.length === 1 ? sheet.board.title(items[0]!.tile) ?? items[0]!.tile : `${items.length} boxes`;
+    if (cut) this.#removeTiles(items.map((i) => i.tile));
     sheet.board.say(`${cut ? 'Cut' : 'Copied'}: ${name}.`);
   }
 
-  /** WHAT WAS COPIED, PASTED on flow `sheet` (Ctrl+V): a box of its cube, at `at` (else after the first box it reads),
-   *  or a note of its words -- one step, Paste Box; a box whose input is no longer on the page refused, as any is. */
+  /**
+   * WHAT WAS COPIED, PASTED on flow `sheet` (Ctrl+V), one step: each box a grid of its cube -- a box reading another of
+   * them reading its pasted copy, any other box what it read -- and each note a comment of its words, placed as they
+   * were placed together, the first of them at `at` (where the pointer is; none, a little down and right of where they
+   * were). One box with nowhere given goes after the box it reads, as a box added does. A box whose input is no longer
+   * on the page is refused, as any is.
+   */
   #pasteBox(sheet: string, at: FlowPoint | undefined): void {
     const clip = this.#clipboard;
-    if (clip === undefined) return;
-    const place = (tile: string): PageCommand[] => (at !== undefined ? [pageCommand('placeBox', { tile, x: at.x, y: at.y })] : []);
-    if ('text' in clip) {
-      const id = this.#nextId('text');
-      this.#tell('Paste Comment', pageCommand('addText', { id, sheet, text: clip.text, title: null, columns: null }), ...place(id));
-    } else {
-      const id = this.#nextId('grid');
-      const near = liveGrids(clip.document.source)[0] ?? null;
-      this.#tell('Paste Box', pageCommand('addGrid', { id, document: clip.document, sheet, near, title: null, columns: null }), ...place(id));
+    if (clip === undefined || clip.length === 0) return;
+    const taken = new Set<string>();
+    const fresh = (kind: 'grid' | 'text'): string => {
+      const id = this.#nextId(kind, taken);
+      taken.add(id);
+      return id;
+    };
+    const ids = new Map(clip.map((i) => [i.tile, fresh('text' in i ? 'text' : 'grid')] as const));
+    const left = Math.min(...clip.map((i) => i.x));
+    const top = Math.min(...clip.map((i) => i.y));
+    const placed = (i: ClipItem): { x: number; y: number } | undefined => {
+      if (at !== undefined) return { x: at.x + i.x - left, y: at.y + i.y - top };
+      return clip.length === 1 ? undefined : { x: i.x + PASTE_OFFSET, y: i.y + PASTE_OFFSET };
+    };
+    const commands: PageCommand[] = [];
+    for (const i of clip) {
+      const id = ids.get(i.tile)!;
+      if ('text' in i) commands.push(pageCommand('addText', { id, sheet, text: i.text, title: null, columns: null }));
+      else {
+        const source = relinked(i.document.source, (g) => ids.get(g) ?? g);
+        commands.push(pageCommand('addGrid', {
+          id, document: { ...i.document, source }, sheet, near: liveGrids(source)[0] ?? null, title: null, columns: null,
+        }));
+      }
+      const p = placed(i);
+      if (p !== undefined) commands.push(pageCommand('placeBox', { tile: id, x: p.x, y: p.y }));
     }
+    const only = clip.length === 1 ? clip[0]! : undefined;
+    const told = this.#tell(only === undefined ? `Paste ${clip.length} Boxes` : 'text' in only ? 'Paste Comment' : 'Paste Box', ...commands);
     this.#options.onChange();
+    // what was pasted picked together, so a drag moves it, Delete takes it off, Ctrl+C copies it again
+    const on = this.#sheets.find((s) => s.id === sheet);
+    if (told && on?.kind === 'flow') on.board.pick(ids.values());
+  }
+
+  /** Boxes taken off a flow together (Delete on the ones picked): one step, each removed as its × removes it -- a box
+   *  reading one of them reading a copy of it from then on (FL6). */
+  #removeTiles(tiles: readonly string[]): void {
+    const saved = tiles.filter((t) => this.#saved(t));
+    for (const t of tiles) if (!saved.includes(t)) this.#removeTile(t);
+    if (saved.length === 1) this.#removeTile(saved[0]!);
+    else if (saved.length > 1) this.#tell(`Remove ${saved.length} Boxes`, ...saved.map((tile) => pageCommand('removeTile', { tile })));
   }
 
   /** A box added from a flow's palette as `tool` (PageApp.addedAs): drawn as one until its grid does something. */

@@ -348,8 +348,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  table typed in; the window a chunk of its own, ui/text-input-dialog.ts). Measured 369,521.
  *  370,000 -> 370,500 (2026-10-25, the flow mode's text tools -- Text To Columns, RegEx, Data Cleansing: the three windows
  *  opened by their steps and docked; their columns' rule (text-tool-columns.ts), the windows (ui/text-tool-form.ts) and
- *  the box words (text-tools.ts) chunks of their own, none fetched at startup). Measured 370,114. */
-const BUDGET = 370_500;
+ *  the box words (text-tools.ts) chunks of their own, none fetched at startup). Measured 370,114.
+ *  370,500 -> 371,500 (2026-10-25, the flow mode's Unique and its many boxes at once: a box's rows the columns it shows
+ *  (live-inputs.ts gridInput's omit, join-open.ts inputRows), and the page's copy, paste, move and removal of several
+ *  boxes as one step (page/cube-page.ts); picking them, the band and the group's drag the canvas's chunk). Measured
+ *  370,931. */
+const BUDGET = 371_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -478,8 +482,10 @@ const BUDGET = 370_500;
  *  358,355.
  *  358,500 -> 359,000 (2026-10-25, the flow mode's Unique, and a box's rows the columns it shows: a live input of a flow's
  *  box leaves out the columns its box hides (live-inputs.ts gridInput, cube-document.ts JoinInput.omit, join-open.ts
- *  inputRows -- startup modules); Unique's rule and its window chunks of their own). Measured 358,659. */
-const ENGINE_BUDGET = 359_000;
+ *  inputRows -- startup modules); Unique's rule and its window chunks of their own). Measured 358,659.
+ *  359,000 -> 359,500 (2026-10-25, the flow mode's many boxes at once -- the grid-only page's note of the same date).
+ *  Measured 359,191. */
+const ENGINE_BUDGET = 359_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -665,8 +671,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  380,500 -> 381,000 (2026-10-25, the flow mode's text tools -- the grid-only page's note of the same date; their
  *  windows' styles and the Parse group's colour among them). Measured 380,836.
  *  381,000 -> 381,500 (2026-10-25, the flow mode's Unique -- the engine page's note of the same date; its U and D ports'
- *  styles among them). Measured 381,179. */
-const WIDGET_BUDGET = 381_500;
+ *  styles among them). Measured 381,179.
+ *  381,500 -> 382,000 (2026-10-25, the flow mode's many boxes at once -- the grid-only page's note of the same date; the
+ *  picked boxes' ring and the band's styles among them). Measured 381,752. */
+const WIDGET_BUDGET = 382_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

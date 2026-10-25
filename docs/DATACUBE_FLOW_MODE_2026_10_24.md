@@ -673,6 +673,17 @@ paste on another page would read nothing (a page's whole flow carried between pa
 Tested by the harness (a Formula copied and pasted at the pointer, reading what it reads; undone and redone by the
 buttons).
 
+**Built, many boxes at once** (`layout/flow-canvas.ts` `#picked`, `#startBand`, `#group`; `page/cube-page.ts`
+`#copyBoxes`, `#pasteBox`, `#removeTiles`): boxes picked together -- a click picks a box, Shift (or Ctrl) and a click
+adds one or lets it go, a band dragged from the empty canvas picks the boxes it touches, Ctrl+A every box, Escape none --
+drawn with a dashed ring beside the shown box's solid one; the screen's, never the page's. A drag of one moves them all
+(none past the canvas's edge, so their places keep their shape), as do the arrow keys -- one step, Move Boxes; Delete
+takes them all off, one step (Remove 2 Boxes), each as its × does (a box reading one reading a copy from then on: FL6);
+Ctrl+C copies them, in the order they read each other, and Ctrl+V pastes them where the pointer is, placed as they were
+placed together -- a pasted box reading another of them reads its pasted copy, any other what it read -- one step (Paste 2
+Boxes), the pasted ones picked. Tested by the harness (two boxes moved as one, copied and pasted with their link between
+them, taken off together, Ctrl+A and Escape, a band round the Input).
+
 **Built, Text Input** (`ui/text-input-dialog.ts`, `app/datacube-app.ts` `flowTool`): Alteryx's Text Input, under In in
 the palette -- dropped on the canvas, a window of a small table: its columns named in its head row, a value a cell, Enter
 down a row (a new one at the last), + for a column and a row, a column's × and a row's number to take them off; a block

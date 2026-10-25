@@ -21,11 +21,16 @@ import { lazily } from '../lazily.ts';
 export interface FlowBoardOptions {
   /** A box let go at (`x`, `y`) by hand -- its drag, or its arrow keys: the caller tells its place (placeBox). */
   readonly onMove?: (id: string, x: number, y: number) => void;
+  /** Boxes picked together (Shift+click, a band dragged round them) let go each at its place, by one drag or one arrow
+   *  key: the caller tells their places as one step. */
+  readonly onMoveMany?: (moves: readonly { readonly id: string; readonly x: number; readonly y: number }[]) => void;
   /** A box clicked, or Enter on it: the caller shows its rows (its grid made, `add`) -- and its settings, `editor` (the
    *  window of its grid's that sets what it does: flow-boxes.ts TOOL_EDITORS), docked in the board's settings pane. */
   readonly onSelect?: (id: string, editor: StepEditor | undefined) => void;
   /** A box's × or Delete on it: the caller takes it off the page. */
   readonly onRemove?: (id: string) => void;
+  /** Delete on boxes picked together: the caller takes them all off the page, as one step. */
+  readonly onRemoveMany?: (ids: readonly string[]) => void;
   /** A box renamed in place. */
   readonly onRename?: (id: string, title: string) => void;
   /** A tool of the palette picked -- clicked, after the box shown, or dropped on a box, after it; dropped on the canvas,
@@ -51,8 +56,9 @@ export interface FlowBoardOptions {
   readonly onRun?: () => void;
   /** Duplicate (Ctrl+D on a box, or its menu): the caller adds a copy of it, reading what it reads. */
   readonly onDuplicate?: (id: string) => void;
-  /** Ctrl+C on a box or a note (Ctrl+X: `cut`, and taken off the page): the caller keeps a copy of it to paste. */
-  readonly onCopy?: (id: string, cut: boolean) => void;
+  /** Ctrl+C on a box or a note, or on the boxes picked together (Ctrl+X: `cut`, and taken off the page): the caller
+   *  keeps a copy of them to paste. */
+  readonly onCopy?: (ids: readonly string[], cut: boolean) => void;
   /** Ctrl+V on the canvas: the caller adds what it copied last, at `at` (where the pointer is), else after the box it
    *  reads. */
   readonly onPaste?: (at: FlowPoint | undefined) => void;
@@ -110,12 +116,15 @@ export interface FlowBoardState {
   tile(id: string): BandTile | undefined;
   /** A comment of the flow (M7): its text tile, drawn as a note on the canvas. */
   noteOf(id: string): BandTile | undefined;
+  /** Said to a screen reader. */
+  say(text: string): void;
 }
 
 /** The drawing, once fetched. */
 interface Canvas {
   paint(): void;
   reveal(id: string): void;
+  pick(ids: Iterable<string>): void;
   dispose(): void;
 }
 
@@ -379,6 +388,11 @@ export class FlowBoard implements FlowBoardState {
   /** A box scrolled into view. */
   reveal(id: string): void {
     this.#canvas?.reveal(id);
+  }
+
+  /** These boxes picked together (boxes just pasted), the others let go. */
+  pick(ids: Iterable<string>): void {
+    this.#canvas?.pick(ids);
   }
 
   dispose(): void {

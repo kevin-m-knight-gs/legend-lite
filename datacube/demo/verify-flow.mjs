@@ -690,6 +690,73 @@ try {
   await boxCount(beforePaste.length + 1);
   check(await page.locator('.dc-flow-redo').isDisabled(), 'redone; nothing left to redo');
 
+  // MANY BOXES AT ONCE (M7): the Formula and the Summarize picked together (a click, then Shift and a click), dragged
+  // as one -- one step, Move Boxes; copied and pasted together, the pasted Summarize reading the pasted Formula; the
+  // two taken off together, one step; every box picked by Ctrl+A, let go by Escape
+  const layoutOf = () => page.evaluate(() => Object.fromEntries(window.__dataPage.document('x').sheets
+    .find((s) => s.layout.kind === 'flow').layout.boxes.map((b) => [b.tile, [b.x, b.y]])));
+  const picked = () => page.locator('.dc-flow-box.dc-flow-picked').evaluateAll((els) => els.map((e) => e.dataset.tile).sort());
+  await page.locator('.dc-flow-canvas').evaluate((c) => { c.scrollLeft = 0; c.scrollTop = 0; });
+  const sumBox = (await boxes()).find((b) => b.tool === 'summarize');
+  await page.locator(`.dc-flow-box[data-tile="${formula.id}"]`).scrollIntoViewIfNeeded();
+  await page.locator(`.dc-flow-box[data-tile="${formula.id}"] .dc-flow-name`).click();
+  await page.locator(`.dc-flow-box[data-tile="${sumBox.id}"] .dc-flow-name`).click({ modifiers: ['Shift'] });
+  check(JSON.stringify(await picked()) === JSON.stringify([formula.id, sumBox.id].sort()), `two boxes picked: ${await picked()}`);
+  const placesBefore = await layoutOf();
+  const fBox = await page.locator(`.dc-flow-box[data-tile="${formula.id}"]`).boundingBox();
+  await page.mouse.move(fBox.x + 40, fBox.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(fBox.x + 40, fBox.y + 12 + 60, { steps: 8 });
+  await page.mouse.up();
+  const placesAfter = await layoutOf();
+  check(placesAfter[formula.id][1] - placesBefore[formula.id][1] === 60 && placesAfter[sumBox.id][1] - placesBefore[sumBox.id][1] === 60,
+    `both moved down 60: ${placesBefore[formula.id]} -> ${placesAfter[formula.id]}, ${placesBefore[sumBox.id]} -> ${placesAfter[sumBox.id]}`);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Move Boxes', 'one step: Move Boxes');
+  // copied together, pasted where the pointer is: the pasted Summarize reads the pasted Formula, it the Filter
+  const beforeMany = (await boxes()).map((b) => b.id);
+  await page.locator(`.dc-flow-box[data-tile="${formula.id}"]`).focus();
+  await page.keyboard.press('Control+c');
+  const manySpot = await emptyCanvasPoint();
+  await page.mouse.move(manySpot.x, manySpot.y);
+  await page.locator('.dc-flow-canvas').focus();
+  await page.keyboard.press('Control+v');
+  await boxCount(beforeMany.length + 2);
+  const pastedTwo = (await boxes()).filter((b) => !beforeMany.includes(b.id));
+  const pf = pastedTwo.find((b) => b.tool === 'formula');
+  const ps = pastedTwo.find((b) => b.tool === 'summarize');
+  check(pf !== undefined && ps !== undefined, `a Formula and a Summarize pasted: ${JSON.stringify(pastedTwo)}`);
+  check(await readsOf(ps.id) === pf.id && await readsOf(pf.id) === await readsOf(formula.id),
+    `the pasted Summarize reads the pasted Formula, it what the Formula reads: ${await readsOf(ps.id)}, ${await readsOf(pf.id)}`);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Paste 2 Boxes', 'one step: Paste 2 Boxes');
+  const pastedPlaces = await layoutOf();
+  check(pastedPlaces[ps.id][0] - pastedPlaces[pf.id][0] === placesAfter[sumBox.id][0] - placesAfter[formula.id][0],
+    'placed as they were placed together');
+  // what was pasted, picked together: taken off together, one step
+  check(JSON.stringify(await picked()) === JSON.stringify([pf.id, ps.id].sort()), `the pasted boxes picked: ${await picked()}`);
+  await page.locator(`.dc-flow-box[data-tile="${ps.id}"]`).focus();
+  await page.keyboard.press('Delete');
+  await boxCount(beforeMany.length);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Remove 2 Boxes', 'one step: Remove 2 Boxes');
+  // Ctrl+A on the canvas picks every box; Escape lets them go
+  await page.locator('.dc-flow-canvas').focus();
+  await page.keyboard.press('Control+a');
+  check((await picked()).length === beforeMany.length, `every box picked: ${(await picked()).length}`);
+  await page.keyboard.press('Escape');
+  check((await picked()).length === 0, 'Escape lets them go');
+  // a band dragged from the canvas's empty corner round the Input picks it, and no box past the band
+  await page.locator('.dc-flow-canvas').evaluate((c) => { c.scrollLeft = 0; c.scrollTop = 0; });
+  const planeAt = await page.locator('.dc-flow-plane').boundingBox();
+  const inputAt = await page.locator(`.dc-flow-box[data-tile="${input.id}"]`).boundingBox();
+  await page.mouse.move(planeAt.x + 8, planeAt.y + 8);
+  await page.mouse.down();
+  await page.mouse.move(inputAt.x + 30, inputAt.y + 20, { steps: 10 });
+  check(await page.locator('.dc-flow-band').count() === 1, 'its band drawn while it is dragged');
+  await page.mouse.up();
+  check((await picked()).includes(input.id) && !(await picked()).includes(formula.id), `a band round the Input picks it: ${await picked()}`);
+  check(await page.locator('.dc-flow-band').count() === 0, 'its band gone, let go');
+  await page.keyboard.press('Escape');
+  check((await picked()).length === 0, 'Escape lets it go');
+
   // A TEXT INPUT (M7's In tools): dropped on the canvas, a table of its own pasted in from a sheet -- an Input over it
   const beforeText = (await boxes()).map((b) => b.id);
   const textSpot = await emptyCanvasPoint();

@@ -143,8 +143,13 @@ export class FlowCanvas {
   readonly #body: HTMLElement;
   readonly #empty: HTMLElement;
   readonly #boxes = new Map<string, Drawn>();
-  /** A box being dragged: where it is drawn while it is. */
-  #dragged: { readonly id: string; x: number; y: number } | undefined;
+  /** The boxes being dragged -- one, or the ones picked together: where each is drawn while it is. */
+  #dragged: ReadonlyMap<string, { readonly x: number; readonly y: number }> | undefined;
+  /** The boxes picked together (Shift+click, a band dragged round them): moved, removed and copied as one. The screen's,
+   *  never the page's. */
+  readonly #picked = new Set<string>();
+  /** The band a press on the empty canvas drags out, while it does. */
+  #band: HTMLElement | undefined;
   /** The gesture in flight: how to end it. */
   #gesture: ((apply: boolean) => void) | undefined;
   /** The box a dragged tool is over, marked. */
@@ -357,6 +362,8 @@ export class FlowCanvas {
       if (e.target === this.#canvas || e.target === this.#plane || e.target === this.#lines) {
         this.#canvas.focus({ preventScroll: true });
         this.#selectLine(undefined);
+        // a band dragged out picks the boxes it touches; a click, none
+        this.#startBand(e);
       }
     });
     this.#split.addEventListener('pointerdown', (e) => this.#startSplit(e));
@@ -408,6 +415,7 @@ export class FlowCanvas {
       this.#paintBox(box.tile, drawn);
       drawn.root.style.transform = `translate(${box.x}px, ${box.y}px)`;
     }
+    this.#paintPicked();
     this.#paintLines(layout);
     // the plane as large as its boxes, and the canvas's room past them
     const right = Math.max(0, ...layout.boxes.map((b) => b.x + BOX_WIDTH)) + MARGIN;
@@ -503,7 +511,79 @@ export class FlowCanvas {
   /** The flow as drawn: a box being dragged where the pointer has it. */
   #placed(flow: Flow): Flow {
     const d = this.#dragged;
-    return d === undefined ? flow : { boxes: flow.boxes.map((b) => (b.tile === d.id ? { tile: d.id, x: d.x, y: d.y } : b)) };
+    return d === undefined ? flow : { boxes: flow.boxes.map((b) => {
+      const at = d.get(b.tile);
+      return at === undefined ? b : { tile: b.tile, x: at.x, y: at.y };
+    }) };
+  }
+
+  /** The boxes a gesture on `id` acts on: the ones picked together, when it is one of them; else it alone. */
+  #group(id: string): string[] {
+    return this.#picked.has(id) && this.#picked.size > 1 ? [...this.#picked] : [id];
+  }
+
+  /** The picked boxes drawn so -- and any no longer on the canvas let go. */
+  #paintPicked(): void {
+    for (const id of [...this.#picked]) if (!this.#boxes.has(id)) this.#picked.delete(id);
+    for (const [id, drawn] of this.#boxes) drawn.root.classList.toggle('dc-flow-picked', this.#picked.has(id));
+  }
+
+  /** The boxes picked together, now these: the board's (boxes just pasted). */
+  pick(ids: Iterable<string>): void {
+    this.#pick(ids);
+  }
+
+  /** The boxes picked together, now these (none: none). */
+  #pick(ids: Iterable<string>): void {
+    this.#picked.clear();
+    for (const id of ids) this.#picked.add(id);
+    this.#paintPicked();
+    const n = this.#picked.size;
+    if (n > 1) this.#board.say(`${n} boxes picked: drag one to move them, Delete to remove them, Ctrl+C to copy them.`);
+  }
+
+  /** A BAND dragged out from a press on the empty canvas: the boxes it touches picked when it is let go. A press that does
+   *  not move lets the picked ones go. */
+  #startBand(e: PointerEvent): void {
+    if (e.button !== 0) return;
+    const r = this.#plane.getBoundingClientRect();
+    const from = { x: (e.clientX - r.left) / this.#zoom, y: (e.clientY - r.top) / this.#zoom };
+    let to = from;
+    let moved = false;
+    const adding = e.shiftKey || e.ctrlKey || e.metaKey;
+    const touched = (): string[] => {
+      const x0 = Math.min(from.x, to.x);
+      const x1 = Math.max(from.x, to.x);
+      const y0 = Math.min(from.y, to.y);
+      const y1 = Math.max(from.y, to.y);
+      return this.#board.layout.boxes
+        .filter((b) => this.#boxes.has(b.tile) && b.x < x1 && b.x + BOX_WIDTH > x0 && b.y < y1 && b.y + BOX_HEIGHT > y0)
+        .map((b) => b.tile);
+    };
+    this.#own(this.#canvas, e, (ev) => {
+      const rect = this.#plane.getBoundingClientRect();
+      to = { x: (ev.clientX - rect.left) / this.#zoom, y: (ev.clientY - rect.top) / this.#zoom };
+      if (!moved && Math.hypot(to.x - from.x, to.y - from.y) * this.#zoom < DRAG_PX) return;
+      moved = true;
+      const band = this.#band ?? this.#doc.createElement('div');
+      if (this.#band === undefined) {
+        band.className = 'dc-flow-band';
+        this.#plane.append(band);
+        this.#band = band;
+      }
+      band.style.transform = `translate(${Math.min(from.x, to.x)}px, ${Math.min(from.y, to.y)}px)`;
+      band.style.width = `${Math.abs(to.x - from.x)}px`;
+      band.style.height = `${Math.abs(to.y - from.y)}px`;
+      for (const [id, drawn] of this.#boxes) drawn.root.classList.toggle('dc-flow-picked', this.#picked.has(id) || touched().includes(id));
+    }, (apply) => {
+      this.#band?.remove();
+      this.#band = undefined;
+      if (!moved) {
+        if (apply && !adding) this.#pick([]);
+        return;
+      }
+      this.#pick(apply ? [...(adding ? this.#picked : []), ...touched()] : this.#picked);
+    });
   }
 
   // -- the palette --------------------------------------------------------------------------------------------------
@@ -910,6 +990,11 @@ export class FlowCanvas {
     if (!box) return;
     const start = { x: e.clientX, y: e.clientY };
     let moved = false;
+    // Shift (or Ctrl) and a click: the box picked with the others, or let go of -- never shown
+    const adding = e.shiftKey || e.ctrlKey || e.metaKey;
+    // dragged, the boxes picked with it go with it; any other box goes alone
+    const group = this.#group(id);
+    const from = new Map(this.#board.layout.boxes.filter((b) => group.includes(b.tile)).map((b) => [b.tile, b] as const));
     // a locked page moves nothing: a press only shows the box
     const editing = this.#board.editing;
     this.#own(drawn.root, e, (ev) => {
@@ -918,19 +1003,37 @@ export class FlowCanvas {
       const dy = (ev.clientY - start.y) / this.#zoom;
       if (!editing || (!moved && Math.hypot(dx, dy) * this.#zoom < DRAG_PX)) return;
       moved = true;
-      drawn.root.classList.add('dc-flow-dragging');
-      this.#dragged = { id, x: Math.max(0, box.x + dx), y: Math.max(0, box.y + dy) };
-      drawn.root.style.transform = `translate(${this.#dragged.x}px, ${this.#dragged.y}px)`;
+      // the group moves as one: none past the canvas's edge, so their places keep their shape
+      const sx = Math.max(dx, ...[...from.values()].map((b) => -b.x));
+      const sy = Math.max(dy, ...[...from.values()].map((b) => -b.y));
+      this.#dragged = new Map([...from].map(([t, b]) => [t, { x: b.x + sx, y: b.y + sy }]));
+      for (const [t, at] of this.#dragged) {
+        const d = this.#boxes.get(t);
+        d?.root.classList.add('dc-flow-dragging');
+        if (d) d.root.style.transform = `translate(${at.x}px, ${at.y}px)`;
+      }
       this.#paintLines(this.#placed(this.#board.layout));
     }, (apply) => {
       const at = this.#dragged;
       this.#dragged = undefined;
-      drawn.root.classList.remove('dc-flow-dragging');
+      for (const t of from.keys()) this.#boxes.get(t)?.root.classList.remove('dc-flow-dragging');
       if (!moved) {
-        if (apply) this.#select(id);
+        if (!apply) return;
+        if (adding) {
+          if (this.#picked.has(id)) this.#picked.delete(id);
+          else this.#picked.add(id);
+          this.#pick([...this.#picked]);
+          return;
+        }
+        this.#pick([id]);
+        this.#select(id);
         return;
       }
-      if (apply && at !== undefined) this.#board.options.onMove?.(id, Math.round(at.x), Math.round(at.y));
+      if (apply && at !== undefined) {
+        const moves = [...at].map(([t, p]) => ({ id: t, x: Math.round(p.x), y: Math.round(p.y) }));
+        if (moves.length === 1) this.#board.options.onMove?.(moves[0]!.id, moves[0]!.x, moves[0]!.y);
+        else this.#board.options.onMoveMany?.(moves);
+      }
       // drawn where the page has it: moved, once its command places it; else back where it was
       this.paint();
     });
@@ -947,7 +1050,9 @@ export class FlowCanvas {
     if (!this.#board.editing) return;
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
-      o.onRemove?.(id);
+      const group = this.#group(id);
+      if (group.length > 1) o.onRemoveMany?.(group);
+      else o.onRemove?.(id);
       return;
     }
     if (e.key === 'F2') {
@@ -966,10 +1071,15 @@ export class FlowCanvas {
       ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step],
     };
     const move = by[e.key];
-    const box = this.#board.layout.boxes.find((b) => b.tile === id);
-    if (move === undefined || box === undefined) return;
+    const group = this.#group(id);
+    const boxes = this.#board.layout.boxes.filter((b) => group.includes(b.tile));
+    if (move === undefined || boxes.length === 0) return;
     e.preventDefault();
-    o.onMove?.(id, Math.max(0, box.x + move[0]), Math.max(0, box.y + move[1]));
+    // the group as one: none past the canvas's edge
+    const mx = Math.max(move[0], ...boxes.map((b) => -b.x));
+    const my = Math.max(move[1], ...boxes.map((b) => -b.y));
+    if (boxes.length === 1) o.onMove?.(id, boxes[0]!.x + mx, boxes[0]!.y + my);
+    else o.onMoveMany?.(boxes.map((b) => ({ id: b.tile, x: b.x + mx, y: b.y + my })));
   }
 
   #onCanvasKey(e: KeyboardEvent): void {
@@ -983,11 +1093,31 @@ export class FlowCanvas {
       this.#selectLine(undefined);
       return;
     }
-    if (!(e.ctrlKey || e.metaKey)) return;
     const target = e.target as HTMLElement | null;
-    // a field (a box being renamed, a note's words) keeps its own undo and its own clipboard
+    // a field (a box being renamed, a note's words) keeps its own keys, its own undo and its own clipboard
     if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+    // the boxes picked together, from the canvas itself (a band dragged round them leaves its focus there)
+    if (target === this.#canvas && this.#picked.size > 0) {
+      if (e.key === 'Escape') {
+        this.#pick([]);
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && this.#board.editing) {
+        e.preventDefault();
+        const picked = [...this.#picked];
+        if (picked.length === 1) this.#board.options.onRemove?.(picked[0]!);
+        else this.#board.options.onRemoveMany?.(picked);
+        return;
+      }
+      if (this.#copied([...this.#picked][0]!, e)) return;
+    }
+    if (!(e.ctrlKey || e.metaKey)) return;
     const key = e.key.toLowerCase();
+    if (key === 'a' && target === this.#canvas) {
+      e.preventDefault();
+      this.#pick(this.#boxes.keys());
+      return;
+    }
     if (key === 'v' && this.#board.editing && this.#board.options.onPaste) {
       e.preventDefault();
       this.#board.options.onPaste(this.#pointer !== undefined ? this.#pointAt({ clientX: this.#pointer.x, clientY: this.#pointer.y }) : undefined);
@@ -1006,7 +1136,7 @@ export class FlowCanvas {
     e.preventDefault();
     // its own: the canvas's Ctrl+V is the canvas's
     e.stopPropagation();
-    this.#board.options.onCopy?.(id, key === 'x');
+    this.#board.options.onCopy?.(this.#group(id), key === 'x');
     return true;
   }
 

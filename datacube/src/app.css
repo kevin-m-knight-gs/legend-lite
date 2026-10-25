@@ -4604,6 +4604,19 @@
 .dc-flow-box:hover { border-color: var(--dc-line-strong); box-shadow: 0 2px 8px rgb(0 0 0 / 10%); }
 .dc-flow-box:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 2px; }
 .dc-flow-box.dc-flow-shown { border-color: var(--dc-active); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dc-active) 22%, transparent); }
+/* the boxes picked together (Shift+click, a band): a dashed ring, beside the shown one's solid ring */
+.dc-flow-box.dc-flow-picked { outline: 2px dashed var(--dc-active); outline-offset: 3px; }
+/* the band a press on the empty canvas drags out */
+.dc-flow-band {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  border: 1px solid var(--dc-active);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--dc-active) 10%, transparent);
+  pointer-events: none;
+}
 .dc-flow-box.dc-flow-target { border: 1px dashed var(--dc-active); background: var(--dc-selected-bg); }
 .dc-flow-box.dc-flow-dragging { cursor: grabbing; z-index: 2; transition: none; box-shadow: 0 8px 20px rgb(0 0 0 / 18%); }
 .dc-flow-view .dc-flow-box { cursor: pointer; }
