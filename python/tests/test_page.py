@@ -2850,6 +2850,17 @@ class Flows(Paged):
         with self.assertRaisesRegex(ValueError, 'is a board'):
             page.sheets[0].run('.')
 
+    def test_a_summarize_gives_its_keys_and_aggregates(self):
+        # a box after a Summarize reads a row per group, its keys and its aggregates -- the dimensions it is not grouped
+        # by left out (snapshot.ts ungroupedDimensions: Alteryx's Summarize), as the canvas says and the screen reads
+        page, flow, source, big = self.flowed()
+        by_region = flow.grid(input=big)
+        by_region.group('region')
+        after = flow.grid(input=by_region)
+        rows = after.to_pandas()
+        self.assertEqual(sorted(rows.columns), ['notional', 'pnl', 'region'])
+        self.assertEqual(sorted(rows['region']), ['AMER', 'EMEA'])
+
     def test_a_container_frames_boxes(self):
         # M7: a comment with a frame is a container (Alteryx's Tool Container): its size kept by a move, folded or not;
         # a grid is never framed; a frame too small refused; taken off, a comment again

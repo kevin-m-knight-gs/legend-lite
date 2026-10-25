@@ -5,7 +5,7 @@
 
 import { isLive, type CubeInput, type CubeSource, type InputPort, type JoinInput } from './cube-document.ts';
 import type { PageDocument } from './page-document.ts';
-import { CubeRefusal } from './snapshot.ts';
+import { CubeRefusal, ungroupedDimensions } from './snapshot.ts';
 
 /** The grids `source` reads live, each once, in the order it reads them -- through its frozen inputs too. */
 export function liveGrids(source: CubeSource): string[] {
@@ -40,22 +40,24 @@ export function gridInput(page: PageDocument, grid: string, through: readonly st
     throw new CubeRefusal(`'${grid}' reads its own rows (${[...through.slice(through.indexOf(grid)), grid].join(' → ')})`);
   }
   const query = port === undefined ? cube.cube.query : portQuery(grid, cube.cube.query, port);
-  const omit = boxOmits(page, grid, cube.cube.configuration);
+  const omit = boxOmits(page, grid, cube.cube.configuration, cube.cube.query);
   return {
     name: view.title ?? cube.cube.source.name, source: resolvedOn(page, cube.cube.source, [...through, grid]), query,
     ...(omit.length > 0 ? { omit } : {}),
   };
 }
 
-/** The columns a flow's box leaves out of its rows: the ones its configuration hides (a Select's, Unique's row number)
- *  -- a box's rows are the columns it shows. A grid of a board gives every column, as a Join of two grids always has. */
-function boxOmits(page: PageDocument, grid: string, configuration: Readonly<Record<string, unknown>>): string[] {
+/** The columns a flow's box leaves out of its rows: the ones its configuration hides (a Select's, Unique's row number),
+ *  and a Summarize's dimensions it is not grouped by (snapshot.ts ungroupedDimensions) -- a box's rows are the columns
+ *  it shows. A grid of a board gives every column, as a Join of two grids always has. */
+function boxOmits(page: PageDocument, grid: string, configuration: Readonly<Record<string, unknown>>, query: JoinInput['query']): string[] {
   const onFlow = page.sheets.some((s) => s.layout.kind === 'flow' && s.layout.boxes.some((b) => b.tile === grid));
+  if (!onFlow) return [];
   const columns = configuration['columns'];
-  if (!onFlow || columns === null || typeof columns !== 'object' || Array.isArray(columns)) return [];
-  return Object.entries(columns as Record<string, unknown>)
+  const hidden = columns === null || typeof columns !== 'object' || Array.isArray(columns) ? [] : Object.entries(columns as Record<string, unknown>)
     .filter(([, c]) => c !== null && typeof c === 'object' && (c as Record<string, unknown>)['hidden'] === true)
     .map(([name]) => name);
+  return [...new Set([...hidden, ...ungroupedDimensions(query)])];
 }
 
 /**

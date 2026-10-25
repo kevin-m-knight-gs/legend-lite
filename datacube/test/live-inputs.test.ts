@@ -18,7 +18,7 @@ import {
   openingOrder, pageToJson, readPage, writePageOf, type PageDocument, type PageView,
 } from '../src/page-document.ts';
 import { pageReads } from '../src/page-rebase.ts';
-import { CubeRefusal } from '../src/snapshot.ts';
+import { CubeRefusal, ungroupedDimensions } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, col, gt, lambda, lit } from '../../pure-protocol/src/index.ts';
 
@@ -134,6 +134,17 @@ describe('a live input resolved against its page', () => {
     assert.deepEqual(again.source._type === 'rows' && !('grid' in again.source.input) ? again.source.input.omit : null, ['notional']);
     assert.throws(() => readCube(JSON.parse(cubeToJson(frozen).replace('"omit":["notional"]', '"omit":"notional"'))),
       (e: unknown) => e instanceof CubeDocumentError && /columns left out are a list of names/.test(e.message));
+  });
+
+  it("a flow's Summarize gives its keys and its aggregates: the dimensions it is not grouped by left out", () => {
+    // region and desk dimensions, notional a measure; grouped by region: desk has no one value a group
+    const wide = [{ name: 'region', type: 'String' }, { name: 'desk', type: 'String' }, { name: 'notional', type: 'Float', kind: 'measure' as const }];
+    const grouped = (c: CubeDocument): CubeDocument => ({ ...c, query: { ...c.query, columns: wide, rows: ['region'] } });
+    const flow: PageDocument = { ...page({ 'grid-1': grouped(cube(FILE)), 'grid-2': cube(rows('grid-1')) }),
+      sheets: [{ id: 'sheet-1', layout: { kind: 'flow', boxes: [{ tile: 'grid-1', x: 40, y: 40 }, { tile: 'grid-2', x: 288, y: 40 }] } }] };
+    assert.deepEqual(gridInput(flow, 'grid-1').omit, ['desk']);
+    assert.deepEqual(ungroupedDimensions({ columns: wide, derived: [], rows: ['region'], pivotOn: ['desk'] }), [], 'a pivot\'s columns are its values');
+    assert.deepEqual(ungroupedDimensions({ columns: wide, derived: [], rows: [], pivotOn: [] }), [], 'grouped by nothing: its rows');
   });
 
   it('follows its grid: an edit there is what it reads', () => {

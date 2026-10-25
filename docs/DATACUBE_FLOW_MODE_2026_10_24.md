@@ -717,6 +717,13 @@ split on ' ' to rows". Python: `grid.split(column, delimiter, name=..., rows=Tru
 Python's text tools test (a, b, c three rows, d one) and the harness (the Filter's books split on a space: more rows
 than the Filter's).
 
+**A Summarize gives its keys and its aggregates** (`snapshot.ts ungroupedDimensions`): a box after a grouped box read
+a row per group with every dimension beside it, each its "unique value" (empty where a group's rows differ) -- the
+example flow hid them by hand. Now, as Alteryx's Summarize, a grouped flow box hands on its group keys and its
+aggregates alone: the dimensions it is not grouped by are left out of what the box after it reads (`live-inputs.ts
+boxOmits`), of its settings' columns out, its Profile and its Output -- one rule for each. A grid of a board, and a
+pivoted grid, are as before. Tested by `live-inputs.test.ts` and Python's `test_a_summarize_gives_its_keys_and_aggregates`.
+
 Fixed with it: what opening a box left out (a column no longer in its input, a calculated column that read one) was
 said on the page's status line, where it stayed under every box shown after it; it is said on the box's own status bar
 now (its grid's note, put away with it), as a Join's notes are. The harness holds the page's line clear.

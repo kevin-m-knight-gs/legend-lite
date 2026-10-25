@@ -96,6 +96,7 @@ import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import type { JsonColumnReader } from './ui/json-fields.ts';
 import {
   rowColumns,
+  ungroupedDimensions,
   type ColumnKind,
   type CubeSnapshot,
   type DerivedColumn,
@@ -3713,7 +3714,8 @@ export class CubeApp {
     const rows = classLambda(s).body[0]!;
     const typed = await this.#controller.runQuery(columnsLambda(rows), s);
     // the columns it shows: what the box after it reads (a hidden one left out: live-inputs.ts gridInput's omit)
-    const columns = typed.rows.columns.filter((c) => columnConfig(this.#config, c.name).hidden !== true)
+    const away = new Set(ungroupedDimensions(s));
+    const columns = typed.rows.columns.filter((c) => columnConfig(this.#config, c.name).hidden !== true && !away.has(c.name))
       .map((c) => ({ name: c.name, type: c.type }));
     const answer = await this.#controller.runQuery(profileLambda(rows, columns), s);
     return profileOf(answer.rows, columns);
@@ -3733,7 +3735,9 @@ export class CubeApp {
     const { columnsLambda, rowsLambda } = await lazily(() => import('./profile.ts'));
     const rows = classLambda(s).body[0]!;
     const typed = await this.#controller.runQuery(columnsLambda(rows), s);
-    const shown = typed.rows.columns.filter((c) => columnConfig(this.#config, c.name).hidden !== true).map((c) => c.name);
+    // the columns it shows, a Summarize's keys and aggregates: what the box after it reads (live-inputs.ts boxOmits)
+    const away = new Set(ungroupedDimensions(s));
+    const shown = typed.rows.columns.filter((c) => columnConfig(this.#config, c.name).hidden !== true && !away.has(c.name)).map((c) => c.name);
     const query = shown.length === typed.rows.columns.length ? classLambda(s) : rowsLambda(rows, shown);
     const parts: string[] = [];
     await this.#controller.streamQuery(query, s, (chunk) => {

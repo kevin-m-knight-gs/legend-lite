@@ -31,6 +31,7 @@ import {
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import type { Profile } from '../profile.ts';
 import { gridTitle } from '../page-ids.ts';
+import { ungroupedDimensions } from '../snapshot.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { MenuView } from '../ui/menu-view.ts';
 
@@ -1127,7 +1128,8 @@ export class FlowCanvas {
   }
 
   /** The columns a box hands on, as its document says them: its query's columns and calculated columns, but those it
-   *  hides (a Select's) -- read, never run for. */
+   *  hides (a Select's) and a Summarize's dimensions it is not grouped by (snapshot.ts ungroupedDimensions) -- read,
+   *  never run for. */
   #columnsOf(id: string): string[] {
     const doc = this.#board.options.documentOf?.(id);
     if (doc === undefined) return [];
@@ -1137,7 +1139,8 @@ export class FlowCanvas {
       const c = (settings as Record<string, unknown>)[name];
       return c !== null && typeof c === 'object' && (c as Record<string, unknown>)['hidden'] === true;
     };
-    return [...doc.query.columns.map((c) => c.name), ...doc.query.derived.map((d) => d.name)].filter((n) => !hidden(n));
+    const away = new Set(ungroupedDimensions(doc.query));
+    return [...doc.query.columns.map((c) => c.name), ...doc.query.derived.map((d) => d.name)].filter((n) => !hidden(n) && !away.has(n));
   }
 
   /** A box shown, and its settings with it: the window of its grid's that sets what it does (TOOL_EDITORS) -- but the
