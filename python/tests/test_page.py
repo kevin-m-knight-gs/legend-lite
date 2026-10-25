@@ -2667,6 +2667,36 @@ class Flows(Paged):
         again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
         self.assertEqual(next(g for g in again.grids if g.id == top.id).input.id, big.id)
 
+    def test_a_join_box_reads_both_live_and_is_set_again(self):
+        # M2: a join of two boxes of a flow is live (FL6) -- an edit of either reaches it -- and set again by rejoin
+        page, flow, source, big = self.flowed()
+        on_region = {'form': 'join', 'kind': 'inner', 'on': {'rows': [{'left': 'region', 'op': '==', 'right': 'region'}]},
+                     'prefix': 'their_', 'keep': None}
+        joined = page.join(big, source, on_region)
+        self.assertEqual(joined.sheet, flow)
+        self.assertEqual(joined.inputs, {'left': big, 'right': source})
+        # the Filter's two rows (EMEA, AMER) against the three: EMEA twice, AMER once
+        self.assertEqual(len(joined.to_pandas()), 3)
+        big.filter([('notional', 'greaterThan', 200)])
+        self.assertEqual(len(joined.to_pandas()), 1, 'an edit of its Left reaches it')
+        joined.rejoin({'form': 'append'})
+        self.assertEqual(len(joined.to_pandas()), 1 + 3, 'a Union now: the rows of both')
+        with self.assertRaisesRegex(ValueError, 'joins so already'):
+            joined.rejoin({'form': 'append'})
+        with self.assertRaisesRegex(ValueError, 'is no join'):
+            big.rejoin({'form': 'append'})
+        joined.relink(source, side='left')
+        self.assertEqual(joined.inputs, {'left': source, 'right': source})
+        # on a board: kept by value, as before
+        board = page.grid(trades(), name='board_trades')
+        other = page.grid(trades(), name='board_more')
+        copied = page.join(board, other, on_region)
+        self.assertEqual(copied.inputs, {})
+        # saved and loaded: the links kept
+        again = ll.Page.load(page.to_dict(), frames={'trades': trades(), 'board_trades': trades(), 'board_more': trades()})
+        self.assertEqual({k: g.id for k, g in next(g for g in again.grids if g.id == joined.id).inputs.items()},
+                         {'left': source.id, 'right': source.id})
+
 
 class Snapped(Paged):
     """Snap as page state (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): grid.snap() copies the grid's base query by

@@ -510,6 +510,7 @@ const PASS_THROUGH: Record<string, string> = {
   placeBox: "where the box was let go, or its arrow key took it (placeBox rounds and judges it: layout/flow.ts moveBox)",
   // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2, a flow's lines)
   setInput: "the box a line was drawn from, the box and side it was let go on (or a box's settings' Input picked), or none -- Freeze, a line taken off; setInput judges it (a cycle, a side the source has not) and makes the copy",
+  setJoin: "the join a flow's Join box's window made (ui/join-dialog.ts, as the board's Join… makes one), its Right with it when it changed; setJoin judges it",
 };
 /** Functions that make commands a screen file calls and no headless function asks, each the screen's own (2026-10-22,
  *  S8): a person's input passed through, a form's edits, the board's hand or a tab's drag. */
@@ -740,12 +741,16 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/datacube-app.ts:modelActions:modelHome': { count: 2, other: `${BOTH} the model actions where the host has a model home and a writer`, ability: 'model' },
   'src/app/datacube-app.ts:openDataCube:engine.local': { other: `${BOTH} Add a Grid over a class: opened here, or made by the host (K16)`, ability: 'class' },
   'src/app/datacube-app.ts:openDataCube:localEngine': { other: `${BOTH} Join…: the tab's own join, or the host's (B11)`, ability: 'join' },
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): a flow's Join or Union box, made in the tab's own database
+  'src/app/datacube-app.ts:openDataCube:local': { other: `${BOTH} a flow's Join box: the tab's Join window over its boxes, or Python's flow.join (page.join of two boxes, live)`, ability: 'join' },
   'src/app/datacube-app.ts:offered:localEngine': { other: `${BOTH} Join… offered on a grid of the tab's tables, or one the host opened`, ability: 'join' },
   // -- the sources (sources.ts) --
   'src/app/sources.ts:picksSources:database.mountRemote': { other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'remote' },
   'src/app/sources.ts:picksSources:services.warehouse': { count: 2, other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'warehouse' },
   'src/app/sources.ts:pageSources:services.warehouse': { count: 2, other: `${BOTH} a warehouse read through the tab's own pair, or by a host that reads its tables (C3)`, ability: 'warehouse' },
-  'src/app/sources.ts:pageSources:local': { count: 2, other: `${BOTH} a remote file read by the page's database or the host's`, ability: 'remote' },
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): count 2 -> 3, the Join window's inputs over a flow's boxes
+  // (sources.ts openedInputs), read in the tab's own database -- on a host's page, Python's flow.join
+  'src/app/sources.ts:pageSources:local': { count: 3, other: `${BOTH} a remote file read by the page's database or the host's; a flow's Join window's inputs read in the tab, or by Python's flow.join`, ability: 'remote' },
   'src/app/sources.ts:openedTable:local': { other: `${BOTH} the tab's warehouse table; the host's is openedHostTable`, ability: 'warehouse' },
   'src/app/sources.ts:openedRemote:database.mountRemote': { other: `${BOTH} mounted by whichever database reads it`, ability: 'remote' },
   'src/app/sources.ts:openedRemote:local': { other: `${BOTH} snapped into the tab's copy, or the host's`, ability: 'snap' },

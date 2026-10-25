@@ -162,8 +162,8 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     if ((here.title ?? null) !== (v.title ?? null)) emit({ kind: 'renameTile', tile: v.id, title: v.title ?? null });
   }
 
-  // 2c. the inputs of the grids both have, as `to` has them (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2: a flow's lines are
-  //     the page's, its boxes' queries their own) -- a box's removal undone links again the boxes it froze. Each set when
+  // 2c. the inputs of the grids both have, as `to` has them, and a join's how (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2:
+  //     a flow's lines and its Join boxes' joins are the page's, its boxes' queries their own) -- a box's removal undone links again the boxes it froze. Each set when
   //     it reads no grid back meanwhile; those that would (two boxes swapped) frozen first, then set: every page between
   //     then reads a part of `to`'s links, which read none back
   const relinks: Extract<PageCommand, { kind: 'setInput' }>[] = [];
@@ -177,6 +177,8 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     for (const side of inputSides(want)) {
       if (!sameValue(inputOn(have, side), relinkedInput(inputOn(want, side), n))) relinks.push({ kind: 'setInput', grid: v.id, side, input: inputOn(want, side) });
     }
+    // a join's how, as its box's Join window set it: the page's too
+    if (want._type === 'join' && have._type === 'join' && !sameValue(want.how, have.how)) emit({ kind: 'setJoin', grid: v.id, how: want.how });
   }
   const tried = (c: PageCommand): boolean => {
     try {

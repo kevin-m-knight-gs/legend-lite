@@ -4403,12 +4403,25 @@
   overflow-y: auto;
 }
 .dc-flow-palette[hidden] { display: none; }
+/* a group of the palette's tools, under its heading (Alteryx's: In, Preparation, Join, Transform) */
+.dc-flow-group {
+  flex: none;
+  padding: 6px 0 2px;
+  color: var(--dc-muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.dc-flow-group:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--dc-line-faint); padding-top: 8px; }
 .dc-flow-tool {
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 6px 2px;
+  gap: 3px;
+  padding: 5px 2px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;

@@ -12,7 +12,7 @@ import {
 import type { ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { ColumnSpec, CubeSnapshot } from '../snapshot.ts';
 import type { FileHandle } from '../file-handles.ts';
-import { TAB_TABLES, inputRows, openJoin, openRows, type JoinOpening } from '../join-open.ts';
+import { TAB_TABLES, inputRows, openInputs, openJoin, openRows, type JoinOpening, type OpenedInputs } from '../join-open.ts';
 import type { HeldCopy } from '../app.ts';
 import type { SnapTarget } from '../cube.ts';
 import type { RelationTyper } from '../source-columns.ts';
@@ -235,10 +235,10 @@ async function openedAfterStart(h: JoinSourcesHost, source: RowsSource, resolved
  * or beside it taken, a sample rebuilt, else asked for) and each remote file mounted -- `open` typing what is read over
  * one model of them, `written` what the grid writes down as its source; undefined when a file was not given.
  */
-async function openedOver<T extends { readonly relation: ValueSpecification; readonly columns: ColumnSpec[]; readonly notes: readonly string[] }>(
-  h: JoinSourcesHost, over: CubeSource, name: string, open: (o: JoinOpening) => Promise<T>, written: (opened: T) => CubeSource,
-  how: OpenedHow): Promise<Opened | undefined> {
-  const { local } = h;
+/** The tables `leaves` read, each found or read in as a saved join's are (leafTable), what that said, and the hold on
+ *  those read for this one let go (`forget`); undefined when a file was not given. */
+async function leafTablesOf(h: JoinSourcesHost, leaves: readonly LeafSource[], name: string, page: string | undefined,
+  kept: readonly string[] | undefined): Promise<{ readonly tables: string[]; readonly said: string[]; forget(): Promise<void> } | undefined> {
   /** The tables read in for joins that this one holds. */
   const holding: string[] = [];
   const said: string[] = [];
@@ -255,35 +255,84 @@ async function openedOver<T extends { readonly relation: ValueSpecification; rea
       h.untake(t);
     }
   };
+  const tables: string[] = [];
+  try {
+    for (const [i, leaf] of leaves.entries()) {
+      const got = await leafTable(h, leaf, name, page, kept?.[i]);
+      if (!got) {
+        await forget();
+        return undefined;
+      }
+      if (got.held) holding.push(got.table);
+      if (got.note !== undefined) said.push(got.note);
+      tables.push(got.table);
+    }
+  } catch (e) {
+    await forget();
+    throw e;
+  }
+  return { tables, said, forget };
+}
+
+/** The tab's opening of `open` over `tables`: its model written over them, its typer the grid's own rows (`made`). */
+function tabOpening(h: JoinSourcesHost, tables: readonly string[], made: (rows: GridRows) => void): JoinOpening {
+  const { local } = h;
+  return {
+    here: TAB_TABLES,
+    tables,
+    models: local.tables,
+    catalog: (table) => catalogColumns(local.engine, local.tables, table),
+    databaseType: local.engine.databaseType,
+    // the grid's own rows over the join's model: what types it is what plans it
+    typer: (model, runtime) => {
+      const rows = h.services.engine.rows(model, runtime);
+      made(rows);
+      return h.typer(rows);
+    },
+  };
+}
+
+/**
+ * TWO INPUTS FOR THE JOIN WINDOW over the tab's tables, a flow's boxes' (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): each
+ * resolved against its page already, its leaves' tables found or read in as a saved join's are (a box's grid is not open
+ * while another is shown) -- held, with the rows that type them, until `dispose`.
+ */
+export async function openedInputsOf(h: JoinSourcesHost, left: JoinInput, right: JoinInput, name: string, page?: string):
+  Promise<{ readonly inputs: OpenedInputs; readonly rows: GridRows; dispose(): Promise<void> } | undefined> {
+  const read = await leafTablesOf(h, [...leavesOf(left.source), ...leavesOf(right.source)], name, page, undefined);
+  if (read === undefined) return undefined;
+  let rows: GridRows | undefined;
+  try {
+    const inputs = await openInputs(left, right, tabOpening(h, read.tables, (r) => { rows = r; }));
+    const held = rows!;
+    return {
+      inputs: { ...inputs, notes: [...read.said, ...inputs.notes] }, rows: held,
+      dispose: async () => {
+        h.letGo(held);
+        await read.forget();
+      },
+    };
+  } catch (e) {
+    if (rows) h.letGo(rows);
+    await read.forget();
+    throw e;
+  }
+}
+
+async function openedOver<T extends { readonly relation: ValueSpecification; readonly columns: ColumnSpec[]; readonly notes: readonly string[] }>(
+  h: JoinSourcesHost, over: CubeSource, name: string, open: (o: JoinOpening) => Promise<T>, written: (opened: T) => CubeSource,
+  how: OpenedHow): Promise<Opened | undefined> {
+  let said: string[] = [];
+  let forget = async (): Promise<void> => {};
   let rows: GridRows | undefined;
   try {
     let tables = how.tables;
     if (tables === undefined) {
-      const read: string[] = [];
-      for (const [i, leaf] of leavesOf(over).entries()) {
-        const got = await leafTable(h, leaf, how.saved?.name ?? name, how.page, how.kept?.[i]);
-        if (!got) {
-          await forget();
-          return undefined;
-        }
-        if (got.held) holding.push(got.table);
-        if (got.note !== undefined) said.push(got.note);
-        read.push(got.table);
-      }
-      tables = read;
+      const read = await leafTablesOf(h, leavesOf(over), how.saved?.name ?? name, how.page, how.kept);
+      if (read === undefined) return undefined;
+      ({ tables, said, forget } = read);
     }
-    const opened = await open({
-      here: TAB_TABLES,
-      tables,
-      models: local.tables,
-      catalog: (table) => catalogColumns(local.engine, local.tables, table),
-      databaseType: local.engine.databaseType,
-      // the grid's own rows over the join's model: what types it is what plans it
-      typer: (model, runtime) => {
-        rows = h.services.engine.rows(model, runtime);
-        return h.typer(rows);
-      },
-    });
+    const opened = await open(tabOpening(h, tables, (r) => { rows = r; }));
     const grid = rows!;
     const cubeSource = written(opened);
     const r = rebuilt(how.saved, opened.relation, opened.columns, name, how.capped === true);

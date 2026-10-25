@@ -715,9 +715,12 @@ function reopened(doc: CubeDocument, columns: readonly ColumnSpec[]): Omit<Opene
   const now = new Map(columns.map((c) => [c.name, c]));
   let configuration = merge(DEFAULT_CONFIGURATION, doc.configuration) as CubeConfiguration;
 
-  // New columns: available, not shown.
+  // New columns: available, not shown -- but a grid reading another live (a flow's box) passes on what its input gains,
+  // as Alteryx's *Unknown does (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2: a Join set again to bring their columns back hid
+  // them, 2026-10-25); a Select box hides what it hides by name
+  const live = inputSides(doc.source).some((side) => isLive(inputOn(doc.source, side)));
   const added = columns.filter((c) => !saved.has(c.name)).map((c) => c.name);
-  if (added.length > 0) {
+  if (added.length > 0 && !live) {
     notes.push(`${plural(added.length, 'new column')} since this cube was saved, hidden: ${added.join(', ')}`);
     const cols = { ...configuration.columns };
     for (const name of added) cols[name] = { ...cols[name], hidden: true };
@@ -730,7 +733,7 @@ function reopened(doc: CubeDocument, columns: readonly ColumnSpec[]): Omit<Opene
   }
   // Gone columns, and every calculated column that reads one (in order: one may read another).
   const gone = new Set(q.columns.filter((c) => !now.has(c.name)).map((c) => c.name));
-  if (gone.size > 0) notes.push(`${plural(gone.size, 'column')} no longer in the file: ${[...gone].join(', ')}`);
+  if (gone.size > 0) notes.push(`${plural(gone.size, 'column')} no longer in ${live ? 'its input' : 'the file'}: ${[...gone].join(', ')}`);
   const keepDerived = (list: readonly DerivedColumn[]): DerivedColumn[] => list.filter((d) => {
     const lost = [...derivedReads(d)].filter((n) => gone.has(n));
     if (lost.length === 0) return true;

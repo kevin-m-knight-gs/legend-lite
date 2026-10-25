@@ -250,6 +250,9 @@ export interface CubePageOptions {
    *  settings (`editor`) opened once it is shown -- dropped on a line, `into` the box that line goes into, which reads
    *  the new box from then on. */
   readonly onTool?: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined, into?: LineEnd) => void;
+  /** A flow's Join or Union box's settings asked for (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): the Join window over its
+   *  inputs, opened by the page's owner -- a window over the page, never docked. */
+  readonly onJoinBox?: (box: string, sheet: string) => void;
 }
 
 /** An edit of the page's structure: its page commands, and what it is called (the page's Undo names it). */
@@ -659,6 +662,12 @@ export class CubePage {
    * (refused, or the person gave up), the box stays a document, and why is said.
    */
   async #showBox(id: string, editor?: StepEditor): Promise<void> {
+    // a Join box's settings: the Join window, its owner's to open over the page
+    if (editor?.window === 'join') {
+      const on = this.#sheetOf(id);
+      if (on?.kind === 'flow') this.#options.onJoinBox?.(id, on.id);
+      return;
+    }
     // shown already: its settings, docked
     const shownGrid = this.#grids.get(id)?.added?.cube;
     if (shownGrid !== undefined) {

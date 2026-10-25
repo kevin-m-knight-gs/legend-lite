@@ -207,27 +207,3 @@ export function quickHow(row: JoinRow, form: QuickForm): JoinHow {
   const on = { rows: [row] };
   return form === 'semi' || form === 'anti' ? { form, on } : { form: 'join', kind: form, on, prefix: DEFAULT_PREFIX, keep: null };
 }
-
-// ---------------------------------------------------------------- in words (here, light: a flow's Join box says its own)
-
-const KIND_WORDS: Readonly<Record<JoinKindWord, string>> = {
-  inner: 'matching rows only', left: 'all of mine', right: 'all of theirs', full: 'everything',
-};
-
-/** A row in words: `cust = id`. */
-export function rowWords(row: JoinRow): string {
-  return `${row.left} ${row.op === '==' ? '=' : row.op} ${row.right}`;
-}
-
-/** What a join does, in words: `all of mine, on cust = id`; `every pair`; `nearest at = at, on sym = sym`. */
-export function joinWords(how: JoinHow): string {
-  const on = (c: JoinCondition): string => ('lambda' in c ? 'a condition in Pure'
-    : c.rows.length === 0 ? 'every pair' : c.rows.map(rowWords).join(' and '));
-  switch (how.form) {
-    case 'join': return `${KIND_WORDS[how.kind]}, on ${on(how.on)}`;
-    case 'asOf': return `nearest ${rowWords(how.match)}${'rows' in how.on && how.on.rows.length === 0 ? '' : `, on ${on(how.on)}`}`;
-    case 'semi': return `my rows with a match, on ${on(how.on)}`;
-    case 'anti': return `my rows with no match, on ${on(how.on)}`;
-    case 'append': return 'the rows of both, columns by name';
-  }
-}

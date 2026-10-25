@@ -12,6 +12,7 @@ import { rowCountLambda } from './query.ts';
 import type { JoinCondition, JoinHow, JoinKindWord, JoinRow, JoinSide } from './join-how.ts';
 
 export * from './join-how.ts';
+export { joinWords, rowWords } from './join-words.ts';
 
 // ---------------------------------------------------------------- what it becomes
 

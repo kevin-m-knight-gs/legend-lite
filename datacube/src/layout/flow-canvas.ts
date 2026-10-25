@@ -43,6 +43,11 @@ const SVG = 'http://www.w3.org/2000/svg';
  *  middle (as Alteryx's Join has its L and R anchors). */
 const portY = (side: InputSide): number => (side === 'left' ? BOX_HEIGHT * 0.3 : side === 'right' ? BOX_HEIGHT * 0.7 : BOX_HEIGHT / 2);
 
+/** Each palette group's heading. */
+const GROUP_WORDS: Readonly<Record<'in' | 'prepare' | 'join' | 'transform', string>> = {
+  in: 'In', prepare: 'Prepare', join: 'Join', transform: 'Transform',
+};
+
 /** A side's name, as a port and the settings say it. */
 const SIDE_WORDS: Readonly<Record<InputSide, string>> = { input: 'Input', left: 'Left', right: 'Right' };
 
@@ -53,6 +58,12 @@ const lineKey = (end: LineEnd): string => `${end.tile}:${end.side}`;
 const ICONS: Readonly<Record<FlowTool, string>> = {
   input: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v8c0 1.1-2.2 2-5 2s-5-.9-5-2zM3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 8c0 1.1 2.2 2 5 2s5-.9 5-2',
   join: 'M6 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9M10 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9',
+  union: 'M2.5 3h11v4h-11zM2.5 9h11v4h-11z',
+  recordId: 'M6 2.5L4.5 13.5M11.5 2.5L10 13.5M2.5 6h11M2 10.5h11',
+  multiRow: 'M2 3.5h8M2 8h8M2 12.5h8M12.5 5.5l2 2.5-2 2.5',
+  tile: 'M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z',
+  runningTotal: 'M2 13l4-4.5 3 2.5 5-6.5M10.5 4.5H14V8',
+  crosstab: 'M2 2.5h12v11H2zM2 6.5h12M6 2.5v11',
   filter: 'M2 3h12l-4.5 5.5V13l-3 1.5V8.5z',
   formula: 'M10.5 2.5c-2 0-2.5 1-2.8 3L6.8 11c-.3 2-.8 3-2.8 3M5 6.5h5.5M10 9l3.5 4M13.5 9L10 13',
   select: 'M2 3h3v3H2zM7.5 4.5H14M2 10h3v3H2zM7.5 11.5H14M2.8 4.5l.7.7 1-1.4',
@@ -142,7 +153,19 @@ export class FlowCanvas {
     this.#palette.setAttribute('role', 'toolbar');
     this.#palette.setAttribute('aria-label', 'Tools');
     this.#palette.setAttribute('aria-orientation', 'vertical');
-    for (const tool of PALETTE) this.#palette.append(this.#tool(tool));
+    // its tools by Alteryx's groups, each under its heading
+    let group: string | undefined;
+    for (const tool of PALETTE) {
+      const g = FLOW_TOOLS[tool].group;
+      if (g !== group) {
+        group = g;
+        const heading = el('div', 'dc-flow-group');
+        heading.textContent = GROUP_WORDS[g];
+        heading.setAttribute('aria-hidden', 'true');
+        this.#palette.append(heading);
+      }
+      this.#palette.append(this.#tool(tool));
+    }
     const main = el('div', 'dc-flow-main');
     this.#canvas = el('div', 'dc-flow-canvas');
     this.#canvas.tabIndex = -1;
@@ -441,11 +464,13 @@ export class FlowCanvas {
     return [...doc.query.columns.map((c) => c.name), ...doc.query.derived.map((d) => d.name)].filter((n) => !hidden(n));
   }
 
-  /** A box shown, and its settings with it: the window of its grid's that sets what it does (TOOL_EDITORS). */
+  /** A box shown, and its settings with it: the window of its grid's that sets what it does (TOOL_EDITORS) -- but the
+   *  Join window, a window over the page, opened only when asked (its settings' button). */
   #select(id: string): void {
     this.#clicked = id;
     const said = this.#said(id);
-    this.#board.options.onSelect?.(id, said ? TOOL_EDITORS[said.tool] : undefined);
+    const editor = said ? TOOL_EDITORS[said.tool] : undefined;
+    this.#board.options.onSelect?.(id, editor?.window === 'join' ? undefined : editor);
   }
 
   /** What a box does, as it is drawn: its document's (boxSays) -- or, added as a tool and doing nothing yet, that tool,

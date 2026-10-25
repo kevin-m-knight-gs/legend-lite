@@ -559,6 +559,41 @@ shown box reads on each side -- a box of the flow (none that reads it), or the f
 to another`), `flow-page.test.ts` and the harness: a line drawn and undone, a line taken off and linked again from the
 settings, a Sort dropped on a line and the insert undone in one step (`//datacube:verify_flow_test`).
 
+**Built in step 3, Join and Union boxes** (`app/join-flow.ts` `flowJoin`, `app/join-sources.ts` `openedInputsOf`,
+`ui/join-dialog.ts`, `page-commands.ts` `setJoin`, `flow-boxes.ts`, `headless/join.ts`): Join and Union in the palette.
+Dropped on a box (or clicked with one shown), the Join window opens over it -- its Left -- and the flow's other boxes,
+one chosen as its Right, each read as it is now (its leaves' tables found or read in as a saved join's are: the boxes'
+grids are not open); applied ("Add Join", "Add Union": a Union's window starts at Append), a box after the Left that
+reads both live, drawn with its L and R ports and a line into each, saying its join in words (`join-how.ts joinWords`,
+moved there from join.ts so a box says it without the join's chunk). An edit upstream reaches it: the Filter's
+threshold raised, the Join's rows follow. Set again from its settings ("Open its settings": the window at its own join,
+its condition, match, prefix and columns kept; "Apply"): one step, `setJoin` with `setInput` when its Right changed,
+undone by one undo (page-between.ts 2c sets a join's how too). Python: `page.join(...)` of two boxes of a flow is live
+(`live=None`: live on a flow, a copy on a board, as before), `grid.rejoin(how)`. **A box passes on the columns its
+input gains** (`cube-document.ts reopened`): a grid reading another live shows a new column of its input rather than
+hiding it as a saved grid over a changed file does -- found when a Join set from "with a match" back to "matching rows
+only" hid their columns (Alteryx's *Unknown passes them by default; a Select hides by name). Tested by the harness (a
+Join of the Filter and the Input on trade_id, its rows, an edit upstream, set again and undone, a Union of both),
+`flow-sheet.test.ts`, `page-commands.test.ts` and Python's `Flows`.
+
+### M3's own steps (2026-10-25)
+
+**Built, the window tools and Cross Tab** (`flow-boxes.ts`, `ui/column-editor.ts` `ColumnEditorStart.window`, `app.ts`
+`openStep`): Record ID, Multi-Row, Tile and Running Total are boxes whose one column is a window column, each started as
+its tool's in the column editor docked in the settings pane (`rowNumber` named RecordID, `lag` by one named Previous,
+`ntile` of four named Tile, a running `sum` named RunningTotal) -- the person picks its order and its column there, the
+editor's own window form. A box says the tool that made its column (`boxSays`: a window column by its function; the
+columns of one tool together, in their order). Cross Tab (M4's, here because it is the grid's own column pivot) opens
+Properties at its Column Labels; a box with a column pivot says "desk across, by region". The palette is grouped under
+headings (In, Prepare, Join, Transform). Tested by `flow-sheet.test.ts` and the harness (a Record ID ordered by trade_id,
+its column in its rows; a Cross Tab's Properties docked at Column Labels). Still to come in M3: Sample (first N rows: a
+form of its own, the grid's Top N being by a column), Unique, the parse tools as Formula presets, Data Cleansing,
+Imputation.
+
+**Still open in M2:** ports with several outputs (FL7: a Filter's False, a Unique's Duplicates), a Union of more than
+two inputs, Append Fields, Find Replace and Fuzzy Match; and the board's own Join… making live joins too (FL6's "new
+joins are live": the flow's are; the board's still copies, as Python's `page.join` of two board grids).
+
 
 ---
 

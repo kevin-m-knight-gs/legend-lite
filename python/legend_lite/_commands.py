@@ -17,8 +17,8 @@ GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'sorts', 'addSort', 'clearSort'
 PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'addFlow', 'placeBox', 'renameSheet', 'moveSheet',
                                'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText',
                                'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout',
-                               'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'modelInto',
-                               'modelPin', 'modelKeep',)
+                               'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin',
+                               'modelInto', 'modelPin', 'modelKeep',)
 
 
 def grid_group(*, rows: Any) -> dict[str, Any]:
@@ -220,6 +220,10 @@ def page_rebuilt(*, cube: Any, source: Any) -> dict[str, Any]:
 
 def page_set_input(*, grid: Any, side: Any, input: Any) -> dict[str, Any]:
     return {'kind': 'setInput', 'grid': grid, 'side': side, 'input': input}
+
+
+def page_set_join(*, grid: Any, how: Any) -> dict[str, Any]:
+    return {'kind': 'setJoin', 'grid': grid, 'how': how}
 
 
 def page_model_into(*, project: Any, workspace: Any, package: Any) -> dict[str, Any]:

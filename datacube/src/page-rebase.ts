@@ -72,6 +72,8 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
       return { ...command, cube: n(command.cube), source: relinked(command.source, n) };
     case 'setInput':
       return { ...command, grid: n(command.grid), input: command.input === null ? null : relinkedInput(command.input, n) };
+    case 'setJoin':
+      return { ...command, grid: n(command.grid) };
     case 'renameSheet':
     case 'moveSheet':
     case 'removeSheet':

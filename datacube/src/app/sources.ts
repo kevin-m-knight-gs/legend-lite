@@ -40,7 +40,9 @@ import {
   type RemoteSource,
   type RowsSource,
   type WarehouseSource,
+  type JoinInput,
 } from '../cube-document.ts';
+import type { OpenedInputs } from '../join-open.ts';
 import { liveGrids, resolvedSource } from '../live-inputs.ts';
 import { pageToJson, type PageDocument } from '../page-document.ts';
 import { canKeepHandles, handleKey, pickDataFile, readHandle, type FileHandle } from '../file-handles.ts';
@@ -251,6 +253,11 @@ export interface PageSources {
    */
   openedJoin(source: JoinSource, how?: { readonly saved?: CubeDocument; readonly capped?: boolean; readonly tables?: readonly string[];
     readonly page?: string; readonly kept?: readonly string[]; readonly on?: GridOn }): Promise<Opened | undefined>;
+  /** Two inputs of the Join window over this tab's tables, each resolved against its page, their leaves' tables found or
+   *  read in as a saved join's are -- a flow's boxes, whose grids are not open (app/join-sources.ts openedInputsOf). */
+  openedInputs(left: JoinInput, right: JoinInput, name: string): Promise<{
+    readonly inputs: OpenedInputs; readonly rows: GridRows; dispose(): Promise<void>;
+  } | undefined>;
   /** The frames a grid reads, by its id -- its leaves' (cube-document.ts leavesOf): what following the host's frames
    *  refreshes. */
   framesOf(id: string): string[];
@@ -896,6 +903,14 @@ export function pageSources(d: SourcesOf): PageSources {
     return opened(tablesHost(local), source, resolved, rest);
   }
 
+  async function openedInputs(left: JoinInput, right: JoinInput, name: string): Promise<{
+    readonly inputs: OpenedInputs; readonly rows: GridRows; dispose(): Promise<void>;
+  } | undefined> {
+    if (!local) throw new Error(`${name} is a join, read in this tab's own database: this page has none`);
+    const { openedInputsOf } = await joinSources();
+    return openedInputsOf(tablesHost(local), left, right, name);
+  }
+
   /** The grid of `on`'s cube on its page, when it is one of the page's (a new one is none yet). */
   function gridOf(on: GridOn): string | undefined {
     return on.page.views.find((v) => v.kind === 'grid' && v.cube === on.cube)?.id;
@@ -1374,6 +1389,7 @@ export function pageSources(d: SourcesOf): PageSources {
     openedFrame,
     openedClass,
     openedJoin,
+    openedInputs,
     framesOf: (id) => {
       const place = gridPlaces.get(id);
       const src = place ? readsOf(place) : undefined;

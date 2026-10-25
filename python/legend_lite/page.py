@@ -286,6 +286,17 @@ class Grid(Tile):
         self._page._apply_page([_commands.page_set_input(grid=self._id, side=side, input=None)], 'a freeze')
         return self
 
+    def rejoin(self, how: Mapping[str, Any]) -> Grid:
+        """Its join made again as ``how`` says (page.join's ``how``, read strictly) -- a flow's Join or Union box set
+        again, as its Join window's Apply sets it (page-commands.ts setJoin; docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) --
+        its inputs as they are, the grid then opened over them as it is now. Refused in DataCube's words: a grid that is
+        no join, the join it is already."""
+        _ = self._view
+        with self._page._batch():
+            self._page._apply_page([_commands.page_set_join(grid=self._id, how=dict(how))], 'a join')
+            self._page._current(self._view['cube'], 3)
+        return self
+
     @property
     def input(self) -> Grid | None:
         """The grid of its page it reads live (a flow's box after another), or None: it reads a source of its own, or a
@@ -1837,7 +1848,7 @@ class Page:
         return grid
 
     def join(self, mine: Grid, theirs: Grid, how: Mapping[str, Any], *, title: str | None = None,
-             sheet: Sheet | None = None, snap: bool = False) -> Grid:
+             sheet: Sheet | None = None, snap: bool = False, live: bool | None = None) -> Grid:
         """A grid of ``mine`` joined with ``theirs`` (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17), as the tab's Join…
         makes one: each grid's rows at their finest level, as each is now, combined as ``how`` says -- DataCube's own
         join (join-how.ts), read strictly: ``{'form': 'join', 'kind': 'inner' | 'left' | 'right' | 'full', 'on':
@@ -1846,9 +1857,10 @@ class Page:
         'asOf', 'match': {...}, 'on': ..., 'prefix', 'keep'}`` or ``{'form': 'append'}``. Written by DataCube (headless
         joinCube) over the frames the two read, judged by the compiler -- a refusal in its words, the page as it was --
         and added beside ``mine`` on its sheet -- or at the bottom of ``sheet``, given -- by the page command every grid is
-        added by (DataCube's placement, the tab's Join…'s). Each input is kept
-        by value: the join does not follow later edits of the grids joined. ``snap``: the join read once, by its grid's
-        Snap (``grid.snap()``); refused, the page is as it was."""
+        added by (DataCube's placement, the tab's Join…'s). ``live``: each input read live, the grid as it is now, so an
+        edit of either reaches the join (a flow's Join box: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2, FL6) -- None, live
+        when ``mine`` is a box of a flow; else each input kept by value, the join not following later edits of the grids
+        joined. ``snap``: the join read once, by its grid's Snap (``grid.snap()``); refused, the page is as it was."""
         for g in (mine, theirs):
             if g._page is not self:
                 raise ValueError(f'{g!r} is another page\'s')
@@ -1858,6 +1870,8 @@ class Page:
             _ = sheet._doc
         if title is not None:
             title = _given_name(self._session, 'tile', title, 'a title')
+        if live is None:
+            live = mine.sheet.flow
         session = self._session
         engine, frames = session.headless(), session.frames
         # the tables its leaves read, each grid read as the page has it, under the name it shows, and the join's grid placed
@@ -1866,7 +1880,7 @@ class Page:
         with frames.reading():
             made = _json.loads(engine.call('joinCube', _json.dumps({
                 'page': self._doc, 'mine': mine.id, 'theirs': theirs.id, 'how': how, 'host': frames.hosted(),
-                'sheet': None if sheet is None else sheet.id, 'title': title})))
+                'sheet': None if sheet is None else sheet.id, 'title': title, 'live': live})))
         for note in made['notes']:
             warnings.warn(note, stacklevel=2)
         was = (self._doc, set(self._ids), len(self._page_commands),

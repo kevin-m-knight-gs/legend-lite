@@ -944,6 +944,9 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
   modelKeep: { items: [], why: 'a model action needs a model home: page-commands.test.ts modelCommands' },
   // a cube opened again over its frames as they are now: told as a host's page opens (test/python-engine), and by Python
   rebuilt: { items: [], why: "opening a host's page whose frame changed in place: test/python-engine, python/tests/test_page.py" },
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): a flow's Join box set again by the Join window, which reads its
+  // inputs over the tab's own database -- none in this harness (the tab's Join… is driven by the browser's)
+  setJoin: { items: [], why: "the Join window over a flow's boxes, in the tab's own database: demo/verify-flow.mjs, python/tests/test_page.py Flows" },
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). 2026-10-22 (the S7 confirmation
  *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it.

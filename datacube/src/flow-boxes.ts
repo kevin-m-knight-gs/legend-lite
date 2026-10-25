@@ -6,26 +6,39 @@
 // PURE: no DOM, no planner. The tools a person adds from the palette are here too, by the words the canvas shows.
 
 import { inputCube, inputOn, inputSides, isLive, type CubeDocument, type InputSide, type JoinInput } from './cube-document.ts';
+import { joinWords } from './join-words.ts';
 import { conditionWords } from './page-filters.ts';
+import type { DerivedColumn } from './snapshot.ts';
+import type { ColumnEditorStart } from './ui/column-editor.ts';
 import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
-export type FlowTool = 'input' | 'join' | 'filter' | 'formula' | 'select' | 'sort' | 'summarize' | 'browse';
+export type FlowTool = 'input' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'recordId' | 'multiRow' | 'tile'
+  | 'runningTotal' | 'summarize' | 'crosstab' | 'browse';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
 export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: 'in' | 'prepare' | 'join' | 'transform'; readonly does: string }>> = {
   input: { name: 'Input', group: 'in', does: 'rows from a file, a table, a class or a saved query' },
-  join: { name: 'Join', group: 'join', does: 'two inputs joined on their keys' },
+  join: { name: 'Join', group: 'join', does: 'two inputs joined on their keys: Left above, Right below' },
+  union: { name: 'Union', group: 'join', does: 'the rows of two inputs, one under the other, columns by name' },
   filter: { name: 'Filter', group: 'prepare', does: 'the rows that meet its conditions' },
   formula: { name: 'Formula', group: 'prepare', does: 'columns calculated from each row' },
   select: { name: 'Select', group: 'prepare', does: 'the columns it keeps' },
   sort: { name: 'Sort', group: 'prepare', does: 'its rows in the order it sorts them' },
+  recordId: { name: 'Record ID', group: 'prepare', does: 'a number for each row, in an order it is given' },
+  multiRow: { name: 'Multi-Row', group: 'prepare', does: 'a column of the row before or after each one' },
+  tile: { name: 'Tile', group: 'prepare', does: 'each row put in one of a number of equal buckets, by an order' },
+  runningTotal: { name: 'Running Total', group: 'transform', does: 'a column\'s total so far, row by row' },
   summarize: { name: 'Summarize', group: 'transform', does: 'a row per group, its measures beside its keys' },
+  crosstab: { name: 'Cross Tab', group: 'transform', does: 'a column\'s values made columns across, a row per group' },
   browse: { name: 'Browse', group: 'prepare', does: 'its input\'s rows, as they come' },
 };
 
 /** The tools a person adds after a box, in the palette's order. */
-export const PALETTE: readonly FlowTool[] = ['input', 'filter', 'formula', 'select', 'sort', 'summarize'];
+export const PALETTE: readonly FlowTool[] = [
+  'input', 'filter', 'formula', 'select', 'sort', 'recordId', 'multiRow', 'tile', 'join', 'union', 'summarize', 'crosstab',
+  'runningTotal',
+];
 
 /**
  * WHERE A TOOL IS SET (§3.4: the settings pane, made of DataCube's own editors): the grid's window that sets what the
@@ -34,8 +47,12 @@ export const PALETTE: readonly FlowTool[] = ['input', 'filter', 'formula', 'sele
  */
 export type StepEditor =
   | { readonly window: 'filters' }
-  | { readonly window: 'column' }
-  | { readonly window: 'properties'; readonly tab: EditorTab };
+  /** The calculated column's editor -- a new column, or (`start`) one that starts as a window column of the tool's. */
+  | { readonly window: 'column'; readonly start?: ColumnEditorStart }
+  | { readonly window: 'properties'; readonly tab: EditorTab }
+  /** The Join window (ui/join-dialog.ts), over the box's two inputs: a Join's, a Union's (its Append). Opened when asked,
+   *  never by a click on the box -- a window over the page, not docked. */
+  | { readonly window: 'join' };
 
 export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   filter: { window: 'filters' },
@@ -43,6 +60,14 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   select: { window: 'properties', tab: 'Columns' },
   sort: { window: 'properties', tab: 'Sorts' },
   summarize: { window: 'properties', tab: 'Vertical Pivots' },
+  crosstab: { window: 'properties', tab: 'Horizontal Pivots' },
+  // a window column, started as the tool's (snapshot.ts WindowSpec): the person picks its order, its column
+  recordId: { window: 'column', start: { name: 'RecordID', window: { fn: 'rowNumber', partition: [], order: [] } } },
+  multiRow: { window: 'column', start: { name: 'Previous', window: { fn: 'lag', partition: [], order: [], offset: 1 } } },
+  tile: { window: 'column', start: { name: 'Tile', window: { fn: 'ntile', partition: [], order: [], buckets: 4 } } },
+  runningTotal: { window: 'column', start: { name: 'RunningTotal', window: { fn: 'sum', partition: [], order: [], frame: 'running' } } },
+  join: { window: 'join' },
+  union: { window: 'join' },
 };
 
 /** What a box does, as the canvas says it: its tool (the first its query applies), any others it applies besides,
@@ -60,19 +85,39 @@ export interface BoxSays {
  */
 export function boxSays(cube: CubeDocument): BoxSays {
   const source = cube.source;
-  if (source._type === 'join') return { tool: 'join', also: [], says: source.name };
+  // a join's form says it: an Append is a Union, any other a Join (join-how.ts joinWords)
+  if (source._type === 'join') return { tool: source.how.form === 'append' ? 'union' : 'join', also: [], says: joinWords(source.how) };
   if (source._type !== 'rows') return { tool: 'input', also: [], says: source.name };
   const q = cube.query;
   const steps: { tool: FlowTool; says: string }[] = [];
-  if (q.derived.length > 0) steps.push({ tool: 'formula', says: q.derived.map((d) => d.name).join(', ') });
+  // its calculated columns, each by the tool that makes one so -- the ones of a tool together, in the order they come
+  for (const d of q.derived) {
+    const tool = columnTool(d);
+    const last = steps.at(-1);
+    if (last?.tool === tool) last.says = `${last.says}, ${d.name}`;
+    else steps.push({ tool, says: d.name });
+  }
   if (q.filter !== undefined) steps.push({ tool: 'filter', says: conditionWords(q.filter) });
-  if (q.rows.length > 0) steps.push({ tool: 'summarize', says: `by ${q.rows.join(', ')}` });
+  if (q.pivotOn.length > 0) {
+    steps.push({ tool: 'crosstab', says: `${q.pivotOn.join(', ')} across${q.rows.length > 0 ? `, by ${q.rows.join(', ')}` : ''}` });
+  } else if (q.rows.length > 0) steps.push({ tool: 'summarize', says: `by ${q.rows.join(', ')}` });
   if (q.sorts.length > 0) steps.push({ tool: 'sort', says: q.sorts.map((s) => `${s.column} ${s.direction === 'desc' ? '↓' : '↑'}`).join(', ') });
   const hidden = hiddenColumns(cube);
   if (hidden.length > 0) steps.push({ tool: 'select', says: `${hidden.length} of ${q.columns.length} columns left out` });
   const first = steps[0];
   if (first === undefined) return { tool: 'browse', also: [], says: 'every row' };
   return { tool: first.tool, also: steps.slice(1).map((s) => s.tool), says: first.says };
+}
+
+/** The tool a calculated column is made by: a window column's by its function (a row number, the row before or after,
+ *  a bucket, a running total), any other a Formula's. */
+function columnTool(d: DerivedColumn): FlowTool {
+  const w = d.window;
+  if (w === undefined) return 'formula';
+  if (w.fn === 'rowNumber') return 'recordId';
+  if (w.fn === 'lag' || w.fn === 'lead') return 'multiRow';
+  if (w.fn === 'ntile') return 'tile';
+  return w.frame === 'running' ? 'runningTotal' : 'formula';
 }
 
 /** The columns a cube's configuration hides (Column Properties' Hide): what a Select box leaves out. */

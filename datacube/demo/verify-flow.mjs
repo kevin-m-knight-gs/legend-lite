@@ -5,7 +5,8 @@
 // opened until it is shown, the last box's rows as before); shared, the link opening the same flow in a fresh tab; and a
 // file from the desktop dropped onto the canvas, an Input over it. And its lines (M2): one drawn from a box's output onto
 // another, and undone; one taken off, the box it went into frozen, and linked again from its settings; a tool dropped on
-// a line, between its boxes, and undone in one step.
+// a line, between its boxes, and undone in one step. And its Join and Union boxes (M2): each over two boxes, live -- an
+// edit of the Filter reaches the Join -- and set again from its settings, undone in one step.
 //
 //   bazel test //datacube:verify_flow_test        bazel run //datacube:verify_flow (by hand)
 
@@ -350,6 +351,113 @@ try {
   const dropped = (await boxes()).at(-1);
   check(dropped?.tool === 'input' && dropped.says === 'targets.csv' && dropped.shown, `a file dropped, an Input over it: ${JSON.stringify(dropped)}`);
   check(await resultRows() === 4, 'its rows in the results pane');
+
+  // A JOIN BOX, dragged onto the Filter: the Join window over it (its Left) and the Input (its Right), matching trades
+  const joinWindow = page.locator('.dc-join');
+  const known = (await boxes()).map((b) => b.id);
+  await drag('join', filter.id);
+  await joinWindow.waitFor({ timeout: 20_000 });
+  check(await joinWindow.locator('.dc-picker-subtitle').textContent().then((t) => /another box of the flow/.test(t ?? '')), 'the Join window, over the flow\'s boxes');
+  await joinWindow.locator('.dc-join-their').selectOption(input.id);
+  await joinWindow.locator('.dc-join-kind[data-kind="inner"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('.dc-join .dc-join-left option').length > 1, undefined, { timeout: 60_000 });
+  await joinWindow.locator('.dc-join-left').first().selectOption('trade_id');
+  await joinWindow.locator('.dc-join-right').first().selectOption('trade_id');
+  const addJoin = joinWindow.locator('.dc-save-foot .dc-primary');
+  await page.waitForFunction(() => { const b = document.querySelector('.dc-join .dc-save-foot .dc-primary'); return b instanceof HTMLButtonElement && !b.disabled; }, undefined, { timeout: 60_000 });
+  check(await addJoin.textContent() === 'Add Join', 'its button says what it does: Add Join');
+  await addJoin.click();
+  await joinWindow.waitFor({ state: 'detached', timeout: 60_000 });
+  await boxCount(known.length + 1);
+  const join = await added(known);
+  check(join.tool === 'join' && join.shown, `a Join box, shown: ${JSON.stringify(join)}`);
+  check(JSON.stringify(await readsOf(join.id)) === JSON.stringify([filter.id, input.id]), `it reads the Filter and the Input, live: ${JSON.stringify(await readsOf(join.id))}`);
+  await settled();
+  check(await resultRows() === filtered, `each of the Filter's trades matched once: ${filtered}`);
+  check(await page.locator(`.dc-flow-lines path.dc-flow-hit[data-tile="${join.id}"]`).count() === 2, 'two lines into it, its Left and its Right');
+  await page.screenshot({ path: outPath('flow-join.png') });
+
+  // AN EDIT UPSTREAM REACHES IT: the Filter's threshold raised, the Join's rows fewer
+  await show(filter.id);
+  await page.locator(`.dc-flow-box[data-tile="${filter.id}"]`).click();
+  await docked('Filters').catch(() => undefined);
+  if (await page.locator('.dc-flow-dock .dc-filter-number').count() === 0) {
+    await page.locator('.dc-flow-settings button', { hasText: 'Open its settings' }).click();
+    await docked('Filters');
+  }
+  const threshold = page.locator('.dc-flow-dock .dc-filter-number').first();
+  await threshold.fill('900000');
+  await threshold.press('Enter');
+  await page.locator('.dc-flow-dock button', { hasText: /^OK$/ }).click();
+  await settled();
+  const fewer = await resultRows();
+  check(fewer < filtered, `the Filter keeps fewer: ${fewer}`);
+  check(await show(join.id) === fewer, `the Join's rows follow it: ${fewer}`);
+
+  // SET AGAIN from its settings: Mine with a match, one step, undone
+  await page.locator('.dc-flow-settings button', { hasText: 'Open its settings' }).click();
+  await joinWindow.waitFor({ timeout: 20_000 });
+  check(await joinWindow.locator('.dc-join-kind[data-kind="inner"]').getAttribute('aria-checked') === 'true', 'it opens at its own join');
+  await joinWindow.locator('.dc-join-kind[data-kind="semi"]').click();
+  await page.waitForFunction(() => { const b = document.querySelector('.dc-join .dc-save-foot .dc-primary'); return b instanceof HTMLButtonElement && !b.disabled; }, undefined, { timeout: 60_000 });
+  check(await joinWindow.locator('.dc-save-foot .dc-primary').textContent() === 'Apply', 'set again: Apply');
+  await joinWindow.locator('.dc-save-foot .dc-primary').click();
+  await joinWindow.waitFor({ state: 'detached', timeout: 60_000 });
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Set Join', 'one step: Set Join');
+  const semi = (await boxes()).find((b) => b.id === join.id);
+  check(/with a match/.test(semi?.says ?? ''), `it says its join: ${semi?.says}`);
+  await settled();
+  check(await resultRows() === fewer, 'its rows: the Filter\'s with a match');
+  await page.locator('.dc-flow-canvas').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Control+z');
+  const inner = (await boxes()).find((b) => b.id === join.id);
+  check(/matching rows only/.test(inner?.says ?? ''), `undone: matching rows only again: ${inner?.says}`);
+
+  // A UNION BOX, dragged onto the Filter: the window at Append, the Input under the Filter's rows
+  const before = (await boxes()).map((b) => b.id);
+  await drag('union', filter.id);
+  await joinWindow.waitFor({ timeout: 20_000 });
+  check(await joinWindow.locator('.dc-join-kind[data-kind="append"]').getAttribute('aria-checked') === 'true', 'a Union\'s window starts at Append');
+  await joinWindow.locator('.dc-join-their').selectOption(input.id);
+  await page.waitForFunction(() => { const b = document.querySelector('.dc-join .dc-save-foot .dc-primary'); return b instanceof HTMLButtonElement && !b.disabled; }, undefined, { timeout: 60_000 });
+  await joinWindow.locator('.dc-save-foot .dc-primary').click();
+  await joinWindow.waitFor({ state: 'detached', timeout: 60_000 });
+  await boxCount(before.length + 1);
+  const union = await added(before);
+  check(union.tool === 'union', `a Union box: ${JSON.stringify(union)}`);
+  await settled();
+  check(await resultRows() === fewer + all, `the rows of both: ${fewer} + ${all}`);
+  await page.screenshot({ path: outPath('flow-union.png') });
+
+  // A RECORD ID (M3), dragged onto the Filter: the column editor docked at a row number, ordered by trade_id here
+  const beforeId = (await boxes()).map((b) => b.id);
+  await drag('recordId', filter.id);
+  await boxCount(beforeId.length + 1);
+  const numbered = await added(beforeId);
+  check(numbered.tool === 'recordId', `a Record ID box: ${JSON.stringify(numbered)}`);
+  await docked('column:');
+  check(await page.locator('.dc-flow-dock .dc-calc-input-name').inputValue() === 'RecordID', 'its column named RecordID');
+  check(await page.locator('.dc-flow-dock .dc-win-fn').inputValue() === 'rowNumber', 'a row number, to start');
+  await page.locator('.dc-flow-dock .dc-win-order-add').click();
+  await page.locator('.dc-flow-dock .dc-win-order-column').first().selectOption('trade_id');
+  await page.waitForFunction(() => { const ok = document.querySelector('.dc-flow-dock .dc-calc-ok'); return ok instanceof HTMLButtonElement && !ok.disabled; }, undefined, { timeout: 60_000 });
+  await page.locator('.dc-flow-dock .dc-calc-ok').click();
+  await settled();
+  const set1 = (await boxes()).find((b) => b.id === numbered.id);
+  check(set1?.tool === 'recordId' && set1.says === 'RecordID', `it says its column: ${JSON.stringify(set1)}`);
+  check(await resultRows() === fewer, 'its input\'s rows, each numbered');
+  check(await page.locator('.dc-flow-results .dc-th[data-column="RecordID"]').count() > 0, 'its column in its rows');
+
+  // A CROSS TAB, dragged onto the Filter: Properties docked at its column pivots
+  const beforeTab = (await boxes()).map((b) => b.id);
+  await drag('crosstab', filter.id);
+  await boxCount(beforeTab.length + 1);
+  const crossTab = await added(beforeTab);
+  check(crossTab.tool === 'crosstab' && crossTab.says === 'not set yet', `a Cross Tab box, to be set: ${JSON.stringify(crossTab)}`);
+  await docked('Properties');
+  check(await page.locator('.dc-flow-dock [role="tab"][aria-selected="true"]').getAttribute('data-tab') === 'Horizontal Pivots',
+    'Properties at its column labels (its column pivots)');
+  await page.screenshot({ path: outPath('flow-tools.png') });
 } catch (e) {
   bad(`threw: ${e.stack ?? e}`);
 } finally {

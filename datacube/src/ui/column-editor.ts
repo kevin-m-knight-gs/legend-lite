@@ -30,7 +30,7 @@ import { IDENTIFIER_LETTERS, type Lambda } from '../../../pure-protocol/src/inde
 import type { PivotColumn } from '../query.ts';
 import { docHint } from './docs.ts';
 import { emptyOperands, isEmptyOperandRefusal, sayEmpty, type EmptyAs } from '../calc-fix.ts';
-import { columnType } from '../snapshot.ts';
+import { columnType, type WindowSpec } from '../snapshot.ts';
 import {
   NEW_CHILD,
   NEW_GRAIN,
@@ -67,7 +67,10 @@ export const LEVELS: readonly { value: ColumnLevel; label: string }[] = [
 export type ColumnEditorStart =
   | { readonly expression?: string; readonly level?: ColumnLevel;
     /** A JSON column whose fields to offer first. */
-    readonly json?: string }
+    readonly json?: string;
+    /** A window column to start from (a flow's Record ID, Running Total, Multi-Row Formula, Tile:
+     *  docs/DATACUBE_FLOW_MODE_2026_10_24.md M3), and the name to start with -- a free one like it when taken. */
+    readonly window?: WindowSpec; readonly name?: string }
   | { readonly edit: string };
 
 export interface ColumnEditorOptions {
@@ -228,9 +231,12 @@ export class ColumnEditor {
     } else {
       this.#original = undefined;
       // MEASURE by default, as upstream (DataCubeNewColumnState): column-draft.ts newDraft
-      this.#initial = newDraft(freshName(options.snapshot()), start.expression ?? 'x|', start.level);
+      const s = options.snapshot();
+      const named = start.name === undefined ? freshName(s) : freeName(start.name, new Set(rowColumns(s).map((c) => c.name)));
+      const drafted = newDraft(named, start.expression ?? 'x|', start.level);
+      this.#initial = start.window !== undefined ? { ...drafted, mode: 'window', window: start.window } : drafted;
     }
-    this.#autoName = !('edit' in start);
+    this.#autoName = !('edit' in start) && start.name === undefined;
     this.#json = !('edit' in start) && start.json !== undefined;
     this.#draft = { ...this.#initial, window: { ...this.#initial.window }, child: { ...this.#initial.child } };
     this.#render();

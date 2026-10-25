@@ -3608,7 +3608,7 @@ export class CubeApp {
         this.openFilters();
         return;
       case 'column':
-        this.openColumnEditor({});
+        this.openColumnEditor(editor.start ?? {});
         return;
       case 'properties':
         this.openEditor(undefined, editor.tab);

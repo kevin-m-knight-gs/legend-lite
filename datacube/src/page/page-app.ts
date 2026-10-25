@@ -160,6 +160,9 @@ export interface PageAppOptions {
     into?: LineEnd) => void;
   /** A file dropped onto a flow's canvas: an Input box over it, opened by the host as its picker opens a file. */
   readonly onFlowFile?: (file: File) => void;
+  /** A flow's Join or Union box's settings asked for: the Join window over its inputs, opened by the host over the page
+   *  as it is now (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2). */
+  readonly onFlowJoin?: (box: string, sheet: string, page: PageDocument) => void;
 }
 
 export class PageApp {
@@ -1003,6 +1006,9 @@ export class PageApp {
         },
       } : {}),
       ...(this.#options.onFlowFile ? { onFile: (file: File) => this.#options.onFlowFile?.(file) } : {}),
+      ...(this.#options.onFlowJoin ? {
+        onJoinBox: (box: string, sheet: string) => this.#options.onFlowJoin?.(box, sheet, this.#state.draft.page),
+      } : {}),
       ...(this.#options.onFlowTool ? {
         onTool: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined, into?: LineEnd) =>
           this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page, editor, into),
@@ -1219,6 +1225,15 @@ export class PageApp {
     for (const command of done.applied) this.#options.onPageCommand?.(command);
     this.#syncTo(this.#state.draft.page, from, new Map(), false, true, true);
     return true;
+  }
+
+  /** A page edit told as its commands, one step named `label` (a flow's Join box set again by its window: its join, its
+   *  Right), applied by the one function and told as a gesture's are. Refused in their words: false, nothing changed. */
+  editPage(label: string, commands: readonly PageCommand[]): boolean {
+    if (this.#disposed || commands.length === 0) return false;
+    const done = this.#edit({ label, commands });
+    if (done) this.#options.onChange?.();
+    return done;
   }
 
   /** Whether a grid is known here by `id` -- on the board, or let go and kept to be made again by its maker. */

@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { isLive, rawRows, writeCube, type CubeDocument, type CubeSource, type FileSource, type RowsSource } from '../src/cube-document.ts';
+import { cubeOpenedAgain, isLive, rawRows, writeCube, type CubeDocument, type CubeSource, type FileSource, type RowsSource } from '../src/cube-document.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { boxInputs, boxSays, readersOf } from '../src/flow-boxes.ts';
 import { add, NEW_SHEET } from '../src/layout/bands.ts';
@@ -116,6 +116,20 @@ describe('what a box says it does (flow-boxes.ts boxSays): its query, never a fi
     assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, rows: ['region'] }))), { tool: 'summarize', also: [], says: 'by region' });
     assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => q, { columns: { region: { hidden: true } } })),
       { tool: 'select', also: [], says: '1 of 2 columns left out' });
+  });
+
+  it('a window column says the tool that makes one so; a column pivot, a Cross Tab', () => {
+    const win = (name: string, window: Record<string, unknown>) => ({ name, window: { partition: [], order: [], ...window } } as never);
+    const said = (derived: never[]) => boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived })));
+    assert.deepEqual(said([win('RecordID', { fn: 'rowNumber' })]), { tool: 'recordId', also: [], says: 'RecordID' });
+    assert.deepEqual(said([win('Previous', { fn: 'lag', column: 'notional', offset: 1 })]), { tool: 'multiRow', also: [], says: 'Previous' });
+    assert.deepEqual(said([win('Tile', { fn: 'ntile', buckets: 4 })]), { tool: 'tile', also: [], says: 'Tile' });
+    assert.deepEqual(said([win('RunningTotal', { fn: 'sum', column: 'notional', frame: 'running' }), win('Total', { fn: 'sum', column: 'notional', frame: 'partition' })]),
+      { tool: 'runningTotal', also: ['formula'], says: 'RunningTotal' });
+    // the columns of one tool together, in the order they come
+    assert.deepEqual(said([win('a', { fn: 'rowNumber' }), win('b', { fn: 'rowNumber' })]), { tool: 'recordId', also: [], says: 'a, b' });
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, rows: ['region'], pivotOn: ['desk'] }))),
+      { tool: 'crosstab', also: [], says: 'desk across, by region' });
   });
 
   it("a box's inputs, live or a copy named as the box it copies; the boxes that read it, through others", () => {
@@ -260,6 +274,33 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
     const gone = apply(d, { kind: 'removeTile', tile: 'grid-4' }).page;
     assert.deepEqual(liveGrids(sourceOf(gone, 'grid-5')), ['grid-3']);
     readPage(JSON.parse(pageToJson(gone)));
+  });
+
+  it('a box opened again passes on the columns its input gained, as a saved grid over a file does not', () => {
+    const wider = [...COLUMNS, { name: 'desk', type: 'String' }];
+    const box = cubeOpenedAgain(cube(rows('grid-2')), { ...rows('grid-2'), columns: wider });
+    assert.deepEqual(box.notes, [], 'nothing hidden, nothing to say');
+    assert.notEqual((box.document.configuration['columns'] as Record<string, { hidden?: boolean }> | undefined)?.['desk']?.hidden, true);
+    const filed = cubeOpenedAgain(cube(FILE), { ...FILE, columns: wider });
+    assert.deepEqual(filed.notes, ['1 new column since this cube was saved, hidden: desk']);
+  });
+
+  it("sets a Join box's join again (setJoin): its inputs as they are, undone by the commands between", () => {
+    const join: CubeSource = {
+      _type: 'join', name: 'trades ⋈ trades', left: { grid: 'grid-3' }, right: { grid: 'grid-4' }, columns: COLUMNS,
+      how: { form: 'join', kind: 'inner', on: { rows: [{ left: 'region', op: '==', right: 'region' }] }, prefix: 'their_', keep: null },
+    };
+    const d = apply(FLOW(), addGrid(cube(join), 'sheet-2', 'grid-3'));
+    const union = apply(d, { kind: 'setJoin', grid: 'grid-5', how: { form: 'append' } }).page;
+    const now = sourceOf(union, 'grid-5');
+    assert.ok(now._type === 'join' && now.how.form === 'append');
+    assert.deepEqual(liveGrids(now), ['grid-3', 'grid-4'], 'its inputs as they are');
+    assert.equal(boxSays(union.cubes.find((c) => c.id === 'grid-5')!.cube).tool, 'union', 'an Append is a Union box');
+    assert.equal(boxSays(d.page.cubes.find((c) => c.id === 'grid-5')!.cube).tool, 'join');
+    refused(() => apply({ page: union, held: idsOf(union) }, { kind: 'setJoin', grid: 'grid-5', how: { form: 'append' } }), /joins so already/);
+    refused(() => apply(d, { kind: 'setJoin', grid: 'grid-3', how: { form: 'append' } }), /is no join/);
+    const back = applyPlanned({ page: union, held: idsOf(union) }, pageBetween(union, d.page, 'history'), false).draft.page;
+    assert.deepEqual(sourceOf(back, 'grid-5'), sourceOf(d.page, 'grid-5'), 'undone: its join as it was');
   });
 
   it('reads and writes it, follows renames, and is the undo of a removal that froze its readers', () => {

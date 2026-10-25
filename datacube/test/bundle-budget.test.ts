@@ -330,8 +330,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  drawn so -- the drawing itself the canvas's chunk still). Measured 363,615.
  *  364,000 -> 365,000 (2026-10-25, the flow mode's M2: setInput -- a box linked, frozen, a removal's freeze undone -- its
  *  sides read off a source (cube-document.ts inputOn), a join's inputs live, a tool put on a line; the canvas's lines and
- *  ports its own chunk still). Measured 364,792. */
-const BUDGET = 365_000;
+ *  ports its own chunk still). Measured 364,792.
+ *  365,000 -> 366,000 (2026-10-25, the flow mode's M2 step 3 and M3's first tools: setJoin, a Join box's settings
+ *  routed to its window, a box passing on the columns its input gains; its window and its words a chunk of their own
+ *  (join-flow.ts, join-words.ts), the tools' words the canvas's). Measured 365,559. */
+const BUDGET = 366_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -440,8 +443,10 @@ const BUDGET = 365_000;
  *  344,379.
  *  345,000 -> 352,000 (2026-10-25, the flow mode's M1 steps 3-4 -- the grid-only page's note of the same date). Measured
  *  351,377.
- *  352,000 -> 353,500 (2026-10-25, the flow mode's M2 -- the grid-only page's note of the same date). Measured 353,109. */
-const ENGINE_BUDGET = 353_500;
+ *  352,000 -> 353,500 (2026-10-25, the flow mode's M2 -- the grid-only page's note of the same date). Measured 353,109.
+ *  353,500 -> 354,500 (2026-10-25, the flow mode's M2 step 3 and M3's first tools -- the grid-only page's note of the
+ *  same date). Measured 353,829. */
+const ENGINE_BUDGET = 354_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -604,8 +609,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  372,500 -> 373,000 (2026-10-25, the flow mode's M1 steps 5 and after -- the grid-only page's note of the same date;
  *  the settings pane's styles among them). Measured 372,674.
  *  373,000 -> 374,500 (2026-10-25, the flow mode's M2 -- the grid-only page's note of the same date; a flow's lines'
- *  and ports' styles among them). Measured 374,344. */
-const WIDGET_BUDGET = 374_500;
+ *  and ports' styles among them). Measured 374,344.
+ *  374,500 -> 375,500 (2026-10-25, the flow mode's M2 step 3 and M3's first tools -- the grid-only page's note of the
+ *  same date; the palette's group headings' styles among them). Measured 375,094. */
+const WIDGET_BUDGET = 375_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

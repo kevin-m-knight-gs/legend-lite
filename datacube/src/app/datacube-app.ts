@@ -388,6 +388,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let flowTool: ((tool: FlowTool, after: string | undefined, sheet: string, now: PageDocument, editor: StepEditor | undefined,
     into?: LineEnd) => void) | undefined;
   let flowFile: ((file: File) => void) | undefined;
+  let flowJoinBox: ((box: string, sheet: string, now: PageDocument) => void) | undefined;
   /** JOIN… (§17.5): grid `cube` joined to another of the page -- in the tab, where a grid reads tables of its database; by
    *  the host, on a host's page (B11). Offered on a grid's menu where `offered` says. */
   let joinGrid: { readonly offered: (place: GridPlace) => boolean; readonly open: (cube: string | undefined, ask?: JoinAsk) => void } | undefined;
@@ -523,6 +524,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     openBox: (box, document, now) => openBox?.(box, document, now) ?? Promise.resolve(undefined),
     onFlowTool: (tool, after, sheet, now, editor, into) => flowTool?.(tool, after, sheet, now, editor, into),
     onFlowFile: (file) => flowFile?.(file),
+    onFlowJoin: (box, sheet, now) => flowJoinBox?.(box, sheet, now),
     onChange: () => {
       harnessSignal.changes += 1;
       // a grid gone from the page is followed no more
@@ -1368,6 +1370,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         if (after === undefined) {
           throw new Error("this tool reads another box's rows: click a box first, or drop the tool on one");
         }
+        // a Join or a Union: the Join window over this box (its Left) and another of the flow, each read live (M2)
+        if (tool === 'join' || tool === 'union') {
+          await joinOnFlow({ cube: after, tool, sheet, now, ...(into !== undefined ? { into } : {}) });
+          return;
+        }
         const live: RowsSource = { _type: 'rows', name: gridInput(now, after).name, input: { grid: after }, columns: [] };
         const tables = sources.place(after)?.tables;
         const opened = await sources.openedBox(live, now, { capped: gridCapped(now.cubes.length + 1), ...(tables ? { tables } : {}) });
@@ -1388,6 +1395,29 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         page.boxAddedAs(box, tool);
         if (editor !== undefined) page.grid(box)?.openStep?.(editor);
       })().catch((e: unknown) => window.alert(`${tool[0]!.toUpperCase()}${tool.slice(1)}: ${e instanceof Error ? e.message : String(e)}`));
+    };
+    // A FLOW'S JOIN BOX (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): made after a box, or set again -- the Join window over
+    // the flow's boxes, in this tab's own database (a page Python serves makes one by flow.join: refused here, said)
+    const joinOnFlow = async (o: { readonly cube: string; readonly box?: string; readonly tool: 'join' | 'union'; readonly sheet: string;
+      readonly now: PageDocument; readonly into?: LineEnd }): Promise<void> => {
+      const local = services.engine.local;
+      if (!local) throw new Error('a join on a flow is made where the page\'s tables are: on a page Python serves, by flow.join(...)');
+      const shown = placed;
+      const layout = o.now.sheets.find((s) => s.id === o.sheet)?.layout;
+      const boxes = layout?.kind === 'flow' ? layout.boxes.map((b) => b.tile) : [];
+      const { flowJoin } = await lazily(() => import('./join-app.ts'));
+      await flowJoin({
+        cube: o.cube, ...(o.box !== undefined ? { box: o.box } : {}), tool: o.tool, boxes, page, sources,
+        services: { ...services, engine: { ...services.engine, local } }, stillShown: () => placed === shown,
+        ...(o.into !== undefined ? { into: o.into } : {}),
+      });
+    };
+    flowJoinBox = (box, sheet, now) => {
+      const view = now.views.find((v) => v.id === box);
+      const source = now.cubes.find((c) => c.id === view?.cube)?.cube.source;
+      const tool = source?._type === 'join' && source.how.form === 'append' ? 'union' : 'join';
+      void joinOnFlow({ cube: box, box, tool, sheet, now })
+        .catch((e: unknown) => window.alert(`${tool === 'union' ? 'Union' : 'Join'}: ${e instanceof Error ? e.message : String(e)}`));
     };
     // JOIN… (§17.5): where the page plans and runs its own SQL, its grids' tables in its own database (§17.3); on a
     // host's page (Python's), which has none there, the host answers its window's asks over its tables (HostJoin: B11).
