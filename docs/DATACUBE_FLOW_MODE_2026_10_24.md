@@ -586,9 +586,13 @@ editor's own window form. A box says the tool that made its column (`boxSays`: a
 columns of one tool together, in their order). Cross Tab (M4's, here because it is the grid's own column pivot) opens
 Properties at its Column Labels; a box with a column pivot says "desk across, by region". The palette is grouped under
 headings (In, Prepare, Join, Transform). Tested by `flow-sheet.test.ts` and the harness (a Record ID ordered by trade_id,
-its column in its rows; a Cross Tab's Properties docked at Column Labels). Still to come in M3: Sample (first N rows: a
-form of its own, the grid's Top N being by a column), Unique, the parse tools as Formula presets, Data Cleansing,
-Imputation.
+its column in its rows; a Cross Tab's Properties docked at Column Labels).
+
+**Built, Sample** (`ui/sample-form.ts`, `app.ts` `#openSample`): a box's first or last rows in the order of a column --
+the grid's own Top N (`filter.topN`), said as a sample is ("Keep the first 5 rows, in the order of trade_id"; ties kept,
+as the Top N keeps them), in a window of its own docked in the settings pane, fetched with the first. A box with a Top N
+says "first 5 by trade_id". Tested by the harness (its five rows). Still to come in M3: Unique, the parse tools as
+Formula presets, Data Cleansing, Imputation.
 
 ### M7's first steps (2026-10-25)
 
@@ -602,6 +606,11 @@ Duplicate, Freeze each live input, Remove -- each the same as its gesture elsewh
 tools narrowed to the ones whose name or words hold what is typed, Enter adding the first after the box shown. Tested
 by `flow-sheet.test.ts` (the rule), Python's `Flows` (`flow.tidy`) and the harness (a box pushed out of place and tidied,
 the Formula duplicated from its menu, the palette narrowed to Join).
+
+**Built, zoom and a palette that fits** (`layout/flow-canvas.ts`): −, the level (back to its own size), + and Fit at the
+canvas's corner, and Ctrl+wheel around the pointer -- the screen's, never the page's; a box dragged at a zoom moves by
+the pointer's way across the window in the canvas's own units (110 pixels at 110%, 100 of the canvas). The palette lays
+its tools two by two under their headings, so the whole of it fits a window's height. Tested by the harness.
 
 ### M5 and M6, first steps (2026-10-25)
 

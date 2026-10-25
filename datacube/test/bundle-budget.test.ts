@@ -336,8 +336,10 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  (join-flow.ts, join-words.ts), the tools' words the canvas's). Measured 365,559.
  *  366,000 -> 367,500 (2026-10-25, the flow mode's M7 first steps: Tidy Up's rule and its gesture, which Python's
  *  flow.tidy asks too (page-gestures.ts tidyCommands, layout/flow.ts arranged), a box duplicated; a box's menu and the
- *  palette's find the canvas's chunk). Measured 366,976. */
-const BUDGET = 367_500;
+ *  palette's find the canvas's chunk). Measured 366,976.
+ *  367,500 -> 368,000 (2026-10-25, the flow mode's Sample: a grid's Sample window opened by its step, docked; the form
+ *  a chunk of its own, ui/sample-form.ts). Measured 367,587. */
+const BUDGET = 368_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

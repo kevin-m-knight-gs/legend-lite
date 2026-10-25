@@ -71,6 +71,7 @@ async function settled(tab = page) {
 }
 /** A tool dragged from the palette and let go on `target` (a box's id, or the canvas), as a person drags one. */
 async function drag(tool, target) {
+  await page.locator(`.dc-flow-tool[data-tool="${tool}"]`).scrollIntoViewIfNeeded();
   const from = await page.locator(`.dc-flow-tool[data-tool="${tool}"]`).boundingBox();
   const onto = await page.locator(target === 'canvas' ? '.dc-flow-canvas' : `.dc-flow-box[data-tile="${target}"]`).boundingBox();
   if (!from || !onto) throw new Error(`nothing to drag ${tool} from, or onto ${target}`);
@@ -212,6 +213,8 @@ try {
     `one box's grid made, the shown one's: ${open}`);
 
   // A LINE DRAWN by hand: from the Input's output onto the Formula, which reads the Input from then on -- one step, undone
+  // (the canvas scrolled back to its start: a box added was scrolled into view, the Input's port under the palette)
+  await page.locator('.dc-flow-canvas').evaluate((c) => { c.scrollLeft = 0; c.scrollTop = 0; });
   const outPort = await page.locator(`.dc-flow-box[data-tile="${input.id}"] .dc-flow-port-out`).boundingBox();
   const onto = await page.locator(`.dc-flow-box[data-tile="${formula.id}"]`).boundingBox();
   await page.mouse.move(outPort.x + outPort.width / 2, outPort.y + outPort.height / 2);
@@ -237,7 +240,8 @@ try {
   await page.screenshot({ path: outPath('flow-line-selected.png') });
   await page.keyboard.press('Delete');
   check(await readsOf(formula.id) === 'copy', `taken off: the Formula reads a copy: ${await readsOf(formula.id)}`);
-  check(await lineCount() === 2, 'its line gone');
+  const left = await lineCount();
+  check(left === 2, `its line gone: ${left} lines`);
   check(await page.locator(`.dc-flow-box[data-tile="${formula.id}"].dc-flow-frozen`).count() === 1, 'the Formula drawn frozen');
   await page.screenshot({ path: outPath('flow-frozen.png') });
   await settled();
@@ -245,7 +249,8 @@ try {
   // linked again from its settings: Input, the Filter
   await page.locator('.dc-flow-inputs select').selectOption(`grid:${filter.id}`);
   check(await readsOf(formula.id) === filter.id, 'linked again from its settings: it reads the Filter');
-  check(await lineCount() === 3, 'its line back');
+  const back3 = await lineCount();
+  check(back3 === 3, `its line back: ${back3} lines`);
   await settled();
 
   // A TOOL DROPPED ON A LINE: a Sort between the Filter and the Formula -- the Formula reads the Sort; one step, undone
@@ -277,6 +282,7 @@ try {
     return flow.layout.boxes.find((b) => b.tile === id);
   }, summary.id);
   const was = await placeOf();
+  await page.locator(`.dc-flow-box[data-tile="${summary.id}"]`).scrollIntoViewIfNeeded();
   const card = await page.locator(`.dc-flow-box[data-tile="${summary.id}"]`).boundingBox();
   await page.mouse.move(card.x + 30, card.y + 20);
   await page.mouse.down();
@@ -490,6 +496,36 @@ try {
   check(counts[input.id] === '5,000' && counts[filter.id] === fewer.toLocaleString() && counts[union.id] === (fewer + all).toLocaleString(),
     `each box counted: ${JSON.stringify(counts)}`);
   await page.screenshot({ path: outPath('flow-run.png') });
+
+  // A SAMPLE (M3), dragged onto the Filter: the first five rows by trade_id, in its window docked
+  const beforeSample = (await boxes()).map((b) => b.id);
+  await drag('sample', filter.id);
+  await boxCount(beforeSample.length + 1);
+  const sample = await added(beforeSample);
+  await docked('Sample');
+  await page.locator('.dc-flow-dock .dc-sample-n').fill('5');
+  await page.locator('.dc-flow-dock .dc-sample-by').selectOption('trade_id');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  const sampled = (await boxes()).find((b) => b.id === sample.id);
+  check(sampled?.tool === 'sample' && sampled.says === 'first 5 by trade_id', `a Sample box: ${JSON.stringify(sampled)}`);
+  check(await resultRows() === 5, 'its first five rows');
+
+  // ZOOM (M7): a level up, a box dragged as far across the window moves less on the canvas; back to its own size
+  await page.locator('.dc-flow-zoom', { hasText: '+' }).click();
+  check(await page.locator('.dc-flow-zoom-level').textContent() === '110%', 'zoomed in a level: 110%');
+  await page.locator(`.dc-flow-box[data-tile="${input.id}"]`).scrollIntoViewIfNeeded();
+  const zoomedBox = await page.locator(`.dc-flow-box[data-tile="${input.id}"]`).boundingBox();
+  check(Math.abs(zoomedBox.width - 184 * 1.1) < 2, `a box drawn at its zoom: ${zoomedBox.width}px`);
+  const beforeZoomMove = await page.evaluate((id) => window.__dataPage.document('x').sheets.find((s) => s.layout.kind === 'flow').layout.boxes.find((b) => b.tile === id), input.id);
+  await page.mouse.move(zoomedBox.x + 30, zoomedBox.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(zoomedBox.x + 30, zoomedBox.y + 20 + 110, { steps: 8 });
+  await page.mouse.up();
+  const afterZoomMove = await page.evaluate((id) => window.__dataPage.document('x').sheets.find((s) => s.layout.kind === 'flow').layout.boxes.find((b) => b.tile === id), input.id);
+  check(Math.abs(afterZoomMove.y - beforeZoomMove.y - 100) <= 1, `moved 110px of the window, 100 of the canvas: ${beforeZoomMove.y} to ${afterZoomMove.y}`);
+  await page.locator('.dc-flow-zoom-level').click();
+  check(await page.locator('.dc-flow-zoom-level').textContent() === '100%', 'back to its own size');
 
   // THE PALETTE'S FIND: its tools narrowed to what is typed
   await page.fill('.dc-flow-find', 'join');

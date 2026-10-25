@@ -148,6 +148,9 @@ describe('what a box says it does (flow-boxes.ts boxSays): its query, never a fi
     assert.deepEqual(said([win('a', { fn: 'rowNumber' }), win('b', { fn: 'rowNumber' })]), { tool: 'recordId', also: [], says: 'a, b' });
     assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, rows: ['region'], pivotOn: ['desk'] }))),
       { tool: 'crosstab', also: [], says: 'desk across, by region' });
+    // a Top N, as a Sample says it: its first (smallest) or last rows by a column
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, topN: { by: 'notional', n: 5, bottom: true } }))),
+      { tool: 'sample', also: [], says: 'first 5 by notional' });
   });
 
   it("a box's inputs, live or a copy named as the box it copies; the boxes that read it, through others", () => {

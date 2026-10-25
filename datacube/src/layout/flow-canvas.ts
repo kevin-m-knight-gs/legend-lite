@@ -48,6 +48,9 @@ const SVG = 'http://www.w3.org/2000/svg';
  *  middle (as Alteryx's Join has its L and R anchors). */
 const portY = (side: InputSide): number => (side === 'left' ? BOX_HEIGHT * 0.3 : side === 'right' ? BOX_HEIGHT * 0.7 : BOX_HEIGHT / 2);
 
+/** The zoom levels the canvas steps through (−, +, Ctrl+wheel), 1 its own size. */
+const ZOOMS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5] as const;
+
 /** Each palette group's heading. */
 const GROUP_WORDS: Readonly<Record<'in' | 'prepare' | 'join' | 'transform', string>> = {
   in: 'In', prepare: 'Prepare', join: 'Join', transform: 'Transform',
@@ -65,6 +68,7 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   join: 'M6 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9M10 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9',
   union: 'M2.5 3h11v4h-11zM2.5 9h11v4h-11z',
   recordId: 'M6 2.5L4.5 13.5M11.5 2.5L10 13.5M2.5 6h11M2 10.5h11',
+  sample: 'M2.5 3h11M2.5 6.5h11M2.5 10h4M2.5 13h4M10 10.5l1.5 1.5 2.5-3',
   multiRow: 'M2 3.5h8M2 8h8M2 12.5h8M12.5 5.5l2 2.5-2 2.5',
   tile: 'M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z',
   runningTotal: 'M2 13l4-4.5 3 2.5 5-6.5M10.5 4.5H14V8',
@@ -152,6 +156,9 @@ export class FlowCanvas {
   readonly #toolbar: HTMLElement;
   readonly #run: HTMLButtonElement;
   readonly #tidy: HTMLButtonElement;
+  /** The canvas's zoom (the screen's, never the page's): its boxes drawn at this size, and the level said between − and +. */
+  #zoom = 1;
+  readonly #zoomLevel: HTMLButtonElement;
   /** The palette's find field, and its tools by name. */
   readonly #find: HTMLInputElement;
   readonly #tools = new Map<FlowTool, HTMLButtonElement>();
@@ -255,7 +262,19 @@ export class FlowCanvas {
     };
     this.#run = tool('dc-flow-run', '▶ Run', 'Run every box, left to right, and count the rows each gives', () => this.#board.options.onRun?.());
     this.#tidy = tool('dc-flow-tidy', 'Tidy Up', 'Place every box a column after the boxes it reads, level with them', () => this.#board.options.onTidy?.());
-    this.#toolbar.append(this.#run, this.#tidy);
+    // ZOOM: − and + a level each, the level itself back to its own size, Fit all of it in view; Ctrl+wheel too
+    const zoomOut = tool('dc-flow-zoom', '−', 'Zoom out (Ctrl+wheel)', () => this.#zoomBy(-1));
+    this.#zoomLevel = tool('dc-flow-zoom dc-flow-zoom-level', '100%', 'Its own size', () => this.#setZoom(1));
+    const zoomIn = tool('dc-flow-zoom', '+', 'Zoom in (Ctrl+wheel)', () => this.#zoomBy(1));
+    const fit = tool('dc-flow-zoom', 'Fit', 'Every box in view', () => this.#fit());
+    zoomOut.setAttribute('aria-label', 'Zoom out');
+    zoomIn.setAttribute('aria-label', 'Zoom in');
+    this.#toolbar.append(this.#run, this.#tidy, zoomOut, this.#zoomLevel, zoomIn, fit);
+    this.#canvas.addEventListener('wheel', (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      this.#zoomBy(e.deltaY < 0 ? 1 : -1, { x: e.clientX, y: e.clientY });
+    }, { passive: false });
     stage.append(this.#canvas, this.#toolbar);
     const top = el('div', 'dc-flow-top');
     top.append(stage, this.#side, this.#settings);
@@ -350,15 +369,54 @@ export class FlowCanvas {
     this.#paintSettings();
   }
 
-  /** A box scrolled into view. */
+  /** A box scrolled into view (the canvas scrolls in its zoomed size). */
   reveal(id: string): void {
     const box = this.#placed(this.#board.layout).boxes.find((b) => b.tile === id);
     if (!box) return;
     const c = this.#canvas;
-    if (box.x < c.scrollLeft) c.scrollLeft = Math.max(0, box.x - MARGIN);
-    else if (box.x + BOX_WIDTH > c.scrollLeft + c.clientWidth) c.scrollLeft = box.x + BOX_WIDTH + MARGIN - c.clientWidth;
-    if (box.y < c.scrollTop) c.scrollTop = Math.max(0, box.y - MARGIN);
-    else if (box.y + BOX_HEIGHT > c.scrollTop + c.clientHeight) c.scrollTop = box.y + BOX_HEIGHT + MARGIN - c.clientHeight;
+    const z = this.#zoom;
+    const [x, y, w, h, m] = [box.x * z, box.y * z, BOX_WIDTH * z, BOX_HEIGHT * z, MARGIN * z];
+    if (x < c.scrollLeft) c.scrollLeft = Math.max(0, x - m);
+    else if (x + w > c.scrollLeft + c.clientWidth) c.scrollLeft = x + w + m - c.clientWidth;
+    if (y < c.scrollTop) c.scrollTop = Math.max(0, y - m);
+    else if (y + h > c.scrollTop + c.clientHeight) c.scrollTop = y + h + m - c.clientHeight;
+  }
+
+  /** The zoom a level up or down (`by`), kept at the point `at` of the window when given (a wheel's pointer). */
+  #zoomBy(by: 1 | -1, at?: { readonly x: number; readonly y: number }): void {
+    const i = ZOOMS.findIndex((z) => z >= this.#zoom - 1e-9);
+    const next = ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, (i < 0 ? ZOOMS.length - 1 : i) + by))]!;
+    this.#setZoom(next, at);
+  }
+
+  /** The canvas drawn at `zoom`, the point `at` of the window (else its top left) where it was. */
+  #setZoom(zoom: number, at?: { readonly x: number; readonly y: number }): void {
+    const was = this.#zoom;
+    if (Math.abs(zoom - was) < 1e-9) return;
+    const c = this.#canvas;
+    const r = c.getBoundingClientRect();
+    const px = at === undefined ? 0 : at.x - r.left;
+    const py = at === undefined ? 0 : at.y - r.top;
+    const planeX = (c.scrollLeft + px) / was;
+    const planeY = (c.scrollTop + py) / was;
+    this.#zoom = zoom;
+    this.#plane.style.setProperty('zoom', String(zoom));
+    this.#zoomLevel.textContent = `${Math.round(zoom * 100)}%`;
+    c.scrollLeft = Math.max(0, planeX * zoom - px);
+    c.scrollTop = Math.max(0, planeY * zoom - py);
+  }
+
+  /** Every box in view: the largest zoom, its own size at most, that shows them all. */
+  #fit(): void {
+    const boxes = this.#board.layout.boxes;
+    if (boxes.length === 0) return;
+    const w = Math.max(...boxes.map((b) => b.x + BOX_WIDTH)) + MARGIN;
+    const h = Math.max(...boxes.map((b) => b.y + BOX_HEIGHT)) + MARGIN;
+    const c = this.#canvas;
+    const fits = Math.min(1.5, c.clientWidth / w, c.clientHeight / h);
+    this.#setZoom(Math.max(0.25, Math.min(1, fits)));
+    c.scrollLeft = 0;
+    c.scrollTop = 0;
   }
 
   dispose(): void {
@@ -651,9 +709,10 @@ export class FlowCanvas {
     // a locked page moves nothing: a press only shows the box
     const editing = this.#board.editing;
     this.#own(drawn.root, e, (ev) => {
-      const dx = ev.clientX - start.x;
-      const dy = ev.clientY - start.y;
-      if (!editing || (!moved && Math.hypot(dx, dy) < DRAG_PX)) return;
+      // the pointer's way across the window, in the canvas's own units at its zoom
+      const dx = (ev.clientX - start.x) / this.#zoom;
+      const dy = (ev.clientY - start.y) / this.#zoom;
+      if (!editing || (!moved && Math.hypot(dx, dy) * this.#zoom < DRAG_PX)) return;
       moved = true;
       drawn.root.classList.add('dc-flow-dragging');
       this.#dragged = { id, x: Math.max(0, box.x + dx), y: Math.max(0, box.y + dy) };
@@ -897,7 +956,7 @@ export class FlowCanvas {
     this.#selectLine(undefined);
     const plane = (ev: PointerEvent): { x: number; y: number } => {
       const r = this.#plane.getBoundingClientRect();
-      return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+      return { x: (ev.clientX - r.left) / this.#zoom, y: (ev.clientY - r.top) / this.#zoom };
     };
     this.#wire = { from, ...plane(e) };
     this.#host.classList.add('dc-flow-wiring');

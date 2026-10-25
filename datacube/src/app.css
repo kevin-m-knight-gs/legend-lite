@@ -4391,11 +4391,14 @@
   position: relative;
   background: var(--dc-bg);
 }
+/* the palette: its tools two by two under their groups' headings, so a long one fits a window's height */
 .dc-flow-palette {
   flex: none;
-  width: 72px;
-  display: flex;
-  flex-direction: column;
+  width: 144px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-content: start;
   gap: 2px;
   padding: 8px 6px;
   border-right: 1px solid var(--dc-line-faint);
@@ -4405,7 +4408,7 @@
 .dc-flow-palette[hidden] { display: none; }
 /* a group of the palette's tools, under its heading (Alteryx's: In, Preparation, Join, Transform) */
 .dc-flow-group {
-  flex: none;
+  grid-column: 1 / -1;
   padding: 6px 0 2px;
   color: var(--dc-muted);
   font-size: 9px;
@@ -4421,6 +4424,7 @@
   flex-direction: column;
   align-items: center;
   gap: 3px;
+  min-width: 0;
   padding: 5px 2px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -4435,7 +4439,7 @@
 }
 .dc-flow-tool:hover { background: var(--dc-fill-faint); border-color: var(--dc-line-faint); color: var(--tw-black); }
 .dc-flow-tool:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
-.dc-flow-tool-name { white-space: nowrap; }
+.dc-flow-tool-name { text-align: center; overflow-wrap: break-word; font-size: 10.5px; line-height: 13px; }
 
 /* a tool's icon: its glyph in its group's colour, on a tint of it (Alteryx's groups: in and out, preparation, join,
    transform) -- readable on either theme, the colour tokens being each theme's own */
@@ -4477,6 +4481,8 @@
 .dc-flow-act:hover { border-color: var(--dc-line-strong); color: var(--tw-black); }
 .dc-flow-act:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
 .dc-flow-act[hidden] { display: none; }
+.dc-flow-zoom { min-width: 26px; padding: 0 8px; }
+.dc-flow-zoom-level { min-width: 52px; font-variant-numeric: tabular-nums; }
 .dc-flow-run { color: var(--dc-active); border-color: color-mix(in srgb, var(--dc-active) 45%, transparent); }
 .dc-flow-run:disabled { cursor: progress; opacity: 0.8; }
 /* a box's rows when its grid ran last: beside its output, under the lines out of it, as a connection's count is */
@@ -4495,7 +4501,7 @@
 .dc-flow-count[hidden] { display: none; }
 /* the palette's find field: its tools narrowed to what it holds */
 .dc-flow-find {
-  flex: none;
+  grid-column: 1 / -1;
   width: 100%;
   box-sizing: border-box;
   margin-bottom: 2px;
@@ -4699,6 +4705,15 @@
 }
 .dc-flow-settings-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dc-flow-settings:has(> .dc-flow-dock:not(:empty)) > .dc-flow-settings-head { display: none; }
+/* a flow's Sample (ui/sample-form.ts): its first or last rows, in the order of a column */
+.dc-sample { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.dc-sample-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dc-sample-word { color: var(--dc-muted-strong); }
+.dc-sample-n { width: 6em; }
+.dc-sample-hint { margin: 0; color: var(--dc-muted); font-size: 12px; max-width: 52ch; }
+.dc-sample-status { margin: 0; min-height: 1em; color: var(--tw-red-600); font-size: 12px; }
+.dc-sample-status:empty { display: none; }
+.dc-sample-foot { display: flex; align-items: center; gap: 8px; }
 /* the box's inputs, above its settings: what it reads on each side, a box of the flow or a frozen copy */
 .dc-flow-inputs {
   flex: none;

@@ -459,7 +459,7 @@ const windowStack = new WeakMap<HTMLElement, number>();
 
 /** The windows that set a cube -- Properties, the Filter window, a calculated column's editor -- which dock where a host
  *  docks them (CubeAppOptions.dock); every other window floats. */
-const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key.startsWith('column:');
+const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key.startsWith('column:');
 
 /**
  * Which cube on a document a keystroke from OUTSIDE every cube belongs to: the one last
@@ -3613,7 +3613,27 @@ export class CubeApp {
       case 'properties':
         this.openEditor(undefined, editor.tab);
         return;
+      case 'sample':
+        void this.#openSample();
+        return;
+      // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
+      case 'join':
+        return;
     }
+  }
+
+  /** A FLOW'S SAMPLE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): its Top N said as a sample is -- its first rows or its
+   *  last, in the order of a column -- in a window of its own (ui/sample-form.ts, fetched with the first). */
+  async #openSample(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const { sampleForm } = await lazily(() => import('./ui/sample-form.ts'));
+    this.#showOverlay('Sample', (host, close) => sampleForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => c.name),
+      now: this.#snapshot.topN,
+      apply: (column, n, last) => this.#gesture('filter.topN', { column, n, ...(last ? {} : { bottom: true }) }, 'Sample'),
+      clear: () => this.#gesture('filter.topNOff', {}, 'Sample'),
+      close,
+    }));
   }
 
   /**

@@ -13,7 +13,7 @@ import type { ColumnEditorStart } from './ui/column-editor.ts';
 import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
-export type FlowTool = 'input' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'recordId' | 'multiRow' | 'tile'
+export type FlowTool = 'input' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'sample' | 'recordId' | 'multiRow' | 'tile'
   | 'runningTotal' | 'summarize' | 'crosstab' | 'browse';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
@@ -25,6 +25,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   formula: { name: 'Formula', group: 'prepare', does: 'columns calculated from each row' },
   select: { name: 'Select', group: 'prepare', does: 'the columns it keeps' },
   sort: { name: 'Sort', group: 'prepare', does: 'its rows in the order it sorts them' },
+  sample: { name: 'Sample', group: 'prepare', does: 'its first or its last rows, in the order of a column' },
   recordId: { name: 'Record ID', group: 'prepare', does: 'a number for each row, in an order it is given' },
   multiRow: { name: 'Multi-Row', group: 'prepare', does: 'a column of the row before or after each one' },
   tile: { name: 'Tile', group: 'prepare', does: 'each row put in one of a number of equal buckets, by an order' },
@@ -36,7 +37,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'filter', 'formula', 'select', 'sort', 'recordId', 'multiRow', 'tile', 'join', 'union', 'summarize', 'crosstab',
+  'input', 'filter', 'formula', 'select', 'sort', 'sample', 'recordId', 'multiRow', 'tile', 'join', 'union', 'summarize', 'crosstab',
   'runningTotal',
 ];
 
@@ -50,6 +51,8 @@ export type StepEditor =
   /** The calculated column's editor -- a new column, or (`start`) one that starts as a window column of the tool's. */
   | { readonly window: 'column'; readonly start?: ColumnEditorStart }
   | { readonly window: 'properties'; readonly tab: EditorTab }
+  /** The Sample window (ui/sample-form.ts): the grid's Top N, said as its first or last rows by a column. */
+  | { readonly window: 'sample' }
   /** The Join window (ui/join-dialog.ts), over the box's two inputs: a Join's, a Union's (its Append). Opened when asked,
    *  never by a click on the box -- a window over the page, not docked. */
   | { readonly window: 'join' };
@@ -61,6 +64,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   sort: { window: 'properties', tab: 'Sorts' },
   summarize: { window: 'properties', tab: 'Vertical Pivots' },
   crosstab: { window: 'properties', tab: 'Horizontal Pivots' },
+  sample: { window: 'sample' },
   // a window column, started as the tool's (snapshot.ts WindowSpec): the person picks its order, its column
   recordId: { window: 'column', start: { name: 'RecordID', window: { fn: 'rowNumber', partition: [], order: [] } } },
   multiRow: { window: 'column', start: { name: 'Previous', window: { fn: 'lag', partition: [], order: [], offset: 1 } } },
@@ -98,6 +102,7 @@ export function boxSays(cube: CubeDocument): BoxSays {
     else steps.push({ tool, says: d.name });
   }
   if (q.filter !== undefined) steps.push({ tool: 'filter', says: conditionWords(q.filter) });
+  if (q.topN !== undefined) steps.push({ tool: 'sample', says: `${q.topN.bottom === true ? 'first' : 'last'} ${q.topN.n} by ${q.topN.by}` });
   if (q.pivotOn.length > 0) {
     steps.push({ tool: 'crosstab', says: `${q.pivotOn.join(', ')} across${q.rows.length > 0 ? `, by ${q.rows.join(', ')}` : ''}` });
   } else if (q.rows.length > 0) steps.push({ tool: 'summarize', says: `by ${q.rows.join(', ')}` });
