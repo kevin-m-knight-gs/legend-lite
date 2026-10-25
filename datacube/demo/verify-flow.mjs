@@ -684,7 +684,7 @@ try {
   await textStep('cleanse', 'Data Cleansing', async (w) => {
     await w.locator('.dc-text-tool-check', { hasText: 'region' }).locator('input').check();
     await w.locator('.dc-text-tool-case').selectOption('lower');
-  }, { says: 'region cleansed', columns: ['region_clean'] });
+  }, { says: 'region cleansed in place', columns: ['region_clean'] });
 
   // IMPUTATION (M3), dragged onto the Filter: notional's empties filled with its average across every row
   const beforeImpute = (await boxes()).map((b) => b.id);
@@ -698,7 +698,7 @@ try {
   await settled();
   const filledBox = (await boxes()).find((b) => b.id === filling.id);
   const imputeRefused = await page.locator('.dc-flow-dock .dc-sample-status').textContent().catch(() => '');
-  check(filledBox?.tool === 'impute' && filledBox.says === "notional's empties → its average", `an Imputation box: ${JSON.stringify(filledBox)}${imputeRefused ? `, refused: ${imputeRefused}` : ''}`);
+  check(filledBox?.tool === 'impute' && filledBox.says === "notional's empties → its average in place", `an Imputation box: ${JSON.stringify(filledBox)}${imputeRefused ? `, refused: ${imputeRefused}` : ''}`);
   check(await page.locator('.dc-flow-results .dc-th[data-column="notional_filled"]').count() > 0
     && await page.locator('.dc-flow-results .dc-th[data-column="notional__average"]').count() === 0, 'its column in its rows, its average hidden');
   check(await resultRows() === fewer, "Imputation: its input's rows, each kept");
@@ -718,11 +718,12 @@ try {
   await settled();
   const choseBox = (await boxes()).find((b) => b.id === chose.id);
   check(choseBox?.tool === 'select' && /^region → area; quantity as String; 1 of \d+ columns left out$/.test(choseBox.says), `a Select box: ${JSON.stringify(choseBox)}`);
-  // a Sort after it, set to nothing: its rows as it reads them
+  // a Browse after it, from the palette: its rows as it reads them
   const beforeReader = (await boxes()).map((b) => b.id);
-  await drag('sort', chose.id);
+  await drag('browse', chose.id);
   await boxCount(beforeReader.length + 1);
   const reader = await added(beforeReader);
+  check(reader.tool === 'browse' && reader.says === 'every row', `a Browse from the palette: ${JSON.stringify(reader)}`);
   await show(reader.id);
   const readHeads = await page.locator('.dc-flow-results .dc-th[data-column]').evaluateAll((els) => els.map((e) => e.dataset.column));
   check(readHeads.includes('area') && !readHeads.includes('region') && !readHeads.includes('book') && readHeads.includes('quantity')

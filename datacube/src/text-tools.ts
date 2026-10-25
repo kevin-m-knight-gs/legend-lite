@@ -43,7 +43,8 @@ export type TextTool =
     readonly rows?: boolean }
   | { readonly kind: 'regex'; readonly column: string; readonly pattern: string; readonly mode: RegexMode; readonly replacement?: string;
     readonly name: string }
-  | { readonly kind: 'cleanse'; readonly columns: readonly string[]; readonly cleansing: Cleansing };
+  /** `inPlace`: each cleansed column handed on by its column's name, the column hidden (box-columns.ts). */
+  | { readonly kind: 'cleanse'; readonly columns: readonly string[]; readonly cleansing: Cleansing; readonly inPlace?: boolean };
 
 /** The pattern Data Cleansing takes punctuation out with: anything but a letter, a digit or a space. */
 export const PUNCTUATION = '[^A-Za-z0-9\\s]';

@@ -509,8 +509,11 @@ const BUDGET = 376_000;
  *  (app.ts), and a Join box's tool read off its join to set it again (app/datacube-app.ts, join-how.ts isEveryPair).
  *  Measured 362,544.
  *  363,000 -> 364,000 (2026-10-25, the flow mode's Transpose, Select and Sample's other ways -- the grid-only page's note
- *  of the same date). Measured 363,365. */
-const ENGINE_BUDGET = 364_000;
+ *  of the same date). Measured 363,365.
+ *  364,000 -> 365,000 (2026-10-25, the flow mode's in place and a box's correlations: the in-place rule beside what a box
+ *  hands on (box-columns.ts inPlaceCommand, inPlaceOf, read at startup through live-inputs.ts), the Profile asking its
+ *  measures' correlations (app.ts); the tools and the matrix's drawing their chunks). Measured 364,174. */
+const ENGINE_BUDGET = 365_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

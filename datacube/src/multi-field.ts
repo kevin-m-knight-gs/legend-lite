@@ -25,6 +25,8 @@ export interface MultiField {
   /** One parameter, the value; its body the expression. */
   readonly lambda: Lambda;
   readonly suffix: string;
+  /** Each new column handed on by its column's name, the column hidden (box-columns.ts). */
+  readonly inPlace?: boolean;
 }
 
 /** A Multi-Field Formula read from JSON (Python's): `{kind: 'multiField', columns, expression, suffix?}` -- its expression
@@ -33,6 +35,7 @@ export interface MultiFieldAsked {
   readonly columns: readonly string[];
   readonly expression: string;
   readonly suffix: string;
+  readonly inPlace?: boolean;
 }
 
 /** The row's columns a calculated column's expression reads (`$x.<column>`), each once, in the order read. */

@@ -5,6 +5,7 @@
 // PURE: no DOM, no planner.
 
 import { property, variable, walk, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { inPlaceCommand } from './box-columns.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { DEFAULT_SUFFIX, VALUE, type MultiField, type MultiFieldAsked } from './multi-field.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot } from './snapshot.ts';
@@ -40,7 +41,7 @@ export function multiFieldCommands(s: CubeSnapshot, m: MultiField): GridCommand[
   if (suffix === '') throw new CubeRefusal('its new columns are named with a suffix: type one, as _new');
   const columns = new Map(rowColumns(s).map((c) => [c.name, c] as const));
   const taken = new Set([...columns.keys(), ...(s.groupDerived ?? []).map((d) => d.name)]);
-  return m.columns.map((c): GridCommand => {
+  const commands = m.columns.map((c): GridCommand => {
     const column = columns.get(c);
     if (column === undefined) throw new CubeRefusal(`the grid has no column '${c}'`);
     const name = `${c}${suffix}`;
@@ -51,6 +52,8 @@ export function multiFieldCommands(s: CubeSnapshot, m: MultiField): GridCommand[
       kind: column.kind === 'measure' ? 'measure' : 'dimension',
     } };
   });
+  // in place: each new column handed on by its column's name (Alteryx's "change existing fields")
+  return m.inPlace === true ? [...commands, inPlaceCommand(m.columns.map((c) => ({ column: c, made: `${c}${suffix}` })))] : commands;
 }
 
 /** `body` with the value `param` made the row's column `column`. */
@@ -71,8 +74,10 @@ export function readMultiField(raw: unknown): MultiFieldAsked {
   if (o === undefined || o['kind'] !== 'multiField') {
     throw new CubeRefusal(`a multi-field formula is {kind: 'multiField', columns, expression, suffix}, not ${JSON.stringify(raw)}`);
   }
-  const odd = Object.keys(o).filter((k) => !['kind', 'columns', 'expression', 'suffix'].includes(k));
-  if (odd.length > 0) throw new CubeRefusal(`a multi-field formula takes columns, expression and suffix, not ${odd.join(', ')}`);
+  const odd = Object.keys(o).filter((k) => !['kind', 'columns', 'expression', 'suffix', 'inPlace'].includes(k));
+  if (odd.length > 0) throw new CubeRefusal(`a multi-field formula takes columns, expression, suffix and inPlace, not ${odd.join(', ')}`);
+  const inPlace = o['inPlace'];
+  if (inPlace !== undefined && typeof inPlace !== 'boolean') throw new CubeRefusal(`its inPlace is true or false, not ${JSON.stringify(inPlace)}`);
   const columns = o['columns'];
   if (!Array.isArray(columns) || !columns.every((c): c is string => typeof c === 'string')) {
     throw new CubeRefusal(`its columns are a list of names, not ${JSON.stringify(columns)}`);
@@ -83,5 +88,5 @@ export function readMultiField(raw: unknown): MultiFieldAsked {
   }
   const suffix = o['suffix'] ?? DEFAULT_SUFFIX;
   if (typeof suffix !== 'string') throw new CubeRefusal(`its suffix is text, not ${JSON.stringify(suffix)}`);
-  return { columns, expression, suffix };
+  return { columns, expression, suffix, ...(inPlace === true ? { inPlace } : {}) };
 }

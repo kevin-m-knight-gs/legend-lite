@@ -3840,7 +3840,7 @@ export class CubeApp {
     };
     this.#showOverlay('Multi-Field Formula', (host, close) => multiFieldForm(host, {
       columns: rowColumns(this.#snapshot).map((c) => ({ name: c.name, family: family(c.type) })),
-      apply: async (columns, expression, suffix) => {
+      apply: async (columns, expression, suffix, inPlace) => {
         let lambda: Lambda;
         try {
           lambda = await this.#check(this.#controller.parse(multiFieldText(expression)));
@@ -3849,7 +3849,7 @@ export class CubeApp {
           return e instanceof Error ? e.message : String(e);
         }
         try {
-          return await this.#apply(multiFieldCommands(this.#snapshot, { columns, lambda, suffix }), 'Multi-Field Formula');
+          return await this.#apply(multiFieldCommands(this.#snapshot, { columns, lambda, suffix, ...(inPlace ? { inPlace } : {}) }), 'Multi-Field Formula');
         } catch (e) {
           if (e instanceof CubeRefusal) return e.message;
           throw e;

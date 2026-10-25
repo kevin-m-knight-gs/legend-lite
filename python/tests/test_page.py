@@ -2883,6 +2883,20 @@ class Flows(Paged):
         with self.assertRaisesRegex(ValueError, "'n' \\(Integer\\) cannot be made Boolean"):
             typed.select(['code', 'n'], retype={'n': 'Boolean'})
 
+    def test_tools_in_place_hand_their_columns_on_by_their_own_names(self):
+        # Alteryx's in place: a Data Cleansing's, a Multi-Field Formula's, an Imputation's columns handed on by the names
+        # of the columns they are made of (box-columns.ts inPlaceCommand), the box after them reading those
+        page = ll.Page('In place')
+        flow = page.flow()
+        source = flow.grid(pd.DataFrame({'who': [' ana ', 'Ben'], 'n': [1.0, None], 'm': [2.0, 4.0]}), name='raw')
+        tidy = flow.grid(input=source)
+        tidy.cleanse(['who'], case='upper', in_place=True)
+        tidy.impute(['n'], fill=0, in_place=True)
+        tidy.multi_field(['m'], '$v->toOne() * 10', suffix='_x10', in_place=True)
+        rows = flow.grid(input=tidy).to_pandas()
+        self.assertEqual(sorted(rows.columns), ['m', 'n', 'who'])
+        self.assertEqual(sorted(zip(rows['who'], rows['n'], rows['m'])), [('ANA', 1.0, 20.0), ('BEN', 0.0, 40.0)])
+
     def test_a_summarize_gives_its_keys_and_aggregates(self):
         # a box after a Summarize reads a row per group, its keys and its aggregates -- the dimensions it is not grouped
         # by left out (snapshot.ts ungroupedDimensions: Alteryx's Summarize), as the canvas says and the screen reads

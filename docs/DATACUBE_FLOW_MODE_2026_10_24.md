@@ -238,7 +238,7 @@ How to read the status column:
 | Filter (True, False) | Step | The grid's filter; the False port (§3.3) |
 | Formula | Built | A calculated column, checked by the compiler as it is typed |
 | Multi-Row Formula | Built | A window column: `lag`, `lead`, `first`, `last` |
-| Multi-Field Formula | Built (2026-10-25) | One expression over `$v`, each column's value, parsed by the compiler: a calculated column of each (`<column><suffix>`). In place, as Alteryx's "change existing fields", needs a relation `rename` |
+| Multi-Field Formula | Built (2026-10-25) | One expression over `$v`, each column's value, parsed by the compiler: a calculated column of each (`<column><suffix>`), or in place, as Alteryx's "change existing fields" |
 | Select (choose, rename, retype) | Built (2026-10-25) | Its own window: each column kept or left out (hidden), renamed (its display name, which a flow's box hands on as the relation's `rename`) and retyped (a calculated column of its conversion -- `parseInteger`, `toString`, `round`, `toFloat`... -- its column hidden, it handed on by the column's name) |
 | Sort | Built | The grid's sorts |
 | Sample (first, last, every Nth, N per group) | Built (2026-10-25) | The first or last N of all the rows, the grid's Top N; of each group, all but the first N, or one of every N, a row number (`rowNumber`, per group) and a filter on it, hidden -- `mod` of it for one of every N |
@@ -246,7 +246,7 @@ How to read the status column:
 | Unique (Unique, Duplicates) | Built (2026-10-25) | A row number per key (`rowNumber` partitioned by its columns, in an order), a filter keeping the first, the number hidden; its Duplicates the filter's False port (§3.3), drawn U and D |
 | Record ID | Built | A window column: `rowNumber` |
 | Tile | Built | A window column: `ntile` |
-| Data Cleansing | Built (2026-10-25) | Calculated columns, a `<column>_clean` each: empties made blank (`coalesce`), punctuation out and repeated spaces one (`regexpReplace`), `trim`, `toUpper` / `toLower` (§17.6). In place, as Alteryx's, needs a relation `rename` |
+| Data Cleansing | Built (2026-10-25) | Calculated columns, a `<column>_clean` each: empties made blank (`coalesce`), punctuation out and repeated spaces one (`regexpReplace`), `trim`, `toUpper` / `toLower` (§17.6). In place, as Alteryx's: each handed on by its column's name |
 | Imputation | Built (2026-10-25) | `coalesce` with a value, or with a window column of the column's average, smallest or largest across every row (hidden): a `<column>_filled` each. A median waits for a window `median` |
 | Date Filter | Built | The filter, on a date column |
 | Generate Rows | Later | Core has no relation that makes rows from a rule; needs a design |
@@ -758,6 +758,16 @@ found by the harness, a Filter's port under it), and its button off while every 
 **Run from the keys** (`layout/flow-canvas.ts`): Ctrl+Enter (⌘+Enter) anywhere on the canvas runs the flow, as its
 button does, while no run is going; the keys panel and the button's title say so. Tested by the harness (a run from a
 box's keys writes its Output).
+
+**Built, in place** (`box-columns.ts inPlaceCommand`, `inPlaceOf`): Alteryx's "change existing fields" for Data
+Cleansing, Multi-Field Formula and Imputation -- each made column handed on by the name of the column it is made of,
+that column hidden: the box after a Data Cleansing of `region` reads `region`, cleansed. No new mechanism: the hiding
+and the display names a Select uses, handed on as the relation's `rename`. Each window has "In place" (on to start for
+Data Cleansing and Imputation, as Alteryx's are; off for Multi-Field); a box says "region cleansed in place", its
+hidden columns and renames none of a Select's. Python: `in_place=True` on `grid.cleanse`, `grid.impute` and
+`grid.multi_field` (off unless asked, so a script's `_clean` columns stay). Tested by `flow-sheet.test.ts` (an
+Imputation in place, its words), Python's `test_tools_in_place_hand_their_columns_on_by_their_own_names` (three tools
+in place, the box after them reading who, n and m changed) and the harness (a Data Cleansing and an Imputation in place).
 
 **Built, correlations in the Profile** (M5; `profile.ts correlationLambda`, `layout/flow-canvas.ts`): Alteryx's Pearson
 Correlation without a box of its own -- a box's Profile shows, under its columns, how its measures move together: each

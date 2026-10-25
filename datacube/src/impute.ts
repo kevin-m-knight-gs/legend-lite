@@ -10,6 +10,7 @@
 
 import { fn, lambda, lit, property, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { familyOf, isFractional } from '../../engine-client/src/types.ts';
+import { inPlaceCommand } from './box-columns.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn, type WindowFunction } from './snapshot.ts';
 
@@ -20,6 +21,8 @@ export type Filler = { readonly kind: 'value'; readonly value: number } | { read
 export interface Imputation {
   readonly columns: readonly string[];
   readonly with: Filler;
+  /** Each filled column handed on by its column's name, the column hidden (box-columns.ts), as Alteryx's Imputation does. */
+  readonly inPlace?: boolean;
 }
 
 /** What a filled column is called: its column's name and this. */
@@ -71,7 +74,9 @@ export function imputeCommands(s: CubeSnapshot, t: Imputation): GridCommand[] {
     } });
     taken.add(name);
   }
-  return Object.keys(hidden).length === 0 ? commands : [...commands, { kind: 'configure', patch: { columns: hidden } }];
+  const done = Object.keys(hidden).length === 0 ? commands : [...commands, { kind: 'configure', patch: { columns: hidden } } as const];
+  // in place: each filled column handed on by its column's name
+  return t.inPlace === true ? [...done, inPlaceCommand(t.columns.map((c) => ({ column: c, made: `${c}${FILLED_SUFFIX}` })))] : done;
 }
 
 /** A column filled, read off its expression: the column it fills, and what with -- a value, or (its window column
@@ -105,14 +110,17 @@ export function imputedOf(d: DerivedColumn, derived: readonly DerivedColumn[]):
 export function readImputation(raw: unknown): Imputation {
   const o = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : undefined;
   if (o === undefined || o['kind'] !== 'impute') throw new CubeRefusal(`an imputation is {kind: 'impute', columns, with}, not ${JSON.stringify(raw)}`);
-  const odd = Object.keys(o).filter((k) => !['kind', 'columns', 'with'].includes(k));
-  if (odd.length > 0) throw new CubeRefusal(`an imputation takes columns and with, not ${odd.join(', ')}`);
+  const odd = Object.keys(o).filter((k) => !['kind', 'columns', 'with', 'inPlace'].includes(k));
+  if (odd.length > 0) throw new CubeRefusal(`an imputation takes columns, with and inPlace, not ${odd.join(', ')}`);
+  const inPlace = o['inPlace'];
+  if (inPlace !== undefined && typeof inPlace !== 'boolean') throw new CubeRefusal(`its inPlace is true or false, not ${JSON.stringify(inPlace)}`);
+  const place = inPlace === true ? { inPlace } : {};
   const columns = o['columns'];
   if (!Array.isArray(columns) || !columns.every((c): c is string => typeof c === 'string')) {
     throw new CubeRefusal(`its columns are a list of names, not ${JSON.stringify(columns)}`);
   }
   const w = o['with'];
-  if (typeof w === 'number') return { columns, with: { kind: 'value', value: w } };
-  if (w === 'average' || w === 'smallest' || w === 'largest') return { columns, with: { kind: w } };
+  if (typeof w === 'number') return { columns, with: { kind: 'value', value: w }, ...place };
+  if (w === 'average' || w === 'smallest' || w === 'largest') return { columns, with: { kind: w }, ...place };
   throw new CubeRefusal(`its empties are filled with a number, or 'average', 'smallest' or 'largest', not ${JSON.stringify(w)}`);
 }

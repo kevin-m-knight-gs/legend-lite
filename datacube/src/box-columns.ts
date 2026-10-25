@@ -4,9 +4,14 @@
 // display name: a Select's rename, the relation's `rename` for what reads it). One rule for what the box after it reads
 // (live-inputs.ts gridInput), the columns its settings say, its Profile and its Output.
 //
+// IN PLACE (Alteryx's "change existing fields": a Data Cleansing, a Multi-Field Formula, an Imputation): a column a tool
+// makes of another handed on by that column's name, the column itself hidden -- the box after it reads `region`,
+// cleansed. Said by the settings alone (`inPlaceCommand`), read back off them (`inPlaceOf`).
+//
 // PURE: no DOM, no planner.
 
-import { ungroupedDimensions, type CubeShape } from './snapshot.ts';
+import type { GridCommand } from './grid-commands.ts';
+import { ungroupedDimensions, type CubeShape, type DerivedColumn } from './snapshot.ts';
 
 type Query = Pick<CubeShape, 'columns' | 'derived' | 'rows' | 'pivotOn'>;
 
@@ -30,6 +35,25 @@ export function boxRenamed(query: Query, configuration: Readonly<Record<string, 
   return Object.entries(settingsOf(configuration)).flatMap(([from, c]) => {
     const to = c !== null && typeof c === 'object' ? c['displayName'] : undefined;
     return typeof to === 'string' && to.trim() !== '' && to !== from && !omitted.has(from) ? [{ from, to }] : [];
+  });
+}
+
+/** The command that hands each column made (`made`) on in place of the one it is made of (`column`): that one hidden, the
+ *  made one given its name. */
+export function inPlaceCommand(pairs: readonly { readonly column: string; readonly made: string }[]): GridCommand {
+  return { kind: 'configure', patch: { columns: Object.fromEntries(pairs.flatMap((p) => [
+    [p.column, { hidden: true }], [p.made, { displayName: p.column }],
+  ])) } };
+}
+
+/** The columns a box hands on in place of others: each calculated column given the name of a column it reads that is
+ *  hidden. */
+export function inPlaceOf(derived: readonly DerivedColumn[], configuration: Readonly<Record<string, unknown>>, reads: (d: DerivedColumn) => readonly string[]):
+  { readonly column: string; readonly made: string }[] {
+  const settings = settingsOf(configuration);
+  return derived.flatMap((d) => {
+    const name = settings[d.name]?.['displayName'];
+    return typeof name === 'string' && settings[name]?.['hidden'] === true && reads(d).includes(name) ? [{ column: name, made: d.name }] : [];
   });
 }
 

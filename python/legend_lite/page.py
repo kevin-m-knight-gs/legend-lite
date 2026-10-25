@@ -858,12 +858,14 @@ class Grid(Tile):
                              'name': f'{column}_{said}' if name is None else name})
 
     def cleanse(self, columns: Sequence[str], *, blanks: bool = False, punctuation: bool = False, spaces: bool = False,
-                trim: bool = True, case: str | None = None) -> Grid:
+                trim: bool = True, case: str | None = None, in_place: bool = False) -> Grid:
         """The text ``columns`` tidied, a ``<column>_clean`` each -- a flow's Data Cleansing: empty values made blank
         (``blanks``), punctuation taken out, repeated spaces made one (``spaces``), the ends trimmed (``trim``), the
-        letters made ``'upper'`` or ``'lower'`` case."""
+        letters made ``'upper'`` or ``'lower'`` case. ``in_place``: each handed on by its own name, the column itself
+        hidden (Alteryx's in place: the box after it reads ``who``, cleansed)."""
         return self._preset({'kind': 'cleanse', 'columns': list(columns), 'blanks': blanks, 'punctuation': punctuation,
-                             'spaces': spaces, 'trim': trim, **({'letterCase': case} if case is not None else {})})
+                             'spaces': spaces, 'trim': trim, **({'letterCase': case} if case is not None else {}),
+                             **({'inPlace': True} if in_place else {})})
 
     def unique(self, keys: Sequence[str], *, by: Any = None) -> Grid:
         """A row of each key -- the columns ``keys`` -- its first in the order ``by`` (a column, rising, or ``(column,
@@ -888,12 +890,13 @@ class Grid(Tile):
         return self._preset({'kind': 'dateParse', 'column': column, 'format': format, 'time': time,
                              'name': name or f'{column}_date'})
 
-    def impute(self, columns: Sequence[str], *, fill: float | str = 'average') -> Grid:
+    def impute(self, columns: Sequence[str], *, fill: float | str = 'average', in_place: bool = False) -> Grid:
         """The number ``columns``' empty values filled, a ``<column>_filled`` each -- a flow's Imputation (DataCube's code:
         impute.ts imputeCommands): with ``fill``, a number, or the column's own ``'average'``, ``'smallest'`` or
         ``'largest'`` across every row, which the database computes (a window column, hidden). A column that is no
-        number, or a whole-number column filled with a fraction, refused in DataCube's words."""
-        return self._preset({'kind': 'impute', 'columns': list(columns), 'with': fill})
+        number, or a whole-number column filled with a fraction, refused in DataCube's words. ``in_place``: each filled
+        column handed on by its own name, the column itself hidden, as Alteryx's Imputation does."""
+        return self._preset({'kind': 'impute', 'columns': list(columns), 'with': fill, **({'inPlace': True} if in_place else {})})
 
     def sample(self, mode: str | None, n: int | None = None, by: str | None = None, *, groups: Sequence[str] = ()) -> Grid:
         """Its rows sampled -- a flow's Sample (DataCube's code: row-sample.ts sampleCommands), in the order of the column
@@ -923,13 +926,15 @@ class Grid(Tile):
         return self._preset({'kind': 'selectColumns', 'keep': list(keep), 'rename': dict(rename or {}),
                              **({'retype': dict(retype)} if retype else {})})
 
-    def multi_field(self, columns: Sequence[str], expression: str, *, suffix: str = '_new') -> Grid:
+    def multi_field(self, columns: Sequence[str], expression: str, *, suffix: str = '_new', in_place: bool = False) -> Grid:
         """One ``expression`` over each of ``columns`` -- a flow's Multi-Field Formula (DataCube's code:
         multi-field-columns.ts multiFieldCommands): Pure over ``$v``, each column's value in turn (``'$v->toOne()->trim()'``, ``'$v->toOne() *
         1.1'``; ``$x`` the row, for its other columns), a new column of each named ``<column><suffix>``. The compiler
-        parses and types each, and refuses one in its words: ``trim`` over a number column, say."""
+        parses and types each, and refuses one in its words: ``trim`` over a number column, say. ``in_place``: each new
+        column handed on by its column's name, the column itself hidden (Alteryx's "change existing fields")."""
         _expression(expression)
-        return self._preset({'kind': 'multiField', 'columns': list(columns), 'expression': expression, 'suffix': suffix})
+        return self._preset({'kind': 'multiField', 'columns': list(columns), 'expression': expression, 'suffix': suffix,
+                             **({'inPlace': True} if in_place else {})})
 
     def dimension(self, name: str) -> Grid:
         """Grouped by the named dimension ``name``'s first level (its configuration's ``dimensions``: a name and its

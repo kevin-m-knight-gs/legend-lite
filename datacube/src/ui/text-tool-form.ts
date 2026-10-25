@@ -190,14 +190,26 @@ export function textToolForm(host: HTMLElement, o: TextToolFormOptions): void {
       ]);
       field('Letters', letterCase);
       letterCase.addEventListener('change', () => check());
-      el('p', 'dc-sample-hint', body, 'A new column of each, named after it: region_clean.');
+      // in place (Alteryx's "change existing fields"): each handed on by its own name
+      const placed = el('label', 'dc-text-tool-check dc-in-place', body);
+      const inPlace = el('input', '', placed);
+      inPlace.type = 'checkbox';
+      inPlace.checked = true;
+      el('span', '', placed, 'In place: each handed on by its own name');
+      const hint = el('p', 'dc-sample-hint', body);
+      const said = (): void => {
+        hint.textContent = inPlace.checked ? 'Each cleansed, the box after it reading it by its name: region, cleansed.'
+          : 'A new column of each, named after it: region_clean.';
+      };
+      inPlace.addEventListener('change', said);
+      said();
       read = () => {
         const cleansing: Cleansing = {
           ...(blanks.checked ? { blanks: true } : {}), ...(punctuation.checked ? { punctuation: true } : {}),
           ...(spaces.checked ? { spaces: true } : {}), ...(trim.checked ? { trim: true } : {}),
           ...(letterCase.value === 'upper' || letterCase.value === 'lower' ? { letterCase: letterCase.value } : {}),
         };
-        return { kind: 'cleanse', columns: picks.filter((p) => p.checked).map((p) => p.value), cleansing };
+        return { kind: 'cleanse', columns: picks.filter((p) => p.checked).map((p) => p.value), cleansing, ...(inPlace.checked ? { inPlace: true } : {}) };
       };
       break;
     }

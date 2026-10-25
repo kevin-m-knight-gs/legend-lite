@@ -61,7 +61,13 @@ export function imputeForm(host: HTMLElement, o: ImputeFormOptions): void {
   value.type = 'number';
   value.value = '0';
   value.setAttribute('aria-label', 'The value');
-  el('p', 'dc-sample-hint', body, 'A new column of each, named after it: notional_filled -- the column\'s average, smallest or largest across every row.');
+  // in place, as Alteryx's Imputation is: each filled column handed on by its own name
+  const placed = el('label', 'dc-text-tool-check dc-in-place', body);
+  const inPlace = el('input', '', placed);
+  inPlace.type = 'checkbox';
+  inPlace.checked = true;
+  el('span', '', placed, 'In place: each handed on by its own name');
+  el('p', 'dc-sample-hint', body, 'Its empties filled -- with the column\'s average, smallest or largest across every row, or a value -- in place, or a new column of each: notional_filled.');
   const status = el('p', 'dc-sample-status', body);
   status.setAttribute('role', 'status');
   const foot = el('div', 'dc-sample-foot', body);
@@ -87,7 +93,7 @@ export function imputeForm(host: HTMLElement, o: ImputeFormOptions): void {
     const kind = filler.value as Filler['kind'];
     const fill: Filler = kind === 'value' ? { kind, value: Number(value.value) } : { kind };
     status.textContent = '';
-    const refused = await o.apply({ columns: keys(), with: fill });
+    const refused = await o.apply({ columns: keys(), with: fill, ...(inPlace.checked ? { inPlace: true } : {}) });
     if (refused === null) o.close();
     else status.textContent = refused;
   })());

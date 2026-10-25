@@ -15,7 +15,7 @@ export interface MultiFieldColumnChoice {
 export interface MultiFieldFormOptions {
   readonly columns: readonly MultiFieldColumnChoice[];
   /** Its columns added: null when they were, else why not (the form stays, saying it). */
-  apply(columns: readonly string[], expression: string, suffix: string): Promise<string | null>;
+  apply(columns: readonly string[], expression: string, suffix: string, inPlace: boolean): Promise<string | null>;
   close(): void;
 }
 
@@ -83,6 +83,11 @@ export function multiFieldForm(host: HTMLElement, o: MultiFieldFormOptions): voi
   const suffix = el('input', 'dc-picker-input dc-multi-field-suffix', suffixLine);
   suffix.value = DEFAULT_SUFFIX;
   suffix.setAttribute('aria-label', 'The suffix of its columns\' names');
+  // in place (Alteryx's "change existing fields"): each new column handed on by its column's name
+  const placed = el('label', 'dc-text-tool-check dc-in-place', body);
+  const inPlace = el('input', '', placed);
+  inPlace.type = 'checkbox';
+  el('span', '', placed, 'In place: each handed on by its own name');
   const hint = el('p', 'dc-sample-hint', body);
   const status = el('p', 'dc-sample-status', body);
   status.setAttribute('role', 'status');
@@ -100,7 +105,8 @@ export function multiFieldForm(host: HTMLElement, o: MultiFieldFormOptions): voi
     if (!typed) expression.value = EXAMPLES[k];
     const names = chosen();
     hint.textContent = names.length === 0 ? 'A new column of each column picked, $v its value: $x is the row, for its other columns.'
-      : `New columns: ${names.slice(0, 3).map((n) => `${n}${suffix.value.trim()}`).join(', ')}${names.length > 3 ? ', …' : ''}`;
+      : inPlace.checked ? `Each changed, handed on by its own name: ${names.slice(0, 3).join(', ')}${names.length > 3 ? ', …' : ''}`
+        : `New columns: ${names.slice(0, 3).map((n) => `${n}${suffix.value.trim()}`).join(', ')}${names.length > 3 ? ', …' : ''}`;
     const bad = names.length === 0 ? 'pick a column' : expression.value.trim() === '' ? 'type its expression'
       : suffix.value.trim() === '' ? 'type the suffix of its names' : undefined;
     ok.disabled = bad !== undefined;
@@ -110,11 +116,12 @@ export function multiFieldForm(host: HTMLElement, o: MultiFieldFormOptions): voi
   kind.addEventListener('change', check);
   expression.addEventListener('input', check);
   suffix.addEventListener('input', check);
+  inPlace.addEventListener('change', check);
   check();
   ok.addEventListener('click', () => void (async () => {
     status.textContent = '';
     ok.disabled = true;
-    const refused = await o.apply(chosen(), expression.value, suffix.value);
+    const refused = await o.apply(chosen(), expression.value, suffix.value, inPlace.checked);
     ok.disabled = false;
     if (refused === null) o.close();
     else status.textContent = refused;

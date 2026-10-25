@@ -5,6 +5,7 @@
 // PURE: no DOM, no planner.
 
 import { fn, lambda, lit, property, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { inPlaceCommand } from './box-columns.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { CubeRefusal, type DerivedColumn } from './snapshot.ts';
 import { CLEAN_SUFFIX, PUNCTUATION, SPACES, type Cleansing, type TextTool } from './text-tools.ts';
@@ -86,7 +87,10 @@ function cleansed(column: string, c: Cleansing): ValueSpecification {
 
 /** The commands a tool adds its columns by, in one step: a row-stage `calculate` each, in order. */
 export function textToolCommands(t: TextTool): GridCommand[] {
-  return textToolColumns(t).map((column): GridCommand => ({ kind: 'calculate', level: 'row', column }));
+  const commands = textToolColumns(t).map((column): GridCommand => ({ kind: 'calculate', level: 'row', column }));
+  // in place: each cleansed column handed on by its column's name
+  return t.kind === 'cleanse' && t.inPlace === true
+    ? [...commands, inPlaceCommand(t.columns.map((c) => ({ column: c, made: `${c}${CLEAN_SUFFIX}` })))] : commands;
 }
 
 /** The kinds a text tool is, as Python names them (`grid.split`, `grid.regex`, `grid.cleanse`). */
@@ -136,7 +140,7 @@ export function readTextTool(raw: unknown): TextTool {
       break;
     }
     case 'cleanse': {
-      only(['columns', 'blanks', 'punctuation', 'spaces', 'trim', 'letterCase']);
+      only(['columns', 'blanks', 'punctuation', 'spaces', 'trim', 'letterCase', 'inPlace']);
       const columns = o['columns'];
       if (!Array.isArray(columns) || !columns.every((c): c is string => typeof c === 'string')) {
         throw new CubeRefusal(`its columns are a list of names, not ${JSON.stringify(columns)}`);
@@ -150,7 +154,7 @@ export function readTextTool(raw: unknown): TextTool {
         ...(yes('spaces') ? { spaces: true } : {}), ...(yes('trim') ? { trim: true } : {}),
         ...(letterCase !== undefined ? { letterCase } : {}),
       };
-      tool = { kind: 'cleanse', columns, cleansing };
+      tool = { kind: 'cleanse', columns, cleansing, ...(yes('inPlace') ? { inPlace: true } : {}) };
       break;
     }
     default:

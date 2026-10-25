@@ -6,14 +6,14 @@
 // PURE: no DOM, no planner. The tools a person adds from the palette are here too, by the words the canvas shows.
 
 import {
-  inputCube, inputOn, inputSides, isLive, type CubeDocument, type InputPort, type InputSide, type JoinInput,
+  derivedReads, inputCube, inputOn, inputSides, isLive, type CubeDocument, type InputPort, type InputSide, type JoinInput,
 } from './cube-document.ts';
 import { grainOf } from './calc-presets.ts';
 import { textToolOf, type TextTool } from './text-tools.ts';
 import { uniqueOf } from './unique.ts';
 import { rowSampleOf, rowSampleWords } from './row-sample.ts';
 import { transposeOf } from './transpose.ts';
-import { boxRenamed } from './box-columns.ts';
+import { boxRenamed, inPlaceOf } from './box-columns.ts';
 import { retypesOf } from './select-columns.ts';
 import { imputedOf } from './impute.ts';
 import { multiFieldOf, type MultiFieldColumn } from './multi-field.ts';
@@ -58,7 +58,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   summarize: { name: 'Summarize', group: 'transform', does: 'a row per group, its measures beside its keys' },
   crosstab: { name: 'Cross Tab', group: 'transform', does: 'a column\'s values made columns across, a row per group' },
   transpose: { name: 'Transpose', group: 'transform', does: 'columns made rows: a Name and a Value for each, its keys beside them' },
-  browse: { name: 'Browse', group: 'prepare', does: 'its input\'s rows, as they come' },
+  browse: { name: 'Browse', group: 'in', does: 'its input\'s rows, as they come: to look at, profile or chart' },
   comment: { name: 'Comment', group: 'docs', does: 'a note on the canvas, in words of your own' },
   container: { name: 'Container', group: 'docs', does: 'a frame round boxes: moved together, folded away' },
 };
@@ -68,7 +68,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'textInput', 'output', 'filter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
+  'input', 'textInput', 'output', 'browse', 'filter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
   'join', 'union', 'appendFields', 'fuzzyMatch', 'textToColumns', 'regex', 'summarize', 'crosstab', 'transpose', 'runningTotal', 'comment', 'container',
 ];
 
@@ -163,6 +163,10 @@ export function boxSays(cube: CubeDocument): BoxSays {
   // a Select's retypes: a conversion of a column it hides (select-columns.ts), said as the Select's
   const hiddenNow = new Set(hiddenColumns(cube));
   const retyped = retypesOf(q.derived).filter((r) => hiddenNow.has(r.column));
+  // a tool's columns made in place of the columns they are made of (box-columns.ts): said so, theirs no Select's
+  const placed = inPlaceOf(q.derived, cube.configuration, (d) => [...derivedReads(d)])
+    .filter((p) => !retyped.some((r) => r.name === p.made));
+  const placedMade = new Set(placed.map((p) => p.made));
   const own = new Set([...(unique !== undefined ? [unique.column] : []), ...(sampled?.columns ?? []),
     ...(transposed !== undefined ? [transposed.name, transposed.value, ...hiddenColumns(cube)] : []), ...retyped.map((r) => r.name)]);
   // Imputation's window columns (an average across every row) are its own, said with the column they fill
@@ -174,7 +178,7 @@ export function boxSays(cube: CubeDocument): BoxSays {
     if (own.has(d.name) || helpers.has(d.name)) continue;
     const tool = columnTool(d, q.derived, multi.get(d.name));
     const last = steps.at(-1);
-    const said = columnWords(d, q.derived, multi.get(d.name));
+    const said = `${columnWords(d, q.derived, multi.get(d.name))}${placedMade.has(d.name) ? ' in place' : ''}`;
     // a tool's columns said once each way: a split's parts are one split, a Multi-Field's columns one formula
     if (last?.tool === tool) last.says = last.says === said || last.says.split(', ').includes(said) ? last.says : `${last.says}, ${said}`;
     else steps.push({ tool, says: said });
@@ -186,10 +190,11 @@ export function boxSays(cube: CubeDocument): BoxSays {
     steps.push({ tool: 'crosstab', says: `${q.pivotOn.join(', ')} across${q.rows.length > 0 ? `, by ${q.rows.join(', ')}` : ''}` });
   } else if (q.rows.length > 0) steps.push({ tool: 'summarize', says: `by ${q.rows.join(', ')}` });
   if (q.sorts.length > 0) steps.push({ tool: 'sort', says: q.sorts.map((s) => `${s.column} ${s.direction === 'desc' ? '↓' : '↑'}`).join(', ') });
-  const hidden = hiddenColumns(cube).filter((c) => !own.has(c) && !helpers.has(c) && !retyped.some((r) => r.column === c));
+  const hidden = hiddenColumns(cube).filter((c) => !own.has(c) && !helpers.has(c) && !retyped.some((r) => r.column === c)
+    && !placed.some((p) => p.column === c));
   // a Select's renames: the names it hands its columns on by (box-columns.ts); its retypes, by the names they are given
   const as = new Map(boxRenamed(q, cube.configuration).map((r) => [r.from, r.to] as const));
-  const renames = [...as].filter(([from]) => !retyped.some((r) => r.name === from));
+  const renames = [...as].filter(([from]) => !retyped.some((r) => r.name === from) && !placedMade.has(from));
   if (hidden.length > 0 || renames.length > 0 || retyped.length > 0) {
     const renamed = renames.length === 0 ? undefined
       : renames.length <= 2 ? renames.map(([from, to]) => `${from} → ${to}`).join(', ') : `${renames.length} renamed`;

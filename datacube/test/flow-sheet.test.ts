@@ -450,6 +450,16 @@ describe("Imputation (impute.ts): a number's empties filled, a value or the colu
     assert.deepEqual(imputedOf(filled.column, [helper.column, filled.column]), { column: 'notional', with: { kind: 'average' }, helper: 'notional__average' });
   });
 
+  it('in place: the filled column handed on by its column\'s name, the column hidden, and the box says so', () => {
+    const commands = imputeCommands(typed, { columns: ['qty'], with: { kind: 'value', value: 0 }, inPlace: true });
+    assert.deepEqual(commands.at(-1), { kind: 'configure', patch: { columns: { qty: { hidden: true }, qty_filled: { displayName: 'qty' } } } });
+    const [filled] = commands as unknown as [{ column: DerivedColumn }];
+    const box = cube(rows('grid-1'), (q) => ({ ...q, columns: typed.columns, derived: [filled.column] }),
+      { columns: { qty: { hidden: true }, qty_filled: { displayName: 'qty' } } });
+    assert.deepEqual(boxSays(box), { tool: 'impute', also: [], says: "qty's empties → 0 in place" });
+    assert.deepEqual(readImputation({ kind: 'impute', columns: ['qty'], with: 0, inPlace: true }).inPlace, true);
+  });
+
   it('refuses in words what it cannot fill', () => {
     assert.throws(() => imputeCommands(typed, { columns: [], with: { kind: 'average' } }), /pick a column to fill/);
     assert.throws(() => imputeCommands(typed, { columns: ['region'], with: { kind: 'average' } }), /only a number's empties are filled/);
