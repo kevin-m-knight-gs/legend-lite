@@ -1419,16 +1419,29 @@ class Timeseries(Tile):
             if not spec['series']:
                 raise ValueError(f'{self!r} plots no series')
             series = spec['series'][0]['id']
+        from . import compiler
         page = self._page
         session = page._session
         engine, frames = session.headless(), session.frames
         window = {k: v for k, v in (('from', start), ('to', end)) if v is not None}
+        asked = {'page': page._doc, 'tile': self._id, 'series': series, 'window': window}
         with frames.reading() as over:
             said = _json.loads(engine.call('timeseriesQuery', _json.dumps({
-                'page': page._doc, 'tile': self._id, 'series': series, 'window': window, 'host': frames.hosted()})))
+                **asked, 'host': frames.hosted(), 'copies': session.held_copies()})))
             if 'problems' in said:
                 raise ValueError('; '.join(said['problems']))
-            rows = to_pandas(_engine_rows(session, said['query'], said, over))
+            if 'grid' in said:
+                # a series of one grid, read as the grid is: over its base as every read of it is (its copy, snapped; a
+                # class's mapping; the page's filters on it) -- headless gridTimeseries, the tab's path through the
+                # grid's runner (the review's P1: read live over the grid's leaves, beside its every other read)
+                cube = said['grid']
+                spec = _cube_spec(session, page._cube(cube), frames, engine, page._snapped(cube), page._doc, cube)
+                said = _json.loads(engine.call('gridTimeseries', spec, _json.dumps(asked)))
+                if 'problems' in said:
+                    raise ValueError('; '.join(said['problems']))
+                rows = to_pandas(_engine_rows(session, compiler.parse(said['query']), spec, over))
+            else:
+                rows = to_pandas(_engine_rows(session, said['query'], said, over))
         # its dates as the database kept them (the window's alone), each a timestamp, as pandas indexes a series
         named = said['columns']
         rows = rows.assign(**{named['date']: pd.to_datetime(rows[named['date']])})

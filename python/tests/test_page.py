@@ -949,6 +949,33 @@ class Document(Paged):
         both = page.timeseries({'grid': px, 'curve': rates}, ['grid:close[SPX]'])
         self.assertEqual([s['alias'] for s in both.spec['sources']], ['grid', 'curve'])
 
+    def test_a_timeseries_reads_a_snapped_grid_over_its_copy_and_every_point_it_has(self):
+        # the review's P1, P3, P5 (docs/TIMESERIES_REVIEW_2026_10_25.md): a series reads a snapped grid over its copy, as
+        # every other read of the grid does -- alone (the grid's own path, headless gridTimeseries) or with another grid
+        # (one model of the copy's table and the other's: the owner's "snapped into duckdb wasm as a grid snap") -- and
+        # Python's frame keeps every point (the drawing's limit is the drawing's)
+        page = ll.Page('Snapped')
+        days = pd.to_datetime(['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05']).date
+        prices = pd.DataFrame({'symbol': ['SPX'] * 4, 'day': days, 'close': [100.0, 101.0, 102.0, 103.0]})
+        yields = pd.DataFrame({'tenor': ['10Y'] * 4, 'obs_date': days, 'yield': [4.0, 4.0, 4.0, 4.0]})
+        px = page.grid(prices, name='prices')
+        rates = page.grid(yields, name='rates')
+        tile = page.timeseries({'px': px, 'rates': rates}, ['px:close[SPX]', 'px:close[SPX] / rates:yield[10Y]'])
+        px.snap()
+        px.update(prices.assign(close=[200.0, 202.0, 204.0, 206.0]))
+        self.assertEqual(list(px.to_pandas()['close']), [100.0, 101.0, 102.0, 103.0], 'the grid reads its copy')
+        self.assertEqual(list(tile.frame('A')['A']), [100.0, 101.0, 102.0, 103.0], 'its series alone, the copy too')
+        self.assertEqual(list(tile.frame('B')['B']), [25.0, 25.25, 25.5, 25.75], 'with the other grid, the copy too')
+        px.live()
+        self.assertEqual(list(tile.frame('A')['A']), [200.0, 202.0, 204.0, 206.0], 'live again, the rows as they are')
+        # every point of a series past the drawing's limit (100,000): 2 lines of 50,001 days each
+        n = 50_001
+        many = pd.DataFrame({'symbol': ['A'] * n + ['B'] * n, 'day': list(pd.date_range('1900-01-01', periods=n).date) * 2,
+                             'close': [float(i) for i in range(n)] * 2})
+        big = page.grid(many, name='many')
+        lines = page.timeseries({'m': big}, [{'expr': 'close', 'split': 'symbol'}]).frame()
+        self.assertEqual((lines.shape, int(lines.notna().sum().sum())), ((n, 2), 2 * n))
+
     def test_a_grid_is_edited_as_datacubes_screen_edits_it_and_refused_in_its_words(self):
         # grouping, pivot, Column Properties and sorts by the one module the screen's panels, header menu and drag zones
         # call (grid-commands.ts, headless gridApply: docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md), the grid compiled as

@@ -8,7 +8,7 @@
 // the tables' database (D3: its copy is a table there); until then it is refused in the join's words (leafRefusal).
 // Fetched with the join's code (join-app.ts): a page that combines no grids loads none of it.
 
-import { TAB_TABLES, openSources } from '../join-open.ts';
+import { TAB_TABLES, openSources, type OpenedSource } from '../join-open.ts';
 import type { PageApp } from '../page/page-app.ts';
 import type { PlanAndRun } from '../runner.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
@@ -48,11 +48,18 @@ export interface TabTablesOf {
   readonly local: LocalEngine;
 }
 
-/** The TAB'S OWN: the grids over one model of the tables of its database they read (openSources over TAB_TABLES). */
+/**
+ * The TAB'S OWN: the grids over one model of the tables of its database they read (openSources over TAB_TABLES) -- a
+ * snapped grid its copy's table (the page's record of where its rows are: page-document.ts copies), as the grid itself
+ * reads it then (the review's P3: a combination read it live, beside the same tile's series of it alone read from its
+ * copy).
+ */
 export async function tabSources(grids: readonly string[], o: TabTablesOf): Promise<OpenedTogether> {
   const now = o.page.document(o.page.title);
   if (!now) throw new Error('the page cannot say what its grids read');
-  const read = grids.map((id) => {
+  const read = grids.map((id): { source: OpenedSource; tables: readonly string[] } => {
+    const copy = now.copies?.[id];
+    if (copy) return { source: { _type: 'copy', table: copy.table }, tables: [copy.table] };
     const cube = now.cubes.find((c) => c.id === id)?.cube;
     const tables = o.sources.place(id)?.tables;
     const title = o.page.views().views.find((v) => v.id === id)?.title ?? id;

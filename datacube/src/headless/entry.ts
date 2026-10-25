@@ -136,6 +136,9 @@ export { timeseriesEdit };
 /** A timeseries tile's series as its query (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5), over the host's tables, for
  *  the host to plan and run where the rows are: Python's Timeseries.frame. */
 export { timeseriesQuery };
+/** A timeseries' series of one grid, as the grid reads it (its copy, a class's mapping, the page's filters): Python's
+ *  Timeseries.frame of a series of one grid (headless grid.ts gridTimeseries). */
+export { gridTimeseries } from './grid.ts';
 
 /** What DataCube's code runs on in this host: its planner's worker, and the database. */
 export interface Headless {

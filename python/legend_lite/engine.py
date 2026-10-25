@@ -1192,7 +1192,8 @@ class Engine:
             headless = self._headless()
         except Exception as failure:
             return _said(422, f'{type(failure).__name__}: {failure}')
-        spec = {'page': asked['page'], 'grids': asked['grids']} if op == 'together' \
+        # a combination reads a snapped grid over its copy, which this engine holds (the review's P3: read live)
+        spec = {'page': asked['page'], 'grids': asked['grids'], 'copies': self.held_copies()} if op == 'together' \
             else {'page': asked['page'], 'mine': asked['mine'], 'theirs': asked['theirs']}
         # one read of the frames (D15): DataCube's code reads them, and asks the engine, as they were when it began
         with self.frames.reading() as over:

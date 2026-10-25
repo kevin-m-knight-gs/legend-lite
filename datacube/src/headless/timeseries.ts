@@ -4,16 +4,15 @@
 // headless gridChart). The page command that adds or sets it is Python's generated builder's, applied by pageApply.
 
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
-import type { CubeSource } from '../cube-document.ts';
 import { readPage, type PageDocument } from '../page-document.ts';
 import { gridTitle } from '../page-ids.ts';
-import { rowColumns, type CubeSnapshot } from '../snapshot.ts';
+import { CubeRefusal, rowColumns, type CubeSnapshot } from '../snapshot.ts';
 import {
   readsAnchor, seriesQuery, seriesSources, TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_SPLIT, TS_UPPER, TS_VALUE, type TsInputs,
-  type TsWindow,
+  type TsQuery, type TsWindow,
 } from '../timeseries-query.ts';
-import { leafTables, type HostTables } from './host-tables.ts';
-import { sourcesOpenedOn } from './join.ts';
+import type { HostTables } from './host-tables.ts';
+import { sourcesOnHost, sourcesOpenedOn } from './join.ts';
 import { readTimeseries, type TimeseriesSpec, type TsExpr, type TsSeries, type TsSource } from '../timeseries-spec.ts';
 import {
   aliasFor, nextSeriesId, parseExpr, sourceOf, timeseriesProblems, TsSyntaxError, type TsColumn
@@ -33,7 +32,7 @@ function gridOf(page: PageDocument, grid: string): TsGridColumns {
   return { cube: view.cube, title: view.title ?? gridTitle(view.id), columns, rows: held.cube.query.rows };
 }
 
-class Problem extends Error {}
+export class Problem extends Error {}
 
 /** A first plot of a source told by its grid, by the screen's Create ▸ Timeseries' rule (timeseries-edit.ts firstPlotOf:
  *  its price-like value, a line per instrument, a price's rebased) -- refused in its words where the screen refuses
@@ -179,6 +178,27 @@ export interface SeriesAsked {
   /** The first date it is read from (an index's base, compare's), and the last; absent, every date. */
   readonly window?: TsWindow;
   readonly host: HostTables;
+  /** The copies the host holds, by table (Python's held_copies): a snapped grid is read over its copy. */
+  readonly copies?: Readonly<Record<string, unknown>>;
+}
+
+/** What a series' query answers with, by role, as a host reads its answer. */
+const ANSWER = `"columns":${JSON.stringify({ date: TS_DATE, value: TS_VALUE, split: TS_SPLIT, lower: TS_LOWER, upper: TS_UPPER, open: TS_OPEN, high: TS_HIGH, low: TS_LOW })}`;
+
+/** A series' query as a host reads it: its unit, whether a band or candles, its split and its name, beside the query. */
+export function answerOf(q: TsQuery, series: TsSeries): string {
+  return `${ANSWER},"unit":${JSON.stringify(q.unit)},"band":${JSON.stringify(q.band)},"candles":${JSON.stringify(q.candles === true)},`
+    + `"split":${JSON.stringify(q.split ?? null)},"name":${JSON.stringify(series.name ?? null)}`;
+}
+
+/** A timeseries tile's series of a page, by their ids, or a refusal naming what is not there. */
+export function seriesOf(page: PageDocument, tile: string, id: string): { readonly ts: TimeseriesSpec; readonly series: TsSeries } {
+  const view = page.views.find((v) => v.id === tile);
+  if (!view || view.kind !== 'timeseries') throw new Problem(`'${tile}' is no timeseries tile of the page`);
+  const ts = view.spec;
+  const series = ts.series.find((x) => x.id === id);
+  if (!series) throw new Problem(`${tile} has no series ${id} (it has ${ts.series.map((x) => x.id).join(', ')})`);
+  return { ts, series };
 }
 
 /**
@@ -195,30 +215,25 @@ export async function timeseriesQuery(spec: string): Promise<string> {
   try {
     const asked = fromJson(spec) as unknown as SeriesAsked;
     const page = readPage(asked.page, { empty: true });
-    const view = page.views.find((v) => v.id === asked.tile);
-    if (!view || view.kind !== 'timeseries') throw new Problem(`'${asked.tile}' is no timeseries tile of the page`);
-    const ts = view.spec;
-    const series = ts.series.find((x) => x.id === asked.series);
-    if (!series) throw new Problem(`${asked.tile} has no series ${asked.series} (it has ${ts.series.map((x) => x.id).join(', ')})`);
+    const { ts, series } = seriesOf(page, asked.tile, asked.series);
     let aliases: string[];
     try {
       aliases = seriesSources(ts, series);
     } catch (e) {
       throw new Problem(`series ${series.id}: ${e instanceof Error ? e.message : String(e)}`);
     }
-    const sources: CubeSource[] = [];
-    const tables: string[] = [];
-    const saved: { readonly alias: string; readonly query: PageDocument['cubes'][number]['cube']['query'] }[] = [];
-    for (const alias of aliases) {
+    const cubes = aliases.map((alias) => {
       const src = ts.sources.find((x) => x.alias === alias)!;
-      const cube = page.cubes.find((c) => c.id === src.cube);
-      if (!cube || !page.views.some((v) => v.kind === 'grid' && v.cube === src.cube)) {
-        throw new Problem(`source ${alias}'s grid is not on the page (it was removed)`);
-      }
-      sources.push(cube.cube.source);
-      tables.push(...await leafTables(cube.cube.source, asked.host));
-      saved.push({ alias, query: cube.cube.query });
-    }
+      if (!page.cubes.some((c) => c.id === src.cube)) throw new Problem(`source ${alias}'s grid is not on the page (it was removed)`);
+      return src.cube;
+    });
+    // a series of one grid: read as that grid is, over its base (its copy, snapped; its mapping, a class's; the page's
+    // filters on it) -- the grid's own path, headless grid.ts gridTimeseries, as the tab reads it through the grid's
+    // runner (the review's P1: read live over the grid's leaves, beside every other read of the grid from its copy)
+    if (cubes.length === 1) return JSON.stringify({ grid: cubes[0] });
+    // several: one model of the host's tables they read, a snapped grid's its copy (join.ts sourcesOnHost)
+    const { sources, tables } = await sourcesOnHost(page, cubes, asked.host, asked.copies ?? {});
+    const saved = aliases.map((alias, i) => ({ alias, query: page.cubes.find((c) => c.id === cubes[i])!.cube.query }));
     const opened = await sourcesOpenedOn(sources, tables);
     // each grid as the page has it -- its calculated columns, its filter -- over its relation of the model
     const inputs: TsInputs = new Map(saved.map(({ alias, query }, i) => {
@@ -226,15 +241,12 @@ export async function timeseriesQuery(spec: string): Promise<string> {
       return [alias, { snapshot, filter: query.filter }] as const;
     }));
     const window = asked.window ?? {};
-    // its first date its base where it reads one (an index, compare), and the window's dates alone kept -- by the database
-    const q = seriesQuery(inputs, ts, series, readsAnchor(ts, series) && window.from !== undefined ? { from: window.from } : {}, window);
-    return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},"query":${toJson(q.query)},`
-      + `"columns":${JSON.stringify({ date: TS_DATE, value: TS_VALUE, split: TS_SPLIT, lower: TS_LOWER, upper: TS_UPPER, open: TS_OPEN, high: TS_HIGH, low: TS_LOW })},`
-      + `"unit":${JSON.stringify(q.unit)},"band":${JSON.stringify(q.band)},"candles":${JSON.stringify(q.candles === true)},`
-      + `"split":${JSON.stringify(q.split ?? null)},`
-      + `"name":${JSON.stringify(series.name ?? null)}}`;
+    // its first date its base where it reads one (an index, compare), and the window's dates alone kept -- by the
+    // database; every point of them (the drawing's limit is the drawing's: the owner, 2026-10-25, the review's P5)
+    const q = seriesQuery(inputs, ts, series, readsAnchor(ts, series) && window.from !== undefined ? { from: window.from } : {}, window, null);
+    return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},"query":${toJson(q.query)},${answerOf(q, series)}}`;
   } catch (e) {
-    if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
+    if (e instanceof Problem || e instanceof CubeRefusal) return JSON.stringify({ problems: [e.message] });
     throw e;
   }
 }

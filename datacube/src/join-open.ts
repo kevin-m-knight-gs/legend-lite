@@ -97,14 +97,32 @@ function reconciled(how: JoinHow, right: JoinSide, notes: string[]): JoinHow {
   return { ...how, keep: how.keep.filter((c) => theirs.has(c)) };
 }
 
+/**
+ * A SNAPPED GRID'S COPY, as a combination reads it (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2; the owner,
+ * 2026-10-25: "can be snapped into duckdb wasm as a grid snap too if from different sources"): a table of this database
+ * the snap copied the grid's base into -- one leaf, read as its table is, in its grid's place (the review's P3: a
+ * combination read the grid live).
+ */
+export interface CopyTable {
+  readonly _type: 'copy';
+  readonly table: string;
+}
+
+/** What a combination opens over one model: a grid's source, or its snapped copy's table. */
+export type OpenedSource = CubeSource | CopyTable;
+
+/** A source's leaves in order: a copy is its table's one. */
+const leavesOfOpened = (s: OpenedSource): readonly (LeafSource | CopyTable)[] => (s._type === 'copy' ? [s] : leavesOf(s));
+
 /** Sources over one model as they are opened: the model, how a relation over it is typed, and each source's relation. */
 interface OneModel {
   readonly model: string;
   readonly runtime: string;
   readonly typer: RelationTyper;
   readonly notes: string[];
-  /** A source's relation over the model: a table's, or a join of its inputs (each opened as `side`). Asked in order. */
-  relation(s: CubeSource): Promise<ValueSpecification>;
+  /** A source's relation over the model: a table's (a copy's too), or a join of its inputs (each opened as `side`). Asked
+   *  in order. */
+  relation(s: OpenedSource): Promise<ValueSpecification>;
   /** An input as a join's side: its cube's rows at their finest level over its source. Asked in order. */
   side(input: JoinInput): Promise<JoinSide>;
 }
@@ -114,9 +132,11 @@ interface OneModel {
  * refused in words when a leaf is read elsewhere (leafRefusal) -- and each source, asked IN ORDER (the tables are
  * `o.tables` in leavesOf's order), its relation over the model.
  */
-async function oneModel(sources: readonly CubeSource[], o: JoinOpening): Promise<OneModel> {
-  const leaves = sources.flatMap((s) => leavesOf(s));
+async function oneModel(sources: readonly OpenedSource[], o: JoinOpening): Promise<OneModel> {
+  const leaves = sources.flatMap(leavesOfOpened);
   for (const leaf of leaves) {
+    // a copy is a table of this database by what made it: nothing elsewhere to refuse
+    if (leaf._type === 'copy') continue;
     const why = leafRefusal(leaf, o.here);
     if (why !== undefined) throw new CubeRefusal(why);
   }
@@ -126,7 +146,8 @@ async function oneModel(sources: readonly CubeSource[], o: JoinOpening): Promise
   const distinct = [...new Set(o.tables)];
   const written = await o.models.tablesModel(await Promise.all(distinct.map(async (table) => ({
     table,
-    // as each one's own model reads it: an upload rewritten at ingest and a frame convert, a remote file's view cannot
+    // as each one's own model reads it: an upload rewritten at ingest, a frame and a snap's copy convert, a remote file's
+    // view cannot
     convertible: leaves[o.tables.indexOf(table)]!._type !== 'remoteFile',
     columns: await o.catalog(table),
   }))), o.databaseType);
@@ -135,7 +156,7 @@ async function oneModel(sources: readonly CubeSource[], o: JoinOpening): Promise
   const notes: string[] = [];
   let next = 0;
 
-  const relation = async (s: CubeSource): Promise<ValueSpecification> => {
+  const relation = async (s: OpenedSource): Promise<ValueSpecification> => {
     if (s._type !== 'join') return relationOf.get(o.tables[next++]!)!;
     const l = await side(s.left);
     const r = await side(s.right);
@@ -182,7 +203,7 @@ export interface OpenedSources {
  * source the relation of its tables over the model, which its grid's calculated columns and filter are then written
  * over. Refused in words when a leaf is read elsewhere (leafRefusal).
  */
-export async function openSources(sources: readonly CubeSource[], o: JoinOpening): Promise<OpenedSources> {
+export async function openSources(sources: readonly OpenedSource[], o: JoinOpening): Promise<OpenedSources> {
   const m = await oneModel(sources, o);
   const relations: ValueSpecification[] = [];
   for (const s of sources) relations.push(await m.relation(s));
