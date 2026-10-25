@@ -151,6 +151,24 @@ describe('a live input resolved against its page', () => {
       (e: unknown) => e instanceof CubeDocumentError && /columns renamed are a list of \{from, to\}/.test(e.message));
   });
 
+  it("a flow's box hands on its columns in its order (a Select's column order), written and read with a copy", () => {
+    const ordering = (c: CubeDocument): CubeDocument => ({ ...c, configuration: { ...c.configuration, columnOrder: ['notional', 'region'] } });
+    const board = page({ 'grid-1': ordering(cube(FILE)), 'grid-2': cube(rows('grid-1')) });
+    assert.equal(gridInput(board, 'grid-1').order, undefined, "a board's grid: its columns as its query has them");
+    const flow: PageDocument = { ...board, sheets: [{ id: 'sheet-1', layout: { kind: 'flow', boxes: [
+      { tile: 'grid-1', x: 40, y: 40 }, { tile: 'grid-2', x: 288, y: 40 },
+    ] } }] };
+    assert.deepEqual(gridInput(flow, 'grid-1').order, ['notional', 'region']);
+    const frozen = cube({ _type: 'rows', name: 'trades.csv', input: gridInput(flow, 'grid-1'), columns: COLUMNS });
+    const again = readCube(JSON.parse(cubeToJson(frozen)));
+    assert.deepEqual(again.source._type === 'rows' && !('grid' in again.source.input) ? again.source.input.order : null, ['notional', 'region']);
+    assert.throws(() => readCube(JSON.parse(cubeToJson(frozen).replace('"order":["notional","region"]', '"order":"notional"'))),
+      (e: unknown) => e instanceof CubeDocumentError && /columns' order is a list of names/.test(e.message));
+    // an order its query has already: none written
+    const same = page({ 'grid-1': { ...cube(FILE), configuration: { ...cube(FILE).configuration, columnOrder: ['region', 'notional'] } }, 'grid-2': cube(rows('grid-1')) });
+    assert.equal(gridInput({ ...same, sheets: flow.sheets }, 'grid-1').order, undefined);
+  });
+
   it("a flow's Summarize gives its keys and its aggregates: the dimensions it is not grouped by left out", () => {
     // region and desk dimensions, notional a measure; grouped by region: desk has no one value a group
     const wide = [{ name: 'region', type: 'String' }, { name: 'desk', type: 'String' }, { name: 'notional', type: 'Float', kind: 'measure' as const }];

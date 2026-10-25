@@ -195,6 +195,12 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     }
   });
 
+  it("an input's rows in its box's order (JoinInput.order: a Select's), those it does not list after them", async () => {
+    const ordered: RowsSource = { _type: 'rows', name: 'trades', input: { ...input(TRADES, 'trades'), order: ['qty', 'sym'] }, columns: [] };
+    const opened = await openRows(ordered, opening(['trades']));
+    assert.deepEqual(opened.columns.map((c) => c.name), ['qty', 'sym', 'id', 'cust', 'at']);
+  });
+
   it("a Join's L and R (cube-document.ts JoinInput.unmatched): each side's rows the other's pair with none", async () => {
     const on = { rows: [{ left: 'cust', op: '==' as const, right: 'id' }] };
     const unmatched = (mine: JoinInput, by: JoinInput, condition: typeof on): RowsSource =>

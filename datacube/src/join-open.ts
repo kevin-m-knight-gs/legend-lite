@@ -95,11 +95,15 @@ export async function inputRows(input: JoinInput, over: ValueSpecification, type
   }
   const all = classLambda(opened.snapshot).body[0]!;
   const typed = (await sourceColumns(typer, all)).map((c) => ({ name: c.name, type: c.type }));
-  // the columns its box leaves out (JoinInput.omit): selected away, the rest in their order; then those it renames
-  // (JoinInput.rename), each by the relation's rename, what reads it reading them by their new names
+  // the columns its box leaves out (JoinInput.omit): selected away, the rest in the order its box hands them on
+  // (JoinInput.order: a Select's, those it does not list after them); then those it renames (JoinInput.rename), each
+  // by the relation's rename, what reads it reading them by their new names
   const omit = new Set(input.omit ?? []);
-  const kept = typed.filter((c) => !omit.has(c.name));
-  let rows = kept.length === typed.length ? all : fn('select', all, colSpecs(kept.map((c) => c.name)));
+  const rank = new Map((input.order ?? []).map((c, i) => [c, i] as const));
+  const at = (name: string): number => rank.get(name) ?? rank.size;
+  const kept = typed.filter((c) => !omit.has(c.name)).sort((a, b) => at(a.name) - at(b.name));
+  const same = kept.length === typed.length && kept.every((c, i) => c.name === typed[i]!.name);
+  let rows = same ? all : fn('select', all, colSpecs(kept.map((c) => c.name)));
   const renames = (input.rename ?? []).filter((r) => kept.some((c) => c.name === r.from));
   for (const r of renames) rows = fn('rename', rows, colSpec(r.from), colSpec(r.to));
   const to = new Map(renames.map((r) => [r.from, r.to] as const));

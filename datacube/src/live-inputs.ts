@@ -5,7 +5,7 @@
 
 import { isLive, type CubeInput, type CubeSource, type InputPort, type JoinInput } from './cube-document.ts';
 import type { PageDocument } from './page-document.ts';
-import { boxOmitted, boxRenamed } from './box-columns.ts';
+import { boxOmitted, boxOrder, boxRenamed } from './box-columns.ts';
 import { unmatchedOn } from './join-how.ts';
 import { CubeRefusal } from './snapshot.ts';
 
@@ -49,9 +49,10 @@ export function gridInput(page: PageDocument, grid: string, through: readonly st
   const onFlow = page.sheets.some((s) => s.layout.kind === 'flow' && s.layout.boxes.some((b) => b.tile === grid));
   const omit = onFlow ? boxOmitted(cube.cube.query, cube.cube.configuration) : [];
   const rename = onFlow ? boxRenamed(cube.cube.query, cube.cube.configuration) : [];
+  const order = onFlow ? boxOrder(cube.cube.query, cube.cube.configuration) : undefined;
   return {
     name: view.title ?? cube.cube.source.name, source: resolvedOn(page, cube.cube.source, [...through, grid]), query,
-    ...(omit.length > 0 ? { omit } : {}), ...(rename.length > 0 ? { rename } : {}),
+    ...(omit.length > 0 ? { omit } : {}), ...(rename.length > 0 ? { rename } : {}), ...(order !== undefined ? { order } : {}),
   };
 }
 

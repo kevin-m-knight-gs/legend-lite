@@ -4,6 +4,10 @@
 // display name: a Select's rename, the relation's `rename` for what reads it). One rule for what the box after it reads
 // (live-inputs.ts gridInput), the columns its settings say, its Profile and its Output.
 //
+// ITS ORDER (a Select's: Alteryx's fields moved up and down): its columns handed on in its configuration's column order,
+// those it does not list after them in their own order (`boxOrder`, the relation's `select` in that order for what reads
+// it).
+//
 // IN PLACE (Alteryx's "change existing fields": a Data Cleansing, a Multi-Field Formula, an Imputation): a column a tool
 // makes of another handed on by that column's name, the column itself hidden -- the box after it reads `region`,
 // cleansed. Said by the settings alone (`inPlaceCommand`), read back off them (`inPlaceOf`).
@@ -11,7 +15,7 @@
 // PURE: no DOM, no planner.
 
 import type { GridCommand } from './grid-commands.ts';
-import { ungroupedDimensions, type CubeShape, type DerivedColumn } from './snapshot.ts';
+import { rowColumns, ungroupedDimensions, type CubeShape, type DerivedColumn } from './snapshot.ts';
 
 type Query = Pick<CubeShape, 'columns' | 'derived' | 'rows' | 'pivotOn'>;
 
@@ -27,6 +31,25 @@ export function boxOmitted(query: Query, configuration: Readonly<Record<string, 
   const hidden = Object.entries(settingsOf(configuration))
     .filter(([, c]) => c !== null && typeof c === 'object' && c['hidden'] === true).map(([name]) => name);
   return [...new Set([...hidden, ...ungroupedDimensions(query)])];
+}
+
+/** `columns` in the order a box's configuration puts them (its column order: a Select's), those it does not list after
+ *  them in their own order. */
+function inOrder(columns: readonly string[], configuration: Readonly<Record<string, unknown>>): string[] {
+  const order = configuration['columnOrder'];
+  if (!Array.isArray(order) || order.length === 0) return [...columns];
+  const at = new Map(order.map((c, i) => [c, i] as const));
+  const rank = (c: string): number => at.get(c) ?? order.length;
+  return [...columns].sort((a, b) => rank(a) - rank(b));
+}
+
+/** The order a box hands its columns on in, by their own names, where its column order makes it other than its rows'
+ *  own; undefined where it does not. */
+export function boxOrder(query: Query, configuration: Readonly<Record<string, unknown>>): string[] | undefined {
+  const omitted = new Set(boxOmitted(query, configuration));
+  const own = rowColumns(query).map((c) => c.name).filter((c) => !omitted.has(c));
+  const ordered = inOrder(own, configuration);
+  return ordered.some((c, i) => c !== own[i]) ? ordered : undefined;
 }
 
 /** The columns a box renames for what reads it: each kept column given a display name of its own, from it to that. */
@@ -57,10 +80,11 @@ export function inPlaceOf(derived: readonly DerivedColumn[], configuration: Read
   });
 }
 
-/** The columns a box hands on of `columns` (its rows' columns, in order), each under the name it hands it on by. */
+/** The columns a box hands on of `columns` (its rows' columns, in order), in its order, each under the name it hands it
+ *  on by. */
 export function handedOn(columns: readonly string[], query: Query, configuration: Readonly<Record<string, unknown>>):
   { readonly name: string; readonly as: string }[] {
   const omitted = new Set(boxOmitted(query, configuration));
   const renamed = new Map(boxRenamed(query, configuration).map((r) => [r.from, r.to] as const));
-  return columns.filter((c) => !omitted.has(c)).map((name) => ({ name, as: renamed.get(name) ?? name }));
+  return inOrder(columns.filter((c) => !omitted.has(c)), configuration).map((name) => ({ name, as: renamed.get(name) ?? name }));
 }

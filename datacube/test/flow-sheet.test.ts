@@ -21,7 +21,7 @@ import {
 import { renamedCommand, rearranged } from '../src/page-rebase.ts';
 import { tidyCommands } from '../src/page-gestures.ts';
 import { applyPlanned, pageBetween } from '../src/page-between.ts';
-import { CubeRefusal, type CubeSnapshot, type DerivedColumn, type FilterNode } from '../src/snapshot.ts';
+import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode } from '../src/snapshot.ts';
 import { readUnique, uniqueCommands, uniqueOf } from '../src/unique.ts';
 import { correlationLambda, correlationsOf, profileLambda, profileOf } from '../src/profile.ts';
 import { imputeCommands, imputedOf, readImputation } from '../src/impute.ts';
@@ -30,6 +30,7 @@ import { multiFieldOf } from '../src/multi-field.ts';
 import { readRowSample, rowSampleCommands, rowSampleOf, sampleCommands } from '../src/row-sample.ts';
 import { readTranspose, transposeCommands, transposeOf } from '../src/transpose.ts';
 import { readSelection, retypesOf, selectCommands, selectionOf } from '../src/select-columns.ts';
+import { handedOn } from '../src/box-columns.ts';
 import { readSummary, summarizeCommands } from '../src/summarize.ts';
 import { unmatchedOn } from '../src/join-how.ts';
 import { findReplaceCommands, findReplaceOf, readFindReplace } from '../src/find-replace.ts';
@@ -384,6 +385,37 @@ describe("Select (select-columns.ts): the columns a box keeps and the names it h
     assert.deepEqual(again[0], { kind: 'removeCalculated', name: 'code__Integer' });
     assert.throws(() => selectCommands(coded, { keep: ['notional'], rename: {}, retype: { notional: 'Boolean' } }),
       /'notional' \(Float\) cannot be made Boolean: it can be made String, Integer, Decimal/);
+  });
+
+  it("hands its columns on in its order -- its window's rows', a conversion in its column's place -- said on its box", () => {
+    const coded = { ...rawRows(accessor('local::DB', 'trades'), [...COLUMNS, { name: 'code', type: 'String' }]) };
+    const applied = (t: Parameters<typeof selectCommands>[1]) => {
+      const commands = selectCommands(coded, t);
+      const draft = applyGridCommands({ snapshot: coded, config: DEFAULT_CONFIGURATION }, commands);
+      const config = draft.config as unknown as Record<string, unknown>;
+      const box = cube(rows('grid-1'), (q) => ({ ...q, columns: draft.snapshot.columns, derived: draft.snapshot.derived }), config);
+      return { commands, s: draft.snapshot, config, box };
+    };
+    const moved = applied({ keep: ['region', 'notional', 'code'], rename: {}, retype: { code: 'Integer' }, order: ['code', 'region', 'notional'] });
+    assert.deepEqual((moved.commands.at(-1) as unknown as { patch: { columnOrder: string[] } }).patch.columnOrder, ['code__Integer', 'region', 'notional']);
+    assert.deepEqual(handedOn(rowColumns(moved.s).map((c) => c.name), moved.s, moved.config).map((c) => c.as), ['code', 'region', 'notional']);
+    assert.deepEqual(selectionOf(moved.s, moved.config).map((c) => c.name), ['code', 'region', 'notional'], 'its window: its rows in its order');
+    assert.equal(boxSays(moved.box).says, 'code as Integer; columns reordered');
+    // a retype alone keeps its column's place -- here between the two -- and says no order of its own
+    const kept = applied({ keep: ['region', 'notional', 'code'], rename: {}, retype: { code: 'Integer' }, order: ['region', 'code', 'notional'] });
+    assert.deepEqual(handedOn(rowColumns(kept.s).map((c) => c.name), kept.s, kept.config).map((c) => c.as), ['region', 'code', 'notional']);
+    assert.equal(boxSays(kept.box).says, 'code as Integer; columns reordered', 'moved between them: an order of its own');
+    const inPlace = { ...rawRows(accessor('local::DB', 'trades'), [COLUMNS[0]!, { name: 'code', type: 'String' }, COLUMNS[1]!]) };
+    const draft = applyGridCommands({ snapshot: inPlace, config: DEFAULT_CONFIGURATION },
+      selectCommands(inPlace, { keep: ['region', 'code', 'notional'], rename: {}, retype: { code: 'Integer' }, order: ['region', 'code', 'notional'] }));
+    const config = draft.config as unknown as Record<string, unknown>;
+    assert.deepEqual(handedOn(rowColumns(draft.snapshot).map((c) => c.name), draft.snapshot, config).map((c) => c.as), ['region', 'code', 'notional'],
+      'its conversion where its column was');
+    assert.equal(boxSays(cube(rows('grid-1'), (q) => ({ ...q, columns: draft.snapshot.columns, derived: draft.snapshot.derived }), config)).says,
+      'code as Integer', 'in its place: no order of its own said');
+    refused(() => selectCommands(coded, { keep: ['region'], rename: {}, order: ['region', 'region'] }), /names 'region' twice/);
+    refused(() => selectCommands(coded, { keep: ['region'], rename: {}, order: ['nope'] }), /its order names no column 'nope'/);
+    assert.deepEqual(readSelection({ kind: 'selectColumns', keep: ['a'], order: ['a'] }), { keep: ['a'], rename: {}, order: ['a'] });
   });
 
   it('refuses in words what it cannot hand on', () => {

@@ -13,7 +13,7 @@ import { textToolOf, type TextTool } from './text-tools.ts';
 import { uniqueOf } from './unique.ts';
 import { rowSampleOf, rowSampleWords } from './row-sample.ts';
 import { transposeOf } from './transpose.ts';
-import { boxRenamed, inPlaceOf } from './box-columns.ts';
+import { boxOmitted, boxOrder, boxRenamed, inPlaceOf } from './box-columns.ts';
 import { retypesOf } from './select-columns.ts';
 import { imputedOf } from './impute.ts';
 import { findReplaceOf } from './find-replace.ts';
@@ -22,7 +22,7 @@ import { dateToolOf } from './date-tools.ts';
 import { isEveryPair, isFuzzy, type JoinHow } from './join-how.ts';
 import { joinWords } from './join-words.ts';
 import { conditionWords } from './page-filters.ts';
-import type { DerivedColumn } from './snapshot.ts';
+import { rowColumns, type DerivedColumn } from './snapshot.ts';
 import type { ColumnEditorStart } from './ui/column-editor.ts';
 import type { EditorTab } from './ui/editor.ts';
 
@@ -209,14 +209,22 @@ export function boxSays(cube: CubeDocument): BoxSays {
   // a Select's renames: the names it hands its columns on by (box-columns.ts); its retypes, by the names they are given
   const as = new Map(boxRenamed(q, cube.configuration).map((r) => [r.from, r.to] as const));
   const renames = [...as].filter(([from]) => !retyped.some((r) => r.name === from) && !placedMade.has(from));
-  if (hidden.length > 0 || renames.length > 0 || retyped.length > 0) {
+  // a Select's order (box-columns.ts boxOrder): its columns moved -- its conversions in their columns' places aside
+  const order = boxOrder(q, cube.configuration);
+  const moved = order !== undefined && (() => {
+    const back = new Map(retyped.map((r) => [r.name, r.column] as const));
+    const omitted = new Set(boxOmitted(q, cube.configuration));
+    const asIs = rowColumns(q).map((c) => c.name).filter((c) => !back.has(c) && (!omitted.has(c) || retyped.some((r) => r.column === c)));
+    return order.map((c) => back.get(c) ?? c).some((c, i) => c !== asIs[i]);
+  })();
+  if (hidden.length > 0 || renames.length > 0 || retyped.length > 0 || moved) {
     const renamed = renames.length === 0 ? undefined
       : renames.length <= 2 ? renames.map(([from, to]) => `${from} → ${to}`).join(', ') : `${renames.length} renamed`;
     const types = retyped.length === 0 ? undefined : retyped.length <= 2
       ? retyped.map((r) => `${r.column}${(as.get(r.name) ?? r.column) !== r.column ? ` → ${as.get(r.name)}` : ''} as ${r.to}`).join(', ')
       : `${retyped.length} retyped`;
     const left = hidden.length === 0 ? undefined : `${hidden.length} of ${q.columns.length} columns left out`;
-    steps.push({ tool: 'select', says: [renamed, types, left].filter((w) => w !== undefined).join('; ') });
+    steps.push({ tool: 'select', says: [renamed, types, left, moved ? 'columns reordered' : undefined].filter((w) => w !== undefined).join('; ') });
   }
   const first = steps[0];
   if (first === undefined) return { tool: 'browse', also: [], says: 'every row' };

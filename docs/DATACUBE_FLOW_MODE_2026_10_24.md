@@ -729,6 +729,16 @@ in words. A box says "region → area; 1 of 12 columns left out". Python: `grid.
 Python's `test_a_select_keeps_and_renames_for_what_reads_it` and the harness (a Select of the Filter, the Sort after it
 reading `area`, no `region`, no `book`).
 
+**Built, a Select's column order** (`select-columns.ts`, `ui/select-form.ts`, `box-columns.ts` `boxOrder`, `cube-document.ts`
+`JoinInput.order`, `join-open.ts inputRows`; 2026-10-25): Alteryx's fields moved up and down -- each row of the Select
+window has ↑ and ↓ (Alt+Up, Alt+Down from anywhere on its row), and the box hands its columns on in that order: its
+grid's own column order (`columnOrder`, what its grid shows in), which a box of a flow hands on as the relation's
+`select` in that order (`JoinInput.order`, written with a copy). A retyped column's conversion takes its column's place
+-- found when a retype sent its column to the end. A box says "columns reordered" when its columns were moved, its
+conversions in their places aside. Python: `grid.select(keep, ..., order=[...])`. Tested by `flow-sheet.test.ts`,
+`live-inputs.test.ts`, `join-open.test.ts` (DuckDB: the columns selected in that order), Python's Select test and the
+harness (desk moved above region: the box after it reads desk before area, quantity where it was).
+
 **The example flow's Reshape sheet** (`examples/prep-flow.ts`): a second sheet showing the tools that reshape rows over the
 same orders -- the two biggest orders of each region (a Sample: last 2 of each region by revenue), their columns chosen
 and revenue renamed sales (a Select), their money made rows (a Transpose: sales, cost, profit to rows, beside each

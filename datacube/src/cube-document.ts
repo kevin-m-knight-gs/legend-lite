@@ -194,6 +194,9 @@ export interface JoinInput {
   /** The columns its rows rename, each from its name to another: a flow's box's renamed columns (a Select's: its display
    *  names), since what reads a box reads them by the names it gives them. Absent, none. */
   readonly rename?: readonly { readonly from: string; readonly to: string }[];
+  /** The order its rows hand their columns on in, by their own names: a flow's box's (a Select's columns moved: its
+   *  column order, box-columns.ts boxOrder), those it does not list after them. Absent, its query's own. */
+  readonly order?: readonly string[];
   /** Its rows that no row of another input pairs with, in turn (a Join's L or R: live-inputs.ts gridInput) -- each an
    *  anti-join the database runs (join-open.ts), on a condition naming each side's columns by the names it hands them on
    *  by. Absent, every row. */
@@ -582,6 +585,10 @@ function readFrozenInput(i: Record<string, unknown>, what: string): JoinInput {
     && typeof (r as Record<string, unknown>)['from'] === 'string' && typeof (r as Record<string, unknown>)['to'] === 'string'))) {
     throw new CubeDocumentError(`${what}'s columns renamed are a list of {from, to}, not ${JSON.stringify(plain(rename) ?? null)}`);
   }
+  const order = i['order'];
+  if (order !== undefined && !(Array.isArray(order) && order.length > 0 && order.every((c) => typeof c === 'string'))) {
+    throw new CubeDocumentError(`${what}'s columns' order is a list of names, not ${JSON.stringify(plain(order) ?? null)}`);
+  }
   const unmatched = i['unmatched'];
   if (unmatched !== undefined && !(Array.isArray(unmatched) && unmatched.length > 0 && unmatched.every((u) => isObject(u) && isObject(u['by'])))) {
     throw new CubeDocumentError(`${what}'s unmatched rows are a list of {by, on}, not ${JSON.stringify(plain(unmatched) ?? null)}`);
@@ -597,6 +604,7 @@ function readFrozenInput(i: Record<string, unknown>, what: string): JoinInput {
   };
   return { name: i['name'], source: readSource(i['source']), query: readQuery(i['query']), ...(omit !== undefined ? { omit: omit as string[] } : {}),
     ...(rename !== undefined ? { rename: (rename as { from: string; to: string }[]).map((r) => ({ from: r.from, to: r.to })) } : {}),
+    ...(order !== undefined ? { order: order as string[] } : {}),
     ...(unmatched !== undefined ? { unmatched: (unmatched as Record<string, unknown>[]).map((u, n) => matched(u, n + 1)) } : {}) };
 }
 

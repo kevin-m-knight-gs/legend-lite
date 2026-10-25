@@ -2912,6 +2912,13 @@ class Flows(Paged):
         self.assertTrue(pd.api.types.is_integer_dtype(read['code']), read.dtypes)
         with self.assertRaisesRegex(ValueError, "'n' \\(Integer\\) cannot be made Boolean"):
             typed.select(['code', 'n'], retype={'n': 'Boolean'})
+        # ordered: handed on in its order, the retyped column in its place -- the box after it reads them so
+        typed.select(['code', 'n'], retype={'code': 'Integer'}, order=['n', 'code'])
+        self.assertEqual(list(flow.grid(input=typed).to_pandas().columns), ['n', 'code'])
+        typed.select(['code', 'n'], retype={'code': 'Integer'}, order=['code', 'n'])
+        self.assertEqual(list(flow.grid(input=typed).to_pandas().columns), ['code', 'n'], 'its conversion where its column was')
+        with self.assertRaisesRegex(ValueError, "its order names no column 'nope'"):
+            typed.select(['code'], order=['nope'])
 
     def test_tools_in_place_hand_their_columns_on_by_their_own_names(self):
         # Alteryx's in place: a Data Cleansing's, a Multi-Field Formula's, an Imputation's columns handed on by the names

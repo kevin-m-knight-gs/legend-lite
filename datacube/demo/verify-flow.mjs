@@ -486,7 +486,8 @@ try {
   await drag('fuzzyMatch', filter.id);
   await joinWindow.waitFor({ timeout: 20_000 });
   await joinWindow.locator('.dc-join-their').selectOption(dropped.id);
-  await page.waitForFunction(() => document.querySelectorAll('.dc-join .dc-join-left option').length > 1, undefined, { timeout: 60_000 });
+  // their rows' columns come when theirs is read: its target among them (another box's first, read before, has none)
+  await page.waitForFunction(() => document.querySelector('.dc-join .dc-join-right option[value="target"]') !== null, undefined, { timeout: 60_000 });
   check(await joinWindow.locator('.dc-join-op').first().inputValue() === '~' && await joinWindow.locator('.dc-join-within').first().isVisible(),
     'a Fuzzy Match\'s window starts at similar, its edits apart beside it');
   await joinWindow.locator('.dc-join-left').first().selectOption('region');
@@ -520,7 +521,7 @@ try {
   await joinWindow.waitFor({ timeout: 20_000 });
   check(await joinWindow.locator('.dc-join-kind[data-kind="left"]').getAttribute('aria-checked') === 'true', 'a Find Replace\'s window starts at all of mine');
   await joinWindow.locator('.dc-join-their').selectOption(regions.id);
-  await page.waitForFunction(() => document.querySelectorAll('.dc-join .dc-join-left option').length > 1, undefined, { timeout: 60_000 });
+  await page.waitForFunction(() => document.querySelector('.dc-join .dc-join-right option[value="name"]') !== null, undefined, { timeout: 60_000 });
   await joinWindow.locator('.dc-join-left').first().selectOption('region');
   await joinWindow.locator('.dc-join-right').first().selectOption('region');
   await page.waitForFunction(() => { const b = document.querySelector('.dc-join .dc-save-foot .dc-primary'); return b instanceof HTMLButtonElement && !b.disabled; }, undefined, { timeout: 60_000 });
@@ -793,12 +794,16 @@ try {
   const sw = page.locator('.dc-flow-dock .dc-select-form');
   await sw.locator('.dc-select-row[data-column="region"] .dc-select-rename').fill('area');
   await sw.locator('.dc-select-row[data-column="book"] .dc-select-keep').uncheck();
-  // and a number made text: a conversion of it, handed on by its name
+  // and a number made text: a conversion of it, handed on by its name, in its place
   await sw.locator('.dc-select-row[data-column="quantity"] .dc-select-retype').selectOption('String');
+  // and desk moved up, above region (Alteryx's fields moved up and down)
+  await sw.locator('.dc-select-row[data-column="desk"] .dc-select-up').click();
+  const windowOrder = await sw.locator('.dc-select-list .dc-select-row').evaluateAll((els) => els.map((e) => e.dataset.column));
+  check(windowOrder.indexOf('desk') === windowOrder.indexOf('region') - 1, `desk moved above region: ${windowOrder}`);
   await sw.locator('.dc-sample-foot .dc-primary').click();
   await settled();
   const choseBox = (await boxes()).find((b) => b.id === chose.id);
-  check(choseBox?.tool === 'select' && /^region → area; quantity as String; 1 of \d+ columns left out$/.test(choseBox.says), `a Select box: ${JSON.stringify(choseBox)}`);
+  check(choseBox?.tool === 'select' && /^region → area; quantity as String; 1 of \d+ columns left out; columns reordered$/.test(choseBox.says), `a Select box: ${JSON.stringify(choseBox)}`);
   // a Browse after it, from the palette: its rows as it reads them
   const beforeReader = (await boxes()).map((b) => b.id);
   await drag('browse', chose.id);
@@ -809,6 +814,8 @@ try {
   const readHeads = await page.locator('.dc-flow-results .dc-th[data-column]').evaluateAll((els) => els.map((e) => e.dataset.column));
   check(readHeads.includes('area') && !readHeads.includes('region') && !readHeads.includes('book') && readHeads.includes('quantity')
     && !readHeads.some((h) => h.includes('__')), `the box after it reads area, no region, no book, quantity by its name: ${readHeads}`);
+  check(readHeads.indexOf('desk') < readHeads.indexOf('area') && readHeads.indexOf('quantity') === readHeads.indexOf('pnl') + 1,
+    `in its order: desk before area, quantity where it was: ${readHeads}`);
   // its quantity text now: the Profile says its type
   await page.locator('.dc-flow-mode[data-mode="profile"]:visible').click();
   await page.locator('.dc-flow-profile-table:visible tr[data-column="quantity"]').waitFor({ timeout: 60_000 });

@@ -733,8 +733,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  minimap's and the correlation matrix's styles, the Join window's edits-apart field and the Select's type choice;
  *  their code the canvas's and the windows' chunks). Measured 387,738.
  *  388,500 -> 389,500 (2026-10-25, the flow mode's Summarize window and a Join's L and R -- the grid-only page's notes of
- *  the same date; the window's rows and a Join's three outputs' styles among them). Measured 389,004. */
-const WIDGET_BUDGET = 389_500;
+ *  the same date; the window's rows and a Join's three outputs' styles among them). Measured 389,004.
+ *  389,500 -> 390,000 (2026-10-25, the flow mode's Find Replace, a box's Chart and a Select's column order: a box's
+ *  order handed on (box-columns.ts boxOrder, read at startup through live-inputs.ts; cube-document.ts JoinInput.order),
+ *  the Chart's and the Select's arrows' styles among them). Measured 389,693. */
+const WIDGET_BUDGET = 390_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

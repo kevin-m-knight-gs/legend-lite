@@ -3,8 +3,9 @@
 // renamed has a display name of its own, which a flow's box hands on as the relation's `rename` (box-columns.ts,
 // join-open.ts inputRows); a column retyped is a calculated column of its conversion (`$x.price->toOne()->parseInteger()`,
 // named `price__Integer`), its column hidden and it given the column's name to be handed on by -- so the box after it
-// reads `price`, a whole number. One step of commands; what a box says is read back off them (`retypesOf`, box-columns.ts
-// boxRenamed, flow-boxes.ts).
+// reads `price`, a whole number; the order it hands them on in is its column order (box-columns.ts boxOrder), a retyped
+// column's conversion in the column's place. One step of commands; what a box says is read back off them (`retypesOf`,
+// box-columns.ts boxRenamed, flow-boxes.ts).
 //
 // One rule for the box's window and Python's grid.select (headless gridPreset).
 //
@@ -65,6 +66,9 @@ export interface Selection {
   readonly keep: readonly string[];
   readonly rename: Readonly<Record<string, string>>;
   readonly retype?: Readonly<Record<string, Retype>>;
+  /** The order it hands its columns on in, by their own names (its window's rows', Alteryx's fields moved up and down);
+   *  any it does not name after them. Absent, as they are. */
+  readonly order?: readonly string[];
 }
 
 /** Each column of a grid as its Select window shows it: its name, its type, kept or not, its name and type handed on. */
@@ -78,13 +82,18 @@ export interface SelectedColumn {
   readonly retypes: readonly Retype[];
 }
 
-/** A grid's columns as its Select has them now (`configuration`: its settings): its own, its retypes read as theirs. */
+/** A grid's columns as its Select has them now (`configuration`: its settings), in the order it hands them on: its own,
+ *  its retypes read as theirs. */
 export function selectionOf(s: Pick<CubeShape, 'columns' | 'derived' | 'rows' | 'pivotOn'>, configuration: Readonly<Record<string, unknown>>): SelectedColumn[] {
   const retypes = retypesOf(s.derived);
   const own = new Set(retypes.map((r) => r.name));
   const columns = rowColumns(s).filter((c) => !own.has(c.name));
   const on = new Map(handedOn(rowColumns(s).map((c) => c.name), s, configuration).map((c) => [c.name, c.as] as const));
-  return columns.map((c) => {
+  // in its column order: each where it -- or its conversion -- is placed, those it does not place after them
+  const order = configuration['columnOrder'];
+  const at = new Map((Array.isArray(order) ? order : []).map((c, i) => [c, i] as const));
+  const rank = (name: string): number => at.get(retypes.find((r) => r.column === name)?.name ?? name) ?? at.size;
+  return [...columns].sort((a, b) => rank(a.name) - rank(b.name)).map((c) => {
     const r = retypes.find((x) => x.column === c.name);
     const as = on.get(r?.name ?? c.name);
     return { name: c.name, type: c.type ?? '', kept: as !== undefined, as: as ?? c.name, ...(r !== undefined ? { retype: r.to } : {}),
@@ -139,6 +148,12 @@ export function selectCommands(s: CubeSnapshot, t: Selection): GridCommand[] {
       name, lambda: lambda(['x'], body), kind: NUMBERS.has(to) ? 'measure' : 'dimension',
     } });
   }
+  if (t.order !== undefined) {
+    const strays = t.order.filter((c) => !all.includes(c));
+    if (strays.length > 0) throw new CubeRefusal(`its order names no column ${strays.map((c) => `'${c}'`).join(', ')}`);
+    const twice = t.order.find((c, i) => t.order!.indexOf(c) !== i);
+    if (twice !== undefined) throw new CubeRefusal(`its order names '${twice}' twice`);
+  }
   const settings: Record<string, { hidden: true | null; displayName: string | null }> = {};
   for (const c of all) {
     const kept = t.keep.includes(c);
@@ -147,7 +162,10 @@ export function selectCommands(s: CubeSnapshot, t: Selection): GridCommand[] {
     settings[c] = { hidden: kept && r === undefined ? null : true, displayName: kept && r === undefined && as !== c ? as : null };
     if (r !== undefined) settings[r] = { hidden: null, displayName: as };
   }
-  return [...commands, { kind: 'configure', patch: { columns: settings } }];
+  // its order: each column where it is named, a conversion in its column's place
+  const order = t.order === undefined ? undefined
+    : [...t.order, ...all.filter((c) => !t.order!.includes(c))].map((c) => made.get(c) ?? c);
+  return [...commands, { kind: 'configure', patch: { columns: settings, ...(order !== undefined ? { columnOrder: order } : {}) } }];
 }
 
 /** A Select read from JSON (Python's): `{kind: 'selectColumns', keep, rename?, retype?}` (a chart's `select` is a page
@@ -157,8 +175,12 @@ export function readSelection(raw: unknown): Selection {
   if (o === undefined || o['kind'] !== 'selectColumns') {
     throw new CubeRefusal(`a select is {kind: 'selectColumns', keep, rename, retype}, not ${JSON.stringify(raw)}`);
   }
-  const odd = Object.keys(o).filter((k) => !['kind', 'keep', 'rename', 'retype'].includes(k));
-  if (odd.length > 0) throw new CubeRefusal(`a select takes keep, rename and retype, not ${odd.join(', ')}`);
+  const odd = Object.keys(o).filter((k) => !['kind', 'keep', 'rename', 'retype', 'order'].includes(k));
+  if (odd.length > 0) throw new CubeRefusal(`a select takes keep, rename, retype and order, not ${odd.join(', ')}`);
+  const order = o['order'];
+  if (order !== undefined && !(Array.isArray(order) && order.every((c): c is string => typeof c === 'string'))) {
+    throw new CubeRefusal(`its order is a list of column names, not ${JSON.stringify(order)}`);
+  }
   const keep = o['keep'];
   if (!Array.isArray(keep) || !keep.every((c): c is string => typeof c === 'string')) {
     throw new CubeRefusal(`what it keeps is a list of column names, not ${JSON.stringify(keep)}`);
@@ -172,5 +194,5 @@ export function readSelection(raw: unknown): Selection {
   };
   const rename = names('rename', 'new name', (v) => typeof v === 'string');
   const retype = names('retype', RETYPES.join(' | '), (v) => (RETYPES as readonly unknown[]).includes(v));
-  return { keep, rename, ...(Object.keys(retype).length > 0 ? { retype } : {}) };
+  return { keep, rename, ...(Object.keys(retype).length > 0 ? { retype } : {}), ...(order !== undefined ? { order } : {}) };
 }

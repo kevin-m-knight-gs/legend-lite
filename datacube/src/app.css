@@ -5072,7 +5072,12 @@
 /* a Select's columns (ui/select-form.ts): a row a column -- kept, its name, its type, its new name */
 .dc-select-find { flex: 1; min-width: 10em; }
 .dc-select-list { display: flex; flex-direction: column; max-height: 300px; overflow-y: auto; border: 1px solid var(--tw-neutral-200); border-radius: 8px; }
-.dc-select-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 90px minmax(0, 1fr); align-items: center; gap: 8px; padding: 3px 10px; }
+.dc-select-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 90px minmax(0, 1fr) 44px; align-items: center; gap: 8px; padding: 3px 10px; }
+/* a column moved up or down: two quiet arrows at its row's end */
+.dc-select-move { display: inline-flex; gap: 2px; }
+.dc-select-move button { width: 20px; height: 20px; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--dc-muted); cursor: pointer; font: inherit; font-size: 12px; line-height: 1; }
+.dc-select-move button:hover:not(:disabled) { border-color: var(--dc-line); color: var(--dc-active); background: var(--dc-selected-bg); }
+.dc-select-move button:disabled { opacity: .3; cursor: default; }
 .dc-select-row[hidden] { display: none; }
 .dc-select-row + .dc-select-row { border-top: 1px solid var(--tw-neutral-100); }
 .dc-select-head { padding: 0 10px; color: var(--dc-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }

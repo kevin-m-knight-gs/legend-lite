@@ -918,15 +918,17 @@ class Grid(Tile):
         return self._preset({'kind': 'transpose', 'columns': list(columns), 'keys': list(keys), 'name': name, 'value': value})
 
     def select(self, keep: Sequence[str], *, rename: Mapping[str, str] | None = None,
-               retype: Mapping[str, str] | None = None) -> Grid:
+               retype: Mapping[str, str] | None = None, order: Sequence[str] | None = None) -> Grid:
         """The columns it hands on, ``keep``, the names it hands some on by, ``rename`` (``{'region': 'area'}``), and the
         types it makes some, ``retype`` (``{'code': 'Integer'}``: ``'String'``, ``'Integer'``, ``'Float'``, ``'Decimal'``,
         ``'Boolean'`` or ``'Date'``, as its column can be made) -- a flow's Select (DataCube's code: select-columns.ts
         selectCommands): every other column hidden, each renamed given its display name, which a box of a flow hands on
         as the relation's ``rename`` (the box after it reads ``area``), each retyped a column of its conversion handed on
-        by its name. Two columns handed on by one name, or a type a column cannot be made, refused in DataCube's words."""
+        by its name. ``order``: the order it hands them on in, by their own names (its column order; those not named
+        after them), a retyped column in its place. Two columns handed on by one name, or a type a column cannot be made,
+        refused in DataCube's words."""
         return self._preset({'kind': 'selectColumns', 'keep': list(keep), 'rename': dict(rename or {}),
-                             **({'retype': dict(retype)} if retype else {})})
+                             **({'retype': dict(retype)} if retype else {}), **({'order': list(order)} if order is not None else {})})
 
     def summarize(self, group: Sequence[str], aggregate: Mapping[str, str] | None = None) -> Grid:
         """A row of each ``group`` of its rows, ``aggregate``'s columns beside it, each by its aggregate (``{'notional':

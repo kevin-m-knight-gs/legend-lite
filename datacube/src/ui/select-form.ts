@@ -1,7 +1,7 @@
 // A SELECT, SET (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1, Alteryx's Select): each column of the box's input kept or
-// left out, renamed or not, retyped or not -- select-columns.ts's rule, said as Alteryx's Select lays it out (a row a
-// column: kept, its name, its type, its new name) -- in a window its grid docks where its options dock it. Fetched with
-// the first.
+// left out, renamed or not, retyped or not, moved up or down -- select-columns.ts's rule, said as Alteryx's Select lays
+// it out (a row a column: kept, its name, its type, its new name; the rows in the order it hands them on) -- in a window
+// its grid docks where its options dock it. Fetched with the first.
 
 import type { Retype, SelectedColumn, Selection } from '../select-columns.ts';
 
@@ -34,7 +34,7 @@ export function selectForm(host: HTMLElement, o: SelectFormOptions): void {
   const none = el('button', 'dc-picker-button dc-quiet dc-select-none', tools, 'None');
   none.type = 'button';
   const head = el('div', 'dc-select-row dc-select-head', body);
-  for (const h of ['', 'Column', 'Type', 'Renamed']) el('span', '', head, h);
+  for (const h of ['', 'Column', 'Type', 'Renamed', '']) el('span', '', head, h);
   const list = el('div', 'dc-select-list', body);
   const rows = o.columns.map((c) => {
     const row = el('label', 'dc-select-row', list);
@@ -58,8 +58,26 @@ export function selectForm(host: HTMLElement, o: SelectFormOptions): void {
     rename.value = c.as === c.name ? '' : c.as;
     rename.placeholder = c.name;
     rename.setAttribute('aria-label', `${c.name}'s new name`);
-    return { name: c.name, row, keep, rename, retype };
+    // its place: moved up or down, as Alteryx's fields are (Alt+Up, Alt+Down from anywhere on its row)
+    const move = el('span', 'dc-select-move', row);
+    const up = el('button', 'dc-select-up', move, '↑');
+    up.type = 'button';
+    up.setAttribute('aria-label', `Move ${c.name} up`);
+    const down = el('button', 'dc-select-down', move, '↓');
+    down.type = 'button';
+    down.setAttribute('aria-label', `Move ${c.name} down`);
+    return { name: c.name, row, keep, rename, retype, up, down };
   });
+  /** A row moved by `by` places (−1 up, +1 down), in the list and on screen. */
+  const moveRow = (name: string, by: -1 | 1): void => {
+    const i = rows.findIndex((r) => r.name === name);
+    const j = i + by;
+    if (i < 0 || j < 0 || j >= rows.length) return;
+    const [r] = rows.splice(i, 1);
+    rows.splice(j, 0, r!);
+    list.insertBefore(r!.row, rows[j + 1]?.row ?? null);
+    check();
+  };
   const summary = el('p', 'dc-sample-hint', body);
   const status = el('p', 'dc-sample-status', body);
   status.setAttribute('role', 'status');
@@ -75,13 +93,18 @@ export function selectForm(host: HTMLElement, o: SelectFormOptions): void {
     rename: Object.fromEntries(rows.filter((r) => r.rename.value.trim() !== '' && r.rename.value.trim() !== r.name)
       .map((r) => [r.name, r.rename.value.trim()])),
     retype: Object.fromEntries(rows.filter((r) => r.retype !== undefined && r.retype.value !== '').map((r) => [r.name, r.retype!.value as Retype])),
+    order: rows.map((r) => r.name),
   });
   const check = (): void => {
     const t = selection();
     const renamed = Object.keys(t.rename).filter((c) => t.keep.includes(c)).length;
     const retyped = Object.keys(t.retype ?? {}).filter((c) => t.keep.includes(c)).length;
     summary.textContent = `${t.keep.length} of ${rows.length} columns kept${renamed > 0 ? `, ${renamed} renamed` : ''}${retyped > 0 ? `, ${retyped} retyped` : ''}: what the boxes after it read, by these names and types.`;
-    for (const r of rows) r.row.classList.toggle('dc-select-out', !r.keep.checked);
+    for (const [i, r] of rows.entries()) {
+      r.row.classList.toggle('dc-select-out', !r.keep.checked);
+      r.up.disabled = i === 0;
+      r.down.disabled = i === rows.length - 1;
+    }
     ok.disabled = t.keep.length === 0;
     ok.title = t.keep.length === 0 ? 'Not yet: keep a column' : '';
   };
@@ -89,6 +112,13 @@ export function selectForm(host: HTMLElement, o: SelectFormOptions): void {
     r.keep.addEventListener('change', check);
     r.rename.addEventListener('input', check);
     r.retype?.addEventListener('change', check);
+    r.up.addEventListener('click', () => moveRow(r.name, -1));
+    r.down.addEventListener('click', () => moveRow(r.name, 1));
+    r.row.addEventListener('keydown', (e) => {
+      if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+      e.preventDefault();
+      moveRow(r.name, e.key === 'ArrowUp' ? -1 : 1);
+    });
   }
   find.addEventListener('input', () => {
     const q = find.value.trim().toLowerCase();
