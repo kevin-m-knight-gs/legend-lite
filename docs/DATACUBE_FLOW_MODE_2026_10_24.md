@@ -96,6 +96,19 @@ with all"). The options not taken are in §7, so the reasons are kept.
   waits for D19 (`docs/DATACUBE_ONE_API_PLAN_2026_10_21.md`: the client side of the single writer), so it is not built
   on the races between two editors that D19 fixes.
 
+**Decisions (the user, 2026-10-25)**
+
+- **FL17. The roadmap's order stands** (§5), and so does the reuse: each box's settings are DataCube's own editors.
+- **FL18. The Filter window, sleeker, the same view.** As the Join window was rebuilt in the Create a Class window's
+  style and the Properties window cleaned up, the Filter window is restyled the same way, keeping its tree of
+  conditions and groups as it is: the same view, slightly sleeker. Its one editor (`datacube/src/ui/filter-editor.ts`)
+  is the grid's Filter window and the flow's Filter box alike.
+- **FL19. Union goes back into DataCube.** The flow's Union (M2) is built as DataCube's own, so a grid can union as it
+  can join. DataCube has half of it already: the Join window's **Append** form (`join-how.ts`, `form: 'append'`) puts
+  two grids' rows together, columns matched by name, a column one side lacks empty on its rows. What Union adds, to the
+  grid and the flow both: a Union entry of its own beside Join, and any number of inputs. Proposed, as Alteryx's Union
+  offers it: matching by position as well as by name.
+
 ---
 
 ## 2. What exists, and what the flow reuses
