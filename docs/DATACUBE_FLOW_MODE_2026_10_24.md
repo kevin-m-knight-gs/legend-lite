@@ -684,6 +684,11 @@ placed together -- a pasted box reading another of them reads its pasted copy, a
 Boxes), the pasted ones picked. Tested by the harness (two boxes moved as one, copied and pasted with their link between
 them, taken off together, Ctrl+A and Escape, a band round the Input).
 
+**Built, a line's words and the canvas's keys** (`layout/flow-canvas.ts` `#lineWords`, `KEYS`): the pointer resting on
+a line says what goes along it, as Alteryx's connection says its metadata -- from which box (its port, a Filter's False or
+a Unique's Duplicates) into which, its rows when they were counted, and its columns as the box's document says them; the
+toolbar's ? opens what the canvas's keys and gestures do. Tested by the harness.
+
 **Built, Text Input** (`ui/text-input-dialog.ts`, `app/datacube-app.ts` `flowTool`): Alteryx's Text Input, under In in
 the palette -- dropped on the canvas, a window of a small table: its columns named in its head row, a value a cell, Enter
 down a row (a new one at the last), + for a column and a row, a column's × and a row's number to take them off; a block

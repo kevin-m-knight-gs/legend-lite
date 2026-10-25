@@ -4484,6 +4484,25 @@
 .dc-flow-act[hidden] { display: none; }
 .dc-flow-zoom { min-width: 26px; padding: 0 8px; }
 /* Undo and Redo, a pair: off while there is no step to undo or redo */
+/* the canvas's keys and gestures, its ? opens them: at the stage's corner, under its tools */
+.dc-flow-keys-panel {
+  position: absolute;
+  top: 44px;
+  right: 14px;
+  z-index: 5;
+  width: 340px;
+  max-height: calc(100% - 60px);
+  overflow: auto;
+  border: 1px solid var(--dc-line);
+  border-radius: 10px;
+  background: var(--dc-bg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+  font-size: 12px;
+}
+.dc-flow-keys-panel[hidden] { display: none; }
+.dc-flow-keys-list { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; margin: 0; padding: 10px 14px 14px; }
+.dc-flow-keys-list dt { font-weight: 600; color: var(--dc-muted-strong); white-space: nowrap; }
+.dc-flow-keys-list dd { margin: 0; color: var(--dc-muted-strong); }
 .dc-flow-undo, .dc-flow-redo { min-width: 26px; padding: 0 8px; font-size: 14px; }
 .dc-flow-undo { margin-left: 6px; }
 .dc-flow-undo:disabled, .dc-flow-redo:disabled { cursor: default; opacity: 0.45; box-shadow: none; }
@@ -4796,10 +4815,10 @@
   font-size: 12px;
 }
 .dc-flow-log[hidden] { display: none; }
-.dc-flow-log-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-bottom: 1px solid var(--dc-line-faint); }
-.dc-flow-log-title { flex: 1 1 auto; font-weight: 600; }
-.dc-flow-log-close { border: none; background: transparent; color: var(--dc-muted); font-size: 15px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 50%; }
-.dc-flow-log-close:hover { background: var(--dc-fill); color: var(--tw-black); }
+.dc-flow-log-head, .dc-flow-keys-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-bottom: 1px solid var(--dc-line-faint); }
+.dc-flow-log-title, .dc-flow-keys-title { flex: 1 1 auto; font-weight: 600; }
+.dc-flow-log-close, .dc-flow-keys-close { border: none; background: transparent; color: var(--dc-muted); font-size: 15px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 50%; }
+.dc-flow-log-close:hover, .dc-flow-keys-close:hover { background: var(--dc-fill); color: var(--tw-black); }
 .dc-flow-log-list { margin: 0; padding: 4px; list-style: none; overflow: auto; }
 .dc-flow-log-box {
   width: 100%;

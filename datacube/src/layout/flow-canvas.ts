@@ -63,6 +63,22 @@ const GROUP_WORDS: Readonly<Record<FlowGroup, string>> = {
  *  other box's in the middle. */
 const outY = (filter: boolean, port: InputPort | undefined): number => (!filter ? BOX_HEIGHT / 2 : port === 'false' ? BOX_HEIGHT * 0.7 : BOX_HEIGHT * 0.3);
 
+/** The canvas's keys and gestures, as its ? says them. */
+const KEYS: readonly (readonly [string, string])[] = [
+  ['Drag a tool', 'onto the canvas, a box (after it) or a line (between)'],
+  ['Drag an output', 'onto a box: a line into it; let go on the canvas: a Browse'],
+  ['Click a box', 'its rows below, its settings beside'],
+  ['Shift+click, a band', 'pick several boxes'],
+  ['Drag, arrow keys', 'move what is picked (Shift: further)'],
+  ['Delete', 'remove a box, the boxes picked, or the line clicked'],
+  ['Ctrl+C, X, V', 'copy, cut, paste where the pointer is'],
+  ['Ctrl+D, F2', 'duplicate a box, rename it'],
+  ['Ctrl+Z, Ctrl+Shift+Z', 'undo, redo'],
+  ['Ctrl+A, Escape', 'pick every box, none'],
+  ['Ctrl+wheel', 'zoom about the pointer'],
+  ['Right-click a box', 'its menu'],
+];
+
 /** The two outputs' names: a Filter's True and False, a Unique's Unique and Duplicates. */
 const PORT_WORDS = { filter: ['True', 'False'], unique: ['Unique', 'Duplicates'] } as const;
 
@@ -194,6 +210,8 @@ export class FlowCanvas {
   /** The canvas's zoom (the screen's, never the page's): its boxes drawn at this size, and the level said between − and +. */
   #zoom = 1;
   readonly #zoomLevel: HTMLButtonElement;
+  /** What the canvas's keys and gestures do: a panel the toolbar's ? opens. */
+  readonly #keysPanel: HTMLElement;
   /** The last run's log, at the canvas's corner: drawn for the log it was drawn for, closed until the next run. */
   readonly #logPanel: HTMLElement;
   #logDrawn: RunLog | undefined;
@@ -311,9 +329,14 @@ export class FlowCanvas {
     this.#zoomLevel = tool('dc-flow-zoom dc-flow-zoom-level', '100%', 'Its own size', () => this.#setZoom(1));
     const zoomIn = tool('dc-flow-zoom', '+', 'Zoom in (Ctrl+wheel)', () => this.#zoomBy(1));
     const fit = tool('dc-flow-zoom', 'Fit', 'Every box in view', () => this.#fit());
+    // what the canvas's keys and gestures do, said on asking
+    const keys = tool('dc-flow-zoom dc-flow-keys', '?', 'Keys and gestures', () => {
+      this.#keysPanel.hidden = !this.#keysPanel.hidden;
+    });
+    keys.setAttribute('aria-label', 'Keys and gestures');
     zoomOut.setAttribute('aria-label', 'Zoom out');
     zoomIn.setAttribute('aria-label', 'Zoom in');
-    this.#toolbar.append(this.#run, this.#tidy, this.#undo, this.#redo, zoomOut, this.#zoomLevel, zoomIn, fit);
+    this.#toolbar.append(this.#run, this.#tidy, this.#undo, this.#redo, zoomOut, this.#zoomLevel, zoomIn, fit, keys);
     // what Undo and Redo would do read again as the pointer comes to them
     this.#toolbar.addEventListener('pointerenter', () => this.#paintHistory());
     this.#canvas.addEventListener('wheel', (e) => {
@@ -324,7 +347,25 @@ export class FlowCanvas {
     this.#logPanel = el('section', 'dc-flow-log');
     this.#logPanel.setAttribute('aria-label', 'Run log');
     this.#logPanel.hidden = true;
-    stage.append(this.#canvas, this.#toolbar, this.#logPanel);
+    this.#keysPanel = el('section', 'dc-flow-keys-panel');
+    this.#keysPanel.setAttribute('aria-label', 'Keys and gestures');
+    this.#keysPanel.hidden = true;
+    const keysHead = el('div', 'dc-flow-keys-head');
+    keysHead.append(Object.assign(doc.createElement('span'), { className: 'dc-flow-keys-title', textContent: 'Keys and gestures' }));
+    const keysClose = doc.createElement('button');
+    keysClose.type = 'button';
+    keysClose.className = 'dc-flow-keys-close';
+    keysClose.textContent = '×';
+    keysClose.setAttribute('aria-label', 'Close');
+    keysClose.addEventListener('click', () => { this.#keysPanel.hidden = true; });
+    keysHead.append(keysClose);
+    const keysList = doc.createElement('dl');
+    keysList.className = 'dc-flow-keys-list';
+    for (const [k, does] of KEYS) {
+      keysList.append(Object.assign(doc.createElement('dt'), { textContent: k }), Object.assign(doc.createElement('dd'), { textContent: does }));
+    }
+    this.#keysPanel.append(keysHead, keysList);
+    stage.append(this.#canvas, this.#toolbar, this.#logPanel, this.#keysPanel);
     const top = el('div', 'dc-flow-top');
     top.append(stage, this.#side, this.#settings);
     this.#split = el('div', 'dc-flow-split');
@@ -1232,7 +1273,7 @@ export class FlowCanvas {
       const bend = Math.max(32, Math.abs(x2 - x1) / 2);
       return `M${x1} ${y1}C${x1 + bend} ${y1} ${x2 - bend} ${y2} ${x2} ${y2}`;
     };
-    const lines: { readonly end: LineEnd; readonly d: string; readonly mid: { x: number; y: number } }[] = [];
+    const lines: { readonly end: LineEnd; readonly d: string; readonly mid: { x: number; y: number }; readonly says: string }[] = [];
     for (const box of flow.boxes) {
       for (const input of this.#inputsOf(box.tile)) {
         if (!('grid' in input)) continue;
@@ -1242,7 +1283,10 @@ export class FlowCanvas {
         const y1 = a.y + outY(this.#isFilter(input.grid), input.port);
         const x2 = box.x;
         const y2 = box.y + portY(input.side);
-        lines.push({ end: { tile: box.tile, side: input.side }, d: curve(x1, y1, x2, y2), mid: { x: (x1 + x2) / 2, y: (y1 + y2) / 2 } });
+        lines.push({
+          end: { tile: box.tile, side: input.side }, d: curve(x1, y1, x2, y2), mid: { x: (x1 + x2) / 2, y: (y1 + y2) / 2 },
+          says: this.#lineWords(input.grid, input.port, box.tile),
+        });
       }
     }
     const w = this.#wire;
@@ -1255,7 +1299,7 @@ export class FlowCanvas {
     if (this.#line !== undefined && !keys.has(lineKey(this.#line))) this.#line = undefined;
     const selected = this.#line === undefined ? undefined : lineKey(this.#line);
     const target = this.#lineTarget === undefined ? undefined : lineKey(this.#lineTarget);
-    const key = JSON.stringify([lines.map((l) => [lineKey(l.end), l.d]), wire, selected, target, this.#board.editing]);
+    const key = JSON.stringify([lines.map((l) => [lineKey(l.end), l.d, l.says]), wire, selected, target, this.#board.editing]);
     if (this.#lines.dataset['key'] !== key) {
       this.#lines.dataset['key'] = key;
       const path = (d: string, cls: string): SVGPathElement => {
@@ -1270,6 +1314,10 @@ export class FlowCanvas {
         const hit = path(l.d, 'dc-flow-hit');
         hit.dataset['tile'] = l.end.tile;
         hit.dataset['side'] = l.end.side;
+        // what goes along it, said where the pointer rests on it (Alteryx's connection's metadata)
+        const title = this.#doc.createElementNS(SVG, 'title');
+        title.textContent = l.says;
+        hit.append(title);
         if (this.#board.editing) hit.addEventListener('pointerdown', (e) => this.#pressLine(l.end, e));
         return [hit, path(l.d, `dc-flow-line${state}`)];
       }), ...(wire === undefined ? [] : [path(wire, 'dc-flow-line dc-flow-wire')]));
@@ -1278,6 +1326,20 @@ export class FlowCanvas {
     const mid = selected === undefined ? undefined : lines.find((l) => lineKey(l.end) === selected)?.mid;
     this.#unlink.hidden = mid === undefined || !this.#board.editing;
     if (mid !== undefined) this.#unlink.style.transform = `translate(${mid.x - 9}px, ${mid.y - 9}px)`;
+  }
+
+  /** What goes along a line from `from` (its port: a Filter's False, a Unique's Duplicates) into `into`: its rows when
+   *  they were counted, and its columns, as `from`'s document says them. */
+  #lineWords(from: string, port: InputPort | undefined, into: string): string {
+    const tool = this.#said(from)?.tool ?? 'browse';
+    const out = port === undefined ? '' : ` (${PORT_WORDS[tool === 'unique' ? 'unique' : 'filter'][1]})`;
+    const columns = this.#columnsOf(from);
+    const rows = port === undefined ? this.#board.count(from) : undefined;
+    return [
+      `${this.#nameOf(from, tool)}${out} → ${this.#nameOf(into, this.#said(into)?.tool ?? 'browse')}`,
+      ...(rows !== undefined ? [`${rows.toLocaleString(UI_LOCALE)} ${rows === 1 ? 'row' : 'rows'}`] : []),
+      ...(columns.length > 0 ? [`${columns.length} ${columns.length === 1 ? 'column' : 'columns'}: ${columns.join(', ')}`] : []),
+    ].join('\n');
   }
 
   /** A line pressed: selected (its × shown, Delete takes it off). */

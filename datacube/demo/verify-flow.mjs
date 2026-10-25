@@ -805,6 +805,15 @@ try {
   check(await page.locator('.dc-flow-profile').count() === 0 && await resultRows() === all, 'its rows again');
   check(await page.locator('.dc-flow-results-body > :first-child').isVisible(), 'its grid in sight again');
 
+  // A LINE SAYS WHAT GOES ALONG IT, where the pointer rests on it; the toolbar's ? says the canvas's keys
+  const lineSays = await page.locator(`.dc-flow-hit[data-tile="${formula.id}"] title`).first().textContent();
+  check(/→ Formula/.test(lineSays) && /\d+ columns: trade_id, /.test(lineSays), `a line's words: ${JSON.stringify(lineSays)}`);
+  await page.locator('.dc-flow-keys').click();
+  check(await page.locator('.dc-flow-keys-panel').isVisible()
+    && (await page.locator('.dc-flow-keys-list dt').allTextContents()).includes('Ctrl+C, X, V'), 'the ? says the keys');
+  await page.locator('.dc-flow-keys-close').click();
+  check(!(await page.locator('.dc-flow-keys-panel').isVisible()), 'closed by its ×');
+
   // THE PALETTE'S FIND: its tools narrowed to what is typed
   await page.fill('.dc-flow-find', 'join');
   const visible = await page.locator('.dc-flow-tool:visible').evaluateAll((els) => els.map((e) => e.dataset.tool));
