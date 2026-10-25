@@ -673,6 +673,28 @@ try {
     && await page.locator('.dc-flow-results .dc-th[data-column="notional__average"]').count() === 0, 'its column in its rows, its average hidden');
   check(await resultRows() === fewer, "Imputation: its input's rows, each kept");
 
+  // TRANSPOSE (M4), dragged onto the Filter: notional and pnl made rows beside each trade's id, the rest left out
+  const beforeTranspose = (await boxes()).map((b) => b.id);
+  await drag('transpose', filter.id);
+  await boxCount(beforeTranspose.length + 1);
+  const turned = await added(beforeTranspose);
+  await docked('Transpose');
+  const tw = page.locator('.dc-flow-dock .dc-transpose');
+  for (const r of await tw.locator('.dc-transpose-row[data-column]').all()) {
+    const c = await r.getAttribute('data-column');
+    await r.locator('.dc-transpose-key').setChecked(c === 'trade_id');
+    await r.locator('.dc-transpose-data').setChecked(c === 'notional' || c === 'pnl');
+  }
+  await tw.locator('.dc-sample-foot .dc-primary').click();
+  await settled();
+  const turnedBox = (await boxes()).find((b) => b.id === turned.id);
+  const turnRefused = await tw.locator('.dc-sample-status').textContent().catch(() => '');
+  check(turnedBox?.tool === 'transpose' && turnedBox.says === 'notional, pnl to rows', `a Transpose box: ${JSON.stringify(turnedBox)}${turnRefused ? `, refused: ${turnRefused}` : ''}`);
+  check(await resultRows() === fewer * 2, `each of the Filter's ${fewer} rows twice: ${fewer * 2}`);
+  const turnedHeads = await page.locator('.dc-flow-results .dc-th[data-column]').evaluateAll((els) => els.map((e) => e.dataset.column));
+  check(JSON.stringify(turnedHeads) === JSON.stringify(['trade_id', 'Name', 'Value']), `its key, its Name and its Value alone: ${turnedHeads}`);
+  await page.screenshot({ path: outPath('flow-transpose.png') });
+
   // MULTI-FIELD FORMULA (M3), dragged onto the Filter: one expression over two text columns, a column of each; then one
   // the compiler refuses (trim of a number), said in the window
   const beforeMulti = (await boxes()).map((b) => b.id);

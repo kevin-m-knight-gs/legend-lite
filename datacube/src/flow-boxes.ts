@@ -12,6 +12,7 @@ import { grainOf } from './calc-presets.ts';
 import { textToolOf, type TextTool } from './text-tools.ts';
 import { uniqueOf } from './unique.ts';
 import { rowSampleOf, rowSampleWords } from './row-sample.ts';
+import { transposeOf } from './transpose.ts';
 import { imputedOf } from './impute.ts';
 import { multiFieldOf, type MultiFieldColumn } from './multi-field.ts';
 import { dateToolOf } from './date-tools.ts';
@@ -25,7 +26,7 @@ import type { EditorTab } from './ui/editor.ts';
 /** A tool of the flow's palette, and what a box is drawn as. */
 export type FlowTool = 'input' | 'textInput' | 'output' | 'join' | 'union' | 'appendFields' | 'filter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile'
-  | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment' | 'container';
+  | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'crosstab' | 'transpose' | 'browse' | 'comment' | 'container';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
 export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: FlowGroup; readonly does: string }>> = {
@@ -53,6 +54,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   runningTotal: { name: 'Running Total', group: 'transform', does: 'a column\'s total so far, row by row' },
   summarize: { name: 'Summarize', group: 'transform', does: 'a row per group, its measures beside its keys' },
   crosstab: { name: 'Cross Tab', group: 'transform', does: 'a column\'s values made columns across, a row per group' },
+  transpose: { name: 'Transpose', group: 'transform', does: 'columns made rows: a Name and a Value for each, its keys beside them' },
   browse: { name: 'Browse', group: 'prepare', does: 'its input\'s rows, as they come' },
   comment: { name: 'Comment', group: 'docs', does: 'a note on the canvas, in words of your own' },
   container: { name: 'Container', group: 'docs', does: 'a frame round boxes: moved together, folded away' },
@@ -64,7 +66,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
   'input', 'textInput', 'output', 'filter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'impute',
-  'join', 'union', 'appendFields', 'textToColumns', 'regex', 'summarize', 'crosstab', 'runningTotal', 'comment', 'container',
+  'join', 'union', 'appendFields', 'textToColumns', 'regex', 'summarize', 'crosstab', 'transpose', 'runningTotal', 'comment', 'container',
 ];
 
 /**
@@ -85,6 +87,8 @@ export type StepEditor =
   | { readonly window: 'unique' }
   /** The Multi-Field Formula window (ui/multi-field-form.ts): its columns, its expression over each one's value. */
   | { readonly window: 'multiField' }
+  /** The Transpose window (ui/transpose-form.ts): the columns made rows, the keys kept beside them. */
+  | { readonly window: 'transpose' }
   /** The DateTime window (ui/date-form.ts): a date column taken to its period, the grid's own period preset. */
   | { readonly window: 'datetime' }
   /** A text tool's window (ui/text-tool-form.ts): Text To Columns, RegEx or Data Cleansing (text-tools.ts). */
@@ -97,6 +101,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   filter: { window: 'filters' },
   formula: { window: 'column' },
   multiField: { window: 'multiField' },
+  transpose: { window: 'transpose' },
   select: { window: 'properties', tab: 'Columns' },
   sort: { window: 'properties', tab: 'Sorts' },
   summarize: { window: 'properties', tab: 'Vertical Pivots' },
@@ -146,7 +151,11 @@ export function boxSays(cube: CubeDocument): BoxSays {
   // a Sample by row number (row-sample.ts): its numbers and its filter one step, as Unique's are
   const sampled = unique === undefined ? rowSampleOf(q) : undefined;
   if (sampled !== undefined) steps.push({ tool: 'sample', says: rowSampleWords(sampled) });
-  const own = new Set([...(unique !== undefined ? [unique.column] : []), ...(sampled?.columns ?? [])]);
+  // Transpose: its Name and Value one step, the columns it hides its own (transpose.ts)
+  const transposed = transposeOf(q.derived);
+  if (transposed !== undefined) steps.push({ tool: 'transpose', says: `${transposed.columns.join(', ')} to rows` });
+  const own = new Set([...(unique !== undefined ? [unique.column] : []), ...(sampled?.columns ?? []),
+    ...(transposed !== undefined ? [transposed.name, transposed.value, ...hiddenColumns(cube)] : [])]);
   // Imputation's window columns (an average across every row) are its own, said with the column they fill
   const helpers = new Set(q.derived.flatMap((d) => imputedOf(d, q.derived)?.helper ?? []));
   // a Multi-Field Formula's columns: one formula, each over its own column
@@ -161,7 +170,8 @@ export function boxSays(cube: CubeDocument): BoxSays {
     if (last?.tool === tool) last.says = last.says === said || last.says.split(', ').includes(said) ? last.says : `${last.says}, ${said}`;
     else steps.push({ tool, says: said });
   }
-  if (q.filter !== undefined && own.size === 0) steps.push({ tool: 'filter', says: conditionWords(q.filter) });
+  // a Unique's filter and a Sample's are their own; any other, a Filter's
+  if (q.filter !== undefined && unique === undefined && sampled === undefined) steps.push({ tool: 'filter', says: conditionWords(q.filter) });
   if (q.topN !== undefined) steps.push({ tool: 'sample', says: `${q.topN.bottom === true ? 'first' : 'last'} ${q.topN.n} by ${q.topN.by}` });
   if (q.pivotOn.length > 0) {
     steps.push({ tool: 'crosstab', says: `${q.pivotOn.join(', ')} across${q.rows.length > 0 ? `, by ${q.rows.join(', ')}` : ''}` });

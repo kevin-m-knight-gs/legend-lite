@@ -282,7 +282,7 @@ How to read the status column:
 |---|---|---|
 | Summarize | Built | A grid's grouping and measures: sum, count, average, min, max, median, quartiles, standard deviation, variance, concatenate (`joinStrings`), weighted average, unique |
 | Cross Tab | Step | The grid's pivot, typed by its cast, its values checked (FL2, FL3, FL8) |
-| Transpose | Step | Composed: one `select` per column, concatenated (FL14) |
+| Transpose | Built (2026-10-25) | An exploded column over the list of the columns' names (`lateral(...->flatten(~Name))`), a column choosing each row's value by its name (`if`), every column but the keys hidden; columns of one kind of value |
 | Running Total | Built | A window column, running frame |
 | Weighted Average | Built | `wavg` |
 | Count Records | Built | `count` |
@@ -694,6 +694,21 @@ Python: `grid.sample(mode, n, by, groups=...)`, `grid.sample(None)`. Tested by `
 reading, a sample changed twice), Python's `test_rows_sampled_as_a_flow_box_samples_them` (DuckDB's numbering: the last
 of each desk, all but the first two, one of every two of each desk) and the harness (a Sample set again to the first of
 each region, 3 rows, then one of every 100 of the Filter's 503, 6).
+
+**Built, Transpose** (M4; `transpose.ts`, `ui/transpose-form.ts`, `app.ts` `#openTranspose`): Alteryx's Transpose --
+columns made rows, each row once for each data column, a Name column saying which and a Value column holding its
+value, the key columns beside them and every other column left out. No new kind of source: an exploded calculated
+column over the list of the columns' names (`lateral(x|['notional', 'pnl']->flatten(~Name))`, DataCube's Explode), a
+calculated column choosing each row's value by its name (`if($x.Name == 'notional', |$x.notional, |$x.pnl)`), and every
+column but the keys hidden, so the box after it reads the keys, Name and Value; the database repeats the rows and
+chooses the values. One Value holds one kind: columns of numbers and text together are refused in words (make them
+text first, with a Formula); whole numbers with fractions come out as numbers, a measure. Its window lists each column
+as a key, made rows, or left out (the number columns made rows and the first other column a key, to start). A box says
+"notional, pnl to rows", read back off its two columns' shapes (`transposeOf`). Python: `grid.transpose(columns,
+keys=..., name='Name', value='Value')`. Tested by `flow-sheet.test.ts` (its columns, its reading, its refusals),
+Python's `test_columns_made_rows_as_a_flow_box_transposes_them` (DuckDB's rows, a desk's quarters) and the harness
+(the Filter's 503 rows twice, its key, Name and Value alone). Composed of select-per-column unions (FL14) it would
+need a source kind of its own; an explode needs none.
 
 Still to come in M3: a date written as text by a format; a random sample (`random()` answers again each time a box is
 read, so a box's rows would change under it: it waits for a seed).

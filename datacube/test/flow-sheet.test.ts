@@ -28,6 +28,7 @@ import { imputeCommands, imputedOf, readImputation } from '../src/impute.ts';
 import { dateToolCommands, dateToolOf, readDateTool } from '../src/date-tools.ts';
 import { multiFieldOf } from '../src/multi-field.ts';
 import { readRowSample, rowSampleCommands, rowSampleOf, sampleCommands } from '../src/row-sample.ts';
+import { readTranspose, transposeCommands, transposeOf } from '../src/transpose.ts';
 import { applyGridCommands } from '../src/grid-commands.ts';
 import type { GridDraft } from '../src/grid-edits.ts';
 import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi-field-columns.ts';
@@ -334,6 +335,45 @@ describe("Sample's other ways (row-sample.ts): a row number and a filter, as Uni
     assert.deepEqual(readRowSample({ kind: 'sample', mode: 'skip', n: 3, by: 'notional' }), { kind: 'skip', n: 3, by: 'notional', groups: [] });
     assert.equal(readRowSample({ kind: 'sample', mode: null }), null);
     assert.throws(() => readRowSample({ kind: 'sample', mode: 'random', n: 3, by: 'notional' }), /its mode is first, last, skip, every/);
+  });
+});
+
+describe('Transpose (transpose.ts): columns made rows, a Name and a Value each, the keys beside them', () => {
+  const typed = { ...rawRows(accessor('local::DB', 'trades'), [...COLUMNS, { name: 'pnl', type: 'Float' }, { name: 'desk', type: 'String' }]) };
+  const made = (t: Partial<Parameters<typeof transposeCommands>[1]> = {}) =>
+    transposeCommands(typed, { columns: ['notional', 'pnl'], keys: ['region'], name: 'Name', value: 'Value', ...t });
+
+  it('explodes a list of the names, chooses each row\'s value by its name, and hides all but the keys', () => {
+    const [name, value, hide] = made() as unknown as [{ column: DerivedColumn }, { column: DerivedColumn }, { patch: { columns: object } }];
+    assert.equal(name.column.unnest, true);
+    assert.deepEqual((name.column.lambda?.body[0] as { values: unknown[] }).values, [lit.string('notional'), lit.string('pnl')]);
+    const x = variable('x');
+    assert.equal(JSON.stringify(value.column.lambda?.body[0]), JSON.stringify(
+      fn('if', fn('equal', property(x, 'Name'), lit.string('notional')), lambda([], property(x, 'notional')), lambda([], property(x, 'pnl')))));
+    assert.equal(value.column.kind, 'measure', 'numbers summed when grouped');
+    assert.deepEqual(Object.keys(hide.patch.columns), ['notional', 'pnl', 'desk']);
+  });
+
+  it('is read back off its columns, its hidden columns its own: a Transpose box', () => {
+    const commands = made() as unknown as { column?: DerivedColumn; patch?: { columns: Record<string, unknown> } }[];
+    const derived = commands.flatMap((c) => (c.column ? [c.column] : []));
+    const box = cube(rows('grid-1'), (q) => ({ ...q, derived }), { columns: commands[2]!.patch!.columns });
+    assert.deepEqual(boxSays(box), { tool: 'transpose', also: [], says: 'notional, pnl to rows' });
+    assert.deepEqual(transposeOf(derived), { name: 'Name', value: 'Value', columns: ['notional', 'pnl'] });
+    // one column: its value is that column
+    const one = (transposeCommands(typed, { columns: ['pnl'], keys: [], name: 'Name', value: 'Value' }) as unknown as { column?: DerivedColumn }[])
+      .flatMap((c) => (c.column ? [c.column] : []));
+    assert.deepEqual(transposeOf(one)?.columns, ['pnl']);
+  });
+
+  it('refuses in words what it cannot transpose', () => {
+    assert.throws(() => made({ columns: [] }), /pick a column to make rows of/);
+    assert.throws(() => made({ columns: ['notional', 'desk'] }), /its columns hold numbers and text: one Value holds one kind/);
+    assert.throws(() => made({ keys: ['notional'] }), /'notional' is a key/);
+    assert.throws(() => made({ name: 'region' }), /'region' is already a column/);
+    assert.throws(() => made({ value: 'Name' }), /two names/);
+    assert.deepEqual(readTranspose({ kind: 'transpose', columns: ['a'] }), { columns: ['a'], keys: [], name: 'Name', value: 'Value' });
+    assert.throws(() => readTranspose({ kind: 'transpose', columns: 'a' }), /its columns are a list of column names/);
   });
 });
 

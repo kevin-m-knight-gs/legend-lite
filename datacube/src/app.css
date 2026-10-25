@@ -5049,6 +5049,14 @@
 .dc-multi-field .dc-text-tool-field { max-width: none; }
 .dc-multi-field-expression { width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--dc-mono, ui-monospace, monospace); }
 .dc-multi-field-suffix { width: 8em; }
+/* a Transpose's columns (ui/transpose-form.ts): each a key, made rows, or left out */
+.dc-transpose-list { display: flex; flex-direction: column; max-height: 260px; overflow-y: auto; border: 1px solid var(--tw-neutral-200); border-radius: 8px; }
+.dc-transpose-row { display: grid; grid-template-columns: 1fr 64px 84px; align-items: center; gap: 8px; padding: 4px 10px; }
+.dc-transpose-row + .dc-transpose-row { border-top: 1px solid var(--tw-neutral-100); }
+.dc-transpose-head { padding: 0 10px; color: var(--dc-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.dc-transpose-row input { justify-self: center; }
+.dc-transpose-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-transpose-name-input, .dc-transpose-value-input { width: 9em; }
 
 /* ---- a flow's containers (Alteryx's Tool Container: a comment with a frame) -- behind the lines and the boxes, its inside
    the canvas's own (a band, a tool let go), its head and its corner its own ---- */

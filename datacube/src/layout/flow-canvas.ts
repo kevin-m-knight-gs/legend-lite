@@ -109,6 +109,7 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   datetime: 'M2.5 3.5h11v10h-11zM2.5 6.5h11M5.5 2v3M10.5 2v3M5 9h1.5M7.5 9H9M10 9h1.5M5 11h1.5M7.5 11H9',
   runningTotal: 'M2 13l4-4.5 3 2.5 5-6.5M10.5 4.5H14V8',
   crosstab: 'M2 2.5h12v11H2zM2 6.5h12M6 2.5v11',
+  transpose: 'M2.5 3h4v4h-4zM9.5 9h4v4h-4zM8.5 4h3.5v3.5M11 6.5l1-1M7.5 12H4V8.5M5 9.5l-1-1',
   comment: 'M2.5 2.5h11v8h-6l-3 3v-3h-2zM5 5.5h6M5 8h4',
   container: 'M2 3.5h12v10H2zM2 6.5h12M4 5h3M5 9h2.5v2.5H5zM9 9h2.5v2.5H9z',
   filter: 'M2 3h12l-4.5 5.5V13l-3 1.5V8.5z',

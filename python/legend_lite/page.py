@@ -903,6 +903,13 @@ class Grid(Tile):
             return self._preset({'kind': 'sample', 'mode': None})
         return self._preset({'kind': 'sample', 'mode': mode, 'n': n, 'by': by, 'groups': list(groups)})
 
+    def transpose(self, columns: Sequence[str], *, keys: Sequence[str] = (), name: str = 'Name', value: str = 'Value') -> Grid:
+        """Its ``columns`` made rows -- a flow's Transpose (DataCube's code: transpose.ts transposeCommands): each row once
+        for each of them, a ``name`` column saying which and a ``value`` column holding its value, the ``keys`` beside
+        them and every other column left out (hidden). The columns hold one kind of value -- numbers, text, dates --
+        else it is refused in DataCube's words: make them text first."""
+        return self._preset({'kind': 'transpose', 'columns': list(columns), 'keys': list(keys), 'name': name, 'value': value})
+
     def multi_field(self, columns: Sequence[str], expression: str, *, suffix: str = '_new') -> Grid:
         """One ``expression`` over each of ``columns`` -- a flow's Multi-Field Formula (DataCube's code:
         multi-field-columns.ts multiFieldCommands): Pure over ``$v``, each column's value in turn (``'$v->toOne()->trim()'``, ``'$v->toOne() *

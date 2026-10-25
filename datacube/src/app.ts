@@ -464,7 +464,7 @@ const windowStack = new WeakMap<HTMLElement, number>();
 /** The text tools' windows, by the tool each sets (text-tools.ts). */
 const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
 const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation'
-  || key === 'Date Period' || key === 'Multi-Field Formula'
+  || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose'
   || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
@@ -3637,6 +3637,9 @@ export class CubeApp {
       case 'multiField':
         void this.#openMultiField();
         return;
+      case 'transpose':
+        void this.#openTranspose();
+        return;
       // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
       case 'join':
         return;
@@ -3755,6 +3758,28 @@ export class CubeApp {
       apply: async (imputation) => {
         try {
           return await this.#apply(imputeCommands(this.#snapshot, imputation), 'Imputation');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S TRANSPOSE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M4): columns made rows -- a Name and a Value for each, its
+   *  keys beside them (transpose.ts, the rule Python's grid.transpose asks) -- in a window of its own
+   *  (ui/transpose-form.ts). Both fetched with the first. */
+  async #openTranspose(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ transposeForm }, { transposeCommands }] = await Promise.all([
+      lazily(() => import('./ui/transpose-form.ts')), lazily(() => import('./transpose.ts')),
+    ]);
+    this.#showOverlay('Transpose', (host, close) => transposeForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => ({ name: c.name, numeric: familyOf(c.type) === 'numeric' })),
+      apply: async (transpose) => {
+        try {
+          return await this.#apply(transposeCommands(this.#snapshot, transpose), 'Transpose');
         } catch (e) {
           if (e instanceof CubeRefusal) return e.message;
           throw e;

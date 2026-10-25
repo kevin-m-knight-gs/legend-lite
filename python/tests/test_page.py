@@ -1650,6 +1650,20 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, 'Could not parse string'):
             odd.to_pandas()
 
+    def test_columns_made_rows_as_a_flow_box_transposes_them(self):
+        # (M4) grid.transpose: a flow's Transpose (transpose.ts transposeCommands) -- each row once per column, its name
+        # and its value side by side, the keys beside them; the database repeats the rows
+        page = ll.Page('Transpose')
+        grid = page.grid(pd.DataFrame({'desk': ['FX', 'Rates'], 'q1': [1.0, 2.0], 'q2': [3.0, 4.0], 'note': ['a', 'b']}), name='quarters')
+        grid.transpose(['q1', 'q2'], keys=['desk'], name='quarter', value='amount')
+        rows = grid.to_pandas()
+        self.assertEqual(sorted((r['desk'], r['quarter'], r['amount']) for r in rows.to_dict('records')),
+                         [('FX', 'q1', 1.0), ('FX', 'q2', 3.0), ('Rates', 'q1', 2.0), ('Rates', 'q2', 4.0)])
+        # the other columns left out: hidden, so what reads it reads the keys, the name and the value
+        self.assertTrue(all(grid._cube['configuration']['columns'][c]['hidden'] for c in ('q1', 'q2', 'note')))
+        with self.assertRaisesRegex(ValueError, 'its columns hold numbers and text'):
+            page.grid(pd.DataFrame({'a': [1.0], 'b': ['x']}), name='mixed').transpose(['a', 'b'])
+
     def test_rows_sampled_as_a_flow_box_samples_them(self):
         # (M3) grid.sample: a flow's Sample (row-sample.ts sampleCommands) -- the first of each group, all but the first,
         # one of every n; the first of all of them its Top N; None, every row again. The database numbers the rows
