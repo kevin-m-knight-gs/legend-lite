@@ -7,6 +7,7 @@
 
 import type { CubeDocument } from './cube-document.ts';
 import { conditionWords } from './page-filters.ts';
+import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
 export type FlowTool = 'input' | 'join' | 'filter' | 'formula' | 'select' | 'sort' | 'summarize' | 'browse';
@@ -25,6 +26,24 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = ['input', 'filter', 'formula', 'select', 'sort', 'summarize'];
+
+/**
+ * WHERE A TOOL IS SET (§3.4: the settings pane, made of DataCube's own editors): the grid's window that sets what the
+ * tool does -- its filter, a calculated column, or a section of its Properties: the columns it shows, its sorts, its
+ * row groups. An Input and a Browse set nothing of their own.
+ */
+export type StepEditor =
+  | { readonly window: 'filters' }
+  | { readonly window: 'column' }
+  | { readonly window: 'properties'; readonly tab: EditorTab };
+
+export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
+  filter: { window: 'filters' },
+  formula: { window: 'column' },
+  select: { window: 'properties', tab: 'Columns' },
+  sort: { window: 'properties', tab: 'Sorts' },
+  summarize: { window: 'properties', tab: 'Vertical Pivots' },
+};
 
 /** What a box does, as the canvas says it: its tool (the first its query applies), any others it applies besides,
  *  and a line of what it is set to. */

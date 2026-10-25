@@ -129,7 +129,8 @@ import { buildDocumentation, isDocKey, type DocKey } from './ui/docs.ts';
 import { binColumns, GRID_SHOW_AS_LABELS } from './calc-presets.ts';
 import { presetCommands, type GridPreset } from './grid-presets.ts';
 import { columnRef, nameProblem } from './calc.ts';
-import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
+import { CubeEditor, draftFor, type CubeDraft, type EditorTab } from './ui/editor.ts';
+import type { StepEditor } from './flow-boxes.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
 import {
   buildMenu,
@@ -287,6 +288,12 @@ export interface CubeAppBaseOptions {
    * tile (plan F6, blocker #4). It must be positioned (relative or absolute). Default: the cube.
    */
   readonly windowHost?: HTMLElement;
+  /**
+   * Where its windows that SET it dock -- Properties, the Filter window, a calculated column's editor -- one at a time,
+   * filling it, rather than floating over `windowHost`: a flow's settings pane (docs/DATACUBE_FLOW_MODE_2026_10_24.md
+   * §3.4). Every other window floats as before.
+   */
+  readonly dock?: HTMLElement;
   /** A cube in a tile (a page's grid): no title bar of its own; its columns panel folded. */
   readonly compact?: boolean;
   /** Its columns panel folded away at the start (default: when compact); open, a grid opened alone on its page. */
@@ -449,6 +456,10 @@ export interface CubeEvents {
 const WINDOW_Z_BASE = 20;
 /** The top of each window host's stack of windows (`CubeApp#raise`). */
 const windowStack = new WeakMap<HTMLElement, number>();
+
+/** The windows that set a cube -- Properties, the Filter window, a calculated column's editor -- which dock where a host
+ *  docks them (CubeAppOptions.dock); every other window floats. */
+const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key.startsWith('column:');
 
 /**
  * Which cube on a document a keystroke from OUTSIDE every cube belongs to: the one last
@@ -3557,12 +3568,13 @@ export class CubeApp {
       : undefined;
   }
 
-  openEditor(column?: string): void {
+  openEditor(column?: string, tab?: EditorTab): void {
     if (this.#cubeOnly()) return;
     const open = this.#editor;
     if (open && this.#open.has('Properties')) {
       this.#showOverlay('Properties', () => {});
       if (column !== undefined) open.focusColumn(column);
+      else if (tab !== undefined) open.setTab(tab);
       return;
     }
     this.#showOverlay('Properties', (host, close) => {
@@ -3576,12 +3588,32 @@ export class CubeApp {
           onUseDimension: (name) => this.#useDimension(name),
           onAdHoc: () => void this.enterAdHoc(),
           ...(column !== undefined ? { initialColumn: column } : {}),
+          ...(tab !== undefined ? { initialTab: tab } : {}),
         },
       );
     }, {
       // the rail of sections, and Column Properties' columns beside its form
       size: { width: 980, height: 660, minWidth: 640, minHeight: 400 },
     });
+  }
+
+  /**
+   * THE WINDOW THAT SETS A FLOW'S STEP (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.4, flow-boxes.ts TOOL_EDITORS): the
+   * Filter window, a new calculated column's editor, or Properties at the section the step is -- each the grid's own,
+   * docked where its host docks them.
+   */
+  openStep(editor: StepEditor): void {
+    switch (editor.window) {
+      case 'filters':
+        this.openFilters();
+        return;
+      case 'column':
+        this.openColumnEditor({});
+        return;
+      case 'properties':
+        this.openEditor(undefined, editor.tab);
+        return;
+    }
   }
 
   /**
@@ -4039,13 +4071,18 @@ export class CubeApp {
       this.#raise(open);
       return open;
     }
+    // a window that sets the cube, docked where its host says (a flow's settings pane): one there at a time
+    const dock = this.#options.dock !== undefined && DOCKED(key) ? this.#options.dock : undefined;
+    if (dock !== undefined) {
+      for (const [other, w] of [...this.#open]) if (other !== key && w.parentElement === dock) this.#closeWindow(other);
+    }
     const win = open ?? this.#doc.createElement('div');
     if (!open) {
       win.className = 'dc-app-overlay';
       win.dataset['window'] = key;
       // still this cube's, wherever it floats: its drags land here, its keys are this cube's
       win.dataset['dcCube'] = this.#els.root.dataset['dcCube'] ?? '';
-      const host = this.#options.windowHost ?? this.#els.root;
+      const host = dock ?? this.#options.windowHost ?? this.#els.root;
       // outside the cube it does not inherit the cube's type and colours, so it carries them
       if (host !== this.#els.root) win.classList.add('dc-app-floating');
       host.append(win);
@@ -4085,6 +4122,11 @@ export class CubeApp {
     shut.addEventListener('click', close);
     head.append(h, shut);
     build(this.#div(win, 'dc-overlay-body'), close);
+    if (dock !== undefined) {
+      // docked: it fills its pane, which places it -- no drag, no size of its own, nothing to raise
+      win.classList.add('dc-docked');
+      return win;
+    }
 
     // Dragged by the header, resized from any edge, and REMEMBERED BY
     // TITLE: reopening Properties finds it where it was left, while

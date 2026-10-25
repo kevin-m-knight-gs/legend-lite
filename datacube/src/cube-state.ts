@@ -18,6 +18,7 @@ import {
   type StateRules,
 } from './state-owner.ts';
 import type { TreeState } from './tree.ts';
+import { toJson } from '../../pure-protocol/src/index.ts';
 
 export type { ChangeOptions } from './state-owner.ts';
 
@@ -59,13 +60,15 @@ export function openedState(snapshot: CubeSnapshot, configuration: CubeConfigura
  */
 export function queryKey(state: CubeState): string {
   const { epoch: _epoch, ...query } = fold(state).snapshot;
-  return JSON.stringify([query, state.tree.key]);
+  // written exactly (json.ts): a source over another grid's rows, or a join, carries its inputs' literals as the
+  // protocol's exact numbers, which JSON.stringify refuses (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1)
+  return toJson([query, state.tree.key]);
 }
 
 /** A state's identity for undo: everything, presentation included. */
 export function stateKey(state: CubeState): string {
   const { epoch: _epoch, ...query } = state.snapshot;
-  return JSON.stringify([query, state.configuration, state.tree.key]);
+  return toJson([query, state.configuration, state.tree.key]);
 }
 
 /** A state as the grid commands edit it (grid-edits.ts GridDraft), and back. */

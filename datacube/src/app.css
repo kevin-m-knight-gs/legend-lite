@@ -4440,8 +4440,11 @@
 [data-group='transform'] > .dc-flow-icon { --dc-flow-tone: var(--tw-orange-500); }
 
 .dc-flow-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+/* the canvas and, beside it, the settings pane (Alteryx's Configuration window): its width the divider's */
+.dc-flow-top { flex: 1 1 auto; min-height: 120px; display: flex; }
 .dc-flow-canvas {
   flex: 1 1 auto;
+  min-width: 240px;
   min-height: 120px;
   overflow: auto;
   position: relative;
@@ -4538,6 +4541,61 @@
   background: var(--dc-bg);
   box-shadow: 0 6px 16px rgb(0 0 0 / 18%);
 }
+
+/* the settings pane: the window of the shown box's grid that sets it (Properties, Filter, a calculated column's),
+   docked and filling it (CubeAppOptions.dock); with none docked, what the box does and how to set it */
+.dc-flow-side {
+  flex: none;
+  width: 6px;
+  border-left: 1px solid var(--dc-line);
+  background: var(--dc-fill-faint);
+  cursor: col-resize;
+  touch-action: none;
+}
+.dc-flow-side:hover, .dc-flow-side:focus-visible { background: var(--dc-selected-line); outline: none; }
+.dc-flow-settings {
+  flex: none;
+  width: var(--dc-flow-settings, clamp(320px, 40%, 640px));
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--dc-bg);
+}
+.dc-flow-settings-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: var(--dc-control-height);
+  padding: 0 var(--dc-pad-2);
+  border-bottom: 1px solid var(--dc-line-faint);
+  font-weight: 500;
+}
+.dc-flow-settings-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-settings:has(> .dc-flow-dock:not(:empty)) > .dc-flow-settings-head { display: none; }
+.dc-flow-dock { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.dc-flow-dock:empty { display: none; }
+.dc-flow-dock:not(:empty) ~ .dc-flow-settings-empty { display: none; }
+.dc-flow-dock > .dc-app-overlay {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: static;
+  border: none;
+  box-shadow: none;
+}
+.dc-flow-dock > .dc-app-overlay > .dc-overlay-head { cursor: default; }
+.dc-flow-dock > .dc-app-overlay > .dc-overlay-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.dc-flow-settings-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  color: var(--dc-muted);
+}
+.dc-flow-settings-empty > p { margin: 0; max-width: 48ch; }
+.dc-flow-settings-now { color: var(--tw-black); font-weight: 500; }
 
 /* the results pane: the box shown's grid, its height the divider's */
 .dc-flow-split {

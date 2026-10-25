@@ -493,8 +493,19 @@ shown is the screen's. Python: `page.flow()`, `sheet.grid(...)`, `sheet.flow`, `
 `python/tests/test_page.py Flows`. Tested by `datacube/test/flow-page.test.ts` (real grids on a page of its own), and
 checked in the running app: Create ▸ Flow, an Input of the examples, a Filter after it, each box shown, a box dragged.
 
-**Not yet, said:** a tool's settings opening with its box (step 5: a Filter box opens the filter editor); an undo of a
-box's removal brings it back as a new tile, and the boxes after it keep reading its copy until Unfreeze (M2) links them
+**Built in step 5, the five tools' settings** (`datacube/src/flow-boxes.ts` `TOOL_EDITORS`, `app.ts` `dock`,
+`openStep`, `layout/flow-canvas.ts`): the settings pane beside the canvas (Alteryx's Configuration window) holds the
+window of the shown box's grid that sets what it does, docked rather than floating (`CubeAppOptions.dock`: Properties,
+the Filter window, a calculated column's editor, one at a time) -- a Filter's filter, a Formula's new calculated column,
+a Select's shown columns (Properties ▸ Columns), a Sort's sorts (Properties ▸ Sorts), a Summarize's row groups
+(Properties ▸ Row Groups). A tool added opens its window; a box clicked opens its own. With none docked, the pane says
+what the box does and offers to set it. A box added as a tool is drawn as that tool, "not set yet", until its grid does
+something (the screen's, never the page's). Found on the way: a grid's undo key JSON-stringified its snapshot, and a
+grid over another grid's rows (or a join) carries its input's literals as the protocol's exact numbers, so its first
+edit threw; the keys are written exactly now (`cube-state.ts`, `toJson`). Checked in the running app, both themes:
+Input, Filter (notional over 500,000), Summarize by region after it, each box shown again with its settings.
+
+**Not yet, said:** an undo of a box's removal brings it back as a new tile, and the boxes after it keep reading its copy until Unfreeze (M2) links them
 again (an undo is the page's structure: page-between.ts leaves the cubes of the grids both pages have as they are); a
 chart or a text box of a box's rows (refused, said: they go on a board sheet); a tool added from the tab on a page
 Python serves (refused in words: Python adds one, `flow.grid(input=box)`); a grid on a board reading a box that is shown

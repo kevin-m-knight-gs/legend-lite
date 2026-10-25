@@ -56,7 +56,7 @@ import type { TreeState } from '../tree.ts';
 import type { GridCommand } from '../grid-commands.ts';
 import { lazily } from '../lazily.ts';
 import { longPressMenus } from '../ui/long-press.ts';
-import type { FlowTool } from '../flow-boxes.ts';
+import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 
 /** What the page needs of a grid on it (a CubeApp in a tile). */
 export interface PageGrid extends SpawnedGrid {
@@ -154,8 +154,8 @@ export interface PageAppOptions {
    */
   readonly openBox?: (box: string, document: CubeDocument, page: PageDocument) => Promise<GridMaker | undefined>;
   /** A tool of a flow's palette picked: a box of it on flow `sheet`, after box `after` (none: on its own), made by the
-   *  host over the page as it is now. */
-  readonly onFlowTool?: (tool: FlowTool, after: string | undefined, sheet: string, page: PageDocument) => void;
+   *  host over the page as it is now -- its settings (`editor`) opened on its grid once it is made (PageGrid.openStep). */
+  readonly onFlowTool?: (tool: FlowTool, after: string | undefined, sheet: string, page: PageDocument, editor: StepEditor | undefined) => void;
 }
 
 export class PageApp {
@@ -656,6 +656,12 @@ export class PageApp {
     await this.#page.opened();
   }
 
+  /** A box added from a flow's palette as `tool`: drawn as that tool, not set yet, until its grid does something (the
+   *  screen's: a page saved with it says what its grid does). */
+  boxAddedAs(id: string, tool: FlowTool): void {
+    this.#page.boxAddedAs(id, tool);
+  }
+
   /** Create ▸ Flow: a flow sheet after the last, shown -- an empty canvas, its palette beside it
    *  (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4). Its id. */
   addFlow(): string {
@@ -988,7 +994,8 @@ export class PageApp {
         },
       } : {}),
       ...(this.#options.onFlowTool ? {
-        onTool: (tool: FlowTool, after: string | undefined, sheet: string) => this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page),
+        onTool: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined) =>
+          this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page, editor),
       } : {}),
     });
   }

@@ -14,21 +14,22 @@
 import type { BandTile } from './band-board.ts';
 import { EMPTY_FLOW, placeAfter, removeBox, type Flow } from './flow.ts';
 import type { CubeDocument } from '../cube-document.ts';
-import type { FlowTool } from '../flow-boxes.ts';
+import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import { lazily } from '../lazily.ts';
 
 export interface FlowBoardOptions {
   /** A box let go at (`x`, `y`) by hand -- its drag, or its arrow keys: the caller tells its place (placeBox). */
   readonly onMove?: (id: string, x: number, y: number) => void;
-  /** A box clicked, or Enter on it: the caller shows its rows (its grid made, `add`). */
-  readonly onSelect?: (id: string) => void;
+  /** A box clicked, or Enter on it: the caller shows its rows (its grid made, `add`) -- and its settings, `editor` (the
+   *  window of its grid's that sets what it does: flow-boxes.ts TOOL_EDITORS), docked in the board's settings pane. */
+  readonly onSelect?: (id: string, editor: StepEditor | undefined) => void;
   /** A box's × or Delete on it: the caller takes it off the page. */
   readonly onRemove?: (id: string) => void;
   /** A box renamed in place. */
   readonly onRename?: (id: string, title: string) => void;
   /** A tool of the palette picked -- clicked, after the box shown, or dropped on a box, after it; dropped on the canvas,
    *  after none: the caller adds a box of it. */
-  readonly onTool?: (tool: FlowTool, after: string | undefined) => void;
+  readonly onTool?: (tool: FlowTool, after: string | undefined, editor: StepEditor | undefined) => void;
   /** Ctrl+Z (Shift for redo) on the canvas: the page's own undo. */
   readonly onUndo?: (redo: boolean) => void;
   /** Each box's cube document as the page has it: what it does, and the boxes it reads (the lines into it). */
@@ -49,7 +50,11 @@ export interface FlowBoardState {
   readonly noted: string | undefined;
   readonly editing: boolean;
   readonly options: FlowBoardOptions;
+  /** The settings pane's body, where the shown box's grid docks the window that sets it. */
+  readonly dock: HTMLElement;
   title(id: string): string | undefined;
+  /** The tool a box was added as, while its grid does nothing yet (`addedAs`). */
+  addedAs(id: string): FlowTool | undefined;
   tile(id: string): BandTile | undefined;
 }
 
@@ -64,8 +69,14 @@ export class FlowBoard implements FlowBoardState {
   readonly #host: HTMLElement;
   /** What it says to a screen reader: its own, so it is said before the drawing has come. */
   readonly #live: HTMLElement;
+  /** THE SETTINGS PANE's body (§3.4): where the shown box's grid docks the window that sets it (CubeAppOptions.dock) --
+   *  made with the board, so a grid made before the drawing has come docks there all the same. */
+  readonly dock: HTMLElement;
   readonly options: FlowBoardOptions;
   readonly #boxes = new Map<string, Held>();
+  /** Each box added from the palette, as the tool it was added as: drawn so while its grid does nothing yet (a Filter
+   *  with no condition is a Filter to set, not a Browse) -- the screen's, never the page's. */
+  readonly #addedAs = new Map<string, FlowTool>();
   #layout: Flow = EMPTY_FLOW;
   #shown: string | undefined;
   #noted: string | undefined;
@@ -81,6 +92,8 @@ export class FlowBoard implements FlowBoardState {
     this.#live.className = 'dc-board-live';
     this.#live.setAttribute('aria-live', 'polite');
     this.#live.setAttribute('role', 'status');
+    this.dock = host.ownerDocument.createElement('div');
+    this.dock.className = 'dc-flow-dock';
     host.append(this.#live);
     void lazily(() => import('./flow-canvas.ts')).then(({ FlowCanvas }) => {
       if (this.#disposed) return;
@@ -138,6 +151,16 @@ export class FlowBoard implements FlowBoardState {
     return this.#boxes.get(id)?.title;
   }
 
+  addedAs(id: string): FlowTool | undefined {
+    return this.#addedAs.get(id);
+  }
+
+  /** A box added from the palette as `tool`: drawn as one until its grid does something. */
+  addAs(id: string, tool: FlowTool): void {
+    this.#addedAs.set(id, tool);
+    this.#paint();
+  }
+
   /** The grid's tile of a box shown. */
   tile(id: string): BandTile | undefined {
     return this.#boxes.get(id)?.tile;
@@ -184,6 +207,7 @@ export class FlowBoard implements FlowBoardState {
   remove(id: string): void {
     this.close(id);
     this.#boxes.delete(id);
+    this.#addedAs.delete(id);
     this.#layout = removeBox(this.#layout, id);
     this.#paint();
   }

@@ -201,6 +201,33 @@ describe('a flow sheet on a page of its own', () => {
     assert.deepEqual(tools, [{ tool: 'filter', after: undefined, sheet: 'sheet-2' }]);
   });
 
+  it("docks the window that sets a box in the flow's settings pane: a Filter's filter, a Summarize's row groups", async () => {
+    const filtered = FLOW_PAGE();
+    const page = writePageOf({
+      name: 'flows',
+      cubes: [...filtered.cubes, { id: 'grid-4', cube: cube(rows('grid-3'), ['region']) }],
+      views: { views: [...filtered.views, { id: 'grid-4', kind: 'grid', cube: 'grid-4' }], sheets: filtered.sheets.map((sh) => (sh.layout.kind === 'flow'
+        ? { ...sh, layout: { kind: 'flow' as const, boxes: [...sh.layout.boxes, { tile: 'grid-4', x: 536, y: 40 }] } } : sh)) },
+    });
+    opened(page);
+    pg().showSheet('sheet-2');
+    await shown(host, '.dc-flow-box[data-tile="grid-4"]');
+    assert.equal(box('grid-4').dataset['tool'], 'summarize');
+    await show('grid-4');
+    const docked = await shown<HTMLElement>(host, '.dc-flow-dock > .dc-app-overlay');
+    assert.equal(docked.dataset['window'], 'Properties', "a Summarize is set by Properties' row groups");
+    assert.ok(docked.closest('.dc-flow-settings'), 'docked in the settings pane, not floating');
+    // a box added as a tool, its grid doing nothing yet: drawn as that tool, to be set
+    pg().boxAddedAs('grid-3', 'filter');
+    assert.equal(box('grid-3').dataset['tool'], 'filter');
+    assert.equal(box('grid-3').querySelector('.dc-flow-says')?.textContent, 'not set yet');
+    // shown: its Filter window docked in the other's place
+    await show('grid-3');
+    await settle();
+    const now = [...host.querySelectorAll<HTMLElement>('.dc-flow-dock > .dc-app-overlay')].map((w) => w.dataset['window']);
+    assert.deepEqual(now, ['Filters'], 'one window docked at a time: the shown box\'s');
+  });
+
   it('Create ▸ Flow adds an empty flow, shown: its canvas, not an empty sheet\'s card', async () => {
     page = new PageApp({ host, title: 'q', empty: (slot) => { slot.textContent = 'Add a data source'; } });
     const first = pg().addGrid(overCube(cube(FILE)));

@@ -36,7 +36,7 @@ import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import { FlowBoard } from '../layout/flow-board.ts';
 import { EMPTY_FLOW, flowTiles } from '../layout/flow.ts';
-import type { FlowTool } from '../flow-boxes.ts';
+import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { CHART_STATES, chartGrid, MAP_MARKS, showGridWay, type ChartSpec, type ChartState } from '../chart-spec.ts';
 import { chartPicked, type PageFilter } from '../page-filters.ts';
@@ -53,7 +53,7 @@ import { chartTitle, gridTitle, nextPageId, textTitle } from '../page-ids.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { CubeDocument, CubeSource } from '../cube-document.ts';
 import type { GridCopy, PageDocument } from '../page-document.ts';
-import { withoutConditions, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
+import { sameValue, withoutConditions, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
@@ -135,6 +135,8 @@ export interface SpawnOptions {
   readonly onMoveToSheet?: (sheet: string | null) => void;
   /** Its configuration, when not the spawning grid's: Show Grid's, a chart's values as its Column Properties. */
   readonly configuration?: CubeConfiguration;
+  /** Where its windows that set it dock (CubeAppOptions.dock): a flow's box, its flow's settings pane. */
+  readonly dock?: HTMLElement;
 }
 
 /** A grid on a page (a CubeApp). */
@@ -157,6 +159,8 @@ export interface SpawnedGrid {
   tileHead(): HTMLElement;
   /** The grid as a saved cube, named `name`: undefined when it cannot say its source. */
   cubeDocument?(name: string): CubeDocument | undefined;
+  /** The window that sets a flow's step (flow-boxes.ts TOOL_EDITORS), opened -- docked where its options dock it. */
+  openStep?(editor: StepEditor): void;
 }
 
 export interface CubePageOptions {
@@ -240,8 +244,9 @@ export interface CubePageOptions {
    * undefined when the person gave up. Absent, a page has no flow sheets to show a box of.
    */
   readonly openBox?: (box: string, document: CubeDocument) => Promise<((host: HTMLElement, options: SpawnOptions) => SpawnedGrid) | undefined>;
-  /** A tool of a flow's palette picked: a box of it added to flow `sheet`, after box `after` (none: on its own). */
-  readonly onTool?: (tool: FlowTool, after: string | undefined, sheet: string) => void;
+  /** A tool of a flow's palette picked: a box of it added to flow `sheet`, after box `after` (none: on its own), its
+   *  settings (`editor`) opened once it is shown. */
+  readonly onTool?: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined) => void;
 }
 
 /** An edit of the page's structure: its page commands, and what it is called (the page's Undo names it). */
@@ -501,13 +506,13 @@ export class CubePage {
         this.#tell('Move Box', pageCommand('placeBox', { tile, x, y }));
         this.#options.onChange();
       },
-      onSelect: (tile) => void this.#showBox(tile),
+      onSelect: (tile, editor) => void this.#showBox(tile, editor),
       onRemove: (tile) => this.#removeTile(tile),
       onRename: (tile, title) => {
         if (this.#saved(tile)) this.#tell('Rename Tile', pageCommand('renameTile', { tile, title }));
         this.#options.onChange();
       },
-      onTool: (tool, after) => this.#options.onTool?.(tool, after, id),
+      onTool: (tool, after, editor) => this.#options.onTool?.(tool, after, id, editor),
       onUndo: (redo) => this.#options.onUndo?.(redo),
       documentOf: (tile) => this.#boxes.get(tile)?.document ?? this.documentOf(tile),
     });
@@ -640,7 +645,13 @@ export class CubePage {
    * its live inputs read as they are now -- in the results pane, the box shown before closed. Its source not opened
    * (refused, or the person gave up), the box stays a document, and why is said.
    */
-  async #showBox(id: string): Promise<void> {
+  async #showBox(id: string, editor?: StepEditor): Promise<void> {
+    // shown already: its settings, docked
+    const shownGrid = this.#grids.get(id)?.added?.cube;
+    if (shownGrid !== undefined) {
+      if (editor !== undefined) shownGrid.openStep?.(editor);
+      return;
+    }
     const box = this.#boxes.get(id);
     const open = this.#options.openBox;
     const sheet = this.#sheetOf(id);
@@ -660,7 +671,7 @@ export class CubePage {
     if (make === undefined || this.#disposed || this.#boxes.get(id) !== box) return;
     // its cube changed while it opened (a step's): opened again over the page's now
     if (box.document !== document) {
-      void this.#showBox(id);
+      void this.#showBox(id, editor);
       return;
     }
     this.#planned.set(id, sheet);
@@ -669,6 +680,13 @@ export class CubePage {
     } finally {
       this.#planned.delete(id);
     }
+    if (editor !== undefined) this.#grids.get(id)?.added?.cube.openStep?.(editor);
+  }
+
+  /** A box added from a flow's palette as `tool` (PageApp.addedAs): drawn as one until its grid does something. */
+  boxAddedAs(id: string, tool: FlowTool): void {
+    const sheet = this.#sheetOf(id);
+    if (sheet?.kind === 'flow') sheet.board.addAs(id, tool);
   }
 
   /** A tile the step puts on another sheet than it is on, moved there as it is: a box between flows (shown, the flow's
@@ -972,7 +990,7 @@ export class CubePage {
       const shown = sheet.board.shown;
       const cube = shown === undefined ? undefined : to.cubes?.find((c) => c.id === wanted.get(shown)?.cube)?.cube;
       const now = shown === undefined ? undefined : this.documentOf(shown);
-      if (shown !== undefined && cube !== undefined && now !== undefined && JSON.stringify(cube.source) !== JSON.stringify(now.source)) {
+      if (shown !== undefined && cube !== undefined && now !== undefined && !sameValue(cube.source, now.source)) {
         this.#closeBox(sheet, cube);
         void this.#showBox(shown);
       }
@@ -1314,7 +1332,9 @@ export class CubePage {
     if (this.#grids.has(id) || this.#charts.has(id) || this.#kept.has(id)) throw new Error(`a tile ${id} is already on the page`);
     const host = this.#doc.createElement('div');
     host.className = 'dc-grid-tile';
-    const cube = make(host, this.#spawnOptions(id));
+    // a flow's box: the windows that set it dock in its flow's settings pane
+    const lands = this.#planned.get(id) ?? (how.near !== undefined ? this.#sheetOf(how.near) : undefined) ?? this.#shown;
+    const cube = make(host, { ...this.#spawnOptions(id), ...(lands.kind === 'flow' ? { dock: lands.board.dock } : {}) });
     const stops = [
       cube.on('view', () => {
         this.#refreshGrid(id);

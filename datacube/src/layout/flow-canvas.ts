@@ -15,7 +15,7 @@
 
 import { BOX_HEIGHT, BOX_WIDTH, MARGIN, type Flow } from './flow.ts';
 import type { FlowBoardState } from './flow-board.ts';
-import { boxSays, FLOW_TOOLS, PALETTE, type FlowTool } from '../flow-boxes.ts';
+import { boxSays, FLOW_TOOLS, PALETTE, TOOL_EDITORS, type BoxSays, type FlowTool } from '../flow-boxes.ts';
 import { liveGrids } from '../live-inputs.ts';
 import { gridTitle } from '../page-ids.ts';
 
@@ -26,6 +26,9 @@ const STEP = 8;
 const BIG_STEP = 32;
 /** The results pane's least height, and the canvas's, in pixels. */
 const LEAST_PANE = 120;
+/** The settings pane's least width, and the canvas's beside it, in pixels. */
+const LEAST_SETTINGS = 320;
+const LEAST_CANVAS = 240;
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -74,6 +77,10 @@ export class FlowCanvas {
   readonly #lines: SVGSVGElement;
   readonly #hint: HTMLElement;
   readonly #split: HTMLElement;
+  readonly #settings: HTMLElement;
+  readonly #settingsTitle: HTMLElement;
+  readonly #settingsEmpty: HTMLElement;
+  readonly #side: HTMLElement;
   readonly #results: HTMLElement;
   readonly #head: HTMLElement;
   readonly #headTitle: HTMLElement;
@@ -89,6 +96,8 @@ export class FlowCanvas {
   #target: string | undefined;
   /** The results pane's height, as the divider left it (the screen's, not the page's). */
   #paneHeight: number | undefined;
+  /** What the settings pane's placeholder was drawn as. */
+  #settingsKey = '';
 
   constructor(host: HTMLElement, board: FlowBoardState) {
     this.#host = host;
@@ -116,6 +125,22 @@ export class FlowCanvas {
     this.#hint.textContent = 'Drag an Input onto the canvas to start, then add tools after it: each box is one step, and its rows show below.';
     this.#plane.append(this.#lines);
     this.#canvas.append(this.#plane, this.#hint);
+    // THE SETTINGS PANE (§3.4, Alteryx's Configuration window): the shown box's grid docks the window that sets it here;
+    // with none docked, what the box does and how to set it
+    this.#side = el('div', 'dc-flow-side');
+    this.#side.setAttribute('role', 'separator');
+    this.#side.setAttribute('aria-orientation', 'vertical');
+    this.#side.setAttribute('aria-label', 'Resize the settings');
+    this.#side.tabIndex = 0;
+    this.#settings = el('section', 'dc-flow-settings');
+    this.#settings.setAttribute('aria-label', 'Settings');
+    const settingsHead = el('div', 'dc-flow-settings-head');
+    this.#settingsTitle = el('div', 'dc-flow-settings-title');
+    settingsHead.append(this.#settingsTitle);
+    this.#settingsEmpty = el('div', 'dc-flow-settings-empty');
+    this.#settings.append(settingsHead, board.dock, this.#settingsEmpty);
+    const top = el('div', 'dc-flow-top');
+    top.append(this.#canvas, this.#side, this.#settings);
     this.#split = el('div', 'dc-flow-split');
     this.#split.setAttribute('role', 'separator');
     this.#split.setAttribute('aria-orientation', 'horizontal');
@@ -130,7 +155,7 @@ export class FlowCanvas {
     this.#body = el('div', 'dc-flow-results-body');
     this.#empty = el('div', 'dc-flow-results-empty');
     this.#results.append(this.#head, this.#body);
-    main.append(this.#canvas, this.#split, this.#results);
+    main.append(top, this.#split, this.#results);
     host.prepend(this.#palette, main);
     this.#canvas.addEventListener('keydown', (e) => this.#onCanvasKey(e));
     this.#canvas.addEventListener('pointerdown', (e) => {
@@ -138,6 +163,12 @@ export class FlowCanvas {
       if (e.target === this.#canvas || e.target === this.#plane) this.#canvas.focus({ preventScroll: true });
     });
     this.#split.addEventListener('pointerdown', (e) => this.#startSplit(e));
+    this.#side.addEventListener('pointerdown', (e) => this.#startSide(e));
+    this.#side.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      this.#setSide(this.#settings.offsetWidth + (e.key === 'ArrowLeft' ? BIG_STEP : -BIG_STEP));
+    });
     this.#split.addEventListener('keydown', (e) => {
       if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
       e.preventDefault();
@@ -172,6 +203,7 @@ export class FlowCanvas {
     this.#plane.style.height = `${bottom}px`;
     this.#hint.hidden = layout.boxes.length > 0 || !editing;
     this.#paintResults();
+    this.#paintSettings();
   }
 
   /** A box scrolled into view. */
@@ -219,7 +251,7 @@ export class FlowCanvas {
     button.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();
-      this.#board.options.onTool?.(tool, this.#board.shown);
+      this.#board.options.onTool?.(tool, this.#board.shown, TOOL_EDITORS[tool]);
     });
     return button;
   }
@@ -243,14 +275,15 @@ export class FlowCanvas {
       const over = ev ? this.#boxAt(ev.clientX, ev.clientY) : undefined;
       this.#mark(undefined);
       if (!apply) return;
+      const editor = TOOL_EDITORS[tool];
       if (ghost === undefined) {
         button.focus({ preventScroll: true });
-        this.#board.options.onTool?.(tool, this.#board.shown);
+        this.#board.options.onTool?.(tool, this.#board.shown, editor);
         return;
       }
       // let go on a box: after it; on the canvas: after none; anywhere else: nothing
-      if (over !== undefined) this.#board.options.onTool?.(tool, over);
-      else if (ev && this.#onCanvas(ev.clientX, ev.clientY)) this.#board.options.onTool?.(tool, undefined);
+      if (over !== undefined) this.#board.options.onTool?.(tool, over, editor);
+      else if (ev && this.#onCanvas(ev.clientX, ev.clientY)) this.#board.options.onTool?.(tool, undefined, editor);
     });
   }
 
@@ -319,6 +352,22 @@ export class FlowCanvas {
     return drawn;
   }
 
+  /** A box shown, and its settings with it: the window of its grid's that sets what it does (TOOL_EDITORS). */
+  #select(id: string): void {
+    const said = this.#said(id);
+    this.#board.options.onSelect?.(id, said ? TOOL_EDITORS[said.tool] : undefined);
+  }
+
+  /** What a box does, as it is drawn: its document's (boxSays) -- or, added as a tool and doing nothing yet, that tool,
+   *  not set yet. */
+  #said(id: string): BoxSays | undefined {
+    const doc = this.#board.options.documentOf?.(id);
+    if (doc === undefined) return undefined;
+    const said = boxSays(doc);
+    const added = this.#board.addedAs(id);
+    return said.tool === 'browse' && added !== undefined ? { tool: added, also: [], says: 'not set yet' } : said;
+  }
+
   /** What a box is called on the canvas: the name a person gave it, else its tool's (a flow never says "grid"). */
   #nameOf(id: string, tool: FlowTool): string {
     const title = this.#board.title(id);
@@ -326,8 +375,7 @@ export class FlowCanvas {
   }
 
   #paintBox(id: string, drawn: Drawn): void {
-    const doc = this.#board.options.documentOf?.(id);
-    const said = doc ? boxSays(doc) : undefined;
+    const said = this.#said(id);
     const tool = said?.tool ?? 'browse';
     const name = this.#nameOf(id, tool);
     const says = said === undefined ? '' : said.also.length > 0
@@ -372,7 +420,7 @@ export class FlowCanvas {
       this.#dragged = undefined;
       drawn.root.classList.remove('dc-flow-dragging');
       if (!moved) {
-        if (apply) this.#board.options.onSelect?.(id);
+        if (apply) this.#select(id);
         return;
       }
       if (apply && at !== undefined) this.#board.options.onMove?.(id, Math.round(at.x), Math.round(at.y));
@@ -386,7 +434,7 @@ export class FlowCanvas {
     const o = this.#board.options;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      o.onSelect?.(id);
+      this.#select(id);
       return;
     }
     if (!this.#board.editing) return;
@@ -499,12 +547,64 @@ export class FlowCanvas {
     }
     // the box's grid placed once, as the band board places a tile: never moved while it is shown
     if (this.#body.firstChild !== tile.element || this.#body.childNodes.length !== 1) this.#body.replaceChildren(tile.element);
-    const doc = this.#board.options.documentOf?.(id!);
-    this.#headTitle.textContent = this.#nameOf(id!, doc ? boxSays(doc).tool : 'browse');
+    this.#headTitle.textContent = this.#nameOf(id!, this.#said(id!)?.tool ?? 'browse');
     const actions = tile.actions ?? [];
     if (actions.some((a, i) => this.#headActions.children[i] !== a) || this.#headActions.children.length !== actions.length) {
       this.#headActions.replaceChildren(...actions);
     }
+  }
+
+  /** The settings pane with nothing docked: the shown box's tool and what it is set to, and how to set it. */
+  #paintSettings(): void {
+    const id = this.#board.shown;
+    const said = id === undefined ? undefined : this.#said(id);
+    const name = id === undefined ? undefined : this.#nameOf(id, said?.tool ?? 'browse');
+    const editor = said ? TOOL_EDITORS[said.tool] : undefined;
+    const key = JSON.stringify([id, name, said, editor !== undefined]);
+    if (key === this.#settingsKey) return;
+    this.#settingsKey = key;
+    this.#settingsTitle.textContent = name === undefined ? 'Settings' : `Settings · ${name}`;
+    const d = this.#doc;
+    const parts: (string | HTMLElement)[] = [];
+    if (id === undefined || said === undefined) parts.push('Click a box to set what it does.');
+    else {
+      const what = d.createElement('p');
+      what.textContent = `${FLOW_TOOLS[said.tool].name}: ${FLOW_TOOLS[said.tool].does}.`;
+      const now = d.createElement('p');
+      now.className = 'dc-flow-settings-now';
+      now.textContent = said.says;
+      parts.push(what, now);
+      if (editor !== undefined) {
+        const open = d.createElement('button');
+        open.type = 'button';
+        open.className = 'dc-picker-button dc-primary';
+        open.textContent = `Set the ${FLOW_TOOLS[said.tool].name.toLowerCase()}`;
+        open.addEventListener('click', () => this.#board.options.onSelect?.(id, editor));
+        parts.push(open);
+      } else if (said.tool === 'browse') {
+        const tip = d.createElement('p');
+        tip.textContent = 'It passes its input\'s rows on: drop a tool on it to add a step after it.';
+        parts.push(tip);
+      }
+    }
+    this.#settingsEmpty.replaceChildren(...parts);
+  }
+
+  #startSide(e: PointerEvent): void {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const start = e.clientX;
+    const from = this.#settings.offsetWidth;
+    this.#own(this.#side, e, (ev) => this.#setSide(from - (ev.clientX - start)), (apply) => {
+      if (!apply) this.#setSide(from);
+    });
+  }
+
+  /** The settings pane's width, kept between its least and the canvas's least beside it. */
+  #setSide(width: number): void {
+    const room = this.#settings.parentElement?.clientWidth ?? 0;
+    const most = room > 0 ? Math.max(LEAST_SETTINGS, room - LEAST_CANVAS) : width;
+    this.#host.style.setProperty('--dc-flow-settings', `${Math.round(Math.min(most, Math.max(LEAST_SETTINGS, width)))}px`);
   }
 
   #startSplit(e: PointerEvent): void {
