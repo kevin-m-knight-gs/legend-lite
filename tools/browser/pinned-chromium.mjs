@@ -61,14 +61,34 @@ if (pinned) {
 // //datacube:browser_guard_test fails when a launch stops being guarded (a Playwright upgrade, or this file changed).
 export const HERMETIC_ARGS = ['--host-resolver-rules=MAP extensions.duckdb.org ~NOTFOUND'];
 
-/** Guards every launch of `chromium` (Playwright's BrowserType) with HERMETIC_ARGS; answers it. */
+/**
+ * BEHIND A PROXY (2026-10-25, a cloud session: its ~/.bazelrc passes HTTPS_PROXY and NO_PROXY to every test): Chromium
+ * hands a proxied request's host to the proxy unresolved, so the resolver's rule above never met extensions.duckdb.org
+ * -- //datacube:browser_guard_test met the proxy's certificate instead (ERR_CERT_AUTHORITY_INVALID), and a Chromium
+ * that trusts that certificate downloaded the extension. The proxy the environment names is given as Chromium's own
+ * flag, each scheme to its own as the environment has it, with that host (and NO_PROXY's) bypassing it: so it is
+ * resolved here, and refused; every other host still goes through the proxy. No proxy named: no flag.
+ */
+export function proxyArgs(env = process.env) {
+  const https = env.HTTPS_PROXY || env.https_proxy;
+  const http = env.HTTP_PROXY || env.http_proxy;
+  const all = env.ALL_PROXY || env.all_proxy;
+  const schemes = [...(https ? [`https=${https}`] : []), ...(http ? [`http=${http}`] : [])];
+  const server = schemes.length > 0 ? schemes.join(';') : all;
+  if (!server) return [];
+  const bypass = (env.NO_PROXY || env.no_proxy || '').split(',').map((h) => h.trim()).filter(Boolean);
+  return [`--proxy-server=${server}`, `--proxy-bypass-list=${['extensions.duckdb.org', ...bypass].join(';')}`];
+}
+
+/** Guards every launch of `chromium` (Playwright's BrowserType) with HERMETIC_ARGS, behind a proxy too; answers it. */
 export function hermetic(chromium) {
   if (chromium.__hermetic) return chromium;
+  const guard = [...HERMETIC_ARGS, ...proxyArgs()];
   const launch = chromium.launch.bind(chromium);
-  chromium.launch = (options = {}) => launch({ ...options, args: [...(options.args ?? []), ...HERMETIC_ARGS] });
+  chromium.launch = (options = {}) => launch({ ...options, args: [...(options.args ?? []), ...guard] });
   const persistent = chromium.launchPersistentContext.bind(chromium);
   chromium.launchPersistentContext = (dir, options = {}) =>
-    persistent(dir, { ...options, args: [...(options.args ?? []), ...HERMETIC_ARGS] });
+    persistent(dir, { ...options, args: [...(options.args ?? []), ...guard] });
   chromium.__hermetic = true;
   return chromium;
 }
