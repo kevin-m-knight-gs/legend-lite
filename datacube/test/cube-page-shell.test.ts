@@ -501,13 +501,18 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     const options = (): void => chartMenu(chart).find((i) => label(i) === 'Properties…')!.click();
     const press = (on: Element): boolean => on.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true }));
     const placed = (w: HTMLElement): number[] => ['left', 'top', 'width', 'height'].map((k) => parseFloat(w.style.getPropertyValue(k)));
-    // where the chart is on the screen, which jsdom does not lay out (its window 1024 x 768)
-    const body = tile(chart).querySelector<HTMLElement>('.dc-chart-tile')!;
-    Object.defineProperty(body, 'getBoundingClientRect', {
+    // where the chart's tile is on the screen, which jsdom does not lay out (its window 1024 x 768): beside its whole
+    // tile, its header too, the window opens -- never over the tile's title and buttons (the 2026-10-25 review)
+    const at = tile(chart);
+    Object.defineProperty(at, 'getBoundingClientRect', {
       value: () => ({ left: 100, top: 120, right: 300, bottom: 420, width: 200, height: 300, x: 100, y: 120, toJSON: () => ({}) }),
       configurable: true,
     });
     assert.equal(win(), null, 'a chart on the page starts without its options');
+    // opened from its tile's right-click with the focus on the tile: the focus goes to the window, and stays there as
+    // the menu goes (the 2026-10-25 review: the menu put it back on the tile, and Escape no longer closed the window)
+    tile(chart).focus();
+    assert.equal(dom.window.document.activeElement, tile(chart));
     options();
     const w = win()!;
     assert.ok(w, 'open');
@@ -541,7 +546,7 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     (w.querySelector('.dc-overlay-close') as HTMLButtonElement).click();
     assert.equal(win(), null, 'its \u00d7 put it away');
     // the chart moved meanwhile, to the screen's right edge: it opens at its left now, at its new width
-    Object.defineProperty(body, 'getBoundingClientRect', {
+    Object.defineProperty(at, 'getBoundingClientRect', {
       value: () => ({ left: 600, top: 120, right: 1016, bottom: 420, width: 416, height: 300, x: 600, y: 120, toJSON: () => ({}) }),
       configurable: true,
     });
@@ -636,6 +641,72 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     theirs()[0]!.told();
     assert.equal(host.querySelector('.dc-chart-options'), null, 'its tile with no box (its sheet hidden): put away');
     assert.equal(theirs().length, 0, 'and watched no more');
+  });
+
+  it("the window fitted to its form as it opens, once -- not one moved meanwhile; a size kept only from its grips", async () => {
+    // the 2026-10-25 review: a press on its title bar kept its squeezed size for good, and a fit landed after a drag
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    const win = (): HTMLElement => host.querySelector<HTMLElement>('.dc-chart-options')!;
+    const placed = (): number[] => ['left', 'top', 'width', 'height'].map((k) => parseFloat(win().style.getPropertyValue(k)));
+    Object.defineProperty(tile(chart), 'getBoundingClientRect', {
+      value: () => ({ left: 100, top: 120, right: 300, bottom: 420, width: 200, height: 300, x: 100, y: 120, toJSON: () => ({}) }),
+      configurable: true,
+    });
+    /** Opened, its form laid out 400 tall in a body padded 12 and 14 (what jsdom does not lay out): it needs 426. */
+    const open = (): void => {
+      chartMenu(chart).find((i) => label(i) === 'Properties…')!.click();
+      Object.defineProperty(win().querySelector('.dc-chartpanel-form')!, 'scrollHeight', { value: 400, configurable: true });
+      win().querySelector<HTMLElement>('.dc-overlay-body')!.style.padding = '12px 16px 14px';
+    };
+    const close = (): void => (win().querySelector('.dc-overlay-close') as HTMLButtonElement).click();
+    const on = (el: Element, type: string, x: number, y: number): boolean =>
+      el.dispatchEvent(new dom.window.PointerEvent(type, { pointerId: 1, button: 0, clientX: x, clientY: y, bubbles: true }));
+    open();
+    assert.deepEqual(placed(), [308, 8, 588, 752], 'as tall as the screen lets it be, till its form is painted');
+    await settle();
+    assert.deepEqual(placed(), [308, 120, 588, 426], 'as tall as its form, level with its chart');
+    // a press on its title bar, no drag: no size kept, so it is fitted again as it opens
+    const head = win().querySelector('.dc-overlay-head')!;
+    on(head, 'pointerdown', 400, 130);
+    on(head, 'pointerup', 400, 130);
+    close();
+    open();
+    await settle();
+    assert.deepEqual(placed(), [308, 120, 588, 426], 'fitted again: a press on its title bar kept no size');
+    close();
+    // dragged before its form is painted: where it was put, it stays
+    open();
+    const bar = win().querySelector('.dc-overlay-head')!;
+    on(bar, 'pointerdown', 400, 20);
+    on(bar, 'pointermove', 350, 20);
+    on(bar, 'pointerup', 350, 20);
+    assert.deepEqual(placed(), [258, 8, 588, 752]);
+    await settle();
+    assert.deepEqual(placed(), [258, 8, 588, 752], 'moved meanwhile: not fitted over where it was put');
+    close();
+    // the browser's window shrinking squeezes it, and keeps no size either
+    open();
+    await settle();
+    Object.defineProperty(dom.window, 'innerHeight', { value: 300, configurable: true });
+    dom.window.dispatchEvent(new dom.window.Event('resize'));
+    assert.deepEqual(placed().slice(2), [588, 300], 'squeezed onto the screen');
+    close();
+    Object.defineProperty(dom.window, 'innerHeight', { value: 768, configurable: true });
+    open();
+    await settle();
+    assert.deepEqual(placed(), [308, 120, 588, 426], 'its squeezed size not kept');
+    // resized by a grip: that size kept, and not fitted over
+    const south = win().querySelector('.dc-window-s')!;
+    on(south, 'pointerdown', 500, 546);
+    on(south, 'pointermove', 500, 646);
+    on(south, 'pointerup', 500, 646);
+    close();
+    open();
+    await settle();
+    assert.deepEqual(placed().slice(2), [588, 526], 'the size its grip gave it');
   });
 
   it("is in the menus' one order: Show Grid, Create ▸, Properties…, then View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page", async () => {

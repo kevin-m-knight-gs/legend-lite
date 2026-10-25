@@ -42,9 +42,10 @@ import type { ChartPicture, MountedChart } from '../chart-render.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { CubeSnapshot, FilterNode } from '../snapshot.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
+import { isTextEntry } from '../focus.ts';
 import { lazily } from '../lazily.ts';
 import { chromeIcon } from './tile-icons.ts';
-import { besideWindow, makeWindow, moveWindow, raiseWindow, windowSpecOf } from './window.ts';
+import { besideWindow, makeWindow, moveWindow, raiseWindow, screenOf, windowSpecOf, type WindowSpec } from './window.ts';
 
 /** The kinds with an axis of categories or time across, whose pointer a page's other charts follow (a crosshair). */
 const CROSSHAIRED: ReadonlySet<ChartMark> = new Set(['bar', 'line', 'area', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto']);
@@ -81,7 +82,7 @@ export interface ChartPanelOptions {
   readonly crosshair?: string;
   /** Upstream-style debounce between an edit and the query; a test passes 0. */
   readonly debounceMs?: number;
-  /** Whether the options start open (a chart tile starts with the chart alone). */
+  /** Whether the options open with the chart (default not: a chart tile starts with the chart alone). */
   readonly formOpen?: boolean;
   /** The chart's state changed (ChartState: by its pill, or pinned by an edit to its grouping). */
   readonly onState?: (state: ChartState) => void;
@@ -108,8 +109,10 @@ export class ChartPanel {
   #closing: AbortController | null = null;
   /** The size a person left its window at: its next opening's. */
   #size: { width: number; height: number } | null = null;
-  /** Its window just opened: fitted to its form once the form is painted (`#fit`). */
+  /** Its window just opened: fitted to its form once the form is painted (`#fit`), unless it moved meanwhile. */
   #fitting = false;
+  /** Where its window opened: `#fit` leaves a window moved or resized since (the form's code still loading). */
+  #opened: WindowSpec | null = null;
   #canvas!: HTMLElement;
   #status!: HTMLElement;
   /** A drilled chart's path, above it (batch 2 item 10). */
@@ -241,21 +244,22 @@ export class ChartPanel {
     this.#retitle(win);
     const closing = new AbortController();
     this.#closing = closing;
-    makeWindow(win, head, host, {
+    this.#opened = makeWindow(win, head, host, {
       viewport: true,
-      spec: besideWindow(this.#root.getBoundingClientRect(), { width: view.innerWidth, height: view.innerHeight },
-        { ...CHART_WINDOW, ...this.#size }),
+      spec: besideWindow(this.#anchor().getBoundingClientRect(), screenOf(view), { ...CHART_WINDOW, ...this.#size }),
       minWidth: CHART_WINDOW.minWidth,
       minHeight: CHART_WINDOW.minHeight,
       signal: closing.signal,
-      onChange: (spec) => { this.#size = { width: spec.width, height: spec.height }; },
+      // only a size a person gave it with a grip is kept for its next opening -- not one a press on its title bar or the
+      // browser shrinking settled (the 2026-10-25 review: one click there kept a squeezed window squeezed for good)
+      onChange: (spec, by) => { if (by === 'resized') this.#size = { width: spec.width, height: spec.height }; },
     });
     // touched, it comes to the front of the page's windows
     win.addEventListener('pointerdown', () => raiseWindow(win, host));
     // Escape puts it away -- not one typed in a field, where it is the field's (the page's windows' rule, app.ts)
     win.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
-      if ((event.target as Element | null)?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      if (isTextEntry(event.target)) return;
       event.preventDefault();
       this.closeForm();
     });
@@ -288,6 +292,11 @@ export class ChartPanel {
   /** Whether the options are open. */
   get formOpen(): boolean {
     return this.#window !== null;
+  }
+
+  /** What its window opens beside: its whole tile, its header too -- never over the tile's own title and buttons. */
+  #anchor(): HTMLElement {
+    return this.#root.closest<HTMLElement>('[data-tile]') ?? this.#root;
   }
 
   /** Where its options' window floats: the page's windows' place, else its own. */
@@ -347,7 +356,7 @@ export class ChartPanel {
     right.append(this.#crumbs, this.#canvas, this.#status);
     this.#root.append(right);
     this.#paintCrumbs();
-    if (this.#options.formOpen !== false) this.openForm();
+    if (this.#options.formOpen === true) this.openForm();
   }
 
   #set(change: ChartChange, redrawForm = false): void {
@@ -396,17 +405,17 @@ export class ChartPanel {
     const view = this.#doc.defaultView;
     const now = win ? windowSpecOf(win) : undefined;
     if (!win || !body || !scroller || !view || !now || body.scrollHeight === 0) return;
+    // moved or resized while the form's code loaded: where the person put it, it stays (the 2026-10-25 review)
+    const opened = this.#opened;
+    if (!opened || now.x !== opened.x || now.y !== opened.y || now.width !== opened.width || now.height !== opened.height) return;
     const head = win.querySelector<HTMLElement>('.dc-overlay-head');
     const pad = scroller.offsetHeight - scroller.clientHeight + parseFloat(view.getComputedStyle(scroller).paddingTop)
       + parseFloat(view.getComputedStyle(scroller).paddingBottom);
     const needs = Math.ceil((head?.offsetHeight ?? 0) + pad + body.scrollHeight + (win.offsetHeight - win.clientHeight));
-    if (needs >= now.height) return;
-    moveWindow(win, besideWindow(this.#root.getBoundingClientRect(), { width: view.innerWidth, height: view.innerHeight },
+    if (!Number.isFinite(needs) || needs >= now.height) return;
+    moveWindow(win, besideWindow(this.#anchor().getBoundingClientRect(), screenOf(view),
       { ...CHART_WINDOW, width: now.width, height: Math.max(CHART_WINDOW.minHeight, needs) }));
   }
-
-
-
 
   // -- drawing ----------------------------------------------------------------
 

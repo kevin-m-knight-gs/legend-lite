@@ -252,20 +252,37 @@ try {
     });
     if (look.transform !== 'uppercase' || look.size !== '10px') throw new Error(`its section titles are not Properties': ${JSON.stringify(look)}`);
     if (look.fill !== 'rgb(240, 249, 255)' || !String(look.edge).includes('rgb(2, 132, 199)')) throw new Error(`its chosen choice is not sky: ${JSON.stringify(look)}`);
-    // more of a square (the user, 2026-10-25): two columns of sections where it is 480px wide or more, and no taller
-    // than its form once painted -- no empty space under it
-    await form.locator('.dc-chartpanel-form > .dc-section').first().waitFor();
+    // a short choice and a checkbox ringed when reached by the keyboard (the 2026-10-25 review: the segments' ring was
+    // clipped, the checkboxes' taken off by the text controls' rule)
+    // the keyboard last used, so a focus is shown as the keyboard's
+    await page.keyboard.press('Tab');
+    const rings = await page.evaluate(() => {
+      const win = document.querySelector('.dc-chart-options');
+      const ring = (el) => {
+        el.focus();
+        const s = getComputedStyle(el);
+        return { visible: el.matches(':focus-visible'), style: s.outlineStyle, offset: s.outlineOffset };
+      };
+      return { segment: ring(win.querySelector('.dc-segment.dc-chosen')), checkbox: ring(win.querySelector('input[type="checkbox"]')) };
+    });
+    if (!rings.segment.visible || rings.segment.style === 'none' || rings.segment.offset !== '-4px') {
+      throw new Error(`a short choice is not ringed inside itself when reached by the keyboard: ${JSON.stringify(rings)}`);
+    }
+    if (!rings.checkbox.visible || rings.checkbox.style === 'none') throw new Error(`a checkbox is not ringed: ${JSON.stringify(rings)}`);
+    // more of a square (the user, 2026-10-25): two columns of sections where it is 500px wide or more (app.css
+    // .dc-chartpanel-columns), and no taller than its form once painted -- no empty space under it
+    await form.locator('.dc-chartpanel-form .dc-section').first().waitFor();
     const layout = await page.evaluate(() => {
       const win = document.querySelector('.dc-chart-options');
       const scroller = win.querySelector('.dc-overlay-body');
       const inner = win.querySelector('.dc-chartpanel-form');
       const style = getComputedStyle(scroller);
-      const lefts = new Set([...inner.querySelectorAll(':scope > .dc-section')].map((s) => Math.round(s.getBoundingClientRect().left)));
+      const lefts = new Set([...inner.querySelectorAll('.dc-section')].map((s) => Math.round(s.getBoundingClientRect().left)));
       return { width: Math.round(win.getBoundingClientRect().width), columns: lefts.size,
         scrolls: scroller.scrollHeight > scroller.clientHeight + 1,
         slack: Math.round(scroller.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - inner.offsetHeight) };
     });
-    if (layout.width >= 480 && layout.columns < 2) throw new Error(`its options in one column at ${layout.width}px: ${JSON.stringify(layout)}`);
+    if (layout.width >= 500 && layout.columns < 2) throw new Error(`its options in one column at ${layout.width}px: ${JSON.stringify(layout)}`);
     if (!layout.scrolls && layout.slack > 8) throw new Error(`its options' window taller than its form: ${JSON.stringify(layout)}`);
     const fieldNamed = (label) => form.locator(`.dc-field:has(> .dc-field-label:text-is("${label}"))`);
     await fieldNamed('Chart:').locator('select').selectOption('kpi');

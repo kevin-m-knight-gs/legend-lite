@@ -1395,7 +1395,7 @@ export class PageApp {
    * THE PAGE'S MENU, the page's things only -- never a column's or a grid's -- in the menus' one skeleton
    * (docs/DATACUBE_UI_REVIEW_2026_10_24.md §3, "The menus"; the user, 2026-10-25): what leaves the app (a new page, the
    * host's Open…, Save, Save As…, Share…, the page as a file); the page's history; the host's data entries; the layout;
-   * Create ▸; the app's Settings… and View ▸. An entry that cannot apply now is greyed, saying why.
+   * Create ▸; View ▸, the app's Settings… in it. An entry that cannot apply now is greyed, saying why.
    */
   #menuGroups(): MenuGroup[] {
     const page = this.#page;

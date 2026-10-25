@@ -219,10 +219,12 @@ Tested in `test/chart-kinds.test.ts` ("a chart's options in the Properties windo
 **More of a square, 2026-10-25** (the user: "more of a square vs long thin scroll?"). A bar chart's options were about
 2,100px tall in a 300px column: three or four windowfuls of scrolling, with Data and Layout never in sight together.
 
-- **Two columns where there is room:** the sections flow into columns at least 216px wide, each section kept whole
-  (`app.css` `column-width`). The window opens about 588px wide beside its chart where that fits, and narrower where
-  it does not, down to one column (`ui/chart-panel.ts` `CHART_WINDOW`, placed by `besideWindow`). Dragging it wider or
-  narrower reflows the columns.
+- **Two columns where there is room:** what the chart reads on the left (Data, More values, Small multiples), how it
+  is drawn on the right (Layout, Reference lines, Labels and legend, Look and interaction), each column at least
+  216px wide (`ui/chart-form.ts` `columns`, `app.css` `.dc-chartpanel-columns`). The columns are fixed, so folding a
+  section never moves another across. The window opens about 588px wide beside its chart where that fits, and
+  narrower where it does not, one column under the other below about 490px (`ui/chart-panel.ts` `CHART_WINDOW`,
+  placed by `besideWindow`).
 - **No taller than it needs:** once its form is painted, the window shrinks to fit it and is placed beside the chart
   again at that height (`ui/chart-panel.ts` `#fit`, through `ui/window.ts` `moveWindow`). This happens once, as it
   opens: a window that changed height with every option would jump under the pointer. It never overrides a size a
@@ -235,7 +237,25 @@ Tested in `test/chart-kinds.test.ts` ("a chart's options in the Properties windo
 At 1400×900 and at 1024×768, a bar chart's options open in two columns beside the chart, about 590 by 720–740 and 500
 by 720–740, with nothing to scroll. Tested in `test/chart-kinds.test.ts` (sections folded to start, kept, and opened by
 a setting), `test/cube-page-shell.test.ts` (the window's size and place) and, in a browser, `demo/verify-charts.mjs`
-(two columns at 480px or wider, and no empty space under the form).
+(two columns at 500px or wider, and no empty space under the form).
+
+**The independent review, 2026-10-25.** Two reviewers who wrote none of it read the chart window, its form and
+Settings… under View ▸ (`c2fba9d27` to `b53f576c2`). They found no blocker. Everything they found is fixed, each fix
+with a test that fails without it:
+
+- **The window's focus:** opened from its chart's right-click, the menu closing put the focus back on the tile, so
+  Escape no longer closed the window. A menu entry that moves the focus now keeps it there (`ui/menu-view.ts`).
+- **Its size:** only a size given with a grip is kept for the next opening. A press on its title bar, or the
+  browser's window shrinking, kept a squeezed size for good (`ui/window.ts` `WindowChange`).
+- **Its fit:** a window dragged or resized before its form painted is no longer fitted over where it was put.
+- **Its place:** beside the chart's whole tile, never over the tile's own title and buttons; kept off the page's
+  scrollbars (`ui/window.ts` `screenOf`).
+- **Raising:** a window already on top is not raised again. Every press raised it, and after about a thousand it
+  rose over the menus.
+- **The form:** a rarer section opens, marked as changed, only for a setting one of its fields shows, never for one
+  it could not take off (smooth lines kept on bars, a band, the second value's target). The segmented choices take
+  Home and End, show their words on a hover, and are ringed when reached by the keyboard, as are the checkboxes.
+- **Settings…** in a lone grid's View ▸ is set apart from the view's own entries.
 
 ### 3. The page's ≡ menu, grouped by purpose
 
@@ -508,7 +528,8 @@ View ▸ (… Keyboard Shortcuts…, Settings…) Create ▸
 of the menus); one icon set for the page's chrome (found 4). Grouped text columns (found 2) kept as they
 are (the user). Built since: Create ▸ on a chart's and a text box's right-click; the tree carets drawn; files in the
 text box, step 1 (§8); then the branch's deep audit and its fixes (above, and the notes in each section). Then the
-chart options as a window beside their chart (§2), and Settings… under View ▸ (§3). Decided, nothing to build: a
+chart options as a window beside their chart (§2), and Settings… under View ▸ (§3), with the independent review's
+fixes (§2). Decided, nothing to build: a
 group's row count shows only once the group is open ("AMER (5)", "500+" past the most rows), never on a closed group
 (the user, 2026-10-25). Known and left: a join being opened when the page Python serves is left keeps the
 table it borrowed from a grid until the tab closes (rare; no test reaches it cheaply).

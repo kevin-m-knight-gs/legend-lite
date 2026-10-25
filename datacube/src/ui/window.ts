@@ -36,8 +36,11 @@ export interface WindowOptions {
   readonly center?: boolean;
   /** A spec to restore instead of computing one. */
   readonly spec?: WindowSpec | undefined;
-  /** Called whenever a drag or resize finishes. */
-  readonly onChange?: (spec: WindowSpec) => void;
+  /**
+   * Called whenever a drag or resize finishes, or a window on the screen is moved back onto it -- saying which: a size a
+   * person gave it is only one `resized` (a press on its title bar settles `moved`, the browser shrinking `screen`).
+   */
+  readonly onChange?: (spec: WindowSpec, by: WindowChange) => void;
   /**
    * Kept on the screen rather than in its container: fixed to the browser's window, its spec in the window's own
    * coordinates, and wholly inside it however it is dragged, resized, or the browser's window shrinks -- a window placed
@@ -46,6 +49,22 @@ export interface WindowOptions {
   readonly viewport?: boolean;
   /** Its listeners let go (a window on the screen listens to the browser's window resizing): when it closes. */
   readonly signal?: AbortSignal;
+}
+
+/** What changed a window: its title bar dragged (or pressed), a grip dragged to a new size, the screen it is kept on. */
+export type WindowChange = 'moved' | 'resized' | 'screen';
+
+/**
+ * The browser window's room for a window kept on the screen: its viewport without the page's scrollbars (`innerWidth`
+ * counts them, and a window at the edge sat under one -- the 2026-10-25 review); the inner size where nothing is laid
+ * out (jsdom).
+ */
+export function screenOf(view: Window): { width: number; height: number } {
+  const root = view.document.documentElement;
+  return {
+    width: root.clientWidth > 0 ? root.clientWidth : view.innerWidth,
+    height: root.clientHeight > 0 ? root.clientHeight : view.innerHeight,
+  };
 }
 
 /** DataCube's own figures (DataCubeLayoutService). */
@@ -90,6 +109,9 @@ const windowStack = new WeakMap<HTMLElement, number>();
  * share it, and so does a chart's options window, so the window touched last is on top whoever opened it.
  */
 export function raiseWindow(win: HTMLElement, host: HTMLElement): void {
+  // already on top: left there -- every press in a window raised it again, and after a thousand or so the page's windows
+  // rose over its menus (z-index 1000; the 2026-10-25 review)
+  if (win.style.zIndex !== '' && Number(win.style.zIndex) === windowStack.get(host)) return;
   const top = (windowStack.get(host) ?? WINDOW_Z_BASE) + 1;
   windowStack.set(host, top);
   win.style.zIndex = String(top);
@@ -251,7 +273,7 @@ export function makeWindow(
   // over it.
   el.classList.add('dc-window');
   const view = doc.defaultView!;
-  const screen = (): { width: number; height: number } => ({ width: view.innerWidth, height: view.innerHeight });
+  const screen = (): { width: number; height: number } => screenOf(view);
   // ON THE SCREEN: fixed, its spec the browser window's coordinates. Where an ancestor makes itself the fixed element's
   // frame instead (a transform, a filter), the frame's corner is measured and taken off, so the window still lands where
   // its spec says on the screen.
@@ -286,7 +308,7 @@ export function makeWindow(
   place(spec);
   made.set(el, { spec: () => spec, place: (next) => place(options.viewport ? onScreen(next, screen()) : next) });
 
-  const settle = (): void => options.onChange?.(spec);
+  const settle = (by: WindowChange): void => options.onChange?.(spec, by);
 
   // ---- dragging ----
   handle.classList.add('dc-window-handle');
@@ -326,7 +348,7 @@ export function makeWindow(
       handle.removeEventListener('pointermove', move);
       handle.removeEventListener('pointerup', up);
       handle.removeEventListener('pointercancel', up);
-      settle();
+      settle('moved');
     };
     handle.setPointerCapture?.(event.pointerId);
     handle.addEventListener('pointermove', move);
@@ -357,7 +379,8 @@ export function makeWindow(
         grip.removeEventListener('pointermove', move);
         grip.removeEventListener('pointerup', up);
         grip.removeEventListener('pointercancel', up);
-        settle();
+        // a press on a grip that changed nothing is no size given
+        settle(spec.width !== from.width || spec.height !== from.height ? 'resized' : 'moved');
       };
       grip.setPointerCapture?.(event.pointerId);
       grip.addEventListener('pointermove', move);
@@ -371,7 +394,7 @@ export function makeWindow(
   if (options.viewport) {
     const keep = (): void => {
       place(onScreen(spec, screen()));
-      settle();
+      settle('screen');
     };
     view.addEventListener('resize', keep);
     // let go by hand, not by `addEventListener`'s own signal: that takes only its window's AbortSignal, and the caller's

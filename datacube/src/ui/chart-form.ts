@@ -130,25 +130,40 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
     h.set({ mark: v }, true);
   })));
   form.append(kind);
-  // which of the rarer sections hold a setting: marked as changed, and open to start
-  const o = spec.options;
+  // which of the rarer sections hold a setting one of their fields shows: marked as changed, and open to start -- never
+  // for a setting no field there shows, which the form could not take off (the 2026-10-25 review)
+  const looks = spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area' || spec.mark === 'scatter';
+  const series = spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area';
   const holds: Readonly<Record<string, boolean>> = {
-    'Small multiples': spec.facet !== undefined,
-    'Reference lines': (spec.layers?.length ?? 0) > 0 || spec.tooltip !== undefined || spec.label !== undefined,
-    'Look and interaction': o.smooth === true || o.step === true || o.logAxis === true || o.decal === true
-      || o.brush === true || o.toolbox === true || o.dim === false || o.zoom !== undefined,
+    'Small multiples': series && spec.facet !== undefined,
+    'Reference lines': series && referencesHold(spec),
+    'Look and interaction': looks && looksHold(spec),
   };
   const folds = h.folds ?? {};
   folds.folded ??= FOLDED_TO_START.filter((title) => !holds[title]);
-  const group = (title: string, ...children: readonly HTMLElement[]): void => {
+  // TWO COLUMNS, each section in its own (the user, 2026-10-25: "more of a square"): what it reads on the left, how it
+  // is drawn on the right -- fixed, so folding one never moves another across, as columns balanced by the browser did
+  // (the 2026-10-25 review); one under the other where the window is narrow (app.css .dc-chartpanel-columns)
+  const sides = [doc.createElement('div'), doc.createElement('div')] as const;
+  for (const side of sides) side.className = 'dc-chartpanel-column';
+  const group = (title: string, side: 0 | 1, ...children: readonly HTMLElement[]): void => {
     if (children.length === 0) return;
     const block = section(doc, title, ...children);
     foldable(doc, folds, block, holds[title] === true);
-    form.append(block);
+    sides[side].append(block);
+  };
+  /** The sections, in their columns, onto the form: an empty column left out, the other then the whole width. */
+  const columns = (): void => {
+    const used = sides.filter((side) => side.childElementCount > 0);
+    if (used.length === 0) return;
+    const both = doc.createElement('div');
+    both.className = 'dc-chartpanel-columns';
+    both.append(...used);
+    form.append(both);
   };
   if (spec.mark === 'kpi') {
     // a number, what it measures, its trend by a column (or none), and a target with which way is good
-    group('Data',
+    group('Data', 0,
       field(doc, 'Value:', dropdown<string>(doc, first?.column, measures.map((c) => ({ value: c.name, label: c.name })),
         (v) => { if (v) h.set({ y: [{ column: v, fn: currentFn() ?? 'sum' }] }, true); })),
       field(doc, 'Aggregate:', dropdown<AggregateFn>(doc, currentFn(), fns, (v) => {
@@ -156,36 +171,38 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
         if (v && now) h.set({ y: [{ column: now.column, fn: v }] });
       })),
       field(doc, 'Trend by:', dropdown<string>(doc, spec.x, dims, (v) => h.set({ x: v ?? null }), { allowNone: true })));
-    group('Target',
+    group('Target', 1,
       field(doc, 'Target:', numberInput(doc, spec.options.target, (v) => h.setOption('target', v ?? null), { width: 110 })),
       choice(h, 'Good when:', spec.options.better ?? 'higher', [
         { value: 'higher', label: 'Above it' },
         { value: 'lower', label: 'Below it' },
       ] as const, (v) => h.setOption('better', v)));
+    columns();
     return;
   }
   if (spec.mark === 'gauge') {
     // one value against its target, the scale's end: a dial, or a progress ring
-    group('Data',
+    group('Data', 0,
       field(doc, 'Value:', dropdown<string>(doc, first?.column, measures.map((c) => ({ value: c.name, label: c.name })),
         (v) => { if (v) h.set({ y: [{ column: v, fn: currentFn() ?? 'sum' }] }, true); })),
       field(doc, 'Aggregate:', dropdown<AggregateFn>(doc, currentFn(), fns, (v) => {
         const now = h.spec()?.y[0];
         if (v && now) h.set({ y: [{ column: now.column, fn: v }] });
       })));
-    group('Target',
+    group('Target', 1,
       field(doc, 'Target:', numberInput(doc, spec.options.target, (v) => h.setOption('target', v ?? null), { width: 110 })),
       choice(h, 'Good when:', spec.options.better ?? 'higher', [
         { value: 'higher', label: 'At or above' },
         { value: 'lower', label: 'At or below' },
       ] as const, (v) => h.setOption('better', v)),
       checkbox(doc, 'As a progress ring', spec.options.ring === true, (v) => setFlag(h, 'ring', v)));
+    columns();
     return;
   }
   if (spec.mark === 'matrix') {
     // rows' values against each other: what they are, and a colour per value of the split
     const numbers = measures.map((c) => ({ value: c.name, label: c.name }));
-    group('Data',
+    group('Data', 0,
       field(doc, 'Value 1:', dropdown<string>(doc, first?.column, numbers, (v) => {
         if (!v || !h.spec()) return;
         h.set({ y: [{ column: v, fn: 'sum' }, ...current(h).y.slice(1)] }, true);
@@ -193,6 +210,7 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
       ...measureRows(h, spec, numbers, typeOf, false),
       field(doc, 'Colour by:', dropdown<string>(doc, spec.split, dims, (v) => h.set({ split: v ?? null }),
         { allowNone: true })));
+    columns();
     return;
   }
   if (GRID_MARKS.has(spec.mark)) {
@@ -317,7 +335,6 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
       }, { min: 1, max: 5000, step: 10, width: 80 })),
     );
   }
-  const looks = spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area' || spec.mark === 'scatter';
   const labels: HTMLElement[] = [
     // a box plot writes none of its five figures on its box (the phase 5 audit), nor a map its values on its places:
     // no checkbox that does nothing
@@ -332,13 +349,14 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
       { value: 'none', label: 'None' },
     ] as const, (v) => h.setOption('legend', v))]),
   ];
-  group('Data', ...data);
-  group('More values', ...more);
-  group('Small multiples', ...multiples);
-  group('Layout', ...layout);
-  group('Reference lines', ...references);
-  group('Labels and legend', ...labels);
-  group('Look and interaction', ...(looks ? lookFields(h, spec) : []));
+  group('Data', 0, ...data);
+  group('More values', 0, ...more);
+  group('Small multiples', 0, ...multiples);
+  group('Layout', 1, ...layout);
+  group('Reference lines', 1, ...references);
+  group('Labels and legend', 1, ...labels);
+  group('Look and interaction', 1, ...(looks ? lookFields(h, spec) : []));
+  columns();
   if (!scatter) {
     const hint = doc.createElement('p');
     hint.className = 'dc-chartpanel-hint';
@@ -522,6 +540,29 @@ function labelFields(h: FormHost, spec: ChartSpec): HTMLElement[] {
   ];
 }
 
+/** Whether the reference lines' fields show a setting (`layerFields`): the first value's target, line, extremes or
+ *  threshold, a value added to the hover, a mark's label. A layer none of them shows -- a band, another value's target,
+ *  both Python's -- is not one. */
+function referencesHold(spec: ChartSpec): boolean {
+  const own = (kind: ChartLayerKind): boolean =>
+    (spec.layers ?? []).some((l) => l.kind !== 'band' && l.kind === kind && (l.measure ?? 0) === 0);
+  return own('line') || own('stat') || own('extremes') || own('threshold') || spec.tooltip?.[0] !== undefined
+    || spec.label !== undefined;
+}
+
+/** Whether a chart draws a line or an area -- the smooth and step options apply to it (`lookFields`). */
+function drawsLines(spec: ChartSpec): boolean {
+  return spec.mark === 'line' || spec.mark === 'area' || spec.y.some((m) => m.mark === 'line' || m.mark === 'area');
+}
+
+/** Whether the look's fields show a setting (`lookFields`): smooth or step only on a chart of lines, a log axis only off
+ *  a scatter -- a setting kept from another kind, with no field to take it off, is not one. */
+function looksHold(spec: ChartSpec): boolean {
+  const o = spec.options;
+  return (drawsLines(spec) && (o.smooth === true || o.step === true)) || (spec.mark !== 'scatter' && o.logAxis === true)
+    || o.dim === false || o.decal === true || o.zoom !== undefined || o.brush === true || o.toolbox === true;
+}
+
 /**
  * THE CHEAPER OPTIONS (batch 2 item 12): how a line is drawn, the value axis, hovering, pattern fills, zoom, brushing,
  * the toolbox. Each an option of the spec, off (or automatic) unless set.
@@ -531,9 +572,8 @@ function lookFields(h: FormHost, spec: ChartSpec): HTMLElement[] {
   const o = spec.options;
   const flag = <K extends 'smooth' | 'step' | 'logAxis' | 'decal' | 'brush' | 'toolbox'>(key: K, text: string): HTMLElement =>
     checkbox(doc, text, o[key] === true, (on) => setFlag(h, key, on));
-  const lines = spec.mark === 'line' || spec.mark === 'area' || spec.y.some((m) => m.mark === 'line' || m.mark === 'area');
   return [
-    ...(lines ? [flag('smooth', 'Smooth lines'), flag('step', 'Step lines')] : []),
+    ...(drawsLines(spec) ? [flag('smooth', 'Smooth lines'), flag('step', 'Step lines')] : []),
     ...(spec.mark !== 'scatter' ? [flag('logAxis', 'Log value axis')] : []),
     checkbox(doc, 'Dim the rest on hover', o.dim !== false, (on) => h.setOption('dim', on ? null : false)),
     flag('decal', 'Pattern fills'),
@@ -574,6 +614,8 @@ function segmented<T extends string>(
     b.textContent = c.label;
     b.setAttribute('role', 'radio');
     b.dataset['value'] = c.value;
+    // its words in full on a hover, where a narrow column cuts them short
+    b.title = c.label;
     return b;
   });
   const show = (chosen: T, focus = false): void => {
@@ -596,10 +638,13 @@ function segmented<T extends string>(
   buttons.forEach((b, i) => {
     b.addEventListener('click', () => choose(choices[i]!.value));
     b.addEventListener('keydown', (e) => {
-      const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
-      if (step === 0) return;
+      // the arrows move the choice and wrap; Home and End go to the first and the last (a radio group's keys)
+      const to = e.key === 'Home' ? 0 : e.key === 'End' ? choices.length - 1
+        : e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (i + 1) % choices.length
+          : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (i - 1 + choices.length) % choices.length : undefined;
+      if (to === undefined) return;
       e.preventDefault();
-      choose(choices[(i + step + choices.length) % choices.length]!.value, true);
+      choose(choices[to]!.value, true);
     });
   });
   group.append(...buttons);

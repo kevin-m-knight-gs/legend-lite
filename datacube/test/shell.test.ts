@@ -232,6 +232,9 @@ describe('the app', () => {
       .find((i) => i.querySelector(':scope > .dc-menu-label')?.textContent === 'View')!;
     const under = [...view.querySelectorAll(':scope > .dc-submenu > .dc-menu-item > .dc-menu-label')].map((l) => l.textContent);
     assert.equal(under[under.length - 1], 'Settings…');
+    // set apart from the view's own entries: the browser's settings, not this grid's view (the 2026-10-25 review)
+    const settings = [...view.querySelectorAll(':scope > .dc-submenu > .dc-menu-item')].at(-1)!;
+    assert.ok(settings.classList.contains('dc-menu-separated'));
   });
 
   // the user, 2026-10-23: a Join ▸ on the right-click, beside Filter -- the host's entries, picked inside the submenu

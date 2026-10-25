@@ -1356,7 +1356,6 @@ export class CubePage {
       shown: () => source().shown(),
       // a detached chart has no grid's filter to put a click on
       onPick: (mark) => { if (link.grid !== null) this.#select(id, mark); },
-      formOpen: false,
       // its options a window among the page's windows, titled by its tile's name
       windowHost: this.#options.windowHost ?? this.#options.host,
       title: () => this.title(id) ?? chartTitle(id),

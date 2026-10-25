@@ -809,7 +809,7 @@ describe("a chart's options in the Properties window's design", () => {
     return { form, told, win: dom.window };
   };
   const titles = (form: HTMLElement): string[] =>
-    [...form.querySelectorAll(':scope > .dc-section > .dc-section-title')].map((t) => t.textContent ?? '');
+    [...form.querySelectorAll('.dc-section > .dc-section-title')].map((t) => t.textContent ?? '');
   const choiceOf = (form: HTMLElement, label: string): HTMLElement => {
     const row = [...form.querySelectorAll('.dc-field')].find((f) => f.querySelector('.dc-field-label')?.textContent === label);
     assert.ok(row, `a field ${label}`);
@@ -828,7 +828,7 @@ describe("a chart's options in the Properties window's design", () => {
       'Look and interaction']);
     // the rarer sections folded to start (the user, 2026-10-25: "more of a square"), the rest open
     const open: Record<string, string> = {};
-    for (const section of form.querySelectorAll(':scope > .dc-section')) {
+    for (const section of form.querySelectorAll('.dc-section')) {
       const title = section.querySelector<HTMLElement>(':scope > .dc-section-title')!;
       assert.ok(section.classList.contains('dc-pe-fold'), `${title.textContent} folds`);
       assert.equal(title.getAttribute('role'), 'button');
@@ -875,6 +875,24 @@ describe("a chart's options in the Properties window's design", () => {
     assert.deepEqual(told.option.slice(-2), [['zoom', true], ['zoom', null]]);
   });
 
+  it("a short choice's Home and End go to its first and last; each choice says its words in full on a hover", () => {
+    const { form, told, win } = paint(of('bar'));
+    const legend = choiceOf(form, 'Legend:');
+    const key = (k: string): void => {
+      legend.querySelector<HTMLButtonElement>('[aria-checked="true"]')!
+        .dispatchEvent(new win.KeyboardEvent('keydown', { key: k, bubbles: true }));
+    };
+    const buttons = [...legend.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
+    key('End');
+    assert.deepEqual(chosen(legend), [buttons.at(-1)!.textContent]);
+    assert.equal(win.document.activeElement, buttons.at(-1), 'the focus with the choice');
+    assert.deepEqual(told.option.at(-1), ['legend', buttons.at(-1)!.dataset['value']]);
+    key('Home');
+    assert.deepEqual(chosen(legend), [buttons[0]!.textContent]);
+    assert.equal(win.document.activeElement, buttons[0]);
+    for (const b of form.querySelectorAll<HTMLButtonElement>('.dc-segment')) assert.equal(b.title, b.textContent);
+  });
+
   it('a section opened or folded stays so as the form is painted again (its panel keeps which)', () => {
     const folds: { folded?: string[] } = {};
     const title = (form: HTMLElement, text: string): HTMLElement =>
@@ -892,17 +910,54 @@ describe("a chart's options in the Properties window's design", () => {
     assert.ok(title(again, 'Reference lines').parentElement!.classList.contains('dc-folded'), 'the others as they started');
   });
 
+  const sectionIn = (form: HTMLElement, text: string): HTMLElement =>
+    [...form.querySelectorAll<HTMLElement>('.dc-section-title')].find((t) => t.textContent === text)!.parentElement!;
+  const opens = (form: HTMLElement, text: string): boolean => {
+    const section = sectionIn(form, text);
+    const open = !section.classList.contains('dc-folded');
+    assert.equal(section.querySelector('.dc-section-title > .dc-pe-changed') !== null, open, `${text}: marked as it opens`);
+    return open;
+  };
+
   it('a rarer section holding a setting starts open, marked as changed; one holding none starts folded, unmarked', () => {
-    const { form } = paint(of('bar', { facet: { column: 'channel' }, options: { ...OPTIONS, smooth: true } }));
-    const section = (text: string): HTMLElement =>
-      [...form.querySelectorAll<HTMLElement>('.dc-section-title')].find((t) => t.textContent === text)!.parentElement!;
-    for (const text of ['Small multiples', 'Look and interaction']) {
-      assert.ok(!section(text).classList.contains('dc-folded'), `${text} open`);
-      assert.ok(section(text).querySelector('.dc-section-title > .dc-pe-changed'), `${text} marked`);
-    }
-    assert.ok(section('Reference lines').classList.contains('dc-folded'));
-    assert.equal(section('Reference lines').querySelector('.dc-pe-changed'), null);
-    assert.equal(section('Data').querySelector('.dc-pe-changed'), null, 'a section always open is never marked');
+    const { form } = paint(of('line', { facet: { column: 'channel' }, options: { ...OPTIONS, smooth: true } }));
+    assert.ok(opens(form, 'Small multiples'));
+    assert.ok(opens(form, 'Look and interaction'));
+    assert.ok(!opens(form, 'Reference lines'));
+    assert.equal(sectionIn(form, 'Data').querySelector('.dc-pe-changed'), null, 'a section always open is never marked');
+  });
+
+  it('a setting no field in the section shows is no reason to open it: it could not be taken off there (the 2026-10-25 review)', () => {
+    // smooth kept from a line chart, on bars with no line among them: the form shows no Smooth lines to clear
+    assert.ok(!opens(paint(of('bar', { options: { ...OPTIONS, smooth: true, step: true } })).form, 'Look and interaction'));
+    // a bar chart with a value drawn as a line shows it, so it opens
+    assert.ok(opens(paint(of('bar', { y: [REVENUE_SUM, { column: 'cost', fn: 'sum', mark: 'line' }],
+      options: { ...OPTIONS, smooth: true } })).form, 'Look and interaction'));
+    // a log axis kept on a scatter, which has no Log value axis to clear
+    assert.ok(!opens(paint(of('scatter', { y: [REVENUE_SUM, { column: 'cost', fn: 'sum' }],
+      options: { ...OPTIONS, logAxis: true } })).form, 'Look and interaction'));
+    // a band, and the second value's target: Python's layers, no field here
+    assert.ok(!opens(paint(of('bar', { layers: [{ kind: 'band', axis: 'y', from: 0, to: 10 }] })).form, 'Reference lines'));
+    assert.ok(!opens(paint(of('bar', { y: [REVENUE_SUM, { column: 'cost', fn: 'sum' }],
+      layers: [{ kind: 'line', value: 5, measure: 1 }] })).form, 'Reference lines'));
+    // the first value's own target is a field, so it opens
+    assert.ok(opens(paint(of('bar', { layers: [{ kind: 'line', value: 5 }] })).form, 'Reference lines'));
+  });
+
+  it('two columns, fixed: what it reads on the left, how it is drawn on the right; a kind with one side, one column', () => {
+    const columnsOf = (form: HTMLElement): string[][] =>
+      [...form.querySelectorAll(':scope > .dc-chartpanel-columns > .dc-chartpanel-column')]
+        .map((c) => [...c.querySelectorAll(':scope > .dc-section > .dc-section-title')].map((t) => t.textContent ?? ''));
+    const { form } = paint(of('bar', { y: [REVENUE_SUM, { column: 'cost', fn: 'sum', mark: 'line' }] }));
+    assert.equal(form.querySelectorAll(':scope > .dc-chartpanel-columns').length, 1);
+    assert.deepEqual(columnsOf(form), [['Data', 'More values', 'Small multiples'],
+      ['Layout', 'Reference lines', 'Labels and legend', 'Look and interaction']]);
+    // folding one moves none across
+    sectionIn(form, 'Data').querySelector<HTMLElement>('.dc-section-title')!.click();
+    assert.deepEqual(columnsOf(form)[0], ['Data', 'More values', 'Small multiples']);
+    assert.deepEqual(columnsOf(paint(of('kpi')).form), [['Data'], ['Target']]);
+    assert.deepEqual(columnsOf(paint(of('matrix', { y: [REVENUE_SUM, { column: 'cost', fn: 'sum' }] })).form), [['Data']],
+      'its one side the whole width');
   });
 
   it("a KPI: its data and its target, which way is good a choice of two", () => {

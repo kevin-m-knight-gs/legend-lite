@@ -154,6 +154,23 @@ describe('MenuView', () => {
     assert.equal(doc.activeElement, tile);
   });
 
+  it('an entry that put the focus somewhere of its own (a window it opened) leaves it there (the 2026-10-25 review)', () => {
+    const origin = doc.getElementById('origin') as HTMLElement;
+    const win = doc.createElement('div');
+    win.tabIndex = -1;
+    doc.body.append(win);
+    origin.focus();
+    const opening = new MenuView(doc, { onSelect: () => win.focus() });
+    opening.show(GROUPS, 10, 10);
+    (doc.querySelector('.dc-menu [role^="menuitem"]') as HTMLElement).click();
+    assert.equal(doc.querySelector('.dc-menu'), null, 'closed');
+    assert.equal(doc.activeElement, win, 'the window keeps the focus');
+    // an entry that moves nothing: back where it came from, as before
+    view.show(GROUPS, 10, 10);
+    (doc.querySelector('.dc-menu [role^="menuitem"]') as HTMLElement).click();
+    assert.equal(doc.activeElement, win, 'back where it came from: the window, focused when this menu opened');
+  });
+
   it('closes an already-open menu before opening another', () => {
     view.show(GROUPS, 10, 10);
     view.show(GROUPS, 50, 50);

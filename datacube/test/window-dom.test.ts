@@ -7,6 +7,9 @@ import { beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 import {
   makeWindow,
+  raiseWindow,
+  screenOf,
+  type WindowChange,
 } from '../src/ui/window.ts';
 
 describe('a window in the DOM', () => {
@@ -136,6 +139,57 @@ describe('a window kept on the screen (viewport)', () => {
     Object.defineProperty(dom.window, 'innerWidth', { value: 400, configurable: true });
     dom.window.dispatchEvent(new dom.window.Event('resize'));
     assert.equal(told.length, 1, 'closed: no more');
+  });
+
+  it('tells what changed it: a drag or a press on its title bar moved, a grip resized (or moved, where no size changed), the browser the screen', () => {
+    // a chart's options keep a size only a grip gave (the 2026-10-25 review)
+    const told: WindowChange[] = [];
+    makeWindow(el, head, el.parentElement!, {
+      viewport: true, spec: { x: 100, y: 100, width: 280, height: 400 }, minWidth: 100, minHeight: 100,
+      onChange: (_spec, by) => told.push(by),
+    });
+    pointer(head, 'pointerdown', 110, 110);
+    pointer(head, 'pointerup', 110, 110);
+    pointer(head, 'pointerdown', 110, 110);
+    pointer(head, 'pointermove', 150, 110);
+    pointer(head, 'pointerup', 150, 110);
+    const east = el.querySelector('.dc-window-e')!;
+    pointer(east, 'pointerdown', 420, 300);
+    pointer(east, 'pointermove', 460, 300);
+    pointer(east, 'pointerup', 460, 300);
+    pointer(east, 'pointerdown', 460, 300);
+    pointer(east, 'pointerup', 460, 300);
+    dom.window.dispatchEvent(new dom.window.Event('resize'));
+    assert.deepEqual(told, ['moved', 'moved', 'resized', 'moved', 'screen']);
+  });
+
+  it("kept off the page's scrollbars: the screen is the viewport without them where it is laid out", () => {
+    // the 2026-10-25 review: innerWidth counts a scrollbar, and a window at the edge sat under it
+    const root = dom.window.document.documentElement;
+    Object.defineProperty(root, 'clientWidth', { value: W - 15, configurable: true });
+    Object.defineProperty(root, 'clientHeight', { value: H - 15, configurable: true });
+    assert.deepEqual(screenOf(dom.window as unknown as Window), { width: W - 15, height: H - 15 });
+    makeWindow(el, head, el.parentElement!, { viewport: true, spec: { x: 900, y: 700, width: 280, height: 400 } });
+    assert.deepEqual(placed(), [W - 15 - 280, H - 15 - 400, 280, 400]);
+    // where nothing is laid out, the browser window's inner size
+    Object.defineProperty(root, 'clientWidth', { value: 0, configurable: true });
+    Object.defineProperty(root, 'clientHeight', { value: 0, configurable: true });
+    assert.deepEqual(screenOf(dom.window as unknown as Window), { width: W, height: H });
+  });
+
+  it('raised, on top of the windows sharing its host; raised again while on top, left as it is', () => {
+    // the 2026-10-25 review: every press in a window raised it again, and after a thousand or so it rose over the menus
+    const host = el.parentElement!;
+    const other = dom.window.document.createElement('div');
+    host.append(other);
+    raiseWindow(el, host);
+    const first = Number(el.style.zIndex);
+    for (let i = 0; i < 50; i++) raiseWindow(el, host);
+    assert.equal(Number(el.style.zIndex), first, 'on top already: unchanged');
+    raiseWindow(other, host);
+    assert.ok(Number(other.style.zIndex) > first, 'the other above it');
+    raiseWindow(el, host);
+    assert.ok(Number(el.style.zIndex) > Number(other.style.zIndex), 'and it above the other again');
   });
 
   it('lands where its spec says on the screen inside an ancestor that frames fixed elements (a transform)', () => {

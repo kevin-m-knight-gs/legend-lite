@@ -185,8 +185,13 @@ export class MenuView {
     if (item.id !== undefined && !item.disabled) {
       el.addEventListener('click', (event) => {
         event.stopPropagation();
+        const menu = this.#el;
         this.#options.onSelect(item);
-        this.close();
+        // the entry put the focus somewhere of its own, outside the menu -- a window it opened -- and it stays there,
+        // not back where the menu came from (the 2026-10-25 review: a chart's Properties… lost its window's focus to
+        // the tile, and Escape no longer closed it)
+        const now = focusedElement(this.#doc);
+        this.close(now !== null && now !== this.#doc.body && menu?.contains(now) !== true);
       });
     } else {
       el.addEventListener('click', (event) => event.stopPropagation());
@@ -211,7 +216,8 @@ export class MenuView {
     this.close();
   };
 
-  close(): void {
+  /** Put the menu away, the focus back where it came from -- unless `keepFocus` (an entry moved it on). */
+  close(keepFocus = false): void {
     if (!this.#el) return;
     this.#doc.removeEventListener('pointerdown', this.#onOutside, true);
     this.#doc.removeEventListener('keydown', this.#onEscape, true);
@@ -228,7 +234,7 @@ export class MenuView {
     // dropped. This is the second place that bit; it is a property of
     // cross-realm DOM, not of any one call site.
     const back = this.#returnFocus as { focus?: unknown; disabled?: unknown; parentElement?: HTMLElement | null } | null;
-    if (back && typeof back.focus === 'function') {
+    if (!keepFocus && back && typeof back.focus === 'function') {
       // an entry that disabled the button it was opened from (a grid's Snap, while it snaps): focus in what holds it
       // instead, or it falls to the body (the 2026-10-25 audit)
       const holder = back.disabled === true ? back.parentElement?.closest<HTMLElement>('[tabindex]') : null;

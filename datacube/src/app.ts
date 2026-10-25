@@ -148,6 +148,7 @@ import { MenuView } from './ui/menu-view.ts';
 import { chromeIcon, paintState, stateButton, toolIcon, type ToolIcon } from './ui/tile-icons.ts';
 import { longPressMenus } from './ui/long-press.ts';
 import { makeWindow, raiseWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
+import { isTextEntry } from './focus.ts';
 import {
   PivotPanel,
   currentHeaderDrag,
@@ -4557,8 +4558,8 @@ export class CubeApp {
   /**
    * The hamburger's menu, built as it opens (Undo knows whether there is anything to undo):
    * Data...; Undo and Redo; the cube as a file (Save, Save As, Open, Share, Export, Email); View
-   * and Insert a level down; Settings. Where the planner runs is the status bar's readout. A host's entries go where their `section` says, File unless
-   * named; an empty group or submenu is not shown.
+   * and Insert a level down, the app's Settings… last in View, a line apart. Where the planner runs is the status bar's
+   * readout. A host's entries go where their `section` says, File unless named; an empty group or submenu is not shown.
    */
   /** A host's entries for one place (`MenuItem.section`, the file group unless named). */
   #hostItems(section: 'file' | 'view' | 'data' | 'create' | 'plane'): MenuItem[] {
@@ -4593,7 +4594,7 @@ export class CubeApp {
       { label: '', items: [...host('file'), ...this.#outputItems()] },
       // HOW IT IS SHOWN, and the app's Settings… -- this browser's, not this grid's Properties (the user, 2026-10-25:
       // under View, as the page's ≡ has them)
-      { label: '', items: submenu('View', [...this.#viewItems(), ...host('view'), { id: 'view.settings', label: 'Settings…' }]) },
+      { label: '', items: submenu('View', [...this.#viewItems(), ...host('view'), { id: 'view.settings', label: 'Settings…', separated: true }]) },
     ];
     return groups.filter((g) => g.items.length > 0);
   }
@@ -4800,27 +4801,6 @@ export class CubeApp {
 
 }
 
-/**
- * Whether the event landed in something the user types into.
- *
- * contenteditable counts: it is a text field that simply is not an
- * input element, and a check that only looked at tag names would
- * hand the cube's undo to someone mid-word.
- */
-function isTextEntry(target: EventTarget | null): boolean {
-  if (!target || typeof (target as Element).closest !== 'function') {
-    return false;
-  }
-  const el = target as HTMLElement;
-  const tag = el.tagName;
-  return (
-    tag === 'INPUT'
-    || tag === 'TEXTAREA'
-    || tag === 'SELECT'
-    || el.isContentEditable === true
-    || el.closest('[contenteditable="true"]') !== null
-  );
-}
 
 /** The selection statistics' numbers where their columns share no format. */
 const STATS_FORMAT: ColumnFormat = { kind: 'number', maximumFractionDigits: 2 };
