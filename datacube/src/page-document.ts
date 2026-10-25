@@ -32,6 +32,7 @@ import { readPageFilters, type PageFilter } from './page-filters.ts';
 import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
 import { textProblem } from './page-text-rule.ts';
+import { readTextFiles, type TextFile } from './text-files.ts';
 
 export const PAGE_KIND = 'datacube.page';
 /**
@@ -69,6 +70,8 @@ export interface TextView {
   readonly text: string;
   /** Its own title; else it is numbered (page-ids.ts textTitle). */
   readonly title?: string;
+  /** The files it shows beside its words (text-files.ts: pointed to, never copied); left out when none. */
+  readonly files?: readonly TextFile[];
   /** It shows no cube: read off any view, a text tile's cube is undefined. */
   readonly cube?: never;
 }
@@ -101,7 +104,7 @@ export const oneSheet = (layout: PageLayout): readonly PageSheet[] => [{ id: FIR
  * THE VIEWS A PAGE STARTS WITH, on its one sheet: a new sheet's empty board (bands.ts NEW_SHEET), or with a grid
  * (`grid`: its view's id and its cube's) added to it as any first tile is (bands.ts add: the whole board). The one
  * writer of a starting page: a cube app's page of its grid alone (app.ts pageViews), a cube saved before pages opened as
- * a page (app/datacube-app.ts), and a new page (newPage: Python's and the tab's Blank Page), whose first grid the same add
+ * a page (app/datacube-app.ts), and a new page (newPage: Python's and the tab's New Page), whose first grid the same add
  * places.
  */
 export function startingViews(grid?: { readonly id: string; readonly cube: string }): PageViews {
@@ -114,7 +117,7 @@ export function startingViews(grid?: { readonly id: string; readonly cube: strin
 /**
  * A NEW PAGE, the one skeleton (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D11, B9): no cube yet, its one sheet an empty
  * board (startingViews), unnamed ('': shown as "Untitled page", Save suggesting its first sheet's name) unless `name` is
- * given. Python's new page (headless page.ts pageNew) and the tab's Blank Page (PageApp.clear) both start from it.
+ * given. Python's new page (headless page.ts pageNew) and the tab's New Page (PageApp.clear) both start from it.
  */
 export function newPage(name = ''): PageDocument {
   return writePageOf({ name, cubes: [], views: startingViews() });
@@ -732,7 +735,13 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
     const problem = textProblem(v['text']);
     if (problem !== null) throw new PageDocumentError(`text ${id}: ${problem}`);
     if (v['title'] !== undefined && !named('tile', v['title'])) throw new PageDocumentError(`text ${id}'s title is blank`);
-    return { id, kind: 'text', text: v['text'] as string, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}) };
+    // its files by the one rule (text-files.ts readTextFiles); none written, none read
+    const files = v['files'] === undefined ? [] : readTextFiles(v['files']);
+    if (typeof files === 'string') throw new PageDocumentError(`text ${id}: ${files}`);
+    return {
+      id, kind: 'text', text: v['text'] as string, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}),
+      ...(files.length > 0 ? { files } : {}),
+    };
   }
   if (typeof v['cube'] !== 'string' || !cubes.has(v['cube'])) {
     throw new PageDocumentError(`view ${id} shows no cube of this page`);

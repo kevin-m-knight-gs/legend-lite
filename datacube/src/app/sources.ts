@@ -387,6 +387,11 @@ export function pageSources(d: SourcesOf): PageSources {
   const readForGrids = new Map<string, { readonly table: string; readonly file: File; readonly handle?: FileHandle }>();
   /** When each table a file was read into was read, by the table: what a grid of copies held here says of them. */
   const readAt = new Map<string, Date>();
+  /**
+   * Tables a join opening reads that a grid holds, by how many such joins: kept -- even once that grid goes, with the page
+   * it was on -- until the join's grid is made (then its own) or the join is let go (JoinSourcesHost.borrow).
+   */
+  const borrowed = new Map<string, number>();
 
   const madeGrid = (id: string, place: GridPlace): void => {
     // its own planner: let go with the last grid planning through it (a snap's copy lets its own go with it)
@@ -420,7 +425,7 @@ export function pageSources(d: SourcesOf): PageSources {
     const read = new Set([...live].flatMap((grid) => gridTables.get(grid) ?? []));
     for (const grid of [...gridTables.keys()]) if (!live.has(grid)) gridTables.delete(grid);
     for (const [table, fileName] of [...held]) {
-      if (read.has(table)) continue;
+      if (read.has(table) || borrowed.has(table)) continue;
       held.delete(table);
       tableFiles.delete(table);
       readAt.delete(table);
@@ -850,8 +855,24 @@ export function pageSources(d: SourcesOf): PageSources {
       local, database, services, fileFor, freshTable, joinRead, readAt, typer, letGo, gridMaker, rowsPlace,
       snapTarget: () => snapInto(local),
       readFile: (sha) => {
+        // the page opening's own copy first: the page it replaces may hold a table of the same file, which goes with it --
+        // a join that took that one read a table dropped under it (Chart gallery, then Joining tables: "sample_sales does
+        // not exist"; docs/DATACUBE_UI_REVIEW_2026_10_24.md, found 1)
+        const mine = readForGrids.get(sha);
+        if (mine !== undefined) return mine;
         const open = [...tableFiles].find(([, f]) => f.sha256 === sha) ?? [...joinRead].find(([, r]) => r.sha256 === sha);
-        return open ? { table: open[0], file: open[1].file, ...(open[1].handle ? { handle: open[1].handle } : {}) } : readForGrids.get(sha);
+        return open ? { table: open[0], file: open[1].file, ...(open[1].handle ? { handle: open[1].handle } : {}) } : undefined;
+      },
+      borrow: (t) => {
+        borrowed.set(t, (borrowed.get(t) ?? 0) + 1);
+        let back = false;
+        return () => {
+          if (back) return;
+          back = true;
+          const n = (borrowed.get(t) ?? 1) - 1;
+          if (n > 0) borrowed.set(t, n);
+          else borrowed.delete(t);
+        };
       },
       take: (t) => { taken.add(t); },
       untake: (t) => { taken.delete(t); },

@@ -46,7 +46,7 @@ import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-
 import { valueList } from './ui/value-list.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
-import { columnKind, headerSorts, type GridDraft } from './grid-edits.ts';
+import { columnKind, headerSorts, isMeasureLeaf, type GridDraft } from './grid-edits.ts';
 import { applyGridCommands, draftCommands, type GridCommand } from './grid-commands.ts';
 import {
   gridGesture, gridGestureGiven, type GestureArgs, type GestureGrid, type GridGestureArgs, type GridGestureName,
@@ -145,8 +145,10 @@ import {
   type MenuItem,
 } from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
+import { chromeIcon, paintState, stateButton, toolIcon, type ToolIcon } from './ui/tile-icons.ts';
 import { longPressMenus } from './ui/long-press.ts';
-import { makeWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
+import { makeWindow, raiseWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
+import { isTextEntry } from './focus.ts';
 import {
   PivotPanel,
   currentHeaderDrag,
@@ -428,6 +430,13 @@ function timingText(view: CubeView, cols: number): string {
 }
 
 /**
+ * Views landed in this document, every cube's in one count: a status bar's readout says which it shows (`data-view`),
+ * so a script waiting for the next sees it change -- across a cube built in the place of another, whose own count would
+ * start again where the last one's did.
+ */
+let viewsLanded = 0;
+
+/**
  * What a cube tells whoever listens (`CubeApp#on`): a page, a pinned chart and the host can all
  * listen at once, where the options' callbacks had room for one (plan F6, blocker #5).
  */
@@ -444,11 +453,6 @@ export interface CubeEvents {
    *  tells it, as its snap or live command. Told before `plane`. */
   readonly moved: readonly [];
 }
-
-/** The z-index windows start from, above the cube's own layers. */
-const WINDOW_Z_BASE = 20;
-/** The top of each window host's stack of windows (`CubeApp#raise`). */
-const windowStack = new WeakMap<HTMLElement, number>();
 
 /**
  * Which cube on a document a keystroke from OUTSIDE every cube belongs to: the one last
@@ -577,8 +581,14 @@ export class CubeApp {
   /** Every id the board has held, kept when it goes (its last chart gone): a board made again gives none of them out
    *  again (the S3 audit's 3). */
   #boardHeld: readonly string[] = [];
-  /** The grid's part of its tile's header (`tileHead`). */
+  /** The grid's part of its tile's header (`tileHead`): its zones' way back, while they are folded. */
   readonly #tileHeadEl: HTMLElement;
+  /** Its state left of its tile's title (`tileState`): Live or Snapped, a click its snap menu. */
+  readonly #tileStateEl: HTMLButtonElement;
+  /** A move of its plane under way (`#movePlane`): its state's controls wait. */
+  #planeMoving = false;
+  /** What it reads and where its rows are, in words, at the start of its status bar's readout while it is in a tile. */
+  readonly #statusSourceEl: HTMLElement;
   /** Where the grid lives when there is no board. */
   #middle: HTMLElement | null = null;
   #newColumns = 0;
@@ -619,10 +629,12 @@ export class CubeApp {
   #selection: CellRange | null = null;
   /** Where selection statistics are written, inside the status bar. */
   #statsSlot: HTMLElement | null = null;
-  /** Repaints the plane toggle, which is now the only plane badge. */
+  /** The view its status bar's readout last said, and its number among the views landed (`viewsLanded`): its
+   *  `data-view`, which a script waits on. */
+  #readoutView: CubeView | null = null;
+  #readoutViewNumber = 0;
+  /** Repaints the plane toggle of a grid alone (its title bar's); a grid in a tile says its plane in `#tileStateEl`. */
   #paintSnap: (() => void) | null = null;
-  /** Switch plane as the button does (a retry after signing in again); null with no toggle. */
-  #planeToggle: (() => void) | null = null;
   /** The Receipts window's body while it is open (`#paintReceipts`). */
   #receiptsBody: HTMLElement | null = null;
   /** Ad Hoc Analysis mode while it is on; the cube's own grid is hidden then. */
@@ -664,6 +676,17 @@ export class CubeApp {
     root.classList.add('dc-app');
     this.#tileHeadEl = this.#doc.createElement('span');
     this.#tileHeadEl.className = 'dc-tile-cube';
+    this.#tileStateEl = stateButton(this.#doc);
+    this.#statusSourceEl = this.#doc.createElement('div');
+    this.#statusSourceEl.className = 'dc-status-source';
+    this.#tileStateEl.addEventListener('click', () => {
+      const plane = this.#plane();
+      if (!plane.toggles || this.#planeMoving) return;
+      // a snapped grid goes live or takes a fresh copy; a live one snaps
+      this.#toggleMenu(this.#tileStateEl, () => [{ label: '', items: plane.snapped
+        ? [{ id: 'plane.live' as const, label: 'Go Live' }, { id: 'plane.snap' as const, label: 'Snap Again' }]
+        : [{ id: 'plane.snap' as const, label: 'Snap' }] }]);
+    });
     // a grid in a page's tile: the page has the title bar
     root.classList.toggle('dc-compact', this.#options.compact === true);
     this.#controlsHidden = this.#options.controlsHidden === true;
@@ -701,7 +724,9 @@ export class CubeApp {
     zoneBar.append(this.#zoneFold());
     const middle = this.#div(root, 'dc-app-middle');
     this.#middle = middle;
-    middle.append(this.#els.grid);
+    // what runs, as a thin bar along the grid's top edge while it runs (the user, 2026-10-25): it was a bordered box in
+    // the status bar, there and empty when nothing ran
+    middle.append(this.#progress, this.#els.grid);
     const side = this.#doc.createElement('div');
     side.className = 'dc-app-side';
     middle.append(side);
@@ -786,6 +811,7 @@ export class CubeApp {
       formats: this.#formats,
       appearance: this.#config.appearance,
       columnAppearance: toColumnAppearance(this.#config),
+      isMeasure: (leaf) => isMeasureLeaf({ snapshot: this.#shown, config: this.#config }, leaf),
       canGroup: (c) => this.#isDimension(c),
       onReorder: (order, added) => {
         // A COLUMN DRAGGED OUT OF THE PANEL INTO THE GRID IS A
@@ -1440,7 +1466,7 @@ export class CubeApp {
     this.#renderStatusBar(view, model.leaves.length);
     // The snapshot's row count is in the toggle's tooltip, and a
     // fresh snap changes it.
-    this.#paintSnap?.();
+    this.#paintPlane();
 
     const base = timingText(view, model.leaves.length);
     if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
@@ -1457,81 +1483,75 @@ export class CubeApp {
   }
 
   /**
-   * Their status bar: a 20px strip, right-aligned, carrying the row
-   * count in a monospaced face and the truncation warning in orange.
+   * Its status bar, a 20px strip: what you can do and what the grid shows at the left, what is true of it at the right
+   * (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §5). The left: the grid's tools as icons --
+   * Properties, Filter, Add Column, Join -- then its rows or groups, then the selection's figures. The right: a chip
+   * only where there is something to say -- where its rows come from, a filter or a top N in force, the page's filter,
+   * a note, a cut result -- then what answered it (ⓘ) and the host's word.
    *
-   * Monospaced because the number changes as you expand the tree,
-   * and a proportional figure jitters its neighbours every time it
-   * does. The separators are theirs too -- a 1px by 12px neutral
-   * rule between groups rather than padding alone.
+   * Tabular figures (app.css): the count changes as the tree expands, and a proportional figure jitters its
+   * neighbours every time it does.
    */
   #renderStatusBar(view: CubeView, cols: number): void {
     // Ad Hoc owns the bar while it is on (`#renderAdHocStatus`)
     if (this.#adhoc) return;
     const doc = this.#doc;
-
-// WHAT YOU CAN DO ON THE LEFT, WHAT IS TRUE ON THE RIGHT.
-    //
-    // DataCube's own bar is `justify-between` with two link buttons
-    // at the left -- a settings icon and an underlined "Properties",
-    // then a filter icon and an underlined "Filter" -- and its
-    // readouts at the right. Ours had one link and every figure
-    // crowded after it.
-    //
-    // Both editors were reachable only through the grid's
-    // right-click menu, two levels down, and a person looking for
-    // them did not find them.
     const { left, right } = this.#statusFrame();
 
-    const properties = doc.createElement('button');
-    properties.type = 'button';
-    properties.className = 'dc-status-link dc-status-properties';
-    properties.textContent = '\u2699 Properties';
-    properties.title = 'The cube\u2019s settings (Ctrl+E)';
-    properties.addEventListener('click', () => this.openEditor());
-    left.append(properties);
+    // THE GRID'S TOOLS, as icons: both editors were reachable only through the right-click, two levels down, and a
+    // person looking for them did not find them; then they were underlined links, the one place the app looked like a
+    // 2005 web page. What it says is of the view shown, as its readout is -- not of a change still running (the
+    // 2026-10-25 audit: Top 10 beside the last query's rows, its x acting on what was not shown yet)
+    const filtered = view.snapshot.filter !== undefined;
+    const tools = doc.createElement('div');
+    tools.className = 'dc-status-tools';
+    tools.append(
+      this.#tool('properties', 'dc-status-properties', 'Properties', 'The grid’s properties (Ctrl+E)', () => this.openEditor()),
+      // a filter in force is state, not decoration: the funnel says so, and so does its chip
+      this.#tool('filter', `dc-status-filter${filtered ? ' dc-on' : ''}`, 'Filter',
+        filtered ? 'Filter: one is in force; click to edit it' : 'Filter the grid', () => this.openFilters()),
+      this.#tool('addColumn', 'dc-status-add-column', 'Add Column', 'Add a calculated column', () => this.openColumnEditor({})),
+    );
+    if (this.#options.joinMenu) tools.append(this.#joinTool());
+    left.append(tools, this.#statusSeparator());
 
-    // The filter SAYS whether one is in force. A cube showing a
-    // subset with nothing on screen to indicate it is how someone
-    // reads a filtered total as the whole book.
-    const filtered = this.#snapshot.filter !== undefined;
-    const filter = doc.createElement('button');
-    filter.type = 'button';
-    filter.className = filtered
-      ? 'dc-status-link dc-status-filter dc-on'
-      : 'dc-status-link dc-status-filter';
-    filter.textContent = filtered ? '⧨ Filter (on)' : '⧨ Filter';
-    filter.title = filtered
-      ? 'A filter is in force. Click to edit it.'
-      : 'Filter the cube';
-    filter.addEventListener('click', () => this.openFilters());
-    left.append(filter);
+    // WHAT THE LAST QUERY RETURNED, and what it cost: its own figures, nothing summed or guessed (the user, 2026-10-25:
+    // "just show stats/num rows of the last query"); for a script, the rows on screen and which view this is
+    const rows = this.#readout(left, timingText(view, cols));
+    rows.title = 'What the last query returned -- its rows and columns -- and how long it took';
+    rows.dataset['rows'] = String(view.rows.rowCount);
+    if (this.#readoutView !== view) {
+      this.#readoutView = view;
+      viewsLanded += 1;
+      this.#readoutViewNumber = viewsLanded;
+    }
+    rows.dataset['view'] = String(this.#readoutViewNumber);
+    const stats = doc.createElement('div');
+    stats.className = 'dc-status-stats';
+    left.append(stats);
+    this.#statsSlot = stats;
+    this.#renderSelectionStats();
+
+    // WHAT IS TRUE OF IT, each only while it is: where its rows come from (a grid in a tile -- its header shows its
+    // title and its state's icon alone), then what narrows them
+    if (this.#inTile) right.append(this.#statusSourceEl);
+    if (filtered) {
+      right.append(this.#chip('dc-status-filtered', 'Filtered', 'A filter is in force: click to edit it', () => this.openFilters()));
+    }
+    const top = view.snapshot.topN;
+    if (top !== undefined) {
+      const word = `${top.bottom ? 'Bottom' : 'Top'} ${top.n}`;
+      const by = labelFor(this.#config, top.by);
+      right.append(this.#chip('dc-status-topn', `${word} by ${by}`,
+        `Only the ${top.n} ${top.bottom ? 'smallest' : 'largest'} by ${by}`,
+        undefined, { label: `Clear ${word}`, act: () => void this.#gesture('filter.topNOff', {}, `clear ${word}`) }));
+    }
     // the page's filters on it (a dashboard's: setLens), in words -- each tile says what filters it
     if (this.#lensSaid !== undefined) {
-      const page = doc.createElement('span');
-      page.className = 'dc-status-page-filter';
-      page.textContent = `Page: ${this.#lensSaid}`;
-      page.title = 'The page\u2019s filters on this grid\u2019s class: set and taken off in the page\u2019s filter bar';
-      left.append(page);
+      right.append(this.#chip('dc-status-page-filter', `Page: ${this.#lensSaid}`,
+        'The page’s filters on this grid’s class: set and taken off in the page’s filter bar'));
     }
-
-    // THE RESULT, AND WHAT IT COST, in the one bar that is already
-    // about the result.
-    //
-    // This said "Rows: 29" while the same figure -- plus the column
-    // count and the elapsed time -- went to the host through
-    // `onStatus` and was rendered ABOVE the grid, in the strip that
-    // should say what you are looking at. Two readouts of one fact,
-    // the fuller one in the wrong place. The cube states it here
-    // itself, so a host gets a timing readout without wiring one,
-    // and `onStatus` still fires for hosts that want their own.
-    const rows = this.#readout(right, timingText(view, cols));
-    rows.title = 'Rows and columns in the result, and how long the '
-      + 'query took.';
-    this.#receiptChip(right, view);
-
     if (this.#note !== undefined) {
-      right.append(this.#statusSeparator());
       const note = doc.createElement('div');
       note.className = 'dc-status-note';
       note.setAttribute('role', 'status');
@@ -1542,32 +1562,108 @@ export class CubeApp {
       const away = doc.createElement('button');
       away.type = 'button';
       away.className = 'dc-status-note-close';
-      away.textContent = '×';
+      away.append(chromeIcon(doc, 'close'));
       away.setAttribute('aria-label', 'Put the note away');
       away.addEventListener('click', () => this.note(undefined));
       note.append(said, away);
       right.append(note);
     }
-
     if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
-      right.append(this.#statusSeparator());
       const warn = doc.createElement('div');
-      warn.className = 'dc-status-warning';
+      warn.className = 'dc-status-chip dc-status-warning';
       const cap = (this.#config.maxRows ?? DEFAULT_MAX_ROWS).toLocaleString(UI_LOCALE);
       // a flat cube says how many there are in all (cube.ts `totalRows`): the first 1,000 of 48,213
       warn.textContent = view.totalRows !== undefined
-        ? `⚠ Showing the first ${cap} of ${view.totalRows.toLocaleString(UI_LOCALE)} rows (row limit)`
-        : `⚠ Results truncated to fit within row limit (${cap})`;
+        ? `⚠ Showing the first ${cap} of ${view.totalRows.toLocaleString(UI_LOCALE)} rows`
+        : `⚠ Truncated at ${cap} rows`;
+      warn.title = `The row limit (${cap}, in Properties) cut the result: what is not shown is in no total either`;
       right.append(warn);
     }
+    this.#receiptChip(right, view);
+    // the host's word, last (what runs is a bar on the grid's top edge: `#progress`)
+    this.#adoptHostStatus();
+  }
 
-    const stats = doc.createElement('div');
-    stats.className = 'dc-status-stats';
-    right.append(this.#statusSeparator(), stats);
-    this.#statsSlot = stats;
-    this.#renderSelectionStats();
+  /** One of the status bar's tools: its icon, its name (for a screen reader and a test), what it does on hover. */
+  #tool(icon: ToolIcon, className: string, label: string, tip: string, act: () => void): HTMLButtonElement {
+    const button = this.#doc.createElement('button');
+    button.type = 'button';
+    button.className = `dc-status-tool ${className}`;
+    const said = this.#doc.createElement('span');
+    said.className = 'dc-status-tool-word';
+    said.textContent = label;
+    button.append(toolIcon(this.#doc, icon), said);
+    button.title = tip;
+    button.addEventListener('click', () => {
+      if (button.getAttribute('aria-disabled') !== 'true') act();
+    });
+    return button;
+  }
 
-    this.#statusTail(right);
+  /**
+   * Join, its host's (`joinMenu`): its right-click's Join ▸ on no column -- Join…, Join a Data Source… -- opened under
+   * it. Greyed, with the host's reason, where nothing can be joined: asked as the pointer or the focus reaches it,
+   * never at a paint -- the host builds its page's document to answer, and keeps what each entry asks until one is
+   * picked, which an open menu's entries need kept.
+   */
+  #joinTool(): HTMLButtonElement {
+    const tip = 'Join another table to this grid’s rows';
+    const ask = (): readonly MenuItem[] | null => {
+      const items = this.#options.joinMenu?.(undefined) ?? [];
+      // its answer to a pick is the host's (#onHostAction), as a right-click's Join ▸ is
+      this.#cellHost = items;
+      const why = items.every((i) => i.disabled === true)
+        ? items.find((i) => i.hint !== undefined)?.hint ?? 'Nothing on this page can be joined to it'
+        : undefined;
+      if (why === undefined) {
+        button.removeAttribute('aria-disabled');
+        button.title = tip;
+      } else {
+        button.setAttribute('aria-disabled', 'true');
+        button.title = `Join: ${why}`;
+      }
+      return why === undefined ? items : null;
+    };
+    const button = this.#tool('join', 'dc-status-join', 'Join', tip, () => {
+      const items = ask();
+      if (items !== null) this.#toggleMenu(button, () => [{ label: '', items: [...items] }]);
+    });
+    button.setAttribute('aria-haspopup', 'menu');
+    const peek = (): void => {
+      if (!this.#menu.open) ask();
+    };
+    button.addEventListener('pointerenter', peek);
+    button.addEventListener('focus', peek);
+    return button;
+  }
+
+  /**
+   * A chip at the right of the status bar: something true of the grid, in a word or two, the rest on hover. `act`: a
+   * click does it (the filter's opens the filter); `close`: a × that takes it away.
+   */
+  #chip(className: string, text: string, tip: string, act?: () => void,
+    close?: { readonly label: string; readonly act: () => void }): HTMLElement {
+    const doc = this.#doc;
+    let chip: HTMLElement = doc.createElement('span');
+    if (act) {
+      const button = doc.createElement('button');
+      button.type = 'button';
+      button.addEventListener('click', act);
+      chip = button;
+    }
+    chip.className = `dc-status-chip ${className}`;
+    chip.textContent = text;
+    chip.title = tip;
+    if (!close) return chip;
+    const away = doc.createElement('button');
+    away.type = 'button';
+    away.className = 'dc-status-chip-close';
+    away.append(chromeIcon(doc, 'close'));
+    away.setAttribute('aria-label', close.label);
+    away.title = close.label;
+    away.addEventListener('click', close.act);
+    chip.append(away);
+    return chip;
   }
 
   /**
@@ -1582,11 +1678,16 @@ export class CubeApp {
     chip.type = 'button';
     chip.className = `dc-status-receipt dc-receipt-${main.copy ? 'copy' : main.plane}`;
     const more = view.receipts.length > 1 ? ` (+${view.receipts.length - 1})` : '';
-    chip.textContent = `${receiptLabel(main)}${more}`;
+    // AN ⓘ, its words on hover (the user, 2026-10-25): "this tab (+1)" meant nothing to a person who had not read the
+    // receipts' design; its words stay its name, for a screen reader and a test
+    const said = this.#doc.createElement('span');
+    said.className = 'dc-status-tool-word';
+    said.textContent = `${receiptLabel(main)}${more}`;
+    chip.append(toolIcon(this.#doc, 'info'), said);
     chip.title = `${receiptLines(main).join('\n')}\n\nClick for every query's receipt`
       + (main.check ? ', and to check it with the server.' : '.');
     chip.addEventListener('click', () => this.openReceipts());
-    right.append(this.#statusSeparator(), chip);
+    right.append(chip);
   }
 
   /** Every receipt behind the view on screen, each checkable with its server where it can be. */
@@ -1670,23 +1771,13 @@ export class CubeApp {
     return { left, right };
   }
 
-  /** The row and column readout, at the start of the right side. */
-  #readout(right: HTMLElement, text: string): HTMLElement {
+  /** What the last query returned, after its tools (`timingText`). */
+  #readout(left: HTMLElement, text: string): HTMLElement {
     const rows = this.#doc.createElement('div');
     rows.className = 'dc-status-rows dc-status-timing';
     rows.textContent = text;
-    right.append(rows);
+    left.append(rows);
     return rows;
-  }
-
-  /**
-   * The end of every status bar: upstream's task progress (a bar while anything runs, what is
-   * running in its tooltip; the same element every rebuild, so a task that outlives a view
-   * keeps showing), then the host's own readout.
-   */
-  #statusTail(right: HTMLElement): void {
-    right.append(this.#statusSeparator(), this.#progress);
-    this.#adoptHostStatus();
   }
 
   /**
@@ -1695,9 +1786,9 @@ export class CubeApp {
    * it (P2-287), and the counts were the hidden cube's (P2-290).
    */
   #renderAdHocStatus(rows: number, cols: number, stale: boolean): void {
-    const { right } = this.#statusFrame();
-    this.#readout(right, `${rows.toLocaleString(UI_LOCALE)} rows \u00d7 ${cols} cols${stale ? ' (not refreshed)' : ''}`);
-    this.#statusTail(right);
+    const { left } = this.#statusFrame();
+    this.#readout(left, `${rows.toLocaleString(UI_LOCALE)} rows \u00d7 ${cols} cols${stale ? ' (not refreshed)' : ''}`);
+    this.#adoptHostStatus();
   }
 
   /**
@@ -2265,6 +2356,13 @@ export class CubeApp {
         return;
       case 'view.shortcuts':
         this.showShortcuts();
+        return;
+      // its tile's state menu: live again, or a copy snapped (afresh, when one is held)
+      case 'plane.live':
+        void this.#movePlane('live');
+        return;
+      case 'plane.snap':
+        void this.#movePlane('snap');
         return;
       case 'view.controls':
         this.setControlsHidden(!this.#controlsHidden);
@@ -2953,7 +3051,10 @@ export class CubeApp {
     body.append(...parts);
     const page = new CubePage({
       host,
-      grid: { element: body, source: this.chartSource(), head: this.#tileHeadEl },
+      // a chart's options float where this cube's windows do
+      windowHost: this.#options.windowHost ?? root,
+      grid: { element: body, source: this.chartSource(), head: this.#tileHeadEl, state: this.#tileStateEl,
+        ...(this.tileAbout() !== undefined ? { about: this.tileAbout()! } : {}) },
       onChange: () => this.#pageChanged(),
       // its edits applied to its page's state by the page commands' one rule, told, the board put at what they make (P13)
       onPageEdit: (edit) => this.#pageEdit(edit),
@@ -3373,7 +3474,7 @@ export class CubeApp {
   async #planeMoved(): Promise<void> {
     await this.#owner.refresh();
     this.#settlePlane();
-    this.#paintSnap?.();
+    this.#paintPlane();
     this.#emit('plane');
   }
 
@@ -3489,6 +3590,8 @@ export class CubeApp {
     });
     this.#adhoc = mode;
     this.#els.root.classList.add('dc-adhoc-on');
+    // what runs, along Ad Hoc's top edge while it is on: the grid's own is hidden with it (the 2026-10-25 audit)
+    host.prepend(this.#progress);
     middle.hidden = true;
     this.#els.zoneBar.hidden = true;
     await mode.refresh();
@@ -3506,6 +3609,7 @@ export class CubeApp {
       if (key.startsWith('Member Selection: ') || key === 'Ad Hoc Options') this.#closeWindow(key);
     }
     this.#els.root.classList.remove('dc-adhoc-on');
+    (this.#els.grid.parentElement as HTMLElement).prepend(this.#progress);
     (this.#els.grid.parentElement as HTMLElement).hidden = false;
     this.#applyChrome();
     // the cube's own status bar back
@@ -3893,7 +3997,7 @@ export class CubeApp {
         this.#closeWindow('Sign in');
         this.#status(`signed in again as ${expired.principal}`, 'ok');
         // what failed runs again: the view (going live, or the refused change) and every chart
-        if (this.#controller.snaps.isSnapped) this.#planeToggle?.();
+        if (this.#controller.snaps.isSnapped && this.#plane().toggles) void this.#movePlane('live');
         else {
           // the refused change run again: its commands on the grid as it is now (what was made since kept), told as they
           // land; one an undo was part of, as it was asked for -- no command says the undo (G13; the S1 audit's 8, 9)
@@ -4080,7 +4184,7 @@ export class CubeApp {
     const shut = this.#doc.createElement('button');
     shut.type = 'button';
     shut.className = 'dc-overlay-close';
-    shut.textContent = '\u00d7';
+    shut.append(chromeIcon(this.#doc, 'close'));
     shut.setAttribute('aria-label', `Close ${title}`);
     shut.addEventListener('click', close);
     head.append(h, shut);
@@ -4104,12 +4208,9 @@ export class CubeApp {
 
   /** Put a window above every other. */
   #raise(win: HTMLElement): void {
-    // one stack per place windows float: several cubes sharing a `windowHost` share it too,
-    // so the window touched last is on top whichever cube opened it
-    const host = this.#options.windowHost ?? this.#els.root;
-    const top = (windowStack.get(host) ?? WINDOW_Z_BASE) + 1;
-    windowStack.set(host, top);
-    win.style.zIndex = String(top);
+    // one stack per place windows float (ui/window.ts raiseWindow): several cubes sharing a `windowHost` share it,
+    // and so do the page's charts' options, so the window touched last is on top whoever opened it
+    raiseWindow(win, this.#options.windowHost ?? this.#els.root);
   }
 
   /** Close one window, by its title. */
@@ -4221,7 +4322,7 @@ export class CubeApp {
     burger.className = 'dc-titlebar-menu';
     burger.setAttribute('aria-label', 'Menu');
     burger.setAttribute('aria-haspopup', 'menu');
-    burger.textContent = '\u2261';
+    burger.append(chromeIcon(doc, 'menu'));
     burger.addEventListener('click', () => {
       // A second press on the hamburger SHUTS it: the outside-press dismissal would close the
       // menu and the click that follows reopen it, so the button would appear to do nothing.
@@ -4269,71 +4370,111 @@ export class CubeApp {
     // no local store (the engine) is live with no snap on offer. Either
     // way it still states the plane, and a click does nothing -- a Live
     // that only answers with a refusal, or a Snap of a copy, was a lie.
+    const paint = (): void => {
+      const plane = this.#plane();
+      snap.textContent = plane.word;
+      snap.title = plane.tip;
+      snap.classList.toggle('dc-on', plane.snapped);
+      snap.classList.toggle('dc-fixed', !plane.toggles);
+      if (plane.toggles) snap.removeAttribute('aria-disabled');
+      else snap.setAttribute('aria-disabled', 'true');
+      snap.disabled = this.#planeMoving;
+    };
+    this.#paintSnap = paint;
+    if (this.#plane().toggles) {
+      snap.addEventListener('click', () => void this.#movePlane(this.#controller.snaps.isSnapped ? 'live' : 'snap'));
+    }
+    paint();
+    host.append(snap);
+    return host;
+  }
+
+  /**
+   * WHERE ITS ROWS ARE, as its pill and its tile's state say it: Snapped or Live, whether the person can move it, and the
+   * whole truth on hover -- WHEN a snap was frozen and HOW MANY rows it holds (rule 1 of snap mode: what you are looking
+   * at is never inferable).
+   *
+   * It moves only where both planes exist: a live source elsewhere (a warehouse, a remote file) and a store in this tab
+   * to snap into. Rows already held in the tab are a snap from the start; a plane with no local store (the engine) is
+   * live with no snap on offer -- a Live that only answers with a refusal, or a Snap of a copy, was a lie.
+   */
+  #plane(): { readonly snapped: boolean; readonly toggles: boolean; readonly word: string; readonly tip: string } {
     const held = this.#options.heldCopy;
     // the page's own store, or its host's (Python's page: hostSnap)
     const canSnap = (this.#options.runner === undefined && this.#options.snapTarget !== undefined)
       || (this.#options.runner !== undefined && this.#options.hostSnap !== undefined);
-    if (held !== undefined || !canSnap) {
-      snap.textContent = held !== undefined ? 'Snapped' : 'Live';
-      snap.classList.toggle('dc-on', held !== undefined);
-      snap.classList.add('dc-fixed');
-      snap.setAttribute('aria-disabled', 'true');
-      snap.title = held !== undefined
-        ? `${held.label} — copied into this tab at ${held.takenAt.toLocaleTimeString(UI_LOCALE)}` +
-          `${held.rowCount !== undefined ? `, ${held.rowCount.toLocaleString(UI_LOCALE)} rows` : ''}. ` +
-          'Nothing can change it while you work.'
-        : describePlane({ mode: 'live' }, { remote: false, toggles: false }).title;
-      host.append(snap);
-      this.#paintSnap = null;
-    } else {
-      const paint = (): void => {
-        const state = this.#controller.snaps.state;
-        snap.classList.toggle('dc-on', state.mode === 'snapped');
-        // Where the data is, when Live is a warehouse: the plane is a place (the wording every app shares)
-        const host = this.#options.runner !== undefined && this.#options.hostSnap !== undefined;
-        const remote = host || (this.#options.runner === undefined && this.#options.live !== undefined);
-        const described = describePlane(state, { remote, toggles: true,
-          ...(host ? { store: this.#options.hostSnap!.store } : {}) });
-        snap.textContent = described.text;
-        snap.title = described.title;
-      };
-      this.#paintSnap = paint;
-      this.#planeToggle = () => snap.click();
-      snap.addEventListener('click', () => {
-        // held while the page converges: the plane is the keeper's to put back, nothing moves
-        if (this.#held > 0) {
-          this.#status(CATCHING_UP, 'warn');
-          return;
-        }
-        snap.disabled = true;
-        // moved (its page tells it), or refused (nothing moved)
-        const done = (moved: boolean): void => {
-          snap.disabled = false;
-          this.#settlePlane();
-          paint();
-          if (moved) this.#emit('moved');
-          this.#emit('plane');
-        };
-        // The PLANE changes, the cube's state does not: freeze (or release)
-        // what is on screen, then the owner re-runs it -- not an undo step.
-        // The new plane holds only once it has ANSWERED: a refused re-run puts
-        // the old plane back, so the badge never names a plane the rows are
-        // not from (a dead warehouse left a dropped snap's rows under "Live").
-        const rerun = () => this.#owner.refresh();
-        // the copy into the tab comes before the re-run, which is when the owner turns busy: counted from the click
-        const work = this.#check(this.#controller.snaps.isSnapped
-          ? this.#controller.goLive(rerun)
-          : this.#controller.snapAndRun(this.#owner.committed.snapshot, rerun));
-        work.then(() => done(true), (e: unknown) => {
-          this.#status(e instanceof Error ? e.message : String(e), 'error');
-          done(false);
-        });
-      });
-      paint();
-      host.append(snap);
+    if (held !== undefined) {
+      return { snapped: true, toggles: false, word: 'Snapped', tip: `${held.label} — copied into this tab at ${held.takenAt.toLocaleTimeString(UI_LOCALE)}`
+        + `${held.rowCount !== undefined ? `, ${held.rowCount.toLocaleString(UI_LOCALE)} rows` : ''}. Nothing can change it while you work.` };
     }
-    return host;
+    if (!canSnap) return { snapped: false, toggles: false, word: 'Live', tip: describePlane({ mode: 'live' }, { remote: false, toggles: false }).title };
+    const state = this.#controller.snaps.state;
+    // Where the data is, when Live is a warehouse: the plane is a place (the wording every app shares)
+    const host = this.#options.runner !== undefined && this.#options.hostSnap !== undefined;
+    const remote = host || (this.#options.runner === undefined && this.#options.live !== undefined);
+    const described = describePlane(state, { remote, toggles: true, ...(host ? { store: this.#options.hostSnap!.store } : {}) });
+    return { snapped: state.mode === 'snapped', toggles: true, word: described.text, tip: described.title };
   }
+
+  /**
+   * THE PLANE MOVED BY THE PERSON: live again, or a copy snapped -- afresh, when one is held (Snap Again). Held while the
+   * page converges; the new plane holds only once it has ANSWERED: a refused re-run puts the old plane back, so the state
+   * never names a plane the rows are not from (a dead warehouse left a dropped snap's rows under "Live"). The PLANE
+   * changes, the cube's state does not: freeze (or release) what is on screen, then the owner re-runs it -- not an undo
+   * step.
+   */
+  async #movePlane(to: 'live' | 'snap'): Promise<void> {
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return;
+    }
+    if (this.#planeMoving || !this.#plane().toggles) return;
+    if (to === 'live' && !this.#controller.snaps.isSnapped) return;
+    this.#planeMoving = true;
+    this.#paintPlane();
+    // moved (its page tells it), or refused (nothing moved)
+    const done = (moved: boolean): void => {
+      this.#planeMoving = false;
+      this.#settlePlane();
+      this.#paintPlane();
+      if (moved) this.#emit('moved');
+      this.#emit('plane');
+    };
+    const rerun = () => this.#owner.refresh();
+    // the copy into the tab comes before the re-run, which is when the owner turns busy: counted from the click
+    await this.#check(to === 'live'
+      ? this.#controller.goLive(rerun)
+      : this.#controller.snapAndRun(this.#owner.committed.snapshot, rerun)).then(() => done(true), (e: unknown) => {
+      this.#status(e instanceof Error ? e.message : String(e), 'error');
+      done(false);
+    });
+  }
+
+  /** Its plane said again: a grid alone's pill, and its tile's state. */
+  #paintPlane(): void {
+    this.#paintSnap?.();
+    this.#paintTileState();
+  }
+
+  /**
+   * ITS STATE LEFT OF ITS TILE'S TITLE (ui/tile-icons.ts; the user, 2026-10-25): Live quiet, Snapped accented, what it
+   * reads and when it was frozen on hover; a click, where its plane can move, opens its menu (Snap; or Go Live, Snap
+   * Again).
+   */
+  #paintTileState(): void {
+    const plane = this.#plane();
+    const source = this.#sourceName();
+    const tip = plane.snapped ? plane.tip.replace(/ Click to go live\.$/, ' Click to go live, or to snap again.')
+      : `${source !== undefined ? `Reads ${source}. ` : ''}${plane.tip}`;
+    paintState(this.#tileStateEl, plane.snapped ? 'snapped' : 'live', plane.word, tip, { menu: plane.toggles, off: !plane.toggles });
+    this.#tileStateEl.disabled = this.#planeMoving;
+    // and in its status bar, in words
+    const reads = this.#statusSourceEl;
+    reads.dataset['state'] = plane.snapped ? 'snapped' : 'live';
+    reads.textContent = source !== undefined ? `${source} \u00b7 ${plane.word}` : plane.word;
+    reads.title = plane.tip;
+  }
+
 
   /** What this grid reads, as a person names it: a file, a table, a copy in this tab. */
   #sourceName(): string | undefined {
@@ -4371,15 +4512,28 @@ export class CubeApp {
     return this.#tileHeadEl;
   }
 
+  /** Its state, for the left of its tile's title (or a lone grid's sheet tab): Live or Snapped. */
+  tileState(): HTMLElement {
+    return this.#tileStateEl;
+  }
+
+  /** What it reads, as its tile's title says on hover: "Reads trades.csv". */
+  tileAbout(): string | undefined {
+    const source = this.#sourceName();
+    return source !== undefined ? `Reads ${source}` : undefined;
+  }
+
   #paintTileHead(): void {
     const head = this.#tileHeadEl;
     head.replaceChildren();
+    this.#paintTileState();
     if (!this.#inTile) return;
-    const source = this.#sourceName();
-    if (source !== undefined) head.append(this.#sourceTag(source));
-    // no menu button of its own (the user, 2026-10-23): its right-click has all a grid's menu had
-    head.append(this.#snapPill());
-    // the zones' way back LAST: in a page's bar, a lone grid's header ends the strip, above the zone bar's own fold
+    // a grid alone become a tile (a second grid on its page): its status bar says its source from now, not at its next view
+    const readout = this.#els.stats.querySelector('.dc-status-readout');
+    if (readout && !this.#statusSourceEl.isConnected) readout.prepend(this.#statusSourceEl);
+    // its source is its title's hover and its status bar's words, its plane its state left of its title (the user,
+    // 2026-10-25); no menu button of its own (2026-10-23): its right-click has all a grid's menu had. The zones' way back:
+    // in a page's bar, a lone grid's header ends the strip, above the zone bar's own fold
     if (!this.#config.showDragZones) head.append(this.#zonesBack());
   }
 
@@ -4404,8 +4558,8 @@ export class CubeApp {
   /**
    * The hamburger's menu, built as it opens (Undo knows whether there is anything to undo):
    * Data...; Undo and Redo; the cube as a file (Save, Save As, Open, Share, Export, Email); View
-   * and Insert a level down; Settings. Where the planner runs is the status bar's readout. A host's entries go where their `section` says, File unless
-   * named; an empty group or submenu is not shown.
+   * and Insert a level down, the app's Settings… last in View, a line apart. Where the planner runs is the status bar's
+   * readout. A host's entries go where their `section` says, File unless named; an empty group or submenu is not shown.
    */
   /** A host's entries for one place (`MenuItem.section`, the file group unless named). */
   #hostItems(section: 'file' | 'view' | 'data' | 'create' | 'plane'): MenuItem[] {
@@ -4432,13 +4586,15 @@ export class CubeApp {
         { id: 'page.arrange' as const, label: 'Arrange\u2026', ...(this.#page.page.editing ? {} : { disabled: true }) },
         { id: 'page.undoLayout' as const, label: 'Undo Layout', ...(this.#page.page.canUndoLayout ? {} : { disabled: true }) },
         { id: 'page.redoLayout' as const, label: 'Redo Layout', ...(this.#page.page.canRedoLayout ? {} : { disabled: true }) },
-        { id: 'page.editLayout' as const, label: 'Edit Layout', checked: this.#page.page.editing },
+        // a switch says what it will do, and flips (the menus, docs/DATACUBE_UI_REVIEW_2026_10_24.md)
+        { id: 'page.editLayout' as const, label: this.#page.page.editing ? 'Done Editing Layout' : 'Edit Layout' },
       ] }] : []),
       { label: '', items: host('data') },
       { label: '', items: this.#undoItems() },
       { label: '', items: [...host('file'), ...this.#outputItems()] },
-      { label: '', items: [...submenu('View', [...this.#viewItems(), ...host('view')])] },
-      { label: '', items: [{ id: 'view.settings', label: 'Settings...' }] },
+      // HOW IT IS SHOWN, and the app's Settings… -- this browser's, not this grid's Properties (the user, 2026-10-25:
+      // under View, as the page's ≡ has them)
+      { label: '', items: submenu('View', [...this.#viewItems(), ...host('view'), { id: 'view.settings', label: 'Settings…', separated: true }]) },
     ];
     return groups.filter((g) => g.items.length > 0);
   }
@@ -4458,9 +4614,9 @@ export class CubeApp {
       // WHAT UNDO ACTS ON: Ad Hoc's session while it is on, never the hidden cube's history
       // (P2-284). Disabled rather than hidden when there is nothing to go back to: a shortcut
       // that silently does nothing cannot be told from one that is broken.
-      { id: 'view.undo', label: 'Undo',
+      { id: 'view.undo', label: 'Undo', shortcut: 'Ctrl+Z',
         ...((this.#adhoc ? this.#adhoc.session.canUndo : this.#owner.canUndo) ? {} : { disabled: true }) },
-      { id: 'view.redo', label: 'Redo',
+      { id: 'view.redo', label: 'Redo', shortcut: 'Ctrl+Shift+Z',
         ...((this.#adhoc ? this.#adhoc.session.canRedo : this.#owner.canRedo) ? {} : { disabled: true }) },
     ];
   }
@@ -4481,7 +4637,7 @@ export class CubeApp {
   #viewItems(): MenuItem[] {
     // The cube's own entries are not offered while Ad Hoc is on: they changed the hidden cube
     // and nothing visible (P2-289).
-    return [{ id: 'view.properties', label: 'Properties...', ...(this.#adhoc ? { disabled: true } : {}) }];
+    return [{ id: 'view.properties', label: 'Properties…', shortcut: 'Ctrl+E', ...(this.#adhoc ? { disabled: true } : {}) }];
   }
 
   /**
@@ -4645,27 +4801,6 @@ export class CubeApp {
 
 }
 
-/**
- * Whether the event landed in something the user types into.
- *
- * contenteditable counts: it is a text field that simply is not an
- * input element, and a check that only looked at tag names would
- * hand the cube's undo to someone mid-word.
- */
-function isTextEntry(target: EventTarget | null): boolean {
-  if (!target || typeof (target as Element).closest !== 'function') {
-    return false;
-  }
-  const el = target as HTMLElement;
-  const tag = el.tagName;
-  return (
-    tag === 'INPUT'
-    || tag === 'TEXTAREA'
-    || tag === 'SELECT'
-    || el.isContentEditable === true
-    || el.closest('[contenteditable="true"]') !== null
-  );
-}
 
 /** The selection statistics' numbers where their columns share no format. */
 const STATS_FORMAT: ColumnFormat = { kind: 'number', maximumFractionDigits: 2 };

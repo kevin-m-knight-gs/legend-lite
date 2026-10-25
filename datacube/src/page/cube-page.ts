@@ -31,7 +31,8 @@
 
 import { ChartPanel } from '../ui/chart-panel.ts';
 import { MenuView } from '../ui/menu-view.ts';
-import type { MenuItem } from '../ui/menu.ts';
+import { createItems, type MenuItem } from '../ui/menu.ts';
+import { chromeIcon, closeMark, paintState, stateButton } from '../ui/tile-icons.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
@@ -55,6 +56,9 @@ import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { lazily } from '../lazily.ts';
+import { sha256 } from '../cube-document.ts';
+import { isFileHandle, pickTextFiles, type FileHandle, type HandleRead } from '../file-handles.ts';
+import { TEXT_FILE_EXTENSIONS, TEXT_FILE_SHOWN, bytesWords, csvSeparator, pickedRefusal, textFileFormat, type TextFile } from '../text-files.ts';
 
 /** How many arrangements Undo Layout goes back through. */
 const LAYOUT_STEPS = 50;
@@ -150,8 +154,12 @@ export interface SpawnedGrid {
   on(event: 'view' | 'change' | 'plane' | 'moved', fn: () => void): () => void;
   /** The copy it reads (a snap), as its page writes it down; undefined: it reads its rows live. */
   readonly copy?: GridCopy | undefined;
-  /** Its part of its tile's header: its source, its Live/Snapped pill, its menu. */
+  /** Its part of its tile's header, at its right: its zones' way back, while they are folded. */
   tileHead(): HTMLElement;
+  /** Its state, left of its tile's title: Live or Snapped (a lone grid's, in its sheet's tab). */
+  tileState(): HTMLElement;
+  /** What it reads, said on its tile's title's hover: "Reads trades.csv". */
+  tileAbout(): string | undefined;
   /** The grid as a saved cube, named `name`: undefined when it cannot say its source. */
   cubeDocument?(name: string): CubeDocument | undefined;
 }
@@ -159,6 +167,8 @@ export interface SpawnedGrid {
 export interface CubePageOptions {
   /** Where the board goes. */
   readonly host: HTMLElement;
+  /** Where the page's windows float, above its tiles: a chart's options among its grids' windows. Default: `host`. */
+  readonly windowHost?: HTMLElement;
   /**
    * The cube's own grid, when the board is a cube's (a CubeApp alone): its first tile, not removable -- the cube is the
    * host's. A page of its own has none: every grid is added alike.
@@ -166,8 +176,12 @@ export interface CubePageOptions {
   readonly grid?: {
     readonly element: HTMLElement;
     readonly source: ChartSource;
-    /** The grid's own part of its tile's header: its source, its Live/Snapped pill. */
+    /** The grid's own part of its tile's header: its zones' way back. */
     readonly head?: HTMLElement;
+    /** Its state, left of its tile's title: Live or Snapped. */
+    readonly state?: HTMLElement;
+    /** What it reads, said on its title's hover. */
+    readonly about?: string;
   };
   /** The page changed: a tile, its title, its layout, a chart's spec or selection, a grid's own state. */
   readonly onChange: () => void;
@@ -180,6 +194,21 @@ export interface CubePageOptions {
   readonly onTiles?: () => void;
   /** A grid's Settings saved: every grid on the page takes them (a page of its own). */
   readonly onSettingsChanged?: (values: SettingValues) => void;
+  /**
+   * A text box's file read again, by its fingerprint (text-files.ts: a page points to its files): from the handle the
+   * host kept for this page in this browser (file-handles.ts) -- `click` saying whether a person's click asks, the only
+   * place the browser lets a page ask. Absent, or nothing kept: the text box asks for the file again.
+   */
+  readonly textFile?: (sha256: string, click: boolean) => Promise<HandleRead | undefined>;
+  /** A text box's file picked again (its own name's Open…) with the handle the browser gave: kept by the host now, for
+   *  the saved page it is -- the page unchanged, no save would keep it (the 2026-10-25 audit). */
+  readonly keepTextFile?: (sha256: string, handle: FileHandle) => void;
+  /** What the board refuses before it tells a command (a file too big to read, of a kind a text box does not show), said
+   *  as the page's refusals are; absent, on its board. */
+  readonly refuse?: (words: string) => void;
+  /** Create ▸ Data Source… from a chart's or a text box's right-click: the host's picker, a grid over what is picked
+   *  beside `near` (a page of its own: page-app.ts addSource); absent, a tile's Create ▸ offers none, as a grid's. */
+  readonly addSource?: (near: string) => void;
   /**
    * How a grid like `from` -- over its source -- is made, starting at `snapshot` (and `configuration`, given; else
    * `from`'s): Copy of Grid, and the grid of a chart's own grouping Show Grid makes. A page of its own makes every grid
@@ -282,7 +311,15 @@ const STARTING_TEXT = 'Double-click to write here.';
 /** A text tile on the board: its words as the page has them, its body, and whether its editor is open. */
 interface TextTile {
   text: string;
+  /** The files it shows beside its words (text-files.ts), as the page has them. */
+  files: readonly TextFile[];
+  /** The file its tabs show, by its fingerprint; null: its own words. */
+  shown: string | null;
+  /** Its words as last drawn, shown or not (a file's tab in front): what an export writes. */
+  drawn: HTMLElement | null;
   readonly body: HTMLElement;
+  /** Its pencil, left of its title: a click edits its words. */
+  readonly edit: HTMLButtonElement;
   editing: boolean;
 }
 
@@ -298,6 +335,37 @@ interface ChartTile {
   told: string;
   /** Whether the page has it: a chart made with no spec yet has not, until its first one (#tellSpec). */
   added: boolean;
+}
+
+/**
+ * A drawn text block as an export's lines (page-text.ts textElement): a list's items each after its mark (a task's box
+ * as `[x]`), those under an item indented; code a line a line; a quote's lines after `>`; a table's rows, their cells
+ * between `|`; a rule `---`; any other block its words.
+ */
+export function textLines(block: Element): string[] {
+  const nested = (el: Element): boolean => /^(UL|OL|BLOCKQUOTE|PRE|DIV|P|HR)$/.test(el.tagName);
+  switch (block.tagName) {
+    case 'UL':
+    case 'OL': {
+      const start = Number(block.getAttribute('start') ?? '1');
+      return [...block.children].flatMap((li, i) => {
+        const box = li.querySelector<HTMLInputElement>(':scope > input[type=checkbox]');
+        const mark = `${block.tagName === 'OL' ? `${start + i}.` : '-'}${box ? (box.checked ? ' [x]' : ' [ ]') : ''}`;
+        const words = [...li.childNodes].filter((n) => n.nodeType !== 1 || !nested(n as Element)).map((n) => n.textContent ?? '').join('');
+        return [`${mark} ${words}`, ...[...li.children].filter(nested).flatMap(textLines).map((l) => `  ${l}`)];
+      });
+    }
+    case 'PRE':
+      return (block.textContent ?? '').split('\n');
+    case 'BLOCKQUOTE':
+      return [...block.children].flatMap(textLines).map((l) => `> ${l}`);
+    case 'HR':
+      return ['---'];
+    case 'DIV':
+      return [...block.querySelectorAll('tr')].map((tr) => [...tr.children].map((c) => c.textContent ?? '').join(' | '));
+    default:
+      return [block.textContent ?? ''];
+  }
 }
 
 export class CubePage {
@@ -331,6 +399,9 @@ export class CubePage {
   readonly #grids = new Map<string, GridTile>();
   /** The text tiles (page-text.ts): each one's words as the page has them, its body, whether its editor is open. */
   readonly #texts = new Map<string, TextTile>();
+  /** The text boxes' files read this session, by fingerprint, and the handle each was picked with where the browser
+   *  gave one: shown without asking again, and their handles kept when the page is saved (`textFilesNow`). */
+  readonly #textFiles = new Map<string, { readonly file: File; readonly handle?: FileHandle }>();
   /** Grids removed from the board while a frozen chart still reads them: kept, off the board, to run its query. */
   readonly #kept = new Map<string, SpawnedGrid>();
   /** Each grid's title as it was made, so a saved page writes only a title someone gave it. */
@@ -369,6 +440,8 @@ export class CubePage {
       title: GRID_TILE_TITLE,
       element: own.element,
       actions: own.head ? [own.head] : [],
+      ...(own.state ? { state: own.state } : {}),
+      ...(own.about !== undefined ? { about: own.about } : {}),
       // the cube is the host's: the page's document is this grid's cube
       removable: false,
     });
@@ -671,11 +744,15 @@ export class CubePage {
         const title = view.kind === 'grid' ? view.title ?? this.#titles.get(view.id)
           : view.kind === 'text' ? view.title ?? textTitle(view.id) : view.title;
         if (title !== undefined && sheet.board.title(view.id) !== title) sheet.board.rename(view.id, title);
-        // a text tile's words as the step has them, drawn unless its editor is open
+        // a text tile's words and files as the step has them, drawn unless its editor is open
         const text = this.#texts.get(view.id);
-        if (text && view.kind === 'text' && text.text !== view.text) {
+        if (text && view.kind === 'text') {
+          const files = view.files ?? [];
+          const changed = text.text !== view.text || JSON.stringify(text.files) !== JSON.stringify(files);
           text.text = view.text;
-          if (!text.editing) this.#drawText(view.id);
+          text.files = files;
+          if (text.shown !== null && !files.some((f) => f.sha256 === text.shown)) text.shown = null;
+          if (changed && !text.editing) this.#drawText(view.id);
         }
         const chart = this.#charts.get(view.id);
         if (chart && view.kind === 'chart') {
@@ -921,12 +998,12 @@ export class CubePage {
    * grid, that tile is drawn without its frame and its header's part -- its source, its pill, its menu -- moves into
    * `slot`, the right of the page's bar; otherwise (or `slot` null) every header is its tile's.
    */
-  showAlone(slot: HTMLElement | null): void {
+  showAlone(slot: HTMLElement | null, stateSlot: HTMLElement | null = null): void {
     // the sheet shown: the others' tiles are each in its own frame
     for (const sheet of this.#sheets) if (sheet !== this.#shown) sheet.board.setAlone(null, null);
     const ids = tiles(this.#shown.board.layout);
     const lone = slot !== null && ids.length === 1 && this.#grids.has(ids[0]!) ? ids[0]! : null;
-    this.#shown.board.setAlone(lone, slot);
+    this.#shown.board.setAlone(lone, slot, stateSlot);
   }
 
   /**
@@ -1083,8 +1160,11 @@ export class CubePage {
     const made = gridTitle(id);
     this.#titles.set(id, made);
     const near = how.near ?? (this.#options.grid ? GRID : undefined);
-    const beside = near !== undefined && (this.#grids.has(near) || this.#charts.has(near)) ? near : undefined;
-    const tile: BandTile = { id, title: how.title ?? made, element: host, actions: [cube.tileHead()] };
+    // beside a grid, a chart or a text box (a text box's Create ▸ Data Source…: the 2026-10-25 audit)
+    const beside = near !== undefined && (this.#grids.has(near) || this.#charts.has(near) || this.#texts.has(near)) ? near : undefined;
+    const about = cube.tileAbout();
+    const tile: BandTile = { id, title: how.title ?? made, element: host, actions: [cube.tileHead()], state: cube.tileState(),
+      ...(about !== undefined ? { about } : {}) };
     this.#opening.set(id, cube.open());
     // a saved page's grid, or one a step makes again, comes under its own id: placed by its sheet's layout (`restore`,
     // `sync`)
@@ -1167,6 +1247,57 @@ export class CubePage {
     return [...this.#charts.keys()].some((chart) => this.#sheetOf(chart) === sheet);
   }
 
+  /**
+   * A TILE'S CREATE ▸, as a grid's (ui/menu.ts createItems: the same words in every menu): a data source beside it, a
+   * text box beside it, and -- of the grid it reads (`grid`) -- a copy of that grid or another chart of it. With no grid
+   * (a text box, a chart whose grid is gone) those two are offered off, `why` said on their hover.
+   */
+  #tileCreate(grid: string | null, why: string): MenuItem {
+    const needsGrid = new Set(['grid.new', 'chart.plot']);
+    return { label: 'Create', submenu: createItems({ source: this.#options.addSource !== undefined, host: [] })
+      .map((item) => (grid === null && needsGrid.has(item.id ?? '') ? { ...item, disabled: true, hint: why } : item)) };
+  }
+
+  /** What a tile's Create ▸ entry picked does (#tileCreate): beside tile `id`, of the grid it reads. */
+  #onTileCreate(id: string, grid: string | null, item: MenuItem): void {
+    if (item.id === 'source.new') this.#options.addSource?.(id);
+    if (item.id === 'text.new') this.addText(id);
+    if (grid === null) return;
+    if (item.id === 'grid.new') this.addGrid(grid);
+    if (item.id === 'chart.plot') this.openChart(undefined, grid);
+  }
+
+  /**
+   * A TILE'S VIEW ▸, the last entry of a chart's and a text box's right-click as of a grid's (docs/DATACUBE_UI_REVIEW_
+   * 2026_10_24.md, the menus): how it is shown and where -- filling the page or back to it, onto another sheet or a new
+   * one (on a page of sheets; locked, offered disabled and why), off the page.
+   */
+  #tileView(id: string): MenuItem {
+    const filling = this.#sheetOf(id)?.board.maximised === id;
+    const sheets = this.#otherSheets(id);
+    return { label: 'View', submenu: [
+      { id: 'tile.maximise', label: filling ? 'Restore' : 'Maximise' },
+      ...(this.#options.sheetLabel ? [{ label: 'Move to Sheet', separated: true, ...(this.#editing ? { submenu: [
+        ...sheets.map((s) => ({ id: `sheet.to.${s.id}` as const, label: s.label })),
+        { id: 'sheet.toNew' as const, label: 'New Sheet', ...(sheets.length > 0 ? { separated: true } : {}) },
+      ] } : { disabled: true, hint: 'Edit Layout first' }) }] : []),
+      // off while the page is locked, as its x is (the 2026-10-25 audit)
+      { id: 'tile.remove', label: 'Remove from Page', ...(this.#options.sheetLabel ? {} : { separated: true }),
+        ...(this.#editing ? {} : { disabled: true, hint: 'Edit Layout first' }) },
+    ] };
+  }
+
+  /** What a tile's View ▸ entry picked does (#tileView). */
+  #onTileView(id: string, item: MenuItem): void {
+    if (item.id === 'tile.maximise') {
+      const board = this.#sheetOf(id)?.board;
+      board?.maximise(board.maximised === id ? null : id);
+    }
+    if (item.id === 'tile.remove') this.#removeTile(id);
+    if (item.id === 'sheet.toNew') this.moveToSheet(id, null);
+    else if (item.id?.startsWith('sheet.to.')) this.moveToSheet(id, item.id.slice('sheet.to.'.length));
+  }
+
   /** The sheets a tile is not on, as their tabs say them: where its Move to Sheet can take it. */
   #otherSheets(tile: string): { id: string; label: string }[] {
     const label = this.#options.sheetLabel;
@@ -1193,27 +1324,23 @@ export class CubePage {
     chip.className = 'dc-tile-chip';
     chip.hidden = true;
     chip.addEventListener('click', () => this.#select(id, null));
-    // THE CHART'S HEADER, simple (the user, 2026-09-30): its title, a pill -- as a grid's Live / Snapped -- that says
-    // its state and changes it, the filter chip while a click is filtering its grid, and its x. Everything else is a
-    // right-click away. Its states, one word each (the user, 2026-10-23: frozen charts kept their grouping but not
-    // their filter): DYNAMIC follows the grid; PINNED keeps its own grouping (a hand on its axes pins it) and follows
-    // the grid's filters and the page's clicks; FROZEN keeps its grouping and the grid's filter as they were.
-    const pill = doc.createElement('button');
-    pill.type = 'button';
-    pill.className = 'dc-titlebar-toggle';
-    pill.setAttribute('aria-haspopup', 'menu');
+    // THE CHART'S HEADER (the user, 2026-10-25: one header for every tile): its state as an icon left of its title --
+    // quiet while it follows its grid, accented when it keeps something of its own -- its title, the filter chip while
+    // a click is filtering its grid, and the board's buttons. Everything else is a right-click away. Its states, one
+    // word each (the user, 2026-10-23: frozen charts kept their grouping but not their filter): DYNAMIC follows the
+    // grid; PINNED keeps its own grouping (a hand on its axes pins it) and follows the grid's filters and the page's
+    // clicks; FROZEN keeps its grouping and the grid's filter as they were.
+    const pill = stateButton(doc);
     const paint = (): void => {
       const state = panel.state;
       const detached = link.grid === null;
-      pill.textContent = detached ? 'Detached' : STATE_WORDS[state].label;
-      pill.classList.toggle('dc-on', state === 'dynamic' && !detached);
-      pill.classList.toggle('dc-fixed', detached);
-      pill.disabled = detached;
       // a map is placed by its own columns (chart-spec.ts live): the grid's grouping leaves it as it is
       const map = panel.spec !== null && MAP_MARKS.has(panel.spec.mark) && state === 'dynamic';
-      pill.title = detached
-        ? 'Its grid was removed: this chart keeps its own copy of that grid\'s query. Right-click > Show Grid to show it in a grid of its own.'
-        : `${STATE_WORDS[state].label}: ${map ? 'it re-draws as the grid is filtered; a map is placed by its own columns, not the grid\'s grouping' : STATE_WORDS[state].says}. Click to change.`;
+      paintState(pill, detached ? 'detached' : state, detached ? 'Detached' : STATE_WORDS[state].label, detached
+        ? 'Detached: its grid was removed, and this chart keeps its own copy of that grid\'s query. Right-click > Show Grid to show it in a grid of its own.'
+        : `${STATE_WORDS[state].label}: ${map ? 'it re-draws as the grid is filtered; a map is placed by its own columns, not the grid\'s grouping' : STATE_WORDS[state].says}. Click to change.`,
+      { menu: !detached });
+      pill.disabled = detached;
     };
     const panel = new ChartPanel(body, {
       // its spec changed by hand -- its options, a drill, its state -- is a step of the page's
@@ -1229,7 +1356,9 @@ export class CubePage {
       shown: () => source().shown(),
       // a detached chart has no grid's filter to put a click on
       onPick: (mark) => { if (link.grid !== null) this.#select(id, mark); },
-      formOpen: false,
+      // its options a window among the page's windows, titled by its tile's name
+      windowHost: this.#options.windowHost ?? this.#options.host,
+      title: () => this.title(id) ?? chartTitle(id),
     });
     // its states offered, the one it is in checked, each said in a line
     pill.addEventListener('click', () => {
@@ -1239,8 +1368,9 @@ export class CubePage {
         if (state !== undefined) panel.setState(state);
       };
       const at = pill.getBoundingClientRect();
+      // a pick among three: the one it is in checked, what each does said on its hover
       this.#menu.show([{ label: '', items: CHART_STATES.map((s) => ({
-        id: `tile.state.${s}` as const, label: `${STATE_WORDS[s].label} \u2014 ${STATE_WORDS[s].says}`, checked: panel.state === s,
+        id: `tile.state.${s}` as const, label: STATE_WORDS[s].label, hint: `It ${STATE_WORDS[s].says.replace(/^it /, '')}`, checked: panel.state === s,
       })) }], at.left, at.bottom);
     });
     // RIGHT-CLICK: the chart's own entries
@@ -1252,25 +1382,21 @@ export class CubePage {
       const way = spec === null ? null : showGridWay(spec, link.grid !== null);
       const refused = way === 'own' ? this.#ownGridRefusal() : null;
       this.#menuFor = (item) => {
-        if (item.id === 'tile.options') panel.toggleForm();
+        // opens its properties' window beside it, or brings it forward: its × or Escape puts it away
+        if (item.id === 'tile.properties') panel.openForm();
         if (item.id === 'tile.grid') this.#showGrid(id);
-        if (item.id === 'tile.remove') this.#removeTile(id);
-        if (item.id === 'sheet.toNew') this.moveToSheet(id, null);
-        else if (item.id?.startsWith('sheet.to.')) this.moveToSheet(id, item.id.slice('sheet.to.'.length));
+        this.#onTileCreate(id, link.grid, item);
+        this.#onTileView(id, item);
       };
-      const sheets = this.#otherSheets(id);
+      // the menus' one skeleton (docs/DATACUBE_UI_REVIEW_2026_10_24.md, the menus): its data, its window, then how it
+      // is shown and where
       this.#menu.show([
         { label: '', items: [
-          { id: 'tile.options', label: 'Options...' },
           { id: 'tile.grid', label: 'Show Grid', ...(way !== null && refused === null ? {} : { disabled: true, ...(refused ? { hint: refused } : {}) }) },
         ] },
-        // a page of sheets: this chart onto another, or a new one (its grid stays where it is, and it follows it)
-        // locked: offered disabled, with nothing under it
-        ...(this.#options.sheetLabel ? [{ label: '', items: [{ label: 'Move to Sheet', ...(this.#editing ? { submenu: [
-          ...sheets.map((s) => ({ id: `sheet.to.${s.id}` as const, label: s.label })),
-          { id: 'sheet.toNew' as const, label: 'New Sheet', ...(sheets.length > 0 ? { separated: true } : {}) },
-        ] } : { disabled: true }) }] }] : []),
-        { label: '', items: [{ id: 'tile.remove', label: 'Remove' }] },
+        { label: '', items: [this.#tileCreate(link.grid, 'Its grid is gone: it reads its own copy of the query')] },
+        { label: '', items: [{ id: 'tile.properties', label: 'Properties\u2026' }] },
+        { label: '', items: [this.#tileView(id)] },
       ], event.clientX, event.clientY);
     });
     paint();
@@ -1285,13 +1411,13 @@ export class CubePage {
       added: restore !== undefined,
     });
     if (restore?.selection) this.#paintSelection(id);
-    const actions = [pill, chip];
+    const actions = [chip];
     if (restore) {
       // on its saved sheet, placed by that sheet's layout once every view is on the page (`restore`, `sync`)
-      this.#place({ id, title: restore.title, element: body, actions });
+      this.#place({ id, title: restore.title, element: body, actions, state: pill });
       return;
     }
-    const tile: BandTile = { id, title: chartTitle(id), element: body, actions };
+    const tile: BandTile = { id, title: chartTitle(id), element: body, actions, state: pill };
     const spec = panel.spec;
     if (spec && link.grid !== null) {
       if (this.#tellChart(id, tile, spec, link.grid)) this.#reveal(id);
@@ -1418,7 +1544,11 @@ export class CubePage {
     // the text tiles in reading order, each its own title only when someone gave it one
     for (const id of this.tileIds.filter((t) => this.#texts.has(t))) {
       const title = this.title(id);
-      views.push({ id, kind: 'text', text: this.#texts.get(id)!.text, ...(title !== undefined && title !== textTitle(id) ? { title } : {}) });
+      const text = this.#texts.get(id)!;
+      views.push({
+        id, kind: 'text', text: text.text, ...(title !== undefined && title !== textTitle(id) ? { title } : {}),
+        ...(text.files.length > 0 ? { files: text.files } : {}),
+      });
     }
     // each sheet's layout of what is saved: the other tiles' places closed up, as if they had been removed
     // (page-gestures.ts savedLayout, the rule a layout is told by too)
@@ -1642,25 +1772,309 @@ export class CubePage {
     const doc = this.#doc;
     const body = doc.createElement('div');
     body.className = 'dc-text-host';
-    this.#texts.set(view.id, { text: view.text, body, editing: false });
+    // its state, left of its title as every tile's (the user, 2026-10-25): a pencil, quiet while its words are read,
+    // accented while they are edited -- a click edits them; in view mode it goes (app.css), nothing is edited there
+    const edit = stateButton(doc);
+    edit.classList.add('dc-text-edit');
+    this.#texts.set(view.id, { text: view.text, files: view.files ?? [], shown: null, drawn: null, body, edit, editing: false });
+    this.#paintTextState(view.id);
     this.#drawText(view.id);
-    body.addEventListener('dblclick', () => this.editText(view.id));
-    const edit = doc.createElement('button');
-    edit.type = 'button';
-    edit.className = 'dc-tile-tool dc-text-edit';
-    edit.textContent = '\u270e';
-    edit.title = 'Edit the text';
-    edit.setAttribute('aria-label', `Edit ${view.title ?? textTitle(view.id)}`);
+    // FILES DROPPED ON IT (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): shown beside its words, pointed to (text-files.ts)
+    const carriesFiles = (e: DragEvent): boolean => [...(e.dataTransfer?.types ?? [])].includes('Files');
+    body.addEventListener('dragover', (e) => {
+      if (!carriesFiles(e) || this.#texts.get(view.id)?.editing) return;
+      e.preventDefault();
+      body.classList.add('dc-text-drop');
+    });
+    body.addEventListener('dragleave', () => body.classList.remove('dc-text-drop'));
+    body.addEventListener('drop', (e) => {
+      body.classList.remove('dc-text-drop');
+      if (!carriesFiles(e) || this.#texts.get(view.id)?.editing || !e.dataTransfer) return;
+      e.preventDefault();
+      // each file's handle asked for now, inside the drop: the items are gone once it returns
+      const items = [...e.dataTransfer.items].filter((i) => i.kind === 'file');
+      const picked = items.map((i) => ({
+        file: i.getAsFile(),
+        handle: (i as { getAsFileSystemHandle?: () => Promise<unknown> }).getAsFileSystemHandle?.(),
+      }));
+      void Promise.all(picked.map(async (p) => {
+        const handle = await p.handle?.catch(() => null);
+        return p.file === null ? null : { file: p.file, ...(isFileHandle(handle) ? { handle } : {}) };
+      })).then((got) => this.addTextFiles(view.id, got.filter((g): g is { file: File; handle?: FileHandle } => g !== null)));
+    });
+    // its words double-clicked: a file's tab or its preview is not its words (the 2026-10-25 audit: a word selected in a
+    // CSV opened the editor over it)
+    body.addEventListener('dblclick', (e) => {
+      if ((e.target as Element | null)?.closest?.('.dc-text-files, .dc-text-file, .dc-text-file-missing')) return;
+      this.editText(view.id);
+    });
     edit.addEventListener('click', () => this.editText(view.id));
-    this.#place({ id: view.id, title: view.title ?? textTitle(view.id), element: body, actions: [edit] });
+    // RIGHT-CLICK: its window, then how it is shown and where, as a chart's (#tileView); its editor's own words keep the
+    // browser's (copy, paste)
+    body.addEventListener('contextmenu', (event) => {
+      if (this.#texts.get(view.id)?.editing) return;
+      event.preventDefault();
+      this.#menuFor = (item) => {
+        if (item.id === 'tile.editText') this.editText(view.id);
+        if (item.id === 'tile.openFiles') void this.openTextFiles(view.id);
+        this.#onTileCreate(view.id, null, item);
+        this.#onTileView(view.id, item);
+      };
+      this.#menu.show([
+        { label: '', items: [this.#tileCreate(null, 'A text box reads no grid')] },
+        { label: '', items: [{ id: 'tile.editText', label: 'Edit Text\u2026' }, { id: 'tile.openFiles', label: 'Open Files\u2026' }] },
+        { label: '', items: [this.#tileView(view.id)] },
+      ], event.clientX, event.clientY);
+    });
+    this.#place({ id: view.id, title: view.title ?? textTitle(view.id), element: body, actions: [], state: edit });
+  }
+
+  /** A text tile's pencil: being edited, or there to edit it. */
+  #paintTextState(id: string): void {
+    const text = this.#texts.get(id);
+    if (!text) return;
+    paintState(text.edit, text.editing ? 'editing' : 'viewing', text.editing ? 'Editing' : 'Edit',
+      text.editing ? 'Its words are being edited: OK keeps them, Cancel or Escape leaves them as they were' : 'Edit the text');
   }
 
   /** A text tile's words drawn (page-text.ts, a chunk of its own fetched with the first drawn), unless its editor is
    *  open by the time they are. */
-  #drawText(id: string): void {
-    void lazily(() => import('../page-text.ts')).then(({ readText, textElement }) => {
+  #drawText(id: string, focusTab = false): void {
+    this.#paintTextState(id);
+    void lazily(() => import('../page-text.ts')).then((chunk) => {
       const text = this.#texts.get(id);
-      if (text && !text.editing) text.body.replaceChildren(textElement(this.#doc, readText(text.text)));
+      if (!text || text.editing) return;
+      const words = chunk.textElement(this.#doc, chunk.readText(text.text));
+      text.drawn = words;
+      if (text.files.length === 0) {
+        text.body.replaceChildren(words);
+        return;
+      }
+      // its files beside its words: a tab each, the one shown below them
+      const pane = this.#doc.createElement('div');
+      pane.className = 'dc-text-pane';
+      const strip = this.#fileTabs(id, text);
+      text.body.replaceChildren(strip, pane);
+      // a tab pressed by the keyboard keeps it: the strip is drawn again (the 2026-10-25 audit)
+      if (focusTab) strip.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
+      const shown = text.files.find((f) => f.sha256 === text.shown);
+      if (shown === undefined) pane.append(words);
+      else void this.#drawFile(id, shown, pane, chunk.fileElement, false);
+    });
+  }
+
+  /**
+   * A text box's tabs: its own words, then each of its files with its x, the one shown pressed -- buttons, each pressed
+   * or not (a tab list holds tabs alone, and each file's x is beside its name: the 2026-10-25 audit).
+   */
+  #fileTabs(id: string, text: TextTile): HTMLElement {
+    const doc = this.#doc;
+    const strip = doc.createElement('div');
+    strip.className = 'dc-text-files';
+    strip.setAttribute('role', 'group');
+    strip.setAttribute('aria-label', 'What the text box shows');
+    const tab = (label: string, sha: string | null): HTMLElement => {
+      const holder = doc.createElement('span');
+      holder.className = 'dc-text-file-tab';
+      const button = doc.createElement('button');
+      button.type = 'button';
+      button.className = 'dc-text-file-name';
+      button.setAttribute('aria-pressed', String(text.shown === sha));
+      button.textContent = label;
+      button.addEventListener('click', () => {
+        text.shown = sha;
+        this.#drawText(id, true);
+      });
+      holder.append(button);
+      strip.append(holder);
+      return holder;
+    };
+    tab('Text', null);
+    for (const file of text.files) {
+      const holder = tab(file.name, file.sha256);
+      holder.title = `${file.name}, ${bytesWords(file.size)}`;
+      const off = closeMark(doc.createElement('button'), `Take ${file.name} off`);
+      off.type = 'button';
+      off.className = 'dc-text-file-close';
+      off.setAttribute('aria-label', `Take ${file.name} off`);
+      // by its fingerprint: the files a step draws again are equal, not the same objects (the 2026-10-25 audit)
+      off.addEventListener('click', () => {
+        this.#tell(`Take ${file.name} Off`, pageCommand('setTextFiles', { tile: id, files: text.files.filter((f) => f.sha256 !== file.sha256) }));
+      });
+      holder.append(off);
+    }
+    return strip;
+  }
+
+  /**
+   * A text box's file drawn in `pane` (page-text.ts fileElement): read from this session's copy, else again from where it
+   * was picked (the host's kept handle); the browser asking first, a click of the person's lets it -- missing, or not
+   * read, it is asked for again by its name. Read as it is now: changed since it was added, that is said. Only its first
+   * TEXT_FILE_SHOWN bytes are drawn: a copy already fingerprinted is read no further.
+   */
+  async #drawFile(id: string, file: TextFile, pane: HTMLElement,
+    draw: (doc: Document, format: NonNullable<ReturnType<typeof textFileFormat>>, text: string, separator: ',' | '\t', cut?: string) => HTMLElement,
+    click: boolean): Promise<void> {
+    const doc = this.#doc;
+    const kept = this.#textFiles.get(file.sha256);
+    const read: HandleRead = kept ? { state: 'file', file: kept.file }
+      : (await this.#options.textFile?.(file.sha256, click).catch((e: unknown) => ({ state: 'unavailable' as const, why: e instanceof Error ? e.message : String(e) })))
+        ?? { state: 'unavailable', why: 'this browser keeps nothing of it' };
+    // moved on meanwhile: another tab shown, the box redrawn
+    const away = (): boolean => this.#texts.get(id)?.shown !== file.sha256 || !pane.isConnected;
+    if (away()) return;
+    if (read.state === 'needs-click') {
+      pane.replaceChildren(this.#fileAsk(`The browser asks before this page reads ${file.name} again.`, `Allow reading ${file.name}`,
+        () => void this.#drawFile(id, file, pane, draw, true)));
+      return;
+    }
+    const missing = (why: string): void => {
+      pane.replaceChildren(this.#fileAsk(`${file.name} is not here (${why}): a page points to its files, never copies them.`,
+        `Open ${file.name}\u2026`, () => void this.#openAgain(id, file)));
+    };
+    if (read.state === 'unavailable') {
+      missing(read.why);
+      return;
+    }
+    const format = textFileFormat(file.name);
+    if (format === undefined) throw new Error(`${file.name} is a kind of file a text box does not show, yet it is on one`);
+    let shownBytes: ArrayBuffer;
+    let changed = false;
+    try {
+      if (kept) shownBytes = await read.file.slice(0, TEXT_FILE_SHOWN).arrayBuffer();
+      else {
+        // read whole once, to know it is the file added: kept for this session only then (the 2026-10-25 audit: a
+        // changed file kept under the old fingerprint was shown, the next time, as the one added)
+        const bytes = await read.file.arrayBuffer();
+        changed = (await sha256(bytes)) !== file.sha256;
+        if (!changed) this.#textFiles.set(file.sha256, { file: read.file });
+        shownBytes = bytes.slice(0, TEXT_FILE_SHOWN);
+      }
+    } catch (e) {
+      // moved, or changed on disk since it was picked (the browser's NotReadableError): asked for again
+      missing(e instanceof Error ? e.message : String(e));
+      return;
+    }
+    if (away()) return;
+    const cut = read.file.size > TEXT_FILE_SHOWN ? `its first ${bytesWords(TEXT_FILE_SHOWN)}` : undefined;
+    const shown = draw(doc, format, new TextDecoder().decode(shownBytes), csvSeparator(file.name), cut);
+    const said: string[] = [];
+    if (changed) said.push(`${file.name} has changed since it was added to this text box.`);
+    if (cut !== undefined) said.push(`The first ${bytesWords(TEXT_FILE_SHOWN)} of ${file.name} (${bytesWords(read.file.size)}) are shown.`);
+    for (const words of said.reverse()) {
+      const note = doc.createElement('p');
+      note.className = 'dc-text-file-note';
+      note.textContent = words;
+      shown.prepend(note);
+    }
+    pane.replaceChildren(shown);
+  }
+
+  /** What a text box says in place of a file it cannot show, and the one button that would show it. */
+  #fileAsk(words: string, act: string, go: () => void): HTMLElement {
+    const box = this.#doc.createElement('div');
+    box.className = 'dc-text-file-missing';
+    const said = this.#doc.createElement('p');
+    said.textContent = words;
+    const button = this.#doc.createElement('button');
+    button.type = 'button';
+    button.className = 'dc-button';
+    button.textContent = act;
+    button.addEventListener('click', go);
+    box.append(said, button);
+    return box;
+  }
+
+  /** What the board refuses before telling a command, said as the page's refusals are (`refuse`). */
+  #refuse(words: string): void {
+    if (this.#options.refuse) this.#options.refuse(words);
+    else this.say(words);
+  }
+
+  /** Each picked file's fingerprint, its bytes read whole; undefined when one is not read -- a folder dropped, a file
+   *  moved or changed since -- refused in words (`#refuse`). */
+  async #fingerprinted(picked: readonly { readonly file: File }[]): Promise<string[] | undefined> {
+    const out: string[] = [];
+    for (const p of picked) {
+      try {
+        out.push(await sha256(await p.file.arrayBuffer()));
+      } catch (e) {
+        this.#refuse(`${p.file.name} could not be read (${e instanceof Error ? e.message : String(e)}): a folder, or a file moved since it was picked`);
+        return undefined;
+      }
+    }
+    return out;
+  }
+
+  /** A missing file picked again: the same one (its fingerprint) shown, its handle kept by the host; another one in its
+   *  place, told as the box's files. */
+  async #openAgain(id: string, file: TextFile): Promise<void> {
+    const [got] = await pickTextFiles(this.#doc, TEXT_FILE_EXTENSIONS, false);
+    if (!got) return;
+    // judged by name and size before it is read, by the page's own rule (text-files.ts pickedRefusal)
+    const refused = pickedRefusal([{ name: got.file.name, size: got.file.size }]);
+    if (refused !== undefined) {
+      this.#refuse(refused);
+      return;
+    }
+    const [sha] = (await this.#fingerprinted([got])) ?? [];
+    if (sha === undefined) return;
+    this.#textFiles.set(sha, got);
+    if (got.handle) this.#options.keepTextFile?.(sha, got.handle);
+    const text = this.#texts.get(id);
+    if (!text) return;
+    if (sha === file.sha256) {
+      this.#drawText(id);
+      return;
+    }
+    const other: TextFile = { name: got.file.name, size: got.file.size, sha256: sha };
+    const was = text.shown;
+    text.shown = sha;
+    const files = text.files.map((f) => (f.sha256 === file.sha256 ? other : f));
+    if (!this.#tell(`Replace ${file.name}`, pageCommand('setTextFiles', { tile: id, files }))) text.shown = was;
+  }
+
+  /** Open Files… on a text box's right-click: the files picked, shown beside its words (`addTextFiles`). */
+  async openTextFiles(id: string): Promise<void> {
+    const picked = await pickTextFiles(this.#doc, TEXT_FILE_EXTENSIONS);
+    if (picked.length > 0) await this.addTextFiles(id, picked);
+  }
+
+  /**
+   * FILES ON A TEXT BOX (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): each fingerprinted and added to its files, told as the
+   * page's command (setTextFiles: its rule refuses, in its words, a kind it does not show, too many, too big -- asked by
+   * name and size before any is read) -- one it shows already left as it is; the first new one shown. Their bytes stay
+   * this session's, their handles kept when the page is saved; the page keeps only where they are.
+   */
+  async addTextFiles(id: string, picked: readonly { readonly file: File; readonly handle?: FileHandle }[]): Promise<void> {
+    if (!this.#texts.has(id)) return;
+    const refused = pickedRefusal(picked.map((p) => ({ name: p.file.name, size: p.file.size })));
+    if (refused !== undefined) {
+      this.#refuse(refused);
+      return;
+    }
+    const shas = await this.#fingerprinted(picked);
+    if (shas === undefined) return;
+    const added = picked.map((p, i): TextFile => ({ name: p.file.name, size: p.file.size, sha256: shas[i]! }));
+    picked.forEach((p, i) => this.#textFiles.set(shas[i]!, p));
+    const text = this.#texts.get(id);
+    if (!text) return;
+    const fresh = added.filter((a, i) => !text.files.some((f) => f.sha256 === a.sha256) && added.findIndex((b) => b.sha256 === a.sha256) === i);
+    if (fresh.length === 0) return;
+    const was = text.shown;
+    text.shown = fresh[0]!.sha256;
+    const label = fresh.length === 1 ? `Add ${fresh[0]!.name}` : `Add ${fresh.length} Files`;
+    if (!this.#tell(label, pageCommand('setTextFiles', { tile: id, files: [...text.files, ...fresh] }))) text.shown = was;
+  }
+
+  /** Each file on the page's text boxes, with the handle it was picked with this session where the browser gave one:
+   *  kept by the host when the page is saved -- one with none here, the handle the page it was saved as kept (Save As:
+   *  the 2026-10-25 audit) -- so opening it again reads each from there (file-handles.ts handleKey). */
+  textFilesNow(): { readonly sha256: string; readonly handle?: FileHandle }[] {
+    const on = new Set([...this.#texts.values()].flatMap((t) => t.files.map((f) => f.sha256)));
+    return [...on].map((sha) => {
+      const handle = this.#textFiles.get(sha)?.handle;
+      return handle ? { sha256: sha, handle } : { sha256: sha };
     });
   }
 
@@ -1672,6 +2086,7 @@ export class CubePage {
     const text = this.#texts.get(id);
     if (!text || text.editing) return;
     text.editing = true;
+    this.#paintTextState(id);
     void lazily(() => import('../page-text.ts')).then(({ textEditor }) => {
       if (!this.#texts.has(id)) return;
       const close = (): void => {
@@ -1697,16 +2112,14 @@ export class CubePage {
   /** A text tile as an export writes it: as the board drew it -- its HTML, a line a block -- or, not yet drawn, its
    *  words as typed. */
   #exportedText(text: TextTile): { readonly html: string; readonly lines: readonly string[] } {
-    const drawn = text.body.querySelector('.dc-text-tile');
+    // its words as drawn, a file's tab in front or not (the 2026-10-25 audit: an export depended on the tab shown)
+    const drawn = text.drawn ?? text.body.querySelector('.dc-text-tile');
     if (drawn === null) {
       const pre = this.#doc.createElement('pre');
       pre.textContent = text.text;
       return { html: pre.outerHTML, lines: text.text.split('\n') };
     }
-    const lines = [...drawn.children].flatMap((block) => (block.tagName === 'UL' || block.tagName === 'OL'
-      ? [...block.children].map((li, i) => `${block.tagName === 'OL' ? `${i + 1}.` : '-'} ${li.textContent ?? ''}`)
-      : [block.textContent ?? '']));
-    return { html: drawn.outerHTML, lines };
+    return { html: drawn.outerHTML, lines: [...drawn.children].flatMap(textLines) };
   }
 
   /** A text tile off the board, as a step leaves it. */
@@ -1852,7 +2265,7 @@ export class CubePage {
           : `${source.label(c.column)}: ${String(c.value)}`)
       : '');
     chart.chip.hidden = words.length === 0;
-    chart.chip.textContent = `${words.join(', ')} ×`;
+    chart.chip.replaceChildren(this.#doc.createTextNode(words.join(', ')), chromeIcon(this.#doc, 'close'));
     chart.chip.title = 'Filtered to this; click to clear';
     chart.chip.setAttribute('aria-label', `Clear the filter to ${words.join(', ')}`);
   }

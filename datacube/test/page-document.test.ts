@@ -331,7 +331,7 @@ describe('a saved page', () => {
 });
 
 describe('a page as it starts (startingViews: the cube app, a cube saved before pages, Python\'s new page)', () => {
-  it('is one skeleton, unnamed unless named (newPage: Python\'s new page and the tab\'s Blank Page, D11, B9)', () => {
+  it('is one skeleton, unnamed unless named (newPage: Python\'s new page and the tab\'s New Page, D11, B9)', () => {
     assert.deepEqual(newPage(), { ...readPage(pageToJson(newPage()), { empty: true }), name: '' });
     assert.equal(newPage().name, '');
     assert.equal(newPage('Q3').name, 'Q3');

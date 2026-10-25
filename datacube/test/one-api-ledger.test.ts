@@ -499,6 +499,8 @@ const PASS_THROUGH: Record<string, string> = {
   setChart: "the spec as the chart's panel made it (chart-spec.ts editChart)",
   addText: "a new text tile's id, as the page numbers ids, on the sheet it was asked for, with its starting words",
   setText: "the words as typed in the text tile's editor (setText judges them, by page-text.ts textProblem)",
+  // 2026-10-25 (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8 step 1, files in a text box): a new screen-made page command
+  setTextFiles: "the files opened or dropped on a text box, each its name, size and fingerprint (setTextFiles judges them, by text-files.ts readTextFiles); Python's Text.files fingerprints a path the same way",
   renamePage: 'the name as typed (renamePage judges it)', savedAs: "the page store's record the page was saved as",
   setPageFilter: "the filter as the page's filter bar made it", removePageFilter: 'the page filter whose x was clicked',
 };
@@ -795,8 +797,10 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   // -- a grid (app.ts) --
   'src/app.ts:constructor:options.runner': { count: 3, other: `${BOTH} a grid's rows run by the host's runner, or the tab's planner`, ability: 'rows' },
   'src/app.ts:#signInOffer:options.runner': { other: `${BOTH} signed in again by the tab's warehouse engine, or the host's own sign-in`, ability: 'warehouse' },
-  'src/app.ts:#snapPill:options.runner': { count: 2, other: `${BOTH} Snap into the tab's copy, or the host's`, ability: 'snap' },
-  'src/app.ts:paint:options.runner': { count: 2, other: `${BOTH} where the rows are, said for the tab's or the host's`, ability: 'rows' },
+  // 2026-10-25 (the one tile header, docs/DATACUBE_UI_REVIEW_2026_10_24.md §1a): #snapPill's two and its paint's two,
+  // moved as they were into #plane -- one description of where a grid's rows are, for a grid alone's pill and a tile's
+  // state -- no branch added
+  'src/app.ts:#plane:options.runner': { count: 4, other: `${BOTH} where the rows are, and Snap into the tab's copy or the host's`, ability: 'snap' },
 };
 
 /** What a `both:` branch is a way to on each host: an ability, proved on each (HOST_ABILITIES). */

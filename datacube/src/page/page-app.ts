@@ -29,6 +29,8 @@
 
 import { CubePage, type PageEdit, type SheetInfo, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
 import { MenuView } from '../ui/menu-view.ts';
+import type { FileHandle, HandleRead } from '../file-handles.ts';
+import { chromeIcon } from '../ui/tile-icons.ts';
 import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
@@ -66,6 +68,8 @@ export interface PageGrid extends SpawnedGrid {
   saveRefusal(): string | undefined;
   /** Its Settings window; and settings saved elsewhere, in effect here too. */
   openSettings(): void;
+  /** The keyboard's shortcuts, in their window (the page's View ▸ Keyboard Shortcuts…). */
+  showShortcuts(): void;
   useSettings(values: SettingValues): void;
   /** Its configuration: a lone grid's report title names the page, and its title bar setting folds the page's bar. */
   readonly configuration: CubeConfiguration;
@@ -109,6 +113,10 @@ export type GridMaker = (host: HTMLElement, options: SpawnOptions, start?: GridS
 export interface PageAppOptions {
   /** Where the page goes: it fills it. */
   readonly host: HTMLElement;
+  /** A text box's file read again by its fingerprint, from what the host kept for this page (cube-page.ts textFile). */
+  readonly textFile?: (sha256: string, click: boolean) => Promise<HandleRead | undefined>;
+  /** A text box's file picked again with its handle: kept for the saved page it is (cube-page.ts keepTextFile). */
+  readonly keepTextFile?: (sha256: string, handle: FileHandle) => void;
   /** The page's name, in its bar's name box, until `setTitle`. */
   readonly title?: string;
   /**
@@ -127,7 +135,7 @@ export interface PageAppOptions {
   readonly empty: (slot: HTMLElement) => void;
   /** New ▸ Data Source…: the host's picker, its grid's maker; undefined when nothing was chosen. */
   readonly openSource?: () => Promise<GridMaker | undefined>;
-  /** New ▸ Blank Page: the host clears the page (asking first about unsaved changes). */
+  /** New Page: the host clears the page (asking first about unsaved changes). */
   readonly onBlankPage?: () => void;
   /** Something on the page changed: a grid's state, a chart, the layout, a title. */
   readonly onChange?: () => void;
@@ -223,7 +231,7 @@ export class PageApp {
     this.#burger = doc.createElement('button');
     this.#burger.type = 'button';
     this.#burger.className = 'dc-titlebar-menu';
-    this.#burger.textContent = '≡';
+    this.#burger.append(chromeIcon(doc, 'menu'));
     this.#burger.title = 'The page\'s menu';
     this.#burger.setAttribute('aria-label', 'Page menu');
     this.#burger.setAttribute('aria-haspopup', 'menu');
@@ -647,6 +655,12 @@ export class PageApp {
     await this.#page.opened();
   }
 
+  /** Each file on the page's text boxes, with its handle where this session has one: the host keeps them when the page
+   *  is saved (CubePage.textFilesNow). */
+  textFilesNow(): { readonly sha256: string; readonly handle?: FileHandle }[] {
+    return this.#page.textFilesNow();
+  }
+
   /** New ▸ Data Source…: the host's picker, and the grid it makes beside the others. */
   async addSource(near?: string): Promise<string | undefined> {
     const make = await this.#options.openSource?.();
@@ -654,7 +668,7 @@ export class PageApp {
     return this.addGrid(make, near !== undefined ? { near } : {});
   }
 
-  /** Every tile gone -- grids, charts, kept grids -- and the new page shown, unnamed (Blank Page; opening in place). */
+  /** Every tile gone -- grids, charts, kept grids -- and the new page shown, unnamed (New Page; opening in place). */
   clear(): void {
     // a new page, as DataCube starts one (page-document.ts newPage, the one skeleton: D11, B9)
     const fresh = newPage();
@@ -908,6 +922,8 @@ export class PageApp {
   #newBoard(): CubePage {
     return new CubePage({
       host: this.#boardHost,
+      // a chart's options float where the grids' windows do (datacube-app.ts windowHost: page.root)
+      windowHost: this.#root,
       onChange: () => {
         // a chart removed takes its click's filter with it (page-document.ts filtersFor); a chart or a grid come or
         // gone changes what each grid's lens is -- not while a page is restored, its charts not yet on the board
@@ -928,6 +944,12 @@ export class PageApp {
       },
       onEmpty: () => this.#paintEmpty(),
       onTiles: () => this.#onTiles(),
+      // a chart's or a text box's Create ▸ Data Source…: the host's picker, as the page's ≡ has it, beside that tile
+      ...(this.#options.openSource ? { addSource: (near: string) => { void this.addSource(near); } } : {}),
+      ...(this.#options.textFile ? { textFile: this.#options.textFile } : {}),
+      ...(this.#options.keepTextFile ? { keepTextFile: this.#options.keepTextFile } : {}),
+      // what the board refuses before a command, said as a refused command is (`#refused`)
+      refuse: (words) => this.#refused(new CubeRefusal(words)),
       onSettingsChanged: (values) => {
         for (const grid of this.#live()) grid.useSettings(values);
         this.#options.onSettingsChanged?.(values);
@@ -1209,7 +1231,8 @@ export class PageApp {
     this.#empty.hidden = !empty;
     this.#emptySheet.hidden = !bare;
     this.#root.classList.toggle('dc-page-is-empty', empty);
-    this.#page.showAlone(empty ? null : this.#alone);
+    // a lone grid: no header -- its buttons at the bar's right, its state in its sheet's tab (the user, 2026-10-25)
+    this.#page.showAlone(empty ? null : this.#alone, empty ? null : this.#sheetTabs.stateSlot(this.#page.shownSheet) ?? null);
     this.#paintFilters();
   }
 
@@ -1369,39 +1392,54 @@ export class PageApp {
   }
 
   /**
-   * THE PAGE'S MENU: the page's things only -- Create (a data source, a sheet, the host's model entries, a blank page),
-   * the host's data entries, the page's layout, the host's file entries (Save, Open, Share) and Export of the page, the
-   * host's View entries, Settings.
+   * THE PAGE'S MENU, the page's things only -- never a column's or a grid's -- in the menus' one skeleton
+   * (docs/DATACUBE_UI_REVIEW_2026_10_24.md §3, "The menus"; the user, 2026-10-25): what leaves the app (a new page, the
+   * host's Open…, Save, Save As…, Share…, the page as a file); the page's history; the host's data entries; the layout;
+   * Create ▸; View ▸, the app's Settings… in it. An entry that cannot apply now is greyed, saying why.
    */
   #menuGroups(): MenuGroup[] {
     const page = this.#page;
-    const arranged = !this.empty && page.editing;
+    const noGrid = this.grids.length === 0 ? 'Open a data source first' : undefined;
+    const off = (why: string | undefined): { readonly disabled?: true; readonly hint?: string } =>
+      (why === undefined ? {} : { disabled: true, hint: why });
     const submenu = (label: string, items: MenuItem[]): MenuItem[] => (items.length > 0 ? [{ label, submenu: items }] : []);
     const groups: MenuGroup[] = [
-      // CREATE, the word of every menu (the user, 2026-10-23; menu.ts createItems): what the page makes beside what it
-      // has, the host's model entries a line apart, and a blank page, apart, which replaces everything
-      { label: '', items: submenu('Create', [
-        ...(this.#options.openSource ? [{ id: 'source.new' as const, label: 'Data Source…' }] : []),
-        { id: 'sheet.new' as const, label: 'Sheet', ...(page.editing ? {} : { disabled: true }) },
-        ...this.#hostItems('create').map((h, i) => (i === 0 ? { ...h, separated: true } : h)),
-        ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'Blank Page', separated: true }] : []),
-      ]) },
-      { label: '', items: this.#hostItems('data') },
+      // OUT: a new page first (it replaces this one, the host asking first), the host's file entries, the page as a file
+      // -- one entry until a second format comes
       { label: '', items: [
-        { id: 'page.arrange', label: 'Arrange…', ...(arranged ? {} : { disabled: true }) },
-        // the page's history: each step by its name, as a grid's own Undo names its
+        ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'New Page' }] : []),
+        ...this.#hostItems('file'),
+        ...(this.#options.download ? [{ id: 'page.export' as const, label: 'Export Page File…', ...off(this.saveRefusal()) }] : []),
+      ] },
+      // THE PAGE'S HISTORY: each step by its name, as a grid's own Undo names its
+      { label: '', items: [
         { id: 'page.undo', label: this.undoLabel !== undefined ? `Undo ${this.undoLabel}` : 'Undo', ...(this.undoLabel !== undefined ? {} : { disabled: true }) },
         { id: 'page.redo', label: this.redoLabel !== undefined ? `Redo ${this.redoLabel}` : 'Redo', ...(this.redoLabel !== undefined ? {} : { disabled: true }) },
-        { id: 'page.editLayout', label: 'Edit Layout', checked: page.editing },
       ] },
+      { label: '', items: this.#hostItems('data') },
+      // THE LAYOUT: a toggle that says what it will do, and flips; its layouts while it is on
       { label: '', items: [
-        ...this.#hostItems('file'),
-        ...submenu('Export', this.#options.download
-          ? [{ id: 'page.export' as const, label: 'Page File (JSON)', ...(this.saveRefusal() === undefined ? {} : { disabled: true }) }]
-          : []),
+        { id: 'page.editLayout', label: page.editing ? 'Done Editing Layout' : 'Edit Layout' },
+        { id: 'page.arrange', label: 'Arrange…',
+          ...off(this.empty ? 'Nothing on this page to arrange' : page.editing ? undefined : 'Edit Layout first') },
       ] },
-      { label: '', items: submenu('View', this.#hostItems('view')) },
-      { label: '', items: [{ id: 'view.settings', label: 'Settings...', ...(this.grids.length > 0 ? {} : { disabled: true }) }] },
+      // CREATE ▸, the word of every menu (menu.ts createItems): what the page makes beside what it has, the host's model
+      // entries a line apart
+      { label: '', items: submenu('Create', [
+        ...(this.#options.openSource ? [{ id: 'source.new' as const, label: 'Data Source…' }] : []),
+        { id: 'sheet.new' as const, label: 'Sheet', ...off(page.editing ? undefined : 'Edit Layout first') },
+        { id: 'text.new' as const, label: 'Text Box' },
+        ...this.#hostItems('create').map((h, i) => (i === 0 ? { ...h, separated: true } : h)),
+      ]) },
+      // HOW THE PAGE IS SHOWN, and the app's Settings… with its Keyboard Shortcuts… -- this browser's, how every grid is
+      // drawn, not one grid's Properties (the user, 2026-10-25: under View, not a top-level entry)
+      { label: '', items: submenu('View', [
+        // only ever Hide: folded, the ≡ folds away with the bar, and its lip shows it again (the 2026-10-25 audit)
+        { id: 'page.bar', label: 'Hide the Bar' },
+        ...this.#hostItems('view'),
+        { id: 'view.shortcuts', label: 'Keyboard Shortcuts…', ...off(noGrid) },
+        { id: 'view.settings', label: 'Settings…', ...off(noGrid) },
+      ]) },
     ];
     return groups.filter((g) => g.items.length > 0);
   }
@@ -1417,6 +1455,9 @@ export class PageApp {
       case 'sheet.new':
         this.#page.addSheet();
         return;
+      case 'text.new':
+        this.#page.addText();
+        return;
       case 'page.arrange':
         this.#page.showLayouts(this.#burger.isConnected ? this.#burger : this.#root);
         return;
@@ -1428,6 +1469,11 @@ export class PageApp {
         return;
       case 'page.editLayout':
         this.#page.setEditing(!this.#page.editing);
+        return;
+      case 'page.bar':
+        // folded, the menu's button goes with the bar: the lip, where it was, brings it back
+        this.setBarFolded(!this.barFolded);
+        if (this.barFolded) this.#lip.focus();
         return;
       case 'page.export': {
         // the page as its host keeps it, when it keeps more than the board (a newer writer's fields, its model), as a
@@ -1446,6 +1492,11 @@ export class PageApp {
       case 'view.settings': {
         const first = this.grids[0];
         if (first !== undefined) this.grid(first)?.openSettings();
+        return;
+      }
+      case 'view.shortcuts': {
+        const first = this.grids[0];
+        if (first !== undefined) this.grid(first)?.showShortcuts();
         return;
       }
       default:

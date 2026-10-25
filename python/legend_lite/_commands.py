@@ -15,8 +15,8 @@ GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'sorts', 'addSort', 'clearSort'
                                'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate', 'editCalculated',
                                'removeCalculated', 'open', 'collapseAll', 'expandAll', 'topN', 'tree',)
 PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet',
-                               'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText', 'followGrid',
-                               'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout',
+                               'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText', 'setTextFiles',
+                               'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout',
                                'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto', 'modelPin',
                                'modelKeep',)
 
@@ -154,6 +154,10 @@ def page_add_text(*, id: Any = _ABSENT, sheet: Any, text: Any, title: Any, colum
 
 def page_set_text(*, tile: Any, text: Any) -> dict[str, Any]:
     return {'kind': 'setText', 'tile': tile, 'text': text}
+
+
+def page_set_text_files(*, tile: Any, files: Any) -> dict[str, Any]:
+    return {'kind': 'setTextFiles', 'tile': tile, 'files': files}
 
 
 def page_follow_grid(*, chart: Any, grid: Any) -> dict[str, Any]:

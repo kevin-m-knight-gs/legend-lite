@@ -32,6 +32,7 @@ import contextlib
 import copy
 import datetime
 import functools
+import hashlib
 import itertools
 import json
 import math
@@ -464,8 +465,8 @@ class Grid(Tile):
         return self._gesture('format.clear', {'column': column})
 
     def heatmap(self, column: str, on: bool = True) -> Grid:
-        """A heatmap on ``column`` -- or, ``on=False``, off -- as the menu's Conditional Formatting > Color Scales >
-        Heatmap and No Color Scale paint it (the gestures ``heatmap.add`` and ``heatmap.remove``): on a pivoted
+        """A heatmap on ``column`` -- or, ``on=False``, off -- as the menu's Conditional Formatting > Heatmap and
+        Remove Heatmap paint it (the gestures ``heatmap.add`` and ``heatmap.remove``): on a pivoted
         column's measure, so every value's column under it has it; a pivot total's its own. The heatmap it has already, or none to take off, changes nothing."""
         return self._gesture('heatmap.add' if on else 'heatmap.remove', {'column': column})
 
@@ -1255,9 +1256,10 @@ class Chart(Tile):
 
 @_operations
 class Text(Tile):
-    """A text tile: a page's title, a note beside a chart -- its words in DataCube's small Markdown (``# `` a heading,
-    ``**bold**``, ``*italic*``, ``- `` or ``1. `` a list, ``[words](https://...)`` a link; DataCube's page-text.ts),
-    drawn as text, never as HTML."""
+    """A text tile: a page's title, a note beside a chart -- its words in GitHub's Markdown, as DataCube's page-text.ts
+    reads it (``# `` a heading, ``**bold**``, ``*italic*``, ``~~struck~~``, ``- `` or ``1. `` a list, ``- [ ] `` a task,
+    ``> `` a quote, fenced code, a table, ``---`` a rule, ``[words](https://...)`` a link), drawn as text, never as
+    HTML -- and the files it shows beside them (``files``: Markdown, text, CSV, JSON), pointed to, never copied."""
 
     _kind = 'text'
 
@@ -1271,6 +1273,40 @@ class Text(Tile):
         # by the command the tile's editor sends (page-commands.ts setText), judged by DataCube in its words: blank, too
         # long, not text
         self._page._apply_page([_commands.page_set_text(tile=self._id, text=text)])
+
+    @property
+    def files(self) -> list[dict[str, Any]]:
+        """The files this text box shows beside its words, each its ``name``, ``size`` and ``sha256``: a page points to
+        its files, never copies them (DataCube's text-files.ts) -- the browser finds each where it was picked, or asks
+        for it again by its name."""
+        return [dict(f) for f in self._view.get('files', [])]
+
+    @files.setter
+    def files(self, files: Sequence[str | Path | Mapping[str, Any]]) -> None:
+        """Sets the files this text box shows: each a path, read here to fingerprint it, or a file as ``files`` gives
+        one -- by the command the screen sends when files are opened or dropped on it (page-commands.ts setTextFiles),
+        judged by DataCube in its words: a kind a text box does not show (Markdown, text, CSV, JSON), too many, the same
+        file twice."""
+        _ = self._view
+        # one path is no list: its letters would be read as paths (the 2026-10-25 audit)
+        if isinstance(files, (str, Path, Mapping)):
+            raise TypeError("a text box's files are a list: [path] for one")
+        given: list[dict[str, Any]] = []
+        for f in files:
+            if isinstance(f, Mapping):
+                # judged as given: a file missing one of the three, or carrying another, refused in DataCube's words
+                given.append(dict(f))
+                continue
+            path = Path(f)
+            if path.is_dir():
+                raise ValueError(f'{path} is a folder: a text box shows files')
+            # fingerprinted a piece at a time: a big file is never held whole (DataCube refuses it by its size)
+            digest = hashlib.sha256()
+            with path.open('rb') as handle:
+                for piece in iter(lambda: handle.read(1 << 20), b''):
+                    digest.update(piece)
+            given.append({'name': path.name, 'size': path.stat().st_size, 'sha256': digest.hexdigest()})
+        self._page._apply_page([_commands.page_set_text_files(tile=self._id, files=given)])
 
 
 class Sheet:
@@ -1399,7 +1435,7 @@ class Page:
     def __init__(self, name: str | None = None) -> None:
         from .datacube import _current
         self._session = _current()
-        # the page, started as DataCube starts a page (headless pageNew: page-document.ts newPage, the tab's Blank Page's
+        # the page, started as DataCube starts a page (headless pageNew: page-document.ts newPage, the tab's New Page's
         # too -- unnamed when no name is given, as the tab's, else named by DataCube's rule; no grid yet, its one sheet an
         # empty board: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D11), and kept by its session's keeper from now on: the
         # one copy of it every editor -- this page, a tab or a notebook widget open on it -- writes, versioned

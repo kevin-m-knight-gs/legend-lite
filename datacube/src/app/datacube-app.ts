@@ -16,7 +16,7 @@ import { fn } from '../../../pure-protocol/src/index.ts';
 import { CubeApp, type CubeAppQuerySource } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import { gridCapped } from '../cube-document.ts';
-import { handleKey } from '../file-handles.ts';
+import { handleKey, readHandle } from '../file-handles.ts';
 import { Latest, TabWork, mayLeave } from '../host.ts';
 import { PlanThenRun, type PlanAndRun } from '../runner.ts';
 import { PageApp, type GridMaker } from '../page/page-app.ts';
@@ -57,6 +57,7 @@ import { convergeOn } from './live-converge.ts';
 import { pageHash } from '../page-hash.ts';
 import { pageSources, picksSources, type Chosen, type GridPlace, type Opened, type SignedIn } from './sources.ts';
 import { lazily } from '../lazily.ts';
+import { chromeIcon } from '../ui/tile-icons.ts';
 
 // the query store's code, fetched the first time it is needed -- a query link -- as charts are: a grid-only page never
 // downloads it (test/bundle-budget.test.ts)
@@ -140,7 +141,45 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     if (status.classList.contains('bad')) return;
     status.textContent = resting.text;
     status.classList.toggle('warn-text', resting.warn);
+    status.removeAttribute('role');
+    status.removeAttribute('tabindex');
+    status.removeAttribute('title');
   };
+  /**
+   * AN ERROR, AS A CHIP IN THE STATUS BAR (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §5): a mark and
+   * its first words, the whole of it on hover and in a window a click opens -- it ran into the bar as red text cut short.
+   * Its words stay the element's text: what reads the status line for an error reads it all.
+   */
+  const sayError = (text: string): void => {
+    const mark = document.createElement('span');
+    mark.className = 'dc-app-status-mark';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.textContent = '\u26a0';
+    const words = document.createElement('span');
+    words.className = 'dc-app-status-words';
+    words.textContent = text;
+    status.replaceChildren(mark, words);
+    status.classList.add('bad');
+    status.classList.remove('warn-text');
+    status.setAttribute('role', 'button');
+    status.tabIndex = 0;
+    status.title = `${text}\n\nClick for the whole of it`;
+  };
+  /** The error said, whole, in its window -- the query beside it a click away. A click on no error is the bar's. */
+  const openError = (event: Event): void => {
+    if (!status.classList.contains('bad')) return;
+    event.stopPropagation();
+    windows.errorText.textContent = status.querySelector('.dc-app-status-words')?.textContent ?? status.textContent ?? '';
+    windows.show(windows.error, { width: 640, height: 320 });
+  };
+  status.addEventListener('click', openError);
+  status.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openError(event);
+    }
+  });
+  windows.errorQuery.addEventListener('click', () => windows.show(windows.query));
   /** What taking the app down undoes, besides the page: the windows, a watch, a timer, a listener. */
   const undo: (() => void)[] = [windows.remove];
   let disposed = false;
@@ -293,9 +332,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           // saying what the cube cannot -- a planner that failed.
           if (kind !== 'error') return;
           harnessSignal.changes += 1;
-          status.textContent = text;
-          status.classList.add('bad');
-          status.classList.remove('warn-text');
+          sayError(text);
         },
         onView: (view) => {
           // For the browser harness: how many views have landed.
@@ -398,7 +435,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let dropUnread: (() => void) | undefined;
   /** The source picker, once the page can open sources: New ▸ Data Source… adds a grid over one; a blank page opens one. */
   let picker: ((purpose: 'add' | 'open', start?: SectionId) => Promise<GridMaker | undefined>) | undefined;
-  /** A blank page, everything gone, for a first data source: as asked (New ▸ Blank Page: `asked`, leaving a page another
+  /** A blank page, everything gone, for a first data source: as asked (New Page: `asked`, leaving a page another
    *  editor serves, D1), or where a start opened nothing (`reason`: why). */
   let blankPage: ((o: { readonly reason: string | undefined } | { readonly asked: true }) => void) | undefined;
   /** Why the page's start opened nothing (a link that failed, a key refused): the empty page says it. */
@@ -428,12 +465,24 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
    */
   const page = new PageApp({
     host,
+    // a text box's file read again from where it was picked: the handle this browser kept for the saved page, as a
+    // grid's file is (file-handles.ts); a page not saved, or nothing kept, has the text box ask for it
+    textFile: async (sha, click) => {
+      const id = page.record;
+      const kept = id === undefined ? undefined : await (await services.pages)?.handles?.get(handleKey(id, sha));
+      return kept ? readHandle(kept, click) : undefined;
+    },
+    // a missing one picked again: kept now, for the saved page it is -- the page is unchanged, no save would keep it
+    keepTextFile: (sha, handle) => {
+      const id = page.record;
+      if (id !== undefined) void (async () => (await services.pages)?.handles?.put(handleKey(id, sha), handle))();
+    },
     hostMenu: () => [
       // saved pages: where the host keeps them (in this browser), over the sources they were built on
       ...(services.pages ? [
+        { id: 'host.open' as const, label: 'Open\u2026', section: 'file' as const },
         { id: 'host.save' as const, label: 'Save', section: 'file' as const },
         { id: 'host.saveAs' as const, label: 'Save As\u2026', section: 'file' as const },
-        { id: 'host.open' as const, label: 'Open\u2026', section: 'file' as const },
       ] : []),
       // the page's settings in a link: never a row of data (src/share/link.ts)
       ...(services.browser.address ? [{ id: 'host.share' as const, label: 'Share\u2026', section: 'file' as const }] : []),
@@ -460,7 +509,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // each edit of the page's structure, written to its keeper, on a page another editor serves; an undo or a redo, the
     // page whole (a restore, N2)
     onPageCommand: (command) => channel?.edit({ page: command }),
-    // THE EMPTY PAGE (New ▸ Blank Page, the last grid removed, a start that opened nothing): what to do first -- a
+    // THE EMPTY PAGE (New Page, the last grid removed, a start that opened nothing): what to do first -- a
     // data source (the picker, opening in place) or a saved page
     empty: (slot) => {
       const doc = document;
@@ -701,7 +750,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         page,
         grid: (id) => madeCubes.get(id),
         pageNow: () => pageNow(page.title, true),
-        // left while a grid of the keeper's page was opened (New ▸ Blank Page, Open…): nothing of it lands on the page
+        // left while a grid of the keeper's page was opened (New Page, Open…): nothing of it lands on the page
         // of this tab's own (the S4 audit's 4)
         open: async (document, grid, several) => {
           const opened = await sources.reopened(document, undefined, several, page.model?.tables[grid], true);
@@ -718,7 +767,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     }
     /**
      * A NEW PAGE ON A PAGE ANOTHER EDITOR SERVES (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D1, P10): Open..., open in place
-     * and Blank Page put a page of this tab's own on screen and leave the served one as it is -- nothing of the new page
+     * and New Page put a page of this tab's own on screen and leave the served one as it is -- nothing of the new page
      * written to it, none of its moves followed here -- said once, in the status line; what is said, for a page that has
      * no grid to show that line (a blank page says it on its card), or undefined: no page served is left.
      */
@@ -920,8 +969,15 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      * detached chart included): kept by the page and the file's contents (file-handles.ts handleKey), so opening the
      * page again reads it from there.
      */
-    async function keepHandles(pageId: string): Promise<void> {
+    async function keepHandles(pageId: string, from?: string): Promise<void> {
       for (const f of sources.filesNow()) if (f.handle) await pages?.handles?.put(handleKey(pageId, f.sha256), f.handle);
+      // and each text box's file, as a grid's is (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): its handle picked this
+      // session, else -- saved as another page (`from`, Save As) -- the one that page kept: a file never shown this
+      // session is read from nowhere else (the 2026-10-25 audit)
+      for (const f of page.textFilesNow()) {
+        const handle = f.handle ?? (from !== undefined && from !== pageId ? await pages?.handles?.get(handleKey(from, f.sha256)) : undefined);
+        if (handle) await pages?.handles?.put(handleKey(pageId, f.sha256), handle);
+      }
     }
 
     /** The grid a saved page's cube is shown in (its grid view's id), or the cube's own id (a detached chart's). */
@@ -944,9 +1000,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       if ('refused' in saving) throw new Error(saving.refused);
       const { record } = saving;
       const id = record.id;
+      // the saved page it was: Save As takes the handles it kept (keepHandles)
+      const was = page.record;
       if (saving.over) await store.update(id, record);
       else await store.create(record);
-      await keepHandles(id);
+      await keepHandles(id, was);
       current = { ...current, savedName: record.name, baseline: pageDefinitionText(doc), lost: [] };
       // the saved page it is, applied to the page's state by its command and told: its other editor saves over the same
       // record (B13)
@@ -1002,7 +1060,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         close.type = 'button';
         close.className = 'dc-picker-close';
         close.setAttribute('aria-label', 'Close');
-        close.textContent = '\u00d7';
+        close.append(chromeIcon(document, 'close'));
         head.append(titles, close);
         const body = document.createElement('div');
         body.className = 'dc-open-body';
@@ -1372,7 +1430,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         return null;
       }, start);
 
-    // A BLANK PAGE (New ▸ Blank Page; the user, 2026-10-01): every grid and chart goes, and the page
+    // A BLANK PAGE (New Page; the user, 2026-10-01): every grid and chart goes, and the page
     // says what to do first -- a data source (the picker, opening in place) or a saved page (PageApp's empty page,
     // `empty` above). Asked first when there are unsaved changes; the page stays until the person agrees.
     blankPage = (how) => {
@@ -1461,7 +1519,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       } catch (e) {
         return e instanceof Error ? e.message : String(e);
       }
-      // left while it was read (New ▸ Blank Page, Open…): the page on screen is this tab's own (D1, the S4 audit's 4)
+      // left while it was read (New Page, Open…): the page on screen is this tab's own (D1, the S4 audit's 4)
       if (left) return undefined;
       if (channel) channel.shown = undefined;
       const shown = page.shownSheet;
@@ -1514,7 +1572,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       } catch {
         return openLive();
       }
-      // left while it was asked (New ▸ Blank Page, Open…): the page on screen is this tab's own (the S4 audit's 4)
+      // left while it was asked (New Page, Open…): the page on screen is this tab's own (the S4 audit's 4)
       if (left) return undefined;
       const wasChanged = dirty();
       // the screen put at the keeper's page (live-channel.ts follow, live-converge.ts: an edit made here while the keeper
@@ -1625,8 +1683,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   function failedStart(e: unknown): void {
     harnessSignal.changes += 1;
     startProblem = e instanceof Error ? e.message : String(e);
-    status.textContent = startProblem;
-    status.classList.add('bad');
+    sayError(startProblem);
   }
 }
 
@@ -1646,6 +1703,10 @@ interface AppWindows {
   readonly query: HTMLElement;
   readonly pure: HTMLElement;
   readonly sql: HTMLElement;
+  /** What went wrong, whole: the status bar's error chip opens it. */
+  readonly error: HTMLElement;
+  readonly errorText: HTMLElement;
+  readonly errorQuery: HTMLButtonElement;
   /** A window shown (left where it is if already shown), at `size` the first time. */
   show(win: HTMLElement, size?: { width: number; height: number }): void;
   toggle(win: HTMLElement): void;
@@ -1670,7 +1731,7 @@ function appWindows(container: HTMLElement): AppWindows {
   /** Each window's header, which it is dragged by. */
   const heads = new Map<HTMLElement, HTMLElement>();
   const hostWindow = (id: string, title: string, ...body: Node[]): HTMLElement => {
-    const close = el('button', { type: 'button', className: 'hostwin-close', textContent: '\u00d7' });
+    const close = el('button', { type: 'button', className: 'hostwin-close' }, chromeIcon(document, 'close'));
     close.setAttribute('aria-label', 'Close');
     const head = el('div', { className: 'hostwin-head' }, el('span', { textContent: title }), close);
     const win = el('div', { id, className: 'hostwin', hidden: true }, head, el('div', { className: 'hostwin-body' }, ...body));
@@ -1691,6 +1752,9 @@ function appWindows(container: HTMLElement): AppWindows {
   const pure = el('pre', { id: 'pure' });
   const sql = el('pre', { id: 'sql' });
   const query = hostWindow('querywin', 'Generated Pure & SQL', el('h2', { textContent: 'Pure' }), pure, el('h2', { textContent: 'SQL' }), sql);
+  const errorText = el('pre', { id: 'errortext', className: 'errortext' });
+  const errorQuery = el('button', { type: 'button', textContent: 'Show the query' });
+  const error = hostWindow('errorwin', 'What went wrong', errorText, el('div', { className: 'sharerow' }, errorQuery));
   const show = (win: HTMLElement, size: { width: number; height: number } = { width: 720, height: 420 }): void => {
     if (!win.hidden) return;
     win.hidden = false;
@@ -1700,8 +1764,8 @@ function appWindows(container: HTMLElement): AppWindows {
     specs.set(win, makeWindow(win, head, container, { ...size, ...(spec ? { spec } : {}), onChange: (next) => specs.set(win, next) }));
   };
   return {
-    library, libraryHome, share, shareParts: { link, note, copy }, query, pure, sql, show,
-    remove: () => { for (const w of [libraryHome, share, query]) w.remove(); },
+    library, libraryHome, share, shareParts: { link, note, copy }, query, pure, sql, error, errorText, errorQuery, show,
+    remove: () => { for (const w of [libraryHome, share, query, error]) w.remove(); },
     toggle: (win) => {
       if (!win.hidden) {
         win.hidden = true;
