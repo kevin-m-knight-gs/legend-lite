@@ -10,6 +10,7 @@ import {
 } from './cube-document.ts';
 import { grainOf } from './calc-presets.ts';
 import { textToolOf, type TextTool } from './text-tools.ts';
+import { uniqueOf } from './unique.ts';
 import { joinWords } from './join-words.ts';
 import { conditionWords } from './page-filters.ts';
 import type { DerivedColumn } from './snapshot.ts';
@@ -17,7 +18,8 @@ import type { ColumnEditorStart } from './ui/column-editor.ts';
 import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
-export type FlowTool = 'input' | 'textInput' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'sample' | 'recordId' | 'multiRow' | 'tile'
+export type FlowTool = 'input' | 'textInput' | 'join' | 'union' | 'filter' | 'formula' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
+  | 'multiRow' | 'tile'
   | 'datetime' | 'cleanse' | 'textToColumns' | 'regex' | 'runningTotal' | 'summarize' | 'crosstab' | 'browse' | 'comment';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
@@ -31,6 +33,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   select: { name: 'Select', group: 'prepare', does: 'the columns it keeps' },
   sort: { name: 'Sort', group: 'prepare', does: 'its rows in the order it sorts them' },
   sample: { name: 'Sample', group: 'prepare', does: 'its first or its last rows, in the order of a column' },
+  unique: { name: 'Unique', group: 'prepare', does: 'a row of each key, its first: U the unique rows, D the duplicates' },
   recordId: { name: 'Record ID', group: 'prepare', does: 'a number for each row, in an order it is given' },
   multiRow: { name: 'Multi-Row', group: 'prepare', does: 'a column of the row before or after each one' },
   tile: { name: 'Tile', group: 'prepare', does: 'each row put in one of a number of equal buckets, by an order' },
@@ -50,8 +53,8 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'textInput', 'filter', 'formula', 'select', 'sort', 'sample', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse', 'join',
-  'union', 'textToColumns', 'regex', 'summarize', 'crosstab', 'runningTotal', 'comment',
+  'input', 'textInput', 'filter', 'formula', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'datetime', 'cleanse',
+  'join', 'union', 'textToColumns', 'regex', 'summarize', 'crosstab', 'runningTotal', 'comment',
 ];
 
 /**
@@ -66,6 +69,8 @@ export type StepEditor =
   | { readonly window: 'properties'; readonly tab: EditorTab }
   /** The Sample window (ui/sample-form.ts): the grid's Top N, said as its first or last rows by a column. */
   | { readonly window: 'sample' }
+  /** The Unique window (ui/unique-form.ts): the columns a key is, and the order a key's first row is first in. */
+  | { readonly window: 'unique' }
   /** The DateTime window (ui/date-form.ts): a date column taken to its period, the grid's own period preset. */
   | { readonly window: 'datetime' }
   /** A text tool's window (ui/text-tool-form.ts): Text To Columns, RegEx or Data Cleansing (text-tools.ts). */
@@ -82,6 +87,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   summarize: { window: 'properties', tab: 'Vertical Pivots' },
   crosstab: { window: 'properties', tab: 'Horizontal Pivots' },
   sample: { window: 'sample' },
+  unique: { window: 'unique' },
   datetime: { window: 'datetime' },
   cleanse: { window: 'text', kind: 'cleanse' },
   textToColumns: { window: 'text', kind: 'split' },
@@ -115,8 +121,12 @@ export function boxSays(cube: CubeDocument): BoxSays {
   if (source._type !== 'rows') return { tool: 'input', also: [], says: source.name };
   const q = cube.query;
   const steps: { tool: FlowTool; says: string }[] = [];
+  // Unique: a row number per key, its first rows kept, the number hidden (unique.ts) -- one step, before the others
+  const unique = uniqueOf(q);
+  if (unique !== undefined) steps.push({ tool: 'unique', says: `by ${unique.keys.join(', ')}` });
   // its calculated columns, each by the tool that makes one so -- the ones of a tool together, in the order they come
   for (const d of q.derived) {
+    if (d.name === unique?.column) continue;
     const tool = columnTool(d);
     const last = steps.at(-1);
     const said = columnWords(d);
@@ -124,13 +134,13 @@ export function boxSays(cube: CubeDocument): BoxSays {
     if (last?.tool === tool) last.says = last.says.split(', ').includes(said) ? last.says : `${last.says}, ${said}`;
     else steps.push({ tool, says: said });
   }
-  if (q.filter !== undefined) steps.push({ tool: 'filter', says: conditionWords(q.filter) });
+  if (q.filter !== undefined && unique === undefined) steps.push({ tool: 'filter', says: conditionWords(q.filter) });
   if (q.topN !== undefined) steps.push({ tool: 'sample', says: `${q.topN.bottom === true ? 'first' : 'last'} ${q.topN.n} by ${q.topN.by}` });
   if (q.pivotOn.length > 0) {
     steps.push({ tool: 'crosstab', says: `${q.pivotOn.join(', ')} across${q.rows.length > 0 ? `, by ${q.rows.join(', ')}` : ''}` });
   } else if (q.rows.length > 0) steps.push({ tool: 'summarize', says: `by ${q.rows.join(', ')}` });
   if (q.sorts.length > 0) steps.push({ tool: 'sort', says: q.sorts.map((s) => `${s.column} ${s.direction === 'desc' ? '↓' : '↑'}`).join(', ') });
-  const hidden = hiddenColumns(cube);
+  const hidden = hiddenColumns(cube).filter((c) => c !== unique?.column);
   if (hidden.length > 0) steps.push({ tool: 'select', says: `${hidden.length} of ${q.columns.length} columns left out` });
   const first = steps[0];
   if (first === undefined) return { tool: 'browse', also: [], says: 'every row' };

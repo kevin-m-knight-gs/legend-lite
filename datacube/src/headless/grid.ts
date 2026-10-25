@@ -19,6 +19,7 @@ import { draftColumn, draftStage, existingDraft, newDraft, type ColumnDraft } fr
 import { presetCommands, readGridPreset, type GridPreset } from '../grid-presets.ts';
 import { readTextTool, TEXT_TOOL_KINDS, textToolCommands } from '../text-tool-columns.ts';
 import type { TextTool } from '../text-tools.ts';
+import { readUnique, uniqueCommands, type Unique } from '../unique.ts';
 import {
   argumentsGiven, gestureNamed, gestureReadsView, gridGestureGiven, type GestureArgs, type GestureView, type GridGestureName,
 } from '../grid-gestures.ts';
@@ -751,17 +752,19 @@ export async function gridModelMeasure(spec: GridSpec, given: string): Promise<s
 
 /**
  * A PRESET ADDED AS THE HEADER MENU ADDS ONE (grid-presets.ts presetCommands: a date to its period, a measure shown as,
- * a number to its bin -- Python's grid.grain, grid.show_as, grid.bins), or A TEXT TOOL'S COLUMNS AS A FLOW'S BOX ADDS
- * THEM (text-tool-columns.ts textToolCommands: Text To Columns, RegEx, Data Cleansing -- grid.split, grid.regex,
- * grid.cleanse): `given`, the preset or the tool as JSON (readGridPreset, readTextTool), over the grid's columns as the
- * compiler types them now. JSON: as gridApply's, or `{problems}`, in DataCube's words.
+ * a number to its bin -- Python's grid.grain, grid.show_as, grid.bins), or A FLOW'S TOOL AS ITS WINDOW SETS IT: a text
+ * tool's columns (text-tool-columns.ts textToolCommands: Text To Columns, RegEx, Data Cleansing -- grid.split,
+ * grid.regex, grid.cleanse) or Unique (unique.ts uniqueCommands: grid.unique). `given`, the preset or the tool as JSON
+ * (readGridPreset, readTextTool, readUnique, by its kind), over the grid's columns as the compiler types them now.
+ * JSON: as gridApply's, or `{problems}`, in DataCube's words.
  */
 export async function gridPreset(spec: GridSpec, given: string): Promise<string> {
-  let preset: GridPreset | TextTool;
+  let asked: { readonly preset: GridPreset } | { readonly tool: TextTool } | { readonly unique: Unique };
   try {
     const raw: unknown = JSON.parse(given);
     const kind = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>)['kind'] : undefined;
-    preset = (TEXT_TOOL_KINDS as readonly unknown[]).includes(kind) ? readTextTool(raw) : readGridPreset(raw);
+    asked = kind === 'unique' ? { unique: readUnique(raw) }
+      : (TEXT_TOOL_KINDS as readonly unknown[]).includes(kind) ? { tool: readTextTool(raw) } : { preset: readGridPreset(raw) };
   } catch (e) {
     if (!(e instanceof CubeRefusal)) throw e;
     return JSON.stringify({ problems: [e.message] });
@@ -769,17 +772,15 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
   return using(spec, async (o) => {
     let commands: GridCommand[];
     try {
-      commands = isTextTool(preset) ? textToolCommands(preset) : presetCommands(await typedColumns(o.runner, o.state.snapshot), preset);
+      commands = 'tool' in asked ? textToolCommands(asked.tool)
+        : 'unique' in asked ? uniqueCommands(await typedColumns(o.runner, o.state.snapshot), asked.unique)
+          : presetCommands(await typedColumns(o.runner, o.state.snapshot), asked.preset);
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       return JSON.stringify({ problems: [e.message] });
     }
     return applied(spec, o, commands);
   });
-}
-
-function isTextTool(p: GridPreset | TextTool): p is TextTool {
-  return (TEXT_TOOL_KINDS as readonly string[]).includes(p.kind);
 }
 
 /**

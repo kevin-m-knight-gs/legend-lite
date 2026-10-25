@@ -120,6 +120,22 @@ describe('a live input resolved against its page', () => {
     assert.deepEqual(liveGrids(resolved), [], 'no link is left');
   });
 
+  it("a flow's box gives the columns it shows: the ones it hides left out (omit), kept in a copy; a board's grid all", () => {
+    const hiding = (c: CubeDocument): CubeDocument => ({ ...c, configuration: { ...c.configuration, columns: { notional: { hidden: true } } } });
+    const board = page({ 'grid-1': hiding(cube(FILE)), 'grid-2': cube(rows('grid-1')) });
+    assert.equal(gridInput(board, 'grid-1').omit, undefined, "a board's grid: every column, as a Join of two grids has");
+    const flow: PageDocument = { ...board, sheets: [{ id: 'sheet-1', layout: { kind: 'flow', boxes: [
+      { tile: 'grid-1', x: 40, y: 40 }, { tile: 'grid-2', x: 288, y: 40 },
+    ] } }] };
+    assert.deepEqual(gridInput(flow, 'grid-1').omit, ['notional']);
+    // written and read with its copy (a frozen input: FL6)
+    const frozen = cube({ _type: 'rows', name: 'trades.csv', input: gridInput(flow, 'grid-1'), columns: COLUMNS });
+    const again = readCube(JSON.parse(cubeToJson(frozen)));
+    assert.deepEqual(again.source._type === 'rows' && !('grid' in again.source.input) ? again.source.input.omit : null, ['notional']);
+    assert.throws(() => readCube(JSON.parse(cubeToJson(frozen).replace('"omit":["notional"]', '"omit":"notional"'))),
+      (e: unknown) => e instanceof CubeDocumentError && /columns left out are a list of names/.test(e.message));
+  });
+
   it('follows its grid: an edit there is what it reads', () => {
     const p = CHAIN();
     const edited: PageDocument = {

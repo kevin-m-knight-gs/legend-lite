@@ -2714,6 +2714,28 @@ class Flows(Paged):
         again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
         self.assertEqual(next(g for g in again.grids if g.id == top.id).input.id, big.id)
 
+    def test_unique_and_its_duplicates(self):
+        # M3: a flow's Unique (unique.ts uniqueCommands) -- a row of each key, its first by an order -- and its
+        # Duplicates, the filter's False port (FL7): every row after a key's first
+        page, flow, source, _big = self.flowed()
+        firsts = flow.grid(input=source)
+        firsts.unique(['region'], by=('notional', 'desc'))
+        self.assertEqual(sorted(firsts.to_pandas()['notional']), [100.0, 250.0], "each region's largest")
+        # its row number hidden: a box's rows are the columns it shows, so the box after it has none of it
+        after = flow.grid(input=firsts)
+        self.assertEqual(sorted(after.to_pandas().columns), ['desk', 'notional', 'pnl', 'region'])
+        # and so a Select's (a column hidden): the box after it reads the columns it keeps
+        kept = flow.grid(input=source)
+        kept.configure({'columns': {'pnl': {'hidden': True}}})
+        self.assertEqual(sorted(flow.grid(input=kept).to_pandas().columns), ['desk', 'notional', 'region'])
+        dupes = flow.grid(input=source)
+        dupes.relink(firsts, port='false')
+        self.assertEqual(sorted(dupes.to_pandas()['notional']), [75.5])
+        with self.assertRaisesRegex(ValueError, "the grid has no column 'nope'"):
+            flow.grid(input=source).unique(['nope'])
+        with self.assertRaisesRegex(ValueError, 'a key is at least one column'):
+            flow.grid(input=source).unique([])
+
     def test_a_join_box_reads_both_live_and_is_set_again(self):
         # M2: a join of two boxes of a flow is live (FL6) -- an edit of either reaches it -- and set again by rejoin
         page, flow, source, big = self.flowed()

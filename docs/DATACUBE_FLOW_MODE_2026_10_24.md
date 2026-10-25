@@ -243,7 +243,7 @@ How to read the status column:
 | Sort | Built | The grid's sorts |
 | Sample (first, last, every Nth, N per group) | Step | `limit`, `drop`, `slice`, and a row number for N per group |
 | Random % Sample | Step | `random()` |
-| Unique (Unique, Duplicates) | Step | `removeDuplicatesBy`; the Duplicates port (§3.3) |
+| Unique (Unique, Duplicates) | Built (2026-10-25) | A row number per key (`rowNumber` partitioned by its columns, in an order), a filter keeping the first, the number hidden; its Duplicates the filter's False port (§3.3), drawn U and D |
 | Record ID | Built | A window column: `rowNumber` |
 | Tile | Built | A window column: `ntile` |
 | Data Cleansing | Built (2026-10-25) | Calculated columns, a `<column>_clean` each: empties made blank (`coalesce`), punctuation out and repeated spaces one (`regexpReplace`), `trim`, `toUpper` / `toLower` (§17.6). In place, as Alteryx's, needs a relation `rename` |
@@ -613,8 +613,28 @@ through headless `gridPreset`): `grid.split(column, delimiter, parts)`, `grid.re
 `grid.cleanse(columns, ...)`. A part a value has not got, and a pattern it does not match, are empty (`splitPart`'s
 `String[0..1]`, `first` of the matches). Tested by `flow-sheet.test.ts` (the expressions, the words, the refusals),
 Python's `test_text_tools_as_a_flow_box_adds_them` (the values DuckDB computes) and the harness (each tool set in its
-window, its columns planned and run on DuckDB). Still to come in M3:
-Unique, Imputation, the DateTime tool's parse and format.
+window, its columns planned and run on DuckDB).
+
+**Built, Unique** (`unique.ts`, `ui/unique-form.ts`, `app.ts` `#openUnique`): Alteryx's Unique, with its two outputs --
+a row of each key, its first in an order the window picks ("Keep the first row of each, by notional, largest first"),
+said as what a grid already does: a row number restarting for each key (`rowNumber` partitioned by the key's columns),
+a filter keeping the rows numbered 1, and the number's column hidden. Its U output is its rows; its D output -- every row
+after a key's first -- is that filter's False port (FL7), so nothing new carries it: the canvas draws a Unique's two
+ports as U and D where a Filter's are T and F. A box says "by region", read back off its query (`uniqueOf`: the number,
+its filter alone, its column hidden -- not a Record ID, a Filter and a Select). Python: `grid.unique(keys, by=...)`
+(headless `gridPreset`, the same rule), its duplicates `other.relink(box, port='false')`.
+
+**Fixed with it, a box's rows are the columns it shows** (`live-inputs.ts` `gridInput`, `cube-document.ts`
+`JoinInput.omit`, `join-open.ts` `inputRows`): a box reading another read every column of its query, the ones that box
+hid too -- so a Select box left out nothing for the box after it, and Unique's row number would have reached the next
+box. A live input of a flow's box now leaves out the columns its box hides (`omit`, kept in a frozen copy), selected
+away where its rows are read (the tab's and Python's, one rule); a grid of a board still gives every column, as a Join
+of two grids always has. Tested by `flow-sheet.test.ts` (Unique's commands, its words, its refusals),
+`live-inputs.test.ts` (omit on a flow, none on a board, its copy read and refused), Python's
+`test_unique_and_its_duplicates` (each region's largest, its duplicates, the columns the next box reads for a Unique and
+a Select) and the harness (a Unique of the Input by region: 3 rows, U and D, a Browse of its Duplicates: 5000 - 3).
+
+Still to come in M3: Imputation, the DateTime tool's parse and format, Multi-Field Formula.
 
 ### M7's first steps (2026-10-25)
 

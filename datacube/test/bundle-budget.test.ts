@@ -475,8 +475,11 @@ const BUDGET = 370_500;
  *  a box's Ctrl+C copied and pastes it as one step, and tells the canvas what Undo and Redo would do; the buttons and
  *  the keys the canvas's chunk). Measured 357,632.
  *  358,000 -> 358,500 (2026-10-25, the flow mode's text tools -- the grid-only page's note of the same date). Measured
- *  358,355. */
-const ENGINE_BUDGET = 358_500;
+ *  358,355.
+ *  358,500 -> 359,000 (2026-10-25, the flow mode's Unique, and a box's rows the columns it shows: a live input of a flow's
+ *  box leaves out the columns its box hides (live-inputs.ts gridInput, cube-document.ts JoinInput.omit, join-open.ts
+ *  inputRows -- startup modules); Unique's rule and its window chunks of their own). Measured 358,659. */
+const ENGINE_BUDGET = 359_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -660,8 +663,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  380,000 -> 380,500 (2026-10-25, the flow mode's Text Input -- the grid-only page's note of the same date; the table's
  *  window's styles among them). Measured 380,187.
  *  380,500 -> 381,000 (2026-10-25, the flow mode's text tools -- the grid-only page's note of the same date; their
- *  windows' styles and the Parse group's colour among them). Measured 380,836. */
-const WIDGET_BUDGET = 381_000;
+ *  windows' styles and the Parse group's colour among them). Measured 380,836.
+ *  381,000 -> 381,500 (2026-10-25, the flow mode's Unique -- the engine page's note of the same date; its U and D ports'
+ *  styles among them). Measured 381,179. */
+const WIDGET_BUDGET = 381_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

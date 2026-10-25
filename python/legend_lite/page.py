@@ -854,6 +854,14 @@ class Grid(Tile):
         return self._preset({'kind': 'cleanse', 'columns': list(columns), 'blanks': blanks, 'punctuation': punctuation,
                              'spaces': spaces, 'trim': trim, **({'letterCase': case} if case is not None else {})})
 
+    def unique(self, keys: Sequence[str], *, by: Any = None) -> Grid:
+        """A row of each key -- the columns ``keys`` -- its first in the order ``by`` (a column, rising, or ``(column,
+        'asc' | 'desc')``; the first key's own by default): a flow's Unique (DataCube's code: unique.ts uniqueCommands),
+        a row number per key, a filter keeping the first, the number hidden. Its duplicates -- every row after a key's
+        first -- are its False port: ``other.relink(this, port='false')``."""
+        return self._preset({'kind': 'unique', 'keys': list(keys),
+                             **({'by': _sort_given(by, 'an order')} if by is not None else {})})
+
     def dimension(self, name: str) -> Grid:
         """Grouped by the named dimension ``name``'s first level (its configuration's ``dimensions``: a name and its
         columns, coarsest first), as Properties' Dimensions tab's Group Rows by uses one (the gesture

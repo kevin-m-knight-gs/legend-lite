@@ -5,7 +5,7 @@
 // (join.ts joinRelation), and the compiler types what comes out. What drifted since it was saved is said. No DOM: the
 // tab's sources (app/sources.ts) and a test on Node's DuckDB (test/join-open.test.ts) call it alike.
 
-import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { colSpecs, fn, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import {
   frozenInput, inputCube, leavesOf, openCube, type CubeSource, type JoinInput, type JoinSource, type LeafSource, type RowsSource,
 } from './cube-document.ts';
@@ -91,8 +91,12 @@ export async function inputRows(input: JoinInput, over: ValueSpecification, type
   if (opened.snapshot.pivotOn.length > 0) {
     throw new CubeRefusal(`${input.name} is pivoted: its columns are its values, so its rows have no fixed columns; take its pivot off first`);
   }
-  const rows = classLambda(opened.snapshot).body[0]!;
-  const columns = (await sourceColumns(typer, rows)).map((c) => ({ name: c.name, type: c.type }));
+  const all = classLambda(opened.snapshot).body[0]!;
+  const typed = (await sourceColumns(typer, all)).map((c) => ({ name: c.name, type: c.type }));
+  // the columns its box leaves out (JoinInput.omit): selected away, the rest in their order
+  const omit = new Set(input.omit ?? []);
+  const columns = typed.filter((c) => !omit.has(c.name));
+  const rows = columns.length === typed.length ? all : fn('select', all, colSpecs(columns.map((c) => c.name)));
   return { name: input.name, relation: rows, columns };
 }
 

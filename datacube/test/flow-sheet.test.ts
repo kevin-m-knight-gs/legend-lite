@@ -21,7 +21,8 @@ import {
 import { renamedCommand, rearranged } from '../src/page-rebase.ts';
 import { tidyCommands } from '../src/page-gestures.ts';
 import { applyPlanned, pageBetween } from '../src/page-between.ts';
-import { CubeRefusal, type DerivedColumn } from '../src/snapshot.ts';
+import { CubeRefusal, type DerivedColumn, type FilterNode } from '../src/snapshot.ts';
+import { readUnique, uniqueCommands, uniqueOf } from '../src/unique.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, fn, lambda, lit, property, variable } from '../../pure-protocol/src/index.ts';
 import { textToolOf } from '../src/text-tools.ts';
@@ -224,6 +225,41 @@ describe('the text tools (text-tools.ts): calculated columns, read back off thei
     assert.equal(textToolProblem({ kind: 'regex', column: 'a', pattern: '', mode: 'match', name: 'a' }), 'it needs a pattern');
     assert.equal(textToolProblem({ kind: 'cleanse', columns: ['a'], cleansing: {} }), 'pick what to do to them');
     assert.throws(() => textToolColumns({ kind: 'cleanse', columns: [], cleansing: { trim: true } }), /pick a column to cleanse/);
+  });
+});
+
+describe('Unique (unique.ts): a row number per key, its first kept, the number hidden -- read back as one step', () => {
+  const snapshot = rawRows(accessor('local::DB', 'trades'), COLUMNS);
+  const made = (keys: string[], by?: { column: string; direction: 'asc' | 'desc' }) => uniqueCommands(snapshot, { keys, ...(by ? { by } : {}) });
+
+  it('makes its row number, its filter and its column hidden, ordered by the first key unless given an order', () => {
+    const [calc, filter, configure] = made(['region']);
+    assert.deepEqual(calc, { kind: 'calculate', level: 'row', column: {
+      name: 'UniqueRow', window: { fn: 'rowNumber', partition: ['region'], order: [{ column: 'region', direction: 'asc' }] },
+    } });
+    assert.deepEqual(filter, { kind: 'addFilter', condition: { kind: 'condition', column: 'UniqueRow', operator: 'equal', value: 1 } });
+    assert.deepEqual(configure, { kind: 'configure', patch: { columns: { UniqueRow: { hidden: true } } } });
+    const ordered = made(['region'], { column: 'notional', direction: 'desc' })[0] as { column: DerivedColumn };
+    assert.deepEqual(ordered.column.window?.order, [{ column: 'notional', direction: 'desc' }]);
+  });
+
+  it('a box made so says Unique, by its keys: its number neither a Record ID nor its filter a Filter, nor hidden a Select', () => {
+    const [calc, filter] = made(['region', 'notional']) as unknown as [{ column: DerivedColumn }, { condition: FilterNode }];
+    const box = cube(rows('grid-1'), (q) => ({ ...q, derived: [calc.column], filter: filter.condition }), { columns: { UniqueRow: { hidden: true } } });
+    assert.deepEqual(boxSays(box), { tool: 'unique', also: [], says: 'by region, notional' });
+    assert.deepEqual(uniqueOf(box.query)?.keys, ['region', 'notional']);
+    // another filter beside it: no Unique, as its words would hide the other
+    assert.equal(uniqueOf({ derived: [calc.column], filter: { kind: 'and', children: [filter.condition, filter.condition] } }), undefined);
+  });
+
+  it('refuses a key it cannot make, in words; a name taken moves on', () => {
+    assert.throws(() => made([]), /a key is at least one column/);
+    assert.throws(() => made(['nope']), /the grid has no column 'nope'/);
+    assert.throws(() => made(['region', 'region']), /a key names each column once/);
+    const taken = { ...snapshot, derived: [{ name: 'UniqueRow', window: { fn: 'rowNumber', partition: [], order: [] } }] } as never;
+    assert.equal((uniqueCommands(taken, { keys: ['region'] })[0] as { column: DerivedColumn }).column.name, 'UniqueRow_2');
+    assert.deepEqual(readUnique({ kind: 'unique', keys: ['region'], by: 'notional' }), { keys: ['region'], by: { column: 'notional', direction: 'asc' } });
+    assert.throws(() => readUnique({ kind: 'unique', keys: 'region' }), /its keys are a list of column names/);
   });
 });
 

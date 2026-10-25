@@ -597,6 +597,38 @@ try {
     await w.locator('.dc-text-tool-case').selectOption('lower');
   }, { says: 'region cleansed', columns: ['region_clean'] });
 
+  // UNIQUE (M3), dragged onto the Input: a row of each region, its U output; a Browse off its D, the duplicates
+  const beforeUnique = (await boxes()).map((b) => b.id);
+  await drag('unique', input.id);
+  await boxCount(beforeUnique.length + 1);
+  const uniq = await added(beforeUnique);
+  await docked('Unique');
+  await page.locator('.dc-flow-dock .dc-unique input[value="region"]').check();
+  await page.locator('.dc-flow-dock .dc-unique-by').selectOption('notional');
+  await page.locator('.dc-flow-dock .dc-unique-direction').selectOption('desc');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  const uniqueBox = (await boxes()).find((b) => b.id === uniq.id);
+  check(uniqueBox?.tool === 'unique' && uniqueBox.says === 'by region', `a Unique box: ${JSON.stringify(uniqueBox)}`);
+  check(await resultRows() === 3, 'a row of each region: 3');
+  check(await page.locator('.dc-flow-results .dc-th[data-column="UniqueRow"]').count() === 0, 'its row number hidden');
+  const ports = await page.locator(`.dc-flow-box[data-tile="${uniq.id}"] .dc-flow-port-out`).allTextContents();
+  check(JSON.stringify(ports) === '["U","D"]', `its outputs U and D: ${ports}`);
+  await page.locator('.dc-flow-canvas').evaluate((c) => { c.scrollLeft = 0; c.scrollTop = 0; });
+  const beforeDupes = (await boxes()).map((b) => b.id);
+  await page.locator(`.dc-flow-box[data-tile="${uniq.id}"]`).scrollIntoViewIfNeeded();
+  const dPort = await page.locator(`.dc-flow-box[data-tile="${uniq.id}"] .dc-flow-port-false`).boundingBox();
+  const dupeSpot = await emptyCanvasPoint();
+  await page.mouse.move(dPort.x + dPort.width / 2, dPort.y + dPort.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(dupeSpot.x, dupeSpot.y, { steps: 12 });
+  await page.mouse.up();
+  await boxCount(beforeDupes.length + 1);
+  const dupes = await added(beforeDupes);
+  check(await readsOf(dupes.id) === `${uniq.id}:false`, `a Browse of its Duplicates: ${await readsOf(dupes.id)}`);
+  await settled();
+  check(await resultRows() === all - 3, `its duplicates, every row after a region's first: ${all} - 3`);
+
   // ZOOM (M7): a level up, a box dragged as far across the window moves less on the canvas; back to its own size
   await page.locator('.dc-flow-zoom', { hasText: '+' }).click();
   check(await page.locator('.dc-flow-zoom-level').textContent() === '110%', 'zoomed in a level: 110%');

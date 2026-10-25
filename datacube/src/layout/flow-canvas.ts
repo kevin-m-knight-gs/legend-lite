@@ -62,6 +62,9 @@ const GROUP_WORDS: Readonly<Record<FlowGroup, string>> = {
  *  other box's in the middle. */
 const outY = (filter: boolean, port: InputPort | undefined): number => (!filter ? BOX_HEIGHT / 2 : port === 'false' ? BOX_HEIGHT * 0.7 : BOX_HEIGHT * 0.3);
 
+/** The two outputs' names: a Filter's True and False, a Unique's Unique and Duplicates. */
+const PORT_WORDS = { filter: ['True', 'False'], unique: ['Unique', 'Duplicates'] } as const;
+
 /** A side's name, as a port and the settings say it. */
 const SIDE_WORDS: Readonly<Record<InputSide, string>> = { input: 'Input', left: 'Left', right: 'Right' };
 
@@ -78,6 +81,7 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   join: 'M6 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9M10 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9',
   union: 'M2.5 3h11v4h-11zM2.5 9h11v4h-11z',
   recordId: 'M6 2.5L4.5 13.5M11.5 2.5L10 13.5M2.5 6h11M2 10.5h11',
+  unique: 'M3 3.5h4v4H3zM9 3.5h4v4H9zM3 10h4M9 10h4M3 12.5h4M9 12.5h4',
   sample: 'M2.5 3h11M2.5 6.5h11M2.5 10h4M2.5 13h4M10 10.5l1.5 1.5 2.5-3',
   multiRow: 'M2 3.5h8M2 8h8M2 12.5h8M12.5 5.5l2 2.5-2 2.5',
   tile: 'M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z',
@@ -869,6 +873,15 @@ export class FlowCanvas {
     drawn.key = key;
     drawn.root.dataset['tool'] = tool;
     drawn.root.dataset['group'] = FLOW_TOOLS[tool].group;
+    // its two outputs, where it has two: a Filter's T and F, a Unique's U and D
+    const [outTrue, outFalse] = drawn.root.querySelectorAll<HTMLElement>(':scope > .dc-flow-port-out');
+    if (outTrue !== undefined && outFalse !== undefined) {
+      const unique = tool === 'unique';
+      outTrue.textContent = unique ? 'U' : 'T';
+      outFalse.textContent = unique ? 'D' : 'F';
+      outFalse.title = unique ? 'Its Duplicates: every row after its key\'s first. Drag onto another box to link it here'
+        : 'Its False: the rows its condition leaves out. Drag onto another box to link it here';
+    }
     drawn.root.classList.toggle('dc-flow-shown', shown);
     drawn.root.classList.toggle('dc-flow-refused', refused !== undefined);
     drawn.root.classList.toggle('dc-flow-frozen', frozen.length > 0);
@@ -1044,9 +1057,10 @@ export class FlowCanvas {
     return i !== undefined && 'grid' in i ? { grid: i.grid, ...(i.port !== undefined ? { port: i.port } : {}) } : undefined;
   }
 
-  /** Whether a box is drawn as a Filter: its True and False outputs. */
+  /** Whether a box is drawn with two outputs: a Filter's True and False, a Unique's U and D (its filter's, turned round). */
   #isFilter(id: string): boolean {
-    return this.#said(id)?.tool === 'filter';
+    const tool = this.#said(id)?.tool;
+    return tool === 'filter' || tool === 'unique';
   }
 
   /**
@@ -1235,7 +1249,9 @@ export class FlowCanvas {
     // each box of the flow, and a Filter's False besides
     const offered = boxes.filter((b) => b !== id && !readers.has(b)).flatMap((b) => {
       const name = this.#nameOf(b, this.#said(b)?.tool ?? 'browse');
-      return this.#isFilter(b) ? [{ id: b, name: `${name} (True)` }, { id: b, name: `${name} (False)`, port: 'false' as const }] : [{ id: b, name }];
+      if (!this.#isFilter(b)) return [{ id: b, name }];
+      const [yes, no] = PORT_WORDS[this.#said(b)?.tool === 'unique' ? 'unique' : 'filter'];
+      return [{ id: b, name: `${name} (${yes})` }, { id: b, name: `${name} (${no})`, port: 'false' as const }];
     });
     const key = JSON.stringify([id, inputs, offered, this.#board.editing]);
     if (key === this.#inputsKey) return;

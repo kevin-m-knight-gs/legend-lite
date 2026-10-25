@@ -462,7 +462,7 @@ const windowStack = new WeakMap<HTMLElement, number>();
  *  docks them (CubeAppOptions.dock); every other window floats. */
 /** The text tools' windows, by the tool each sets (text-tools.ts). */
 const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
-const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Date Period'
+const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Date Period'
   || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
@@ -3626,6 +3626,9 @@ export class CubeApp {
       case 'text':
         void this.#openTextTool(editor.kind);
         return;
+      case 'unique':
+        void this.#openUnique();
+        return;
       // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
       case 'join':
         return;
@@ -3656,6 +3659,28 @@ export class CubeApp {
       apply: async (column, grain) => {
         try {
           return await this.#apply(presetCommands(this.#snapshot, { kind: 'grain', column, grain }), 'Date Period');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S UNIQUE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): a row of each key, its first in an order -- a row
+   *  number per key, a filter keeping the first, the number hidden (unique.ts, the rule Python's grid.unique asks) -- in
+   *  a window of its own (ui/unique-form.ts); its duplicates are its filter's False port. Both fetched with the first. */
+  async #openUnique(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ uniqueForm }, { uniqueCommands }] = await Promise.all([
+      lazily(() => import('./ui/unique-form.ts')), lazily(() => import('./unique.ts')),
+    ]);
+    this.#showOverlay('Unique', (host, close) => uniqueForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => c.name),
+      apply: async (unique) => {
+        try {
+          return await this.#apply(uniqueCommands(this.#snapshot, unique), 'Unique');
         } catch (e) {
           if (e instanceof CubeRefusal) return e.message;
           throw e;
