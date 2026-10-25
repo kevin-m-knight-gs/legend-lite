@@ -5061,6 +5061,12 @@
 .dc-select-type { color: var(--dc-muted); font-size: 12px; }
 .dc-select-rename { padding: 3px 6px; }
 .dc-select-out .dc-select-name, .dc-select-out .dc-select-type { color: var(--dc-muted); text-decoration: line-through; }
+/* a Summarize's columns (ui/summarize-form.ts): a row a column -- its name, its type, what is done with it */
+.dc-summarize-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px 170px; align-items: center; gap: 8px; padding: 3px 10px; }
+.dc-summarize-row[hidden] { display: none; }
+.dc-summarize-row + .dc-summarize-row { border-top: 1px solid var(--tw-neutral-100); }
+.dc-summarize-action { width: 100%; }
+
 /* a Transpose's columns (ui/transpose-form.ts): each a key, made rows, or left out */
 .dc-transpose-list { display: flex; flex-direction: column; max-height: 260px; overflow-y: auto; border: 1px solid var(--tw-neutral-200); border-radius: 8px; }
 .dc-transpose-row { display: grid; grid-template-columns: 1fr 64px 84px; align-items: center; gap: 8px; padding: 4px 10px; }

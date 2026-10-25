@@ -194,15 +194,18 @@ try {
   check(formulaRows === filtered, `a calculated column keeps its input's rows: ${formulaRows}`);
   check(await page.locator('.dc-flow-results .dc-th[data-column="fee"]').count() > 0, 'its column in its rows');
 
-  // A SUMMARIZE, dragged onto the Formula: Properties docked at Row Groups, region grouped
+  // A SUMMARIZE, dragged onto the Formula: its window docked (Alteryx's: a row a column, its action), region grouped by,
+  // each number aggregated as its column says until told otherwise
   await drag('summarize', formula.id);
   await boxCount(4);
   const summary = await added([input.id, filter.id, formula.id]);
-  await docked('Properties');
-  const available = page.locator('.dc-flow-dock .dc-selector-box').first();
-  await available.locator('.dc-selector-row', { hasText: /^region$/ }).first().click();
-  await page.locator('.dc-flow-dock .dc-selector-move').first().click();
-  await page.locator('.dc-flow-dock button', { hasText: /^OK$/ }).click();
+  await docked('Summarize');
+  const okSummary = page.locator('.dc-flow-dock .dc-sample-foot .dc-primary');
+  check(await okSummary.isDisabled(), 'a Summarize waits for a group');
+  const actions = await page.locator('.dc-flow-dock .dc-summarize-row[data-column="notional"] .dc-summarize-action option').allTextContents();
+  check(actions.includes('Group by') && actions.some((a) => /^Sum/.test(a)), `a number's actions: ${actions.join(', ')}`);
+  await page.locator('.dc-flow-dock .dc-summarize-row[data-column="region"] .dc-summarize-action').selectOption('group');
+  await okSummary.click();
   await settled();
   const groups = await resultRows();
   const summed = (await boxes()).find((b) => b.id === summary.id);

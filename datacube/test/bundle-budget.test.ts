@@ -368,8 +368,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  375,000 -> 376,000 (2026-10-25, the flow mode's Transpose, Select and Sample's other ways: their windows' openers
  *  (app.ts), and what a box hands on -- its columns shown, a Summarize's keys and aggregates, a Select's renames -- one
  *  rule now (box-columns.ts) that live-inputs.ts reads at startup; the rules and the windows chunks of their own).
- *  Measured 375,039. */
-const BUDGET = 376_000;
+ *  Measured 375,039.
+ *  376,000 -> 376,500 (2026-10-25, the flow mode's Summarize window: its opener (app.ts), and the read of a grid's
+ *  columns as a Summarize has them beside the offers it reads (grid-edits.ts summaryOf, summaryActions); the commands'
+ *  rule and the window chunks of their own -- the rule reading the snapshot alone, as one that imported the grid's edits
+ *  split their startup chunk in two, +1,362 bytes, measured and undone). Measured 376,147. */
+const BUDGET = 376_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

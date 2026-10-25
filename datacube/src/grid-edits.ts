@@ -10,12 +10,12 @@ import { lambda, property, variable } from '../../pure-protocol/src/index.ts';
 import { nameProblem } from './calc.ts';
 import { draftColumn, newDraft } from './column-draft.ts';
 import { applyToSnapshot, columnConfig, withColumn, type ColumnPatch, type CubeConfiguration } from './config.ts';
-import { spreadMeasures } from './query.ts';
+import { defaultAggregate, spreadMeasures } from './query.ts';
 import { takesAggregate } from './offers.ts';
 import {
   AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SECOND_COLUMN, SORT_DIRECTIONS, TWO_COLUMN_AGGREGATES, rowColumns,
   totalOrderSorts, type AggregateFn,
-  type ColumnKind, type CubeSnapshot, type DerivedColumn, type Measure, type SortDirection, type SortSpec,
+  type ColumnKind, type CubeShape, type CubeSnapshot, type DerivedColumn, type Measure, type SortDirection, type SortSpec,
 } from './snapshot.ts';
 import type { TreeState } from './tree.ts';
 
@@ -62,6 +62,37 @@ export function allColumns(draft: GridDraft): string[] {
  */
 export function offeredAggregates(type: string | undefined): AggregateFn[] {
   return type === undefined ? [...AGGREGATE_FNS] : AGGREGATE_FNS.filter((fn) => takesAggregate(fn, type));
+}
+
+/** What a flow's Summarize does with a column (summarize.ts): groups by it, or aggregates it so (an aggregate of one
+ *  column). */
+export type SummaryAction = 'group' | AggregateFn;
+
+/** What a Summarize can do with a column of `type`: group by it, or each aggregate of one column offered for it. */
+export function summaryActions(type: string | undefined): SummaryAction[] {
+  return ['group', ...offeredAggregates(type).filter((fn) => !TWO_COLUMN_AGGREGATES.includes(fn))];
+}
+
+/**
+ * A GRID'S COLUMNS AS ITS SUMMARIZE HAS THEM NOW (`configuration`: its settings; summarize.ts sets them): each grouped
+ * by, aggregated -- by its Aggregation, else its default -- or left out (hidden, or a dimension it does not group by),
+ * and what it could do with each. Here, beside the offers it reads, so the Summarize's own rule fetches none of them.
+ */
+export function summaryOf(s: Pick<CubeShape, 'columns' | 'derived' | 'rows' | 'pivotOn'>, configuration: Readonly<Record<string, unknown>>):
+  { readonly name: string; readonly type: string; readonly action?: SummaryAction; readonly actions: readonly SummaryAction[] }[] {
+  const settings = configuration['columns'];
+  const of = (name: string): Readonly<Record<string, unknown>> => {
+    const c = settings !== null && typeof settings === 'object' ? (settings as Record<string, unknown>)[name] : undefined;
+    return c !== null && typeof c === 'object' ? c as Record<string, unknown> : {};
+  };
+  return rowColumns(s).map((c) => {
+    const set = of(c.name);
+    const fn = typeof set['aggregateFn'] === 'string' ? set['aggregateFn'] as AggregateFn
+      : defaultAggregate({ name: c.name, ...(c.type !== undefined ? { type: c.type } : {}), kind: c.kind });
+    const action: SummaryAction | undefined = s.rows.includes(c.name) ? 'group'
+      : set['hidden'] === true || c.kind !== 'measure' ? undefined : fn;
+    return { name: c.name, type: c.type ?? '', ...(action !== undefined ? { action } : {}), actions: summaryActions(c.type) };
+  });
 }
 
 /** `rows` as the grid's row groups, outermost first (the Vertical Pivots panel, the menu's Vertical Pivot, the Rows

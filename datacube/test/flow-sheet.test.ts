@@ -30,6 +30,8 @@ import { multiFieldOf } from '../src/multi-field.ts';
 import { readRowSample, rowSampleCommands, rowSampleOf, sampleCommands } from '../src/row-sample.ts';
 import { readTranspose, transposeCommands, transposeOf } from '../src/transpose.ts';
 import { readSelection, retypesOf, selectCommands, selectionOf } from '../src/select-columns.ts';
+import { readSummary, summarizeCommands } from '../src/summarize.ts';
+import { summaryActions, summaryOf } from '../src/grid-edits.ts';
 import { applyGridCommands } from '../src/grid-commands.ts';
 import type { GridDraft } from '../src/grid-edits.ts';
 import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi-field-columns.ts';
@@ -391,6 +393,52 @@ describe("Select (select-columns.ts): the columns a box keeps and the names it h
     assert.throws(() => readSelection({ kind: 'selectColumns', keep: ['a'], rename: { a: 1 } }), /its renames are \{column: new name\}/);
     assert.deepEqual(readSelection({ kind: 'selectColumns', keep: ['a'], retype: { a: 'Float' } }), { keep: ['a'], rename: {}, retype: { a: 'Float' } });
     assert.throws(() => readSelection({ kind: 'selectColumns', keep: ['a'], retype: { a: 'Money' } }), /its retypes are/);
+  });
+});
+
+describe('Summarize (summarize.ts): a row a group, each column grouped by, aggregated or left out -- one step', () => {
+  const typed = { ...rawRows(accessor('local::DB', 'trades'), [...COLUMNS, { name: 'desk', type: 'String' }]) };
+
+  it('groups, aggregates and hides what it leaves out; read back as it was set', () => {
+    const commands = summarizeCommands(typed, { columns: [{ name: 'region', action: 'group' }, { name: 'notional', action: 'average' }] });
+    assert.deepEqual(commands, [
+      { kind: 'group', rows: ['region'] },
+      { kind: 'column', name: 'notional', change: { aggregate: 'average' } },
+      { kind: 'configure', patch: { columns: { region: { hidden: null }, notional: { hidden: null }, desk: { hidden: true } } } },
+    ]);
+    const done = applyGridCommands({ snapshot: typed, config: DEFAULT_CONFIGURATION }, commands);
+    const read = summaryOf(done.snapshot, done.config as unknown as Record<string, unknown>);
+    assert.deepEqual(read.map((c) => [c.name, c.action]), [['region', 'group'], ['notional', 'average'], ['desk', undefined]]);
+    // what it leaves out its own: said as a Summarize alone, no Select beside it
+    const box = cube(rows('grid-1'), (q) => ({ ...q, columns: typed.columns, rows: ['region'] }), { columns: { desk: { hidden: true } } });
+    assert.deepEqual(boxSays(box), { tool: 'summarize', also: [], says: 'by region' });
+    // set again: its grouping taken off first, a measure grouped by made a dimension before it is
+    const again = summarizeCommands(done.snapshot, { columns: [{ name: 'desk', action: 'group' }, { name: 'notional', action: 'group' }] });
+    assert.deepEqual(again.slice(0, 3), [
+      { kind: 'group', rows: [] }, { kind: 'column', name: 'notional', change: { kind: 'dimension' } }, { kind: 'group', rows: ['desk', 'notional'] },
+    ]);
+  });
+
+  it("offers a column its one-column aggregates, and reads a fresh grid's measures as aggregated as they say", () => {
+    assert.equal(summaryActions('Float')[0], 'group');
+    assert.ok(summaryActions('Float').includes('sum') && !summaryActions('String').includes('sum'));
+    const fresh = summaryOf(typed, {});
+    assert.deepEqual(fresh.map((c) => [c.name, c.action]), [['region', undefined], ['notional', 'sum'], ['desk', undefined]]);
+    assert.deepEqual(summaryOf(typed, { columns: { notional: { hidden: true } } })[1]?.action, undefined);
+  });
+
+  it('refuses in words what it cannot summarise', () => {
+    refused(() => summarizeCommands(typed, { columns: [{ name: 'notional', action: 'sum' }] }), /group by a column/);
+    refused(() => summarizeCommands(typed, { columns: [{ name: 'nope', action: 'group' }] }), /no column 'nope'/);
+    refused(() => summarizeCommands(typed, { columns: [{ name: 'region', action: 'group' }, { name: 'region', action: 'count' }] }), /one thing with each column/);
+    refused(() => summarizeCommands(typed, { columns: [{ name: 'region', action: 'group' }, { name: 'notional', action: 'wavg' }] }), /'wavg' reads a second column/);
+    // an aggregate its column is not offered: refused as it is applied, in Column Properties' words
+    refused(() => applyGridCommands({ snapshot: typed, config: DEFAULT_CONFIGURATION },
+      summarizeCommands(typed, { columns: [{ name: 'region', action: 'group' }, { name: 'desk', action: 'sum' }] })), /'sum' is not offered on desk, a String column/);
+    assert.deepEqual(readSummary({ kind: 'summarize', group: ['desk'], aggregate: { notional: 'average' } }),
+      { columns: [{ name: 'desk', action: 'group' }, { name: 'notional', action: 'average' }] });
+    refused(() => readSummary({ kind: 'summarize', group: 'desk' }), /a list of column names/);
+    refused(() => readSummary({ kind: 'summarize', group: [], by: [] }), /takes group and aggregate, not by/);
   });
 });
 

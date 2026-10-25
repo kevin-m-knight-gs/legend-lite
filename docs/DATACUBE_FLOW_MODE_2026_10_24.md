@@ -280,7 +280,7 @@ How to read the status column:
 
 | Tool | Status | How |
 |---|---|---|
-| Summarize | Built | A grid's grouping and measures: sum, count, average, min, max, median, quartiles, standard deviation, variance, concatenate (`joinStrings`), weighted average, unique |
+| Summarize | Built | A grid's grouping and measures: sum, count, average, min, max, median, quartiles, standard deviation, variance, concatenate (`joinStrings`), weighted average, unique -- set in Alteryx's window, a row a column (2026-10-25) |
 | Cross Tab | Step | The grid's pivot, typed by its cast, its values checked (FL2, FL3, FL8) |
 | Transpose | Built (2026-10-25) | An exploded column over the list of the columns' names (`lateral(...->flatten(~Name))`), a column choosing each row's value by its name (`if`), every column but the keys hidden; columns of one kind of value |
 | Running Total | Built | A window column, running frame |
@@ -796,6 +796,24 @@ example flow hid them by hand. Now, as Alteryx's Summarize, a grouped flow box h
 aggregates alone: the dimensions it is not grouped by are left out of what the box after it reads (`live-inputs.ts
 boxOmits`), of its settings' columns out, its Profile and its Output -- one rule for each. A grid of a board, and a
 pivoted grid, are as before. Tested by `live-inputs.test.ts` and Python's `test_a_summarize_gives_its_keys_and_aggregates`.
+
+**Built, Summarize's window** (`summarize.ts`, `ui/summarize-form.ts`, 2026-10-25): Alteryx's Summarize laid out as
+Alteryx lays it -- a row a column: its name, its type, its action (Group by, an aggregate of one column its type is
+offered, or left out), a find box -- in place of Properties' Row Groups as the Summarize box's settings. Its actions are
+what a grid already does, one step of commands (`summarizeCommands`): its grouping taken off, each column made what it is
+used as (a group a dimension, an aggregate a measure: Column Properties' rule), its grouping put on, each aggregate set,
+every column it does not use hidden. What it is now is read back off the grid (`grid-edits.ts summaryOf`, beside the
+offers it reads): a fresh box shows each measure aggregated as its column says until told otherwise. Refused in words:
+no group (a summary of every row is its Profile), a column used twice, an aggregate of two columns, a calculated column
+asked to be what its editor did not make it -- and an aggregate its column is not offered, by Column Properties' own
+rule as the commands are applied. A box says "by region"; the columns it leaves out are its own, no Select beside it
+(`flow-boxes.ts`). The aggregates' words are Column Properties' (`ui/panel-column.ts AGGREGATES`), handed to the window
+by its opener. Found on the way: a lazily fetched module that imports some of a startup chunk's modules splits that
+chunk in two (here, the rule importing the grid's edits: two more startup files, +1,362 bytes); the rule reads the
+snapshot alone, and the startup grew 296 bytes. Python:
+`grid.summarize(group, aggregate={'notional': 'average'})`. Tested by `flow-sheet.test.ts` (its commands, read back,
+set again, its refusals, its words), Python's `test_rows_summarised_as_a_flow_box_summarises_them` and the harness and
+the tour (region grouped by in the docked window: a row per region).
 
 Fixed with it: what opening a box left out (a column no longer in its input, a calculated column that read one) was
 said on the page's status line, where it stayed under every box shown after it; it is said on the box's own status bar

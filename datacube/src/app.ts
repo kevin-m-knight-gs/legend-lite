@@ -46,7 +46,7 @@ import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-
 import { valueList } from './ui/value-list.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
-import { columnKind, headerSorts, type GridDraft } from './grid-edits.ts';
+import { columnKind, headerSorts, summaryOf, type GridDraft } from './grid-edits.ts';
 import { applyGridCommands, draftCommands, type GridCommand } from './grid-commands.ts';
 import {
   gridGesture, gridGestureGiven, type GestureArgs, type GestureGrid, type GridGestureArgs, type GridGestureName,
@@ -131,6 +131,7 @@ import { binColumns, GRID_SHOW_AS_LABELS } from './calc-presets.ts';
 import { presetCommands, type GridPreset } from './grid-presets.ts';
 import { columnRef, nameProblem } from './calc.ts';
 import { CubeEditor, draftFor, type CubeDraft, type EditorTab } from './ui/editor.ts';
+import { AGGREGATES } from './ui/panel-column.ts';
 import type { StepEditor } from './flow-boxes.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
 import {
@@ -465,7 +466,7 @@ const windowStack = new WeakMap<HTMLElement, number>();
 /** The text tools' windows, by the tool each sets (text-tools.ts). */
 const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
 const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation'
-  || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select'
+  || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize'
   || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
@@ -3644,6 +3645,9 @@ export class CubeApp {
       case 'select':
         void this.#openSelect();
         return;
+      case 'summarize':
+        void this.#openSummarize();
+        return;
       // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
       case 'join':
         return;
@@ -3795,6 +3799,29 @@ export class CubeApp {
       apply: async (selection) => {
         try {
           return await this.#apply(selectCommands(this.#snapshot, selection), 'Select');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S SUMMARIZE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1, Alteryx's): each column grouped by, aggregated or
+   *  left out -- the grid's row groups, its columns' kinds and Aggregations, the rest hidden (summarize.ts, the rule
+   *  Python's grid.summarize asks) -- in a window of its own (ui/summarize-form.ts). Both fetched with the first. */
+  async #openSummarize(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ summarizeForm }, { summarizeCommands }] = await Promise.all([
+      lazily(() => import('./ui/summarize-form.ts')), lazily(() => import('./summarize.ts')),
+    ]);
+    this.#showOverlay('Summarize', (host, close) => summarizeForm(host, {
+      columns: summaryOf(this.#snapshot, this.#config as unknown as Record<string, unknown>),
+      label: (fn) => AGGREGATES.find((a) => a.value === fn)!.label,
+      apply: async (summary) => {
+        try {
+          return await this.#apply(summarizeCommands(this.#snapshot, summary), 'Summarize');
         } catch (e) {
           if (e instanceof CubeRefusal) return e.message;
           throw e;

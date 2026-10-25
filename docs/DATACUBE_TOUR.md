@@ -77,8 +77,9 @@ Each step is one section of the gallery. A step's line says what the check found
 16. **The example page `charts-kinds`.** As for 15.
 17. **A flow.** Create ▸ Flow, then from the palette an Input (the examples' trades), a Filter after it (notional over
     500,000, set in the settings pane, where the grid's own Filter window is docked), and a Summarize after that
-    (region, in Properties' Row Groups, docked); then Run, each box counted beside its output. There are three
-    pictures: the Filter being set, the flow with its Summarize shown, a row per region below, and the flow run
+    (region grouped by, in its Summarize window, docked); then Run, each box counted beside its output. There are four
+    pictures: the Filter being set, the Summarize window, the flow with its Summarize shown, a row per region below, and
+    the flow run
     (`docs/DATACUBE_FLOW_MODE_2026_10_24.md` M1, M5).
 18. **The example flow.** Open… ▸ "A data flow": the orders and their countries on a canvas, in Inputs, Prepare and
     Report containers; Run counts every box and writes its Output ("revenue by continent.csv"); the join's Profile below

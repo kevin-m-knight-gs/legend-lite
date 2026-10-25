@@ -94,6 +94,8 @@ export type StepEditor =
   | { readonly window: 'transpose' }
   /** The Select window (ui/select-form.ts): each column kept or left out, and renamed. */
   | { readonly window: 'select' }
+  /** The Summarize window (ui/summarize-form.ts): each column grouped by, aggregated, or left out. */
+  | { readonly window: 'summarize' }
   /** The DateTime window (ui/date-form.ts): a date column taken to its period, the grid's own period preset. */
   | { readonly window: 'datetime' }
   /** A text tool's window (ui/text-tool-form.ts): Text To Columns, RegEx or Data Cleansing (text-tools.ts). */
@@ -109,7 +111,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   transpose: { window: 'transpose' },
   select: { window: 'select' },
   sort: { window: 'properties', tab: 'Sorts' },
-  summarize: { window: 'properties', tab: 'Vertical Pivots' },
+  summarize: { window: 'summarize' },
   crosstab: { window: 'properties', tab: 'Horizontal Pivots' },
   sample: { window: 'sample' },
   unique: { window: 'unique' },
@@ -167,8 +169,11 @@ export function boxSays(cube: CubeDocument): BoxSays {
   const placed = inPlaceOf(q.derived, cube.configuration, (d) => [...derivedReads(d)])
     .filter((p) => !retyped.some((r) => r.name === p.made));
   const placedMade = new Set(placed.map((p) => p.made));
+  // a Summarize leaves out what it neither groups by nor aggregates (summarize.ts): hidden, its own, no Select's
+  const summarized = q.rows.length > 0 && q.pivotOn.length === 0;
   const own = new Set([...(unique !== undefined ? [unique.column] : []), ...(sampled?.columns ?? []),
-    ...(transposed !== undefined ? [transposed.name, transposed.value, ...hiddenColumns(cube)] : []), ...retyped.map((r) => r.name)]);
+    ...(transposed !== undefined || summarized ? [...hiddenColumns(cube)] : []),
+    ...(transposed !== undefined ? [transposed.name, transposed.value] : []), ...retyped.map((r) => r.name)]);
   // Imputation's window columns (an average across every row) are its own, said with the column they fill
   const helpers = new Set(q.derived.flatMap((d) => imputedOf(d, q.derived)?.helper ?? []));
   // a Multi-Field Formula's columns: one formula, each over its own column

@@ -534,10 +534,10 @@ try {
     await page.locator('.dc-flow-dock button', { hasText: /^OK$/ }).click();
     await settle();
     await page.click('.dc-flow-tool[data-tool="summarize"]');
-    await page.locator('.dc-flow-dock > .dc-app-overlay[data-window="Properties"]').waitFor({ timeout: 20_000 });
-    await page.locator('.dc-flow-dock .dc-selector-box').first().locator('.dc-selector-row', { hasText: /^region$/ }).first().click();
-    await page.locator('.dc-flow-dock .dc-selector-move').first().click();
-    await page.locator('.dc-flow-dock button', { hasText: /^OK$/ }).click();
+    await page.locator('.dc-flow-dock > .dc-app-overlay[data-window="Summarize"]').waitFor({ timeout: 20_000 });
+    await page.locator('.dc-flow-dock .dc-summarize-row[data-column="region"] .dc-summarize-action').selectOption('group');
+    await shot(page, 'the Summarize window: region grouped by, each number aggregated');
+    await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
     await settle();
     const says = await page.locator('.dc-flow-box .dc-flow-says').allTextContents();
     await shot(page, 'the flow, its Summarize shown');

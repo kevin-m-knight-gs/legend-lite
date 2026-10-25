@@ -1669,6 +1669,21 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, 'its columns hold numbers and text'):
             page.grid(pd.DataFrame({'a': [1.0], 'b': ['x']}), name='mixed').transpose(['a', 'b'])
 
+    def test_rows_summarised_as_a_flow_box_summarises_them(self):
+        # (M1) grid.summarize: a flow's Summarize (summarize.ts summarizeCommands) -- a row of each group, each column
+        # aggregated as it is told, every other left out; the database groups and aggregates
+        page = ll.Page('Summarize')
+        grid = page.grid(pd.DataFrame({'desk': ['FX', 'FX', 'Rates'], 'book': ['a', 'b', 'c'], 'notional': [1.0, 3.0, 5.0]}),
+                         name='booked')
+        grid.summarize(['desk'], {'notional': 'average'})
+        rows = grid.to_pandas()
+        self.assertEqual(sorted((r['desk'], r['notional']) for r in rows.to_dict('records')), [('FX', 2.0), ('Rates', 5.0)])
+        self.assertTrue(grid._cube['configuration']['columns']['book']['hidden'], 'what it leaves out hidden')
+        with self.assertRaisesRegex(ValueError, 'group by a column'):
+            grid.summarize([], {'notional': 'sum'})
+        with self.assertRaisesRegex(ValueError, "'sum' is not offered on book"):
+            grid.summarize(['desk'], {'book': 'sum'})
+
     def test_rows_sampled_as_a_flow_box_samples_them(self):
         # (M3) grid.sample: a flow's Sample (row-sample.ts sampleCommands) -- the first of each group, all but the first,
         # one of every n; the first of all of them its Top N; None, every row again. The database numbers the rows
@@ -2980,6 +2995,7 @@ class Flows(Paged):
         again = ll.Page.load(page.to_dict(), frames={'trades': trades(), 'board_trades': trades(), 'board_more': trades()})
         self.assertEqual({k: g.id for k, g in next(g for g in again.grids if g.id == joined.id).inputs.items()},
                          {'left': source.id, 'right': source.id})
+
 
 
 class Snapped(Paged):
