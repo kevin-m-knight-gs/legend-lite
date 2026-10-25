@@ -513,8 +513,13 @@
   font-family: var(--dc-mono, ui-monospace, monospace);
 }
 
-.dc-filter-op { max-width: 15em; }
+/* one width whatever the column's type offers (a text's operators are longer than a number's): every row's value starts
+   on the same x (the user, 2026-10-25) */
+.dc-filter-op { width: 13em; max-width: 15em; }
 .dc-filter-value { min-width: 7em; }
+/* the value editor's slot: one width on every row, so the NOT badge after it lines up (the user, 2026-10-25) */
+.dc-filter-slot { flex: 0 0 18em; width: 18em; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.dc-filter-slot > .dc-filter-value:not(.dc-filter-bool) { flex: 1 1 auto; min-width: 0; width: auto; }
 
 .dc-filter-btn,
 .dc-filter-remove {
