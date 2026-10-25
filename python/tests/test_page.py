@@ -813,6 +813,48 @@ class Document(Paged):
         page.remove(other)
         self.assertNotIn(other, page.texts)
 
+    def test_a_timeseries_tile_reads_many_grids_and_says_every_figure_in_datacubes_words(self):
+        # DataCube's timeseries viewer (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): series of two grids along one time
+        # axis, each an expression in gs-quant's vocabulary read by DataCube's parser, by the commands its viewer sends
+        # (addTimeseries, setTimeseries); each grid's date and instrument columns DataCube's to choose
+        page = ll.Page('Markets')
+        days = pd.to_datetime(['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05']).date
+        prices = pd.DataFrame({'symbol': ['SPX'] * 4, 'day': days, 'close': [100.0, 101.0, 99.5, 102.0]})
+        yields = pd.DataFrame({'tenor': ['10Y'] * 4, 'obs_date': days, 'yield': [4.0, 4.1, 3.9, 4.2]})
+        px = page.grid(prices, name='prices')
+        rates = page.grid(yields, name='rates')
+        tile = page.timeseries({'px': px, 'rates': rates}, ['px:close[SPX]', 'rates:yield[10Y]', 'correlation($A, $B, 3)'],
+                               range={'last': '1y'})
+        self.assertEqual(tile.id, 'timeseries-1')
+        self.assertIn(tile, page.timeseries_tiles)
+        self.assertIs(tile.sheet, px.sheet)
+        self.assertEqual([(s['alias'], s['cube'], s['date'], s.get('key')) for s in tile.spec['sources']],
+                         [('px', px.id, 'day', 'symbol'), ('rates', rates.id, 'obs_date', 'tenor')])
+        self.assertEqual([s['id'] for s in tile.series], ['A', 'B', 'C'])
+        self.assertEqual(tile.series[2]['expr'], {'kind': 'call', 'fn': 'correlation', 'args': [
+            {'kind': 'ref', 'series': 'A'}, {'kind': 'ref', 'series': 'B'}], 'params': {'w': 3}})
+        tile.plot('volatility($A, 2)', pane=1, name='SPX vol')
+        self.assertEqual(tile.series[-1]['id'], 'D')
+        tile.options(view={'compare': 'rebase'}, grain='week')
+        self.assertEqual((tile.spec['view'], tile.spec['grain']), ({'compare': 'rebase'}, 'week'))
+        tile.unplot('D')
+        self.assertEqual(len(tile.series), 3)
+        # refused in DataCube's words: what its parser cannot read, what DataCube does not compute, a word it has not
+        with self.assertRaisesRegex(ValueError, r'series D: there is no function vola'):
+            tile.plot('vola($A)')
+        with self.assertRaisesRegex(ValueError, 'recursion'):
+            tile.plot('macd($A)')
+        with self.assertRaisesRegex(ValueError, 'frequency "hour"'):
+            tile.options(grain='hour')
+        # a grid's own: its date and instrument columns chosen, its first series a line per instrument
+        alone = px.timeseries()
+        self.assertEqual(alone.series, [{'id': 'A', 'expr': {'kind': 'column', 'column': 'close'}, 'split': 'symbol'}])
+        # saved and read back as it is
+        again = ll.Page.load(page.to_dict(), frames={'prices': prices, 'rates': yields})
+        self.assertEqual(again.timeseries_tiles[0].spec, tile.spec)
+        page.remove(alone)
+        self.assertNotIn(alone, page.timeseries_tiles)
+
     def test_a_grid_is_edited_as_datacubes_screen_edits_it_and_refused_in_its_words(self):
         # grouping, pivot, Column Properties and sorts by the one module the screen's panels, header menu and drag zones
         # call (grid-commands.ts, headless gridApply: docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md), the grid compiled as

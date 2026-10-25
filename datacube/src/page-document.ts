@@ -32,6 +32,7 @@ import { readPageFilters, type PageFilter } from './page-filters.ts';
 import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
 import { textProblem } from './page-text-rule.ts';
+import { readTimeseries, type TimeseriesSpec } from './timeseries-spec.ts';
 
 export const PAGE_KIND = 'datacube.page';
 /**
@@ -73,7 +74,22 @@ export interface TextView {
   readonly cube?: never;
 }
 
-export type PageView = GridView | ChartView | TextView;
+/**
+ * A TIMESERIES TILE (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): series of any number of the page's grids along one
+ * time axis -- its spec's sources name the cubes it reads (a grid's id is its cube's). A source whose grid was removed is
+ * kept as it was, its series said to wait for it (undo brings the grid back); the tile shows no one cube of its own.
+ */
+export interface TimeseriesView {
+  readonly id: string;
+  readonly kind: 'timeseries';
+  readonly spec: TimeseriesSpec;
+  /** Its own title; else it is numbered (page-ids.ts timeseriesTitle). */
+  readonly title?: string;
+  /** It reads its sources' cubes (spec.sources), never one of its own. */
+  readonly cube?: never;
+}
+
+export type PageView = GridView | ChartView | TextView | TimeseriesView;
 
 /** Where the views sit: the page's bands (layout/bands.ts), each tile a view's id. */
 export interface PageLayout extends Bands {
@@ -733,6 +749,14 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
     if (problem !== null) throw new PageDocumentError(`text ${id}: ${problem}`);
     if (v['title'] !== undefined && !named('tile', v['title'])) throw new PageDocumentError(`text ${id}'s title is blank`);
     return { id, kind: 'text', text: v['text'] as string, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}) };
+  }
+  if (v['kind'] === 'timeseries') {
+    // its spec by the tile's one reader (timeseries-spec.ts readTimeseries); its sources' cubes the page's, or a grid's
+    // that was removed (said on the tile, never refused here: an undo brings it back)
+    const spec = readTimeseries(v['spec']);
+    if (typeof spec === 'string') throw new PageDocumentError(`timeseries ${id} has no timeseries it can draw: ${spec}`);
+    if (v['title'] !== undefined && !named('tile', v['title'])) throw new PageDocumentError(`timeseries ${id}'s title is blank`);
+    return { id, kind: 'timeseries', spec, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}) };
   }
   if (typeof v['cube'] !== 'string' || !cubes.has(v['cube'])) {
     throw new PageDocumentError(`view ${id} shows no cube of this page`);

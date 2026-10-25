@@ -618,7 +618,7 @@ export class CubePage {
       }
       // what it could not open, back: kept as the step has it, in its place
       for (const view of to.views) {
-        if (view.kind === 'text') continue;
+        if (view.kind === 'text' || view.kind === 'timeseries') continue;
         if (this.#unavailable.has(view.id) || this.#grids.has(view.id) || this.#charts.has(view.id)) {
           if (this.#unavailable.has(view.id)) this.#unavailable.set(view.id, view);
           continue;

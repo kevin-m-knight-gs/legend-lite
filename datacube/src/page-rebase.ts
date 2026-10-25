@@ -10,6 +10,7 @@ import type { GridCommand } from './grid-commands.ts';
 import { add, asSaved, remove, tiles, type Bands } from './layout/bands.ts';
 import { applyPageCommand, followedPage, idsOf, type PageCommand, type PageDraft } from './page-commands.ts';
 import type { PageDocument, PageLayout } from './page-document.ts';
+import type { TimeseriesSpec } from './timeseries-spec.ts';
 import { CubeRefusal } from './snapshot.ts';
 
 /** One edit of a page, as its writer made it: a page command, or a grid's command by its tile's id. */
@@ -45,6 +46,11 @@ function renamedLayout(node: unknown, renamed: ReadonlyMap<string, string>): unk
   return node;
 }
 
+/** A timeseries' spec with the cubes its sources read renamed (a grid's id is its cube's). */
+export function renamedSpec(spec: TimeseriesSpec, n: (id: string) => string): TimeseriesSpec {
+  return spec.sources.some((s) => n(s.cube) !== s.cube) ? { ...spec, sources: spec.sources.map((s) => ({ ...s, cube: n(s.cube) })) } : spec;
+}
+
 /** A page command with every id it names renamed (the one it makes is its own, never renamed here; a page filter's is
  *  the one it sets, which an edit before may have made afresh). */
 export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string, string>): PageCommand {
@@ -78,6 +84,13 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
       return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), sheet: n(command.sheet) };
     case 'setText':
       return { ...command, tile: n(command.tile) };
+    case 'addTimeseries':
+      return {
+        ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), sheet: n(command.sheet),
+        near: command.near === null ? null : n(command.near), spec: renamedSpec(command.spec, n),
+      };
+    case 'setTimeseries':
+      return { ...command, tile: n(command.tile), spec: renamedSpec(command.spec, n) };
     case 'setChart':
     case 'select':
       return { ...command, chart: n(command.chart) };

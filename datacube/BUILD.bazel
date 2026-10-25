@@ -508,6 +508,8 @@ _HEADLESS_TESTS = [
     "page-gestures",
     # a text tile's words read, and written by an export (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md P4)
     "page-text",
+    # a timeseries tile's spec read and its expressions parsed (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md)
+    "timeseries-spec",
     # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
     "cube-round-trip",
     "cube-state",
@@ -599,6 +601,8 @@ _HEADLESS_LEFT_OUT = {
     "upload": "a picked File, read as the page's stream",
     # its rows read in from a picked File, as upload's are (the queries themselves run headless in every chart's page)
     "chart-queries": "a picked File, read as the page's stream",
+    # a timeseries tile's queries against gs-quant's figures, their rows read in as chart-queries' are
+    "timeseries-queries": "a picked File, read as the page's stream",
     # the lane's own stand-ins and web layer, held to Node's built-ins: they need the Node they compare against
     "headless-assert": "node:assert/strict, its reference",
     "headless-test-runner": "node:test's own run, its reference",

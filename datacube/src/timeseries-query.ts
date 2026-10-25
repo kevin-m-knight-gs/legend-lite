@@ -114,6 +114,14 @@ function typeIn(s: CubeSnapshot, column: string): string | undefined {
   return columnType(s, column);
 }
 
+/**
+ * A date the viewer passes (where its zoom starts or ends: an ISO day), as a literal of the period's type: a day as it
+ * is, a date-time at that day's start (an end, its last second, said by its caller).
+ */
+function dateLiteral(value: string, type: string): ValueSpecification {
+  return literalNode(!isDay(type) && /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value, type);
+}
+
 /** The compiler's function taking a date to its period's first day. */
 const GRAIN_FUNCTION: Readonly<Record<Exclude<TimeGrain, 'day'>, string>> = {
   week: 'firstDayOfWeek', month: 'firstDayOfMonth', quarter: 'firstDayOfQuarter', year: 'firstDayOfYear',
@@ -267,7 +275,7 @@ class Writer {
   anchored(column: string): string {
     if (this.#inView === undefined) {
       this.#inView = this.anchor === undefined ? '' : this.row('inview',
-        fn('greaterThanEqual', one(this.period), literalNode(this.anchor, this.periodType)));
+        fn('greaterThanEqual', one(this.period), dateLiteral(this.anchor, this.periodType)));
     }
     const shown = this.#inView === '' ? fn('isNotEmpty', col(column)) : and(one(this.#inView), fn('isNotEmpty', col(column)));
     const mark = this.row('anchor_at', when(shown, col(this.period), none()));
@@ -741,8 +749,8 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
   });
   const v = b.value;
   const shown: ValueSpecification[] = [fn('isNotEmpty', col(v))];
-  if (view.from !== undefined) shown.push(fn('greaterThanEqual', one(b.period), literalNode(view.from, b.periodType)));
-  if (view.to !== undefined) shown.push(fn('lessThanEqual', one(b.period), literalNode(view.to, b.periodType)));
+  if (view.from !== undefined) shown.push(fn('greaterThanEqual', one(b.period), dateLiteral(view.from, b.periodType)));
+  if (view.to !== undefined) shown.push(fn('lessThanEqual', one(b.period), dateLiteral(`${view.to}${isDay(b.periodType) ? '' : 'T23:59:59'}`, b.periodType)));
   w.rel = w.rel.filter(row(and(...shown)));
   const level = b.unit === 'same' || b.unit === 'index';
   const rLog = level ? w.returns(v, 1, 'log') : undefined;

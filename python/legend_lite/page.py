@@ -180,7 +180,7 @@ def _tagged(value: Any) -> Any:
 
 @_operations
 class Tile:
-    """A tile of a page (a grid, a chart or a text): its view in the page's document, by its id."""
+    """A tile of a page (a grid, a chart, a text or a timeseries): its view in the page's document, by its id."""
 
     _kind = ''
 
@@ -884,6 +884,13 @@ class Grid(Tile):
         cube = self._view['cube']
         return [c for c in self._page.charts if c._view['cube'] == cube]
 
+    def timeseries(self, *series: Any, title: str | None = None, **slots: Any) -> Timeseries:
+        """A timeseries tile of this grid alone, under it (``Page.timeseries`` with this grid its one source): its date
+        and instrument columns DataCube's to choose (``date=``, ``key=`` say them), ``series`` each an expression
+        (``'close[AAPL]'``, ``'volatility(close[AAPL], 63)'``); none: DataCube's first series of it."""
+        told = {k: slots.pop(k) for k in ('date', 'key', 'alias') if k in slots}
+        return self._page.timeseries({'grid': self, **told}, series, title=title, **slots)
+
     def update(self, frame: Any) -> None:
         """Another frame for this grid (one reading a single frame: ``frame``): a page showing it queries it again, and
         -- its columns changed -- opens again over them, every grid reading the frame with it (a snapped one reads its
@@ -1273,6 +1280,96 @@ class Text(Tile):
         self._page._apply_page([_commands.page_set_text(tile=self._id, text=text)])
 
 
+def _timeseries_sources(sources: Any) -> list[dict[str, Any]]:
+    """A timeseries' sources as ``Page.timeseries`` takes them -- a grid; a list of grids; or by alias, each a grid or a
+    mapping of its grid and what DataCube's defaults would otherwise choose (``date``, ``key``) -- as DataCube is told them
+    (headless timeseriesMade: each grid by its tile, the rest DataCube's to judge)."""
+    def one(alias: str | None, given: Any) -> dict[str, Any]:
+        if isinstance(given, Grid):
+            told: dict[str, Any] = {'grid': given._id}
+        elif isinstance(given, Mapping):
+            told = {k: (v._id if k == 'grid' and isinstance(v, Grid) else v) for k, v in given.items()}
+        else:
+            raise ValueError(f'a timeseries reads grids: {given!r} is not one')
+        return told if alias is None else {'alias': alias, **told}
+    if isinstance(sources, (Grid, Mapping)) and not (isinstance(sources, Mapping) and 'grid' in sources):
+        if isinstance(sources, Grid):
+            return [one(None, sources)]
+        return [one(alias, given) for alias, given in sources.items()]
+    if isinstance(sources, Mapping):
+        return [one(None, sources)]
+    return [one(None, g) for g in sources]
+
+
+@_operations
+class Timeseries(Tile):
+    """A timeseries tile -- DataCube's timeseries viewer (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): series of any
+    number of the page's grids along one time axis, each an expression in gs-quant's vocabulary, PlotTool Pro's --
+    ``returns(px:close[SPX], 1, log)``, ``volatility($A, 63)``, ``correlation($A, $B, 126)``, ``$A / $B`` -- read by
+    DataCube's own parser; every figure the database's. Its spec is DataCube's page document's (``spec``); each change
+    is the command its viewer sends (page-commands.ts setTimeseries), judged by DataCube in its words."""
+
+    _kind = 'timeseries'
+
+    @property
+    def spec(self) -> dict[str, Any]:
+        """Its spec as the page keeps it (a copy): its sources, series, frequency, range, panes, annotations and view."""
+        return copy.deepcopy(self._view['spec'])
+
+    @spec.setter
+    def spec(self, spec: Mapping[str, Any]) -> None:
+        self._set(dict(spec))
+
+    @property
+    def series(self) -> list[dict[str, Any]]:
+        """Its series, each its id (``A``), its expression as DataCube keeps it, and how it is drawn."""
+        return copy.deepcopy(self._view['spec']['series'])
+
+    def plot(self, expr: str, *, name: str | None = None, split: str | None = None, pane: int | None = None,
+             axis: str | None = None, style: Mapping[str, Any] | None = None) -> Timeseries:
+        """A series more, after its others: ``expr`` in DataCube's expression language, its id the next letter (``$B``
+        reads it), drawn in ``pane`` (0 the main one) on ``axis`` as ``style`` says -- what the viewer's + Series adds."""
+        spec = self.spec
+        told = {'expr': expr, 'name': name, 'split': split, 'pane': pane, 'axis': axis,
+                'style': dict(style) if style is not None else None}
+        spec['series'] = [*spec['series'], {k: v for k, v in told.items() if v is not None}]
+        self._set(spec)
+        return self
+
+    def unplot(self, id: str) -> Timeseries:
+        """Series ``id`` taken off (refused in DataCube's words while another reads it)."""
+        spec = self.spec
+        if not any(s['id'] == id for s in spec['series']):
+            raise ValueError(f'{self!r} has no series {id}')
+        spec['series'] = [s for s in spec['series'] if s['id'] != id]
+        self._set(spec)
+        return self
+
+    def options(self, **slots: Any) -> Timeseries:
+        """Its other slots told -- ``grain`` (``'day'`` ... ``'year'``), ``range`` (``{'last': '1y'}``, ``{'from': ...,
+        'to': ...}``), ``view`` (``{'compare': 'rebase', 'stats': True}``), ``panes``, ``annotations`` -- each replacing
+        what it had, None taking it off: the words DataCube's reader takes."""
+        spec = self.spec
+        for key, value in slots.items():
+            if value is None:
+                spec.pop(key, None)
+            else:
+                spec[key] = value
+        self._set(spec)
+        return self
+
+    def _set(self, spec: dict[str, Any]) -> None:
+        _ = self._view
+        page = self._page
+        said = json.loads(page._session.headless().call('timeseriesMade', _json.dumps(page._doc), _json.dumps(spec)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        page._apply_page([_commands.page_set_timeseries(tile=self._id, spec=said['spec'])])
+
+    def __repr__(self) -> str:
+        return f'<Timeseries {self._id}>'
+
+
 class Sheet:
     """A sheet of a page: a whole screen of tiles, in places -- each a tile, or a stack of tiles shown one at a time --
     laid out in bands, each band's places side by side (``layout``, ``arrange``, ``layout_from``)."""
@@ -1328,6 +1425,28 @@ class Sheet:
         _ = self._doc
         applied = self._page._apply_page([_commands.page_add_text(sheet=self._id, text=text, title=title, columns=None)])
         return self._page._tile(applied[0]['id'], Text)
+
+    def timeseries(self, sources: Any, series: Sequence[Any] = (), *, title: str | None = None, near: Tile | None = None,
+                   **slots: Any) -> Timeseries:
+        """A timeseries tile on this sheet -- under ``near`` (a tile of this sheet), else a band of its own at its bottom
+        -- reading ``sources`` (a grid, grids, or grids by alias: ``{'px': prices, 'rates': rates}``; each grid's date
+        and instrument columns DataCube's to choose unless told: ``{'grid': rates, 'date': 'asof', 'key': 'tenor'}``),
+        plotting ``series`` (each an expression, ``'volatility(px:close[SPX], 63)'``, or a mapping of one and how it is
+        drawn), with its other ``slots`` (``grain``, ``range``, ``view``, ``panes``, ``annotations``) -- as Create ▸
+        Timeseries adds one (page-commands.ts addTimeseries), every word judged by DataCube."""
+        _ = self._doc
+        page = self._page
+        # no series: DataCube's first series of its first grid (its price-like value, a line per instrument)
+        given = {'sources': _timeseries_sources(sources), **({'series': list(series)} if series else {}),
+                 **{k: v for k, v in slots.items() if v is not None}}
+        said = json.loads(page._session.headless().call('timeseriesMade', _json.dumps(page._doc), _json.dumps(given)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        if near is not None:
+            _ = near._view
+        applied = page._apply_page([_commands.page_add_timeseries(
+            sheet=self._id, near=near._id if near is not None else None, spec=said['spec'], title=title, columns=None)])
+        return page._tile(applied[0]['id'], Timeseries)
 
     def add(self, *tiles: Tile) -> Sheet:
         """Puts ``tiles`` on this sheet, each at its bottom, from the sheet it was on, as the screen's Move to Sheet
@@ -1624,6 +1743,22 @@ class Page:
         """A text tile -- a title, a note -- on ``sheet`` (None: the first), a band of its own at its bottom
         (``Sheet.text``)."""
         return (sheet if sheet is not None else self.sheets[0]).text(text, title=title)
+
+    @property
+    def timeseries_tiles(self) -> list[Timeseries]:
+        return [self._tile(v['id'], Timeseries) for v in self._doc['views'] if v['kind'] == 'timeseries']
+
+    def timeseries(self, sources: Any, series: Sequence[Any] = (), *, title: str | None = None,
+                   sheet: Sheet | None = None, **slots: Any) -> Timeseries:
+        """A timeseries tile reading ``sources`` and plotting ``series`` (``Sheet.timeseries``): on ``sheet``, a band of
+        its own at its bottom; None, under the first grid it reads, on that grid's sheet."""
+        if sheet is not None:
+            return sheet.timeseries(sources, series, title=title, **slots)
+        told = _timeseries_sources(sources)
+        first = next((self._tile(t['grid'], Grid) for t in told if 'grid' in t), None)
+        if first is None:
+            return self.sheets[0].timeseries(sources, series, title=title, **slots)
+        return first.sheet.timeseries(sources, series, title=title, near=first, **slots)
 
     # -- building ------------------------------------------------------------------------------------------------------
 
@@ -2208,7 +2343,7 @@ class Page:
 
     def _tile_of(self, id: str) -> Tile:
         view = next(v for v in self._doc['views'] if v['id'] == id)
-        return self._tile(id, {'grid': Grid, 'chart': Chart, 'text': Text}[view['kind']])
+        return self._tile(id, {'grid': Grid, 'chart': Chart, 'text': Text, 'timeseries': Timeseries}[view['kind']])
 
     def _sheet(self, id: str) -> Sheet:
         return self._tile(id, Sheet)

@@ -1,0 +1,1041 @@
+// THE TIMESERIES VIEWER (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §6): a timeseries tile's toolbar, legend, chart,
+// statistics and editors, over its spec (timeseries-spec.ts). What it draws is what the database answered
+// (timeseries-query.ts: one query per series, D2); what it shows of it -- the dates in view, a line hidden, a colour --
+// is the viewer's. A change of the spec is the page's (the host's setSpec: a setTimeseries command); the dates a zoom or
+// a pan shows are the person's own look, never saved.
+//
+// WHEN IT ASKS THE DATABASE (D4: no cache of answers): it keeps the rows of its last answer. A change of the drawing alone
+// -- a line's style, its pane, an annotation, a line hidden, the legend -- is drawn from them; a change of what a series
+// reads (its expression, its sources, the frequency, compare) asks again; and so does a grid's new view (the host's
+// refresh: every DataCube chart redraws when its grid's view lands). A zoom asks again for the series that read the first
+// date shown (an index, a change from the start, compare) and for the statistics -- nothing else.
+//
+// Fetched with the first timeseries tile (a chunk of its own, page/cube-page.ts); ECharts with it (timeseries-render.ts).
+
+import type { Lambda, ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
+import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
+import { isNumeric, isTemporal, isTimeOfDay } from '../../../engine-client/src/types.ts';
+import { themeOf } from '../chart-option.ts';
+import type { ChartPicture } from '../chart-render.ts';
+import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
+import {
+  aliasFor, columnRef, exprText, functionNamed, inlined, MAX_PANES, nextSeriesId, parseExpr, readTimeseries, seriesName, sourceOf,
+  sourcesOf, timeseriesProblems, TS_FUNCTIONS, TS_RANGES, TsSyntaxError, viewSetting, type TimeseriesSpec, type TsAnnotation,
+  type TsColumn, type TsExpr, type TsFamily, type TsRangeWord, type TsSeries, type TsSource, type TsStyleKind, type TsView,
+} from '../timeseries-spec.ts';
+import {
+  boundsQuery, keyValuesQuery, rangeStartName, readsAnchor, seriesQuery, seriesSources, statName, statsQuery, TS_LATEST,
+  TS_SPLIT, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
+} from '../timeseries-query.ts';
+import {
+  describeTimeseries, dateLabel, timeseriesCsv, timeseriesOption, toNumber, tsLines, valueText, type TsFormat, type TsLine,
+  type TsResult,
+} from '../timeseries-option.ts';
+import type { MountedTimeseries } from '../timeseries-render.ts';
+import { lazily } from '../lazily.ts';
+
+/** A grid a source reads, as it is now: its query, its filter as the tile reads it, its runner and its formats. */
+export interface TsGrid {
+  /** Its cube's id (its tile's). */
+  readonly cube: string;
+  readonly title: string;
+  readonly snapshot: CubeSnapshot;
+  readonly filter: FilterNode | undefined;
+  run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<ResultTable>;
+  /** A value as the grid writes it in this column. */
+  format(value: Scalar, column: string, type: string | undefined): string;
+}
+
+/** Grids opened over one model of their tables, for a series that combines them: each cube's source over the model. */
+export interface TsTogether {
+  readonly relations: ReadonlyMap<string, ValueSpecification>;
+  run(query: Lambda): Promise<ResultTable>;
+  dispose(): void;
+}
+
+/** What the viewer is given by the page it is on. */
+export interface TimeseriesHost {
+  /** A grid of the page by its cube, as it is now; undefined when no grid shows it (removed). */
+  grid(cube: string): TsGrid | undefined;
+  /** The page's grids, in its order: what a source may read. */
+  grids(): readonly TsGrid[];
+  /** The grids of `cubes` opened together over one model of their tables (D2, D5), or a refusal in words. */
+  together(cubes: readonly string[]): Promise<TsTogether>;
+  /** The tile's spec as the person changed it: the page's (setTimeseries). */
+  setSpec(spec: TimeseriesSpec): void;
+  /** Its renderer (a test's stand-in); else timeseries-render.ts. */
+  readonly mount?: (el: HTMLElement, on: MountOn) => MountedTimeseries;
+}
+
+/** What the renderer tells the viewer. */
+export interface MountOn {
+  readonly onZoom: (from: string | undefined, to: string | undefined) => void;
+  readonly onDate?: (date: string) => void;
+  readonly onResize?: () => void;
+}
+
+/** What a spec's queries depend on: when it changes, the database is asked again; else the drawing alone changes. */
+function queryKey(ts: TimeseriesSpec): string {
+  return JSON.stringify({
+    sources: ts.sources, grain: ts.grain ?? null, compare: ts.view?.compare ?? null,
+    series: ts.series.map((s) => ({ id: s.id, expr: s.expr, split: s.split ?? null })),
+  });
+}
+
+/** An element with its class, text and attributes. */
+function el<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, cls?: string, text?: string,
+  attrs: Readonly<Record<string, string>> = {}): HTMLElementTagNameMap[K] {
+  const e = doc.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+}
+
+function button(doc: Document, label: string, title: string, onClick: () => void, cls = 'dc-button dc-ts-btn'): HTMLButtonElement {
+  const b = el(doc, 'button', cls, label, { type: 'button', title });
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function select(doc: Document, options: readonly (readonly [string, string])[], value: string, onChange: (v: string) => void,
+  title = ''): HTMLSelectElement {
+  const s = el(doc, 'select', 'dc-select dc-ts-select', undefined, title ? { title, 'aria-label': title } : {});
+  for (const [v, label] of options) s.append(new Option(label, v, v === value, v === value));
+  s.value = value;
+  s.addEventListener('change', () => onChange(s.value));
+  return s;
+}
+
+function labelled(doc: Document, label: string, control: HTMLElement): HTMLLabelElement {
+  const l = el(doc, 'label', 'dc-ts-field');
+  l.append(el(doc, 'span', 'dc-ts-field-label', label), control);
+  return l;
+}
+
+function download(doc: Document, name: string, href: string): void {
+  const a = doc.createElement('a');
+  a.href = href;
+  a.download = name;
+  a.click();
+}
+
+const GRAINS: readonly (readonly [string, string])[] = [
+  ['', 'As the rows are'], ['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly'], ['quarter', 'Quarterly'], ['year', 'Yearly'],
+];
+const COMPARES: readonly (readonly [string, string])[] = [['', 'Levels'], ['rebase', 'Rebase to 100'], ['percent', '% change']];
+const STYLES: readonly (readonly [TsStyleKind, string])[] = [['line', 'Line'], ['area', 'Area'], ['bars', 'Bars'], ['step', 'Steps'], ['dots', 'Dots']];
+const FAMILIES: readonly TsFamily[] = ['Returns', 'Level', 'Rolling statistics', 'Risk', 'Relationships', 'Technicals', 'Math'];
+
+/** The statistics table's columns: a statistic and how it is written (by the line's unit, or as a share, a date, a count). */
+const STAT_COLUMNS: readonly { readonly stat: TsStat; readonly label: string; readonly as: 'value' | 'ratio' | 'percent' | 'number' | 'date' | 'count' }[] = [
+  { stat: 'first', label: 'First', as: 'value' },
+  { stat: 'last', label: 'Last', as: 'value' },
+  { stat: 'change', label: 'Change', as: 'value' },
+  { stat: 'pct', label: '% chg', as: 'ratio' },
+  { stat: 'low', label: 'Low', as: 'value' },
+  { stat: 'lowAt', label: 'on', as: 'date' },
+  { stat: 'high', label: 'High', as: 'value' },
+  { stat: 'highAt', label: 'on', as: 'date' },
+  { stat: 'mean', label: 'Mean', as: 'value' },
+  { stat: 'std', label: 'Std dev', as: 'value' },
+  { stat: 'vol', label: 'Vol (ann.)', as: 'percent' },
+  { stat: 'mdd', label: 'Max DD', as: 'ratio' },
+  { stat: 'cagr', label: 'CAGR', as: 'ratio' },
+  { stat: 'sharpe', label: 'Sharpe', as: 'number' },
+  { stat: 'count', label: 'Obs', as: 'count' },
+];
+
+export class TimeseriesView {
+  readonly #root: HTMLElement;
+  readonly #doc: Document;
+  readonly #host: TimeseriesHost;
+  #spec: TimeseriesSpec;
+  #bar!: HTMLElement;
+  #ranges!: HTMLElement;
+  #legend!: HTMLElement;
+  #banner!: HTMLElement;
+  #canvas!: HTMLElement;
+  #stats!: HTMLElement;
+  #pop!: HTMLElement;
+  #chart: MountedTimeseries | null = null;
+  #mounting: Promise<MountedTimeseries | null> | null = null;
+  /** The rows of the last answers, by series, and what each refused. */
+  #results = new Map<string, TsResult>();
+  #failed = new Map<string, string>();
+  #statRows = new Map<string, ResultTable>();
+  #bounds = new Map<string, ResultTable>();
+  #lines: TsLine[] = [];
+  #notes: string[] = [];
+  #problems: string[] = [];
+  /** The person's own look: the dates the zoom shows, until a range is chosen again. */
+  #zoom: TsWindow | null = null;
+  #asked = '';
+  #range = '';
+  #gen = 0;
+  #zoomTimer: ReturnType<typeof setTimeout> | undefined;
+  #disposed = false;
+
+  constructor(root: HTMLElement, host: TimeseriesHost, spec: TimeseriesSpec) {
+    this.#root = root;
+    this.#doc = root.ownerDocument;
+    this.#host = host;
+    this.#spec = spec;
+    this.#range = JSON.stringify(spec.range ?? null);
+    this.#build();
+    void this.#fetch();
+  }
+
+  /** The spec it draws. */
+  get spec(): TimeseriesSpec {
+    return this.#spec;
+  }
+
+  /**
+   * The spec as the page has it now (its own change come back, another editor's, an undo): drawn from the rows it has
+   * when only the drawing changed, asked again when what a series reads changed (D4). The range changed: the zoom goes.
+   */
+  update(spec: TimeseriesSpec): void {
+    if (JSON.stringify(spec) === JSON.stringify(this.#spec)) return;
+    this.#apply(spec);
+  }
+
+  /** A grid it reads landed a new view (its filter, its rows): asked again, as every chart of a grid is. */
+  refresh(): void {
+    this.#asked = '';
+    void this.#fetch();
+  }
+
+  /** The chart as drawn now, as a picture (an export of the page); null before it has drawn. */
+  picture(): ChartPicture | null {
+    return this.#chart?.picture() ?? null;
+  }
+
+  dispose(): void {
+    this.#disposed = true;
+    clearTimeout(this.#zoomTimer);
+    this.#chart?.dispose();
+    this.#chart = null;
+  }
+
+  // -- the spec changed ----------------------------------------------------------------------------------------------
+
+  /** The person changed the spec: kept by the page, and drawn (or asked) at once. */
+  #set(spec: TimeseriesSpec): void {
+    const read = readTimeseries(JSON.parse(JSON.stringify(spec)));
+    if (typeof read === 'string') {
+      this.#say([read], true);
+      return;
+    }
+    this.#apply(read);
+    this.#host.setSpec(read);
+  }
+
+  #apply(spec: TimeseriesSpec): void {
+    const range = JSON.stringify(spec.range ?? null);
+    if (range !== this.#range) {
+      this.#range = range;
+      this.#zoom = null;
+    }
+    this.#spec = spec;
+    this.#paintBar();
+    if (queryKey(spec) !== this.#asked) void this.#fetch();
+    else {
+      this.#draw();
+      void this.#windowed();
+    }
+  }
+
+  // -- the database's answers ----------------------------------------------------------------------------------------
+
+  /** The columns of each source's grid, by alias (undefined: its grid is not on the page). */
+  #columns(spec: TimeseriesSpec): Map<string, TsColumn[] | undefined> {
+    return new Map(spec.sources.map((s) => {
+      const g = this.#host.grid(s.cube);
+      return [s.alias, g ? rowColumns(g.snapshot).map((c) => ({ name: c.name, type: c.type })) : undefined] as const;
+    }));
+  }
+
+  /** A series' own grid's input (`alias`), its rows as the grid has them. */
+  #input(alias: string): { readonly input: TsInput; readonly grid: TsGrid } | undefined {
+    const src = this.#spec.sources.find((s) => s.alias === alias);
+    const grid = src ? this.#host.grid(src.cube) : undefined;
+    return grid ? { input: { snapshot: grid.snapshot, filter: grid.filter }, grid } : undefined;
+  }
+
+  /**
+   * A series' query run where it runs (D2, D5): of one grid, by that grid's runner; of several, over one model of their
+   * tables (the host's together).
+   */
+  async #run(series: TsSeries, make: (inputs: TsInputs) => TsQuery, signal: AbortSignal): Promise<TsResult> {
+    const spec = this.#spec;
+    const aliases = seriesSources(spec, series);
+    if (aliases.length <= 1) {
+      const alias = aliases[0] ?? spec.sources[0]?.alias ?? '';
+      const own = this.#input(alias);
+      if (!own) throw new Error(`source ${alias}'s grid is not on the page`);
+      const query = make(new Map([[alias, own.input]]));
+      return { query, table: await own.grid.run(query.query, own.grid.snapshot, signal) };
+    }
+    const sources = aliases.map((a) => spec.sources.find((s) => s.alias === a)!);
+    const grids = sources.map((s) => this.#host.grid(s.cube));
+    const missing = sources.find((_, i) => grids[i] === undefined);
+    if (missing) throw new Error(`source ${missing.alias}'s grid is not on the page`);
+    const together = await this.#host.together(sources.map((s) => s.cube));
+    try {
+      const inputs: TsInputs = new Map(sources.map((s, i) => {
+        const g = grids[i]!;
+        const relation = together.relations.get(s.cube);
+        if (!relation) throw new Error(`${s.alias} was not opened with the others`);
+        return [s.alias, { snapshot: { ...g.snapshot, source: { query: relation } }, filter: g.filter }] as const;
+      }));
+      const query = make(inputs);
+      return { query, table: await together.run(query.query) };
+    } finally {
+      together.dispose();
+    }
+  }
+
+  /** The window shown: the person's zoom, else the range's -- a period back from the latest date any source has. */
+  #window(): TsWindow {
+    if (this.#zoom) return this.#zoom;
+    const r = this.#spec.range;
+    if (!r) return {};
+    if ('last' in r) {
+      if (r.last === 'max') return {};
+      // the source with the latest date of all, by comparing the dates the database gave; its start for the range
+      let best: ResultTable | undefined;
+      let latest = '';
+      for (const t of this.#bounds.values()) {
+        const at = String(t.columns.find((c) => c.name === TS_LATEST)?.values[0] ?? '');
+        if (at > latest) {
+          latest = at;
+          best = t;
+        }
+      }
+      const from = best?.columns.find((c) => c.name === rangeStartName(r.last))?.values[0];
+      return from === undefined || from === null ? {} : { from: String(from).slice(0, 10) };
+    }
+    return { ...(r.from !== undefined ? { from: r.from } : {}), ...(r.to !== undefined ? { to: r.to } : {}) };
+  }
+
+  /** Every series asked again: the bounds, then the series, then the statistics. */
+  async #fetch(): Promise<void> {
+    const gen = ++this.#gen;
+    const spec = this.#spec;
+    this.#asked = queryKey(spec);
+    this.#canvas.setAttribute('aria-busy', 'true');
+    const problems = timeseriesProblems(spec, this.#columns(spec));
+    this.#problems = problems;
+    const signal = new AbortController().signal;
+    // the bounds of each source on the page (its range buttons' starts, the database's)
+    const bounds = new Map<string, ResultTable>();
+    await Promise.all(spec.sources.map(async (s) => {
+      const own = this.#input(s.alias);
+      if (!own) return;
+      try {
+        bounds.set(s.alias, await own.grid.run(boundsQuery(own.input, s), own.grid.snapshot, signal));
+      } catch {
+        // its grid cannot answer: its series say why
+      }
+    }));
+    if (gen !== this.#gen || this.#disposed) return;
+    this.#bounds = bounds;
+    const window = this.#window();
+    // the series with no problem of their own (a problem of the tile's stops them all)
+    const blocked = (s: TsSeries): string | undefined =>
+      problems.find((p) => !p.startsWith('Series ')) ?? problems.find((p) => p.startsWith(`Series ${s.id} `));
+    const results = new Map<string, TsResult>();
+    const failed = new Map<string, string>();
+    await Promise.all(spec.series.map(async (s) => {
+      const why = blocked(s);
+      if (why !== undefined) {
+        failed.set(s.id, why);
+        return;
+      }
+      try {
+        results.set(s.id, await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, readsAnchor(spec, s) && window.from ? { from: window.from } : {}), signal));
+      } catch (e) {
+        failed.set(s.id, e instanceof Error ? e.message : String(e));
+      }
+    }));
+    if (gen !== this.#gen || this.#disposed) return;
+    this.#results = results;
+    this.#failed = failed;
+    this.#canvas.removeAttribute('aria-busy');
+    await this.#draw();
+    await this.#statistics(gen);
+  }
+
+  /** The window moved (a zoom, a range): the series that read its first date asked again, and the statistics. */
+  async #windowed(): Promise<void> {
+    const gen = ++this.#gen;
+    const spec = this.#spec;
+    const window = this.#window();
+    const signal = new AbortController().signal;
+    const anchored = spec.series.filter((s) => readsAnchor(spec, s) && this.#results.has(s.id));
+    if (anchored.length > 0) {
+      const again = await Promise.all(anchored.map(async (s) => {
+        try {
+          return [s.id, await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, window.from ? { from: window.from } : {}), signal)] as const;
+        } catch (e) {
+          this.#failed.set(s.id, e instanceof Error ? e.message : String(e));
+          return undefined;
+        }
+      }));
+      if (gen !== this.#gen || this.#disposed) return;
+      for (const r of again) if (r) this.#results.set(r[0], r[1]);
+      await this.#draw();
+    } else {
+      this.#paintLegend();
+    }
+    await this.#statistics(gen);
+  }
+
+  /** Each line's statistics over the window shown (the database's), for the legend's change and the table. */
+  async #statistics(gen: number): Promise<void> {
+    const spec = this.#spec;
+    const window = this.#window();
+    const signal = new AbortController().signal;
+    const rows = new Map<string, ResultTable>();
+    await Promise.all(spec.series.filter((s) => this.#results.has(s.id) && !this.#results.get(s.id)!.query.band).map(async (s) => {
+      try {
+        rows.set(s.id, (await this.#run(s, (inputs) => statsQuery(inputs, spec, s, window), signal)).table);
+      } catch {
+        // a statistic it cannot have: its row says none
+      }
+    }));
+    if (gen !== this.#gen || this.#disposed) return;
+    this.#statRows = rows;
+    this.#paintLegend();
+    this.#paintStats();
+  }
+
+  // -- drawing -------------------------------------------------------------------------------------------------------
+
+  /** The chart's renderer, made the first time it is needed. */
+  async #mount(): Promise<MountedTimeseries | null> {
+    if (this.#chart) return this.#chart;
+    this.#mounting ??= (async () => {
+      const on: MountOn = {
+        onZoom: (from, to) => this.#zoomed(from, to),
+        onDate: (date) => this.#eventAt(date),
+        onResize: () => void this.#draw(),
+      };
+      const make = this.#host.mount ?? (await lazily(() => import('../timeseries-render.ts'))).mountTimeseries;
+      if (this.#disposed) return null;
+      this.#chart = make(this.#canvas, on);
+      return this.#chart;
+    })();
+    return this.#mounting;
+  }
+
+  /** A line's values in its grid's format: its source's grid's formatter for its column. */
+  #formatOf(line: TsLine): TsFormat | undefined {
+    if (line.formatColumn === undefined || line.formatSource === undefined) return undefined;
+    const src = this.#spec.sources.find((s) => s.alias === line.formatSource);
+    const grid = src ? this.#host.grid(src.cube) : undefined;
+    if (!grid) return undefined;
+    const column = line.formatColumn;
+    const type = rowColumns(grid.snapshot).find((c) => c.name === column)?.type;
+    return (v) => grid.format(v, column, type);
+  }
+
+  async #draw(): Promise<void> {
+    const spec = this.#spec;
+    const theme = themeOf(this.#root);
+    const { lines, notes } = tsLines(spec, [...this.#results.values()], theme);
+    this.#lines = lines;
+    this.#notes = notes;
+    this.#paintLegend();
+    this.#paintBanner();
+    const chart = await this.#mount();
+    if (!chart || this.#disposed) return;
+    const option = timeseriesOption(spec, lines, {
+      theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height: chart.height() || this.#canvas.clientHeight || 420,
+    });
+    chart.show(option, describeTimeseries(spec, lines));
+  }
+
+  #zoomed(from: string | undefined, to: string | undefined): void {
+    this.#zoom = { ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) };
+    this.#paintRanges();
+    clearTimeout(this.#zoomTimer);
+    this.#zoomTimer = setTimeout(() => void this.#windowed(), 300);
+  }
+
+  // -- the parts --------------------------------------------------------------------------------------------------------
+
+  #build(): void {
+    const doc = this.#doc;
+    this.#root.replaceChildren();
+    this.#root.classList.add('dc-ts', 'dc-chartpanel');
+    this.#bar = el(doc, 'div', 'dc-ts-bar', undefined, { role: 'toolbar', 'aria-label': 'Timeseries' });
+    this.#legend = el(doc, 'div', 'dc-ts-legend', undefined, { role: 'list', 'aria-label': 'Series' });
+    this.#banner = el(doc, 'div', 'dc-ts-banner', undefined, { role: 'status' });
+    this.#canvas = el(doc, 'div', 'dc-ts-chart', undefined, { role: 'img' });
+    this.#stats = el(doc, 'div', 'dc-ts-stats');
+    this.#pop = el(doc, 'div', 'dc-ts-pop');
+    this.#pop.hidden = true;
+    const body = el(doc, 'div', 'dc-ts-body');
+    body.append(this.#canvas, this.#pop);
+    this.#root.append(this.#bar, this.#legend, this.#banner, body, this.#stats);
+    this.#root.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !this.#pop.hidden) {
+        e.stopPropagation();
+        this.#close();
+      }
+    });
+    this.#paintBar();
+  }
+
+  #paintBar(): void {
+    const doc = this.#doc;
+    const spec = this.#spec;
+    this.#ranges = el(doc, 'div', 'dc-ts-ranges', undefined, { role: 'group', 'aria-label': 'Range' });
+    this.#paintRanges();
+    const grain = select(doc, GRAINS, spec.grain ?? '', (v) => {
+      const { grain: _g, ...rest } = this.#spec;
+      this.#set(v === '' ? rest : { ...rest, grain: v as NonNullable<TimeseriesSpec['grain']> });
+    }, 'Frequency');
+    const compare = select(doc, COMPARES, spec.view?.compare ?? '', (v) => this.#setView({ compare: v === '' ? null : v as 'rebase' | 'percent' }), 'Compare');
+    const log = button(doc, 'Log', 'The main pane on a log scale', () => this.#setPane(0, { log: !(this.#spec.panes?.[0]?.log ?? false) }));
+    log.setAttribute('aria-pressed', String(spec.panes?.[0]?.log === true));
+    const stats = button(doc, 'Stats', 'The statistics of every line over the dates shown', () => this.#setView({ stats: !viewSetting(this.#spec, 'stats') }));
+    stats.setAttribute('aria-pressed', String(viewSetting(spec, 'stats')));
+    const add = button(doc, '+ Series', 'Plot another series: an expression, gs-quant\'s functions', () => this.#editSeries(null), 'dc-button dc-primary dc-ts-btn');
+    const settings = button(doc, 'Settings', 'Sources, panes, annotations, view and export', () => this.#editSettings());
+    const csv = button(doc, 'CSV', 'Download the lines as CSV (the rows the database answered)', () =>
+      download(doc, 'timeseries.csv', URL.createObjectURL(new Blob([timeseriesCsv(this.#lines)], { type: 'text/csv' }))));
+    const png = button(doc, 'PNG', 'Download the chart as a picture', () => {
+      const url = this.#chart?.pngUrl();
+      if (url) download(doc, 'timeseries.png', url);
+    });
+    this.#bar.replaceChildren(this.#ranges, el(doc, 'span', 'dc-ts-gap'), grain, compare, log, stats, add, settings, csv, png);
+  }
+
+  #paintRanges(): void {
+    const doc = this.#doc;
+    const r = this.#spec.range;
+    const chosen = this.#zoom ? null : r && 'last' in r ? r.last : r ? 'custom' : 'max';
+    this.#ranges.replaceChildren(...TS_RANGES.map(({ word, label }) => {
+      const b = button(doc, label, `Show the last ${label === 'Max' ? 'of everything' : label}`, () => this.#setRange(word), 'dc-ts-range');
+      b.setAttribute('aria-pressed', String(chosen === word));
+      return b;
+    }));
+    if (this.#zoom || chosen === 'custom') {
+      const w = this.#window();
+      this.#ranges.append(el(doc, 'span', 'dc-ts-custom', `${w.from ?? '…'} – ${w.to ?? '…'}`));
+    }
+  }
+
+  #setRange(word: TsRangeWord): void {
+    this.#zoom = null;
+    const spec = { ...this.#spec, range: { last: word } };
+    this.#range = JSON.stringify(spec.range);
+    this.#spec = spec;
+    this.#host.setSpec(spec);
+    this.#paintRanges();
+    const w = this.#window();
+    this.#chart?.zoomTo(w.from, w.to);
+    void this.#windowed();
+  }
+
+  #setView(change: { readonly [K in keyof TsView]?: TsView[K] | null }): void {
+    const view: Record<string, unknown> = { ...(this.#spec.view ?? {}) };
+    for (const [k, v] of Object.entries(change)) {
+      if (v === null || v === undefined) delete view[k];
+      else view[k] = v;
+    }
+    const { view: _v, ...rest } = this.#spec;
+    this.#set(Object.keys(view).length === 0 ? rest : { ...rest, view: view as TsView });
+  }
+
+  #setPane(index: number, change: { readonly height?: number; readonly log?: boolean }): void {
+    const panes = Array.from({ length: Math.max(index + 1, this.#spec.panes?.length ?? 0) }, (_, i) => ({ ...(this.#spec.panes?.[i] ?? {}) }));
+    panes[index] = { ...panes[index], ...change };
+    if (panes[index]!.log === false) delete panes[index]!.log;
+    this.#set({ ...this.#spec, panes });
+  }
+
+  #paintLegend(): void {
+    const doc = this.#doc;
+    if (!viewSetting(this.#spec, 'legend')) {
+      this.#legend.hidden = true;
+      return;
+    }
+    this.#legend.hidden = false;
+    const w = this.#window();
+    const chips = this.#lines.map((l) => {
+      const chip = el(doc, 'button', `dc-ts-chip${l.series.hidden ? ' dc-ts-off' : ''}`, undefined, {
+        type: 'button', role: 'listitem', title: `${seriesName(l.series)}: click to ${l.series.hidden ? 'show' : 'hide'}, double-click to edit`,
+      });
+      const swatch = el(doc, 'span', 'dc-ts-swatch');
+      swatch.style.background = l.color;
+      chip.append(swatch, el(doc, 'span', 'dc-ts-chip-name', l.name));
+      // its latest value in the window shown: a point the database answered, read
+      const last = [...l.points].reverse().find((p) => p[1] !== null && (w.to === undefined || p[0].slice(0, 10) <= w.to));
+      if (last) chip.append(el(doc, 'span', 'dc-ts-chip-value', valueText(l, last[1], this.#formatOf(l))));
+      const pct = this.#stat(l, 'pct');
+      if (pct !== null && (l.unit === 'same' || l.unit === 'index')) {
+        chip.append(el(doc, 'span', `dc-ts-chip-change ${pct >= 0 ? 'dc-ts-up' : 'dc-ts-down'}`, `${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct * 100).toLocaleString(UI_LOCALE, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}%`));
+      }
+      chip.addEventListener('click', () => this.#setSeries(l.series.id, { hidden: l.series.hidden === true ? null : true }));
+      chip.addEventListener('dblclick', () => this.#editSeries(l.series.id));
+      chip.addEventListener('mouseenter', () => this.#chart?.highlight(l.key));
+      chip.addEventListener('mouseleave', () => this.#chart?.highlight(null));
+      return chip;
+    });
+    // a series the database refused: named, with why
+    const failed = this.#spec.series.filter((s) => this.#failed.has(s.id)).map((s) => {
+      const chip = el(doc, 'button', 'dc-ts-chip dc-ts-failed', undefined, { type: 'button', role: 'listitem', title: this.#failed.get(s.id)! });
+      chip.append(el(doc, 'span', 'dc-ts-chip-name', `${s.id}: ${seriesName(s)}`), el(doc, 'span', 'dc-ts-chip-value', '!'));
+      chip.addEventListener('click', () => this.#editSeries(s.id));
+      return chip;
+    });
+    this.#legend.replaceChildren(...chips, ...failed);
+  }
+
+  #paintBanner(): void {
+    const said = [...this.#problems, ...this.#notes];
+    this.#banner.hidden = said.length === 0;
+    this.#banner.replaceChildren(...said.map((t) => this.#doc.createTextNode(`${t} `)));
+    this.#banner.classList.toggle('dc-ts-bad', this.#problems.length > 0);
+  }
+
+  #say(words: readonly string[], bad = false): void {
+    this.#banner.hidden = words.length === 0;
+    this.#banner.textContent = words.join(' ');
+    this.#banner.classList.toggle('dc-ts-bad', bad);
+  }
+
+  /** A line's statistic, from its series' statistics query (a split's by its value). */
+  #stat(line: TsLine, stat: TsStat): number | null {
+    const v = this.#statValue(line, stat);
+    return typeof v === 'string' && /^\d{4}-/.test(v) ? null : toNumber(v as Scalar);
+  }
+
+  #statValue(line: TsLine, stat: TsStat): Scalar | undefined {
+    const t = this.#statRows.get(line.series.id);
+    if (!t) return undefined;
+    const col = t.columns.find((c) => c.name === statName(stat));
+    if (!col) return undefined;
+    const splits = t.columns.find((c) => c.name === TS_SPLIT)?.values;
+    const at = line.split === undefined ? 0 : splits ? splits.findIndex((v) => v === line.split) : -1;
+    return at < 0 ? undefined : col.values[at];
+  }
+
+  #paintStats(): void {
+    const doc = this.#doc;
+    if (!viewSetting(this.#spec, 'stats')) {
+      this.#stats.hidden = true;
+      return;
+    }
+    this.#stats.hidden = false;
+    const table = el(doc, 'table', 'dc-ts-table');
+    const head = el(doc, 'tr');
+    head.append(el(doc, 'th', undefined, 'Line'), ...STAT_COLUMNS.map((c) => el(doc, 'th', undefined, c.label)));
+    table.append(head);
+    const grain = this.#spec.grain ?? 'day';
+    for (const l of this.#lines.filter((x) => !x.band && !x.series.hidden)) {
+      const tr = el(doc, 'tr');
+      const name = el(doc, 'td', 'dc-ts-table-name');
+      const swatch = el(doc, 'span', 'dc-ts-swatch');
+      swatch.style.background = l.color;
+      name.append(swatch, doc.createTextNode(l.name));
+      tr.append(name);
+      for (const c of STAT_COLUMNS) {
+        const raw = this.#statValue(l, c.stat);
+        const n = toNumber(raw as Scalar);
+        let text = '';
+        if (raw !== undefined && raw !== null) {
+          switch (c.as) {
+            case 'value': text = valueText(l, n, this.#formatOf(l)); break;
+            case 'ratio': text = valueText({ unit: 'ratio' }, n); break;
+            case 'percent': text = valueText({ unit: 'percent' }, n); break;
+            case 'number': text = valueText({ unit: 'number' }, n); break;
+            case 'count': text = n === null ? '' : n.toLocaleString(UI_LOCALE); break;
+            case 'date': text = dateLabel(String(raw), grain); break;
+          }
+        }
+        tr.append(el(doc, 'td', c.as === 'date' ? 'dc-ts-table-date' : 'dc-ts-table-num', text || '—'));
+      }
+      table.append(tr);
+    }
+    const window = this.#window();
+    this.#stats.replaceChildren(el(doc, 'div', 'dc-ts-stats-head', `Over ${window.from ?? 'the first date'} to ${window.to ?? 'the latest'}: every figure the database's`), table);
+  }
+
+  // -- editing -------------------------------------------------------------------------------------------------------
+
+  #setSeries(id: string, change: Readonly<Record<string, unknown>>): void {
+    const series = this.#spec.series.map((s) => {
+      if (s.id !== id) return s;
+      const next: Record<string, unknown> = { ...s };
+      for (const [k, v] of Object.entries(change)) {
+        if (v === null || v === undefined) delete next[k];
+        else next[k] = v;
+      }
+      return next as unknown as TsSeries;
+    });
+    this.#set({ ...this.#spec, series });
+  }
+
+  #open(title: string, ...content: HTMLElement[]): void {
+    const doc = this.#doc;
+    const close = button(doc, '×', 'Close (Escape)', () => this.#close(), 'dc-ts-close');
+    const head = el(doc, 'div', 'dc-ts-pop-head');
+    head.append(el(doc, 'span', 'dc-ts-pop-title', title), close);
+    this.#pop.replaceChildren(head, ...content);
+    this.#pop.hidden = false;
+    this.#pop.querySelector<HTMLElement>('input, select, textarea')?.focus();
+  }
+
+  #close(): void {
+    this.#pop.hidden = true;
+    this.#pop.replaceChildren();
+  }
+
+  /** The series editor: a new one (`id` null) or one of the tile's. */
+  #editSeries(id: string | null): void {
+    const doc = this.#doc;
+    const spec = this.#spec;
+    const was = id === null ? undefined : spec.series.find((s) => s.id === id);
+    const sid = was?.id ?? nextSeriesId(spec.series);
+    const columns = this.#columns(spec);
+    const many = spec.sources.length > 1;
+    // the expression, read as it is typed, its error said where it is
+    const expr = el(doc, 'input', 'dc-input dc-ts-expr', undefined, {
+      'aria-label': 'Expression', spellcheck: 'false', placeholder: many ? `${spec.sources[0]?.alias}:close[AAPL]` : 'close[AAPL]',
+    });
+    expr.value = was ? exprText(was.expr) : '';
+    const error = el(doc, 'div', 'dc-ts-error', undefined, { role: 'alert' });
+    const reads = el(doc, 'div', 'dc-ts-hint');
+    let parsed: TsExpr | undefined;
+    const check = (): void => {
+      error.textContent = '';
+      parsed = undefined;
+      if (expr.value.trim() === '') return;
+      try {
+        parsed = parseExpr(expr.value);
+        const read = sourcesOf(spec, inlined(parsed, spec.series.filter((s) => s.id !== sid)));
+        reads.textContent = `Reads ${read.join(', ') || 'no grid'}${read.length > 1 ? ': one query, the grids joined on the date' : ''}.`;
+      } catch (e) {
+        error.textContent = e instanceof TsSyntaxError ? `${e.message} (at ${e.at + 1})` : e instanceof Error ? e.message : String(e);
+        reads.textContent = '';
+      }
+    };
+    expr.addEventListener('input', check);
+    // building one: a source, a column, an instrument, a line per instrument
+    const sourceSel = select(doc, spec.sources.map((s) => [s.alias, `${s.alias} (${this.#host.grid(s.cube)?.title ?? 'its grid is gone'})`] as const),
+      spec.sources[0]?.alias ?? '', () => paintPickers(), 'Source');
+    const columnSel = select(doc, [], '', () => undefined, 'Column');
+    const keySel = select(doc, [['', 'Every row']], '', () => undefined, 'Instrument');
+    const splitBox = el(doc, 'input', undefined, undefined, { type: 'checkbox', 'aria-label': 'One line per instrument' });
+    splitBox.checked = was?.split !== undefined;
+    const splitLabel = el(doc, 'label', 'dc-ts-check');
+    const splitText = el(doc, 'span', undefined, 'One line per instrument');
+    splitLabel.append(splitBox, splitText);
+    const paintPickers = (): void => {
+      const src = spec.sources.find((s) => s.alias === sourceSel.value);
+      const cols = (src ? columns.get(src.alias) : undefined) ?? [];
+      const numbers = cols.filter((c) => isNumeric(c.type) && c.name !== src?.date);
+      columnSel.replaceChildren(...numbers.map((c) => new Option(c.name, c.name)));
+      keySel.replaceChildren(new Option('Every row', ''));
+      splitText.textContent = src?.key ? `One line per ${src.key}` : 'One line per instrument (no instrument column)';
+      splitBox.disabled = src?.key === undefined;
+      if (src?.key !== undefined) void this.#keyValues(src).then((values) => {
+        for (const v of values) keySel.append(new Option(v, v));
+      });
+    };
+    paintPickers();
+    const use = button(doc, 'Use', 'Write the expression of this column', () => {
+      const src = spec.sources.find((s) => s.alias === sourceSel.value);
+      if (!src || columnSel.value === '') return;
+      const own = many || src.alias !== spec.sources[0]?.alias ? src.alias : undefined;
+      expr.value = exprText(columnRef(columnSel.value, own, keySel.value !== '' ? keySel.value : undefined));
+      check();
+    });
+    // a function around it: gs-quant's, by family
+    const fnSel = el(doc, 'select', 'dc-select dc-ts-select', undefined, { 'aria-label': 'Function' });
+    fnSel.append(new Option('Apply a function…', ''));
+    for (const family of FAMILIES) {
+      const group = el(doc, 'optgroup', undefined, undefined, { label: family });
+      for (const f of TS_FUNCTIONS.filter((x) => x.family === family)) group.append(new Option(f.label, f.name));
+      fnSel.append(group);
+    }
+    const about = el(doc, 'div', 'dc-ts-hint');
+    fnSel.addEventListener('change', () => {
+      const f = functionNamed(fnSel.value);
+      if (!f) return;
+      const inner = expr.value.trim() === '' ? 'close' : expr.value.trim();
+      const other = spec.series.find((s) => s.id !== sid);
+      const args = f.series === 2 ? [inner, other ? `$${other.id}` : inner] : [inner];
+      const params = f.params.filter((p) => p.name === 'w').map((p) => String(p.default));
+      expr.value = `${f.name}(${[...args, ...params].join(', ')})`;
+      about.textContent = `${f.label}: ${f.about}${f.params.length ? ` Parameters: ${f.params.map((p) => `${p.name} (${p.about}; default ${p.default})`).join('; ')}.` : ''}${f.differs ? ` Differs from gs-quant's ${f.gsQuant}: ${f.differs}.` : ` gs-quant: ${f.gsQuant}.`}`;
+      fnSel.value = '';
+      check();
+    });
+    // how it is drawn
+    const name = el(doc, 'input', 'dc-input', undefined, { 'aria-label': 'Name', placeholder: 'Its expression' });
+    name.value = was?.name ?? '';
+    const pane = select(doc, Array.from({ length: MAX_PANES }, (_, i) => [String(i), i === 0 ? 'Main pane' : `Pane ${i + 1}`] as const), String(was?.pane ?? 0), () => undefined, 'Pane');
+    const axis = select(doc, [['', 'Axis by unit'], ['left', 'Left axis'], ['right', 'Right axis']], was?.axis ?? '', () => undefined, 'Axis');
+    const kind = select(doc, STYLES, was?.style?.kind ?? 'line', () => undefined, 'Drawn as');
+    const width = select(doc, [['1', '1px'], ['2', '2px'], ['3', '3px'], ['4', '4px']], String(was?.style?.width ?? 2), () => undefined, 'Width');
+    const dash = select(doc, [['', 'Solid'], ['dashed', 'Dashed'], ['dotted', 'Dotted']], was?.style?.dash ?? '', () => undefined, 'Dash');
+    const theme = themeOf(this.#root);
+    let color: number | undefined = was?.style?.color;
+    const swatches = el(doc, 'div', 'dc-ts-swatches', undefined, { role: 'radiogroup', 'aria-label': 'Colour' });
+    const paintSwatches = (): void => {
+      swatches.replaceChildren(...[undefined, ...theme.series.map((_, i) => i)].map((slot) => {
+        const b = el(doc, 'button', `dc-ts-swatch-pick${slot === color ? ' dc-ts-picked' : ''}`, slot === undefined ? 'A' : '', {
+          type: 'button', role: 'radio', 'aria-checked': String(slot === color), title: slot === undefined ? 'By its place' : `Colour ${slot + 1}`,
+        });
+        if (slot !== undefined) b.style.background = theme.series[slot]!;
+        b.addEventListener('click', () => {
+          color = slot;
+          paintSwatches();
+        });
+        return b;
+      }));
+    };
+    paintSwatches();
+    const ok = button(doc, 'OK', 'Plot it (Enter)', () => {
+      check();
+      if (!parsed) {
+        if (expr.value.trim() === '') error.textContent = 'Write an expression, or build one from a column.';
+        return;
+      }
+      const src = spec.sources.find((s) => s.alias === sourceSel.value);
+      const style: Record<string, unknown> = {
+        ...(kind.value !== 'line' ? { kind: kind.value } : {}), ...(color !== undefined ? { color } : {}),
+        ...(width.value !== '2' ? { width: Number(width.value) } : {}), ...(dash.value !== '' ? { dash: dash.value } : {}),
+      };
+      const made: TsSeries = {
+        id: sid, expr: parsed,
+        ...(name.value.trim() !== '' ? { name: name.value.trim() } : {}),
+        ...(splitBox.checked && !splitBox.disabled && src?.key !== undefined ? { split: src.key } : {}),
+        ...(Object.keys(style).length > 0 ? { style } : {}),
+        ...(pane.value !== '0' ? { pane: Number(pane.value) } : {}),
+        ...(axis.value !== '' ? { axis: axis.value as 'left' | 'right' } : {}),
+        ...(was?.hidden ? { hidden: true } : {}),
+      };
+      const series = was ? spec.series.map((s) => (s.id === sid ? made : s)) : [...spec.series, made];
+      this.#close();
+      this.#set({ ...this.#spec, series });
+    }, 'dc-button dc-primary');
+    expr.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') ok.click();
+    });
+    const remove = button(doc, 'Remove', 'Take this series off', () => {
+      this.#close();
+      this.#set({ ...this.#spec, series: this.#spec.series.filter((s) => s.id !== sid) });
+    });
+    remove.hidden = was === undefined;
+    const reference = el(doc, 'details', 'dc-ts-reference');
+    reference.append(el(doc, 'summary', undefined, 'Functions (gs-quant\'s names)'));
+    const list = el(doc, 'dl', 'dc-ts-functions');
+    for (const f of TS_FUNCTIONS) {
+      const sig = `${f.name}(${[...Array.from({ length: f.series }, (_, i) => (i === 0 ? 'x' : 'y')), ...f.params.map((p) => `${p.name}=${p.default}`)].join(', ')})`;
+      list.append(el(doc, 'dt', undefined, sig), el(doc, 'dd', undefined, `${f.about}${f.differs ? ` (${f.differs})` : ''}`));
+    }
+    reference.append(list, el(doc, 'p', 'dc-ts-hint', 'Columns: close, px:close, close[AAPL], close[venue=NYSE, AAPL], volume[AAPL].sum. Series: $A. Arithmetic: + - * /.'));
+    const builder = el(doc, 'div', 'dc-ts-row');
+    builder.append(sourceSel, columnSel, keySel, use);
+    const style = el(doc, 'div', 'dc-ts-row');
+    style.append(kind, width, dash, pane, axis);
+    const actions = el(doc, 'div', 'dc-ts-actions');
+    actions.append(remove, el(doc, 'span', 'dc-ts-gap'), button(doc, 'Cancel', 'Leave it as it was (Escape)', () => this.#close()), ok);
+    this.#open(was ? `Series ${sid}` : `New series ${sid}`,
+      labelled(doc, 'Expression', expr), error, reads, builder, splitLabel, fnSel, about,
+      labelled(doc, 'Name', name), style, swatches, reference, actions);
+    check();
+  }
+
+  /** The values of a source's instrument column, the database's (the picker's). */
+  async #keyValues(src: TsSource): Promise<string[]> {
+    const own = this.#input(src.alias);
+    if (!own || src.key === undefined) return [];
+    try {
+      const t = await own.grid.run(keyValuesQuery(own.input, src.key), own.grid.snapshot, new AbortController().signal);
+      return (t.columns[0]?.values ?? []).map((v) => String(v));
+    } catch {
+      return [];
+    }
+  }
+
+  /** Settings: the sources, the view, the panes, the annotations, a range of two dates, export. */
+  #editSettings(): void {
+    const doc = this.#doc;
+    const spec = this.#spec;
+    const parts: HTMLElement[] = [];
+    // the sources: each grid, its alias, its date and instrument columns
+    parts.push(el(doc, 'div', 'dc-ts-heading', 'Grids it reads'));
+    const grids = this.#host.grids();
+    for (const s of spec.sources) {
+      const grid = this.#host.grid(s.cube);
+      const cols = grid ? rowColumns(grid.snapshot) : [];
+      const row = el(doc, 'div', 'dc-ts-row');
+      const alias = el(doc, 'input', 'dc-input dc-ts-alias', undefined, { 'aria-label': 'Alias' });
+      alias.value = s.alias;
+      alias.addEventListener('change', () => this.#setSource(s.alias, { alias: alias.value.trim() }));
+      const date = select(doc, cols.filter((c) => isTemporal(c.type) && !isTimeOfDay(c.type)).map((c) => [c.name, c.name] as const), s.date,
+        (v) => this.#setSource(s.alias, { date: v }), 'Date column');
+      const key = select(doc, [['', 'No instruments'], ...cols.filter((c) => !isNumeric(c.type) && !isTemporal(c.type)).map((c) => [c.name, c.name] as const)],
+        s.key ?? '', (v) => this.#setSource(s.alias, { key: v === '' ? null : v }), 'Instrument column');
+      const where = el(doc, 'span', 'dc-ts-hint', grid ? grid.title : 'its grid was removed: undo brings it back');
+      const reads = spec.series.some((x) => {
+        try {
+          return sourcesOf(spec, inlined(x.expr, spec.series)).includes(s.alias);
+        } catch {
+          return false;
+        }
+      });
+      const off = button(doc, '×', reads ? 'A series reads it' : 'Stop reading this grid', () => {
+        this.#set({ ...this.#spec, sources: this.#spec.sources.filter((x) => x.alias !== s.alias) });
+        this.#editSettings();
+      }, 'dc-ts-close');
+      off.disabled = reads || spec.sources.length === 1;
+      row.append(alias, where, date, key, off);
+      parts.push(row);
+    }
+    const others = grids.filter((g) => !spec.sources.some((s) => s.cube === g.cube));
+    if (others.length > 0) {
+      const addGrid = select(doc, [['', 'Read another grid…'], ...others.map((g) => [g.cube, g.title] as const)], '', (cube) => {
+        const g = others.find((x) => x.cube === cube);
+        if (!g) return;
+        const cols = rowColumns(g.snapshot).map((c) => ({ name: c.name, type: c.type }));
+        const made = sourceOf(cols, g.snapshot.rows, g.cube, aliasFor(g.title, this.#spec.sources.map((s) => s.alias)));
+        if (!made) {
+          this.#say([`${g.title} has no date column: a timeseries is read along a date.`], true);
+          return;
+        }
+        this.#set({ ...this.#spec, sources: [...this.#spec.sources, made] });
+        this.#editSettings();
+      }, 'Read another grid');
+      parts.push(addGrid);
+    }
+    // the view
+    parts.push(el(doc, 'div', 'dc-ts-heading', 'View'));
+    const toggles = el(doc, 'div', 'dc-ts-row');
+    for (const [key, label] of [['legend', 'Legend'], ['lastValues', 'Latest values'], ['navigator', 'Navigator'], ['crosshair', 'Crosshair'], ['stats', 'Statistics']] as const) {
+      const box = el(doc, 'input', undefined, undefined, { type: 'checkbox' });
+      box.checked = viewSetting(spec, key);
+      box.addEventListener('change', () => this.#setView({ [key]: box.checked }));
+      const l = el(doc, 'label', 'dc-ts-check');
+      l.append(box, doc.createTextNode(label));
+      toggles.append(l);
+    }
+    parts.push(toggles);
+    // a range of two dates
+    const r = spec.range;
+    const from = el(doc, 'input', 'dc-input', undefined, { type: 'date', 'aria-label': 'From' });
+    const to = el(doc, 'input', 'dc-input', undefined, { type: 'date', 'aria-label': 'To' });
+    if (r && !('last' in r)) {
+      from.value = r.from ?? '';
+      to.value = r.to ?? '';
+    }
+    const dates = el(doc, 'div', 'dc-ts-row');
+    dates.append(el(doc, 'span', 'dc-ts-field-label', 'Dates'), from, to, button(doc, 'Show', 'Show these dates', () => {
+      this.#set({ ...this.#spec, range: { ...(from.value ? { from: from.value } : {}), ...(to.value ? { to: to.value } : {}) } });
+    }));
+    parts.push(dates);
+    // the panes in use: each its share of the height, its scale
+    const used = [...new Set([0, ...spec.series.map((s) => s.pane ?? 0)])].sort();
+    parts.push(el(doc, 'div', 'dc-ts-heading', 'Panes'));
+    for (const p of used) {
+      const row = el(doc, 'div', 'dc-ts-row');
+      const height = el(doc, 'input', 'dc-input dc-ts-small', undefined, { type: 'number', min: '1', max: '10', step: '1', 'aria-label': 'Height' });
+      height.value = String(spec.panes?.[p]?.height ?? (p === 0 ? 3 : 1));
+      height.addEventListener('change', () => this.#setPane(p, { height: Math.min(10, Math.max(1, Number(height.value) || 1)) }));
+      const log = el(doc, 'input', undefined, undefined, { type: 'checkbox' });
+      log.checked = spec.panes?.[p]?.log === true;
+      log.addEventListener('change', () => this.#setPane(p, { log: log.checked }));
+      const l = el(doc, 'label', 'dc-ts-check');
+      l.append(log, doc.createTextNode('Log scale'));
+      row.append(el(doc, 'span', 'dc-ts-field-label', p === 0 ? 'Main' : `Pane ${p + 1}`), height, l);
+      parts.push(row);
+    }
+    // the annotations
+    parts.push(el(doc, 'div', 'dc-ts-heading', 'Annotations'));
+    for (const [i, a] of (spec.annotations ?? []).entries()) {
+      const row = el(doc, 'div', 'dc-ts-row');
+      const said = a.kind === 'level' ? `Level ${a.value}` : a.kind === 'event' ? `Event ${a.date}` : `Period ${a.from} – ${a.to}`;
+      row.append(el(doc, 'span', undefined, `${said}${a.label ? `: ${a.label}` : ''}`), button(doc, '×', 'Take it off', () => {
+        this.#set({ ...this.#spec, annotations: (this.#spec.annotations ?? []).filter((_, j) => j !== i) });
+        this.#editSettings();
+      }, 'dc-ts-close'));
+      parts.push(row);
+    }
+    const kind = select(doc, [['level', 'A level'], ['event', 'An event'], ['period', 'A period']], 'event', () => paintAdd(), 'Kind');
+    const a1 = el(doc, 'input', 'dc-input dc-ts-small');
+    const a2 = el(doc, 'input', 'dc-input dc-ts-small', undefined, { type: 'date' });
+    const label = el(doc, 'input', 'dc-input', undefined, { placeholder: 'Label', 'aria-label': 'Label' });
+    const paintAdd = (): void => {
+      a1.type = kind.value === 'level' ? 'number' : 'date';
+      a1.setAttribute('aria-label', kind.value === 'level' ? 'Value' : kind.value === 'event' ? 'Date' : 'From');
+      a2.hidden = kind.value !== 'period';
+    };
+    paintAdd();
+    const addRow = el(doc, 'div', 'dc-ts-row');
+    addRow.append(kind, a1, a2, label, button(doc, 'Add', 'Draw it over the series', () => {
+      const text = label.value.trim();
+      const made: TsAnnotation | undefined = kind.value === 'level' && a1.value !== ''
+        ? { kind: 'level', value: Number(a1.value), ...(text ? { label: text } : {}) }
+        : kind.value === 'event' && a1.value !== '' ? { kind: 'event', date: a1.value, ...(text ? { label: text } : {}) }
+          : kind.value === 'period' && a1.value !== '' && a2.value !== '' ? { kind: 'period', from: a1.value, to: a2.value, ...(text ? { label: text } : {}) }
+            : undefined;
+      if (!made) return;
+      this.#set({ ...this.#spec, annotations: [...(this.#spec.annotations ?? []), made] });
+      this.#editSettings();
+    }));
+    parts.push(addRow, el(doc, 'div', 'dc-ts-hint', 'Double-click the chart to put an event at that date.'));
+    this.#open('Timeseries settings', ...parts);
+  }
+
+  #setSource(alias: string, change: Readonly<Record<string, string | null>>): void {
+    const sources = this.#spec.sources.map((s) => {
+      if (s.alias !== alias) return s;
+      const next: Record<string, unknown> = { ...s };
+      for (const [k, v] of Object.entries(change)) {
+        if (v === null) delete next[k];
+        else next[k] = v;
+      }
+      return next as unknown as TsSource;
+    });
+    // an alias renamed: the expressions that name it follow
+    const renamed = change['alias'];
+    const series = renamed && renamed !== alias ? this.#spec.series.map((s) => ({ ...s, expr: renameSource(s.expr, alias, renamed) })) : this.#spec.series;
+    this.#set({ ...this.#spec, sources, series });
+  }
+
+  /** A double-click on the chart: an event at that date, labelled. */
+  #eventAt(date: string): void {
+    const doc = this.#doc;
+    const label = el(doc, 'input', 'dc-input', undefined, { placeholder: 'What happened (optional)', 'aria-label': 'Label' });
+    const add = (): void => {
+      const text = label.value.trim();
+      this.#close();
+      this.#set({ ...this.#spec, annotations: [...(this.#spec.annotations ?? []), { kind: 'event', date, ...(text ? { label: text } : {}) }] });
+    };
+    label.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') add();
+    });
+    const actions = el(doc, 'div', 'dc-ts-actions');
+    actions.append(el(doc, 'span', 'dc-ts-gap'), button(doc, 'Cancel', 'Escape', () => this.#close()), button(doc, 'Add', 'Mark the date', add, 'dc-button dc-primary'));
+    this.#open(`An event on ${dateLabel(date, 'day')}`, label, actions);
+  }
+}
+
+/** An expression with its columns of source `from` reading `to` instead (an alias renamed). */
+function renameSource(e: TsExpr, from: string, to: string): TsExpr {
+  switch (e.kind) {
+    case 'column': return e.source === from ? { ...e, source: to } : e;
+    case 'binary': return { ...e, left: renameSource(e.left, from, to), right: renameSource(e.right, from, to) };
+    case 'call': return { ...e, args: e.args.map((a) => renameSource(a, from, to)) };
+    default: return e;
+  }
+}

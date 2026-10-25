@@ -423,6 +423,14 @@ export function refsOf(e: TsExpr): string[] {
   return [...out];
 }
 
+/** A column read as an expression: `column`, of `source` when it is given (absent: the tile's first source), its rows
+ *  where its instrument is `instrument` when it is given (absent: every row). */
+export function columnRef(column: string, source?: string, instrument?: string): TsExpr {
+  return {
+    kind: 'column', ...(source !== undefined ? { source } : {}), column, ...(instrument !== undefined ? { where: [{ value: instrument }] } : {}),
+  };
+}
+
 /** The alias of the source a column of an expression reads: its own, else the tile's first source's. */
 export function sourceAlias(ts: Pick<TimeseriesSpec, 'sources'>, e: Extract<TsExpr, { kind: 'column' }>): string | undefined {
   return e.source ?? ts.sources[0]?.alias;
@@ -480,7 +488,8 @@ export const ALIAS = /^[A-Za-z][A-Za-z0-9_]*$/;
 /** An alias for a grid of this title: its first word, lower case (`Prices` is `prices`), made unique among `taken`. */
 export function aliasFor(title: string | undefined, taken: readonly string[]): string {
   const word = (title ?? '').toLowerCase().replace(/[^a-z0-9_]+/g, ' ').trim().split(' ')[0] ?? '';
-  const base = /^[a-z][a-z0-9_]*$/.test(word) && !functionNamed(word) ? word.slice(0, 16) : 'grid';
+  // an alias is read before a colon and a function before a bracket: a word that names a function is still one
+  const base = /^[a-z][a-z0-9_]*$/.test(word) ? word.slice(0, 16) : 'grid';
   if (!taken.includes(base)) return base;
   for (let n = 2; ; n++) if (!taken.includes(`${base}${n}`)) return `${base}${n}`;
 }
@@ -821,7 +830,7 @@ function columnText(c: string): string {
 export function exprText(e: TsExpr, outer = 0): string {
   switch (e.kind) {
     case 'number':
-      return e.value < 0 && outer > 0 ? `(${numberText(e.value)})` : numberText(e.value);
+      return numberText(e.value);
     case 'ref':
       return `$${e.series}`;
     case 'column': {
@@ -1263,6 +1272,20 @@ export function defaultTimeseries(columns: readonly TsColumn[], rows: readonly s
   if (value === undefined) return null;
   return {
     sources: [source],
-    series: [{ id: 'A', expr: { kind: 'column', column: value }, ...(source.key ? { split: source.key } : {}) }],
+    series: [{ id: 'A', expr: columnRef(value), ...(source.key ? { split: source.key } : {}) }],
   };
+}
+
+/**
+ * A saved tile's spec as a page reads it (page-document.ts), and as its commands take one (page-commands.ts): the spec,
+ * or what stops it from being read, in words (tsProblem). Python's are read the same, headless: one reader.
+ */
+export function readTimeseries(spec: unknown): TimeseriesSpec | string {
+  const problem = tsProblem(spec);
+  return problem !== null ? problem : spec as TimeseriesSpec;
+}
+
+/** The cubes a tile reads, each once, in its sources' order: what the page keeps its sources' references to. */
+export function cubesOf(ts: Pick<TimeseriesSpec, 'sources'>): string[] {
+  return [...new Set(ts.sources.map((s) => s.cube))];
 }

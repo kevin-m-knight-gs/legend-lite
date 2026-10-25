@@ -13,7 +13,7 @@
 import type { EChartsOption } from 'echarts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
-import { escapeHtml, periodText, type ChartTheme, type LabelOf } from './chart-option.ts';
+import { escapeHtml, periodText, type ChartTheme } from './chart-option.ts';
 import {
   exprText, inlined, MAX_PANES, seriesName, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsExpr, type TsSeries, type TsUnit,
 } from './timeseries-spec.ts';
@@ -45,6 +45,8 @@ export interface TsLine {
   readonly width?: readonly (number | null)[];
   /** The grid's column whose format its values take (a level's own); undefined for a figure of its own unit. */
   readonly formatColumn?: string;
+  /** The source whose grid formats it: the one its series reads first. */
+  readonly formatSource?: string;
 }
 
 /** A value read off a result: a number, a bigint, or a number's exact text (a Number column's). */
@@ -141,6 +143,7 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
         ...(hi ? { upper: hi } : {}),
         ...(wd ? { width: wd } : {}),
         ...(formatColumn !== undefined ? { formatColumn } : {}),
+        ...(formatColumn !== undefined && r.query.sources[0] !== undefined ? { formatSource: r.query.sources[0] } : {}),
       });
     }
   }
@@ -166,11 +169,14 @@ function safeInline(s: TsSeries, ts: TimeseriesSpec): TsExpr | undefined {
 const fixed = (v: number, digits: number): string =>
   v.toLocaleString(UI_LOCALE, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
+/** A value written as its grid writes its column (the grid's formatter, bound to the line's column). */
+export type TsFormat = (v: number) => string;
+
 /**
- * A line's value as it is written -- on its axis, in a hover, at its end: a level in its grid column's format, a ratio as
- * a percentage, a percent figure with its sign, an index and a plain number to their places.
+ * A line's value as it is written -- on its axis, in a hover, at its end: a level in its grid column's format (`format`),
+ * a ratio as a percentage, a percent figure with its sign, an index and a plain number to their places.
  */
-export function valueText(line: Pick<TsLine, 'unit' | 'formatColumn'>, v: number | null, label?: LabelOf, type?: string): string {
+export function valueText(line: Pick<TsLine, 'unit'>, v: number | null, format?: TsFormat): string {
   if (v === null) return '—';
   switch (line.unit) {
     case 'ratio': return `${fixed(v * 100, 2)}%`;
@@ -178,7 +184,7 @@ export function valueText(line: Pick<TsLine, 'unit' | 'formatColumn'>, v: number
     case 'index': return fixed(v, 2);
     case 'number': return Math.abs(v) >= 1000 ? fixed(v, 0) : fixed(v, Math.abs(v) >= 10 ? 2 : 3);
     case 'same':
-      return label && line.formatColumn !== undefined ? label(v, line.formatColumn, type) : fixed(v, Math.abs(v) >= 1000 ? 0 : 2);
+      return format ? format(v) : fixed(v, Math.abs(v) >= 1000 ? 0 : 2);
   }
 }
 
@@ -212,9 +218,8 @@ export function panesOf(ts: TimeseriesSpec, lines: readonly TsLine[]): { index: 
 /** Where the viewer is: the dates its zoom shows (absent: every date), the container's height, and how to write. */
 export interface TsDrawContext {
   readonly theme: ChartTheme;
-  readonly label?: LabelOf;
-  /** The type of each grid column, for its format. */
-  readonly typeOf?: (column: string) => string | undefined;
+  /** How a line's values are written as its grid writes its column (a level's); undefined: by its unit alone. */
+  readonly formatOf?: (line: TsLine) => TsFormat | undefined;
   readonly view?: { readonly from?: string; readonly to?: string };
   readonly height?: number;
 }
@@ -329,7 +334,7 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
     const end = lastValues && kind !== 'bars' && kind !== 'dots' ? {
       endLabel: {
         show: true,
-        formatter: (o: { value: readonly [string, number | null] }) => valueText(l, o.value[1], ctx.label, l.formatColumn !== undefined ? ctx.typeOf?.(l.formatColumn) : undefined),
+        formatter: (o: { value: readonly [string, number | null] }) => valueText(l, o.value[1], ctx.formatOf?.(l)),
         color: theme.surface,
         backgroundColor: l.color,
         padding: [2, 4],
@@ -453,9 +458,8 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
           if (!l || seen.has(id)) continue;
           seen.add(id);
           const v = Array.isArray(it.value) ? toNumber(it.value[1] as Scalar) : null;
-          const type = l.formatColumn !== undefined ? ctx.typeOf?.(l.formatColumn) : undefined;
           const which = id.endsWith(':lower') ? ' (lower)' : id.endsWith(':upper') ? ' (upper)' : '';
-          rows.push(`<div style="display:flex;gap:12px;justify-content:space-between"><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${l.color};margin-right:6px"></span>${escapeHtml(l.name)}${which}</span><b style="font-variant-numeric:tabular-nums">${escapeHtml(valueText(l, v, ctx.label, type))}</b></div>`);
+          rows.push(`<div style="display:flex;gap:12px;justify-content:space-between"><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${l.color};margin-right:6px"></span>${escapeHtml(l.name)}${which}</span><b style="font-variant-numeric:tabular-nums">${escapeHtml(valueText(l, v, ctx.formatOf?.(l)))}</b></div>`);
         }
         return `<div style="font-weight:600;margin-bottom:4px">${escapeHtml(at === undefined ? '' : dateLabel(at, grain))}</div>${rows.join('')}`;
       },

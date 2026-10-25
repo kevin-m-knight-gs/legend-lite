@@ -21,23 +21,24 @@
 import { tiles } from './layout/bands.ts';
 import { applyPageCommand, idsOf, nextPageId, takenIds, type PageCommand, type PageDraft } from './page-commands.ts';
 import type { CubeDocument } from './cube-document.ts';
-import type { ChartView, GridCopy, GridView, PageDocument, PageSheet, PageView, TextView } from './page-document.ts';
-import { rearranged, renamedCommand } from './page-rebase.ts';
+import type { ChartView, GridCopy, GridView, PageDocument, PageSheet, PageView, TextView, TimeseriesView } from './page-document.ts';
+import { rearranged, renamedCommand, renamedSpec } from './page-rebase.ts';
 import { CubeRefusal, sameValue } from './snapshot.ts';
 
 /** What of a page the commands between two states cover (above). */
 export type PageScope = 'history' | 'whole';
 
 /** The commands that make a tile or a sheet: their id is theirs to give out afresh. */
-const MAKERS = new Set<PageCommand['kind']>(['addSheet', 'addGrid', 'addChart', 'addText']);
+const MAKERS = new Set<PageCommand['kind']>(['addSheet', 'addGrid', 'addChart', 'addText', 'addTimeseries']);
 
 /** The kind of id a making command gives out. */
-function kindMade(command: PageCommand): 'grid' | 'chart' | 'text' | 'sheet' | 'filter' {
+function kindMade(command: PageCommand): 'grid' | 'chart' | 'text' | 'timeseries' | 'sheet' | 'filter' {
   switch (command.kind) {
     case 'addSheet': return 'sheet';
     case 'addGrid': return 'grid';
     case 'addChart': return 'chart';
     case 'addText': return 'text';
+    case 'addTimeseries': return 'timeseries';
     default: return 'filter';
   }
 }
@@ -157,6 +158,22 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     if ((here.title ?? null) !== (v.title ?? null)) emit({ kind: 'renameTile', tile: v.id, title: v.title ?? null });
   }
 
+  // 2c. timeseries tiles `to` has, on their sheets (the layout follows below), after the grids their sources read; the
+  //     ones both have, their spec and their title as `to` has them
+  for (const v of to.views) {
+    if (v.kind !== 'timeseries') continue;
+    if (!inFrom(v.id)) {
+      const sheet = sheetOf(to, v.id);
+      if (sheet === undefined) throw new CubeRefusal(`'${v.id}' is on no sheet of the page: it cannot be made`);
+      emit({ kind: 'addTimeseries', id: v.id, sheet: sheet.id, near: null, spec: renamedSpec(v.spec, n), title: v.title ?? null, columns: null });
+      continue;
+    }
+    const here = cur().views.find((x): x is TimeseriesView => x.kind === 'timeseries' && x.id === n(v.id));
+    if (here === undefined) continue;
+    if (!sameValue(here.spec, renamedSpec(v.spec, n))) emit({ kind: 'setTimeseries', tile: v.id, spec: v.spec });
+    if ((here.title ?? null) !== (v.title ?? null)) emit({ kind: 'renameTile', tile: v.id, title: v.title ?? null });
+  }
+
   // 3. the charts both have: pointed at their grid in `to` (before the grid they read goes) -- or, detached in `to` (no
   //    grid shows their cube), on that kept cube as `to` holds it (`detach`, W19), unless a grid here still shows it (its
   //    removal detaches them, below: 5b) -- their spec, their title
@@ -220,6 +237,7 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
   }
   for (const v of from.views) if (v.kind === 'grid' && !inTo(v.id)) emit({ kind: 'removeTile', tile: v.id });
   for (const v of from.views) if (v.kind === 'text' && !inTo(v.id)) emit({ kind: 'removeTile', tile: v.id });
+  for (const v of from.views) if (v.kind === 'timeseries' && !inTo(v.id)) emit({ kind: 'removeTile', tile: v.id });
   for (const v of from.views) {
     if (v.kind === 'chart' && !inTo(v.id) && cur().views.some((x) => x.id === v.id)) emit({ kind: 'removeTile', tile: v.id });
   }

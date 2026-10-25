@@ -3,9 +3,9 @@
 // move said they were (planned -> given), and `canonical`, a page as content in the screen's order, in a scope.
 
 import { inScreenOrder, type PageCommand } from '../src/page-commands.ts';
-import { pageToJson, type PageDocument } from '../src/page-document.ts';
+import { pageToJson, type PageDocument, type PageView } from '../src/page-document.ts';
 import type { PageScope } from '../src/page-between.ts';
-import { renamedCommand } from '../src/page-rebase.ts';
+import { renamedCommand, renamedSpec } from '../src/page-rebase.ts';
 
 /** `page` with its ids renamed as `given` says (planned -> given): what a move that brought a tile back makes of it. */
 export function renamedPage(page: PageDocument, given: Readonly<Record<string, string>>): PageDocument {
@@ -18,7 +18,8 @@ export function renamedPage(page: PageDocument, given: Readonly<Record<string, s
     (o === undefined ? undefined : Object.fromEntries(Object.entries(o).map(([k, v]) => [n(k), v])));
   return {
     ...page,
-    views: page.views.map((v) => (v.kind === 'text' ? { ...v, id: n(v.id) } : { ...v, id: n(v.id), cube: n(v.cube) })),
+    views: page.views.map((v): PageView => (v.kind === 'text' ? { ...v, id: n(v.id) }
+      : v.kind === 'timeseries' ? { ...v, id: n(v.id), spec: renamedSpec(v.spec, n) } : { ...v, id: n(v.id), cube: n(v.cube) })),
     cubes: page.cubes.map((c) => ({ id: n(c.id), cube: c.cube })),
     sheets: page.sheets.map((s) => ({
       ...s, id: n(s.id), layout: (renamedCommand({ kind: 'layout', sheet: s.id, layout: s.layout }, map) as Extract<PageCommand, { kind: 'layout' }>).layout,
