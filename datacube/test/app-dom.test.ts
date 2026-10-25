@@ -903,7 +903,7 @@ describe('the app', () => {
     // the selected cells: clicked, then Shift+clicked across to the measure -- the grid's own Ctrl+C text
     const cell = (text: string): HTMLElement =>
       [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === text) as HTMLElement;
-    cell('▸EMEA').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    cell('EMEA').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     cell('400.00').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, shiftKey: true }));
     rightClick('.dc-cell:not(.dc-dim)');
     pick('Copy Selected Cells');
@@ -942,7 +942,7 @@ describe('the app', () => {
   });
 
   it('a double-click on a group\'s label opens it, and again closes it, as a pivot\'s row label does', async () => {
-    const label = [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === '▸EMEA') as HTMLElement;
+    const label = [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === 'EMEA') as HTMLElement;
     label.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 2 }));
     for (let i = 0; i < 50 && commands.length === 0; i++) await new Promise((r) => setTimeout(r, 0));
     assert.equal(root.querySelector('[data-window="Drill-through"]'), null, 'no drill from a label');
@@ -969,7 +969,7 @@ describe('the app', () => {
     // the EchoPlanner's "SQL" is the query's JSON, so the values query is told apart by its count column
     const own = new CubeApp(host, SNAPSHOT, { engine: values, planner: new EchoPlanner(), onCommand: (c) => told.push(c) });
     await own.open();
-    const cell = [...host.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === '▸EMEA') as HTMLElement;
+    const cell = [...host.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === 'EMEA') as HTMLElement;
     cell.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
     pick('Filter Values of region…');
     for (let i = 0; i < 50 && !host.querySelector('[data-window="Filter Values"]'); i++) await new Promise((r) => setTimeout(r, 0));

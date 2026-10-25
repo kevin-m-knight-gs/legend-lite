@@ -327,8 +327,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  359,500 -> 360,500 (2026-10-25, the menus' one design language: a key shown right-aligned beside its entry
  *  (ui/menu-view.ts), a chart's and a text box's View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page -- and a
  *  text box's right-click (cube-page.ts #tileView), a sheet tab's entries saying why they are off (ui/sheet-tabs.ts); and
- *  the columns panel's part-ticked measure (ui/columns-panel.ts)). Measured 359,826. */
-const BUDGET = 360_500;
+ *  the columns panel's part-ticked measure (ui/columns-panel.ts)). Measured 359,826.
+ *  360,500 -> 361,500 (2026-10-25, the page's chrome drawn in one icon set (ui/tile-icons.ts chromeIcon, closeMark;
+ *  found 4) -- the tree carets too -- and a chart's and a text box's Create ▸ (cube-page.ts #tileCreate)). Measured
+ *  360,653. */
+const BUDGET = 361_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
