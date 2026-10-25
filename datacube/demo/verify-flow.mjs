@@ -720,6 +720,16 @@ try {
   });
   check(places?.says === 'rows 1-3, 10 by trade_id', `a Sample of some places: ${JSON.stringify(places)}`);
   check(await resultRows() === 4, 'the rows at them: four');
+  // a Random % Sample: about a tenth of them, the same tenth for its seed
+  const atRandom = await resample(async (w) => {
+    await w.locator('.dc-sample-which').selectOption('random');
+    check(await w.locator('.dc-sample-by').isHidden() && await w.locator('.dc-sample-seed').isVisible(), 'its percent and its seed asked, no order');
+    await w.locator('.dc-sample-n').fill('10');
+    await w.locator('.dc-sample-seed').fill('7');
+  });
+  check(atRandom?.says === '10% at random, seed 7', `a random Sample: ${JSON.stringify(atRandom)}`);
+  const tenth = await resultRows();
+  check(tenth > fewer * 0.04 && tenth < fewer * 0.2, `about a tenth of the Filter's ${fewer}: ${tenth}`);
 
   // A DATETIME (M3), dragged onto the Filter: its trade dates taken to their month, in its window docked
   const beforeDate = (await boxes()).map((b) => b.id);

@@ -21,6 +21,7 @@ export interface SampleFormOptions {
 
 const MODES: readonly (readonly [RowSampleKind, string])[] = [
   ['first', 'first'], ['last', 'last'], ['skip', 'all but the first'], ['every', 'one of every'], ['records', 'the rows at'],
+  ['random', 'a random'],
 ];
 
 /** What each way keeps, under the form. */
@@ -30,6 +31,7 @@ const HINTS: Readonly<Record<RowSampleKind, string>> = {
   skip: 'Every row after the first ones by that column -- of all the rows, or of each group.',
   every: 'The first row by that column, and every one that many rows after it -- of all the rows, or of each group.',
   records: 'The rows at those places by that column: 1-10, 20, 30+ (from the 30th on), -5 (the first 5) -- of all the rows, or of each group.',
+  random: 'About that percent of the rows, each kept by the database\'s hash of it and the seed: the same rows each time it runs, others for another seed.',
 };
 
 /** The form, drawn into `host`. */
@@ -57,7 +59,14 @@ export function sampleForm(host: HTMLElement, o: SampleFormOptions): void {
   const places = el('input', 'dc-picker-input dc-sample-ranges', line);
   places.placeholder = '1-10, 20, 30+';
   places.setAttribute('aria-label', 'The rows it keeps');
-  el('span', 'dc-sample-word', line, 'rows, in the order of');
+  // a random sample's percent's word, and its seed
+  const percent = el('span', 'dc-sample-word dc-sample-percent', line, '% of the rows, seed');
+  const seed = el('input', 'dc-picker-input dc-sample-seed', line);
+  seed.type = 'number';
+  seed.min = '0';
+  seed.step = '1';
+  seed.setAttribute('aria-label', 'Its seed: the same seed, the same rows');
+  const orderWords = el('span', 'dc-sample-word', line, 'rows, in the order of');
   const by = el('select', 'dc-select dc-sample-by', line);
   by.setAttribute('aria-label', 'The column it is ordered by');
   for (const c of o.columns) el('option', '', by, c).value = c;
@@ -81,6 +90,7 @@ export function sampleForm(host: HTMLElement, o: SampleFormOptions): void {
   const now = o.now;
   n.value = String(now?.kind === 'records' ? 10 : now?.n ?? 10);
   places.value = now?.ranges !== undefined ? rangesWords(now.ranges) : '';
+  seed.value = String(now?.seed ?? 1);
   which.value = now?.kind ?? 'first';
   if (now !== undefined && o.columns.includes(now.by)) by.value = now.by;
   groupOn.checked = (now?.groups.length ?? 0) > 0;
@@ -116,8 +126,17 @@ export function sampleForm(host: HTMLElement, o: SampleFormOptions): void {
     hint.textContent = HINTS[mode];
     n.hidden = mode === 'records';
     places.hidden = mode !== 'records';
+    // a random sample is of all the rows, ordered by none of its columns
+    const random = mode === 'random';
+    percent.hidden = !random;
+    seed.hidden = !random;
+    for (const e of [orderWords, by, grouped]) e.hidden = random;
+    if (random) list.hidden = true;
     const count = Number(n.value);
-    const bad = mode === 'records' ? (ranges() === undefined ? 'its rows written as 1-10, 20, 30+' : by.value === '' ? 'a column to order them by'
+    const pct = Number(n.value);
+    const bad = random ? (!Number.isInteger(pct) || pct < 1 || pct > 99 ? 'a whole percent, from 1 to 99'
+      : !Number.isInteger(Number(seed.value)) || Number(seed.value) < 0 || seed.value === '' ? 'a seed: a whole number from 0' : undefined)
+      : mode === 'records' ? (ranges() === undefined ? 'its rows written as 1-10, 20, 30+' : by.value === '' ? 'a column to order them by'
       : groupOn.checked && groups().length === 0 ? 'a column of each group' : undefined)
       : !Number.isInteger(count) || count < 1 ? 'a whole number of rows, from 1'
       : mode === 'every' && count < 2 ? 'one of every 2 rows or more'
@@ -129,12 +148,17 @@ export function sampleForm(host: HTMLElement, o: SampleFormOptions): void {
   for (const e of [which, by, groupOn, ...picks]) e.addEventListener('change', check);
   n.addEventListener('input', check);
   places.addEventListener('input', check);
+  seed.addEventListener('input', check);
   check();
   cancel.addEventListener('click', () => o.close());
   clear.addEventListener('click', () => void done(o.clear()));
   ok.addEventListener('click', () => {
     const kind = which.value as RowSampleKind;
     const kept = kind === 'records' ? ranges() ?? [] : undefined;
+    if (kind === 'random') {
+      void done(o.apply({ kind, n: Number(n.value), by: '', groups: [], seed: Number(seed.value) }));
+      return;
+    }
     void done(o.apply({ kind, n: kept?.length ?? Number(n.value), by: by.value, groups: groups(), ...(kept !== undefined ? { ranges: kept } : {}) }));
   });
   n.addEventListener('keydown', (e) => {

@@ -243,7 +243,7 @@ How to read the status column:
 | Sort | Built | The grid's sorts |
 | Sample (first, last, every Nth, N per group) | Built (2026-10-25) | The first or last N of all the rows, the grid's Top N; of each group, all but the first N, or one of every N, a row number (`rowNumber`, per group) and a filter on it, hidden -- `mod` of it for one of every N |
 | Select Records | Built (2026-10-25) | A Sample's way: a row number and a filter of its ranges (`1-10, 20, 30+`), or-ed |
-| Random % Sample | Step | `random()` |
+| Random % Sample | Built (2026-10-25) | A Sample's way, the same rows for a seed: a row number in an order of every column, its chance the database's `hashCode` of it and the seed, kept under the percent |
 | Unique (Unique, Duplicates) | Built (2026-10-25) | A row number per key (`rowNumber` partitioned by its columns, in an order), a filter keeping the first, the number hidden; its Duplicates the filter's False port (§3.3), drawn U and D |
 | Record ID | Built | A window column: `rowNumber` |
 | Tile | Built | A window column: `ntile` |
@@ -763,6 +763,15 @@ rows at"): its row number (in the order of a column, of each group when it has s
 1-3, 10 by trade_id". The database numbers and keeps the rows. Python: `grid.sample('records', by=..., ranges='1-10,
 20')`. Tested by `flow-sheet.test.ts`, Python's Sample test and the harness (the first three and the tenth: four rows).
 
+**Built, Random % Sample** (`row-sample.ts`, `ui/sample-form.ts`, 2026-10-25): Alteryx's Random % Sample, repeatable --
+about a percent of the rows, the same rows each time it runs for the same seed, others for another (`random()` answers
+again each time a box is read, so it waits; the database's `hashCode` does not). Each row's number in an order of every
+column that sorts (the same number each run), its chance `mod(abs(hashCode([n, seed])), 100)` (hidden), kept under the
+percent: one more of the Sample's ways ("a random"), read back off it and said "10% at random, seed 7". The database
+numbers, hashes and keeps the rows. Of all the rows only: the same percent of each group is the same percent of all.
+Python: `grid.sample('random', 25, seed=7)`. Tested by `flow-sheet.test.ts`, Python's Sample test (the same rows for the
+same seed) and the harness (about a tenth of the Filter's rows).
+
 **The example flow's Reshape sheet** (`examples/prep-flow.ts`): a second sheet showing the tools that reshape rows over the
 same orders -- the two biggest orders of each region (a Sample: last 2 of each region by revenue), their columns chosen
 and revenue renamed sales (a Select), their money made rows (a Transpose: sales, cost, profit to rows, beside each
@@ -858,8 +867,7 @@ Fixed with it: what opening a box left out (a column no longer in its input, a c
 said on the page's status line, where it stayed under every box shown after it; it is said on the box's own status bar
 now (its grid's note, put away with it), as a Join's notes are. The harness holds the page's line clear.
 
-Still to come in M3: a date written as text by a format; a random sample (`random()` answers again each time a box is
-read, so a box's rows would change under it: it waits for a seed).
+Still to come in M3: a date written as text by a format. (A random sample came with a seed: Random % Sample, below.)
 
 **Built, an example flow** (`examples/prep-flow.ts`, in Open…'s examples as "A data flow"): a flow to open rather than
 one to build first -- the sales sample's orders and its countries in an Inputs container; the orders over $1,000, joined

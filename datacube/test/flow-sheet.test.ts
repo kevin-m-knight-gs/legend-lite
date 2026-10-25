@@ -40,7 +40,7 @@ import { applyGridCommands } from '../src/grid-commands.ts';
 import type { GridDraft } from '../src/grid-edits.ts';
 import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi-field-columns.ts';
 import { TreeState } from '../src/tree.ts';
-import { accessor, fn, lambda, lit, property, variable } from '../../pure-protocol/src/index.ts';
+import { accessor, collection, fn, lambda, lit, property, variable } from '../../pure-protocol/src/index.ts';
 import { textToolOf } from '../src/text-tools.ts';
 import { readTextTool, textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
 import { grainColumn, grainOf } from '../src/calc-presets.ts';
@@ -352,6 +352,22 @@ describe("Sample's other ways (row-sample.ts): a row number and a filter, as Uni
     refused(() => readRowSample({ kind: 'sample', mode: 'first', n: 2, by: 'notional', ranges: '1' }), /only a Select Records/);
   });
 
+  it('keeps a percent at random, the same rows for a seed: its chance the hash of a row number in a total order', () => {
+    const t = { kind: 'random' as const, n: 25, by: '', groups: [], seed: 7 };
+    const commands = rowSampleCommands(typed, t);
+    const [numbered, chance] = columnsOf(commands);
+    assert.deepEqual(numbered!.window?.order, [{ column: 'region', direction: 'asc' }, { column: 'notional', direction: 'asc' }], 'every column that sorts');
+    assert.equal(JSON.stringify(chance!.lambda?.body[0]), JSON.stringify(fn('mod', fn('abs', fn('hashCode',
+      collection([fn('toOne', property(variable('x'), 'SampleRow')), lit.integer(7)]))), lit.integer(100))));
+    const filter = (commands.find((c) => c.kind === 'addFilter') as { condition: FilterNode }).condition;
+    assert.deepEqual(filter, { kind: 'condition', column: 'SampleChance', operator: 'lessThan', value: 25 });
+    assert.deepEqual(rowSampleOf({ derived: columnsOf(commands), filter }), { ...t, columns: ['SampleRow', 'SampleChance'] });
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived: columnsOf(commands), filter }))).says, '25% at random, seed 7');
+    refused(() => rowSampleCommands(typed, { ...t, n: 100 }), /a whole percent of the rows, from 1 to 99/);
+    refused(() => rowSampleCommands(typed, { ...t, groups: ['region'] }), /a random sample is of all the rows/);
+    assert.deepEqual(readRowSample({ kind: 'sample', mode: 'random', n: 10, seed: 3 }), { kind: 'random', n: 10, by: '', groups: [], seed: 3 });
+  });
+
   it("goes from the sample it has to the one asked: a Top N for the first of all, a row sample's columns made again", () => {
     let draft: GridDraft = { snapshot: typed, config: DEFAULT_CONFIGURATION };
     const step = (t: Parameters<typeof sampleCommands>[1]): CubeSnapshot => {
@@ -376,7 +392,7 @@ describe("Sample's other ways (row-sample.ts): a row number and a filter, as Uni
     assert.throws(() => rowSampleCommands(typed, { kind: 'first', n: 2, by: 'notional', groups: [] }), /its Top N/);
     assert.deepEqual(readRowSample({ kind: 'sample', mode: 'skip', n: 3, by: 'notional' }), { kind: 'skip', n: 3, by: 'notional', groups: [] });
     assert.equal(readRowSample({ kind: 'sample', mode: null }), null);
-    assert.throws(() => readRowSample({ kind: 'sample', mode: 'random', n: 3, by: 'notional' }), /its mode is first, last, skip, every/);
+    assert.throws(() => readRowSample({ kind: 'sample', mode: 'shuffle', n: 3, by: 'notional' }), /its mode is first, last, skip, every, records, random/);
   });
 });
 

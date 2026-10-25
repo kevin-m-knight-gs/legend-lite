@@ -4,21 +4,24 @@
 // it, and the number hidden: its first or last N of each group (`<= n`, numbered rising or falling), every row after
 // the first N (`> n`), or one row of every N (a remainder of the number, hidden too: `mod($x.row, n) == 1`). The
 // first or last N of all the rows is the grid's Top N (ui/sample-form.ts), which keeps rows that tie. Or, Alteryx's
-// Select Records, the rows at some places (`1-10, 20, 30+`): a filter on the number of each range, or-ed. No value is
-// computed here: the database numbers the rows. What a box says is read back off its query (`rowSampleOf`).
+// Select Records, the rows at some places (`1-10, 20, 30+`): a filter on the number of each range, or-ed. Or a Random %
+// Sample, the same rows each time it runs: each row's number in an order of every column, its chance the database's hash
+// of it and a seed (`mod(abs(hashCode([n, seed])), 100)`, hidden), kept under the percent. No value is computed here: the
+// database numbers, hashes and keeps the rows. What a box says is read back off its query (`rowSampleOf`).
 //
 // One rule for the box's window and Python's grid.sample (headless gridPreset).
 //
 // PURE: no DOM, no planner.
 
-import { fn, lambda, lit, property, variable } from '../../pure-protocol/src/index.ts';
+import { collection, fn, lambda, lit, property, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { familyOf } from '../../engine-client/src/types.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode } from './snapshot.ts';
 
 /** How it samples: the first or last `n` of each group, every row after the first `n`, one row of every `n`, or the rows
  *  at some places (`ranges`). */
-export type RowSampleKind = 'first' | 'last' | 'skip' | 'every' | 'records';
-export const ROW_SAMPLE_KINDS: readonly RowSampleKind[] = ['first', 'last', 'skip', 'every', 'records'];
+export type RowSampleKind = 'first' | 'last' | 'skip' | 'every' | 'records' | 'random';
+export const ROW_SAMPLE_KINDS: readonly RowSampleKind[] = ['first', 'last', 'skip', 'every', 'records', 'random'];
 
 /** The rows from one place to another (its first row 1), or from it on: `20` is from 20 to 20, `30+` from 30 on. */
 export interface RecordRange {
@@ -34,6 +37,8 @@ export interface RowSample {
   readonly groups: readonly string[];
   /** The places a Select Records keeps; no other kind's. */
   readonly ranges?: readonly RecordRange[];
+  /** A random sample's seed: the same seed, the same rows (its `n` its percent); no other kind's. */
+  readonly seed?: number;
 }
 
 /** Ranges as they are written: `1-10, 20, 30+`, `-5` the first 5 -- refused in words. */
@@ -58,10 +63,21 @@ export function rangesWords(ranges: readonly RecordRange[]): string {
 /** What its row number is called (else this and `_2`, `_3`... where the grid has the name), and its remainder. */
 export const SAMPLE_COLUMN = 'SampleRow';
 const EVERY_COLUMN = 'SampleEvery';
+const CHANCE_COLUMN = 'SampleChance';
+
+/** The families a random sample's rows are ordered by, to be numbered the same each time: each that sorts. */
+const ORDERED = new Set(['text', 'numeric', 'temporal', 'boolean']);
 
 /** What is wrong with a row sample's settings, in words, if anything: the grid's columns are `s`'s. */
 export function rowSampleProblem(s: CubeSnapshot, t: RowSample): string | undefined {
   if (!ROW_SAMPLE_KINDS.includes(t.kind)) return `a sample is ${ROW_SAMPLE_KINDS.join(', ')}, not ${JSON.stringify(t.kind)}`;
+  if (t.kind === 'random') {
+    if (!Number.isInteger(t.n) || t.n < 1 || t.n > 99) return `a random sample keeps a whole percent of the rows, from 1 to 99, not ${t.n}`;
+    if (t.seed === undefined || !Number.isInteger(t.seed) || t.seed < 0) return `its seed is a whole number from 0, not ${String(t.seed)}`;
+    if (t.groups.length > 0) return 'a random sample is of all the rows: the same percent of each group is the same percent of all';
+    if (!rowColumns(s).some((c) => ORDERED.has(familyOf(c.type) ?? ''))) return 'it numbers its rows by a column that sorts: the grid has none';
+    return undefined;
+  }
   if (!Number.isInteger(t.n) || t.n < 1) return `it counts rows by a whole number from 1, not ${t.n}`;
   if (t.kind === 'every' && t.n < 2) return 'one row of every 1 is every row: take a number from 2';
   const have = new Set(rowColumns(s).map((c) => c.name));
@@ -94,13 +110,24 @@ export function rowSampleCommands(s: CubeSnapshot, t: RowSample): GridCommand[] 
     return name;
   };
   const row = free(SAMPLE_COLUMN);
-  const numbered: DerivedColumn = {
-    name: row, window: { fn: 'rowNumber', partition: [...t.groups], order: [{ column: t.by, direction: t.kind === 'last' ? 'desc' : 'asc' }] },
-  };
+  // a random sample's rows numbered in an order of every column that sorts: the same number each time it runs
+  const order = t.kind === 'random'
+    ? rowColumns(s).filter((c) => ORDERED.has(familyOf(c.type) ?? '')).map((c) => ({ column: c.name, direction: 'asc' as const }))
+    : [{ column: t.by, direction: t.kind === 'last' ? 'desc' as const : 'asc' as const }];
+  const numbered: DerivedColumn = { name: row, window: { fn: 'rowNumber', partition: [...t.groups], order } };
   const commands: GridCommand[] = [{ kind: 'calculate', level: 'row', column: numbered }];
   const hidden: Record<string, { readonly hidden: true }> = { [row]: { hidden: true } };
   let condition: FilterNode;
-  if (t.kind === 'records') {
+  if (t.kind === 'random') {
+    // its chance, 0 to 99: the database's hash of its number and the seed
+    const chance = free(CHANCE_COLUMN);
+    commands.push({ kind: 'calculate', level: 'row', column: {
+      name: chance, kind: 'dimension', lambda: lambda(['x'], fn('mod', fn('abs', fn('hashCode',
+        collection([fn('toOne', property(variable('x'), row)), lit.integer(t.seed!)]))), lit.integer(100))),
+    } });
+    hidden[chance] = { hidden: true };
+    condition = { kind: 'condition', column: chance, operator: 'lessThan', value: t.n };
+  } else if (t.kind === 'records') {
     // each range a condition on the number -- one row, from one on, between two -- any of them keeping a row
     const of = (r: RecordRange): FilterNode => (r.to === r.from ? { kind: 'condition', column: row, operator: 'equal', value: r.from }
       : r.to === undefined ? { kind: 'condition', column: row, operator: 'greaterThanEqual', value: r.from }
@@ -145,6 +172,13 @@ export function rowSampleOf(query: { readonly derived: readonly DerivedColumn[];
       : { ...sample('records', records.ranges.length, counted.w, [records.column]), ranges: records.ranges };
   }
   if (f?.kind !== 'condition' || typeof f.value !== 'number') return undefined;
+  // a random sample: its chance under the percent -- the hash of a row number and its seed
+  if (f.operator === 'lessThan') {
+    const read = chanceOf(query.derived.find((d) => d.name === f.column));
+    const w = read === undefined ? undefined : query.derived.find((d) => d.name === read.row)?.window;
+    return read === undefined || w?.fn !== 'rowNumber' ? undefined
+      : { kind: 'random', n: f.value, by: '', groups: [], seed: read.seed, columns: [read.row, f.column] };
+  }
   if (f.operator === 'lessThanEqual' || f.operator === 'greaterThan') {
     const r = numberOf(f.column);
     if (r === undefined) return undefined;
@@ -167,6 +201,25 @@ export function rowSampleOf(query: { readonly derived: readonly DerivedColumn[];
   if (p?._type !== 'property' || p.parameters[0]?._type !== 'var' || (p.parameters[0] as { name: string }).name !== param) return undefined;
   const r = numberOf(p.property);
   return r === undefined || r.w.order[0]!.direction === 'desc' ? undefined : sample('every', Number(by.value), r.w, [p.property, f.column]);
+}
+
+/** A random sample's chance read back: `mod(abs(hashCode([toOne($x.<row>), <seed>])), 100)` -- its row number's column
+ *  and its seed; undefined for any other column. */
+function chanceOf(d: DerivedColumn | undefined): { readonly row: string; readonly seed: number } | undefined {
+  const param = d?.lambda?.parameters[0]?.name;
+  const body = d?.lambda?.body;
+  if (param === undefined || body?.length !== 1) return undefined;
+  const call = (v: ValueSpecification | undefined, name: string, arity: number): ValueSpecification[] | undefined =>
+    (v?._type === 'func' && v.function === name && v.parameters.length === arity ? [...v.parameters] : undefined);
+  const [abs, by] = call(body[0], 'mod', 2) ?? [];
+  if (by?._type !== 'integer' || Number((by as { value: unknown }).value) !== 100) return undefined;
+  const [hash] = call(abs, 'abs', 1) ?? [];
+  const [list] = call(hash, 'hashCode', 1) ?? [];
+  if (list?._type !== 'collection') return undefined;
+  const [one, seed] = list.values;
+  const [p] = call(one, 'toOne', 1) ?? [];
+  if (p?._type !== 'property' || p.parameters[0]?._type !== 'var' || (p.parameters[0] as { name: string }).name !== param) return undefined;
+  return seed?._type === 'integer' ? { row: p.property, seed: Number((seed as { value: unknown }).value) } : undefined;
 }
 
 /** A Select Records' filter read back: its ranges and the column they are of -- an equal (one row), a `>=` (from one
@@ -229,6 +282,7 @@ export function rowSampleWords(t: RowSample): string {
     case 'skip': return `all but the first ${t.n}${of} by ${t.by}`;
     case 'every': return `one of every ${t.n}${of} by ${t.by}`;
     case 'records': return `rows ${rangesWords(t.ranges ?? [])}${of} by ${t.by}`;
+    case 'random': return `${t.n}% at random, seed ${t.seed ?? 0}`;
   }
 }
 
@@ -237,14 +291,21 @@ export function rowSampleWords(t: RowSample): string {
 export function readRowSample(raw: unknown): RowSample | null {
   const o = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : undefined;
   if (o === undefined || o['kind'] !== 'sample') throw new CubeRefusal(`a sample is {kind: 'sample', mode, n, by, groups}, not ${JSON.stringify(raw)}`);
-  const odd = Object.keys(o).filter((k) => !['kind', 'mode', 'n', 'by', 'groups', 'ranges'].includes(k));
-  if (odd.length > 0) throw new CubeRefusal(`a sample takes mode, n, by, groups and ranges, not ${odd.join(', ')}`);
+  const odd = Object.keys(o).filter((k) => !['kind', 'mode', 'n', 'by', 'groups', 'ranges', 'seed'].includes(k));
+  if (odd.length > 0) throw new CubeRefusal(`a sample takes mode, n, by, groups, ranges and seed, not ${odd.join(', ')}`);
   const mode = o['mode'];
   if (mode === null) {
     if (Object.keys(o).some((k) => k !== 'kind' && k !== 'mode')) throw new CubeRefusal('every row again takes nothing more');
     return null;
   }
   if (!(ROW_SAMPLE_KINDS as readonly unknown[]).includes(mode)) throw new CubeRefusal(`its mode is ${ROW_SAMPLE_KINDS.join(', ')}, not ${JSON.stringify(mode)}`);
+  // a random sample: its percent and its seed, nothing it is ordered by
+  if (mode === 'random') {
+    const n = o['n'];
+    const seed = o['seed'] ?? 0;
+    if (typeof n !== 'number' || typeof seed !== 'number') throw new CubeRefusal(`a random sample's n is its percent and its seed a number, not ${JSON.stringify({ n, seed })}`);
+    return { kind: 'random', n, by: '', groups: [], seed };
+  }
   // Select Records: its ranges written as text (1-10, 20, 30+), no n
   const ranges = o['ranges'];
   if (mode === 'records' || ranges !== undefined) {

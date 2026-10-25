@@ -901,15 +901,18 @@ class Grid(Tile):
         return self._preset({'kind': 'impute', 'columns': list(columns), 'with': fill, **({'inPlace': True} if in_place else {})})
 
     def sample(self, mode: str | None, n: int | None = None, by: str | None = None, *, groups: Sequence[str] = (),
-               ranges: str | None = None) -> Grid:
+               ranges: str | None = None, seed: int = 1) -> Grid:
         """Its rows sampled -- a flow's Sample (DataCube's code: row-sample.ts sampleCommands), in the order of the column
         ``by``: ``mode`` ``'first'`` or ``'last'`` ``n`` rows (its smallest or largest: of all the rows, the grid's Top N,
         which keeps rows that tie; of each group of ``groups``, a row number per group), ``'skip'`` -- every row after
         the first ``n`` -- ``'every'``, one row of every ``n``, or ``'records'``, the rows at the places ``ranges`` says
-        (``'1-10, 20, 30+'``: Alteryx's Select Records); either of all the rows or of each group. The database numbers
-        the rows (a window column, hidden). ``None``: every row again, its sample taken off."""
+        (``'1-10, 20, 30+'``: Alteryx's Select Records); either of all the rows or of each group -- or ``'random'``, about
+        ``n`` percent of all the rows, the same for the same ``seed`` (the database's hash of each row's number and the
+        seed). The database numbers the rows (a window column, hidden). ``None``: every row again, its sample taken off."""
         if mode is None:
             return self._preset({'kind': 'sample', 'mode': None})
+        if mode == 'random':
+            return self._preset({'kind': 'sample', 'mode': mode, 'n': n, 'seed': seed})
         if mode == 'records':
             return self._preset({'kind': 'sample', 'mode': mode, 'ranges': ranges, 'by': by, 'groups': list(groups)})
         return self._preset({'kind': 'sample', 'mode': mode, 'n': n, 'by': by, 'groups': list(groups)})

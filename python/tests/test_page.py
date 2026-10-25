@@ -1739,12 +1739,23 @@ class Abilities(Paged):
         self.assertEqual(ns(), [1, 2, 5])
         with self.assertRaisesRegex(ValueError, "'x' is no range of rows"):
             grid.sample('records', by='n', ranges='x')
+        # a random percent, the same rows for its seed each time, others for another
+        many = page.grid(pd.DataFrame({'n': list(range(1, 51))}), name='fifty')
+        kept = lambda: sorted(int(v) for v in many.to_pandas()['n'])
+        many.sample('random', 50, seed=3)
+        picked = kept()
+        self.assertTrue(5 < len(picked) < 45, picked)
+        many.sample(None)
+        many.sample('random', 50, seed=3)
+        self.assertEqual(kept(), picked, 'the same seed, the same rows')
+        many.sample('random', 50, seed=4)
+        self.assertNotEqual(kept(), picked, 'another seed, other rows')
         grid.sample(None)
         self.assertEqual(ns(), [1, 2, 3, 4, 5])
         with self.assertRaisesRegex(ValueError, 'one row of every 1 is every row'):
             grid.sample('every', 1, 'n')
-        with self.assertRaisesRegex(ValueError, 'its mode is first, last, skip, every'):
-            grid.sample('random', 1, 'n')
+        with self.assertRaisesRegex(ValueError, 'its mode is first, last, skip, every, records, random'):
+            grid.sample('shuffle', 1, 'n')
 
     def test_one_formula_over_several_columns_as_a_flow_box_does(self):
         # (M3) grid.multi_field: a flow's Multi-Field Formula (multi-field-columns.ts multiFieldCommands) -- one expression over
