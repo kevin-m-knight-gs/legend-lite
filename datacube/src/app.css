@@ -886,7 +886,7 @@
 }
 
 .dc-status-note-close:hover {
-  color: var(--tw-neutral-800);
+  color: var(--tw-neutral-800, #262626);
 }
 
 /* -- the grid and its sidebar ---------------------------------------- */
@@ -3099,7 +3099,7 @@
 .dc-tile-state:is([aria-disabled='true'], :disabled) { cursor: default; }
 .dc-tile-state[data-state='snapped'] { color: var(--tw-amber-500); }
 .dc-tile-state:is([data-state='pinned'], [data-state='editing']) { color: var(--dc-active); }
-.dc-tile-state[data-state='frozen'] { color: var(--tw-blue-600); }
+.dc-tile-state[data-state='frozen'] { color: var(--tw-blue-600, #2563eb); }
 .dc-tile-state[data-state='detached'] { color: var(--tw-neutral-600); }
 .dc-tile-state-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .dc-bands-view .dc-tile-state[data-state='viewing'] { display: none; }
@@ -3111,7 +3111,7 @@
 
 /* what a grid in a tile reads and where its rows are, in words, in its status bar */
 .dc-status-source { color: var(--tw-neutral-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 36ch; }
-.dc-status-source[data-state='snapped'] { color: var(--tw-amber-700); }
+.dc-status-source[data-state='snapped'] { color: var(--tw-amber-700, #b45309); }
 
 /* a lone grid (a page of its own with one tile): no frame, no header -- its header's buttons are in the page's bar */
 .dc-band-tile.dc-band-tile-alone { border: 0; border-radius: 0; }
@@ -4388,7 +4388,7 @@
 
 /* A TEXT TILE (page-text.ts): a page's title or a note, its small Markdown drawn; edited in place */
 .dc-text-host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.dc-text-tile { flex: 1 1 auto; overflow: auto; padding: var(--dc-pad-2) var(--dc-pad-3); line-height: 1.45; }
+.dc-text-tile { flex: 1 1 auto; overflow: auto; padding: var(--dc-pad-2) var(--dc-pad-3, 12px); line-height: 1.45; }
 .dc-text-tile > :first-child { margin-top: 0; }
 .dc-text-tile h3 { font-size: 1.5em; margin: 0.2em 0 0.4em; }
 .dc-text-tile h4 { font-size: 1.2em; margin: 0.6em 0 0.3em; }

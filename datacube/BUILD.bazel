@@ -131,6 +131,10 @@ _SCANNED = {
         ":scanned_demo",
         "test/wasm-differential/compare.ts",
         "//wasm:differential",
+        # the stylesheets: every token they read without a fallback is one the light theme defines (2026-10-25)
+        "src/app.css",
+        "src/grid/grid.css",
+        "src/theme.css",
     ],
     "menu-ids": [":src"],
     # everything a build or a person runs from this package

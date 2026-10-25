@@ -19,6 +19,49 @@ function isComment(line: string): boolean {
   return t.startsWith('//') || t.startsWith('*') || t.startsWith('/*');
 }
 
+/**
+ * Each custom property a stylesheet declares, with whether it is declared only under the dark theme: the blocks are
+ * walked by their braces, so a declaration inside `@media` or a dark selector is known as one.
+ */
+function declaredTokens(css: string): { readonly light: Set<string>; readonly dark: Set<string> } {
+  const light = new Set<string>();
+  const dark = new Set<string>();
+  const selectors: string[] = [];
+  let text = '';
+  for (const ch of css.replace(/\/\*[\s\S]*?\*\//g, '')) {
+    if (ch === '{') {
+      selectors.push(text.trim());
+      text = '';
+    } else if (ch === '}' || ch === ';') {
+      const name = /^\s*(--[\w-]+)\s*:/.exec(text)?.[1];
+      if (name) (selectors.some((s) => s.includes('dark')) ? dark : light).add(name);
+      text = '';
+      if (ch === '}') selectors.pop();
+    } else {
+      text += ch;
+    }
+  }
+  return { light, dark };
+}
+
+describe('style guardrails', () => {
+  it('reads no custom property without a fallback that the light theme never declares', () => {
+    // This bit 2026-10-25: a frozen chart's icon used --tw-blue-600, declared for the dark theme only, and drew black in
+    // the light one; --dc-pad-3, declared nowhere, took a text tile's padding with it. A token the light theme lacks
+    // needs its fallback written beside it: var(--tw-blue-600, #2563eb).
+    const files = ['src/theme.css', 'src/app.css', 'src/grid/grid.css'];
+    const light = new Set(files.flatMap((f) => [...declaredTokens(SOURCES.read(f)).light]));
+    assert.ok(light.has('--dc-active') && light.size > 50, `the light theme's tokens found (${light.size})`);
+    const bare: string[] = [];
+    for (const file of files.slice(1)) {
+      for (const m of SOURCES.read(file).replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/var\((--[\w-]+)\s*\)/g)) {
+        if (!light.has(m[1]!)) bare.push(`${file}: var(${m[1]}) -- declared for the dark theme only, or nowhere`);
+      }
+    }
+    assert.deepEqual([...new Set(bare)], []);
+  });
+});
+
 describe('source guardrails', () => {
   it('finds source files at all', () => {
     // A guardrail that scans nothing passes for the wrong reason.
