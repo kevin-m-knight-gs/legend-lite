@@ -20,6 +20,7 @@ import { chartPicked } from '../page-filters.ts';
 import { PAGE_GESTURES, isPageGesture } from '../page-gestures.ts';
 import { baseOnHost, draftFrom, gridApply, readGivenFilter, untagged, type HeldCopy } from './grid.ts';
 import { onHost, type HostTables } from './host-tables.ts';
+import { resolvedSource } from '../live-inputs.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { defaultLabel } from '../../../engine-client/src/snap.ts';
 
@@ -491,7 +492,8 @@ export async function pageRebase(page: string, held: string, edits: string,
       async (at, cube, id, commands) => {
         const text = cubeToJson(cube);
         // a snapped grid's edit over its copy, as the writer applied it (baseOnHost: the one rule)
-        const base = await baseOnHost(text, (at.copies ?? {})[id], host, copies);
+        // over its page as the edit found it: a grid over another grid's rows reads that grid there
+        const base = await baseOnHost(text, (at.copies ?? {})[id], host, copies, at, id);
         const said = JSON.parse(await gridApply({ cube: text, ...base } as Parameters<typeof gridApply>[0],
           `[${commands.map((c) => toJson(c)).join(',')}]`)) as { cube?: string; problems?: string[] };
         if (said.problems) throw new CubeRefusal(said.problems.join('; '));
@@ -503,7 +505,9 @@ export async function pageRebase(page: string, held: string, edits: string,
     const was = new Map(now.cubes.map((c) => [c.id, c.cube.source]));
     for (const c of done.page.cubes) {
       if ((done.page.copies ?? {})[c.id] !== undefined) continue;
-      if (!sameValue(was.get(c.id), c.cube.source)) await onHost(c.cube.source, host);
+      // a grid over another grid's rows, held where what it reads is: its link resolved against the page it is on
+      const grid = done.page.views.find((v) => v.kind === 'grid' && v.cube === c.id)?.id;
+      if (!sameValue(was.get(c.id), c.cube.source)) await onHost(resolvedSource(done.page, c.cube.source, grid), host);
     }
     return `{"page":${JSON.stringify(pageToJson(done.page))},"held":${JSON.stringify(done.held)},`
       + `"edits":[${done.edits.map((e) => toJson(e)).join(',')}],`

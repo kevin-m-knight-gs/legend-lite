@@ -257,7 +257,7 @@ class Grid(Tile):
     def frames(self) -> list[str]:
         """The frames it reads, as DataCube says what a grid reads (cube-document.ts leavesOf, headless cubeLeaves;
         docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): a frame's grid its one, a join's each of its leaves'."""
-        return _cube_frames(self._page._session, self._cube)
+        return _cube_frames(self._page._session, self._cube, self._page._doc, self._view['cube'])
 
     def _apply(self, commands: list[dict[str, Any]]) -> Grid:
         """The grid edited by commands, each the one DataCube's screen builds for the same edit (grid-commands.ts:
@@ -978,7 +978,8 @@ def _made(page: Page, cube: str, given: Mapping[str, Any], before: Mapping[str, 
     session = page._session
     engine, frames = session.headless(), session.frames
     with frames.reading():
-        made = _json.loads(engine.call('gridChart', _cube_spec(session, page._cube(cube), frames, engine, page._snapped(cube)),
+        made = _json.loads(engine.call('gridChart', _cube_spec(session, page._cube(cube), frames, engine, page._snapped(cube),
+                                                               page._doc),
                                        _json.dumps(given), None if before is None else _json.dumps(before)))
     if made['problems']:
         raise ValueError(' '.join(made['problems']))
@@ -1027,15 +1028,19 @@ def _engine_rows(session: Any, tree: Any, base: Mapping[str, Any], over: Any) ->
     raise ValueError(body.decode('utf-8', errors='replace'))
 
 
-def _cube_leaves(session: Any, cube: Mapping[str, Any]) -> list[dict[str, str]]:
+def _cube_leaves(session: Any, cube: Mapping[str, Any], page: Mapping[str, Any] | None = None,
+                 id: str | None = None) -> list[dict[str, str]]:
     """A cube's leaves as DataCube says what a cube reads (headless cubeLeaves: cube-document.ts leavesOf), in its order:
-    each ``{"_type", "name"}`` -- a frame's name its table in the frames' database."""
-    return json.loads(session.headless().call('cubeLeaves', _json.dumps(cube)))
+    each ``{"_type", "name"}`` -- a frame's name its table in the frames' database. ``page`` and ``id``, the page it is on
+    and its id there: a grid over another grid's rows reads what that grid reads (DataCube's rule, given the page)."""
+    return json.loads(session.headless().call('cubeLeaves', _json.dumps(cube), None if page is None else _json.dumps(page),
+                                              id))
 
 
-def _cube_frames(session: Any, cube: Mapping[str, Any]) -> list[str]:
+def _cube_frames(session: Any, cube: Mapping[str, Any], page: Mapping[str, Any] | None = None,
+                 id: str | None = None) -> list[str]:
     """The frames a cube reads, as DataCube says (its leaves), each once, in its order."""
-    return list(dict.fromkeys(leaf['name'] for leaf in _cube_leaves(session, cube) if leaf['_type'] == 'frame'))
+    return list(dict.fromkeys(leaf['name'] for leaf in _cube_leaves(session, cube, page, id) if leaf['_type'] == 'frame'))
 
 
 def _slots(grain: str | None, bins: Mapping[str, float] | None, tooltip: Sequence[Any] | None,
@@ -1139,7 +1144,7 @@ class Chart(Tile):
         engine, frames = session.headless(), session.frames
         with frames.reading():
             said = json.loads(engine.call('chartOwnGrid', _cube_spec(session, page._cube(cube), frames, engine,
-                                                                     page._snapped(cube)),
+                                                                     page._snapped(cube), page._doc),
                                           _json.dumps(page._doc), self._id))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
@@ -1630,7 +1635,7 @@ class Page:
     def grid(self, frame: Any = None, *, file: str | Path | None = None, remote: str | None = None,
              cls: str | None = None, project: str | None = None, revision: str | None = None, query: str | None = None,
              warehouse: str | None = None, table: str | None = None, catalog: str | None = None,
-             name: str | None = None, rows: Sequence[str] = (), columns: Sequence[str] = (),
+             input: Grid | None = None, name: str | None = None, rows: Sequence[str] = (), columns: Sequence[str] = (),
              measures: Mapping[str, str] | Sequence[tuple[str, str]] | None = None, filter: Any = None,
              sort: Sequence[tuple[str, str]] = (), dimensions: Sequence[str] = (), title: str | None = None,
              sheet: Sheet | None = None, snap: bool = False) -> Grid:
@@ -1643,7 +1648,10 @@ class Page:
         titles it: a class (``cls``, its name or its path), of the page's model at its pin unless ``revision`` names
         another, or of another ``project`` by its path at a ``revision`` (class-source.ts classAt, the tab's Add a Grid's
         rule); a saved query of this user's store, by its id (``query``); a warehouse table (``warehouse``, its address;
-        ``table``, ``schema.table``; ``catalog``), read under the session this host holds for that warehouse. Each query
+        ``table``, ``schema.table``; ``catalog``), read under the session this host holds for that warehouse -- or over
+        another grid's rows, ``input`` (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL20: a flow's box after another), read live:
+        an edit of ``input`` reaches this grid, which DataCube makes (headless rowsCube) on ``input``'s sheet unless
+        ``sheet`` is given. Each query
         reads the frame as it is then; the grid's Snap keeps its rows as they are. A
         name served already is this grid's when it serves this same frame (two grids over one frame), and refused
         when it serves another: ``grid.update(frame)`` replaces a frame, every grid
@@ -1657,12 +1665,15 @@ class Page:
             raise ValueError(f'{sheet!r} is another page\'s')
         target = self.sheets[0] if sheet is None else sheet
         _ = target._doc
+        if input is not None and input._page is not self:
+            raise ValueError(f'{input!r} is another page\'s')
         if title is not None:
             title = _given_name(self._session, 'tile', title, 'a title')
         session = self._session
-        if sum(b is not None for b in (frame, file, remote, cls, query, warehouse)) != 1:
+        if sum(b is not None for b in (frame, file, remote, cls, query, warehouse, input)) != 1:
             raise ValueError('a grid is over a frame, a file (file=path), a remote file (remote=url), a class (cls=...), a '
-                             'saved query (query=id) or a warehouse table (warehouse=url, table=...): one of them')
+                             'saved query (query=id), a warehouse table (warehouse=url, table=...) or another grid\'s rows '
+                             '(input=grid): one of them')
         if remote is not None and name is not None:
             raise ValueError("a remote file is named after its URL: it takes no name")
         if (project is not None or revision is not None) and cls is None:
@@ -1672,6 +1683,9 @@ class Page:
         if name is not None and (cls is not None or query is not None or warehouse is not None):
             raise ValueError('a class, a saved query and a warehouse table are named as DataCube names them: they take no '
                              'name')
+        if name is not None and input is not None:
+            raise ValueError("another grid's rows are named as DataCube names them (as the grid it reads is called): they "
+                             'take no name')
         # what DataCube reads a class, a saved query or a warehouse table by: the page's model, and what was named
         given = None if cls is None and query is None and warehouse is None else self._given_source(
             cls, project, revision, query, warehouse, table, catalog)
@@ -1699,14 +1713,27 @@ class Page:
         try:
             # its cube as DataCube makes a grid's over a frame, a file or a remote file: capped at the row limit when it is
             # not the page's only grid
-            cube = (self._source_cube(given, len(self._doc['cubes']) + 1) if given is not None
-                    else self._frame_cube(served, len(self._doc['cubes']) + 1)[0] if read is None
-                    else self._leaf_cube(read, len(self._doc['cubes']) + 1))
-            # on its sheet, as the screen adds a grid (page-commands.ts addGrid): its id after every one held, a band at
-            # the bottom, told nothing yet
-            with self._batch(tell=False):
-                applied = self._apply_page([_commands.page_add_grid(document=cube, sheet=target.id, near=None, title=title,
-                                                                    columns=None)], 'a title')
+            if input is not None:
+                # over another grid's rows: its cube and the command that adds it are DataCube's (headless rowsCube), over
+                # what this host serves, on that grid's sheet unless one is named
+                engine, frames = session.headless(), session.frames
+                with frames.reading():
+                    made = _json.loads(engine.call('rowsCube', _json.dumps({
+                        'page': self._doc, 'input': input.id, 'host': frames.hosted(),
+                        'sheet': None if sheet is None else sheet.id, 'title': title})))
+                for note in made['notes']:
+                    warnings.warn(note, stacklevel=2)
+                with self._batch(tell=False):
+                    applied = self._apply_page([_plain(made['command'])], 'a title')
+            else:
+                cube = (self._source_cube(given, len(self._doc['cubes']) + 1) if given is not None
+                        else self._frame_cube(served, len(self._doc['cubes']) + 1)[0] if read is None
+                        else self._leaf_cube(read, len(self._doc['cubes']) + 1))
+                # on its sheet, as the screen adds a grid (page-commands.ts addGrid): its id after every one held, a band
+                # at the bottom, told nothing yet
+                with self._batch(tell=False):
+                    applied = self._apply_page([_commands.page_add_grid(document=cube, sheet=target.id, near=None,
+                                                                        title=title, columns=None)], 'a title')
             id = applied[0]['id']
             grid = self._tile(id, Grid)
             # set before it is placed, nothing told meanwhile: its query's parts as one, as DataCube sets them (a new
@@ -2026,7 +2053,7 @@ class Page:
         session = _current()
         frames, files = frames or {}, files or {}
         # what it reads, as DataCube says (headless cubeLeaves: each leaf's kind, its name, a file's hash, a remote URL)
-        leaves = [leaf for c in doc['cubes'] for leaf in _cube_leaves(session, c['cube'])]
+        leaves = [leaf for c in doc['cubes'] for leaf in _cube_leaves(session, c['cube'], doc, c['id'])]
         wanted = sorted({leaf['name'] for leaf in leaves if leaf['_type'] == 'frame'})
         missing = [n for n in wanted if n not in frames]
         if missing:
@@ -2219,7 +2246,7 @@ class Page:
         session = self._session
         session.register(frame, name)
         # every cube reading the frame reopened (a join of it among them), whichever changed: their commands written once
-        reading = [c['id'] for c in self._doc['cubes'] if name in _cube_frames(self._session, c['cube'])]
+        reading = [c['id'] for c in self._doc['cubes'] if name in _cube_frames(self._session, c['cube'], self._doc, c['id'])]
         with self._batch():
             for id in reading:
                 self._reopened(id, 4)
@@ -2245,7 +2272,7 @@ class Page:
             return False
         held = next(c['cube'] for c in self._doc['cubes'] if c['id'] == id)
         label = held['source']['name']
-        said = self._opened_cube(held, given or {}, leave_out)
+        said = self._opened_cube(held, given or {}, leave_out, id)
         if isinstance(said, str):
             warnings.warn(said, stacklevel=stacklevel)
             if left is not None:
@@ -2268,15 +2295,16 @@ class Page:
         self._reopened(cube, stacklevel + 1)
 
     def _opened_cube(self, saved: dict[str, Any], given: Mapping[str, str],
-                     leave_out: bool = False) -> tuple[list[str], bool, dict[str, Any]] | str:
+                     leave_out: bool = False, id: str | None = None) -> tuple[list[str], bool, dict[str, Any]] | str:
         """A saved cube as DataCube opens it over the frames as they are now -- a frame's, a join's of frames (headless
         gridOpened, by the rule of the page's ``rebuilt`` command: cube-document.ts cubeOpenedAgain) -- what DataCube
         says of what changed, whether the page takes it (cubeTaken), and the source as it is now, which the page's
         ``rebuilt`` command carries -- or, ``leave_out`` and a source a page leaves out, DataCube's note of it."""
         engine, frames = self._session.headless(), self._session.frames
         with frames.reading():
+            # its page and its id there: a grid over another grid's rows opens over that grid as it is now (DataCube's rule)
             made = json.loads(engine.call('gridOpened', _json.dumps(saved), frames.hosted(), self.name,
-                                          len(self._doc['cubes']), dict(given), leave_out))
+                                          len(self._doc['cubes']), dict(given), leave_out, _json.dumps(self._doc), id))
         if 'leftOut' in made:
             return made['leftOut']
         return list(made['notes']), made['taken'], _plain(_json.loads(made['opened']))

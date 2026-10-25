@@ -309,8 +309,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  right-click menu to Column Properties' buttons). Measured 346,360.
  *  347,000 -> 355,500 (2026-10-24, main's D19 merged into this branch: its own steps there, 323,500 -> 332,000 ->
  *  333,500 -- the grid's and the page's total diffs, the converge on the keeper's page, the page hash, its audits'
- *  rounds, each signed off by the user (D9) -- now on top of the parity program's). Measured 355,159. */
-const BUDGET = 355_500;
+ *  rounds, each signed off by the user (D9) -- now on top of the parity program's). Measured 355,159.
+ *  355,500 -> 356,500 (2026-10-25, the flow mode's M1 step 1, docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1: a grid over
+ *  another grid's rows read and written (cube-document.ts RowsSource), its live input resolved against its page, a page
+ *  whose link goes nowhere or round refused as it is read, its grids opened after what they read (live-inputs.ts) --
+ *  every page read asks it, so it is no chunk of its own; the canvas will be). Measured 356,085. */
+const BUDGET = 356_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -414,8 +418,10 @@ const BUDGET = 355_500;
  *  337,000 -> 338,000 (2026-10-24, a long press on an iPad and Count in Column Properties -- the grid's note of the same
  *  date). Measured 337,265.
  *  338,000 -> 344,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 314,000 -> 324,000 -- the
- *  grid-only page's note of the same date). Measured 343,438. */
-const ENGINE_BUDGET = 344_000;
+ *  grid-only page's note of the same date). Measured 343,438.
+ *  344,000 -> 345,000 (2026-10-25, the flow mode's M1 step 1 -- the grid-only page's note of the same date). Measured
+ *  344,379. */
+const ENGINE_BUDGET = 345_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -570,8 +576,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  356,000 -> 357,000 (2026-10-24, a long press on an iPad and Count in Column Properties -- the grid's note of the same
  *  date). Measured 356,493.
  *  357,000 -> 363,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 332,500 -> 342,500 -- the
- *  grid-only page's note of the same date). Measured 362,642. */
-const WIDGET_BUDGET = 363_000;
+ *  grid-only page's note of the same date). Measured 362,642.
+ *  363,000 -> 364,500 (2026-10-25, the flow mode's M1 step 1 -- the grid-only page's note of the same date). Measured
+ *  363,850. */
+const WIDGET_BUDGET = 364_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

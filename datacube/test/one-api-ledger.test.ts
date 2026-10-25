@@ -309,9 +309,11 @@ const L8_SOURCES: Record<string, { readonly read?: Entry; readonly add?: Entry }
 // 2026-10-22 (S6 E, X4): a class, a saved query and a warehouse table added by Python too (page.grid(cls=..., query=...,
 // warehouse=...): sourceCube over the source where the host reads it), tested by test_page.py OverClasses, OverWarehouse,
 // OverSavedQueries and PublishedQueries
+// 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 step 2, FL20's names): another grid's rows added by Python too
+// (page.grid(input=...): rowsCube over the grid it reads, resolved against the page), tested by test_page.py Flowed
 const PYTHON_ADDS: Record<string, string> = {
   frame: 'gridCube', join: 'joinCube', file: 'leafCube', remoteFile: 'leafCube',
-  class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube',
+  class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube', rows: 'rowsCube',
 };
 
 /** Headless exports Python never asks (`call('<name>'`): each one Python should. */
@@ -429,7 +431,9 @@ describe('L8: every command kind and source kind, against who makes and reads it
       const next = rest.search(/\bcase '/);
       return (next < 0 ? rest : rest.slice(0, next)).includes('return ');
     };
-    const reads = (kind: string): boolean => (kind === 'join' ? onHostBody.includes('{ join: source') : leafReads(kind));
+    // a join's and another grid's rows' (2026-10-25, the flow mode's M1 step 2) are onHost's own arms, as a join's is
+    const reads = (kind: string): boolean => (kind === 'join' ? onHostBody.includes('{ join: source')
+      : kind === 'rows' ? onHostBody.includes('{ rows: {') : leafReads(kind));
     const problems: string[] = [];
     for (const kind of kinds) {
       const read = reads(kind);
@@ -442,7 +446,7 @@ describe('L8: every command kind and source kind, against who makes and reads it
     assert.deepEqual(problems, []);
     assert.deepEqual(PYTHON_ADDS, {
       frame: 'gridCube', join: 'joinCube', file: 'leafCube', remoteFile: 'leafCube',
-      class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube',
+      class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube', rows: 'rowsCube',
     }, 'a new way for Python to add a grid comes with its test');
     pinned('L8_SOURCES', Object.keys(L8_SOURCES).length);
   });

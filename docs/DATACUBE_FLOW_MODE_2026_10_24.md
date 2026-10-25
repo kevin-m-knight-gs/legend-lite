@@ -109,6 +109,15 @@ with all"). The options not taken are in §7, so the reasons are kept.
   grid and the flow both: a Union entry of its own beside Join, and any number of inputs. Proposed, as Alteryx's Union
   offers it: matching by position as well as by name.
 
+**Decision (the user, 2026-10-25)**
+
+- **FL20. Python's names for flows** (D6): `page.flow()` adds a Flow sheet; `flow.grid(...)` an Input box, with
+  `page.grid`'s arguments; `flow.grid(input=box)` (and `page.grid(input=grid)`) a box after another, reading its rows
+  live, as `page.grid(cls=..., query=..., warehouse=...)` names its sources; `box.place(x, y)` a box's place. Every
+  tool's settings are the grid's own methods (`filter`, `calculate`, `sort`, `group`, ...): a box is a grid. *(The
+  same day: `rows=` was proposed first and approved, then found taken -- `page.grid`'s `rows=` is its row groups -- and
+  the user chose `input=`, Alteryx's word for what a tool reads.)*
+
 ---
 
 ## 2. What exists, and what the flow reuses
@@ -438,6 +447,15 @@ Read while building step 1, against main at `1e91768d`.
 source written and read, refused by name when malformed; links resolved against the page, a cycle and a missing grid
 refused in words; the order a page opens its grids in (`page-document.ts openingOrder`, now given the page's views);
 the keeper's reads (`page-rebase.ts pageReads`); the save and share words. Tested by `datacube/test/live-inputs.test.ts`.
+
+**Built in step 2, Python's host** (`datacube/src/headless/grid.ts`, `host-tables.ts`, `page.ts`; `python/legend_lite/page.py`):
+a box's base worked out from its chain's first source (headless `baseOver`: a leaf's, a join's, or its input's rows over
+its input's base, through what that base is read through); every base call given its page, so a link is resolved there
+(`gridBase`, `gridBaseOn`, `gridOpened`, `cubeLeaves`, the keeper's `pageRebase`), and refused in words without it;
+`rowsCube`, a box added after a grid, which Python's `page.grid(input=grid)` asks (FL20). The source kind is in the L8
+ledger's reads and adds (`one-api-ledger.test.ts`, dated), with Python's test (`python/tests/test_page.py Flowed`: a
+box's rows live, a box after a box and after a grouped one, refusals, saved and loaded, joined as a copy). Still to do
+in the tab: a box opened there, locally and on a page Python serves (the openers' split, point 2 above).
 
 ---
 

@@ -25,7 +25,7 @@ import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
   CubeDocumentError, cubeOpenedAgain, cubeTaken, cubeToJson, fileChanged, fileSourceOf, frameSource, gridCapped, leavesOf, newGridTree, openCube,
   readCube, readCubeSource, rebuilt, remoteSourceOf, writeCube, type ClassSource, type CubeDocument, type CubeSource, type JoinSource,
-  type OpenedCube, type QuerySource, type WarehouseSource,
+  type OpenedCube, type QuerySource, type RowsSource, type WarehouseSource,
 } from '../cube-document.ts';
 import {
   OPERATORS, isCompatible, newCondition, newGroup, toFilterNode, type DraftCondition, type DraftNode,
@@ -61,6 +61,11 @@ import { sourceColumns } from '../source-columns.ts';
 import { pythonRunner } from '../services/python-host.ts';
 import { hostCalls, hostEngine, hostWorker } from './host.ts';
 import { leafOnHost, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
+import { inputRows } from '../join-open.ts';
+import type { JoinSide } from '../join.ts';
+import { tiles } from '../layout/bands.ts';
+import { gridInput, liveGrids, resolvedSource } from '../live-inputs.ts';
+import type { PageDocument } from '../page-document.ts';
 import { classGiven, className, type ClassElement } from '../class-source.ts';
 import { classTree, measuresOf, relatedName, relatedProblem, supertypesOf } from '../class-tree.ts';
 import { modelMeasureCommands } from '../model-measure-commands.ts';
@@ -284,8 +289,10 @@ export async function sourceCube(model: string | null, given: string, host: Host
  * host's database -- and what a host reads it by (a file's bytes' hash, a remote file's URL). JSON: `[{_type, name,
  * sha256?, url?}]`.
  */
-export function cubeLeaves(cube: string): string {
-  return JSON.stringify(leavesOf(readCube(fromJson(cube)).source).map((l) => ({
+// `page`, `id`: the page it is on and its cube there -- a grid over another grid's rows reads what that grid reads (onPage)
+export function cubeLeaves(cube: string, page: string | null = null, id: string | null = null): string {
+  const on = page === null ? undefined : readPage(page, { empty: true });
+  return JSON.stringify(leavesOf(onPage(readCube(fromJson(cube)).source, on, id)).map((l) => ({
     _type: l._type, name: l.name, ...(l._type === 'file' ? { sha256: l.sha256 } : {}), ...(l._type === 'remoteFile' ? { url: l.url } : {}),
   })));
 }
@@ -298,12 +305,63 @@ export function cubeLeaves(cube: string): string {
  * kind of source a cube has. JSON: `{model, runtime, source}` (Pure text) or `{model, runtime, relation}` (a lambda as
  * the protocol writes it, as text).
  */
-export async function gridBase(cube: string, host: HostTables): Promise<string> {
-  const on = await onHost(readCube(fromJson(cube)).source, host);
-  if ('leaf' in on) return JSON.stringify(on.leaf.base);
-  const opened = await joinOpenedOn(on.join, on.tables);
-  return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
-    + `"relation":${JSON.stringify(toJson({ _type: 'lambda', parameters: [], body: [opened.relation] }))}}`;
+// `page`, `id`: the page it is on and its cube there -- what a grid over another grid's rows is resolved against
+// (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1); refused in words when such a grid is asked of with no page
+export async function gridBase(cube: string, host: HostTables, page: string | null = null, id: string | null = null): Promise<string> {
+  const doc = readCube(fromJson(cube));
+  const on = page === null ? undefined : readPage(page, { empty: true });
+  return JSON.stringify((await baseOver(onPage(doc.source, on, id), host)).base);
+}
+
+/**
+ * A SOURCE WITH ITS LINKS RESOLVED AGAINST ITS PAGE (live-inputs.ts resolvedSource): `page` the page it is on, `id` its
+ * cube there (its grid's, a link back to which is refused). A source with no link is as it is; one with a link and no
+ * page given is refused in words, never read without it.
+ */
+function onPage(source: CubeSource, page: PageDocument | undefined, id: string | null): CubeSource {
+  if (liveGrids(source).length === 0) return source;
+  if (page === undefined) throw new CubeRefusal(`${source.name} reads another grid of its page: it is read with its page`);
+  const grid = id === null ? undefined : page.views.find((v) => v.kind === 'grid' && v.cube === id)?.id;
+  return resolvedSource(page, source, grid);
+}
+
+/**
+ * A BASE ON THE HOST, the one rule every grid's base is (gridBase): a leaf's, where the host reads it (host-tables.ts
+ * leafOnHost); a join's, over the host's tables (headless join.ts joinOpenedOn); another grid's rows' -- its input's rows
+ * at their finest level (join-open.ts inputRows, a join's input's rule) over that input's own base in turn, typed by the
+ * host's compiler, read through what that base is read through (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1). `source`
+ * with its links resolved (onPage). What drifted in an input on the way is said; `side`, another grid's rows' relation
+ * and columns.
+ */
+async function baseOver(source: CubeSource, host: HostTables, given: Readonly<Record<string, string>> = {}): Promise<{
+  readonly base: HostBase; readonly notes: readonly string[]; readonly side?: JoinSide;
+}> {
+  const on = await onHost(source, host, given);
+  if ('leaf' in on) return { base: on.leaf.base, notes: [] };
+  if ('join' in on) {
+    const opened = await joinOpenedOn(on.join, on.tables);
+    return {
+      base: { model: opened.model, runtime: opened.runtime, relation: toJson({ _type: 'lambda', parameters: [], body: [opened.relation] }) },
+      notes: opened.notes,
+    };
+  }
+  const input = on.rows.input;
+  const inner = await baseOver(input.source, host, given);
+  const { planner, relation } = await typed(inner.base);
+  try {
+    const notes = [...inner.notes];
+    const side = await inputRows(input, relation, planner, notes);
+    const { model, runtime, mapping, enumerations, project } = inner.base;
+    return {
+      base: {
+        model, runtime, ...(mapping !== undefined ? { mapping } : {}), ...(enumerations !== undefined ? { enumerations } : {}),
+        ...(project ? { project } : {}), relation: toJson({ _type: 'lambda', parameters: [], body: [side.relation] }),
+      },
+      notes, side,
+    };
+  } finally {
+    planner.dispose();
+  }
 }
 
 /** A copy its host holds, as the host modelled it (Python's engine: Engine.held_copies): what a snapped grid reads. */
@@ -324,8 +382,9 @@ export interface HeldCopy {
  * each grid it asks DataCube about (gridBaseOn).
  */
 export async function baseOnHost(cube: string, snapped: GridCopy | undefined, host: HostTables,
-  copies: Readonly<Record<string, HeldCopy>>): Promise<HostBase> {
-  if (snapped === undefined) return JSON.parse(await gridBase(cube, host)) as HostBase;
+  copies: Readonly<Record<string, HeldCopy>>, page?: PageDocument, id?: string): Promise<HostBase> {
+  // `page`, `id`: the page it is on and its cube there, what a link is resolved against (onPage)
+  if (snapped === undefined) return (await baseOver(onPage(readCube(fromJson(cube)).source, page, id ?? null), host)).base;
   const copy = copies[snapped.table];
   if (copy === undefined) {
     throw new CubeRefusal(`${readCube(fromJson(cube)).name}: its snap (${snapped.label}) is no longer held -- go live to `
@@ -342,11 +401,12 @@ export async function baseOnHost(cube: string, snapped: GridCopy | undefined, ho
 export async function gridBaseOn(cube: string, snapped: unknown, host: HostTables,
   copies: Readonly<Record<string, HeldCopy>>, page: string | null = null, id: string | null = null): Promise<string> {
   try {
-    const base = await baseOnHost(cube, snapped === null ? undefined : readGridCopy(snapped), host, copies);
-    if (page === null || id === null) return JSON.stringify(base);
-    // its page given: what its filters are to it, the grid's charts with them (a click's filter is not its own chart's
+    // its page given: what a grid over another grid's rows reads resolved against it (onPage)
+    const doc = page === null ? undefined : readPage(page, { empty: true });
+    const base = await baseOnHost(cube, snapped === null ? undefined : readGridCopy(snapped), host, copies, doc, id ?? undefined);
+    if (doc === undefined || id === null) return JSON.stringify(base);
+    // and its id: what its filters are to it, the grid's charts with them (a click's filter is not its own chart's
     // grid's), carried as the protocol's JSON (their values exact) for each grid call to read it through (GridSpec.lens)
-    const doc = readPage(page, { empty: true });
     const charts = doc.views.filter((v) => v.kind === 'chart' && v.cube === id).map((v) => v.id);
     return JSON.stringify({ ...base, lens: toJson({ filters: doc.filters ?? [], charts }) });
   } catch (e) {
@@ -369,11 +429,12 @@ export async function gridBaseOn(cube: string, snapped: unknown, host: HostTable
 // otherwise -- by the rule a page takes it by (cube-document.ts cubeTaken); `opened`, the source as it is now, which the
 // page's `rebuilt` command carries (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P11, Z10); `how`, its base's ModelOptions.
 // `leaveOut`, as its page opens: `{leftOut}`, the page's note, for a source the page leaves out (leftOutWhenUnopened)
+// `page`, `id`: the page it is opened on and its cube there, what a grid over another grid's rows reads (onPage)
 export async function gridOpened(cube: string, host: HostTables, name: string, gridsOnPage: number,
-  given: Readonly<Record<string, string>> = {}, leaveOut = false): Promise<string> {
+  given: Readonly<Record<string, string>> = {}, leaveOut = false, page: string | null = null, id: string | null = null): Promise<string> {
   const was = readCube(fromJson(cube));
   try {
-    return await openedOn(was, cube, host, name, gridsOnPage, given);
+    return await openedOn(was, cube, host, name, gridsOnPage, given, page === null ? undefined : readPage(page, { empty: true }), id);
   } catch (e) {
     // `leaveOut`, as a page opens: a source the page leaves out when it cannot be opened, for any reason, said in the
     // page's words, the cube kept as saved (page-document.ts leftOutWhenUnopened, the tab's Open…'s rule; the S7 audit's
@@ -385,8 +446,16 @@ export async function gridOpened(cube: string, host: HostTables, name: string, g
 
 /** gridOpened's cube opened over the host's tables, as it is now. */
 async function openedOn(was: CubeDocument, cube: string, host: HostTables, name: string, gridsOnPage: number,
-  given: Readonly<Record<string, string>>): Promise<string> {
-  const on = await onHost(was.source, host, given);
+  given: Readonly<Record<string, string>>, page: PageDocument | undefined, id: string | null): Promise<string> {
+  const on = await onHost(onPage(was.source, page, id), host, given);
+  if ('rows' in on) {
+    // another grid's rows: over its input as that grid is now; the source as the page holds it (its link), its columns
+    // as its input's rows are typed now (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1)
+    if (was.source._type !== 'rows') throw new Error(`${was.source.name} opened as another grid's rows`);
+    const { base, notes, side } = await baseOver(on.rows, host, given);
+    const now: RowsSource = { ...was.source, columns: side!.columns.map((c) => ({ name: c.name, type: c.type })) };
+    return openedAgain(was, now, notes, base);
+  }
   if ('leaf' in on) {
     const { base, leaf } = on.leaf;
     // the leaf's columns as the compiler types them now (gridCube): the source as it is now
@@ -418,6 +487,41 @@ function openedAgain(was: CubeDocument, now: CubeSource, said: readonly string[]
     + `"changed":${JSON.stringify(changed)},"taken":${JSON.stringify(cubeTaken(changed, was.source, now))},`
     + `"opened":${JSON.stringify(toJson(now))},"model":${JSON.stringify(base.model)},"runtime":${JSON.stringify(base.runtime)},`
     + `"how":${JSON.stringify(how)},${reads}}`;
+}
+
+/**
+ * A GRID OVER ANOTHER GRID'S ROWS, AS IT IS ADDED (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1, FL20: Python's
+ * `page.grid(input=...)`, a flow's box after another): the page command every grid is added by (addGrid), with a new
+ * grid's cube document over grid `input` of the page, reading its rows live -- its rows as they are, capped at the row
+ * limit when it is not the page's only grid (gridCapped), titled as that grid is called (live-inputs.ts gridInput) -- on
+ * that grid's sheet unless `sheet` is named, near it; `title`, the one a person gave it. JSON: `{command, notes, model,
+ * runtime, relation}`, as headless joinCube's: the command, what drifted on the way, and the base a host plans its rows
+ * over.
+ */
+export async function rowsCube(spec: string): Promise<string> {
+  // the protocol's exact JSON: a cube's numbers kept as they are
+  const s = fromJson(spec) as unknown as {
+    readonly page: unknown; readonly input: string; readonly host: HostTables; readonly sheet: string | null;
+    readonly title: string | null;
+  };
+  const page = readPage(s.page, { empty: true });
+  const input = gridInput(page, s.input);
+  const live: RowsSource = { _type: 'rows', name: input.name, input: { grid: s.input }, columns: [] };
+  const { base, notes, side } = await baseOver(resolvedSource(page, live), s.host);
+  const columns = side!.columns;
+  const made = rebuilt(undefined, side!.relation, columns, input.name, gridCapped(page.cubes.length + 1));
+  // written as the screen holds a grid it opens (cube-state.ts openedState), as headless gridCube and joinCube write one
+  const state = openedState(made.snapshot, made.configuration, made.tree ?? newGridTree(made.configuration));
+  const cube = writeCube({
+    name: page.name, source: { ...live, columns: columns.map((c) => ({ name: c.name, type: c.type })) },
+    snapshot: state.snapshot, configuration: state.configuration, tree: state.tree,
+  });
+  const sheet = s.sheet ?? page.sheets.find((sh) => tiles(sh.layout).includes(s.input))?.id ?? page.sheets[0]!.id;
+  const command = `{"kind":"addGrid","document":${cubeToJson(cube)},"sheet":${JSON.stringify(sheet)},`
+    + `"near":${JSON.stringify(s.input)},"title":${JSON.stringify(s.title)},"columns":null}`;
+  const reads = 'source' in base ? `"source":${JSON.stringify(base.source)}` : `"relation":${base.relation}`;
+  return `{"command":${command},"notes":${JSON.stringify(notes)},"model":${JSON.stringify(base.model)},`
+    + `"runtime":${JSON.stringify(base.runtime)},${reads}}`;
 }
 
 async function using<T>(spec: GridSpec, use: (o: Opened) => Promise<T>): Promise<T> {

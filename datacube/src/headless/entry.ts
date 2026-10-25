@@ -10,7 +10,7 @@ import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.t
 import {
   chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridExport,
   gridFilter, gridGesture, gridMeasure, gridModelMeasure, gridOpened, gridPreset, gridRelated, leafCube, gridRelation, gridSetUp, gridSnapPull,
-  gridView, snapRefused, sourceCube,
+  gridView, rowsCube, snapRefused, sourceCube,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in.ts';
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
@@ -54,6 +54,10 @@ export { gridGesture, gridMeasure, gridModelMeasure };
 /** A new grid's cube over a class, a saved query or a warehouse table, as the tab adds one (sourceCube: Python's
  *  `page.grid(cls=...)`, `page.grid(query=...)`, `page.grid(warehouse=...)`; X4). */
 export { sourceCube };
+
+/** A new grid's cube over another grid's rows, read live (rowsCube: Python's `page.grid(input=...)`, a flow's box after
+ *  another: docs/DATACUBE_FLOW_MODE_2026_10_24.md FL20). */
+export { rowsCube };
 
 /** Why a snap past its host's row limit is refused: the tab's sentence, which Python's engine says too (Z16). And a new
  *  grid's query as the commands that make it, in a person's order (gridSetUp: Python's `page.grid(...)`, Z8). */

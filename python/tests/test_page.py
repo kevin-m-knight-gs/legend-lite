@@ -2521,6 +2521,71 @@ class Joined(Paged):
             tab.close()
 
 
+class Flowed(Paged):
+    """A grid over another grid's rows, read live (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1, FL20): a flow's box after
+    another, made by page.grid(input=...) as DataCube makes one (headless rowsCube) -- its rows its input's as that grid
+    is now, so an edit there reaches it -- saved with its link, loaded over the frames its chain reads, and joined as a
+    copy of what it was (a frozen input holds no link)."""
+
+    def chain(self):
+        page = ll.Page('Flow')
+        source = page.grid(trades(), name='trades')
+        big = page.grid(input=source)
+        big.filter([('notional', 'greaterThan', 90)])
+        return page, source, big
+
+    def test_a_box_reads_its_inputs_rows_as_that_grid_is_now(self):
+        page, source, big = self.chain()
+        self.assertEqual(big._cube['source']['_type'], 'rows')
+        self.assertEqual(big._cube['source']['input'], {'grid': source.id}, 'a live input: the grid it reads, by id')
+        self.assertEqual(big.frames, ['trades'], 'what it reads is what its input reads')
+        self.assertEqual(sorted(big.to_pandas()['notional']), [100.0, 250.0])
+        # an edit of the grid it reads reaches it
+        source.filter([('region', 'equal', 'EMEA')])
+        self.assertEqual(sorted(big.to_pandas()['notional']), [100.0])
+
+    def test_a_box_after_a_box_and_after_a_grouped_one_its_groups(self):
+        page, source, big = self.chain()
+        after = page.grid(input=big)
+        self.assertEqual(after.frames, ['trades'])
+        self.assertEqual(sorted(after.to_pandas()['notional']), [100.0, 250.0], "its input's rows, filtered")
+        # a grouped grid's rows at their finest level are its groups (query.ts classLambda)
+        big.group('region')
+        self.assertEqual(sorted(after.to_pandas()['region']), ['AMER', 'EMEA'])
+
+    def test_refused_in_words(self):
+        page, source, _big = self.chain()
+        with self.assertRaisesRegex(ValueError, 'take no name'):
+            page.grid(input=source, name='renamed')
+        with self.assertRaisesRegex(ValueError, 'one of them'):
+            page.grid(trades(), input=source)
+        other = ll.Page('Other')
+        theirs = other.grid(trades(), name='other_trades')
+        with self.assertRaisesRegex(ValueError, "another page's"):
+            page.grid(input=theirs)
+        self.assertEqual(len(page.grids), 2, 'nothing added')
+
+    def test_saved_with_its_link_and_loaded_over_the_frames_its_chain_reads(self):
+        page, source, _big = self.chain()
+        saved = page.to_dict()
+        cube = next(c['cube'] for c in saved['cubes'] if c['cube']['source']['_type'] == 'rows')
+        self.assertEqual(cube['source']['input'], {'grid': source.id})
+        with self.assertRaisesRegex(ValueError, 'the page reads the frames trades'):
+            ll.Page.load(saved, frames={})
+        again = ll.Page.load(saved, frames={'trades': trades()})
+        box = next(g for g in again.grids if g._cube['source']['_type'] == 'rows')
+        self.assertEqual(sorted(box.to_pandas()['notional']), [100.0, 250.0])
+
+    def test_joined_as_a_copy_of_what_it_was_holding_no_link(self):
+        page, _source, big = self.chain()
+        theirs = page.grid(desks(), name='desks')
+        joined = page.join(big, theirs, Joined.HOW)
+        left = joined._cube['source']['left']['source']
+        self.assertEqual(left['_type'], 'rows')
+        self.assertNotIn('grid', left['input'], "a frozen input: what the grid was, its source resolved")
+        self.assertEqual(sorted(joined.to_pandas()['notional']), [100.0, 250.0])
+
+
 class Snapped(Paged):
     """Snap as page state (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): grid.snap() copies the grid's base query by
     the engine every tab's Snap copies through, and the page's snap command says the grid reads the copy -- every call on
