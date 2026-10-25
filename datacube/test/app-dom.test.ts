@@ -1429,6 +1429,12 @@ describe('the app', () => {
       planner: new EchoPlanner(),
     });
     await pivoted.open();
+    // It arrives folded under its measure (found 3 of
+    // docs/DATACUBE_UI_REVIEW_2026_10_24.md); unfolded here.
+    const twist = host.querySelector<HTMLButtonElement>(
+      '.dc-tool-panel-row[data-column="notional"] button.dc-tool-panel-twist');
+    assert.equal(twist?.getAttribute('aria-expanded'), 'false', 'the pivot columns arrive folded');
+    twist!.click();
     const rows = [...host.querySelectorAll('.dc-tool-panel-row')]
       .map((r) => ({
         column: (r as HTMLElement).dataset['column'],

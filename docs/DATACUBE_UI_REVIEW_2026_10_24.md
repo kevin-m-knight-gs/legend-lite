@@ -90,6 +90,11 @@ statistics · a 192×14 progress box · the planner's word ("local").
    holds more than one value. Upstream DataCube's default, and the first thing a person sees on the start page.
 3. **The columns panel lists every pivot leaf** (notional 2021 … 2025, Total; pnl 2021 …) on the start page: 25
    checkboxes for 3 measures.
+   **Fixed 2026-10-25** (`ui/columns-panel.ts`). Every measure a pivot spread now arrives folded under its own row,
+   whatever the block's size, so the start page lists its 3 measures. Folding or unfolding one by hand sticks. A
+   measure's box hides or shows the whole block, and it is part-ticked when only some of its columns show, so a
+   folded block still says it is partly hidden. Tested in `test/columns-panel.test.ts`; `demo/verify-features.mjs`
+   checks the real page.
 4. **Glyphs from four sets:** ⊞ ⤢ × ✎ ⚙ ⧨ ▸ ⌃, each from a different font, at different weights and baselines.
 
 ## What to change
@@ -372,9 +377,9 @@ View ▸                                    Properties…                 Ctrl+E
 | 4 | Files in the text box (§8): Markdown and text first, then PDF, media, Word, email, PowerPoint | Added by the user, 2026-10-25 |
 
 **Where it stands, 2026-10-25.** Built: numbers right-aligned; the page's ≡ grouped by purpose (§3); one tile header
-(§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2); the example-switch bug fixed (found 1); the status bar's error as a chip; the title bar (§4). Next:
+(§1a); the grid's status bar (§5); the text box as a Markdown editor (§7). Built since: the chart options as a popover that closes (§2); the example-switch bug fixed (found 1); the status bar's error as a chip; the title bar (§4); the columns panel (found 3). Next:
 the menus' design language for
-every menu; grouped text columns (found 2); the columns panel (found 3); one icon set (found 4; the tile states, the
+every menu; grouped text columns (found 2); one icon set (found 4; the tile states, the
 status bar's tools and the editor's toolbar already drawn); the options pane docked at the page's edge; then §8.
 
 Screenshots of each state (the start page, the chart examples and the gallery's KPI dashboard, the chart options at

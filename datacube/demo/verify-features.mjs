@@ -514,6 +514,16 @@ const dimensionNames = () => page.evaluate(() =>
   [...document.querySelectorAll('.dc-tool-panel-row:not(.dc-measure)')]
     .map((e) => e.dataset.column));
 
+/**
+ * Every pivoted measure's columns unfolded in the columns panel: they arrive folded under their measure
+ * (docs/DATACUBE_UI_REVIEW_2026_10_24.md, found 3), and a check that reads or unticks one opens the block as a person
+ * would.
+ */
+async function unfoldPivots() {
+  const folded = page.locator('.dc-tool-panel-row button.dc-tool-panel-twist[aria-expanded="false"]');
+  while (await folded.count() > 0) await folded.first().click();
+}
+
 /** Open the hamburger and pick an entry. */
 /**
  * Pick a hamburger entry by its own label, through its submenus: an entry under View or Insert is
@@ -4318,6 +4328,19 @@ try {
       await menu(['Pivot', /^Horizontal Pivot on/],
         { col: await needCol(key) });
       await settle();
+      // FOLDED under their measure as they arrive (found 3 of
+      // docs/DATACUBE_UI_REVIEW_2026_10_24.md): the start page listed
+      // 25 tick boxes for 3 measures.
+      const arrived = await page.evaluate(() => ({
+        open: document.querySelectorAll('.dc-tool-panel-child').length,
+        folded: document.querySelectorAll(
+          '.dc-tool-panel-row button.dc-tool-panel-twist[aria-expanded="false"]').length,
+      }));
+      if (arrived.open > 0 || arrived.folded === 0) {
+        throw new Error(`the pivot columns arrived open: ${arrived.open} listed,`
+          + ` ${arrived.folded} measure(s) folded`);
+      }
+      await unfoldPivots();
       const children = await page.evaluate(() =>
         [...document.querySelectorAll('.dc-tool-panel-child')].map((r) => ({
           column: r.dataset.column,
@@ -4380,6 +4403,7 @@ try {
       await menu(['Pivot', /^Horizontal Pivot on/],
         { col: await needCol(key) });
       await settle();
+      await unfoldPivots();
       const children = await page.evaluate(() =>
         [...document.querySelectorAll('.dc-tool-panel-child')]
           .map((r) => r.dataset.column));
