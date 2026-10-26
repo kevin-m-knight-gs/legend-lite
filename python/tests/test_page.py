@@ -1941,6 +1941,10 @@ class Abilities(Paged):
         self.assertNotIn('name', rows.columns, 'theirs left out')
         with self.assertRaisesRegex(ValueError, "the grid has no column 'nope'"):
             page.find_replace(mine, names, 'desk', 'desk', 'name')._preset({'kind': 'findReplace', 'column': 'nope', 'with': 'name'})
+        # a key theirs repeats matches its first row only (the join's once, C13): no row of mine repeats
+        twice = flow.grid(pd.DataFrame({'desk': ['FX', 'FX'], 'name': ['Forex', 'Foreign exchange']}), name='desk_names_twice')
+        once = flow.grid(input=page.find_replace(mine, twice, 'desk', 'desk', 'name')).to_pandas()
+        self.assertEqual(sorted(once['desk']), ['Foreign exchange', 'Rates', 'Rates'], 'each row once, the first of theirs (rising)')
 
     def test_rows_counted_as_count_records(self):
         # (M4) grid.count_records: a flow's Count Records (count-records.ts) -- one row, one column; the box after it reads

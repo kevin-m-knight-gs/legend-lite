@@ -44,6 +44,10 @@ export type JoinHow =
     readonly form: 'join'; readonly kind: JoinKindWord; readonly on: JoinCondition; readonly prefix: string;
     /** Their columns brought over, by their own names, in the order given; null: all. */
     readonly keep: readonly string[] | null;
+    /** Each row of mine paired with one of theirs at most: their first row of each key -- their columns in the condition's
+     *  rows, every one `==` -- each key's rows in an order of their every column that sorts, rising (a lookup's, Alteryx's
+     *  Find Replace: a key theirs repeats matches once, C13). Absent: every match. */
+    readonly once?: true;
   }
   | {
     readonly form: 'asOf'; readonly match: JoinRow & { readonly op: AsOfOp }; readonly on: JoinCondition;
@@ -147,14 +151,18 @@ export function readJoinHow(raw: unknown): JoinHow {
   const form = (raw as { form?: unknown } | null)?.form;
   switch (form) {
     case 'join': {
-      const o = object(raw, 'a join', ['form', 'kind', 'on', 'prefix', 'keep']);
+      const o = object(raw, 'a join', ['form', 'kind', 'on', 'prefix', 'keep', 'once']);
       if (typeof o['kind'] !== 'string' || !(JOIN_KINDS as readonly string[]).includes(o['kind'])) {
         throw new CubeRefusal(`a join's kind is one of ${JOIN_KINDS.join(', ')}, not ${JSON.stringify(o['kind'])}`);
       }
-      return {
+      if (o['once'] !== undefined && o['once'] !== true) throw new CubeRefusal(`a join's once is true or left out, not ${JSON.stringify(o['once'])}`);
+      const how: JoinHow = {
         form, kind: o['kind'] as JoinKindWord, on: readJoinCondition(o['on'], "a join's condition"), prefix: readPrefix(o['prefix']),
-        keep: readKeep(o['keep']),
+        keep: readKeep(o['keep']), ...(o['once'] === true ? { once: true as const } : {}),
       };
+      const why = onceRefusal(how);
+      if (why !== undefined) throw new CubeRefusal(why);
+      return how;
     }
     case 'asOf': {
       const o = object(raw, 'an as-of join', ['form', 'match', 'on', 'prefix', 'keep']);
@@ -247,6 +255,14 @@ export function quickJoins(mine: JoinColumns, others: readonly (JoinColumns & { 
     const key = suggestedKeys(mine, o).find((k) => k.row.left === clicked);
     return key ? [{ their: o.id, name: o.name, row: key.row, why: key.why }] : [];
   });
+}
+
+/** Why a join cannot pair each of mine with one of theirs (`once`), or undefined: their key is the columns of its
+ *  condition's rows, so the condition is rows, at least one, each `==`. */
+export function onceRefusal(how: JoinHow): string | undefined {
+  if (how.form !== 'join' || how.once !== true) return undefined;
+  return 'rows' in how.on && how.on.rows.length > 0 && how.on.rows.every((r) => r.op === '==') ? undefined
+    : 'one of theirs for each of mine takes a key: rows of equal (==) columns';
 }
 
 /** The forms a quick join is made in: all of mine (a lookup), matching only, mine with a match, mine with none. */

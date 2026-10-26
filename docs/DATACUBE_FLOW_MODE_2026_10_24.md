@@ -265,7 +265,7 @@ How to read the status column:
 | Join Multiple | Built, once linked | Joins chained by live inputs |
 | Union | Built | A join's append, of any number of inputs (`JoinSource.more`) |
 | Append Fields | Built (2026-10-25) | Every row with every row: a join, matching rows only, on no condition -- the Join window's Every pair |
-| Find Replace | Built (2026-10-25) | A Join box, all of mine on my column equal to theirs, its column then handed on as theirs where found (`coalesce`, in place) |
+| Find Replace | Built (2026-10-25) | A Join box, all of mine on my column equal to theirs, its column then handed on as theirs where found (`coalesce`, in place). A key theirs repeats matches its first row only (2026-10-26, C13): the join's `once` cuts theirs to the first of each key, by a row number the database gives in an order of their other columns, rising -- the Join window's "Each of mine once", ticked for a Find Replace; Python's `page.find_replace` the same |
 | Fuzzy Match | Built (2026-10-25) | A join row comparing by similar text (`~`): both a value, at most N edits apart by `levenshteinDistance`; a Fuzzy Match box opens the Join window at it. `jaroWinklerSimilarity`, a score, waits for a row of its own |
 | Make Group | Out for now | Groups made from pairs need a transitive closure, which one relation cannot say |
 

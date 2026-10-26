@@ -40,7 +40,9 @@ export interface JoinDialogOptions {
    */
   readonly start?: { readonly their?: string; readonly row?: JoinRow; readonly form?: Choice; readonly how?: JoinHow;
     /** The first row's comparison, in place of a suggestion's (a flow's Fuzzy Match: similar). */
-    readonly op?: JoinOp };
+    readonly op?: JoinOp;
+    /** Each of mine with one of theirs at most, ticked from the start (a flow's Find Replace: a lookup, C13). */
+    readonly once?: true };
   /** What the window is for, under its title (none: a new grid of the page's two); its button's word (none: Join). A
    *  flow's Join box set again says so (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2). */
   readonly lead?: string;
@@ -206,6 +208,14 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     const rowsBox = el(doc, 'div', 'dc-join-rows', condition);
     const addRow = el(doc, 'button', 'dc-picker-button dc-quiet dc-join-add', condition, '+ Add a condition');
     addRow.type = 'button';
+    // each of mine with one of theirs at most: their first row of each key (join.ts once), offered on equal keys alone
+    const onceLabel = el(doc, 'label', 'dc-join-once', condition);
+    const once = el(doc, 'input', 'dc-join-once-on', onceLabel);
+    once.type = 'checkbox';
+    once.checked = o.start?.how?.form === 'join' ? o.start.how.once === true : o.start?.once === true;
+    onceLabel.append(' Each of mine once: where a key of theirs repeats, the first of theirs');
+    onceLabel.title = 'A key theirs has on several rows matches its first (in an order of their other columns, rising), so a row of mine is never repeated: a lookup';
+    once.addEventListener('change', () => changed());
     const pure = el(doc, 'textarea', 'dc-picker-input dc-join-pure', condition);
     pure.setAttribute('aria-label', 'The condition in Pure');
     pure.spellcheck = false;
@@ -322,6 +332,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       rowsHead.hidden = pureOn.checked || rowsBox.children.length === 0;
       suggested.hidden = pureOn.checked || suggested.children.length === 0;
       addRow.hidden = pureOn.checked;
+      onceLabel.hidden = !onceOffered();
       const renamed = c === 'semi' || c === 'anti' ? 'by their own names' : 'as they come out (a name mine has, prefixed)';
       pureHint.textContent = `Two rows, mine and theirs, their columns named ${renamed}: {a, b | $a.cust == $b.id}`;
       // the prefix said on their names that mine has, and how many of theirs come
@@ -404,6 +415,13 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       changed();
     };
 
+    /** Whether one of theirs for each of mine is offered: a join on rows of equal keys, at least one (join-how.ts onceRefusal). */
+    function onceOffered(): boolean {
+      if (chosen === 'cross' || chosen === 'asOf' || chosen === 'semi' || chosen === 'anti' || chosen === 'append' || pureOn.checked) return false;
+      const rows = [...rowsBox.children];
+      return rows.length > 0 && rows.every((r) => (r.querySelector('.dc-join-op') as HTMLSelectElement | null)?.value === '==');
+    }
+
     /** The `how` the window says now, or what it still needs. */
     const how = async (): Promise<JoinHow | string> => {
       const c = chosen;
@@ -429,7 +447,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
         if (!m.left || !m.right) return 'Choose the two columns the nearest row is found by.';
         return { form: 'asOf', match: { left: m.left, op: m.op as AsOfOp, right: m.right }, on, prefix: pre, keep };
       }
-      return { form: 'join', kind: c === 'cross' ? 'inner' : c, on, prefix: pre, keep };
+      return { form: 'join', kind: c === 'cross' ? 'inner' : c, on, prefix: pre, keep, ...(once.checked && onceOffered() ? { once: true as const } : {}) };
     };
 
     let asked = 0;

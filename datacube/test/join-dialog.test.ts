@@ -163,6 +163,35 @@ describe('the Join window', () => {
     assert.deepEqual(asked.at(-1), { form: 'join', kind: 'left', on: { rows: [{ left: 'customer_id', op: '~', right: 'id', within: 1 }] }, prefix: 'their_', keep: null });
   });
 
+  it("each of mine once (C13): offered on equal keys, ticked from a Find Replace's start, read into the join; gone for a comparison", async () => {
+    const { asked } = open({ start: { form: 'left', once: true } });
+    await settle();
+    await debounce();
+    const once = $<HTMLInputElement>('.dc-join-once-on');
+    assert.equal($<HTMLElement>('.dc-join-once').hidden, false, 'an equal key offers it');
+    assert.equal(once.checked, true, "a Find Replace's window starts with it");
+    assert.deepEqual(asked.at(-1), { form: 'join', kind: 'left', on: { rows: [{ left: 'customer_id', op: '==', right: 'id' }] }, prefix: 'their_', keep: null, once: true });
+    // a comparison has no key: not offered, not asked, though still ticked
+    const op = $<HTMLSelectElement>('.dc-join-op');
+    op.value = '<';
+    op.dispatchEvent(new doc.defaultView!.Event('change', { bubbles: true }));
+    await debounce();
+    assert.equal($<HTMLElement>('.dc-join-once').hidden, true);
+    assert.equal('once' in asked.at(-1)!, false);
+    // nor on a form that is not a join of rows
+    op.value = '==';
+    op.dispatchEvent(new doc.defaultView!.Event('change', { bubbles: true }));
+    form('semi');
+    await debounce();
+    assert.equal($<HTMLElement>('.dc-join-once').hidden, true);
+    assert.deepEqual(asked.at(-1), { form: 'semi', on: { rows: [{ left: 'customer_id', op: '==', right: 'id' }] } });
+    // a join set again keeps its own: a once join opens ticked, one without unticked
+    doc.body.replaceChildren();
+    open({ start: { their: 'grid-2', how: { form: 'join', kind: 'inner', on: { rows: [{ left: 'customer_id', op: '==', right: 'id' }] }, prefix: 'their_', keep: null } } });
+    await settle();
+    assert.equal($<HTMLInputElement>('.dc-join-once-on').checked, false);
+  });
+
   it('asks nothing while a condition lacks a column, and says what it needs', async () => {
     const { asked } = open();
     await settle();

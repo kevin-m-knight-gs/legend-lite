@@ -599,8 +599,11 @@ const BUDGET = 408_500;
  *  383,500 -> 394,000 (2026-10-26, the timeseries branch, PR #74, merged into the flow branch: its own steps there,
  *  353,500 -> 363,000 -> 364,000 -- the grid-only page's note of the same date). Measured 393,657.
  *  394,000 -> 396,500 (2026-10-26, the flow mode review's fixes -- the grid-only page's note of the same date). Measured
- *  396,140. */
-const ENGINE_BUDGET = 396_500;
+ *  396,140.
+ *  396,500 -> 397,000 (2026-10-26, the flow mode's roadmap, C13: a join's one of theirs per key -- join.ts firstOfEach,
+ *  the engine page's at startup, and join-how.ts's reader of `once`; the Join window's checkbox lazy, no startup file
+ *  added). Measured 396,543. */
+const ENGINE_BUDGET = 397_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

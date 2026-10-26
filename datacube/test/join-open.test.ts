@@ -10,7 +10,7 @@ import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { typedByPlan } from '../../engine-client/src/engine.ts';
-import { readJoinHow, joinSummary, type JoinHow } from '../src/join.ts';
+import { joinRelation, joinRepeats, joinSummary, readJoinHow, summaryWords, type JoinHow } from '../src/join.ts';
 import { TAB_TABLES, eachRelation, leafRefusal, openInputs, openJoin, openRows, summaryCounts, type JoinOpening } from '../src/join-open.ts';
 import {
   leavesOf, rawRows, readCube, cubeToJson, writeCube, type CubeSource, type FileSource, type JoinInput, type JoinSource, type LeafSource,
@@ -119,6 +119,29 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const pairs = got['id']!.map((id, i) => `${String(id)}:${String(got['region']![i] ?? '-')}`).sort();
     assert.deepEqual(pairs, ['1:EMEA', '2:EMEA', '3:AMER', '3:APAC', '4:-', '5:-']);
     assert.deepEqual(opened.notes, []);
+  });
+
+  it("each of mine once (a join's once, C13): a key theirs repeats matches its first row -- the same every time -- and no row of mine repeats", async () => {
+    const once: JoinHow = { ...LEFT_ON_CUST, once: true };
+    const opened = await openJoin(join(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), once), opening(['trades', 'customers']));
+    assert.deepEqual(opened.columns.map((c) => c.name), ['id', 'cust', 'sym', 'at', 'qty', 'c_id', 'region']);
+    const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
+    // customer 20 twice (AMER, APAC): trade 3 once, with the first of its rows in an order of their other columns, rising
+    const pairs = got['id']!.map((id, i) => `${String(id)}:${String(got['region']![i] ?? '-')}`).sort();
+    assert.deepEqual(pairs, ['1:EMEA', '2:EMEA', '3:AMER', '4:-', '5:-']);
+    // the dialog's questions of it: as many rows after it as mine, its repeated key said matched once
+    const inputs = await openInputs(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), opening(['trades', 'customers']));
+    const p = plannerFor(inputs.model, inputs.runtime);
+    planners.push(p);
+    const counts = await summaryCounts(joinSummary(inputs.left, inputs.right, once), async (query) => engine.run((await p.plan(query)).sql, 0));
+    assert.deepEqual(counts, { mine: 5, matched: 3, joined: 5, repeated: { keys: 1, most: 2 } });
+    assert.match(summaryWords(once, counts).join(' '), /each row of mine with it takes the first of theirs, once/);
+    assert.equal(joinRepeats(once, counts), false);
+    // once is a key's: rows of equal keys alone, refused in words for any other condition
+    assert.throws(() => joinRelation(inputs.left, inputs.right, { ...once, on: { rows: [{ left: 'cust', op: '<', right: 'id' }] } }), /takes a key/);
+    assert.throws(() => readJoinHow({ ...once, on: { rows: [] } }), /takes a key/);
+    assert.throws(() => readJoinHow({ ...LEFT_ON_CUST, once: false }), /once is true or left out/);
+    assert.deepEqual(readJoinHow(JSON.parse(JSON.stringify(once))), once);
   });
 
   it('answers the dialog\'s questions: my rows, those with a match, the rows after it, their keys that repeat', async () => {

@@ -3964,6 +3964,8 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-join-remove { padding: 2px 0; font-size: 15px; line-height: 1; color: var(--tw-neutral-400); }
 .dc-join-remove:hover { color: var(--tw-red-600); }
 .dc-join-add { align-self: flex-start; padding: 3px 0; font-size: 12px; }
+.dc-join-once { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--tw-neutral-600); }
+.dc-join-once[hidden] { display: none; }
 .dc-join-pure-label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--tw-neutral-600); white-space: nowrap; }
 .dc-join-pure { min-height: 4.5em; font-family: var(--dc-mono, ui-monospace, monospace); font-size: 12px; }
 .dc-join-hint { margin: 0; font-size: 11px; color: var(--tw-neutral-500); }

@@ -54,7 +54,7 @@ interface JoinSession {
  * where it is seen, not in a window that may be closed.
  */
 async function asked(page: PageApp, ask: JoinAsk | undefined, s: JoinSession, words: { readonly lead?: string; readonly action?: string;
-  readonly how?: JoinHow; readonly form?: Choice; readonly op?: JoinOp } = {}): Promise<void> {
+  readonly how?: JoinHow; readonly form?: Choice; readonly op?: JoinOp; readonly once?: true } = {}): Promise<void> {
   const noted = (made: { readonly id: string; readonly notes: readonly string[] } | undefined, words: readonly string[]): void => {
     const text = [...words, ...(made?.notes ?? [])].join(' ');
     if (made !== undefined && text !== '') page.grid(made.id)?.note(text);
@@ -73,7 +73,7 @@ async function asked(page: PageApp, ask: JoinAsk | undefined, s: JoinSession, wo
     ...(ask?.quick !== undefined ? { form: ask.quick } : {}),
   };
   const begun = { ...start, ...(words.how !== undefined ? { how: words.how } : {}), ...(words.form !== undefined ? { form: words.form } : {}),
-    ...(words.op !== undefined ? { op: words.op } : {}) };
+    ...(words.op !== undefined ? { op: words.op } : {}), ...(words.once !== undefined ? { once: words.once } : {}) };
   await joinDialog(document, {
     mine: s.mine, others: s.others, inputs: (their) => s.inputs(their), parse: (text) => s.parse(text),
     summary: (their, how) => s.summary(their, how),
@@ -353,7 +353,8 @@ export async function flowJoin(o: FlowJoinOf): Promise<void> {
       // a Union's window starts at Append, an Append Fields' at Every pair; a box set again, at its own join
       ...(joined !== undefined ? { how: joined.how } : o.tool === 'union' ? { form: 'append' as const }
         : o.tool === 'appendFields' ? { form: 'cross' as const } : o.tool === 'fuzzyMatch' ? { form: 'inner' as const, op: '~' as const }
-          : o.tool === 'findReplace' ? { form: 'left' as const } : {}),
+          // a Find Replace is a lookup: each of mine with one of theirs at most (C13)
+          : o.tool === 'findReplace' ? { form: 'left' as const, once: true as const } : {}),
     });
   } finally {
     await opened.close();

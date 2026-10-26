@@ -5,13 +5,16 @@
 // No DOM, no planner: tested alone, and planned on DuckDB (test/join-open.test.ts).
 
 import {
-  agg, and, cast, collection, derive, eq, fn, from, ge, gt, lambda, le, lit, lt, ne, property, type, variable,
+  agg, and, asc, cast, collection, derive, eq, fn, from, ge, gt, lambda, le, lit, lt, ne, over, property, type, variable,
   type JoinKind, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
-import { plainType } from '../../engine-client/src/types.ts';
+import { familyOf, plainType } from '../../engine-client/src/types.ts';
 import { rowCountLambda } from './query.ts';
 import { CubeRefusal } from './snapshot.ts';
-import { isEveryPair, SIMILAR_WITHIN, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow, type JoinSide } from './join-how.ts';
+import { ORDERED } from './unique.ts';
+import {
+  isEveryPair, onceRefusal, SIMILAR_WITHIN, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow, type JoinSide,
+} from './join-how.ts';
 
 export * from './join-how.ts';
 export { joinWords, rowWords } from './join-words.ts';
@@ -64,6 +67,27 @@ function renamed(right: JoinSide, names: ReadonlyMap<string, string>): Relation 
   return rel;
 }
 
+/**
+ * Their rows cut to the first of each key (a join's `once`, C13): numbered within each key by the database -- in an order of
+ * their every other column that sorts, rising, so the first is the same every time (Unique's ties, C14) -- the first kept,
+ * its number dropped. A key that is empty is kept as it is: it matches nothing (rowTerm).
+ */
+function firstOfEach(right: JoinSide, keys: readonly string[]): JoinSide {
+  const names = new Set(right.columns.map((c) => c.name));
+  let number = 'OnceRow';
+  while (names.has(number)) number = `_${number}`;
+  const ties = right.columns.filter((c) => !keys.includes(c.name) && ORDERED.has(familyOf(c.type) ?? '')).map((c) => asc(c.name));
+  const relation = from(right.relation)
+    .extend(derive(number, lambda(['p', 'w', 'r'], fn('rowNumber', variable('p'), variable('r')))), over(keys, ties))
+    .filter(lambda(['x'], eq(property(variable('x'), number), lit.integer(1))))
+    .select(right.columns.map((c) => c.name))
+    .node;
+  return { ...right, relation };
+}
+
+/** Their columns a join's one of theirs is keyed by (`once`): their side of its `==` rows, each once, in order. */
+const onceKeys = (on: JoinCondition): string[] => ('rows' in on ? [...new Set(on.rows.map((r) => r.right))] : []);
+
 /** A semi- or anti-join: my rows that have (or have not) a row of theirs the condition pairs mine with. */
 function semi(left: JoinSide, theirs: Relation, condition: Lambda, keep: 'isNotEmpty' | 'isEmpty'): Relation {
   const [a, b] = rowsOf(condition);
@@ -95,7 +119,10 @@ export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow, more
     case 'asOf': {
       const names = theirNames(mine, right.columns.map((c) => c.name), how.prefix);
       const named = (c: string): string => names.get(c) ?? c;
-      const theirs = renamed(right, names);
+      // one of theirs for each of mine: their rows cut to the first of each key before they are named and joined
+      const why = onceRefusal(how);
+      if (why !== undefined) throw new CubeRefusal(why);
+      const theirs = renamed(how.form === 'join' && how.once === true ? firstOfEach(right, onceKeys(how.on)) : right, names);
       let joined: Relation;
       if (how.form === 'join') {
         joined = from(left.relation).join(theirs, KIND[how.kind], conditionLambda(how.on, named));
@@ -268,8 +295,10 @@ export function summaryWords(how: JoinHow, c: JoinSummaryCounts): string[] {
           ? `${plural(joined, 'row')} after it, theirs with no match of mine among them.`
           : `${plural(joined, 'row')} after it.`);
       if (c.repeated && c.repeated.keys > 0) {
-        out.push(`${plural(c.repeated.keys, 'key')} of theirs ${c.repeated.keys === 1 ? 'appears' : 'appear'} more than once (at most ${c.repeated.most} times): `
-          + 'the rows of mine with it repeat, and totals count them again.');
+        const more = `${plural(c.repeated.keys, 'key')} of theirs ${c.repeated.keys === 1 ? 'appears' : 'appear'} more than once (at most ${c.repeated.most} times): `;
+        out.push(more + (how.once === true
+          ? 'each row of mine with it takes the first of theirs, once.'
+          : 'the rows of mine with it repeat, and totals count them again.'));
       }
       return out;
     }

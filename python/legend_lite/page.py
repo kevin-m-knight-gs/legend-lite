@@ -2557,7 +2557,8 @@ class Page:
         makes one: each grid's rows at their finest level, as each is now, combined as ``how`` says -- DataCube's own
         join (join-how.ts), read strictly: ``{'form': 'join', 'kind': 'inner' | 'left' | 'right' | 'full', 'on':
         {'rows': [{'left': 'customer_id', 'op': '==', 'right': 'id'}]}, 'prefix': 'their_', 'keep': None}`` (``keep``,
-        the columns of theirs to keep, every one when None), ``{'form': 'semi' | 'anti', 'on': ...}``, ``{'form':
+        the columns of theirs to keep, every one when None; ``'once': True``, each row of mine with the first of theirs
+        of its key at most, the condition rows of ``==`` alone), ``{'form': 'semi' | 'anti', 'on': ...}``, ``{'form':
         'asOf', 'match': {...}, 'on': ..., 'prefix', 'keep'}`` or ``{'form': 'append'}``. Written by DataCube (headless
         joinCube) over the frames the two read, judged by the compiler -- a refusal in its words, the page as it was --
         and added beside ``mine`` on its sheet -- or at the bottom of ``sheet``, given -- by the page command every grid is
@@ -2655,9 +2656,11 @@ class Page:
         """Each row's ``column`` of ``mine`` found among ``theirs``' ``find`` and replaced by their ``replace`` -- a flow's
         Find Replace (Alteryx's): every row of mine joined to theirs on ``column`` equal to ``find``, their ``replace``
         alone brought over (page.join), then ``column`` handed on as their value where one was found, its own where none
-        was, theirs left out (DataCube's code: find-replace.ts findReplaceCommands). The database joins and chooses."""
+        was, theirs left out (DataCube's code: find-replace.ts findReplaceCommands). A ``find`` theirs repeats matches its
+        first row only (in an order of their other columns, rising): each row of mine stays once (the join's ``once``). The
+        database joins and chooses."""
         joined = self.join(mine, theirs, {'form': 'join', 'kind': 'left', 'on': {'rows': [{'left': column, 'op': '==', 'right': find}]},
-                                          'prefix': prefix, 'keep': [replace]}, title=title, sheet=sheet, live=live)
+                                          'prefix': prefix, 'keep': [replace], 'once': True}, title=title, sheet=sheet, live=live)
         # their column as the join brings it out: the last, prefixed where a column of mine has its name
         brought = joined._cube['query']['columns'][-1]['name']
         return joined._preset({'kind': 'findReplace', 'column': column, 'with': brought})
