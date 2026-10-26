@@ -156,7 +156,7 @@ export interface RowColumn {
  *  reads the cube's shape alone needs (chart-spec.ts followCube). */
 export type CubeShape = Omit<CubeSnapshot, 'source'>;
 
-export function rowColumns(s: CubeShape): RowColumn[] {
+export function rowColumns(s: Pick<CubeShape, 'columns' | 'derived'>): RowColumn[] {
   return [
     ...s.columns.map((c): RowColumn => ({
       name: c.name,

@@ -338,8 +338,21 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  not done here). Measured 364,289.
  *  365,000 -> 365,500 (2026-10-25, a chart's options as a window beside its chart, kept on the screen and fitted to its
  *  form (ui/window.ts besideWindow, onScreen, moveWindow; ui/chart-panel.ts openForm, #fit) -- the window itself comes
- *  with the chart panel, the form and its segmented choices stay the options form's chunk). Measured 365,218. */
-const BUDGET = 365_500;
+ *  with the chart panel, the form and its segmented choices stay the options form's chunk). Measured 365,218.
+ *  365,500 -> 375,000 (2026-10-26, main merged into the timeseries branch, its own steps there 355,500 -> 363,500 ->
+ *  365,000: the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7-§9 -- a timeseries view read, written,
+ *  merged and told (its spec's reader and its functions' signatures alone: timeseries-spec.ts; page-document,
+ *  page-commands, page-rebase, page-between), its tile placed, synced, restored, removed and exported on the board,
+ *  Create ▸ Timeseries, the wiring that reads grids together (on the tab and on a host's page), the markets and rates
+ *  samples and the Markets example's entry, its expression language, queries, drawing and viewer chunks of their own
+ *  (the budget of their own below) -- then the timeseries review's G4, docs/TIMESERIES_REVIEW_2026_10_25.md, the owner's
+ *  decision 4: a removed grid's cube kept while a timeseries reads it (page-document.ts readsCube, page-commands.ts
+ *  `kept`, page-between, page-rebase, page-state, cube-page)). Measured 374,503.
+ *  375,000 -> 376,000 (2026-10-26, the second audit's A-B1 and a timeseries' states, the user's ask: the one rule of the
+ *  cubes a page holds (page-document.ts cubesRead, cubesHeld, a page written out refused without one) and the timeseries
+ *  tile's state button in its header -- Dynamic, Frozen, Detached, in a chart's words -- with the reader of what a frozen
+ *  source keeps (timeseries-spec.ts)). Measured 375,280. */
+const BUDGET = 376_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -459,8 +472,12 @@ const BUDGET = 365_500;
  *  349,500 -> 353,000 (2026-10-25, files in a text box and the branch's deep audit's fixes -- the grid-only page's note
  *  of the same date). Measured 352,353.
  *  353,000 -> 353,500 (2026-10-25, a chart's options as a window beside its chart, kept on the screen and fitted to its
- *  form -- the grid-only page's note of the same date). Measured 353,248. */
-const ENGINE_BUDGET = 353_500;
+ *  form -- the grid-only page's note of the same date). Measured 353,248.
+ *  353,500 -> 363,000 (2026-10-26, main merged into the timeseries branch, its own steps there 344,000 -> 352,000 ->
+ *  353,500: the timeseries tile and the review's G4 -- the grid-only page's note of the same date). Measured 362,623.
+ *  363,000 -> 364,000 (2026-10-26, the one rule of the cubes a page holds and a timeseries' states -- the grid-only
+ *  page's note of the same date). Measured 363,399. */
+const ENGINE_BUDGET = 364_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -487,8 +504,36 @@ const ENGINE_BUDGET = 353_500;
  *  301,000 -> 303,000 (2026-10-18, chart batch 5, the roadmap run's phase 6): the ECharts code a first chart shares with
  *  the maps' chunk is a file of its own (three files compress less well than two), and the drawing grew with batches 4
  *  and 5's words; the measure counts only the chunks a first chart fetches (one only batch 3's kinds and the maps share
- *  is theirs). Measured 302,497. */
-const CHART_BUDGET = 303_000;
+ *  is theirs). Measured 302,497.
+ *  303,000 -> 303,500 (2026-10-25, the timeseries tile): the charts' ECharts handed to a timeseries tile's drawing
+ *  (chart-render.ts canvasChart), so the two share one build of it and a first chart's fetch is otherwise as it was.
+ *  Measured 303,007. */
+const CHART_BUDGET = 303_500;
+
+/** What a first timeseries tile fetches beyond the page's startup and a first chart's (the charts' ECharts, which it
+ *  draws over): its expression language (timeseries-expr.ts), its queries and its drawing (timeseries-query.ts,
+ *  timeseries-option.ts), its viewer (ui/timeseries-view.ts) and its renderer (timeseries-render.ts). Set 2026-10-25 at
+ *  its first measure (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md), 29,593, with room for its next functions.
+ *  31,000 -> 33,000 (2026-10-25, candles: ohlc's words, its query, its drawing and hover, and a candle of a column made by
+ *  the series editor -- the candlestick chart itself with the rarer kinds, above). Measured 31,228.
+ *  33,000 -> 34,500 (2026-10-25, the review's fixes, docs/TIMESERIES_REVIEW_2026_10_25.md: the query compiler written
+ *  part by part, each operand on its own dates (Q1), the periods a year inferred (Q3), levels apart from units (Q2);
+ *  the tile's edits one rule, timeseries-edit.ts, which Python asks too (A2) -- the headroom kept to ~2% where it was
+ *  5.7%, as the review's G8 asked). Measured 33,858.
+ *  34,500 -> 35,000 (2026-10-26, the second audit's fixes (a level shifted by a number no level: timeseries-expr.ts
+ *  levelOf) and a timeseries frozen: the filter each source keeps read by every query (timeseries-query.ts, filterRead),
+ *  the viewer's setState). Measured 34,547.
+ *  35,000 -> 35,500 (2026-10-26, the second audit's numbers: a range's start the value as of it (S3), an operand of one
+ *  instrument unsplit (S2), prices from initial (S5), a combination's periods a year (S4), compare over its start's size
+ *  and no returns' figures at or below zero (S1); and its silent gaps said -- a split line of no frequency, a level at or
+ *  below zero off a log axis, the statistics' blanks (P-2)). Measured 35,157.
+ *  35,500 -> 36,000 (2026-10-26, the second audit's one-API fixes: one judge of a change for the viewer and Python
+ *  (timeseries-edit.ts judgedEdit), the rows' notes one rule for the drawing and Python's frame (timeseries-query.ts
+ *  seriesNotes), the catalog's ramp and beta said where they differ, a tick never "-0"). Measured 35,705.
+ *  36,000 -> 36,900 (2026-10-26, the tile in PR #73's design, the user's ask: its series editor and Settings a window
+ *  beside it among the page's windows (ui/timeseries-view.ts #open over ui/window.ts, which the charts' chunk already
+ *  brings), its Properties for its right-click -- the headroom ~2%, as the review's G8 asked). Measured 36,189. */
+const TIMESERIES_BUDGET = 36_900;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -502,8 +547,11 @@ const isKinds = (file: string): boolean => /[\\/]chart-(?:render-)?kinds-[^\\/]+
  *  unminified, the same tree 95,848.
  *  66,000 -> 68,000 (2026-10-18, the roadmap run's phases 5-7: the box plot, the click's period end on these kinds,
  *  batch 3's leftovers -- a Marimekko, a waffle, a Gantt -- and ECharts code these kinds share only with the maps,
- *  counted here since phase 6's audit). Measured 66,807. */
-const KINDS_BUDGET = 68_000;
+ *  counted here since phase 6's audit). Measured 66,807.
+ *  68,000 -> 70,000 (2026-10-25, the timeseries tile's candles, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md):
+ *  ECharts' candlestick registered with these rarer charts, fetched by a timeseries tile when it first draws candles, so
+ *  neither a first chart nor a first timeseries carries it. Measured 69,759. */
+const KINDS_BUDGET = 70_000;
 
 const isMaps = (file: string): boolean => /[\\/]chart-(?:render-)?maps-[^\\/]+\.js$/.test(file);
 /** Set 2026-10-18 at its first measure (chart batch 5, the roadmap run's phase 6), 75,526: the drawing with the world's
@@ -633,8 +681,12 @@ const EXAMPLE_BUDGET = 4_000;
  *  besideWindow, makeWindow's viewport), and its fields in the Properties window's design: the window's and the form's
  *  styles, in this module's styles; the segmented control itself is the options form's own chunk). Measured 373,706.
  *  374,000 -> 374,500 (2026-10-25, the options window in two columns where there is room and fitted to its form, its
- *  rarer sections folded to start -- the grid-only page's note of the same date). Measured 374,134. */
-const WIDGET_BUDGET = 374_500;
+ *  rarer sections folded to start -- the grid-only page's note of the same date). Measured 374,134.
+ *  374,500 -> 385,000 (2026-10-26, main merged into the timeseries branch, its own steps there 363,000 -> 372,000 ->
+ *  373,500: the timeseries tile and the review's G4 -- the grid-only page's note of the same date). Measured 384,453.
+ *  385,000 -> 386,000 (2026-10-26, the one rule of the cubes a page holds and a timeseries' states -- the grid-only
+ *  page's note of the same date). Measured 385,234. */
+const WIDGET_BUDGET = 386_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
@@ -669,6 +721,26 @@ describe('the page loads ECharts only when a chart draws', () => {
     assert.ok(chart.length >= 1, 'the chart\'s chunks are found');
     const size = chart.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= CHART_BUDGET, `a first chart fetches ${size.toLocaleString()} bytes gzipped, over its budget of ${CHART_BUDGET.toLocaleString()}`);
+  });
+
+  it(`a first timeseries tile fetches at most ${TIMESERIES_BUDGET.toLocaleString()} bytes more than the startup and a first chart, gzipped`, () => {
+    // its viewer and its renderer, and what they import statically: none of it at startup, and the charts' ECharts its own
+    const at = new Set(startup());
+    const chart = firstChart();
+    for (const f of at) assert.ok(!holds(f, 'src/ui/timeseries-view.ts') && !holds(f, 'src/timeseries-expr.ts') && !holds(f, 'src/timeseries-query.ts'),
+      `${f} carries the timeseries viewer`);
+    const fetched = new Set<string>();
+    const visit = (f: string): void => {
+      if (fetched.has(f)) return;
+      fetched.add(f);
+      for (const s of PAGE.get(f)?.statics ?? []) visit(s);
+    };
+    chunksOf().filter((f) => holds(f, 'src/ui/timeseries-view.ts') || holds(f, 'src/timeseries-render.ts')).forEach(visit);
+    for (const f of fetched) assert.ok(!holds(f, 'echarts') || chart.has(f), `${f}: ECharts a first chart does not fetch`);
+    const own = [...fetched].filter((f) => !at.has(f) && !chart.has(f));
+    assert.ok(own.length >= 2, 'the timeseries chunks are found');
+    const size = own.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
+    assert.ok(size <= TIMESERIES_BUDGET, `a first timeseries fetches ${size.toLocaleString()} bytes gzipped, over its budget of ${TIMESERIES_BUDGET.toLocaleString()}`);
   });
 
   it(`batch 3's kinds are chunks of their own, fetched with the first of them: at most ${KINDS_BUDGET.toLocaleString()} bytes more`, () => {

@@ -62,6 +62,8 @@ function over(page: PageDocument, sourceOf: (id: string) => CubeSource | undefin
     sides: async (p, mine, theirs) => { pages.push(p); asked.push(`sides ${mine} ${theirs}`); return { left: MINE, right: THEIRS, notes: [] }; },
     questions: async (p, mine, theirs, how) => { pages.push(p); asked.push(`questions ${mine} ${theirs} ${how.form}`); return counts; },
     cube: async (p, mine, theirs, how, sheet) => { pages.push(p); asked.push(`cube ${mine} ${theirs} ${how.form} ${sheet}`); return MADE; },
+    // a timeseries' grids read together: no join of the window's asks it
+    together: async () => { throw new Error('no timeseries here'); },
   };
   const app = {
     title: page.name,

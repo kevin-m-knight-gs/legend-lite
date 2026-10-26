@@ -15,10 +15,10 @@ GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'sorts', 'addSort', 'clearSort'
                                'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate', 'editCalculated',
                                'removeCalculated', 'open', 'collapseAll', 'expandAll', 'topN', 'tree',)
 PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet',
-                               'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText', 'setTextFiles',
-                               'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout',
-                               'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto', 'modelPin',
-                               'modelKeep',)
+                               'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText', 'addTimeseries',
+                               'setTimeseries', 'setTextFiles', 'followGrid', 'detach', 'select', 'moveTile', 'stack',
+                               'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live',
+                               'rebuilt', 'modelInto', 'modelPin', 'modelKeep',)
 
 
 def grid_group(*, rows: Any) -> dict[str, Any]:
@@ -154,6 +154,16 @@ def page_add_text(*, id: Any = _ABSENT, sheet: Any, text: Any, title: Any, colum
 
 def page_set_text(*, tile: Any, text: Any) -> dict[str, Any]:
     return {'kind': 'setText', 'tile': tile, 'text': text}
+
+
+def page_add_timeseries(*, id: Any = _ABSENT, sheet: Any, near: Any, spec: Any, title: Any, columns: Any,
+                        kept: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'addTimeseries', **({} if id is _ABSENT else {'id': id}), 'sheet': sheet, 'near': near,
+            'spec': spec, 'title': title, 'columns': columns, **({} if kept is _ABSENT else {'kept': kept})}
+
+
+def page_set_timeseries(*, tile: Any, spec: Any, kept: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'setTimeseries', 'tile': tile, 'spec': spec, **({} if kept is _ABSENT else {'kept': kept})}
 
 
 def page_set_text_files(*, tile: Any, files: Any) -> dict[str, Any]:

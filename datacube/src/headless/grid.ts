@@ -10,6 +10,8 @@
 // Each call opens the grid afresh from the cube document it is given: the document is the grid's state, Python's
 // page keeps it, and nothing here holds a grid between calls.
 
+import { readsAnchor, seriesQuery, seriesSources, type TsInputs, type TsWindow } from '../timeseries-query.ts';
+import { answerOf, Problem, seriesOf } from './timeseries.ts';
 import { snapRefusal } from '../../../engine-client/src/snap.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
@@ -1122,6 +1124,36 @@ export async function gridRelation(spec: GridSpec): Promise<string> {
     const rows = classLambda(state.snapshot);
     return planner.compose(planner.sent(lens ? lens(rows) : rows), 'STANDARD');
   });
+}
+
+/**
+ * A TIMESERIES' SERIES OF ONE GRID, AS THE GRID READS IT (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5; the review's
+ * P1): `spec` the grid over its base as every grid call has it -- its copy, snapped (baseOnHost); a class's mapping; the
+ * page's filters on it (its lens) -- and `asked` (JSON `{page, tile, series, window}`) the series of a tile of the page.
+ * Its query written over the grid as the grid is (timeseries-query.ts seriesQuery, every point of the window: the
+ * drawing's limit is the drawing's), through the page's filters, composed as it is sent to be planned, as gridRelation
+ * is -- what the tab's viewer reads through the grid's own runner. JSON: `{query, columns, unit, band, candles, split,
+ * name}`, the query Pure text, or `{problems}`, in DataCube's words.
+ */
+export async function gridTimeseries(spec: GridSpec, asked: string): Promise<string> {
+  try {
+    return await using(spec, async ({ planner, lens, state }) => {
+      const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series: string; readonly window?: TsWindow };
+      const { ts, series } = seriesOf(readPage(a.page, { empty: true }), a.tile, a.series);
+      const aliases = seriesSources(ts, series);
+      if (aliases.length !== 1) {
+        throw new Problem(`series ${series.id} reads ${aliases.length} grids: it is read over their tables together (timeseriesQuery)`);
+      }
+      const inputs: TsInputs = new Map([[aliases[0]!, { snapshot: state.snapshot, filter: state.snapshot.filter }]]);
+      const window = a.window ?? {};
+      const q = seriesQuery(inputs, ts, series, readsAnchor(ts, series) && window.from !== undefined ? { from: window.from } : {}, window, null);
+      const text = await planner.compose(planner.sent(lens ? lens(q.query) : q.query), 'STANDARD');
+      return `{"query":${JSON.stringify(text)},${answerOf(q, series)}}`;
+    });
+  } catch (e) {
+    if (e instanceof Problem || e instanceof CubeRefusal) return JSON.stringify({ problems: [e.message] });
+    throw e;
+  }
 }
 
 /**

@@ -89,6 +89,7 @@ test_suite(
         "//tools/guards:host_sql_test",
         "//python:host_sql_test",
         "//tools/browser:revision_test",
+        "//tools/browser:proxy_args_test",
         "//tools/bump:bump_test",
         "//tools/java_run:pins_test",
         "//tools/js:lock_matches_package_json_test",

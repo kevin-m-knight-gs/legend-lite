@@ -14,11 +14,11 @@ import {
   readPageCommand, followedPage, opensAgain, rebuiltCommands,
   type PageCommand, type PageDraft,
 } from '../src/page-commands.ts';
-import { gridCopyOf, modelAcross, openedLive, pageToJson, readPage, unnamedLabel, type ChartView, type PageDocument } from '../src/page-document.ts';
+import { gridCopyOf, modelAcross, openedLive, pageToJson, readPage, readsCube, unnamedLabel, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { cubeOpensAgain } from '../src/headless/page.ts';
 import { CubeRefusal, withoutConditions, type FilterNode } from '../src/snapshot.ts';
 import { PageModel } from '../src/page-model.ts';
-import { rebaseEdits, withCube } from '../src/page-rebase.ts';
+import { rebaseEdits, renamedCommand as rebaseCommand, withCube } from '../src/page-rebase.ts';
 import { corpus } from './fixtures/pages/make.ts';
 
 // the saved-page corpus's frame page: grids grid and grid-2, chart (following grid) stacked with chart-2 (frozen, of
@@ -242,6 +242,105 @@ describe('a text tile: added, its words set, titled, moved and removed by the pa
   });
 });
 
+describe('a timeseries tile: added, its spec set, titled and removed by the page commands (timeseries-spec.ts)', () => {
+  // two of the corpus page's grids as its sources (a grid's id is its cube's)
+  const SPEC = {
+    sources: [
+      { alias: 'trades', cube: 'grid', date: 'tradeDate', key: 'desk' },
+      { alias: 'other', cube: 'grid-2', date: 'tradeDate' },
+    ],
+    series: [{ id: 'A', expr: { kind: 'column' as const, column: 'notional' }, split: 'desk' }],
+  };
+  const add = (more: Partial<Extract<PageCommand, { kind: 'addTimeseries' }>> = {}): Extract<PageCommand, { kind: 'addTimeseries' }> => ({
+    kind: 'addTimeseries', sheet: 'sheet-1', near: null, spec: SPEC, title: null, columns: null, ...more,
+  });
+
+  it('added at its sheet\'s bottom or under the tile it came from, numbered; its spec set whole; saved and read back', () => {
+    const made = applyPageCommand(draft(), add());
+    assert.equal((made.command as { id: string }).id, 'timeseries-1');
+    const page = made.draft.page;
+    assert.deepEqual(view(page, 'timeseries-1'), { id: 'timeseries-1', kind: 'timeseries', spec: SPEC });
+    assert.equal(tiles(sheet(page, 'sheet-1').layout).at(-1), 'timeseries-1', 'a band of its own at the bottom');
+    assert.equal(page.views.at(-1)?.id, 'timeseries-1', 'last, as the screen writes them');
+    const near = applyPageCommand(draft(), add({ near: 'grid' })).draft.page;
+    assert.ok(tiles(sheet(near, 'sheet-1').layout).includes('timeseries-1'), 'under its grid');
+    const set = apply({ kind: 'setTimeseries', tile: 'timeseries-1', spec: { ...SPEC, grain: 'month', range: { last: '1y' } } }, made.draft).page;
+    assert.equal((view(set, 'timeseries-1') as { spec: { grain?: string } }).spec.grain, 'month');
+    assert.deepEqual(readPage(JSON.parse(JSON.stringify(pageToJson(set)))).views.find((v) => v.id === 'timeseries-1'), view(set, 'timeseries-1'));
+    const titled = apply({ kind: 'renameTile', tile: 'timeseries-1', title: 'Rates vs equities' }, made.draft).page;
+    assert.equal((view(titled, 'timeseries-1') as { title?: string }).title, 'Rates vs equities');
+    assert.equal((view(apply({ kind: 'renameTile', tile: 'timeseries-1', title: 'Timeseries 1' }, made.draft).page, 'timeseries-1') as { title?: string }).title, undefined);
+    const gone = apply({ kind: 'removeTile', tile: 'timeseries-1' }, made.draft).page;
+    assert.equal(view(gone, 'timeseries-1'), undefined);
+    assert.deepEqual(gone.cubes.map((c) => c.id), trades.cubes.map((c) => c.id), 'it kept no cube');
+  });
+
+  it('a grid it reads removed: the tile keeps the source as it was, and its spec is still set (an undo brings the grid back)', () => {
+    const made = applyPageCommand(draft(), add()).draft;
+    const without = apply({ kind: 'removeTile', tile: 'grid-2' }, made);
+    const tile = view(without.page, 'timeseries-1') as unknown as { spec: typeof SPEC };
+    assert.deepEqual(tile.spec.sources.map((x) => x.cube), ['grid', 'grid-2']);
+    apply({ kind: 'setTimeseries', tile: 'timeseries-1', spec: { ...SPEC, view: { stats: true } } }, without);
+    // its cube kept while the tile reads it, as a frozen chart's is (the review's G4: it went with its grid, and the page
+    // reopened read a cube it no longer held) -- saved so and read back; the tile removed, the cube goes with it
+    assert.ok(without.page.cubes.some((c) => c.id === 'grid-2'), 'the removed grid\'s cube kept for the tile');
+    assert.ok(readPage(JSON.parse(JSON.stringify(pageToJson(without.page)))).views.some((v) => v.id === 'timeseries-1'));
+    // the tile removed: kept while any view still reads it (a frozen chart of it, on this page), let go with the last
+    const after = apply({ kind: 'removeTile', tile: 'timeseries-1' }, without).page;
+    assert.equal(after.cubes.some((c) => c.id === 'grid-2'), after.views.some((v) => readsCube(v, 'grid-2')));
+    const charts = after.views.filter((v) => readsCube(v, 'grid-2')).map((v) => v.id);
+    const last = charts.reduce((p, id) => apply({ kind: 'removeTile', tile: id }, { page: p, held: idsOf(p) }).page, after);
+    assert.ok(!last.cubes.some((c) => c.id === 'grid-2'), 'let go with the last view that read it');
+    // a saved page whose timeseries reads a cube it does not hold is refused by name, as a chart's is
+    const json = JSON.parse(pageToJson(without.page)) as { cubes: { id: string }[]; views: { id: string; cube?: string }[] };
+    json.cubes = json.cubes.filter((c) => c.id !== 'grid-2');
+    json.views = json.views.filter((v) => v.cube !== 'grid-2');
+    assert.throws(() => readPage(JSON.stringify(json)), /timeseries timeseries-1's source other reads grid-2, which is no cube of this page/);
+  });
+
+  // the review's G4: the undo of a tile's removal, its grid removed before it -- the cube it read went with it, and the
+  // page the undo made read a cube it no longer held; the command carries the cube, as detach carries a chart's
+  it('a tile brought back with the cube it kept: made under its id as the page held it, its copy too; refused in words', () => {
+    const made = applyPageCommand(draft(), add()).draft;
+    const kept = apply({ kind: 'removeTile', tile: 'grid-2' }, made);
+    const document = kept.page.cubes.find((c) => c.id === 'grid-2')!.cube;
+    const gone = apply({ kind: 'removeTile', tile: 'timeseries-1' }, kept);
+    const charts = gone.page.views.filter((v) => readsCube(v, 'grid-2')).map((v) => v.id);
+    const bare = charts.reduce((d, id) => apply({ kind: 'removeTile', tile: id }, d), gone);
+    assert.ok(!bare.page.cubes.some((c) => c.id === 'grid-2'), 'let go with the last view that read it');
+    refused(() => apply(add(), bare), /source other reads 'grid-2', which is no cube of the page/);
+    const back = apply(add({ kept: [{ cube: 'grid-2', document, copy: SNAP }] }), bare);
+    assert.deepEqual(back.page.cubes.find((c) => c.id === 'grid-2')?.cube, document, 'the cube as the page held it');
+    assert.deepEqual(back.page.copies?.['grid-2'], SNAP, 'reading the copy it read');
+    assert.ok(readPage(JSON.parse(JSON.stringify(pageToJson(back.page)))).views.some((v) => v.id === back.page.views.at(-1)!.id));
+    // re-pointed at a grid: the cube kept for it alone let go, as a removal lets it go; its copy with it
+    const repointed = apply({ kind: 'setTimeseries', tile: back.page.views.at(-1)!.id, spec: { ...SPEC, sources: [SPEC.sources[0]!] } }, back).page;
+    assert.ok(!repointed.cubes.some((c) => c.id === 'grid-2') && repointed.copies?.['grid-2'] === undefined);
+    refused(() => apply(add({ kept: [{ cube: 'grid-7', document, copy: null }] }), bare), /no source of the timeseries reads grid-7/);
+    refused(() => apply(add({ kept: [{ cube: 'grid', document, copy: null }] }), made), /a grid shows grid: its cube is the grid's/);
+    refused(() => apply(add({ spec: { ...SPEC, sources: [{ alias: 'x', cube: 'sheet-1', date: 'd' }] }, kept: [{ cube: 'sheet-1', document, copy: null }] })),
+      /'sheet-1' is a tile or a sheet of the page, not a cube/);
+    refused(() => readPageCommand({ ...add(), kept: [{ cube: 'grid-2', document }] }), /says the copy it reads, or null/);
+    refused(() => readPageCommand({ ...add(), kept: [{ cube: 'grid-2', document, copy: null, rows: 3 }] }), /a kept cube takes cube, document, copy, not rows/);
+  });
+
+  it('refused in words: a source no grid shows, a spec of a word it does not know, a chart set as a timeseries', () => {
+    refused(() => apply(add({ spec: { ...SPEC, sources: [{ alias: 'x', cube: 'nowhere', date: 'd' }] } })), /source x reads 'nowhere', which is no cube of the page/);
+    refused(() => apply(add({ spec: { ...SPEC, grain: 'hour' } as never })), /frequency "hour"/);
+    refused(() => apply(add({ spec: { ...SPEC, series: [{ id: 'A', expr: { kind: 'call', fn: 'macd', args: [] } }] } as never })), /calls "macd", which this DataCube does not compute/);
+    refused(() => apply(add({ sheet: 'sheet-9' })), /'sheet-9' is not a sheet of the page/);
+    refused(() => apply(add({ near: 'grid-2' })), /'grid-2' is not on sheet-1/);
+    refused(() => apply({ kind: 'setTimeseries', tile: 'chart', spec: SPEC }), /'chart' is a chart, not a timeseries tile/);
+    refused(() => readPageCommand({ kind: 'setTimeseries', tile: 'timeseries-1', spec: 'x' }), /a timeseries' spec is an object/);
+  });
+
+  it('a step of another editor\'s renamed onto this page: the cubes its sources read follow', () => {
+    const renamed = new Map([['grid-2', 'grid-7']]);
+    const moved = rebaseCommand(add(), renamed) as Extract<PageCommand, { kind: 'addTimeseries' }>;
+    assert.deepEqual(moved.spec.sources.map((x) => x.cube), ['grid', 'grid-7']);
+  });
+});
+
 describe("a grid of the page as a join reads it, the tab's Join… and Python's alike (joinInputOf: Z9)", () => {
   it('its cube as the page has it, under the title a person gave its tile, else what it reads; a chart refused', () => {
     const grid = trades.cubes.find((c) => c.id === 'grid-2')!.cube;
@@ -317,6 +416,15 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'addChart', near: 'grid', spec, title: 'T', columns: null },
     { kind: 'setChart', chart: 'chart', spec },
     { kind: 'addText', id: 'text-1', sheet: 'sheet-1', text: '# Sales', title: null, columns: null },
+    {
+      kind: 'addTimeseries', id: 'timeseries-1', sheet: 'sheet-1', near: 'grid', title: null, columns: null,
+      spec: { sources: [{ alias: 'trades', cube: 'grid', date: 'tradeDate' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] },
+    },
+    { kind: 'setTimeseries', tile: 'timeseries-1', spec: { sources: [{ alias: 'trades', cube: 'grid', date: 'tradeDate' }], series: [] } },
+    {
+      kind: 'setTimeseries', tile: 'timeseries-1', spec: { sources: [{ alias: 'trades', cube: 'grid-9', date: 'tradeDate' }], series: [] },
+      kept: [{ cube: 'grid-9', document: trades.cubes[0]!.cube, copy: null }, { cube: 'grid-8', document: trades.cubes[0]!.cube, copy: SNAP }],
+    },
     { kind: 'setText', tile: 'text-1', text: 'Up **3%**' },
     { kind: 'setTextFiles', tile: 'text-1', files: [{ name: 'plan.md', size: 120, sha256: 'a'.repeat(64) }] },
     { kind: 'followGrid', chart: 'chart', grid: 'grid-2' },

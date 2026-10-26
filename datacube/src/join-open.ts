@@ -98,13 +98,45 @@ function reconciled(how: JoinHow, right: JoinSide, notes: string[]): JoinHow {
 }
 
 /**
- * THE TWO INPUTS OF A JOIN over one model: each leaf's table of the host's database declared once (a table read twice is
- * one table), each input its cube's rows at their finest level over its source -- refused in words when a leaf is read
- * elsewhere (leafRefusal) or an input is pivoted (its columns are its values).
+ * A SNAPPED GRID'S COPY, as a combination reads it (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2; the owner,
+ * 2026-10-25: "can be snapped into duckdb wasm as a grid snap too if from different sources"): a table of this database
+ * the snap copied the grid's base into -- one leaf, read as its table is, in its grid's place (the review's P3: a
+ * combination read the grid live).
  */
-export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpening): Promise<OpenedInputs> {
-  const leaves = [...leavesOf(left.source), ...leavesOf(right.source)];
+export interface CopyTable {
+  readonly _type: 'copy';
+  readonly table: string;
+}
+
+/** What a combination opens over one model: a grid's source, or its snapped copy's table. */
+export type OpenedSource = CubeSource | CopyTable;
+
+/** A source's leaves in order: a copy is its table's one. */
+const leavesOfOpened = (s: OpenedSource): readonly (LeafSource | CopyTable)[] => (s._type === 'copy' ? [s] : leavesOf(s));
+
+/** Sources over one model as they are opened: the model, how a relation over it is typed, and each source's relation. */
+interface OneModel {
+  readonly model: string;
+  readonly runtime: string;
+  readonly typer: RelationTyper;
+  readonly notes: string[];
+  /** A source's relation over the model: a table's (a copy's too), or a join of its inputs (each opened as `side`). Asked
+   *  in order. */
+  relation(s: OpenedSource): Promise<ValueSpecification>;
+  /** An input as a join's side: its cube's rows at their finest level over its source. Asked in order. */
+  side(input: JoinInput): Promise<JoinSide>;
+}
+
+/**
+ * SOURCES OVER ONE MODEL: each leaf's table of the host's database declared once (a table read twice is one table) --
+ * refused in words when a leaf is read elsewhere (leafRefusal) -- and each source, asked IN ORDER (the tables are
+ * `o.tables` in leavesOf's order), its relation over the model.
+ */
+async function oneModel(sources: readonly OpenedSource[], o: JoinOpening): Promise<OneModel> {
+  const leaves = sources.flatMap(leavesOfOpened);
   for (const leaf of leaves) {
+    // a copy is a table of this database by what made it: nothing elsewhere to refuse
+    if (leaf._type === 'copy') continue;
     const why = leafRefusal(leaf, o.here);
     if (why !== undefined) throw new CubeRefusal(why);
   }
@@ -114,7 +146,8 @@ export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpeni
   const distinct = [...new Set(o.tables)];
   const written = await o.models.tablesModel(await Promise.all(distinct.map(async (table) => ({
     table,
-    // as each one's own model reads it: an upload rewritten at ingest and a frame convert, a remote file's view cannot
+    // as each one's own model reads it: an upload rewritten at ingest, a frame and a snap's copy convert, a remote file's
+    // view cannot
     convertible: leaves[o.tables.indexOf(table)]!._type !== 'remoteFile',
     columns: await o.catalog(table),
   }))), o.databaseType);
@@ -123,7 +156,7 @@ export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpeni
   const notes: string[] = [];
   let next = 0;
 
-  const relation = async (s: CubeSource): Promise<ValueSpecification> => {
+  const relation = async (s: OpenedSource): Promise<ValueSpecification> => {
     if (s._type !== 'join') return relationOf.get(o.tables[next++]!)!;
     const l = await side(s.left);
     const r = await side(s.right);
@@ -140,10 +173,50 @@ export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpeni
     const columns = (await sourceColumns(typer, rows)).map((c) => ({ name: c.name, type: c.type }));
     return { name: input.name, relation: rows, columns };
   };
+  return { model: written.model, runtime: written.runtime, typer, notes, relation, side };
+}
 
-  const l = await side(left);
-  const r = await side(right);
-  return { model: written.model, runtime: written.runtime, typer, left: l, right: r, notes };
+/**
+ * THE TWO INPUTS OF A JOIN over one model: each leaf's table of the host's database declared once (a table read twice is
+ * one table), each input its cube's rows at their finest level over its source -- refused in words when a leaf is read
+ * elsewhere (leafRefusal) or an input is pivoted (its columns are its values).
+ */
+export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpening): Promise<OpenedInputs> {
+  const m = await oneModel([left.source, right.source], o);
+  const l = await m.side(left);
+  const r = await m.side(right);
+  return { model: m.model, runtime: m.runtime, typer: m.typer, left: l, right: r, notes: m.notes };
+}
+
+/** Several grids' sources opened over one model: the model, its typer, and each source's relation over it, in order. */
+export interface OpenedSources {
+  readonly model: string;
+  readonly runtime: string;
+  readonly typer: RelationTyper;
+  readonly relations: readonly ValueSpecification[];
+  readonly notes: readonly string[];
+}
+
+/** Each of `items` with its source's relation, in the order the sources were opened: one each -- checked, never assumed
+ *  (the timeseries review's G7). */
+export function eachRelation<T>(opened: { readonly relations: readonly ValueSpecification[] }, items: readonly T[]): (readonly [T, ValueSpecification])[] {
+  if (opened.relations.length !== items.length) {
+    throw new Error(`the model opened ${opened.relations.length} relations for ${items.length} sources`);
+  }
+  return items.map((item, i) => [item, opened.relations[i] as ValueSpecification] as const);
+}
+
+/**
+ * GRIDS' SOURCES OVER ONE MODEL (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2): what a timeseries series that
+ * combines grids is planned over, as a join's two inputs are (openInputs' rule, for any number of sources) -- each
+ * source the relation of its tables over the model, which its grid's calculated columns and filter are then written
+ * over. Refused in words when a leaf is read elsewhere (leafRefusal).
+ */
+export async function openSources(sources: readonly OpenedSource[], o: JoinOpening): Promise<OpenedSources> {
+  const m = await oneModel(sources, o);
+  const relations: ValueSpecification[] = [];
+  for (const s of sources) relations.push(await m.relation(s));
+  return { model: m.model, runtime: m.runtime, typer: m.typer, relations, notes: m.notes };
 }
 
 /** A JOIN SOURCE OPENED (§17.4): its inputs over one model (openInputs), joined, typed. */

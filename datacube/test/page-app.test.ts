@@ -527,8 +527,8 @@ describe('a page of its own', () => {
     assert.deepEqual(first.top, ['Create', 'Edit Text\u2026', 'Open Files\u2026', 'View']);
     assert.deepEqual(first.view, ['Maximise', 'Move to Sheet', 'Remove from Page']);
     // Create ▸ in the grid's own words; what needs a grid is off, and says why
-    assert.deepEqual(first.create, ['Data Source\u2026', 'Copy of This Grid', 'Visualization', 'Text Box']);
-    for (const off of ['Copy of This Grid', 'Visualization']) {
+    assert.deepEqual(first.create, ['Data Source\u2026', 'Copy of This Grid', 'Visualization', 'Timeseries', 'Text Box']);
+    for (const off of ['Copy of This Grid', 'Visualization', 'Timeseries']) {
       assert.equal(first.entry(off).getAttribute('aria-disabled'), 'true', off);
       assert.equal(first.entry(off).title, 'A text box reads no grid');
     }

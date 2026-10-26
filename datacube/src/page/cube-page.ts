@@ -43,11 +43,12 @@ import type { GridShown } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
 import {
   FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews, type TextView,
+  type TimeseriesView as TimeseriesPageView,
 } from '../page-document.ts';
 import {
   layoutCommand, movedCommand, moveSheetCommand, moveToSheetCommands, pageCommand, renameSheetCommand, savedLayout, showGridCommands,
 } from '../page-gestures.ts';
-import { chartTitle, gridTitle, nextPageId, textTitle } from '../page-ids.ts';
+import { chartTitle, gridTitle, nextPageId, textTitle, timeseriesTitle } from '../page-ids.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { CubeDocument, CubeSource } from '../cube-document.ts';
 import type { GridCopy, PageDocument } from '../page-document.ts';
@@ -56,6 +57,8 @@ import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { lazily } from '../lazily.ts';
+import { TS_STATES, tsStateOf, type TimeseriesSpec, type TsState } from '../timeseries-spec.ts';
+import type { TimeseriesView, TsGrid, TsTogether } from '../ui/timeseries-view.ts';
 import { sha256 } from '../cube-document.ts';
 import { isFileHandle, pickTextFiles, type FileHandle, type HandleRead } from '../file-handles.ts';
 import { TEXT_FILE_EXTENSIONS, TEXT_FILE_SHOWN, bytesWords, csvSeparator, pickedRefusal, textFileFormat, type TextFile } from '../text-files.ts';
@@ -71,6 +74,13 @@ const STATE_WORDS: Readonly<Record<ChartState, { readonly label: string; readonl
   dynamic: { label: 'Dynamic', says: 'it follows the grid: its grouping, its filters and the page\'s clicks' },
   pinned: { label: 'Pinned', says: 'it keeps its own grouping, and follows the grid\'s filters and the page\'s clicks' },
   frozen: { label: 'Frozen', says: 'it keeps its grouping and the grid\'s filter as they are now' },
+};
+
+/** A timeseries tile's states as its button says them, in a chart's words (timeseries-spec.ts TsState: no Pinned, its
+ *  grouping always its own). */
+const SERIES_STATE_WORDS: Readonly<Record<TsState, { readonly label: string; readonly says: string }>> = {
+  dynamic: { label: 'Dynamic', says: 'it follows its grids\' filters and the page\'s clicks' },
+  frozen: { label: 'Frozen', says: 'it keeps its grids\' filters as they are now' },
 };
 
 /** What a chart needs from the grid it is made from (a CubeApp). */
@@ -115,6 +125,8 @@ export interface SpawnOptions {
   readonly onNewGrid?: () => void;
   /** Its menus' Create ▸ Text Box: a text tile on its sheet. */
   readonly onText?: () => void;
+  /** Its menus' Create ▸ Timeseries: a timeseries tile of it, under it. */
+  readonly onTimeseries?: () => void;
   /** Its New ▸ Source…: a grid over another source, made by `make`, on this page. */
   readonly onNewSource?: (make: (host: HTMLElement, options: SpawnOptions) => SpawnedGrid) => void;
   /** Its menu's Remove from Page: the page takes its tile off, as the tile's own remove button does. */
@@ -260,6 +272,12 @@ export interface CubePageOptions {
    * §16.2) -- and the page's filters now. Absent (a cube alone), the click is its grid's alone.
    */
   readonly pickOn?: (grid: string) => { readonly source: CubeSource | undefined; readonly filters: readonly PageFilter[] };
+  /**
+   * The grids of `cubes` opened together over one model of their tables, for a timeseries series that combines them
+   * (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2: join-open.ts openSources) -- a page of its own over this tab's
+   * database. Absent, such a series is refused in words.
+   */
+  readonly together?: (cubes: readonly string[]) => Promise<TsTogether>;
 }
 
 /** An edit of the page's structure: its page commands, and what it is called (the page's Undo names it). */
@@ -321,6 +339,18 @@ interface TextTile {
   /** Its pencil, left of its title: a click edits its words. */
   readonly edit: HTMLButtonElement;
   editing: boolean;
+}
+
+/** A timeseries tile on the board (ui/timeseries-view.ts, a chunk of its own fetched with the first drawn): its spec as
+ *  the page has it, its body, and its viewer once fetched. */
+interface SeriesTile {
+  spec: TimeseriesSpec;
+  readonly body: HTMLElement;
+  view: TimeseriesView | null;
+  /** Its state button, as it now is (dynamic, frozen, detached). */
+  readonly paint: () => void;
+  /** A grid it reads landed a view while its sheet was not shown: it asks again when its sheet is. */
+  stale: boolean;
 }
 
 interface ChartTile {
@@ -399,6 +429,8 @@ export class CubePage {
   readonly #grids = new Map<string, GridTile>();
   /** The text tiles (page-text.ts): each one's words as the page has them, its body, whether its editor is open. */
   readonly #texts = new Map<string, TextTile>();
+  /** The timeseries tiles (ui/timeseries-view.ts): each one's spec as the page has it, its body, its viewer. */
+  readonly #series = new Map<string, SeriesTile>();
   /** The text boxes' files read this session, by fingerprint, and the handle each was picked with where the browser
    *  gave one: shown without asking again, and their handles kept when the page is saved (`textFilesNow`). */
   readonly #textFiles = new Map<string, { readonly file: File; readonly handle?: FileHandle }>();
@@ -511,9 +543,9 @@ export class CubePage {
 
   /** The next id of `kind` (page-ids.ts nextPageId): after every id the page's state has held and every one on the board
    *  now -- a tile a gesture made that its command has not placed yet among them. */
-  #nextId(kind: 'grid' | 'chart' | 'text' | 'sheet'): string {
+  #nextId(kind: 'grid' | 'chart' | 'text' | 'timeseries' | 'sheet'): string {
     const board = [...this.#sheets.map((s) => s.id), ...this.#grids.keys(), ...this.#charts.keys(), ...this.#kept.keys(),
-      ...this.#unavailable.keys(), ...this.#pending.keys(), ...this.#texts.keys()];
+      ...this.#unavailable.keys(), ...this.#pending.keys(), ...this.#texts.keys(), ...this.#series.keys()];
     return nextPageId([...this.#options.taken(), ...board], kind, this.#options.idTag?.());
   }
 
@@ -682,6 +714,7 @@ export class CubePage {
       for (const id of [...this.#grids.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropGrid(id);
       for (const id of [...this.#unavailable.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropUnavailable(id);
       for (const id of [...this.#texts.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropText(id);
+      for (const id of [...this.#series.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropTimeseries(id);
       // text tiles it has and the screen does not, each on its sheet
       for (const view of to.views) {
         if (view.kind !== 'text' || this.#texts.has(view.id)) continue;
@@ -689,9 +722,27 @@ export class CubePage {
         if (on) this.#planned.set(view.id, on);
         this.#placeText(view);
       }
+      // a cube a timeseries tile reads that no grid of the page shows (its grid removed while the tile read it: the
+      // review's G4) kept off the board for it, made as the page `to` holds it -- as a detached chart's is, below
+      for (const view of to.views) {
+        if (view.kind !== 'timeseries') continue;
+        for (const { cube } of view.spec.sources) {
+          if (this.#grids.has(cube) || this.#kept.has(cube) || to.views.some((v) => v.kind === 'grid' && v.cube === cube)) continue;
+          const make = remake(cube, to.cubes?.find((c) => c.id === cube)?.cube);
+          if (!make) throw new Error(`timeseries ${view.id} cannot be drawn again: grid ${cube}'s maker is gone`);
+          this.keepGrid(cube, make);
+        }
+      }
+      // timeseries tiles it has and the screen does not, each on its sheet (each reads its grids when it draws)
+      for (const view of to.views) {
+        if (view.kind !== 'timeseries' || this.#series.has(view.id)) continue;
+        const on = board(sheetFor.get(view.id));
+        if (on) this.#planned.set(view.id, on);
+        this.#placeTimeseries(view);
+      }
       // what it could not open, back: kept as the step has it, in its place
       for (const view of to.views) {
-        if (view.kind === 'text') continue;
+        if (view.kind === 'text' || view.kind === 'timeseries') continue;
         if (this.#unavailable.has(view.id) || this.#grids.has(view.id) || this.#charts.has(view.id)) {
           if (this.#unavailable.has(view.id)) this.#unavailable.set(view.id, view);
           continue;
@@ -742,7 +793,8 @@ export class CubePage {
         const sheet = this.#sheetOf(view.id);
         if (!sheet) continue;
         const title = view.kind === 'grid' ? view.title ?? this.#titles.get(view.id)
-          : view.kind === 'text' ? view.title ?? textTitle(view.id) : view.title;
+          : view.kind === 'text' ? view.title ?? textTitle(view.id)
+            : view.kind === 'timeseries' ? view.title ?? timeseriesTitle(view.id) : view.title;
         if (title !== undefined && sheet.board.title(view.id) !== title) sheet.board.rename(view.id, title);
         // a text tile's words and files as the step has them, drawn unless its editor is open
         const text = this.#texts.get(view.id);
@@ -753,6 +805,12 @@ export class CubePage {
           text.files = files;
           if (text.shown !== null && !files.some((f) => f.sha256 === text.shown)) text.shown = null;
           if (changed && !text.editing) this.#drawText(view.id);
+        }
+        // a timeseries tile's spec as the step has it: drawn from the rows it has, or asked again (its viewer's rule)
+        const series = this.#series.get(view.id);
+        if (series && view.kind === 'timeseries' && JSON.stringify(series.spec) !== JSON.stringify(view.spec)) {
+          series.spec = view.spec;
+          series.view?.update(view.spec);
         }
         const chart = this.#charts.get(view.id);
         if (chart && view.kind === 'chart') {
@@ -839,7 +897,9 @@ export class CubePage {
     // a sheet brought back is shown: where the change is
     const back = this.#sheets.find((s) => !sheetsBefore.has(s.id));
     if (back) this.showSheet(back.id);
+    this.#drawShownSeries();
     this.#releaseKept();
+    for (const tile of this.#series.values()) tile.paint();
     this.#options.onSheets?.();
     this.#options.onTiles?.();
     this.#options.onChange();
@@ -859,6 +919,7 @@ export class CubePage {
     this.#shown.host.hidden = true;
     next.host.hidden = false;
     this.#shown = next;
+    this.#drawShownSeries();
     this.#options.onSheets?.();
   }
 
@@ -1098,6 +1159,11 @@ export class CubePage {
     return this.#texts.size;
   }
 
+  /** How many timeseries tiles it holds. */
+  get timeseries(): number {
+    return this.#series.size;
+  }
+
   /**
    * ANOTHER GRID on the page: a cube of its own over the same source, starting as `from` is now,
    * in a tile like any chart's -- moved, resized, renamed and removed the same way -- with charts
@@ -1152,7 +1218,11 @@ export class CubePage {
         this.#options.onPageEdit({ label: copy ? 'Snap' : 'Go Live', step: false,
           commands: [copy ? pageCommand('snap', { grid: id, copy }) : pageCommand('live', { grid: id })] });
       }),
-      cube.on('plane', () => this.#options.onChange()),
+      cube.on('plane', () => {
+        // its rows read from elsewhere now (a snap, going live): its timeseries ask again
+        this.#refreshSeries(id);
+        this.#options.onChange();
+      }),
     ];
     this.#grids.set(id, { source: cube.chartSource(), added: { cube, stop: () => stops.forEach((stop) => stop()) } });
     // numbered by its id, as the page's one rule names a grid with no title of its own (page-commands.ts renameTile,
@@ -1209,8 +1279,9 @@ export class CubePage {
   }
 
   /**
-   * A grid KEPT OFF THE BOARD for the frozen charts that read it (a saved page's grid removed while they were frozen):
-   * made, opened and listened to by nothing, until its last chart goes. Its charts come back detached (`restore`).
+   * A grid KEPT OFF THE BOARD for the frozen charts that read it (a saved page's grid removed while they were frozen),
+   * or the timeseries tiles (the review's G4): made, opened and listened to by nothing, until the last of them goes. Its
+   * charts come back detached (`restore`).
    */
   keepGrid(id: string, make: (host: HTMLElement, options: SpawnOptions) => SpawnedGrid): void {
     if (this.#grids.has(id) || this.#kept.has(id)) throw new Error(`a grid ${id} is already on the page`);
@@ -1228,6 +1299,7 @@ export class CubePage {
       id,
       onChart: () => this.openChart(undefined, id),
       onText: () => this.addText(id),
+      onTimeseries: () => this.addTimeseries(id),
       onNewGrid: () => this.addGrid(id),
       onNewSource: (other) => this.addGridOver(other, { near: id }),
       onRemove: () => this.removeGrid(id),
@@ -1241,10 +1313,11 @@ export class CubePage {
     };
   }
 
-  /** Whether a chart is on grid `id`'s sheet: its export then lays out that sheet, the grid its table. */
+  /** Whether a chart -- a timeseries among them -- is on grid `id`'s sheet: its export then lays out that sheet, the grid
+   *  its table. */
   #chartsBeside(id: string): boolean {
     const sheet = this.#sheetOf(id);
-    return [...this.#charts.keys()].some((chart) => this.#sheetOf(chart) === sheet);
+    return [...this.#charts.keys(), ...this.#series.keys()].some((chart) => this.#sheetOf(chart) === sheet);
   }
 
   /**
@@ -1253,7 +1326,7 @@ export class CubePage {
    * (a text box, a chart whose grid is gone) those two are offered off, `why` said on their hover.
    */
   #tileCreate(grid: string | null, why: string): MenuItem {
-    const needsGrid = new Set(['grid.new', 'chart.plot']);
+    const needsGrid = new Set(['grid.new', 'chart.plot', 'timeseries.new']);
     return { label: 'Create', submenu: createItems({ source: this.#options.addSource !== undefined, host: [] })
       .map((item) => (grid === null && needsGrid.has(item.id ?? '') ? { ...item, disabled: true, hint: why } : item)) };
   }
@@ -1265,6 +1338,9 @@ export class CubePage {
     if (grid === null) return;
     if (item.id === 'grid.new') this.addGrid(grid);
     if (item.id === 'chart.plot') this.openChart(undefined, grid);
+    // a timeseries tile of the grid it reads, its first series DataCube's rule over the grid's columns, as the grid's
+    // own Create ▸ Timeseries makes one (main's tile Create ▸, merged with the timeseries tile, 2026-10-26)
+    if (item.id === 'timeseries.new') this.addTimeseries(grid);
   }
 
   /**
@@ -1489,6 +1565,19 @@ export class CubePage {
 
   #refreshGrid(grid: string): void {
     for (const chart of this.#charts.values()) if (chart.link.grid === grid) chart.panel.refresh();
+    this.#refreshSeries(grid);
+  }
+
+  /** The timeseries tiles reading grid `grid` told its view landed: each asks again, as a chart does. */
+  #refreshSeries(grid: string): void {
+    const cube = this.#cubeOf(grid);
+    for (const [id, series] of this.#series) {
+      if (!series.spec.sources.some((s) => s.cube === cube)) continue;
+      // one on a sheet not shown asks nothing now -- it asks when its sheet is (`#drawShownSeries`): a grid sorted on
+      // its own sheet asked a hidden tile's every query again (the second audit's P-1; docs/TENETS.md lazy Work)
+      if (this.#sheetOf(id) === this.#shown) series.view?.refresh();
+      else if (series.view) series.stale = true;
+    }
   }
 
   #reconcileGrid(grid: string, filter: FilterNode | undefined): void {
@@ -1550,6 +1639,19 @@ export class CubePage {
         ...(text.files.length > 0 ? { files: text.files } : {}),
       });
     }
+    // the timeseries tiles in reading order, each with its spec as the page has it -- its sources by the cubes they read,
+    // kept when a grid it reads is removed (it says so; an undo brings the grid back) -- and its own title only when
+    // someone gave it one
+    // -- but not one reading a grid this page does not write (a cube alone's added grid, as that grid's charts are left
+    // out above: the second audit's A-B1, its page file refused by the reader for a cube it did not hold)
+    const unwritten = new Set([...this.#grids.keys(), ...this.#kept.keys()].filter((g) => cubeOf(g) === undefined).map((g) => this.#cubeOf(g)));
+    for (const id of this.tileIds.filter((t) => this.#series.has(t))) {
+      const title = this.title(id);
+      if (this.#series.get(id)!.spec.sources.some((s) => unwritten.has(s.cube))) continue;
+      views.push({
+        id, kind: 'timeseries', spec: this.#series.get(id)!.spec, ...(title !== undefined && title !== timeseriesTitle(id) ? { title } : {}),
+      });
+    }
     // each sheet's layout of what is saved: the other tiles' places closed up, as if they had been removed
     // (page-gestures.ts savedLayout, the rule a layout is told by too)
     const saved = new Set(views.map((v) => v.id));
@@ -1584,6 +1686,12 @@ export class CubePage {
       if (on) this.#planned.set(view.id, on);
       this.#placeText(view);
     }
+    for (const view of page.views) {
+      if (view.kind !== 'timeseries' || this.#series.has(view.id)) continue;
+      const on = this.#sheets.find((s) => s.id === sheetFor.get(view.id));
+      if (on) this.#planned.set(view.id, on);
+      this.#placeTimeseries(view);
+    }
     const charts = page.views.filter((v): v is ChartView => v.kind === 'chart');
     for (const chart of charts) {
       const grid = gridOf(chart.cube);
@@ -1603,6 +1711,7 @@ export class CubePage {
     this.#planned.clear();
     // a page reopens on its first sheet (what is looked at is not saved: the design's §5, 7)
     this.showSheet(this.#sheets[0]!.id);
+    this.#drawShownSeries();
     // a kept grid no restored chart reads (its charts not opened) goes now, not at the next removal
     this.#releaseKept();
   }
@@ -1620,6 +1729,15 @@ export class CubePage {
     const tiles = grid.tiles.map((t): ExportTile => {
       const text = this.#texts.get(t.id);
       if (text) return { id: t.id, kind: 'text', title: this.title(t.id) ?? textTitle(t.id), x: t.x, y: t.y, w: t.w, h: t.h, text: this.#exportedText(text) };
+      // a timeseries tile exports as a chart does: its picture as drawn
+      const series = this.#series.get(t.id);
+      if (series) {
+        const drawn = series.view?.picture() ?? null;
+        return {
+          id: t.id, kind: 'chart', title: this.title(t.id) ?? timeseriesTitle(t.id), x: t.x, y: t.y, w: t.w, h: t.h,
+          ...(drawn ? { picture: drawn } : {}),
+        };
+      }
       const chart = this.#charts.get(t.id);
       const picture = chart?.panel.picture() ?? null;
       return {
@@ -1640,6 +1758,8 @@ export class CubePage {
     for (const chart of this.#charts.values()) chart.panel.dispose();
     this.#charts.clear();
     this.#texts.clear();
+    for (const series of this.#series.values()) series.view?.dispose();
+    this.#series.clear();
     for (const grid of this.#grids.values()) {
       grid.added?.stop();
       grid.added?.cube.dispose();
@@ -1709,6 +1829,7 @@ export class CubePage {
       this.#afterRemove();
     } else if (this.#charts.has(id)) this.#dropChart(id);
     else if (this.#texts.has(id)) this.#dropText(id);
+    else if (this.#series.has(id)) this.#dropTimeseries(id);
   }
 
   /** A chart off the board: its selection off its grid's filter as the step took it off (`theirs`: another editor's,
@@ -1727,13 +1848,20 @@ export class CubePage {
     this.#afterRemove();
   }
 
-  /** A grid kept off the board that no chart reads any more goes. */
+  /** A grid kept off the board that no chart, and no timeseries, reads any more goes. */
   #releaseKept(): void {
     for (const [id, cube] of [...this.#kept]) {
       if ([...this.#charts.values()].some((c) => c.link.detached?.from === id)) continue;
+      if (this.#seriesRead(id)) continue;
       cube.dispose();
       this.#kept.delete(id);
     }
+  }
+
+  /** Whether a timeseries tile reads grid `id`'s cube: what keeps a removed grid's cube on the page (the review's G4). */
+  #seriesRead(id: string): boolean {
+    const cube = this.#cubeOf(id);
+    return [...this.#series.values()].some((t) => t.spec.sources.some((s) => s.cube === cube));
   }
 
   /**
@@ -1750,7 +1878,7 @@ export class CubePage {
 
   /** Nothing left of what the board is for: a cube's own with no chart, a page of its own with no tile. */
   #isEmpty(): boolean {
-    return this.charts === 0 && this.#texts.size === 0 && (this.#options.grid !== undefined || this.#grids.size === 0);
+    return this.charts === 0 && this.#texts.size === 0 && this.#series.size === 0 && (this.#options.grid !== undefined || this.#grids.size === 0);
   }
 
   // -- text tiles ------------------------------------------------------------------------------------------------------
@@ -2128,6 +2256,179 @@ export class CubePage {
     this.#take(id);
   }
 
+  // -- timeseries tiles ------------------------------------------------------------------------------------------------
+
+  /** A grid tile's cube as the page names it: a cube alone's own grid is its page's cube (PAGE_CUBE); every other grid's
+   *  is its tile's id. */
+  #cubeOf(grid: string): string {
+    return grid === GRID && this.#options.grid ? PAGE_CUBE : grid;
+  }
+
+  /** The grid on the board that shows `cube` (#cubeOf's inverse), or null: none does (its grid removed). */
+  #gridOfCube(cube: string): string | null {
+    const grid = cube === PAGE_CUBE && this.#options.grid ? GRID : cube;
+    return this.#grids.has(grid) ? grid : null;
+  }
+
+  /** A grid of the page as a timeseries reads it, by the cube the page names it by: its query, its filter, its runner and
+   *  its formats as they are now; undefined when no grid on the board shows that cube (removed). */
+  #tsGrid(cube: string): TsGrid | undefined {
+    const grid = cube === PAGE_CUBE && this.#options.grid ? GRID : cube;
+    // a grid removed while the tile reads it: its cube kept off the board, read as it was (the review's G4)
+    const kept = this.#grids.has(grid) ? undefined : this.#kept.get(grid);
+    const source = this.#grids.get(grid)?.source ?? kept?.chartSource();
+    if (!source) return undefined;
+    return {
+      cube,
+      ...(kept ? { kept: true } : {}),
+      title: this.title(grid) ?? this.#titles.get(grid) ?? grid,
+      get snapshot() { return source.snapshot; },
+      get filter() { return source.snapshot.filter; },
+      run: (query, snapshot, signal) => source.run(query, snapshot, signal),
+      format: (value, column, type) => source.format(value, column, type),
+    };
+  }
+
+  /**
+   * CREATE ▸ TIMESERIES (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7): a timeseries tile of grid `near` -- else the
+   * first grid on the sheet shown, else the page's first -- under it, its first series DataCube's rule over the grid's
+   * columns (ui/timeseries-view.ts firstTimeseries, fetched with the viewer), told as the page's (addTimeseries). A grid
+   * with no date to read along is said so.
+   */
+  addTimeseries(near?: string): void {
+    const shown = tiles(this.#shown.board.layout).filter((t) => this.#grids.has(t));
+    const grid = near !== undefined && this.#grids.has(near) ? near : shown[0] ?? [...this.#grids.keys()][0];
+    if (grid === undefined) return;
+    void lazily(() => import('../ui/timeseries-view.ts')).then(({ firstTimeseries }) => {
+      const read = this.#tsGrid(this.#cubeOf(grid));
+      if (this.#disposed || !read) return;
+      const spec = firstTimeseries(read);
+      if (typeof spec === 'string') return this.#refuse(spec);
+      const sheet = this.#sheetOf(grid) ?? this.#shown;
+      const id = this.#nextId('timeseries');
+      if (this.#tell('Add Timeseries', pageCommand('addTimeseries', {
+        id, sheet: sheet.id, near: grid, spec, title: null, columns: sheet.board.columns ?? null,
+      }))) this.#reveal(id);
+    });
+  }
+
+  /** A timeseries tile on the board, its viewer fetched and drawn (`#drawTimeseries`) once its sheet is shown. */
+  #placeTimeseries(view: TimeseriesPageView): void {
+    const body = this.#doc.createElement('div');
+    body.className = 'dc-ts-host';
+    // ITS HEADER'S STATE (the user, 2026-10-26: a timeseries' states are a chart's, where they mean something): DYNAMIC
+    // follows its grids' filters and the page's clicks; FROZEN keeps each grid's filter as it was; DETACHED, a grid it
+    // reads removed, read as it was -- its state still its to change, as Python's Timeseries.state changes it (one rule:
+    // the third review's note -- the screen alone turned it off when every grid was gone)
+    const pill = stateButton(this.#doc);
+    const paint = (): void => {
+      const tile = this.#series.get(view.id);
+      if (!tile) return;
+      const state = tsStateOf(tile.spec);
+      const gone = tile.spec.sources.filter((s) => this.#tsGrid(s.cube)?.kept === true);
+      const words = SERIES_STATE_WORDS[state];
+      const names = gone.map((s) => this.#tsGrid(s.cube)!.title).join(', ');
+      paintState(pill, gone.length > 0 ? 'detached' : state, gone.length > 0 ? 'Detached' : words.label, gone.length > 0
+        ? `Detached: ${names}${gone.length === 1 ? '\'s grid was' : '\'s grids were'} removed, and this tile reads ${gone.length === 1 ? 'its' : 'their'} query as it was. ${words.label}: ${words.says}. Click to change.`
+        : `${words.label}: ${words.says}. Click to change.`, { menu: true });
+    };
+    pill.addEventListener('click', () => {
+      const tile = this.#series.get(view.id);
+      if (!tile?.view) return;
+      const shown = tile.view;
+      this.#menuFor = (item) => {
+        const state = TS_STATES.find((s) => item.id === `tile.state.${s}`);
+        if (state !== undefined) shown.setState(state);
+      };
+      const at = pill.getBoundingClientRect();
+      const now = tsStateOf(tile.spec);
+      this.#menu.show([{ label: '', items: TS_STATES.map((s) => ({
+        id: `tile.state.${s}` as const, label: SERIES_STATE_WORDS[s].label, hint: `It ${SERIES_STATE_WORDS[s].says.replace(/^it /, '')}`, checked: now === s,
+      })) }], at.left, at.bottom);
+    });
+    // RIGHT-CLICK (PR #73's one shape, a chart's): its Settings as its Properties, Create ▸ beside it of the grid it
+    // reads first (its grid gone, what needs one off and why), View ▸ -- the viewer's own toolbar the rest
+    body.addEventListener('contextmenu', (event) => {
+      const tile = this.#series.get(view.id);
+      if (!tile) return;
+      event.preventDefault();
+      // the first of its grids still on the board (the third review's note: the first source's alone, its grid gone, turned
+      // Create's grid entries off though another it reads was there)
+      const grid = tile.spec.sources.map((s) => this.#gridOfCube(s.cube)).find((g) => g !== null) ?? null;
+      this.#menuFor = (item) => {
+        if (item.id === 'tile.properties') tile.view?.openSettings();
+        this.#onTileCreate(view.id, grid, item);
+        this.#onTileView(view.id, item);
+      };
+      this.#menu.show([
+        { label: '', items: [this.#tileCreate(grid, 'Its grids are gone: it reads their queries as they were')] },
+        { label: '', items: [{ id: 'tile.properties', label: 'Properties\u2026', ...(tile.view ? {} : { disabled: true, hint: 'Show its sheet first' }) }] },
+        { label: '', items: [this.#tileView(view.id)] },
+      ], event.clientX, event.clientY);
+    });
+    this.#series.set(view.id, { spec: view.spec, body, view: null, paint, stale: false });
+    this.#place({ id: view.id, title: view.title ?? timeseriesTitle(view.id), element: body, actions: [], state: pill });
+    paint();
+    this.#drawTimeseries(view.id);
+  }
+
+  /**
+   * A timeseries tile's viewer (ui/timeseries-view.ts, a chunk of its own fetched with the first drawn) over the page's
+   * grids: each source's by its cube, several opened together for a series that combines them (CubePageOptions.together),
+   * and a change of its spec told as the page's (setTimeseries) -- the step then puts it back as the page has it (`sync`).
+   * A tile on a sheet not shown is drawn when its sheet is (`#drawShownSeries`): until then it asks its grids nothing --
+   * a page of many sheets of them (the timeseries gallery's) asks only what is looked at (docs/TENETS.md: lazy Work).
+   */
+  #drawTimeseries(id: string): void {
+    if (this.#sheetOf(id) !== this.#shown) return;
+    void lazily(() => import('../ui/timeseries-view.ts')).then(({ TimeseriesView }) => {
+      const tile = this.#series.get(id);
+      if (!tile || tile.view || this.#disposed || this.#sheetOf(id) !== this.#shown) return;
+      tile.view = new TimeseriesView(tile.body, {
+        grid: (cube) => this.#tsGrid(cube),
+        grids: () => tiles(this.#layoutOf(this.#sheetOf(id) ?? this.#shown)).filter((t) => this.#grids.has(t))
+          .concat([...this.#grids.keys()].filter((t) => this.#sheetOf(t) !== this.#sheetOf(id)))
+          .flatMap((t) => this.#tsGrid(this.#cubeOf(t)) ?? []),
+        together: (cubes) => {
+          const together = this.#options.together;
+          if (!together) return Promise.reject(new Error('a series of several grids is made on a page of DataCube\'s app, whose grids read this tab\'s database'));
+          return together(cubes);
+        },
+        setSpec: (spec) => {
+          if (JSON.stringify(spec) === JSON.stringify(tile.spec)) return;
+          if (!this.#tell('Timeseries Change', pageCommand('setTimeseries', { tile: id, spec }))) tile.view?.update(tile.spec);
+        },
+        // its editors' windows among the page's, titled by its tile's name -- a chart's options' rule
+        windowHost: this.#options.windowHost ?? this.#options.host,
+        title: () => this.title(id) ?? timeseriesTitle(id),
+      }, tile.spec);
+    });
+  }
+
+  /** The timeseries tiles of the sheet shown not yet drawn, drawn: a sheet shown, a step that leaves one shown. */
+  #drawShownSeries(): void {
+    for (const [id, tile] of this.#series) {
+      if (!tile.view) this.#drawTimeseries(id);
+      else if (tile.stale && this.#sheetOf(id) === this.#shown) {
+        tile.stale = false;
+        tile.view.refresh(0);
+      }
+    }
+  }
+
+  /** A timeseries tile off the board, as a step leaves it. */
+  #dropTimeseries(id: string): void {
+    const tile = this.#series.get(id);
+    if (!tile) return;
+    tile.view?.dispose();
+    this.#series.delete(id);
+    this.#take(id);
+    // a removed grid's cube it alone read goes with it
+    this.#releaseKept();
+    this.#options.onChange();
+    this.#afterRemove();
+  }
+
   /** Take a grid off the page as its own tile's remove button does: a grid's menu's Remove from Page. */
   removeGrid(id: string): void {
     if (this.#grids.get(id)?.added) this.#removeTile(id);
@@ -2159,11 +2460,15 @@ export class CubePage {
       keeps = true;
     }
     grid.added.stop();
-    // a frozen chart still reads it: kept off the board, to run its query, until that chart goes
-    if (keeps) this.#kept.set(id, grid.added.cube);
+    // a frozen chart or a timeseries still reads it: kept off the board, to run their queries, until the last of them goes
+    // (the page keeps its cube as long: page-document.ts readsCube) -- the timeseries drawing on from it
+    if (keeps || this.#seriesRead(id)) this.#kept.set(id, grid.added.cube);
     else grid.added.cube.dispose();
     this.#grids.delete(id);
     this.#take(id);
+    this.#refreshSeries(id);
+    // its timeseries say they read it as it was
+    for (const tile of this.#series.values()) tile.paint();
     this.#options.onChange();
     this.#afterRemove();
   }

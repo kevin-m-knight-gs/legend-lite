@@ -26,6 +26,7 @@ import { TreeState } from '../src/tree.ts';
 import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
 import type { ChartMeasure, ChartSpec } from '../src/chart-spec.ts';
 import type { FilterNode } from '../src/snapshot.ts';
+import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { getInstanceByDom } from 'echarts/core';
 
 import * as cube from './cube-fixture.ts';
@@ -733,7 +734,7 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     const first = shown();
     assert.deepEqual(first.top, ['Show Grid', 'Create', 'Properties\u2026', 'View']);
     // Create ▸ in the grid's own words (ui/menu.ts createItems), of the grid the chart reads
-    assert.deepEqual(first.create, ['Copy of This Grid', 'Visualization', 'Text Box']);
+    assert.deepEqual(first.create, ['Copy of This Grid', 'Visualization', 'Timeseries', 'Text Box']);
     assert.deepEqual(first.view, ['Maximise', 'Move to Sheet', 'Remove from Page']);
     first.entry('Maximise').click();
     assert.ok(host.querySelector('.dc-bands-maximised'), 'the page filled with it');
@@ -748,6 +749,13 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     const made = charts().find((c) => !before.includes(c))!;
     const view = pg().views().views.find((v) => v.id === made);
     assert.equal(view?.kind === 'chart' ? view.cube : undefined, a, 'of the grid the chart reads');
+    // Create ▸ Timeseries: a timeseries of the grid it reads, by DataCube's first-tile rule -- refused in its words
+    // here, the fixture's grid having no date (main's tile Create ▸ and the timeseries tile, merged 2026-10-26)
+    shown().entry('Timeseries').click();
+    await settle();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.ok(!pg().views().views.some((v) => v.kind === 'timeseries'), 'no tile of a grid with no date');
+    assert.match(host.textContent ?? '', /has no date column/, 'refused in the first-tile rule\'s words');
     const grids = pg().grids.length;
     shown().entry('Copy of This Grid').click();
     await settle();
@@ -946,6 +954,160 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     engine.gate.releaseAll();
     await settle();
     assert.equal(ready, true);
+  });
+
+  // the timeseries gallery, 2026-10-25: a page of nine sheets of timeseries asked every series of every sheet as it
+  // opened -- a tile on a sheet not shown is drawn, and asks its grids, when its sheet is shown (docs/TENETS.md: lazy Work)
+  it('a timeseries tile on a sheet not shown asks nothing until its sheet is shown', async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const doc = pg().document('Q3')!;
+    const grid = doc.views.find((v) => v.id === a)!;
+    assert.ok(grid.kind === 'grid');
+    const spec: TimeseriesSpec = {
+      sources: [{ alias: 't', cube: grid.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }],
+    };
+    reopen({
+      ...doc,
+      views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Notional', spec }],
+      sheets: [...doc.sheets, { id: 'sheet-ts', name: 'Series', layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'ts' } }] } }],
+    });
+    await settle();
+    await new Promise((r) => setTimeout(r, 50));
+    const asked = engine.queries;
+    assert.equal(sheetOf('ts'), 'sheet-ts', 'the tile is on its sheet');
+    assert.equal(tile('ts').querySelector('.dc-ts-bar'), null, 'its viewer not made while its sheet is not shown');
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(engine.queries, asked, 'nothing asked for it');
+    clickTab('Series');
+    await shown(host, '[data-tile="ts"] .dc-ts-bar');
+    assert.equal(pg().shownSheet, 'sheet-ts');
+    // the second audit's P-1: drawn once, its sheet then left -- a change of its grid asks it nothing while it is not
+    // shown (the grid's own queries alone), and asks it again when it is
+    const cost = async (desk: string): Promise<number> => {
+      const before = engine.queries;
+      await pg().grid(a)!.edit([{ kind: 'filter', filter: { kind: 'condition', column: 'desk', operator: 'equal', value: desk } }], 'filter');
+      await settle();
+      await new Promise((r) => setTimeout(r, 400));
+      return engine.queries - before;
+    };
+    await settle();
+    await new Promise((r) => setTimeout(r, 400));
+    clickTab('trades.csv');
+    const hiddenCost = await cost('FX');
+    const hidden = engine.queries;
+    clickTab('Series');
+    await settle();
+    await new Promise((r) => setTimeout(r, 400));
+    assert.ok(engine.queries > hidden, 'its sheet shown again, it asks again');
+    const shownCost = await cost('EM');
+    assert.ok(hiddenCost < shownCost, `hidden, an edit of its grid asks it nothing (${hiddenCost} queries hidden, ${shownCost} shown)`);
+  });
+
+  // the user, 2026-10-26: the timeseries tile in PR #73's design -- a chart's right-click (Create ▸, Properties…, View ▸),
+  // its state in its header in a chart's words, its Settings a window beside it, among the page's windows
+  it("a timeseries tile's right-click and header: a chart's shape, its Properties its Settings, a window of its own", async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const doc = pg().document('Q3')!;
+    const grid = doc.views.find((v) => v.id === a)!;
+    assert.ok(grid.kind === 'grid');
+    const spec: TimeseriesSpec = {
+      sources: [{ alias: 't', cube: grid.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }],
+    };
+    reopen({ ...doc, views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Notional', spec }],
+      sheets: doc.sheets.map((sh, i) => (i === 0 ? { ...sh, layout: { kind: 'bands', fit: true, bands: [
+        { height: 0.5, node: { tile: a } }, { height: 0.5, node: { tile: 'ts' } }] } } : sh)) });
+    await shown(host, '[data-tile="ts"] .dc-ts-bar');
+    assert.equal(pill('ts'), 'Dynamic', 'its state, a chart\'s word');
+    tile('ts').querySelector<HTMLElement>('.dc-ts-host')!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    const top = menuItems().filter((i) => !i.parentElement!.closest('.dc-menu-item')).map(label);
+    assert.deepEqual(top, ['Create', 'Properties\u2026', 'View'], 'a chart\'s right-click, but Show Grid (its grids are its own)');
+    menuItems().find((i) => label(i) === 'Properties\u2026')!.click();
+    await settle();
+    const win = dom.window.document.querySelector<HTMLElement>('.dc-ts-window');
+    assert.ok(win, 'its Settings, a window');
+    assert.ok(!tile('ts').contains(win), 'beside the tile, not over it');
+    assert.match(win.querySelector('.dc-ts-window-title')?.textContent ?? '', /^Settings — Notional$/);
+    win.querySelector<HTMLButtonElement>('.dc-overlay-close')!.click();
+    assert.equal(dom.window.document.querySelector('.dc-ts-window'), null, 'its x puts it away');
+  });
+
+  // the review's G4 (docs/TIMESERIES_REVIEW_2026_10_25.md): a grid removed while a timeseries read it took its cube with
+  // it, and the page reopened read a cube it no longer held; the owner, 2026-10-25: kept, as a frozen chart's is
+  it('a grid removed while a timeseries reads it: its cube kept off the board, the tile reading it still, the page saving it', async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    const b = pg().addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const doc = pg().document('Q3')!;
+    const gridB = doc.views.find((v) => v.id === b)!;
+    assert.ok(gridB.kind === 'grid');
+    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: gridB.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] };
+    reopen({ ...doc, views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Orders', spec }],
+      sheets: doc.sheets.map((s, i) => (i === 0 ? { ...s, layout: { ...s.layout, bands: [...s.layout.bands, { height: 0.5, node: { tile: 'ts' } }] } } : s)) });
+    await shown(host, '[data-tile="ts"] .dc-ts-bar');
+    tile(b).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    assert.equal(tile(b), null, 'the grid is off the board');
+    const saved = pg().document('Q3')!;
+    assert.ok(saved.cubes.some((c) => c.id === gridB.cube), 'its cube kept on the page while the tile reads it');
+    assert.ok(pg().cubes.includes(gridB.cube), 'and off the board, to run the tile\'s queries');
+    await new Promise((r) => setTimeout(r, 200));
+    const said = tile('ts').querySelector('.dc-ts-banner')?.textContent ?? '';
+    assert.ok(!/not on the page/.test(said), `the tile still reads it: ${said}`);
+    // the tile removed: the kept cube goes with it
+    tile('ts').querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    assert.equal(tile('ts'), null, 'the tile is off the board');
+    assert.ok(!pg().document('Q3')!.cubes.some((c) => c.id === gridB.cube), 'let go with the last tile that read it');
+    assert.ok(!pg().cubes.includes(gridB.cube));
+    // its removal undone: the tile back, reading the very cube it read, kept off the board for it again (its step's
+    // command carries the cube: page-commands.ts addTimeseries `kept`)
+    pg().undo();
+    await settle();
+    const back = pg().views().views.find((v) => v.kind === 'timeseries');
+    assert.ok(back?.kind === 'timeseries', 'the tile is back');
+    assert.deepEqual(back.spec.sources.map((s) => s.cube), [gridB.cube], 'reading the cube it read');
+    assert.ok(pg().cubes.includes(gridB.cube), 'kept off the board for it again');
+    assert.ok(pg().document('Q3')!.cubes.some((c) => c.id === gridB.cube), 'and on the page, saved with it');
+    assert.equal(tile(b), null, 'its grid still gone');
+    await shown(host, `[data-tile="${back.id}"] .dc-ts-bar`);
+    await new Promise((r) => setTimeout(r, 200));
+    const again = tile(back.id).querySelector('.dc-ts-banner')?.textContent ?? '';
+    assert.ok(!/not on the page/.test(again), `it draws from it: ${again}`);
+  });
+
+  // the second audit's A-B1: a page reopened whose kept cube's source is not opened again (a file not given) wrote the
+  // cube off the page -- its writer read each view's `cube`, which a timeseries has none of -- and its own reader then
+  // refused the page it wrote
+  it("a page reopened without its kept cube's source: the cube stays on the page, and the page reads back", async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    const b = pg().addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const doc = pg().document('Q3')!;
+    const gridB = doc.views.find((v) => v.id === b)!;
+    assert.ok(gridB.kind === 'grid');
+    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: gridB.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] };
+    reopen({ ...doc, views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Orders', spec }],
+      sheets: doc.sheets.map((s, i) => (i === 0 ? { ...s, layout: { ...s.layout, bands: [...s.layout.bands, { height: 0.5, node: { tile: 'ts' } }] } } : s)) });
+    await shown(host, '[data-tile="ts"] .dc-ts-bar');
+    tile(b).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    const saved = readPage(pageToJson(pg().document('Q3')!));
+    assert.ok(saved.cubes.some((c) => c.id === gridB.cube), 'saved with the cube kept for the tile');
+    // opened again, the kept cube's source not opened again: no maker for it
+    pg().dispose();
+    newPage();
+    pg().restore(saved, new Map(saved.cubes.filter((c) => c.id !== gridB.cube)
+      .map((c) => [c.id, over(c.cube.source._type === 'file' ? c.cube.source.name : c.id, c.cube)])));
+    await settle();
+    const written = pg().document('Q3')!;
+    assert.ok(written.cubes.some((c) => c.id === gridB.cube), 'its cube on the page still, as the page had it');
+    assert.doesNotThrow(() => readPage(pageToJson(written)), 'the page it writes reads back');
   });
 
   it('a page whose first sheet was deleted reopens with its own sheets alone, on its first', async () => {

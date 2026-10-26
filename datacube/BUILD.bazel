@@ -152,6 +152,9 @@ _SCANNED = {
         "//engine-client:warehouse_corpus_test_source",
         "//query-store:wasm_test_source",
         "//sdlc-client:wasm_test_source",
+        # the browser harnesses whose checks prove an ability end to end on a page (2026-10-25, the timeseries review's A7)
+        "demo/verify-charts.mjs",
+        "test/python-engine/python-engine.mjs",
     ],
     # the WASM list against the files that load the planner (A28)
     "wasm-flag": ["BUILD.bazel", ":scanned_tests"],
@@ -236,6 +239,8 @@ _EXTRA_ENV = {
 
 # DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
 _DUCKDB_USERS = [
+    "timeseries-queries",
+    "timeseries-view-dom",
     # chart queries planned and run (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2)
     "chart-queries",
     # graph mode's G0: a Cypher query planned in the tab and run on its DuckDB (docs/DATACUBE_GRAPH_MODE_2026_10_18.md)
@@ -334,6 +339,8 @@ _EXTRA_DATA = {
 # the tests that write a model from a table's columns ask the compiler (T2): legend-lite's
 # own WASM module, loaded by test/catalog-builder.ts
 _WASM_TESTS = [
+    "timeseries-queries",
+    "timeseries-view-dom",
     "calc-fix",
     "chart-queries",
     "cypher-spike",
@@ -510,6 +517,11 @@ _HEADLESS_TESTS = [
     "page-gestures",
     # a text tile's words read, and written by an export (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md P4)
     "page-text",
+    # a timeseries tile's spec read and its expressions parsed, and its drawing (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md)
+    "timeseries-spec",
+    "timeseries-option",
+    # its changes, one rule its viewer and Python ask (2026-10-25, docs/TIMESERIES_REVIEW_2026_10_25.md A2)
+    "timeseries-edit",
     # a text box's files (§8 step 1, 2026-10-25): the one rule, pure
     "text-files",
     # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
@@ -598,11 +610,16 @@ _HEADLESS_LEFT_OUT = {
     "chart-echarts": "ECharts draws on a DOM canvas",
     "chart-kinds": "ECharts draws on a DOM canvas",
     "chart-maps": "ECharts draws on a DOM canvas",
+    # a timeseries drawn by ECharts, as chart-echarts draws a chart (2026-10-25, the timeseries review's G5)
+    "timeseries-echarts": "ECharts draws on a DOM canvas",
     # a picked File read as a stream (Blob, TextDecoderStream: upload.ts fileParts) is the page's: headless reads a file
     # by its path (readFileInto, run by //python:headless_test's Files)
     "upload": "a picked File, read as the page's stream",
     # its rows read in from a picked File, as upload's are (the queries themselves run headless in every chart's page)
     "chart-queries": "a picked File, read as the page's stream",
+    # a timeseries tile's queries against gs-quant's figures, their rows read in as chart-queries' are (2026-10-25, the
+    # timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md; dated by the review's A9)
+    "timeseries-queries": "a picked File, read as the page's stream",
     # the lane's own stand-ins and web layer, held to Node's built-ins: they need the Node they compare against
     "headless-assert": "node:assert/strict, its reference",
     "headless-test-runner": "node:test's own run, its reference",

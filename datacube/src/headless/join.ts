@@ -8,11 +8,14 @@ import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { openedState } from '../cube-state.ts';
 import { cubeToJson, gridCapped, newGridTree, rebuilt, writeCube, type JoinInput, type JoinSource } from '../cube-document.ts';
-import { HOST_TABLES, openInputs, openJoin, summaryCounts, type JoinOpening, type OpenedJoin } from '../join-open.ts';
+import {
+  HOST_TABLES, openInputs, openJoin, openSources, summaryCounts, type JoinOpening, type OpenedJoin, type OpenedSource, type OpenedSources,
+} from '../join-open.ts';
 import { joinSummary, joinTitle, readJoinHow, summaryWords, type JoinHow } from '../join.ts';
 import { tiles } from '../layout/bands.ts';
 import { joinInputOf } from '../page-commands.ts';
 import { readPage, type PageDocument } from '../page-document.ts';
+import { CubeRefusal } from '../snapshot.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { catalogColumns } from '../upload.ts';
 import { pythonRunner } from '../services/python-host.ts';
@@ -126,6 +129,76 @@ export async function joinCube(spec: string): Promise<string> {
       + `"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
       + `"relation":${toJson({ _type: 'lambda', parameters: [], body: [opened.relation] })}}`;
   }, s.tables);
+}
+
+/** What a host hands in for grids read together (joinTogether): its page, the grids by their tiles' ids, and what it
+ *  serves (host-tables.ts HostTables). */
+export interface TogetherSpec {
+  readonly page: unknown;
+  readonly grids: readonly string[];
+  readonly host: HostTables;
+  /** The copies the host holds, by table (Python's held_copies): a snapped grid is read over its copy. */
+  readonly copies?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * EACH GRID AS A COMBINATION READS IT ON THE HOST: a snapped grid (the page's record, `copies`) its copy's table -- one
+ * the host no longer holds refused in the words a grid's base is (grid.ts baseOnHost), never read live in its place --
+ * any other its leaves' tables (host-tables.ts leafTables). The review's P3: the host read every grid live.
+ */
+export async function sourcesOnHost(page: PageDocument, cubes: readonly string[], host: HostTables,
+  held: Readonly<Record<string, unknown>>): Promise<{ readonly sources: OpenedSource[]; readonly tables: string[] }> {
+  const sources: OpenedSource[] = [];
+  const tables: string[] = [];
+  for (const id of cubes) {
+    const cube = page.cubes.find((c) => c.id === id);
+    if (!cube) throw new CubeRefusal(`'${id}' is no cube of the page`);
+    const copy = page.copies?.[id];
+    if (copy) {
+      if (!Object.hasOwn(held, copy.table)) {
+        throw new CubeRefusal(`${cube.cube.name}: its snap (${copy.label}) is no longer held -- go live to read its rows live again, or snap it anew`);
+      }
+      sources.push({ _type: 'copy', table: copy.table });
+      tables.push(copy.table);
+      continue;
+    }
+    sources.push(cube.cube.source);
+    tables.push(...await leafTables(cube.cube.source, host));
+  }
+  return { sources, tables };
+}
+
+/**
+ * GRIDS READ TOGETHER (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2): a page's grids over one model of the tables
+ * they read in the host's database (join-open.ts openSources, the rule the tab opens them by over its own) -- for a
+ * timeseries series that combines them, on a tab on the host's page, which has no database of its own there: the series'
+ * one query is written over these relations by the tab and planned and run by the host's plan-and-run. JSON: `{model,
+ * runtime, relations, notes}`, each relation as the protocol writes it, in the grids' order.
+ */
+export async function joinTogether(spec: string): Promise<string> {
+  const s = fromJson(spec) as unknown as TogetherSpec;
+  const page = readPage(s.page, { empty: true });
+  if (!Array.isArray(s.grids) || s.grids.length === 0) throw new Error('grids read together are a list of the page\'s grids');
+  // each a cube of the page -- a grid's, or one kept for a tile that reads it, its grid removed (the timeseries' kept
+  // cube: the second audit's P-4, refused as "no grid of the page" on a host's page, read on the tab) -- or a grid by
+  // its tile's id
+  const cubes = s.grids.map((id) => {
+    if (page.cubes.some((c) => c.id === id)) return id;
+    const view = page.views.find((v) => v.id === id);
+    if (!view || view.kind !== 'grid') throw new Error(`'${id}' is no grid nor cube of the page`);
+    return view.cube;
+  });
+  // each grid's tables as the host reads them, in the grids' order: a snapped one's copy (sourcesOnHost)
+  const { sources, tables } = await sourcesOnHost(page, cubes, s.host, s.copies ?? {});
+  const opened = await sourcesOpenedOn(sources, tables);
+  return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
+    + `"relations":[${opened.relations.map((r) => toJson(r)).join(',')}],"notes":${JSON.stringify(opened.notes)}}`;
+}
+
+/** Sources opened over one model of the host's tables they read (`tables`: their leaves', leafTables, in their order) --
+ *  join-open.ts openSources, as the tab opens them over its own (joinTogether; headless timeseries.ts timeseriesQuery). */
+export async function sourcesOpenedOn(sources: readonly OpenedSource[], tables: readonly string[]): Promise<OpenedSources> {
+  return using((o) => openSources(sources, o), tables);
 }
 
 /**

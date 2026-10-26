@@ -35,11 +35,12 @@ import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
 import {
-  filtersFor, keptFor, newPage, NOTHING_TO_SAVE, pageFile, sheetLabel, writePageOf, type PageDocument, type PageView,
+  cubesHeld, filtersFor, keptFor, newPage, NOTHING_TO_SAVE, pageFile, sheetLabel, writePageOf, type PageDocument, type PageView,
   type PageViews,
 } from '../page-document.ts';
 import { conditionWords, filterWords, gridLens, type PageFilter } from '../page-filters.ts';
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
+import type { TsTogether } from '../ui/timeseries-view.ts';
 import type { QueryLens } from '../runner.ts';
 import { CubeRefusal, sameValue, type FilterNode } from '../snapshot.ts';
 import {
@@ -150,6 +151,9 @@ export interface PageAppOptions {
   readonly pageNow?: (name: string) => PageDocument | undefined;
   /** Say a refusal to the person (the host's way: a page of its own alerts). */
   readonly refuse?: (text: string) => void;
+  /** The grids of `cubes` opened together for a timeseries series that combines them (page/cube-page.ts
+   *  CubePageOptions.together): where the page plans and runs its own SQL. */
+  readonly together?: (cubes: readonly string[]) => Promise<TsTogether>;
   /**
    * The host's readout (where the planner runs, what went wrong), at the right of the page's FIRST grid's status bar
    * -- it moves when another grid becomes the first -- on each of that bar's renders.
@@ -810,7 +814,7 @@ export class PageApp {
    *  its grid's reading place (as page-commands.ts writes a page), the rest as they came. */
   #withUnopened(cubes: readonly { id: string; cube: CubeDocument }[], views: PageViews): { id: string; cube: CubeDocument }[] {
     if (this.#unopened.size === 0) return [...cubes];
-    const read = new Set(views.views.map((v) => v.cube));
+    const read = cubesHeld(views.views);
     const all = [...cubes, ...[...this.#unopened].filter(([id]) => read.has(id)).map(([id, cube]) => ({ id, cube }))];
     const grids = views.views.filter((v) => v.kind === 'grid').map((v) => v.cube);
     const place = (id: string): number => (grids.includes(id) ? grids.indexOf(id) : grids.length);
@@ -974,6 +978,7 @@ export class PageApp {
       onUndo: (redo) => (redo ? this.redo() : this.undo()),
       // a chart's click decided on its grid's source and the page's filters (page-filters.ts chartPicked)
       pickOn: (grid) => ({ source: this.grid(grid)?.cubeSource, filters: this.#filters }),
+      ...(this.#options.together ? { together: this.#options.together } : {}),
     });
   }
 
