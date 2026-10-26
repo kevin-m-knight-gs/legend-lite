@@ -217,6 +217,20 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
       assert.equal(added.id, 'C');
       assert.deepEqual(added.expr, parseExpr('mean($A, 50)'));
       assert.equal(windows.querySelector('.dc-ts-window'), null, 'the editor closed, its window gone');
+      // the third review's 1, 2: a change refused keeps its editor open, what was typed in it kept; Escape puts it away
+      [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-bar button')].find((b) => b.textContent === '+ Series')!.click();
+      const again = windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+      const field = again.querySelector('.dc-ts-expr') as HTMLInputElement;
+      field.value = 'nosuchcolumn[SPX]';
+      field.dispatchEvent(new field.ownerDocument.defaultView!.Event('input'));
+      const before = told.length;
+      [...again.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'OK')!.click();
+      assert.equal(told.length, before, 'nothing told');
+      assert.ok(windows.querySelector('.dc-ts-window'), 'its editor still open');
+      assert.equal((windows.querySelector('.dc-ts-expr') as HTMLInputElement).value, 'nosuchcolumn[SPX]', 'what was typed kept');
+      const win = windows.querySelector<HTMLElement>('.dc-ts-window')!;
+      win.dispatchEvent(new win.ownerDocument.defaultView!.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      assert.equal(windows.querySelector('.dc-ts-window'), null, 'Escape puts it away');
     } finally {
       view.dispose();
     }

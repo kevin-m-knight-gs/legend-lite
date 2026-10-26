@@ -70,6 +70,9 @@ export type TsStat = (typeof TS_STATS)[number];
 export const statName = (s: TsStat): string => `__ts_stat_${s}`;
 /** The periods a year a level's statistics were annualized by, a tile of no frequency's: the database's, of its dates. */
 export const TS_STAT_PER_YEAR = '__ts_stat_per_year';
+/** A level's least over the dates shown, before compare: at or below zero, none of its returns' figures (the viewer says
+ *  so). */
+export const TS_STAT_LEVEL_LOW = '__ts_stat_level_low';
 
 const DURATION = 'meta::pure::functions::date::DurationUnit';
 const x = (): ValueSpecification => variable('x');
@@ -128,6 +131,9 @@ interface Built {
   readonly unit: TsUnit;
   /** Whether its figures are a level (levelOf): what compare rebases, and the statistics read a volatility of. */
   readonly level: boolean;
+  /** A level's own value, before compare took it from its start: what its returns' figures are of (a % change from its
+   *  start starts at zero -- the third review's 5: its volatility blanked as "at or below zero"). */
+  readonly levelValue?: string;
   /** Each period's date: its value's, the period's last observation. */
   readonly at: string;
   readonly rows?: string;
@@ -835,7 +841,7 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
   }
   let unit = unitOf(expr);
   const level = levelOf(expr);
-  let built: { value: string; lower?: string; upper?: string; width?: string; open?: string; high?: string; low?: string };
+  let built: { value: string; levelValue?: string; lower?: string; upper?: string; width?: string; open?: string; high?: string; low?: string };
   const v = top.v;
   if ('lower' in v) {
     built = { value: v.upper, lower: v.lower, upper: v.upper, width: v.width };
@@ -844,6 +850,7 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
     built = { value: v.close, open: v.open, high: v.high, low: v.low };
   } else {
     let value = v.column;
+    const own = value;
     // compare: every LEVEL from one start -- a return, a difference, a deviation drawn as it is (the review's Q2) --
     // its change over its start's size, as the statistics' % change is: a start below zero rising is a rise (the
     // second audit's S1: a yield of -1 rising to -0.5 was a fall of 50%); of a start above zero, x / x0 as gs-quant's
@@ -855,7 +862,7 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
       value = how === 'rebase' ? w.row('cmp', op('times', op('plus', lit.integer(1), one(change)), lit.integer(100))) : change;
       unit = how === 'rebase' ? 'index' : 'ratio';
     }
-    built = { value };
+    built = { value, ...(value !== own ? { levelValue: own } : {}) };
   }
   // the most rows any of its columns took one of, at a period: more than one, and the drawing says so
   const rows = w.rows.length === 0 ? undefined : w.rows.length === 1 ? w.rows[0]!
@@ -968,11 +975,13 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
   if (view.from !== undefined) shown.push(fn('greaterThanEqual', one(b.at), dateLiteral(view.from, b.periodType)));
   if (view.to !== undefined) shown.push(fn('lessThanEqual', one(b.at), dateLiteral(`${view.to}${isDay(b.periodType) ? '' : 'T23:59:59'}`, b.periodType)));
   w.rel = w.rel.filter(row(and(...shown)));
-  const rLog = level ? w.returns(v, 1, 'log') : undefined;
-  const rSimple = level ? w.simple(v) : undefined;
-  const peak = level ? w.window('peak', 'max', Writer.read(v), 'running') : undefined;
+  // a level's figures of its returns, its drawdown and its growth: of the level itself, compared or not
+  const lv = b.levelValue ?? v;
+  const rLog = level ? w.returns(lv, 1, 'log') : undefined;
+  const rSimple = level ? w.simple(lv) : undefined;
+  const peak = level ? w.window('peak', 'max', Writer.read(lv), 'running') : undefined;
   const dd = peak !== undefined
-    ? w.row('dd', when(fn('lessThanEqual', one(peak), lit.integer(0)), none(), op('minus', fn('divide', one(v), one(peak)), lit.integer(1))))
+    ? w.row('dd', when(fn('lessThanEqual', one(peak), lit.integer(0)), none(), op('minus', fn('divide', one(lv), one(peak)), lit.integer(1))))
     : undefined;
   const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
   const S = statName;
@@ -998,6 +1007,11 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
     ] : []),
     ...(dd !== undefined ? [agg('__ts_stat_mdd_all', row(col(dd)), y('min'))] : []),
     ...(yearly !== undefined ? [agg(TS_STAT_PER_YEAR, row(col(yearly)), y('max'))] : []),
+    ...(level ? [
+      agg(TS_STAT_LEVEL_LOW, row(col(lv)), y('min')),
+      agg('__ts_stat_lfirst', row(fn('rowMapper', col(lv), col(b.ord))), y('minBy')),
+      agg('__ts_stat_llast', row(fn('rowMapper', col(lv), col(b.ord))), y('maxBy')),
+    ] : []),
   ];
   const keys = b.split !== undefined ? [b.split] : [w.part];
   let rel = w.rel.groupBy(keys, aggs);
@@ -1014,19 +1028,21 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
     // a level's figures of its returns, its drawdown and its growth, over a window it is above zero in throughout:
     // gone to zero or below (a yield), none of them -- never one of the part above zero, never a sign turned (the
     // second audit's S1), and the viewer says why (its statistics' blanks)
-    const above = (x: ValueSpecification): ValueSpecification => when(fn('lessThanEqual', one(S('low')), lit.integer(0)), none(), x);
+    const above = (x: ValueSpecification): ValueSpecification => when(fn('lessThanEqual', one(TS_STAT_LEVEL_LOW), lit.integer(0)), none(), x);
+    const lfirst = one('__ts_stat_lfirst');
+    const llast = one('__ts_stat_llast');
     derived.push(
       derive(S('vol'), row(above(op('times', op('times', one('__ts_stat_logsd'), perYear), lit.integer(100))))),
       derive(S('mdd'), row(above(one('__ts_stat_mdd_all')))),
-      derive(S('cagr'), row(when(or(fn('lessThanEqual', days, lit.integer(0)), fn('lessThanEqual', one(S('low')), lit.integer(0))), none(),
-        op('minus', fn('pow', fn('divide', last, first), fn('divide', float(365.25), days)), lit.integer(1))))),
+      derive(S('cagr'), row(when(or(fn('lessThanEqual', days, lit.integer(0)), fn('lessThanEqual', one(TS_STAT_LEVEL_LOW), lit.integer(0))), none(),
+        op('minus', fn('pow', fn('divide', llast, lfirst), fn('divide', float(365.25), days)), lit.integer(1))))),
       derive(S('sharpe'), row(above(when(fn('equal', one('__ts_stat_rsd'), lit.integer(0)), none(),
         op('times', fn('divide', one('__ts_stat_rmean'), one('__ts_stat_rsd')), perYear))))),
     );
   }
   rel = rel.extend(derived);
   const kept = [...TS_STATS.filter((st) => level || !['vol', 'mdd', 'cagr', 'sharpe'].includes(st)).map(S),
-    ...(yearly !== undefined ? [TS_STAT_PER_YEAR] : [])];
+    ...(yearly !== undefined ? [TS_STAT_PER_YEAR] : []), ...(level ? [TS_STAT_LEVEL_LOW] : [])];
   if (b.split !== undefined) rel = rel.extend([derive(TS_SPLIT, row(col(b.split)))]);
   rel = rel.select([...(b.split !== undefined ? [TS_SPLIT] : []), ...kept]);
   return {

@@ -172,6 +172,24 @@ filter kept, read by the compiler for every query: `timeseries-spec.ts filterRea
 Python (`4f74006f`); and the tile in PR #73's design: its state in its header, a chart's right-click, its editors a
 window beside it, both themes (`30aad6a6`).
 
+## 8½. A third review (2026-10-26)
+
+Everything after the second audit's B1 (`ced3a738..HEAD`: the kept cube saved, the cubes a page holds, the states,
+the fixes of §8, the tile in PR #73's design) read again by one reviewer who wrote none of it. Nothing blocking; five to
+fix, each fixed and pinned (each test failed before):
+
+| # | Finding | Fixed | Pinned by |
+|---|---|---|---|
+| 1 | A change the judge refused still closed its editor, what was typed lost; in Settings the refused value stayed shown | `#set` says whether it kept the change; Settings painted again on a refusal | `timeseries-view-dom.test.ts` |
+| 2 | Escape never closed the editor's window (the first field focused, Escape a field's) | the window itself focused, as a chart's options are | `timeseries-view-dom.test.ts` |
+| 3 | The focus fell to the body when the window closed; the window had no name | given back to the tile's focusable frame; named by its title | by code (a chart's options' rule) |
+| 4 | The judge compared problems by their text: a source renamed "made" every problem the tile had of it | the tile as it was renamed the same way before it is compared | `timeseries-edit.test.ts` |
+| 5 | Compare "% change" took a price's volatility, drawdown, growth and Sharpe ratio of its change from its start (zero there), blanked as "at or below zero" | a level's figures of the level itself (`Built.levelValue`; its least `TS_STAT_LEVEL_LOW`) | `timeseries-queries.test.ts` |
+
+Its notes fixed with them: the catalog's index, rebase, change and % change read "as of the first date shown"; a tile
+whose every grid is gone may still change state, as Python's may (one rule); its right-click's Create reads the first
+of its grids still on the board; the editor's selects sized as the toolbar's; the Frozen gesture asserts its button.
+
 ## 9. Follow-ups (not fixed here)
 
 - Q (numbers): CAGR over a short span (8,507% over 4 days, N3); `candled` sets a period's aggregate on bare columns
@@ -192,5 +210,7 @@ window beside it, both themes (`30aad6a6`).
 - G9's rest: a dangling doc comment in `chart-render.ts`; a tile on a sheet not shown is left out of the page's
   picture. The cube-page-shell G4 test reads a date of no date type, so its tile never draws (the drawing is the
   chart-tiles A-B1 test's).
+- The screen refuses to freeze a tile one of whose grids it could not open (a page reopened without that source: no
+  filter of it to keep, said), where Python freezes it from the page's own cube document.
 - Not run in this container: `//datacube:verify_app_test` (its embedded Postgres refuses root; CI runs it).
 

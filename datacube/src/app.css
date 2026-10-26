@@ -4664,7 +4664,7 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
   position: relative; border-color: var(--dc-active); background: var(--dc-selected-bg); color: var(--dc-active); font-weight: 600;
 }
 .dc-ts-custom { margin-left: var(--dc-pad-2); color: var(--dc-muted-strong); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.dc-ts-btn, .dc-ts .dc-ts-select { height: 22px; font-size: var(--dc-text-sm-size); }
+.dc-ts-btn, .dc-ts .dc-ts-select, .dc-ts-pop .dc-ts-select { height: 22px; font-size: var(--dc-text-sm-size); }
 .dc-ts-btn[aria-pressed='true'] { border-color: var(--dc-active); background: var(--dc-selected-bg); color: var(--dc-active); }
 /* a tile half a screen wide or less (the timeseries gallery's two and three abreast): its toolbar tighter, on one row
    where it fits */

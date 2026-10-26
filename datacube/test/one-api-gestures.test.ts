@@ -679,6 +679,7 @@ const GESTURES: readonly Gesture[] = [
       if (!item) throw new Error('its state button offers no Frozen');
       item.click();
       await settle();
+      assert.equal(tile(series!).querySelector('.dc-tile-state')!.textContent, 'Frozen', 'its state button says so');
     },
   },
   { name: 'a timeseries line hidden from its legend', setUp: withTimeseries, make: async ({ series }) => { (await chipOf(series!)).click(); } },

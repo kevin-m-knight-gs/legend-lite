@@ -109,16 +109,16 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   },
   // level
   index: { level: 'makes',
-    label: 'Index', family: 'Level', unit: 'index', params: { initial: 'its value at the first date shown' },
-    about: 'Divided by its value at the first date shown, times initial.', gsQuant: 'econometrics.index', anchored: true,
+    label: 'Index', family: 'Level', unit: 'index', params: { initial: 'its value as of the first date shown' },
+    about: 'Divided by its value as of the first date shown (its last at or before it), times initial.', gsQuant: 'econometrics.index', anchored: true,
   },
   rebase: { level: 'makes',
-    label: 'Rebase to 100', family: 'Level', unit: 'index', params: { base: 'its value at the first date shown' },
-    about: 'Its value at the first date shown made base (100): index(x, 100).', gsQuant: 'DataCube (econometrics.index)', anchored: true,
+    label: 'Rebase to 100', family: 'Level', unit: 'index', params: { base: 'its value as of the first date shown' },
+    about: 'Its value as of the first date shown (its last at or before it) made base (100): index(x, 100).', gsQuant: 'DataCube (econometrics.index)', anchored: true,
   },
-  change: { label: 'Change from start', family: 'Level', unit: 'same', about: 'Less its value at the first date shown.', gsQuant: 'econometrics.change', anchored: true },
+  change: { label: 'Change from start', family: 'Level', unit: 'same', about: 'Less its value as of the first date shown (its last at or before it).', gsQuant: 'econometrics.change', anchored: true },
   percent_change: {
-    label: '% change from start', family: 'Level', unit: 'ratio', about: 'Its change from its value at the first date shown, as a share of it.',
+    label: '% change from start', family: 'Level', unit: 'ratio', about: 'Its change from its value as of the first date shown (its last at or before it), as a share of it.',
     gsQuant: 'DataCube (econometrics.index - 1)', anchored: true,
   },
   // rolling statistics

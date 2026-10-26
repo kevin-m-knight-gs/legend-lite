@@ -149,7 +149,14 @@ export function judgedEdit(before: TimeseriesSpec | null, made: unknown,
   columnsOf: (spec: TimeseriesSpec) => ReadonlyMap<string, readonly TsColumn[] | undefined>): TimeseriesSpec {
   const spec = readTimeseries(JSON.parse(JSON.stringify(made)));
   if (typeof spec === 'string') throw new TsEditRefusal(spec);
-  const had = new Set(before === null ? [] : timeseriesProblems(before, columnsOf(before)));
+  // what the tile had, said as it says it now: a source renamed (found by the cube it reads, one source a cube) names
+  // its problems by its new alias -- else a rename "made" every problem the tile had of it (the third review's 4)
+  const said = before === null ? null : spec.sources.reduce((was, now) => {
+    const old = was.sources.find((x) => x.cube === now.cube);
+    return old && old.alias !== now.alias && !was.sources.some((x) => x.alias === now.alias)
+      ? editTimeseries(was, { kind: 'source', alias: old.alias, rename: now.alias }) : was;
+  }, before);
+  const had = new Set(said === null ? [] : timeseriesProblems(said, columnsOf(said)));
   const makes = timeseriesProblems(spec, columnsOf(spec)).filter((p) => p !== NO_SERIES && !had.has(p));
   if (makes.length > 0) throw new TsEditRefusal(makes.join(' '));
   return spec;

@@ -640,6 +640,16 @@ describe('the review\'s findings on the numbers, each pinned', () => {
     close(got, spread.map((v) => (v - spread[0]!) / Math.abs(spread[0]!)), 'its change over its start\'s size', 1e-9);
     const st = await run(statsQuery(below, ts, ts.series[0]!));
     for (const stat of ['vol', 'mdd', 'cagr', 'sharpe'] as const) assert.equal(values(st, statName(stat))[0], null, stat);
+    // the third review's 5: a price compared as its % change from its start (zero there) has its own level's figures,
+    // never blanked as "at or below zero"
+    const plain = await run(statsQuery(inputs, spec({ A: 'close[AAA]' }), spec({ A: 'close[AAA]' }).series[0]!, { from: DAYS[5]! }));
+    const pct = spec({ A: 'close[AAA]' }, { view: { compare: 'percent' } });
+    const compared = await run(statsQuery(inputs, pct, pct.series[0]!, { from: DAYS[5]! }));
+    for (const stat of ['vol', 'mdd', 'cagr', 'sharpe'] as const) {
+      const want = Number(values(plain, statName(stat))[0]);
+      assert.ok(Number.isFinite(want), `${stat} of the price`);
+      close([Number(values(compared, statName(stat))[0])], [want], `${stat} compared as its % change`, 1e-9);
+    }
     // above zero, as it was: x / x0, gs-quant's
     const up = spec({ A: 'close[AAA]' }, { view: { compare: 'rebase' } });
     close(values(await run(seriesQuery(inputs, up, up.series[0]!)), TS_VALUE).map(num).reverse(), AAA.map((v) => (v / AAA[0]!) * 100), 'rebased', 1e-9);

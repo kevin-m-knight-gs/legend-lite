@@ -119,8 +119,9 @@ describe('a timeseries tile changed by its one rule', () => {
   // the second audit's A-S1, A-S3: one judge for both sides -- a change refused for a problem it makes, never for one
   // the tile had; a tile of no series one either may leave; a slot it has not refused by name
   it('a change judged alike on both sides: refused for a problem it makes, not one the tile had; no series allowed', () => {
-    const columns = new Map([['px', PRICES.columns], ['rates', [{ name: 'tenor', type: 'String' }, { name: 'obs', type: 'StrictDate' }, { name: 'yield', type: 'Float' }]]]);
-    const of = (): typeof columns => columns;
+    // each source's columns by the cube it reads, as the viewer and Python find them
+    const byCube = new Map([['prices', PRICES.columns], ['rates', [{ name: 'tenor', type: 'String' }, { name: 'obs', type: 'StrictDate' }, { name: 'yield', type: 'Float' }]]]);
+    const of = (sp: TimeseriesSpec): Map<string, typeof PRICES.columns | undefined> => new Map(sp.sources.map((x) => [x.alias, byCube.get(x.cube)]));
     const px: TimeseriesSpec = { ...SPEC, sources: [{ alias: 'px', cube: 'prices', date: 'day', key: 'symbol' }, SPEC.sources[1]!], series: [S('A', 'close[SPX]')] };
     // a series of a column there is not: a problem it makes, refused
     refused(() => judgedEdit(px, editTimeseries(px, { kind: 'plot', series: { expr: parseExpr('nosuch') } }), of), /reads 'nosuch', which source px has not/);
@@ -132,6 +133,10 @@ describe('a timeseries tile changed by its one rule', () => {
     assert.deepEqual(judgedEdit(px, editTimeseries(px, { kind: 'unplot', id: 'A' }), of).series, []);
     // a tile made new is judged whole
     refused(() => judgedEdit(null, broken, of), /reads 'gone'/);
+    // a source renamed: the problem it had, said by its new name, is still the tile's, not one the rename made (the
+    // third review's 4)
+    const renamed = judgedEdit(broken, editTimeseries(broken, { kind: 'source', alias: 'px', rename: 'prices' }), of);
+    assert.deepEqual(renamed.sources.map((x) => x.alias), ['prices', 'rates']);
     // a slot it has not, refused by name -- never dropped
     refused(() => editTimeseries(px, { kind: 'slots', slots: { grian: 'week' } as never }), /there is no "grian" among a tile's slots/);
   });

@@ -2318,24 +2318,23 @@ export class CubePage {
     body.className = 'dc-ts-host';
     // ITS HEADER'S STATE (the user, 2026-10-26: a timeseries' states are a chart's, where they mean something): DYNAMIC
     // follows its grids' filters and the page's clicks; FROZEN keeps each grid's filter as it was; DETACHED, a grid it
-    // reads removed, read as it was -- every grid it reads gone, the button off, as a detached chart's is
+    // reads removed, read as it was -- its state still its to change, as Python's Timeseries.state changes it (one rule:
+    // the third review's note -- the screen alone turned it off when every grid was gone)
     const pill = stateButton(this.#doc);
     const paint = (): void => {
       const tile = this.#series.get(view.id);
       if (!tile) return;
       const state = tsStateOf(tile.spec);
       const gone = tile.spec.sources.filter((s) => this.#tsGrid(s.cube)?.kept === true);
-      const all = gone.length === tile.spec.sources.length;
       const words = SERIES_STATE_WORDS[state];
       const names = gone.map((s) => this.#tsGrid(s.cube)!.title).join(', ');
       paintState(pill, gone.length > 0 ? 'detached' : state, gone.length > 0 ? 'Detached' : words.label, gone.length > 0
-        ? `Detached: ${names}${gone.length === 1 ? '\'s grid was' : '\'s grids were'} removed, and this tile reads ${gone.length === 1 ? 'its' : 'their'} query as it was.${all ? '' : ` ${words.label}: ${words.says}. Click to change.`}`
-        : `${words.label}: ${words.says}. Click to change.`, { menu: !all });
-      pill.disabled = all;
+        ? `Detached: ${names}${gone.length === 1 ? '\'s grid was' : '\'s grids were'} removed, and this tile reads ${gone.length === 1 ? 'its' : 'their'} query as it was. ${words.label}: ${words.says}. Click to change.`
+        : `${words.label}: ${words.says}. Click to change.`, { menu: true });
     };
     pill.addEventListener('click', () => {
       const tile = this.#series.get(view.id);
-      if (!tile?.view || pill.disabled) return;
+      if (!tile?.view) return;
       const shown = tile.view;
       this.#menuFor = (item) => {
         const state = TS_STATES.find((s) => item.id === `tile.state.${s}`);
@@ -2353,15 +2352,16 @@ export class CubePage {
       const tile = this.#series.get(view.id);
       if (!tile) return;
       event.preventDefault();
-      const first = tile.spec.sources[0];
-      const grid = first === undefined ? null : this.#gridOfCube(first.cube);
+      // the first of its grids still on the board (the third review's note: the first source's alone, its grid gone, turned
+      // Create's grid entries off though another it reads was there)
+      const grid = tile.spec.sources.map((s) => this.#gridOfCube(s.cube)).find((g) => g !== null) ?? null;
       this.#menuFor = (item) => {
         if (item.id === 'tile.properties') tile.view?.openSettings();
         this.#onTileCreate(view.id, grid, item);
         this.#onTileView(view.id, item);
       };
       this.#menu.show([
-        { label: '', items: [this.#tileCreate(grid, 'Its grid is gone: it reads that grid\'s query as it was')] },
+        { label: '', items: [this.#tileCreate(grid, 'Its grids are gone: it reads their queries as they were')] },
         { label: '', items: [{ id: 'tile.properties', label: 'Properties\u2026', ...(tile.view ? {} : { disabled: true, hint: 'Show its sheet first' }) }] },
         { label: '', items: [this.#tileView(view.id)] },
       ], event.clientX, event.clientY);

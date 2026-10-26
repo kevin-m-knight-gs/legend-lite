@@ -32,7 +32,7 @@ import {
 } from '../timeseries-edit.ts';
 import {
   boundsQuery, keyValuesQuery, rangeStartName, readsAnchor, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_LATEST,
-  TS_SPLIT, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
+  TS_SPLIT, TS_STAT_LEVEL_LOW, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
 import {
   describeTimeseries, dateLabel, timeseriesCsv, timeseriesOption, toNumber, tsLines, valueText, type TsFormat, type TsLine,
@@ -232,6 +232,8 @@ export class TimeseriesView {
   /** Its editor's window, while one is open; and what lets its listeners go when it closes. */
   #window_: HTMLElement | null = null;
   #closing: AbortController | null = null;
+  /** Whether the window open is its Settings (painted again after a refused change). */
+  #settings = false;
   #chart: MountedTimeseries | null = null;
   #mounting: Promise<MountedTimeseries | null> | null = null;
   /** Whether ECharts can draw candles (chart-render-kinds.ts registered before the chart was made). */
@@ -328,18 +330,21 @@ export class TimeseriesView {
   // -- the spec changed ----------------------------------------------------------------------------------------------
 
   /** The person changed the spec: kept by the page, and drawn (or asked) at once. */
-  /** A change kept, judged as Python's is (timeseries-edit.ts judgedEdit): refused for a problem it makes, in its words. */
-  #set(spec: TimeseriesSpec): void {
+  /** A change kept, judged as Python's is (timeseries-edit.ts judgedEdit): refused for a problem it makes, in its words --
+   *  whether it was kept, so an editor whose change was refused stays open, what was typed in it kept (the third
+   *  review's 1). */
+  #set(spec: TimeseriesSpec): boolean {
     let read: TimeseriesSpec;
     try {
       read = judgedEdit(this.#spec, spec, (s) => this.#columns(s));
     } catch (e) {
       if (!(e instanceof TsEditRefusal)) throw e;
       this.#say([e.message], true);
-      return;
+      return false;
     }
     this.#apply(read);
     this.#host.setSpec(read);
+    return true;
   }
 
   #apply(spec: TimeseriesSpec): void {
@@ -683,15 +688,18 @@ export class TimeseriesView {
    *  and drawn, or refused in its words. */
   #edit(change: TsChange): boolean {
     let made: TimeseriesSpec;
+    let kept: boolean;
     try {
       made = editTimeseries(this.#spec, change);
+      kept = this.#set(made);
     } catch (e) {
       if (!(e instanceof TsEditRefusal)) throw e;
       this.#say([e.message], true);
-      return false;
+      kept = false;
     }
-    this.#set(made);
-    return true;
+    // refused in Settings: its fields shown as the tile has them again, never the refused value (the third review's 1)
+    if (!kept && this.#settings) this.#editSettings();
+    return kept;
   }
 
   #paintLegend(): void {
@@ -837,23 +845,25 @@ export class TimeseriesView {
   #statBlanks(): string[] {
     const out: string[] = [];
     for (const l of this.#lines.filter((x) => x.level && !x.band && !x.series.hidden && !this.#statsFailed.has(x.series.id))) {
-      const low = toNumber(this.#statValue(l, 'low') as Scalar);
-      if (low !== null && low <= 0) {
+      // the level's own least, before compare took it from its start (a % change from its start is zero there)
+      const low = this.#statColumn(l, TS_STAT_LEVEL_LOW);
+      if (low !== undefined && low !== null && low <= 0) {
         out.push(`${l.name} is at or below zero over these dates: it has no volatility, drawdown, growth or Sharpe ratio.`);
         continue;
       }
-      if (this.#perYear(l) === null) {
+      if (this.#statColumn(l, TS_STAT_PER_YEAR) === null) {
         out.push(`${l.name}: its dates are no frequency to annualize its volatility and Sharpe ratio by: choose the tile's frequency.`);
       }
     }
     return out;
   }
 
-  /** The periods a year a line's statistics were annualized by, as the database inferred them; undefined when the tile
-   *  has a frequency (nothing inferred). */
-  #perYear(l: TsLine): number | null | undefined {
+  /** A line's figure of its statistics' answer by its column -- the periods a year it was annualized by, as the database
+   *  inferred them; its level's least -- undefined where the answer has no such column (a tile of a frequency: nothing
+   *  inferred). */
+  #statColumn(l: TsLine, name: string): number | null | undefined {
     const t = this.#statRows.get(l.series.id);
-    const col = t?.columns.find((c) => c.name === TS_STAT_PER_YEAR);
+    const col = t?.columns.find((c) => c.name === name);
     if (!t || !col) return undefined;
     const splits = t.columns.find((c) => c.name === TS_SPLIT)?.values;
     const at = l.split === undefined ? 0 : splits ? splits.findIndex((v) => v === l.split) : -1;
@@ -875,7 +885,7 @@ export class TimeseriesView {
     const host = this.#host.windowHost;
     let win = this.#window_;
     if (!win) {
-      win = el(doc, 'div', 'dc-app-overlay dc-app-floating dc-ts-window', undefined, { role: 'dialog', tabindex: '-1' });
+      win = el(doc, 'div', 'dc-app-overlay dc-app-floating dc-ts-window', undefined, { role: 'dialog', tabindex: '-1', 'aria-label': title });
       const head = el(doc, 'div', 'dc-overlay-head');
       const close = el(doc, 'button', 'dc-overlay-close', undefined, { type: 'button', 'aria-label': 'Close (Escape)', title: 'Close (Escape)' });
       close.append(chromeIcon(doc, 'close'));
@@ -914,10 +924,15 @@ export class TimeseriesView {
         closing.signal.addEventListener('abort', () => watch.disconnect());
       }
     }
-    win.querySelector('.dc-ts-window-title')!.textContent = `${title} \u2014 ${this.#host.title()}`;
+    const named = `${title} \u2014 ${this.#host.title()}`;
+    win.querySelector('.dc-ts-window-title')!.textContent = named;
+    win.setAttribute('aria-label', named);
     this.#pop.replaceChildren(...content);
+    this.#settings = false;
     raiseWindow(win, host);
-    this.#pop.querySelector<HTMLElement>('input, select, textarea')?.focus();
+    // the window itself focused, as a chart's options are: Escape puts it away until a field is entered, where Escape is
+    // the field's (the third review's 2: the first field focused, Escape never closed it)
+    win.focus({ preventScroll: true });
   }
 
   /** Its editor's window put away -- the focus, when it was in it, back on its tile. */
@@ -928,10 +943,13 @@ export class TimeseriesView {
     const had = root.activeElement !== null && win.contains(root.activeElement);
     this.#closing?.abort();
     this.#closing = null;
+    this.#settings = false;
     win.remove();
     this.#window_ = null;
     this.#pop = this.#doc.createElement('div');
-    if (had) this.#root.focus({ preventScroll: true });
+    // back on its tile -- its focusable frame, as a chart's options give it back (the third review's 3: the viewer's own
+    // element takes no focus, and it fell to the body)
+    if (had) this.#root.closest<HTMLElement>('[tabindex]')?.focus({ preventScroll: true });
   }
 
   /** Its Settings, as its tile's right-click Properties… opens them (page/cube-page.ts). */
@@ -1269,6 +1287,7 @@ export class TimeseriesView {
     }));
     parts.push(addRow, el(doc, 'div', 'dc-ts-hint', 'Double-click the chart to put an event at that date.'));
     this.#open('Settings', ...parts);
+    this.#settings = true;
   }
 
   /** A double-click on the chart: an event at that date, labelled. */
