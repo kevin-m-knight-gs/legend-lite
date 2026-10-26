@@ -3251,6 +3251,36 @@ class Flows(Paged):
         with self.assertRaises(ValueError):
             kept.custom_filter('$x.nope > 1')
 
+    def test_a_pure_box_makes_its_rows_a_function_of_its_inputs(self):
+        # FL12: grid.pure -- its rows a function of its input's, in Pure over $input, parsed and its rows typed as a
+        # relation by the compiler before the page sets it; a box after it reads its rows, its columns the compiler's;
+        # taken off, its input's again; refused in the compiler's words, or DataCube's
+        page, flow, source, _big = self.flowed()
+        box = flow.grid(input=source)
+        box.pure("$input->filter(x|$x.region == 'EMEA')->extend(~fee:x|$x.notional->toOne() * 0.01)")
+        after = flow.grid(input=box)
+        rows = after.to_pandas()
+        self.assertEqual(sorted(rows['notional']), [75.5, 100.0])
+        self.assertEqual([round(f, 6) for f in sorted(rows['fee'])], [0.755, 1.0])
+        grouped = flow.grid(input=source)
+        grouped.pure('$input->groupBy(~[region], ~[total:x|$x.notional:y|$y->sum()])')
+        totals = flow.grid(input=grouped).to_pandas()
+        self.assertEqual(list(totals.columns), ['region', 'total'], 'its columns as the compiler types them')
+        self.assertEqual(sorted(zip(totals['region'], totals['total'])), [('AMER', 250.0), ('EMEA', 175.5)])
+        # the page keeps its function: written down and read back, its box says it
+        cube = next(c['cube'] for c in page.to_dict()['cubes'] if c['id'] == grouped._view['cube'])
+        self.assertEqual(cube['source']['pure']['_type'], 'lambda')
+        box.pure(None)
+        self.assertEqual(len(after.to_pandas()), 3, "taken off: its input's rows again")
+        with self.assertRaisesRegex(ValueError, r'its Pure never reads \$input'):
+            box.pure('1')
+        with self.assertRaisesRegex(ValueError, "its Pure gives a value, not rows: a Pure box's rows are a relation"):
+            box.pure('$input->count()')
+        with self.assertRaises(ValueError):
+            box.pure("$input->filter(x|$x.nope == 1)")
+        with self.assertRaisesRegex(ValueError, "a Pure box reads another grid's rows"):
+            source.pure('$input->limit(1)')
+
     def test_a_sample_hands_on_the_rest(self):
         # M3: a Sample a filter makes hands on the rest by its False (Alteryx's Create Samples, its estimation and holdout):
         # the rows it leaves out, by the same seed -- its rows and the rest every row, none in both

@@ -16,7 +16,8 @@ import { TAB_TABLES, inputRows, leafRefusal, openInputs, openJoin, openRows, typ
 import { CubeRefusal } from '../snapshot.ts';
 import type { HeldCopy } from '../app.ts';
 import type { SnapTarget } from '../cube.ts';
-import type { RelationTyper } from '../source-columns.ts';
+import { sourceColumns, type RelationTyper } from '../source-columns.ts';
+import { boxRows } from '../pure-box.ts';
 import { catalogColumns, tableNameOf } from '../upload.ts';
 import type { DatabaseService, GridRows, LocalEngine, Services } from './services.ts';
 import type { GridPlace, Opened, SourcesOf } from './sources.ts';
@@ -191,10 +192,13 @@ async function openedAfterStart(h: JoinSourcesHost, source: RowsSource, resolved
   Promise<Opened | undefined> {
   // the chain, its first input first
   const inputs: JoinInput[] = [];
+  // the box each reads into, in the same order
+  const boxes: RowsSource[] = [];
   for (let s: CubeSource = resolved; s._type === 'rows';) {
     const input: CubeInput = s.input;
     if (isLive(input)) throw new Error(`${s.name} reads grid '${input.grid}' live: resolve it against its page first`);
     inputs.unshift(input);
+    boxes.unshift(s);
     s = input.source;
   }
   // a Join's L or R reads both of the join's inputs, so where a join reads them: this tab's own tables
@@ -209,10 +213,12 @@ async function openedAfterStart(h: JoinSourcesHost, source: RowsSource, resolved
     const notes = [...start.opened.notes];
     let relation = start.snapshot.source.query;
     let columns: ColumnSpec[] = [];
-    for (const input of inputs) {
+    for (const [i, input] of inputs.entries()) {
       const side = await inputRows(input, relation, typer, notes);
-      relation = side.relation;
-      columns = side.columns.map((c) => ({ name: c.name, type: c.type }));
+      // a Pure box's rows, its function of its input's (pure-box.ts), typed by the compiler as a relation
+      const box = boxes[i]!;
+      relation = boxRows(box, side.relation);
+      columns = (box.pure === undefined ? side.columns : await sourceColumns(typer, relation)).map((c) => ({ name: c.name, type: c.type }));
     }
     const r = rebuilt(how.saved, relation, columns, source.name, how.capped === true);
     // read through what its first source is read through: its planner and engine, live on a warehouse, a copy held here

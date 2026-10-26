@@ -405,8 +405,15 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  pin lacks asked as its rows land and awaited by a run (query.ts unpinnedValuesLambda, app.ts lackingPivotValues,
  *  page/cube-page.ts #askLacking, layout/flow-board.ts lacking), a draft's columns typed with nothing run (cube.ts
  *  typed) and the Custom Filter's opener (app.ts); its rule, its window and the canvas's marks chunks of their own; no
- *  startup file added, measured). Measured 382,146. */
-const BUDGET = 383_000;
+ *  startup file added, measured). Measured 382,146.
+ *  383,000 -> 385,000 (2026-10-26, the flow mode's Pure box, FL12: a box's rows a function of its input's, in Pure -- its
+ *  source's function read and judged with the page (cube-document.ts RowsSource.pure, pure-box.ts pureProblem), set and
+ *  read as a page command (page-commands.ts setPure; page-between.ts, page-rebase.ts), its window's opener and the rule
+ *  it shares with headless (app.ts #openPure, pure-box.ts pureFrom), a relation typed with nothing run (cube.ts
+ *  relationColumns), and pure-protocol's top-down rewrite; the window a chunk of its own; no startup file added, measured.
+ *  Not tried: all but the reader's check in a lazy module of its own -- some 600 bytes by estimate, and a lazy module
+ *  importing that check would split it into a startup file of its own, as Summarize's rule split one). Measured 384,564. */
+const BUDGET = 385_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -567,8 +574,10 @@ const BUDGET = 383_000;
  *  370,500 -> 371,500 (2026-10-26, the flow mode's Cross Tab missing values, Custom Filter, Dry Run and New Box After:
  *  the grid-only page's notes of 2026-10-25 for the first two; a run that writes nothing (page/cube-page.ts #runFlow's
  *  dry) and a box's menu gesture made in a box after it (ui/menu.ts newBoxItems, app.ts onStepAfter, page/cube-page.ts
- *  #stepAfter); no startup file added, measured). Measured 370,956. */
-const ENGINE_BUDGET = 371_500;
+ *  #stepAfter); no startup file added, measured). Measured 370,956.
+ *  371,500 -> 373,500 (2026-10-26, the flow mode's Pure box -- the grid-only page's note of the same date). Measured
+ *  372,937. */
+const ENGINE_BUDGET = 373_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -789,8 +798,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  row read (page/cube-page.ts firstRowOf), a pivot's values pinned and a pinned pivot's rows -- the grid-only page's
  *  note of the same date -- and the Cross Tab strip's styles). Measured 394,407.
  *  395,000 -> 396,000 (2026-10-25, the flow mode's Cross Tab missing values and Custom Filter -- the grid-only page's
- *  note of the same date -- and the Custom Filter window's styles). Measured 395,109. */
-const WIDGET_BUDGET = 396_000;
+ *  note of the same date -- and the Custom Filter window's styles). Measured 395,109.
+ *  396,000 -> 398,000 (2026-10-26, the flow mode's Pure box -- the grid-only page's note of the same date -- and its
+ *  window's styles). Measured 397,684. */
+const WIDGET_BUDGET = 398_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

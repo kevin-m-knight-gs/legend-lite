@@ -327,6 +327,8 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'setOutput', grid: 'grid-3', output: { format: 'csv', name: 'trades out.csv' } },
     { kind: 'setOutput', grid: 'grid-3', output: null },
     { kind: 'setStops', grid: 'grid-3', stops: true },
+    { kind: 'setPure', grid: 'grid-3', pure: { _type: 'lambda', parameters: [{ _type: 'var', name: 'input' }], body: [{ _type: 'func', function: 'limit', parameters: [{ _type: 'var', name: 'input' }, { _type: 'integer', value: 5 }] }] } },
+    { kind: 'setPure', grid: 'grid-3', pure: null },
     { kind: 'setJoin', grid: 'grid-3', how: { form: 'semi', on: { rows: [{ left: 'region', op: '==', right: 'region' }] } } },
   ];
 

@@ -31,9 +31,11 @@ import {
   isIdentifier,
   readLambda,
   toJson as protocolJson,
+  type Lambda,
   type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import { readFormatCode } from './format-code.ts';
+import { pureProblem } from './pure-box.ts';
 import {
   applyToSnapshot, DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, fromSnapshot, REQUIRED_SETTINGS, type CubeConfiguration,
 } from './config.ts';
@@ -224,6 +226,10 @@ export interface RowsSource {
   /** What a person calls it: its input's name when it was made. */
   readonly name: string;
   readonly input: CubeInput;
+  /** A Pure box's (FL12: pure-box.ts): its rows a function of its input's, in Pure -- one parameter, its input's rows;
+   *  its body one expression, typed by the compiler as a relation when the box opens. Absent, its input's rows as they
+   *  are. */
+  readonly pure?: Lambda;
   /** What it answered when the cube was saved. */
   readonly columns: readonly { readonly name: string; readonly type: string }[];
 }
@@ -660,7 +666,19 @@ function readRowsSource(s: Record<string, unknown>): RowsSource {
   const i = s['input'];
   if (!isObject(i)) throw new CubeDocumentError("the source of another grid's rows has no input");
   const input = readInput(i, "the source of another grid's rows' input");
-  return { _type: 'rows', name: s['name'], input, columns: columns as RowsSource['columns'] };
+  // a Pure box's function (pure-box.ts), read exactly: its shape judged here, what it computes the compiler's when it opens
+  let pure: Lambda | undefined;
+  if (s['pure'] !== undefined) {
+    const problem = pureProblem(s['pure']);
+    if (problem !== undefined) throw new CubeDocumentError(problem);
+    try {
+      pure = readLambda(s['pure']);
+    } catch (e) {
+      if (!(e instanceof ProtocolError)) throw e;
+      throw new CubeDocumentError(`${s['name']}'s Pure: ${e.message}`);
+    }
+  }
+  return { _type: 'rows', name: s['name'], input, ...(pure !== undefined ? { pure } : {}), columns: columns as RowsSource['columns'] };
 }
 
 /** An input (`what`, as said), live -- `{grid}`, a grid of its page -- or frozen, a copy of what a grid was. */

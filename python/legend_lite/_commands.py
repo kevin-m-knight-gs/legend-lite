@@ -19,7 +19,7 @@ PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'addFlow', '
                                'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText',
                                'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout',
                                'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin',
-                               'setOutput', 'setStops', 'modelInto', 'modelPin', 'modelKeep',)
+                               'setPure', 'setOutput', 'setStops', 'modelInto', 'modelPin', 'modelKeep',)
 
 
 def grid_group(*, rows: Any) -> dict[str, Any]:
@@ -229,6 +229,10 @@ def page_set_input(*, grid: Any, side: Any, input: Any) -> dict[str, Any]:
 
 def page_set_join(*, grid: Any, how: Any, more: Any = _ABSENT) -> dict[str, Any]:
     return {'kind': 'setJoin', 'grid': grid, 'how': how, **({} if more is _ABSENT else {'more': more})}
+
+
+def page_set_pure(*, grid: Any, pure: Any) -> dict[str, Any]:
+    return {'kind': 'setPure', 'grid': grid, 'pure': pure}
 
 
 def page_set_output(*, grid: Any, output: Any) -> dict[str, Any]:

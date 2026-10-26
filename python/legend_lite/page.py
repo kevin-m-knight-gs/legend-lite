@@ -1065,6 +1065,28 @@ class Grid(Tile):
         _expression(condition)
         return self._preset({'kind': 'customFilter', 'expression': condition})
 
+    def pure(self, pure: str | None) -> Grid:
+        """Its rows a function of its input's, written in Pure -- a flow's Pure box (docs/DATACUBE_FLOW_MODE_2026_10_24.md
+        FL12; DataCube's code: pure-box.ts, its page's setPure): an expression over ``$input``, its input's rows
+        (``"$input->filter(x|$x.notional > 1000000)->extend(~fee:x|$x.notional * 0.001)"``), or a lambda of one parameter as
+        written (``"rows|$rows->limit(5)"``) -- whatever no other tool says. The compiler parses it and types its rows as a
+        relation before the page sets it, and the grid opens over them: a box after it reads its rows, its columns as the
+        compiler types them. ``None``: its input's rows as they are again. Refused in the compiler's words, or DataCube's:
+        a grid that reads no other grid's rows, a function of more than one parameter, one that never reads its input."""
+        _ = self._view
+        if pure is not None:
+            _expression(pure)
+        engine, frames = self._headless()
+        with frames.reading():
+            said = _json.loads(engine.call('gridPure', self._spec(engine, frames), self._id, _json.dumps({'pure': pure})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        page = self._page
+        with page._batch():
+            page._apply_page([_plain(c) for c in said['commands']], 'a Pure box')
+            page._current(self._view['cube'], 3)
+        return self
+
     def multi_field(self, columns: Sequence[str], expression: str, *, suffix: str = '_new', in_place: bool = False) -> Grid:
         """One ``expression`` over each of ``columns`` -- a flow's Multi-Field Formula (DataCube's code:
         multi-field-columns.ts multiFieldCommands): Pure over ``$v``, each column's value in turn (``'$v->toOne()->trim()'``, ``'$v->toOne() *

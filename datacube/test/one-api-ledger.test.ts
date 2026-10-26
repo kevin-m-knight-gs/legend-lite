@@ -517,6 +517,8 @@ const PASS_THROUGH: Record<string, string> = {
   setOutput: "the file name typed in an Output's settings, or none (its Write no file); setOutput judges it",
   // 2026-10-25 (the flow mode's Test that stops a run, FL8)
   setStops: "a Test box's settings' checkbox, ticked or not; setStops judges it",
+  // 2026-10-26 (the flow mode's Pure box, FL12)
+  setPure: "the function a Pure box's window made of what was typed (pure-box.ts pureFrom, which headless gridPure asks for Python's grid.pure), or none (Take Its Pure Off); setPure judges its shape",
 };
 /** Functions that make commands a screen file calls and no headless function asks, each the screen's own (2026-10-22,
  *  S8): a person's input passed through, a form's edits, the board's hand or a tab's drag. */

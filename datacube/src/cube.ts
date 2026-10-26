@@ -572,6 +572,12 @@ export class CubeController {
    * before it is applied -- a Custom Filter's condition, which is true or false (custom-filter.ts). The compiler's
    * refusal thrown, in its words.
    */
+  /** The columns `relation` answers over this grid's model, as the compiler types it, nothing run (a Pure box set again:
+   *  pure-box.ts) -- refused in its words when it is no relation. */
+  relationColumns(relation: ValueSpecification, signal?: AbortSignal): Promise<PlanColumn[]> {
+    return this.#runner.relationType({ _type: 'lambda', parameters: [], body: [relation] }, signal);
+  }
+
   async typed(snapshot: CubeSnapshot, signal?: AbortSignal): Promise<CubeSnapshot> {
     const reading: CubeSnapshot = { ...snapshot, source: { query: this.#snaps.sourceFor(snapshot.source.query) } };
     return (await typeColumns(reading, this.#runner, signal)).snapshot;

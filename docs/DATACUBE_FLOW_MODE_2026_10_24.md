@@ -398,7 +398,7 @@ Every milestone ends usable: something a person does from start to finish, saved
 
 - Comments and containers that collapse, auto-layout, a minimap, search, a command palette, copy and paste of boxes,
   keyboard operation, accessible announcements.
-- Import Pure and the Pure box (FL12).
+- Import Pure and the Pure box (FL12). *The Pure box built (2026-10-26, its note above); Import Pure not yet.*
 
 ### M8. Production (platform work)
 
@@ -863,6 +863,28 @@ its place. Tested by `flow-sheet.test.ts` (set, read, written, renamed, undone, 
 stop), Python's `test_a_test_that_stops_a_run_writes_no_output` (refused, nothing written; set to warn, written; saved
 and loaded) and the harness (the example's Checks sheet: run, 2024's orders written; its Test set to stop a run and run
 again: nothing written, said, the Test red).
+
+**Built, the Pure box** (FL12, its "Pure box"; `pure-box.ts`, `ui/pure-form.ts`, `app.ts` `#openPure`, `page-commands.ts`
+`setPure`, headless `gridPure`; 2026-10-26): a box whose rows are a function of its input's, written in Pure over
+`$input` -- `$input->filter(x|$x.region == 'EMEA')->extend(~fee:x|$x.notional * 0.001)`, a `groupBy`, a `limit` --
+whatever no other tool says. The function is its source's (`RowsSource.pure`: a lambda of one parameter, its body one
+expression that reads it), so it is the page's to set, by a page command (`setPure`, its undo the page's, `page-between.ts`
+and `page-rebase.ts` carrying it); its text is never kept, only the compiler's print of it shown when it is set again.
+Every host opens it by one rule (`boxRows`): its input's relation put where the function reads its parameter (a lambda of
+its own naming a parameter the same reads its own: pure-protocol's new top-down `rewrite`), the whole typed by the
+compiler as the box's columns -- the tab's two chains (`join-open.ts`, `app/join-sources.ts`) and the headless host's
+(`headless/grid.ts`). Before it is set its window and Python ask one rule (`pureFrom`): parsed, its shape judged, its
+rows typed as a relation -- a value (`$input->count()`, which the compiler types as one column, `value`) refused in
+words, as is a function that never reads its input (a Text Input's work) and one of two parameters. Its window docks in
+the settings pane: the text, its steps a click away (filter, extend, groupBy, select, sort, distinct, limit, rename, each
+put in where the cursor is, to be finished there), its input's columns, and Take Its Pure Off. A box says the functions
+its rows go through ("filter → limit"), and a box after it reads its rows as any other box's. Python:
+`grid.pure("$input->...")`, `grid.pure(None)`. Not yet: Import Pure (a lambda turned into boxes), a Pure box of two
+inputs. Tested by `flow-sheet.test.ts` (its text both ways, the substitution and its inverse, shadowing, its shape's
+refusals, its words, `pureFrom`'s steps and refusals, the command applied, refused, read, renamed, written and read back,
+the page between both ways), Python's `test_a_pure_box_makes_its_rows_a_function_of_its_inputs` (a filter and an extend,
+a groupBy's columns as the compiler types them, taken off, each refusal) and the harness (a step put in, a value refused,
+set, its rows the Filter's EMEA trades ten at most, set again as printed, taken off, undone).
 
 **Built, Generate Rows** (Alteryx's Generate Rows; `generate-rows.ts`, `ui/generate-rows-form.ts`, `app.ts`
 `#openGenerateRows`; 2026-10-26): the tool the table had as needing a design: core has no relation that makes rows from a

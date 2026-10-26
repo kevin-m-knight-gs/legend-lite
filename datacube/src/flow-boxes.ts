@@ -25,6 +25,7 @@ import { dateToolOf } from './date-tools.ts';
 import { conditionWords, datesKept, datesKeptWords } from './page-filters.ts';
 import { CUSTOM_FILTER_COLUMN, customFilterOf, customFilterWords } from './custom-filter.ts';
 import { generatedHelpers, generatedOf, generatedWords } from './generate-rows.ts';
+import { pureWords } from './pure-box.ts';
 import { isEveryPair, isFuzzy, type JoinHow } from './join-how.ts';
 import { joinWords } from './join-words.ts';
 import { rowColumns, type DerivedColumn } from './snapshot.ts';
@@ -35,7 +36,7 @@ import type { EditorTab } from './ui/editor.ts';
 export type FlowTool = 'input' | 'textInput' | 'output' | 'test' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'dateFilter' | 'customFilter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile' | 'binning' | 'generateRows'
   | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'jsonParse' | 'runningTotal' | 'summarize' | 'countRecords' | 'crosstab' | 'transpose' | 'browse'
-  | 'comment' | 'container';
+  | 'pure' | 'comment' | 'container';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
 export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: FlowGroup; readonly does: string }>> = {
@@ -74,6 +75,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   crosstab: { name: 'Cross Tab', group: 'transform', does: 'a column\'s values made columns across, a row per group' },
   transpose: { name: 'Transpose', group: 'transform', does: 'columns made rows: a Name and a Value for each, its keys beside them' },
   browse: { name: 'Browse', group: 'in', does: 'its input\'s rows, as they come: to look at, profile or chart' },
+  pure: { name: 'Pure', group: 'transform', does: 'its rows a function of its input\'s, written in Pure: whatever no other tool says, the compiler checking it' },
   comment: { name: 'Comment', group: 'docs', does: 'a note on the canvas, in words of your own' },
   container: { name: 'Container', group: 'docs', does: 'a frame round boxes: moved together, folded away' },
 };
@@ -84,7 +86,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
   'input', 'textInput', 'output', 'test', 'browse', 'filter', 'dateFilter', 'customFilter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'binning', 'generateRows', 'datetime', 'cleanse', 'impute',
-  'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'jsonParse', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'comment', 'container',
+  'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'jsonParse', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'pure', 'comment', 'container',
 ];
 
 /**
@@ -111,6 +113,8 @@ export type StepEditor =
   | { readonly window: 'binning' }
   /** The Generate Rows window (ui/generate-rows-form.ts): its new column, and its numbers or its days. */
   | { readonly window: 'generateRows' }
+  /** The Pure window (ui/pure-form.ts): its rows' function of its input's, in Pure over `$input`. */
+  | { readonly window: 'pure' }
   /** The column editor opened on a JSON column's fields (ui/json-fields.ts), the box's first JSON column's. */
   | { readonly window: 'jsonParse' }
   /** The Unique window (ui/unique-form.ts): the columns a key is, and the order a key's first row is first in. */
@@ -161,6 +165,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   tile: { window: 'column', start: { name: 'Tile', window: { fn: 'ntile', partition: [], order: [], buckets: 4 } } },
   binning: { window: 'binning' },
   generateRows: { window: 'generateRows' },
+  pure: { window: 'pure' },
   runningTotal: { window: 'column', start: { name: 'RunningTotal', window: { fn: 'sum', partition: [], order: [], frame: 'running' } } },
   join: { window: 'join' },
   union: { window: 'join' },
@@ -196,7 +201,8 @@ export function boxSays(cube: CubeDocument): BoxSays {
   }
   if (source._type !== 'rows') return { tool: 'input', also: [], says: source.name };
   const q = cube.query;
-  const steps: { tool: FlowTool; says: string }[] = [];
+  // a Pure box's function (pure-box.ts): its source's, before any step its query takes
+  const steps: { tool: FlowTool; says: string }[] = source.pure !== undefined ? [{ tool: 'pure', says: pureWords(source.pure) }] : [];
   // a Test: its checks' failing rows counted, a column of one value grouped by (checks.ts) -- its own, all of it
   const checks = checksOf(q);
   if (checks !== undefined) return { tool: 'test', also: [], says: checks.map(checkWords).join(', ') };

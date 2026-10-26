@@ -149,6 +149,8 @@ export interface SpawnOptions {
   readonly dock?: HTMLElement;
   /** A flow's box's New Box After (CubeAppOptions.onStepAfter, FL9): the gesture made in a box after it. */
   readonly onStepAfter?: (gesture: { readonly name: string; readonly args: GestureArgs }, label: string) => void;
+  /** A flow's Pure box set by its window (CubeAppOptions.onSetPure, FL12): told as the page's setPure. */
+  readonly onSetPure?: (pure: Lambda | null) => boolean;
 }
 
 /** A grid on a page (a CubeApp). */
@@ -1739,6 +1741,12 @@ export class CubePage {
       dock: lands.board.dock,
       // New Box After (FL9): its menu's gesture made in a box after it, as the palette's tool is
       onStepAfter: (gesture: FlowStep['gesture'], label: string) => this.#stepAfter(id, gesture, label),
+      // a Pure box's function (FL12): its source's, so the page's to set -- the box then shown again over it
+      onSetPure: (pure: Lambda | null) => {
+        const told = this.#tell(pure === null ? 'Take Pure Off' : 'Set Pure', pageCommand('setPure', { grid: id, pure }));
+        if (told) this.#options.onChange();
+        return told;
+      },
     } : {}) });
     const stops = [
       cube.on('view', () => {

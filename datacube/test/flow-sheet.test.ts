@@ -40,7 +40,8 @@ import { applyGridCommands } from '../src/grid-commands.ts';
 import type { GridDraft } from '../src/grid-edits.ts';
 import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi-field-columns.ts';
 import { TreeState } from '../src/tree.ts';
-import { accessor, collection, fn, lambda, lit, property, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { accessor, collection, fn, gt, lambda, lit, property, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { boxRows, pureFrom, pureInput, pureInputOf, pureOver, pureProblem, pureShown, pureText, pureWords } from '../src/pure-box.ts';
 import { textToolOf } from '../src/text-tools.ts';
 import { readTextTool, textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
 import { grainColumn, grainOf } from '../src/calc-presets.ts';
@@ -515,6 +516,106 @@ describe('a Generate Rows (generate-rows.ts): each row repeated by an exploded r
       { kind: 'numbers', name: 'N', from: 1, to: { column: 'n' }, step: 2 });
     assert.deepEqual(readGenerateRows({ kind: 'generateRows', name: 'd', days: { from: 'a', to: 'b' } }), { kind: 'days', name: 'd', from: 'a', to: 'b' });
     refused(() => readGenerateRows({ kind: 'generateRows', name: 'N', from: 'x', to: 1 }), /a bound is a whole number or \{column\}/);
+  });
+});
+
+describe('a Pure box (pure-box.ts, setPure): its rows a function of its input\'s, its source\'s own', () => {
+  /** `$p->filter(x|$x.notional > 100)->limit(5)`, its parameter `p`. */
+  const pure = (p = 'input') => lambda([p], fn('limit', fn('filter', variable(p), lambda(['x'], gt(property(variable('x'), 'notional'), lit.integer(100)))), lit.integer(5)));
+  const input = accessor('local::DB', 'trades');
+  const sourceOf = (page: PageDocument, grid: string): CubeSource => {
+    const view = page.views.find((v) => v.id === grid);
+    return page.cubes.find((c) => c.id === (view as { cube: string }).cube)!.cube.source;
+  };
+
+  it('its text as the compiler parses it, and as its window shows it again', () => {
+    assert.equal(pureText('  $input->limit(5) '), 'input|$input->limit(5)');
+    assert.equal(pureText('rows | $rows->limit(5)'), 'rows | $rows->limit(5)');
+    assert.equal(pureShown('{input|$input->limit(5)}'), '$input->limit(5)');
+    assert.equal(pureShown('{rows|$rows->limit(5)}'), 'rows|$rows->limit(5)');
+    assert.equal(pureShown(' input | $input '), '$input');
+  });
+
+  it('applies its function to its input, a lambda naming its parameter the same reading its own; reads its input back', () => {
+    const over = pureOver(pure(), input);
+    assert.deepEqual(over, fn('limit', fn('filter', input, lambda(['x'], gt(property(variable('x'), 'notional'), lit.integer(100)))), lit.integer(5)));
+    assert.deepEqual(pureInputOf(pure(), over), input);
+    assert.deepEqual(boxRows({}, input), input, 'no Pure: its input as it is');
+    assert.deepEqual(boxRows({ pure: pure() }, input), over);
+    // shadowed: the inner lambda's $input is its own row
+    const shadowed = lambda(['input'], fn('filter', variable('input'), lambda(['input'], gt(property(variable('input'), 'notional'), lit.integer(1)))));
+    assert.deepEqual(pureOver(shadowed, input), fn('filter', input, lambda(['input'], gt(property(variable('input'), 'notional'), lit.integer(1)))));
+    assert.deepEqual(pureInputOf(shadowed, pureOver(shadowed, input)), input);
+    assert.deepEqual(pureInput({ name: 'b', pure: pure() }, over), input);
+    assert.deepEqual(pureInput({ name: 'b' }, over), over, 'no Pure: its rows are its input\'s');
+    assert.equal(pureInputOf(pure(), input), undefined, 'rows no Pure made');
+  });
+
+  it('judges its shape in words: one parameter, one expression, its input read', () => {
+    assert.equal(pureProblem(pure()), undefined);
+    assert.match(pureProblem({ _type: 'var', name: 'x' })!, /a Pure box's function is a lambda/);
+    assert.match(pureProblem(lambda(['a', 'b'], variable('a')))!, /takes one parameter, its input's rows: this one takes 2/);
+    assert.match(pureProblem(lambda(['a'], variable('a'), variable('a')))!, /one expression: this one is 2/);
+    assert.match(pureProblem(lambda(['input'], lit.integer(1)))!, /its Pure never reads \$input, its input's rows: a box of rows of its own is a Text Input/);
+    // read only under a lambda of its own naming it: never read
+    assert.match(pureProblem(lambda(['input'], lambda(['input'], variable('input'))))!, /never reads \$input/);
+  });
+
+  it('says the functions its rows go through, in turn', () => {
+    assert.equal(pureWords(pure()), 'filter → limit');
+    assert.equal(pureWords(lambda(['input'], variable('input'))), 'its input as it is');
+    const long = lambda(['i'], fn('limit', fn('distinct', fn('sort', fn('extend', fn('filter', variable('i')))))));
+    assert.equal(pureWords(long), 'filter → extend → sort and 2 more');
+    assert.equal(pureWords(lambda(['i'], fn('meta::pure::functions::relation::limit', variable('i')))), 'limit');
+  });
+
+  it('parses, judges and types its rows before it is set (pureFrom): the compiler\'s words, or DataCube\'s', async () => {
+    const asked: string[] = [];
+    const compiler = (parsed: Lambda) => ({
+      parse: async (text: string) => { asked.push(text); return parsed; },
+      columns: async (r: ValueSpecification) => { asked.push(JSON.stringify(r) === JSON.stringify(pureOver(parsed, input)) ? 'typed' : 'other'); return [{ name: 'region' }]; },
+    });
+    assert.deepEqual(await pureFrom('$input->limit(5)', input, compiler(pure())), pure());
+    assert.deepEqual(asked, ['input|$input->limit(5)', 'typed']);
+    await assert.rejects(pureFrom('1', input, compiler(lambda(['input'], lit.integer(1)))), (e: unknown) => e instanceof CubeRefusal && /never reads/.test(e.message));
+    await assert.rejects(pureFrom('$input', input, { ...compiler(pure()), columns: async () => [] }),
+      (e: unknown) => e instanceof CubeRefusal && /its Pure gives no rows with columns/.test(e.message));
+    // a value is typed as one column, `value`: asked again with it selected, which only a relation's rows take
+    let asks = 0;
+    const scalar = { ...compiler(pure()), columns: async () => { asks += 1; if (asks > 1) throw new Error('no select of an Integer'); return [{ name: 'value' }]; } };
+    await assert.rejects(pureFrom('$input->count()', input, scalar),
+      (e: unknown) => e instanceof CubeRefusal && /its Pure gives a value, not rows: .*no select of an Integer/.test(e.message));
+    const relation = { ...compiler(pure()), columns: async () => [{ name: 'value' }] };
+    assert.deepEqual(await pureFrom('$input', input, relation), pure(), 'rows of one column called value: a relation');
+  });
+
+  it('is set on a box over another grid\'s rows (setPure), taken off, refused in words; read, written, renamed, its box says it', () => {
+    const d = apply(FLOW(), { kind: 'setPure', grid: 'grid-3', pure: pure() });
+    const set = sourceOf(d.page, 'grid-3');
+    assert.ok(set._type === 'rows');
+    assert.deepEqual(set.pure, pure());
+    assert.equal(pageToJson(readPage(JSON.parse(pageToJson(d.page)))), pageToJson(d.page), 'written and read back the same');
+    // its box says its Pure first, its own filter after it
+    const view = d.page.views.find((v) => v.id === 'grid-3') as { cube: string };
+    assert.deepEqual(boxSays(d.page.cubes.find((c) => c.id === view.cube)!.cube), { tool: 'pure', also: ['filter'], says: 'filter → limit' });
+    refused(() => apply(d, { kind: 'setPure', grid: 'grid-3', pure: pure() }), /'grid-3' is so already/);
+    refused(() => apply(FLOW(), { kind: 'setPure', grid: 'grid-3', pure: null }), /'grid-3' has no Pure/);
+    refused(() => apply(FLOW(), { kind: 'setPure', grid: 'grid-2', pure: pure() }), /'grid-2' reads trades.csv: a Pure box reads another grid's rows/);
+    refused(() => apply(FLOW(), { kind: 'setPure', grid: 'grid-3', pure: lambda(['a', 'b'], variable('a')) }), /takes one parameter/);
+    const off = apply(d, { kind: 'setPure', grid: 'grid-3', pure: null });
+    assert.equal((sourceOf(off.page, 'grid-3') as RowsSource).pure, undefined);
+    assert.equal(pageToJson(off.page), pageToJson(FLOW().page), 'taken off: as it was');
+    // read as JSON carries it, refused in words
+    const c: PageCommand = { kind: 'setPure', grid: 'grid-3', pure: pure() };
+    assert.deepEqual(readPageCommand(JSON.parse(JSON.stringify(c))), c);
+    assert.deepEqual(readPageCommand({ kind: 'setPure', grid: 'grid-3', pure: null }), { kind: 'setPure', grid: 'grid-3', pure: null });
+    refused(() => readPageCommand({ kind: 'setPure', grid: 'grid-3', pure: 'input|$input' }), /a Pure box's function is a lambda/);
+    assert.deepEqual(renamedCommand(c, new Map([['grid-3', 'grid-9']])), { ...c, grid: 'grid-9' });
+    // the page between: its Pure set, and taken off again
+    const back = applyPlanned({ page: d.page, held: idsOf(d.page) }, pageBetween(d.page, FLOW().page, 'history'), false).draft.page;
+    assert.equal(pageToJson(back), pageToJson(FLOW().page));
+    const again = applyPlanned({ page: FLOW().page, held: idsOf(FLOW().page) }, pageBetween(FLOW().page, d.page, 'history'), false).draft.page;
+    assert.equal(pageToJson(again), pageToJson(d.page));
   });
 });
 

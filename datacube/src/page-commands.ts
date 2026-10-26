@@ -9,8 +9,10 @@ import { fieldNames, type CommandFields, type MissingFields } from './command-fi
 import { followCube, readChart, type ChartSpec } from './chart-spec.ts';
 import {
   CubeDocumentError, cubeOpenedAgain, inputOn, isLive, moreIndex, readCube, readCubeInput, readCubeSource, withInputOn, type CubeDocument,
-  type CubeInput, type CubeSource, type InputPort, type InputSide, type JoinInput, type JoinSource,
+  type CubeInput, type CubeSource, type InputPort, type InputSide, type JoinInput, type JoinSource, type RowsSource,
 } from './cube-document.ts';
+import { ProtocolError, readLambda, type Lambda } from '../../pure-protocol/src/index.ts';
+import { pureProblem } from './pure-box.ts';
 import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, type Bands, type Preset,
 } from './layout/bands.ts';
@@ -169,6 +171,12 @@ export type PageCommand =
    *  out, as they are): its left and right as they are, its columns read again when it opens (cube-document.ts
    *  cubeOpenedAgain). Refused when a join of two would take more, or one would read its own rows. */
   | { readonly kind: 'setJoin'; readonly grid: string; readonly how: JoinHow; readonly more?: readonly CubeInput[] }
+  /** A flow's Pure box set (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12; pure-box.ts): grid `grid`, over another grid's
+   *  rows, its rows `pure`'s function of its input's -- a lambda of one parameter, its input's rows, its body one
+   *  expression that reads it -- or (null) its input's as they are. Its query as it is, its columns read again when it
+   *  opens (cube-document.ts cubeOpenedAgain), the compiler typing its function as a relation then. Refused on a grid over
+   *  no other grid's rows, one that reads its snap, and one that is so already. */
+  | { readonly kind: 'setPure'; readonly grid: string; readonly pure: Lambda | null }
   /** A flow's box set to write its rows to a file (an Output, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6: when told to,
    *  and when the flow runs), or (null) no longer. */
   | { readonly kind: 'setOutput'; readonly grid: string; readonly output: Output | null }
@@ -187,7 +195,7 @@ export const PAGE_COMMAND_KINDS = [
   'renamePage', 'savedAs', 'addSheet', 'addFlow', 'placeBox', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid',
   'addChart', 'setChart',
   'addText', 'setText', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter',
-  'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setOutput', 'setStops', 'modelInto', 'modelPin', 'modelKeep',
+  'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setPure', 'setOutput', 'setStops', 'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
 /** Each page command's fields, by kind (`?` one it may leave out): what readPageCommand takes, and what Python's generated
@@ -200,7 +208,7 @@ export const PAGE_COMMAND_FIELDS = {
   setText: ['tile', 'text'], followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
-  removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how', 'more?'], setOutput: ['grid', 'output'], setStops: ['grid', 'stops'],
+  removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how', 'more?'], setPure: ['grid', 'pure'], setOutput: ['grid', 'output'], setStops: ['grid', 'stops'],
   modelInto: ['project', 'workspace', 'package'], modelPin: ['revision'], modelKeep: ['cube', 'tables', 'class'],
 } as const satisfies CommandFields<PageCommand>;
 // every field of every kind listed: a field the list leaves out is a type error naming it
@@ -826,6 +834,27 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       if (problem !== undefined) throw new CubeRefusal(problem);
       return done(next);
     }
+    case 'setPure': {
+      const view = viewNamed(page, command.grid);
+      if (view.kind !== 'grid') throw new CubeRefusal(`'${command.grid}' is ${kindWords(view)}: a Pure box is a grid's`);
+      const held = page.cubes.find((c) => c.id === view.cube);
+      if (held === undefined) throw new CubeRefusal(`'${command.grid}' shows no cube the page writes down`);
+      const source = held.cube.source;
+      if (source._type !== 'rows') throw new CubeRefusal(`'${command.grid}' reads ${source.name}: a Pure box reads another grid's rows`);
+      if (page.copies?.[view.cube] !== undefined) {
+        throw new CubeRefusal(`'${command.grid}' reads its snap: its Pure moves it once it goes live`);
+      }
+      const problem = command.pure === null ? undefined : pureProblem(command.pure);
+      if (problem !== undefined) throw new CubeRefusal(problem);
+      if (sameValue(source.pure ?? null, command.pure)) {
+        throw new CubeRefusal(`'${command.grid}' ${command.pure === null ? 'has no Pure' : 'is so already'}`);
+      }
+      const { pure: _had, ...plain } = source;
+      const next: RowsSource = command.pure === null ? plain : { ...plain, pure: command.pure };
+      return done(rewritten(page, {
+        cubes: page.cubes.map((c) => (c.id === held.id ? { id: c.id, cube: { ...c.cube, source: next } } : c)),
+      }));
+    }
     case 'setOutput': {
       const view = viewNamed(page, command.grid);
       if (view.kind !== 'grid') throw new CubeRefusal(`'${command.grid}' is ${kindWords(view)}: an output is a grid's rows`);
@@ -1001,8 +1030,8 @@ function sourceOf(v: unknown): CubeSource {
 /** The fields of a page command a host reads with their exact numbers (a calculated column's 1.10, a join condition's
  *  decimal), as the page's cubes are read: a cube's document, a source, a grid's input (a copy holds a query), a join's
  *  how and a Union's more inputs. */
-export const EXACT_FIELD: Partial<Record<PageCommand['kind'], readonly ('document' | 'source' | 'input' | 'how' | 'more')[]>> = {
-  addGrid: ['document'], rebuilt: ['source'], setInput: ['input'], setJoin: ['how', 'more'],
+export const EXACT_FIELD: Partial<Record<PageCommand['kind'], readonly ('document' | 'source' | 'input' | 'how' | 'more' | 'pure')[]>> = {
+  addGrid: ['document'], rebuilt: ['source'], setInput: ['input'], setJoin: ['how', 'more'], setPure: ['pure'],
 };
 
 /**
@@ -1185,6 +1214,19 @@ export function readPageCommand(given: unknown): PageCommand {
         kind, grid: text(o['grid'], 'a grid'), how: readJoinHow(o['how']),
         ...(more !== undefined ? { more: (more as unknown[]).map(inputOf) } : {}),
       };
+    }
+    case 'setPure': {
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      const pure = o['pure'];
+      if (pure === null) return { kind, grid: text(o['grid'], 'a grid'), pure: null };
+      const problem = pureProblem(pure);
+      if (problem !== undefined) throw new CubeRefusal(problem);
+      try {
+        return { kind, grid: text(o['grid'], 'a grid'), pure: readLambda(pure) };
+      } catch (e) {
+        if (e instanceof ProtocolError) throw new CubeRefusal(`a Pure box's function: ${e.message}`);
+        throw e;
+      }
     }
     case 'setOutput': {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);

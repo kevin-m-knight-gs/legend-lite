@@ -83,6 +83,8 @@ import { pythonRunner } from '../services/python-host.ts';
 import { hostCalls, hostEngine, hostWorker } from './host.ts';
 import { leafOnHost, leafTables, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
 import { inputRows } from '../join-open.ts';
+import { boxRows, pureFrom, pureInput } from '../pure-box.ts';
+import type { PageCommand } from '../page-commands.ts';
 import type { JoinSide } from '../join.ts';
 import { gridInput, liveGrids, resolvedSource } from '../live-inputs.ts';
 import type { PageDocument } from '../page-document.ts';
@@ -379,7 +381,11 @@ async function baseOver(source: CubeSource, host: HostTables, given: Readonly<Re
   const { planner, relation } = await typed(inner.base);
   try {
     const notes = [...inner.notes];
-    const side = await inputRows(input, relation, planner, notes);
+    const read = await inputRows(input, relation, planner, notes);
+    // a Pure box's rows, its function of its input's (pure-box.ts), typed by the compiler as a relation
+    const rows = boxRows(on.rows, read.relation);
+    const side: JoinSide = on.rows.pure === undefined ? read
+      : { ...read, relation: rows, columns: (await sourceColumns(planner, rows)).map((c) => ({ name: c.name, type: c.type })) };
     const { model, runtime, mapping, enumerations, project } = inner.base;
     return {
       base: {
@@ -1336,6 +1342,38 @@ export async function gridFailing(spec: GridSpec): Promise<string> {
     if (view === STALE) throw new Error('the grid was asked again before its view was ready');
     const failing = failingChecks(checks, (name) => view.rows.columns.find((c) => c.name === name)?.values[0]);
     return JSON.stringify({ failing: failing.map((f) => ({ check: checkWords(f.check), rows: f.rows, says: failingWords(f) })) });
+  });
+}
+
+/**
+ * A FLOW'S PURE BOX SET AS ITS WINDOW SETS IT (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12; app.ts #openPure, pure-box.ts):
+ * `given`, `{pure}` -- its text, over `$input` or a lambda of one parameter as written (pureText), or null, taken off --
+ * parsed by the planner, its shape judged (pureProblem) and its rows typed as a relation over its input's, read back off
+ * the grid's rows as its window reads them (pureInputOf), before its page sets it: Python's grid.pure. JSON: `{commands}`,
+ * the page's setPure for its tile `grid` (for pageApply), or `{problems}`, in the compiler's words or DataCube's.
+ */
+export async function gridPure(spec: GridSpec, grid: string, given: string): Promise<string> {
+  const asked = JSON.parse(given) as { pure?: unknown };
+  const said = (pure: Lambda | null): string => {
+    const command: PageCommand = { kind: 'setPure', grid, pure };
+    return `{"commands":[${toJson(command)}]}`;
+  };
+  if (asked.pure === null) return said(null);
+  if (typeof asked.pure !== 'string') return JSON.stringify({ problems: [`a Pure box's function is its text, or None, not ${JSON.stringify(asked.pure)}`] });
+  const text = asked.pure;
+  const source = readCube(fromJson(spec.cube)).source;
+  if (source._type !== 'rows') return JSON.stringify({ problems: [`${source.name} is read from no other grid: a Pure box reads another grid's rows`] });
+  return using(spec, async ({ planner, state }) => {
+    try {
+      // parsed, judged and its rows typed as a relation, as its window does (pure-box.ts pureFrom)
+      return said(await pureFrom(text, pureInput(source, state.snapshot.source.query), {
+        parse: (t) => planner.parse(t), columns: (r) => planner.relationType({ _type: 'lambda', parameters: [], body: [r] }),
+      }));
+    } catch (e) {
+      // the planner's refusal is the compiler's words, a CubeRefusal DataCube's; any other failure is no mistake of the Pure's
+      if (!(e instanceof PlanError) && !(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
   });
 }
 

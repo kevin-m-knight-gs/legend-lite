@@ -925,6 +925,45 @@ try {
   check(/region/.test(printed) && /EMEA/.test(printed), `set again: its condition as the compiler prints it: ${printed}`);
   await page.locator('.dc-flow-dock .dc-sample-foot .dc-quiet').click();
 
+  // A PURE BOX (FL12), dragged onto the Filter: its rows a function of the Filter's, in Pure over $input -- a step put in
+  // by its button, one that is no relation refused in words; set, its box says its functions and its rows are theirs;
+  // set again, its Pure as the compiler prints it; taken off in one step, undone
+  const beforePure = (await boxes()).map((b) => b.id);
+  await drag('pure', filter.id);
+  await boxCount(beforePure.length + 1);
+  const pured = await added(beforePure);
+  await docked('Pure');
+  const pureText = page.locator('.dc-flow-dock .dc-pure-text');
+  check(await pureText.inputValue() === '$input', 'it starts at its input');
+  await pureText.press('End');
+  await page.locator('.dc-flow-dock .dc-pure-step[data-step="limit"]').click();
+  check(await pureText.inputValue() === '$input->limit(10)', `a step put in: ${await pureText.inputValue()}`);
+  await pureText.fill('$input->count()');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await page.waitForFunction(() => (document.querySelector('.dc-flow-dock .dc-sample-status')?.textContent ?? '') !== '', undefined, { timeout: 30_000 });
+  const valueSaid = await page.locator('.dc-flow-dock .dc-sample-status').textContent() ?? '';
+  check(/its Pure gives a value, not rows/.test(valueSaid), `a value, no rows: refused in words: ${valueSaid}`);
+  await pureText.fill("$input->filter(x|$x.region == 'EMEA')->limit(10)");
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await page.waitForFunction(() => window.__dataPage.undoLabel === 'Set Pure', undefined, { timeout: 30_000 });
+  await settled();
+  const pureBox = (await boxes()).find((b) => b.id === pured.id);
+  check(pureBox?.tool === 'pure' && pureBox.says === 'filter → limit', `a Pure box: ${JSON.stringify(pureBox)}`);
+  const pureRows = await resultRows();
+  check(pureRows === Math.min(10, inEmea), `its rows, the Filter's EMEA trades, ten at most: ${pureRows}`);
+  await page.locator('.dc-flow-settings button', { hasText: 'Open its settings' }).click();
+  await docked('Pure');
+  const printedPure = await page.locator('.dc-flow-dock .dc-pure-text').inputValue();
+  check(/^\$input/.test(printedPure) && /limit\(10\)/.test(printedPure) && /EMEA/.test(printedPure), `set again: its Pure as the compiler prints it: ${printedPure}`);
+  await page.locator('.dc-flow-dock .dc-pure-remove').click();
+  await page.waitForFunction(() => window.__dataPage.undoLabel === 'Take Pure Off', undefined, { timeout: 30_000 });
+  await settled();
+  check(await resultRows() === fewer, `taken off: the Filter's rows again: ${await resultRows()}`);
+  await page.locator('.dc-flow-canvas').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Control+z');
+  await page.waitForFunction((id) => document.querySelector(`.dc-flow-box[data-tile="${id}"]`)?.textContent?.includes('filter → limit'), pured.id, { timeout: 30_000 });
+  check((await boxes()).find((b) => b.id === pured.id)?.says === 'filter → limit', 'undone: its Pure back');
+
   // NEW BOX AFTER (FL9): a cell of the Filter's rows right-clicked, its region filtered by -- in a box of its own after
   // the Filter, the Filter left doing its one thing
   await page.locator(`.dc-flow-box[data-tile="${filter.id}"]`).click();

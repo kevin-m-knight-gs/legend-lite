@@ -120,12 +120,15 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
    * name cannot be read through. Added 2026-10-25 (the flow mode's Multi-Field Formula,
    * docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): its window's example expressions, one per kind
    * of column, put in its box for the person to edit -- the compiler parses what they leave
-   * there, as it parses the column editor's.
+   * there, as it parses the column editor's. Added 2026-10-26 (the flow mode's Pure box, FL12): its window's steps
+   * (filter, extend, groupBy, ...) and its example, put in its box for the person to finish -- the compiler parses what
+   * they leave there (pure-box.ts pureFrom).
    */
   const FOR_A_PERSON = new Map([
     ['src/calc.ts', 'the column editor\'s examples and completions'],
     ['src/query.ts', 'a refusal suggesting what to type'],
     ['src/ui/multi-field-form.ts', 'the Multi-Field Formula window\'s examples'],
+    ['src/ui/pure-form.ts', 'the Pure box window\'s steps and its example'],
   ]);
 
   it('builds no Pure text outside what a person types', () => {

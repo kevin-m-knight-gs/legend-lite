@@ -92,6 +92,7 @@ import { shortcutsTable } from './ui/shortcuts.ts';
 import { shownColumns } from './shown-columns.ts';
 import { handedOn } from './box-columns.ts';
 import { freshConfiguration, gridCapped, newGridTree, writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
+import { pureFrom, pureInput, pureShown } from './pure-box.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
 import { treeHeaderText } from './treeview.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
@@ -302,6 +303,10 @@ export interface CubeAppBaseOptions {
   /** A flow's box's New Box After (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9): a gesture of its menu made in a new box
    *  after it -- never on it -- by its page, named `label`. */
   readonly onStepAfter?: (gesture: { readonly name: string; readonly args: GestureArgs }, label: string) => void;
+  /** A flow's Pure box set by its window (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12; pure-box.ts): its rows `pure`'s
+   *  function of its input's, or (null) its input's as they are -- its page's to apply (setPure), the box then shown again
+   *  over its rows as they are. Whether the page took it. */
+  readonly onSetPure?: (pure: Lambda | null) => boolean;
   /** A cube in a tile (a page's grid): no title bar of its own; its columns panel folded. */
   readonly compact?: boolean;
   /** Its columns panel folded away at the start (default: when compact); open, a grid opened alone on its page. */
@@ -470,7 +475,7 @@ const windowStack = new WeakMap<HTMLElement, number>();
 /** The text tools' windows, by the tool each sets (text-tools.ts). */
 const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
 const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation' || key === 'Date Filter' || key === 'Test'
-  || key === 'Custom Filter' || key === 'Binning' || key === 'Generate Rows' || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize' || key === 'Find Replace'
+  || key === 'Custom Filter' || key === 'Binning' || key === 'Generate Rows' || key === 'Pure' || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize' || key === 'Find Replace'
   || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
@@ -3664,6 +3669,9 @@ export class CubeApp {
       case 'generateRows':
         void this.#openGenerateRows();
         return;
+      case 'pure':
+        void this.#openPure();
+        return;
       case 'test':
         void this.#openTest();
         return;
@@ -3887,6 +3895,51 @@ export class CubeApp {
           throw e;
         }
       },
+      close,
+    }));
+  }
+
+  /**
+   * A FLOW'S PURE BOX (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12; pure-box.ts): its rows a function of its input's,
+   * written in Pure over `$input` -- in a window of its own (ui/pure-form.ts), its function as the compiler prints it --
+   * parsed and its rows typed as a relation by the compiler before its page sets it (setPure, the rule Python's grid.pure
+   * asks), its input's relation read back off its rows. Refused in words on a grid over no other grid's rows. The form
+   * fetched with the first.
+   */
+  async #openPure(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const source = this.#options.cubeSource;
+    const set = this.#options.onSetPure;
+    if (source?._type !== 'rows' || set === undefined) {
+      this.#status("a Pure box reads another box's rows: add it after a box of the flow", 'warn');
+      return;
+    }
+    const { pureForm } = await lazily(() => import('./ui/pure-form.ts'));
+    const had = source.pure;
+    // its input's rows: its own, or -- a Pure box already -- what stands where its function reads its input
+    const input = pureInput(source, this.#snapshot.source.query);
+    const [start, columns] = await Promise.all([
+      had === undefined ? Promise.resolve('') : this.#controller.print(had).then(pureShown, () => ''),
+      had === undefined ? Promise.resolve(rowColumns(this.#snapshot).map((c) => c.name))
+        : this.#controller.relationColumns(input).then((cs) => cs.map((c) => c.name), () => [] as string[]),
+    ]);
+    const told = (pure: Lambda | null): string | null => (set(pure) ? null : 'the page refused it');
+    this.#showOverlay('Pure', (host, close) => pureForm(host, {
+      columns,
+      pure: start,
+      apply: async (text) => {
+        try {
+          // parsed, judged and its rows typed as a relation (pure-box.ts pureFrom): the compiler's words, or DataCube's
+          return told(await this.#check(pureFrom(text, input, {
+            parse: (t) => this.#controller.parse(t), columns: (r) => this.#controller.relationColumns(r),
+          })));
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          // the compiler's refusal, in its words
+          return e instanceof Error ? e.message : String(e);
+        }
+      },
+      ...(had !== undefined ? { remove: async () => told(null) } : {}),
       close,
     }));
   }

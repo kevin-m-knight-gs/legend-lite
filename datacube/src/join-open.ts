@@ -15,6 +15,7 @@ import { TOTAL_ROWS_COLUMN, classLambda } from './query.ts';
 import type { RawTable } from '../../engine-client/src/engine.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { sourceColumns, type RelationTyper } from './source-columns.ts';
+import { boxRows } from './pure-box.ts';
 import { CubeRefusal, type ColumnSpec } from './snapshot.ts';
 
 /** The kinds of source that are tables of a host's database: the tab's files and remote files; Python's frames too. */
@@ -158,7 +159,8 @@ async function overOneModel(leaves: readonly LeafSource[], o: JoinOpening): Prom
   const relation = async (s: CubeSource): Promise<ValueSpecification> => {
     // another grid's rows, a join's inputs, resolved against their page (live-inputs.ts resolvedSource): those grids'
     // rows as they are
-    if (s._type === 'rows') return (await side(frozenInput(s.input, s.name))).relation;
+    // a Pure box's, its function of them (pure-box.ts)
+    if (s._type === 'rows') return boxRows(s, (await side(frozenInput(s.input, s.name))).relation);
     if (s._type !== 'join') return relationOf.get(o.tables[next++]!)!;
     // its inputs in order, a Union's more after its right (each opened in the leaves' order)
     const sides: JoinSide[] = [];

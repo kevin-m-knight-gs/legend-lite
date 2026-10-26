@@ -5183,6 +5183,16 @@
   border: 1px solid var(--dc-line); background: var(--dc-fill-faint); color: inherit;
 }
 .dc-custom-filter-column:hover { background: var(--dc-hover); border-color: var(--dc-line-strong); }
+/* a Pure box's function (ui/pure-form.ts): its text, its steps a click away, its input's columns */
+.dc-pure-box .dc-text-tool-field { max-width: none; }
+.dc-pure-text { width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--dc-mono, ui-monospace, monospace); font-size: 12px; }
+.dc-pure-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.dc-pure-steps-label { font-size: 12px; color: var(--dc-muted, inherit); margin-right: 2px; }
+.dc-pure-step {
+  font-family: var(--dc-mono, ui-monospace, monospace); font-size: 11px; padding: 1px 7px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--dc-line); background: var(--dc-fill-faint); color: inherit;
+}
+.dc-pure-step:hover { background: var(--dc-hover); border-color: var(--dc-line-strong); }
 .dc-multi-field-suffix { width: 8em; }
 /* a Select's columns (ui/select-form.ts): a row a column -- kept, its name, its type, its new name */
 .dc-select-find { flex: 1; min-width: 10em; }

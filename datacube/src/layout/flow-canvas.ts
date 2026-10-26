@@ -136,6 +136,8 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   generateRows: 'M2 2.5h7v3H2zM5.5 5.5v8M5.5 8.5h3M5.5 13h3M9 7.5h5v2H9zM9 12h5v2H9z',
   // bins of one width, side by side
   binning: 'M1.5 13.5h13M2.5 13V9h3v4M6.5 13V4.5h3V13M10.5 13V7.5h3V13',
+  // a lambda, Pure's own sign for a function
+  pure: 'M3.5 2.5h2.5l6.5 11h1.5M8.2 6.4L3.5 13.5',
   // a funnel, and a condition written out beside it
   customFilter: 'M1.5 3h9L7 7.5V11l-2 1V7.5zM12 8.5l-1.5 2 1.5 2M14 8.5l1.5 2-1.5 2',
   textToColumns: 'M2 4.5h12M2 8h4M10 8h4M2 11.5h4M10 11.5h4M8 6v8',
