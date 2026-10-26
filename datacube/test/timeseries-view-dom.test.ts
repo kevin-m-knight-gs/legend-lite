@@ -365,7 +365,7 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
         return pop.querySelector('.dc-ts-error')?.textContent ?? '';
       };
       assert.match(typed('vola($A)'), /there is no function vola/);
-      assert.match(typed('seasonally_adjusted($A)'), /seasonal decomposition/);
+      assert.match(typed('smooth_outliers($A)'), /an iterative procedure/);
       // gs-quant's recursions are built now (the expert functions, 2026-10-26): read as typed
       assert.equal(typed('macd($A)'), '');
       assert.equal(typed('mean($A, 50)'), '');

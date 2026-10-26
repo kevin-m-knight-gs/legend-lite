@@ -467,10 +467,48 @@ class Writer {
   }
 
   /** A column the next period on: `$p->lead($r).<column>` (none at the line's last). */
-  lead(column: string): string {
+  lead(column: string, n = 1): string {
     const name = this.fresh('lead');
-    this.rel = this.rel.extend([derive(name, lambda(['p', 'w', 'r'], property(fn('lead', variable('p'), variable('r')), column)))], this.#over(null));
+    const call = fn('lead', variable('p'), variable('r'), ...(n !== 1 ? [lit.integer(n)] : []));
+    this.rel = this.rel.extend([derive(name, lambda(['p', 'w', 'r'], property(call, column)))], this.#over(null));
     return name;
+  }
+
+  /** Each row's place in its line, 1 its first: `$p->rowNumber($r)`. */
+  rowNumber(): string {
+    const name = this.fresh('rn');
+    this.rel = this.rel.extend([derive(name, lambda(['p', 'w', 'r'], fn('rowNumber', variable('p'), variable('r'))))], this.#over(null));
+    return name;
+  }
+
+  /** An aggregate over the `k` rows either side of each (a centred window: a classical decomposition's moving average). */
+  around(what: string, reduce: string, read: ValueSpecification, k: number): string {
+    const name = this.fresh(what);
+    const over = fn('over', { _type: 'classInstance', type: 'colSpecArray', value: { colSpecs: [{ name: this.part }] } },
+      collection([asc(PERIOD)]), fn('rows', lit.integer(-k), lit.integer(k)));
+    this.rel = this.rel.extend([agg(name, lambda(['p', 'w', 'r'], read), lambda(['y'], fn(reduce, variable('y'))))], over);
+    return name;
+  }
+
+  /**
+   * THE PRODUCT of `g`'s values over a frame, an empty one skipped (pandas' prod): 0 where one is 0, its sign from the
+   * count of those below 0, its magnitude e to the sum of the logs of the others -- the database's (the review's Q8).
+   */
+  product(g: string, frame: Frame): string {
+    const R = Writer.read;
+    const zeros = this.window('zeros', 'count', R(this.row('z', when(fn('equal', one(g), lit.integer(0)), lit.integer(1), none()))), frame);
+    const negatives = this.window('negs', 'count', R(this.row('neg', when(fn('lessThan', one(g), lit.integer(0)), lit.integer(1), none()))), frame);
+    const sum = this.window('lgs', 'plus', R(this.row('lg', when(fn('equal', one(g), lit.integer(0)), none(), fn('log', fn('abs', one(g)))))), frame);
+    const logs = when(fn('isEmpty', col(sum)), float(0), one(sum));
+    return this.row('prod', when(fn('greaterThan', one(zeros), lit.integer(0)), float(0),
+      op('times', fn('pow', float(-1), one(negatives)), fn('exp', logs))));
+  }
+
+  /** A column's value at its line's first period with one (or its last), beside every row: windows over the line. */
+  edgeValue(column: string, edge: 'first' | 'last'): string {
+    const R = Writer.read;
+    const at = this.window(`${edge}_p`, edge === 'first' ? 'min' : 'max', R(this.row('ep', when(fn('isNotEmpty', col(column)), col(PERIOD), none()))), 'all');
+    return this.window(`${edge}_v`, 'max', R(this.row('ev', when(fn('equal', col(PERIOD), col(at)), col(column), none()))), 'all');
   }
 
   /**
@@ -1090,6 +1128,104 @@ function candle(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   return { w, v };
 }
 
+/** A part, a written argument that is no number. */
+type Part = Exclude<Node, { constant: unknown }>;
+
+/** Of written arguments, the parts (no number), each a series. */
+const partsOf = (nodes: readonly Node[]): Part[] => nodes.filter((n): n is Part => !('constant' in n));
+
+/**
+ * GS-QUANT'S REMAINING FUNCTIONS of several series, or of a series and a number (the next phases' 1, 2026-10-26):
+ * if, compare, union, append, prepend, excess_returns, weighted_sum -- or undefined, the function another's.
+ */
+function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | undefined {
+  const written = (): Node[] => e.args.map((a) => write(sh, a));
+  switch (e.fn) {
+    case 'if': {
+      // x where the flags hold (not 0), y where not, each a series or a number, on the dates the tile's align combines
+      const [flags, x, y] = written() as [Node, Node, Node];
+      if ('constant' in flags) throw new CubeRefusal('if reads a series of flags first: its first argument is a number');
+      const parts = partsOf([flags, x, y]);
+      const w = parts.length === 1 ? flags.w : joined(sh, parts, sh.ts.align);
+      const f = columnOfValue(flags.v);
+      const branch = (n: Node): ValueSpecification => ('constant' in n ? n.constant : col(columnOfValue(n.v)));
+      return { w, v: { column: w.row('if', when(fn('isEmpty', col(f)), none(),
+        when(fn('not', fn('equal', one(f), lit.integer(0))), branch(x), branch(y)))) } };
+    }
+    case 'compare': {
+      const [x, y] = written() as [Node, Node];
+      if ('constant' in x && 'constant' in y) {
+        return { constant: when(fn('greaterThan', x.constant, y.constant), lit.integer(1), when(fn('lessThan', x.constant, y.constant), lit.integer(-1), lit.integer(0))) };
+      }
+      const parts = partsOf([x, y]);
+      const w = parts.length === 1 ? parts[0]!.w : joined(sh, parts, sh.ts.align);
+      const missing = parts.map((p) => fn('isEmpty', col(columnOfValue(p.v))));
+      return { w, v: { column: w.row('cmp', when(missing.length === 1 ? missing[0]! : or(...missing), none(),
+        when(fn('greaterThan', asOperand(x), asOperand(y)), lit.integer(1), when(fn('lessThan', asOperand(x), asOperand(y)), lit.integer(-1), lit.integer(0))))) } };
+    }
+    case 'union':
+    case 'append':
+    case 'prepend': {
+      // every date either has, then which one's value each takes: x where it has one (union); x to its last date, y
+      // after (append); x before y's first, y from there (prepend)
+      const x = seriesArg(sh, e, 0);
+      const y = seriesArg(sh, e, 1);
+      const w = joined(sh, [x, y], 'nan');
+      const a = columnOfValue(x.v);
+      const b = columnOfValue(y.v);
+      if (e.fn === 'union') return { w, v: { column: w.row('union', when(fn('isNotEmpty', col(a)), col(a), col(b))) } };
+      const R = Writer.read;
+      const has = (c: string): string => w.row('has_at', when(fn('isNotEmpty', col(c)), col(w.at), none()));
+      if (e.fn === 'append') {
+        const last = w.window('x_last', 'max', R(has(a)), 'all');
+        return { w, v: { column: w.row('append', when(fn('lessThanEqual', one(w.at), one(last)), col(a), col(b))) } };
+      }
+      const first = w.window('y_first', 'min', R(has(b)), 'all');
+      return { w, v: { column: w.row('prepend', when(or(fn('isEmpty', col(first)), fn('lessThan', one(w.at), one(first))), col(a), col(b))) } };
+    }
+    case 'excess_returns': {
+      const x = seriesArg(sh, e, 0);
+      const rate = e.args[1]!;
+      if (rate.kind === 'number') {
+        // over a rate: x less the rate accrued on it day by day, actual/360 -- gs-quant's er_j = er_j-1 + x_j - x_j-1 (1 +
+        // rate f_j), summed: x_j - rate * the sum of x_k-1 f_k to date
+        const w = x.w;
+        const a = columnOfValue(x.v);
+        const days = w.seconds ? fn('divide', op('minus', one(ORD), one(w.lag(ORD, 1))), lit.integer(86400)) : op('minus', one(ORD), one(w.lag(ORD, 1)));
+        const accrued = w.row('accr', op('times', one(w.lag(a, 1)), fn('divide', days, lit.integer(360))));
+        const total = w.window('accrued', 'plus', Writer.read(accrued), 'running');
+        return { w, v: { column: w.row('er', op('minus', one(a), op('times', float(rate.value), when(fn('isEmpty', col(total)), float(0), one(total))))) } };
+      }
+      // over a cash index: on the dates both have, x's first value times the product of (1 + x's return - y's)
+      const b = seriesArg(sh, e, 1);
+      const w = joined(sh, [x, b]);
+      const a = columnOfValue(x.v);
+      const g = w.row('erg', op('minus', op('plus', lit.integer(1), one(w.simple(a))), one(w.simple(columnOfValue(b.v)))));
+      return { w, v: { column: w.row('er', when(fn('isEmpty', col(a)), none(), op('times', one(w.edgeValue(a, 'first')), one(w.product(g, 'running'))))) } };
+    }
+    case 'weighted_sum': {
+      // each series and its weight, on the dates all have: their weighted sum over the weights' (gs-quant's intersect)
+      const series = e.args.filter((_, i) => i % 2 === 0).map((_, i) => seriesArg(sh, e, i * 2));
+      const weights = e.args.filter((_, i) => i % 2 === 1).map((x) => (x as Extract<TsExpr, { kind: 'number' }>).value);
+      const w = joined(sh, series);
+      const total = weights.reduce((t, x) => t + x, 0);
+      const sum = series.map((p, i) => op('times', float(weights[i]!), one(columnOfValue(p.v))))
+        .reduce((t, x) => op('plus', t, x));
+      return { w, v: { column: w.row('wsum', fn('divide', sum, float(total))) } };
+    }
+    default:
+      return undefined;
+  }
+}
+
+/** A cycle in the observations of a tile's frequency (a classical decomposition's period): undefined, none whole. */
+const CYCLES: Readonly<Partial<Record<TimeGrain, Readonly<Partial<Record<string, number>>>>>> = {
+  day: { week: 5, month: 21, quarter: 63, year: 252 },
+  week: { month: 4, quarter: 13, year: 52 },
+  month: { quarter: 3, year: 12 },
+  quarter: { year: 4 },
+};
+
 function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   const n = (name: string): number => paramOf(e, name) as number;
   // a window or a lag: a whole number of observations, or a calendar period (the spec's reader holds it to one)
@@ -1146,6 +1282,8 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     return { w, v: { column: w.ramped(v, pa, atLeast(size, 2), frame) } };
   }
   if (e.fn === 'ohlc') return candle(sh, e);
+  const special = otherCalls(sh, e);
+  if (special !== undefined) return special;
   if (e.fn === 'interpolate') {
     // x onto y's dates: y's lines when y is a split's and x is not, else x's -- each y's period, x put onto it
     const x = seriesArg(sh, e, 0);
@@ -1179,11 +1317,7 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       // initial times the product of (1 + r), gs-quant's: a factor of 0 (a return of -100%) zero from there on, each
       // factor below 0 turning the sign -- the magnitude the sum of the logs of the others (the review's Q8)
       const g = w.row('g', op('plus', lit.integer(1), one(a)));
-      const zeros = w.window('zeros', 'count', R(w.row('z', when(fn('equal', one(g), lit.integer(0)), lit.integer(1), none()))), 'running');
-      const negatives = w.window('negs', 'count', R(w.row('neg', when(fn('lessThan', one(g), lit.integer(0)), lit.integer(1), none()))), 'running');
-      const logs = summed(w.row('lg', when(fn('equal', one(g), lit.integer(0)), none(), fn('log', fn('abs', one(g))))));
-      return done(at(when(fn('greaterThan', one(zeros), lit.integer(0)), float(0),
-        op('times', op('times', initial, fn('pow', float(-1), one(negatives))), fn('exp', logs)))));
+      return done(at(op('times', initial, one(w.product(g, 'running')))));
     }
     case 'diff':
       return done(w.row('diff', op('minus', one(a), one(w.lag(a, span('obs'))))));
@@ -1355,7 +1489,129 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       const v = float(n('value'));
       return done(w.row('ceil', when(fn('greaterThan', one(a), v), v, one(a))));
     }
+    // gs-quant's remaining functions of one series (the next phases' 1, 2026-10-26)
+    case 'not':
+      return done(w.row('not', when(fn('isEmpty', col(a)), none(), when(fn('equal', one(a), lit.integer(0)), lit.integer(1), lit.integer(0)))));
+    case 'filter': {
+      // gs-quant's filter_: the values the operator matches removed (empty: the dates of none) -- the rows dropped,
+      // after every figure before it is computed over them all (a filter of a window's figure is the database's
+      // QUALIFY), so a figure after it reads the dates left
+      const v = float(n('value'));
+      const matches: Readonly<Record<string, (x: ValueSpecification) => ValueSpecification>> = {
+        less_than: (x) => fn('lessThan', x, v), greater_than: (x) => fn('greaterThan', x, v), l_equals: (x) => fn('lessThanEqual', x, v),
+        g_equals: (x) => fn('greaterThanEqual', x, v), equals: (x) => fn('equal', x, v), not_equals: (x) => fn('not', fn('equal', x, v)),
+      };
+      const how = word('operator');
+      const kept = how === 'empty' ? fn('isNotEmpty', col(a)) : or(fn('isEmpty', col(a)), fn('not', matches[how]!(one(a))));
+      w.rel = w.rel.filter(row(kept));
+      return done(a);
+    }
+    case 'product': {
+      const size = span('w');
+      const frame = Writer.frame(size);
+      const p = w.product(a, frame);
+      return done(w.row('prod_v', when(fn('isEmpty', col(a)), none(), col(size === 0 ? p : w.ramped(p, a, size, frame)))));
+    }
+    case 'geometrically_aggregate': {
+      const g = w.row('ga', op('plus', lit.integer(1), one(a)));
+      return done(w.row('geo', when(fn('isEmpty', col(a)), none(), op('minus', one(w.product(g, 'running')), lit.integer(1)))));
+    }
+    case 'smooth_spikes': {
+      // gs-quant's: a value beyond both neighbours (by 1 + threshold times, or threshold beyond) their mean; its first and
+      // last dropped (none)
+      const t = n('threshold');
+      const prev = w.lag(a, 1);
+      const next = w.lead(a, 1);
+      const [x, p, q] = [one(a), one(prev), one(next)];
+      const beyond = word('type') === 'absolute'
+        ? (big: ValueSpecification, small: ValueSpecification): ValueSpecification => fn('greaterThan', big, op('plus', small, float(t)))
+        : (big: ValueSpecification, small: ValueSpecification): ValueSpecification => fn('greaterThan', big, op('times', small, float(1 + t)));
+      const spike = or(and(beyond(x, p), beyond(x, q)), and(beyond(p, x), beyond(q, x)));
+      return done(w.row('smooth', when(or(fn('isEmpty', col(prev)), fn('isEmpty', col(next)), fn('isEmpty', col(a))), none(),
+        when(spike, fn('divide', op('plus', p, q), lit.integer(2)), x))));
+    }
+    case 'vol_swap_volatility': {
+      // gs-quant's: the root mean square of log returns (a mean of zero) over the window, times the root of 252, in percent
+      const size = span('w');
+      const frame = Writer.frame(size);
+      const r = w.returns(a, 1, 'log');
+      const ms = w.window('ms', 'average', R(w.row('r2', op('times', one(r), one(r)))), frame);
+      const vol = w.row('vs', op('times', op('times', fn('sqrt', one(ms)), fn('sqrt', lit.integer(252))), lit.integer(100)));
+      return done(size === 0 ? vol : w.ramped(vol, a, size, frame));
+    }
+    case 'consecutive': {
+      // a run of values above 0 (below), counted to each date; 0 where it breaks -- each break begins a group
+      const holds = word('direction') === 'negative' ? fn('lessThan', one(a), lit.integer(0)) : fn('greaterThan', one(a), lit.integer(0));
+      const yes = w.row('cs_yes', when(and(fn('isNotEmpty', col(a)), holds), lit.integer(1), lit.integer(0)));
+      const group = w.window('cs_grp', 'plus', R(w.row('cs_no', op('minus', lit.integer(1), one(yes)))), 'running');
+      return done(w.window('cs', 'plus', R(yes), 'running', group));
+    }
+    case 'trend':
+    case 'seasonally_adjusted':
+      return done(decomposed(sh, w, a, e.fn, word('method'), word('freq')));
+    case 'first':
+    case 'last':
+      return done(w.row(e.fn, when(fn('isEmpty', col(a)), none(), col(w.edgeValue(a, e.fn)))));
+    case 'count':
+      return done(w.window('count', 'count', R(a), 'running'));
+    case 'day':
+    case 'month':
+    case 'year':
+    case 'quarter':
+    case 'weekday': {
+      const part: Readonly<Record<string, ValueSpecification>> = {
+        day: fn('dayOfMonth', one(w.at)), month: fn('monthNumber', one(w.at)), year: fn('year', one(w.at)), quarter: fn('quarterNumber', one(w.at)),
+        // pandas' 0 for a Monday: the database's day of a week begun on Monday, less one
+        weekday: op('minus', fn('dayOfWeekNumber', one(w.at), enumValue('meta::pure::functions::date::DayOfWeek', 'Monday')), lit.integer(1)),
+      };
+      return done(w.row(e.fn, when(fn('isEmpty', col(a)), none(), part[e.fn]!)));
+    }
+    case 'if':
+    case 'compare':
+    case 'union':
+    case 'append':
+    case 'prepend':
+    case 'excess_returns':
+    case 'weighted_sum':
+      throw new Error(`${e.fn} is written by otherCalls`);
   }
+}
+
+/**
+ * A CLASSICAL DECOMPOSITION (gs-quant's technicals.trend and seasonally_adjusted, statsmodels' seasonal_decompose):
+ * over a cycle of p observations of the tile's frequency, its trend a moving average centred over p (of p + 1, the ends
+ * halved, for an even p), none where the window is not whole; each place in the cycle's (its row's number, mod p) mean of
+ * the detrended values (x less the trend, or over it), centred (less their mean, or over it): the season. Adjusted, x
+ * less its season (over it), where the trend is -- every step the database's.
+ */
+function decomposed(sh: Shared, w: Writer, a: string, what: 'trend' | 'seasonally_adjusted', method: string, freq: string): string {
+  const grain = sh.grain;
+  const p = grain === undefined ? undefined : CYCLES[grain]?.[freq];
+  if (grain === undefined) throw new CubeRefusal(`${what} counts its cycle in the tile's periods: give the tile a frequency (Monthly)`);
+  if (p === undefined) throw new CubeRefusal(`${what}: a ${freq} is no cycle of ${grain === 'day' ? 'days' : `${grain}s`} -- choose a longer one, or another frequency`);
+  const R = Writer.read;
+  const k = Math.floor(p / 2);
+  const odd = p % 2 === 1;
+  const n = w.around('dc_n', 'count', R(a), k);
+  const sum = w.around('dc_s', 'plus', R(a), k);
+  const centred = odd ? fn('divide', one(sum), lit.integer(p))
+    : fn('divide', op('minus', one(sum), op('times', float(0.5), op('plus', one(w.lag(a, k)), one(w.lead(a, k))))), lit.integer(p));
+  const trend = w.row('dc_trend', when(fn('lessThan', one(n), lit.integer(odd ? p : p + 1)), none(), centred));
+  if (what === 'trend') return trend;
+  const multiplicative = method === 'multiplicative';
+  const detrended = w.row('dc_d', multiplicative ? when(fn('equal', one(trend), lit.integer(0)), none(), fn('divide', one(a), one(trend)))
+    : op('minus', one(a), one(trend)));
+  const rn = w.rowNumber();
+  const at = w.row('dc_pos', op('minus', op('minus', one(rn), lit.integer(1)),
+    op('times', fn('floor', fn('divide', op('minus', one(rn), lit.integer(1)), lit.integer(p))), lit.integer(p))));
+  const placeMean = w.window('dc_pm', 'average', R(detrended), 'all', at);
+  const placeRows = w.window('dc_pr', 'count', R(rn), 'all', at);
+  // the places' mean: each row's share of its place's mean, summed over the line, over p
+  const overall = w.window('dc_all', 'plus', R(w.row('dc_share', fn('divide', one(placeMean), one(placeRows)))), 'all');
+  const mean = fn('divide', one(overall), lit.integer(p));
+  const season = w.row('dc_season', multiplicative ? fn('divide', one(placeMean), mean) : op('minus', one(placeMean), mean));
+  return w.row('dc_sa', when(fn('isEmpty', col(trend)), none(),
+    multiplicative ? fn('divide', one(a), one(season)) : op('minus', one(a), one(season))));
 }
 
 /** A base's aggregate over a period's rows (`ord`: the row's number in time, which `last` and `first` order by). */

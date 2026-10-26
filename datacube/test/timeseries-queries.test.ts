@@ -751,6 +751,149 @@ describe('two series on two calendars: the tile\'s align, and interpolate', () =
   });
 });
 
+// -- gs-quant's remaining functions (the next phases' 1, 2026-10-26), each held to its definition written out --
+
+/** statsmodels' seasonal_decompose (two-sided, extrapolate_trend 0), as gs-quant's trend and seasonally_adjusted read it. */
+function decompose(x: number[], p: number, multiplicative: boolean): { trend: Line; adjusted: Line } {
+  const k = Math.floor(p / 2);
+  const filt = p % 2 === 1 ? Array.from({ length: p }, () => 1 / p) : [0.5 / p, ...Array.from({ length: p - 1 }, () => 1 / p), 0.5 / p];
+  const trend: Line = x.map((_, t) => (t < k || t >= x.length - k ? null : filt.reduce((acc, f, j) => acc + f * x[t - k + j]!, 0)));
+  const detrended = x.map((v, t) => (trend[t] === null ? null : multiplicative ? v / trend[t]! : v - trend[t]!));
+  const places = Array.from({ length: p }, (_, i) => {
+    const vals = detrended.filter((d, t) => t % p === i && d !== null) as number[];
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
+  });
+  const mean = places.reduce((a, b) => a + b, 0) / p;
+  const season = places.map((v) => (multiplicative ? v / mean : v - mean));
+  return { trend, adjusted: x.map((v, t) => (trend[t] === null ? null : multiplicative ? v / season[t % p]! : v - season[t % p]!)) };
+}
+
+describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
+  const weekOf = (d: string): string => {
+    const at = new Date(`${d}T00:00:00Z`);
+    return new Date(at.getTime() - ((at.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
+  };
+
+  it('the date parts: day, month, year, quarter, weekday (0 a Monday)', async () => {
+    const parts = (fn: string): Promise<Line> => line(spec({ A: `${fn}(close[AAA])` })).then((l) => l.values);
+    const date = (d: string): Date => new Date(`${d}T00:00:00Z`);
+    assert.deepEqual(await parts('day'), DAYS.map((d) => date(d).getUTCDate()));
+    assert.deepEqual(await parts('month'), DAYS.map((d) => date(d).getUTCMonth() + 1));
+    assert.deepEqual(await parts('year'), DAYS.map((d) => date(d).getUTCFullYear()));
+    assert.deepEqual(await parts('quarter'), DAYS.map((d) => Math.floor(date(d).getUTCMonth() / 3) + 1));
+    assert.deepEqual(await parts('weekday'), DAYS.map((d) => (date(d).getUTCDay() + 6) % 7));
+  });
+
+  it('if, not and compare: a branch by a condition, its opposite, which is greater', async () => {
+    close((await line(spec({ A: 'if(close[AAA] > 2 * close[BBB], close[AAA], 0)' }))).values,
+      AAA.map((v, i) => (v > 2 * BBB[i]! ? v : 0)), 'if', 1e-12);
+    close((await line(spec({ A: 'not(close[AAA] > 101)' }))).values, AAA.map((v) => (v > 101 ? 0 : 1)), 'not', 0);
+    close((await line(spec({ A: 'compare(close[AAA], 2 * close[BBB])' }))).values,
+      AAA.map((v, i) => Math.sign(v - 2 * BBB[i]!)), 'compare', 0);
+  });
+
+  it('filter: the values it matches dropped -- before a window, the window reads the dates left; after one, the window read them all', async () => {
+    const kept = AAA.map((v, i) => [v, i] as const).filter(([v]) => !(v > 102));
+    const l = await line(spec({ A: 'filter(close[AAA], greater_than, 102)' }));
+    assert.deepEqual(l.dates, kept.map(([, i]) => DAYS[i]!));
+    close(l.values, kept.map(([v]) => v), 'filtered', 0);
+    const meanOf = await line(spec({ A: 'mean(filter(close[AAA], greater_than, 102), 3)' }));
+    close(meanOf.values, rolling(kept.map(([v]) => v), 3, avg), 'a window over the dates left', 1e-9);
+    const m3 = rolling(AAA, 3, avg);
+    const after = await line(spec({ A: 'filter(mean(close[AAA], 3), greater_than, 102)' }));
+    close(after.values, m3.filter((v) => !(v !== null && v > 102)), 'a window read before', 1e-9);
+    const empty = await line(spec({ A: 'filter(lag(close[AAA], 2))' }));
+    assert.deepEqual(empty.dates, DAYS.slice(2), 'empty: the dates of none dropped');
+  });
+
+  it('product, geometrically_aggregate and weighted_sum', async () => {
+    close((await line(spec({ A: 'product(close[AAA] / 100, 5)' }))).values,
+      rolling(AAA.map((v) => v / 100), 5, (v) => v.reduce((a, b) => a * b, 1)), 'product of 5', 1e-9);
+    close((await line(spec({ A: 'geometrically_aggregate(returns(close[AAA]))' }))).values,
+      AAA.map((v, i) => (i === 0 ? null : v / AAA[0]! - 1)), 'compounded', 1e-9);
+    close((await line(spec({ A: 'weighted_sum(close[AAA], 0.6, close[BBB], 0.4)' }))).values,
+      AAA.map((v, i) => 0.6 * v + 0.4 * BBB[i]!), 'weighted', 1e-9);
+  });
+
+  it('smooth_spikes: a value beyond both neighbours their mean, the ends dropped', async () => {
+    for (const [args, beyond] of [['0.004', (a: number, b: number) => a > b * 1.004], ['0.4, absolute', (a: number, b: number) => a > b + 0.4]] as const) {
+      const l = await line(spec({ A: `smooth_spikes(close[AAA], ${args})` }));
+      close(l.values, AAA.map((v, i) => {
+        if (i === 0 || i === AAA.length - 1) return null;
+        const [p, q] = [AAA[i - 1]!, AAA[i + 1]!];
+        return (beyond(v, p) && beyond(v, q)) || (beyond(p, v) && beyond(q, v)) ? (p + q) / 2 : v;
+      }), `spikes ${args}`, 1e-9);
+    }
+  });
+
+  it('excess_returns: over a cash index, compounded; over a rate, accrued actual/360', async () => {
+    const ra = simple(AAA);
+    const rb = simple(BBB);
+    let e = AAA[0]!;
+    close((await line(spec({ A: 'excess_returns(close[AAA], close[BBB])' }))).values,
+      AAA.map((_, i) => (i === 0 ? e : (e *= 1 + ra[i]! - rb[i]!))), 'over an index', 1e-9);
+    const day = (d: string): number => Date.parse(`${d}T00:00:00Z`) / 86_400_000;
+    let er = AAA[0]!;
+    close((await line(spec({ A: 'excess_returns(close[AAA], 0.05)' }))).values,
+      AAA.map((v, i) => (i === 0 ? er : (er = er + v - AAA[i - 1]! * (1 + 0.05 * (day(DAYS[i]!) - day(DAYS[i - 1]!)) / 360)))), 'over a rate', 1e-9);
+  });
+
+  it('vol_swap_volatility: the root mean square of log returns, annualized by 252, in percent', async () => {
+    const lr = AAA.map((v, i) => (i === 0 ? null : Math.log(v / AAA[i - 1]!)));
+    close((await line(spec({ A: 'vol_swap_volatility(close[AAA], 10)' }))).values, lr.map((_, i) => {
+      if (i < 9) return null;
+      const w = lr.slice(i - 9, i + 1).filter((v) => v !== null) as number[];
+      return Math.sqrt(w.reduce((a, b) => a + b * b, 0) / w.length) * Math.sqrt(252) * 100;
+    }), 'vol swap', 1e-9);
+  });
+
+  it('consecutive: the days in a row up (down), 0 where it breaks', async () => {
+    const r = simple(AAA);
+    for (const dir of ['positive', 'negative'] as const) {
+      let run = 0;
+      close((await line(spec({ A: `consecutive(returns(close[AAA]), ${dir})` }))).values,
+        r.map((v) => (run = v !== null && (dir === 'positive' ? v > 0 : v < 0) ? run + 1 : 0)), dir, 0);
+    }
+  });
+
+  it('first, last and count: its first and last value on every date it has, and how many to date', async () => {
+    const lagged2 = lagged(AAA, 2);
+    close((await line(spec({ A: 'first(lag(close[AAA], 2))' }))).values, lagged2.map((v) => (v === null ? null : AAA[0]!)), 'first', 0);
+    close((await line(spec({ A: 'last(close[AAA])' }))).values, AAA.map(() => AAA.at(-1)!), 'last', 0);
+    close((await line(spec({ A: 'count(lag(close[AAA], 2))' }))).values, lagged2.map((_, i) => Math.max(0, i - 1)), 'count', 0);
+  });
+
+  it('union, append and prepend: two series spliced on every date either has', async () => {
+    const own = DAYS.map((_, i) => i).filter((i) => i % 3 === 0);
+    close((await line(spec({ A: 'union(close[CCC], close[AAA])' }))).values, DAYS.map((_, i) => (i % 3 === 0 ? CCC[i]! : AAA[i]!)), 'union', 0);
+    // CCC to its last value at or below 22.5, then AAA after it
+    const low = own.filter((i) => CCC[i]! <= 22.5);
+    const lastLow = low.at(-1)!;
+    close((await line(spec({ A: 'append(filter(close[CCC], greater_than, 22.5), close[AAA])' }))).values,
+      DAYS.map((_, i) => (i <= lastLow ? (low.includes(i) ? CCC[i]! : null) : AAA[i]!)), 'append', 0);
+    // CCC before AAA's first close at or above 101, then AAA
+    const firstHigh = AAA.findIndex((v) => v >= 101);
+    const l = await line(spec({ A: 'prepend(close[CCC], filter(close[AAA], less_than, 101))' }));
+    // every date either has: CCC's, and AAA's left by the filter
+    const dates = DAYS.map((_, i) => i).filter((i) => i % 3 === 0 || AAA[i]! >= 101);
+    assert.deepEqual(l.dates, dates.map((i) => DAYS[i]!));
+    close(l.values, dates.map((i) => (i < firstHigh ? CCC[i]! : AAA[i]! >= 101 ? AAA[i]! : null)), 'prepend', 0);
+  });
+
+  it('trend and seasonally_adjusted: statsmodels\' classical decomposition over a cycle of the tile\'s frequency', async () => {
+    // a cycle of 4 weeks (even: its ends halved), additive and multiplicative
+    const weeks = [...new Set(DAYS.map(weekOf))];
+    const last = weeks.map((w) => AAA[DAYS.map(weekOf).lastIndexOf(w)]!);
+    for (const method of ['additive', 'multiplicative'] as const) {
+      const want = decompose(last, 4, method === 'multiplicative');
+      close((await line(spec({ A: `trend(close[AAA], ${method}, month)` }, { grain: 'week' }))).values, want.trend, `trend ${method}`, 1e-9);
+      close((await line(spec({ A: `seasonally_adjusted(close[AAA], ${method}, month)` }, { grain: 'week' }))).values, want.adjusted, `adjusted ${method}`, 1e-9);
+    }
+    await assert.rejects(line(spec({ A: 'trend(close[AAA])' })), /give the tile a frequency/);
+    await assert.rejects(line(spec({ A: 'trend(close[AAA], additive, week)' }, { grain: 'week' })), /a week is no cycle of weeks/);
+  });
+});
+
 describe('correlations: each pair of lines over the dates shown', () => {
   it('two levels\' returns, over the dates both have shown; a level with a return its returns with the return', async () => {
     const ts = spec({ A: 'close[AAA]', B: 'close[BBB]', C: 'returns(close[CCC])' });
@@ -926,6 +1069,21 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     const weeks = [...new Set(DAYS.map(weekOf))];
     const last = weeks.map((w) => AAA[DAYS.map(weekOf).lastIndexOf(w)]!);
     close((await line(spec({ A: 'exponential_moving_average(close[AAA], 0.1)' }, { grain: 'week' }))).values, ema(last, 0.1), 'weekly', 1e-12);
+  });
+
+  // the next phases' 1: an odd cycle, a quarter of months (3), its moving average centred whole
+  it('trend and seasonally adjusted over a quarter of months: an odd cycle', async () => {
+    const month = (d: string): string => d.slice(0, 7);
+    const months = [...new Set(LONG_DAYS.map(month))];
+    const last = months.map((m) => LONG[LONG_DAYS.map(month).lastIndexOf(m)]!);
+    const want = decompose(last, 3, false);
+    const ts = (text: string): TimeseriesSpec => spec({ A: text }, { grain: 'month' });
+    const run = async (text: string): Promise<Line> => {
+      const t = await engine.execute(await own.plan(seriesQuery(long, ts(text), ts(text).series[0]!).query), 0);
+      return values(t, TS_VALUE).map(num).reverse();
+    };
+    close(await run('trend(close, additive, quarter)'), want.trend, 'trend', 1e-9);
+    close(await run('seasonally_adjusted(close, additive, quarter)'), want.adjusted, 'adjusted', 1e-9);
   });
 
   // the E9 review's 6: each average had joined the query to itself, so a chain of them doubled it each time (five: 311k
@@ -1449,8 +1607,8 @@ describe('a series combining two grids, planned over one model of their tables (
 // tab runs them.
 /** The gallery's series: every function at least once, and the ways to view (2026-10-26: 92, the regression tile's four;
  *  102, the exponential averages', volatilities' and MACD's ten; 106, the percentiles' four; 109, a condition's three;
- *  113, the Dates sheet's alignment and interpolate, four). */
-const GALLERY_SERIES = 113;
+ *  113, the Dates sheet's alignment and interpolate, four; 144, gs-quant's remaining functions, 31). */
+const GALLERY_SERIES = 144;
 
 describe('the timeseries examples: every series of every tile, on its own samples', () => {
   const pages = [

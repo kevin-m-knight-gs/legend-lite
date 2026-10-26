@@ -843,8 +843,8 @@ class Document(Paged):
         # refused in DataCube's words: what its parser cannot read, what DataCube does not compute, a word it has not
         with self.assertRaisesRegex(ValueError, r'series D: there is no function vola'):
             tile.plot('vola($A)')
-        with self.assertRaisesRegex(ValueError, 'seasonal decomposition'):
-            tile.plot('seasonally_adjusted($A)')
+        with self.assertRaisesRegex(ValueError, 'an iterative procedure'):
+            tile.plot('smooth_outliers($A)')
         with self.assertRaisesRegex(ValueError, 'frequency "hour"'):
             tile.options(grain='hour')
         # its values, every figure the database's (headless timeseriesQuery, the viewer's own queries): a grid's series,
@@ -932,6 +932,24 @@ class Document(Paged):
         tile.edit('A', 'close[S]', name='Same')
         tile.edit('B', 'close[T]', name='Same')
         self.assertEqual(list(tile.correlations().index), ['Same (A)', 'Same (B)', 'C'])
+
+    def test_a_timeseries_combines_two_calendars_by_its_align_and_reads_gs_quants_functions(self):
+        # the next phases' 1 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): a tile's align, Python's
+        # options(align=...) as the viewer's Settings sets it, and one of gs-quant's remaining functions, each the database's
+        page = ll.Page('Calendars')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        daily = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 102.0, 103.0, 104.0, 105.0]})
+        sparse = pd.DataFrame({'symbol': ['T'] * 2, 'day': [days[0], days[3]], 'close': [10.0, 20.0]})
+        px = page.grid(pd.concat([daily, sparse]), name='prices')
+        tile = page.timeseries({'px': px}, ['close[S] - close[T]'])
+        self.assertEqual(list(tile.frame()['A']), [90.0, 83.0], 'the dates both have')
+        tile.options(align='step')
+        self.assertEqual(tile.spec['align'], 'step')
+        self.assertEqual(list(tile.frame()['A']), [90.0, 91.0, 92.0, 83.0, 84.0, 85.0], 'every date, T its last close')
+        with self.assertRaisesRegex(ValueError, 'alignment "sideways" is not one of'):
+            tile.options(align='sideways')
+        tile.plot('weekday(close[S])')
+        self.assertEqual(list(tile.frame('B')['B']), [d.weekday() for d in days])
 
     def test_a_timeseries_tables_over_a_range_of_the_last_month_read_it_from_its_sources_latest_date(self):
         # the E9 review's 7: the screen's window of a range of the last of a period -- each source's bounds the database's,

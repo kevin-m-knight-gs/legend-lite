@@ -9,7 +9,7 @@
 
 import { isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import {
-  AGGREGATES, ALIAS, isConditionOp, seriesWords, tenorOf, TS_COMPARISONS, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
+  AGGREGATES, ALIAS, isConditionOp, manyArgs, seriesWords, tenorOf, TS_COMPARISONS, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
   type TsOperator, type TsParamShape, type TsSeries, type TsSource,
 } from './timeseries-spec.ts';
 
@@ -39,8 +39,9 @@ export interface TsFunction {
   readonly name: TsFunctionName;
   readonly label: string;
   readonly family: TsFamily;
-  /** How many series it reads: one, two (a correlation's), or four (a candle's). */
-  readonly series: 1 | 2 | 4;
+  /** How many series it reads: one, two (a correlation's), three (an if's), four (a candle's), or `many` with their
+   *  weights (a weighted sum's). */
+  readonly series: 1 | 2 | 3 | 4 | 'many';
   readonly params: readonly TsParam[];
   /** What its figures are; `input` where it depends on a parameter (returns' type). */
   readonly unit: TsUnit | 'input';
@@ -321,6 +322,101 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
     about: 'x on the dates of y -- its lines, a split\'s, under every line of y\'s -- by method.',
     gsQuant: 'datetime.interpolate',
   },
+  union: { level: 'keeps',
+    label: 'One where it has none, the other', family: 'Dates', unit: 'same',
+    about: 'Every date either has: x where it has a value, else y (gs-quant\'s union of two: combine_first).', gsQuant: 'datetime.union',
+  },
+  append: { level: 'keeps',
+    label: 'One, then the other after it', family: 'Dates', unit: 'same',
+    about: 'x to its last date, then y on the dates after it: a history spliced onto another\'s end.', gsQuant: 'datetime.append',
+  },
+  prepend: { level: 'keeps',
+    label: 'One until the other starts', family: 'Dates', unit: 'same',
+    about: 'x before y\'s first date, then y: a newer series with an older history before it.', gsQuant: 'datetime.prepend',
+  },
+  first: { level: 'keeps',
+    label: 'Its first value', family: 'Dates', unit: 'same', about: 'Its first value, on every date it has.', gsQuant: 'analysis.first',
+    differs: 'its first value, where gs-quant\'s is its first date\'s even when that is none',
+  },
+  last: { level: 'keeps',
+    label: 'Its last value', family: 'Dates', unit: 'same', about: 'Its last value, on every date it has.', gsQuant: 'analysis.last',
+  },
+  count: {
+    label: 'How many so far', family: 'Dates', unit: 'number', about: 'How many values it has to each date.', gsQuant: 'analysis.count',
+  },
+  day: { label: 'Day of the month', family: 'Dates', unit: 'number', about: 'The day of the month of each of its dates, 1 to 31.', gsQuant: 'datetime.day' },
+  month: { label: 'Month', family: 'Dates', unit: 'number', about: 'The month of each of its dates, 1 to 12.', gsQuant: 'datetime.month' },
+  year: { label: 'Year', family: 'Dates', unit: 'number', about: 'The year of each of its dates.', gsQuant: 'datetime.year' },
+  quarter: { label: 'Quarter', family: 'Dates', unit: 'number', about: 'The quarter of each of its dates, 1 to 4.', gsQuant: 'datetime.quarter' },
+  weekday: { label: 'Day of the week', family: 'Dates', unit: 'number', about: 'The day of the week of each of its dates, 0 (Monday) to 6 (Sunday).', gsQuant: 'datetime.weekday' },
+  // algebra and analysis (the next phases' 1, 2026-10-26)
+  if: {
+    label: 'One or the other, by a condition', family: 'Math', unit: 'same',
+    about: 'Where flags holds (not 0), x; where not, y -- each a series or a number: if(close > mean(close, 50), close, 0).',
+    gsQuant: 'algebra.if_', aliases: ['if_'], differs: 'flags other than 0 hold (gs-quant refuses flags but 0 and 1)',
+  },
+  not: {
+    label: 'Not', family: 'Math', unit: 'number', about: 'A condition turned over: 1 where it does not hold, 0 where it does.',
+    gsQuant: 'algebra.not_', aliases: ['not_'], differs: 'a value other than 0 holds (gs-quant refuses values but 0 and 1)',
+  },
+  compare: {
+    label: 'Which is greater', family: 'Math', unit: 'number', about: '1 where x is above y, -1 where below, 0 where equal.',
+    gsQuant: 'analysis.compare', differs: 'their dates combined as the tile\'s align says (gs-quant\'s method, default step)',
+  },
+  filter: { level: 'keeps',
+    label: 'Drop values', family: 'Math', unit: 'same',
+    params: { operator: 'empty: the dates of none; else the values where x is less_than, greater_than, l_equals, g_equals, equals or not_equals value', value: 'what x is compared with' },
+    about: 'x without the values the operator matches (gs-quant\'s filter_ removes them): every figure after it reads the dates left.',
+    gsQuant: 'algebra.filter_', aliases: ['filter_'],
+  },
+  product: {
+    label: 'Rolling product', family: 'Rolling statistics', unit: 'number', about: 'The product of the last w values (0: every one to date).',
+    gsQuant: 'statistics.product',
+  },
+  geometrically_aggregate: {
+    label: 'Compounded', family: 'Returns', unit: 'same', about: 'Returns compounded to date: the product of (1 + each) less 1.',
+    gsQuant: 'algebra.geometrically_aggregate',
+  },
+  weighted_sum: { level: 'keeps',
+    label: 'Weighted average', family: 'Math', unit: 'same',
+    about: 'Series weighted, on the dates all have: weighted_sum(x, 0.6, y, 0.4) is (0.6x + 0.4y) / (0.6 + 0.4).',
+    gsQuant: 'algebra.weighted_sum', differs: 'each series followed by its weight (gs-quant: a list of series and a list of weights)',
+  },
+  smooth_spikes: { level: 'keeps',
+    label: 'Spikes smoothed', family: 'Math', unit: 'same',
+    params: { threshold: 'how far above or below both neighbours a spike is', type: 'percentage: 1 + threshold times both; absolute: threshold beyond both' },
+    about: 'A value beyond both its neighbours by the threshold replaced by their mean; its first and last dates dropped.', gsQuant: 'analysis.smooth_spikes',
+    differs: 'threshold defaults to 0.5 (gs-quant: no default)',
+  },
+  excess_returns: { level: 'keeps',
+    label: 'Excess returns', family: 'Returns', unit: 'same',
+    about: 'x over a benchmark: over a cash index y, x\'s first value times the product of (1 + x\'s return - y\'s); over a rate (a number, 0.05 for 5%), x less the rate accrued on it day by day (actual/360).',
+    gsQuant: 'econometrics.excess_returns',
+  },
+  vol_swap_volatility: {
+    label: 'Vol swap volatility', family: 'Risk', unit: 'percent',
+    about: 'The realized volatility a variance swap pays on: the root mean square of log returns over the last w (0: every one to date), times the root of 252, in percent.',
+    gsQuant: 'econometrics.vol_swap_volatility', differs: 'w defaults to every observation to date (gs-quant: the whole series)',
+  },
+  consecutive: {
+    label: 'Consecutive', family: 'Rolling statistics', unit: 'number',
+    params: { direction: 'positive: values above 0; negative: below' },
+    about: 'How many values in a row to each date have been above 0 (or below); 0 where it breaks.', gsQuant: 'analysis.consecutive',
+  },
+  trend: { level: 'keeps',
+    label: 'Trend', family: 'Level', unit: 'same',
+    params: { method: 'additive: a season of its own size; multiplicative: of its share', freq: 'the cycle: a year, a quarter, a month or a week' },
+    about: 'Its trend in a classical decomposition: a moving average centred over one cycle of the tile\'s frequency (a year of months, 12).',
+    gsQuant: 'technicals.trend',
+    differs: 'a cycle counted in the series\' own observations (a year of business days, 252), where gs-quant first fills business days to calendar days; the tile needs a frequency',
+  },
+  seasonally_adjusted: { level: 'keeps',
+    label: 'Seasonally adjusted', family: 'Level', unit: 'same',
+    params: { method: 'additive: x less its season; multiplicative: x over its season', freq: 'the cycle: a year, a quarter, a month or a week' },
+    about: 'x with its season taken out, a classical decomposition\'s: each place in the cycle\'s mean detrended value, centred, removed.',
+    gsQuant: 'technicals.seasonally_adjusted',
+    differs: 'a cycle counted in the series\' own observations (a year of business days, 252), where gs-quant first fills business days to calendar days; the tile needs a frequency',
+  },
 };
 
 /** THE FUNCTIONS: each one's signature (TS_SIGNATURES, what a saved spec is read by) with its words, in the catalog's
@@ -348,9 +444,16 @@ export const TS_FUNCTION: ReadonlyMap<TsFunctionName, TsFunction> = new Map(TS_F
  * read as a column of the grid.
  */
 export const NOT_BUILT: Readonly<Record<string, string>> = {
-  seasonally_adjusted: 'a seasonal decomposition is a model fitted to the series, not a window over it',
-  trend: 'a trend from a seasonal decomposition is a model fitted to the series, not a window over it',
-  excess_returns: 'excess returns need a risk-free rate series: divide by one of your own',
+  smooth_outliers: 'an iterative procedure (rounds of a centred rolling median until no new outlier), which no query states: smooth_spikes takes out a value beyond both its neighbours',
+  repeat: 'it makes dates the data does not have: give the tile a frequency, or combine two series with its align',
+  date_range: 'the tile\'s dates are its range: set it',
+  filter_dates: 'the tile\'s dates are its range: set it',
+  bucketize: 'a value per period is the tile\'s frequency: set it',
+  align_calendar: 'a holiday calendar is none of the tile\'s sources',
+  day_countdown: 'it makes dates the data does not have',
+  generate_series: 'random data: read a grid of your own',
+  corr_swap_correlation: 'it needs an index\'s constituents and their weights',
+  mode: 'the most frequent value of a window: no aggregate every database shares',
 };
 
 
@@ -509,6 +612,8 @@ export function unitOf(e: TsExpr): TsUnit {
       const f = TS_FUNCTION.get(e.fn);
       if (!f) throw new Error(`no function ${e.fn} in the catalog (the spec's reader refuses one)`);
       if (f.unit === 'input') return paramOf(e, 'type') === 'absolute' ? unitOf(e.args[0]!) : 'ratio';
+      // an if's unit is its branches' (a number branch takes the other's)
+      if (e.fn === 'if') return e.args[1]!.kind === 'number' ? unitOf(e.args[2]!) : unitOf(e.args[1]!);
       if (f.unit === 'same') return e.args[0] ? unitOf(e.args[0]) : 'same';
       return f.unit;
     }
@@ -546,6 +651,12 @@ export function levelOf(e: TsExpr): boolean {
     case 'call': {
       const f = TS_FUNCTION.get(e.fn);
       if (!f) throw new Error(`no function ${e.fn} in the catalog (the spec's reader refuses one)`);
+      // a level of every series it reads: an if's branches, a splice's two, a weighted sum's series of positive weights
+      if (e.fn === 'if') return levelOf(e.args[1]!) && levelOf(e.args[2]!);
+      if (e.fn === 'union' || e.fn === 'append' || e.fn === 'prepend') return levelOf(e.args[0]!) && levelOf(e.args[1]!);
+      if (e.fn === 'weighted_sum') {
+        return e.args.every((a, i) => (i % 2 === 0 ? levelOf(a) : a.kind === 'number' && a.value > 0));
+      }
       return f.level === 'makes' || (f.level === 'keeps' && levelOf(e.args[0]!));
     }
   }
@@ -564,7 +675,7 @@ export function isBand(e: TsExpr): boolean {
 /** Whether an expression is a CONDITION -- a comparison, or conditions joined by and, or -- drawn as the periods it
  *  holds, shaded (timeseries-option.ts), its runs the database's (timeseries-query.ts). */
 export function isCondition(e: TsExpr): boolean {
-  return e.kind === 'binary' && isConditionOp(e.op);
+  return (e.kind === 'binary' && isConditionOp(e.op)) || (e.kind === 'call' && e.fn === 'not');
 }
 
 /** Whether an expression draws candles (ohlc): a candle per period, nothing reading it. */
@@ -843,7 +954,7 @@ export function parseExpr(text: string): TsExpr {
           params[param.name] = paramValue(param);
           continue;
         }
-        if (args.length < f.series) {
+        if (f.series === 'many' || args.length < f.series) {
           args.push(either());
           continue;
         }
@@ -853,7 +964,7 @@ export function parseExpr(text: string): TsExpr {
       } while (isOp(',') && next());
     }
     expect(')');
-    if (args.length < f.series) throw new TsSyntaxError(`${f.name} reads ${seriesWords(f.series)}`, at);
+    if (f.series === 'many' ? !manyArgs(args) : args.length < f.series) throw new TsSyntaxError(`${f.name} reads ${seriesWords(f.series)}`, at);
     return { kind: 'call', fn: f.name, args, ...(Object.keys(params).length > 0 ? { params } : {}) };
   };
   const paramValue = (param: TsParam): number | string => {

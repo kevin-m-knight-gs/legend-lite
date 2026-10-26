@@ -258,7 +258,9 @@ export type TsFunctionName =
   | 'exponential_moving_average' | 'exponential_std' | 'exponential_volatility' | 'exponential_spread_volatility' | 'macd'
   | 'smoothed_moving_average' | 'percentiles' | 'median' | 'percentile'
   | 'log' | 'exp' | 'sqrt' | 'abs' | 'power' | 'floor' | 'ceil'
-  | 'interpolate';
+  | 'if' | 'not' | 'compare' | 'filter' | 'product' | 'geometrically_aggregate' | 'weighted_sum' | 'smooth_spikes'
+  | 'excess_returns' | 'vol_swap_volatility' | 'consecutive' | 'trend' | 'seasonally_adjusted'
+  | 'interpolate' | 'union' | 'append' | 'prepend' | 'first' | 'last' | 'count' | 'day' | 'month' | 'year' | 'quarter' | 'weekday';
 
 /** A function's parameter as a spec holds it: a whole number, a span (a window, a lag: a whole number of observations
  *  or a calendar period, `3m`), a number, or a word (a kind of return). */
@@ -284,8 +286,9 @@ export interface TsParamShape {
  * of them to.
  */
 export interface TsSignature {
-  /** One, two (a correlation's), or four (a candle's: its open, high, low and close). */
-  readonly series: 1 | 2 | 4;
+  /** One, two (a correlation's), three (an if's flags and its two branches), four (a candle's: its open, high, low and
+   *  close), or `many`: series and their weights in pairs (a weighted sum's). */
+  readonly series: 1 | 2 | 3 | 4 | 'many';
   readonly params: readonly TsParamShape[];
 }
 
@@ -302,6 +305,9 @@ const BETA: TsParamShape = { name: 'beta', kind: 'number', default: 0.75, min: 0
  *  review's 2, refused in words rather than drawn as nothing). */
 const SPREAD_BETA: TsParamShape = { name: 'beta', kind: 'number', default: 0.75, above: 0, below: 1 };
 const one = (...params: TsParamShape[]): TsSignature => ({ series: 1, params });
+/** A seasonal decomposition's model and its cycle (gs-quant's SeasonalModel and Frequency). */
+const SEASONAL_MODEL: TsParamShape = { name: 'method', kind: 'word', default: 'additive', words: ['additive', 'multiplicative'] };
+const CYCLE: TsParamShape = { name: 'freq', kind: 'word', default: 'year', words: ['year', 'quarter', 'month', 'week'] };
 
 /** Every function's signature, gs-quant's names (PlotTool Pro's words), in the catalog's order. */
 export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
@@ -314,6 +320,16 @@ export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
   alpha: { series: 2, params: [W(63)] }, r_squared: { series: 2, params: [W(63)] }, hedge_ratio: { series: 2, params: [W(63)] },
   residual: { series: 2, params: [W(63)] },
   interpolate: { series: 2, params: [{ name: 'method', kind: 'word', default: 'step', words: ['intersect', 'nan', 'zero', 'step'] }] },
+  // gs-quant's remaining functions (the next phases' 1, 2026-10-26)
+  if: { series: 3, params: [] }, not: one(), compare: { series: 2, params: [] },
+  filter: one({ name: 'operator', kind: 'word', default: 'empty', words: ['empty', 'less_than', 'greater_than', 'l_equals', 'g_equals', 'equals', 'not_equals'] }, num('value', 0)),
+  product: one(W(0)), geometrically_aggregate: one(), weighted_sum: { series: 'many', params: [] },
+  smooth_spikes: one(num('threshold', 0.5, 0), { name: 'type', kind: 'word', default: 'percentage', words: ['percentage', 'absolute'] }),
+  excess_returns: { series: 2, params: [] }, vol_swap_volatility: one(W(0)),
+  consecutive: one({ name: 'direction', kind: 'word', default: 'positive', words: ['positive', 'negative'] }),
+  trend: one(SEASONAL_MODEL, CYCLE), seasonally_adjusted: one(SEASONAL_MODEL, CYCLE),
+  union: { series: 2, params: [] }, append: { series: 2, params: [] }, prepend: { series: 2, params: [] },
+  first: one(), last: one(), count: one(), day: one(), month: one(), year: one(), quarter: one(), weekday: one(),
   bollinger_bands: one(W(20), num('k', 2, 0)), rsi: one(whole('w', 14)), ohlc: { series: 4, params: [] },
   exponential_moving_average: one(BETA), exponential_std: one(SPREAD_BETA), exponential_volatility: one(SPREAD_BETA),
   exponential_spread_volatility: one(SPREAD_BETA), macd: one(whole('m', 12), whole('n', 26), whole('s', 1)),
@@ -344,7 +360,16 @@ export function tenorOf(v: number | string): TsTenor | undefined {
 
 /** How many series a function reads, in words: one, two, or a candle's four. */
 export function seriesWords(n: TsSignature['series']): string {
-  return n === 1 ? 'one series' : n === 2 ? 'two series' : 'four series (its open, high, low and close)';
+  return n === 1 ? 'one series' : n === 2 ? 'two series' : n === 3 ? 'three (its flags, then a series or a number for each of 1 and 0)'
+    : n === 4 ? 'four series (its open, high, low and close)' : 'series and their weights, in pairs (x, 0.6, y, 0.4)';
+}
+
+/** A weighted sum's arguments: two series or more, each followed by its weight (a number), the weights not summing to 0. */
+export function manyArgs(args: readonly unknown[]): boolean {
+  if (args.length < 4 || args.length % 2 !== 0) return false;
+  const weights = args.filter((_, i) => i % 2 === 1);
+  if (!weights.every((w) => isRecord(w) && w['kind'] === 'number' && typeof w['value'] === 'number')) return false;
+  return weights.reduce((t: number, w) => t + ((w as { value: number }).value), 0) !== 0;
 }
 
 /** The values a column may take of each period. */
@@ -436,7 +461,7 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
       // the parser's words (timeseries-expr.ts NOT_BUILT): a saved one is refused here by its name
       if (!f) return `${what} calls ${JSON.stringify(e['fn'] ?? null)}, which this DataCube does not compute`;
       const fn = e['fn'] as TsFunctionName;
-      if (!Array.isArray(e['args']) || e['args'].length !== f.series) {
+      if (!Array.isArray(e['args']) || (f.series === 'many' ? !manyArgs(e['args']) : e['args'].length !== f.series)) {
         return `${what}: ${fn} reads ${seriesWords(f.series)}`;
       }
       for (const [i, a] of e['args'].entries()) {

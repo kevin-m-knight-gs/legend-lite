@@ -60,6 +60,23 @@ const RETURNS: GallerySheet = {
       panes: [{ height: 1 }, { height: 1 }],
       annotations: [...MARKS],
     }),
+  ], [
+    tile('excess', 'Excess returns: the S&P 500 over 5% cash accrued day by day, and over the bond fund', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[SPX]', { name: 'S&P 500', style: { width: 1, dash: 'dashed' } }),
+        s('B', 'excess_returns(close[SPX], 0.05)', { name: 'Over 5% cash' }),
+        s('C', 'excess_returns(close[SPX], close[TLT])', { name: 'Over the bond fund' }),
+      ],
+    }),
+    tile('compounded-to-date', 'Compounded to date: Microsoft\'s daily returns, their product less 1', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'geometrically_aggregate(returns(close[MSFT]))', { name: 'Compounded return', style: { kind: 'area' } }),
+        s('B', 'returns(close[MSFT])', { name: 'Daily return', pane: 1, style: { kind: 'dots' } }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }],
+    }),
   ]],
 };
 
@@ -99,6 +116,16 @@ const LEVEL: GallerySheet = {
       ],
       range: { last: '1y' },
       annotations: [{ kind: 'level', value: 0 }],
+    }),
+  ], [
+    tile('decompose', 'A season taken out: retail sales, their trend and their seasonally adjusted line, a month at a time', {
+      sources: [MACRO],
+      grain: 'month',
+      series: [
+        s('A', 'value[RETAIL]', { name: 'Retail sales', style: { width: 1 } }),
+        s('B', 'trend(value[RETAIL], multiplicative)', { name: 'Trend', style: { dash: 'dashed' } }),
+        s('C', 'seasonally_adjusted(value[RETAIL], multiplicative)', { name: 'Seasonally adjusted' }),
+      ],
     }),
   ]],
 };
@@ -181,6 +208,17 @@ const ROLLING: GallerySheet = {
       panes: [{ height: 2 }, { height: 1 }],
       annotations: [{ kind: 'level', value: 90, pane: 1 }, { kind: 'level', value: 10, pane: 1 }],
     }),
+  ], [
+    tile('product-streaks', 'Rolling product and streaks: the euro\'s 5-day compounded change, and its days in a row up and down', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'product(1 + returns(close[EURUSD]), 5) - 1', { name: '5-day compounded change' }),
+        s('B', 'consecutive(returns(close[EURUSD]))', { name: 'Days up in a row', pane: 1, style: { kind: 'bars' } }),
+        s('C', '0 - consecutive(returns(close[EURUSD]), negative)', { name: 'Days down in a row', pane: 1, style: { kind: 'bars' } }),
+      ],
+      range: { last: '6m' },
+      panes: [{ height: 1 }, { height: 1 }],
+    }),
   ]],
 };
 
@@ -229,6 +267,15 @@ const RISK: GallerySheet = {
         s('C', 'exponential_spread_volatility(rates:yield[10Y] - rates:yield[2Y], 0.94)', { name: '10s2s spread, points a year', pane: 1 }),
       ],
       panes: [{ height: 2 }, { height: 1 }],
+    }),
+  ], [
+    tile('vol-swap', 'Vol swap volatility: the S&P 500\'s zero-mean realized volatility over a month, beside its realized volatility', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'vol_swap_volatility(close[SPX], 21)', { name: 'Vol swap, 21 days' }),
+        s('B', 'volatility(close[SPX], 21)', { name: 'Realized, 21 days', style: { dash: 'dashed', width: 1 } }),
+      ],
+      annotations: [...MARKS],
     }),
   ]],
 };
@@ -370,6 +417,25 @@ const MATH: GallerySheet = {
       ],
       range: { last: '2y' },
     }),
+  ], [
+    tile('if-compare', 'If, not and compare: the S&P 500 or its 200-day average, whichever is lower; below it shaded', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'if(close[SPX] < mean(close[SPX], 200), close[SPX], mean(close[SPX], 200))', { name: 'The lower of the two' }),
+        s('B', 'compare(close[SPX], mean(close[SPX], 200))', { name: 'Above (1) or below (-1)', pane: 1, style: { kind: 'step' } }),
+        s('C', 'not(close[SPX] > mean(close[SPX], 200))', { name: 'Not above its average' }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }],
+    }),
+    tile('filter-smooth', 'Filter, smooth and weigh: gold without its closes above 200, its spikes smoothed, and a 60/40 basket', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'filter(close[GLD], greater_than, 200)', { name: 'Gold, at or below 200' }),
+        s('B', 'smooth_spikes(close[GLD], 0.02)', { name: 'Spikes smoothed', style: { dash: 'dashed', width: 1 } }),
+        s('C', 'weighted_sum(rebase(close[SPX]), 0.6, rebase(close[TLT]), 0.4)', { name: '60/40, from 100', axis: 'right' }),
+      ],
+      range: { last: '2y' },
+    }),
   ]],
 };
 
@@ -392,6 +458,37 @@ const DATES: GallerySheet = {
         s('B', 'macro:value[CPI]', { name: 'Month-end', style: { kind: 'dots' } }),
       ],
       range: { last: '2y' },
+    }),
+  ], [
+    tile('splice', 'Splicing two series: gold to 2022 then the bond fund; gold until the bond fund\'s 2023; the fund where gold is above 190', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'append(filter(if(year(close[GLD]) < 2023, close[GLD], 0), equals, 0), close[TLT])', { name: 'Gold, then the fund' }),
+        s('B', 'prepend(close[GLD], filter(if(year(close[TLT]) >= 2023, close[TLT], 0), equals, 0))', { name: 'Gold, until the fund', style: { dash: 'dashed' } }),
+        s('C', 'union(filter(close[GLD], greater_than, 190), close[TLT])', { name: 'Gold at or below 190, else the fund', style: { kind: 'dots' } }),
+      ],
+    }),
+    tile('calendar', 'The calendar of each date: the S&P 500\'s day of the week, month, quarter, day of the month and year', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'weekday(close[SPX])', { name: 'Day of the week (0 Monday)', style: { kind: 'step' } }),
+        s('B', 'month(close[SPX])', { name: 'Month', style: { kind: 'step' } }),
+        s('C', 'quarter(close[SPX])', { name: 'Quarter', style: { kind: 'step' } }),
+        s('D', 'day(close[SPX])', { name: 'Day of the month', style: { kind: 'dots' } }),
+        s('E', 'year(close[SPX])', { name: 'Year', pane: 1, style: { kind: 'step' } }),
+      ],
+      range: { last: '3m' },
+      panes: [{ height: 2 }, { height: 1 }],
+    }),
+    tile('first-last-count', 'First, last and how many: the S&P 500 between its first and last close, and its count of closes', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[SPX]', { name: 'S&P 500' }),
+        s('B', 'first(close[SPX])', { name: 'Its first close', style: { dash: 'dashed', width: 1 } }),
+        s('C', 'last(close[SPX])', { name: 'Its last close', style: { dash: 'dashed', width: 1 } }),
+        s('D', 'count(close[SPX])', { name: 'Closes to date', pane: 1, style: { kind: 'area' } }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }],
     }),
   ]],
 };

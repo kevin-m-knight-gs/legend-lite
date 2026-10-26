@@ -122,8 +122,10 @@ describe('the expression language', () => {
   });
 
   it('refuses gs-quant\'s functions DataCube does not compute, saying why', () => {
-    refused('seasonally_adjusted(close)', /seasonal decomposition/);
-    refused('excess_returns(close)', /risk-free rate/);
+    refused('smooth_outliers(close)', /an iterative procedure/);
+    refused('repeat(close)', /dates the data does not have/);
+    // built since (the next phases' 1, 2026-10-26): read as typed
+    assert.equal(exprText(parseExpr('seasonally_adjusted(close)')), 'seasonally_adjusted(close)');
     refused('percentile(close, 101)', /n is at most 100/);
   });
 
@@ -147,7 +149,8 @@ describe('the expression language', () => {
   it('every function in the catalog says what it is, and what of gs-quant it is', () => {
     for (const f of TS_FUNCTIONS) {
       assert.ok(f.about.length > 0 && f.gsQuant.length > 0, f.name);
-      const args = Array.from({ length: f.series }, () => 'close').join(', ');
+      // a weighted sum's series each with its weight
+      const args = f.series === 'many' ? 'close, 0.6, close, 0.4' : Array.from({ length: f.series }, () => 'close').join(', ');
       assert.equal(exprText(parseExpr(`${f.name}(${args})`)), `${f.name}(${args})`, f.name);
     }
   });
@@ -261,7 +264,7 @@ describe('the saved spec\'s reader', () => {
       [with_({ sources: [{ alias: 'px', cube: 'g', date: 'd' }, { alias: 'px', cube: 'h', date: 'd' }] }), /two sources are called px/],
       [with_({ grain: 'hour' }), /frequency "hour"/],
       [with_({ series: [{ id: 'a', expr: { kind: 'number', value: 1 } }] }), /not a capital letter/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'trend', args: [] } }] }), /calls "trend", which this DataCube does not compute/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'smooth_outliers', args: [] } }] }), /calls "smooth_outliers", which this DataCube does not compute/],
       [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'percentile', args: [{ kind: 'column', column: 'c' }], params: { n: 120 } } }] }), /n 120 is above 100/],
       [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'exponential_moving_average', args: [{ kind: 'column', column: 'c' }], params: { beta: 1 } } }] }), /beta 1 is not below 1/],
       [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'returns', args: [{ kind: 'column', column: 'c' }], params: { obs: 0 } } }] }), /obs 0 is below 1/],

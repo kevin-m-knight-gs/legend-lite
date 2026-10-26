@@ -1415,7 +1415,9 @@ export class TimeseriesView {
         return;
       }
       const other = spec.series.find((s) => s.id !== sid);
-      const args = f.series === 2 ? [inner, other ? `$${other.id}` : inner] : [inner];
+      const second = other ? `$${other.id}` : inner;
+      // the expression first, then what the function reads beside it: another series, an if's branches, weights
+      const args = f.series === 2 ? [inner, second] : f.series === 3 ? [inner, second, '0'] : f.series === 'many' ? [inner, '1', second, '1'] : [inner];
       const params = f.params.filter((p) => p.name === 'w').map((p) => String(p.default));
       expr.value = `${f.name}(${[...args, ...params].join(', ')})`;
       about.textContent = `${f.label}: ${f.about}${f.params.length ? ` Parameters: ${f.params.map((p) => `${p.name} (${p.about}; default ${p.default})`).join('; ')}.` : ''}${f.differs ? ` Differs from gs-quant's ${f.gsQuant}: ${f.differs}.` : ` gs-quant: ${f.gsQuant}.`}`;
@@ -1479,7 +1481,9 @@ export class TimeseriesView {
     reference.append(el(doc, 'summary', undefined, 'Functions (gs-quant\'s names)'));
     const list = el(doc, 'dl', 'dc-ts-functions');
     for (const f of TS_FUNCTIONS) {
-      const sig = `${f.name}(${[...Array.from({ length: f.series }, (_, i) => (i === 0 ? 'x' : 'y')), ...f.params.map((p) => `${p.name}=${p.default}`)].join(', ')})`;
+      const reads = f.series === 'many' ? ['x', 'wx', 'y', 'wy', '...'] : f.series === 3 ? ['flags', 'x', 'y']
+        : Array.from({ length: f.series }, (_, i) => (i === 0 ? 'x' : 'y'));
+      const sig = `${f.name}(${[...reads, ...f.params.map((p) => `${p.name}=${p.default}`)].join(', ')})`;
       list.append(el(doc, 'dt', undefined, sig), el(doc, 'dd', undefined, `${f.about}${f.differs ? ` (${f.differs})` : ''}`));
     }
     reference.append(list, el(doc, 'p', 'dc-ts-hint', 'Columns: close, px:close, close[AAPL], close[venue=NYSE, AAPL], volume[AAPL].sum. Series: $A. Arithmetic: + - * /.'));
