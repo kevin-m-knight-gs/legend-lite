@@ -183,6 +183,8 @@ export function createItems(o: { readonly source: boolean; readonly host: readon
     ...(o.source ? [{ id: 'source.new' as const, label: 'Data Source\u2026', ...off }] : []),
     { id: 'grid.new', label: 'Copy of This Grid', ...off },
     { id: 'chart.plot', label: 'Visualization', ...off },
+    // a timeseries tile (ui/timeseries-view.ts): its series along the grid's dates, gs-quant's functions over them
+    { id: 'timeseries.new', label: 'Timeseries', ...off },
     // a text tile (page-text.ts): a page's title, a note beside a chart
     { id: 'text.new', label: 'Text Box', ...off },
     ...o.host.map((h, i) => (i === 0 ? { ...h, separated: true } : h)),
@@ -270,6 +272,7 @@ export type MenuActionId =
   | 'format.addRule'
   | 'format.clear'
   | 'chart.plot'
+  | 'timeseries.new'
   | 'text.new'
   | 'grid.new'
   | 'source.new'

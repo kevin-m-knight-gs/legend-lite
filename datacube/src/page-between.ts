@@ -18,27 +18,31 @@
 // `whole`: everything a page command can set; what none can (a model gone, a model moved, a pin taken off, a cube opened
 // again over its source as it is now: `rebuilt`) is refused in words, and the screen opens the page again instead.
 
-import { applyPageCommand, idsOf, nextPageId, takenIds, type PageCommand, type PageDraft } from './page-commands.ts';
+import { applyPageCommand, idsOf, nextPageId, takenIds, type KeptCube, type PageCommand, type PageDraft } from './page-commands.ts';
 import { inputOn, inputSides, isLive, moreIndex, type CubeDocument } from './cube-document.ts';
 import { relinkedInput } from './live-inputs.ts';
-import { layoutTiles, type ChartView, type GridCopy, type GridView, type PageDocument, type PageSheet, type PageView, type TextView } from './page-document.ts';
-import { rearranged, renamedCommand } from './page-rebase.ts';
+import {
+  layoutTiles, readsCube, type ChartView, type GridCopy, type GridView, type PageDocument, type PageSheet, type PageView, type TextView,
+  type TimeseriesView,
+} from './page-document.ts';
+import { rearranged, renamedCommand, renamedSpec } from './page-rebase.ts';
 import { CubeRefusal, sameValue } from './snapshot.ts';
 
 /** What of a page the commands between two states cover (above). */
 export type PageScope = 'history' | 'whole';
 
 /** The commands that make a tile or a sheet: their id is theirs to give out afresh. */
-const MAKERS = new Set<PageCommand['kind']>(['addSheet', 'addFlow', 'addGrid', 'addChart', 'addText']);
+const MAKERS = new Set<PageCommand['kind']>(['addSheet', 'addFlow', 'addGrid', 'addChart', 'addText', 'addTimeseries']);
 
 /** The kind of id a making command gives out. */
-function kindMade(command: PageCommand): 'grid' | 'chart' | 'text' | 'sheet' | 'filter' {
+function kindMade(command: PageCommand): 'grid' | 'chart' | 'text' | 'timeseries' | 'sheet' | 'filter' {
   switch (command.kind) {
     case 'addSheet':
     case 'addFlow': return 'sheet';
     case 'addGrid': return 'grid';
     case 'addChart': return 'chart';
     case 'addText': return 'text';
+    case 'addTimeseries': return 'timeseries';
     default: return 'filter';
   }
 }
@@ -208,6 +212,36 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
   }
   for (const c of left) emit(c);
 
+  // 2d. timeseries tiles `to` has, on their sheets (the layout follows below), after the grids their sources read; the
+  //     ones both have, their spec and their title as `to` has them -- each carrying, as `to` holds them, the cubes it
+  //     reads that no grid of `to` shows (their grid removed while it read them: G4) and the page here does not hold
+  const keptFor = (v: TimeseriesView): { kept?: KeptCube[] } => {
+    const kept: KeptCube[] = [];
+    for (const s of v.spec.sources) {
+      if (gridShowing(to, s.cube) !== undefined || cur().cubes.some((c) => c.id === n(s.cube)) || kept.some((k) => k.cube === s.cube)) continue;
+      const document = to.cubes.find((c) => c.id === s.cube)?.cube;
+      if (document === undefined) throw new CubeRefusal(`timeseries ${v.id} reads ${s.cube}, which the page does not hold`);
+      kept.push({ cube: s.cube, document, copy: (to.copies ?? {})[s.cube] ?? null });
+    }
+    return kept.length > 0 ? { kept } : {};
+  };
+  for (const v of to.views) {
+    if (v.kind !== 'timeseries') continue;
+    if (!inFrom(v.id)) {
+      const sheet = sheetOf(to, v.id);
+      if (sheet === undefined) throw new CubeRefusal(`'${v.id}' is on no sheet of the page: it cannot be made`);
+      // the spec as `to` names its grids, as every command of the plan names `to`'s ids: the plan's application renames
+      // them (a spec renamed here was renamed twice: the review's A1, docs/TIMESERIES_REVIEW_2026_10_25.md)
+      emit({ kind: 'addTimeseries', id: v.id, sheet: sheet.id, near: null, spec: v.spec, title: v.title ?? null, columns: null, ...keptFor(v) });
+      continue;
+    }
+    const here = cur().views.find((x): x is TimeseriesView => x.kind === 'timeseries' && x.id === n(v.id));
+    if (here === undefined) continue;
+    const kept = keptFor(v);
+    if (!sameValue(here.spec, renamedSpec(v.spec, n)) || kept.kept !== undefined) emit({ kind: 'setTimeseries', tile: v.id, spec: v.spec, ...kept });
+    if ((here.title ?? null) !== (v.title ?? null)) emit({ kind: 'renameTile', tile: v.id, title: v.title ?? null });
+  }
+
   // 3. the charts both have: pointed at their grid in `to` (before the grid they read goes) -- or, detached in `to` (no
   //    grid shows their cube), on that kept cube as `to` holds it (`detach`, W19), unless a grid here still shows it (its
   //    removal detaches them, below: 5b) -- their spec, their title
@@ -271,6 +305,7 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
   }
   for (const v of from.views) if (v.kind === 'grid' && !inTo(v.id)) emit({ kind: 'removeTile', tile: v.id });
   for (const v of from.views) if (v.kind === 'text' && !inTo(v.id)) emit({ kind: 'removeTile', tile: v.id });
+  for (const v of from.views) if (v.kind === 'timeseries' && !inTo(v.id)) emit({ kind: 'removeTile', tile: v.id });
   for (const v of from.views) {
     if (v.kind === 'chart' && !inTo(v.id) && cur().views.some((x) => x.id === v.id)) emit({ kind: 'removeTile', tile: v.id });
   }
@@ -378,6 +413,17 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     const here = cur().views.find((x): x is GridView => x.kind === 'grid' && x.id === n(grid.id));
     const have = here === undefined ? undefined : (cur().copies ?? {})[here.cube];
     if (!sameValue(have, copy)) emit({ kind: 'snap', grid: grid.id, copy });
+  }
+
+  // 10b. a cube kept for timeseries tiles alone (G4: no grid or chart of `to` reads it): its document and its copy as `to`
+  //      has them, carried by a tile that reads it (no grid snaps or goes live for it)
+  for (const c of to.cubes) {
+    if (gridShowing(to, c.id) !== undefined || to.views.some((x) => x.kind === 'chart' && x.cube === c.id)) continue;
+    const reader = to.views.find((x): x is TimeseriesView => x.kind === 'timeseries' && readsCube(x, c.id));
+    const here = cur().cubes.find((x) => x.id === n(c.id));
+    if (reader === undefined || here === undefined || !cur().views.some((x) => x.id === n(reader.id))) continue;
+    if (sameValue(here.cube, c.cube) && sameValue(copyIn(cur(), n(c.id)), copyIn(to, c.id))) continue;
+    emit({ kind: 'setTimeseries', tile: reader.id, spec: reader.spec, kept: [{ cube: c.id, document: c.cube, copy: copyIn(to, c.id) ?? null }] });
   }
 
   if (scope === 'history') return out;

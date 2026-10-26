@@ -29,7 +29,10 @@ import {
   startingViews,
   suggestedName,
   writePage,
+  writePageOf,
+  cubesRead,
   type PageDocument,
+  type PageView,
   type PageLayout,
   type PageViews,
 } from '../src/page-document.ts';
@@ -214,6 +217,28 @@ describe('a saved page', () => {
     const written = writePage({ name: 'Q3 page', cube: CUBE, views: VIEWS, model });
     assert.deepEqual(written.model, { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: {} });
     assert.deepEqual(readPage(pageToJson(written)).model, written.model);
+  });
+
+  // the second audit's A-B1: a page's writers took its cubes from each view's one `cube`, and wrote a timeseries' kept
+  // cube off the page -- a file its reader refused. One rule now, every tile kind answering it (cubesRead), and a page
+  // written out (pageContent: a file, a record, its keeper, a link, Python's) refused without a cube a view reads
+  it('holds every cube its views read, each tile kind answering which; a page written out without one is refused', () => {
+    const ts: PageView = { id: 'timeseries-1', kind: 'timeseries', spec: { sources: [
+      { alias: 'px', cube: 'cube', date: 'region' }, { alias: 'kept', cube: 'grid-2', date: 'region' }], series: [] } };
+    assert.deepEqual([...VIEWS.views, ts, { id: 'text-1', kind: 'text', text: 'hi' } as PageView].map(cubesRead),
+      [['cube'], ['cube'], ['cube'], ['cube', 'grid-2'], []]);
+    const views: PageViews = {
+      views: [VIEWS.views[0]!, ts],
+      sheets: oneSheet({ kind: 'bands', fit: false, bands: [{ height: 1, node: { split: 'row', parts: [
+        { node: { tile: 'grid' }, size: 0.5 }, { node: { tile: 'timeseries-1' }, size: 0.5 }] } }] }),
+    };
+    // as the screen holds it now, it may name a cube it cannot write yet (a grid that cannot say its source); written
+    // out, never
+    const partial = writePageOf({ name: 'p', cubes: [{ id: 'cube', cube: CUBE }], views });
+    assert.throws(() => pageToJson(partial), /the page is written without cube grid-2, which timeseries timeseries-1 reads/);
+    assert.throws(() => pageFile(writePage({ name: 'p', cube: CUBE, views })), /without cube grid-2/);
+    const held = writePageOf({ name: 'p', cubes: [{ id: 'cube', cube: CUBE }, { id: 'grid-2', cube: CUBE }], views });
+    assert.deepEqual(readPage(pageToJson(held)).cubes.map((c) => c.id), ['cube', 'grid-2'], 'read back, its kept cube with it');
   });
 
   it('says what is wrong with a page it cannot read', () => {

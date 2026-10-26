@@ -10,6 +10,8 @@
 import 'echarts/lib/chart/custom.js';
 // a box plot's boxes and whiskers
 import 'echarts/lib/chart/boxplot.js';
+// a timeseries tile's candles (ohlc: timeseries-option.ts), registered with the first drawn
+import 'echarts/lib/chart/candlestick.js';
 import 'echarts/lib/chart/funnel.js';
 import 'echarts/lib/chart/gauge.js';
 import 'echarts/lib/chart/parallel.js';

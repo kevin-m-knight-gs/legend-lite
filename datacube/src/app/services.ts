@@ -213,6 +213,17 @@ export interface HostJoin {
   questions(page: string, mine: string, theirs: string, how: JoinHow): Promise<JoinSummaryCounts>;
   /** The join's grid's cube document, as the page command addGrid carries it onto `sheet` (headless joinCube). */
   cube(page: string, mine: string, theirs: string, how: JoinHow, sheet: string | null): Promise<CubeDocument>;
+  /** Grids read together over one model of the host's tables, for a timeseries series that combines them (headless
+   *  joinTogether): the model, and each grid's relation over it in their order. */
+  together(page: string, grids: readonly string[]): Promise<OpenedTogether>;
+}
+
+/** Grids opened together over one model of their tables (join-open.ts openSources), the tab's or a host's. */
+export interface OpenedTogether {
+  readonly model: string;
+  readonly runtime: string;
+  readonly relations: readonly ValueSpecification[];
+  readonly notes: readonly string[];
 }
 
 /** A saved cube the host opened (`DatabaseService.opened`): rebuilt as it opens now, and the base its rows are read over. */

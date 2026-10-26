@@ -34,6 +34,7 @@ import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
 import { textProblem } from './page-text-rule.ts';
 import { afterWhatTheyRead, liveProblem } from './live-inputs.ts';
+import { readTimeseries, type TimeseriesSpec } from './timeseries-spec.ts';
 import { readTextFiles, type TextFile } from './text-files.ts';
 
 export const PAGE_KIND = 'datacube.page';
@@ -78,7 +79,71 @@ export interface TextView {
   readonly cube?: never;
 }
 
-export type PageView = GridView | ChartView | TextView;
+/**
+ * A TIMESERIES TILE (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): series of any number of the page's grids along one
+ * time axis -- its spec's sources name the cubes it reads (a grid's id is its cube's). A source whose grid was removed is
+ * kept as it was, its series said to wait for it (undo brings the grid back); the tile shows no one cube of its own.
+ */
+export interface TimeseriesView {
+  readonly id: string;
+  readonly kind: 'timeseries';
+  readonly spec: TimeseriesSpec;
+  /** Its own title; else it is numbered (page-ids.ts timeseriesTitle). */
+  readonly title?: string;
+  /** It reads its sources' cubes (spec.sources), never one of its own. */
+  readonly cube?: never;
+}
+
+export type PageView = GridView | ChartView | TextView | TimeseriesView;
+
+/**
+ * WHETHER A VIEW READS A CUBE -- a grid's or a chart's its own, a timeseries' each of its sources' (a text tile none): the
+ * one rule a page keeps a cube by, so a grid removed while a timeseries reads its cube leaves the cube on the page, as a
+ * frozen chart's is kept (the owner, 2026-10-25, the review's G4: the cube went with its grid, the tile after a reopen
+ * reading a cube the page no longer held).
+ */
+export function readsCube(view: PageView, cube: string): boolean {
+  return cubesRead(view).includes(cube);
+}
+
+/** The cubes a view reads: every kind of tile answers, a new kind not compiling until it does (the second audit's A-B1:
+ *  a page's writers read a view's `cube`, which a timeseries has none of, and dropped its cubes). */
+export function cubesRead(view: PageView): readonly string[] {
+  switch (view.kind) {
+    case 'grid':
+    case 'chart':
+      return [view.cube];
+    case 'timeseries':
+      return view.spec.sources.map((s) => s.cube);
+    case 'text':
+      return [];
+  }
+}
+
+/**
+ * THE CUBES A PAGE HOLDS: each its views read (cubesRead) -- a grid's, a detached chart's, a removed grid's a timeseries
+ * still reads -- and no other, a cube no view reads let go. The one rule every writer and every page command holds a
+ * page's cubes to (a page written out without one is refused: pageContent).
+ */
+export function cubesHeld(views: readonly PageView[]): ReadonlySet<string> {
+  return new Set(views.flatMap(cubesRead));
+}
+
+/** Of `cubes`, those `views` still read (cubesHeld): what a change that takes a view off leaves the page holding. */
+export function stillHeld<T extends { readonly id: string }>(cubes: readonly T[], views: readonly PageView[]): T[] {
+  const held = cubesHeld(views);
+  return cubes.filter((c) => held.has(c.id));
+}
+
+/** A page written out holding every cube its views read, or the writer's bug said: one without is a file the reader
+ *  refuses (the second audit's A-B1, a timeseries' kept cube written off its page). */
+function heldWhole(cubes: readonly { readonly id: string }[], views: readonly PageView[]): void {
+  const written = new Set(cubes.map((c) => c.id));
+  for (const view of views) {
+    const missing = cubesRead(view).find((c) => !written.has(c));
+    if (missing !== undefined) throw new Error(`the page is written without cube ${missing}, which ${view.kind} ${view.id} reads`);
+  }
+}
 
 /** Where the views sit: the page's bands (layout/bands.ts), each tile a view's id. */
 /** A board sheet's layout: its bands (layout/bands.ts). */
@@ -355,7 +420,9 @@ export function writePage(o: {
 
 /**
  * A PAGE OF SEVERAL CUBES (a page of its own: one cube per grid, each over its own source, and one per grid kept off
- * the board for a detached chart). Each view names its cube by id; a cube no grid view names is a detached chart's.
+ * the board for a detached chart). Each view names its cube by id; a cube no grid view names is a detached chart's, or
+ * one a timeseries reads, its grid removed. A page the screen holds as it is now may name a grid's cube it cannot write
+ * yet (a grid that cannot say its source); a page written out holds every one (pageContent).
  */
 export function writePageOf(o: {
   readonly name: string;
@@ -476,8 +543,11 @@ export function openingOrder<T extends { readonly id: string; readonly cube: Cub
     ...of((t) => t === 'class')], gridOf);
 }
 
-/** The page as a JSON-ready object: each cube as its own document writes itself. */
+/** The page as a JSON-ready object: each cube as its own document writes itself -- refused when a view reads a cube it
+ *  does not hold (cubesHeld's rule). */
 export function pageContent(page: PageDocument): Record<string, unknown> {
+  // every way a page leaves as data -- a page file, a saved record, its keeper, a link, Python's -- comes through here
+  heldWhole(page.cubes, page.views);
   const { unknown, cubes, ...rest } = page;
   return {
     ...unknown,
@@ -796,6 +866,16 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
       id, kind: 'text', text: v['text'] as string, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}),
       ...(files.length > 0 ? { files } : {}),
     };
+  }
+  if (v['kind'] === 'timeseries') {
+    // its spec by the tile's one reader (timeseries-spec.ts readTimeseries); its sources' cubes the page's -- a grid's
+    // that was removed kept while the tile reads it (readsCube) -- as a chart's cube is (the review's G4)
+    const spec = readTimeseries(v['spec']);
+    if (typeof spec === 'string') throw new PageDocumentError(`timeseries ${id} has no timeseries it can draw: ${spec}`);
+    const missing = spec.sources.find((s) => !cubes.has(s.cube));
+    if (missing) throw new PageDocumentError(`timeseries ${id}'s source ${missing.alias} reads ${missing.cube}, which is no cube of this page`);
+    if (v['title'] !== undefined && !named('tile', v['title'])) throw new PageDocumentError(`timeseries ${id}'s title is blank`);
+    return { id, kind: 'timeseries', spec, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}) };
   }
   if (typeof v['cube'] !== 'string' || !cubes.has(v['cube'])) {
     throw new PageDocumentError(`view ${id} shows no cube of this page`);

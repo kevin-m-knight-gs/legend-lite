@@ -8,8 +8,13 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { tiles } from '../src/layout/bands.ts';
 import type { PageCommand } from '../src/page-commands.ts';
-import type { ChartView } from '../src/page-document.ts';
-import { app, dom, GateEngine, remount, root, settle, setUp, shown, SNAPSHOT, StubPlanner, tearDown } from './cube-fixture.ts';
+import { pageToJson, readPage, type ChartView } from '../src/page-document.ts';
+import { CubeApp } from '../src/app.ts';
+import type { CubeSnapshot } from '../src/snapshot.ts';
+import type { FileSource } from '../src/cube-document.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
+import { element } from '../../pure-protocol/src/index.ts';
+import { app, dom, GateEngine, menuItems, remount, root, settle, setUp, shown, SNAPSHOT, StubPlanner, tearDown } from './cube-fixture.ts';
 import { bandsOf } from './bands-of.ts';
 
 // The fixture's cube is grouped by region, then desk: a following chart is region across, split
@@ -558,5 +563,70 @@ describe('a KPI tile (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, batch 1)', () =
     await settle();
     assert.equal(host.querySelector('.dc-kpi'), null);
     panel.dispose();
+  });
+});
+
+// the second audit's A-B1 (docs/TIMESERIES_REVIEW_2026_10_25.md): a cube alone wrote a page file of a timeseries over a
+// grid it added -- every timeseries tile written, the added grids left out -- that its own reader refused; and with that
+// grid removed, its board's page lost the cube kept for the tile at the main grid's next edit, so the tile's next
+// change was refused
+describe('a cube alone with a timeseries tile of a grid it added', () => {
+  const PRICES: CubeSnapshot = {
+    source: { query: element('prices') },
+    columns: [{ name: 'symbol', type: 'String' }, { name: 'day', type: 'StrictDate' }, { name: 'close', type: 'Float' }],
+    derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1,
+  };
+  class PricesGate extends GateEngine {
+    override async answer(_sql: string, epoch: number): Promise<ResultTable> {
+      return {
+        columns: [
+          { name: 'symbol', type: 'String', values: ['AAA', 'AAA'] }, { name: 'day', type: 'StrictDate', values: ['2024-01-02', '2024-01-03'] },
+          { name: 'close', type: 'Float', values: [100, 101] }, { name: '__ts_date', type: 'StrictDate', values: ['2024-01-02', '2024-01-03'] },
+          { name: '__ts_value', type: 'Float', values: [100, 101] },
+        ],
+        rowCount: 2, epoch, elapsedMs: 1,
+      };
+    }
+  }
+  const file: FileSource = {
+    _type: 'file', name: 'prices.csv', format: 'csv', size: 10, sha256: '0'.repeat(64), columns: PRICES.columns.map((c) => ({ name: c.name, type: c.type })),
+  };
+
+  it('its page file reads back, the tile left out with its grid; the grid removed, the tile still changed', async () => {
+    const box = dom.window.document.createElement('div');
+    dom.window.document.body.append(box);
+    const own = new CubeApp(box, PRICES, { engine: new PricesGate(), planner: new StubPlanner(), cubeSource: file, sourceLabel: 'prices.csv' });
+    try {
+      await own.open();
+      await settle();
+      await own.newGrid();
+      await settle();
+      const added = [...box.querySelectorAll<HTMLElement>('[data-tile^="grid-"]')][0]!.dataset['tile']!;
+      dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      box.querySelector(`[data-tile="${added}"] .dc-row .dc-cell`)!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      menuItems().find((i) => i.querySelector(':scope > .dc-menu-label')?.textContent === 'Timeseries')!.click();
+      const bar = await shown<HTMLElement>(box, '[data-tile^="timeseries-"] .dc-ts-bar');
+      const ts = bar.closest<HTMLElement>('[data-tile]')!.dataset['tile']!;
+      const exported = own.pageDocument('x')!;
+      assert.doesNotThrow(() => readPage(pageToJson(exported)), 'the page file reads back');
+      assert.ok(!exported.views.some((v) => v.id === ts), 'the tile of the added grid left out, as the grid is');
+      // the grid removed: its cube kept for the tile; the main grid edited; the tile's frequency then set
+      box.querySelector<HTMLButtonElement>(`[data-tile="${added}"] .dc-tile-remove`)!.click();
+      await settle();
+      await own.edit([{ kind: 'configure', patch: { maxRows: 7 } }], 'settings');
+      await settle();
+      const frequency = box.querySelector<HTMLSelectElement>(`[data-tile="${ts}"] select[aria-label="Frequency"]`)!;
+      frequency.value = 'week';
+      frequency.dispatchEvent(new dom.window.Event('change'));
+      await settle();
+      // taken, the toolbar repainted with it; refused, put back as it was (the page's views leave the tile out: its grid
+      // is no grid this cube writes)
+      await new Promise((r) => setTimeout(r, 50));
+      assert.equal(box.querySelector<HTMLSelectElement>(`[data-tile="${ts}"] select[aria-label="Frequency"]`)!.value, 'week',
+        "the tile's change taken: the cube it reads kept on the board's page");
+    } finally {
+      own.dispose();
+      box.remove();
+    }
   });
 });

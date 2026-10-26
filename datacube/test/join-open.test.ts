@@ -10,7 +10,7 @@ import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { readJoinHow, joinSummary, type JoinHow } from '../src/join.ts';
-import { TAB_TABLES, leafRefusal, openInputs, openJoin, openRows, summaryCounts, type JoinOpening } from '../src/join-open.ts';
+import { TAB_TABLES, eachRelation, leafRefusal, openInputs, openJoin, openRows, summaryCounts, type JoinOpening } from '../src/join-open.ts';
 import {
   leavesOf, rawRows, readCube, cubeToJson, type CubeSource, type FileSource, type JoinInput, type JoinSource, type LeafSource,
   type RowsSource, type SavedQuery,
@@ -338,5 +338,15 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     assert.deepEqual(doc.source, source);
     const opened = await openJoin(doc.source as JoinSource, opening(['trades', 'customers']));
     assert.equal(opened.columns.length, 7);
+  });
+});
+
+// the timeseries review's G7 (docs/TIMESERIES_REVIEW_2026_10_25.md): a combination read each grid's relation by its
+// place, unchecked -- one short, a grid read with no relation
+describe("each source's relation, by its place: one each, checked", () => {
+  it('each item paired with its relation in order; a count that differs refused in words', () => {
+    const relations = [{ _type: 'var', name: 'a' }, { _type: 'var', name: 'b' }] as unknown as Parameters<typeof eachRelation>[0]['relations'];
+    assert.deepEqual(eachRelation({ relations }, ['x', 'y']), [['x', relations[0]], ['y', relations[1]]]);
+    assert.throws(() => eachRelation({ relations }, ['x', 'y', 'z']), /the model opened 2 relations for 3 sources/);
   });
 });

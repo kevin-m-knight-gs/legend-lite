@@ -549,6 +549,13 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
           };
           return readCube(said.command.document);
         },
+        // grids read together for a timeseries series of several (headless joinTogether): their relations over one model
+        together: async (page: string, grids: readonly string[]) => {
+          const said = fromJson(await postedText(link, 'join.json', `{"op":"together","page":${JSON.stringify(page)},"grids":${JSON.stringify(grids)}}`)) as {
+            model: string; runtime: string; relations: unknown[]; notes: string[];
+          };
+          return { model: said.model, runtime: said.runtime, relations: said.relations.map(readValueSpecification), notes: said.notes };
+        },
       },
     } : {}),
     // a grid's Snap (§18.3): the pull sent as Pure (R4), as a plan-and-run's query is; Python plans it where the rows are

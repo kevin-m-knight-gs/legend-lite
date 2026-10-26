@@ -55,8 +55,9 @@ import { EXAMPLE_PAGES } from '../examples/catalog.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { saveDialog } from '../ui/save-dialog.ts';
 import type { SectionId } from '../ui/source-picker.ts';
+import type { TsTogether } from '../ui/timeseries-view.ts';
 import { makeWindow, type WindowSpec } from '../ui/window.ts';
-import type { Sample, Services, Versions } from './services.ts';
+import type { OpenedTogether, Sample, Services, Versions } from './services.ts';
 import { followBy } from './live-follow.ts';
 import { LiveChannel, type Converge, type Converged } from './live-channel.ts';
 import { convergeOn } from './live-converge.ts';
@@ -435,6 +436,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let joinMenuOf: ((cube: string, column: string | undefined) => { readonly items: MenuItem[]; readonly asks: Map<string, JoinAsk> }) | undefined;
   /** Join ▸ ▸ Join a Data Source…: a grid over a source picked now, then the window joining grid `cube` to it. */
   let joinSource: ((cube: string | undefined) => void) | undefined;
+  /** A timeseries series of several grids, opened together over one model of their tables (set with the page's
+   *  sources, below). */
+  let togetherOf: ((cubes: readonly string[]) => Promise<TsTogether>) | undefined;
   /** The page's model now (where its classes are), once the page can make them. */
   let pageModelNow: (() => PageModelRef | undefined) | undefined;
   /** The page as this tab keeps it -- a newer writer's fields and its model with the board's -- once its sources are set
@@ -513,6 +517,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // its classes are in a project (§15.3; a file carrying its model comes with the Studio line's export, S23)
     pageNow: (name) => pageKept!(name),
     refuse: (text) => window.alert(text),
+    // A TIMESERIES SERIES OF SEVERAL GRIDS (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2): one query over one model
+    // of their tables -- the tab's or the host's (togetherOf, set with the page's sources below)
+    together: (cubes: readonly string[]) => {
+      if (!togetherOf) return Promise.reject(new Error('this page\'s host reads no grids together: a series reads one grid here'));
+      return togetherOf(cubes);
+    },
     // THE HOST'S TEXT, IN THE STATUS BAR (planner progress, errors, the planner's word): the page's first grid's, at the
     // right of its status bar -- a readout belongs there, not in the bar that says what is on screen. MOVED rather than
     // copied, on each render of that bar: `status` is the same node the planner writes to.
@@ -613,6 +623,31 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const sources = pageSources({
       services, page, gridMaker, taken: o.taken, ask: (content) => library?.ask(content),
     });
+    // the grids of a timeseries series of several, over one model of the tables they read: the tab's own (its database's),
+    // or -- a page Python serves -- the host's, by the same rule (join.json together); its query then planned and run
+    // where the grids' rows are, as every grid's is (rowsOf). Fetched with the join's code (join-app.ts)
+    const tabEngine = services.engine.local;
+    const hostTables = services.engine.database.join;
+    let opensTogether: ((cubes: readonly string[]) => Promise<OpenedTogether>) | undefined;
+    if (tabEngine) {
+      opensTogether = (cubes) => lazily(() => import('./join-app.ts'))
+        .then(({ tabSources }) => tabSources(cubes, { page, sources, services, local: tabEngine }));
+    } else if (hostTables) {
+      opensTogether = (cubes) => {
+        const now = page.document(page.title);
+        if (!now) return Promise.reject(new Error('the page cannot say what its grids read'));
+        return hostTables.together(pageToJson(now), cubes);
+      };
+    }
+    if (opensTogether) {
+      togetherOf = (cubes) => lazily(() => import('./join-app.ts')).then(({ openTogether }) => openTogether(cubes, {
+        open: opensTogether,
+        rows: (model, runtime) => {
+          const rows = services.engine.rows(model, runtime);
+          return { run: rowsOf(rows.runner ? { runner: rows.runner } : { planner: rows.planner, engine: rows.engine })!, letGo: () => rows.planner?.dispose?.() };
+        },
+      }));
+    }
     // each grid's place told to the sources as it is made -- the start's grid, below, included: its tables are then
     // what a join of it reads
     madeGrid = (id, place) => sources.madeGrid(id, place);

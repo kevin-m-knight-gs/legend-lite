@@ -78,7 +78,7 @@ import type { CubePage, ChartSource, PageEdit, SpawnedGrid, SpawnOptions } from 
 import type { PageCommand, PageDraft } from './page-commands.ts';
 import type { PageState } from './page-state.ts';
 import {
-  PAGE_CUBE, gridCopyOf, pageFile, startingViews, writePage, writePageOf, type ChartView, type GridCopy, type PageDocument, type PageViews,
+  PAGE_CUBE, cubesHeld, gridCopyOf, pageFile, startingViews, writePage, writePageOf, type ChartView, type GridCopy, type PageDocument, type PageViews,
 } from './page-document.ts';
 import { FormatterCache, headlineFormat, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
@@ -323,6 +323,8 @@ export interface CubeAppBaseOptions {
   readonly onNewGrid?: () => void;
   /** A grid on a page: its Create ▸ Text Box goes to the page, as `onNewGrid` does. */
   readonly onText?: () => void;
+  /** A grid on a page: its Create ▸ Timeseries goes to the page, as `onNewGrid` does. */
+  readonly onTimeseries?: () => void;
   /**
    * ANOTHER SOURCE, for New ▸ Source…: the host asks the person which (its source picker) and
    * answers what reads it, or undefined when they chose nothing. Absent: no New ▸ Source….
@@ -2501,6 +2503,9 @@ export class CubeApp {
       case 'text.new':
         void this.newText();
         return;
+      case 'timeseries.new':
+        void this.newTimeseries();
+        return;
       case 'source.new':
         void this.newSource();
         return;
@@ -3005,6 +3010,15 @@ export class CubeApp {
     (await this.#ensurePage())?.addText();
   }
 
+  /** Create ▸ Timeseries: a timeseries tile of this grid on the page, under it (page/cube-page.ts `addTimeseries`). */
+  async newTimeseries(): Promise<void> {
+    if (this.#options.onTimeseries) {
+      this.#options.onTimeseries();
+      return;
+    }
+    (await this.#ensurePage())?.addTimeseries();
+  }
+
   /** Another grid on the page, starting as this one is (page/cube-page.ts `addGrid`). */
   async newGrid(): Promise<void> {
     if (this.#options.onNewGrid) {
@@ -3052,6 +3066,7 @@ export class CubeApp {
       ...(this.#options.showColumnZone !== undefined ? { showColumnZone: this.#options.showColumnZone } : {}),
       ...(this.#options.openSource ? { openSource: this.#options.openSource } : {}),
       ...(spawned.onChart ? { onChart: spawned.onChart } : {}),
+      ...(spawned.onTimeseries ? { onTimeseries: spawned.onTimeseries } : {}),
       ...(spawned.onNewGrid ? { onNewGrid: spawned.onNewGrid } : {}),
       ...(spawned.onNewSource ? { onNewSource: spawned.onNewSource } : {}),
       ...(spawned.onRemove ? { onRemove: spawned.onRemove } : {}),
@@ -3201,6 +3216,7 @@ export class CubeApp {
           ...(o.showColumnZone !== undefined ? { showColumnZone: o.showColumnZone } : {}),
           ...(o.openSource ? { openSource: o.openSource } : {}),
           ...(spawned?.onChart ? { onChart: spawned.onChart } : {}),
+          ...(spawned?.onTimeseries ? { onTimeseries: spawned.onTimeseries } : {}),
           ...(spawned?.onNewGrid ? { onNewGrid: spawned.onNewGrid } : {}),
           ...(spawned?.onNewSource ? { onNewSource: spawned.onNewSource } : {}),
           ...(spawned?.onRemove ? { onRemove: spawned.onRemove } : {}),
@@ -3235,7 +3251,7 @@ export class CubeApp {
   #boardSeen(page: CubePage, idsOf: (page: PageDocument) => string[]): PageDraft {
     const cube = this.cubeDocument('');
     const views = page.views((grid) => (grid === 'grid' ? PAGE_CUBE : grid));
-    const others = [...new Set(views.views.flatMap((v) => (v.cube === undefined ? [] : [v.cube])))].filter((id) => id !== PAGE_CUBE).flatMap((id) => {
+    const others = [...cubesHeld(views.views)].filter((id) => id !== PAGE_CUBE).flatMap((id) => {
       const doc = page.documentOf(id);
       return doc ? [{ id, cube: doc }] : [];
     });
@@ -3274,12 +3290,12 @@ export class CubeApp {
 
   /**
    * What the cube shows around itself, as a saved page keeps it: the grid, each chart (its
-   * title, spec, and the mark it filters to), each text tile and the layout. A cube with no
-   * charts and no text tiles is a page of its grid alone, the whole board.
+   * title, spec, and the mark it filters to), each text tile, each timeseries tile and the layout. A cube with no
+   * charts, text tiles or timeseries is a page of its grid alone, the whole board.
    */
   pageViews(): PageViews {
     const page = this.#page?.page;
-    if (!page || page.charts + page.texts === 0) return startingViews({ id: 'grid', cube: PAGE_CUBE });
+    if (!page || page.charts + page.texts + page.timeseries === 0) return startingViews({ id: 'grid', cube: PAGE_CUBE });
     return page.views();
   }
 
@@ -3407,7 +3423,7 @@ export class CubeApp {
   /** The board as an export carries it: each tile where it is, each chart as its picture; none without charts. */
   #exportPage(): ExportPage | undefined {
     const page = this.#page?.page;
-    if (page) return page.charts + page.texts > 0 ? page.exportPage() : undefined;
+    if (page) return page.charts + page.texts + page.timeseries > 0 ? page.exportPage() : undefined;
     // a grid on a page of its own: the page's, this grid its table
     return this.#options.exportPage?.();
   }
