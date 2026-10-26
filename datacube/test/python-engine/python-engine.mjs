@@ -809,6 +809,8 @@ try {
   await tabbed.locator('.dc-sheet-tab input').fill('Two tabs');
   const typed = tabbed.locator('.dc-sheet-tab input').press('Enter');
   await secondTab.locator('.dc-sheet-add').click();
+  // the + offers a Sheet and a Flow (2026-10-26)
+  await secondTab.locator('.dc-menu .dc-menu-item', { has: secondTab.locator(':scope > .dc-menu-label:text-is("Sheet")') }).click();
   await typed;
   await python('py-page-group');
   await oneHeld('a sheet renamed in one tab, a sheet added in the other and Python\'s grouping between: one page in all three',

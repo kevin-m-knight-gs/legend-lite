@@ -381,7 +381,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
 
   /** The host's own entries, from the page's menu or a grid's status bar. */
   function onHostItem(item: MenuItem): void {
-    if (item.id === 'host.open') showCubes?.();
+    if (item.id === 'host.open') openCubes();
     if (item.id === 'host.save') saveCube?.(false);
     if (item.id === 'host.saveAs') saveCube?.(true);
     if (item.id === 'host.share') void copyShareLink?.();
@@ -403,6 +403,21 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
 
   /** Opens the saved cubes' window; set once the page can open files. */
   let showCubes: (() => void) | undefined;
+  /** THE START OVER: its page opened, or told it could not be. Until then the menu is drawn -- seconds before the start's
+   *  grid lands on a first visit -- so what it offers is said, never dropped (2026-10-26, found clicking the published
+   *  site: each entry below did nothing): Open… is kept for when the start is over (were it opened before, a start's own
+   *  page, opening cleanly, would close it), and an entry that acts on the page is greyed until it can (`whileStarting`). */
+  let startOver = false;
+  /** Open… asked for before the start was over: opened then. */
+  let cubesAsked = false;
+  /** Open…, from the menu or the blank page's card: now, or once the start is over. */
+  function openCubes(): void {
+    if (showCubes && startOver) showCubes();
+    else cubesAsked = true;
+  }
+  /** An entry whose action is not set yet, greyed and saying why: the start sets each before it is over. */
+  const whileStarting = (set: unknown): { readonly disabled?: true; readonly hint?: string } =>
+    (set === undefined ? { disabled: true, hint: 'The page is still starting' } : {});
   /** Close the Open… window, when it is open. */
   let closeCubes: (() => void) | undefined;
   /** Save the page (over the one it was opened from), or Save As a new one. */
@@ -498,11 +513,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // saved pages: where the host keeps them (in this browser), over the sources they were built on
       ...(services.pages ? [
         { id: 'host.open' as const, label: 'Open\u2026', section: 'file' as const },
-        { id: 'host.save' as const, label: 'Save', section: 'file' as const },
-        { id: 'host.saveAs' as const, label: 'Save As\u2026', section: 'file' as const },
+        { id: 'host.save' as const, label: 'Save', section: 'file' as const, ...whileStarting(saveCube) },
+        { id: 'host.saveAs' as const, label: 'Save As\u2026', section: 'file' as const, ...whileStarting(saveCube) },
       ] : []),
       // the page's settings in a link: never a row of data (src/share/link.ts)
-      ...(services.browser.address ? [{ id: 'host.share' as const, label: 'Share\u2026', section: 'file' as const }] : []),
+      ...(services.browser.address ? [{ id: 'host.share' as const, label: 'Share\u2026', section: 'file' as const, ...whileStarting(copyShareLink) }] : []),
       { id: 'host.query', label: 'Generated Pure & SQL\u2026', section: 'view' as const },
       // THE PAGE'S MODEL, under its Create ▸: its associations and its data space, once the page has a model home
       ...(createDataSpace ? [CREATE_ASSOCIATION, CREATE_DATA_SPACE] : []),
@@ -568,7 +583,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         saved.type = 'button';
         saved.className = `dc-picker-button ${picks ? 'dc-quiet' : 'dc-primary'}`;
         saved.textContent = 'Open a saved cube';
-        saved.addEventListener('click', () => showCubes?.());
+        saved.addEventListener('click', () => openCubes());
         actions.append(saved);
       }
       if (actions.childElementCount > 0) card.append(actions);
@@ -581,6 +596,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     ...(picks ? { openSource: () => picker?.('add') ?? Promise.resolve(undefined) } : {}),
     // where the page can start again from a blank one: a data source, or a saved page
     ...(picks || services.pages ? { onBlankPage: () => blankPage?.({ asked: true }) } : {}),
+    // New Page and Data Source…, greyed until the start has set what they do (set together, with the picker)
+    starting: () => whileStarting(blankPage).hint,
     // a flow's box shown, over the page as it is now; a tool of its palette added
     openBox: (box, document, now) => openBox?.(box, document, now) ?? Promise.resolve(undefined),
     onFlowTool: (tool, after, sheet, now, editor, into, port, at, step) => flowTool?.(tool, after, sheet, now, editor, into, port, at, step),
@@ -1798,6 +1815,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     if (start.kind === 'live') {
       const why = await openLive().catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
       if (why !== undefined) failedStart(new Error(why));
+    }
+    // the start over: an Open… asked meanwhile opened now, once
+    startOver = true;
+    if (cubesAsked) {
+      cubesAsked = false;
+      showCubes?.();
     }
 
     // FOLLOWING THE OTHER EDITOR (services.live, §5): Python moves what the page shows -- the page itself (its version:
