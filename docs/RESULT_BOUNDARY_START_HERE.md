@@ -130,6 +130,16 @@ eight measurements and write their one GATES entry.
   report them verbatim, and deleted afterwards. The lanes keep their own history of statement sizes and times per
   test; ask for it rather than re-measuring.
 - A lane run's verdict is test by test against the previous commit's run (channel B's per-test diff), never a total.
+- **The lanes work in parallel, on measurement; core has one writer** (the user, 2026-10-26: use the cloud sessions
+  in parallel "to iterate fast, only if that helps"). It helps for everything that must be measured against a real
+  cloud (a step's round-trip test on each driver, statement sizes and times, the Float-to-String census, each step's
+  side-by-side run per cloud) and for cloud-specific decode and dialect problems, which a lane can probe in minutes:
+  dispatch a step's cloud measurements to all three lanes in one go, with the same prefixed-line protocol, and let
+  the step wait on all three. It does not help for the shared core (the plan, the runner, the writers, the lowering):
+  one session edits core, on one branch; three sessions editing the same files is how the last two merges cost 39
+  and 15 conflicts. A cloud-specific fix confined to that cloud's dialect file may be made by its lane on a branch
+  of its own stacked on the core session's (the Deephaven line's pattern), and the core session merges it; never a
+  shared file, never a push to the shared branch from a lane.
 
 **Landing a step**
 1. The step's own checks (§5), then the guards, then the local gate.
