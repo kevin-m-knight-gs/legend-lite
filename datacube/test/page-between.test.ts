@@ -131,6 +131,13 @@ function randomEdit(rand: () => number, d: PageDraft, n: number): [string, PageC
       const copy = rand() < 0.4 ? { ...SNAP, table: `snap_t${n}` } : null;
       return [`keep for timeseries ${n}`, { kind: 'setTimeseries', tile: tile.id, spec: seriesOver([cube, tile.spec.sources[0]!.cube]), kept: [{ cube, document: pick(page.cubes).cube, copy }] }];
     }],
+    // its files (§8): none, or one or two pointed to by fingerprint
+    ['setTextFiles', () => {
+      const texts = page.views.filter((v) => v.kind === 'text');
+      if (texts.length === 0) return [`add text ${n}`, { kind: 'addText', sheet: pick(sheets).id, text: `Words ${n}`, title: null, columns: null }];
+      const files = Array.from({ length: Math.floor(rand() * 3) }, (_, i) => ({ name: `f${n}-${i}.md`, size: n + i, sha256: (n * 10 + i).toString(16).padStart(64, '0') }));
+      return [`set text files ${n}`, { kind: 'setTextFiles', tile: pick(texts).id, files }];
+    }],
     ['arrange', () => [`arrange ${n}`, { kind: 'arrange', sheet: pick(sheets).id, preset: pick(['side-by-side', 'stacked', 'focus-left', 'focus-top']), order: null }]],
     ['snap', () => [`snap ${n}`, { kind: 'snap', grid: pick(grids).id, copy: { ...SNAP, table: `snap_${n}` } }]],
     ['live', () => [`live ${n}`, { kind: 'live', grid: pick(grids).id }]],

@@ -248,7 +248,8 @@ try {
     }, undefined, { timeout: 60_000 });
     await r.goto(`${SITE}/datacube/demo/index.html`);
     await r.waitForSelector('.dc-row', { timeout: 120_000 });
-    await menuOf('Create', 'Blank Page');
+    // New Page, first in the page's ≡ (2026-10-25, the page's ≡ grouped by purpose: it was Create ▸ Blank Page)
+    await menuOf('New Page');
     await r.click('.dc-blank .dc-primary');
     await r.locator('.dc-picker-tab[data-section="remote"]').click();
     await r.fill('.dc-picker-url', `${ORIGIN}/remote/positions.csv`);
@@ -412,8 +413,7 @@ try {
   await maker.goto(`${SITE}/datacube/demo/index.html`);
   await maker.waitForSelector('.dc-row', { timeout: 120_000 });
   await maker.click('.dc-titlebar-menu');
-  await entry('Create').hover();
-  await entry('Blank Page').click();
+  await entry('New Page').click();
   await maker.click('.dc-blank .dc-primary');
   await maker.locator('.dc-picker .dc-picker-drop').waitFor({ state: 'visible', timeout: 15_000 });
   await maker.setInputFiles('.dc-picker-file', fills);

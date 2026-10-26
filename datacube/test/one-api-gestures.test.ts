@@ -150,7 +150,7 @@ const snappable = (name: string): GridMaker => (gridHost, spawned, start) => {
   if (spawned.id !== undefined) cubes.set(spawned.id, made);
   return made;
 };
-/** A page of a grid that can snap, `a`, beside one that cannot (so each pill is in its tile's header). */
+/** A page of a grid that can snap, `a`, beside one that cannot (so each state is left of its tile's title). */
 const snapGrid = async (): Promise<Record<string, string>> => {
   newPage();
   const a = pg().addGrid(snappable('trades.csv'));
@@ -158,7 +158,16 @@ const snapGrid = async (): Promise<Record<string, string>> => {
   await settle();
   return { a, b };
 };
-const toggle = (id: string): void => tile(id).querySelector<HTMLButtonElement>('.dc-titlebar-toggle')!.click();
+/** A grid's plane moved as a person moves it: its state's menu opened, Snap picked -- Go Live, when it is snapped. */
+const toggle = (id: string): void => {
+  const state = tile(id).querySelector<HTMLButtonElement>('.dc-tile-state')!;
+  const pick = state.dataset['state'] === 'snapped' ? 'Go Live' : 'Snap';
+  state.click();
+  const item = [...state.ownerDocument.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')]
+    .find((i) => i.querySelector(':scope > .dc-menu-label')?.textContent === pick);
+  assert.ok(item, `its state offers ${pick}`);
+  item.click();
+};
 
 /** A grid over the class Trade (a page filter is on a class a grid reads): its source a class, its rows the fixture's. */
 const TRADE = 'trades::domain::Trade';
@@ -389,11 +398,11 @@ async function chartOf(gridTile: string): Promise<string> {
 
 /** A chart's pill used as a hand does: Dynamic to Pinned (its grouping its own), or back -- picked from the menu it opens. */
 async function togglePill(chart: string): Promise<void> {
-  const pill = tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement;
+  const pill = tile(chart).querySelector('.dc-tile-state') as HTMLElement;
   const to = pill.textContent === 'Dynamic' ? 'Pinned' : 'Dynamic';
   pill.click();
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
-    .find((e) => e.textContent?.startsWith(`${to} \u2014 `));
+    .find((e) => e.querySelector(':scope > .dc-menu-label')?.textContent === to);
   if (!item) throw new Error(`the pill offers no ${to}`);
   item.click();
   await settle();
@@ -474,7 +483,7 @@ function dragOnto(id: string, onto: string, where: 'middle' | 'left' = 'middle')
 /** A grid's Column Properties for `column`, its Aggregation set to `fn`, and OK. */
 async function setAggregation(at: string, column: string, fn: string): Promise<void> {
   await headerMenu(at, column);
-  entry('Properties...').click();
+  entry('Properties…').click();
   await settle();
   const win = dom.window.document.querySelector<HTMLElement>('[data-window="Properties"]')!;
   const select = [...win.querySelectorAll('.dc-field')].find((f) => f.querySelector('.dc-field-label')?.textContent === 'Aggregation:')!
@@ -615,7 +624,7 @@ const GESTURES: readonly Gesture[] = [
     },
   },
   { name: 'a sheet moved', setUp: withSheet, make: () => tabMenu('Sheet 2', 'Move Left') },
-  { name: 'a sheet deleted', setUp: withSheet, make: () => tabMenu('Sheet 2', 'Delete') },
+  { name: 'a sheet deleted', setUp: withSheet, make: () => tabMenu('Sheet 2', 'Delete Sheet') },
   { name: 'a tile renamed', setUp: twoGrids, make: ({ b }) => rename(b!, 'Orders') },
   { name: 'a chart added', setUp: twoGrids, make: async ({ a }) => { await chartOf(a!); } },
   { name: 'a chart frozen', setUp: withChart, make: ({ chart }) => togglePill(chart!) },
@@ -807,6 +816,34 @@ const GESTURES: readonly Gesture[] = [
       const area = await editorOf(text!);
       area.value = '# Q3\n\nBy **desk**';
       [...tile(text!).querySelectorAll('button')].find((b) => b.textContent === 'OK')!.click();
+    },
+  },
+  // a file opened on a text box (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): its right-click's Open Files…, picked through
+  // the file input a browser with no handles to give puts in the page; told once fingerprinted (its tab then drawn)
+  {
+    name: 'a file opened on a text box',
+    setUp: async () => {
+      const g = await twoGrids();
+      gridMenuItem(g.a, 'Text Box').click();
+      await settle();
+      const text = [...host.querySelectorAll<HTMLElement>('[data-tile^="text-"]')].at(-1)!.dataset['tile']!;
+      // a new one opens its editor, whose right-click is the browser's: put away first
+      await editorOf(text);
+      tile(text).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      for (let i = 0; i < 100 && !tile(text).querySelector('.dc-text-tile'); i++) await new Promise((r) => setTimeout(r, 5));
+      return { ...g, text };
+    },
+    make: async ({ text }) => {
+      escape();
+      contextMenu(tile(text!).querySelector('.dc-text-host')!);
+      entry('Open Files\u2026').click();
+      const input = await shown<HTMLInputElement>(dom.window.document, 'input.dc-file-input');
+      Object.defineProperty(input, 'files', { value: [new File(['# Plan'], 'plan.md')] });
+      input.dispatchEvent(new dom.window.Event('change'));
+      const tabbed = (): boolean => [...tile(text!).querySelectorAll('.dc-text-file-name')].some((t) => t.textContent === 'plan.md');
+      for (let i = 0; i < 200 && !tabbed(); i++) {
+        await new Promise((r) => setTimeout(r, 5));
+      }
     },
   },
   {
@@ -1171,8 +1208,10 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
  *  its range picked in its toolbar.
  *  2026-10-25 (the timeseries review's A8, docs/TIMESERIES_REVIEW_2026_10_25.md): 55 -> 73, every other change of a
  *  timeseries tile -- its toolbar's, its legend's, its series editor's, its settings', its tile's -- an undo of one, and
- *  the undo of a tile's removal after its grid's (G4). */
-const GESTURES_AT_LEAST = 73;
+ *  the undo of a tile's removal after its grid's (G4).
+ *  2026-10-25 (§8 step 1, files in a text box, on main): 53 -> 54, a file opened on a text box.
+ *  2026-10-26 (main merged into the timeseries branch): both branches' gestures, 73 + 1 -> 74. */
+const GESTURES_AT_LEAST = 74;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

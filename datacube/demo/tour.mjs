@@ -160,11 +160,11 @@ async function takeOff(zone, column) {
   await settle();
 }
 /** A chart's Dynamic / Pinned / Frozen / Detached pill, and its right-click menu. */
-const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`);
+const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-state`);
 /** A chart put in a state as a person does: its pill clicked, the state picked from the menu it opens. */
 async function choose(id, state) {
   await pill(id).click();
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state} \u2014 `) }) })
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state}$`) }) })
     .first().click();
 }
 async function chartMenu(id, label) {
@@ -176,7 +176,7 @@ const field = (scope, label) => scope.locator(`.dc-field:has(> .dc-field-label:t
 
 /** Properties > Column Properties > `column` > Aggregation: `fn`, Apply -- as a person sets it. */
 async function setAggregation(column, pick, shot) {
-  await cellMenu(['Properties...']);
+  await cellMenu(['Properties…']);
   await page.locator('.dc-editor-tab', { hasText: 'Column Properties' }).first().click();
   await page.locator(`.dc-pe-col[data-column="${column}"]`).first().click();
   const select = page.locator('.dc-field', { hasText: 'Aggregation:' }).first().locator('select').first();
@@ -199,11 +199,11 @@ function differs(a, b) {
 }
 
 /**
- * A sample at `rows` rows as a person starts a page: New > Blank Page, "Add a data source", the picker's Examples. A
+ * A sample at `rows` rows as a person starts a page: New Page, "Add a data source", the picker's Examples. A
  * page over a picked sample can be saved and shared (the demo's own first grid knows no source, so it cannot be).
  */
 async function pickSample(id, rows) {
-  await burger('Blank Page');
+  await burger('New Page');
   await page.locator('.dc-blank').waitFor({ state: 'visible' });
   await page.click('.dc-blank .dc-primary');
   await page.locator('.dc-picker').waitFor({ state: 'visible' });
@@ -239,7 +239,7 @@ try {
   await settle();
 
   let start;
-  await step('A page over the sample trades: New > Blank Page, Add a data source, Examples', async () => {
+  await step('A page over the sample trades: New Page, Add a data source, Examples', async () => {
     await pickSample('trades', 2000);
     start = await snapshot();
     const shown = await page.locator(`${FIRST} .dc-row, .dc-app .dc-row`).count();
@@ -292,7 +292,7 @@ try {
 
   await step('A calculated column: Extended Columns > Add New Column…', async (shot) => {
     if (!numeric) throw new Error('the grid has no numeric column');
-    await cellMenu(['Extended Columns', 'Add New Column...']);
+    await cellMenu(['Extended Columns', 'Add New Column…']);
     await page.waitForSelector('.dc-coleditor', { timeout: 10_000 });
     await page.fill('.dc-coleditor .dc-calc-input-name', 'uplift');
     await page.locator('.dc-coleditor .dc-xc-kind[data-kind="formula"]').click();
@@ -350,8 +350,8 @@ try {
     if ((await pill(chart.id).textContent()) !== 'Pinned') throw new Error(`the pill says ${await pill(chart.id).textContent()}`);
     const [column, fn] = (await charts()).find((c) => c.id === chart.id).y[0];
     const other = fn === 'min' ? 'max' : 'min';
-    await chartMenu(chart.id, 'Options...');
-    const form = page.locator(`[data-tile="${chart.id}"] .dc-chartpanel-form`);
+    await chartMenu(chart.id, 'Properties…');
+    const form = page.locator('.dc-chart-options');
     await form.locator('.dc-chartpanel-add').click();
     const second = () => form.locator('.dc-chartpanel-measure').first();
     await field(second(), 'Value 2:').locator('select').selectOption(column);
@@ -360,8 +360,8 @@ try {
     const frozen = (await charts()).find((c) => c.id === chart.id);
     if (!same(frozen.y, [[column, fn], [column, other]])) throw new Error(`the frozen chart plots ${JSON.stringify(frozen.y)}`);
     await shot(page, 'frozen, two values');
-    // Options... again puts the form away
-    await chartMenu(chart.id, 'Options...');
+    // its × puts the options away (Properties… only opens them: the user, 2026-10-25)
+    await form.locator('.dc-overlay-close').click();
     await form.waitFor({ state: 'hidden' });
     await choose(chart.id, 'Dynamic');
     await settle();
@@ -469,7 +469,7 @@ try {
   // no older page is read (the user, 2026-10-17: docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.4)
   await step('A page file from before a grid\'s aggregates were its columns\' is refused, and said', async (shot) => {
     const want = await snapshot();
-    const [download] = await Promise.all([page.waitForEvent('download'), burger('Page File (JSON)')]);
+    const [download] = await Promise.all([page.waitForEvent('download'), burger('Export Page File…')]);
     const doc = JSON.parse(await readFile(await download.path(), 'utf8'));
     doc.cubes[0].cube.version = 1;
     const legacy = join(dir, 'older.page.json');

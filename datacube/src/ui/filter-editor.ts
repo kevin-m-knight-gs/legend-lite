@@ -57,6 +57,7 @@ import {
   type OperandKind,
   type TypeOf,
 } from '../filter-operators.ts';
+import { closeMark } from './tile-icons.ts';
 
 // the operators' table and the conversion of a draft to a filter, moved to a module of their own (no DOM: the headless
 // bundle builds Python's filters by them too) and said here as before
@@ -878,8 +879,8 @@ export class FilterEditor {
         ? this.#numberInput(item, edit, 'dc-filter-listinput')
         : this.#textInput(item, edit, 'dc-filter-listinput');
       if (dataTypeOf(type) === 'date') input.type = 'date';
-      const del = this.#button('×', () => set(items.filter((_x, j) => j !== i)),
-        'dc-filter-listdel', 'Remove');
+      const del = closeMark(this.#button('×', () => set(items.filter((_x, j) => j !== i)),
+        'dc-filter-listdel', 'Remove'), 'Remove');
       row.append(input, del);
       pop.append(row);
     });

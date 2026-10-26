@@ -131,6 +131,10 @@ _SCANNED = {
         ":scanned_demo",
         "test/wasm-differential/compare.ts",
         "//wasm:differential",
+        # the stylesheets: every token they read without a fallback is one the light theme defines (2026-10-25)
+        "src/app.css",
+        "src/grid/grid.css",
+        "src/theme.css",
     ],
     "menu-ids": [":src"],
     # everything a build or a person runs from this package
@@ -518,6 +522,8 @@ _HEADLESS_TESTS = [
     "timeseries-option",
     # its changes, one rule its viewer and Python ask (2026-10-25, docs/TIMESERIES_REVIEW_2026_10_25.md A2)
     "timeseries-edit",
+    # a text box's files (§8 step 1, 2026-10-25): the one rule, pure
+    "text-files",
     # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
     "cube-round-trip",
     "cube-state",

@@ -8,6 +8,7 @@ and read back into the same page as the open page says it is."""
 import copy
 import datetime
 import gc
+import hashlib
 import json
 import os
 import sys
@@ -260,7 +261,7 @@ class Document(Paged):
         self.assertEqual(opened.save(), second)
 
     def test_a_page_nobody_named_is_unnamed_and_saved_under_its_first_sheets_name(self):
-        # one rule (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D11, B3): unnamed, as the tab's Blank Page -- no name in the
+        # one rule (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D11, B3): unnamed, as the tab's New Page -- no name in the
         # page -- and saved, its saver naming nothing, under the name DataCube's Save suggests: its first sheet's, its
         # grid's report title (page-document.ts suggestedName), the page then so named
         from legend_lite.engine import Engine
@@ -975,6 +976,45 @@ class Document(Paged):
         big = page.grid(many, name='many')
         lines = page.timeseries({'m': big}, [{'expr': 'close', 'split': 'symbol'}]).frame()
         self.assertEqual((lines.shape, int(lines.notna().sum().sum())), ((n, 2), 2 * n))
+
+    def test_a_text_box_points_to_its_files_never_copies_them(self):
+        # files opened or dropped on a text box (DataCube's text-files.ts; docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): by
+        # the command the screen sends (setTextFiles), each its name, size and fingerprint -- its bytes stay where it was
+        page, _, _ = self.built()
+        note = page.text('Plans')
+        self.assertEqual(note.files, [])
+        with tempfile.TemporaryDirectory() as d:
+            plan = Path(d, 'plan.md')
+            plan.write_bytes(b'# Plan\n')
+            trades = Path(d, 'trades.csv')
+            trades.write_bytes(b'desk,pnl\nFX,1\n')
+            note.files = [plan, str(trades)]
+            deck = Path(d, 'deck.pptx')
+            deck.write_bytes(b'not text')
+            with self.assertRaisesRegex(ValueError, 'deck.pptx is not a kind of file a text box shows: Markdown, text, '
+                                                    'CSV or JSON'):
+                note.files = [deck]
+            with self.assertRaisesRegex(ValueError, 'is in the text box twice'):
+                note.files = [plan, plan]
+            # one path is no list; a folder is no file (the 2026-10-25 audit: its letters were read as paths)
+            with self.assertRaisesRegex(TypeError, r"a text box's files are a list: \[path\] for one"):
+                note.files = str(plan)
+            with self.assertRaisesRegex(ValueError, 'is a folder: a text box shows files'):
+                note.files = [d]
+        sha = 'a' * 64
+        self.assertEqual(note.files, [
+            {'name': 'plan.md', 'size': 7, 'sha256': hashlib.sha256(b'# Plan\n').hexdigest()},
+            {'name': 'trades.csv', 'size': 14, 'sha256': hashlib.sha256(b'desk,pnl\nFX,1\n').hexdigest()},
+        ])
+        saved = next(v for v in page.to_dict()['views'] if v['id'] == note.id)
+        self.assertEqual(saved['files'], note.files, 'the page keeps the three, never the bytes')
+        # a file as ``files`` gives one, judged as given
+        with self.assertRaisesRegex(ValueError, 'a file is its name, size and sha256, not its bytes'):
+            note.files = [{'name': 'x.md', 'size': 1, 'sha256': sha, 'bytes': 'x'}]
+        note.files = note.files[1:]
+        self.assertEqual([f['name'] for f in note.files], ['trades.csv'])
+        note.files = []
+        self.assertNotIn('files', next(v for v in page.to_dict()['views'] if v['id'] == note.id))
 
     def test_a_grid_is_edited_as_datacubes_screen_edits_it_and_refused_in_its_words(self):
         # grouping, pivot, Column Properties and sorts by the one module the screen's panels, header menu and drag zones

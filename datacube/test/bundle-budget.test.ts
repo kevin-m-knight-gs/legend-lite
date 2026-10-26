@@ -310,19 +310,45 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  347,000 -> 355,500 (2026-10-24, main's D19 merged into this branch: its own steps there, 323,500 -> 332,000 ->
  *  333,500 -- the grid's and the page's total diffs, the converge on the keeper's page, the page hash, its audits'
  *  rounds, each signed off by the user (D9) -- now on top of the parity program's). Measured 355,159.
- *  355,500 -> 363,500 (2026-10-25, the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7-§9): a
- *  timeseries view read, written, merged and told (its spec's reader and its functions' signatures alone:
- *  timeseries-spec.ts; page-document, page-commands, page-rebase, page-between), its tile placed, synced, restored,
- *  removed and exported on the board, Create ▸ Timeseries, the wiring that reads grids together (on the tab and on a
- *  host's page), the markets and rates samples and the Markets example's entry -- its expression language, its
- *  queries, its drawing and its viewer chunks of their own, fetched with the first timeseries tile (the budget of
- *  their own below), over the charts' ECharts. Measured 363,018.
- *  363,500 -> 365,000 (2026-10-25, the timeseries review's G4, docs/TIMESERIES_REVIEW_2026_10_25.md, the owner's decision
- *  4: a removed grid's cube kept while a timeseries reads it -- one rule a page keeps a cube by (page-document.ts
- *  readsCube), the cubes a timeseries' commands carry and their reader (page-commands.ts `kept`), planned for an undo
- *  (page-between), renamed (page-rebase), kept reachable (page-state), and kept off the board for the tile (cube-page);
- *  with the review's earlier fixes on this branch, under the old budget alone). Measured 364,345. */
-const BUDGET = 365_000;
+ *  355,500 -> 356,000 (2026-10-25, the UI waves the user asked for: a measure's numbers right-aligned in the grid and
+ *  every export (style.ts autoTextAlign, grid-edits.ts isMeasureLeaf); the page's ≡ grouped by purpose -- New Page,
+ *  Export Page File…, Edit Layout that flips, Create ▸ Text Box, View ▸ Hide the Bar and Keyboard Shortcuts…, each greyed
+ *  entry's why on hover (page-app.ts #menuGroups)). Measured 355,513.
+ *  356,000 -> 357,500 (2026-10-25, the one tile header the user agreed: every tile's state an icon left of its title
+ *  (ui/tile-icons.ts, drawn), a chart's state menu, a text box's pencil, a grid's Snap / Go Live / Snap Again and its
+ *  source and plane in words in its status bar, a lone grid's state in its sheet's tab, ⤢/⤡). Measured 357,039.
+ *  357,500 -> 358,500 (2026-10-25, the grid's status bar the user signed off: Properties, Filter, Add Column and Join as
+ *  drawn icons (ui/tile-icons.ts toolIcon), its rows or groups in words, a chip each for what is true of it, the receipt
+ *  an i, a thin bar on the grid's top edge while a query runs -- app.ts #renderStatusBar). Measured 358,056.
+ *  358,500 -> 359,500 (2026-10-25, the text box as a Markdown editor the user chose: its reader, drawing and editor
+ *  stay a chunk of their own (page-text.ts); what the page carries is their styles -- tables, code, quotes, tasks, the
+ *  toolbar, the preview (app.css) -- and an export's lines of each new block (cube-page.ts textLines)). Measured
+ *  358,640.
+ *  359,500 -> 360,500 (2026-10-25, the menus' one design language: a key shown right-aligned beside its entry
+ *  (ui/menu-view.ts), a chart's and a text box's View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page -- and a
+ *  text box's right-click (cube-page.ts #tileView), a sheet tab's entries saying why they are off (ui/sheet-tabs.ts); and
+ *  the columns panel's part-ticked measure (ui/columns-panel.ts)). Measured 359,826.
+ *  360,500 -> 361,500 (2026-10-25, the page's chrome drawn in one icon set (ui/tile-icons.ts chromeIcon, closeMark;
+ *  found 4) -- the tree carets too -- and a chart's and a text box's Create ▸ (cube-page.ts #tileCreate)). Measured
+ *  360,653.
+ *  361,500 -> 365,000 (2026-10-25, files in a text box (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8 step 1: text-files.ts,
+ *  the setTextFiles command, the tabs, the reads by handle, file-handles.ts pickTextFiles) and the branch's deep audit's
+ *  fixes (the chart options in a shadow root and off a moved tile, the status chips of the view shown, a refusal before
+ *  a file is read, handles kept on Save As). The file code could be a chunk of its own, fetched with a box's first file;
+ *  not done here). Measured 364,289.
+ *  365,000 -> 365,500 (2026-10-25, a chart's options as a window beside its chart, kept on the screen and fitted to its
+ *  form (ui/window.ts besideWindow, onScreen, moveWindow; ui/chart-panel.ts openForm, #fit) -- the window itself comes
+ *  with the chart panel, the form and its segmented choices stay the options form's chunk). Measured 365,218.
+ *  365,500 -> 375,000 (2026-10-26, main merged into the timeseries branch, its own steps there 355,500 -> 363,500 ->
+ *  365,000: the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7-§9 -- a timeseries view read, written,
+ *  merged and told (its spec's reader and its functions' signatures alone: timeseries-spec.ts; page-document,
+ *  page-commands, page-rebase, page-between), its tile placed, synced, restored, removed and exported on the board,
+ *  Create ▸ Timeseries, the wiring that reads grids together (on the tab and on a host's page), the markets and rates
+ *  samples and the Markets example's entry, its expression language, queries, drawing and viewer chunks of their own
+ *  (the budget of their own below) -- then the timeseries review's G4, docs/TIMESERIES_REVIEW_2026_10_25.md, the owner's
+ *  decision 4: a removed grid's cube kept while a timeseries reads it (page-document.ts readsCube, page-commands.ts
+ *  `kept`, page-between, page-rebase, page-state, cube-page)). Measured 374,503. */
+const BUDGET = 375_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -397,7 +423,7 @@ const BUDGET = 365_000;
  *  305,000 -> 305,500 (2026-10-21, step S3's audit round -- the grid's note of the same date). Measured 305,177.
  *  305,500 -> 306,000 (2026-10-21, step S4, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md "the host applies the commands":
  *  the page Python serves written as its edits or, undone or redone, whole (a restore), the ids it has held read with it,
- *  and Open..., in place and Blank Page leaving it for a page of the tab's own (D1), said on a blank page's card).
+ *  and Open..., in place and New Page leaving it for a page of the tab's own (D1), said on a blank page's card).
  *  Measured 305,535.
  *  306,000 -> 306,500 (2026-10-22, step S5's B8, B14, B6, B5, Z18, B4 and B13 -- the grid's note of the same date, and
  *  the saved page it is kept with the page and told (savedAs), so either editor saves over one record). Measured
@@ -427,9 +453,25 @@ const BUDGET = 365_000;
  *  date). Measured 337,265.
  *  338,000 -> 344,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 314,000 -> 324,000 -- the
  *  grid-only page's note of the same date). Measured 343,438.
- *  344,000 -> 352,000 (2026-10-25, the timeseries tile -- the grid's note of the same date). Measured 351,371.
- *  352,000 -> 353,500 (2026-10-25, the timeseries review's G4 -- the grid's note of the same date). Measured 352,714. */
-const ENGINE_BUDGET = 353_500;
+ *  344,000 -> 345,500 (2026-10-25, the UI waves: a measure's numbers right-aligned, the page's ≡ grouped by purpose and
+ *  the one tile header -- the grid-only page's notes of the same date). Measured 345,283.
+ *  345,500 -> 347,000 (2026-10-25, the grid's status bar -- the grid-only page's note of the same date). Measured
+ *  346,310.
+ *  347,000 -> 348,000 (2026-10-25, the text box's Markdown styles -- the grid-only page's note of the same date -- and a
+ *  chart's options as a popover that closes: its heading and x, Escape and a press elsewhere, placed beside its chart
+ *  (ui/chart-panel.ts openForm)). Measured 347,245.
+ *  348,000 -> 348,500 (2026-10-25, the menus' one design language -- the grid-only page's note of the same date).
+ *  Measured 348,087.
+ *  348,500 -> 349,500 (2026-10-25, the page's chrome drawn in one icon set (ui/tile-icons.ts chromeIcon, closeMark; found
+ *  4 of docs/DATACUBE_UI_REVIEW_2026_10_24.md): each typed glyph -- a tile's layouts, maximise and remove, the menus'
+ *  chevron, every close -- now a small drawing of its own). Measured 348,520.
+ *  349,500 -> 353,000 (2026-10-25, files in a text box and the branch's deep audit's fixes -- the grid-only page's note
+ *  of the same date). Measured 352,353.
+ *  353,000 -> 353,500 (2026-10-25, a chart's options as a window beside its chart, kept on the screen and fitted to its
+ *  form -- the grid-only page's note of the same date). Measured 353,248.
+ *  353,500 -> 363,000 (2026-10-26, main merged into the timeseries branch, its own steps there 344,000 -> 352,000 ->
+ *  353,500: the timeseries tile and the review's G4 -- the grid-only page's note of the same date). Measured 362,623. */
+const ENGINE_BUDGET = 363_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -603,9 +645,27 @@ const EXAMPLE_BUDGET = 4_000;
  *  date). Measured 356,493.
  *  357,000 -> 363,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 332,500 -> 342,500 -- the
  *  grid-only page's note of the same date). Measured 362,642.
- *  363,000 -> 372,000 (2026-10-25, the timeseries tile -- the grid's note of the same date). Measured 371,528.
- *  372,000 -> 373,500 (2026-10-25, the timeseries review's G4 -- the grid's note of the same date). Measured 372,935. */
-const WIDGET_BUDGET = 373_500;
+ *  363,000 -> 365,000 (2026-10-25, the UI waves: a measure's numbers right-aligned, the page's ≡ grouped by purpose and
+ *  the one tile header -- the grid-only page's notes of the same date). Measured 364,708.
+ *  365,000 -> 366,500 (2026-10-25, the grid's status bar -- the grid-only page's note of the same date). Measured
+ *  365,932.
+ *  366,500 -> 367,500 (2026-10-25, the text box as a Markdown editor -- the grid-only page's note of the same date).
+ *  Measured 366,944.
+ *  367,500 -> 368,500 (2026-10-25, a chart's options as a popover that closes -- the engine page's note of the same date
+ *  -- and a join reopened borrowing a grid's table (app/sources.ts borrow: the example-switch bug)). Measured 367,526.
+ *  368,500 -> 370,000 (2026-10-25, the menus' one design language (a key beside its entry, a chart's and a text box's
+ *  View ▸, a sheet tab's reasons) and the page's chrome drawn in one icon set -- the grid-only and engine pages' notes of
+ *  the same date). Measured 368,722.
+ *  370,000 -> 373,500 (2026-10-25, files in a text box and the branch's deep audit's fixes, the dark theme's palette
+ *  declared in both themes among them -- the grid-only page's note of the same date). Measured 372,941.
+ *  373,500 -> 374,000 (2026-10-25, a chart's options as a window beside its chart, kept on the screen (ui/window.ts
+ *  besideWindow, makeWindow's viewport), and its fields in the Properties window's design: the window's and the form's
+ *  styles, in this module's styles; the segmented control itself is the options form's own chunk). Measured 373,706.
+ *  374,000 -> 374,500 (2026-10-25, the options window in two columns where there is room and fitted to its form, its
+ *  rarer sections folded to start -- the grid-only page's note of the same date). Measured 374,134.
+ *  374,500 -> 385,000 (2026-10-26, main merged into the timeseries branch, its own steps there 363,000 -> 372,000 ->
+ *  373,500: the timeseries tile and the review's G4 -- the grid-only page's note of the same date). Measured 384,453. */
+const WIDGET_BUDGET = 385_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

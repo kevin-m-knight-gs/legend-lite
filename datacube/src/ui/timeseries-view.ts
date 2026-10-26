@@ -40,6 +40,7 @@ import {
 } from '../timeseries-option.ts';
 import type { MountedTimeseries } from '../timeseries-render.ts';
 import { lazily } from '../lazily.ts';
+import { closeMark } from './tile-icons.ts';
 
 /** A grid a source reads, as it is now: its query, its filter as the tile reads it, its runner and its formats. */
 export interface TsGrid {
@@ -790,7 +791,7 @@ export class TimeseriesView {
 
   #open(title: string, ...content: HTMLElement[]): void {
     const doc = this.#doc;
-    const close = button(doc, '×', 'Close (Escape)', () => this.#close(), 'dc-ts-close');
+    const close = closeMark(button(doc, '×', 'Close (Escape)', () => this.#close(), 'dc-ts-close'));
     const head = el(doc, 'div', 'dc-ts-pop-head');
     head.append(el(doc, 'span', 'dc-ts-pop-title', title), close);
     this.#pop.replaceChildren(head, ...content);
@@ -1040,9 +1041,9 @@ export class TimeseriesView {
         if (!(e instanceof TsEditRefusal)) throw e;
         refused = e.message;
       }
-      const off = button(doc, '×', refused ?? 'Stop reading this grid', () => {
+      const off = closeMark(button(doc, '×', refused ?? 'Stop reading this grid', () => {
         if (this.#edit({ kind: 'unread', alias: s.alias })) this.#editSettings();
-      }, 'dc-ts-close');
+      }, 'dc-ts-close'));
       off.disabled = refused !== undefined;
       row.append(alias, where, date, key, off);
       parts.push(row);
@@ -1102,9 +1103,9 @@ export class TimeseriesView {
     for (const [i, a] of (spec.annotations ?? []).entries()) {
       const row = el(doc, 'div', 'dc-ts-row');
       const said = a.kind === 'level' ? `Level ${a.value}` : a.kind === 'event' ? `Event ${a.date}` : `Period ${a.from} – ${a.to}`;
-      row.append(el(doc, 'span', undefined, `${said}${a.kind === 'level' && a.pane ? ` (pane ${a.pane + 1})` : ''}${a.label ? `: ${a.label}` : ''}`), button(doc, '×', 'Take it off', () => {
+      row.append(el(doc, 'span', undefined, `${said}${a.kind === 'level' && a.pane ? ` (pane ${a.pane + 1})` : ''}${a.label ? `: ${a.label}` : ''}`), closeMark(button(doc, '×', 'Take it off', () => {
         if (this.#edit({ kind: 'unannotate', index: i })) this.#editSettings();
-      }, 'dc-ts-close'));
+      }, 'dc-ts-close')));
       parts.push(row);
     }
     const kind = select(doc, [['level', 'A level'], ['event', 'An event'], ['period', 'A period']], 'event', () => paintAdd(), 'Kind');

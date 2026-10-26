@@ -22,6 +22,7 @@ import type { PageModelRef } from './page-model.ts';
 import { chartTitle, gridTitle, idShape, nextPageId, textTitle, timeseriesTitle } from './page-ids.ts';
 import { textProblem } from './page-text-rule.ts';
 import { readTimeseries, type TimeseriesSpec } from './timeseries-spec.ts';
+import { readTextFiles, type TextFile } from './text-files.ts';
 import { namedProperties, type PageFilter } from './page-filters.ts';
 import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageState } from './page-state.ts';
@@ -117,6 +118,9 @@ export type PageCommand =
   }
   /** A timeseries tile's spec, whole (as its viewer made it); `kept` as addTimeseries's. */
   | { readonly kind: 'setTimeseries'; readonly tile: string; readonly spec: TimeseriesSpec; readonly kept?: readonly KeptCube[] }
+  /** A text tile's files, whole (text-files.ts: pointed to by name, size and fingerprint, never copied): opened or dropped
+   *  on it, or one taken off by its tab's x. */
+  | { readonly kind: 'setTextFiles'; readonly tile: string; readonly files: readonly TextFile[] }
   /** A chart reading another grid's cube from now on (D7: Show Grid made the grid of its own grouping) -- its selection
    *  taken off the cube it read, and that cube let go when no view reads it any more (a detached chart's). */
   | { readonly kind: 'followGrid'; readonly chart: string; readonly grid: string }
@@ -170,8 +174,9 @@ export type PageCommand =
 
 export const PAGE_COMMAND_KINDS = [
   'renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
-  'addText', 'setText', 'addTimeseries', 'setTimeseries', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile',
-  'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto', 'modelPin', 'modelKeep',
+  'addText', 'setText', 'addTimeseries', 'setTimeseries', 'setTextFiles', 'followGrid', 'detach', 'select', 'moveTile',
+  'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto',
+  'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
 /** Each page command's fields, by kind (`?` one it may leave out): what readPageCommand takes, and what Python's generated
@@ -180,8 +185,8 @@ export const PAGE_COMMAND_FIELDS = {
   renamePage: ['name'], savedAs: ['record'], addSheet: ['id?', 'name'], renameSheet: ['sheet', 'name'], moveSheet: ['sheet', 'to'],
   removeSheet: ['sheet'], renameTile: ['tile', 'title'], addGrid: ['id?', 'document', 'sheet', 'near', 'title', 'columns'],
   addChart: ['id?', 'near', 'spec', 'title', 'columns'], setChart: ['chart', 'spec'], addText: ['id?', 'sheet', 'text', 'title', 'columns'],
-  setText: ['tile', 'text'], addTimeseries: ['id?', 'sheet', 'near', 'spec', 'title', 'columns', 'kept?'], setTimeseries: ['tile', 'spec', 'kept?'],
-  followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
+  setText: ['tile', 'text'], setTextFiles: ['tile', 'files'], addTimeseries: ['id?', 'sheet', 'near', 'spec', 'title', 'columns', 'kept?'],
+  setTimeseries: ['tile', 'spec', 'kept?'], followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
   removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'],
@@ -579,6 +584,16 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const views = on.views.map((v) => (v.id === view.id ? { ...view, spec } : v));
       const cubes = on.cubes.filter((c) => views.some((v) => readsCube(v, c.id)));
       return done(rewritten({ ...on, ...(on.model ? { model: keptFor(on.model, cubes) } : {}) }, { views, cubes }), holding.held);
+    }
+    case 'setTextFiles': {
+      const view = viewNamed(page, command.tile);
+      if (view.kind !== 'text') throw new CubeRefusal(`'${command.tile}' is ${kindWords(view)}, not a text tile`);
+      // by the one rule (text-files.ts readTextFiles): a list of named, sized, fingerprinted files of a kind it shows
+      const files = readTextFiles(command.files);
+      if (typeof files === 'string') throw new CubeRefusal(files);
+      const { files: _was, ...rest } = view;
+      const next: TextView = files.length > 0 ? { ...rest, files } : rest;
+      return done({ ...page, views: page.views.map((v) => (v.id === view.id ? next : v)) });
     }
     case 'setChart': {
       const view = viewNamed(page, command.chart);
@@ -1052,6 +1067,12 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'setText':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, tile: text(o['tile'], 'a tile'), text: text(o['text'], "a text tile's text") };
+    case 'setTextFiles': {
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      const files = readTextFiles(o['files']);
+      if (typeof files === 'string') throw new CubeRefusal(files);
+      return { kind, tile: text(o['tile'], 'a tile'), files };
+    }
     case 'arrange': {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       const order = o['order'];
