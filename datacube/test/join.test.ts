@@ -216,6 +216,8 @@ describe('what it will do, before it is applied', () => {
   it('asks no repeated keys of a condition that is not equal keys alone', () => {
     assert.equal(joinSummary(TRADES, CUSTOMERS, join({ on: { rows: [{ left: 'cust', op: '<', right: 'id' }] } })).repeated, undefined);
     assert.equal(joinSummary(TRADES, CUSTOMERS, join({ on: { rows: [] } })).repeated, undefined);
+    // every pair (an Append Fields): their rows asked of the database, never mine's quotient
+    assert.deepEqual(Object.keys(joinSummary(TRADES, CUSTOMERS, join({ kind: 'inner', on: { rows: [] } }))), ['mine', 'matched', 'joined', 'theirs']);
   });
 
   it('as of: my rows, and those with a nearest row (the match and the condition both)', () => {
@@ -240,9 +242,10 @@ describe('a join in words', () => {
     // every row with every row (an Append Fields): said so; all of mine on no condition still a join's words
     assert.equal(joinWords(join({ kind: 'inner', on: { rows: [] } })), 'each row with every row of theirs');
     assert.equal(joinWords(join({ kind: 'left', on: { rows: [] } })), 'all of mine, on every pair');
-    assert.deepEqual(summaryWords(join({ kind: 'inner', on: { rows: [] } }), { mine: 5, matched: 5, joined: 20 }),
+    assert.deepEqual(summaryWords(join({ kind: 'inner', on: { rows: [] } }), { mine: 5, matched: 5, joined: 20, theirs: 4 }),
       ['Each of my 5 rows beside each of the 4 rows of theirs: 20 rows.']);
-    assert.deepEqual(summaryWords(join({ kind: 'inner', on: { rows: [] } }), { mine: 0, matched: 0, joined: 0 }), ['I have no rows: none after it.']);
+    assert.deepEqual(summaryWords(join({ kind: 'inner', on: { rows: [] } }), { mine: 0, matched: 0, joined: 0, theirs: 3 }), ['I have no rows: none after it.']);
+    assert.throws(() => summaryWords(join({ kind: 'inner', on: { rows: [] } }), { mine: 5, matched: 5, joined: 20 }), /was not asked how many rows they have/);
     assert.equal(joinWords({ form: 'asOf', match: { left: 'at', op: '>=', right: 'at' }, on: { rows: [] }, prefix: 'p_', keep: null }), 'nearest at >= at');
   });
 

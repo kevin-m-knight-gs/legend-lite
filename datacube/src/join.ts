@@ -185,6 +185,8 @@ export function joinSummary(left: JoinSide, right: JoinSide, how: JoinHow): Join
       const matched = rowCountLambda(semi(left, theirs, pairs, 'isNotEmpty'));
       if (how.form === 'asOf') return { mine, matched };
       const joined = rowCountLambda(from(joinRelation(left, right, how)));
+      // every pair (an Append Fields): their rows counted too, by the database -- never mine's quotient
+      if (isEveryPair(how)) return { mine, matched, joined, theirs: rowCountLambda(from(right.relation)) };
       const keys = 'rows' in how.on && how.on.rows.length > 0 && how.on.rows.every((r) => r.op === '==')
         ? [...new Set(how.on.rows.map((r) => r.right))] : [];
       return { mine, matched, joined, ...(keys.length > 0 ? { repeated: repeatedKeys(right, keys) } : {}) };
@@ -240,8 +242,8 @@ export function summaryWords(how: JoinHow, c: JoinSummaryCounts): string[] {
   // every pair (an Append Fields): each of mine beside each of theirs, no match asked of it
   if (isEveryPair(how)) {
     const joined = asked(c.joined, 'come out of it');
+    const theirs = asked(c.theirs, 'they have');
     if (c.mine === 0) return ['I have no rows: none after it.'];
-    const theirs = joined / c.mine;
     return [`Each of my ${plural(c.mine, 'row')} beside ${theirs === 1 ? 'the one row' : `each of the ${plural(theirs, 'row')}`} of theirs: ${plural(joined, 'row')}.`];
   }
   const matched = asked(c.matched, 'find a match');
