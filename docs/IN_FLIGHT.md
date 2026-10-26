@@ -2870,12 +2870,17 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   column), `lowering/CanonicalRenderSql.java` (the judges' canon), `executionplan/ColumnFacts.java`, `MirJson.java`
   and `PlanJson.java` (format 10), `exec/JdbcDecode.java`, `RowDecode.java` and `Executor.java` (the decode), the
   dialects' refusing arms. Branch `claude/upbeat-johnson-l4hogx`.
-- **Proposed 2026-10-26, nothing built: the result boundary program** (`docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md`,
-  at the user's ask: the typed plan, the host renderers, the output-text SQL deleted; the execution plan of
-  `docs/RESULTS_AND_RENDERERS_2026_10_22.md` and the plan path program's steps 7 to 11). Waits on the user's rulings
-  (its §8). When it starts, M0 measures (one GATES entry); then P1 to P6 each announce here before touching
-  `TypedQuery`, `PlanMaker`, `executionplan/`, `exec/`, `lowering/Render.java`, `WireRender.java`, `TdsTextWrap.java`,
-  `server/PureV1Api.java`, the new sink package, and `pct/.../ValueBridge.java`. Branch `claude/upbeat-johnson-l4hogx`.
+- **Ruled 2026-10-26, step 0 measuring: the result boundary program** (`docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md`,
+  revision 3, all eight rulings in; the handoff `docs/RESULT_BOUNDARY_START_HERE.md`): the typed plan, the host
+  writers, the output-text SQL deleted; the execution plan of `docs/RESULTS_AND_RENDERERS_2026_10_22.md` and the
+  plan path program's steps 7 to 11. Step 0 (its §4, M1 to M8) runs first and builds nothing: the cloud lanes
+  measure in parallel (Snowflake's M5, M6, M7 and M8 are in; BigQuery's and Databricks' asked), the local
+  measurements follow, one GATES entry. Steps 1 to 8 each announce here before touching `TypedQuery`, `PlanMaker`,
+  `executionplan/`, `exec/`, `lowering/Render.java`, `WireRender.java`, `TdsTextWrap.java`, `server/PureV1Api.java`,
+  the new sink package, and `pct/.../ValueBridge.java`. Branch `claude/upbeat-johnson-l4hogx`, which took `main` at
+  `17836b07` (PR #76) on 2026-10-26 (`d408e1b8`: 504 commits, 15 conflicted files, both sides kept; `025d847b`) and
+  repaired the union's one break, the WebAssembly planner past 1 MiB (`3cf01887`, PARK-40); it lands on `main`
+  with the merge's GATES entry once the local gate is green on the tip.
 - **Landed, 2026-10-18:** neema2/legend-lite#58 (the TCK at 3600 of 3880 on both lanes; the review's fixes).
 - **Next on this line, announced 2026-10-18: writes** (`docs/WRITES_DESIGN_2026_10_18.md`, the design agreed with the
   user). There are two kinds of graph:

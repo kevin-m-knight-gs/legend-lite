@@ -43,9 +43,10 @@ lists typed and the text carrier deleted, 7 the old executor deleted and "collec
 
 ## 3. State, and the next action
 
-**Branch `claude/upbeat-johnson-l4hogx`**, 156 commits ahead of `main`, zero behind (main last merged at `78bd5da3`,
-39 conflicts). Clean. Its tip is documentation (`d540b438`, the program's revision 2). What it carries that main does
-not:
+**Branch `claude/upbeat-johnson-l4hogx`**, with `main` merged in at `17836b07` (PR #76; the merge `d408e1b8` took 504
+commits with 15 conflicted files, both sides kept, `025d847b` took PR #76 clean) and one repair the union needed:
+the WebAssembly planner stopped loading when its string pool crossed 1 MiB (`3cf01887`, PARK-40; §7). Clean. What
+it carries that main does not:
 
 - the plan path's typed seam and the PCT plan route on every lane; the held-session fix for the clouds (`1f7cd064`:
   channel A's plans run on the suite's session, not a session-mode system one; BigQuery's channel A was 2.4x slower
@@ -78,10 +79,24 @@ path; never JavaScript or any non-SQL code in the database; one table for LEGACY
 a property of a plan's root (an assertion the database judge pushes into SQL is a consumer there). All eight rulings
 are in.
 
-**The next action, in progress:** land the branch on `main` (AGENTS.md "Pushing to main": fresh against `main`, the
-local gate on the tip, "local gate: //gates:local green" in the message, `main`'s CI watched, revert on red); then
-this branch continues from `main` with nothing else on it; announce step 0 in `docs/IN_FLIGHT.md`; run step 0's
-eight measurements and write their one GATES entry.
+**The merge, proven (2026-10-26):** the core lanes, the guards, the census and the integration suite (main's write-plan
+tests included) green; PCT on the platform's engine and MongoDB 10 of 10, channel B 5 of 5; the WebAssembly line
+after the fix (`//wasm:zone_test`, `round_trip_test`, `differential_test`, `conformance_test`, DataCube) green; the
+clouds by their lanes at `ec360a89`: Snowflake channel A 5 of 5 and channel B 540 of 540 with zero moved, BigQuery
+and Databricks channel A 5 of 5 and channel B with no test moved; timings within noise, the Snowflake warehouse
+shared by foreign legacy-route PCT sessions during the run (on record from the lane). The scratchpad's
+`merge-lanes.md` holds the numbers until the GATES entry.
+
+**Step 0 has started, the lanes in parallel (§4):** Snowflake's M5 (standard: 1,410 statements, the largest 14,554
+chars, 237 over 5,000; identical to `1963bfbc`), M6/M8 (channel A's Float text is at the edge in 329 of 345
+occurrences, the 16 inside being the mixed-kind list keys; the judges' canon, 580 occurrences, all inside, compared
+never printed) and M7 (the engine's Snowflake `toString` is `cast(%s as varchar)`, Snowflake's own lossy text:
+`0.1 + 0.2` prints `0.3`, `1/3` prints `0.3333333333`; the engine's own manifest marks its Float-text failures) are
+in; BigQuery's and Databricks' proxied runs for M5/M6/M8 are requested. The local measurements (M1 to M4) are next.
+
+**The next action, in progress:** land the merged head on `main` (AGENTS.md "Pushing to main": the local gate on
+the tip, the Postgres targets unprivileged, "local gate: //gates:local green" in the message, `main`'s CI watched,
+revert on red), with the merge's GATES entry; then step 0's local measurements and their one GATES entry.
 
 ## 4. How we work (the user's rules; each learned the hard way)
 
@@ -285,6 +300,12 @@ are typed (steps 4 and 6) the canon simplifies, it does not go.
   folded literal is an 18-digit rounding at run time. Measure with VALUES, not literals.
 - **`//gates:local` in a cloud container as root**: the Postgres targets and `verify_app` refuse `initdb`; the rest
   is the verdict (`docs/CLOUD_SESSIONS.md`).
+- **The WebAssembly planner's 1 MiB cliff** (2026-10-26, the merge of main): every DataCube, Studio, query, wasm,
+  engine-client, site and pure-protocol test failed at once with "data segment 1 is out of bounds", and main alone
+  was green. TeaVM 0.15.0 writes a data segment's offset unsigned where the specification reads it signed, so an
+  offset whose last LEB128 byte has bit 6 set (the planner's string pool at 1,056,011 bytes) reads negative.
+  `tools/teavm`'s `WasmDataOffsets` re-encodes the offsets after TeaVM writes the module (PARK-40, until the bump to
+  0.16.0). A new wave of such failures means a module, not the code under test: read the loader's message first.
 - **`bazel info` blocks while another build runs**: run it once at session start.
 
 ## 8. Reading order
