@@ -362,8 +362,16 @@ describe("a Test (checks.ts): each check's failing rows counted by the database,
   });
 
   it('says which checks fail, by the counts its row has; refuses in words', () => {
-    const counts: Record<string, number> = { region_empty: 2, region_repeated: 0, notional_outside: 1 };
+    const counts: Record<string, number> = { region_empty: 2, region_repeated: 0, notional_outside: 1, Rows: 5 };
     assert.deepEqual(failingChecks(checks, (c) => counts[c]).map((f) => [f.check.kind, f.rows]), [['notEmpty', 2], ['between', 1]]);
+    // a row lacking a check's count is no row of this test: thrown, never read as none failing (AGENTS.md invariant 4)
+    assert.throws(() => failingChecks(checks, (c) => ({ ...counts, region_repeated: undefined })[c]),
+      /a test's row has no count 'region_repeated' \(region repeats no value\): it is no row of this test/);
+    // a value repeated counts its rows after its first; an empty value repeats nothing (the correctness audit's 8)
+    const unique = checkCommands(typed, [{ kind: 'unique', column: 'region' }])
+      .flatMap((c) => (c.kind === 'calculate' && c.column.name === 'region_repeated' ? [c.column] : []));
+    assert.equal(JSON.stringify(unique[0]!.lambda!.body[0]), JSON.stringify(fn('if', fn('and', fn('isNotEmpty', property(variable('x'), 'region')),
+      fn('greaterThan', fn('toOne', property(variable('x'), 'region__row')), lit.integer(1))), lambda([], lit.integer(1)), lambda([], lit.integer(0)))));
     refused(() => checkCommands(typed, []), /a test checks something: add a check/);
     refused(() => checkCommands(typed, [{ kind: 'notEmpty', column: 'nope' }]), /the grid has no column 'nope'/);
     refused(() => checkCommands(typed, [{ kind: 'between', column: 'region', min: 1 }]), /'region' is String: only a number is checked within bounds/);

@@ -60,7 +60,9 @@ function outside(v: ValueSpecification, min: number | undefined, max: number | u
 function failingLambda(c: Check, whole: boolean): Lambda {
   switch (c.kind) {
     case 'notEmpty': return failing(fn('isEmpty', x(c.column)));
-    case 'unique': return failing(fn('greaterThan', fn('toOne', x(rowName(c.column))), lit.integer(1)));
+    // a value's rows after its first, an empty value repeating nothing (as no other check fails one: the correctness
+    // audit's 8, 2026-10-26 -- the empties are one partition of the row number)
+    case 'unique': return failing(fn('and', fn('isNotEmpty', x(c.column)), fn('greaterThan', fn('toOne', x(rowName(c.column))), lit.integer(1))));
     case 'between': return failing(fn('and', fn('isNotEmpty', x(c.column)), outside(fn('toOne', x(c.column)), c.min, c.max, whole)));
     case 'rows': return failing(outside(fn('toOne', x(ROWS_COLUMN)), c.min, c.max, true));
     case 'oneOf': return failing(fn('and', fn('isNotEmpty', x(c.column)),
@@ -285,16 +287,21 @@ export interface Failing { readonly check: Check; readonly rows: number }
  * The checks a test's row says fail (`value`: each check's count, by its column; undefined for every column when it has
  * no row), each with how many rows fail it -- a count of rows's, its rows. A test of no rows (its input has none) is
  * grouped into no row: every count's 0, and a count of rows fails its smallest (1 at least) -- read off the row's
- * absence, nothing compared.
+ * absence, nothing compared. A row (its count of rows in it) lacking a check's count is no row of this test: thrown,
+ * never read as none failing (AGENTS.md invariant 4).
  */
 export function failingChecks(checks: readonly Check[], value: (name: string) => unknown): Failing[] {
+  const rows = value(ROWS_COLUMN);
+  const row = rows !== undefined && rows !== null;
   return checks.flatMap((check): Failing[] => {
     const counted = value(checkName(check));
+    const absent = counted === undefined || counted === null;
+    if (row && absent) throw new Error(`a test's row has no count '${checkName(check)}' (${checkWords(check)}): it is no row of this test`);
     if (check.kind === 'rows') {
-      const fails = counted === undefined || counted === null ? check.min !== undefined : Number(counted) > 0;
-      return fails ? [{ check, rows: Number(value(ROWS_COLUMN) ?? 0) }] : [];
+      const fails = absent ? check.min !== undefined : Number(counted) > 0;
+      return fails ? [{ check, rows: row ? Number(rows) : 0 }] : [];
     }
-    const n = Number(counted ?? 0);
+    const n = absent ? 0 : Number(counted);
     return n > 0 ? [{ check, rows: n }] : [];
   });
 }
