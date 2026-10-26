@@ -10,19 +10,22 @@ import {
   aliasFor, firstPlot, inlined, nextSeriesId, refsOf, sourceOf, sourcesOf, type TsColumn,
 } from './timeseries-expr.ts';
 import {
-  ALIAS, MAX_PANES, type TimeseriesSpec, type TsAnnotation, type TsExpr, type TsPane, type TsRange, type TsSeries, type TsSource,
-  type TsView,
+  ALIAS, MAX_PANES, tsStateOf, type TimeseriesSpec, type TsAnnotation, type TsExpr, type TsPane, type TsRange, type TsSeries,
+  type TsSource, type TsState, type TsView,
 } from './timeseries-spec.ts';
+import type { FilterNode } from './snapshot.ts';
 
 /** A change the tile refuses, in words. */
 export class TsEditRefusal extends Error {}
 
-/** A grid of the page as a source may read it: its cube, its title, its columns as its query types them, its rows. */
+/** A grid of the page as a source may read it: its cube, its title, its columns as its query types them, its rows, its
+ *  filter as it is now (what a frozen tile's new source keeps). */
 export interface TsGridColumns {
   readonly cube: string;
   readonly title: string;
   readonly columns: readonly TsColumn[];
   readonly rows: readonly string[];
+  readonly filter: FilterNode | undefined;
 }
 
 /** A series as an editor tells it: an id it has replaces that series (kept hidden unless told), none (or a new one) adds. */
@@ -61,6 +64,9 @@ export type TsChange =
   | { readonly kind: 'read'; readonly grid: TsGridColumns }
   /** A source no longer read: refused while a series reads it, or when it is the only one. */
   | { readonly kind: 'unread'; readonly alias: string }
+  /** The tile put in a state (its state button; Python's state): FROZEN, each source keeping its grid's filter as it is
+   *  now (`filters`, by the cube each reads: a removed grid's as it was); DYNAMIC, following its grids' filters again. */
+  | { readonly kind: 'state'; readonly state: TsState; readonly filters: ReadonlyMap<string, FilterNode | undefined> }
   | { readonly kind: 'slots'; readonly slots: TsSlots };
 
 /**
@@ -208,7 +214,9 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
       if (spec.sources.some((s) => s.cube === g.cube)) throw new TsEditRefusal(`${g.title} is read already`);
       const made = sourceOf(g.columns, g.rows, g.cube, aliasFor(g.title, spec.sources.map((s) => s.alias)));
       if (!made) throw new TsEditRefusal(`${g.title} has no date column: a timeseries is read along a date.`);
-      return { ...spec, sources: [...spec.sources, made] };
+      // read by a frozen tile: kept as the rest are, its grid's filter as it is now
+      const kept = tsStateOf(spec) === 'frozen' ? { ...made, kept: g.filter ? { filter: g.filter } : {} } : made;
+      return { ...spec, sources: [...spec.sources, kept] };
     }
     case 'unread': {
       if (!spec.sources.some((s) => s.alias === change.alias)) throw new TsEditRefusal(`there is no source ${change.alias}`);
@@ -218,6 +226,17 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
       const readers = spec.series.filter((s) => readBy(spec, s).includes(change.alias)).map((s) => s.id);
       if (readers.length > 0) throw new TsEditRefusal(`series ${readers.join(', ')} ${readers.length === 1 ? 'reads' : 'read'} source ${change.alias}`);
       return { ...spec, sources: spec.sources.filter((s) => s.alias !== change.alias) };
+    }
+    case 'state': {
+      if (change.state === tsStateOf(spec)) return spec;
+      const sources = spec.sources.map((src) => {
+        const { kept: _was, ...following } = src;
+        if (change.state === 'dynamic') return following;
+        if (!change.filters.has(src.cube)) throw new TsEditRefusal(`source ${src.alias}'s grid is not open: its filter cannot be kept`);
+        const filter = change.filters.get(src.cube);
+        return { ...following, kept: filter ? { filter } : {} };
+      });
+      return { ...spec, sources };
     }
     case 'slots': {
       let next = spec;

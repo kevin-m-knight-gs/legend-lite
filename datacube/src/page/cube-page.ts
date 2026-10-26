@@ -57,7 +57,7 @@ import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { lazily } from '../lazily.ts';
-import type { TimeseriesSpec } from '../timeseries-spec.ts';
+import { TS_STATES, tsStateOf, type TimeseriesSpec, type TsState } from '../timeseries-spec.ts';
 import type { TimeseriesView, TsGrid, TsTogether } from '../ui/timeseries-view.ts';
 import { sha256 } from '../cube-document.ts';
 import { isFileHandle, pickTextFiles, type FileHandle, type HandleRead } from '../file-handles.ts';
@@ -74,6 +74,13 @@ const STATE_WORDS: Readonly<Record<ChartState, { readonly label: string; readonl
   dynamic: { label: 'Dynamic', says: 'it follows the grid: its grouping, its filters and the page\'s clicks' },
   pinned: { label: 'Pinned', says: 'it keeps its own grouping, and follows the grid\'s filters and the page\'s clicks' },
   frozen: { label: 'Frozen', says: 'it keeps its grouping and the grid\'s filter as they are now' },
+};
+
+/** A timeseries tile's states as its button says them, in a chart's words (timeseries-spec.ts TsState: no Pinned, its
+ *  grouping always its own). */
+const SERIES_STATE_WORDS: Readonly<Record<TsState, { readonly label: string; readonly says: string }>> = {
+  dynamic: { label: 'Dynamic', says: 'it follows its grids\' filters and the page\'s clicks' },
+  frozen: { label: 'Frozen', says: 'it keeps its grids\' filters as they are now' },
 };
 
 /** What a chart needs from the grid it is made from (a CubeApp). */
@@ -340,6 +347,8 @@ interface SeriesTile {
   spec: TimeseriesSpec;
   readonly body: HTMLElement;
   view: TimeseriesView | null;
+  /** Its state button, as it now is (dynamic, frozen, detached). */
+  readonly paint: () => void;
 }
 
 interface ChartTile {
@@ -888,6 +897,7 @@ export class CubePage {
     if (back) this.showSheet(back.id);
     this.#drawShownSeries();
     this.#releaseKept();
+    for (const tile of this.#series.values()) tile.paint();
     this.#options.onSheets?.();
     this.#options.onTiles?.();
     this.#options.onChange();
@@ -2292,8 +2302,40 @@ export class CubePage {
   #placeTimeseries(view: TimeseriesPageView): void {
     const body = this.#doc.createElement('div');
     body.className = 'dc-ts-host';
-    this.#series.set(view.id, { spec: view.spec, body, view: null });
-    this.#place({ id: view.id, title: view.title ?? timeseriesTitle(view.id), element: body, actions: [] });
+    // ITS HEADER'S STATE (the user, 2026-10-26: a timeseries' states are a chart's, where they mean something): DYNAMIC
+    // follows its grids' filters and the page's clicks; FROZEN keeps each grid's filter as it was; DETACHED, a grid it
+    // reads removed, read as it was -- every grid it reads gone, the button off, as a detached chart's is
+    const pill = stateButton(this.#doc);
+    const paint = (): void => {
+      const tile = this.#series.get(view.id);
+      if (!tile) return;
+      const state = tsStateOf(tile.spec);
+      const gone = tile.spec.sources.filter((s) => this.#tsGrid(s.cube)?.kept === true);
+      const all = gone.length === tile.spec.sources.length;
+      const words = SERIES_STATE_WORDS[state];
+      const names = gone.map((s) => this.#tsGrid(s.cube)!.title).join(', ');
+      paintState(pill, gone.length > 0 ? 'detached' : state, gone.length > 0 ? 'Detached' : words.label, gone.length > 0
+        ? `Detached: ${names}${gone.length === 1 ? '\'s grid was' : '\'s grids were'} removed, and this tile reads ${gone.length === 1 ? 'its' : 'their'} query as it was.${all ? '' : ` ${words.label}: ${words.says}. Click to change.`}`
+        : `${words.label}: ${words.says}. Click to change.`, { menu: !all });
+      pill.disabled = all;
+    };
+    pill.addEventListener('click', () => {
+      const tile = this.#series.get(view.id);
+      if (!tile?.view || pill.disabled) return;
+      const shown = tile.view;
+      this.#menuFor = (item) => {
+        const state = TS_STATES.find((s) => item.id === `tile.state.${s}`);
+        if (state !== undefined) shown.setState(state);
+      };
+      const at = pill.getBoundingClientRect();
+      const now = tsStateOf(tile.spec);
+      this.#menu.show([{ label: '', items: TS_STATES.map((s) => ({
+        id: `tile.state.${s}` as const, label: SERIES_STATE_WORDS[s].label, hint: `It ${SERIES_STATE_WORDS[s].says.replace(/^it /, '')}`, checked: now === s,
+      })) }], at.left, at.bottom);
+    });
+    this.#series.set(view.id, { spec: view.spec, body, view: null, paint });
+    this.#place({ id: view.id, title: view.title ?? timeseriesTitle(view.id), element: body, actions: [], state: pill });
+    paint();
     this.#drawTimeseries(view.id);
   }
 
@@ -2383,6 +2425,8 @@ export class CubePage {
     this.#grids.delete(id);
     this.#take(id);
     this.#refreshSeries(id);
+    // its timeseries say they read it as it was
+    for (const tile of this.#series.values()) tile.paint();
     this.#options.onChange();
     this.#afterRemove();
   }

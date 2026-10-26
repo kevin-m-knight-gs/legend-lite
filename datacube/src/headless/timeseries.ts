@@ -30,7 +30,7 @@ function gridOf(page: PageDocument, grid: string): TsGridColumns {
   if (!held) throw new Problem(`'${grid}' shows no cube the page holds`);
   const columns = rowColumns(held.cube.query).map((c) => ({ name: c.name, type: c.type }));
   // titled as the page names its tile (page-ids.ts gridTitle): a source's alias is called after it, as on the screen
-  return { cube: view.cube, title: view.title ?? gridTitle(view.id), columns, rows: held.cube.query.rows };
+  return { cube: view.cube, title: view.title ?? gridTitle(view.id), columns, rows: held.cube.query.rows, filter: held.cube.query.filter };
 }
 
 export class Problem extends Error {}
@@ -161,6 +161,14 @@ export function timeseriesEdit(page: string, tile: string, given: string): strin
       const grid = wordOf(told['grid'], 'the grid read');
       if (grid === undefined) throw new Problem("a grid read is named by its tile's id");
       change = { kind: 'read', grid: gridOf(doc, grid) };
+    } else if (told['kind'] === 'state') {
+      // each source's grid's filter as the page holds its cube now (a removed grid's as it was): what the viewer keeps
+      if (told['state'] !== 'dynamic' && told['state'] !== 'frozen') throw new Problem(`a timeseries' state is dynamic or frozen, not ${JSON.stringify(told['state'])}`);
+      const filters = new Map(view.spec.sources.flatMap((s) => {
+        const held = doc.cubes.find((c) => c.id === s.cube);
+        return held ? [[s.cube, held.cube.query.filter] as const] : [];
+      }));
+      change = { kind: 'state', state: told['state'], filters };
     }
     const spec = judged(doc, editTimeseries(view.spec, change));
     return JSON.stringify({ spec: spec satisfies TimeseriesSpec });

@@ -16,7 +16,7 @@ import type { LitePlanner } from '../src/lite-planner.ts';
 import { type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import {
-  boundsQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN,
+  boundsQuery, keyValuesQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN,
   TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_PER_YEAR, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
 } from '../src/timeseries-query.ts';
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
@@ -238,6 +238,23 @@ describe('a column along the dates', () => {
     const series = spec({ A: 'close[AAA]' }).series[0]!;
     const t = await run(seriesQuery(filtered, spec({ A: 'close[AAA]' }), series));
     assert.equal(t.rowCount, 10);
+  });
+
+  // a timeseries frozen (the user, 2026-10-26: a chart's states): each source reads the filter it keeps, not its grid's
+  // as it is now -- the compiler's rule (timeseries-spec.ts filterRead), so neither host decides it
+  it("a frozen tile's source reads the filter it keeps, whatever its grid's is now: its series, its dates, its picker", async () => {
+    const since = { kind: 'condition', column: 'day', operator: 'greaterThanEqual', value: DAYS[30]! } as const;
+    const frozen = spec({ A: 'close[AAA]' }, { sources: [{ ...TS.sources[0]!, kept: { filter: since } }] });
+    // its grid filtered since to the last ten days and then some: the tile reads as it was frozen
+    const now: TsInputs = new Map([['px', { ...input, filter: { kind: 'condition', column: 'day', operator: 'greaterThanEqual', value: DAYS[35]! } }]]);
+    assert.equal((await run(seriesQuery(now, frozen, frozen.series[0]!))).rowCount, 10);
+    // frozen with no filter: every row, the grid's filter now ignored
+    const all = spec({ A: 'close[AAA]' }, { sources: [{ ...TS.sources[0]!, kept: {} }] });
+    assert.equal((await run(seriesQuery(now, all, all.series[0]!))).rowCount, DAYS.length);
+    const bounds = await run({ query: boundsQuery(now.get('px')!, frozen.sources[0]!) });
+    assert.equal(String(values(bounds, TS_EARLIEST)[0]).slice(0, 10), DAYS[30]);
+    const picked = await run({ query: keyValuesQuery({ ...input, filter: { kind: 'condition', column: 'symbol', operator: 'equal', value: 'AAA' } }, all.sources[0]!, 'symbol') });
+    assert.ok(picked.rowCount > 1, "its picker lists the instruments of the rows it reads, not its grid's now");
   });
 });
 

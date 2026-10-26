@@ -347,8 +347,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  samples and the Markets example's entry, its expression language, queries, drawing and viewer chunks of their own
  *  (the budget of their own below) -- then the timeseries review's G4, docs/TIMESERIES_REVIEW_2026_10_25.md, the owner's
  *  decision 4: a removed grid's cube kept while a timeseries reads it (page-document.ts readsCube, page-commands.ts
- *  `kept`, page-between, page-rebase, page-state, cube-page)). Measured 374,503. */
-const BUDGET = 375_000;
+ *  `kept`, page-between, page-rebase, page-state, cube-page)). Measured 374,503.
+ *  375,000 -> 376,000 (2026-10-26, the second audit's A-B1 and a timeseries' states, the user's ask: the one rule of the
+ *  cubes a page holds (page-document.ts cubesRead, cubesHeld, a page written out refused without one) and the timeseries
+ *  tile's state button in its header -- Dynamic, Frozen, Detached, in a chart's words -- with the reader of what a frozen
+ *  source keeps (timeseries-spec.ts)). Measured 375,280. */
+const BUDGET = 376_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -470,8 +474,10 @@ const BUDGET = 375_000;
  *  353,000 -> 353,500 (2026-10-25, a chart's options as a window beside its chart, kept on the screen and fitted to its
  *  form -- the grid-only page's note of the same date). Measured 353,248.
  *  353,500 -> 363,000 (2026-10-26, main merged into the timeseries branch, its own steps there 344,000 -> 352,000 ->
- *  353,500: the timeseries tile and the review's G4 -- the grid-only page's note of the same date). Measured 362,623. */
-const ENGINE_BUDGET = 363_000;
+ *  353,500: the timeseries tile and the review's G4 -- the grid-only page's note of the same date). Measured 362,623.
+ *  363,000 -> 364,000 (2026-10-26, the one rule of the cubes a page holds and a timeseries' states -- the grid-only
+ *  page's note of the same date). Measured 363,399. */
+const ENGINE_BUDGET = 364_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -513,8 +519,11 @@ const CHART_BUDGET = 303_500;
  *  33,000 -> 34,500 (2026-10-25, the review's fixes, docs/TIMESERIES_REVIEW_2026_10_25.md: the query compiler written
  *  part by part, each operand on its own dates (Q1), the periods a year inferred (Q3), levels apart from units (Q2);
  *  the tile's edits one rule, timeseries-edit.ts, which Python asks too (A2) -- the headroom kept to ~2% where it was
- *  5.7%, as the review's G8 asked). Measured 33,858. */
-const TIMESERIES_BUDGET = 34_500;
+ *  5.7%, as the review's G8 asked). Measured 33,858.
+ *  34,500 -> 35,000 (2026-10-26, the second audit's fixes (a level shifted by a number no level: timeseries-expr.ts
+ *  levelOf) and a timeseries frozen: the filter each source keeps read by every query (timeseries-query.ts, filterRead),
+ *  the viewer's setState). Measured 34,547. */
+const TIMESERIES_BUDGET = 35_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -664,8 +673,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  374,000 -> 374,500 (2026-10-25, the options window in two columns where there is room and fitted to its form, its
  *  rarer sections folded to start -- the grid-only page's note of the same date). Measured 374,134.
  *  374,500 -> 385,000 (2026-10-26, main merged into the timeseries branch, its own steps there 363,000 -> 372,000 ->
- *  373,500: the timeseries tile and the review's G4 -- the grid-only page's note of the same date). Measured 384,453. */
-const WIDGET_BUDGET = 385_000;
+ *  373,500: the timeseries tile and the review's G4 -- the grid-only page's note of the same date). Measured 384,453.
+ *  385,000 -> 386,000 (2026-10-26, the one rule of the cubes a page holds and a timeseries' states -- the grid-only
+ *  page's note of the same date). Measured 385,234. */
+const WIDGET_BUDGET = 386_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

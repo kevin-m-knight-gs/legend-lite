@@ -21,7 +21,7 @@ import type { ChartPicture } from '../chart-render.ts';
 import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import {
   MAX_PANES, readTimeseries, TS_RANGES, viewSetting, type TimeseriesSpec, type TsAnnotation, type TsExpr,
-  type TsRangeWord, type TsSeries, type TsSource, type TsStyleKind,
+  type TsRangeWord, type TsSeries, type TsSource, type TsState, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
   candleOf, columnRef, exprText, firstValue, functionNamed, inlined, nextSeriesId, parseExpr, seriesName,
@@ -92,7 +92,10 @@ export interface TimeseriesHost {
 
 /** A grid of the page as the tile's edits read it (timeseries-edit.ts TsGridColumns): its columns as its query is now. */
 function gridColumns(grid: TsGrid): TsGridColumns {
-  return { cube: grid.cube, title: grid.title, columns: rowColumns(grid.snapshot).map((c) => ({ name: c.name, type: c.type })), rows: grid.snapshot.rows };
+  return {
+    cube: grid.cube, title: grid.title, columns: rowColumns(grid.snapshot).map((c) => ({ name: c.name, type: c.type })), rows: grid.snapshot.rows,
+    filter: grid.filter,
+  };
 }
 
 /** A FIRST TIMESERIES OF A GRID (Create ▸ Timeseries): timeseries-edit.ts firstTimeseries, the rule Python's
@@ -248,6 +251,19 @@ export class TimeseriesView {
   /** The spec it draws. */
   get spec(): TimeseriesSpec {
     return this.#spec;
+  }
+
+  /**
+   * THE TILE PUT IN A STATE (its header's state button: page/cube-page.ts): FROZEN, each source keeping its grid's filter
+   * as it is now (a removed grid's as it was); DYNAMIC, following them again -- by the tile's one rule, as Python's
+   * Timeseries.state is, told as the page's.
+   */
+  setState(state: TsState): void {
+    const filters = new Map(this.#spec.sources.flatMap((s) => {
+      const g = this.#host.grid(s.cube);
+      return g ? [[s.cube, g.filter] as const] : [];
+    }));
+    this.#edit({ kind: 'state', state, filters });
   }
 
   /**
@@ -1006,7 +1022,7 @@ export class TimeseriesView {
   async #keyValues(src: TsSource, key: string): Promise<string[]> {
     const own = this.#input(src.alias);
     if (!own) throw new Error(`${src.alias}'s grid is not on the page`);
-    const t = await own.grid.run(keyValuesQuery(own.input, key), own.grid.snapshot, new AbortController().signal);
+    const t = await own.grid.run(keyValuesQuery(own.input, src, key), own.grid.snapshot, new AbortController().signal);
     const values = t.columns[0];
     if (values === undefined) throw new Error(`the database answered ${key}'s values with no column`);
     return values.values.map((v) => String(v));

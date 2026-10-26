@@ -114,7 +114,7 @@ does). An example -- an equity index against a bond yield, their rolling correla
 
 - **sources**: the grids the tile reads, each by its cube on the page, with its own date column and instrument column
   (two grids rarely name them alike) and a short alias the expressions name it by. A tile of one source leaves the
-  alias off its expressions.
+  alias off its expressions. A frozen tile's sources each keep their grid's filter as it was (`kept`, §7).
 - **series**: what is drawn, in the legend's order, each an expression (§4); its id a capital letter (`$A`); a name;
   a split (one line per value of a column, `close` by `symbol`: every instrument); a style (line, area, bars, steps,
   dots; a palette slot, a width, a dash); a pane (0 the main one, up to 3 under it); an axis (left, right; else by
@@ -255,14 +255,21 @@ bounds planned and run.
 - **Commands** (`page-commands.ts`): `addTimeseries` (on a sheet, a band of its own) and `setTimeseries` (the spec
   whole, as `setChart`); `renameTile`, `moveTile`, `removeTile` and the layout's as for any tile. The rebase
   (`page-rebase.ts`) renames the cubes a tile's sources name, as it renames a chart's. **Removing a grid a tile reads**
-  (decided while building it, 2026-10-25): the tile keeps its source -- the reference to the grid's cube, nothing else
-  -- and says, where its series were, that its grid was removed (Undo brings it back; Settings reads another grid).
-  No cube is kept off the board for it, as one is for a frozen chart: a tile's source is the grid itself, never a copy
-  of its query, so there is nothing to draw until a grid is there again. A command naming a source accepts a cube a
-  grid shows or one the page has held (its undo).
-- **Following**: each source follows its grid -- its filter, the selections clicked on the page, its calculated
-  columns, a snap or going live -- and asks again only when one of those changed (the viewer's input key): a grid
-  regrouped, sorted or scrolled asks nothing. Per-source frozen filters are phase 2.
+  (the owner, 2026-10-25, the review's G4): the tile stays, DETACHED, and its grid's cube is kept off the board for it --
+  read as it was -- exactly as a pinned or frozen chart's is. A chart survives its grid when it has a shape of its own
+  (a dynamic chart's shape is its grid's grouping, so it goes with it); a timeseries' shape is always its own (its
+  dates' periods and its instruments), so it always does. Undo brings the grid back.
+- **The cubes a page holds** (the second audit's A-B1, 2026-10-26): each its views read and no other --
+  `page-document.ts cubesRead`, which every tile kind answers (a `switch` with no default), and `cubesHeld`, which every
+  writer and page command holds a page to; `writePageOf` refuses a page written without a cube a view reads.
+- **States, a chart's words** (the user, 2026-10-26; the header's state button, Python's `Timeseries.state`):
+  DYNAMIC follows each grid -- its filter, the selections clicked on the page, its calculated columns, a snap or going
+  live -- and asks again only when one of those changed (the viewer's input key); FROZEN keeps each source's grid's
+  filter as it was when it was frozen (`TsSource.kept`, every source or none, as a frozen chart's `kept`), read by the
+  compiler for every query (`timeseries-spec.ts filterRead`), so neither host decides it; DETACHED, a grid it reads
+  removed. No PINNED: a timeseries never takes its grid's grouping -- it reads the grid's source rows (its source, its
+  row-level calculated columns, its filter) and groups them itself, by its own period and instrument -- so there is
+  nothing of its grid's to pin. A grid regrouped, sorted or scrolled asks nothing.
 - **Create ▸ Timeseries**, in every grid's Create ▸: a tile under the grid, its first series DataCube's rule over the
   grid's columns (`timeseries-expr.ts defaultTimeseries`: its date, its instrument column, its price-like value, a line
   per instrument) -- the rule Python's headless `timeseriesMade` asks too.

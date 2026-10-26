@@ -29,6 +29,7 @@ import { columnType, CubeRefusal, type CubeSnapshot, type FilterNode } from './s
 import { WINDOW_ALL_PREFIX } from './grid/columns.ts';
 import { isDay, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import {
+  filterRead,
   MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, TS_POINT_LIMIT, TS_RANGES, type TimeseriesSpec, type TsAggregate,
   type TsExpr, type TsMatch, type TsRangeWord, type TsSeries, type TsSource,
 } from './timeseries-spec.ts';
@@ -160,6 +161,8 @@ const GRAIN_FUNCTION: Readonly<Record<Exclude<TimeGrain, 'day'>, string>> = {
  */
 export interface TsInput {
   readonly snapshot: CubeSnapshot;
+  /** The grid's filter as it is now: a frozen tile's source reads the one it keeps instead (timeseries-spec.ts
+   *  filterRead, asked here for every query, so neither host decides it). */
   readonly filter: FilterNode | undefined;
 }
 
@@ -458,7 +461,8 @@ function columnPart(sh: Shared, n: Extract<TsExpr, { kind: 'column' }>): Node {
   const typeOf = (c: string): string | undefined => typeIn(s, c);
   const dateType = typeOf(src.date);
   const conditions: ValueSpecification[] = [fn('isNotEmpty', col(src.date))];
-  if (input.filter) conditions.push(filterNode(input.filter, 'x', typeOf));
+  const filter = filterRead(src, input.filter);
+  if (filter) conditions.push(filterNode(filter, 'x', typeOf));
   const match = matched(s, src.key, b.where);
   if (match) conditions.push(match);
   let rel = sourceWithDerived(s).filter(row(and(...conditions)));
@@ -901,7 +905,8 @@ export function boundsQuery(input: TsInput, src: TsSource): Lambda {
   const all = `${WINDOW_ALL_PREFIX}ts_bounds`;
   let rel = sourceWithDerived(s);
   const conditions: ValueSpecification[] = [fn('isNotEmpty', col(src.date))];
-  if (input.filter) conditions.push(filterNode(input.filter, 'x', typeOf));
+  const filter = filterRead(src, input.filter);
+  if (filter) conditions.push(filterNode(filter, 'x', typeOf));
   rel = rel.filter(row(and(...conditions)))
     .extend([derive(all, row(lit.string('all')))])
     .groupBy([all], [
@@ -1027,12 +1032,13 @@ export const KEY_VALUES_LIMIT = 2000;
  * the grid's rows as the chart reads them -- the database's distinct values, as the grid's Filter Values window asks
  * them.
  */
-export function keyValuesQuery(input: TsInput, column: string): Lambda {
+export function keyValuesQuery(input: TsInput, src: TsSource, column: string): Lambda {
   const s = input.snapshot;
   const typeOf = (c: string): string | undefined => typeIn(s, c);
   let rel = sourceWithDerived(s);
   const conditions: ValueSpecification[] = [fn('isNotEmpty', col(column))];
-  if (input.filter) conditions.push(filterNode(input.filter, 'x', typeOf));
+  const filter = filterRead(src, input.filter);
+  if (filter) conditions.push(filterNode(filter, 'x', typeOf));
   rel = rel.filter(row(and(...conditions)))
     .groupBy([column], [agg('__ts_n', row(lit.integer(1)), lambda(['y'], fn('count', variable('y'))))])
     .sort([asc(column)])

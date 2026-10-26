@@ -1372,6 +1372,19 @@ class Timeseries(Tile):
         """Its series, each its id (``A``), its expression as DataCube keeps it, and how it is drawn."""
         return copy.deepcopy(self._view['spec']['series'])
 
+    @property
+    def state(self) -> str:
+        """Its state, as its header's button says it, in a chart's words: ``'dynamic'`` (it follows its grids' filters and
+        the page's clicks) or ``'frozen'`` (each grid's filter as it was when it was frozen, kept with it) -- read off the
+        tile as DataCube writes it (timeseries-spec.ts tsStateOf). No ``'pinned'``: its grouping is always its own."""
+        return 'frozen' if 'kept' in self._view['spec']['sources'][0] else 'dynamic'
+
+    @state.setter
+    def state(self, state: str) -> None:
+        """The tile put in a state as its button puts it (timeseries-edit.ts editTimeseries): frozen, each source's grid's
+        filter as it is now kept; dynamic, following them again. Refused in DataCube's words: a state that is none."""
+        self._edit({'kind': 'state', 'state': state})
+
     # Every change below is one of the tile's changes, made by its one rule -- timeseries-edit.ts editTimeseries, which
     # its viewer's editors ask too (headless timeseriesEdit) -- and judged as a tile Python makes is: no rule of Python's
     # own (the review's A2, docs/TIMESERIES_REVIEW_2026_10_25.md).

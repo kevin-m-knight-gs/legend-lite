@@ -6,7 +6,8 @@ import { describe, it } from 'node:test';
 
 import { editTimeseries, firstPlotOf, firstTimeseries, TsEditRefusal, type TsGridColumns } from '../src/timeseries-edit.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
-import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
+import { readTimeseries, tsStateOf, type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
+import type { FilterNode } from '../src/snapshot.ts';
 
 const S = (id: string, expr: string, rest: Omit<TsSeries, 'id' | 'expr'> = {}): TsSeries => ({ id, expr: parseExpr(expr), ...rest });
 
@@ -18,6 +19,7 @@ const SPEC: TimeseriesSpec = {
 const PRICES: TsGridColumns = {
   cube: 'prices2', title: 'More prices',
   columns: [{ name: 'symbol', type: 'String' }, { name: 'day', type: 'StrictDate' }, { name: 'close', type: 'Float' }], rows: ['symbol'],
+  filter: undefined,
 };
 
 const refused = (f: () => unknown, words: RegExp): void => {
@@ -93,5 +95,33 @@ describe('a timeseries tile changed by its one rule', () => {
     const words = firstTimeseries(dates);
     assert.equal(typeof words, 'string');
     assert.equal(firstPlotOf(dates, made.sources[0]!), words);
+  });
+
+  // a timeseries' states, a chart's words (the user, 2026-10-26): frozen, each source keeps its grid's filter as it is
+  // now; dynamic, it follows them again
+  it("frozen: each source keeps its grid's filter as it is now (none kept as none); dynamic again, they are let go", () => {
+    const tech: FilterNode = { kind: 'condition', column: 'symbol', operator: 'equal', value: 'AAPL' };
+    assert.equal(tsStateOf(SPEC), 'dynamic');
+    const frozen = editTimeseries(SPEC, { kind: 'state', state: 'frozen', filters: new Map([['prices', tech], ['rates', undefined]]) });
+    assert.equal(tsStateOf(frozen), 'frozen');
+    assert.deepEqual(frozen.sources.map((s) => s.kept), [{ filter: tech }, {}]);
+    assert.equal(typeof readTimeseries(JSON.parse(JSON.stringify(frozen))), 'object', 'its reader reads it back');
+    // frozen again: as it is (the filters it keeps stay those it was frozen with)
+    assert.equal(editTimeseries(frozen, { kind: 'state', state: 'frozen', filters: new Map([['prices', undefined], ['rates', undefined]]) }), frozen);
+    // a grid read while frozen keeps its filter as it is now, as the rest do
+    const more = editTimeseries(frozen, { kind: 'read', grid: { ...PRICES, filter: tech } });
+    assert.deepEqual(more.sources.at(-1)!.kept, { filter: tech });
+    assert.deepEqual(editTimeseries(more, { kind: 'state', state: 'dynamic', filters: new Map() }).sources.map((s) => s.kept), [undefined, undefined, undefined]);
+    // a source whose grid is not open has no filter to keep: refused, not frozen on nothing
+    refused(() => editTimeseries(SPEC, { kind: 'state', state: 'frozen', filters: new Map([['prices', tech]]) }), /source rates's grid is not open/);
+  });
+
+  it('read back frozen whole or not at all: a tile half keeping its filters is refused by name', () => {
+    const half = { ...SPEC, sources: [{ ...SPEC.sources[0]!, kept: {} }, SPEC.sources[1]!] };
+    assert.match(String(readTimeseries(JSON.parse(JSON.stringify(half)))), /a frozen timeseries keeps every source's filter/);
+    const bad = { ...SPEC, sources: SPEC.sources.map((s) => ({ ...s, kept: { filter: { kind: 'nonsense' } } })) };
+    assert.match(String(readTimeseries(JSON.parse(JSON.stringify(bad)))), /the filter source px keeps is not one/);
+    const extra = { ...SPEC, sources: SPEC.sources.map((s) => ({ ...s, kept: { grouping: [] } })) };
+    assert.match(String(readTimeseries(JSON.parse(JSON.stringify(extra)))), /grouping/);
   });
 });

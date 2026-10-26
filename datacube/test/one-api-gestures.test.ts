@@ -661,6 +661,22 @@ const GESTURES: readonly Gesture[] = [
   { name: 'a timeseries compared as its % change in its toolbar', setUp: withTimeseries, make: ({ series }) => choose(tsSelect(series!, 'Compare'), 'percent') },
   { name: 'a timeseries main pane put on a log scale in its toolbar', setUp: withTimeseries, make: ({ series }) => tsButton(series!, 'Log').click() },
   { name: "a timeseries' statistics shown from its toolbar", setUp: withTimeseries, make: ({ series }) => tsButton(series!, 'Stats').click() },
+  // its header's state, a chart's words (the user, 2026-10-26): Frozen picked from the menu its state button opens --
+  // each grid's filter kept as it is now
+  {
+    name: 'a timeseries frozen from its header',
+    setUp: withTimeseries,
+    make: async ({ series }) => {
+      const pill = tile(series!).querySelector<HTMLButtonElement>('.dc-tile-state')!;
+      assert.equal(pill.textContent, 'Dynamic', 'a new timeseries follows its grid');
+      pill.click();
+      const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
+        .find((e) => e.querySelector(':scope > .dc-menu-label')?.textContent === 'Frozen');
+      if (!item) throw new Error('its state button offers no Frozen');
+      item.click();
+      await settle();
+    },
+  },
   { name: 'a timeseries line hidden from its legend', setUp: withTimeseries, make: async ({ series }) => { (await chipOf(series!)).click(); } },
   {
     name: 'a timeseries series added in its editor',
@@ -1210,8 +1226,9 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
  *  timeseries tile -- its toolbar's, its legend's, its series editor's, its settings', its tile's -- an undo of one, and
  *  the undo of a tile's removal after its grid's (G4).
  *  2026-10-25 (§8 step 1, files in a text box, on main): 53 -> 54, a file opened on a text box.
- *  2026-10-26 (main merged into the timeseries branch): both branches' gestures, 73 + 1 -> 74. */
-const GESTURES_AT_LEAST = 74;
+ *  2026-10-26 (main merged into the timeseries branch): both branches' gestures, 73 + 1 -> 74.
+ *  2026-10-26 (a timeseries' states, a chart's words: the user's ask): 74 -> 75, a timeseries frozen from its header. */
+const GESTURES_AT_LEAST = 75;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

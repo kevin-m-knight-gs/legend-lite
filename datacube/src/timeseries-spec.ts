@@ -18,6 +18,8 @@
 // (timeseries-expr.ts), fetched with the first timeseries tile.
 
 import type { TimeGrain } from './chart-spec.ts';
+import { readFilterNode } from './grid-commands.ts';
+import type { FilterNode } from './snapshot.ts';
 
 // ------------------------------------------------------------------ the spec
 
@@ -135,6 +137,36 @@ export interface TsSource {
   readonly date: string;
   /** Its column naming each row's instrument -- a symbol, a ticker, a tenor -- that `close[AAPL]` matches. */
   readonly key?: string;
+  /**
+   * FROZEN: what it keeps of its grid's query as it was when the tile was frozen -- the grid's filter then (none: it had
+   * none) -- so a filter put on the grid since, or a click on another chart, leaves the tile as it was: a frozen chart's
+   * rule (chart-spec.ts ChartSpec.kept). Every source of a tile keeps one, or none does (tsStateOf).
+   */
+  readonly kept?: TsKept;
+}
+
+/** What a frozen tile's source keeps of its grid's query (TsSource.kept). */
+export interface TsKept {
+  readonly filter?: FilterNode;
+}
+
+/**
+ * A TIMESERIES TILE'S STATE, in a chart's words (chart-spec.ts ChartState): DYNAMIC, following its grids' filters and
+ * the page's clicks; FROZEN, each grid's filter kept as it was. No PINNED: a timeseries' grouping is always its own --
+ * its dates' periods and its instruments, never its grid's rows -- so there is nothing of its grid's to pin.
+ */
+export type TsState = 'dynamic' | 'frozen';
+/** Its states, in the order its state button offers them. */
+export const TS_STATES: readonly TsState[] = ['dynamic', 'frozen'];
+
+/** The state a tile is in: frozen when its sources keep their filters (the reader holds them to all or none). */
+export function tsStateOf(spec: TimeseriesSpec): TsState {
+  return spec.sources[0]?.kept !== undefined ? 'frozen' : 'dynamic';
+}
+
+/** The filter a source's rows are read by: the one it keeps, frozen, else its grid's as it is now (`now`). */
+export function filterRead(src: TsSource, now: FilterNode | undefined): FilterNode | undefined {
+  return src.kept ? src.kept.filter : now;
 }
 
 export interface TimeseriesSpec {
@@ -267,7 +299,8 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 const TS_KEYS: Readonly<Record<keyof TimeseriesSpec, true>> = {
   sources: true, grain: true, series: true, range: true, panes: true, annotations: true, view: true,
 };
-const SOURCE_KEYS: Readonly<Record<keyof TsSource, true>> = { alias: true, cube: true, date: true, key: true };
+const SOURCE_KEYS: Readonly<Record<keyof TsSource, true>> = { alias: true, cube: true, date: true, key: true, kept: true };
+const KEPT_KEYS: Readonly<Record<keyof TsKept, true>> = { filter: true };
 const SERIES_KEYS: Readonly<Record<keyof TsSeries, true>> = {
   id: true, expr: true, name: true, split: true, style: true, pane: true, axis: true, hidden: true,
 };
@@ -409,7 +442,23 @@ export function tsProblem(ts: unknown): string | null {
     if (typeof src['cube'] !== 'string' || src['cube'] === '') return `source ${src['alias']} names no cube`;
     if (typeof src['date'] !== 'string' || src['date'] === '') return `source ${src['alias']} names no date column`;
     if (src['key'] !== undefined && (typeof src['key'] !== 'string' || src['key'] === '')) return `source ${src['alias']}'s key is not a column`;
+    const kept = src['kept'];
+    if (kept !== undefined) {
+      if (!isRecord(kept)) return `what source ${src['alias']} keeps ${JSON.stringify(kept)} is not an object`;
+      const keptExtra = unknownKey(kept, KEPT_KEYS, `what source ${src['alias']} keeps`);
+      if (keptExtra) return keptExtra;
+      if (kept['filter'] !== undefined) {
+        try {
+          readFilterNode(kept['filter']);
+        } catch (e) {
+          return `the filter source ${src['alias']} keeps is not one: ${e instanceof Error ? e.message : String(e)}`;
+        }
+      }
+    }
   }
+  // frozen whole or not at all: a tile half following its grids is no state its button says
+  const keeping = sources.filter((src) => isRecord(src) && src['kept'] !== undefined).length;
+  if (keeping > 0 && keeping < sources.length) return 'a frozen timeseries keeps every source\'s filter: some of its sources keep none';
   if (ts['grain'] !== undefined && !GRAINS.includes(ts['grain'] as TimeGrain)) {
     return `its timeseries' frequency ${JSON.stringify(ts['grain'])} is not one of ${GRAINS.join(', ')}`;
   }

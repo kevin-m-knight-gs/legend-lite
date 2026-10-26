@@ -950,6 +950,29 @@ class Document(Paged):
         both = page.timeseries({'grid': px, 'curve': rates}, ['grid:close[SPX]'])
         self.assertEqual([s['alias'] for s in both.spec['sources']], ['grid', 'curve'])
 
+    def test_a_timeseries_frozen_keeps_its_grids_filters_as_they_were_and_follows_them_again(self):
+        # a timeseries' states, a chart's words (the user, 2026-10-26): frozen, each source keeps its grid's filter as it
+        # is now (timeseries-edit.ts editTimeseries, the viewer's state button's rule), the database reading it whatever
+        # the grid is filtered to since (timeseries-spec.ts filterRead, the compiler's rule); dynamic, it follows again
+        page = ll.Page('Markets')
+        days = pd.to_datetime(['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05']).date
+        prices = pd.DataFrame({'symbol': ['SPX'] * 4, 'day': days, 'close': [100.0, 101.0, 99.5, 102.0]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['close[SPX]'])
+        self.assertEqual(tile.state, 'dynamic')
+        px.filter(('close', 'greaterThan', 100.0))
+        self.assertEqual(list(tile.frame('A')['A']), [101.0, 102.0], 'it follows its grid')
+        tile.state = 'frozen'
+        self.assertEqual(tile.state, 'frozen')
+        self.assertIn('filter', tile.spec['sources'][0]['kept'])
+        px.filter(None)
+        self.assertEqual(list(tile.frame('A')['A']), [101.0, 102.0], "its grid's filter as it was, kept")
+        tile.state = 'dynamic'
+        self.assertNotIn('kept', tile.spec['sources'][0])
+        self.assertEqual(list(tile.frame('A')['A']), [100.0, 101.0, 99.5, 102.0], 'it follows its grid again')
+        with self.assertRaisesRegex(ValueError, 'is dynamic or frozen, not "pinned"'):
+            tile.state = 'pinned'
+
     def test_a_timeseries_reads_a_snapped_grid_over_its_copy_and_every_point_it_has(self):
         # the review's P1, P3, P5 (docs/TIMESERIES_REVIEW_2026_10_25.md): a series reads a snapped grid over its copy, as
         # every other read of the grid does -- alone (the grid's own path, headless gridTimeseries) or with another grid
