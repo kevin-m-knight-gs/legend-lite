@@ -1,7 +1,7 @@
 // COUNT RECORDS (docs/DATACUBE_FLOW_MODE_2026_10_24.md M4, Alteryx's Count Records): how many rows a box's input has --
 // one row, one column -- said as what a grid already does: a column of one value it groups by (hidden, so the box after
-// it reads none of it: box-columns.ts), a column of 1 for each row, summed, and every other column hidden. The database
-// counts. What a box says is read back off its columns (`countRecordsOf`).
+// it reads none of it: box-columns.ts), a column of 1 for each row, counted, and every other column hidden. The database
+// counts: a grouping by a column of one value is every row aggregated (query.ts), so no rows are one row, 0. What a box says is read back off its columns (`countRecordsOf`).
 //
 // One rule for the box (it has no settings: made, it counts) and Python's grid.count_records (headless gridPreset).
 //
@@ -26,7 +26,7 @@ const constant = (d: DerivedColumn | undefined): ValueSpecification | undefined 
 
 /**
  * The commands that make a grid count its rows (`s`: the grid as it is): any grouping taken off, the column of one value
- * and the column of 1 (`name`), grouped by the first, the second summed, every other column hidden -- one step. Refused
+ * and the column of 1 (`name`), grouped by the first, the second counted, every other column hidden -- one step. Refused
  * in words: a name taken, a grid pivoted (its columns are its values), a grid counting already.
  */
 export function countRecordsCommands(s: CubeSnapshot, name: string = COUNT_COLUMN): GridCommand[] {
@@ -42,7 +42,8 @@ export function countRecordsCommands(s: CubeSnapshot, name: string = COUNT_COLUM
     { kind: 'calculate', level: 'row', column: { name: ALL_COLUMN, lambda: lambda(['x'], lit.string(ALL)), kind: 'dimension' } },
     { kind: 'calculate', level: 'row', column: { name, lambda: lambda(['x'], lit.integer(1)), kind: 'measure' } },
     { kind: 'group', rows: [ALL_COLUMN] },
-    { kind: 'column', name, change: { aggregate: 'sum' } },
+    // counted, not summed: a count of no rows is 0, a sum of none empty (the review of 2026-10-26's C4)
+    { kind: 'column', name, change: { aggregate: 'count' } },
     { kind: 'configure', patch: { columns: Object.fromEntries([...columns, ALL_COLUMN].map((c) => [c, { hidden: true }])) } },
   ];
 }

@@ -13,7 +13,6 @@ import {
 } from './cube-document.ts';
 import { ProtocolError, readLambda, type Lambda } from '../../pure-protocol/src/index.ts';
 import { pureProblem } from './pure-box.ts';
-import { checksOf } from './checks.ts';
 import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, type Bands, type Preset,
 } from './layout/bands.ts';
@@ -265,6 +264,15 @@ const named = (part: 'page' | 'tile' | 'sheet', text: string): string | undefine
 };
 
 const saved = (layout: Bands): PageLayout => ({ kind: 'bands', ...asSaved(layout) });
+
+/** Whether `q` is a Test's (checks.ts checksOf's first question: grouped by its column of one value, `ChecksAll`, as
+ *  `x|'checks'`) -- read here without the checks' readers, which a page that has no Test never fetches
+ *  (test/bundle-budget.test.ts); held to checks.ts's by test/flow-sheet.test.ts, a Test it makes set to stop a run. */
+function testShaped(q: Pick<CubeShape, 'derived' | 'rows'>): boolean {
+  if (q.rows.length !== 1 || q.rows[0] !== 'ChecksAll') return false;
+  const all = q.derived.find((d) => d.name === 'ChecksAll')?.lambda?.body[0] as { _type?: string; value?: unknown } | undefined;
+  return all?._type === 'string' && all.value === 'checks';
+}
 
 /** A flow op of layout/flow.ts, its refusal in its words. */
 function flowed(op: () => Flow): FlowLayout {
@@ -989,7 +997,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       // never judged, so would stop every run (the review of 2026-10-26: it took any box)
       const q = page.cubes.find((c) => c.id === view.cube)?.cube.query;
       const fixed = q !== undefined && q.pivotOn.length === 1 && (q.pivotValues ?? []).length > 0;
-      if (command.stops && (q === undefined || (checksOf(q) === undefined && !fixed))) {
+      if (command.stops && (q === undefined || (!testShaped(q) && !fixed))) {
         throw new CubeRefusal(`'${command.grid}' checks nothing: a run is stopped by a Test, or a Cross Tab with its columns fixed`);
       }
       return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => setStops(layout, command.grid, command.stops)) })));

@@ -273,12 +273,14 @@ export function boxSays(cube: CubeDocument): BoxSays {
   // a Select's renames: the names it hands its columns on by (box-columns.ts); its retypes, by the names they are given
   const as = new Map(boxRenamed(q, cube.configuration).map((r) => [r.from, r.to] as const));
   const renames = [...as].filter(([from]) => !retyped.some((r) => r.name === from) && !placedMade.has(from));
-  // a Select's order (box-columns.ts boxOrder): its columns moved -- its conversions in their columns' places aside
+  // a Select's order (box-columns.ts boxOrder): its columns moved -- its conversions, and a tool's columns made in place
+  // (box-columns.ts inTheirPlace), in their columns' places aside
   const order = boxOrder(q, cube.configuration);
   const moved = order !== undefined && (() => {
-    const back = new Map(retyped.map((r) => [r.name, r.column] as const));
+    const back = new Map([...retyped.map((r) => [r.name, r.column] as const), ...placed.map((p) => [p.made, p.column] as const)]);
     const omitted = new Set(boxOmitted(q, cube.configuration));
-    const asIs = rowColumns(q).map((c) => c.name).filter((c) => !back.has(c) && (!omitted.has(c) || retyped.some((r) => r.column === c)));
+    const asIs = rowColumns(q).map((c) => c.name).filter((c) => !back.has(c)
+      && (!omitted.has(c) || retyped.some((r) => r.column === c) || placed.some((p) => p.column === c)));
     return order.map((c) => back.get(c) ?? c).some((c, i) => c !== asIs[i]);
   })();
   if (hidden.length > 0 || renames.length > 0 || retyped.length > 0 || moved) {

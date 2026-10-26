@@ -88,7 +88,7 @@ export const MIDNIGHT = 'T00:00:00';
  * the next day's after `to` (the correctness audit's 5, 2026-10-26: a day compared with a moment was no literal of its
  * type, and `<= to` left out every moment of the last day after its midnight). A time of day has no days: refused.
  */
-export function datesBetweenConditions(column: string, from: string, to: string, type?: string): FilterNode[] {
+export function datesBetweenConditions(column: string, from: string, to: string, type: string | undefined): FilterNode[] {
   for (const [day, what] of [[from, 'its first day'], [to, 'its last day']] as const) {
     if (!isDay(day)) throw new CubeRefusal(`${what} is a day, as 2024-06-30, not ${JSON.stringify(day)}`);
   }

@@ -1,6 +1,6 @@
 // A FLOW'S OUTPUT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): a box's rows written as a CSV file -- every row, in the order
 // its sorts give them (query.ts handedOnLambda), the columns it hands on under the names it hands them on by
-// (box-columns.ts handedOn, join-open.ts handedOnRows: what the box after it reads), each value as the database gave it
+// (box-columns.ts handedOn, handedOnRows: what the box after it reads), each value as the database gave it
 // (export.ts toCsv, none defused: a data file is read by a program, not a spreadsheet). One writer for the tab's Write
 // now and Run (app.ts writeOutput) and Python's flow.run (headless gridOutput): the same file from both (the review of
 // 2026-10-26's B2, C9, C10). Streamed a chunk at a time, each chunk written and let go.
@@ -9,11 +9,10 @@
 
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
-import { handedOn } from './box-columns.ts';
+import { handedOn, handedOnRows } from './box-columns.ts';
 import { toCsv } from './export.ts';
-import { handedOnRows } from './join-open.ts';
-import { columnsLambda } from './profile.ts';
-import { handedOnLambda } from './query.ts';
+import { isMachinery } from './grid/columns.ts';
+import { columnsLambda, handedOnLambda } from './query.ts';
 import type { RunOutcome } from './runner.ts';
 import { CubeRefusal, type CubeSnapshot } from './snapshot.ts';
 
@@ -33,7 +32,8 @@ export async function outputQuery(snapshot: CubeSnapshot, configuration: Readonl
   const rows = handedOnLambda(snapshot).body[0]!;
   const typed = (await queries.runQuery(columnsLambda(rows), snapshot)).rows.columns;
   const names = typed.map((c) => c.name);
-  const on = handedOn(names, snapshot, configuration);
+  // the product's own columns (grid/columns.ts isMachinery: a Top N's rank) are none of its rows'
+  const on = handedOn(names.filter((n) => !isMachinery(n)), snapshot, configuration);
   const query: Lambda = { _type: 'lambda', parameters: [], body: [handedOnRows(rows, names, on)] };
   return { query, columns: on.map((c) => ({ name: c.as, type: typed.find((t) => t.name === c.name)!.type })) };
 }

@@ -10,7 +10,7 @@
 // meaning, made and proven there.
 
 import {
-  agg, and, asc, collection, derive, desc, enumValue, flatten, fn, from, lambda, lit, not, or, projectObjects, property, variable,
+  agg, and, asc, collection, colSpecs, derive, desc, enumValue, flatten, fn, from, lambda, lit, not, or, projectObjects, property, variable,
   type AppliedFunction, type ColSpec, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import {
@@ -44,10 +44,13 @@ import {
   type WindowSpec,
   type ValueGroups,
 } from './snapshot.ts';
-import { filterWithout, keptCondition, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
+import { cellFilterValue, filterWithout, keptCondition, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
 import type { GroupKey, RowPath } from './tree.ts';
 import { ROOT_COLUMN, WINDOW_ALL_PREFIX } from './grid/columns.ts';
+// the product's own columns, as what reads a box's rows leaves them out (join-open.ts), through this module's edge
+export { isMachinery } from './grid/columns.ts';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import { isBoolean, isNumeric, isVariant, plainType } from '../../engine-client/src/types.ts';
 import { columnRef, measureNameProblem } from './calc.ts';
 
@@ -473,6 +476,26 @@ export function unpinnedValuesLambda(s: QuerySnapshot): Lambda | null {
   return pivotValuesLambda({ ...rest, filter: s.filter === undefined ? lacking : { kind: 'and', children: [s.filter, lacking] } });
 }
 
+/**
+ * A PIVOT'S VALUES AS ITS QUESTION ANSWERED THEM (`answered`: pivotValuesLambda's rows -- Load values -- or
+ * unpinnedValuesLambda's, those its pin lacks), the one reading the screen's Cross Tab and Python's (headless) share
+ * (the review of 2026-10-26): each a filter value of its column's type (value-filter.ts cellFilterValue), and whether
+ * there were more than a pivot shows (its question asks one past MAX_PIVOT_VALUES). An answer without its column is
+ * refused, never read as none.
+ */
+export function pivotValuesOf(s: Pick<CubeSnapshot, 'pivotOn' | 'columns' | 'derived'>, answered: ResultTable):
+  { readonly values: readonly (FilterValue | null)[]; readonly more: boolean } {
+  const on = s.pivotOn[0];
+  const column = answered.columns.find((c) => c.name === on);
+  if (on === undefined || column === undefined) throw new Error(`its values' answer has no column ${on ?? '(none pivoted)'}`);
+  const type = rowColumns(s).find((c) => c.name === on)?.type;
+  return { values: column.values.map((v) => cellFilterValue(v, type)), more: column.values.length > MAX_PIVOT_VALUES };
+}
+
+/** Load values refused, its rows holding more values than a pivot shows (pivotValuesOf's `more`), in words. */
+export const tooManyValues = (on: string): string =>
+  `its rows hold more than ${MAX_PIVOT_VALUES} values of ${on}, more columns than a pivot shows: filter its rows first`;
+
 /** The condition a pivot cell's rows meet. */
 function tupleCondition(s: QuerySnapshot, tuple: readonly GroupKey[]): ValueSpecification {
   const conditions = memberConditions(s, s.pivotOn, tuple);
@@ -497,6 +520,12 @@ export function levelLambda(snapshot: QuerySnapshot, scope?: LevelScope, pivot?:
 export function classLambda(snapshot: CubeSnapshot): Lambda {
   if (snapshot.pivotOn.length > 0) return crossTabRows(snapshot).lambda();
   return levelRelation(snapshot, undefined, undefined, 'none').lambda();
+}
+
+/** The question that types `rows`: none of them (`limit(0)`), its columns typed by the plan -- a box's Profile's and its
+ *  Output's (profile.ts, flow-output.ts). */
+export function columnsLambda(rows: ValueSpecification): Lambda {
+  return from(rows).limit(0).lambda();
 }
 
 /**
@@ -671,6 +700,16 @@ export function duplicateLambda(relation: ValueSpecification, column: string): L
     .lambda();
 }
 
+/** The literals a column of one value is (`x|'all'`): its value the same for every row, whatever the row. */
+const LITERALS = new Set(['string', 'integer', 'float', 'decimal', 'boolean', 'strictDate', 'dateTime']);
+
+/** A calculated column's one value, when it is one (`x|'all'`: its body a literal, no window); else undefined. */
+function constantOf(snapshot: QuerySnapshot, column: string): ValueSpecification | undefined {
+  const d = snapshot.derived.find((x) => x.name === column);
+  const body = d?.lambda?.body;
+  return d !== undefined && d.window === undefined && body?.length === 1 && LITERALS.has(body[0]!._type) ? body[0] : undefined;
+}
+
 /** A level's rows' order: `grid`, sorted and capped as the grid reads them; `sorted`, sorted and uncapped, as a box hands
  *  them on (handedOnLambda); `none`, neither, a class's. */
 type LevelOrder = 'grid' | 'sorted' | 'none';
@@ -711,9 +750,17 @@ function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: Pivo
   };
 
   const groupByLevel = (aggs: readonly ColSpec[]): void => {
+    // grouped by columns of one value alone (`x|'all'`: Count Records', a Test's): every row aggregated, no key -- one
+    // row even of no rows, where a grouping gives no group of none -- each key its one value beside (the review of
+    // 2026-10-26's C4: Count Records of no rows gave no row)
+    const constants = groupCols.map((c) => constantOf(snapshot, c));
     if (groupCols.length === 0) {
       rel = rel.extend([derive(ROOT_COLUMN, lambda(['x'], lit.string(ROOT_VALUE)))])
         .groupBy([ROOT_COLUMN], aggs);
+    } else if (constants.every((v) => v !== undefined)) {
+      rel = rel.apply('aggregate', colSpecs(aggs))
+        .extend(groupCols.map((c, i) => derive(c, lambda(['x'], constants[i]!))))
+        .select([...groupCols, ...aggs.map((a) => a.name)]);
     } else {
       rel = rel.groupBy(groupCols, aggs);
     }

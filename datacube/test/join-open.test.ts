@@ -13,7 +13,7 @@ import { typedByPlan } from '../../engine-client/src/engine.ts';
 import { readJoinHow, joinSummary, type JoinHow } from '../src/join.ts';
 import { TAB_TABLES, eachRelation, leafRefusal, openInputs, openJoin, openRows, summaryCounts, type JoinOpening } from '../src/join-open.ts';
 import {
-  leavesOf, rawRows, readCube, cubeToJson, type CubeSource, type FileSource, type JoinInput, type JoinSource, type LeafSource,
+  leavesOf, rawRows, readCube, cubeToJson, writeCube, type CubeSource, type FileSource, type JoinInput, type JoinSource, type LeafSource,
   type RowsSource, type SavedQuery,
 } from '../src/cube-document.ts';
 import { TOTAL_ROWS_COLUMN } from '../src/query.ts';
@@ -21,6 +21,12 @@ import { catalogColumns } from '../src/upload.ts';
 import { CubeRefusal, type CubeSnapshot } from '../src/snapshot.ts';
 import { plannerFor } from './catalog-builder.ts';
 import { outputCsv, type OutputQueries } from '../src/flow-output.ts';
+import { countRecordsCommands } from '../src/count-records.ts';
+import { applyGridCommands, type GridCommand } from '../src/grid-commands.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
+import { openedState } from '../src/cube-state.ts';
+import { TreeState } from '../src/tree.ts';
+import { boxOmitted } from '../src/box-columns.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
@@ -245,6 +251,31 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     // none: its head row alone, the BOM a spreadsheet reads first
     const none = await outputCsv({ ...s, filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 99 } }, configuration, queries);
     assert.equal(none, '\ufeffqty,id,symbol\r\n');
+  });
+
+  it("a Top N box's rank is none of what it hands on: the box after it reads its rows' columns alone (the review of 2026-10-26)", async () => {
+    const top: RowsSource = { _type: 'rows', name: 'trades', columns: [], input: input(TRADES, 'trades', query(TRADES, { topN: { by: 'qty', n: 2 } })) };
+    const opened = await openRows(top, opening(['trades']));
+    assert.deepEqual(opened.columns.map((c) => c.name), ['id', 'cust', 'sym', 'at', 'qty']);
+    const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
+    assert.deepEqual([...got['id']!].sort(), [1, 2], 'qty 5 and 7');
+  });
+
+  it("Count Records of no rows: one row, 0 -- a grouping by one value is every row aggregated (query.ts; the review's C4)", async () => {
+    const box = (empty: boolean): RowsSource => {
+      const s = rawRows({ _type: 'string', value: '' }, TRADES.columns.map((c) => ({ ...c })));
+      const none: GridCommand = { kind: 'refilter', remove: [], add: [{ kind: 'condition', column: 'qty', operator: 'greaterThan', value: 99 }] };
+      const draft = applyGridCommands({ snapshot: s, config: DEFAULT_CONFIGURATION }, [...(empty ? [none] : []), ...countRecordsCommands(s)]);
+      const state = openedState(draft.snapshot, draft.config, TreeState.fromPaths([], false));
+      const doc = writeCube({ name: 'box', source: TRADES, snapshot: state.snapshot, configuration: state.configuration, tree: state.tree });
+      return { _type: 'rows', name: 'counted', columns: [],
+        input: { name: 'count', source: TRADES, query: doc.query, omit: boxOmitted(doc.query, doc.configuration) } };
+    };
+    for (const [empty, n] of [[true, 0], [false, 5]] as const) {
+      const opened = await openRows(box(empty), opening(['trades']));
+      const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
+      assert.deepEqual(got, { Count: [n] }, empty ? 'no rows: one row, 0' : 'five rows');
+    }
   });
 
   it("a Join's L and R (cube-document.ts JoinInput.unmatched): each side's rows the other's pair with none", async () => {

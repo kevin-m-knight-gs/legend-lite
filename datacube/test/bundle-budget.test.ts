@@ -423,8 +423,14 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  365,500 -> 375,000 -> 376,000 -- the timeseries tile and the timeseries review's G4 (a removed grid's cube kept while a
  *  timeseries reads it), then the one rule of the cubes a page holds and a timeseries' states, each in that branch's
  *  history with its own measure (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md) -- now on top of the flow mode's; no
- *  startup file added, measured). Measured 405,574. */
-const BUDGET = 406_000;
+ *  startup file added, measured). Measured 405,574.
+ *  406,000 -> 408,500 (2026-10-26, the flow mode review's fixes, docs/DATACUBE_FLOW_MODE_REVIEW_2026_10_26.md: a box's
+ *  rows handed on in its sorts' order and the one Output writer (query.ts handedOnLambda, flow-output.ts, fetched with
+ *  the page: lazily, it was a chunk that split the startup files), a Cross Tab's values read once (query.ts
+ *  pivotValuesOf), the page gestures Python shares (flow.place, flow.duplicate), a stopping box never judged
+ *  (flow-board.ts runStoppers); the checks' readers kept out (setStops reads a Test's shape alone); no startup file
+ *  added -- 33 as before, measured by esbuild's record). Measured 408,032. */
+const BUDGET = 408_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -591,8 +597,10 @@ const BUDGET = 406_000;
  *  373,500 -> 383,500 (2026-10-26, main merged into the flow branch: its own steps there, 344,000 -> 345,500 -> 347,000 ->
  *  348,000 -> 348,500 -> 349,500 -> 353,000 -> 353,500 -- the grid-only page's note of the same date). Measured 383,307.
  *  383,500 -> 394,000 (2026-10-26, the timeseries branch, PR #74, merged into the flow branch: its own steps there,
- *  353,500 -> 363,000 -> 364,000 -- the grid-only page's note of the same date). Measured 393,657. */
-const ENGINE_BUDGET = 394_000;
+ *  353,500 -> 363,000 -> 364,000 -- the grid-only page's note of the same date). Measured 393,657.
+ *  394,000 -> 396,500 (2026-10-26, the flow mode review's fixes -- the grid-only page's note of the same date). Measured
+ *  396,140. */
+const ENGINE_BUDGET = 396_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -854,8 +862,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  their styles). Measured 409,703.
  *  410,000 -> 421,500 (2026-10-26, the timeseries branch, PR #74, merged into the flow branch: its own steps there,
  *  374,500 -> 385,000 -> 386,000 -- the grid-only page's note of the same date, and the timeseries tile's styles).
- *  Measured 421,003. */
-const WIDGET_BUDGET = 421_500;
+ *  Measured 421,003.
+ *  421,500 -> 424,000 (2026-10-26, the flow mode review's fixes -- the grid-only page's note of the same date). Measured
+ *  423,483. */
+const WIDGET_BUDGET = 424_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

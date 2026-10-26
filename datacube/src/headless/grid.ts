@@ -66,9 +66,9 @@ import {
 import { gridLens, readPageFilters } from '../page-filters.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError, type ModelOptions } from '../planner.ts';
-import { classBasis, classLambda, pivotValuesLambda, snapPull, unpinnedValuesLambda, type ClassBasis } from '../query.ts';
+import { classBasis, classLambda, pivotValuesLambda, pivotValuesOf, snapPull, tooManyValues, unpinnedValuesLambda, type ClassBasis } from '../query.ts';
 import { outputCsv } from '../flow-output.ts';
-import { lackingCheck, lackingWords, pivotValuesOf, tooManyValues } from '../cross-tab.ts';
+import { lackingCheck, lackingWords } from '../cross-tab.ts';
 import type { PlanAndRun, QueryLens } from '../runner.ts';
 import { classSamples } from '../model-plans.ts';
 import { SampleRefusal, type SampleRows } from '../sample-rows.ts';
@@ -1402,7 +1402,7 @@ export async function gridPivotValues(spec: GridSpec): Promise<string> {
     const query = pivotValuesLambda(s);
     if (query === null) return JSON.stringify({ problems: ['it pivots on no column: it has no values to load'] });
     const { rows } = await controllerOf(o).runQuery(query, s);
-    // the screen's Load values' reading of them (cross-tab.ts pivotValuesOf), its refusal its own
+    // the screen's Load values' reading of them (query.ts pivotValuesOf), its refusal its own
     const { values, more } = pivotValuesOf(s, rows);
     if (more) return JSON.stringify({ problems: [tooManyValues(s.pivotOn[0]!)] });
     return JSON.stringify({ values });

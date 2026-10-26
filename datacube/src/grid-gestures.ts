@@ -291,7 +291,9 @@ const GESTURES = {
       if ((a['range'] !== undefined) === days) {
         throw new CubeRefusal('a Date Filter keeps a range of dates, or the days from one to another: one of them');
       }
-      const add = days ? datesBetweenConditions(column, text(a, 'from', 'its first day'), text(a, 'to', 'its last day'))
+      // its column's type: a date-time's every moment of both days (date-ranges.ts; the review of 2026-10-26's C5)
+      const type = rowColumns(g.snapshot).find((c) => c.name === column)?.type;
+      const add = days ? datesBetweenConditions(column, text(a, 'from', 'its first day'), text(a, 'to', 'its last day'), type)
         : dateRangeConditions(column, text(a, 'range', 'the date range') as DateRange);
       const had = g.snapshot.filter;
       const remove = had === undefined ? [] : had.kind === 'and' ? had.children : [had];

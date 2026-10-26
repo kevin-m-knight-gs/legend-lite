@@ -41,7 +41,7 @@ import type { Dimension } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
 import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
-import { classLambda, columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda, pivotValuesLambda, unpinnedValuesLambda } from './query.ts';
+import { classLambda, columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda, pivotValuesLambda, pivotValuesOf, tooManyValues, unpinnedValuesLambda } from './query.ts';
 import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
 import { DATE_RANGE_LABELS, DATE_RANGES } from './date-ranges.ts';
 import { valueList } from './ui/value-list.ts';
@@ -57,6 +57,9 @@ import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
 import type { HostSnap, SnapTarget } from './cube.ts';
 import { exportFileName, toClipboard, toEml } from './export.ts';
+// a flow's Output: small, over what the page has at start -- fetched lazily, it was a chunk of its own that split the
+// page's startup files (test/bundle-budget.test.ts, the flow mode review of 2026-10-26)
+import { outputCsv } from './flow-output.ts';
 import {
   ALERT_WINDOW,
   CODE_CHECK_WINDOW,
@@ -3930,7 +3933,6 @@ export class CubeApp {
   async writeOutput(name: string): Promise<void> {
     const download = this.#options.download;
     if (!download) throw new Error('this page has no way to hand a file over');
-    const { outputCsv } = await lazily(() => import('./flow-output.ts'));
     download(name, 'text/csv', await outputCsv(this.#snapshot, this.#config as unknown as Record<string, unknown>, this.#controller));
   }
 
@@ -3953,7 +3955,6 @@ export class CubeApp {
       if (e instanceof CubeRefusal) return e.message;
       throw e;
     }
-    const { pivotValuesOf, tooManyValues } = await lazily(() => import('./cross-tab.ts'));
     const { values, more } = pivotValuesOf(s, answered);
     if (more) return tooManyValues(s.pivotOn[0]!);
     return this.#gesture('pivot.pin', { values }, 'Load Values');
@@ -4076,7 +4077,6 @@ export class CubeApp {
     const query = unpinnedValuesLambda(s);
     if (query === null) return [];
     const { rows: answered } = await this.#controller.runQuery(query, s);
-    const { pivotValuesOf } = await lazily(() => import('./cross-tab.ts'));
     return pivotValuesOf(s, answered).values;
   }
 
@@ -4129,7 +4129,8 @@ export class CubeApp {
     const { dateFilterForm } = await lazily(() => import('./ui/date-filter-form.ts'));
     const kept = datesKept(this.#snapshot.filter);
     this.#showOverlay('Date Filter', (host, close) => dateFilterForm(host, {
-      columns: rowColumns(this.#snapshot).filter((c) => isTemporal(c.type)).map((c) => c.name),
+      // a time of day has no days to keep (date-ranges.ts refuses it): never offered
+      columns: rowColumns(this.#snapshot).filter((c) => isTemporal(c.type) && !isTimeOfDay(c.type)).map((c) => c.name),
       ranges: DATE_RANGES.map((range) => ({ range, label: DATE_RANGE_LABELS[range] })),
       ...(kept !== undefined ? { kept } : {}),
       apply: (k) => this.#gesture('filter.dates', 'range' in k ? { column: k.column, range: k.range } : { column: k.column, from: k.from, to: k.to },

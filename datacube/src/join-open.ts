@@ -5,14 +5,14 @@
 // (join.ts joinRelation), and the compiler types what comes out. What drifted since it was saved is said. No DOM: the
 // tab's sources (app/sources.ts) and a test on Node's DuckDB (test/join-open.test.ts) call it alike.
 
-import { colSpec, colSpecs, fn, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 import {
   frozenInput, inputCube, inputLeaves, joinInputs, leavesOf, openCube, type CubeSource, type JoinInput, type JoinSource, type LeafSource, type RowsSource,
 } from './cube-document.ts';
 import type { CatalogColumn, TableModels } from './infer.ts';
 import { MOST_REPEATS, REPEATED_KEYS, joinRelation, type JoinHow, type JoinSide, type JoinSummaryCounts, type JoinSummaryQueries } from './join.ts';
-import { TOTAL_ROWS_COLUMN, handedOnLambda } from './query.ts';
-import { WINDOW_ALL_PREFIX } from './grid/columns.ts';
+import { TOTAL_ROWS_COLUMN, handedOnLambda, isMachinery } from './query.ts';
+import { handedOnRows } from './box-columns.ts';
 import type { RawTable } from '../../engine-client/src/engine.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { sourceColumns, type RelationTyper } from './source-columns.ts';
@@ -106,37 +106,14 @@ export async function inputRows(input: JoinInput, over: ValueSpecification, type
   const omit = new Set(input.omit ?? []);
   const rank = new Map((input.order ?? []).map((c, i) => [c, i] as const));
   const at = (name: string): number => rank.get(name) ?? rank.size;
-  const kept = typed.filter((c) => !omit.has(c.name)).sort((a, b) => at(a.name) - at(b.name));
+  // the product's own columns (grid/columns.ts isMachinery: a Top N's rank) are none of its rows'
+  const kept = typed.filter((c) => !omit.has(c.name) && !isMachinery(c.name)).sort((a, b) => at(a.name) - at(b.name));
   const to = new Map((input.rename ?? []).map((r) => [r.from, r.to] as const));
   const on = kept.map((c) => ({ name: c.name, as: to.get(c.name) ?? c.name }));
   const columns = kept.map((c) => ({ name: to.get(c.name) ?? c.name, type: c.type }));
   return { name: input.name, relation: handedOnRows(all, typed.map((c) => c.name), on), columns };
 }
 
-/** A name of the product's own a renamed column passes through (handedOnRows), never shown (grid/columns.ts isMachinery). */
-const RENAMING = `${WINDOW_ALL_PREFIX}renaming`;
-
-/**
- * A BOX'S ROWS AS IT HANDS THEM ON, the one rule (what the box after it reads, inputRows; what its Output writes,
- * flow-output.ts): `rows`, its rows (handedOnLambda), their columns `columns`; `on`, the columns it hands on, in its order,
- * each under the name it hands it on by (box-columns.ts handedOn) -- selected, then renamed by the relation's rename. A
- * rename takes a name no column has, so where one takes a name another column has (a Select's swap: a as b, b as a; the
- * review of 2026-10-26's C11) each goes through a name of the product's own first.
- */
-export function handedOnRows(rows: ValueSpecification, columns: readonly string[],
-  on: readonly { readonly name: string; readonly as: string }[]): ValueSpecification {
-  const same = on.length === columns.length && on.every((c, i) => c.name === columns[i]);
-  let out = same ? rows : fn('select', rows, colSpecs(on.map((c) => c.name)));
-  const renames = on.filter((c) => c.as !== c.name);
-  const names = new Set(on.map((c) => c.name));
-  if (!renames.some((r) => names.has(r.as))) {
-    for (const r of renames) out = fn('rename', out, colSpec(r.name), colSpec(r.as));
-    return out;
-  }
-  renames.forEach((r, i) => { out = fn('rename', out, colSpec(r.name), colSpec(`${RENAMING}${i}`)); });
-  renames.forEach((r, i) => { out = fn('rename', out, colSpec(`${RENAMING}${i}`), colSpec(r.as)); });
-  return out;
-}
 
 /** A join's how with their kept columns that are gone left out, each said; the rest is joinRelation's to judge. */
 function reconciled(how: JoinHow, right: JoinSide, notes: string[]): JoinHow {

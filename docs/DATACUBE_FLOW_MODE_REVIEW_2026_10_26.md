@@ -29,7 +29,7 @@ test named beside it; the C reviewer's probes are in the session scratchpad (`au
 | B4 | **A Select with no order named (Python's) put a retyped column last; the screen's window names every row** | `select-columns.ts selectCommands`: no order named, the grid's own -- the same commands either way | `flow-sheet.test.ts` "hands its columns on in its order" (fails without the fix) |
 | B5 | **Python could not add a box straight onto a Join's L or R** (headless `rowsCube` had no port) | `rowsCube` takes `port` (`'false'`, `'left'`, `'right'`), as the canvas adds a box on one; `page.grid(input=..., port=...)` | `test_page.py` `test_a_join_box_hands_on_the_rows_each_side_pairs_with_none` |
 | B6 | **A container moved from Python left its boxes behind** | `layout/flow.ts containerMoves`: the container and each box inside it by as much -- the canvas's drag and Python's `text.place` (headless gesture `flow.place`) | `flow-sheet.test.ts` "sets a container's frame"; `test_page.py` `test_a_container_frames_boxes` |
-| C2-C4 | Data Cleansing's punctuation took out letters not ASCII; "largest first" and "last N" kept empties ahead of the largest; Count Records of no rows gave no row | see section 5 (the per-tool fixes) | |
+| C2-C4 | Data Cleansing's punctuation took out letters not ASCII; "largest first" and "last N" kept empties ahead of the largest; Count Records of no rows gave no row | see section 5 (the per-tool fixes) | section 5 |
 
 ## 2. Should fix -- fixed
 
@@ -70,4 +70,23 @@ test named beside it; the C reviewer's probes are in the session scratchpad (`au
 
 ## 5. The per-tool fixes (reviewer C)
 
-Filled in with the per-tool commit.
+Each re-run on DuckDB through the review's harness (each tool's commands, the box written, opened as the box after it
+reads it, planned and run), before and after:
+
+| # | Finding | Fix | Pinned by |
+|---|---|---|---|
+| C2 | Data Cleansing's "punctuation out" took out every letter not ASCII (`Côte d'Ivoire` → `Cte dIvoire`; `東京` → empty) | `text-tools.ts PUNCTUATION` `[^\p{L}\p{N}\s]`: any script's letters and digits kept | `flow-sheet.test.ts` (text tools) |
+| C3 | "Largest first" (Unique), "last N" (Sample) and the Top N kept rows whose value is empty ahead of the largest (`DESC NULLS FIRST`) | a falling order led by a hidden `isEmpty` key, for these tools alone (the grid's own sort unchanged) | `flow-sheet.test.ts` (Unique, Sample); `value-filter.test.ts` (Top N) |
+| C4 | Count Records of no rows gave no row (a grouping gives no group of none) | `query.ts`: a grouping by columns of one value alone is every row aggregated (`aggregate`, no key), each key its value beside; Count Records counts, the Test counts its rows -- 0 of none -- and judges a row of 0 rows (`checks.ts failingChecks`) | `join-open.test.ts` "Count Records of no rows" (DuckDB); `flow-sheet.test.ts` "judges a test of no rows" |
+| C5 | Date Filter "between two days" on a DateTime refused (a protocol error), and would have dropped the last day after midnight | a date-time's `>= fromT00:00:00` and `< next dayT00:00:00` (`date-ranges.ts`), the gesture passing its column's type; a time of day refused and left out of the window's columns | `flow-sheet.test.ts` (Date Filter) |
+| C6 | A Union of two columns of one name and two types was typed as the first's | refused in words (`join.ts appended`) | `join.test.ts`, `join-open.test.ts` |
+| C7 | Text To Columns "into rows" dropped a row whose text is empty | `split(coalesce($x.c, ''))`: the row kept, one empty part | `flow-sheet.test.ts` |
+| C8 | Test "repeats no value" counted repeated empties as repeats; a row lacking a count read as 0 | empties repeat nothing; a missing count thrown (invariant 4) | `flow-sheet.test.ts` (Test) |
+| C12 | Generate Rows "each day" between two date-times overshot by a day | a date-time bound refused, its day first | `flow-sheet.test.ts` |
+| C14 | Unique's and Sample's row numbers could tie, the kept row the database's pick (U and D, S and R could overlap) | ties broken by every other sortable column, rising (`unique.ts rowNumberBy`) | `flow-sheet.test.ts`: U [1,4,7], D [3,2,6,5], a partition |
+| C15 | An in-place column went to the end of what a box hands on; a negative fill (-1) was not read back; the F port's comment said empties go nowhere | in its column's place (`box-columns.ts inTheirPlace`); the `minus` read back; the comment says F | `flow-sheet.test.ts` |
+| -- | Append Fields' summary divided to count theirs; Profile computed its share, empty count and diagonal in JS, and gave no row of no rows | their rows counted by the database; Profile's one row a keyless `aggregate` (a row of 0s of no rows), its empties and share the database's, a column's own correlation 1 only where the database says it varies | `join-open.test.ts`; `flow-sheet.test.ts` (Profile) |
+| -- | A Top N box's rank columns (`__all__topN`, and the new empties key) were handed on to the box after it | the product's own columns (`isMachinery`) left out of what a box hands on and of its Output | `join-open.test.ts` |
+
+A falling Unique or Sample "last" saved before these fixes (without the empties key) is no longer read back as the
+tool: only documents made on this branch before it lands.

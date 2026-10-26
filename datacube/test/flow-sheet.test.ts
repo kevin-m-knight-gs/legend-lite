@@ -43,8 +43,8 @@ import { TreeState } from '../src/tree.ts';
 import { accessor, collection, fn, gt, lambda, lit, property, toJson, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { boxRows, pureFrom, pureInput, pureInputOf, pureOver, pureProblem, pureShown, pureText, pureWords } from '../src/pure-box.ts';
 import { PUNCTUATION, textToolOf } from '../src/text-tools.ts';
-import { lackingWords, pivotValuesOf, tooManyValues } from '../src/cross-tab.ts';
-import { MAX_PIVOT_VALUES } from '../src/query.ts';
+import { lackingWords, VALUES_COUNTED } from '../src/cross-tab.ts';
+import { MAX_PIVOT_VALUES, pivotValuesOf, tooManyValues } from '../src/query.ts';
 import { readTextTool, textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
 import { grainColumn, grainOf } from '../src/calc-presets.ts';
 import { CHECKS_COLUMN, checkCommands, checksOf, checkWords, failingChecks, failingWords, readChecks, testColumns, type Check } from '../src/checks.ts';
@@ -180,7 +180,7 @@ describe("a flow's layout (layout/flow.ts)", () => {
   });
 });
 
-describe("a Cross Tab's values as its questions answer them (cross-tab.ts pivotValuesOf): the screen's and Python's", () => {
+describe("a Cross Tab's values as its questions answer them (query.ts pivotValuesOf): the screen's and Python's", () => {
   const s = { ...rawRows(accessor('local::DB', 'trades'), [...COLUMNS, { name: 'year', type: 'Integer' }]), pivotOn: ['year'] };
   const answer = (values: readonly unknown[]) => ({ columns: [{ name: 'year', type: 'Integer', values }], rowCount: values.length, epoch: 1, elapsedMs: 0 }) as never;
   it('each typed as its column is; past what a pivot shows, said; an answer without its column refused, never none', () => {
@@ -192,6 +192,7 @@ describe("a Cross Tab's values as its questions answer them (cross-tab.ts pivotV
     // a question asked one past the cap: at least as many said, never a count it did not make (the review of 2026-10-26)
     assert.match(lackingWords('year', many), /and at least 493 more have no column of their own/);
     assert.match(lackingWords('year', [2024, 2025]), /^year 2024, 2025 have no column of their own/);
+    assert.equal(VALUES_COUNTED, MAX_PIVOT_VALUES, "the canvas's words count what the question counts");
   });
 });
 
@@ -373,6 +374,14 @@ describe("a Test (checks.ts): each check's failing rows counted by the database,
   const checks: Check[] = [
     { kind: 'notEmpty', column: 'region' }, { kind: 'unique', column: 'region' }, { kind: 'between', column: 'notional', min: 0, max: 1000 },
   ];
+
+  it('judges a test of no rows -- one row of 0 rows, every count none: its count of rows fails (the review of 2026-10-26)', () => {
+    const atLeast: Check[] = [{ kind: 'notEmpty', column: 'region' }, { kind: 'rows', min: 1 }];
+    const row: Record<string, unknown> = { Rows: 0, region_empty: null, Rows_outside: 1 };
+    assert.deepEqual(failingChecks(atLeast, (n) => row[n]).map((f) => [f.check.kind, f.rows]), [['rows', 0]]);
+    // a row of rows lacking a count is no row of this test
+    assert.throws(() => failingChecks(atLeast, (n) => ({ ...row, Rows: 3 })[n]), /a test's row has no count 'region_empty'/);
+  });
 
   it('makes a count of each check, grouped by a column of one value, every column it read hidden; read back whole', () => {
     const commands = checkCommands(typed, checks);
@@ -702,14 +711,14 @@ describe("a Date Filter (date-ranges.ts): a range relative to today, or the days
       const [a, b] = dateRangeConditions('trade_date', range);
       assert.deepEqual(datesKept({ kind: 'and', children: [a!, b!] }), { column: 'trade_date', range });
     }
-    const between = { kind: 'and', children: datesBetweenConditions('trade_date', '2024-01-01', '2024-06-30') } as const;
+    const between = { kind: 'and', children: datesBetweenConditions('trade_date', '2024-01-01', '2024-06-30', 'StrictDate') } as const;
     assert.deepEqual(datesKept(between), { column: 'trade_date', from: '2024-01-01', to: '2024-06-30' });
     const box = (filter: FilterNode) => boxSays(cube(rows('grid-1'), (q) => ({ ...q, filter })));
     assert.deepEqual(box(between), { tool: 'dateFilter', also: [], says: 'trade_date from 2024-01-01 to 2024-06-30' });
     assert.deepEqual(box({ kind: 'and', children: dateRangeConditions('trade_date', 'last30Days') }),
       { tool: 'dateFilter', also: [], says: 'trade_date: Last 30 Days' });
     // one condition, two columns, or a third condition: a Filter's
-    const one = datesBetweenConditions('trade_date', '2024-01-01', '2024-06-30')[0]!;
+    const one = datesBetweenConditions('trade_date', '2024-01-01', '2024-06-30', 'StrictDate')[0]!;
     assert.equal(box(one).tool, 'filter');
     assert.equal(datesKept({ kind: 'and', children: [one, { kind: 'condition', column: 'other', operator: 'lessThanEqual', value: '2024-06-30' }] }), undefined);
     assert.equal(datesKept({ kind: 'and', children: [...between.children, one] }), undefined);
@@ -725,7 +734,7 @@ describe("a Date Filter (date-ranges.ts): a range relative to today, or the days
     assert.equal((datesBetweenConditions('at', '2024-02-01', '2024-02-29', 'DateTime')[1] as { value: unknown }).value, '2024-03-01T00:00:00', 'a leap day');
     assert.equal((datesBetweenConditions('at', '2024-12-31', '2024-12-31', 'DateTime')[1] as { value: unknown }).value, '2025-01-01T00:00:00', 'a year on');
     // a day column's as it was: both days, as written
-    assert.deepEqual(datesBetweenConditions('d', '2024-06-01', '2024-06-30', 'StrictDate'), datesBetweenConditions('d', '2024-06-01', '2024-06-30'));
+    assert.deepEqual(datesBetweenConditions('d', '2024-06-01', '2024-06-30', 'StrictDate'), datesBetweenConditions('d', '2024-06-01', '2024-06-30', undefined));
     // read back as the days it keeps, said so
     const timed = { kind: 'and', children: datesBetweenConditions('at', '2024-02-01', '2024-02-29', 'DateTime') } as const;
     assert.deepEqual(datesKept(timed), { column: 'at', from: '2024-02-01', to: '2024-02-29' });
@@ -1130,6 +1139,8 @@ describe("Imputation (impute.ts): a number's empties filled, a value or the colu
     assert.deepEqual(handedOn(rowColumns(done.snapshot).map((c) => c.name), done.snapshot, config).map((c) => [c.name, c.as]),
       [['region', 'region'], ['notional_filled', 'notional'], ['qty', 'qty']]);
     assert.deepEqual(boxOrder(done.snapshot, config), ['region', 'notional_filled', 'qty'], "the relation's select, for what reads it");
+    // in its column's place is no Select's order: the box says Imputation alone
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, columns: done.snapshot.columns, derived: done.snapshot.derived }), config)).also, []);
     // a negative filler read back: the protocol writes -1 as minus(1)
     assert.deepEqual(imputedOf(done.snapshot.derived[0]!, done.snapshot.derived)?.with, { kind: 'value', value: -1 });
   });

@@ -137,7 +137,8 @@ export function correlationsOf(table: ResultTable, names: readonly string[]): Co
   };
 }
 
-/** The question that types the rows profiled: none of them (`limit(0)`), its columns typed by the plan. */
+/** The question that types the rows profiled: none of them (`limit(0)`), its columns typed by the plan -- as an
+ *  Output's (query.ts columnsLambda), written here so a Profile fetches no query code. */
 export function columnsLambda(rows: ValueSpecification): Lambda {
   return from(rows).limit(0).lambda();
 }

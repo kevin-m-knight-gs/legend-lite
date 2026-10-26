@@ -162,7 +162,9 @@ export function checkCommands(s: CubeSnapshot, checks: readonly Check[]): GridCo
     { kind: 'calculate', level: 'row', column: { name: ROWS_COLUMN, lambda: lambda(['x'], lit.integer(1)), kind: 'measure' } },
     { kind: 'calculate', level: 'row', column: { name: CHECKS_COLUMN, lambda: lambda(['x'], lit.string(ALL)), kind: 'dimension' } },
     { kind: 'group', rows: [CHECKS_COLUMN] },
-    ...[ROWS_COLUMN, ...counts].map((name): GridCommand => ({ kind: 'column', name, change: { aggregate: 'sum' } })),
+    // its rows counted, not summed: 0 of no rows (the review of 2026-10-26's C4); each check's failing rows summed
+    { kind: 'column', name: ROWS_COLUMN, change: { aggregate: 'count' } },
+    ...counts.map((name): GridCommand => ({ kind: 'column', name, change: { aggregate: 'sum' } })),
     ...after,
     { kind: 'configure', patch: { columns: Object.fromEntries(hidden.map((c) => [c, { hidden: true }])) } },
   ];
@@ -286,13 +288,14 @@ export interface Failing { readonly check: Check; readonly rows: number }
 /**
  * The checks a test's row says fail (`value`: each check's count, by its column; undefined for every column when it has
  * no row), each with how many rows fail it -- a count of rows's, its rows. A test of no rows (its input has none) is
- * grouped into no row: every count's 0, and a count of rows fails its smallest (1 at least) -- read off the row's
- * absence, nothing compared. A row (its count of rows in it) lacking a check's count is no row of this test: thrown,
+ * one row (query.ts: a grouping by one value is every row aggregated), its count of rows 0 and every other count none,
+ * as a sum of no rows is: every check's 0, and a count of rows fails by the database's comparison (1 at least) -- or,
+ * a test grouped into no row, its absence read so. A row of rows lacking a check's count is no row of this test: thrown,
  * never read as none failing (AGENTS.md invariant 4).
  */
 export function failingChecks(checks: readonly Check[], value: (name: string) => unknown): Failing[] {
   const rows = value(ROWS_COLUMN);
-  const row = rows !== undefined && rows !== null;
+  const row = rows !== undefined && rows !== null && Number(rows) > 0;
   return checks.flatMap((check): Failing[] => {
     const counted = value(checkName(check));
     const absent = counted === undefined || counted === null;

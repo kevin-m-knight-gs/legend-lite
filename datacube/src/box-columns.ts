@@ -14,6 +14,7 @@
 //
 // PURE: no DOM, no planner.
 
+import { colSpec, colSpecs, fn, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { rowColumns, ungroupedDimensions, type CubeShape, type DerivedColumn } from './snapshot.ts';
 
@@ -101,4 +102,30 @@ export function handedOn(columns: readonly string[], query: Query, configuration
   const omitted = new Set(boxOmitted(query, configuration));
   const renamed = new Map(boxRenamed(query, configuration).map((r) => [r.from, r.to] as const));
   return inOrder(columns.filter((c) => !omitted.has(c)), configuration, columns).map((name) => ({ name, as: renamed.get(name) ?? name }));
+}
+
+/** A name of the product's own a renamed column passes through (handedOnRows), never shown: the machinery's prefix
+ *  (grid/columns.ts WINDOW_ALL_PREFIX), named here, so what imports this module fetches no grid code. */
+const RENAMING = '__all__renaming';
+
+/**
+ * A BOX'S ROWS AS IT HANDS THEM ON, the one rule (what the box after it reads, join-open.ts inputRows; what its Output
+ * writes, flow-output.ts): `rows`, its rows (handedOnLambda), their columns `columns`; `on`, the columns it hands on, in its order,
+ * each under the name it hands it on by (box-columns.ts handedOn) -- selected, then renamed by the relation's rename. A
+ * rename takes a name no column has, so where one takes a name another column has (a Select's swap: a as b, b as a; the
+ * review of 2026-10-26's C11) each goes through a name of the product's own first.
+ */
+export function handedOnRows(rows: ValueSpecification, columns: readonly string[],
+  on: readonly { readonly name: string; readonly as: string }[]): ValueSpecification {
+  const same = on.length === columns.length && on.every((c, i) => c.name === columns[i]);
+  let out = same ? rows : fn('select', rows, colSpecs(on.map((c) => c.name)));
+  const renames = on.filter((c) => c.as !== c.name);
+  const names = new Set(on.map((c) => c.name));
+  if (!renames.some((r) => names.has(r.as))) {
+    for (const r of renames) out = fn('rename', out, colSpec(r.name), colSpec(r.as));
+    return out;
+  }
+  renames.forEach((r, i) => { out = fn('rename', out, colSpec(r.name), colSpec(`${RENAMING}${i}`)); });
+  renames.forEach((r, i) => { out = fn('rename', out, colSpec(`${RENAMING}${i}`), colSpec(r.as)); });
+  return out;
 }

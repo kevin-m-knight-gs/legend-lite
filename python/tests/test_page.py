@@ -1991,12 +1991,13 @@ class Abilities(Paged):
             grid.test([{'kind': 'rows', 'min': 0}])
         with self.assertRaisesRegex(ValueError, 'a rows check takes no column'):
             grid.test([{'kind': 'rows', 'column': 'id', 'max': 2}])
-        # a Test of no rows (its input has none): no row, every count 0 -- a count of rows fails its smallest
+        # a Test of no rows (its input has none): one row, its count of rows 0 (a grouping by one value is every row
+        # aggregated: the review of 2026-10-26's C4) -- a count of rows fails its smallest
         none = page.grid(frame, name='none')
         none.filter(('region', 'equal', 'AMER'))
         tested = page.grid(input=none)
         tested.test([{'kind': 'notEmpty', 'column': 'id'}, {'kind': 'rows', 'min': 1}])
-        self.assertEqual(len(tested.to_pandas()), 0)
+        self.assertEqual(len(tested.to_pandas()), 1)
         self.assertEqual(tested.failing, [{'check': 'at least 1 row', 'rows': 0, 'says': 'at least 1 row: it has 0 rows'}])
 
     def test_rows_summarised_as_a_flow_box_summarises_them(self):
