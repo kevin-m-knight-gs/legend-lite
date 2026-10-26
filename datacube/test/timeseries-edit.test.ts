@@ -86,6 +86,14 @@ describe('a timeseries tile changed by its one rule', () => {
     assert.deepEqual([slots.view, slots.grain, slots.range], [{ compare: 'percent' }, 'month', undefined]);
   });
 
+  // the Phase 1 review's 9 (2026-10-26): the viewer told intersect as none, Python as 'intersect' -- two spellings of one
+  // setting, and a query asked again for nothing
+  it('intersect, the default, is one spelling whoever tells it: none', () => {
+    assert.equal(editTimeseries(SPEC, { kind: 'align', align: 'intersect' }).align, undefined);
+    assert.equal(editTimeseries({ ...SPEC, align: 'step' }, { kind: 'slots', slots: { align: 'intersect' } }).align, undefined);
+    assert.equal(editTimeseries(SPEC, { kind: 'slots', slots: { align: 'step' } }).align, 'step');
+  });
+
   // the next phases' 2 (2026-10-26): a pane upside down, its left axis' ends by hand
   it('a pane turned upside down, its ends set and taken off; ends the wrong way round refused by the reader', () => {
     const turned = editTimeseries(SPEC, { kind: 'pane', index: 0, invert: true, min: 0, max: 5 });

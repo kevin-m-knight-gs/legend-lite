@@ -7,7 +7,7 @@ import { describe, it } from 'node:test';
 
 import { tsProblem, type TimeseriesSpec, type TsExpr } from '../src/timeseries-spec.ts';
 import {
-  aliasFor, candleOf, columnsOf, defaultTimeseries, exprText, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
+  aliasFor, candleOf, columnsOf, defaultTimeseries, exprText, functionNamed, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
   levelOf, timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS,
 } from '../src/timeseries-expr.ts';
 
@@ -153,6 +153,24 @@ describe('the expression language', () => {
       const args = f.series === 'many' ? 'close, 0.6, close, 0.4' : Array.from({ length: f.series }, () => 'close').join(', ');
       assert.equal(exprText(parseExpr(`${f.name}(${args})`)), `${f.name}(${args})`, f.name);
     }
+  });
+});
+
+// the Phase 1 review's 7 and 8 (2026-10-26)
+describe('a weighted sum\'s weights, and the catalog\'s words', () => {
+  it('weights summing to nothing refused, said so -- a sum of floats near 0 as much as one of 0', () => {
+    assert.throws(() => parseExpr('weighted_sum(close[A], 1, close[B], -1)'), /its weights sum to 0/);
+    assert.throws(() => parseExpr('weighted_sum(close[A], 0.1, close[A], 0.2, close[A], -0.3)'), /its weights sum to 0/);
+    assert.throws(() => parseExpr('weighted_sum(close[A], 0.5, close[B])'), /reads series and their weights, in pairs/);
+    const saved = { sources: [{ alias: 'px', cube: 'g', date: 'd' }], series: [{ id: 'A', expr: { kind: 'call', fn: 'weighted_sum',
+      args: [{ kind: 'column', column: 'c' }, { kind: 'number', value: 0.1 }, { kind: 'column', column: 'c' }, { kind: 'number', value: 0.2 },
+        { kind: 'column', column: 'c' }, { kind: 'number', value: -0.3 }] } }] };
+    assert.match(tsProblem(saved) ?? '', /its weights sum to 0/);
+  });
+
+  it('vol_swap_volatility\'s first value is gs-quant\'s: no ramp said to differ', () => {
+    assert.doesNotMatch(functionNamed('vol_swap_volatility')!.differs ?? '', /ramp/);
+    assert.match(functionNamed('mean')!.differs ?? '', /ramp starts one observation later/);
   });
 });
 

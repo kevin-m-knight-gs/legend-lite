@@ -280,3 +280,49 @@ probes of its own against DuckDB, pandas and gs-quant 2.2.1's source. Each fix p
 - Fixed alongside (`75fc5395`): the legend's change in percent is a level's alone (a spread's start may be near zero).
 - Not changed: `percentiles` from the start stays a self-join (a value's rank among those before it is no window
   aggregate).
+
+## 12. The next phases' 1 review (2026-10-26)
+
+An independent review of Phase 1 (the tile's `align`, `interpolate` and gs-quant's remaining functions), read with
+probes of its own against pandas and gs-quant 2.2.1's source on an ingested table of three calendars. Each fix pinned
+by a test that failed first, in `timeseries-queries` unless said.
+
+- 1 (high), every align but intersect grew the query threefold a part: each pair read each side three times -- a spine
+  of both and an as-of join of each, backward and forward (five parts under step: 544k characters, 4.5 s). A pair is
+  now one FULL join on line and period (`merged`), each side read once, each part's values filled by its own windows
+  over that one relation (`fill`); a one-line part beside a split's goes under the source's lines (`splitLines`, a leaf
+  of the query), the lines the split has not dropped. Five parts under step: 130k. Found with it, two of the same
+  kind: the most rows a period's parts took (`when(c > most, c, most)`, the review's Q7 note) wrote `most` twice --
+  eight parts, the first part's count 130 times -- now the database's max of two (GREATEST); and a filled date no
+  longer carries a part's row counts (it took none of its rows). Pinned: "a chain of parts under each align grows by
+  the same steps each", every align, split or not; "three parts under step".
+- 2, `append` and `prepend` kept the other series' dates as empty rows, drawn as gaps and read by every function after
+  (`returns(append(...))` none where gs-quant has 0.25): gs-quant's dates alone -- x's to its last row and y's after
+  (append), x's before y's first row and y's (prepend) -- by rows, not values. A filter of a window's figure, kept by
+  the database's QUALIFY -- and a window after it now reads the rows it kept: the compiler had folded the next window
+  beside the QUALIFY, which drops rows after the select's windows (`Fold.windowFolds`: a QUALIFY is a boundary, as
+  legend-engine's nested filter is; `FoldTest`). Pinned: "union, append and prepend", a return of the spliced series.
+- 3, `if` on the dates the tile's align combines: on the flags' dates (gs-quant's `if_` has no method), the branch
+  taken none where it has none. Pinned: "if: on the flags' dates".
+- 4, a decomposition under two whole cycles gave figures (gs-quant refuses): none. Its places in the cycle were row
+  numbers, so a missing month moved every month after it: the calendar's at months, quarters and weeks. Its daily
+  cycle counts business days; `differs` now says so, and that gs-quant fills a daily series to calendar days (7, 30,
+  91, 365). Pinned: "a decomposition: none under two whole cycles; each place ... a month missing".
+- 5, `interpolate`'s default was step (gs-quant's is intersect), and its step carried x's last observation where
+  gs-quant's walks the dates asked: from x's value as of the first one, each carried to the next -- an x date between
+  two asked never read. Both as gs-quant's. A filter of a plain column folds under its select's windows (the engine's
+  relational rule, `Fold.filterSlot`, PCT `testExtendFilterOutNull`), so y's dates are kept by one reading a window
+  (QUALIFY), after the windows that read every date. Pinned: "interpolate: as gs-quant's", y begun on a date x lacks.
+- 6, small edges as gs-quant's: `smooth_spikes` keeps a value beside none (a comparison with NaN never holds), its
+  first and last rows alone dropped; `compare` beside none is 0; `filter(..., not_equals, v)` drops the dates of none
+  too (NaN != v); `first`, `last` and the date parts on every date, those of none too. Pinned in `timeseries-queries`.
+- 7, `vol_swap_volatility` said gs-quant's ramp starts one observation later: its `Window(n, n - 1)` starts where this
+  one does -- the text taken off. Pinned: `timeseries-spec`.
+- 8, a weighted sum whose weights sum to a float near 0 (0.1 + 0.2 - 0.3) was taken; one of exactly 0 was refused as
+  not "in pairs": both refused, saying the weights sum to 0. A number where a series is named by its place (its third
+  argument, not "second"). The weights' sum and smooth_spikes' 1 + threshold are the database's. Pinned:
+  `timeseries-spec`, `timeseries-queries`.
+- 9, intersect told as none by the viewer and as 'intersect' by Python -- two spellings, and a query asked again: the
+  edit rule keeps it as none whoever tells it; Python's `options` names `align`. Pinned: `timeseries-edit`.
+- Found by the review's probes and kept: a plain filter after a window folds under it -- the engine's own semantics,
+  pinned by `FoldTest`, so the query writer reads a window where it filters after windows.

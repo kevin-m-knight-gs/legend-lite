@@ -9,7 +9,7 @@
 
 import { isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import {
-  AGGREGATES, ALIAS, isConditionOp, manyArgs, seriesWords, tenorOf, TS_COMPARISONS, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
+  AGGREGATES, ALIAS, isConditionOp, manyProblem, seriesWords, tenorOf, TS_COMPARISONS, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
   type TsOperator, type TsParamShape, type TsSeries, type TsSource,
 } from './timeseries-spec.ts';
 
@@ -84,6 +84,9 @@ const RAMP_DIFFERS = 'a window of w observations drawn from the observation it f
 /** Where a lag by a calendar period differs: the value as of the date that far back, where gs-quant's lag moves each
  *  date on by the period and keeps only the dates it lands on. */
 const OBS_DIFFERS = 'obs a calendar period back is the value as of that date, its last at or before it (gs-quant\'s only on the dates whose date that far back has a value)';
+/** Where a classical decomposition differs (the Phase 1 review's 4): gs-quant first fills its series to a calendar
+ *  -- business days to every day, a gap with the value before it -- and refuses one of under two cycles. */
+const DECOMPOSE_DIFFERS = 'the tile needs a frequency; a daily cycle counts business days (5 a week, 21 a month, 63 a quarter, 252 a year) whatever the rows\' days, where gs-quant fills a daily series to every calendar day (7, 30, 91, 365); a month, a quarter or a week missing is not filled -- each place in the cycle is still the calendar\'s, the moving average reading the observations either side; under two whole cycles, none (gs-quant refuses)';
 /** Where beta differs on two calendars: each series' returns on its own dates, joined on the dates both have. */
 const BETA_DIFFERS = 'on two calendars, over the dates both have (gs-quant takes the covariance over every date either has, over the benchmark\'s own variance)';
 
@@ -318,8 +321,8 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   // dates (the next phases' 1, 2026-10-26)
   interpolate: { level: 'keeps',
     label: 'Onto the dates of another', family: 'Dates', unit: 'same',
-    params: { method: "intersect: the dates both have; nan: none where x has none; zero: 0 there; step: x's last value at or before each (before its first, its first)" },
-    about: 'x on the dates of y -- its lines, a split\'s, under every line of y\'s -- by method.',
+    params: { method: "intersect: the dates both have; nan: none where x has none; zero: 0 there; step: from x's value as of y's first date (its first, before it starts), each of y's dates x's own value, else the one before among them" },
+    about: 'x on the dates of y -- its lines, a split\'s, under every line of y\'s -- by method (gs-quant\'s, its default intersect).',
     gsQuant: 'datetime.interpolate',
   },
   union: { level: 'keeps',
@@ -352,7 +355,7 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   // algebra and analysis (the next phases' 1, 2026-10-26)
   if: {
     label: 'One or the other, by a condition', family: 'Math', unit: 'same',
-    about: 'Where flags holds (not 0), x; where not, y -- each a series or a number: if(close > mean(close, 50), close, 0).',
+    about: 'On the dates of its flags: where they hold (not 0), x; where not, y -- each a series or a number, none where the one taken has none: if(close > mean(close, 50), close, 0).',
     gsQuant: 'algebra.if_', aliases: ['if_'], differs: 'flags other than 0 hold (gs-quant refuses flags but 0 and 1)',
   },
   not: {
@@ -366,7 +369,7 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   filter: { level: 'keeps',
     label: 'Drop values', family: 'Math', unit: 'same',
     params: { operator: 'empty: the dates of none; else the values where x is less_than, greater_than, l_equals, g_equals, equals or not_equals value', value: 'what x is compared with' },
-    about: 'x without the values the operator matches (gs-quant\'s filter_ removes them): every figure after it reads the dates left.',
+    about: 'x without the values the operator matches (gs-quant\'s filter_ removes them; by not_equals, the dates of none too): every figure after it reads the dates left.',
     gsQuant: 'algebra.filter_', aliases: ['filter_'],
   },
   product: {
@@ -408,14 +411,14 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
     params: { method: 'additive: a season of its own size; multiplicative: of its share', freq: 'the cycle: a year, a quarter, a month or a week' },
     about: 'Its trend in a classical decomposition: a moving average centred over one cycle of the tile\'s frequency (a year of months, 12).',
     gsQuant: 'technicals.trend',
-    differs: 'a cycle counted in the series\' own observations (a year of business days, 252), where gs-quant first fills business days to calendar days; the tile needs a frequency',
+    differs: DECOMPOSE_DIFFERS,
   },
   seasonally_adjusted: { level: 'keeps',
     label: 'Seasonally adjusted', family: 'Level', unit: 'same',
     params: { method: 'additive: x less its season; multiplicative: x over its season', freq: 'the cycle: a year, a quarter, a month or a week' },
     about: 'x with its season taken out, a classical decomposition\'s: each place in the cycle\'s mean detrended value, centred, removed.',
     gsQuant: 'technicals.seasonally_adjusted',
-    differs: 'a cycle counted in the series\' own observations (a year of business days, 252), where gs-quant first fills business days to calendar days; the tile needs a frequency',
+    differs: DECOMPOSE_DIFFERS,
   },
 };
 
@@ -430,7 +433,8 @@ export const TS_FUNCTIONS: readonly TsFunction[] = (Object.keys(WORDS) as TsFunc
     return { ...p, about: said };
   });
   // every rolling figure's ramp, and beta's calendar, said where they differ (the second audit's N1, N2: undeclared)
-  const differs = [words.differs, sig.params.some((p) => p.name === 'w' && p.kind === 'span') ? RAMP_DIFFERS : undefined,
+  // vol_swap_volatility's first value is gs-quant's own (its Window(n, n - 1): the Phase 1 review's 7)
+  const differs = [words.differs, sig.params.some((p) => p.name === 'w' && p.kind === 'span') && name !== 'vol_swap_volatility' ? RAMP_DIFFERS : undefined,
     sig.params.some((p) => p.name === 'obs') ? OBS_DIFFERS : undefined,
     name === 'beta' ? BETA_DIFFERS : undefined].filter((d): d is string => d !== undefined);
   return { name, series: sig.series, params, ...words, ...(differs.length > 0 ? { differs: differs.join('; ') } : {}) };
@@ -964,7 +968,9 @@ export function parseExpr(text: string): TsExpr {
       } while (isOp(',') && next());
     }
     expect(')');
-    if (f.series === 'many' ? !manyArgs(args) : args.length < f.series) throw new TsSyntaxError(`${f.name} reads ${seriesWords(f.series)}`, at);
+    const many = f.series === 'many' ? manyProblem(args) : undefined;
+    if (many !== undefined) throw new TsSyntaxError(`${f.name} ${many}`, at);
+    if (f.series !== 'many' && args.length < f.series) throw new TsSyntaxError(`${f.name} reads ${seriesWords(f.series)}`, at);
     return { kind: 'call', fn: f.name, args, ...(Object.keys(params).length > 0 ? { params } : {}) };
   };
   const paramValue = (param: TsParam): number | string => {

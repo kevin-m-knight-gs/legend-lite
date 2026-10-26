@@ -136,6 +136,12 @@ function laid<T extends object>(was: T | undefined, change: { readonly [k: strin
   return next;
 }
 
+/** An align as the tile keeps it: intersect, its default, as none -- one spelling whoever tells it (the Phase 1
+ *  review's 9: the viewer's none and Python's 'intersect' were two, and a query asked again for nothing). */
+function alignTold(align: TsAlign | null | undefined): TsAlign | null {
+  return align === 'intersect' || align === undefined ? null : align;
+}
+
 /** The spec with `key` set, or taken off (null). */
 function slot<K extends keyof TimeseriesSpec>(spec: TimeseriesSpec, key: K, value: TimeseriesSpec[K] | null): TimeseriesSpec {
   const { [key]: _was, ...rest } = spec;
@@ -280,7 +286,7 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
     case 'grain':
       return slot(spec, 'grain', change.grain);
     case 'align':
-      return slot(spec, 'align', change.align);
+      return slot(spec, 'align', alignTold(change.align));
     case 'range':
       return slot(spec, 'range', change.range);
     case 'view': {
@@ -367,7 +373,10 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
       if (unknown !== undefined) throw new TsEditRefusal(`there is no ${JSON.stringify(unknown)} among a tile's slots (${SLOTS.join(', ')})`);
       let next = spec;
       for (const key of SLOTS) {
-        if (Object.hasOwn(change.slots, key)) next = slot(next, key, change.slots[key] as TimeseriesSpec[typeof key] | null);
+        if (!Object.hasOwn(change.slots, key)) continue;
+        const told = change.slots[key];
+        next = key === 'align' ? slot(next, 'align', alignTold(told as TsAlign | null))
+          : slot(next, key, told as TimeseriesSpec[typeof key] | null);
       }
       return next;
     }

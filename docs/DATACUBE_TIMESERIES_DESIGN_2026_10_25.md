@@ -514,10 +514,13 @@ dated budget notes; every figure still the database's.
   detrended values), which the database computes; over the series' own observations, a cycle counted in them (a year of
   months 12, of weeks 52, of business days 252), where gs-quant first fills business days to calendar days (a
   deliberate difference: no calendar of days the data does not have).
-  *Built (2026-10-26).* The spine of every date either part has (`datesOf`) and each part put onto it (`onto`: an
-  equi-join for nan and zero; for step and time, the part's own windows -- its last and next period with a value, and
-  the value there -- and the database's as-of joins, backward and forward), its value columns keeping their names, so
-  every function after it reads them as before. A correlation, a beta, a regression and a candle read the dates both
+  *Built (2026-10-26).* Two parts merged by one FULL join on their line and period (`merged`: each part read once, so
+  a nesting of them grows linearly -- the Phase 1 review's 1, docs/TIMESERIES_REVIEW_2026_10_25.md §12), a one-line
+  part beside a split's under the source's lines; each part's values put onto the dates by its own windows over that
+  relation (`fill`: none for nan, 0 for zero; for step and time, its last and next period with a value, and the value
+  there), keeping their names, so every function after it reads them as before. `if` is on its flags' dates, `append`
+  and `prepend` on gs-quant's (x's to its last row, y's after; x's before y's first, y's), `interpolate` as gs-quant's
+  (intersect unless told; its step walking the dates asked). A correlation, a beta, a regression and a candle read the dates both
   have whatever the tile's align (gs-quant's econometrics do). `filter` drops its rows -- a filter of a window's figure
   is the database's QUALIFY, so a window before it read every date and a window after it reads the dates left (both
   pinned). `excess_returns` over a number is a rate accrued actual/360; over a series, a cash index compounded on the

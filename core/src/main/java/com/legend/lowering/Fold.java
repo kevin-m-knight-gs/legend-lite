@@ -416,11 +416,15 @@ final class Fold {
     /**
      * A window column computes over the CURRENT select's row set: WHERE is fine
      * (windows evaluate after it), ORDER BY is fine (independent orderings) —
-     * but truncation, dedup, and grouping all change the row set the window
-     * must see, so each forces isolation.
+     * but truncation, dedup, grouping and a QUALIFY all change the row set the
+     * window must see, so each forces isolation. A QUALIFY filters after the
+     * select's windows: a window folded beside it read the rows it dropped
+     * ({@code extend(over)->filter(<a window's>)->extend(over(lag))} lagged
+     * onto a dropped row, 2026-10-26, the timeseries Phase 1 review's splice),
+     * where legend-engine's nested filter has it read the rows kept.
      */
     static boolean windowFolds(SqlSelect s) {
-        return !s.distinct() && s.limit() == null && s.offset() == null && s.groupBy().isEmpty();
+        return !s.distinct() && s.limit() == null && s.offset() == null && s.groupBy().isEmpty() && s.qualify() == null;
     }
 
     /** PURE-semantics null placement for a sort key (the

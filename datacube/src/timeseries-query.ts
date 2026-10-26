@@ -862,16 +862,13 @@ function columnPart(sh: Shared, n: Extract<TsExpr, { kind: 'column' }>): Node {
  */
 function joined(sh: Shared, nodes: readonly { readonly w: Writer; readonly v: Value }[], how: TsAlign = 'intersect'): Writer {
   // the parts of a line per value first: theirs is the line the join is partitioned by
+  // every date any has: merged in turn, each read once (#aligned)
+  if (how !== 'intersect') return aligned(sh, nodes.map((n) => ({ w: n.w, values: valueColumns(n.v) })), how).w;
   const order = [...nodes].sort((a, b) => Number(b.w.split) - Number(a.w.split));
   let left = order[0]!.w;
   let carried = valueColumns(order[0]!.v);
   for (const right of order.slice(1)) {
     const r = right.w;
-    if (how !== 'intersect') {
-      left = aligned(sh, { w: left, values: carried }, { w: r, values: valueColumns(right.v) }, how);
-      carried = [...carried, ...valueColumns(right.v)];
-      continue;
-    }
     const fresh = (what: string): string => freshName(sh, what);
     const p = fresh('jp');
     const a = fresh('ja');
@@ -893,137 +890,163 @@ function joined(sh: Shared, nodes: readonly { readonly w: Writer; readonly v: Va
   return left;
 }
 
-/** A part as an alignment puts it onto dates: its writer, and the value columns it carries. */
+/** A part as an alignment puts it onto dates: its writer, the value columns it fills, and those it carries as they are
+ *  (a part's has-a-row marks, through the merges after). */
 interface Aligned {
   readonly w: Writer;
   readonly values: readonly string[];
+  readonly kept?: readonly string[];
+}
+
+/** Two parts merged (merged): their writer -- every date either has, by line -- and, for each as it was given, the
+ *  column that is 1 where it had a row and its own ORD there. */
+interface Merged {
+  readonly w: Writer;
+  readonly has: readonly [string, string];
+  readonly ords: readonly [string, string];
 }
 
 /**
- * EVERY DATE EITHER PART HAS (the next phases' 1, 2026-10-26; gs-quant's `align` but intersect): the dates of both, a
- * line's of a split and the other's (a part of one line under every line of the split), each dated at its latest
- * part's last observation -- then each part put onto them by `how` (#onto), its value columns keeping their names.
+ * THE LINES OF THE SPLIT, read off the first source -- its rows as the tile reads them (a date on each, the grid's
+ * filter) -- the line names a part of one line is put under (`close[SPY]` beside `close`): a leaf of the query, however
+ * deep the parts merged, so a merge of it reads each part once (the Phase 1 review's 1).
  */
-function aligned(sh: Shared, left: Aligned, right: Aligned, how: Exclude<TsAlign, 'intersect'>): Writer {
-  const L = left.w;
-  const R = right.w;
-  const spine = datesOf(sh, L, [L, R]);
-  let rel = spine.rel;
-  let kept = spine.columns;
-  for (const side of [left, right]) {
-    const put = onto(sh, rel, kept, spine.part, side, side.w === L || side.w.split === L.split, how);
-    rel = put.rel;
-    kept = put.columns;
-  }
-  return new Writer(rel, {
-    part: spine.part, split: L.split, at: spine.at, seconds: L.seconds,
-    rows: [...L.rows, ...R.rows], years: [...L.years, ...R.years],
-  }, sh);
+function splitLines(sh: Shared): Relation {
+  const split = sh.split;
+  if (split === undefined) throw new Error('a part of one line is put under the lines of a split: the series has none');
+  const { src, input } = sourceNamed(sh.ts, sh.inputs, sh.first);
+  const s = input.snapshot;
+  const conditions: ValueSpecification[] = [fn('isNotEmpty', col(src.date))];
+  const filter = filterRead(src, input.filter);
+  if (filter) conditions.push(filterNode(filter, 'x', (c) => typeIn(s, c)));
+  return sourceWithDerived(s).filter(row(and(...conditions))).select([split]).distinct([split]);
 }
 
 /**
- * THE DATES OF `parts`, as one relation: each line's periods (the line of `lines` -- a line of the split, or the one
- * line), each dated at its latest part's last observation (its `at` and its ORD, the most of theirs). A part of one
- * line under a split's (`close[SPY]` beside `close`) gives its dates to every line of the split.
+ * TWO PARTS MERGED, every date either has (the next phases' 1; rewritten for the Phase 1 review's 1, 2026-10-26): a
+ * FULL join on their line and their period -- each part read ONCE, so a nesting of them grows linearly (an as-of join
+ * of each and a spine of both read each three times: a basket of six instruments under step was 2 MB of SQL) -- each
+ * period dated at its latest part's last observation. A part of one line beside a split's goes under every line of it
+ * (splitLines), the lines the split has not dropped. Each part's values, carried columns and kept columns keep their
+ * names; none where it has no row.
  */
-function datesOf(sh: Shared, lines: Writer, parts: readonly Writer[]): { readonly rel: Relation; readonly part: string; readonly at: string; readonly columns: string[] } {
-  const part = lines.part;
-  const at = freshName(sh, 'al_at');
-  const each = parts.map((w) => {
-    const own = w.rel.select([...(w.split === lines.split ? [w.part] : []), PERIOD, w.at, ORD]).rename(w.at, at);
-    if (w.split === lines.split) return own;
-    // one line under every line of the split: its dates for each, by a key both carry
-    const k = freshName(sh, 'al_k');
-    const k2 = freshName(sh, 'al_k');
-    const names = lines.rel.select([part]).distinct([part]).extend([derive(k, row(lit.integer(1)))]);
-    return names.join(own.extend([derive(k2, row(lit.integer(1)))]), 'INNER',
-      lambda(['l', 'r'], fn('equal', property(variable('l'), k), property(variable('r'), k2)))).select([part, PERIOD, at, ORD]);
-  });
-  const all = each.slice(1).reduce((u, r) => u.concatenate(r), each[0]!);
-  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
-  const rel = all.groupBy([part, PERIOD], [agg(at, row(col(at)), y('max')), agg(ORD, row(col(ORD)), y('max'))]);
-  return { rel, part, at, columns: [part, PERIOD, at, ORD] };
-}
-
-/**
- * A PART PUT ONTO DATES (`dates`: a relation of `part`, PERIOD, its date and ORD, carrying `columns`), its value columns
- * keeping their names -- by its line (`keyed`: both a line of the split, or both one line) or under every line:
- * `intersect`, the dates it has alone; `nan`, every date, none where it has none; `zero`, 0 there; `step`, each date its
- * last value at or before it -- before its first, its first (gs-quant's ffill then bfill); `time`, linear in time
- * between its values before and after (none outside them: pandas' limit_area='inside'). The part's own windows say its
- * last and next values (a running maximum of the periods it has a value in, and the value there); the database's as-of
- * joins find them for every date.
- */
-function onto(sh: Shared, dates: Relation, columns: readonly string[], part: string, side: Aligned, keyed: boolean,
-  how: Exclude<TsAlign, 'intersect'> | 'intersect'): { readonly rel: Relation; readonly columns: string[] } {
-  const w = side.w;
-  const R = Writer.read;
+function merged(sh: Shared, a: Aligned, b: Aligned): Merged {
+  // the split's part first: its lines are the merge's
+  const swap = b.w.split && !a.w.split;
+  const [L, R] = swap ? [b, a] : [a, b];
   const fresh = (what: string): string => freshName(sh, what);
-  const carry = [...w.rows, ...w.years];
-  const L = (c: string): ValueSpecification => property(variable('l'), c);
-  const Rr = (c: string): ValueSpecification => property(variable('r'), c);
-  // a copy of the part's columns under fresh names, joined to the dates
-  const copy = (cols: readonly string[]): { readonly rel: Relation; readonly name: Map<string, string> } => {
-    const name = new Map([...(keyed ? [w.part] : []), PERIOD, ...cols].map((c) => [c, fresh('al_r')] as const));
-    let rel = w.rel.select([...name.keys()]);
-    for (const [from, to] of name) rel = rel.rename(from, to);
-    return { rel, name };
+  const part = L.w.part;
+  const side = (s: Aligned, under: boolean): { rel: Relation; p: string; per: string; at: string; ord: string; has: string } => {
+    const w = s.w;
+    const own = [...s.values, ...(s.kept ?? []), ...w.rows, ...w.years];
+    let rel = w.rel;
+    let p = w.part;
+    if (under) {
+      // a part of one line under every line of the split, by a key both carry
+      const k = fresh('al_k');
+      const k2 = fresh('al_k');
+      rel = splitLines(sh).extend([derive(k, row(lit.integer(1)))])
+        .join(rel.select([PERIOD, w.at, ORD, ...own]).extend([derive(k2, row(lit.integer(1)))]), 'INNER',
+          lambda(['l', 'r'], fn('equal', property(variable('l'), k), property(variable('r'), k2))));
+      p = part;
+    }
+    const names = { p: fresh('al_p'), per: fresh('al_per'), at: fresh('al_at'), ord: fresh('al_ord'), has: fresh('al_has') };
+    rel = rel.select([p, PERIOD, w.at, ORD, ...own]).rename(p, names.p).rename(PERIOD, names.per).rename(w.at, names.at).rename(ORD, names.ord)
+      .extend([derive(names.has, row(lit.integer(1)))]);
+    return { rel, ...names };
   };
-  const byLine = (name: ReadonlyMap<string, string>): ValueSpecification[] => (keyed ? [fn('equal', L(part), Rr(name.get(w.part)!))] : []);
-  const out = (rel: Relation, made: readonly (readonly [string, ValueSpecification])[]): { readonly rel: Relation; readonly columns: string[] } => {
-    const names = made.map(([n]) => n);
-    return { rel: rel.extend(made.map(([n, v]) => derive(n, row(v)))).select([...columns, ...names]), columns: [...columns, ...names] };
-  };
-  if (how === 'intersect' || how === 'nan' || how === 'zero') {
-    const c = copy([...side.values, ...carry]);
-    const on = lambda(['l', 'r'], and(fn('equal', L(PERIOD), Rr(c.name.get(PERIOD)!)), ...byLine(c.name)));
-    const rel = dates.join(c.rel, how === 'intersect' ? 'INNER' : 'LEFT', on);
-    return out(rel, [...side.values.map((v) => [v, how === 'zero'
-      ? when(fn('isEmpty', col(c.name.get(v)!)), lit.integer(0), col(c.name.get(v)!)) : col(c.name.get(v)!)] as const),
-    ...carry.map((e) => [e, col(c.name.get(e)!)] as const)]);
+  const l = side(L, false);
+  const r = side(R, L.w.split !== R.w.split);
+  const on = lambda(['l', 'r'], and(fn('equal', property(variable('l'), l.p), property(variable('r'), r.p)),
+    fn('equal', property(variable('l'), l.per), property(variable('r'), r.per))));
+  const either = (x: string, y: string): ValueSpecification => when(fn('isEmpty', col(x)), col(y), col(x));
+  const latest = (x: string, y: string): ValueSpecification =>
+    when(fn('isEmpty', col(x)), col(y), when(fn('isEmpty', col(y)), col(x), when(fn('greaterThanEqual', one(x), one(y)), col(x), col(y))));
+  const at = fresh('al_at');
+  const keep = (s: Aligned): string[] => [...s.values, ...(s.kept ?? []), ...s.w.rows, ...s.w.years];
+  const rel = l.rel.join(r.rel, 'FULL', on)
+    .extend([derive(part, row(either(l.p, r.p))), derive(PERIOD, row(either(l.per, r.per))), derive(at, row(latest(l.at, r.at))),
+      derive(ORD, row(latest(l.ord, r.ord)))])
+    .select([part, PERIOD, at, ORD, l.ord, r.ord, l.has, r.has, ...keep(L), ...keep(R)]);
+  const w = new Writer(rel, {
+    part, split: L.w.split, at, seconds: L.w.seconds, rows: [...L.w.rows, ...R.w.rows], years: [...L.w.years, ...R.w.years],
+  }, sh);
+  if (L.w.split !== R.w.split) {
+    // the lines the split has (a line of the source it never reads dropped): the database's QUALIFY, a window's
+    const line = w.window('al_line', 'max', Writer.read(l.has), 'all');
+    w.rel = w.rel.filter(row(fn('isNotEmpty', col(line))));
   }
-  // the part's last period with a value at or before each of its own (a running maximum), and the value there (each run
-  // of its periods sharing that last one, a window over it) -- for `time`, its next as well, and each one's ORD
-  const has = fn('isNotEmpty', col(side.values[0]!));
-  const valued = w.row('al_vp', when(has, col(PERIOD), none()));
+  return swap ? { w, has: [r.has, l.has], ords: [r.ord, l.ord] } : { w, has: [l.has, r.has], ords: [l.ord, r.ord] };
+}
+
+/**
+ * A PART'S VALUES PUT ONTO THE MERGED DATES, each keeping its name (#merged's columns: `ord`, its own ORD where it has a
+ * row): `nan`, none where it has none (as merged); `zero`, 0 there; `step`, each date its last value at or before it --
+ * before its first, its first (gs-quant's ffill then bfill); `time`, linear in time between its values before and after
+ * (none outside them: pandas' limit_area='inside'). Its last and next valued periods its own windows (a running maximum
+ * of the periods it has a value in, and the value there) -- over the one relation, nothing read again.
+ */
+function fill(w: Writer, values: readonly string[], ord: string, how: Exclude<TsAlign, 'intersect'>): void {
+  if (how === 'nan' || values.length === 0) return;
+  const fresh = (what: string): string => w.fresh(what);
+  const R = Writer.read;
+  // each column replaced under its own name: the merged one kept under another
+  const replace = (c: string, body: (raw: string) => ValueSpecification): void => {
+    const raw = fresh('al_raw');
+    w.rel = w.rel.rename(c, raw);
+    w.rel = w.rel.extend([derive(c, row(body(raw)))]);
+  };
+  if (how === 'zero') {
+    for (const v of values) replace(v, (raw) => when(fn('isEmpty', col(raw)), lit.integer(0), col(raw)));
+    return;
+  }
+  const valued = w.row('al_vp', when(fn('isNotEmpty', col(values[0]!)), col(PERIOD), none()));
   const lastP = w.window('al_lastp', 'max', R(valued), 'running');
   const at = (p: string, c: string): string => w.window('al_v', 'max', R(w.row('al_at', when(fn('equal', col(PERIOD), col(p)), col(c), none()))), 'all', p);
-  const last = side.values.map((v) => at(lastP, v));
+  // its carried columns (the rows a value was one of, its periods a year) where it has a row alone: a date filled took
+  // none of its rows -- each merge filling every one before it grew the query faster than its parts
   if (how === 'step') {
     const firstP = w.window('al_firstp', 'min', R(valued), 'all');
-    const first = side.values.map((v) => at(firstP, v));
-    const back = copy([...last, ...carry]);
-    const ahead = copy(first);
-    const rel = dates
-      .asOfJoin(back.rel, lambda(['l', 'r'], fn('greaterThanEqual', L(PERIOD), Rr(back.name.get(PERIOD)!))),
-        ...(keyed ? [lambda(['l', 'r'], and(...byLine(back.name)))] : []))
-      .asOfJoin(ahead.rel, lambda(['l', 'r'], fn('lessThanEqual', L(PERIOD), Rr(ahead.name.get(PERIOD)!))),
-        ...(keyed ? [lambda(['l', 'r'], and(...byLine(ahead.name)))] : []));
-    return out(rel, [...side.values.map((v, i) => {
-      const b = back.name.get(last[i]!)!;
-      return [v, when(fn('isEmpty', col(b)), col(ahead.name.get(first[i]!)!), col(b))] as const;
-    }), ...carry.map((e) => [e, col(back.name.get(e)!)] as const)]);
+    const made = values.map((v) => [v, at(lastP, v), at(firstP, v)] as const);
+    for (const [v, last, first] of made) replace(v, () => when(fn('isEmpty', col(last)), col(first), col(last)));
+  } else {
+    const nextP = w.window('al_nextp', 'min', R(valued), 'rest');
+    const t0 = at(lastP, ord);
+    const t1 = at(nextP, ord);
+    const made = values.map((v) => [v, at(lastP, v), at(nextP, v)] as const);
+    for (const [v, a, b] of made) {
+      // inside its values alone; at one of its own dates, its own value
+      const between = op('plus', one(a), fn('divide', op('times', op('minus', one(b), one(a)), op('minus', one(ORD), one(t0))), op('minus', one(t1), one(t0))));
+      replace(v, () => when(or(fn('isEmpty', col(a)), fn('isEmpty', col(b))), none(), when(fn('equal', one(t0), one(t1)), col(a), between)));
+    }
   }
-  const lastOrd = at(lastP, ORD);
-  const nextP = w.window('al_nextp', 'min', R(valued), 'rest');
-  const next = side.values.map((v) => at(nextP, v));
-  const nextOrd = at(nextP, ORD);
-  const back = copy([...last, lastOrd, ...carry]);
-  const ahead = copy([...next, nextOrd]);
-  const rel = dates
-    .asOfJoin(back.rel, lambda(['l', 'r'], fn('greaterThanEqual', L(PERIOD), Rr(back.name.get(PERIOD)!))),
-      ...(keyed ? [lambda(['l', 'r'], and(...byLine(back.name)))] : []))
-    .asOfJoin(ahead.rel, lambda(['l', 'r'], fn('lessThanEqual', L(PERIOD), Rr(ahead.name.get(PERIOD)!))),
-      ...(keyed ? [lambda(['l', 'r'], and(...byLine(ahead.name)))] : []));
-  const t0 = back.name.get(lastOrd)!;
-  const t1 = ahead.name.get(nextOrd)!;
-  return out(rel, [...side.values.map((v, i) => {
-    const a = back.name.get(last[i]!)!;
-    const b = ahead.name.get(next[i]!)!;
-    // inside its values alone; at one of its own dates, its own value
-    const between = op('plus', one(a), fn('divide', op('times', op('minus', one(b), one(a)), op('minus', one(ORD), one(t0))), op('minus', one(t1), one(t0))));
-    return [v, when(or(fn('isEmpty', col(a)), fn('isEmpty', col(b))), none(), when(fn('equal', one(t0), one(t1)), col(a), between))] as const;
-  }), ...carry.map((e) => [e, col(back.name.get(e)!)] as const)]);
+}
+
+/**
+ * EVERY DATE ANY PART HAS (gs-quant's `align` but intersect): the parts merged in turn (#merged: each read once), each
+ * part's values put onto the dates by `how` (#fill) -- and, for each part, the column that is 1 where it had a row (an
+ * if's flags, an append's x: what keeps a date).
+ */
+function aligned(sh: Shared, parts: readonly Aligned[], how: Exclude<TsAlign, 'intersect'>):
+  { readonly w: Writer; readonly has: readonly string[]; readonly ords: readonly string[] } {
+  if (parts.length < 2) throw new Error('an alignment is of two parts or more');
+  let acc: Aligned = parts[0]!;
+  const has: string[] = [];
+  const ords: string[] = [];
+  for (const next of parts.slice(1)) {
+    const m = merged(sh, acc, next);
+    fill(m.w, acc.values, m.ords[0], how);
+    fill(m.w, next.values, m.ords[1], how);
+    if (has.length === 0) {
+      has.push(m.has[0]);
+      ords.push(m.ords[0]);
+    }
+    has.push(m.has[1]);
+    ords.push(m.ords[1]);
+    // the parts merged before: their has-a-row marks and their own ORDs carried, as they are
+    acc = { w: m.w, values: [...acc.values, ...next.values], kept: [...has, ...ords] };
+  }
+  return { w: acc.w, has, ords };
 }
 
 const OPS: Readonly<Record<'+' | '-' | '*' | '/', string>> = { '+': 'plus', '-': 'minus', '*': 'times', '/': 'divide' };
@@ -1083,8 +1106,17 @@ function write(sh: Shared, e: TsExpr): Node {
 /** A function's series argument, written: a part (a function reads a series, never a number alone). */
 function seriesArg(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>, i: number): { readonly w: Writer; readonly v: Value } {
   const n = write(sh, e.args[i]!);
-  if ('constant' in n) throw new CubeRefusal(`${e.fn} reads a series: its ${i === 0 ? 'first' : 'second'} argument is a number`);
+  if ('constant' in n) throw new CubeRefusal(`${e.fn} reads a series: its ${ordinal(i + 1)} argument is a number`);
   return n;
+}
+
+/** A place in words: first, second ... tenth, then 11th, 21st. */
+function ordinal(n: number): string {
+  const words = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
+  if (n >= 1 && n <= words.length) return words[n - 1]!;
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th';
+  return `${n}${suffix}`;
 }
 
 /**
@@ -1142,11 +1174,18 @@ function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | un
   const written = (): Node[] => e.args.map((a) => write(sh, a));
   switch (e.fn) {
     case 'if': {
-      // x where the flags hold (not 0), y where not, each a series or a number, on the dates the tile's align combines
+      // x where the flags hold (not 0), y where not, each a series or a number -- on the flags' dates, the branch taken
+      // none where it has none, whatever the tile's align (gs-quant's if_: no method; the Phase 1 review's 3)
       const [flags, x, y] = written() as [Node, Node, Node];
       if ('constant' in flags) throw new CubeRefusal('if reads a series of flags first: its first argument is a number');
       const parts = partsOf([flags, x, y]);
-      const w = parts.length === 1 ? flags.w : joined(sh, parts, sh.ts.align);
+      let w = flags.w;
+      if (parts.length > 1) {
+        const al = aligned(sh, parts.map((n) => ({ w: n.w, values: valueColumns(n.v) })), 'nan');
+        w = al.w;
+        // the flags are the first part: their dates alone
+        w.rel = w.rel.filter(row(fn('isNotEmpty', col(al.has[0]!))));
+      }
       const f = columnOfValue(flags.v);
       const branch = (n: Node): ValueSpecification => ('constant' in n ? n.constant : col(columnOfValue(n.v)));
       return { w, v: { column: w.row('if', when(fn('isEmpty', col(f)), none(),
@@ -1159,29 +1198,36 @@ function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | un
       }
       const parts = partsOf([x, y]);
       const w = parts.length === 1 ? parts[0]!.w : joined(sh, parts, sh.ts.align);
-      const missing = parts.map((p) => fn('isEmpty', col(columnOfValue(p.v))));
-      return { w, v: { column: w.row('cmp', when(missing.length === 1 ? missing[0]! : or(...missing), none(),
-        when(fn('greaterThan', asOperand(x), asOperand(y)), lit.integer(1), when(fn('lessThan', asOperand(x), asOperand(y)), lit.integer(-1), lit.integer(0))))) } };
+      // gs-quant's (x > y) * 1 + (x < y) * -1: beside none, neither holds -- 0 (the Phase 1 review's 6)
+      return { w, v: { column: w.row('cmp',
+        when(fn('greaterThan', asOperand(x), asOperand(y)), lit.integer(1), when(fn('lessThan', asOperand(x), asOperand(y)), lit.integer(-1), lit.integer(0)))) } };
     }
     case 'union':
     case 'append':
     case 'prepend': {
-      // every date either has, then which one's value each takes: x where it has one (union); x to its last date, y
-      // after (append); x before y's first, y from there (prepend)
+      // every date either has (union: x where it has a value, else y); gs-quant's dates for a splice -- x's every row to
+      // its last, then y's after it (append); x's before y's first row, then y's every row (prepend) -- the other's in
+      // between none of them (the Phase 1 review's 2: kept as empty rows, they broke every function after it)
       const x = seriesArg(sh, e, 0);
       const y = seriesArg(sh, e, 1);
-      const w = joined(sh, [x, y], 'nan');
       const a = columnOfValue(x.v);
       const b = columnOfValue(y.v);
+      const al = aligned(sh, [{ w: x.w, values: [a] }, { w: y.w, values: [b] }], 'nan');
+      const w = al.w;
+      const [hx, hy] = al.has as [string, string];
       if (e.fn === 'union') return { w, v: { column: w.row('union', when(fn('isNotEmpty', col(a)), col(a), col(b))) } };
       const R = Writer.read;
-      const has = (c: string): string => w.row('has_at', when(fn('isNotEmpty', col(c)), col(w.at), none()));
+      const periodOf_ = (has: string): string => w.row('sp_p', when(fn('isNotEmpty', col(has)), col(PERIOD), none()));
       if (e.fn === 'append') {
-        const last = w.window('x_last', 'max', R(has(a)), 'all');
-        return { w, v: { column: w.row('append', when(fn('lessThanEqual', one(w.at), one(last)), col(a), col(b))) } };
+        const last = w.window('x_last', 'max', R(periodOf_(hx)), 'all');
+        w.rel = w.rel.filter(row(or(fn('isNotEmpty', col(hx)),
+          and(fn('isNotEmpty', col(hy)), or(fn('isEmpty', col(last)), fn('greaterThan', col(PERIOD), col(last)))))));
+        return { w, v: { column: w.row('append', when(fn('isNotEmpty', col(hx)), col(a), col(b))) } };
       }
-      const first = w.window('y_first', 'min', R(has(b)), 'all');
-      return { w, v: { column: w.row('prepend', when(or(fn('isEmpty', col(first)), fn('lessThan', one(w.at), one(first))), col(a), col(b))) } };
+      const first = w.window('y_first', 'min', R(periodOf_(hy)), 'all');
+      w.rel = w.rel.filter(row(or(fn('isNotEmpty', col(hy)),
+        and(fn('isNotEmpty', col(hx)), or(fn('isEmpty', col(first)), fn('lessThan', col(PERIOD), col(first)))))));
+      return { w, v: { column: w.row('prepend', when(fn('isNotEmpty', col(hy)), col(b), col(a))) } };
     }
     case 'excess_returns': {
       const x = seriesArg(sh, e, 0);
@@ -1208,10 +1254,11 @@ function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | un
       const series = e.args.filter((_, i) => i % 2 === 0).map((_, i) => seriesArg(sh, e, i * 2));
       const weights = e.args.filter((_, i) => i % 2 === 1).map((x) => (x as Extract<TsExpr, { kind: 'number' }>).value);
       const w = joined(sh, series);
-      const total = weights.reduce((t, x) => t + x, 0);
+      // their sum the database's too (the file's rule: nothing here computes a value -- the Phase 1 review's 8)
+      const total = weights.map((x) => float(x)).reduce((t, x) => op('plus', t, x));
       const sum = series.map((p, i) => op('times', float(weights[i]!), one(columnOfValue(p.v))))
         .reduce((t, x) => op('plus', t, x));
-      return { w, v: { column: w.row('wsum', fn('divide', sum, float(total))) } };
+      return { w, v: { column: w.row('wsum', fn('divide', sum, total)) } };
     }
     default:
       return undefined;
@@ -1285,14 +1332,39 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   const special = otherCalls(sh, e);
   if (special !== undefined) return special;
   if (e.fn === 'interpolate') {
-    // x onto y's dates: y's lines when y is a split's and x is not, else x's -- each y's period, x put onto it
+    // x onto y's dates (gs-quant's datetime.interpolate; the Phase 1 review's 5): every date either has merged, then
+    // y's alone kept -- the dates both have (intersect), none where x has none (nan), 0 there (zero); step, as gs-quant's
+    // walks the dates asked: the first x's value as of it (its first, before it starts), each after its own value, else
+    // the one before among them -- an x date between two asked never read
     const x = seriesArg(sh, e, 0);
     const y = seriesArg(sh, e, 1);
-    const lines = x.w.split || !y.w.split ? x.w : y.w;
-    const dates = datesOf(sh, lines, [y.w]);
-    const put = onto(sh, dates.rel, dates.columns, dates.part, { w: x.w, values: valueColumns(x.v) }, x.w.split === lines.split,
-      word('method') as 'intersect' | 'nan' | 'zero' | 'step');
-    return { w: new Writer(put.rel, { part: dates.part, split: lines.split, at: dates.at, seconds: x.w.seconds, rows: x.w.rows, years: x.w.years }, sh), v: x.v };
+    const xs = valueColumns(x.v);
+    const al = aligned(sh, [{ w: x.w, values: xs }, { w: y.w, values: [] }], 'nan');
+    const [hx, hy] = al.has as [string, string];
+    const method = word('method') as 'intersect' | 'nan' | 'zero' | 'step';
+    const m = al.w;
+    const w = new Writer(m.rel, { part: m.part, split: m.split, at: m.at, seconds: x.w.seconds, rows: x.w.rows, years: x.w.years }, sh);
+    // x's value as of each date of either, before y's alone are kept: a step's first
+    const asOf = method === 'step' ? xs.map((c) => w.row('ip_asof', col(c))) : [];
+    if (method === 'step') fill(w, asOf, al.ords[0]!, 'step');
+    const firstY = method === 'step' ? w.window('ip_first', 'min', Writer.read(w.row('ip_yp', when(fn('isNotEmpty', col(hy)), col(PERIOD), none()))), 'all') : undefined;
+    // y's dates kept after the windows above read every date: a filter of a plain column folds under its select's windows
+    // (the engine's relational rule, Fold.filterSlot), one reading a window is the database's QUALIFY, after them --
+    // y's first date, which every line of y has
+    const asked = firstY ?? w.window('ip_first', 'min', Writer.read(w.row('ip_yp', when(fn('isNotEmpty', col(hy)), col(PERIOD), none()))), 'all');
+    w.rel = w.rel.filter(row(and(fn('isNotEmpty', col(asked)), fn('isNotEmpty', col(hy)), ...(method === 'intersect' ? [fn('isNotEmpty', col(hx))] : []))));
+    if (method === 'zero') fill(w, xs, al.ords[0]!, 'zero');
+    if (method === 'step') {
+      // its own value where it has one; at the first date asked, its value as of it; then each carried to the next
+      xs.forEach((c, i) => {
+        const raw = w.fresh('ip_raw');
+        w.rel = w.rel.rename(c, raw);
+        w.rel = w.rel.extend([derive(c, row(when(fn('isNotEmpty', col(raw)), col(raw),
+          when(fn('equal', col(PERIOD), col(firstY!)), col(asOf[i]!), none()))))]);
+      });
+      fill(w, xs, al.ords[0]!, 'step');
+    }
+    return { w, v: x.v };
   }
   const x = seriesArg(sh, e, 0);
   const w = x.w;
@@ -1502,7 +1574,11 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
         g_equals: (x) => fn('greaterThanEqual', x, v), equals: (x) => fn('equal', x, v), not_equals: (x) => fn('not', fn('equal', x, v)),
       };
       const how = word('operator');
-      const kept = how === 'empty' ? fn('isNotEmpty', col(a)) : or(fn('isEmpty', col(a)), fn('not', matches[how]!(one(a))));
+      // a comparison with none never holds, so none is kept -- but by not_equals, where it does (NaN != v): the values
+      // equal to it alone kept (the Phase 1 review's 6)
+      const kept = how === 'empty' ? fn('isNotEmpty', col(a))
+        : how === 'not_equals' ? fn('equal', one(a), v)
+          : or(fn('isEmpty', col(a)), fn('not', matches[how]!(one(a))));
       w.rel = w.rel.filter(row(kept));
       return done(a);
     }
@@ -1517,17 +1593,21 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       return done(w.row('geo', when(fn('isEmpty', col(a)), none(), op('minus', one(w.product(g, 'running')), lit.integer(1)))));
     }
     case 'smooth_spikes': {
-      // gs-quant's: a value beyond both neighbours (by 1 + threshold times, or threshold beyond) their mean; its first and
-      // last dropped (none)
+      // gs-quant's: a value beyond both neighbours (by 1 + threshold times, or threshold beyond) their mean -- beside none
+      // no spike (a comparison with NaN never holds: kept, the Phase 1 review's 6); its first and last rows dropped (none)
       const t = n('threshold');
       const prev = w.lag(a, 1);
       const next = w.lead(a, 1);
       const [x, p, q] = [one(a), one(prev), one(next)];
+      const by = word('type') === 'absolute' ? float(t) : op('plus', lit.integer(1), float(t));
       const beyond = word('type') === 'absolute'
-        ? (big: ValueSpecification, small: ValueSpecification): ValueSpecification => fn('greaterThan', big, op('plus', small, float(t)))
-        : (big: ValueSpecification, small: ValueSpecification): ValueSpecification => fn('greaterThan', big, op('times', small, float(1 + t)));
-      const spike = or(and(beyond(x, p), beyond(x, q)), and(beyond(p, x), beyond(q, x)));
-      return done(w.row('smooth', when(or(fn('isEmpty', col(prev)), fn('isEmpty', col(next)), fn('isEmpty', col(a))), none(),
+        ? (big: ValueSpecification, small: ValueSpecification): ValueSpecification => fn('greaterThan', big, op('plus', small, by))
+        : (big: ValueSpecification, small: ValueSpecification): ValueSpecification => fn('greaterThan', big, op('times', small, by));
+      const spike = and(fn('isNotEmpty', col(prev)), fn('isNotEmpty', col(next)), fn('isNotEmpty', col(a)),
+        or(and(beyond(x, p), beyond(x, q)), and(beyond(p, x), beyond(q, x))));
+      const rn = w.rowNumber();
+      const rows = w.window('sm_n', 'count', R(rn), 'all');
+      return done(w.row('smooth', when(or(fn('equal', one(rn), lit.integer(1)), fn('equal', one(rn), one(rows))), none(),
         when(spike, fn('divide', op('plus', p, q), lit.integer(2)), x))));
     }
     case 'vol_swap_volatility': {
@@ -1551,7 +1631,8 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       return done(decomposed(sh, w, a, e.fn, word('method'), word('freq')));
     case 'first':
     case 'last':
-      return done(w.row(e.fn, when(fn('isEmpty', col(a)), none(), col(w.edgeValue(a, e.fn)))));
+      // on every date it has, those of none too (gs-quant's fills its index: the Phase 1 review's 6)
+      return done(w.edgeValue(a, e.fn));
     case 'count':
       return done(w.window('count', 'count', R(a), 'running'));
     case 'day':
@@ -1564,7 +1645,8 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
         // pandas' 0 for a Monday: the database's day of a week begun on Monday, less one
         weekday: op('minus', fn('dayOfWeekNumber', one(w.at), enumValue('meta::pure::functions::date::DayOfWeek', 'Monday')), lit.integer(1)),
       };
-      return done(w.row(e.fn, when(fn('isEmpty', col(a)), none(), part[e.fn]!)));
+      // of every date it has, those of none too (gs-quant's: of its index)
+      return done(w.row(e.fn, part[e.fn]!));
     }
     case 'if':
     case 'compare':
@@ -1594,16 +1676,25 @@ function decomposed(sh: Shared, w: Writer, a: string, what: 'trend' | 'seasonall
   const odd = p % 2 === 1;
   const n = w.around('dc_n', 'count', R(a), k);
   const sum = w.around('dc_s', 'plus', R(a), k);
+  // two whole cycles or none: under them gs-quant refuses (statsmodels cannot centre a season; the Phase 1 review's 4)
+  const rn = w.rowNumber();
+  const rows = w.window('dc_rows', 'count', R(rn), 'all');
   const centred = odd ? fn('divide', one(sum), lit.integer(p))
     : fn('divide', op('minus', one(sum), op('times', float(0.5), op('plus', one(w.lag(a, k)), one(w.lead(a, k))))), lit.integer(p));
-  const trend = w.row('dc_trend', when(fn('lessThan', one(n), lit.integer(odd ? p : p + 1)), none(), centred));
+  const trend = w.row('dc_trend', when(or(fn('lessThan', one(rows), lit.integer(2 * p)), fn('lessThan', one(n), lit.integer(odd ? p : p + 1))), none(), centred));
   if (what === 'trend') return trend;
   const multiplicative = method === 'multiplicative';
   const detrended = w.row('dc_d', multiplicative ? when(fn('equal', one(trend), lit.integer(0)), none(), fn('divide', one(a), one(trend)))
     : op('minus', one(a), one(trend)));
-  const rn = w.rowNumber();
-  const at = w.row('dc_pos', op('minus', op('minus', one(rn), lit.integer(1)),
-    op('times', fn('floor', fn('divide', op('minus', one(rn), lit.integer(1)), lit.integer(p))), lit.integer(p))));
+  // its place in the cycle: the calendar's at a frequency of months, quarters or weeks -- a missing one never moving the
+  // places after it, as gs-quant's calendar filled first keeps them (the Phase 1 review's 4) -- its row's at days, a
+  // cycle of business days
+  const index = grain === 'month' ? op('plus', op('times', fn('year', one(PERIOD)), lit.integer(12)), op('minus', fn('monthNumber', one(PERIOD)), lit.integer(1)))
+    : grain === 'quarter' ? op('plus', op('times', fn('year', one(PERIOD)), lit.integer(4)), op('minus', fn('quarterNumber', one(PERIOD)), lit.integer(1)))
+      : grain === 'week' ? fn('floor', fn('divide', fn('dateDiff', literalNode('1970-01-05', 'StrictDate'), one(PERIOD), enumValue(DURATION, 'DAYS')), lit.integer(7)))
+        : op('minus', one(rn), lit.integer(1));
+  const place = w.row('dc_i', index);
+  const at = w.row('dc_pos', op('minus', one(place), op('times', fn('floor', fn('divide', one(place), lit.integer(p))), lit.integer(p))));
   const placeMean = w.window('dc_pm', 'average', R(detrended), 'all', at);
   const placeRows = w.window('dc_pr', 'count', R(rn), 'all', at);
   // the places' mean: each row's share of its place's mean, summed over the line, over p
@@ -1727,7 +1818,9 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
   }
   // the most rows any of its columns took one of, at a period: more than one, and the drawing says so
   const rows = w.rows.length === 0 ? undefined : w.rows.length === 1 ? w.rows[0]!
-    : w.row('rows', w.rows.slice(1).reduce<ValueSpecification>((most, c) => when(fn('greaterThan', one(c), most), one(c), most), one(w.rows[0]!)));
+    // the most of them by the database's max of two (GREATEST): `when(c > most, c, most)` wrote `most` twice, so the
+    // query doubled with every part read (eight parts: each first part's count 130 times -- the Phase 1 review's 1)
+    : w.row('rows', w.rows.slice(1).reduce<ValueSpecification>((most, c) => fn('max', one(c), most), one(w.rows[0]!)));
   // the periods a year it was annualized by: of a combination, none when any part's is none (the second audit's S4: a
   // part of no frequency, every value none, and the first part's 252 said nothing was wrong)
   const perYear = w.years.length <= 1 ? w.years[0]

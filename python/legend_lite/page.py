@@ -1803,9 +1803,11 @@ class Timeseries(Tile):
         return self._edit({'kind': 'hide', 'id': id, 'hidden': False})
 
     def options(self, **slots: Any) -> Timeseries:
-        """Its other slots told -- ``grain`` (``'day'`` ... ``'year'``), ``range`` (``{'last': '1y'}``, ``{'from': ...,
-        'to': ...}``), ``view`` (``{'compare': 'rebase', 'stats': True}``), ``panes``, ``annotations`` -- each replacing
-        what it had, None taking it off: the words DataCube's reader takes."""
+        """Its other slots told -- ``grain`` (``'day'`` ... ``'year'``), ``align`` (how two series' dates combine:
+        ``'intersect'``, the default, ``'step'``, ``'time'``, ``'nan'``, ``'zero'``), ``range`` (``{'last': '1y'}``,
+        ``{'from': ..., 'to': ...}``), ``view`` (``{'compare': 'rebase', 'stats': True, 'subtitle': ..., 'note': ...}``),
+        ``panes`` (``[{'log': True, 'invert': True, 'min': 0, 'max': 5}]``), ``annotations`` -- each replacing what it
+        had, None taking it off: the words DataCube's reader takes."""
         return self._edit({'kind': 'slots', 'slots': slots})
 
     def annotate(self, annotation: Mapping[str, Any]) -> Timeseries:

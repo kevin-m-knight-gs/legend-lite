@@ -328,7 +328,8 @@ export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
   correlation: { series: 2, params: [W(63)] }, beta: { series: 2, params: [W(63)] }, cov: { series: 2, params: [W(63)] },
   alpha: { series: 2, params: [W(63)] }, r_squared: { series: 2, params: [W(63)] }, hedge_ratio: { series: 2, params: [W(63)] },
   residual: { series: 2, params: [W(63)] },
-  interpolate: { series: 2, params: [{ name: 'method', kind: 'word', default: 'step', words: ['intersect', 'nan', 'zero', 'step'] }] },
+  // gs-quant's default, intersect (the Phase 1 review's 5)
+  interpolate: { series: 2, params: [{ name: 'method', kind: 'word', default: 'intersect', words: ['intersect', 'nan', 'zero', 'step'] }] },
   // gs-quant's remaining functions (the next phases' 1, 2026-10-26)
   if: { series: 3, params: [] }, not: one(), compare: { series: 2, params: [] },
   filter: one({ name: 'operator', kind: 'word', default: 'empty', words: ['empty', 'less_than', 'greater_than', 'l_equals', 'g_equals', 'equals', 'not_equals'] }, num('value', 0)),
@@ -373,12 +374,22 @@ export function seriesWords(n: TsSignature['series']): string {
     : n === 4 ? 'four series (its open, high, low and close)' : 'series and their weights, in pairs (x, 0.6, y, 0.4)';
 }
 
-/** A weighted sum's arguments: two series or more, each followed by its weight (a number), the weights not summing to 0. */
-export function manyArgs(args: readonly unknown[]): boolean {
-  if (args.length < 4 || args.length % 2 !== 0) return false;
+/**
+ * What is wrong with a weighted sum's arguments -- two series or more, each followed by its weight (a number), the
+ * weights summing to other than 0 (the sum divides: weights of floats summing to near 0, 0.1 + 0.2 - 0.3, as much as 0
+ * itself -- the Phase 1 review's 8) -- in words after its name, or undefined.
+ */
+export function manyProblem(args: readonly unknown[]): string | undefined {
+  const pairs = `reads ${seriesWords('many')}`;
+  if (args.length < 4 || args.length % 2 !== 0) return pairs;
   const weights = args.filter((_, i) => i % 2 === 1);
-  if (!weights.every((w) => isRecord(w) && w['kind'] === 'number' && typeof w['value'] === 'number')) return false;
-  return weights.reduce((t: number, w) => t + ((w as { value: number }).value), 0) !== 0;
+  if (!weights.every((w) => isRecord(w) && w['kind'] === 'number' && typeof w['value'] === 'number')) return pairs;
+  const values = weights.map((w) => (w as { value: number }).value);
+  // a check of the spec's own numbers, never a figure drawn
+  const sum = values.reduce((t, v) => t + v, 0);
+  const size = values.reduce((t, v) => t + Math.abs(v), 0);
+  if (Math.abs(sum) <= 1e-9 * size) return `divides by the sum of its weights, and its weights sum to 0 (${values.join(' + ')})`;
+  return undefined;
 }
 
 /** The values a column may take of each period. */
@@ -470,9 +481,10 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
       // the parser's words (timeseries-expr.ts NOT_BUILT): a saved one is refused here by its name
       if (!f) return `${what} calls ${JSON.stringify(e['fn'] ?? null)}, which this DataCube does not compute`;
       const fn = e['fn'] as TsFunctionName;
-      if (!Array.isArray(e['args']) || (f.series === 'many' ? !manyArgs(e['args']) : e['args'].length !== f.series)) {
-        return `${what}: ${fn} reads ${seriesWords(f.series)}`;
-      }
+      if (!Array.isArray(e['args'])) return `${what}: ${fn} reads ${seriesWords(f.series)}`;
+      const many = f.series === 'many' ? manyProblem(e['args']) : undefined;
+      if (many !== undefined) return `${what}: ${fn} ${many}`;
+      if (f.series !== 'many' && e['args'].length !== f.series) return `${what}: ${fn} reads ${seriesWords(f.series)}`;
       for (const [i, a] of e['args'].entries()) {
         const p = exprProblem(a, `${fn}'s series ${i + 1}`, depth + 1);
         if (p) return p;

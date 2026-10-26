@@ -739,6 +739,72 @@ describe('two series on two calendars: the tile\'s align, and interpolate', () =
     close(of('CCC'), own.map(() => 0), 'CCC with itself', 1e-9);
   });
 
+  // the Phase 1 review's 1 (2026-10-26): an as-of join of each part and a spine of both read each part three times, so a
+  // chain of them grew threefold a part (five parts under step: 544k characters, 4.5 s) -- merged by one full join,
+  // each part is read once
+  it('a chain of parts under each align grows by the same steps each, never multiplying -- split or not', () => {
+    for (const align of ['step', 'time', 'nan', 'zero']) {
+      for (const split of [undefined, 'symbol']) {
+        const text = (n: number): string => [split ? 'close' : 'close[AAA]', ...Array.from({ length: n - 1 }, (_, i) => `close[${['CCC', 'BBB'][i % 2]}]`)].join(' - ');
+        const size = (n: number): number => {
+          const s = spec({ A: text(n) }, { align } as Partial<TimeseriesSpec>, split);
+          return toJson(seriesQuery(inputs, s, s.series[0]!).query).length;
+        };
+        const [s2, s3, s4, s5] = [2, 3, 4, 5].map(size);
+        const steps = [s3! - s2!, s4! - s3!, s5! - s4!];
+        assert.ok(steps.every((d) => Math.abs(d - steps[0]!) <= 0.15 * steps[0]!), `${align}${split ? ', split' : ''}: each part the same steps: ${[s2, s3, s4, s5].join(', ')}`);
+      }
+    }
+  });
+
+  it('three parts under step: each its last value at or before each date, a lag of CCC on CCC\'s own dates', async () => {
+    const l = await line(spec({ A: 'close[AAA] - close[CCC] + lag(close[CCC], 1)' }, { align: 'step' } as Partial<TimeseriesSpec>));
+    assert.deepEqual(l.dates, DAYS);
+    // the lag's first value at CCC's second date (bfilled before it)
+    const lag = (i: number): number => { const j = own.indexOf(before(i)); return CCC[own[Math.max(1, j) - 1]!]!; };
+    close(l.values, AAA.map((v, i) => v - CCC[before(i)]! + lag(i)), 'three parts', 1e-9);
+  });
+
+  // the Phase 1 review's 3: gs-quant's if_ is of the flags' dates -- each x or y there, none where that one has none --
+  // whatever the tile's align
+  it('if: on the flags\' dates, the branch taken none where it has none, under any align', async () => {
+    const want = AAA.map((v, i) => (v > 101 ? (i % 3 === 0 ? CCC[i]! : null) : v));
+    for (const align of ['intersect', 'step']) {
+      const l = await line(spec({ A: 'if(close[AAA] > 101, close[CCC], close[AAA])' }, { align } as Partial<TimeseriesSpec>));
+      assert.deepEqual(l.dates, DAYS, `${align}: the flags' dates`);
+      close(l.values, want, `if under ${align}`, 0);
+    }
+  });
+
+  // the Phase 1 review's 5: gs-quant's interpolate defaults to intersect, and its step walks the dates asked, each
+  // carrying the last value among them -- an x date between two of them never read (but the first's, as of it)
+  it('interpolate: as gs-quant\'s -- intersect unless told; step over the dates asked', async () => {
+    const plain = await line(spec({ A: 'interpolate(close[CCC], close[AAA])' }));
+    assert.deepEqual(plain.dates, own.map((i) => DAYS[i]!), 'intersect, gs-quant\'s default');
+    // x: AAA at or above its median (filter drops those below), onto CCC's every third -- gs-quant's __interpolate_step
+    // written out: from x's value as of the first date asked (its first, before it starts), each date asked its own
+    // value, else the one before among them
+    const m = [...AAA].sort((a, b) => a - b)[AAA.length / 2]!;
+    const xs = DAYS.map((_, i) => i).filter((i) => AAA[i]! >= m);
+    assert.ok(own.some((i) => !xs.includes(i)) && xs.some((i) => !own.includes(i)), 'each has dates the other lacks');
+    const step = await line(spec({ A: `interpolate(filter(close[AAA], less_than, ${m}), close[CCC], step)` }));
+    let current = AAA[xs.filter((j) => j <= own[0]!).at(-1) ?? xs[0]!]!;
+    const want = own.map((i) => (xs.includes(i) ? (current = AAA[i]!) : current));
+    assert.deepEqual(step.dates, own.map((i) => DAYS[i]!));
+    close(step.values, want, 'step over the dates asked', 1e-12);
+    // y begun later, on a date x has none of: x's value as of it, from x's own dates before it -- never the next date
+    // asked's (x here the closes at or below the median: filter drops those above)
+    const lows = DAYS.map((_, i) => i).filter((i) => !(AAA[i]! > m));
+    const starts = own.map((i) => CCC[i]!).map((c) => ({ c, ys: own.filter((i) => CCC[i]! >= c) }))
+      .filter(({ ys }) => !lows.includes(ys[0]!) && lows.some((j) => j < ys[0]!));
+    const start = starts.find(({ ys }) => AAA[lows.filter((j) => j <= ys[0]!).at(-1)!] !== AAA[ys.find((i) => lows.includes(i)) ?? -1]);
+    assert.ok(start !== undefined, 'a start of y x has none of, its value as of it not the next asked one\'s');
+    const late = await line(spec({ A: `interpolate(filter(close[AAA], greater_than, ${m}), filter(close[CCC], less_than, ${start.c}), step)` }));
+    let carried = AAA[lows.filter((j) => j <= start.ys[0]!).at(-1)!]!;
+    assert.deepEqual(late.dates, start.ys.map((i) => DAYS[i]!));
+    close(late.values, start.ys.map((i) => (lows.includes(i) ? (carried = AAA[i]!) : carried)), 'from x as of y\'s first', 1e-12);
+  });
+
   it('interpolate: x onto the dates of y, by method', async () => {
     const onto = async (method: string): Promise<{ dates: string[]; values: Line }> => line(spec({ A: `interpolate(close[CCC], close[AAA], ${method})` }));
     const step = await onto('step');
@@ -815,6 +881,31 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
       AAA.map((v, i) => 0.6 * v + 0.4 * BBB[i]!), 'weighted', 1e-9);
   });
 
+  // the Phase 1 review's 6: a neighbour of none is no spike's (gs-quant's comparison with NaN is never true): kept
+  it('smooth_spikes beside none: kept, the first and last dates alone dropped', async () => {
+    const r = simple(AAA);
+    const l = await line(spec({ A: 'smooth_spikes(returns(close[AAA]), 0.1)' }));
+    close(l.values, r.map((v, i) => {
+      if (i === 0 || i === r.length - 1 || v === null) return null;
+      const [p, q] = [r[i - 1], r[i + 1]];
+      if (p === null || q === null) return v;
+      const beyond = (a: number, b: number): boolean => a > b * 1.1;
+      return (beyond(v, p!) && beyond(v, q!)) || (beyond(p!, v) && beyond(q!, v)) ? (p! + q!) / 2 : v;
+    }), 'beside none', 1e-12);
+  });
+
+  it('a series where a number is: its argument named by its place', () => {
+    const s = spec({ A: 'weighted_sum(close[AAA], 0.5, 3, 0.5)' });
+    assert.throws(() => seriesQuery(inputs, s, s.series[0]!), /its third argument is a number/);
+  });
+
+  it('compare beside none: 0, as gs-quant\'s (x > y) - (x < y); filter not_equals drops the dates of none too', async () => {
+    const c = await line(spec({ A: 'compare(close[AAA], close[CCC] * 5)' }, { align: 'nan' } as Partial<TimeseriesSpec>));
+    close(c.values, AAA.map((v, i) => (i % 3 === 0 ? Math.sign(v - CCC[i]! * 5) : 0)), 'compare', 0);
+    const f = await line(spec({ A: `filter(lag(close[AAA], 2), not_equals, ${AAA[0]})` }));
+    assert.deepEqual(f.dates, [DAYS[2]!], 'the value equal to it alone: none is not equal to it');
+  });
+
   it('smooth_spikes: a value beyond both neighbours their mean, the ends dropped', async () => {
     for (const [args, beyond] of [['0.004', (a: number, b: number) => a > b * 1.004], ['0.4, absolute', (a: number, b: number) => a > b + 0.4]] as const) {
       const l = await line(spec({ A: `smooth_spikes(close[AAA], ${args})` }));
@@ -858,7 +949,9 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
 
   it('first, last and count: its first and last value on every date it has, and how many to date', async () => {
     const lagged2 = lagged(AAA, 2);
-    close((await line(spec({ A: 'first(lag(close[AAA], 2))' }))).values, lagged2.map((v) => (v === null ? null : AAA[0]!)), 'first', 0);
+    // on every date, those with none too: gs-quant's fill its index (the Phase 1 review's 6)
+    close((await line(spec({ A: 'first(lag(close[AAA], 2))' }))).values, lagged2.map(() => AAA[0]!), 'first', 0);
+    close((await line(spec({ A: 'day(lag(close[AAA], 2))' }))).values, DAYS.map((d) => Number(d.slice(8))), 'a date part of none', 0);
     close((await line(spec({ A: 'last(close[AAA])' }))).values, AAA.map(() => AAA.at(-1)!), 'last', 0);
     close((await line(spec({ A: 'count(lag(close[AAA], 2))' }))).values, lagged2.map((_, i) => Math.max(0, i - 1)), 'count', 0);
   });
@@ -866,18 +959,23 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
   it('union, append and prepend: two series spliced on every date either has', async () => {
     const own = DAYS.map((_, i) => i).filter((i) => i % 3 === 0);
     close((await line(spec({ A: 'union(close[CCC], close[AAA])' }))).values, DAYS.map((_, i) => (i % 3 === 0 ? CCC[i]! : AAA[i]!)), 'union', 0);
-    // CCC to its last value at or below 22.5, then AAA after it
+    // CCC's dates to its last value at or below 22.5, then AAA's after it -- gs-quant's dates alone: the other's in
+    // between none of them (the Phase 1 review's 2: kept as empty rows, they broke every function after it)
     const low = own.filter((i) => CCC[i]! <= 22.5);
     const lastLow = low.at(-1)!;
-    close((await line(spec({ A: 'append(filter(close[CCC], greater_than, 22.5), close[AAA])' }))).values,
-      DAYS.map((_, i) => (i <= lastLow ? (low.includes(i) ? CCC[i]! : null) : AAA[i]!)), 'append', 0);
-    // CCC before AAA's first close at or above 101, then AAA
+    const appended = [...low, ...DAYS.map((_, i) => i).filter((i) => i > lastLow)];
+    const ap = await line(spec({ A: 'append(filter(close[CCC], greater_than, 22.5), close[AAA])' }));
+    assert.deepEqual(ap.dates, appended.map((i) => DAYS[i]!));
+    const spliced = appended.map((i) => (i <= lastLow ? CCC[i]! : AAA[i]!));
+    close(ap.values, spliced, 'append', 0);
+    close((await line(spec({ A: 'returns(append(filter(close[CCC], greater_than, 22.5), close[AAA]))' }))).values,
+      simple(spliced), 'a return of the spliced series, date to date', 1e-12);
+    // CCC's dates before AAA's first close at or above 101, then AAA's
     const firstHigh = AAA.findIndex((v) => v >= 101);
     const l = await line(spec({ A: 'prepend(close[CCC], filter(close[AAA], less_than, 101))' }));
-    // every date either has: CCC's, and AAA's left by the filter
-    const dates = DAYS.map((_, i) => i).filter((i) => i % 3 === 0 || AAA[i]! >= 101);
+    const dates = DAYS.map((_, i) => i).filter((i) => (i % 3 === 0 && i < firstHigh) || AAA[i]! >= 101);
     assert.deepEqual(l.dates, dates.map((i) => DAYS[i]!));
-    close(l.values, dates.map((i) => (i < firstHigh ? CCC[i]! : AAA[i]! >= 101 ? AAA[i]! : null)), 'prepend', 0);
+    close(l.values, dates.map((i) => (AAA[i]! >= 101 ? AAA[i]! : CCC[i]!)), 'prepend', 0);
   });
 
   it('trend and seasonally_adjusted: statsmodels\' classical decomposition over a cycle of the tile\'s frequency', async () => {
@@ -1084,6 +1182,34 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     };
     close(await run('trend(close, additive, quarter)'), want.trend, 'trend', 1e-9);
     close(await run('seasonally_adjusted(close, additive, quarter)'), want.adjusted, 'adjusted', 1e-9);
+  });
+
+  // the Phase 1 review's 4: under two whole cycles gs-quant refuses (statsmodels cannot centre a season), and its places
+  // in the cycle are the calendar's, a missing month never moving the months after it
+  it('a decomposition: none under two whole cycles; each place in the cycle the calendar\'s, a month missing', async () => {
+    const ts = (text: string): TimeseriesSpec => spec({ A: text }, { grain: 'month' });
+    const run = async (text: string): Promise<{ dates: string[]; values: Line }> => {
+      const t = await engine.execute(await own.plan(seriesQuery(long, ts(text), ts(text).series[0]!).query), 0);
+      return { dates: values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse(), values: values(t, TS_VALUE).map(num).reverse() };
+    };
+    // 700 days are 24 months, two cycles of a year: decomposed; their last month dropped, 23 -- none (gs-quant refuses)
+    assert.ok((await run('seasonally_adjusted(close, additive, year)')).values.some((v) => v !== null), 'two cycles: decomposed');
+    const short = 'filter(if((month(close) == 12) and (year(close) == 2022), 0, close), equals, 0)';
+    assert.equal((await run(short)).dates.length, 23);
+    assert.ok((await run(`seasonally_adjusted(${short}, additive, year)`)).values.every((v) => v === null), 'none under two cycles');
+    assert.ok((await run(`trend(${short}, additive, year)`)).values.every((v) => v === null), 'nor a trend');
+    // March left out: each month's season its own still -- the same at each date of one place (Jan, Apr, Jul, Oct ...)
+    const x = 'filter(if(month(close) == 3, 0, close), equals, 0)';
+    const [xs, sa] = [await run(x), await run(`seasonally_adjusted(${x}, additive, quarter)`)];
+    assert.ok(!xs.dates.some((d) => d.slice(5, 7) === '03'), 'no March');
+    const season = new Map<number, number[]>();
+    sa.values.forEach((v, i) => {
+      if (v === null) return;
+      const place = (Number(xs.dates[i]!.slice(5, 7)) - 1) % 3;
+      season.set(place, [...(season.get(place) ?? []), xs.values[i]! - v]);
+    });
+    for (const [place, each] of season) assert.ok(each.every((v) => Math.abs(v - each[0]!) < 1e-9), `place ${place}: one season, ${each.join(', ')}`);
+    assert.equal(season.size, 3);
   });
 
   // the E9 review's 6: each average had joined the query to itself, so a chain of them doubled it each time (five: 311k
@@ -1677,3 +1803,4 @@ describe('the timeseries examples: every series of every tile, on its own sample
     }
   });
 });
+
