@@ -40,7 +40,7 @@ import { applyGridCommands } from '../src/grid-commands.ts';
 import type { GridDraft } from '../src/grid-edits.ts';
 import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi-field-columns.ts';
 import { TreeState } from '../src/tree.ts';
-import { accessor, collection, fn, gt, lambda, lit, property, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { accessor, collection, fn, gt, lambda, lit, property, toJson, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { boxRows, pureFrom, pureInput, pureInputOf, pureOver, pureProblem, pureShown, pureText, pureWords } from '../src/pure-box.ts';
 import { PUNCTUATION, textToolOf } from '../src/text-tools.ts';
 import { readTextTool, textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
@@ -1179,35 +1179,52 @@ describe("the DateTime's part and text read (date-tools.ts): a column each, read
 describe("a box's Profile (profile.ts): one row of aggregates asked of the database, read back a column each", () => {
   const columns = [{ name: 'region', type: 'String' }, { name: 'settled', type: 'Boolean' }];
 
-  it("asks each column's values and different values counted, and an ordered column's smallest and largest", () => {
-    const text = JSON.stringify(profileLambda(property(variable('r'), 'rows'), columns));
-    assert.match(text, /"function":"groupBy"/);
-    for (const name of ['c0_filled', 'c0_distinct', 'c0_smallest', 'c0_largest', 'c1_filled', 'c1_distinct']) assert.ok(text.includes(`"${name}"`), name);
+  it("asks each column's values and different values counted, an ordered column's smallest and largest, its empties and share", () => {
+    const text = toJson(profileLambda(property(variable('r'), 'rows'), columns));
+    // a keyless aggregate: its one row even of no rows (a grouping gives no group of none)
+    assert.match(text, /"function":"aggregate"/);
+    assert.doesNotMatch(text, /"function":"groupBy"/);
+    for (const name of ['c0_filled', 'c0_distinct', 'c0_smallest', 'c0_largest', 'c1_filled', 'c1_distinct', 'c0_empty', 'c0_share', 'c1_empty', 'c1_share']) {
+      assert.ok(text.includes(`"${name}"`), name);
+    }
     assert.ok(!text.includes('"c1_smallest"'), 'a Boolean has no smallest');
     assert.match(text, /"function":"distinct"/);
+    // its empties and share filled the database's: its rows less its values, its values over its rows (0 of none)
+    assert.match(text, /"function":"minus"/);
+    assert.match(text, /"function":"divide"/);
   });
 
-  it('reads its one row back; a box with no rows, every count none', () => {
+  it('reads its one row back -- of no rows too, the database\'s counts of none; anything else thrown', () => {
     const col = (name: string, v: unknown) => ({ name, type: 'Integer', values: [v] });
     const table = { rowCount: 1, epoch: 0, elapsedMs: 0, columns: [
-      col('__profile_rows__', 5), col('c0_filled', 4), col('c0_distinct', 3), col('c0_smallest', 'AMER'), col('c0_largest', 'EMEA'),
-      col('c1_filled', 5), col('c1_distinct', 2),
+      col('__profile_rows__', 5), col('c0_filled', 4), col('c0_empty', 1), col('c0_share', 0.8), col('c0_distinct', 3), col('c0_smallest', 'AMER'),
+      col('c0_largest', 'EMEA'), col('c1_filled', 5), col('c1_empty', 0), col('c1_share', 1), col('c1_distinct', 2),
     ] } as never;
     assert.deepEqual(profileOf(table, columns), { rows: 5, columns: [
-      { name: 'region', type: 'String', filled: 4, distinct: 3, smallest: 'AMER', largest: 'EMEA' },
-      { name: 'settled', type: 'Boolean', filled: 5, distinct: 2 },
+      { name: 'region', type: 'String', filled: 4, empty: 1, share: 0.8, distinct: 3, smallest: 'AMER', largest: 'EMEA' },
+      { name: 'settled', type: 'Boolean', filled: 5, empty: 0, share: 1, distinct: 2 },
     ] });
-    assert.deepEqual(profileOf({ rowCount: 0, epoch: 0, elapsedMs: 0, columns: [] } as never, columns).columns[0],
-      { name: 'region', type: 'String', filled: 0, distinct: 0 });
+    const none = { rowCount: 1, epoch: 0, elapsedMs: 0, columns: [
+      col('__profile_rows__', 0), col('c0_filled', 0), col('c0_empty', 0), col('c0_share', 0), col('c0_distinct', 0), col('c0_smallest', null),
+      col('c0_largest', null), col('c1_filled', 0), col('c1_empty', 0), col('c1_share', 0), col('c1_distinct', 0),
+    ] } as never;
+    assert.deepEqual(profileOf(none, columns).columns[0], { name: 'region', type: 'String', filled: 0, empty: 0, share: 0, distinct: 0, smallest: null, largest: null });
+    // no row, or a count of none: no answer of its question, never read as 0 (AGENTS.md invariant 4)
+    assert.throws(() => profileOf({ rowCount: 0, epoch: 0, elapsedMs: 0, columns: [] } as never, columns), /the profile's answer is one row, not 0/);
+    assert.throws(() => profileOf({ ...(table as object), columns: [col('__profile_rows__', null)] } as never, columns), /has no count __profile_rows__/);
   });
 
-  it("asks each pair of number columns' correlation, and reads them back a matrix: each with itself 1, empty where none", () => {
+  it("asks each pair of number columns' correlation, each with itself, and reads them back a matrix: empty where none", () => {
     const asked = JSON.stringify(correlationLambda(accessor('local::DB', 'trades'), ['a', 'b', 'c']));
-    for (const p of ['r0_1', 'r0_2', 'r1_2']) assert.ok(asked.includes(`"${p}"`), `asks ${p}`);
+    for (const p of ['r0_0', 'r0_1', 'r0_2', 'r1_1', 'r1_2', 'r2_2']) assert.ok(asked.includes(`"${p}"`), `asks ${p}`);
     assert.ok(asked.includes('"corr"') && asked.includes('"rowMapper"'), 'by corr over rows mapped a pair each');
+    assert.match(asked, /"function":"aggregate"/);
     const col = (name: string, v: unknown) => ({ name, type: 'Float', values: [v] });
-    const table = { rowCount: 1, epoch: 0, elapsedMs: 0, columns: [col('r0_1', 0.5), col('r0_2', -1), col('r1_2', null)] } as never;
-    assert.deepEqual(correlationsOf(table, ['a', 'b', 'c']), { columns: ['a', 'b', 'c'], r: [[1, 0.5, -1], [0.5, 1, null], [-1, null, 1]] });
+    // b does not vary (its own correlation none): it with itself none, as with the others; a with itself 1 to a double's
+    // last place, said 1
+    const table = { rowCount: 1, epoch: 0, elapsedMs: 0, columns: [col('r0_0', 0.9999999999999998), col('r0_1', null), col('r0_2', -1),
+      col('r1_1', null), col('r1_2', null), col('r2_2', 1)] } as never;
+    assert.deepEqual(correlationsOf(table, ['a', 'b', 'c']), { columns: ['a', 'b', 'c'], r: [[1, null, -1], [null, null, null], [-1, null, 1]] });
   });
 });
 

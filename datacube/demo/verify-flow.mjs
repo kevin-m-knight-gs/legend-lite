@@ -1484,13 +1484,15 @@ try {
   check(profiled.region?.[2] === '5,000 (100%)' && profiled.region?.[3] === '3', `region: every row filled, 3 different values: ${profiled.region}`);
   check(!(await page.locator('.dc-flow-results-body > :first-child').isVisible()), 'its grid out of sight behind its profile');
   check(profiled.notional?.[1] === 'Float' && profiled.notional?.[4] !== '' && profiled.notional?.[5] !== '', `notional: a Float, its smallest and largest: ${profiled.notional}`);
-  // its number columns' correlations beneath (Alteryx's Pearson Correlation): each with itself 1, each pair from -1 to 1
+  // its number columns' correlations beneath (Alteryx's Pearson Correlation): each with itself 1 (none where the database
+  // says it does not vary: profile.ts), each pair from -1 to 1
   await page.locator('.dc-flow-corr-table').waitFor({ timeout: 60_000 });
   const corr = await page.locator('.dc-flow-corr-table tbody tr').evaluateAll((trs) => Object.fromEntries(trs.map((tr) => [
     tr.dataset.column, [...tr.querySelectorAll('td')].map((td) => td.dataset.r),
   ])));
   const names = Object.keys(corr);
-  check(names.includes('notional') && names.includes('pnl') && names.every((n, i) => corr[n][i] === '1')
+  check(names.includes('notional') && names.includes('pnl') && corr.notional[names.indexOf('notional')] === '1'
+    && names.every((n, i) => corr[n][i] === '1' || corr[n][i] === '')
     && names.every((n) => corr[n].every((r) => r === '' || (Number(r) >= -1 && Number(r) <= 1))), `its correlations: ${JSON.stringify(corr)}`);
   await page.screenshot({ path: outPath('flow-profile.png') });
   await page.locator('.dc-flow-corr').scrollIntoViewIfNeeded();
