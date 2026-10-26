@@ -310,49 +310,127 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  347,000 -> 355,500 (2026-10-24, main's D19 merged into this branch: its own steps there, 323,500 -> 332,000 ->
  *  333,500 -- the grid's and the page's total diffs, the converge on the keeper's page, the page hash, its audits'
  *  rounds, each signed off by the user (D9) -- now on top of the parity program's). Measured 355,159.
- *  355,500 -> 356,000 (2026-10-25, the UI waves the user asked for: a measure's numbers right-aligned in the grid and
- *  every export (style.ts autoTextAlign, grid-edits.ts isMeasureLeaf); the page's ≡ grouped by purpose -- New Page,
- *  Export Page File…, Edit Layout that flips, Create ▸ Text Box, View ▸ Hide the Bar and Keyboard Shortcuts…, each greyed
- *  entry's why on hover (page-app.ts #menuGroups)). Measured 355,513.
- *  356,000 -> 357,500 (2026-10-25, the one tile header the user agreed: every tile's state an icon left of its title
- *  (ui/tile-icons.ts, drawn), a chart's state menu, a text box's pencil, a grid's Snap / Go Live / Snap Again and its
- *  source and plane in words in its status bar, a lone grid's state in its sheet's tab, ⤢/⤡). Measured 357,039.
- *  357,500 -> 358,500 (2026-10-25, the grid's status bar the user signed off: Properties, Filter, Add Column and Join as
- *  drawn icons (ui/tile-icons.ts toolIcon), its rows or groups in words, a chip each for what is true of it, the receipt
- *  an i, a thin bar on the grid's top edge while a query runs -- app.ts #renderStatusBar). Measured 358,056.
- *  358,500 -> 359,500 (2026-10-25, the text box as a Markdown editor the user chose: its reader, drawing and editor
- *  stay a chunk of their own (page-text.ts); what the page carries is their styles -- tables, code, quotes, tasks, the
- *  toolbar, the preview (app.css) -- and an export's lines of each new block (cube-page.ts textLines)). Measured
- *  358,640.
- *  359,500 -> 360,500 (2026-10-25, the menus' one design language: a key shown right-aligned beside its entry
- *  (ui/menu-view.ts), a chart's and a text box's View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page -- and a
- *  text box's right-click (cube-page.ts #tileView), a sheet tab's entries saying why they are off (ui/sheet-tabs.ts); and
- *  the columns panel's part-ticked measure (ui/columns-panel.ts)). Measured 359,826.
- *  360,500 -> 361,500 (2026-10-25, the page's chrome drawn in one icon set (ui/tile-icons.ts chromeIcon, closeMark;
- *  found 4) -- the tree carets too -- and a chart's and a text box's Create ▸ (cube-page.ts #tileCreate)). Measured
- *  360,653.
- *  361,500 -> 365,000 (2026-10-25, files in a text box (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8 step 1: text-files.ts,
- *  the setTextFiles command, the tabs, the reads by handle, file-handles.ts pickTextFiles) and the branch's deep audit's
- *  fixes (the chart options in a shadow root and off a moved tile, the status chips of the view shown, a refusal before
- *  a file is read, handles kept on Save As). The file code could be a chunk of its own, fetched with a box's first file;
- *  not done here). Measured 364,289.
- *  365,000 -> 365,500 (2026-10-25, a chart's options as a window beside its chart, kept on the screen and fitted to its
- *  form (ui/window.ts besideWindow, onScreen, moveWindow; ui/chart-panel.ts openForm, #fit) -- the window itself comes
- *  with the chart panel, the form and its segmented choices stay the options form's chunk). Measured 365,218.
- *  365,500 -> 375,000 (2026-10-26, main merged into the timeseries branch, its own steps there 355,500 -> 363,500 ->
- *  365,000: the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7-§9 -- a timeseries view read, written,
- *  merged and told (its spec's reader and its functions' signatures alone: timeseries-spec.ts; page-document,
- *  page-commands, page-rebase, page-between), its tile placed, synced, restored, removed and exported on the board,
- *  Create ▸ Timeseries, the wiring that reads grids together (on the tab and on a host's page), the markets and rates
- *  samples and the Markets example's entry, its expression language, queries, drawing and viewer chunks of their own
- *  (the budget of their own below) -- then the timeseries review's G4, docs/TIMESERIES_REVIEW_2026_10_25.md, the owner's
- *  decision 4: a removed grid's cube kept while a timeseries reads it (page-document.ts readsCube, page-commands.ts
- *  `kept`, page-between, page-rebase, page-state, cube-page)). Measured 374,503.
- *  375,000 -> 376,000 (2026-10-26, the second audit's A-B1 and a timeseries' states, the user's ask: the one rule of the
- *  cubes a page holds (page-document.ts cubesRead, cubesHeld, a page written out refused without one) and the timeseries
- *  tile's state button in its header -- Dynamic, Frozen, Detached, in a chart's words -- with the reader of what a frozen
- *  source keeps (timeseries-spec.ts)). Measured 375,280. */
-const BUDGET = 376_000;
+ *  355,500 -> 356,500 (2026-10-25, the flow mode's M1 step 1, docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1: a grid over
+ *  another grid's rows read and written (cube-document.ts RowsSource), its live input resolved against its page, a page
+ *  whose link goes nowhere or round refused as it is read, its grids opened after what they read (live-inputs.ts) --
+ *  every page read asks it, so it is no chunk of its own; the canvas will be). Measured 356,085.
+ *  356,500 -> 357,000 (2026-10-25, the flow mode's M1 step 2: a box opened in the tab -- sources.ts reopened's arm, where
+ *  it is opened (by the host on its page, else here), each grid's start kept for a box after it, what a grid reads
+ *  resolved as it opened (GridPlace.reads); the opening itself is the join's chunk's (app/join-sources.ts openedRows)).
+ *  Measured 356,620.
+ *  357,000 -> 363,500 (2026-10-25, the flow mode's M1 steps 3-4, docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4: a sheet's
+ *  layout a board's or a flow's -- read and written (page-document.ts), the flow's commands and their rules
+ *  (page-commands.ts addFlow, placeBox, layout/flow.ts), the rebase's arms -- and the page's flow sheets: the board's
+ *  boxes, a document each until shown, the one shown made and closed (page/cube-page.ts), the flow board's state
+ *  (layout/flow-board.ts), Create ▸ Flow, the host's box opener and palette tools. Every page read and every board asks
+ *  them, so they load with the page; the canvas, its palette and what a box says it does are a chunk of their own
+ *  (layout/flow-canvas.ts, flow-boxes.ts), fetched with the first flow). Measured 363,119.
+ *  363,500 -> 364,000 (2026-10-25, the flow mode's M1 steps 5 and after: a grid's windows that set it docked where its
+ *  host docks them (app.ts dock, openStep), a box's settings opened with it, a file dropped onto a flow, a box refused
+ *  drawn so -- the drawing itself the canvas's chunk still). Measured 363,615.
+ *  364,000 -> 365,000 (2026-10-25, the flow mode's M2: setInput -- a box linked, frozen, a removal's freeze undone -- its
+ *  sides read off a source (cube-document.ts inputOn), a join's inputs live, a tool put on a line; the canvas's lines and
+ *  ports its own chunk still). Measured 364,792.
+ *  365,000 -> 366,000 (2026-10-25, the flow mode's M2 step 3 and M3's first tools: setJoin, a Join box's settings
+ *  routed to its window, a box passing on the columns its input gains; its window and its words a chunk of their own
+ *  (join-flow.ts, join-words.ts), the tools' words the canvas's). Measured 365,559.
+ *  366,000 -> 367,500 (2026-10-25, the flow mode's M7 first steps: Tidy Up's rule and its gesture, which Python's
+ *  flow.tidy asks too (page-gestures.ts tidyCommands, layout/flow.ts arranged), a box duplicated; a box's menu and the
+ *  palette's find the canvas's chunk). Measured 366,976.
+ *  367,500 -> 368,000 (2026-10-25, the flow mode's Sample: a grid's Sample window opened by its step, docked; the form
+ *  a chunk of its own, ui/sample-form.ts). Measured 367,587.
+ *  368,000 -> 368,500 (2026-10-25, the flow mode's comments: a text tile on a flow placed as a box is, drawn as a note,
+ *  left alone by Tidy Up and Run; the note's drawing the canvas's chunk). Measured 368,285.
+ *  368,500 -> 369,500 (2026-10-25, the flow mode's DateTime: a period column read off its expression to say a box's
+ *  tool (calc-presets.ts grainOf), the window that sets it opened by its step, docked; the form a chunk of its own,
+ *  ui/date-form.ts). Measured 369,121.
+ *  369,500 -> 370,000 (2026-10-25, the flow mode's Text Input: the palette's tool and the step that adds an Input over the
+ *  table typed in; the window a chunk of its own, ui/text-input-dialog.ts). Measured 369,521.
+ *  370,000 -> 370,500 (2026-10-25, the flow mode's text tools -- Text To Columns, RegEx, Data Cleansing: the three windows
+ *  opened by their steps and docked; their columns' rule (text-tool-columns.ts), the windows (ui/text-tool-form.ts) and
+ *  the box words (text-tools.ts) chunks of their own, none fetched at startup). Measured 370,114.
+ *  370,500 -> 371,500 (2026-10-25, the flow mode's Unique and its many boxes at once: a box's rows the columns it shows
+ *  (live-inputs.ts gridInput's omit, join-open.ts inputRows), and the page's copy, paste, move and removal of several
+ *  boxes as one step (page/cube-page.ts); picking them, the band and the group's drag the canvas's chunk). Measured
+ *  370,931.
+ *  371,500 -> 372,500 (2026-10-25, the flow mode's containers: a comment framed on a flow -- the flow's frame rules
+ *  (layout/flow.ts frameProblem, framedBy), placeBox's frame (page-commands.ts) and its reading (page-document.ts), the
+ *  page's Add, Size, Fold and Move Container (page/cube-page.ts); their drawing the canvas's chunk). Measured 372,152.
+ *  372,500 -> 374,000 (2026-10-25, the flow mode's Output: a box's output and its rule (layout/flow.ts setOutput), the
+ *  setOutput command and its reading (page-commands.ts, page-document.ts), the page's Write now and Run writing it
+ *  (page/cube-page.ts), its rows streamed to CSV (app.ts writeOutput, export.ts toCsv imported as it was, not fetched
+ *  again: fetching a module the page has split its shared code into two more startup files, +2,200 bytes, measured and
+ *  undone). Measured 373,513.
+ *  374,000 -> 375,000 (2026-10-25, the flow mode's Multi-Field Formula: the palette's tool, its columns read back off
+ *  their shapes to say a box (multi-field.ts multiFieldOf), the step that opens its window (app.ts); its window and its
+ *  commands chunks of their own, ui/multi-field-form.ts and multi-field-columns.ts, fetched with the first). Measured
+ *  374,121.
+ *  375,000 -> 376,000 (2026-10-25, the flow mode's Transpose, Select and Sample's other ways: their windows' openers
+ *  (app.ts), and what a box hands on -- its columns shown, a Summarize's keys and aggregates, a Select's renames -- one
+ *  rule now (box-columns.ts) that live-inputs.ts reads at startup; the rules and the windows chunks of their own).
+ *  Measured 375,039.
+ *  376,000 -> 376,500 (2026-10-25, the flow mode's Summarize window: its opener (app.ts), and the read of a grid's
+ *  columns as a Summarize has them beside the offers it reads (grid-edits.ts summaryOf, summaryActions); the commands'
+ *  rule and the window chunks of their own -- the rule reading the snapshot alone, as one that imported the grid's edits
+ *  split their startup chunk in two, +1,362 bytes, measured and undone). Measured 376,147.
+ *  376,500 -> 377,000 (2026-10-25, the flow mode's Join L and R: a live input naming a Join's port resolved to its side's
+ *  rows matched against the other's (live-inputs.ts gridInput, join-how.ts unmatchedOn), read and written with a copy
+ *  (cube-document.ts JoinInput.unmatched), a join set again held to its readers (page-commands.ts setJoin) -- read when a
+ *  page is, so at startup; the anti-joins themselves join-open.ts's, and the ports' drawing the canvas's chunk). Measured
+ *  376,805.
+ *  377,000 -> 377,500 (2026-10-25, the flow mode's Find Replace: its window's opener (app.ts); the rule, the window and a
+ *  box's words chunks of their own, find-replace.ts, ui/find-replace-form.ts and the canvas's). Measured 377,079.
+ *  377,500 -> 378,000 (2026-10-25, the flow mode's Count Records: its step, applied as its box is made (app.ts), its
+ *  rule a chunk of its own, count-records.ts). Measured 377,577.
+ *  378,000 -> 379,000 (2026-10-25, the flow mode's Union of any number: a join's inputs after its right read, written
+ *  and walked at startup (cube-document.ts JoinSource.more, joinInputs; live-inputs.ts; page-commands.ts setJoin's more,
+ *  setInput's next side; page-between.ts, page-rebase.ts), and a Union's input taken off (page-gestures.ts
+ *  takeOffCommands, flow.takeOff); its ports and settings the canvas's chunk). Measured 378,619.
+ *  379,000 -> 380,000 (2026-10-25, the flow mode's Code view and Date Filter: a grid's last query printed (app.ts code,
+ *  copyText); the Date Filter's rule (date-ranges.ts datesBetweenConditions, grid-gestures.ts filter.dates), its read-back
+ *  (page-filters.ts datesKept: beside a Filter's words, so no startup file of its own -- in its own module, read by the
+ *  canvas's chunk, it was one, 1,413 bytes) and its window's opener (app.ts); the window a chunk of its own). Measured
+ *  379,602.
+ *  380,000 -> 381,000 (2026-10-25, the flow mode's Test and a Test that stops a run: its opener (app.ts #openTest), a
+ *  grid's first row read and a run writing its Outputs after every box, held back by a failing stopping Test
+ *  (page/cube-page.ts firstRowOf, #runFlow), the box's mode read, written and set (page-document.ts, layout/flow.ts
+ *  setStops, page-commands.ts setStops); its rule, window and marks chunks of their own; no startup file added, measured).
+ *  Measured 380,296.
+ *  381,000 -> 382,000 (2026-10-25, the flow mode's Cross Tab with fixed columns, FL2: a pivot's values pinned -- its
+ *  command and rule (grid-commands.ts pinPivot, grid-edits.ts pinPivot, a pivot set again taking another's off), the
+ *  gesture that types them (grid-gestures.ts pivot.pin), its undo (grid-between.ts), a pinned pivot's rows for the box
+ *  after it (query.ts crossTabRows) and Load values (app.ts pinPivotValues, page/cube-page.ts onPinValues); the strip
+ *  that asks it the canvas's chunk; no startup file added, measured). Measured 381,541.
+ *  382,000 -> 383,000 (2026-10-25, the flow mode's Cross Tab missing values (FL3) and Custom Filter (FL12): the values a
+ *  pin lacks asked as its rows land and awaited by a run (query.ts unpinnedValuesLambda, app.ts lackingPivotValues,
+ *  page/cube-page.ts #askLacking, layout/flow-board.ts lacking), a draft's columns typed with nothing run (cube.ts
+ *  typed) and the Custom Filter's opener (app.ts); its rule, its window and the canvas's marks chunks of their own; no
+ *  startup file added, measured). Measured 382,146.
+ *  383,000 -> 385,000 (2026-10-26, the flow mode's Pure box, FL12: a box's rows a function of its input's, in Pure -- its
+ *  source's function read and judged with the page (cube-document.ts RowsSource.pure, pure-box.ts pureProblem), set and
+ *  read as a page command (page-commands.ts setPure; page-between.ts, page-rebase.ts), its window's opener and the rule
+ *  it shares with headless (app.ts #openPure, pure-box.ts pureFrom), a relation typed with nothing run (cube.ts
+ *  relationColumns), and pure-protocol's top-down rewrite; the window a chunk of its own; no startup file added, measured.
+ *  Not tried: all but the reader's check in a lazy module of its own -- some 600 bytes by estimate, and a lazy module
+ *  importing that check would split it into a startup file of its own, as Summarize's rule split one). Measured 384,564.
+ *  385,000 -> 395,500 (2026-10-26, main merged into the flow branch: its own steps there, 355,500 -> 356,000 -> 357,500 ->
+ *  358,500 -> 359,500 -> 360,500 -> 361,500 -> 365,000 -> 365,500 -- the UI waves the user asked for (a measure's numbers
+ *  right-aligned, the page's ≡ by purpose), the one tile header, the grid's status bar, the text box as a Markdown editor
+ *  and its files (setTextFiles), the menus' one design language, the chrome in one icon set and a chart's options as a
+ *  window beside it, each in main's history with its own measure -- now on top of the flow mode's; no startup file
+ *  added, measured). Measured 395,242.
+ *  395,500 -> 406,000 (2026-10-26, the timeseries branch, PR #74, merged into the flow branch: its own steps there,
+ *  365,500 -> 375,000 -> 376,000 -- the timeseries tile and the timeseries review's G4 (a removed grid's cube kept while a
+ *  timeseries reads it), then the one rule of the cubes a page holds and a timeseries' states, each in that branch's
+ *  history with its own measure (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md) -- now on top of the flow mode's; no
+ *  startup file added, measured). Measured 405,574.
+ *  406,000 -> 408,500 (2026-10-26, the flow mode review's fixes, docs/DATACUBE_FLOW_MODE_REVIEW_2026_10_26.md: a box's
+ *  rows handed on in its sorts' order and the one Output writer (query.ts handedOnLambda, flow-output.ts, fetched with
+ *  the page: lazily, it was a chunk that split the startup files), a Cross Tab's values read once (query.ts
+ *  pivotValuesOf), the page gestures Python shares (flow.place, flow.duplicate), a stopping box never judged
+ *  (flow-board.ts runStoppers); the checks' readers kept out (setStops reads a Test's shape alone); no startup file
+ *  added -- 33 as before, measured by esbuild's record). Measured 408,032. */
+const BUDGET = 408_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -457,27 +535,72 @@ const BUDGET = 376_000;
  *  date). Measured 337,265.
  *  338,000 -> 344,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 314,000 -> 324,000 -- the
  *  grid-only page's note of the same date). Measured 343,438.
- *  344,000 -> 345,500 (2026-10-25, the UI waves: a measure's numbers right-aligned, the page's ≡ grouped by purpose and
- *  the one tile header -- the grid-only page's notes of the same date). Measured 345,283.
- *  345,500 -> 347,000 (2026-10-25, the grid's status bar -- the grid-only page's note of the same date). Measured
- *  346,310.
- *  347,000 -> 348,000 (2026-10-25, the text box's Markdown styles -- the grid-only page's note of the same date -- and a
- *  chart's options as a popover that closes: its heading and x, Escape and a press elsewhere, placed beside its chart
- *  (ui/chart-panel.ts openForm)). Measured 347,245.
- *  348,000 -> 348,500 (2026-10-25, the menus' one design language -- the grid-only page's note of the same date).
- *  Measured 348,087.
- *  348,500 -> 349,500 (2026-10-25, the page's chrome drawn in one icon set (ui/tile-icons.ts chromeIcon, closeMark; found
- *  4 of docs/DATACUBE_UI_REVIEW_2026_10_24.md): each typed glyph -- a tile's layouts, maximise and remove, the menus'
- *  chevron, every close -- now a small drawing of its own). Measured 348,520.
- *  349,500 -> 353,000 (2026-10-25, files in a text box and the branch's deep audit's fixes -- the grid-only page's note
- *  of the same date). Measured 352,353.
- *  353,000 -> 353,500 (2026-10-25, a chart's options as a window beside its chart, kept on the screen and fitted to its
- *  form -- the grid-only page's note of the same date). Measured 353,248.
- *  353,500 -> 363,000 (2026-10-26, main merged into the timeseries branch, its own steps there 344,000 -> 352,000 ->
- *  353,500: the timeseries tile and the review's G4 -- the grid-only page's note of the same date). Measured 362,623.
- *  363,000 -> 364,000 (2026-10-26, the one rule of the cubes a page holds and a timeseries' states -- the grid-only
- *  page's note of the same date). Measured 363,399. */
-const ENGINE_BUDGET = 364_000;
+ *  344,000 -> 345,000 (2026-10-25, the flow mode's M1 step 1 -- the grid-only page's note of the same date). Measured
+ *  344,379.
+ *  345,000 -> 352,000 (2026-10-25, the flow mode's M1 steps 3-4 -- the grid-only page's note of the same date). Measured
+ *  351,377.
+ *  352,000 -> 353,500 (2026-10-25, the flow mode's M2 -- the grid-only page's note of the same date). Measured 353,109.
+ *  353,500 -> 354,500 (2026-10-25, the flow mode's M2 step 3 and M3's first tools -- the grid-only page's note of the
+ *  same date). Measured 353,829.
+ *  354,500 -> 355,500 (2026-10-25, the flow mode's M7 first steps -- the grid-only page's note of the same date).
+ *  Measured 355,267.
+ *  355,500 -> 356,000 (2026-10-25, the flow mode's M5 and M6 first steps: a box's count kept for its chain, Run showing
+ *  each box in turn; the drawing the canvas's chunk). Measured 355,733.
+ *  356,000 -> 356,500 (2026-10-25, the flow mode's False port: a live input's port read and resolved, a box made where
+ *  its tool or line was let go). Measured 356,148.
+ *  356,500 -> 357,000 (2026-10-25, the flow mode's comments -- the grid-only page's note of the same date). Measured
+ *  356,556.
+ *  357,000 -> 357,500 (2026-10-25, the flow mode's DateTime -- the grid-only page's note of the same date). Measured
+ *  357,399.
+ *  357,500 -> 358,000 (2026-10-25, the flow mode's copy and paste and its toolbar's Undo and Redo: the page keeps what
+ *  a box's Ctrl+C copied and pastes it as one step, and tells the canvas what Undo and Redo would do; the buttons and
+ *  the keys the canvas's chunk). Measured 357,632.
+ *  358,000 -> 358,500 (2026-10-25, the flow mode's text tools -- the grid-only page's note of the same date). Measured
+ *  358,355.
+ *  358,500 -> 359,000 (2026-10-25, the flow mode's Unique, and a box's rows the columns it shows: a live input of a flow's
+ *  box leaves out the columns its box hides (live-inputs.ts gridInput, cube-document.ts JoinInput.omit, join-open.ts
+ *  inputRows -- startup modules); Unique's rule and its window chunks of their own). Measured 358,659.
+ *  359,000 -> 359,500 (2026-10-25, the flow mode's many boxes at once -- the grid-only page's note of the same date).
+ *  Measured 359,191.
+ *  359,500 -> 361,000 (2026-10-25, the flow mode's containers -- the grid-only page's note of the same date; the Profile's
+ *  and the keys' wiring of the canvas's options among them). Measured 360,446.
+ *  361,000 -> 362,500 (2026-10-25, the flow mode's Output -- the grid-only page's note of the same date). Measured
+ *  361,799.
+ *  362,500 -> 363,000 (2026-10-25, the flow mode's Multi-Field Formula and Append Fields: the Multi-Field's opener
+ *  (app.ts), and a Join box's tool read off its join to set it again (app/datacube-app.ts, join-how.ts isEveryPair).
+ *  Measured 362,544.
+ *  363,000 -> 364,000 (2026-10-25, the flow mode's Transpose, Select and Sample's other ways -- the grid-only page's note
+ *  of the same date). Measured 363,365.
+ *  364,000 -> 365,000 (2026-10-25, the flow mode's in place and a box's correlations: the in-place rule beside what a box
+ *  hands on (box-columns.ts inPlaceCommand, inPlaceOf, read at startup through live-inputs.ts), the Profile asking its
+ *  measures' correlations (app.ts); the tools and the matrix's drawing their chunks). Measured 364,174.
+ *  365,000 -> 365,500 (2026-10-25, the flow mode's Summarize window and a Join's L and R -- the grid-only page's notes of
+ *  the same date). Measured 365,150.
+ *  365,500 -> 366,000 (2026-10-25, the flow mode's Find Replace and a box's Chart: the Find Replace window's opener
+ *  (app.ts) and the page's chart of a box (page/cube-page.ts chartOf, its ChartPanel the page's own already); the
+ *  window, the rule and the results pane's drawing chunks of their own). Measured 365,531.
+ *  366,000 -> 367,500 (2026-10-25, the flow mode's Union of any number -- the grid-only page's note of the same date;
+ *  the append of any number opened over one model besides, join.ts and join-open.ts the engine page's at startup).
+ *  Measured 366,940.
+ *  367,500 -> 368,500 (2026-10-25, the flow mode's Code view and Date Filter -- the grid-only page's note of the same
+ *  date). Measured 367,918.
+ *  368,500 -> 369,500 (2026-10-25, the flow mode's Test and a Test that stops a run -- the grid-only page's note of the
+ *  same date). Measured 368,637.
+ *  369,500 -> 370,500 (2026-10-25, the flow mode's Cross Tab with fixed columns -- the grid-only page's note of the same
+ *  date). Measured 369,849.
+ *  370,500 -> 371,500 (2026-10-26, the flow mode's Cross Tab missing values, Custom Filter, Dry Run and New Box After:
+ *  the grid-only page's notes of 2026-10-25 for the first two; a run that writes nothing (page/cube-page.ts #runFlow's
+ *  dry) and a box's menu gesture made in a box after it (ui/menu.ts newBoxItems, app.ts onStepAfter, page/cube-page.ts
+ *  #stepAfter); no startup file added, measured). Measured 370,956.
+ *  371,500 -> 373,500 (2026-10-26, the flow mode's Pure box -- the grid-only page's note of the same date). Measured
+ *  372,937.
+ *  373,500 -> 383,500 (2026-10-26, main merged into the flow branch: its own steps there, 344,000 -> 345,500 -> 347,000 ->
+ *  348,000 -> 348,500 -> 349,500 -> 353,000 -> 353,500 -- the grid-only page's note of the same date). Measured 383,307.
+ *  383,500 -> 394,000 (2026-10-26, the timeseries branch, PR #74, merged into the flow branch: its own steps there,
+ *  353,500 -> 363,000 -> 364,000 -- the grid-only page's note of the same date). Measured 393,657.
+ *  394,000 -> 396,500 (2026-10-26, the flow mode review's fixes -- the grid-only page's note of the same date). Measured
+ *  396,140. */
+const ENGINE_BUDGET = 396_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -505,9 +628,14 @@ const ENGINE_BUDGET = 364_000;
  *  the maps' chunk is a file of its own (three files compress less well than two), and the drawing grew with batches 4
  *  and 5's words; the measure counts only the chunks a first chart fetches (one only batch 3's kinds and the maps share
  *  is theirs). Measured 302,497.
- *  303,000 -> 303,500 (2026-10-25, the timeseries tile): the charts' ECharts handed to a timeseries tile's drawing
+ *  303,000 -> 303,500 (2026-10-25, the flow mode's DateTime): no chart code changed -- the chunks a first chart fetches
+ *  name the main bundle's exports and its files, and those moved with the grid-only page's note of the same date.
+ *  Measured 303,003.
+ *  The same 303,000 -> 303,500 on the timeseries branch (2026-10-25, the timeseries tile): the charts' ECharts handed to a timeseries tile's drawing
  *  (chart-render.ts canvasChart), so the two share one build of it and a first chart's fetch is otherwise as it was.
- *  Measured 303,007. */
+ *  Measured 303,007.
+ *  Both kept at 303,500 when the timeseries branch, PR #74, merged into the flow branch (2026-10-26). Measured
+ *  303,020. */
 const CHART_BUDGET = 303_500;
 
 /** What a first timeseries tile fetches beyond the page's startup and a first chart's (the charts' ECharts, which it
@@ -664,29 +792,80 @@ const EXAMPLE_BUDGET = 4_000;
  *  date). Measured 356,493.
  *  357,000 -> 363,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 332,500 -> 342,500 -- the
  *  grid-only page's note of the same date). Measured 362,642.
- *  363,000 -> 365,000 (2026-10-25, the UI waves: a measure's numbers right-aligned, the page's ≡ grouped by purpose and
- *  the one tile header -- the grid-only page's notes of the same date). Measured 364,708.
- *  365,000 -> 366,500 (2026-10-25, the grid's status bar -- the grid-only page's note of the same date). Measured
- *  365,932.
- *  366,500 -> 367,500 (2026-10-25, the text box as a Markdown editor -- the grid-only page's note of the same date).
- *  Measured 366,944.
- *  367,500 -> 368,500 (2026-10-25, a chart's options as a popover that closes -- the engine page's note of the same date
- *  -- and a join reopened borrowing a grid's table (app/sources.ts borrow: the example-switch bug)). Measured 367,526.
- *  368,500 -> 370,000 (2026-10-25, the menus' one design language (a key beside its entry, a chart's and a text box's
- *  View ▸, a sheet tab's reasons) and the page's chrome drawn in one icon set -- the grid-only and engine pages' notes of
- *  the same date). Measured 368,722.
- *  370,000 -> 373,500 (2026-10-25, files in a text box and the branch's deep audit's fixes, the dark theme's palette
- *  declared in both themes among them -- the grid-only page's note of the same date). Measured 372,941.
- *  373,500 -> 374,000 (2026-10-25, a chart's options as a window beside its chart, kept on the screen (ui/window.ts
- *  besideWindow, makeWindow's viewport), and its fields in the Properties window's design: the window's and the form's
- *  styles, in this module's styles; the segmented control itself is the options form's own chunk). Measured 373,706.
- *  374,000 -> 374,500 (2026-10-25, the options window in two columns where there is room and fitted to its form, its
- *  rarer sections folded to start -- the grid-only page's note of the same date). Measured 374,134.
- *  374,500 -> 385,000 (2026-10-26, main merged into the timeseries branch, its own steps there 363,000 -> 372,000 ->
- *  373,500: the timeseries tile and the review's G4 -- the grid-only page's note of the same date). Measured 384,453.
- *  385,000 -> 386,000 (2026-10-26, the one rule of the cubes a page holds and a timeseries' states -- the grid-only
- *  page's note of the same date). Measured 385,234. */
-const WIDGET_BUDGET = 386_000;
+ *  363,000 -> 364,500 (2026-10-25, the flow mode's M1 step 1 -- the grid-only page's note of the same date). Measured
+ *  363,850.
+ *  364,500 -> 372,500 (2026-10-25, the flow mode's M1 steps 3-4 -- the grid-only page's note of the same date; the
+ *  notebook's cube carries the page's styles, a flow sheet's among them). Measured 371,848.
+ *  372,500 -> 373,000 (2026-10-25, the flow mode's M1 steps 5 and after -- the grid-only page's note of the same date;
+ *  the settings pane's styles among them). Measured 372,674.
+ *  373,000 -> 374,500 (2026-10-25, the flow mode's M2 -- the grid-only page's note of the same date; a flow's lines'
+ *  and ports' styles among them). Measured 374,344.
+ *  374,500 -> 375,500 (2026-10-25, the flow mode's M2 step 3 and M3's first tools -- the grid-only page's note of the
+ *  same date; the palette's group headings' styles among them). Measured 375,094.
+ *  375,500 -> 377,000 (2026-10-25, the flow mode's M7 first steps -- the grid-only page's note of the same date; the
+ *  canvas's toolbar and the palette's find field's styles among them). Measured 376,663.
+ *  377,000 -> 377,500 (2026-10-25, the flow mode's M5 and M6 first steps -- the engine page's note of the same date; the
+ *  Run button's and a box's count's styles among them). Measured 377,210.
+ *  377,500 -> 378,000 (2026-10-25, the flow mode's False port -- the engine page's note of the same date; a Filter's T
+ *  and F ports' styles among them). Measured 377,821.
+ *  378,000 -> 378,500 (2026-10-25, the flow mode's run log: its panel's styles; its drawing the canvas's chunk). Measured
+ *  378,157.
+ *  378,500 -> 379,000 (2026-10-25, the flow mode's comments -- the grid-only page's note of the same date; a note's
+ *  styles among them). Measured 378,609.
+ *  379,000 -> 380,000 (2026-10-25, the flow mode's DateTime -- the grid-only page's note of the same date). Measured
+ *  379,446.
+ *  380,000 -> 380,500 (2026-10-25, the flow mode's Text Input -- the grid-only page's note of the same date; the table's
+ *  window's styles among them). Measured 380,187.
+ *  380,500 -> 381,000 (2026-10-25, the flow mode's text tools -- the grid-only page's note of the same date; their
+ *  windows' styles and the Parse group's colour among them). Measured 380,836.
+ *  381,000 -> 381,500 (2026-10-25, the flow mode's Unique -- the engine page's note of the same date; its U and D ports'
+ *  styles among them). Measured 381,179.
+ *  381,500 -> 382,000 (2026-10-25, the flow mode's many boxes at once -- the grid-only page's note of the same date; the
+ *  picked boxes' ring and the band's styles among them). Measured 381,752.
+ *  382,000 -> 382,500 (2026-10-25, the flow mode's Profile: the results pane's Rows and Profile and the profile's table's
+ *  styles; its query and its reading a chunk of their own, profile.ts, its drawing the canvas's chunk). Measured
+ *  382,213.
+ *  382,500 -> 384,000 (2026-10-25, the flow mode's containers -- the grid-only page's note of the same date; a container's
+ *  frame, head, fold and corner, and the keys' panel, styles among them). Measured 383,671.
+ *  384,000 -> 385,500 (2026-10-25, the flow mode's Output -- the grid-only page's note of the same date; its settings'
+ *  styles among them). Measured 385,054.
+ *  385,500 -> 386,500 (2026-10-25, the flow mode's Multi-Field Formula -- the grid-only page's note of the same date).
+ *  Measured 385,655.
+ *  386,500 -> 387,500 (2026-10-25, the flow mode's Transpose, Select and Sample's other ways -- the grid-only page's note
+ *  of the same date; the Select's and the Transpose's windows' styles among them). Measured 386,857.
+ *  387,500 -> 388,500 (2026-10-25, the flow mode's minimap, Fuzzy Match, Select's retype and a box's correlations: the
+ *  minimap's and the correlation matrix's styles, the Join window's edits-apart field and the Select's type choice;
+ *  their code the canvas's and the windows' chunks). Measured 387,738.
+ *  388,500 -> 389,500 (2026-10-25, the flow mode's Summarize window and a Join's L and R -- the grid-only page's notes of
+ *  the same date; the window's rows and a Join's three outputs' styles among them). Measured 389,004.
+ *  389,500 -> 390,000 (2026-10-25, the flow mode's Find Replace, a box's Chart and a Select's column order: a box's
+ *  order handed on (box-columns.ts boxOrder, read at startup through live-inputs.ts; cube-document.ts JoinInput.order),
+ *  the Chart's and the Select's arrows' styles among them). Measured 389,693.
+ *  390,000 -> 391,500 (2026-10-25, the flow mode's Union of any number -- the grid-only page's and the engine page's
+ *  notes of the same date; a Union's numbered ports and its settings' rows among the styles). Measured 391,082.
+ *  391,500 -> 392,500 (2026-10-25, the flow mode's Code view, Create Samples and command palette: a grid's last query
+ *  printed (app.ts code, copyText) at startup; the Code view's, the palette's and the two-output ports' styles among the
+ *  module's; their code the canvas's chunk). Measured 391,532.
+ *  392,500 -> 393,500 (2026-10-25, the flow mode's Date Filter and Test: the Date Filter's rule and read-back and its
+ *  window's opener -- the grid-only page's note of the same date -- the Test's opener (app.ts #openTest) and a grid's
+ *  first row read (page/cube-page.ts firstRowOf); a Test's marks and its window's styles; its rule, its window and its
+ *  marks' code chunks of their own). Measured 392,624.
+ *  393,500 -> 395,000 (2026-10-25, the flow mode's Test count of rows and Cross Tab with fixed columns: an empty grid's
+ *  row read (page/cube-page.ts firstRowOf), a pivot's values pinned and a pinned pivot's rows -- the grid-only page's
+ *  note of the same date -- and the Cross Tab strip's styles). Measured 394,407.
+ *  395,000 -> 396,000 (2026-10-25, the flow mode's Cross Tab missing values and Custom Filter -- the grid-only page's
+ *  note of the same date -- and the Custom Filter window's styles). Measured 395,109.
+ *  396,000 -> 398,000 (2026-10-26, the flow mode's Pure box -- the grid-only page's note of the same date -- and its
+ *  window's styles). Measured 397,684.
+ *  398,000 -> 410,000 (2026-10-26, main merged into the flow branch: its own steps there, 363,000 -> 365,000 -> 366,500 ->
+ *  367,500 -> 368,500 -> 370,000 -> 373,500 -> 374,000 -> 374,500 -- the grid-only page's note of the same date, and
+ *  their styles). Measured 409,703.
+ *  410,000 -> 421,500 (2026-10-26, the timeseries branch, PR #74, merged into the flow branch: its own steps there,
+ *  374,500 -> 385,000 -> 386,000 -- the grid-only page's note of the same date, and the timeseries tile's styles).
+ *  Measured 421,003.
+ *  421,500 -> 424,000 (2026-10-26, the flow mode review's fixes -- the grid-only page's note of the same date). Measured
+ *  423,483. */
+const WIDGET_BUDGET = 424_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

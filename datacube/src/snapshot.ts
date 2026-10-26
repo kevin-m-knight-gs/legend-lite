@@ -174,6 +174,17 @@ export function rowColumns(s: Pick<CubeShape, 'columns' | 'derived'>): RowColumn
   ];
 }
 
+/**
+ * THE COLUMNS A GROUPED GRID'S ROWS LEAVE OUT (docs/DATACUBE_FLOW_MODE_2026_10_24.md: a flow's Summarize, Alteryx's,
+ * whose rows are its group keys and its aggregates): the dimensions it is not grouped by -- a group has no one value of
+ * one, only its "unique value", empty where its rows differ. None for a grid grouped by nothing, or pivoted (its columns
+ * are its values). What the box after it reads, its Profile and its Output, alike.
+ */
+export function ungroupedDimensions(s: Pick<CubeShape, 'columns' | 'derived' | 'rows' | 'pivotOn'>): string[] {
+  if (s.rows.length === 0 || s.pivotOn.length > 0) return [];
+  return rowColumns(s).filter((c) => c.kind === 'dimension' && !s.rows.includes(c.name)).map((c) => c.name);
+}
+
 /** The pivot keys that pivot: those not excluded from the pivot. */
 /**
  * The columns kept out of the pivot (Column Properties > Exclude from pivot): MEASURES carried

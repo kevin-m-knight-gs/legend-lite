@@ -126,6 +126,19 @@ const over = (name: string): GridMaker => (gridHost, spawned, start) => {
   return made;
 };
 
+/** A grid over grid `of`'s rows, read live: a flow's box after another (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2). */
+const overRows = (of: string): GridMaker => (gridHost, spawned, start) => {
+  const made = new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
+    engine, planner: new StubPlanner(), compact: true, sourceLabel: 'desks.csv',
+    cubeSource: { _type: 'rows', name: 'desks.csv', input: { grid: of }, columns: SNAPSHOT.columns.map((c) => ({ name: c.name, type: c.type })) },
+    configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: 'desks.csv' },
+    ...(page ? { windowHost: page.root } : {}), ...spawned,
+    onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
+  });
+  if (spawned.id !== undefined) cubes.set(spawned.id, made);
+  return made;
+};
+
 /** The statement a snap counts its rows by, here: the fixture's engine answers it with the fixture's two rows. */
 const COUNT = 'count the rows';
 class CountingGate extends GateEngine {
@@ -613,6 +626,32 @@ const withSheet = async (): Promise<Record<string, string>> => {
   return g;
 };
 
+/** A flow sheet with a box on it (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): the page's two grids, then a flow, shown,
+ *  and a grid added on it -- the box shown. */
+const withFlow = async (): Promise<Record<string, string>> => {
+  const g = await twoGrids();
+  pg().addFlow();
+  const box = pg().addGrid(over('desks.csv'));
+  await shown(host, `.dc-flow-box[data-tile="${box}"]`);
+  return { ...g, box };
+};
+
+/** A flow of three boxes (M2): its Input (`box`), another Input (`other`), and a box over `box`'s rows, live -- shown. */
+const withLinkedFlow = async (): Promise<Record<string, string>> => {
+  const g = await withFlow();
+  const other = pg().addGrid(over('orders.csv'));
+  const linked = pg().addGrid(overRows(g.box!), { near: g.box! });
+  await shown(host, `.dc-flow-box[data-tile="${linked}"]`);
+  await shown(host, '.dc-flow-inputs select');
+  return { ...g, other, linked };
+};
+/** The shown box's settings' Input picked: `value`, a box of the flow (`grid:<id>`) or `frozen`. */
+const pickInput = (value: string): void => {
+  const pick = host.querySelector<HTMLSelectElement>('.dc-flow-inputs select')!;
+  pick.value = value;
+  pick.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+};
+
 const GESTURES: readonly Gesture[] = [
   // the page
   { name: 'a grid added', setUp: twoGrids, make: async ({ a }) => { pg().addGrid(over('desks.csv'), { near: a! }); } },
@@ -639,6 +678,19 @@ const GESTURES: readonly Gesture[] = [
   // a text tile (page-text.ts): Create ▸ Text Box, then its words edited in place (its drawing and editor a chunk of their
   // own, fetched with the first: the editor waited for)
   { name: 'a text box added', setUp: twoGrids, make: ({ a }) => gridMenuItem(a!, 'Text Box').click() },
+  // a flow sheet (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4): Create ▸ Flow, and a box moved by its arrow key
+  { name: 'a flow added', setUp: twoGrids, make: () => { pg().addFlow(); } },
+  {
+    name: 'a box moved',
+    setUp: withFlow,
+    make: ({ box }) => {
+      host.querySelector<HTMLElement>(`.dc-flow-box[data-tile="${box!}"]`)!
+        .dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    },
+  },
+  // a flow's lines (M2): a box frozen, and linked to another box, from its settings' Input
+  { name: 'a box frozen', setUp: withLinkedFlow, make: () => pickInput('frozen') },
+  { name: 'a box linked to another', setUp: withLinkedFlow, make: ({ other }) => pickInput(`grid:${other!}`) },
   // a timeseries tile (ui/timeseries-view.ts): Create ▸ Timeseries on a grid of prices -- its first series DataCube's
   // rule over the grid's columns -- and a range picked in its toolbar (its viewer a chunk of its own, waited for)
   {
@@ -1221,19 +1273,36 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
   modelKeep: { items: [], why: 'a model action needs a model home: page-commands.test.ts modelCommands' },
   // a cube opened again over its frames as they are now: told as a host's page opens (test/python-engine), and by Python
   rebuilt: { items: [], why: "opening a host's page whose frame changed in place: test/python-engine, python/tests/test_page.py" },
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): a flow's Join box set again by the Join window, which reads its
+  // inputs over the tab's own database -- none in this harness (the tab's Join… is driven by the browser's)
+  setJoin: { items: [], why: "the Join window over a flow's boxes, in the tab's own database: demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  setOutput: { items: [], why: "an Output's settings (its file's name, Write no file) and the palette's Output: demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL8, a Test that stops a run): its settings' checkbox, on a flow's
+  // canvas -- none in this harness
+  setStops: { items: [], why: "a Test box's settings (Stop a run when a check fails): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2, a Cross Tab's columns fixed): a pivoted box's settings' Load
+  // values, on a flow's canvas -- none in this harness; the gesture pivot.pin tells it (grid-gestures.test.ts)
+  pinPivot: { items: [], why: "a Cross Tab box's settings (Load values, Unfix): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  // 2026-10-26 (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12, the Pure box): its window, docked in a flow's settings pane --
+  // none in this harness; Python's grid.pure asks headless gridPure for the same command
+  setPure: { items: [], why: "a Pure box's window (its Pure, Take Its Pure Off): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). 2026-10-22 (the S7 confirmation
  *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it.
  *  2026-10-24 (BI parity P4, text tiles): 51 -> 53, a text box added and a text tile edited in place.
- *  2026-10-25 (the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7): 53 -> 55, a timeseries added and
- *  its range picked in its toolbar.
+ *  2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4): 53 -> 55, a flow added and a box moved.
+ *  2026-10-25 (M2, a flow's lines): 55 -> 57, a box frozen and a box linked to another.
+ *  2026-10-25 (the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7, on its branch): 53 -> 55, a
+ *  timeseries added and its range picked in its toolbar.
  *  2026-10-25 (the timeseries review's A8, docs/TIMESERIES_REVIEW_2026_10_25.md): 55 -> 73, every other change of a
  *  timeseries tile -- its toolbar's, its legend's, its series editor's, its settings', its tile's -- an undo of one, and
  *  the undo of a tile's removal after its grid's (G4).
  *  2026-10-25 (§8 step 1, files in a text box, on main): 53 -> 54, a file opened on a text box.
- *  2026-10-26 (main merged into the timeseries branch): both branches' gestures, 73 + 1 -> 74.
- *  2026-10-26 (a timeseries' states, a chart's words: the user's ask): 74 -> 75, a timeseries frozen from its header. */
-const GESTURES_AT_LEAST = 75;
+ *  2026-10-26 (main merged into both branches): the flow's 57 + 1 -> 58; the timeseries' 73 + 1 -> 74.
+ *  2026-10-26 (a timeseries' states, a chart's words: the user's ask): 74 -> 75, a timeseries frozen from its header.
+ *  2026-10-26 (the timeseries branch, PR #74, merged into the flow branch): 75 + the flow's 4 -> 79.
+ *  2026-10-26 (the flow mode review: the floor had not followed the list, 83 gestures): 79 -> 83. */
+const GESTURES_AT_LEAST = 83;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

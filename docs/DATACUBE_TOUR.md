@@ -37,6 +37,7 @@ Nothing is lost by its being manual. Each check it makes is also made by a per-p
 | Grid edits and charts | `verify_charts_test` |
 | Saving and sharing | `verify_cubes_test` |
 | Undo, sorts and calculated columns | `verify_features_test` |
+| A flow, built, saved and shared | `verify_flow_test` |
 
 The tour's job is the pictures, and running the flows in order on one page.
 
@@ -74,7 +75,25 @@ Each step is one section of the gallery. A step's line says what the check found
     read.
 15. **The example page `charts-dashboard`.** Every chart on every sheet draws. There is one picture per sheet.
 16. **The example page `charts-kinds`.** As for 15.
-17. **No page errors on the way.**
+17. **A flow.** Create ▸ Flow, then from the palette an Input (the examples' trades), a Filter after it (notional over
+    500,000, set in the settings pane, where the grid's own Filter window is docked), and a Summarize after that
+    (region grouped by, in its Summarize window, docked); then Run, each box counted beside its output. There are four
+    pictures: the Filter being set, the Summarize window, the flow with its Summarize shown, a row per region below, and
+    the flow run
+    (`docs/DATACUBE_FLOW_MODE_2026_10_24.md` M1, M5).
+18. **The example flow.** Open… ▸ "A data flow": the orders and their countries on a canvas, in Inputs, Prepare and
+    Report containers; Run counts every box and writes its Output ("revenue by continent.csv"); the join's Profile below
+    it; its Prepare container folded to its head; then its Reshape sheet run -- the two biggest orders of each region (a
+    Sample), chosen and revenue renamed sales (a Select), their money made rows (a Transpose) and summed by measure; then
+    its Match sheet run -- the big orders the join found no country for (its L) and how many (Count Records), the
+    countries no big order is of (its R), every order's country as the countries name it (Find Replace); then its
+    Checks sheet run -- three regions' orders unioned again (a Union of three), 2024's kept and written (a Date Filter,
+    an Output), every order checked (a Test: its discount check failing, said on its box and in the run's log), and
+    revenue by channel across the regions (a Cross Tab whose columns are fixed to two of the three: its third said, a
+    value with no column of its own). Six pictures (`docs/DATACUBE_FLOW_MODE_2026_10_24.md`: the example, Profile,
+    containers, Sample, Select, Transpose, a Join's L and R, Count Records, Find Replace, a Union of any number, Date
+    Filter, Test, a Cross Tab's fixed columns).
+19. **No page errors on the way.**
 
 ## When a step fails
 

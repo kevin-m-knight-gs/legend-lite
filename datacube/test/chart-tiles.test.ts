@@ -15,6 +15,7 @@ import type { FileSource } from '../src/cube-document.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 import { app, dom, GateEngine, menuItems, remount, root, settle, setUp, shown, SNAPSHOT, StubPlanner, tearDown } from './cube-fixture.ts';
+import { bandsOf } from './bands-of.ts';
 
 // The fixture's cube is grouped by region, then desk: a following chart is region across, split
 // by desk; taking desk out of the row groups is a pivot it follows.
@@ -193,7 +194,7 @@ describe('the page\'s layout: placed under, arranged, undone, locked', () => {
     assert.ok(item, `the title bar's menu offers ${label}`);
     return item;
   };
-  const bands = (): string[][] => app.pageViews().sheets[0]!.layout.bands.map((b) => tiles({ fit: false, bands: [b] }));
+  const bands = (): string[][] => bandsOf(app.pageViews().sheets[0]!.layout).bands.map((b) => tiles({ fit: false, bands: [b] }));
   /** The bands as the board shows them, every tile in (an added grid too, which the saved page leaves out until v2). */
   const boardBands = (): string[][] => {
     const tops = new Map<string, string[]>();

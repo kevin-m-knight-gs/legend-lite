@@ -18,10 +18,13 @@
 // `whole`: everything a page command can set; what none can (a model gone, a model moved, a pin taken off, a cube opened
 // again over its source as it is now: `rebuilt`) is refused in words, and the screen opens the page again instead.
 
-import { tiles } from './layout/bands.ts';
 import { applyPageCommand, idsOf, nextPageId, takenIds, type KeptCube, type PageCommand, type PageDraft } from './page-commands.ts';
-import type { CubeDocument } from './cube-document.ts';
-import { readsCube, type ChartView, type GridCopy, type GridView, type PageDocument, type PageSheet, type PageView, type TextView, type TimeseriesView } from './page-document.ts';
+import { inputOn, inputSides, isLive, moreIndex, type CubeDocument } from './cube-document.ts';
+import { relinkedInput } from './live-inputs.ts';
+import {
+  layoutTiles, readsCube, type ChartView, type GridCopy, type GridView, type PageDocument, type PageSheet, type PageView, type TextView,
+  type TimeseriesView,
+} from './page-document.ts';
 import { rearranged, renamedCommand, renamedSpec } from './page-rebase.ts';
 import { CubeRefusal, sameValue } from './snapshot.ts';
 
@@ -29,12 +32,13 @@ import { CubeRefusal, sameValue } from './snapshot.ts';
 export type PageScope = 'history' | 'whole';
 
 /** The commands that make a tile or a sheet: their id is theirs to give out afresh. */
-const MAKERS = new Set<PageCommand['kind']>(['addSheet', 'addGrid', 'addChart', 'addText', 'addTimeseries']);
+const MAKERS = new Set<PageCommand['kind']>(['addSheet', 'addFlow', 'addGrid', 'addChart', 'addText', 'addTimeseries']);
 
 /** The kind of id a making command gives out. */
 function kindMade(command: PageCommand): 'grid' | 'chart' | 'text' | 'timeseries' | 'sheet' | 'filter' {
   switch (command.kind) {
-    case 'addSheet': return 'sheet';
+    case 'addSheet':
+    case 'addFlow': return 'sheet';
     case 'addGrid': return 'grid';
     case 'addChart': return 'chart';
     case 'addText': return 'text';
@@ -108,7 +112,7 @@ export function applyPlanned(draft: PageDraft, commands: readonly PageCommand[],
   return { draft: d, applied, renamed: Object.fromEntries(renamed) };
 }
 
-const sheetOf = (page: PageDocument, tile: string): PageSheet | undefined => page.sheets.find((s) => tiles(s.layout).includes(tile));
+const sheetOf = (page: PageDocument, tile: string): PageSheet | undefined => page.sheets.find((s) => layoutTiles(s.layout).includes(tile));
 const gridShowing = (page: PageDocument, cube: string): PageView | undefined => page.views.find((v) => v.kind === 'grid' && v.cube === cube);
 
 /**
@@ -129,8 +133,12 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
   const inFrom = (id: string): boolean => from.views.some((v) => v.id === id);
   const inTo = (id: string): boolean => to.views.some((v) => v.id === id);
 
-  // 1. sheets `to` has
-  for (const s of to.sheets) if (!from.sheets.some((x) => x.id === s.id)) emit({ kind: 'addSheet', id: s.id, name: s.name ?? null });
+  // 1. sheets `to` has: a board, or a flow sheet (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4) -- made as it is, never the
+  //    other kind (a flow sheet's removal undone made a board, its boxes' layout then refused: 2026-10-25)
+  for (const s of to.sheets) {
+    if (from.sheets.some((x) => x.id === s.id)) continue;
+    emit({ kind: s.layout.kind === 'flow' ? 'addFlow' : 'addSheet', id: s.id, name: s.name ?? null });
+  }
 
   // 2. grids `to` has, with their cubes, on their sheets (a band of their own: the layout follows below)
   for (const v of to.views) {
@@ -160,7 +168,51 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     if ((here.title ?? null) !== (v.title ?? null)) emit({ kind: 'renameTile', tile: v.id, title: v.title ?? null });
   }
 
-  // 2c. timeseries tiles `to` has, on their sheets (the layout follows below), after the grids their sources read; the
+  // 2c. the inputs of the grids both have, as `to` has them, a join's how and a Pure box's function
+  //     (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2, FL12: a flow's lines, its Join boxes' joins and its Pure boxes' functions are the page's, its boxes' queries their own) -- a box's removal undone links again the boxes it froze. Each set when
+  //     it reads no grid back meanwhile; those that would (two boxes swapped) frozen first, then set: every page between
+  //     then reads a part of `to`'s links, which read none back
+  const relinks: Extract<PageCommand, { kind: 'setInput' }>[] = [];
+  for (const v of to.views) {
+    if (v.kind !== 'grid' || !inFrom(v.id)) continue;
+    const want = to.cubes.find((c) => c.id === v.cube)?.cube.source;
+    const here = cur().views.find((x): x is GridView => x.kind === 'grid' && x.id === n(v.id));
+    const have = here === undefined ? undefined : cur().cubes.find((c) => c.id === here.cube)?.cube.source;
+    // a snapped grid's input moves once it goes live (setInput refuses it): its rows are its copy's meanwhile
+    if (want === undefined || have === undefined || want._type !== have._type || (cur().copies ?? {})[here!.cube] !== undefined) continue;
+    // a Union with more inputs or fewer (one added on the canvas, one taken off): its more set whole, with its how
+    const more = want._type === 'join' && have._type === 'join' && (want.more?.length ?? 0) !== (have.more?.length ?? 0)
+      ? want.more ?? [] : undefined;
+    for (const side of inputSides(want)) {
+      if (more !== undefined && moreIndex(side) !== undefined) continue;
+      if (!sameValue(inputOn(have, side), relinkedInput(inputOn(want, side), n))) relinks.push({ kind: 'setInput', grid: v.id, side, input: inputOn(want, side) });
+    }
+    // a join's how, as its box's Join window set it: the page's too
+    if (want._type === 'join' && have._type === 'join' && (more !== undefined || !sameValue(want.how, have.how))) {
+      emit({ kind: 'setJoin', grid: v.id, how: want.how, ...(more !== undefined ? { more } : {}) });
+    }
+    // a Pure box's function (pure-box.ts), as its window set it: the page's too
+    if (want._type === 'rows' && have._type === 'rows' && !sameValue(want.pure ?? null, have.pure ?? null)) {
+      emit({ kind: 'setPure', grid: v.id, pure: want.pure ?? null });
+    }
+  }
+  const tried = (c: PageCommand): boolean => {
+    try {
+      emit(c);
+      return true;
+    } catch (e) {
+      if (e instanceof CubeRefusal) return false;
+      throw e;
+    }
+  };
+  const left = relinks.filter((c) => !tried(c));
+  for (const c of left) {
+    const at = cur().views.find((x): x is GridView => x.kind === 'grid' && x.id === n(c.grid))!;
+    if (isLive(inputOn(cur().cubes.find((x) => x.id === at.cube)!.cube.source, c.side))) emit({ ...c, input: null });
+  }
+  for (const c of left) emit(c);
+
+  // 2d. timeseries tiles `to` has, on their sheets (the layout follows below), after the grids their sources read; the
   //     ones both have, their spec and their title as `to` has them -- each carrying, as `to` holds them, the cubes it
   //     reads that no grid of `to` shows (their grid removed while it read them: G4) and the page here does not hold
   const keptFor = (v: TimeseriesView): { kept?: KeptCube[] } => {
@@ -321,6 +373,16 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     const planned: PageCommand = { kind: 'layout', sheet: s.id, layout: s.layout };
     const asHere = renamedCommand(planned, renamed) as Extract<PageCommand, { kind: 'layout' }>;
     if (!sameValue(here.layout, asHere.layout)) emit(planned);
+    // a box's Output and its stopping a run, its settings: a layout made again keeps them as the page has them
+    // (page-rebase.ts rearranged), so each is set as `to` has it, by its own command
+    if (s.layout.kind !== 'flow') continue;
+    for (const b of s.layout.boxes) {
+      const now = cur().sheets.find((x) => x.id === n(s.id))?.layout;
+      const at = now?.kind === 'flow' ? now.boxes.find((x) => x.tile === n(b.tile)) : undefined;
+      if (at === undefined) continue;
+      if (!sameValue(at.output ?? null, b.output ?? null)) emit({ kind: 'setOutput', grid: b.tile, output: b.output ?? null });
+      if ((at.stops === true) !== (b.stops === true)) emit({ kind: 'setStops', grid: b.tile, stops: b.stops === true });
+    }
   }
 
   // 9. sheets `to` has not; names; order

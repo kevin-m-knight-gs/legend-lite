@@ -35,6 +35,12 @@ import { createItems, type MenuItem } from '../ui/menu.ts';
 import { chromeIcon, closeMark, paintState, stateButton } from '../ui/tile-icons.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
+import { FlowBoard, runStoppers, type FlowPoint, type LineEnd } from '../layout/flow-board.ts';
+import { liveGrids, relinked } from '../live-inputs.ts';
+import type { Profile } from '../profile.ts';
+import { CONTAINER_FRAME, EMPTY_FLOW, flowTiles, type Frame } from '../layout/flow.ts';
+import type { FlowTool, StepEditor } from '../flow-boxes.ts';
+import type { GestureArgs } from '../grid-gestures.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { CHART_STATES, chartGrid, MAP_MARKS, showGridWay, type ChartSpec, type ChartState } from '../chart-spec.ts';
 import { chartPicked, type PageFilter } from '../page-filters.ts';
@@ -42,17 +48,18 @@ import type { CubeConfiguration } from '../config.ts';
 import type { GridShown } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
 import {
-  FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews, type TextView,
+  FIRST_SHEET, PAGE_CUBE, type ChartView, type GridView, type PageLayout, type PageSheet, type PageView, type PageViews, type TextView,
   type TimeseriesView as TimeseriesPageView,
 } from '../page-document.ts';
 import {
-  layoutCommand, movedCommand, moveSheetCommand, moveToSheetCommands, pageCommand, renameSheetCommand, savedLayout, showGridCommands,
+  duplicateCommands, layoutCommand, movedCommand, moveSheetCommand, moveToSheetCommands, pageCommand, renameSheetCommand, savedLayout, showGridCommands,
+  takeOffCommands,
 } from '../page-gestures.ts';
 import { chartTitle, gridTitle, nextPageId, textTitle, timeseriesTitle } from '../page-ids.ts';
 import type { PageCommand } from '../page-commands.ts';
-import type { CubeDocument, CubeSource } from '../cube-document.ts';
+import type { CubeDocument, CubeSource, InputPort } from '../cube-document.ts';
 import type { GridCopy, PageDocument } from '../page-document.ts';
-import { withoutConditions, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
+import { sameValue, withoutConditions, type CubeSnapshot, type FilterNode, type FilterValue } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
@@ -118,6 +125,12 @@ export interface ChartSource {
 }
 
 /** Where a grid on the page sends its own "+ Chart", "New grid" and the rest: to the page. */
+/** A step a flow's New Box After makes (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9): the grid's gesture, and its name. */
+export interface FlowStep {
+  readonly gesture: { readonly name: string; readonly args: GestureArgs };
+  readonly label: string;
+}
+
 export interface SpawnOptions {
   /** Its tile's id on the page (a page of its own: its host keeps what it knows of the grid by it). */
   readonly id?: string;
@@ -148,6 +161,12 @@ export interface SpawnOptions {
   readonly onMoveToSheet?: (sheet: string | null) => void;
   /** Its configuration, when not the spawning grid's: Show Grid's, a chart's values as its Column Properties. */
   readonly configuration?: CubeConfiguration;
+  /** Where its windows that set it dock (CubeAppOptions.dock): a flow's box, its flow's settings pane. */
+  readonly dock?: HTMLElement;
+  /** A flow's box's New Box After (CubeAppOptions.onStepAfter, FL9): the gesture made in a box after it. */
+  readonly onStepAfter?: (gesture: { readonly name: string; readonly args: GestureArgs }, label: string) => void;
+  /** A flow's Pure box set by its window (CubeAppOptions.onSetPure, FL12): told as the page's setPure. */
+  readonly onSetPure?: (pure: Lambda | null) => boolean;
 }
 
 /** A grid on a page (a CubeApp). */
@@ -174,6 +193,29 @@ export interface SpawnedGrid {
   tileAbout(): string | undefined;
   /** The grid as a saved cube, named `name`: undefined when it cannot say its source. */
   cubeDocument?(name: string): CubeDocument | undefined;
+  /** The window that sets a flow's step (flow-boxes.ts TOOL_EDITORS), opened -- docked where its options dock it. */
+  openStep?(editor: StepEditor): void;
+  /** Its view as it landed last: its rows, and a flat grid's total when the row cap cut them -- a flow's box's count, and
+   *  a Test box's counts (its columns' first values). */
+  readonly view?: {
+    readonly rows: { readonly rowCount: number; readonly columns: readonly { readonly name: string; readonly values: readonly unknown[] }[] };
+    readonly totalRows?: number;
+  } | null;
+  /** Its rows' profile (a flow's box's Profile: profile.ts), asked of the database when it is shown. */
+  profile?(): Promise<Profile>;
+  /** Its rows -- every one, the columns it shows -- written to a CSV file named `name` (a flow's Output). */
+  writeOutput?(name: string): Promise<void>;
+  /** The query it ran last, as the compiler prints it, and its SQL (a flow's box's Code). */
+  code?(): Promise<{ readonly pure: string; readonly sql: string }>;
+  /** Text onto its host's clipboard (a flow's box's Code copied). */
+  copyText?(text: string): Promise<void>;
+  /** A Cross Tab's values pinned as its rows hold them now, its columns fixed (FL2), or `pin` false its values its rows'
+   *  again: the refusal in words, or null. */
+  pinPivotValues?(pin: boolean): Promise<string | null>;
+  /** A gesture made on it as its menu makes one (a flow's New Box After: the new box's one step, FL9). */
+  gesture?(name: string, args: GestureArgs, label: string): Promise<string | null>;
+  /** A Cross Tab's values its pinned columns lack, asked of the database (FL3): none when it pins nothing. */
+  lackingPivotValues?(): Promise<readonly (FilterValue | null)[]>;
 }
 
 export interface CubePageOptions {
@@ -266,12 +308,32 @@ export interface CubePageOptions {
   readonly documentOf?: (grid: string) => CubeDocument | undefined;
   /** Ctrl+Z (Ctrl+Shift+Z: `redo`) on a tile's frame: the page's own undo (a page of its own); absent, Undo Layout. */
   readonly onUndo?: (redo: boolean) => void;
+  /** What the page's Undo and Redo would undo and redo now, by name: a flow's Undo and Redo say it. */
+  readonly history?: () => { readonly undo?: string | undefined; readonly redo?: string | undefined };
   /**
    * What a chart's click on a mark of grid `grid` is decided on (page-filters.ts chartPicked): the grid's source -- on a
    * grid over a class, the conditions on its properties are a page filter (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
    * §16.2) -- and the page's filters now. Absent (a cube alone), the click is its grid's alone.
    */
   readonly pickOn?: (grid: string) => { readonly source: CubeSource | undefined; readonly filters: readonly PageFilter[] };
+  /**
+   * A FLOW'S BOX SHOWN (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1's design, 3): how its grid is made over `document`, its
+   * cube as the page has it now -- its source opened by its host, its live inputs read as the page has them now;
+   * undefined when the person gave up. Absent, a page has no flow sheets to show a box of.
+   */
+  readonly openBox?: (box: string, document: CubeDocument) => Promise<((host: HTMLElement, options: SpawnOptions) => SpawnedGrid) | undefined>;
+  /** A file dropped onto flow `sheet`'s canvas: an Input box over it, added by the page's owner. */
+  readonly onFile?: (file: File, sheet: string) => void;
+  /** A tool of a flow's palette picked: a box of it added to flow `sheet`, after box `after` (none: on its own), its
+   *  settings (`editor`) opened once it is shown -- dropped on a line, `into` the box that line goes into, which reads
+   *  the new box from then on. */
+  readonly onTool?: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined, into?: LineEnd,
+    port?: InputPort, at?: FlowPoint, step?: FlowStep) => void;
+  /** A flow's Join or Union box's settings asked for (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): the Join window over its
+   *  inputs, opened by the page's owner -- a window over the page, never docked. */
+  readonly onJoinBox?: (box: string, sheet: string) => void;
+  /** Tidy Up on flow `sheet`: its boxes placed by the flow's own rule, by the page's owner (page-gestures.ts tidyCommands). */
+  readonly onTidy?: (sheet: string) => void;
   /**
    * The grids of `cubes` opened together over one model of their tables, for a timeseries series that combines them
    * (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2: join-open.ts openSources) -- a page of its own over this tab's
@@ -288,15 +350,18 @@ export interface PageEdit {
   readonly step?: false;
 }
 
-/** A sheet as the page has it: its id, its name when someone gave it one, and its tiles in reading order. */
+/** A sheet as the page has it: its id, its name when someone gave it one, its tiles in reading order, and whether it is
+ *  a flow (its boxes on a canvas: docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4). */
 export interface SheetInfo {
   readonly id: string;
   readonly name?: string;
   readonly tiles: readonly string[];
+  readonly flow?: true;
 }
 
 /** A SHEET: a whole screen of tiles, on a board of its own -- its bands, its fit, its layout undo. */
-interface Sheet {
+interface BoardSheet {
+  readonly kind: 'bands';
   readonly id: string;
   /** Its name, when someone gave it one. */
   name: string | undefined;
@@ -304,6 +369,36 @@ interface Sheet {
   readonly board: BandBoard;
   /** Each arrangement by hand is one step (the design's §3.3): the layouts before the steps done, and after those undone. */
   readonly steps: { undone: Bands[]; redone: Bands[] };
+}
+
+/** A FLOW SHEET (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): its boxes on a canvas, the grid of the one shown below it. */
+interface FlowSheet {
+  readonly kind: 'flow';
+  readonly id: string;
+  name: string | undefined;
+  readonly host: HTMLElement;
+  readonly board: FlowBoard;
+}
+
+type Sheet = BoardSheet | FlowSheet;
+
+/** A sheet's tiles in reading order: a board's by its bands, a flow's in the order its boxes were placed. */
+const sheetTiles = (sheet: Sheet): string[] => (sheet.kind === 'flow' ? flowTiles(sheet.board.layout) : tiles(sheet.board.layout));
+
+/** A layout's tiles, either kind. */
+const layoutTilesOf = (layout: PageLayout): string[] => (layout.kind === 'flow' ? flowTiles(layout) : tiles(layout));
+
+/** A FLOW'S BOX NOT SHOWN: no grid made for it, its view and its cube as the page has them (M1's design, 3). */
+/** A box or a note a flow's Ctrl+C kept: its cube (or its words), and where it was. */
+type ClipItem = { readonly tile: string; readonly x: number; readonly y: number }
+  & ({ readonly document: CubeDocument } | { readonly text: string });
+
+/** How far down and right of where they were boxes are pasted, given no place: their copies seen beside them. */
+const PASTE_OFFSET = 32;
+
+interface ClosedBox {
+  view: GridView;
+  document: CubeDocument;
 }
 
 /** A grid on the page: the cube's own, or another one added to it. */
@@ -429,6 +524,13 @@ export class CubePage {
   readonly #grids = new Map<string, GridTile>();
   /** The text tiles (page-text.ts): each one's words as the page has them, its body, whether its editor is open. */
   readonly #texts = new Map<string, TextTile>();
+  /** What a flow's Ctrl+C kept to paste: boxes' cubes and notes' words, each where it was, in the order they read each
+   *  other. */
+  #clipboard: readonly ClipItem[] | undefined;
+  /** A flow's boxes not shown, by id: documents, no grid made for them until one is (`#showBox`). */
+  readonly #boxes = new Map<string, ClosedBox>();
+  /** The boxes whose grids are being made (their sources opening), each once. */
+  readonly #showing = new Set<string>();
   /** The timeseries tiles (ui/timeseries-view.ts): each one's spec as the page has it, its body, its viewer. */
   readonly #series = new Map<string, SeriesTile>();
   /** The text boxes' files read this session, by fingerprint, and the handle each was picked with where the browser
@@ -448,6 +550,10 @@ export class CubePage {
   #cameNext = 0;
   /** Each added grid's first open (its first view), for `opened`. */
   readonly #opening = new Map<string, Promise<void>>();
+  /** Each Cross Tab's question of the values its columns lack, while it is asked (#askLacking): what a run waits for. */
+  readonly #lackingAsked = new Map<string, Promise<void>>();
+  /** Each Cross Tab's question the database refused, last asked, in its words (#askLacking): why a run it stops stops. */
+  readonly #lackingRefused = new Map<string, string>();
   /** This page's crosshair group (chart-render.ts setGroup): its own, so two pages on one screen do not share. */
   readonly #crosshair = `page-${(crosshairs += 1)}`;
   /** A chart's right-click menu: its Options, Show Grid, Remove. */
@@ -458,8 +564,9 @@ export class CubePage {
     this.#options = options;
     this.#doc = options.host.ownerDocument;
     this.#menu = new MenuView(this.#doc, { onSelect: (item) => this.#menuFor?.(item) });
-    this.#shown = this.#newSheet(FIRST_SHEET);
-    this.#shown.host.hidden = false;
+    const first = this.#newBands(FIRST_SHEET);
+    this.#shown = first;
+    first.host.hidden = false;
     const own = options.grid;
     if (!own) return;
     // a chart or another grid is added from the menus (right-click or the hamburger, Insert), not
@@ -478,18 +585,29 @@ export class CubePage {
       removable: false,
     });
     // a screenful: the grid had the whole page until now
-    this.#shown.board.setLayout({ fit: true, bands: [{ height: 1, node: { tile: GRID } }] });
-    this.#pageLayouts.set(FIRST_SHEET, this.#shown.board.layout);
+    first.board.setLayout({ fit: true, bands: [{ height: 1, node: { tile: GRID } }] });
+    this.#pageLayouts.set(FIRST_SHEET, first.board.layout);
   }
 
-  /** A sheet, after the others, not shown: a board of its own in an element of its own. */
-  #newSheet(id: string, name?: string): Sheet {
+  /** A sheet, after the others, not shown: a board of its own in an element of its own -- a flow's canvas (`flow`), else
+   *  bands. */
+  #newSheet(id: string, name?: string, flow = false): Sheet {
+    return flow ? this.#newFlow(id, name) : this.#newBands(id, name);
+  }
+
+  /** A sheet's element, after the others', hidden. */
+  #sheetHost(id: string): HTMLElement {
     const host = this.#doc.createElement('div');
     host.className = 'dc-sheet';
     host.dataset['sheet'] = id;
     host.hidden = true;
     this.#options.host.append(host);
-    const steps: Sheet['steps'] = { undone: [], redone: [] };
+    return host;
+  }
+
+  #newBands(id: string, name?: string): BoardSheet {
+    const host = this.#sheetHost(id);
+    const steps: BoardSheet['steps'] = { undone: [], redone: [] };
     const tabs = this.#options.sheetTabs;
     // the sheet a dragged tile is over the tab of: another one than its own
     const other = (x: number, y: number): string | undefined => {
@@ -536,16 +654,139 @@ export class CubePage {
     board.setLayout(NEW_SHEET);
     this.#pageLayouts.set(id, NEW_SHEET);
     board.setEditing(this.#editing);
-    const sheet: Sheet = { id, name, host, board, steps };
+    const sheet: BoardSheet = { kind: 'bands', id, name, host, board, steps };
+    this.#sheets.push(sheet);
+    return sheet;
+  }
+
+  /**
+   * A FLOW SHEET'S BOARD (layout/flow-board.ts): what the hand does there told as the page's commands -- a box let go
+   * somewhere else as its place (placeBox), its × as its removal, its name as its title -- a box clicked shown (its
+   * grid made, `#showBox`), and a tool of the palette added by the page's owner (`onTool`).
+   */
+  #newFlow(id: string, name: string | undefined): FlowSheet {
+    const host = this.#sheetHost(id);
+    const board = new FlowBoard(host, {
+      onMove: (tile, x, y) => {
+        this.#tell('Move Box', pageCommand('placeBox', { tile, x, y }));
+        this.#options.onChange();
+      },
+      onMoveMany: (moves, label) => {
+        this.#tell(label ?? 'Move Boxes', ...moves.map((m) => pageCommand('placeBox', { tile: m.id, x: m.x, y: m.y })));
+        this.#options.onChange();
+      },
+      onFrame: (tile, x, y, frame) => {
+        const was = this.#sheetOf(tile)?.board.layout;
+        const before = was !== undefined && 'boxes' in was ? was.boxes.find((b) => b.tile === tile)?.frame : undefined;
+        const label = before !== undefined && (before.collapsed === true) !== (frame.collapsed === true)
+          ? (frame.collapsed === true ? 'Fold Container' : 'Unfold Container') : 'Size Container';
+        this.#tell(label, pageCommand('placeBox', { tile, x, y, frame }));
+        this.#options.onChange();
+      },
+      onContainer: (at, frame) => this.#addContainer(id, at, frame),
+      onEditText: (tile) => this.editText(tile),
+      onOutput: (tile, output) => {
+        this.#tell(output === null ? 'Write No File' : 'Set Output', pageCommand('setOutput', { grid: tile, output }));
+        this.#options.onChange();
+      },
+      onStops: (tile, stops) => {
+        this.#tell(stops ? 'Stop Run On Failure' : 'Warn On Failure', pageCommand('setStops', { grid: tile, stops }));
+        this.#options.onChange();
+      },
+      onPinValues: async (tile, pin) => {
+        // its grid made first, when it is not shown: its values are its rows'
+        if (this.#grids.get(tile)?.added?.cube === undefined) await this.#showBox(tile);
+        const grid = this.#grids.get(tile)?.added?.cube;
+        if (grid?.pinPivotValues === undefined) {
+          const on = this.#sheetOf(tile);
+          return (on?.kind === 'flow' ? on.board.refusal(tile) : undefined) ?? 'its grid could not be opened';
+        }
+        return grid.pinPivotValues(pin);
+      },
+      onWrite: (tile) => this.#writeBox(tile),
+      onSelect: (tile, editor) => void this.#showBox(tile, editor),
+      onRemove: (tile) => this.#removeTile(tile),
+      onRemoveMany: (tiles) => this.#removeTiles(tiles),
+      onRename: (tile, title) => {
+        if (this.#saved(tile)) this.#tell('Rename Tile', pageCommand('renameTile', { tile, title }));
+        this.#options.onChange();
+      },
+      // a Comment is the page's own (a text tile), any other tool its owner's to make
+      onTool: (tool, after, editor, into, port, at) => (tool === 'comment' ? this.#addComment(id, at)
+        // a Container clicked in the palette, or dropped on a box: one of its own size, below the flow's boxes
+        : tool === 'container' ? this.#addContainer(id, at ?? this.#belowFlow(id), CONTAINER_FRAME)
+          : this.#options.onTool?.(tool, after, id, editor, into, port, at)),
+      // a line drawn, taken off, or set in a box's settings: what the box reads (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
+      onConnect: (tile, side, from, port) => {
+        this.#tell('Link Box', pageCommand('setInput', { grid: tile, side, input: { grid: from, ...(port !== undefined ? { port } : {}) } }));
+        this.#options.onChange();
+      },
+      onFreeze: (tile, side) => {
+        this.#tell('Freeze Box', pageCommand('setInput', { grid: tile, side, input: null }));
+        this.#options.onChange();
+      },
+      onTakeOff: (tile, side) => {
+        const source = (this.#boxes.get(tile)?.document ?? this.documentOf(tile))?.source;
+        if (source === undefined) return;
+        this.#tell('Take Off Input', ...takeOffCommands(tile, source, side));
+        this.#options.onChange();
+      },
+      onUndo: (redo) => this.#options.onUndo?.(redo),
+      ...(this.#options.history ? { history: this.#options.history } : {}),
+      onFile: (file) => this.#options.onFile?.(file, id),
+      documentOf: (tile) => this.#boxes.get(tile)?.document ?? this.documentOf(tile),
+      onTidy: () => this.#options.onTidy?.(id),
+      onRun: (dry) => void this.#runFlow(id, dry === true),
+      onDuplicate: (tile) => this.#duplicateBox(id, tile),
+      onCopy: (tiles, cut) => this.#copyBoxes(tiles, cut),
+      profileOf: (tile) => {
+        const grid = this.#grids.get(tile)?.added?.cube;
+        return grid?.profile === undefined ? Promise.reject(new Error(`${tile} is not shown`)) : grid.profile();
+      },
+      firstRowOf: (tile) => {
+        const v = this.#grids.get(tile)?.added?.cube.view;
+        if (v === undefined || v === null) return undefined;
+        // no row (a Test of no rows): every column's value undefined
+        return (column) => (v.rows.rowCount === 0 ? undefined : v.rows.columns.find((c) => c.name === column)?.values[0]);
+      },
+      codeOf: (tile) => {
+        const grid = this.#grids.get(tile)?.added?.cube;
+        return grid?.code === undefined ? Promise.reject(new Error(`${tile} is not shown`)) : grid.code();
+      },
+      copyText: (tile, text) => {
+        const grid = this.#grids.get(tile)?.added?.cube;
+        return grid?.copyText === undefined ? Promise.reject(new Error(`${tile} is not shown`)) : grid.copyText(text);
+      },
+      // its rows drawn as a chart tile draws its grid's (a mark clicked filters nothing: a box's query is its step)
+      chartOf: (tile, host) => {
+        const grid = this.#grids.get(tile)?.added?.cube;
+        if (grid === undefined) throw new Error(`${tile} is not shown`);
+        const source = (): ChartSource => grid.chartSource();
+        const panel = new ChartPanel(host, {
+          snapshot: () => source().snapshot,
+          run: (query, snapshot, signal) => source().run(query, snapshot, signal),
+          label: (value, column, type, headline) => source().format(value, column, type, headline),
+          unit: (column) => source().unit?.(column),
+          shown: () => source().shown(),
+          onPick: () => undefined,
+          formOpen: false,
+        });
+        // its Options, as a chart tile's: a window beside it, put away again (ui/chart-panel.ts openForm)
+        return { toggleForm: () => { if (panel.formOpen) panel.closeForm(); else panel.openForm(); }, dispose: () => panel.dispose() };
+      },
+      onPaste: (at) => this.#pasteBox(id, at),
+    });
+    board.setEditing(this.#editing);
+    const sheet: FlowSheet = { kind: 'flow', id, name, host, board };
     this.#sheets.push(sheet);
     return sheet;
   }
 
   /** The next id of `kind` (page-ids.ts nextPageId): after every id the page's state has held and every one on the board
    *  now -- a tile a gesture made that its command has not placed yet among them. */
-  #nextId(kind: 'grid' | 'chart' | 'text' | 'timeseries' | 'sheet'): string {
+  #nextId(kind: 'grid' | 'chart' | 'text' | 'timeseries' | 'sheet', reserved: Iterable<string> = []): string {
     const board = [...this.#sheets.map((s) => s.id), ...this.#grids.keys(), ...this.#charts.keys(), ...this.#kept.keys(),
-      ...this.#unavailable.keys(), ...this.#pending.keys(), ...this.#texts.keys(), ...this.#series.keys()];
+      ...this.#unavailable.keys(), ...this.#pending.keys(), ...this.#texts.keys(), ...this.#series.keys(), ...this.#boxes.keys(), ...reserved];
     return nextPageId([...this.#options.taken(), ...board], kind, this.#options.idTag?.());
   }
 
@@ -567,14 +808,14 @@ export class CubePage {
 
   /** A sheet's layout told whole, as views() writes it: its saved tiles alone, as a page saves them
    *  (page-gestures.ts layoutCommand). */
-  #tellLayout(sheet: Sheet): void {
+  #tellLayout(sheet: BoardSheet): void {
     if (this.#quiet > 0) return;
     this.#tell('Layout Change', layoutCommand(sheet.id, sheet.board.layout, this.#savedTiles()));
   }
 
   /** A sheet's layout changed by hand, told as what the hand did (page-gestures.ts movedCommand: a stack, a preset
    *  picked, else the layout whole). `before`: the layout the hand changed. */
-  #tellMove(sheet: Sheet, before: Bands, move: LayoutMove | undefined): void {
+  #tellMove(sheet: BoardSheet, before: Bands, move: LayoutMove | undefined): void {
     if (this.#quiet > 0) return;
     this.#tell('Layout Change', movedCommand(sheet.id, before, move, sheet.board.layout, this.#savedTiles()));
   }
@@ -602,7 +843,384 @@ export class CubePage {
     const by = near !== undefined ? this.#sheetOf(near) : undefined;
     const sheet = this.#planned.get(spec.id) ?? by ?? this.#shown;
     this.#specs.set(spec.id, spec);
+    if (sheet.kind === 'flow') {
+      // a comment (a text tile: M7), drawn as a note where the flow places it
+      if (this.#texts.has(spec.id)) {
+        sheet.board.addNote(spec, by === sheet ? near : undefined);
+        return;
+      }
+      // a flow's boxes are grids, one shown at a time: the one shown before closes (`#closeBox`)
+      if (!this.#grids.has(spec.id)) throw new Error(`${spec.id} is no grid: a flow sheet holds boxes and comments alone`);
+      this.#closeBox(sheet);
+      this.#boxes.delete(spec.id);
+      sheet.board.add(spec, by === sheet ? near : undefined);
+      return;
+    }
     sheet.board.add(spec, by === sheet ? near : undefined, this.#charts.has(spec.id) ? this.#chartsOnly : undefined);
+  }
+
+  // -- a flow's boxes (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1's design, 3) --------------------------------------
+
+  /** A box of flow `sheet` not shown, drawn from `document` (its cube as the page has it): put there, or -- there
+   *  already -- its view and its cube as the step has them. */
+  #putBox(sheet: FlowSheet, view: GridView, document: CubeDocument): void {
+    const title = view.title ?? gridTitle(view.id);
+    const box = this.#boxes.get(view.id);
+    if (box !== undefined) {
+      box.view = view;
+      box.document = document;
+      return;
+    }
+    this.#boxes.set(view.id, { view, document });
+    this.#titles.set(view.id, gridTitle(view.id));
+    sheet.board.addBox(view.id, title);
+  }
+
+  /** A box not shown off its flow, as a step leaves it. */
+  #dropBox(id: string): void {
+    if (!this.#boxes.delete(id)) return;
+    this.#take(id);
+  }
+
+  /**
+   * THE BOX SHOWN ON `sheet` CLOSED: its grid let go -- its cube kept as a document (`document`, else its grid's as it is
+   * now), its view as the page saves it -- and the box left on the canvas, drawn from that document. No step of the page:
+   * which box is shown is the screen's (§3.4).
+   */
+  #closeBox(sheet: FlowSheet, document?: CubeDocument): void {
+    const id = sheet.board.shown;
+    if (id === undefined) return;
+    const grid = this.#grids.get(id);
+    const doc = document ?? this.documentOf(id);
+    if (!grid?.added || doc === undefined) throw new Error(`box ${id} cannot be closed: it cannot say its cube`);
+    const title = this.title(id);
+    const view: GridView = { id, kind: 'grid', cube: id, ...(title !== undefined && title !== this.#titles.get(id) ? { title } : {}) };
+    grid.added.stop();
+    grid.added.cube.dispose();
+    this.#grids.delete(id);
+    this.#specs.delete(id);
+    sheet.board.close(id);
+    this.#boxes.set(id, { view, document: doc });
+    // its owner told the tiles changed by whoever closed it, once the box shown in its place is on the board: told now,
+    // the grid made for that box, not yet placed, would be forgotten as gone (PageApp #onTiles)
+  }
+
+  /**
+   * A BOX SHOWN (a click on it): its grid made by the page's owner over its cube as the page has it now (openBox) --
+   * its live inputs read as they are now -- in the results pane, the box shown before closed. Its source not opened
+   * (refused, or the person gave up), the box stays a document, and why is said.
+   */
+  async #showBox(id: string, editor?: StepEditor): Promise<void> {
+    // a Join box's settings: the Join window, its owner's to open over the page
+    if (editor?.window === 'join') {
+      const on = this.#sheetOf(id);
+      if (on?.kind === 'flow') this.#options.onJoinBox?.(id, on.id);
+      return;
+    }
+    // shown already: its settings, docked
+    const shownGrid = this.#grids.get(id)?.added?.cube;
+    if (shownGrid !== undefined) {
+      if (editor !== undefined) shownGrid.openStep?.(editor);
+      return;
+    }
+    const box = this.#boxes.get(id);
+    const open = this.#options.openBox;
+    const sheet = this.#sheetOf(id);
+    if (box === undefined || open === undefined || sheet?.kind !== 'flow' || this.#showing.has(id)) return;
+    const document = box.document;
+    this.#showing.add(id);
+    let make: ((host: HTMLElement, options: SpawnOptions) => SpawnedGrid) | undefined;
+    try {
+      make = await open(id, document);
+    } catch (e) {
+      // its source not opened: drawn red, why said in its settings and its results, until it is shown
+      const why = e instanceof Error ? e.message : String(e);
+      sheet.board.refuse(id, why);
+      sheet.board.note(`${this.title(id) ?? id}: ${why}`);
+      return;
+    } finally {
+      this.#showing.delete(id);
+    }
+    // gone meanwhile, or shown another way: as it is
+    if (make === undefined || this.#disposed || this.#boxes.get(id) !== box) return;
+    // its cube changed while it opened (a step's): opened again over the page's now
+    if (box.document !== document) {
+      void this.#showBox(id, editor);
+      return;
+    }
+    this.#planned.set(id, sheet);
+    try {
+      this.addGridOver(make, { id, ...(box.view.title !== undefined ? { title: box.view.title } : {}) });
+    } finally {
+      this.#planned.delete(id);
+    }
+    if (editor !== undefined) this.#grids.get(id)?.added?.cube.openStep?.(editor);
+  }
+
+  /**
+   * RUN (the canvas's button: docs/DATACUBE_FLOW_MODE_2026_10_24.md M5, M6): each box of flow `sheet` shown in turn, left
+   * to right -- its grid made over the page as it is, its rows counted as they land -- then the box shown before shown
+   * again. The screen's, no step of the page's: which box is shown is the screen's. A DRY RUN (`dry`, M6) counts and
+   * judges every box as a run does and writes no Output: each says what it would write, or why it would not.
+   */
+  async #runFlow(sheetId: string, dry = false): Promise<void> {
+    const sheet = this.#sheets.find((s) => s.id === sheetId);
+    if (sheet?.kind !== 'flow' || sheet.board.running !== undefined) return;
+    const board = sheet.board;
+    // its boxes, not its comments
+    const order = [...board.layout.boxes].filter((b) => board.noteOf(b.tile) === undefined).sort((a, b) => a.x - b.x || a.y - b.y).map((b) => b.tile);
+    const was = board.shown;
+    const started = performance.now();
+    const logged: { id: string; ms: number; rows?: number; refused?: string; wrote?: string; wouldWrite?: string }[] = [];
+    // each Output written once every box has run: none when a Test that stops a run fails (FL8's refuse)
+    const writes: { readonly id: string; readonly name: string; readonly at: number }[] = [];
+    board.setRunning({ done: 0, of: order.length });
+    try {
+      for (const [i, id] of order.entries()) {
+        if (this.#disposed) return;
+        if (board.layout.boxes.some((b) => b.tile === id)) {
+          const t0 = performance.now();
+          await this.#showBox(id);
+          await this.#opening.get(id)?.catch(() => undefined);
+          // a Cross Tab's values its columns lack, asked as its rows land (FL3): known before any Output is written
+          const shown = this.#grids.get(id)?.added?.cube;
+          if (shown !== undefined) this.#askLacking(id, shown, board);
+          await this.#lackingAsked.get(id);
+          // its log: its rows, how long it took, or why it was refused
+          const rows = board.count(id);
+          let refused = board.refusal(id);
+          // an Output writes its file after every box has run, its rows counted now
+          const out = board.layout.boxes.find((b) => b.tile === id)?.output;
+          if (out !== undefined && refused === undefined) writes.push({ id, name: out.name, at: logged.length });
+          logged.push({ id, ms: Math.round(performance.now() - t0), ...(rows !== undefined ? { rows } : {}), ...(refused !== undefined ? { refused } : {}) });
+        }
+        board.setRunning({ done: i + 1, of: order.length });
+      }
+      // a box that stops a run, failing -- or never judged (its rows refused, its question unanswered: the review of
+      // 2026-10-26's B7, a stop that cannot be judged stops): no Output written, each saying why
+      const stoppedBy = runStoppers(board, order, (id) => this.#lackingRefused.get(id));
+      const stopped = stoppedBy.map((s) => s.id);
+      const stoppers = stoppedBy.map((s) => s.why).join(', ');
+      for (const w of writes) {
+        if (this.#disposed) return;
+        // a Dry Run writes none: each Output says what it would write, or why it would not
+        if (dry) {
+          logged[w.at] = stopped.length > 0 ? { ...logged[w.at]!, refused: `would not be written: ${stoppers}` }
+            : { ...logged[w.at]!, wouldWrite: w.name };
+          continue;
+        }
+        const why = stopped.length > 0 ? `not written: ${stoppers}` : await this.#writeBox(w.id);
+        logged[w.at] = why === null ? { ...logged[w.at]!, wrote: w.name }
+          : { ...logged[w.at]!, refused: stopped.length > 0 ? why : `could not write ${w.name}: ${why}` };
+      }
+      if (was !== undefined && board.shown !== was && board.layout.boxes.some((b) => b.tile === was)) await this.#showBox(was);
+      board.setLog({ at: new Date(), ms: Math.round(performance.now() - started), boxes: logged, ...(stopped.length > 0 ? { stopped } : {}),
+        ...(dry ? { dry: true } : {}) });
+    } finally {
+      board.setRunning(undefined);
+    }
+  }
+
+  /**
+   * NEW BOX AFTER (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9): a gesture of box `id`'s menu -- a value filtered by, a
+   * column sorted or grouped by -- made in a new box after it, as the palette's tool is added after a box (its owner's
+   * onTool), the gesture that box's one step; the box shown keeps doing its one thing.
+   */
+  #stepAfter(id: string, gesture: FlowStep['gesture'], label: string): void {
+    const sheet = this.#sheetOf(id);
+    if (sheet?.kind !== 'flow') return;
+    const tool: FlowTool = gesture.name.startsWith('sort.') ? 'sort' : gesture.name.startsWith('pivot.') ? 'summarize' : 'filter';
+    this.#options.onTool?.(tool, id, sheet.id, undefined, undefined, undefined, undefined, { gesture, label });
+  }
+
+  /**
+   * A CROSS TAB'S VALUES ITS COLUMNS LACK (FL3), asked of the database once its rows land for what it is now -- once
+   * for each thing it is (its chain), one question at a time -- and told the board, which marks the box and holds a
+   * stopping one's run (FL8). A grid that pins nothing lacks nothing. A run waits for the question (#runFlow).
+   */
+  #askLacking(id: string, cube: SpawnedGrid, board: FlowBoard): void {
+    if ((cube.snapshot.pivotValues ?? []).length === 0 || cube.lackingPivotValues === undefined) return;
+    if (board.lacking(id) !== undefined || this.#lackingAsked.has(id)) return;
+    this.#lackingRefused.delete(id);
+    const asked = cube.lackingPivotValues()
+      .then((values) => { if (!this.#disposed) board.setLacking(id, values); })
+      // a question the database refused: its box not judged, which stops a run it stops (#runFlow), in these words
+      .catch((e: unknown) => { this.#lackingRefused.set(id, e instanceof Error ? e.message : String(e)); })
+      .finally(() => this.#lackingAsked.delete(id));
+    this.#lackingAsked.set(id, asked);
+  }
+
+  /** AN OUTPUT WRITTEN (its Write now, a Run: docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): the box shown, its grid made,
+   *  every row it gives written to its file -- or why not, in words. */
+  async #writeBox(tile: string): Promise<string | null> {
+    const sheet = this.#sheetOf(tile);
+    if (sheet?.kind !== 'flow') return `${tile} is no box of a flow`;
+    const output = sheet.board.layout.boxes.find((b) => b.tile === tile)?.output;
+    if (output === undefined) return `${tile} writes no file`;
+    if (this.#grids.get(tile)?.added === undefined) {
+      await this.#showBox(tile);
+      await this.#opening.get(tile)?.catch(() => undefined);
+    }
+    const grid = this.#grids.get(tile)?.added?.cube;
+    if (grid?.writeOutput === undefined) return sheet.board.refusal(tile) ?? 'its rows could not be read';
+    try {
+      await grid.writeOutput(output.name);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /** A COMMENT ON FLOW `sheet` (the palette's Comment: docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): a text tile, where it
+   *  was let go (`at`) or below the boxes, one step -- its editor open on it at once. */
+  #addComment(sheet: string, at?: FlowPoint): void {
+    const id = this.#nextId('text');
+    const told = this.#tell('Add Comment', pageCommand('addText', { id, sheet, text: 'A comment', title: null, columns: null }),
+      ...(at !== undefined ? [pageCommand('placeBox', { tile: id, x: at.x, y: at.y })] : []));
+    this.#options.onChange();
+    if (told && this.#texts.has(id)) this.editText(id);
+  }
+
+  /** Where a thing made with no place goes on flow `sheet`: at its margin, below every box. */
+  #belowFlow(sheet: string): FlowPoint {
+    const s = this.#sheets.find((x) => x.id === sheet);
+    const boxes = s?.kind === 'flow' ? s.board.layout.boxes : [];
+    return { x: 40, y: boxes.length === 0 ? 40 : Math.max(...boxes.map((b) => b.y + (b.frame?.h ?? 60))) + 32 };
+  }
+
+  /** A CONTAINER (docs/DATACUBE_FLOW_MODE_2026_10_24.md M7, Alteryx's Tool Container): a comment of its name, framed at
+   *  `at` -- one step, Add Container; double-click its head to name it. */
+  #addContainer(sheet: string, at: FlowPoint, frame: Frame): void {
+    const id = this.#nextId('text');
+    this.#tell('Add Container', pageCommand('addText', { id, sheet, text: 'Container', title: null, columns: null }),
+      pageCommand('placeBox', { tile: id, x: Math.round(at.x), y: Math.round(at.y), frame }));
+    this.#options.onChange();
+  }
+
+  /** A BOX DUPLICATED (Ctrl+D, its menu: docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): a copy of its cube as the page has
+   *  it -- reading what it reads -- placed after the box it reads first, a document until it is shown, as every box not
+   *  shown is (page-gestures.ts duplicateCommands). */
+  #duplicateBox(sheet: string, tile: string): void {
+    const document = this.#boxes.get(tile)?.document ?? this.documentOf(tile);
+    if (document === undefined) return;
+    // the one rule Python's grid.copy of a box duplicates by (page-gestures.ts duplicateCommands)
+    this.#tell('Duplicate Box', ...duplicateCommands(document, tile, sheet));
+    this.#options.onChange();
+  }
+
+  /**
+   * BOXES COPIED (Ctrl+C on a box, or on the boxes picked together; Ctrl+X to cut them: docs/DATACUBE_FLOW_MODE_2026_10_24.md
+   * M7): each one's cube as the page has it -- reading what it reads -- or a note's words, and its place, kept by the
+   * page to paste on any of its flows, in the order they read each other; cut, taken off as their × takes them (a step of
+   * its own). The page's alone: what a box reads is a grid of this page.
+   */
+  #copyBoxes(tiles: readonly string[], cut: boolean): void {
+    const sheet = this.#sheetOf(tiles[0]!);
+    if (sheet?.kind !== 'flow') return;
+    const placeOf = new Map(sheet.board.layout.boxes.map((b) => [b.tile, b] as const));
+    const items: ClipItem[] = [];
+    for (const tile of tiles) {
+      const at = placeOf.get(tile);
+      if (at === undefined) continue;
+      const text = this.#texts.get(tile);
+      const document = text === undefined ? this.#boxes.get(tile)?.document ?? this.documentOf(tile) : undefined;
+      if (text !== undefined) items.push({ tile, text: text.text, x: at.x, y: at.y });
+      else if (document !== undefined) items.push({ tile, document, x: at.x, y: at.y });
+    }
+    if (items.length === 0) return;
+    // a box before the boxes that read it, so a paste adds each after what it reads
+    const copied = new Set(items.map((i) => i.tile));
+    const ordered: ClipItem[] = [];
+    const visit = (item: ClipItem, seen: ReadonlySet<string>): void => {
+      if (ordered.includes(item) || seen.has(item.tile)) return;
+      const reads = 'document' in item ? liveGrids(item.document.source).filter((g) => copied.has(g)) : [];
+      for (const g of reads) visit(items.find((i) => i.tile === g)!, new Set([...seen, item.tile]));
+      ordered.push(item);
+    };
+    for (const item of items) visit(item, new Set());
+    this.#clipboard = ordered;
+    const name = items.length === 1 ? sheet.board.title(items[0]!.tile) ?? items[0]!.tile : `${items.length} boxes`;
+    if (cut) this.#removeTiles(items.map((i) => i.tile));
+    sheet.board.say(`${cut ? 'Cut' : 'Copied'}: ${name}.`);
+  }
+
+  /**
+   * WHAT WAS COPIED, PASTED on flow `sheet` (Ctrl+V), one step: each box a grid of its cube -- a box reading another of
+   * them reading its pasted copy, any other box what it read -- and each note a comment of its words, placed as they
+   * were placed together, the first of them at `at` (where the pointer is; none, a little down and right of where they
+   * were). One box with nowhere given goes after the box it reads, as a box added does. A box whose input is no longer
+   * on the page is refused, as any is.
+   */
+  #pasteBox(sheet: string, at: FlowPoint | undefined): void {
+    const clip = this.#clipboard;
+    if (clip === undefined || clip.length === 0) return;
+    const taken = new Set<string>();
+    const fresh = (kind: 'grid' | 'text'): string => {
+      const id = this.#nextId(kind, taken);
+      taken.add(id);
+      return id;
+    };
+    const ids = new Map(clip.map((i) => [i.tile, fresh('text' in i ? 'text' : 'grid')] as const));
+    const left = Math.min(...clip.map((i) => i.x));
+    const top = Math.min(...clip.map((i) => i.y));
+    const placed = (i: ClipItem): { x: number; y: number } | undefined => {
+      if (at !== undefined) return { x: at.x + i.x - left, y: at.y + i.y - top };
+      return clip.length === 1 ? undefined : { x: i.x + PASTE_OFFSET, y: i.y + PASTE_OFFSET };
+    };
+    const commands: PageCommand[] = [];
+    for (const i of clip) {
+      const id = ids.get(i.tile)!;
+      if ('text' in i) commands.push(pageCommand('addText', { id, sheet, text: i.text, title: null, columns: null }));
+      else {
+        const source = relinked(i.document.source, (g) => ids.get(g) ?? g);
+        commands.push(pageCommand('addGrid', {
+          id, document: { ...i.document, source }, sheet, near: liveGrids(source)[0] ?? null, title: null, columns: null,
+        }));
+      }
+      const p = placed(i);
+      if (p !== undefined) commands.push(pageCommand('placeBox', { tile: id, x: p.x, y: p.y }));
+    }
+    const only = clip.length === 1 ? clip[0]! : undefined;
+    const told = this.#tell(only === undefined ? `Paste ${clip.length} Boxes` : 'text' in only ? 'Paste Comment' : 'Paste Box', ...commands);
+    this.#options.onChange();
+    // what was pasted picked together, so a drag moves it, Delete takes it off, Ctrl+C copies it again
+    const on = this.#sheets.find((s) => s.id === sheet);
+    if (told && on?.kind === 'flow') on.board.pick(ids.values());
+  }
+
+  /** Boxes taken off a flow together (Delete on the ones picked): one step, each removed as its × removes it -- a box
+   *  reading one of them reading a copy of it from then on (FL6). */
+  #removeTiles(tiles: readonly string[]): void {
+    const saved = tiles.filter((t) => this.#saved(t));
+    for (const t of tiles) if (!saved.includes(t)) this.#removeTile(t);
+    if (saved.length === 1) this.#removeTile(saved[0]!);
+    else if (saved.length > 1) this.#tell(`Remove ${saved.length} Boxes`, ...saved.map((tile) => pageCommand('removeTile', { tile })));
+  }
+
+  /** A box added from a flow's palette as `tool` (PageApp.addedAs): drawn as one until its grid does something. */
+  boxAddedAs(id: string, tool: FlowTool): void {
+    const sheet = this.#sheetOf(id);
+    if (sheet?.kind === 'flow') sheet.board.addAs(id, tool);
+  }
+
+  /** A tile the step puts on another sheet than it is on, moved there as it is: a box between flows (shown, the flow's
+   *  box shown; else a document still), any other tile between boards. */
+  #moveOnto(id: string, from: Sheet, on: Sheet, title: string | undefined): void {
+    const spec = this.#specs.get(id);
+    if (on.kind === 'flow') {
+      if (this.#boxes.has(id)) {
+        from.board.remove(id);
+        on.board.addBox(id, title ?? gridTitle(id));
+      } else if (spec) {
+        from.board.remove(id);
+        this.#closeBox(on);
+        on.board.add({ ...spec, title: title ?? spec.title });
+      }
+      return;
+    }
+    if (!spec) return;
+    from.board.remove(id);
+    on.board.add({ ...spec, title: title ?? spec.title });
   }
 
   /** Whether these tiles are all charts: a band a new chart joins (bands.ts add), beside its grid's other charts. */
@@ -654,7 +1272,9 @@ export class CubePage {
 
   /** The sheets, in order. */
   get sheets(): readonly SheetInfo[] {
-    return this.#sheets.map((s) => ({ id: s.id, ...(s.name !== undefined ? { name: s.name } : {}), tiles: tiles(s.board.layout) }));
+    return this.#sheets.map((s) => ({
+      id: s.id, ...(s.name !== undefined ? { name: s.name } : {}), tiles: sheetTiles(s), ...(s.kind === 'flow' ? { flow: true as const } : {}),
+    }));
   }
 
   /** The sheet shown. */
@@ -694,13 +1314,13 @@ export class CubePage {
     unopened: (cube: string) => string | undefined, theirs: boolean, refilter = true): void {
     const wanted = new Map(to.views.map((v) => [v.id, v]));
     const known = new Set(from.views.map((v) => v.id));
-    const sheetFor = new Map(to.sheets.flatMap((s) => tiles(s.layout).map((t) => [t, s.id] as const)));
+    const sheetFor = new Map(to.sheets.flatMap((s) => layoutTilesOf(s.layout).map((t) => [t, s.id] as const)));
     const sheetsBefore = new Set(this.#sheets.map((s) => s.id));
     const sheetOrder = this.#sheets.map((s) => s.id);
     const board = (id: string | undefined): Sheet | undefined => this.#sheets.find((s) => s.id === id);
     this.#quietly(() => {
       // sheets it has and the screen does not
-      for (const s of to.sheets) if (!board(s.id)) this.#newSheet(s.id, s.name);
+      for (const s of to.sheets) if (!board(s.id)) this.#newSheet(s.id, s.name, s.layout.kind === 'flow');
       // tiles a gesture made, placed where their command put them (a grid's engine, a chart's panel: made already)
       for (const [id, spec] of [...this.#pending]) {
         if (!wanted.has(id)) continue;
@@ -715,6 +1335,16 @@ export class CubePage {
       for (const id of [...this.#unavailable.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropUnavailable(id);
       for (const id of [...this.#texts.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropText(id);
       for (const id of [...this.#series.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropTimeseries(id);
+      for (const id of [...this.#boxes.keys()]) if (!wanted.has(id)) this.#dropBox(id);
+      // a flow's boxes it has: each a document as the step has it, no grid made for it (the one shown keeps its own)
+      for (const view of to.views) {
+        if (view.kind !== 'grid' || this.#grids.has(view.id)) continue;
+        const on = board(sheetFor.get(view.id));
+        if (on?.kind !== 'flow') continue;
+        const document = to.cubes?.find((c) => c.id === view.cube)?.cube ?? this.#boxes.get(view.id)?.document;
+        if (document === undefined) throw new Error(`box ${view.id} has no cube of the page's to be drawn from`);
+        this.#putBox(on, view, document);
+      }
       // text tiles it has and the screen does not, each on its sheet
       for (const view of to.views) {
         if (view.kind !== 'text' || this.#texts.has(view.id)) continue;
@@ -742,7 +1372,7 @@ export class CubePage {
       }
       // what it could not open, back: kept as the step has it, in its place
       for (const view of to.views) {
-        if (view.kind === 'text' || view.kind === 'timeseries') continue;
+        if (view.kind === 'text' || view.kind === 'timeseries' || this.#boxes.has(view.id)) continue;
         if (this.#unavailable.has(view.id) || this.#grids.has(view.id) || this.#charts.has(view.id)) {
           if (this.#unavailable.has(view.id)) this.#unavailable.set(view.id, view);
           continue;
@@ -756,7 +1386,7 @@ export class CubePage {
       // grids it has and the screen does not: made again, each on its sheet; one kept off the board for a detached chart
       // is replaced by the one made again, and its detached charts follow it once more
       for (const view of to.views) {
-        if (view.kind !== 'grid' || this.#grids.has(view.id) || this.#unavailable.has(view.id)) continue;
+        if (view.kind !== 'grid' || this.#grids.has(view.id) || this.#unavailable.has(view.id) || this.#boxes.has(view.id)) continue;
         // from the cube the page `to` holds for it, when it says one (a keeper's step or put-back: the grid as the page
         // has it, not as this screen last saw it -- a grid made again under the id its keeper gave it started from the
         // screen's state, its sent commands then applied twice: the D19 audit's fourth round, 3)
@@ -842,16 +1472,12 @@ export class CubePage {
           }
         }
         const on = board(sheetFor.get(view.id));
-        const spec = this.#specs.get(view.id);
-        if (on && on !== sheet && spec) {
-          sheet.board.remove(view.id);
-          on.board.add({ ...spec, title: title ?? spec.title });
-        }
+        if (on && on !== sheet) this.#moveOnto(view.id, sheet, on, title);
       }
       // sheets it does not have, with what is left on them (no tile it holds: a moment's work)
       for (const sheet of [...this.#sheets]) {
         if (to.sheets.some((s) => s.id === sheet.id)) continue;
-        const on = (): string[] => tiles(sheet.board.layout);
+        const on = (): string[] => sheetTiles(sheet);
         for (const tile of on().filter((t) => this.#grids.has(t))) this.#drop(tile);
         for (const tile of on()) this.#drop(tile);
         if (sheet === this.#shown) {
@@ -875,8 +1501,15 @@ export class CubePage {
       const shown = [...this.#options.host.children].filter((el) => this.#sheets.some((s) => s.host === el));
       if (shown.some((el, i) => el !== this.#sheets[i]!.host)) this.#options.host.append(...this.#sheets.map((s) => s.host));
       for (const s of to.sheets) {
-        const { kind: _kind, ...bands } = s.layout;
         const sheet = board(s.id)!;
+        // a sheet is a board or a flow from its making to its removal (page-commands.ts layout)
+        if (sheet.kind !== s.layout.kind) throw new Error(`sheet ${s.id} is a ${sheet.kind === 'flow' ? 'flow' : 'board'} here, not in the step`);
+        if (sheet.kind === 'flow' || s.layout.kind === 'flow') {
+          const { kind: _flow, ...flow } = s.layout.kind === 'flow' ? s.layout : { kind: 'flow' as const, ...EMPTY_FLOW };
+          if (sheet.kind === 'flow' && JSON.stringify(flow) !== JSON.stringify(sheet.board.layout)) sheet.board.setLayout(flow);
+          continue;
+        }
+        const { kind: _kind, ...bands } = s.layout;
         // drawn again only when it moves: a drag in progress on a sheet the step leaves as it is goes on (the S3 audit's
         // 11)
         const drawn = this.#drawn(sheet, bands);
@@ -894,6 +1527,19 @@ export class CubePage {
       this.#cameNext = came.length;
       this.#planned.clear();
     });
+    // each flow drawn from its documents as the step has them; a box shown whose source the step changed (a link to a
+    // box removed, frozen: FL6) shown again over it, its grid made anew
+    for (const sheet of this.#sheets) {
+      if (sheet.kind !== 'flow') continue;
+      const shown = sheet.board.shown;
+      const cube = shown === undefined ? undefined : to.cubes?.find((c) => c.id === wanted.get(shown)?.cube)?.cube;
+      const now = shown === undefined ? undefined : this.documentOf(shown);
+      if (shown !== undefined && cube !== undefined && now !== undefined && !sameValue(cube.source, now.source)) {
+        this.#closeBox(sheet, cube);
+        void this.#showBox(shown);
+      }
+      sheet.board.repaint();
+    }
     // a sheet brought back is shown: where the change is
     const back = this.#sheets.find((s) => !sheetsBefore.has(s.id));
     if (back) this.showSheet(back.id);
@@ -927,6 +1573,14 @@ export class CubePage {
   addSheet(): string {
     const id = this.#nextId('sheet');
     this.#tell('Add Sheet', pageCommand('addSheet', { id, name: null }));
+    return id;
+  }
+
+  /** A FLOW SHEET after the last, shown (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): an empty canvas, its palette beside
+   *  it. */
+  addFlow(): string {
+    const id = this.#nextId('sheet');
+    this.#tell('Add Flow', pageCommand('addFlow', { id, name: null }));
     return id;
   }
 
@@ -974,12 +1628,12 @@ export class CubePage {
     const title = from.board.title(tile) ?? spec.title;
     // one step: a new sheet and the tile onto it -- the sheet shown stays shown (`sync` shows a sheet that comes)
     const sheet = to ?? this.#nextId('sheet');
-    const steps = moveToSheetCommands(tile, sheet, to === null, target?.board.columns ?? null);
+    const steps = moveToSheetCommands(tile, sheet, to === null, target?.board.columns ?? null, from.kind === 'flow');
     if (this.#saved(tile)) {
       this.#tell('Move to Sheet', ...steps);
     } else {
       // a tile the page does not save (a chart with no spec yet): its new sheet the page's, the move the board's alone
-      const added = steps.filter((c) => c.kind === 'addSheet');
+      const added = steps.filter((c) => c.kind === 'addSheet' || c.kind === 'addFlow');
       if (added.length > 0) this.#tell('Move to Sheet', ...added);
       const onto = this.#sheets.find((s) => s.id === sheet);
       if (!onto) return;
@@ -998,18 +1652,32 @@ export class CubePage {
    */
   setSheets(saved: readonly PageSheet[]): void {
     for (const s of saved) {
-      const sheet = this.#sheets.find((x) => x.id === s.id) ?? this.#newSheet(s.id);
+      const flow = s.layout.kind === 'flow';
+      let sheet = this.#sheets.find((x) => x.id === s.id);
+      // a sheet of the other kind under its id (a board's first sheet, the saved page's a flow): made again, as its
+      // saved one is, while nothing is on it
+      if (sheet !== undefined && (sheet.kind === 'flow') !== flow) {
+        if (sheet.board.size > 0) throw new Error(`sheet ${s.id} holds tiles: it is not made a ${flow ? 'flow' : 'board'}`);
+        const at = this.#sheets.indexOf(sheet);
+        const was = sheet;
+        sheet.board.dispose();
+        sheet.host.remove();
+        this.#sheets.splice(at, 1);
+        this.#pageLayouts.delete(sheet.id);
+        sheet = this.#newSheet(s.id, undefined, flow);
+        if (this.#shown === was) {
+          this.#shown = sheet;
+          sheet.host.hidden = false;
+        }
+      }
+      sheet ??= this.#newSheet(s.id, undefined, flow);
       sheet.name = s.name;
-      for (const tile of tiles(s.layout)) this.#planned.set(tile, sheet);
+      for (const tile of layoutTilesOf(s.layout)) this.#planned.set(tile, sheet);
     }
     // a tile already on the page (a cube's own grid) onto its saved sheet
     for (const [tile, sheet] of this.#planned) {
       const on = this.#sheetOf(tile);
-      if (on && on !== sheet) {
-        const spec = this.#specs.get(tile)!;
-        on.board.remove(tile);
-        sheet.board.add({ ...spec, title: on.board.title(tile) ?? spec.title });
-      }
+      if (on && on !== sheet) this.#moveOnto(tile, on, sheet, on.board.title(tile));
     }
     const ids = new Set(saved.map((s) => s.id));
     for (const sheet of [...this.#sheets]) {
@@ -1033,6 +1701,12 @@ export class CubePage {
     return new Map([...this.#grids].map(([id, g]) => [id, g.added?.cube]));
   }
 
+  /** A flow's boxes not shown, by their cubes: each one's cube as the page has it -- what the page writes for them, no
+   *  grid saying it (PageApp #seen). */
+  get boxes(): ReadonlyMap<string, CubeDocument> {
+    return new Map([...this.#boxes.values()].map((b) => [b.view.cube, b.document]));
+  }
+
   /** The grids kept off the board for the frozen charts that still read them. */
   get kept(): ReadonlyMap<string, SpawnedGrid> {
     return this.#kept;
@@ -1040,7 +1714,7 @@ export class CubePage {
 
   /** Every tile on the page, sheet by sheet, each sheet's in reading order. */
   get tileIds(): readonly string[] {
-    return this.#sheets.flatMap((s) => tiles(s.board.layout));
+    return this.#sheets.flatMap(sheetTiles);
   }
 
   /** A tile's title, as shown (renamed or not). */
@@ -1061,10 +1735,13 @@ export class CubePage {
    */
   showAlone(slot: HTMLElement | null, stateSlot: HTMLElement | null = null): void {
     // the sheet shown: the others' tiles are each in its own frame
-    for (const sheet of this.#sheets) if (sheet !== this.#shown) sheet.board.setAlone(null, null);
-    const ids = tiles(this.#shown.board.layout);
+    for (const sheet of this.#sheets) if (sheet !== this.#shown && sheet.kind === 'bands') sheet.board.setAlone(null, null);
+    // a flow's box is never alone: its canvas is the sheet
+    const shown = this.#shown;
+    if (shown.kind === 'flow') return;
+    const ids = tiles(shown.board.layout);
     const lone = slot !== null && ids.length === 1 && this.#grids.has(ids[0]!) ? ids[0]! : null;
-    this.#shown.board.setAlone(lone, slot, stateSlot);
+    shown.board.setAlone(lone, slot, stateSlot);
   }
 
   /**
@@ -1073,8 +1750,8 @@ export class CubePage {
    * tile's layouts arranging only its band showed two tiles of four, and 2 x 2 came out 2, 1, 1).
    */
   showLayouts(anchor: HTMLElement, first?: string): void {
-    // a locked page offers no layouts: nothing moves by accident
-    if (!this.#editing) return;
+    // a locked page offers no layouts: nothing moves by accident; a flow's boxes are placed on its canvas
+    if (!this.#editing || this.#shown.kind === 'flow') return;
     if (this.#picker) {
       this.#showPicker(this.#picker, anchor, first);
       return;
@@ -1088,7 +1765,9 @@ export class CubePage {
 
   #showPicker(picker: LayoutPicker, anchor: HTMLElement, first?: string): void {
     // the sheet shown: its tiles, arranged on it
-    const board = this.#shown.board;
+    const shown = this.#shown;
+    if (shown.kind === 'flow') return;
+    const board = shown.board;
     picker.show(anchor, {
       // its places: a stack of tiles is one
       tiles: places(board.layout),
@@ -1106,36 +1785,40 @@ export class CubePage {
    * it. A tile added or removed since is not brought back or taken away: only where the tiles are is undone.
    */
   undoLayout(): void {
-    const { board, steps } = this.#shown;
+    const shown = this.#shown;
+    if (shown.kind === 'flow') return;
+    const { board, steps } = shown;
     const before = steps.undone.at(-1);
     if (before === undefined || !this.#editing) return;
     steps.undone = steps.undone.slice(0, -1);
     steps.redone = [...steps.redone, board.layout];
     board.setLayout(before);
-    this.#tellLayout(this.#shown);
+    this.#tellLayout(shown);
     board.say('Layout change undone.');
     this.#options.onChange();
   }
 
   redoLayout(): void {
-    const { board, steps } = this.#shown;
+    const shown = this.#shown;
+    if (shown.kind === 'flow') return;
+    const { board, steps } = shown;
     const after = steps.redone.at(-1);
     if (after === undefined || !this.#editing) return;
     steps.redone = steps.redone.slice(0, -1);
     steps.undone = [...steps.undone, board.layout];
     board.setLayout(after);
-    this.#tellLayout(this.#shown);
+    this.#tellLayout(shown);
     board.say('Layout change redone.');
     this.#options.onChange();
   }
 
   /** Whether Undo Layout would do something: a step to undo on the sheet shown, on a page that is not locked. */
   get canUndoLayout(): boolean {
-    return this.#shown.steps.undone.length > 0 && this.#editing;
+    return this.#shown.kind === 'bands' && this.#shown.steps.undone.length > 0 && this.#editing;
   }
 
   get canRedoLayout(): boolean {
-    return this.#shown.steps.redone.length > 0 && this.#editing;
+    return this.#shown.kind === 'bands' && this.#shown.steps.redone.length > 0 && this.#editing;
   }
 
   /** Edit mode (tiles move, dividers drag) or view mode (nothing moves by accident): every sheet alike. */
@@ -1151,7 +1834,7 @@ export class CubePage {
 
   /** How many tiles are on the page besides the cube's own grid: charts and added grids. */
   get charts(): number {
-    return this.#charts.size + this.#grids.size - (this.#options.grid ? 1 : 0);
+    return this.#charts.size + this.#grids.size + this.#boxes.size - (this.#options.grid ? 1 : 0);
   }
 
   /** How many text tiles it holds. */
@@ -1201,14 +1884,36 @@ export class CubePage {
     if (this.#grids.has(id) || this.#charts.has(id) || this.#kept.has(id)) throw new Error(`a tile ${id} is already on the page`);
     const host = this.#doc.createElement('div');
     host.className = 'dc-grid-tile';
-    const cube = make(host, this.#spawnOptions(id));
+    // a flow's box: the windows that set it dock in its flow's settings pane
+    const lands = this.#planned.get(id) ?? (how.near !== undefined ? this.#sheetOf(how.near) : undefined) ?? this.#shown;
+    const cube = make(host, { ...this.#spawnOptions(id), ...(lands.kind === 'flow' ? {
+      dock: lands.board.dock,
+      // New Box After (FL9): its menu's gesture made in a box after it, as the palette's tool is
+      onStepAfter: (gesture: FlowStep['gesture'], label: string) => this.#stepAfter(id, gesture, label),
+      // a Pure box's function (FL12): its source's, so the page's to set -- the box then shown again over it
+      onSetPure: (pure: Lambda | null) => {
+        const told = this.#tell(pure === null ? 'Take Pure Off' : 'Set Pure', pageCommand('setPure', { grid: id, pure }));
+        if (told) this.#options.onChange();
+        return told;
+      },
+    } : {}) });
     const stops = [
       cube.on('view', () => {
         this.#refreshGrid(id);
         this.#reconcileGrid(id, cube.snapshot.filter);
+        // a flow's box counted as its rows land (M5): what it gave, for its chain as it is
+        const on = this.#sheetOf(id);
+        const v = cube.view;
+        if (on?.kind === 'flow' && v) on.board.counted(id, v.totalRows ?? v.rows.rowCount);
+        if (on?.kind === 'flow' && v) this.#askLacking(id, cube, on.board);
       }),
       // its own changes are the page's: "changed since saved" re-reads the page
-      cube.on('change', () => this.#options.onChange()),
+      cube.on('change', () => {
+        this.#options.onChange();
+        // a flow's box shown draws what its grid now does (flow-boxes.ts boxSays), and its Undo the change the page kept
+        const sheet = this.#sheetOf(id);
+        if (sheet?.kind === 'flow') sheet.board.repaint();
+      }),
       // where its rows are is the page's too: its copies (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8)
       // its own snap or going live told as the page's command (the copy it now reads, or none)
       cube.on('moved', () => {
@@ -1230,8 +1935,10 @@ export class CubePage {
     const made = gridTitle(id);
     this.#titles.set(id, made);
     const near = how.near ?? (this.#options.grid ? GRID : undefined);
-    // beside a grid, a chart or a text box (a text box's Create ▸ Data Source…: the 2026-10-25 audit)
-    const beside = near !== undefined && (this.#grids.has(near) || this.#charts.has(near) || this.#texts.has(near)) ? near : undefined;
+    // a flow's box after the box it came from, shown or not; beside a grid, a chart or a text box (a text box's
+    // Create ▸ Data Source…: the 2026-10-25 audit)
+    const beside = near !== undefined && (this.#grids.has(near) || this.#charts.has(near) || this.#texts.has(near) || this.#boxes.has(near))
+      ? near : undefined;
     const about = cube.tileAbout();
     const tile: BandTile = { id, title: how.title ?? made, element: host, actions: [cube.tileHead()], state: cube.tileState(),
       ...(about !== undefined ? { about } : {}) };
@@ -1297,9 +2004,11 @@ export class CubePage {
   #spawnOptions(id: string): SpawnOptions {
     return {
       id,
-      onChart: () => this.openChart(undefined, id),
-      onText: () => this.addText(id),
-      onTimeseries: () => this.addTimeseries(id),
+      // a flow's box makes none of them: its rows are a step of the flow, and a chart, a note or a timeseries goes on a
+      // board sheet
+      onChart: () => (this.#onFlow(id) ? this.#boardsOnly(id, 'A chart') : this.openChart(undefined, id)),
+      onText: () => (this.#onFlow(id) ? this.#boardsOnly(id, 'A text box') : this.addText(id)),
+      onTimeseries: () => (this.#onFlow(id) ? this.#boardsOnly(id, 'A timeseries') : this.addTimeseries(id)),
       onNewGrid: () => this.addGrid(id),
       onNewSource: (other) => this.addGridOver(other, { near: id }),
       onRemove: () => this.removeGrid(id),
@@ -1349,10 +2058,12 @@ export class CubePage {
    * one (on a page of sheets; locked, offered disabled and why), off the page.
    */
   #tileView(id: string): MenuItem {
-    const filling = this.#sheetOf(id)?.board.maximised === id;
+    // a board's tile fills its page; a flow's note is on its canvas, which has no such place
+    const on = this.#sheetOf(id);
+    const filling = on?.kind === 'bands' && on.board.maximised === id;
     const sheets = this.#otherSheets(id);
     return { label: 'View', submenu: [
-      { id: 'tile.maximise', label: filling ? 'Restore' : 'Maximise' },
+      ...(on?.kind === 'flow' ? [] : [{ id: 'tile.maximise' as const, label: filling ? 'Restore' : 'Maximise' }]),
       ...(this.#options.sheetLabel ? [{ label: 'Move to Sheet', separated: true, ...(this.#editing ? { submenu: [
         ...sheets.map((s) => ({ id: `sheet.to.${s.id}` as const, label: s.label })),
         { id: 'sheet.toNew' as const, label: 'New Sheet', ...(sheets.length > 0 ? { separated: true } : {}) },
@@ -1366,19 +2077,30 @@ export class CubePage {
   /** What a tile's View ▸ entry picked does (#tileView). */
   #onTileView(id: string, item: MenuItem): void {
     if (item.id === 'tile.maximise') {
-      const board = this.#sheetOf(id)?.board;
-      board?.maximise(board.maximised === id ? null : id);
+      const on = this.#sheetOf(id);
+      if (on?.kind === 'bands') on.board.maximise(on.board.maximised === id ? null : id);
     }
     if (item.id === 'tile.remove') this.#removeTile(id);
     if (item.id === 'sheet.toNew') this.moveToSheet(id, null);
     else if (item.id?.startsWith('sheet.to.')) this.moveToSheet(id, item.id.slice('sheet.to.'.length));
   }
 
-  /** The sheets a tile is not on, as their tabs say them: where its Move to Sheet can take it. */
+  /** The sheets a tile is not on, as their tabs say them: where its Move to Sheet can take it -- a box another flow, a
+   *  tile of a board another board (page-commands.ts moveTile). */
   #otherSheets(tile: string): { id: string; label: string }[] {
     const label = this.#options.sheetLabel;
     const on = this.#sheetOf(tile);
-    return label ? this.#sheets.filter((s) => s !== on).map((s) => ({ id: s.id, label: label(s.id) })) : [];
+    return label ? this.#sheets.filter((s) => s !== on && s.kind === on?.kind).map((s) => ({ id: s.id, label: label(s.id) })) : [];
+  }
+
+  /** Whether a tile is a flow's box. */
+  #onFlow(tile: string): boolean {
+    return this.#sheetOf(tile)?.kind === 'flow';
+  }
+
+  /** What a box's grid offers that a flow holds none of, said where its rows are. */
+  #boardsOnly(box: string, what: string): void {
+    this.#sheetOf(box)?.board.say(`${what} goes on a board sheet: a flow's boxes are its steps. Move this box's grid there with Copy of Grid, or make one on a board.`);
   }
 
   /**
@@ -1599,10 +2321,18 @@ export class CubePage {
   views(cubeOf: (grid: string) => string | undefined = (grid) => (grid === GRID ? PAGE_CUBE : undefined)): PageViews {
     const views: PageView[] = [];
     // the grids in the layout's reading order, sheet by sheet: the order a reopened page adds them in
-    for (const id of this.tileIds.filter((t) => this.#grids.has(t) || this.#unavailable.get(t)?.kind === 'grid')) {
+    for (const id of this.tileIds.filter((t) => this.#grids.has(t) || this.#boxes.has(t) || this.#unavailable.get(t)?.kind === 'grid')) {
       const lost = this.#unavailable.get(id);
       if (lost) {
         views.push(lost);
+        continue;
+      }
+      // a flow's box not shown: its view as the page has it, under the title it has now
+      const box = this.#boxes.get(id);
+      if (box) {
+        const { title: _title, ...view } = box.view;
+        const title = this.title(id);
+        views.push({ ...view, ...(title !== undefined && title !== this.#titles.get(id) ? { title } : {}) });
         continue;
       }
       const cube = cubeOf(id);
@@ -1661,8 +2391,9 @@ export class CubePage {
         id: s.id,
         ...(s.name !== undefined ? { name: s.name } : {}),
         // as the page has it (an editing grid never touches it: P7); a stack as it is saved, reopening on its first tab
-        // (the design's §5, 7)
-        layout: savedLayout(this.#layoutOf(s), saved),
+        // (the design's §5, 7); a flow's boxes where they are
+        layout: s.kind === 'flow' ? { kind: 'flow' as const, boxes: s.board.layout.boxes.filter((b) => saved.has(b.tile)) }
+          : savedLayout(this.#layoutOf(s), saved),
       })),
     };
   }
@@ -1672,14 +2403,23 @@ export class CubePage {
    * cube, or detached when that grid is kept off the board -- and the layout. The grids are on the page already (a
    * cube's own; a page's, added under their saved ids).
    */
-  restore(page: PageViews, gridOf: (cube: string) => string | undefined = (cube) => (cube === PAGE_CUBE ? GRID : undefined),
+  restore(page: PageViews & { readonly cubes?: PageDocument['cubes'] },
+    gridOf: (cube: string) => string | undefined = (cube) => (cube === PAGE_CUBE ? GRID : undefined),
     unopened: (cube: string) => string | undefined = () => undefined): void {
     // its sheets, if the grids were not put on them as they were added (a cube alone's own grid)
     this.setSheets(page.sheets);
     for (const view of page.views) {
       if (view.kind === 'grid' && view.title && this.#grids.has(view.id)) this.#sheetOf(view.id)?.board.rename(view.id, view.title);
     }
-    const sheetFor = new Map(page.sheets.flatMap((s) => tiles(s.layout).map((t) => [t, s.id] as const)));
+    const sheetFor = new Map(page.sheets.flatMap((s) => layoutTilesOf(s.layout).map((t) => [t, s.id] as const)));
+    // a flow's boxes, documents until one is shown (none is, as a page opens): each drawn from its cube
+    for (const view of page.views) {
+      const on = this.#sheets.find((s) => s.id === sheetFor.get(view.id));
+      if (view.kind !== 'grid' || on?.kind !== 'flow' || this.#grids.has(view.id)) continue;
+      const document = page.cubes?.find((c) => c.id === view.cube)?.cube;
+      if (document === undefined) throw new Error(`box ${view.id} has no cube of the page's to be drawn from`);
+      this.#putBox(on, view, document);
+    }
     for (const view of page.views) {
       if (view.kind !== 'text' || this.#texts.has(view.id)) continue;
       const on = this.#sheets.find((s) => s.id === sheetFor.get(view.id));
@@ -1703,10 +2443,16 @@ export class CubePage {
       }
     }
     for (const saved of page.sheets) {
-      const { kind: _kind, ...bands } = saved.layout;
       const sheet = this.#sheets.find((s) => s.id === saved.id);
-      sheet?.board.setLayout(bands);
-      if (sheet) this.#pageLayouts.set(sheet.id, sheet.board.layout);
+      if (sheet === undefined) continue;
+      if (sheet.kind === 'flow') {
+        if (saved.layout.kind === 'flow') sheet.board.setLayout({ boxes: saved.layout.boxes });
+        continue;
+      }
+      if (saved.layout.kind !== 'bands') throw new Error(`sheet ${saved.id} is a board here, not in the page`);
+      const { kind: _kind, ...bands } = saved.layout;
+      sheet.board.setLayout(bands);
+      this.#pageLayouts.set(sheet.id, sheet.board.layout);
     }
     this.#planned.clear();
     // a page reopens on its first sheet (what is looked at is not saved: the design's §5, 7)
@@ -1724,6 +2470,10 @@ export class CubePage {
     // the sheet as the page has it (an editing grid open on it is no tile of the page's: P7), each stack exporting the
     // tile it shows in front -- the grid exported in front of its own
     const sheet = this.#sheetOf(table) ?? this.#shown;
+    // a flow's box: its grid alone, the page's width (a flow has no charts beside its boxes)
+    if (sheet.kind === 'flow') {
+      return { cols: 24, tiles: [{ id: table, kind: 'grid', title: this.title(table) ?? GRID_TILE_TITLE, x: 0, y: 0, w: 24, h: 1 }] };
+    }
     const grid = cells(bringToFront(without(fronted(this.#layoutOf(sheet), sheet.board.layout),
       (id) => this.#grids.has(id) && id !== table), table));
     const tiles = grid.tiles.map((t): ExportTile => {
@@ -1758,6 +2508,7 @@ export class CubePage {
     for (const chart of this.#charts.values()) chart.panel.dispose();
     this.#charts.clear();
     this.#texts.clear();
+    this.#boxes.clear();
     for (const series of this.#series.values()) series.view?.dispose();
     this.#series.clear();
     for (const grid of this.#grids.values()) {
@@ -1829,6 +2580,11 @@ export class CubePage {
       this.#afterRemove();
     } else if (this.#charts.has(id)) this.#dropChart(id);
     else if (this.#texts.has(id)) this.#dropText(id);
+    else if (this.#boxes.has(id)) {
+      this.#dropBox(id);
+      this.#options.onChange();
+      this.#afterRemove();
+    }
     else if (this.#series.has(id)) this.#dropTimeseries(id);
   }
 
@@ -1878,7 +2634,8 @@ export class CubePage {
 
   /** Nothing left of what the board is for: a cube's own with no chart, a page of its own with no tile. */
   #isEmpty(): boolean {
-    return this.charts === 0 && this.#texts.size === 0 && this.#series.size === 0 && (this.#options.grid !== undefined || this.#grids.size === 0);
+    return this.charts === 0 && this.#texts.size === 0 && this.#series.size === 0
+      && (this.#options.grid !== undefined || (this.#grids.size === 0 && this.#boxes.size === 0));
   }
 
   // -- text tiles ------------------------------------------------------------------------------------------------------
@@ -2296,7 +3053,7 @@ export class CubePage {
    * with no date to read along is said so.
    */
   addTimeseries(near?: string): void {
-    const shown = tiles(this.#shown.board.layout).filter((t) => this.#grids.has(t));
+    const shown = sheetTiles(this.#shown).filter((t) => this.#grids.has(t));
     const grid = near !== undefined && this.#grids.has(near) ? near : shown[0] ?? [...this.#grids.keys()][0];
     if (grid === undefined) return;
     void lazily(() => import('../ui/timeseries-view.ts')).then(({ firstTimeseries }) => {
@@ -2386,7 +3143,9 @@ export class CubePage {
       if (!tile || tile.view || this.#disposed || this.#sheetOf(id) !== this.#shown) return;
       tile.view = new TimeseriesView(tile.body, {
         grid: (cube) => this.#tsGrid(cube),
-        grids: () => tiles(this.#layoutOf(this.#sheetOf(id) ?? this.#shown)).filter((t) => this.#grids.has(t))
+        // the grids of its own sheet first (a board's, as the page has it), then the rest
+        grids: () => ((on) => (on.kind === 'bands' ? tiles(this.#layoutOf(on)) : sheetTiles(on)))(this.#sheetOf(id) ?? this.#shown)
+          .filter((t) => this.#grids.has(t))
           .concat([...this.#grids.keys()].filter((t) => this.#sheetOf(t) !== this.#sheetOf(id)))
           .flatMap((t) => this.#tsGrid(this.#cubeOf(t)) ?? []),
         together: (cubes) => {
@@ -2511,7 +3270,7 @@ export class CubePage {
   }
 
   /** A sheet's layout as the page has it (P7): set whenever the board is put at a page. */
-  #layoutOf(sheet: Sheet): Bands {
+  #layoutOf(sheet: BoardSheet): Bands {
     const layout = this.#pageLayouts.get(sheet.id);
     if (layout === undefined) throw new Error(`sheet ${sheet.id} has no layout of the page's`);
     return layout;
@@ -2522,7 +3281,7 @@ export class CubePage {
    * grid, as a new chart is placed (bands.ts add), and the tile each stack shows in front as the board shows it (what is looked at, never
    * saved: the design's §5, 7) -- every tile kept as it is on the board, none made again.
    */
-  #drawn(sheet: Sheet, layout: Bands): Bands {
+  #drawn(sheet: BoardSheet, layout: Bands): Bands {
     let drawn = layout;
     const on = new Set(tiles(sheet.board.layout));
     for (const [id, chart] of this.#charts) {

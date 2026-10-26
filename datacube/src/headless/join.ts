@@ -7,14 +7,16 @@
 import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { openedState } from '../cube-state.ts';
-import { cubeToJson, gridCapped, newGridTree, rebuilt, writeCube, type JoinInput, type JoinSource } from '../cube-document.ts';
+import { cubeToJson, gridCapped, newGridTree, rebuilt, writeCube, type JoinInput, type JoinSource, type RowsSource } from '../cube-document.ts';
 import {
-  HOST_TABLES, openInputs, openJoin, openSources, summaryCounts, type JoinOpening, type OpenedJoin, type OpenedSource, type OpenedSources,
+  HOST_TABLES, openInputs, openJoin, openRows, openSources, summaryCounts, type JoinOpening, type OpenedJoin, type OpenedRows, type OpenedSource,
+  type OpenedSources,
 } from '../join-open.ts';
 import { joinSummary, joinTitle, readJoinHow, summaryWords, type JoinHow } from '../join.ts';
-import { tiles } from '../layout/bands.ts';
 import { joinInputOf } from '../page-commands.ts';
-import { readPage, type PageDocument } from '../page-document.ts';
+import { pageBoxName } from '../flow-boxes.ts';
+import { resolvedSource } from '../live-inputs.ts';
+import { layoutTiles, readPage, type PageDocument } from '../page-document.ts';
 import { CubeRefusal } from '../snapshot.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { catalogColumns } from '../upload.ts';
@@ -41,13 +43,16 @@ export interface JoinSpec {
 export interface JoinAdded {
   readonly sheet: string | null;
   readonly title: string | null;
+  /** Its inputs read live, each the grid of the page as it is now (FL6, a flow's Join box: docs/DATACUBE_FLOW_MODE_2026_10_24.md
+   *  M2); else -- absent, false -- each a copy of what its grid is now. */
+  readonly live?: boolean;
 }
 
 /** A join's two inputs as a host hands them in (JoinSpec, its `how` aside): each grid as the page has it, and the tables
  *  they read. */
 async function inputsOf(spec: string): Promise<{
-  readonly s: JoinSpec & Partial<JoinAdded>; readonly page: PageDocument; readonly mine: string; readonly left: JoinInput;
-  readonly right: JoinInput; readonly tables: readonly string[];
+  readonly s: JoinSpec & Partial<JoinAdded>; readonly page: PageDocument; readonly mine: string; readonly theirs: string;
+  readonly left: JoinInput; readonly right: JoinInput; readonly tables: readonly string[];
 }> {
   // the protocol's exact JSON: a cube's numbers, and a condition's in Pure, kept as they are
   const s = fromJson(spec) as unknown as JoinSpec & Partial<JoinAdded>;
@@ -56,17 +61,17 @@ async function inputsOf(spec: string): Promise<{
   const right = joinInputOf(page, s.theirs);
   // each input's leaves' tables, as the host reads them (the one rule: host-tables.ts leafTables), mine's then theirs'
   const tables = [...await leafTables(left.source, s.host), ...await leafTables(right.source, s.host)];
-  return { s, page, mine: s.mine, left, right, tables };
+  return { s, page, mine: s.mine, theirs: s.theirs, left, right, tables };
 }
 
 async function read(spec: string): Promise<{
-  readonly page: PageDocument; readonly mine: string; readonly left: JoinInput; readonly right: JoinInput; readonly how: JoinHow;
-  readonly tables: readonly string[]; readonly added?: JoinAdded;
+  readonly page: PageDocument; readonly mine: string; readonly theirs: string; readonly left: JoinInput; readonly right: JoinInput;
+  readonly how: JoinHow; readonly tables: readonly string[]; readonly added?: JoinAdded;
 }> {
   const { s, ...inputs } = await inputsOf(spec);
   return {
     ...inputs, how: readJoinHow(s.how),
-    ...(s.sheet !== undefined ? { added: { sheet: s.sheet, title: s.title ?? null } } : {}),
+    ...(s.sheet !== undefined ? { added: { sheet: s.sheet, title: s.title ?? null, live: s.live === true } } : {}),
   };
 }
 
@@ -108,19 +113,25 @@ export async function joinCube(spec: string): Promise<string> {
   const { title } = s.added;
   // beside its first input, on that input's sheet unless another is named (the S7 audit's Y-3: Python's went on the
   // first sheet, where the input was not)
-  const sheet = s.added.sheet ?? s.page.sheets.find((sh) => tiles(sh.layout).includes(s.mine))?.id ?? s.page.sheets[0]!.id;
+  const sheet = s.added.sheet ?? s.page.sheets.find((sh) => layoutTiles(sh.layout).includes(s.mine))?.id ?? s.page.sheets[0]!.id;
   const name = s.page.name;
   const gridsOnPage = s.page.cubes.length + 1;
+  // a flow's boxes named as its canvas names them (flow-boxes.ts pageBoxName), as the tab's Join window titles the box
+  // (the review of 2026-10-26's B3); a board's grids, as their inputs are named
+  const onFlow = (id: string): boolean => s.page.sheets.some((sh) => sh.layout.kind === 'flow' && sh.layout.boxes.some((b) => b.tile === id));
+  const named = (id: string, input: JoinInput): string => (onFlow(id) ? pageBoxName(s.page, id) : input.name);
   return using(async (o) => {
     const source: JoinSource = {
-      _type: 'join', name: joinTitle(s.how, s.left.name, s.right.name), left: s.left, right: s.right, how: s.how, columns: [],
+      _type: 'join', name: joinTitle(s.how, named(s.mine, s.left), named(s.theirs, s.right)), left: s.left, right: s.right, how: s.how, columns: [],
     };
     const opened = await openJoin(source, o);
     const made = rebuilt(undefined, opened.relation, opened.columns, source.name, gridCapped(gridsOnPage));
     // written as the screen holds the grid it opens (cube-state.ts openedState), as headless gridCube writes one
     const state = openedState(made.snapshot, made.configuration, made.tree ?? newGridTree(made.configuration));
+    // live: its inputs written as links to the two grids, opened over what they are now
+    const links = s.added!.live === true ? { left: { grid: s.mine }, right: { grid: s.theirs } } : {};
     const cube = writeCube({
-      name, source: { ...source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) },
+      name, source: { ...source, ...links, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) },
       snapshot: state.snapshot, configuration: state.configuration, tree: state.tree,
     });
     const command = `{"kind":"addGrid","document":${cubeToJson(cube)},"sheet":${JSON.stringify(sheet)},`
@@ -162,8 +173,11 @@ export async function sourcesOnHost(page: PageDocument, cubes: readonly string[]
       tables.push(copy.table);
       continue;
     }
-    sources.push(cube.cube.source);
-    tables.push(...await leafTables(cube.cube.source, host));
+    // a flow's box reads another's rows: its input resolved against the page first, as the box itself is read (the
+    // review of 2026-10-26: a timeseries of several grids, one a box, was refused)
+    const source = resolvedSource(page, cube.cube.source);
+    sources.push(source);
+    tables.push(...await leafTables(source, host));
   }
   return { sources, tables };
 }
@@ -209,6 +223,12 @@ export async function sourcesOpenedOn(sources: readonly OpenedSource[], tables: 
  */
 export async function joinOpenedOn(source: JoinSource, tables: readonly string[]): Promise<OpenedJoin> {
   return using((o) => openJoin(source, o), tables);
+}
+
+/** Another grid's rows opened over the host's tables, each read once, as a join is (join-open.ts openRows): a box over a
+ *  Join's L or R, which reads both of the join's inputs (cube-document.ts JoinInput.unmatched). */
+export async function rowsOpenedOn(source: RowsSource, tables: readonly string[]): Promise<OpenedRows> {
+  return using((o) => openRows(source, o), tables);
 }
 
 /**

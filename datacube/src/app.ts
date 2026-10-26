@@ -41,12 +41,13 @@ import type { Dimension } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
 import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
-import { columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda } from './query.ts';
+import { classLambda, columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda, pivotValuesLambda, pivotValuesOf, tooManyValues, unpinnedValuesLambda } from './query.ts';
 import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
+import { DATE_RANGE_LABELS, DATE_RANGES } from './date-ranges.ts';
 import { valueList } from './ui/value-list.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import { CubeRefusal, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
-import { columnKind, headerSorts, isMeasureLeaf, type GridDraft } from './grid-edits.ts';
+import { CubeRefusal, SECOND_COLUMN, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
+import { columnKind, headerSorts, isMeasureLeaf, summaryOf, type GridDraft } from './grid-edits.ts';
 import { applyGridCommands, draftCommands, type GridCommand } from './grid-commands.ts';
 import {
   gridGesture, gridGestureGiven, type GestureArgs, type GestureGrid, type GridGestureArgs, type GridGestureName,
@@ -56,6 +57,9 @@ import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
 import type { HostSnap, SnapTarget } from './cube.ts';
 import { exportFileName, toClipboard, toEml } from './export.ts';
+// a flow's Output: small, over what the page has at start -- fetched lazily, it was a chunk of its own that split the
+// page's startup files (test/bundle-budget.test.ts, the flow mode review of 2026-10-26)
+import { outputCsv } from './flow-output.ts';
 import {
   ALERT_WINDOW,
   CODE_CHECK_WINDOW,
@@ -86,10 +90,12 @@ import {
   buildColumnModel,
   type LeafColumn,
 } from './grid/columns.ts';
-import { conditionWords } from './page-filters.ts';
+import { conditionWords, datesKept } from './page-filters.ts';
 import { shortcutsTable } from './ui/shortcuts.ts';
 import { shownColumns } from './shown-columns.ts';
+import { handedOn } from './box-columns.ts';
 import { freshConfiguration, gridCapped, newGridTree, writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
+import { pureFrom, pureInput, pureShown } from './pure-box.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
 import { treeHeaderText } from './treeview.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
@@ -129,7 +135,9 @@ import { buildDocumentation, isDocKey, type DocKey } from './ui/docs.ts';
 import { binColumns, GRID_SHOW_AS_LABELS } from './calc-presets.ts';
 import { presetCommands, type GridPreset } from './grid-presets.ts';
 import { columnRef, nameProblem } from './calc.ts';
-import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
+import { CubeEditor, draftFor, type CubeDraft, type EditorTab } from './ui/editor.ts';
+import { AGGREGATES } from './ui/panel-column.ts';
+import type { StepEditor } from './flow-boxes.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
 import {
   buildMenu,
@@ -158,7 +166,9 @@ import {
   ColumnsToolPanel,
   type ColumnsPanelChild,
 } from './ui/columns-panel.ts';
-import { isVariant } from '../../engine-client/src/types.ts';
+import { familyOf, isFractional, isTemporal, isTimeOfDay, isVariant } from '../../engine-client/src/types.ts';
+import type { TextTool } from './text-tools.ts';
+import type { Profile } from './profile.ts';
 import { lazily } from './lazily.ts';
 
 
@@ -289,6 +299,19 @@ export interface CubeAppBaseOptions {
    * tile (plan F6, blocker #4). It must be positioned (relative or absolute). Default: the cube.
    */
   readonly windowHost?: HTMLElement;
+  /**
+   * Where its windows that SET it dock -- Properties, the Filter window, a calculated column's editor -- one at a time,
+   * filling it, rather than floating over `windowHost`: a flow's settings pane (docs/DATACUBE_FLOW_MODE_2026_10_24.md
+   * §3.4). Every other window floats as before.
+   */
+  readonly dock?: HTMLElement;
+  /** A flow's box's New Box After (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9): a gesture of its menu made in a new box
+   *  after it -- never on it -- by its page, named `label`. */
+  readonly onStepAfter?: (gesture: { readonly name: string; readonly args: GestureArgs }, label: string) => void;
+  /** A flow's Pure box set by its window (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12; pure-box.ts): its rows `pure`'s
+   *  function of its input's, or (null) its input's as they are -- its page's to apply (setPure), the box then shown again
+   *  over its rows as they are. Whether the page took it. */
+  readonly onSetPure?: (pure: Lambda | null) => boolean;
   /** A cube in a tile (a page's grid): no title bar of its own; its columns panel folded. */
   readonly compact?: boolean;
   /** Its columns panel folded away at the start (default: when compact); open, a grid opened alone on its page. */
@@ -455,6 +478,14 @@ export interface CubeEvents {
    *  tells it, as its snap or live command. Told before `plane`. */
   readonly moved: readonly [];
 }
+
+/** The text tools' windows, by the tool each sets (text-tools.ts). */
+const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
+/** The windows that set a cube -- Properties, the Filter window, a calculated column's editor -- which dock where a host
+ *  docks them (CubeAppOptions.dock); every other window floats. */
+const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation' || key === 'Date Filter' || key === 'Test'
+  || key === 'Custom Filter' || key === 'Binning' || key === 'Generate Rows' || key === 'Pure' || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize' || key === 'Find Replace'
+  || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
  * Which cube on a document a keystroke from OUTSIDE every cube belongs to: the one last
@@ -2217,6 +2248,7 @@ export class CubeApp {
       const measures = this.#modelMeasures();
       const groups = buildMenu({
         snapshot: this.#shown,
+        ...(this.#options.onStepAfter ? { stepAfter: true } : {}),
         ...(join.length > 0 && !this.#adhoc ? { join } : {}),
         create: this.#hostItems('create'),
         canOpenSource: this.#canOpenSource,
@@ -2335,6 +2367,11 @@ export class CubeApp {
     // layout, clipboard and export. The menu offers only what grid-edits.ts allows; a refusal is said, never thrown
     // away (#gesture).
     const gesture = menuGesture(item);
+    // New Box After (FL9): the gesture the page's, made in a box of its own after this one
+    if (gesture !== null && item.after === true) {
+      this.#options.onStepAfter?.(gesture, item.label);
+      return;
+    }
     if (gesture !== null) {
       void this.#gestureGiven(gesture.name, gesture.args, item.label);
       return;
@@ -2611,6 +2648,12 @@ export class CubeApp {
    *  The refusal, the gesture's words or the commands', or null. */
   async #gesture<N extends GridGestureName>(name: N, args: GridGestureArgs[N], label: string): Promise<string | null> {
     return this.#applyMade(this.#gestured((g) => gridGesture(name, g, args)), label);
+  }
+
+  /** A gesture made on this grid as its menu's entry makes it, named `label` (a flow's New Box After, FL9: the box made
+   *  after another, its one step this). The refusal, or null. */
+  gesture(name: string, args: GestureArgs, label: string): Promise<string | null> {
+    return this.#gestureGiven(name, args, label);
   }
 
   /** A menu entry's gesture (ui/menu.ts menuGesture: named by the entry's id, given what the entry carries), made as a
@@ -3677,12 +3720,13 @@ export class CubeApp {
       : undefined;
   }
 
-  openEditor(column?: string): void {
+  openEditor(column?: string, tab?: EditorTab): void {
     if (this.#cubeOnly()) return;
     const open = this.#editor;
     if (open && this.#open.has('Properties')) {
       this.#showOverlay('Properties', () => {});
       if (column !== undefined) open.focusColumn(column);
+      else if (tab !== undefined) open.setTab(tab);
       return;
     }
     this.#showOverlay('Properties', (host, close) => {
@@ -3696,12 +3740,658 @@ export class CubeApp {
           onUseDimension: (name) => this.#useDimension(name),
           onAdHoc: () => void this.enterAdHoc(),
           ...(column !== undefined ? { initialColumn: column } : {}),
+          ...(tab !== undefined ? { initialTab: tab } : {}),
         },
       );
     }, {
       // the rail of sections, and Column Properties' columns beside its form
       size: { width: 980, height: 660, minWidth: 640, minHeight: 400 },
     });
+  }
+
+  /**
+   * THE WINDOW THAT SETS A FLOW'S STEP (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.4, flow-boxes.ts TOOL_EDITORS): the
+   * Filter window, a new calculated column's editor, or Properties at the section the step is -- each the grid's own,
+   * docked where its host docks them.
+   */
+  openStep(editor: StepEditor): void {
+    switch (editor.window) {
+      case 'filters':
+        this.openFilters();
+        return;
+      case 'column':
+        this.openColumnEditor(editor.start ?? {});
+        return;
+      case 'properties':
+        this.openEditor(undefined, editor.tab);
+        return;
+      case 'sample':
+        void this.#openSample();
+        return;
+      case 'datetime':
+        void this.#openDate();
+        return;
+      case 'text':
+        void this.#openTextTool(editor.kind);
+        return;
+      case 'unique':
+        void this.#openUnique();
+        return;
+      case 'impute':
+        void this.#openImpute();
+        return;
+      case 'dateFilter':
+        void this.#openDateFilter();
+        return;
+      case 'customFilter':
+        void this.#openCustomFilter();
+        return;
+      case 'binning':
+        void this.#openBinning();
+        return;
+      case 'generateRows':
+        void this.#openGenerateRows();
+        return;
+      case 'pure':
+        void this.#openPure();
+        return;
+      case 'test':
+        void this.#openTest();
+        return;
+      case 'jsonParse':
+        this.#openJsonParse();
+        return;
+      case 'multiField':
+        void this.#openMultiField();
+        return;
+      case 'transpose':
+        void this.#openTranspose();
+        return;
+      case 'select':
+        void this.#openSelect();
+        return;
+      case 'summarize':
+        void this.#openSummarize();
+        return;
+      case 'findReplace':
+        void this.#openFindReplace();
+        return;
+      case 'countRecords':
+        void this.#countRecords();
+        return;
+      // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
+      case 'join':
+        return;
+    }
+  }
+
+  /** A FLOW'S SAMPLE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): its first or last rows (its Top N, or of each group),
+   *  all but its first, or one of every N, in the order of a column -- row-sample.ts sampleCommands, the rule Python's
+   *  grid.sample asks -- in a window of its own (ui/sample-form.ts). Both fetched with the first. */
+  async #openSample(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ sampleForm }, { rowSampleOf, sampleCommands }] = await Promise.all([
+      lazily(() => import('./ui/sample-form.ts')), lazily(() => import('./row-sample.ts')),
+    ]);
+    const asked = async (commands: () => GridCommand[]): Promise<string | null> => {
+      try {
+        return await this.#apply(commands(), 'Sample');
+      } catch (e) {
+        if (e instanceof CubeRefusal) return e.message;
+        throw e;
+      }
+    };
+    const s = this.#snapshot;
+    // where it starts: its row sample, else its Top N said as one (its smallest first: bottom)
+    const top = s.topN;
+    const now = rowSampleOf(s) ?? (top === undefined ? undefined
+      : { kind: top.bottom === true ? 'first' as const : 'last' as const, n: top.n, by: top.by, groups: [] });
+    this.#showOverlay('Sample', (host, close) => sampleForm(host, {
+      columns: rowColumns(s).filter((c) => !(rowSampleOf(s)?.columns ?? []).includes(c.name)).map((c) => c.name),
+      now,
+      apply: (sample) => asked(() => sampleCommands(this.#snapshot, sample)),
+      clear: () => asked(() => sampleCommands(this.#snapshot, null)),
+      close,
+    }));
+  }
+
+  /** A FLOW'S DATETIME (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): a date column taken to its period -- the grid's own
+   *  By Day/Week/... preset (grid-presets.ts), in a window of its own (ui/date-form.ts, fetched with the first). */
+  async #openDate(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ dateForm }, { dateToolCommands }] = await Promise.all([
+      lazily(() => import('./ui/date-form.ts')), lazily(() => import('./date-tools.ts')),
+    ]);
+    const asked = async (commands: () => GridCommand[]): Promise<string | null> => {
+      try {
+        return await this.#apply(commands(), 'Date Period');
+      } catch (e) {
+        if (e instanceof CubeRefusal) return e.message;
+        throw e;
+      }
+    };
+    this.#showOverlay('Date Period', (host, close) => dateForm(host, {
+      columns: rowColumns(this.#snapshot).filter((c) => isTemporal(c.type)).map((c) => c.name),
+      texts: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'text').map((c) => c.name),
+      apply: (column, grain) => asked(() => presetCommands(this.#snapshot, { kind: 'grain', column, grain })),
+      applyTool: (tool) => asked(() => dateToolCommands(tool)),
+      close,
+    }));
+  }
+
+  /**
+   * THE GRID'S PROFILE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M5, a flow's box's: profile.ts): each column of its rows at
+   * their finest level -- the rows the box after it reads (query.ts classLambda), the columns it shows -- its values and its different values
+   * counted, its smallest and largest, by the database: its columns typed first (none of its rows), then one row of
+   * aggregates. Refused in words for a pivoted grid, whose columns are its values.
+   */
+  async profile(): Promise<Profile> {
+    const s = this.#snapshot;
+    if (s.pivotOn.length > 0) throw new CubeRefusal('a pivoted grid\'s columns are its values: take its pivot off to profile it');
+    const { CORRELATED, columnsLambda, correlationLambda, correlationsOf, profileLambda, profileOf } = await lazily(() => import('./profile.ts'));
+    const rows = classLambda(s).body[0]!;
+    const typed = await this.#controller.runQuery(columnsLambda(rows), s);
+    // the columns it hands on: what the box after it reads (box-columns.ts), each said by the name it hands it on by
+    const on = handedOn(typed.rows.columns.map((c) => c.name), s, this.#config as unknown as Record<string, unknown>);
+    const columns = on.map((c) => ({ name: c.name, type: typed.rows.columns.find((t) => t.name === c.name)!.type }));
+    const answer = await this.#controller.runQuery(profileLambda(rows, columns), s);
+    const profile = profileOf(answer.rows, columns);
+    // its measures, how they move together (Alteryx's Pearson Correlation): a second row of aggregates -- an id's or a
+    // year's correlation, a dimension's, says nothing
+    const kinds = new Map(rowColumns(s).map((c) => [c.name, c.kind] as const));
+    const numbers = columns.map((c, i) => ({ c, as: on[i]!.as }))
+      .filter(({ c }) => familyOf(c.type) === 'numeric' && kinds.get(c.name) === 'measure').slice(0, CORRELATED);
+    const correlations = numbers.length < 2 || profile.rows < 2 ? undefined : correlationsOf(
+      (await this.#controller.runQuery(correlationLambda(rows, numbers.map(({ c }) => c.name)), s)).rows, numbers.map(({ as }) => as));
+    return { ...profile, columns: profile.columns.map((c, i) => ({ ...c, name: on[i]!.as })), ...(correlations !== undefined ? { correlations } : {}) };
+  }
+
+  /**
+   * THE QUERY THE GRID RAN LAST (a flow's box's Code, docs/DATACUBE_FLOW_MODE_2026_10_24.md M5 and FL12: each box's Pure
+   * shown), as the "Generated Pure & SQL" window shows it: the query this product built, as the compiler prints it, and
+   * the SQL the planner made of it and the database ran -- read, nothing run. Refused in words before its rows are read.
+   */
+  async code(): Promise<{ readonly pure: string; readonly sql: string }> {
+    const view = this.#view;
+    if (!view) throw new CubeRefusal('its rows are not read yet: its query is the one they are read by');
+    return { pure: await this.printQuery(view.query, 'PRETTY'), sql: view.sql };
+  }
+
+  /** Text onto the clipboard, by its host's (a flow's box's Code copied); refused in words where its host has none. */
+  async copyText(text: string): Promise<void> {
+    const write = this.#options.writeClipboard;
+    if (!write) throw new Error('this page has no clipboard to copy to');
+    await write(text);
+  }
+
+  /**
+   * THE GRID'S ROWS WRITTEN TO A FILE (a flow's Output, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every row, in its sorts'
+   * order, the columns it hands on -- the rows the box after it reads -- streamed from the database a chunk at a time,
+   * written as CSV by the one writer Python's flow.run writes by too (flow-output.ts outputCsv), the file handed to the
+   * person as `name`. Refused in words for a pivoted grid, or a page with no way to hand a file over.
+   */
+  async writeOutput(name: string): Promise<void> {
+    const download = this.#options.download;
+    if (!download) throw new Error('this page has no way to hand a file over');
+    download(name, 'text/csv', await outputCsv(this.#snapshot, this.#config as unknown as Record<string, unknown>, this.#controller));
+  }
+
+  /**
+   * A CROSS TAB'S LOAD VALUES (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2): the values its rows hold now, asked of the
+   * database as its pivot asks them (query.ts pivotValuesLambda, its pins taken off), pinned -- its columns fixed, so the
+   * box after it reads them (the gesture pivot.pin, Python's grid.load_pivot_values); `pin` false, its values its rows'
+   * again. The refusal, in words, or null.
+   */
+  async pinPivotValues(pin: boolean): Promise<string | null> {
+    if (!pin) return this.#gesture('pivot.pin', { values: null }, 'Unfix Columns');
+    const { pivotValues: _pinned, ...s } = this.#snapshot;
+    let query: Lambda | null;
+    let answered: ResultTable;
+    try {
+      query = pivotValuesLambda(s);
+      if (query === null) return 'it pivots on no column: it has no values to load';
+      ({ rows: answered } = await this.#controller.runQuery(query, s));
+    } catch (e) {
+      if (e instanceof CubeRefusal) return e.message;
+      throw e;
+    }
+    const { values, more } = pivotValuesOf(s, answered);
+    if (more) return tooManyValues(s.pivotOn[0]!);
+    return this.#gesture('pivot.pin', { values }, 'Load Values');
+  }
+
+  /**
+   * A FLOW'S CUSTOM FILTER (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12, Alteryx's Filter, its Custom filter): the rows a
+   * condition written in Pure is true for -- parsed by the compiler, typed before it is set (a condition is a Boolean),
+   * its column and its filter (custom-filter.ts, the rule Python's grid.custom_filter asks) -- in a window of its own
+   * (ui/custom-filter-form.ts), the condition it has printed as the compiler prints it. Both fetched with the first.
+   */
+  async #openCustomFilter(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ customFilterForm }, { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterOf, customFilterProbe, customFilterText }] = await Promise.all([
+      lazily(() => import('./ui/custom-filter-form.ts')), lazily(() => import('./custom-filter.ts')),
+    ]);
+    const had = customFilterOf(this.#snapshot);
+    let start = '';
+    if (had !== undefined) {
+      // its condition as the compiler prints it, the lambda's braces off -- never opened blank on a condition it has (OK
+      // would set another: the review of 2026-10-26), the compiler's words said instead
+      let printed: string;
+      try {
+        printed = (await this.#controller.print(had.lambda)).trim();
+      } catch (e) {
+        this.#status(`its condition could not be printed: ${e instanceof Error ? e.message : String(e)}`, 'warn');
+        return;
+      }
+      start = printed.startsWith('{') && printed.endsWith('}') ? printed.slice(1, -1).trim() : printed;
+    }
+    this.#showOverlay('Custom Filter', (host, close) => customFilterForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => c.name).filter((c) => c !== CUSTOM_FILTER_COLUMN),
+      condition: start,
+      apply: async (text) => {
+        let lambda: Lambda;
+        let type: string | undefined;
+        try {
+          lambda = await this.#check(this.#controller.parse(customFilterText(text)));
+          const probed = await this.#check(this.#controller.typed(customFilterProbe(this.#snapshot, lambda)));
+          type = probed.derived.find((d) => d.name === CUSTOM_FILTER_COLUMN)?.type;
+        } catch (e) {
+          // the compiler's refusal, in its words
+          return e instanceof Error ? e.message : String(e);
+        }
+        try {
+          return await this.#apply(customFilterCommands(this.#snapshot, lambda, type), 'Custom Filter');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /**
+   * A FLOW'S PURE BOX (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12; pure-box.ts): its rows a function of its input's,
+   * written in Pure over `$input` -- in a window of its own (ui/pure-form.ts), its function as the compiler prints it --
+   * parsed and its rows typed as a relation by the compiler before its page sets it (setPure, the rule Python's grid.pure
+   * asks), its input's relation read back off its rows. Refused in words on a grid over no other grid's rows. The form
+   * fetched with the first.
+   */
+  async #openPure(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const source = this.#options.cubeSource;
+    const set = this.#options.onSetPure;
+    if (source?._type !== 'rows' || set === undefined) {
+      this.#status("a Pure box reads another box's rows: add it after a box of the flow", 'warn');
+      return;
+    }
+    const { pureForm } = await lazily(() => import('./ui/pure-form.ts'));
+    const had = source.pure;
+    // its input's rows: its own, or -- a Pure box already -- what stands where its function reads its input
+    const input = pureInput(source, this.#snapshot.source.query);
+    // its function as the compiler prints it -- never opened blank on a function it has (OK would set another: the
+    // review of 2026-10-26), the compiler's words said instead -- and its input's columns, or why there are none
+    let start = '';
+    if (had !== undefined) {
+      try {
+        start = pureShown(await this.#controller.print(had));
+      } catch (e) {
+        this.#status(`its Pure could not be printed: ${e instanceof Error ? e.message : String(e)}`, 'warn');
+        return;
+      }
+    }
+    let columns: readonly string[] = [];
+    let note: string | undefined;
+    try {
+      columns = had === undefined ? rowColumns(this.#snapshot).map((c) => c.name)
+        : (await this.#controller.relationColumns(input)).map((c) => c.name);
+    } catch (e) {
+      note = `its input's columns could not be typed: ${e instanceof Error ? e.message : String(e)}`;
+    }
+    const told = (pure: Lambda | null): string | null => (set(pure) ? null : 'the page refused it');
+    this.#showOverlay('Pure', (host, close) => pureForm(host, {
+      columns,
+      ...(note !== undefined ? { note } : {}),
+      pure: start,
+      apply: async (text) => {
+        try {
+          // parsed, judged and its rows typed as a relation (pure-box.ts pureFrom): the compiler's words, or DataCube's
+          return told(await this.#check(pureFrom(text, input, {
+            parse: (t) => this.#controller.parse(t), columns: (r) => this.#controller.relationColumns(r),
+          })));
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          // the compiler's refusal, in its words
+          return e instanceof Error ? e.message : String(e);
+        }
+      },
+      ...(had !== undefined ? { remove: async () => told(null) } : {}),
+      close,
+    }));
+  }
+
+  /** A CROSS TAB'S VALUES ITS COLUMNS LACK (FL3): the values its rows hold now that its pinned values do not list, asked
+   *  of the database (query.ts unpinnedValuesLambda), each as the screen reads a cell -- none when it pins nothing. */
+  async lackingPivotValues(): Promise<readonly (FilterValue | null)[]> {
+    const s = this.#snapshot;
+    const query = unpinnedValuesLambda(s);
+    if (query === null) return [];
+    const { rows: answered } = await this.#controller.runQuery(query, s);
+    return pivotValuesOf(s, answered).values;
+  }
+
+  /** A FLOW'S JSON PARSE (Alteryx's): a JSON column's fields made columns of their own -- the column editor opened on its
+   *  fields (ui/json-fields.ts: each a calculated column the compiler checks), its box's first JSON column's; refused in
+   *  words when it has none. */
+  #openJsonParse(): void {
+    const json = rowColumns(this.#snapshot).find((c) => isVariant(c.type));
+    if (json === undefined) {
+      this.#status('its input has no JSON column: a JSON Parse reads the fields of one', 'warn');
+      return;
+    }
+    this.openColumnEditor({ json: json.name, level: 'dimension' });
+  }
+
+  /** A FLOW'S TEST (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL8, Alteryx's Test): its checks of its input's rows -- no
+   *  empty value, no value repeated, a number within bounds -- each counted by the database as the rows failing it
+   *  (checks.ts, the rule Python's grid.test asks), in a window of its own (ui/test-form.ts). Both fetched with the first. */
+  async #openTest(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ testForm }, { checkCommands, checksOf, testColumns }] = await Promise.all([
+      lazily(() => import('./ui/test-form.ts')), lazily(() => import('./checks.ts')),
+    ]);
+    const s = this.#snapshot;
+    const checks = checksOf(s);
+    // the columns it reads: its own (a test set again) left out
+    const own = new Set(checks === undefined ? [] : testColumns(checks));
+    const columns = rowColumns(s).filter((c) => !own.has(c.name));
+    this.#showOverlay('Test', (host, close) => testForm(host, {
+      columns: columns.map((c) => ({ name: c.name, number: familyOf(c.type) === 'numeric' })),
+      checks: checks ?? [],
+      apply: async (next) => {
+        try {
+          return await this.#apply(checkCommands(this.#snapshot, next), 'Test');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S DATE FILTER (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's): a date column's rows in a range -- one
+   *  relative to when the query runs (the header menu's Date Range: date-ranges.ts) or the days between two -- in a window
+   *  of its own (ui/date-filter-form.ts), fetched with the first: the grid's own gesture (filter.dates, the rule Python's
+   *  grid.date_filter asks), its filter those dates alone. */
+  async #openDateFilter(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const { dateFilterForm } = await lazily(() => import('./ui/date-filter-form.ts'));
+    const kept = datesKept(this.#snapshot.filter);
+    this.#showOverlay('Date Filter', (host, close) => dateFilterForm(host, {
+      // a time of day has no days to keep (date-ranges.ts refuses it): never offered
+      columns: rowColumns(this.#snapshot).filter((c) => isTemporal(c.type) && !isTimeOfDay(c.type)).map((c) => c.name),
+      ranges: DATE_RANGES.map((range) => ({ range, label: DATE_RANGE_LABELS[range] })),
+      ...(kept !== undefined ? { kept } : {}),
+      apply: (k) => this.#gesture('filter.dates', 'range' in k ? { column: k.column, range: k.range } : { column: k.column, from: k.from, to: k.to },
+        'Date Filter'),
+      close,
+    }));
+  }
+
+  /** A FLOW'S IMPUTATION (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): number columns' empties filled -- a value, or the
+   *  column's average, smallest or largest across every row, by the database (impute.ts, the rule Python's grid.impute
+   *  asks) -- in a window of its own (ui/impute-form.ts). Both fetched with the first. */
+  async #openImpute(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ imputeForm }, { imputeCommands }] = await Promise.all([
+      lazily(() => import('./ui/impute-form.ts')), lazily(() => import('./impute.ts')),
+    ]);
+    this.#showOverlay('Imputation', (host, close) => imputeForm(host, {
+      columns: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'numeric').map((c) => c.name),
+      apply: async (imputation) => {
+        try {
+          return await this.#apply(imputeCommands(this.#snapshot, imputation), 'Imputation');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S BINNING (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's Multi-Field Binning): number columns each put
+   *  into bins of equal width over its range -- the grid's own bins preset, the database placing each value
+   *  (binning.ts, the rule Python's grid.binning asks) -- in a window of its own (ui/binning-form.ts). Both fetched with
+   *  the first. */
+  async #openBinning(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ binningForm }, { binningCommands }] = await Promise.all([
+      lazily(() => import('./ui/binning-form.ts')), lazily(() => import('./binning.ts')),
+    ]);
+    this.#showOverlay('Binning', (host, close) => binningForm(host, {
+      columns: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'numeric').map((c) => c.name),
+      apply: async (binning) => {
+        try {
+          return await this.#apply(binningCommands(this.#snapshot, binning), 'Binning');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S GENERATE ROWS (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's): each row repeated for each number from
+   *  one to another, or each day between two dates -- an exploded column the database fills (generate-rows.ts, the rule
+   *  Python's grid.generate_rows asks) -- in a window of its own (ui/generate-rows-form.ts). Both fetched with the first. */
+  async #openGenerateRows(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ generateRowsForm }, { generateRowsCommands }] = await Promise.all([
+      lazily(() => import('./ui/generate-rows-form.ts')), lazily(() => import('./generate-rows.ts')),
+    ]);
+    const columns = rowColumns(this.#snapshot);
+    this.#showOverlay('Generate Rows', (host, close) => generateRowsForm(host, {
+      wholes: columns.filter((c) => familyOf(c.type) === 'numeric' && !isFractional(c.type)).map((c) => c.name),
+      dates: columns.filter((c) => isTemporal(c.type) && !isTimeOfDay(c.type)).map((c) => c.name),
+      apply: async (g) => {
+        try {
+          return await this.#apply(generateRowsCommands(this.#snapshot, g), 'Generate Rows');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S SELECT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1, Alteryx's): each column kept or left out, renamed and
+   *  retyped -- hidden, given a display name, which a flow's box hands on as the relation's rename, or made another type
+   *  by a calculated column of its conversion (select-columns.ts, the rule
+   *  Python's grid.select asks) -- in a window of its own (ui/select-form.ts). Both fetched with the first. */
+  async #openSelect(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ selectForm }, { selectCommands, selectionOf }] = await Promise.all([
+      lazily(() => import('./ui/select-form.ts')), lazily(() => import('./select-columns.ts')),
+    ]);
+    this.#showOverlay('Select', (host, close) => selectForm(host, {
+      columns: selectionOf(this.#snapshot, this.#config as unknown as Record<string, unknown>),
+      apply: async (selection) => {
+        try {
+          return await this.#apply(selectCommands(this.#snapshot, selection), 'Select');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S SUMMARIZE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1, Alteryx's): each column grouped by, aggregated or
+   *  left out -- the grid's row groups, its columns' kinds and Aggregations, the rest hidden (summarize.ts, the rule
+   *  Python's grid.summarize asks) -- in a window of its own (ui/summarize-form.ts). Both fetched with the first. */
+  async #openSummarize(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ summarizeForm }, { summarizeCommands }] = await Promise.all([
+      lazily(() => import('./ui/summarize-form.ts')), lazily(() => import('./summarize.ts')),
+    ]);
+    this.#showOverlay('Summarize', (host, close) => summarizeForm(host, {
+      columns: summaryOf(this.#snapshot, this.#config as unknown as Record<string, unknown>),
+      label: (fn) => AGGREGATES.find((a) => a.value === fn)!.label,
+      second: (fn) => SECOND_COLUMN[fn],
+      apply: async (summary) => {
+        try {
+          return await this.#apply(summarizeCommands(this.#snapshot, summary), 'Summarize');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S COUNT RECORDS (docs/DATACUBE_FLOW_MODE_2026_10_24.md M4, Alteryx's): its rows counted, one step, no window
+   *  -- a column of one value grouped by, a 1 for each row summed, the rest hidden (count-records.ts, the rule Python's
+   *  grid.count_records asks). Fetched with the first; refused, said on its status bar. */
+  async #countRecords(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const { countRecordsCommands } = await lazily(() => import('./count-records.ts'));
+    let refused: string | null;
+    try {
+      refused = await this.#apply(countRecordsCommands(this.#snapshot), 'Count Records');
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      refused = e.message;
+    }
+    if (refused !== null) this.note(`Count Records: ${refused}`);
+  }
+
+  /** A FLOW'S FIND REPLACE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2, Alteryx's): a Join box's column replaced by the
+   *  column of theirs its Join found for it -- in place, theirs hidden (find-replace.ts, the rule Python's
+   *  page.find_replace asks) -- in a window of its own (ui/find-replace-form.ts), starting at its own, else at its
+   *  Join's key and the last of theirs. Both fetched with the first. */
+  async #openFindReplace(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ findReplaceForm }, { findReplaceCommands, findReplaceOf }] = await Promise.all([
+      lazily(() => import('./ui/find-replace-form.ts')), lazily(() => import('./find-replace.ts')),
+    ]);
+    const now = this.#snapshot.derived.map(findReplaceOf).find((r) => r !== undefined);
+    const source = this.#options.cubeSource;
+    const how = source?._type === 'join' ? source.how : undefined;
+    const key = how !== undefined && how.form !== 'append' && 'rows' in how.on ? how.on.rows[0]?.left : undefined;
+    const made = new Set(this.#snapshot.derived.filter((d) => findReplaceOf(d) !== undefined).map((d) => d.name));
+    this.#showOverlay('Find Replace', (host, close) => findReplaceForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => c.name).filter((c) => !made.has(c)),
+      ...(now !== undefined ? { start: now } : key !== undefined ? { start: { column: key } } : {}),
+      apply: async (t) => {
+        try {
+          return await this.#apply(findReplaceCommands(this.#snapshot, t), 'Find Replace');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S TRANSPOSE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M4): columns made rows -- a Name and a Value for each, its
+   *  keys beside them (transpose.ts, the rule Python's grid.transpose asks) -- in a window of its own
+   *  (ui/transpose-form.ts). Both fetched with the first. */
+  async #openTranspose(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ transposeForm }, { transposeCommands }] = await Promise.all([
+      lazily(() => import('./ui/transpose-form.ts')), lazily(() => import('./transpose.ts')),
+    ]);
+    this.#showOverlay('Transpose', (host, close) => transposeForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => ({ name: c.name, numeric: familyOf(c.type) === 'numeric' })),
+      apply: async (transpose) => {
+        try {
+          return await this.#apply(transposeCommands(this.#snapshot, transpose), 'Transpose');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S MULTI-FIELD FORMULA (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): one expression over several columns, each
+   *  one's value `$v` -- parsed by the compiler, a calculated column each (multi-field-columns.ts, the rule Python's
+   *  grid.multi_field asks) -- in a window of its own (ui/multi-field-form.ts). Both fetched with the first. */
+  async #openMultiField(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ multiFieldForm }, { multiFieldCommands, multiFieldText }] = await Promise.all([
+      lazily(() => import('./ui/multi-field-form.ts')), lazily(() => import('./multi-field-columns.ts')),
+    ]);
+    const family = (type: string | undefined): 'text' | 'numeric' | 'temporal' | 'other' => {
+      const f = familyOf(type);
+      return f === 'text' || f === 'numeric' ? f : isTemporal(type) ? 'temporal' : 'other';
+    };
+    this.#showOverlay('Multi-Field Formula', (host, close) => multiFieldForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => ({ name: c.name, family: family(c.type) })),
+      apply: async (columns, expression, suffix, inPlace) => {
+        let lambda: Lambda;
+        try {
+          lambda = await this.#check(this.#controller.parse(multiFieldText(expression)));
+        } catch (e) {
+          // the parser's refusal, as the column editor says it
+          return e instanceof Error ? e.message : String(e);
+        }
+        try {
+          return await this.#apply(multiFieldCommands(this.#snapshot, { columns, lambda, suffix, ...(inPlace ? { inPlace } : {}) }), 'Multi-Field Formula');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S UNIQUE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): a row of each key, its first in an order -- a row
+   *  number per key, a filter keeping the first, the number hidden (unique.ts, the rule Python's grid.unique asks) -- in
+   *  a window of its own (ui/unique-form.ts); its duplicates are its filter's False port. Both fetched with the first. */
+  async #openUnique(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ uniqueForm }, { uniqueCommands }] = await Promise.all([
+      lazily(() => import('./ui/unique-form.ts')), lazily(() => import('./unique.ts')),
+    ]);
+    this.#showOverlay('Unique', (host, close) => uniqueForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => c.name),
+      apply: async (unique) => {
+        try {
+          return await this.#apply(uniqueCommands(this.#snapshot, unique), 'Unique');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S TEXT TOOL (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): Text To Columns, RegEx or Data Cleansing -- the
+   *  calculated columns text-tools.ts makes, added in one step, each as the column editor's Add adds one -- in a window
+   *  of its own (ui/text-tool-form.ts, fetched with the first). */
+  async #openTextTool(kind: TextTool['kind']): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ textToolForm }, { textToolCommands }] = await Promise.all([
+      lazily(() => import('./ui/text-tool-form.ts')), lazily(() => import('./text-tool-columns.ts')),
+    ]);
+    const label = TEXT_TOOL_WINDOWS[kind];
+    this.#showOverlay(label, (host, close) => textToolForm(host, {
+      kind,
+      columns: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'text').map((c) => c.name),
+      apply: (tool) => this.#apply(textToolCommands(tool), label),
+      close,
+    }));
   }
 
   /**
@@ -4159,13 +4849,18 @@ export class CubeApp {
       this.#raise(open);
       return open;
     }
+    // a window that sets the cube, docked where its host says (a flow's settings pane): one there at a time
+    const dock = this.#options.dock !== undefined && DOCKED(key) ? this.#options.dock : undefined;
+    if (dock !== undefined) {
+      for (const [other, w] of [...this.#open]) if (other !== key && w.parentElement === dock) this.#closeWindow(other);
+    }
     const win = open ?? this.#doc.createElement('div');
     if (!open) {
       win.className = 'dc-app-overlay';
       win.dataset['window'] = key;
       // still this cube's, wherever it floats: its drags land here, its keys are this cube's
       win.dataset['dcCube'] = this.#els.root.dataset['dcCube'] ?? '';
-      const host = this.#options.windowHost ?? this.#els.root;
+      const host = dock ?? this.#options.windowHost ?? this.#els.root;
       // outside the cube it does not inherit the cube's type and colours, so it carries them
       if (host !== this.#els.root) win.classList.add('dc-app-floating');
       host.append(win);
@@ -4205,6 +4900,11 @@ export class CubeApp {
     shut.addEventListener('click', close);
     head.append(h, shut);
     build(this.#div(win, 'dc-overlay-body'), close);
+    if (dock !== undefined) {
+      // docked: it fills its pane, which places it -- no drag, no size of its own, nothing to raise
+      win.classList.add('dc-docked');
+      return win;
+    }
 
     // Dragged by the header, resized from any edge, and REMEMBERED BY
     // TITLE: reopening Properties finds it where it was left, while

@@ -42,6 +42,7 @@ import type { ChartSpec } from '../src/chart-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, col, element, lambda, lit, times, toJson } from '../../pure-protocol/src/index.ts';
+import { bandsOf } from './bands-of.ts';
 
 const SOURCE: FileSource = {
   _type: 'file', name: 'trades.csv', format: 'csv', size: 120, sha256: 'ab'.repeat(32),
@@ -298,7 +299,7 @@ describe('a saved page', () => {
     const base = pageDefinitionText(page());
     const renamed = writePage({ name: 'other', cube: CUBE, views: VIEWS });
     assert.equal(pageDefinitionText(renamed), base);
-    const moved = { ...VIEWS, sheets: oneSheet({ ...LAYOUT, bands: LAYOUT.bands.map((b, i) => (i === 1 ? { ...b, height: 0.5 } : b)) }) };
+    const moved = { ...VIEWS, sheets: oneSheet({ ...bandsOf(LAYOUT), bands: bandsOf(LAYOUT).bands.map((b, i) => (i === 1 ? { ...b, height: 0.5 } : b)) }) };
     assert.notEqual(pageDefinitionText(writePage({ name: 'Q3 page', cube: CUBE, views: moved })), base);
     const sheetNamed = { ...VIEWS, sheets: [{ ...VIEWS.sheets[0]!, name: 'Summary' }] };
     assert.notEqual(pageDefinitionText(writePage({ name: 'Q3 page', cube: CUBE, views: sheetNamed })), base);

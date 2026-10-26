@@ -209,11 +209,18 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
    * The text a person edits, and what it may say: the calculated-column editor's typing
    * help (its examples and completions are inserted into what the person types), one
    * refusal that suggests an expression to type, and one that names the accessor a table's
-   * name cannot be read through.
+   * name cannot be read through. Added 2026-10-25 (the flow mode's Multi-Field Formula,
+   * docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): its window's example expressions, one per kind
+   * of column, put in its box for the person to edit -- the compiler parses what they leave
+   * there, as it parses the column editor's. Added 2026-10-26 (the flow mode's Pure box, FL12): its window's steps
+   * (filter, extend, groupBy, ...) and its example, put in its box for the person to finish -- the compiler parses what
+   * they leave there (pure-box.ts pureFrom).
    */
   const FOR_A_PERSON = new Map([
     ['src/calc.ts', 'the column editor\'s examples and completions'],
     ['src/query.ts', 'a refusal suggesting what to type'],
+    ['src/ui/multi-field-form.ts', 'the Multi-Field Formula window\'s examples'],
+    ['src/ui/pure-form.ts', 'the Pure box window\'s steps and its example'],
   ]);
 
   it('builds no Pure text outside what a person types', () => {
@@ -234,6 +241,10 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
     // pinned, so a query built as text cannot hide in an allowed file
     assert.equal(count('src/query.ts'), 1, 'query.ts: only the unpivotable refusal');
     assert.ok(count('src/calc.ts') > 0, 'calc.ts: the editor help still exists');
+    // pinned too (the flow mode review, 2026-10-26: the windows' allowances were open-ended): the Multi-Field Formula's
+    // examples, the Pure box's eight steps and its example
+    assert.equal(count('src/ui/multi-field-form.ts'), 4, "multi-field-form.ts: the window's examples");
+    assert.equal(count('src/ui/pure-form.ts'), 9, "pure-form.ts: the window's steps and its example");
   });
 
   it('calls no TDS function: the Relation API only (the user, 2026-09-27)', () => {

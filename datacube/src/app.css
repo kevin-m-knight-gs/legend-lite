@@ -3937,7 +3937,7 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-join-between { align-self: center; font-size: 22px; color: var(--tw-sky-600); }
 /* how they combine: a tile a form */
 .dc-join-how { margin-bottom: 12px; }
-.dc-join-kinds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.dc-join-kinds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .dc-join-kind {
   display: flex; align-items: center; gap: 8px; padding: 7px 10px; min-width: 0;
   border: 1px solid var(--tw-neutral-200); border-radius: 8px; background: var(--tw-white);
@@ -4123,6 +4123,9 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-xc-kind-hint { font-size: 11px; line-height: 14px; color: var(--tw-neutral-500); font-weight: 400; }
 
 .dc-xc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 14px 18px; overflow-y: auto; }
+/* each section its own height, the column scrolling: in a short window (a flow's settings pane, a window resized short)
+   a shrunk section spilled over the next, the preview's heading over its own builder's buttons (2026-10-25) */
+.dc-xc-main > * { flex-shrink: 0; }
 .dc-xc-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .dc-xc-label {
   display: block;
@@ -4637,6 +4640,933 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-text-help { color: var(--tw-neutral-500); font-size: var(--dc-text-sm-size); }
 .dc-text-bar { display: flex; align-items: center; gap: var(--dc-pad-2); padding: 0 var(--dc-pad-2) var(--dc-pad-2); }
 .dc-text-problem { flex: 1 1 auto; color: var(--dc-error, #c62828); font-size: var(--dc-text-sm-size); }
+
+/* ---- A FLOW SHEET (layout/flow-board.ts, flow-canvas.ts; docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.4): the palette, the
+   canvas of boxes on a dot grid, and the results pane below -- the grid of the box shown ---- */
+.dc-flow {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  position: relative;
+  background: var(--dc-bg);
+}
+/* the palette: its tools two by two under their groups' headings, so a long one fits a window's height */
+.dc-flow-palette {
+  flex: none;
+  width: 144px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-content: start;
+  gap: 2px;
+  padding: 8px 6px;
+  border-right: 1px solid var(--dc-line-faint);
+  background: var(--dc-bg);
+  overflow-y: auto;
+}
+.dc-flow-palette[hidden] { display: none; }
+/* a group of the palette's tools, under its heading (Alteryx's: In, Preparation, Join, Transform) */
+.dc-flow-group {
+  grid-column: 1 / -1;
+  padding: 6px 0 2px;
+  color: var(--dc-muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.dc-flow-group:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--dc-line-faint); padding-top: 8px; }
+.dc-flow-tool {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 5px 2px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dc-muted-strong);
+  font: inherit;
+  font-size: 11px;
+  line-height: 14px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.dc-flow-tool:hover { background: var(--dc-fill-faint); border-color: var(--dc-line-faint); color: var(--tw-black); }
+.dc-flow-tool:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
+.dc-flow-tool-name { text-align: center; overflow-wrap: break-word; font-size: 10.5px; line-height: 13px; }
+
+/* a tool's icon: its glyph in its group's colour, on a tint of it (Alteryx's groups: in and out, preparation, join,
+   transform) -- readable on either theme, the colour tokens being each theme's own */
+.dc-flow-icon {
+  --dc-flow-tone: var(--tw-sky-600);
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--dc-flow-tone);
+  background: color-mix(in srgb, var(--dc-flow-tone) 14%, transparent);
+}
+.dc-flow-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+[data-group='in'] > .dc-flow-icon { --dc-flow-tone: var(--tw-green-700); }
+[data-group='join'] > .dc-flow-icon { --dc-flow-tone: var(--tw-amber-500); }
+[data-group='transform'] > .dc-flow-icon { --dc-flow-tone: var(--tw-orange-500); }
+[data-group='parse'] > .dc-flow-icon { --dc-flow-tone: #8b5cf6; }
+
+.dc-flow-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+/* the canvas and, beside it, the settings pane (Alteryx's Configuration window): its width the divider's */
+.dc-flow-top { flex: 1 1 auto; min-height: 120px; display: flex; }
+/* the canvas on its stage, its own tools at the stage's corner, over the canvas as it scrolls */
+.dc-flow-stage { flex: 1 1 auto; min-width: 240px; position: relative; display: flex; }
+.dc-flow-toolbar { position: absolute; top: 10px; right: 14px; z-index: 4; display: flex; gap: 6px; }
+.dc-flow-toolbar[hidden] { display: none; }
+.dc-flow-act {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--dc-line);
+  border-radius: 13px;
+  background: var(--dc-bg);
+  color: var(--dc-muted-strong);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+}
+.dc-flow-act:hover { border-color: var(--dc-line-strong); color: var(--tw-black); }
+.dc-flow-act:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
+.dc-flow-act[hidden] { display: none; }
+.dc-flow-zoom { min-width: 26px; padding: 0 8px; }
+.dc-flow-zoom.dc-chosen { background: color-mix(in srgb, var(--dc-active) 12%, var(--tw-white)); border-color: var(--dc-active); color: var(--dc-active); }
+/* Undo and Redo, a pair: off while there is no step to undo or redo */
+/* the canvas's keys and gestures, its ? opens them: at the stage's corner, under its tools */
+.dc-flow-keys-panel {
+  position: absolute;
+  top: 44px;
+  right: 14px;
+  z-index: 5;
+  width: 340px;
+  max-height: calc(100% - 60px);
+  overflow: auto;
+  border: 1px solid var(--dc-line);
+  border-radius: 10px;
+  background: var(--dc-bg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+  font-size: 12px;
+}
+.dc-flow-keys-panel[hidden] { display: none; }
+/* the command palette (Ctrl+K): a field over a list of what it finds, at the top of the canvas */
+.dc-flow-commands {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  z-index: 6;
+  width: min(460px, calc(100% - 28px));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100% - 60px);
+  border: 1px solid var(--dc-line);
+  border-radius: 10px;
+  background: var(--dc-bg);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  overflow: hidden;
+}
+.dc-flow-commands[hidden] { display: none; }
+.dc-flow-commands-find {
+  flex: none;
+  margin: 0;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 1px solid var(--dc-line-faint);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.dc-flow-commands-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px 0; }
+.dc-flow-command { display: flex; align-items: baseline; gap: 10px; padding: 6px 14px; cursor: pointer; min-width: 0; }
+.dc-flow-command:hover { background: var(--dc-fill-faint); }
+.dc-flow-command.dc-active { background: var(--dc-selected-bg); }
+.dc-flow-command-label { flex: none; font-weight: 600; white-space: nowrap; }
+.dc-flow-command-words { flex: 1 1 auto; min-width: 0; color: var(--dc-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-commands-none { padding: 8px 14px; color: var(--dc-muted); }
+.dc-flow-keys-list { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; margin: 0; padding: 10px 14px 14px; }
+.dc-flow-keys-list dt { font-weight: 600; color: var(--dc-muted-strong); white-space: nowrap; }
+.dc-flow-keys-list dd { margin: 0; color: var(--dc-muted-strong); }
+.dc-flow-undo, .dc-flow-redo { min-width: 26px; padding: 0 8px; font-size: 14px; }
+.dc-flow-undo { margin-left: 6px; }
+.dc-flow-undo:disabled, .dc-flow-redo:disabled { cursor: default; opacity: 0.45; box-shadow: none; }
+.dc-flow-undo:disabled:hover, .dc-flow-redo:disabled:hover { border-color: var(--dc-line); color: var(--dc-muted-strong); }
+.dc-flow-zoom-level { min-width: 52px; font-variant-numeric: tabular-nums; }
+.dc-flow-run { color: var(--dc-active); border-color: color-mix(in srgb, var(--dc-active) 45%, transparent); }
+.dc-flow-run:disabled { cursor: progress; opacity: 0.8; }
+/* a box's rows when its grid ran last: beside its output, under the lines out of it, as a connection's count is */
+.dc-flow-count {
+  position: absolute;
+  left: 100%;
+  top: calc(50% + 6px);
+  margin-left: 6px;
+  pointer-events: auto;
+  white-space: nowrap;
+  font-size: 10px;
+  line-height: 12px;
+  color: var(--dc-muted);
+  font-variant-numeric: tabular-nums;
+}
+.dc-flow-count[hidden] { display: none; }
+/* a Filter's: its True rows, above its T port, clear of its F */
+.dc-flow-box.dc-flow-two > .dc-flow-count { top: calc(30% - 20px); }
+/* the palette's find field: its tools narrowed to what it holds */
+.dc-flow-find {
+  grid-column: 1 / -1;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 2px;
+  padding: 3px 6px;
+  border: 1px solid var(--dc-line-faint);
+  border-radius: 6px;
+  background: var(--dc-fill-faint);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+}
+.dc-flow-find:focus { outline: none; border-color: var(--dc-active); background: var(--dc-bg); }
+.dc-flow-group[hidden], .dc-flow-tool[hidden] { display: none; }
+.dc-flow-canvas {
+  flex: 1 1 auto;
+  min-width: 240px;
+  min-height: 120px;
+  overflow: auto;
+  position: relative;
+  outline: none;
+  background-color: var(--tw-neutral-50);
+  background-image: radial-gradient(circle, var(--tw-neutral-300) 1px, transparent 1.25px);
+  background-size: 16px 16px;
+}
+.dc-flow-plane { position: relative; min-width: 100%; min-height: 100%; isolation: isolate; }
+.dc-flow-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.dc-flow-lines path { fill: none; stroke: var(--tw-neutral-400); stroke-width: 1.5; }
+/* a line's wider stroke beneath it, what a pointer finds: pressed, the line selected */
+.dc-flow-lines path.dc-flow-hit { stroke: transparent; stroke-width: 14; pointer-events: stroke; cursor: pointer; }
+.dc-flow-view .dc-flow-lines path.dc-flow-hit { pointer-events: none; }
+.dc-flow-lines path.dc-flow-hit:hover + .dc-flow-line { stroke: var(--tw-neutral-600); stroke-width: 2; }
+.dc-flow-lines path.dc-flow-line-selected { stroke: var(--dc-active); stroke-width: 2.5; }
+/* a line a dragged tool would go between, and the line being drawn from a box's output */
+.dc-flow-lines path.dc-flow-line-target { stroke: var(--dc-active); stroke-width: 2.5; stroke-dasharray: 6 4; }
+.dc-flow-lines path.dc-flow-wire { stroke: var(--dc-active); stroke-width: 2; stroke-dasharray: 5 4; }
+.dc-flow-wiring, .dc-flow-wiring * { cursor: crosshair !important; }
+/* a selected line's ×, at its middle: the box it goes into then reads a copy of its rows */
+.dc-flow-unlink {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--dc-active);
+  border-radius: 50%;
+  background: var(--dc-bg);
+  color: var(--dc-active);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+}
+.dc-flow-unlink[hidden] { display: none; }
+.dc-flow-unlink:hover { background: var(--dc-active); color: var(--dc-bg); }
+.dc-flow-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--dc-muted);
+  text-align: center;
+  pointer-events: none;
+}
+.dc-flow-hint[hidden] { display: none; }
+
+/* a box: a card, its tool's icon, its name and what it is set to; its ports at its sides */
+.dc-flow-box {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 184px;
+  height: 60px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--dc-line);
+  border-radius: 10px;
+  background: var(--dc-bg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: box-shadow 120ms ease, border-color 120ms ease;
+}
+.dc-flow-box:hover { border-color: var(--dc-line-strong); box-shadow: 0 2px 8px rgb(0 0 0 / 10%); }
+.dc-flow-box:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 2px; }
+.dc-flow-box.dc-flow-shown { border-color: var(--dc-active); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dc-active) 22%, transparent); }
+/* the boxes picked together (Shift+click, a band): a dashed ring, beside the shown one's solid ring */
+.dc-flow-box.dc-flow-picked { outline: 2px dashed var(--dc-active); outline-offset: 3px; }
+/* the band a press on the empty canvas drags out */
+.dc-flow-band {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  border: 1px solid var(--dc-active);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--dc-active) 10%, transparent);
+  pointer-events: none;
+}
+.dc-flow-box.dc-flow-target { border: 1px dashed var(--dc-active); background: var(--dc-selected-bg); }
+.dc-flow-box.dc-flow-dragging { cursor: grabbing; z-index: 2; transition: none; box-shadow: 0 8px 20px rgb(0 0 0 / 18%); }
+.dc-flow-view .dc-flow-box { cursor: pointer; }
+/* a box whose source was not opened the last time it was shown: red until it is, why in its settings */
+.dc-flow-box.dc-flow-refused { border-color: var(--tw-red-500); }
+.dc-flow-box.dc-flow-refused .dc-flow-says { color: var(--tw-red-600); }
+/* a file from the desktop over the canvas: dropped, an Input over it */
+.dc-flow-canvas.dc-flow-dropping { outline: 2px dashed var(--dc-active); outline-offset: -8px; }
+.dc-flow-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.dc-flow-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-says { font-size: 11px; line-height: 14px; color: var(--dc-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-rename { width: 100%; box-sizing: border-box; font: inherit; padding: 0 3px; border: 1px solid var(--dc-active); border-radius: 3px; background: var(--dc-bg); color: inherit; }
+.dc-flow-x {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: none;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dc-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dc-flow-box:hover > .dc-flow-x:not([hidden]), .dc-flow-box:focus-within > .dc-flow-x:not([hidden]) { display: grid; }
+.dc-flow-x:hover { background: var(--dc-fill); color: var(--tw-black); }
+.dc-flow-port {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -5px;
+  border: 1.5px solid var(--dc-line-strong);
+  border-radius: 50%;
+  background: var(--dc-bg);
+}
+.dc-flow-port-in { left: -5px; }
+.dc-flow-port-out { right: -5px; cursor: crosshair; transition: transform 100ms ease, border-color 100ms ease; font-size: 0; }
+/* a Filter's outputs: its True above its False (Alteryx's T and F), each a port a line is drawn from -- a Unique's U and
+   D, a Sample's S and R (its rows and the rest) */
+.dc-flow-port-false { display: none; }
+.dc-flow-box.dc-flow-two > .dc-flow-port-out {
+  width: 12px;
+  height: 12px;
+  margin-top: -7px;
+  right: -7px;
+  top: 30%;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  color: var(--dc-muted);
+}
+.dc-flow-box.dc-flow-two > .dc-flow-port-false { display: block; top: 70%; }
+/* a Join's outputs: its L above its J above its R (Alteryx's), each a port a line is drawn from */
+.dc-flow-port-unmatched { display: none; }
+.dc-flow-box[data-tool='join'] > .dc-flow-port-out, .dc-flow-box[data-tool='fuzzyMatch'] > .dc-flow-port-out {
+  width: 12px;
+  height: 12px;
+  margin-top: -7px;
+  right: -7px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  color: var(--dc-muted);
+}
+.dc-flow-box[data-tool='join'] > .dc-flow-port-l, .dc-flow-box[data-tool='fuzzyMatch'] > .dc-flow-port-l { display: block; top: 22%; }
+.dc-flow-box[data-tool='join'] > .dc-flow-port-r, .dc-flow-box[data-tool='fuzzyMatch'] > .dc-flow-port-r { display: block; top: 78%; }
+.dc-flow-port-out:hover { transform: scale(1.4); border-color: var(--dc-active); background: var(--dc-selected-bg); }
+.dc-flow-view .dc-flow-port-out { cursor: inherit; }
+.dc-flow-view .dc-flow-port-out:hover { transform: none; border-color: var(--dc-line-strong); background: var(--dc-bg); }
+/* its input ports: one, a join's left and right (L above R, where the lines into them come in) -- an Input has none */
+.dc-flow-port-left, .dc-flow-port-right, .dc-flow-port-more, .dc-flow-port-add {
+  display: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -7px;
+  left: -7px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  color: var(--dc-muted);
+}
+.dc-flow-port-left { top: 30%; }
+.dc-flow-port-right { top: 70%; }
+.dc-flow-box[data-tool='input'] > .dc-flow-port-in { display: none; }
+/* every tool of the Join group reads two: a Join's, a Union's, an Append Fields', a Fuzzy Match's */
+.dc-flow-box[data-group='join'] > .dc-flow-port-in { display: none; }
+.dc-flow-box[data-group='join'] > .dc-flow-port-left, .dc-flow-box[data-group='join'] > .dc-flow-port-right { display: block; }
+/* a Union's inputs numbered, one a port, and its + below them: a line let go on it adds one (none to add on a locked page) */
+.dc-flow-box[data-tool='union'] > .dc-flow-port-more, .dc-flow-box[data-tool='union'] > .dc-flow-port-add { display: block; }
+.dc-flow-port-add { border-style: dashed; color: var(--dc-active); }
+.dc-flow-wiring .dc-flow-box.dc-flow-target > .dc-flow-port-add { border-style: solid; border-color: var(--dc-active); background: var(--dc-selected-bg); }
+.dc-flow-view .dc-flow-box[data-tool='union'] > .dc-flow-port-add { display: none; }
+/* three inputs or more: smaller ports, so each has its own room on the box's edge */
+.dc-flow-box.dc-flow-many > .dc-flow-port-in { width: 9px; height: 9px; margin-top: -5.5px; left: -5.5px; font-size: 6px; line-height: 9px; }
+/* a box reading a copy on a side (a line taken off): its input hollow and dashed, said in its title */
+.dc-flow-box.dc-flow-frozen > .dc-flow-port-in { border-style: dashed; border-color: var(--tw-sky-600); }
+.dc-flow-box.dc-flow-frozen .dc-flow-says::before { content: '❄ '; color: var(--tw-sky-600); }
+.dc-flow-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0.92;
+  background: var(--dc-bg);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 18%);
+}
+
+/* the settings pane: the window of the shown box's grid that sets it (Properties, Filter, a calculated column's),
+   docked and filling it (CubeAppOptions.dock); with none docked, what the box does and how to set it */
+.dc-flow-side {
+  flex: none;
+  width: 6px;
+  border-left: 1px solid var(--dc-line);
+  background: var(--dc-fill-faint);
+  cursor: col-resize;
+  touch-action: none;
+}
+.dc-flow-side:hover, .dc-flow-side:focus-visible { background: var(--dc-selected-line); outline: none; }
+.dc-flow-settings {
+  flex: none;
+  width: var(--dc-flow-settings, clamp(320px, 40%, 640px));
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--dc-bg);
+}
+.dc-flow-settings-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: var(--dc-control-height);
+  padding: 0 var(--dc-pad-2);
+  border-bottom: 1px solid var(--dc-line-faint);
+  font-weight: 500;
+}
+.dc-flow-settings-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-settings:has(> .dc-flow-dock:not(:empty)) > .dc-flow-settings-head { display: none; }
+/* a comment (a text tile: M7), drawn as a note on the canvas: its head what it is moved by, its words below */
+.dc-flow-note {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 220px;
+  min-height: 48px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid color-mix(in srgb, var(--tw-amber-500) 45%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--tw-amber-500) 12%, var(--dc-bg));
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+  font-size: 12px;
+}
+.dc-flow-note:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 2px; }
+.dc-flow-note.dc-flow-dragging { z-index: 2; box-shadow: 0 8px 20px rgb(0 0 0 / 18%); }
+.dc-flow-note-head { flex: none; height: 14px; display: flex; justify-content: flex-end; cursor: grab; touch-action: none; }
+.dc-flow-view .dc-flow-note-head { cursor: default; }
+.dc-flow-note-x {
+  width: 16px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--dc-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+.dc-flow-note:hover .dc-flow-note-x, .dc-flow-note:focus-within .dc-flow-note-x { opacity: 1; }
+.dc-flow-note-x[hidden] { display: none; }
+.dc-flow-note-body { padding: 0 10px 8px; overflow-wrap: anywhere; }
+.dc-flow-note-body .dc-text-host { padding: 0; }
+.dc-flow-note-body p { margin: 0 0 4px; }
+[data-group='docs'] > .dc-flow-icon { --dc-flow-tone: var(--tw-amber-500); }
+/* the run's log, at the canvas's bottom corner: each box's rows and time, a refusal red, each a button that shows it */
+.dc-flow-log {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 4;
+  width: min(340px, calc(100% - 24px));
+  max-height: 45%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--dc-line);
+  border-radius: 10px;
+  background: var(--dc-bg);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 12%);
+  font-size: 12px;
+}
+.dc-flow-log[hidden] { display: none; }
+.dc-flow-log-head, .dc-flow-keys-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-bottom: 1px solid var(--dc-line-faint); }
+.dc-flow-log-title, .dc-flow-keys-title { flex: 1 1 auto; font-weight: 600; }
+.dc-flow-log-close, .dc-flow-keys-close { border: none; background: transparent; color: var(--dc-muted); font-size: 15px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 50%; }
+.dc-flow-log-close:hover, .dc-flow-keys-close:hover { background: var(--dc-fill); color: var(--tw-black); }
+.dc-flow-log-list { margin: 0; padding: 4px; list-style: none; overflow: auto; }
+.dc-flow-log-box {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 3px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dc-flow-log-box:hover { background: var(--dc-fill-faint); }
+.dc-flow-log-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-log-rows, .dc-flow-log-ms { color: var(--dc-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dc-flow-log-refused .dc-flow-log-rows { color: var(--tw-red-600); white-space: normal; }
+.dc-flow-log-failing .dc-flow-log-rows { color: var(--tw-amber-700, #b45309); }
+/* a flow's Sample (ui/sample-form.ts): its first or last rows, in the order of a column */
+.dc-sample { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.dc-sample-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dc-sample-word { color: var(--dc-muted-strong); }
+/* a part of the Sample window its way has no use for: hidden, whatever its own display */
+.dc-sample [hidden] { display: none !important; }
+.dc-sample-seed { width: 64px; }
+.dc-sample-n { width: 6em; }
+/* a Test's result, once its rows have landed: amber with the checks it fails, its words green when every one passes */
+.dc-flow-box.dc-flow-failing { border-color: var(--tw-amber-500, #f59e0b); box-shadow: 0 0 0 1px var(--tw-amber-500, #f59e0b); }
+.dc-flow-box.dc-flow-failing .dc-flow-says { color: var(--tw-amber-700, #b45309); }
+.dc-flow-box.dc-flow-passing .dc-flow-says { color: var(--tw-green-600, #16a34a); }
+/* a Test that stops a run, failing (FL8's refuse): red, as a refusal is */
+.dc-flow-box.dc-flow-failing.dc-flow-stops { border-color: var(--tw-red-500); box-shadow: 0 0 0 1px var(--tw-red-500); }
+.dc-flow-box.dc-flow-failing.dc-flow-stops .dc-flow-says { color: var(--tw-red-600); }
+.dc-flow-stops-check { margin-top: 8px; }
+/* a Test's checks: a row each, and Add a check below them */
+.dc-test-checks { display: flex; flex-direction: column; gap: 6px; }
+.dc-test-check .dc-sample-n[hidden] { display: none; }
+/* a check's values or pattern, as text */
+.dc-test-text { min-width: 12em; flex: 1 1 12em; font-family: var(--dc-mono, ui-monospace, monospace); }
+.dc-test-text[hidden], .dc-test-column[hidden] { display: none; }
+.dc-test-add { align-self: flex-start; }
+/* a Date Filter's two days, asked only when it keeps the days between them */
+.dc-date-filter-days[hidden] { display: none; }
+/* a Generate Rows' numbers or its days, one shown; a bound typed or a column picked */
+.dc-generate-numbers[hidden], .dc-generate-days[hidden], .dc-generate-numbers .dc-sample-n[hidden] { display: none; }
+.dc-generate-name { width: 12em; }
+.dc-sample-hint { margin: 0; color: var(--dc-muted); font-size: 12px; max-width: 52ch; }
+.dc-sample-status { margin: 0; min-height: 1em; color: var(--tw-red-600); font-size: 12px; }
+.dc-sample-status:empty { display: none; }
+.dc-sample-foot { display: flex; align-items: center; gap: 8px; }
+/* the box's inputs, above its settings: what it reads on each side, a box of the flow or a frozen copy */
+.dc-flow-inputs {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 6px var(--dc-pad-2);
+  border-bottom: 1px solid var(--dc-line-faint);
+  background: var(--dc-fill-faint);
+}
+.dc-flow-inputs[hidden] { display: none; }
+.dc-flow-input { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* an Output's settings: the file it writes, Write now, Write no file, and what writing said */
+.dc-flow-output {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px var(--dc-pad-2);
+  border-bottom: 1px solid var(--dc-line-faint);
+}
+.dc-flow-output[hidden] { display: none; }
+.dc-flow-output-name { width: 16em; }
+.dc-flow-output-said { color: var(--dc-muted); font-size: 12px; }
+/* a Cross Tab's columns: found as it runs, or fixed by Load values (FL2), and what the last said */
+.dc-flow-pin-words { font-size: 12px; flex: 1 1 18em; min-width: 0; }
+.dc-flow-pin-said { color: var(--dc-muted); font-size: 12px; flex-basis: 100%; }
+.dc-flow-pin-said:empty { display: none; }
+.dc-flow-pin-lacking { color: var(--tw-amber-700, #b45309); font-size: 12px; flex-basis: 100%; }
+.dc-flow-pin-lacking:empty { display: none; }
+.dc-flow-input-side { color: var(--dc-muted); font-size: 12px; }
+.dc-flow-input > .dc-select { min-width: 10em; max-width: 22em; }
+/* a Union's input taken off (one of more than two), and its next one added */
+.dc-flow-input-off {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--dc-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dc-flow-input-off:hover { background: var(--dc-fill); color: var(--tw-black); }
+.dc-flow-input-add > .dc-select { color: var(--dc-muted); }
+.dc-flow-dock { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.dc-flow-dock:empty { display: none; }
+.dc-flow-dock:not(:empty) ~ .dc-flow-settings-empty { display: none; }
+.dc-flow-dock > .dc-app-overlay {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: static;
+  border: none;
+  box-shadow: none;
+}
+.dc-flow-dock > .dc-app-overlay > .dc-overlay-head { cursor: default; }
+.dc-flow-dock > .dc-app-overlay > .dc-overlay-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.dc-flow-settings-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  color: var(--dc-muted);
+}
+.dc-flow-settings-empty > p { margin: 0; max-width: 48ch; }
+.dc-flow-settings-now { color: var(--tw-black); font-weight: 500; }
+.dc-flow-settings-columns { font-size: 11px; line-height: 15px; overflow-wrap: anywhere; }
+.dc-flow-settings-refused { color: var(--tw-red-600); }
+
+/* the results pane: the box shown's grid, its height the divider's */
+.dc-flow-split {
+  flex: none;
+  height: 6px;
+  border-top: 1px solid var(--dc-line);
+  background: var(--dc-fill-faint);
+  cursor: row-resize;
+  touch-action: none;
+}
+.dc-flow-split:hover, .dc-flow-split:focus-visible { background: var(--dc-selected-line); outline: none; }
+.dc-flow-results {
+  flex: none;
+  height: var(--dc-flow-results, 45%);
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  background: var(--dc-bg);
+}
+.dc-flow-results-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--dc-pad-1);
+  height: var(--dc-control-height);
+  padding: 0 var(--dc-pad-1) 0 var(--dc-pad-2);
+  border-bottom: 1px solid var(--dc-line-faint);
+  font-weight: 500;
+}
+.dc-flow-results-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-results-actions { flex: none; display: flex; align-items: center; gap: var(--dc-pad-1); }
+/* the results pane's Rows and Profile (M5): a pair of tabs, the chosen one filled */
+.dc-flow-modes { flex: none; display: inline-flex; padding: 2px; border: 1px solid var(--dc-line); border-radius: 8px; background: var(--dc-bg); }
+.dc-flow-modes[hidden] { display: none; }
+.dc-flow-mode {
+  height: 22px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dc-muted-strong);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dc-flow-mode:hover { color: var(--tw-black); }
+.dc-flow-mode.dc-chosen { background: var(--dc-selected-bg); color: var(--dc-active); font-weight: 600; }
+/* a box's profile: a row a column, how filled it is a bar */
+/* the shown box's grid kept in place, out of sight, while its profile is shown */
+.dc-flow-results-body.dc-flow-profiling > :not(.dc-flow-profile):not(.dc-flow-chart) { display: none !important; }
+/* a box's chart in the results pane: the chart panel filling it, its options beside the chart when shown */
+.dc-flow-chart { display: flex; flex: 1; min-height: 220px; height: 100%; }
+.dc-flow-chart-host { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.dc-flow-chart-host > .dc-chartpanel { flex: 1; min-width: 0; }
+.dc-flow-profile { height: 100%; overflow: auto; padding: 10px 14px; box-sizing: border-box; }
+.dc-flow-profile-wait { color: var(--dc-muted); padding: 8px 0; }
+/* a box's Code: its query as Pure and the SQL the database ran, each with its Copy */
+.dc-flow-code { display: flex; flex-direction: column; gap: 12px; }
+.dc-flow-code-part { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dc-flow-code-head { display: flex; align-items: center; gap: 8px; }
+.dc-flow-code-head > h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--dc-muted-strong); }
+.dc-flow-code-said { color: var(--dc-muted); font-size: 12px; }
+.dc-flow-code-text {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--dc-line-faint);
+  border-radius: 6px;
+  background: var(--dc-fill-faint);
+  font: 12px/1.5 var(--dc-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.dc-flow-profile-refused { color: var(--tw-red-600); }
+.dc-flow-profile-sum { margin-bottom: 8px; color: var(--dc-muted-strong); font-size: 12px; }
+.dc-flow-profile-table { border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.dc-flow-profile-table th {
+  position: sticky;
+  top: -10px;
+  padding: 6px 14px 6px 0;
+  background: var(--dc-bg);
+  color: var(--dc-muted);
+  font-weight: 600;
+  text-align: left;
+  border-bottom: 1px solid var(--dc-line);
+}
+.dc-flow-profile-table td { padding: 5px 14px 5px 0; border-bottom: 1px solid var(--tw-neutral-100); white-space: nowrap; }
+.dc-flow-profile-name { font-weight: 600; }
+.dc-flow-profile-type { color: var(--dc-muted); }
+.dc-flow-profile-num { text-align: right; }
+.dc-flow-profile-value { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.dc-flow-profile-filled { display: flex; align-items: center; gap: 8px; }
+.dc-flow-profile-bar { width: 72px; height: 6px; border-radius: 3px; background: var(--tw-neutral-200); overflow: hidden; }
+.dc-flow-profile-fill { display: block; height: 100%; border-radius: 3px; background: var(--dc-active); }
+.dc-flow-results-body { flex: 1 1 auto; min-height: 0; display: flex; }
+.dc-flow-results-body > * { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.dc-flow-results-empty { display: grid; place-items: center; color: var(--dc-muted); padding: 16px; text-align: center; }
+
+/* ---- a flow's Text Input (ui/text-input-dialog.ts): a small table typed in, in the Save window's style ---- */
+.dc-picker.dc-text-input { width: min(680px, 100%); }
+.dc-text-input-name { display: flex; flex-direction: column; gap: 4px; max-width: 280px; margin-bottom: 12px; }
+.dc-text-input-wrap { max-height: 46vh; overflow: auto; border: 1px solid var(--dc-line); border-radius: 8px; }
+.dc-text-input-table { border-collapse: collapse; font-size: 12px; }
+.dc-text-input-table th, .dc-text-input-table td { padding: 0; border-bottom: 1px solid var(--dc-line); }
+.dc-text-input-table td + td, .dc-text-input-table th + th { border-left: 1px solid var(--dc-line); }
+.dc-text-input-table thead th { position: sticky; top: 0; z-index: 1; background: var(--tw-neutral-50); text-align: left; }
+.dc-text-input-head, .dc-text-input-cell {
+  width: 132px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}
+.dc-text-input-head { font-weight: 600; padding-right: 22px; }
+.dc-text-input-head:focus, .dc-text-input-cell:focus { outline: 2px solid var(--dc-active); outline-offset: -2px; background: var(--dc-bg); }
+.dc-text-input-drop {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dc-muted);
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+  opacity: 0;
+}
+.dc-text-input-table th:hover > .dc-text-input-drop, .dc-text-input-drop:focus-visible { opacity: 1; }
+.dc-text-input-drop:hover { background: var(--tw-neutral-200); color: var(--tw-black); }
+.dc-text-input-n {
+  width: 30px;
+  color: var(--dc-muted);
+  font-weight: 400;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.dc-text-input-n[title] { cursor: pointer; }
+.dc-text-input-n[title]:hover { color: var(--tw-red-600); text-decoration: line-through; }
+.dc-text-input-corner, .dc-text-input-plus { width: 30px; }
+.dc-text-input-add-column {
+  width: 24px;
+  height: 22px;
+  margin: 0 3px;
+  border: 1px dashed var(--dc-line-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dc-muted-strong);
+  cursor: pointer;
+}
+.dc-text-input-add-column:hover { border-style: solid; color: var(--dc-active); }
+.dc-text-input-add-row { margin: 8px 0 4px; }
+
+/* ---- a flow's text tools (ui/text-tool-form.ts): Text To Columns, RegEx, Data Cleansing, in the Sample form's style ---- */
+.dc-text-tool-field { display: flex; flex-direction: column; gap: 4px; max-width: 340px; }
+.dc-text-tool-field[hidden] { display: none; }
+.dc-text-tool-delimiter { width: 5em; }
+.dc-text-tool-columns { display: flex; flex-wrap: wrap; gap: 6px 14px; max-height: 140px; overflow-y: auto; }
+.dc-text-tool-check { display: inline-flex; align-items: center; gap: 6px; color: var(--dc-muted-strong); }
+.dc-text-tool-check[hidden] { display: none; }
+/* a Multi-Field Formula's expression (ui/multi-field-form.ts): Pure, typed as the column editor's is */
+.dc-multi-field .dc-text-tool-field { max-width: none; }
+.dc-multi-field-expression { width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--dc-mono, ui-monospace, monospace); }
+/* a Custom Filter's condition, and its input's columns a click away */
+.dc-custom-filter-condition { width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--dc-mono, ui-monospace, monospace); }
+.dc-custom-filter-columns { display: flex; flex-wrap: wrap; gap: 4px; max-height: 6.5em; overflow: auto; }
+.dc-custom-filter-column {
+  font: inherit; font-size: 12px; padding: 1px 8px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--dc-line); background: var(--dc-fill-faint); color: inherit;
+}
+.dc-custom-filter-column:hover { background: var(--dc-hover); border-color: var(--dc-line-strong); }
+/* a Pure box's function (ui/pure-form.ts): its text, its steps a click away, its input's columns */
+.dc-pure-box .dc-text-tool-field { max-width: none; }
+.dc-pure-text { width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--dc-mono, ui-monospace, monospace); font-size: 12px; }
+.dc-pure-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.dc-pure-steps-label { font-size: 12px; color: var(--dc-muted, inherit); margin-right: 2px; }
+.dc-pure-step {
+  font-family: var(--dc-mono, ui-monospace, monospace); font-size: 11px; padding: 1px 7px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--dc-line); background: var(--dc-fill-faint); color: inherit;
+}
+.dc-pure-step:hover { background: var(--dc-hover); border-color: var(--dc-line-strong); }
+.dc-multi-field-suffix { width: 8em; }
+/* a Select's columns (ui/select-form.ts): a row a column -- kept, its name, its type, its new name */
+.dc-select-find { flex: 1; min-width: 10em; }
+.dc-select-list { display: flex; flex-direction: column; max-height: 300px; overflow-y: auto; border: 1px solid var(--tw-neutral-200); border-radius: 8px; }
+.dc-select-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 90px minmax(0, 1fr) 44px; align-items: center; gap: 8px; padding: 3px 10px; }
+/* a column moved up or down: two quiet arrows at its row's end */
+.dc-select-move { display: inline-flex; gap: 2px; }
+.dc-select-move button { width: 20px; height: 20px; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--dc-muted); cursor: pointer; font: inherit; font-size: 12px; line-height: 1; }
+.dc-select-move button:hover:not(:disabled) { border-color: var(--dc-line); color: var(--dc-active); background: var(--dc-selected-bg); }
+.dc-select-move button:disabled { opacity: .3; cursor: default; }
+.dc-select-row[hidden] { display: none; }
+.dc-select-names .dc-picker-input { width: 90px; }
+.dc-select-row + .dc-select-row { border-top: 1px solid var(--tw-neutral-100); }
+.dc-select-head { padding: 0 10px; color: var(--dc-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.dc-select-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-select-type { color: var(--dc-muted); font-size: 12px; }
+.dc-select-rename { padding: 3px 6px; }
+.dc-select-out .dc-select-name, .dc-select-out .dc-select-type { color: var(--dc-muted); text-decoration: line-through; }
+/* a Summarize's columns (ui/summarize-form.ts): a row a column -- its name, its type, what is done with it */
+.dc-summarize-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px 170px 150px; align-items: center; gap: 8px; padding: 3px 10px; }
+.dc-summarize-second[hidden] { display: block; visibility: hidden; }
+.dc-summarize-row[hidden] { display: none; }
+.dc-summarize-row + .dc-summarize-row { border-top: 1px solid var(--tw-neutral-100); }
+.dc-summarize-action { width: 100%; }
+
+/* a Transpose's columns (ui/transpose-form.ts): each a key, made rows, or left out */
+.dc-transpose-list { display: flex; flex-direction: column; max-height: 260px; overflow-y: auto; border: 1px solid var(--tw-neutral-200); border-radius: 8px; }
+.dc-transpose-row { display: grid; grid-template-columns: 1fr 64px 84px; align-items: center; gap: 8px; padding: 4px 10px; }
+.dc-transpose-row + .dc-transpose-row { border-top: 1px solid var(--tw-neutral-100); }
+.dc-transpose-head { padding: 0 10px; color: var(--dc-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.dc-transpose-row input { justify-self: center; }
+.dc-transpose-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-transpose-name-input, .dc-transpose-value-input { width: 9em; }
+
+/* ---- a box's correlations (layout/flow-canvas.ts, under its profile): each pair's r, tinted by sign and strength ---- */
+.dc-flow-corr { margin-top: 14px; }
+.dc-flow-corr-sum { margin: 0 0 6px; color: var(--dc-muted-strong); font-size: 12px; }
+.dc-flow-corr-table { border-collapse: separate; border-spacing: 2px; font-variant-numeric: tabular-nums; font-size: 12px; }
+.dc-flow-corr-head { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--dc-muted-strong); padding: 2px 6px; }
+.dc-flow-corr-name { text-align: left; font-weight: 600; padding: 2px 8px 2px 0; white-space: nowrap; }
+.dc-flow-corr-cell { min-width: 52px; padding: 4px 6px; text-align: center; border-radius: 4px; background: var(--tw-neutral-50); }
+.dc-flow-corr-positive { background: color-mix(in srgb, var(--dc-active) calc(var(--dc-corr, 0) * 70%), var(--tw-white)); }
+.dc-flow-corr-negative { background: color-mix(in srgb, var(--tw-red-600) calc(var(--dc-corr, 0) * 60%), var(--tw-white)); }
+.dc-flow-corr-self { color: var(--dc-muted); background: transparent; }
+.dc-flow-corr-strong { color: var(--tw-white); }
+
+/* ---- a flow's minimap (layout/flow-canvas.ts): the whole flow small, the part in view framed, while it does not fit ---- */
+.dc-flow-minimap {
+  position: absolute; right: 12px; bottom: 12px; z-index: 3;
+  padding: 6px; box-sizing: content-box;
+  background: color-mix(in srgb, var(--tw-white) 92%, transparent); border: 1px solid var(--tw-neutral-200); border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%); cursor: pointer; touch-action: none;
+}
+.dc-flow-minimap-box { fill: var(--tw-neutral-300); rx: 1.5px; }
+.dc-flow-minimap-shown { fill: var(--dc-active); }
+.dc-flow-minimap-frame { fill: color-mix(in srgb, var(--dc-active) 6%, transparent); stroke: color-mix(in srgb, var(--dc-active) 40%, transparent); stroke-width: 1px; }
+.dc-flow-minimap-view { fill: color-mix(in srgb, var(--dc-active) 10%, transparent); stroke: var(--dc-active); stroke-width: 1.5px; }
+
+/* ---- a flow's containers (Alteryx's Tool Container: a comment with a frame) -- behind the lines and the boxes, its inside
+   the canvas's own (a band, a tool let go), its head and its corner its own ---- */
+.dc-flow-note.dc-flow-container {
+  z-index: -1;
+  min-height: 0;
+  border: 1.5px solid color-mix(in srgb, var(--dc-active) 35%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--dc-active) 4%, transparent);
+  box-shadow: none;
+  pointer-events: none;
+}
+.dc-flow-note.dc-flow-container.dc-flow-dragging { z-index: -1; box-shadow: 0 8px 20px rgb(0 0 0 / 12%); }
+.dc-flow-container > .dc-flow-note-head {
+  height: 30px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0 4px 0 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--dc-active) 20%, transparent);
+  border-radius: 8px 8px 0 0;
+  background: color-mix(in srgb, var(--dc-active) 10%, var(--dc-bg));
+  pointer-events: auto;
+}
+.dc-flow-container.dc-flow-folded > .dc-flow-note-head { border-bottom: none; border-radius: 8px; }
+.dc-flow-container > .dc-flow-note-body { display: none; }
+.dc-flow-container .dc-flow-note-x { height: 20px; opacity: 0.6; }
+.dc-flow-frame-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
+.dc-flow-frame-count { flex: none; color: var(--dc-muted); font-size: 11px; }
+.dc-flow-frame-fold {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dc-muted-strong);
+  font-size: 11px;
+  cursor: pointer;
+}
+.dc-flow-frame-fold:hover:not(:disabled) { background: var(--dc-fill); color: var(--tw-black); }
+.dc-flow-frame-size {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  pointer-events: auto;
+  background: linear-gradient(135deg, transparent 55%, color-mix(in srgb, var(--dc-active) 45%, transparent) 55%, color-mix(in srgb, var(--dc-active) 45%, transparent) 65%, transparent 65%, transparent 75%, color-mix(in srgb, var(--dc-active) 45%, transparent) 75%, color-mix(in srgb, var(--dc-active) 45%, transparent) 85%, transparent 85%);
+  border-radius: 0 0 8px 0;
+}
+.dc-flow-frame-size[hidden] { display: none; }
+.dc-flow-note:not(.dc-flow-container) :is(.dc-flow-frame-fold, .dc-flow-frame-title, .dc-flow-frame-count, .dc-flow-frame-size) { display: none; }
+/* a box a folded container holds: out of sight, its container's head standing for it */
+.dc-flow-box[hidden] { display: none; }
 
 /* A TIMESERIES TILE (ui/timeseries-view.ts; docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §6): its toolbar -- the range
    buttons, the frequency, compare, log, the statistics, its series and settings -- its legend of lines with their latest

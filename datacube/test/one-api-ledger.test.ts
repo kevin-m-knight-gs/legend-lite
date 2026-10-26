@@ -309,9 +309,11 @@ const L8_SOURCES: Record<string, { readonly read?: Entry; readonly add?: Entry }
 // 2026-10-22 (S6 E, X4): a class, a saved query and a warehouse table added by Python too (page.grid(cls=..., query=...,
 // warehouse=...): sourceCube over the source where the host reads it), tested by test_page.py OverClasses, OverWarehouse,
 // OverSavedQueries and PublishedQueries
+// 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 step 2, FL20's names): another grid's rows added by Python too
+// (page.grid(input=...): rowsCube over the grid it reads, resolved against the page), tested by test_page.py Flowed
 const PYTHON_ADDS: Record<string, string> = {
   frame: 'gridCube', join: 'joinCube', file: 'leafCube', remoteFile: 'leafCube',
-  class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube',
+  class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube', rows: 'rowsCube',
 };
 
 /** Headless exports Python never asks (`call('<name>'`): each one Python should. */
@@ -396,7 +398,9 @@ describe('L8: every command kind and source kind, against who makes and reads it
 
   it('each command kind is made by the screen and by Python, or listed', () => {
     // what the page's table makes is credited, never the module's other gestures (the S8 audit's 1)
-    assert.ok(made(pageGestureRule, 'followGrid') && made(pageGestureRule, 'setChart') && !made(pageGestureRule, 'layout'));
+    // (2026-10-25, docs/DATACUBE_FLOW_MODE_2026_10_24.md M7: the table's flow.tidy makes a flow's layout now -- a module
+    // gesture it does not call, moveToSheetCommands' moveTile, is the one that must not be credited)
+    assert.ok(made(pageGestureRule, 'followGrid') && made(pageGestureRule, 'setChart') && !made(pageGestureRule, 'moveTile'));
     const problems: string[] = [];
     for (const kind of [...gridKinds, ...pageKinds]) {
       const has: Record<Cell, boolean> = {
@@ -429,7 +433,9 @@ describe('L8: every command kind and source kind, against who makes and reads it
       const next = rest.search(/\bcase '/);
       return (next < 0 ? rest : rest.slice(0, next)).includes('return ');
     };
-    const reads = (kind: string): boolean => (kind === 'join' ? onHostBody.includes('{ join: source') : leafReads(kind));
+    // a join's and another grid's rows' (2026-10-25, the flow mode's M1 step 2) are onHost's own arms, as a join's is
+    const reads = (kind: string): boolean => (kind === 'join' ? onHostBody.includes('{ join: source')
+      : kind === 'rows' ? onHostBody.includes('{ rows: {') : leafReads(kind));
     const problems: string[] = [];
     for (const kind of kinds) {
       const read = reads(kind);
@@ -442,7 +448,7 @@ describe('L8: every command kind and source kind, against who makes and reads it
     assert.deepEqual(problems, []);
     assert.deepEqual(PYTHON_ADDS, {
       frame: 'gridCube', join: 'joinCube', file: 'leafCube', remoteFile: 'leafCube',
-      class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube',
+      class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube', rows: 'rowsCube',
     }, 'a new way for Python to add a grid comes with its test');
     pinned('L8_SOURCES', Object.keys(L8_SOURCES).length);
   });
@@ -507,6 +513,18 @@ const PASS_THROUGH: Record<string, string> = {
   setTextFiles: "the files opened or dropped on a text box, each its name, size and fingerprint (setTextFiles judges them, by text-files.ts readTextFiles); Python's Text.files fingerprints a path the same way",
   renamePage: 'the name as typed (renamePage judges it)', savedAs: "the page store's record the page was saved as",
   setPageFilter: "the filter as the page's filter bar made it", removePageFilter: 'the page filter whose x was clicked',
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4, the flow sheet): Create ▸ Flow, and a box let go
+  addFlow: "a new flow sheet's id, as the page numbers ids, unnamed",
+  placeBox: "where the box was let go, or its arrow key took it (placeBox rounds and judges it: layout/flow.ts moveBox)",
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2, a flow's lines)
+  setInput: "the box a line was drawn from, the box and side it was let go on (or a box's settings' Input picked), or none -- Freeze, a line taken off; setInput judges it (a cycle, a side the source has not) and makes the copy",
+  setJoin: "the join a flow's Join box's window made (ui/join-dialog.ts, as the board's Join… makes one), its Right with it when it changed; setJoin judges it",
+  // 2026-10-25 (the flow mode's Output, M6)
+  setOutput: "the file name typed in an Output's settings, or none (its Write no file); setOutput judges it",
+  // 2026-10-25 (the flow mode's Test that stops a run, FL8)
+  setStops: "a Test box's settings' checkbox, ticked or not; setStops judges it",
+  // 2026-10-26 (the flow mode's Pure box, FL12)
+  setPure: "the function a Pure box's window made of what was typed (pure-box.ts pureFrom, which headless gridPure asks for Python's grid.pure), or none (Take Its Pure Off); setPure judges its shape",
 };
 /** Functions that make commands a screen file calls and no headless function asks, each the screen's own (2026-10-22,
  *  S8): a person's input passed through, a form's edits, the board's hand or a tab's drag. */
@@ -521,6 +539,8 @@ const SCREEN_OWN_MAKERS: Record<string, string> = {
   selectionRefilters: "the tab's page undo and redo: a step brought back puts its charts' selections back on their grids (G8); Python's page has no undo",
   rebuiltCommands: "the tab opening the page Python serves: a cube it opened over the host's frames as they are now told back (P11); Python's own reopening tells its rebuilt as it reopens (_current)",
   // 2026-10-24 (D19 W3, W7)
+  // 2026-10-25 (the flow mode's Output, M6)
+  outputCommand: "the palette's Output named after the box it reads, in the step that adds it; Python's grid.output is given its file's name",
   gridBetween: "the commands between two states of a grid: the tab's own history (an undo or a redo told as the commands between: state-owner.ts toward) and its converge (a touched grid put back at the keeper's cube: live-converge.ts); Python's grid has no history",
 };
 
@@ -795,6 +815,8 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/datacube-app.ts:modelActions:modelHome': { count: 2, other: `${BOTH} the model actions where the host has a model home and a writer`, ability: 'model' },
   'src/app/datacube-app.ts:openDataCube:engine.local': { other: `${BOTH} Add a Grid over a class: opened here, or made by the host (K16)`, ability: 'class' },
   'src/app/datacube-app.ts:openDataCube:localEngine': { other: `${BOTH} Join…: the tab's own join, or the host's (B11)`, ability: 'join' },
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): a flow's Join or Union box, made in the tab's own database
+  'src/app/datacube-app.ts:openDataCube:local': { other: `${BOTH} a flow's Join box: the tab's Join window over its boxes, or Python's flow.join (page.join of two boxes, live)`, ability: 'join' },
   'src/app/datacube-app.ts:offered:localEngine': { other: `${BOTH} Join… offered on a grid of the tab's tables, or one the host opened`, ability: 'join' },
   // 2026-10-25 (the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2)
   'src/app/datacube-app.ts:openDataCube:tabEngine': { other: `${BOTH} a timeseries series of several grids read together over one model of the tab's tables, or the host's (join.json together: headless joinTogether)`, ability: 'join' },
@@ -804,7 +826,9 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/sources.ts:picksSources:database.mountRemote': { other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'remote' },
   'src/app/sources.ts:picksSources:services.warehouse': { count: 2, other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'warehouse' },
   'src/app/sources.ts:pageSources:services.warehouse': { count: 2, other: `${BOTH} a warehouse read through the tab's own pair, or by a host that reads its tables (C3)`, ability: 'warehouse' },
-  'src/app/sources.ts:pageSources:local': { count: 2, other: `${BOTH} a remote file read by the page's database or the host's`, ability: 'remote' },
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): count 2 -> 3, the Join window's inputs over a flow's boxes
+  // (sources.ts openedInputs), read in the tab's own database -- on a host's page, Python's flow.join
+  'src/app/sources.ts:pageSources:local': { count: 3, other: `${BOTH} a remote file read by the page's database or the host's; a flow's Join window's inputs read in the tab, or by Python's flow.join`, ability: 'remote' },
   'src/app/sources.ts:openedTable:local': { other: `${BOTH} the tab's warehouse table; the host's is openedHostTable`, ability: 'warehouse' },
   'src/app/sources.ts:openedRemote:database.mountRemote': { other: `${BOTH} mounted by whichever database reads it`, ability: 'remote' },
   'src/app/sources.ts:openedRemote:local': { other: `${BOTH} snapped into the tab's copy, or the host's`, ability: 'snap' },
@@ -818,6 +842,11 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/sources.ts:openedGivenClass:database.made': { other: `${BOTH} the host's half of a named class (K16)`, ability: 'class' },
   'src/app/sources.ts:reopened:database.opened': { count: 2, other: `${BOTH} a grid of the host's page opened by the host (H-2, H-3)`, ability: 'reopen' },
   'src/app/sources.ts:reopened:local': { other: `${BOTH} a saved join opened by the tab, or the host`, ability: 'join' },
+  // 2026-10-25, the flow mode's M1 step 2 (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): another grid's rows
+  'src/app/sources.ts:rowsWhere:local': { other: `${BOTH} a box after another opened by the tab, or by the host on its page`, ability: 'input' },
+  'src/app/sources.ts:rowsWhere:database.opened': { other: `${BOTH} a box after another opened by the host on its page (gridOpened)`, ability: 'input' },
+  'src/app/sources.ts:openedRows:local': { other: `${BOTH} a box after another opened in the tab's database; on a host's page, by the host (rowsWhere)`, ability: 'input' },
+  'src/app/join-sources.ts:openedAfterStart:place.runner': { other: `${BOTH} a box over a source read elsewhere, typed by the host's runner (Python's) or the tab's planner`, ability: 'input' },
   'src/app/sources.ts:pick:database.ingestFile': { other: `${BOTH} Files and Examples where a database takes a file (the tab's, Python's)`, ability: 'files' },
   'src/app/sources.ts:pick:files': { count: 2, other: `${BOTH} Files and Examples where a database takes a file`, ability: 'files' },
   'src/app/sources.ts:pick:queries': { other: `${BOTH} Saved queries where the host has a query store`, ability: 'queries' },
@@ -871,7 +900,7 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
 
 /** What a `both:` branch is a way to on each host: an ability, proved on each (HOST_ABILITIES). */
 type HostAbility = 'rows' | 'pages' | 'model' | 'class' | 'join' | 'warehouse' | 'remote' | 'files' | 'snap' | 'queries'
-  | 'reopen';
+  | 'reopen' | 'input';
 
 /** A test, `file::name`: a test file of DataCube's (under test/) or the tab's libraries' and the title of one of its
  *  `it`s, `describe`s, browser `check`s or conformance runs, or a Python test file (under ../python/tests/) and one of
@@ -950,6 +979,14 @@ const HOST_ABILITIES: Readonly<Record<HostAbility, {
       // and on a page Python serves, built with ll.Page: python-host.ts together, join.json, headless joinTogether, run
       // by Python (the timeseries review's A7)
       'test/python-engine/python-engine.mjs::a timeseries of two grids on a page Python serves'],
+  },
+  // another grid's rows (2026-10-25, the flow mode's M1 step 2): join-open.ts inputRows on both -- the tab's openRows and
+  // openedAfterStart, the host's headless baseOver
+  input: {
+    kind: 'shared',
+    tab: ["test/join-open.test.ts::another grid's rows: a chain of boxes over a table, each its input's rows at their finest level (flow mode §3.1)"],
+    python: ['../python/tests/test_page.py::test_a_box_reads_its_inputs_rows_as_that_grid_is_now',
+      '../python/tests/test_page.py::test_a_box_after_a_box_and_after_a_grouped_one_its_groups'],
   },
   // a driver each (the tab's, Python's), held to one recorded corpus of the warehouse's calls
   warehouse: {

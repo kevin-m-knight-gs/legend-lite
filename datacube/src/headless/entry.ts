@@ -10,7 +10,7 @@ import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.t
 import {
   chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridExport,
   gridFilter, gridGesture, gridMeasure, gridModelMeasure, gridOpened, gridPreset, gridRelated, leafCube, gridRelation, gridSetUp, gridSnapPull,
-  gridView, snapRefused, sourceCube,
+  gridView, gridFailing, gridOutput, gridPivotValues, gridPure, rowsCube, snapRefused, sourceCube,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in.ts';
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
@@ -38,6 +38,13 @@ export {
   gridRelation, gridSnapPull, gridView,
 };
 
+/** A Test grid's failing checks (gridFailing: Python's flow.run, which writes no Output when a stopping Test fails), and
+ *  a pivot's values as its rows hold them now (gridPivotValues: Python's grid.load_pivot_values, a Cross Tab's Load values). */
+export { gridFailing, gridPivotValues };
+/** A flow's Pure box set as its window sets it (gridPure: Python's grid.pure), its page's setPure; a box's Output as the
+ *  tab's writes it (gridOutput: Python's flow.run, the one writer). */
+export { gridOutput, gridPure };
+
 /** One condition added to a grid's filter, as a cell's Add Filter adds one (gridAddFilter: Python's grid.add_filter), and
  *  a grid's copy, as Copy of Grid makes it (gridCopied: Python's grid.copy). */
 export { gridAddFilter, gridCopied };
@@ -55,6 +62,10 @@ export { gridGesture, gridMeasure, gridModelMeasure };
 /** A new grid's cube over a class, a saved query or a warehouse table, as the tab adds one (sourceCube: Python's
  *  `page.grid(cls=...)`, `page.grid(query=...)`, `page.grid(warehouse=...)`; X4). */
 export { sourceCube };
+
+/** A new grid's cube over another grid's rows, read live (rowsCube: Python's `page.grid(input=...)`, a flow's box after
+ *  another: docs/DATACUBE_FLOW_MODE_2026_10_24.md FL20). */
+export { rowsCube };
 
 /** Why a snap past its host's row limit is refused: the tab's sentence, which Python's engine says too (Z16). And a new
  *  grid's query as the commands that make it, in a person's order (gridSetUp: Python's `page.grid(...)`, Z8). */

@@ -8,7 +8,6 @@ import { describe, it } from 'node:test';
 
 import { followCube } from '../src/chart-spec.ts';
 import { cubeOpenedAgain, type CubeDocument, type CubeSource, type FrameSource } from '../src/cube-document.ts';
-import { tiles } from '../src/layout/bands.ts';
 import {
   PAGE_COMMAND_KINDS, applyPageCommand, applyPageCommands, chartTitle, gridTitle, idsOf, joinInputOf, nextPageId,
   readPageCommand, followedPage, opensAgain, rebuiltCommands,
@@ -20,6 +19,8 @@ import { CubeRefusal, withoutConditions, type FilterNode } from '../src/snapshot
 import { PageModel } from '../src/page-model.ts';
 import { rebaseEdits, renamedCommand as rebaseCommand, withCube } from '../src/page-rebase.ts';
 import { corpus } from './fixtures/pages/make.ts';
+import { bandsOf } from './bands-of.ts';
+import { layoutTiles } from '../src/page-document.ts';
 
 // the saved-page corpus's frame page: grids grid and grid-2, chart (following grid) stacked with chart-2 (frozen, of
 // grid-2) on sheet-1 beside grid; grid-2 alone on sheet-2
@@ -87,7 +88,7 @@ describe('each command gives the page the screen\'s rules give it', () => {
     const followed = followCube(spec, { ...trades.cubes.find((c) => c.id === 'grid-2')!.cube.query, epoch: 0 });
     assert.notDeepEqual(followed, spec, "grid-2 aggregates qty otherwise: the chart's value follows it");
     assert.deepEqual(view(page, 'chart-3'), { id: 'chart-3', kind: 'chart', cube: 'grid-2', title: 'Chart 3', spec: followed });
-    assert.deepEqual(tiles(sheet(page, 'sheet-2').layout), ['grid-2', 'chart-3']);
+    assert.deepEqual(layoutTiles(sheet(page, 'sheet-2').layout), ['grid-2', 'chart-3']);
     refused(() => apply({ kind: 'addChart', near: 'chart', spec, title: null, columns: null }), /a chart is of a grid/);
   });
 
@@ -95,7 +96,7 @@ describe('each command gives the page the screen\'s rules give it', () => {
     const page = apply({ kind: 'removeTile', tile: 'grid' }).page;
     assert.deepEqual(page.views.map((v) => v.id), ['grid-2', 'chart-2'], 'chart followed grid: gone with it');
     assert.deepEqual(page.cubes.map((c) => c.id), ['grid-2']);
-    assert.deepEqual(tiles(sheet(page, 'sheet-1').layout), ['chart-2']);
+    assert.deepEqual(layoutTiles(sheet(page, 'sheet-1').layout), ['chart-2']);
     const detached = apply({ kind: 'removeTile', tile: 'grid-2' }).page;
     assert.deepEqual(detached.views.map((v) => v.id), ['grid', 'chart', 'chart-2'], 'chart-2 frozen: it stays');
     assert.deepEqual(detached.cubes.map((c) => c.id), ['grid', 'grid-2'], 'its cube kept for the detached chart');
@@ -117,8 +118,8 @@ describe('each command gives the page the screen\'s rules give it', () => {
   it('a tile moved onto another sheet goes to its bottom; onto its own, nothing', () => {
     assert.deepEqual(apply({ kind: 'moveTile', tile: 'grid', sheet: 'sheet-1', columns: null }).page, trades);
     const page = apply({ kind: 'moveTile', tile: 'chart', sheet: 'sheet-2', columns: null }).page;
-    assert.deepEqual(tiles(sheet(page, 'sheet-2').layout), ['grid-2', 'chart']);
-    assert.deepEqual(tiles(sheet(page, 'sheet-1').layout), ['grid', 'chart-2']);
+    assert.deepEqual(layoutTiles(sheet(page, 'sheet-2').layout), ['grid-2', 'chart']);
+    assert.deepEqual(layoutTiles(sheet(page, 'sheet-1').layout), ['grid', 'chart-2']);
   });
 
   it('sheets: added, named, moved, removed with their tiles; the last one stays', () => {
@@ -173,10 +174,10 @@ describe('each command gives the page the screen\'s rules give it', () => {
 
   it('stack, arrange and a whole layout, by bands.ts, each refused in its words', () => {
     const stacked = apply({ kind: 'stack', tiles: ['grid', 'chart'] }).page;
-    assert.deepEqual(tiles(sheet(stacked, 'sheet-1').layout), ['grid', 'chart', 'chart-2']);
+    assert.deepEqual(layoutTiles(sheet(stacked, 'sheet-1').layout), ['grid', 'chart', 'chart-2']);
     refused(() => apply({ kind: 'stack', tiles: ['grid', 'grid-2'] }), /on one sheet/);
     const side = apply({ kind: 'arrange', sheet: 'sheet-1', preset: 'stacked', order: null }).page;
-    assert.equal(sheet(side, 'sheet-1').layout.bands.length, 2);
+    assert.equal(bandsOf(sheet(side, 'sheet-1').layout).bands.length, 2);
     refused(() => apply({ kind: 'layout', sheet: 'sheet-2', layout: sheet(trades, 'sheet-1').layout }), /holds its tiles, each once/);
     // (the phase 1 audit's 1) read as a saved page's sheet is: its shape refused in the page reader's words, never kept
     const odd = (layout: unknown): PageCommand => ({ kind: 'layout', sheet: 'sheet-2', layout: layout as PageCommand & never });
@@ -199,7 +200,7 @@ describe('a text tile: added, its words set, titled, moved and removed by the pa
     assert.equal((made.command as { id: string }).id, 'text-1');
     const page = made.draft.page;
     assert.deepEqual(view(page, 'text-1'), { id: 'text-1', kind: 'text', text: '# Q3\n\nNotes' });
-    assert.equal(tiles(sheet(page, 'sheet-2').layout).at(-1), 'text-1', 'a band of its own at the bottom');
+    assert.equal(layoutTiles(sheet(page, 'sheet-2').layout).at(-1), 'text-1', 'a band of its own at the bottom');
     assert.equal(page.views.at(-1)?.id, 'text-1', "after the grids and charts, as the screen writes them");
     const set = apply({ kind: 'setText', tile: 'text-1', text: 'Up **3%**' }, made.draft).page;
     assert.equal((view(set, 'text-1') as { text: string }).text, 'Up **3%**');
@@ -260,10 +261,10 @@ describe('a timeseries tile: added, its spec set, titled and removed by the page
     assert.equal((made.command as { id: string }).id, 'timeseries-1');
     const page = made.draft.page;
     assert.deepEqual(view(page, 'timeseries-1'), { id: 'timeseries-1', kind: 'timeseries', spec: SPEC });
-    assert.equal(tiles(sheet(page, 'sheet-1').layout).at(-1), 'timeseries-1', 'a band of its own at the bottom');
+    assert.equal(layoutTiles(sheet(page, 'sheet-1').layout).at(-1), 'timeseries-1', 'a band of its own at the bottom');
     assert.equal(page.views.at(-1)?.id, 'timeseries-1', 'last, as the screen writes them');
     const near = applyPageCommand(draft(), add({ near: 'grid' })).draft.page;
-    assert.ok(tiles(sheet(near, 'sheet-1').layout).includes('timeseries-1'), 'under its grid');
+    assert.ok(layoutTiles(sheet(near, 'sheet-1').layout).includes('timeseries-1'), 'under its grid');
     const set = apply({ kind: 'setTimeseries', tile: 'timeseries-1', spec: { ...SPEC, grain: 'month', range: { last: '1y' } } }, made.draft).page;
     assert.equal((view(set, 'timeseries-1') as { spec: { grain?: string } }).spec.grain, 'month');
     assert.deepEqual(readPage(JSON.parse(JSON.stringify(pageToJson(set)))).views.find((v) => v.id === 'timeseries-1'), view(set, 'timeseries-1'));
@@ -408,6 +409,8 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'savedAs', record: 'r-1' },
     { kind: 'savedAs', record: null },
     { kind: 'addSheet', name: null },
+    { kind: 'addFlow', id: 'sheet-3', name: 'Prep' },
+    { kind: 'placeBox', tile: 'grid-2', x: 40, y: 140 },
     { kind: 'renameSheet', sheet: 'sheet-1', name: 'S' },
     { kind: 'moveSheet', sheet: 'sheet-1', to: 1 },
     { kind: 'removeSheet', sheet: 'sheet-2' },
@@ -445,6 +448,16 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'modelPin', revision: 'r2' },
     { kind: 'modelKeep', cube: 'grid', tables: ['t_trades'], class: null },
     { kind: 'rebuilt', cube: 'grid', source: trades.cubes[0]!.cube.source },
+    { kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2' } },
+    { kind: 'setInput', grid: 'grid-3', side: 'right', input: { name: 'trades', source: trades.cubes[0]!.cube.source, query: trades.cubes[0]!.cube.query } },
+    { kind: 'setInput', grid: 'grid-3', side: 'left', input: null },
+    { kind: 'setJoin', grid: 'grid-3', how: { form: 'append' } },
+    { kind: 'setOutput', grid: 'grid-3', output: { format: 'csv', name: 'trades out.csv' } },
+    { kind: 'setOutput', grid: 'grid-3', output: null },
+    { kind: 'setStops', grid: 'grid-3', stops: true },
+    { kind: 'setPure', grid: 'grid-3', pure: { _type: 'lambda', parameters: [{ _type: 'var', name: 'input' }], body: [{ _type: 'func', function: 'limit', parameters: [{ _type: 'var', name: 'input' }, { _type: 'integer', value: 5 }] }] } },
+    { kind: 'setPure', grid: 'grid-3', pure: null },
+    { kind: 'setJoin', grid: 'grid-3', how: { form: 'semi', on: { rows: [{ left: 'region', op: '==', right: 'region' }] } } },
   ];
 
   it('every kind, through JSON and back', () => {
