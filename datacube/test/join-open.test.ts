@@ -317,7 +317,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
       (e: unknown) => e instanceof CubeRefusal && /customers is pivoted/.test(e.message));
   });
 
-  it('leaves to the compiler what it judges: a column an input lacks, a name taken twice, an append of two types', async () => {
+  it('leaves to the compiler what it judges: a column an input lacks, a name taken twice; an append of two types refused', async () => {
     const refusedBy = async (source: JoinSource, tables: string[], words: RegExp): Promise<void> => {
       await assert.rejects(openJoin(source, opening(tables)), (e: unknown) => e instanceof Error && words.test(e.message), String(words));
     };
@@ -326,8 +326,10 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     // their id prefixed onto the c_id they have already: a name taken twice
     await refusedBy(join(input(TRADES, 'trades'), input(TWINS, 'twins'), { ...LEFT_ON_CUST, on: { rows: [] } }),
       ['trades', 'twins'], /already exists/);
-    // labels' id is text, trades' a number: one name, two types
-    await refusedBy(join(input(TRADES, 'trades'), input(LABELS, 'labels'), { form: 'append' }), ['trades', 'labels'], /cannot unite/);
+    // labels' id is text, trades' a number: one name, two types -- the append's own refusal (join.ts appended), as the
+    // compiler would unite an Integer and a Float
+    await refusedBy(join(input(TRADES, 'trades'), input(LABELS, 'labels'), { form: 'append' }), ['trades', 'labels'],
+      /'id' is Integer in trades and String in labels/);
   });
 
   it('a join source, saved and read back, opens the same', async () => {

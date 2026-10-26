@@ -8,7 +8,9 @@ import {
   agg, and, cast, collection, derive, eq, fn, from, ge, gt, lambda, le, lit, lt, ne, property, type, variable,
   type JoinKind, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
+import { plainType } from '../../engine-client/src/types.ts';
 import { rowCountLambda } from './query.ts';
+import { CubeRefusal } from './snapshot.ts';
 import { isEveryPair, SIMILAR_WITHIN, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow, type JoinSide } from './join-how.ts';
 
 export * from './join-how.ts';
@@ -114,11 +116,22 @@ export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow, more
 /**
  * An append of any number (a Union's, JoinSource.more): the first's columns in its order, then each next one's it lacks,
  * in turn; each side extended by the columns only the others have -- `[]` of the type the compiler gave that column (the
- * first side to have it) -- and selected in that order when its own differs; concatenated in the sides' order.
+ * first side to have it) -- and selected in that order when its own differs; concatenated in the sides' order. A name
+ * two sides type differently is refused in words: the compiler unites an Integer and a Float as the first's type, its
+ * rows' fractions under it (the correctness audit's 6, 2026-10-26) -- a Select retypes one side first.
  */
 function appended(sides: readonly JoinSide[]): Relation {
-  const all: JoinSide['columns'][number][] = [];
-  for (const s of sides) for (const c of s.columns) if (!all.some((a) => a.name === c.name)) all.push(c);
+  const all: (JoinSide['columns'][number] & { readonly side: string })[] = [];
+  for (const s of sides) {
+    for (const c of s.columns) {
+      const had = all.find((a) => a.name === c.name);
+      if (had === undefined) all.push({ ...c, side: s.name });
+      else if (plainType(had.type) !== plainType(c.type)) {
+        throw new CubeRefusal(`'${c.name}' is ${plainType(had.type)} in ${had.side} and ${plainType(c.type)} in ${s.name}: `
+          + "a Union's column is of one type -- retype one of them with a Select first");
+      }
+    }
+  }
   const order = all.map((c) => c.name);
   const side = (s: JoinSide): Relation => {
     const own = new Set(s.columns.map((c) => c.name));

@@ -192,8 +192,14 @@ describe('what a join becomes', () => {
       `${T}->extend(~[qty:{x | []->cast(@Float)}])->concatenate(#>{local::DB.more}#->extend(~[cust:{x | []->cast(@Integer)}, at:{x | []->cast(@DateTime)}])->select(~[id, cust, sym, at, qty]))`);
     // the same columns in the same order: neither side touched
     assert.equal(pure(joinRelation(TRADES, TRADES, { form: 'append' })), `${T}->concatenate(${T})`);
-    // a column of two types: written as it is, the compiler's concatenate to refuse
-    assert.match(pure(joinRelation(TRADES, side('bad', [['id', 'String']]), { form: 'append' })), /->concatenate\(#>\{local::DB\.bad\}#->extend/);
+    // a name of two types, refused in words: the compiler unites an Integer and a Float as the first's type, its rows'
+    // fractions under it (the correctness audit's 6, 2026-10-26); a precise type's plain one is its type
+    refused(() => joinRelation(TRADES, side('bad', [['id', 'String']]), { form: 'append' }),
+      /^'id' is Integer in trades and String in bad: a Union's column is of one type -- retype one of them with a Select first$/);
+    refused(() => joinRelation(TRADES, side('more', [['id', 'Integer']]), { form: 'append' }, [side('floats', [['id', 'Float']])]),
+      /'id' is Integer in trades and Float in floats/);
+    assert.equal(pure(joinRelation(side('a', [['s', 'meta::pure::precisePrimitives::Varchar']]), side('b', [['s', 'String']]), { form: 'append' })),
+      '#>{local::DB.a}#->concatenate(#>{local::DB.b}#)');
   });
 });
 
