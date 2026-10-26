@@ -36,6 +36,7 @@ lists typed and the text carrier deleted, 7 the old executor deleted and "collec
 | The legacy API in Java today | `server/PureV1Api.java` (the envelope, `tdsBuilder`, `arrowPlan`, `jsonPlan`; rows arrive as the database wrote them), `server/QueryService.java` (the one route on the in-memory result) |
 | The PCT harness | `pct/src/test/java/org/finos/legend/lite/pct/extension/`: `ValueBridge.java` (typed values to Pure's; a relation arrives as TDS text today), `PctBackend.java` (`held()`, `planSessions`), `PctPlanRoute.java`, `PctShadowPlan.java`; `pct/BUILD.bazel` (suites Essential, Grammar, Relation, Standard, Unclassified; one JVM per suite) |
 | The judges (channel B; step 8's question) | `HostJudge.java`, `DatabaseJudge.java`, `AssertVerdicts.java`, `VerdictArm.java`, `AgreementArm.java`, `JudgePlans.java`, `SqlTextVerdicts.java`, `exec/VerdictBatch.java`, `exec/TdsCompare.java`, `lowering/CanonicalRenderSql.java` |
+| The Arrow IPC framer (no library; step 2 shares it) | `warehouse/src/main/java/com/legend/warehouse/server/duck/ArrowStreams.java` and `FlatBuilder` (the messages and buffers written by hand over DuckDB's own buffers), `Collect.java` (the chunking), `sqlapi/SqlApi.java` (the media type); its judge `warehouse/src/test/python/arrow_matches_json.py` (pyarrow, test-only) |
 | The test backends | `core/src/test/java/com/legend/testbackend/` (`TestBackends.named("snowflake")`, `CloudBackend` and the per-cloud backends, `TestBackend.held()`) |
 | Tests that pin this line | `core/src/test/java/com/legend/exec/TaggedSelectionTest.java`, `executionplan/PlanJsonTest.java`, `PlanMakerTest`, `testcases/PlanRoundTrip`, `OutputMatrixTest` (192 recorded cells), `JavaEvalLedgerTest`, `TenetRatchetTest` (JDBC accessor sites at 21), `ArchitectureTest` (`theRunnerIsModelFree`), `NoSaltedIterationOrderTest`, `CodeShapeGuardrailTest` |
 | Documents | the program; its design `docs/RESULTS_AND_RENDERERS_2026_10_22.md` (§5 the kinds, §5a the tagged carrier, §10.5 the Float-text measurements); the ratified result model `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md`; the plan path program `docs/PLAN_PATH_PROGRAM_2026_10_17.md` (§0 rulings R1 to R11, §9 status); `docs/TENET_CHARTER.md`; `docs/SEMANTICS_REGISTER.md` (S97: a Decimal at its own scale); `docs/GATES.md` (every landing's numbers); `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` (the clouds: §4 the properties file, §5 running, §6 a cloud session's setup); `docs/CLOUD_SESSIONS.md` (Bazel in a cloud container) |
@@ -61,14 +62,20 @@ not:
   Float-text measurement of 2026-10-24 (no format model over a FLOAT reaches a 17th digit: RESULTS_AND_RENDERERS
   §10.5); the program, revision 2.
 
-**Waiting on the user** (the program's §8): D1 to D5; D3's charter clause and its guards; D7; batches as the unit
-and Arrow in or out; lean JSON's numbers; collecting as a test helper only; step 8's two deletions; the order. Also:
-the merge of this branch to `main` (every lane at or above the merge-base but `testFilterInstance`), which the
-program's §7 wants before step 0 starts.
+**Ruled 2026-10-26** (the program's §8): D1 to D5; D3's charter clause and its guards; lean JSON's numbers;
+collecting as a test helper only and the old executor deleted; the order. **The database judge is never deleted**
+(R10). **Zero dependencies stay zero** in the compiler, the WebAssembly planner and the native image (R9): no Arrow
+library in the product; the Arrow writer is the warehouse server's own framer.
 
-**The next action, once ruled:** land the branch on `main` (AGENTS.md "Pushing to main": rebase, the local gate,
-"local gate: //gates:local green" in the message); start a new branch from `main` for this program alone; announce
-step 0 in `docs/IN_FLIGHT.md`; run step 0's seven measurements and write their one GATES entry.
+**Waiting on the user's yes** (§8 items 3 and 4, the expert versions): the Float rule (results carry bits; one
+spelling inside a query; a temporary JavaScript function measured on Snowflake and BigQuery before it replaces the
+exact-digits expression, M8) and the Arrow placement (nowhere: our own column batches, the shared framer, the
+libraries test-only). Also: the merge of this branch to `main` (every lane at or above the merge-base but
+`testFilterInstance`), which the program's §7 wants before step 0 starts.
+
+**The next action, once the yes is in:** land the branch on `main` (AGENTS.md "Pushing to main": rebase, the local
+gate, "local gate: //gates:local green" in the message); start a new branch from `main` for this program alone;
+announce step 0 in `docs/IN_FLIGHT.md`; run step 0's eight measurements and write their one GATES entry.
 
 ## 4. How we work (the user's rules; each learned the hard way)
 
@@ -166,10 +173,15 @@ side: none (the typed node exists); the text callers keep their path. Acceptance
 the core lanes, M1 showing every planner-made result typed. Trap: a plan's column slot adopts the expression's type
 (`SqlTyping.reconcileSlot`): a tagged root needs its `Cast(..., SqlType.Tagged)` identity to keep `TAGGED<...>`.
 
-**Step 2, Arrow in or out.** Read: the program §2's last two paragraphs; §8.4. Files: `MODULE.bazel` and
-`tools/deps` if Arrow enters (a pinned version; the lock file), one batch type under `exec/`, the DuckDB session's
-own batch path. Acceptance: M2 through the batch; M3 re-run. Trap: Arrow's Java needs `--add-opens` on the test
-JVMs and an allocator per execution with a bound; a leaked allocator fails at close, loudly, which is right.
+**Step 2, the shared Arrow framer.** Read: the program §2's last paragraph and §8 item 4; R9. Files:
+`warehouse/src/main/java/com/legend/warehouse/server/duck/ArrowStreams.java` and its `FlatBuilder` (the Arrow IPC
+messages and buffer layout written by hand, no library), moved to a dependency-free module that both the warehouse's
+SQL API and core's writers depend on; `warehouse/BUILD.bazel` (`arrow_matches_json`, pyarrow reading what the framer
+wrote, moves with it and stays its judge); the new Bazel query guard in `tools/guards` (no `arrow` repository in
+`deps(//core:plan_side)`, the WebAssembly planner's deps, the native image's deps). Acceptance: the warehouse's
+Arrow tests unchanged; the guard green. Trap: the framer's type decisions are the warehouse's (UHUGEINT as decimal
+text, ENUM as text, a zoned timestamp tagged UTC): core's writer maps the plan's slots onto them in step 5 and adds
+nothing here.
 
 **Step 3, the legacy writer.** Read: RESULTS_AND_RENDERERS §4; S97; `OutputMatrixTest`. Files: a new package
 `com.legend.sink` (`PureV1Writer`, `CsvWriter`, the JSON array writer), `server/PureV1Api` (rows from the batch
@@ -218,8 +230,10 @@ production method returns a materialized result. Traps: every moved expectation 
 or the old one's quirk recorded); `TenetRatchetTest` counts JDBC accessor sites by text, so a new read must reuse
 `JdbcDecode.cell`/`fetch` rather than add a `rs.getX(` site.
 
-**Step 8, the user's call.** The database judge (`CanonicalRenderSql`, each dialect's `FLOAT_CANON`, `VerdictSql`'s
-text half; plan path R2 to reopen) and the engine-style SQL-text dialects. Not touched before the ruling.
+**Step 8, parked for the user.** Only the engine-style SQL-text dialects (`EngineStyleH2`, `EngineStyleDB2`,
+`EngineStyleComposite`). The database judge is never deleted (ruled 2026-10-26, R10): `CanonicalRenderSql`, each
+dialect's `FLOAT_CANON` and the tagged canon per slot are query-side constructs like `toString` and stay; as carriers
+are typed (steps 4 and 6) the canon simplifies, it does not go.
 
 ## 7. Traps already hit on this line (add to this list)
 
