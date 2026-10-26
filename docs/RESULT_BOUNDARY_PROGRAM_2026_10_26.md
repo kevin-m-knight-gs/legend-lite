@@ -38,12 +38,11 @@ the WebAssembly planner and the native image: no Arrow library enters the produc
   and nothing cheaper is lossless there; §8 item 3 says how to make it cheap where it can be.
 - The warehouse server already writes Arrow IPC streams with no Arrow library: its own framer
   (`warehouse/.../duck/ArrowStreams.java`, `FlatBuilder`) over the buffers DuckDB builds, inside the native image,
-  checked against pyarrow in its tests. The batch itself is Arrow's column layout, built by our own code, so that
-  writer frames it without copying (the user's question of 2026-10-26, "why not our warehouse implementation of
-  Arrow?": that is the answer).
+  checked against pyarrow in its tests. The lean Arrow writer reuses that framing over our own batches; the batch
+  itself stays our own representation, typed arrays behind one accessor (§2: why not Arrow's layout inside core).
 
 **What we will do, in order.** Measure first. Make the plan answer typed rows and nothing else. Define the result
-as a stream of batches of typed rows, laid out as Arrow's columns by our own code. Write legend-engine's JSON in Java and prove it byte
+as a stream of batches of typed rows, our own typed arrays behind one accessor. Write legend-engine's JSON in Java and prove it byte
 for byte, then delete the SQL that wrote it. Feed PCT and the corpus from typed rows, lane by lane, then delete the
 SQL that wrote TDS text. Add the lossless writers, the Arrow one over the warehouse's framer. Type the mixed lists and
 delete the text carrier. Delete the old executor and make "collect into memory" a test helper rather than a
@@ -118,8 +117,8 @@ Pure query ──▶ PLAN: the statement + one column record per result column (
             EXECUTE: the database computes everything that has meaning
                  │
                  ▼
-            TYPED BATCHES: the session reads cells by the plan's facts into Arrow's column layout (our code), up to N rows
-                 │        (a row driver fills small batches; DuckDB's native path hands over its own buffers as they are)
+            TYPED BATCHES: the session reads cells by the plan's facts into typed arrays, up to N rows, one accessor
+                 │        (a row driver fills small batches; the warehouse's native DuckDB path keeps its own Arrow buffers)
      ┌───────────┼──────────────────────────┬──────────────────────────┬────────────────────────┐
      ▼           ▼                          ▼                          ▼                        ▼
  lean writers   legacy writer            ValueBridge              a collector              the tab's own reader
@@ -142,20 +141,26 @@ columnar source and re-vectorize it at the Arrow writer: slowest exactly where t
 **Where the Arrow format lives, and where no library does (the user's question, 2026-10-26).** The compiler
 (`//core:planner`, exported by `//core:plan_side`, the WebAssembly planner's only core input) has no execution
 dependency and no Arrow; that is C2a, pinned today, and R9 adds the Bazel query guard. The execution side
-(`//core:exec`, the JDBC drivers in `//core:drivers`, the writers) gains no Arrow library either, and it does not
-invent a representation of its own: **the batch is Arrow's column layout, built by our own code** (a validity bitmap
-and a fixed-width buffer per primitive column, offsets plus bytes for strings, type ids plus offsets for a tagged
-union, the same for lists and structs), seeded from the warehouse server's existing dependency-free framer
-(`ArrowStreams` and `FlatBuilder`, the messages and buffer layout written by hand, about 300 lines, with its column
-types) and moved to a shared module core and the warehouse both use. Two consequences. The Arrow IPC writer frames
-the batch without copying, and on DuckDB the warehouse's native path hands over DuckDB's own buffers as they are.
-The plan's three facts per column ride as Arrow field metadata, so the Arrow schema and the plan's column record are
-one thing, and a Pure-only fact (a Decimal whose scale the column does not fix, a DateTime's written precision, a
-partial date) is an extension type with that metadata, decided once in M2. The row-oriented writers (legend-engine's
-JSON, `ValueBridge`, the collector) read cells through one small accessor over the buffers, which is cheaper than
-boxing a value per cell. The Arrow Java library and pyarrow stay what they are today: readers in tests
-(`arrow_matches_json`), which read back what our writer wrote. The native image carries exactly what it carries
-today.
+(`//core:exec`, the JDBC drivers in `//core:drivers`, the writers) gains no Arrow library either. **The batch is our
+own representation: one typed Java array per column (`long[]`, `double[]`, `String[]`, `BigDecimal[]`, the date and
+nested kinds likewise) with a null mask, behind one accessor interface** (column count, row count, is-null, a typed
+read per cell) that every writer uses, so no writer knows the representation. The user asked (2026-10-26) whether
+the warehouse server's own Arrow layout should be that representation instead, and the honest answer is no, for
+one decisive reason: in core there is no Arrow-native source to pass through. The warehouse gets DuckDB's Arrow
+buffers through the foreign-function API, in the native image, a path of its own; core reads DuckDB through JDBC,
+whose Arrow export needs the Arrow library's allocator. So an Arrow layout inside core would be built cell by cell
+from JDBC rows (bit-packed validity, offsets, 128-bit decimals, nested children, by hand) only to be read cell by
+cell again by the row-oriented writers that are the bulk of the consumers (legend-engine's JSON, `ValueBridge`, the
+collector), and its one benefit, no copy at the Arrow writer, would be paid for on every other route. Typed arrays
+are the natural form for those writers, trivial to build from a driver row, and the Arrow writer converts them in
+one pass, which costs about what any formatting pass costs. What is shared with the warehouse is its IPC framing
+(`FlatBuilder` and the schema and record-batch messages of `ArrowStreams`), not its buffers: the core writer builds
+Arrow buffers from the arrays and hands them to the same framer. The plan's three facts per column become Arrow field
+metadata at that writer. If a measured gap ever shows on a route that could hand over Arrow buffers as they are
+(DuckDB through the foreign-function API in core, a cloud driver's Arrow results), an Arrow-backed batch implements
+the same accessor and no writer changes. The Arrow Java library and pyarrow stay what they are today: readers in
+tests (`arrow_matches_json`), which read back what our writer wrote. The native image carries exactly what it
+carries today.
 
 ## 3. Where things stand (honest)
 
@@ -219,8 +224,8 @@ counted), switch, delete (in the same step, never later). A step lands as one GA
   input (`TypedQuery.plan`, `PlanMaker`, `ExecuteOptions`, `Diagnostics` take no format); `PlanJson` format 11 writes
   no `TextResult`. The result API: `Execution.batches(...)` answers a stream of typed batches (R8's flush rule) to a
   writer; `executeStreaming` becomes a writer; `executeWire`'s `List<String>` is marked for step 3's deletion. The
-  batch type: Arrow's column layout built by our own code (§2), one column per plan column in the slot vocabulary,
-  the plan's facts as field metadata, with cell access through one accessor so no writer touches the buffers' bytes.
+  batch type: our own, one typed array per plan column in the slot vocabulary with a null mask (§2), behind one
+  accessor interface so no writer knows the representation and an Arrow-backed batch can implement it later.
 - Delete: nothing yet (the `TextResult` node stays until its last consumer switches at step 4).
 - Gate: `PlanJsonTest` 11, `PlanRoundTrip`, the core lanes, M1 showing every planner-made result typed; R9's query
   guard added now, so it watches every later step.
@@ -360,8 +365,19 @@ old executor goes at step 7; **7** the database judge is never deleted (R10; the
 
 Sent back for the expert version, given here, waiting on the user's yes:
 
-**3. A Float, the version that is best on every side and makes the lean experience good.** Three places, three
-answers.
+**3. A Float, the version that is best on every side and makes the lean experience good.** Three places, and
+the user's reminder (2026-10-26) that the legacy writer and the lean writer may hold different ideas of a Float's
+text where that is better. The plan, in one table:
+
+| Where a Float meets text | LEGACY (legend-engine's bytes) | LEAN | PCT (Pure's values) |
+|---|---|---|---|
+| A. In a result | its 64 bits; the writer spells `Double.toString` | its 64 bits; Arrow float64; JSON and CSV the shortest digits | its bits, a Pure Float |
+| B. Printed as the last thing a column does | the bits carried; the writer spells `Double.toString`, which is Pure's own implementation | the same bits, the same spelling | the bits, spelled by the bridge with the same function: the reference, byte for byte |
+| C. A String built inside the query (feeds a filter, a join, a group, a longer String) | one spelling, in SQL: shortest digits in Pure's layout; a native cast on nine engines, the exact-digits expression on Snowflake and BigQuery (a register row where legend-engine printed the database's lossy text, M7) | **the same SQL** (the recommendation); the alternative, the database's own native text at zero cost, is lossless on nine engines but engine-dependent in layout and lossy on Snowflake, so it is offered, not recommended | the same SQL as LEGACY: Pure's text |
+
+Places A and B are where real code meets a Float's text and both cost nothing on any engine. Place C is the rare
+one, and the only place where LEGACY and LEAN could differ; the recommendation keeps one SQL because the
+difference buys nothing measurable and costs a String that changes meaning by database. The detail of each place:
 - *In a result.* A Float is its 64 bits, never a text: the DOUBLE slot, the driver's exact read, Arrow's float64.
   Nothing is lost, nothing is spelled, no database is involved. Where a lean writer must spell it (JSON, CSV), it
   writes the shortest decimal that reads back as the same double: 0.1 is `0.1`, a third is `0.3333333333333333`,
@@ -400,30 +416,30 @@ answers.
   lossless); fixed seventeen digits (shows binary noise on ordinary values, which is why every modern runtime moved
   to shortest).
 
-**4. Arrow: where the dependency would sit, and the answer that it sits nowhere.** The compiler never sees it: the
-planner has no execution dependency (C2a, pinned), and the WebAssembly planner takes only `//core:plan_side`. The
-execution side does not take it either, and (the user's question, 2026-10-26: "why not our warehouse implementation
-of Arrow, if we are going to have our own representation anyway?") it does not invent a second representation: the
-batch is Arrow's column layout built by our own code, seeded from the warehouse server's framer, which is written by
-hand, already inside the native image, already checked by pyarrow in its tests (§2). Having two layouts, ours and
-Arrow's, with a copy between them, was the worse idea; one layout that is the standard one, implemented by us, is
-the better one. The costs, honestly: the row-oriented writers read cells through an accessor over buffers rather
-than from boxed values (a few hundred lines, faster), and a few Pure-only facts need extension metadata on the
-schema (M2 decides each). Step 2 shares the framer; step 5's `ArrowWriter` frames the batch as it is; on DuckDB the
-warehouse's native path hands over DuckDB's own buffers. The Arrow Java library and pyarrow remain test-only
-readers. R9 pins it with a Bazel query guard over the planner, the WebAssembly planner and the native image. What
-this gives up against an Arrow-library-inside design: zero-copy from cloud drivers that could hand out Arrow
-(BigQuery's storage read, the Snowflake and Databricks drivers), which would need the library; if a measured gap
-ever justifies it, it is an optional module beside the drivers, never in the compiler or the native image, never
-the default.
+**4. Arrow: where the dependency would sit (nowhere), and what the batch is (our own).** The compiler never sees
+it: the planner has no execution dependency (C2a, pinned), and the WebAssembly planner takes only `//core:plan_side`.
+The execution side does not take it either. The batch is our own representation, typed arrays with a null mask
+behind one accessor interface (§2). The user asked whether the warehouse server's own Arrow layout should be the
+representation instead; it was a suggestion, and the honest answer is no: core has no Arrow-native source to pass
+through (the warehouse reaches DuckDB's buffers through the foreign-function API in the native image; core reads
+DuckDB through JDBC, whose Arrow export needs the library), so an Arrow layout in core would be built by hand from
+driver rows and read back cell by cell by the row-oriented writers, paying on every route for a saving on one.
+Typed arrays are the natural form for those writers and the Arrow writer converts them in one pass. Shared with the
+warehouse: its IPC framing (`FlatBuilder`, the schema and record-batch messages), not its buffers. The Arrow Java
+library and pyarrow remain test-only readers. R9 pins it with a Bazel query guard over the planner, the WebAssembly
+planner and the native image. Reversible: an Arrow-backed batch behind the same accessor, if a measured gap ever
+shows on a route that can hand over Arrow buffers as they are; never in the compiler or the native image, never the
+default.
 
 ## 9. Status
 
 - **2026-10-26, revision 3, ruled in part.** The user's rulings recorded (§8): items 1, 2, 5, 6, 8 as written; the
   database judge stays (R10); no JavaScript or other non-SQL code in the database. The Float rule answered with the
-  edge rule plus the inline expression, a platform SQL function only on a measured hot path (§8 item 3); the batch
-  is Arrow's column layout in our own code, seeded from the warehouse's framer, no library anywhere (§8 item 4, R9).
-  Both wait on the user's yes. Next: the yes, then landing the branch on `main`, then step 0.
+  edge rule plus the inline expression, a platform SQL function only on a measured hot path, one table for LEGACY,
+  LEAN and PCT across the three places a Float meets text (§8 item 3); the batch is our own representation, typed
+  arrays behind one accessor, the warehouse's IPC framing shared and its buffers not, no library anywhere (§8 item
+  4, R9; the user's "warehouse Arrow" was a suggestion, answered no with the reason). Both wait on the user's yes.
+  Next: the yes, then landing the branch on `main`, then step 0.
 - **2026-10-26, the handoff written:** `docs/RESULT_BOUNDARY_START_HERE.md`.
 - **2026-10-26, revision 2.** After the user's three questions: batches as the unit; collecting into memory a test
   helper, never a production method; M4 and M7 added to step 0.

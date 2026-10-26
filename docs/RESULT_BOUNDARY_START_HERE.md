@@ -70,10 +70,11 @@ library in the product; the Arrow writer is the warehouse server's own framer.
 **Waiting on the user's yes** (§8 items 3 and 4, the expert versions): the Float rule (results carry bits; a Float
 printed as the last thing a column does is spelled by the writer, which is Pure's own implementation; a String built
 inside a query keeps the exact-digits expression inline; a platform-owned SQL function only on a measured hot path;
-never JavaScript or any non-SQL code in the database) and the batch (Arrow's column layout built by our own code,
-seeded from the warehouse's framer; no Arrow library anywhere; pyarrow and the Arrow Java library test-only
-readers). Also: the merge of this branch to `main` (every lane at or above the merge-base but `testFilterInstance`),
-which the program's §7 wants before step 0 starts.
+never JavaScript or any non-SQL code in the database; one table for LEGACY, LEAN and PCT in the program's §8 item 3)
+and the batch (our own representation: typed arrays with a null mask behind one accessor; the warehouse's Arrow IPC
+framing shared, its buffers not; no Arrow library anywhere; pyarrow and the Arrow Java library test-only readers).
+Also: the merge of this branch to `main` (every lane at or above the merge-base but `testFilterInstance`), which the
+program's §7 wants before step 0 starts.
 
 **The next action, once the yes is in:** land the branch on `main` (AGENTS.md "Pushing to main": rebase, the local
 gate, "local gate: //gates:local green" in the message); start a new branch from `main` for this program alone;

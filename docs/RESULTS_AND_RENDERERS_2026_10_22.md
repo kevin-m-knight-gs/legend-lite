@@ -95,7 +95,8 @@ writer alone; what they read is one result from one statement.
 
 **D1 to D5 ratified by the user on 2026-10-26** ("everything else is okay"), with the program's rulings beside them
 (`docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` §8): the database judge is never deleted; no Arrow library enters the
-product (the batch is Arrow's column layout in our own code, seeded from the warehouse's framer); D7 is the
+product (the batch is our own typed arrays behind one accessor; the warehouse's Arrow IPC framing is shared, its
+buffers are not); D7 is the
 program's R5, its expert version waiting on the user's yes (results carry a Float's bits; a Float printed as the last
 thing a column does is spelled by the writer, Pure's own implementation; a String built inside a query keeps the
 exact-digits expression; no JavaScript or other non-SQL code in the database).
