@@ -522,6 +522,8 @@ _HEADLESS_TESTS = [
     "flow-sheet",
     # a page's parameters, bound where its queries are sent (docs/DATACUBE_FLOW_MODE_2026_10_24.md M8): pure
     "page-parameters",
+    # a flow's standard macros: a sub-flow as one Pure function of its input's rows (M8): pure
+    "macros",
     "format-code",
     "grid-commands",
     # a grid's and a page's gestures as their commands (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8)

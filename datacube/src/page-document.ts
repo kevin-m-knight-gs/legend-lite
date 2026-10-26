@@ -31,6 +31,8 @@ import { flowProblems, flowTiles, readOutput, type Flow } from './layout/flow.ts
 import type { PageModelRef } from './page-model.ts';
 import { readPageFilters, type PageFilter } from './page-filters.ts';
 import { readParameters, type PageParameter } from './page-parameters.ts';
+import { readMacros, type PageMacro } from './macros.ts';
+import { readLambda } from '../../pure-protocol/src/index.ts';
 import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
 import { textProblem } from './page-text-rule.ts';
@@ -339,6 +341,9 @@ export interface PageDocument extends PageViews {
   /** Its parameters, the values any Pure on it reads as `$name` (page-parameters.ts, an analytic app's inputs): none,
    *  none written. */
   readonly parameters?: readonly PageParameter[];
+  /** Its macros, sub-flows each saved as a Pure function of its input's rows, used as a box (macros.ts): none, none
+   *  written. */
+  readonly macros?: readonly PageMacro[];
   /** The copy each snapped grid reads, by its cube's id (§18.8): none, none written. */
   readonly copies?: Readonly<Record<string, GridCopy>>;
   /**
@@ -385,6 +390,7 @@ export function pageFile(page: PageDocument): { readonly file: string; readonly 
   const named = page.name === name ? page : writePageOf({
     name, cubes: page.cubes, views: { views: page.views, sheets: page.sheets }, ...(page.model ? { model: page.model } : {}),
     ...(page.filters ? { filters: page.filters } : {}), ...(page.parameters ? { parameters: page.parameters } : {}),
+    ...(page.macros ? { macros: page.macros } : {}),
     ...(page.copies ? { copies: page.copies } : {}), ...(page.unknown ? { unknown: page.unknown } : {}),
   });
   // a page file is no saved record: opened elsewhere, its first save is a new one
@@ -392,7 +398,7 @@ export function pageFile(page: PageDocument): { readonly file: string; readonly 
   return { file: pageToJson(file), name };
 }
 
-const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'parameters', 'copies', 'record']);
+const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'parameters', 'macros', 'copies', 'record']);
 
 /** The one cube of a step-1 page. */
 export const PAGE_CUBE = 'cube';
@@ -435,6 +441,7 @@ export function writePageOf(o: {
   readonly model?: PageModelRef;
   readonly filters?: readonly PageFilter[];
   readonly parameters?: readonly PageParameter[];
+  readonly macros?: readonly PageMacro[];
   readonly copies?: Readonly<Record<string, GridCopy>>;
   readonly record?: string;
   readonly unknown?: Readonly<Record<string, unknown>>;
@@ -452,6 +459,7 @@ export function writePageOf(o: {
     ...(o.model ? { model: keptFor(o.model, o.cubes) } : {}),
     ...(filters.length > 0 ? { filters } : {}),
     ...(o.parameters !== undefined && o.parameters.length > 0 ? { parameters: o.parameters } : {}),
+    ...(o.macros !== undefined && o.macros.length > 0 ? { macros: o.macros } : {}),
     ...(Object.keys(copies).length > 0 ? { copies } : {}),
     ...(o.record !== undefined ? { record: o.record } : {}),
     ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
@@ -622,6 +630,8 @@ export function pageDefinitionText(page: PageDocument): string {
     ...(page.filters ? { filters: page.filters } : {}),
     // a parameter set, its value changed or taken off, the page has changed
     ...(page.parameters ? { parameters: page.parameters } : {}),
+    // a macro saved or taken off, the page has changed
+    ...(page.macros ? { macros: page.macros } : {}),
   });
 }
 
@@ -743,6 +753,16 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     }
     if (parameters.length === 0) throw new PageDocumentError("'parameters' is an empty list: a page with none has no field");
   }
+  let macros: readonly PageMacro[] | undefined;
+  if (raw['macros'] !== undefined) {
+    try {
+      // its functions exact, as a cube's lambdas are read
+      macros = readMacros(raw['macros'], (v) => readLambda(v));
+    } catch (e) {
+      throw new PageDocumentError(e instanceof Error ? e.message : String(e));
+    }
+    if (macros.length === 0) throw new PageDocumentError("'macros' is an empty list: a page with none has no field");
+  }
 
   const page: PageDocument = {
     kind: PAGE_KIND,
@@ -754,6 +774,7 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     ...(model ? { model } : {}),
     ...(filters ? { filters } : {}),
     ...(parameters ? { parameters } : {}),
+    ...(macros ? { macros } : {}),
     ...(copies ? { copies } : {}),
     ...(record !== undefined ? { record } : {}),
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),

@@ -3753,6 +3753,36 @@ class Flows(Paged):
         with self.assertRaisesRegex(Exception, r"unbound variable '\$min'"):
             after.to_pandas()
 
+    def test_a_macro_is_a_sub_flow_used_as_one_box(self):
+        # M8's standard macro: page.macro -- boxes, each over the one before it, saved as one Pure function of the first
+        # one's input's rows; used after another box by grid.use_macro, a Pure box named after it; a parameter it reads
+        # stays $name, read with its value now
+        page, flow, source, _big = self.flowed()
+        page.parameter('min', 'Float', 90.0)
+        first = flow.grid(input=source)
+        first.custom_filter('$x.notional->toOne() > $min')
+        second = flow.grid(input=first)
+        second.calculate('fee', '$x.notional->toOne() * 0.01', kind='dimension')
+        page.macro('Big fees', [first, second])
+        self.assertEqual(page.macros, ['Big fees'])
+        other = flow.grid(input=source)
+        other.use_macro('Big fees')
+        self.assertEqual(other.title, 'Big fees')
+        rows = flow.grid(input=other).to_pandas()
+        self.assertEqual(sorted(rows['notional']), [100.0, 250.0])
+        self.assertEqual(sorted(round(f, 6) for f in rows['fee']), [1.0, 2.5])
+        self.assertNotIn('CustomFilter', rows.columns, 'its boxes\' rows as they hand them on')
+        page.set_parameter('min', 200.0)
+        self.assertEqual(sorted(flow.grid(input=other).to_pandas()['notional']), [250.0], 'its parameter read with its value now')
+        with self.assertRaisesRegex(ValueError, 'reads none of'):
+            page.macro('Wrong', [second, first])
+        with self.assertRaisesRegex(ValueError, "reads no other box's rows"):
+            page.macro('Wrong', [source])
+        with self.assertRaisesRegex(ValueError, "'nope' is not a macro"):
+            other.use_macro('nope')
+        page.remove_macro('Big fees')
+        self.assertEqual(page.macros, [])
+
     def test_a_pure_box_makes_its_rows_a_function_of_its_inputs(self):
         # FL12: grid.pure -- its rows a function of its input's, in Pure over $input, parsed and its rows typed as a
         # relation by the compiler before the page sets it; a box after it reads its rows, its columns the compiler's;

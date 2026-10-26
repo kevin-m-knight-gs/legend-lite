@@ -10,7 +10,7 @@ import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.t
 import {
   chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridExport,
   gridFilter, gridGesture, gridMeasure, gridModelMeasure, gridOpened, gridPreset, gridRelated, leafCube, gridRelation, gridSetUp, gridSnapPull,
-  gridView, gridFailing, gridOutput, gridOutputQuery, gridPivotValues, gridPure, gridRules, gridWriteTable, pureImportSteps, rowsCube, snapRefused, sourceCube,
+  gridView, gridFailing, gridOutput, gridOutputQuery, gridPivotValues, gridFunction, gridPure, gridRules, gridWriteTable, macroComposed, pureImportSteps, rowsCube, snapRefused, sourceCube,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in.ts';
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
@@ -49,6 +49,9 @@ export { gridOutput, gridOutputQuery, gridPure, gridWriteTable };
 export { pureImportSteps };
 /** A Dynamic Replace's rules read off a grid's rows as it hands them on (gridRules: Python's grid.dynamic_replace). */
 export { gridRules };
+/** A box's own steps as a function of its input's rows, and a sub-flow's composed (gridFunction, macroComposed: Python's
+ *  page.macro -- a standard macro, macros.ts). */
+export { gridFunction, macroComposed };
 
 /** One condition added to a grid's filter, as a cell's Add Filter adds one (gridAddFilter: Python's grid.add_filter), and
  *  a grid's copy, as Copy of Grid makes it (gridCopied: Python's grid.copy). */

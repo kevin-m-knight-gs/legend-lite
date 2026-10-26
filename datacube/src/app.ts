@@ -4308,6 +4308,20 @@ export class CubeApp {
   }
 
   /**
+   * ITS OWN STEPS AS A FUNCTION OF ITS INPUT'S ROWS (macros.ts boxFunction: a standard macro's step, docs/
+   * DATACUBE_FLOW_MODE_2026_10_24.md M8): its rows as it hands them on, its base read as its own over `$input`. Refused in
+   * words for a grid over no other box's rows (a macro is made of boxes over one input each), or a pivot its rows decide.
+   */
+  async ownFunction(): Promise<Lambda> {
+    const source = this.#options.cubeSource;
+    if (source?._type !== 'rows') throw new CubeRefusal(`${source?.name ?? 'it'} reads no other box's rows: a macro is made of boxes over one input each`);
+    const [{ boxFunction }, { query }] = await Promise.all([
+      lazily(() => import('./macros.ts')), outputQuery(this.#snapshot, this.#config as unknown as Record<string, unknown>, this.#controller),
+    ]);
+    return boxFunction(query, this.#snapshot.source.query, source);
+  }
+
+  /**
    * ITS ROWS AS IT HANDS THEM ON (flow-output.ts outputQuery: what the box after it reads), at most `limit` of them, read by
    * the database -- a Dynamic Replace's rules, another box's (dynamic-replace.ts). Refused in words as an Output is.
    */

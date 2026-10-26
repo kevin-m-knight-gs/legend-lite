@@ -1228,6 +1228,21 @@ describe("Imputation (impute.ts): a number's empties filled, a value or the colu
   });
 });
 
+describe("a page's macros, saved and taken off by its page commands (macros.ts, M8)", () => {
+  it('saves one -- judged, replaced by its name -- writes it, reads it again, and takes it off', () => {
+    const big = lambda(['input'], fn('filter', variable('input'), lambda(['x'], gt(property(variable('x'), 'notional'), lit.integer(90)))));
+    let d = apply(FLOW(), { kind: 'setMacro', name: 'Big', pure: big });
+    assert.deepEqual(d.page.macros?.map((m) => m.name), ['Big']);
+    d = apply(d, { kind: 'setMacro', name: 'Big', pure: lambda(['input'], fn('limit', variable('input'), lit.integer(5))) });
+    assert.equal(d.page.macros?.length, 1, 'its name again: replaced');
+    assert.equal(toJson(readPage(JSON.parse(pageToJson(d.page))).macros![0]!.pure), toJson(d.page.macros![0]!.pure), 'written and read again, exact');
+    refused(() => apply(d, { kind: 'setMacro', name: 'One', pure: lambda(['input'], lit.integer(1)) }), /One: its Pure never reads \$input/);
+    refused(() => apply(d, { kind: 'setMacro', name: 'Nope', pure: null }), /'Nope' is not a macro of the page \(Big\)/);
+    d = apply(d, { kind: 'setMacro', name: 'Big', pure: null });
+    assert.equal(d.page.macros, undefined, 'none, none written');
+  });
+});
+
 describe("a page's parameters, set and taken off by its page commands (page-parameters.ts, M8)", () => {
   it('sets one -- judged whole, replaced by its name -- writes it, reads it again, and takes it off', () => {
     const min = { name: 'min', type: 'Float' as const, value: 90 };

@@ -41,6 +41,8 @@ import type { Profile, TopValue } from '../profile.ts';
 import { CONTAINER_FRAME, EMPTY_FLOW, flowTiles, outputWords, type Frame, type Output } from '../layout/flow.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import { MAX_RULES } from '../dynamic-replace.ts';
+import { MACRO_BOXES, macroOf, macroProblem, macroWords, type PageMacro } from '../macros.ts';
+import type { PageParameter } from '../page-parameters.ts';
 import type { GestureArgs } from '../grid-gestures.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { CHART_STATES, chartGrid, MAP_MARKS, showGridWay, type ChartSpec, type ChartState } from '../chart-spec.ts';
@@ -60,7 +62,7 @@ import { chartTitle, gridTitle, nextPageId, textTitle, timeseriesTitle } from '.
 import type { PageCommand } from '../page-commands.ts';
 import type { CubeDocument, CubeSource, InputPort } from '../cube-document.ts';
 import type { GridCopy, PageDocument } from '../page-document.ts';
-import { sameValue, withoutConditions, type CubeSnapshot, type FilterNode, type FilterValue } from '../snapshot.ts';
+import { CubeRefusal, sameValue, withoutConditions, type CubeSnapshot, type FilterNode, type FilterValue } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
@@ -134,6 +136,8 @@ export interface FlowStep {
   readonly pure?: Lambda;
   readonly next?: readonly Lambda[];
   readonly label: string;
+  /** The box's name, given as it is made (a macro used: its name). */
+  readonly title?: string;
 }
 
 export interface SpawnOptions {
@@ -217,6 +221,8 @@ export interface SpawnedGrid {
   writeOutput?(output: Output): Promise<void>;
   /** Its rows as it hands them on, at most `limit`, read by the database (a Dynamic Replace's rules: dynamic-replace.ts). */
   handedOnRows?(limit: number): Promise<ResultTable>;
+  /** Its own steps as a function of its input's rows (a standard macro's step: macros.ts boxFunction). */
+  ownFunction?(): Promise<Lambda>;
   /** The query it ran last, as the compiler prints it, and its SQL (a flow's box's Code). */
   code?(): Promise<{ readonly pure: string; readonly sql: string }>;
   /** Text onto its host's clipboard (a flow's box's Code copied). */
@@ -354,6 +360,10 @@ export interface CubePageOptions {
   readonly onJoinBox?: (box: string, sheet: string) => void;
   /** A flow's palette's Parameter: the page's Add Parameter (page-app.ts addParameter). */
   readonly onParameter?: () => void;
+  /** The page's macros (macros.ts) and parameters, as its state holds them: what a flow's Macro offers, and in what
+   *  words. */
+  readonly macros?: () => readonly PageMacro[];
+  readonly parameters?: () => readonly PageParameter[];
   /** Tidy Up on flow `sheet`: its boxes placed by the flow's own rule, by the page's owner (page-gestures.ts tidyCommands). */
   readonly onTidy?: (sheet: string) => void;
   /**
@@ -741,6 +751,10 @@ export class CubePage {
         }
         return grid.pinPivotValues(pin);
       },
+      // A STANDARD MACRO (M8, macros.ts): the page's, each in words; one used after a box; a box's steps saved as one
+      macros: () => (this.#options.macros?.() ?? []).map((m) => ({ name: m.name, words: macroWords(m, this.#options.parameters?.() ?? []) })),
+      onMacro: (name, after) => this.#useMacro(id, name, after),
+      onSaveMacro: (tile, from, name) => this.#saveMacro(tile, from, name),
       onAddPinned: async (tile, values) => {
         const grid = this.#grids.get(tile)?.added?.cube;
         if (grid?.addPivotValues === undefined) return 'its grid is not open';
@@ -758,6 +772,8 @@ export class CubePage {
       onTool: (tool, after, editor, into, port, at) => (tool === 'comment' ? this.#addComment(id, at)
         // a Parameter is the page's own (page-parameters.ts): its bar's Add form
         : tool === 'parameter' ? this.#options.onParameter?.()
+          // a Macro asked by name (the command palette): the page's one, else which is the palette's to pick
+          : tool === 'macro' ? this.#macroAsked(id, after)
         // a Container clicked in the palette, or dropped on a box: one of its own size, below the flow's boxes
         : tool === 'container' ? this.#addContainer(id, at ?? this.#belowFlow(id), CONTAINER_FRAME)
           : this.#options.onTool?.(tool, after, id, editor, into, port, at)),
@@ -1194,6 +1210,73 @@ export class CubePage {
     }
     if (this.#disposed || !this.#boxes.has(id)) return;
     await this.#showBox(id, { window: 'dynamicReplace', rules: { box: rules, ...read } });
+  }
+
+  /** A MACRO USED (M8, macros.ts): a Pure box of its function after box `after`, named after it -- made by the host as
+   *  the palette's Pure is, as Import Pure's boxes are. */
+  #useMacro(sheet: string, name: string, after: string): void {
+    const macro = (this.#options.macros?.() ?? []).find((m) => m.name === name);
+    if (macro === undefined) return;
+    this.#options.onTool?.('pure', after, sheet, undefined, undefined, undefined, undefined, { pure: macro.pure, label: 'Use Macro', title: name });
+  }
+
+  /** A Macro asked for by its tool's name alone (the command palette): the page's one used after box `after`; none, or
+   *  several, said -- the palette's Macro picks one. */
+  #macroAsked(sheet: string, after: string | undefined): void {
+    const macros = this.#options.macros?.() ?? [];
+    const on = this.#sheets.find((s) => s.id === sheet);
+    if (after !== undefined && macros.length === 1) this.#useMacro(sheet, macros[0]!.name, after);
+    else if (on?.kind === 'flow') {
+      on.board.note(macros.length === 0 ? "No macro yet: a box's menu, Save as Macro…"
+        : after === undefined ? 'Show a box first: a macro is used after it' : "Pick one from the palette's Macro");
+    }
+  }
+
+  /**
+   * SAVE AS MACRO (M8, macros.ts): box `id`'s own steps and those of the boxes after box `from` up to it, upstream first,
+   * each read as a function of its input's rows by its grid (ownFunction: a flow shows one box at a time, so each is
+   * shown in turn, as a Run shows them), composed and kept as macro `name` -- one step, Save Macro; box `id` shown again.
+   * The refusal, in words, or null.
+   */
+  async #saveMacro(id: string, from: string, name: string): Promise<string | null> {
+    // the boxes from after `from` to `id`, each over the one before it
+    const chain: string[] = [];
+    for (let at: string | undefined = id; at !== from;) {
+      if (at === undefined) return `its steps do not start after ${this.title(from) ?? from}: it is no box before it`;
+      chain.unshift(at);
+      if (chain.length > MACRO_BOXES) return `a macro is made of ${MACRO_BOXES} boxes at most`;
+      const source: CubeSource | undefined = (this.#boxes.get(at)?.document ?? this.documentOf(at))?.source;
+      at = source?._type === 'rows' && 'grid' in source.input ? source.input.grid : undefined;
+    }
+    const steps: Lambda[] = [];
+    try {
+      for (const box of chain) {
+        if (this.#grids.get(box)?.added === undefined) {
+          await this.#showBox(box);
+          await this.#opening.get(box)?.catch(() => undefined);
+        }
+        const grid = this.#grids.get(box)?.added?.cube;
+        const on = this.#sheetOf(box);
+        if (grid?.ownFunction === undefined) return (on?.kind === 'flow' ? on.board.refusal(box) : undefined) ?? `${this.title(box) ?? box} could not be opened`;
+        steps.push(await grid.ownFunction());
+      }
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    } finally {
+      if (!this.#disposed && this.#boxes.has(id) && this.#grids.get(id)?.added === undefined) await this.#showBox(id);
+    }
+    let pure: Lambda;
+    try {
+      pure = macroOf(steps);
+    } catch (e) {
+      if (e instanceof CubeRefusal) return e.message;
+      throw e;
+    }
+    const problem = macroProblem({ name, pure }, (this.#options.macros?.() ?? []).filter((m) => m.name !== name));
+    if (problem !== undefined) return problem;
+    const told = this.#tell('Save Macro', pageCommand('setMacro', { name, pure }));
+    this.#options.onChange();
+    return told ? null : 'the page did not keep it';
   }
 
   /** AN OUTPUT WRITTEN (its Write now, a Run: docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): the box shown, its grid made,

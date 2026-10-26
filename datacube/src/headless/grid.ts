@@ -14,7 +14,7 @@ import { readsAnchor, seriesQuery, seriesSources, type TsInputs, type TsWindow }
 import { answerOf, Problem, seriesOf } from './timeseries.ts';
 import { snapRefusal } from '../../../engine-client/src/snap.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
-import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { fromJson, ProtocolError, readLambda, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { nameProblem } from '../calc.ts';
 import { chartFrom, chartGrid, chartProblems, followCube, followRefusal, readChart, showGridWay } from '../chart-spec.ts';
 import { draftColumn, draftStage, existingDraft, newDraft, type ColumnDraft } from '../column-draft.ts';
@@ -94,7 +94,8 @@ import { pythonRunner } from '../services/python-host.ts';
 import { hostCalls, hostDatabase, hostEngine, hostWords, hostWorker } from './host.ts';
 import { leafOnHost, leafTables, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
 import { inputRows } from '../join-open.ts';
-import { boxRows, pureFrom, pureInput, pureShown, pureText } from '../pure-box.ts';
+import { boxRows, pureChecked, pureFrom, pureInput, pureShown, pureText } from '../pure-box.ts';
+import { boxFunction, macroOf } from '../macros.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { JoinSide } from '../join.ts';
 import { gridInput, liveGrids, resolvedSource } from '../live-inputs.ts';
@@ -1423,11 +1424,27 @@ export async function gridFailing(spec: GridSpec): Promise<string> {
  * the page's setPure for its tile `grid` (for pageApply), or `{problems}`, in the compiler's words or DataCube's.
  */
 export async function gridPure(spec: GridSpec, grid: string, given: string): Promise<string> {
-  const asked = JSON.parse(given) as { pure?: unknown };
+  const asked = JSON.parse(given) as { pure?: unknown; function?: unknown };
   const said = (pure: Lambda | null): string => {
     const command: PageCommand = { kind: 'setPure', grid, pure };
     return `{"commands":[${toJson(command)}]}`;
   };
+  // a macro's function (macros.ts, Python's grid.use_macro): judged and typed over its input's rows as a Pure box's text is
+  if (asked.function !== undefined) {
+    const source = readCube(fromJson(spec.cube)).source;
+    if (source._type !== 'rows') return JSON.stringify({ problems: [`${source.name} is read from no other grid: a macro is used after another grid's rows`] });
+    const exact = (fromJson(given) as { function: unknown }).function;
+    return using(spec, async ({ typing, state }) => {
+      try {
+        return said(await pureChecked(readLambda(exact), pureInput(source, state.snapshot.source.query), {
+          columns: (r) => typing.relationType({ _type: 'lambda', parameters: [], body: [r] }),
+        }));
+      } catch (e) {
+        if (!(e instanceof PlanError) && !(e instanceof CubeRefusal)) throw e;
+        return JSON.stringify({ problems: [e.message] });
+      }
+    });
+  }
   if (asked.pure === null) return said(null);
   if (typeof asked.pure !== 'string') return JSON.stringify({ problems: [`a Pure box's function is its text, or None, not ${JSON.stringify(asked.pure)}`] });
   const text = asked.pure;
@@ -1446,6 +1463,37 @@ export async function gridPure(spec: GridSpec, grid: string, given: string): Pro
       return JSON.stringify({ problems: [e.message] });
     }
   });
+}
+
+/**
+ * A BOX'S OWN STEPS AS A FUNCTION OF ITS INPUT'S ROWS (a standard macro's step, macros.ts boxFunction: the screen's Save
+ * as Macro asks the box's grid the same, app.ts ownFunction) -- Python's page.macro, box by box. JSON `{pure}` (the
+ * protocol's JSON of its lambda), or `{problems}` in DataCube's words.
+ */
+export async function gridFunction(spec: GridSpec): Promise<string> {
+  const source = readCube(fromJson(spec.cube)).source;
+  if (source._type !== 'rows') return JSON.stringify({ problems: [`${source.name} reads no other box's rows: a macro is made of boxes over one input each`] });
+  return using(spec, async (o) => {
+    try {
+      const { query } = await outputQuery(o.state.snapshot, o.state.configuration as unknown as Record<string, unknown>, controllerOf(o));
+      return `{"pure":${toJson(boxFunction(query, o.state.snapshot.source.query, source))}}`;
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
+  });
+}
+
+/** A SUB-FLOW'S FUNCTION (macros.ts macroOf): its boxes' functions (`steps`, gridFunction's, as JSON, in their order)
+ *  composed -- Python's page.macro. JSON `{pure}`, or `{problems}`. */
+export function macroComposed(steps: string): string {
+  try {
+    const read = (fromJson(steps) as unknown[]).map((s) => readLambda(s));
+    return `{"pure":${toJson(macroOf(read))}}`;
+  } catch (e) {
+    if (!(e instanceof CubeRefusal) && !(e instanceof ProtocolError)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
 }
 
 /**

@@ -19,9 +19,9 @@ PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'addFlow', '
                                'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText',
                                'addTimeseries', 'setTimeseries', 'setTextFiles', 'followGrid', 'detach', 'select',
                                'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter',
-                               'removePageFilter', 'setParameter', 'removeParameter', 'snap', 'live', 'rebuilt',
-                               'setInput', 'setJoin', 'setPure', 'setOutput', 'setStops', 'setCache', 'modelInto',
-                               'modelPin', 'modelKeep',)
+                               'removePageFilter', 'setParameter', 'removeParameter', 'setMacro', 'snap', 'live',
+                               'rebuilt', 'setInput', 'setJoin', 'setPure', 'setOutput', 'setStops', 'setCache',
+                               'modelInto', 'modelPin', 'modelKeep',)
 
 
 def grid_group(*, rows: Any) -> dict[str, Any]:
@@ -233,6 +233,10 @@ def page_set_parameter(*, parameter: Any) -> dict[str, Any]:
 
 def page_remove_parameter(*, name: Any) -> dict[str, Any]:
     return {'kind': 'removeParameter', 'name': name}
+
+
+def page_set_macro(*, name: Any, pure: Any) -> dict[str, Any]:
+    return {'kind': 'setMacro', 'name': name, 'pure': pure}
 
 
 def page_snap(*, grid: Any, copy: Any) -> dict[str, Any]:

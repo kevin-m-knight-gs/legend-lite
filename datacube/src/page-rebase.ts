@@ -66,6 +66,8 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     // a parameter names no tile
     case 'setParameter':
     case 'removeParameter':
+    // a macro names no tile: its function reads its input's rows alone
+    case 'setMacro':
       return command;
     // a maker's planned id follows too (page-state.ts rename: a tile brought back under a new id is that tile in every
     // later step; the keeper gives a taken one out afresh either way)

@@ -516,6 +516,8 @@ const PASS_THROUGH: Record<string, string> = {
   // 2026-10-26 (the flow mode's M8, a page's parameters: page-parameters.ts): the parameters bar's
   setParameter: "the parameter as the page's parameters bar made it -- its input's value changed, or Add Parameter's form (setParameter judges it whole: parameterProblem)",
   removeParameter: "the parameter whose x was clicked",
+  // 2026-10-26 (the flow mode's M8, a standard macro: macros.ts): a box's menu's Save as Macro
+  setMacro: "the macro Save as Macro made of the boxes' own steps as their grids read them (macros.ts macroOf, which headless gridFunction and macroComposed ask for Python's page.macro), named as typed; setMacro judges it",
   // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4, the flow sheet): Create ▸ Flow, and a box let go
   addFlow: "a new flow sheet's id, as the page numbers ids, unnamed",
   placeBox: "where the box was let go, or its arrow key took it (placeBox rounds and judges it: layout/flow.ts moveBox)",

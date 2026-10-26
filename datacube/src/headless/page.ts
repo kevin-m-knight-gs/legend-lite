@@ -402,11 +402,15 @@ export function exactly(plainly: unknown, exact: unknown): unknown {
 export function heldPage(text: string): PageDocument {
   const { cubes, ...rest } = JSON.parse(text) as Record<string, unknown> & { cubes: { id: string }[] };
   const exact = (fromJson(text) as { cubes: { id: string; cube: unknown }[] }).cubes;
-  const { kind, version, name, views, sheets, model, filters, parameters, copies, record, ...unknown } = rest;
+  const { kind, version, name, views, sheets, model, filters, parameters, macros: _macros, copies, record, ...unknown } = rest;
+  // its macros' functions exact (macros.ts), as its cubes are read
+  const macros = (fromJson(text) as { macros?: unknown }).macros;
   return {
     kind, version, name, views, sheets, ...(model !== undefined ? { model } : {}), ...(filters !== undefined ? { filters } : {}),
     // its parameters (page-parameters.ts): a field of the page, which its setParameter and removeParameter edit
     ...(parameters !== undefined ? { parameters } : {}),
+    // its macros (macros.ts): a field of the page, which its setMacro edits
+    ...(macros !== undefined ? { macros } : {}),
     // the copies its snapped grids read (§18.8): a field of the page, which its snap and live commands edit
     ...(copies !== undefined ? { copies } : {}),
     // the saved page it is (B13): a field of the page, which the savedAs command edits

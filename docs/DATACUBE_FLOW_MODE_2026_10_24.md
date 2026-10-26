@@ -313,7 +313,7 @@ How to read the status column:
 | Dynamic Rename, Select | Built (2026-10-25) | Select's window (Preparation, above); Dynamic Rename, a prefix and a suffix given each kept column in sight |
 | Dynamic Replace | Built (2026-10-26) | Rules read from another box's rows, a column, a condition in Pure and a value each, pinned as a column per column they name: a chain of `if`s, the column itself last, handed on in its place (`dynamic-replace.ts`) |
 | Interface tools (an analytic app's inputs) | Built (2026-10-26) | The page's parameters (`page-parameters.ts`): a text, a number, a day, true or false, or one of a pick-list, set in the parameters bar and read by any Pure on the page as `$name`, bound where each query is sent. An app's value set before a run is the bar's; core's execute takes parameter values too (`PureV1Api`), which a scheduled run can use (F3) |
-| Standard macro | Later | A sub-flow saved as a Pure function with parameters, used as a box; needs a function with parameters as a source (§17.6, item 8) |
+| Standard macro | Built (2026-10-26) | A sub-flow saved as one Pure function of its input's rows (a box's menu, Save as Macro…: its own steps and those of the boxes before it, each read off its grid's query), kept on the page and used after any box from the palette's Macro: a Pure box of it, named after it. Its parameters are the page's it reads (`macros.ts`) |
 | Batch and iterative macros | Out for now | A loop is not one query; it would be orchestration |
 | Python, R | Out in v1 | They compute outside the database (FL15) |
 | Download, Run Command | Out | Not a database's work |
@@ -410,7 +410,7 @@ Every milestone ends usable: something a person does from start to finish, saved
 
 - Schedules and run history (F3); parameters and analytic apps (F5); standard macros (a sub-flow as a function with
   parameters); Dynamic Input; FL15's Python box, if asked for. *Parameters built (2026-10-26): §5's M5 and M6 steps,
-  "Built, a page's parameters".*
+  "Built, a page's parameters"; standard macros the same day, "Built, standard macros".*
 
 ### What makes it nicer than Alteryx, all the way through
 
@@ -1383,6 +1383,22 @@ its choices; a Pure still reading a parameter taken off, by the compiler (`unbou
 harness (a pick-list read by a Custom Filter and the box after it, its value picked again). Not built: a board grid over
 another grid's rows opened again when a value changes (a flow's shown box is; a board's reads its inputs' values as they
 were when it opened until it opens again).
+
+**Built, standard macros** (M8, Alteryx's standard macro, §17.6 item 8; `macros.ts`, the page command `setMacro`,
+`page/cube-page.ts` `#saveMacro`, `#useMacro`; 2026-10-26): a sub-flow saved as **one Pure function of its input's
+rows**. A box's menu's *Save as Macro…* asks its name and where its steps start (after its own input -- the box alone --
+or after any box before it in its chain); each box of it is read as a function of its input's rows by its own grid
+(`ownFunction`: its rows as it hands them on, its base read as its document's own steps over `$input`, so a parameter
+its Pure reads stays `$name`) -- a flow shows one box at a time, so each is shown in turn, as a Run shows them -- and the
+steps are composed (`macroOf`) and kept on the page (`macros`), one step, Save Macro. The palette's *Macro*, clicked or
+let go on a box, lists the page's macros, each in words (its steps, the parameters it reads); one picked is a Pure box of
+its function after that box, named after it (the same path as Import Pure's boxes). Its parameters are the page's it reads,
+bound with their values where its box's queries are sent. Python: `page.macro(name, boxes)` (each over the one before it),
+`page.macros`, `page.remove_macro`, `grid.use_macro(name)` -- headless `gridFunction` and `macroComposed`, the same rule.
+Refused in words: a box over no other box's rows (a join's), boxes that do not read one another in turn, more than 20.
+Tested by `macros.test.ts`, `flow-sheet.test.ts`, Python's `test_a_macro_is_a_sub_flow_used_as_one_box` and the harness
+(a Custom Filter reading a parameter saved, used after the Filter). Not built: a macro of several inputs (a join's), a
+macro's own questions apart from the page's parameters, and a macro shared between pages (it is the page's).
 
 **Built, the Cache** (FL10, FL11; `layout/flow.ts` `FlowBox.cache`, `setCache`; `page-commands.ts` `setCache`;
 `cube-document.ts` `JoinInput.copy`; `live-inputs.ts` `copyOf`; `join-open.ts` `openedInputLeaves`; `cube.ts`

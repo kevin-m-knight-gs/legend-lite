@@ -970,6 +970,30 @@ try {
   }, inEmea, { timeout: 60_000 }).catch(() => undefined);
   check(await resultRows() === inEmea, `picked again: the box after it opened again over EMEA's ${inEmea}: ${await resultRows()}`);
 
+  // A STANDARD MACRO (M8): the parameter's Custom Filter saved as a macro from its menu -- its steps one box -- then the
+  // palette's Macro clicked and picked: a Pure box of its function after the box shown, named after it, its rows the region's
+  await page.locator(`.dc-flow-box[data-tile="${paramBox.id}"]`).click({ button: 'right' });
+  await page.locator('.dc-menu .dc-menu-item', { hasText: 'Save as Macro' }).first().click();
+  const macroForm = page.locator('.dc-flow-macro-form');
+  await macroForm.waitFor({ timeout: 10_000 });
+  await macroForm.locator('.dc-flow-macro-name').fill('Region trades');
+  await macroForm.locator('button[type="submit"]').click();
+  await macroForm.waitFor({ state: 'detached', timeout: 60_000 });
+  const macrosSaved = await page.evaluate(() => window.__dataPage.document('x')?.macros?.map((m) => m.name));
+  check(JSON.stringify(macrosSaved) === '["Region trades"]', `the page writes it: ${JSON.stringify(macrosSaved)}`);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Save Macro', 'one step: Save Macro');
+  const beforeMacro = (await boxes()).map((b) => b.id);
+  // clicked: after the box shown (the Custom Filter, shown again once it was read)
+  await page.locator('.dc-flow-tool[data-tool="macro"]').scrollIntoViewIfNeeded();
+  await page.locator('.dc-flow-tool[data-tool="macro"]').click();
+  await page.locator('.dc-menu .dc-menu-item', { hasText: 'Region trades' }).first().click();
+  await boxCount(beforeMacro.length + 1);
+  const macroBox = await added(beforeMacro);
+  await settled();
+  const macroTitle = await page.locator(`.dc-flow-box[data-tile="${macroBox.id}"]`).textContent();
+  check(macroBox.tool === 'pure' && /Region trades/.test(macroTitle ?? ''), `a Pure box named after it: ${JSON.stringify(macroBox)} ${macroTitle}`);
+  check(await resultRows() === inEmea, `its rows the region's: ${await resultRows()} of ${inEmea}`);
+
   // A PURE BOX (FL12), dragged onto the Filter: its rows a function of the Filter's, in Pure over $input -- a step put in
   // by its button, one that is no relation refused in words; set, its box says its functions and its rows are theirs;
   // set again, its Pure as the compiler prints it; taken off in one step, undone

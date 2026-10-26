@@ -445,6 +445,9 @@ describe('a page command read from JSON is the same command, and what DataCube d
     // a parameter of the page, set and taken off (test/page-parameters.test.ts)
     { kind: 'setParameter', parameter: { name: 'min', type: 'Float', value: 90, choices: [90, 100], label: 'Smallest' } },
     { kind: 'removeParameter', name: 'min' },
+    // a macro of the page, saved and taken off (test/macros.test.ts)
+    { kind: 'setMacro', name: 'Big', pure: { _type: 'lambda', parameters: [{ _type: 'var', name: 'input' }], body: [{ _type: 'func', function: 'limit', parameters: [{ _type: 'var', name: 'input' }, { _type: 'integer', value: 5 }] }] } },
+    { kind: 'setMacro', name: 'Big', pure: null },
     { kind: 'snap', grid: 'grid', copy: SNAP },
     { kind: 'live', grid: 'grid' },
     { kind: 'modelInto', project: 'datacube:q3', workspace: 'datacube', package: 'q3' },

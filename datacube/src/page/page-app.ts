@@ -41,6 +41,7 @@ import {
 import { conditionWords, filterWords, gridLens, type PageFilter } from '../page-filters.ts';
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
 import { bothLenses, parametersLens, type PageParameter } from '../page-parameters.ts';
+import type { PageMacro } from '../macros.ts';
 import type { PageParameterBar } from '../ui/page-parameter-bar.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
 import type { QueryLens } from '../runner.ts';
@@ -230,6 +231,8 @@ export class PageApp {
   /** THE PAGE'S PARAMETERS (page-parameters.ts, an analytic app's inputs), as its state holds them: set by page commands,
    *  bound into its grids' queries by each one's lens, as its filters are put on them. */
   #parameters: readonly PageParameter[] = [];
+  /** ITS MACROS (macros.ts: sub-flows each one Pure function, used as a box), as its state holds them. */
+  #macros: readonly PageMacro[] = [];
   /** The page's model (where its classes are: page-model.ts), as its state has it -- made and kept by its model actions'
    *  commands, its own and its other editor's (P15). */
   #model: PageModelRef | undefined;
@@ -735,6 +738,7 @@ export class PageApp {
     this.#unopenedCopies.clear();
     this.#filters = [];
     this.#parameters = [];
+    this.#macros = [];
     this.#model = undefined;
     this.#lensKeys.clear();
     this.#page = this.#newBoard();
@@ -842,7 +846,8 @@ export class PageApp {
     const views = this.views();
     const written = this.#withUnopened(cubes, views);
     return writePageOf({
-      name, cubes: written, views, filters: this.#filters, parameters: this.#parameters, copies: this.#copies(ids, written),
+      name, cubes: written, views, filters: this.#filters, parameters: this.#parameters, macros: this.#macros,
+      copies: this.#copies(ids, written),
       ...(this.#model ? { model: keptFor(this.#model, written) } : {}),
       ...(this.record !== undefined ? { record: this.record } : {}),
       ...(unknown?.page ? { unknown: unknown.page } : {}),
@@ -928,6 +933,7 @@ export class PageApp {
     // its filters first: each grid opens with them (a chart's click, by the views it will have)
     this.#filters = page.filters ?? [];
     this.#parameters = page.parameters ?? [];
+    this.#macros = page.macros ?? [];
     this.#model = page.model;
     this.#lensKeys.clear();
     this.#restoring = page.views;
@@ -1061,6 +1067,9 @@ export class PageApp {
       } : {}),
       // a flow's palette's Parameter: the page's own Add Parameter
       onParameter: () => this.addParameter(),
+      // a flow's Macro: the page's macros (macros.ts), in the words of the parameters they read
+      macros: () => this.#macros,
+      parameters: () => this.#parameters,
       // TIDY UP: the flow's boxes placed by its own rule, one step -- or, placed so already, nothing
       onTidy: (sheet: string) => {
         const commands = tidyCommands(this.#state.draft.page, sheet);
@@ -1087,7 +1096,7 @@ export class PageApp {
     const written = this.#withUnopened(cubes, views);
     const page = writePageOf({
       name: this.#name, cubes: written, views, filters: this.#filters, parameters: this.#parameters,
-      copies: this.#copies(this.cubes, written),
+      macros: this.#macros, copies: this.#copies(this.cubes, written),
       ...(this.#model ? { model: keptFor(this.#model, written) } : {}),
       ...(record !== undefined ? { record } : {}),
     });
@@ -1132,6 +1141,7 @@ export class PageApp {
     this.#filters = to.filters ?? [];
     const parametersWere = this.#parameters;
     this.#parameters = to.parameters ?? [];
+    this.#macros = to.macros ?? [];
     this.#model = to.model;
     this.#restoring = to.views;
     this.#syncing = true;
@@ -1469,6 +1479,7 @@ export class PageApp {
     this.#filters = this.#state.draft.page.filters ?? [];
     const parametersWere = this.#parameters;
     this.#parameters = this.#state.draft.page.parameters ?? [];
+    this.#macros = this.#state.draft.page.macros ?? [];
     this.#applyLenses();
     // a value changed: each flow's shown box opened again over its base with it (cube-page.ts parametersChanged)
     if (!sameValue(parametersWere, this.#parameters)) this.#page.parametersChanged();

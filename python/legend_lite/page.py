@@ -1194,6 +1194,25 @@ class Grid(Tile):
             given = [dict(r) for r in rules]
         return self._preset({'kind': 'dynamicReplace', 'rules': given, 'expressions': expressions})
 
+    def use_macro(self, name: str) -> Grid:
+        """Its rows macro ``name``'s of its input's -- a flow's standard macro used (DataCube's code: macros.ts; the palette's
+        Macro): a Pure box of the macro's function, judged and typed over its input's rows as ``pure`` judges one, named
+        after the macro. Refused in DataCube's words or the compiler's: no macro of that name, a grid over no other grid's
+        rows."""
+        macro = next((m for m in self._page._doc.get('macros', []) if m['name'] == name), None)
+        if macro is None:
+            raise ValueError(f"'{name}' is not a macro of the page")
+        engine, frames = self._headless()
+        with frames.reading():
+            said = _json.loads(engine.call('gridPure', self._spec(engine, frames), self._id, _json.dumps({'function': macro['pure']})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        page = self._page
+        with page._batch():
+            page._apply_page([_plain(c) for c in said['commands']] + [_commands.page_rename_tile(tile=self._id, title=name)], 'a macro')
+            page._current(self._view['cube'], 3)
+        return self
+
     def import_pure(self, pure: str) -> list[Grid]:
         """Its Pure taken apart into boxes -- a flow's Import Pure (FL12; DataCube's code: pure-import.ts, the Pure window's
         Import as Boxes): each step of ``pure`` (``"$input->filter(...)->extend(...)->groupBy(...)"``) a Pure box of its
@@ -2897,6 +2916,42 @@ class Page:
         """Parameter ``name`` taken off (a ``removeParameter`` command), as the x on its input takes it: a Pure that
         still reads it is refused by the compiler, in its words."""
         self._apply_page([_commands.page_remove_parameter(name=name)])
+
+    def macro(self, name: str, boxes: Sequence[Grid]) -> None:
+        """A standard macro (DataCube's code: macros.ts; a box's menu, Save as Macro): ``boxes``, each over the one before
+        it, their steps saved as one Pure function of the first one's input's rows -- each box's own steps read off its
+        query as the screen's grid reads them (headless gridFunction), composed (macroComposed) -- kept on the page as
+        ``name`` (a ``setMacro`` command; a macro of that name replaced). Used after any box by ``grid.use_macro(name)``;
+        the page's parameters it reads stay ``$name``. Refused in DataCube's words: a box over no other box's rows, a box
+        that reads none of the one before it."""
+        boxes = list(boxes)
+        if not boxes:
+            raise ValueError('a macro is made of one box at least')
+        for before, after in zip(boxes, boxes[1:]):
+            source = next(c['cube']['source'] for c in self._doc['cubes'] if c['id'] == after._view['cube'])
+            if source.get('_type') != 'rows' or source.get('input', {}).get('grid') != before._id:
+                raise ValueError(f"{after._id} reads none of {before._id}'s rows: each box of a macro reads the one before it")
+        steps = []
+        for box in boxes:
+            engine, frames = box._headless()
+            with frames.reading():
+                said = _json.loads(engine.call('gridFunction', box._spec(engine, frames)))
+            if 'problems' in said:
+                raise ValueError('; '.join(said['problems']))
+            steps.append(said['pure'])
+        composed = _json.loads(self._session.headless().call('macroComposed', _json.dumps(steps)))
+        if 'problems' in composed:
+            raise ValueError('; '.join(composed['problems']))
+        self._apply_page([_commands.page_set_macro(name=name, pure=composed['pure'])])
+
+    @property
+    def macros(self) -> list[str]:
+        """Its macros' names, in the page's order."""
+        return [m['name'] for m in self._doc.get('macros', [])]
+
+    def remove_macro(self, name: str) -> None:
+        """Macro ``name`` taken off (a ``setMacro`` command of no function): the boxes using it keep their own Pure."""
+        self._apply_page([_commands.page_set_macro(name=name, pure=None)])
 
     # -- the document --------------------------------------------------------------------------------------------------
 

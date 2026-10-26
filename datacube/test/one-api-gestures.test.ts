@@ -1292,6 +1292,9 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
   // value changed, Add Parameter, its x -- none in this harness; Python's page.parameter, set_parameter, remove_parameter
   setParameter: { items: [], why: "the page's parameters bar (a value changed, Add Parameter): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
   removeParameter: { items: [], why: "the page's parameters bar (its x): python/tests/test_page.py Flows" },
+  // 2026-10-26 (the flow mode's M8, a standard macro): a box's menu's Save as Macro, which reads each box's grid in turn
+  // on a flow's canvas -- none in this harness; Python's page.macro and remove_macro
+  setMacro: { items: [], why: "a box's menu's Save as Macro: demo/verify-flow.mjs, python/tests/test_page.py Flows" },
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). 2026-10-22 (the S7 confirmation
  *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it.

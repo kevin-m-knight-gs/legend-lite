@@ -1577,6 +1577,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           ? (id: string) => [outputCommand(id, live.name)] : undefined;
         const box = page.addGrid(opened.make, {
           near: after,
+          // a macro used: named after it
+          ...(step?.title !== undefined ? { title: step.title } : {}),
           ...placedAt,
           ...(into !== undefined ? {
             label: 'Insert Box',

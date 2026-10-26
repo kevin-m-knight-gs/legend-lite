@@ -118,6 +118,13 @@ export interface FlowBoardOptions {
   readonly onPaste?: (at: FlowPoint | undefined) => void;
   /** Each box's cube document as the page has it: what it does, and the boxes it reads (the lines into it). */
   readonly documentOf?: (id: string) => CubeDocument | undefined;
+  /** THE PAGE'S MACROS (M8, macros.ts): each by its name, in words (its steps, the parameters it reads). */
+  readonly macros?: () => readonly { readonly name: string; readonly words: string }[];
+  /** Macro `name` used after box `after`: the caller adds a Pure box of its function, named after it. */
+  readonly onMacro?: (name: string, after: string) => void;
+  /** Save as Macro on box `id`: its own steps and those of the boxes after box `from` up to it, kept as macro `name` --
+   *  the refusal in words, or null. */
+  readonly onSaveMacro?: (id: string, from: string, name: string) => Promise<string | null>;
 }
 
 /** A RUN'S LOG (Run: docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): when it ran, how long it took, and each box -- its rows,

@@ -133,6 +133,8 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   output: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v5M3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 4v8c0 1.1 2.2 2 5 2M10 11.5h5M13 9.5l2 2-2 2',
   cleanse: 'M10 2l4 4-6.5 6.5H3.5V8.5zM8 4l4 4M2 14.5h12',
   impute: 'M2 3h12v10H2zM2 6.5h12M2 10h12M6 3v10M10 6.5v3.5M10.5 8.2h3',
+  // boxes folded into one: a box holding three steps
+  macro: 'M2 3h12v10H2zM4.5 6h2v4h-2zM7 6h2v4H7zM9.5 6h2v4h-2zM6.5 8h.5M9 8h.5',
   // a slider's knob on its track: a value the person sets
   parameter: 'M2 8h12M5.5 5.5v5M2.5 4.5h6v7h-6z',
   // a list of rules beside, a value swapped for another
@@ -289,6 +291,8 @@ export class FlowCanvas {
   /** A box's menu (a right-click), made the first time, and what its entry picked does. */
   #menu: MenuView | undefined;
   #menuAct: ((item: MenuItem) => void) | undefined;
+  /** Save as Macro's form, while it is open. */
+  #macroPop: HTMLFormElement | undefined;
   /** The canvas's own tools, at its corner: Run, Tidy Up. */
   readonly #toolbar: HTMLElement;
   readonly #run: HTMLButtonElement;
@@ -943,6 +947,11 @@ export class FlowCanvas {
     button.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();
+      if (tool === 'macro') {
+        const r = button.getBoundingClientRect();
+        this.#macroMenu(this.#board.shown, r.right, r.top);
+        return;
+      }
       this.#board.options.onTool?.(tool, this.#board.shown, TOOL_EDITORS[tool]);
     });
     return button;
@@ -972,6 +981,13 @@ export class FlowCanvas {
       this.#mark(undefined);
       this.#markLine(undefined);
       if (!apply) return;
+      // a macro is used after a box -- the one let go on, or (clicked) the box shown -- picked from the page's
+      if (tool === 'macro') {
+        const r = button.getBoundingClientRect();
+        if (ghost === undefined) this.#macroMenu(this.#board.shown, r.right, r.top);
+        else if (over !== undefined && ev) this.#macroMenu(over, ev.clientX, ev.clientY);
+        return;
+      }
       const editor = TOOL_EDITORS[tool];
       if (ghost === undefined) {
         button.focus({ preventScroll: true });
@@ -1380,6 +1396,9 @@ export class FlowCanvas {
         { id: 'tile.box.settings', label: 'Open its settings', ...(editor === undefined ? { disabled: true } : {}) } as const,
         { id: 'tile.box.rename', label: 'Rename (F2)' } as const,
         { id: 'tile.box.duplicate', label: 'Duplicate (Ctrl+D)' } as const,
+        // a standard macro (M8): its steps, and those of the boxes before it, saved as one box
+        { id: 'tile.box.macro', label: 'Save as Macro…', ...(this.#chainOf(id).length === 0 || o.onSaveMacro === undefined
+          ? { disabled: true, hint: 'it reads no other box\'s rows: a macro is made of boxes over one input each' } : {}) } as const,
         ...live.map((i) => ({ id: `tile.box.freeze.${i.side}` as const, label: `Freeze its ${sideWords(i.side, union)}: a copy of its rows now` })),
         ...off.map((i) => ({ id: `tile.box.takeOff.${i.side}` as const, label: `Take off its ${sideWords(i.side, union)}` })),
         { id: 'tile.box.remove', label: 'Remove (Delete)' } as const,
@@ -1392,11 +1411,108 @@ export class FlowCanvas {
       else if (act === 'tile.box.settings' && editor !== undefined) o.onSelect?.(id, editor);
       else if (act === 'tile.box.rename') this.#rename(id, drawn);
       else if (act === 'tile.box.duplicate') o.onDuplicate?.(id);
+      else if (act === 'tile.box.macro') this.#macroForm(id, x, y);
       else if (act === 'tile.box.remove') o.onRemove?.(id);
       else if (act.startsWith('tile.box.freeze.')) o.onFreeze?.(id, act.slice('tile.box.freeze.'.length) as InputSide);
       else if (act.startsWith('tile.box.takeOff.')) o.onTakeOff?.(id, act.slice('tile.box.takeOff.'.length) as InputSide);
     };
     this.#menu.show([{ label: '', items }], x, y);
+  }
+
+  /** The boxes before box `id`, each its rows' one input in turn -- its own input first: where a macro of it may start
+   *  (its steps those of the boxes after it). */
+  #chainOf(id: string): string[] {
+    const up: string[] = [];
+    for (let at = id; up.length < 50;) {
+      const inputs = this.#inputsOf(at);
+      const only = inputs.length === 1 && inputs[0]!.side === 'input' && 'grid' in inputs[0]! ? inputs[0]!.grid : undefined;
+      if (only === undefined || only === id || up.includes(only)) break;
+      up.push(only);
+      at = only;
+    }
+    return up;
+  }
+
+  /** SAVE AS MACRO (M8, macros.ts): its name, and where its steps start -- after its own input (this box alone), or
+   *  after a box before it -- then the page saves it; its refusal said in it. */
+  #macroForm(id: string, x: number, y: number): void {
+    this.#macroPop?.remove();
+    const d = this.#doc;
+    const up = this.#chainOf(id);
+    if (up.length === 0) return;
+    const form = d.createElement('form');
+    form.className = 'dc-flow-macro-form';
+    form.setAttribute('aria-label', 'Save as a macro');
+    form.style.left = `${Math.round(x)}px`;
+    form.style.top = `${Math.round(y)}px`;
+    const head = d.createElement('p');
+    head.className = 'dc-flow-macro-head';
+    head.textContent = 'Save as a macro: its steps one box, used after any box (the palette\'s Macro)';
+    const name = d.createElement('input');
+    name.className = 'dc-picker-input dc-flow-macro-name';
+    name.placeholder = 'its name';
+    name.setAttribute('aria-label', "The macro's name");
+    const from = d.createElement('select');
+    from.className = 'dc-select dc-flow-macro-from';
+    from.setAttribute('aria-label', 'Its steps from');
+    up.forEach((b, k) => {
+      const said = this.#said(b);
+      from.append(new Option(`${k + 1} box${k === 0 ? '' : 'es'}: its steps after ${this.#nameOf(b, said?.tool ?? 'browse')}`, b));
+    });
+    const said = d.createElement('p');
+    said.className = 'dc-flow-macro-said';
+    said.setAttribute('role', 'status');
+    const save = d.createElement('button');
+    save.type = 'submit';
+    save.className = 'dc-picker-button dc-primary';
+    save.textContent = 'Save Macro';
+    const cancel = d.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'dc-picker-button dc-quiet';
+    cancel.textContent = 'Cancel';
+    const close = (): void => {
+      form.remove();
+      if (this.#macroPop === form) this.#macroPop = undefined;
+    };
+    cancel.addEventListener('click', close);
+    form.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Escape') close();
+    });
+    form.addEventListener('pointerdown', (e) => e.stopPropagation());
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      said.textContent = 'Reading its boxes…';
+      void (async () => {
+        const refused = await this.#board.options.onSaveMacro?.(id, from.value, name.value.trim());
+        if (refused === null) close();
+        else said.textContent = refused ?? 'this page saves no macro';
+      })();
+    };
+    const foot = d.createElement('div');
+    foot.className = 'dc-flow-macro-foot';
+    foot.append(cancel, save);
+    form.append(head, name, from, said, foot);
+    this.#doc.body.append(form);
+    this.#macroPop = form;
+    name.focus();
+  }
+
+  /** THE PALETTE'S MACRO: the page's macros, each by its name and its steps in words, one picked used after box `after`. */
+  #macroMenu(after: string | undefined, x: number, y: number): void {
+    const o = this.#board.options;
+    const macros = o.macros?.() ?? [];
+    const items: MenuItem[] = after === undefined
+      ? [{ id: 'tile.macro.none', label: 'Show a box first: a macro is used after it', disabled: true }]
+      : macros.length === 0
+        ? [{ id: 'tile.macro.none', label: 'No macro yet: a box\'s menu, Save as Macro…', disabled: true }]
+        : macros.map((m): MenuItem => ({ id: `tile.macro.use.${m.name}`, label: m.name, hint: m.words }));
+    this.#menu ??= new MenuView(this.#doc, { onSelect: (item) => this.#menuAct?.(item) });
+    this.#menuAct = (item) => {
+      const act = item.id ?? '';
+      if (after !== undefined && act.startsWith('tile.macro.use.')) o.onMacro?.(act.slice('tile.macro.use.'.length), after);
+    };
+    this.#menu.show([{ label: 'Macros', items }], x, y);
   }
 
   /** The columns a box hands on, as its document says them (box-columns.ts handedOn: its query's columns and calculated

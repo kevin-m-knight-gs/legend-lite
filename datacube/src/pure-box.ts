@@ -130,7 +130,12 @@ const VALUE_COLUMN = 'value';
  *  such rows are asked again with their columns selected, which a relation's are and a value's never, and a value is
  *  refused in words. */
 export async function pureFrom(text: string, input: ValueSpecification, compiler: PureCompiler): Promise<Lambda> {
-  const pure = await compiler.parse(pureText(text));
+  return pureChecked(await compiler.parse(pureText(text)), input, compiler);
+}
+
+/** A Pure box's function as pureFrom judges it once parsed -- its shape, its rows over `input` a relation -- a macro's
+ *  used too (macros.ts): itself, or refused in words. */
+export async function pureChecked(pure: Lambda, input: ValueSpecification, compiler: Pick<PureCompiler, 'columns'>): Promise<Lambda> {
   const problem = pureProblem(pure);
   if (problem !== undefined) throw new CubeRefusal(problem);
   const rows = pureOver(pure, input);

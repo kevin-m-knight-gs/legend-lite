@@ -40,7 +40,7 @@ import type { EditorTab } from './ui/editor.ts';
 export type FlowTool = 'input' | 'textInput' | 'output' | 'test' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'dateFilter' | 'customFilter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile' | 'binning' | 'generateRows'
   | 'datetime' | 'cleanse' | 'impute' | 'dynamicReplace' | 'textToColumns' | 'regex' | 'jsonParse' | 'runningTotal' | 'summarize' | 'countRecords' | 'crosstab' | 'transpose' | 'browse'
-  | 'pure' | 'parameter' | 'comment' | 'container';
+  | 'pure' | 'macro' | 'parameter' | 'comment' | 'container';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
 export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: FlowGroup; readonly does: string }>> = {
@@ -81,6 +81,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   transpose: { name: 'Transpose', group: 'transform', does: 'columns made rows: a Name and a Value for each, its keys beside them' },
   browse: { name: 'Browse', group: 'in', does: 'its input\'s rows, as they come: to look at, profile or chart' },
   pure: { name: 'Pure', group: 'transform', does: 'its rows a function of its input\'s, written in Pure: whatever no other tool says, the compiler checking it' },
+  macro: { name: 'Macro', group: 'transform', does: 'a sub-flow saved as one box (a box\'s menu, Save as Macro…): its steps, used after any box' },
   parameter: { name: 'Parameter', group: 'in', does: 'a value of the flow\'s app, set above the canvas, that any Pure on the page reads as $name' },
   comment: { name: 'Comment', group: 'docs', does: 'a note on the canvas, in words of your own' },
   container: { name: 'Container', group: 'docs', does: 'a frame round boxes: moved together, folded away' },
@@ -92,7 +93,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
   'input', 'textInput', 'output', 'test', 'browse', 'filter', 'dateFilter', 'customFilter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'binning', 'generateRows', 'datetime', 'cleanse', 'impute', 'dynamicReplace',
-  'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'jsonParse', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'pure', 'parameter', 'comment', 'container',
+  'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'jsonParse', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'pure', 'macro', 'parameter', 'comment', 'container',
 ];
 
 /**
