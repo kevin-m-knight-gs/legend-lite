@@ -68,13 +68,15 @@ after(async () => {
  *  database refuses, by their text (a bounds query's, a statistics query's...), as a warehouse that is down refuses them;
  *  `over`: the grid as it is read (its columns), the markets sample's by default. */
 function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over: TsGrid = grid):
-  { view: TimeseriesView; root: HTMLElement; drawn: EChartsOption[]; told: TimeseriesSpec[]; zooms: unknown[] } {
+  { view: TimeseriesView; root: HTMLElement; windows: HTMLElement; drawn: EChartsOption[]; told: TimeseriesSpec[]; zooms: unknown[] } {
   const g: TsGrid = refused === undefined ? over : {
     ...over,
     run: (query, snapshot, signal) => (refused(toJson(query)) ? Promise.reject(new Error('the warehouse is down')) : over.run(query, snapshot, signal)),
   };
-  const dom = new JSDOM('<!doctype html><div id="t" style="height:600px"></div>');
+  const dom = new JSDOM('<!doctype html><div id="t" style="height:600px"></div><div id="w"></div>');
   const root = dom.window.document.getElementById('t') as unknown as HTMLElement;
+  // its editors' windows, among the page's (the page's windows' host): outside the tile
+  const windows = dom.window.document.getElementById('w') as unknown as HTMLElement;
   const drawn: EChartsOption[] = [];
   const told: TimeseriesSpec[] = [];
   const zooms: unknown[] = [];
@@ -93,9 +95,11 @@ function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over
     grids: () => [g],
     together: () => Promise.reject(new Error('one grid here')),
     setSpec: (s) => { told.push(s); },
+    windowHost: windows,
+    title: () => 'Markets',
     mount,
   }, spec);
-  return { view, root, drawn, told, zooms };
+  return { view, root, windows, drawn, told, zooms };
 }
 
 /** Until `done` holds, the viewer's queries answered meanwhile (bounded). */
@@ -190,12 +194,15 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
   });
 
   it('the series editor reads an expression as it is typed, says where it cannot, and plots it', async () => {
-    const { root, told, view } = viewer(SPEC);
+    const { root, windows, told, view } = viewer(SPEC);
     try {
       await until(() => statRows(root).length === 2, 'its statistics');
       [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-bar button')].find((b) => b.textContent === '+ Series')!.click();
-      const pop = root.querySelector('.dc-ts-pop') as HTMLElement;
-      assert.equal(pop.hidden, false, 'the editor is open');
+      // a window beside the tile, among the page's windows, titled by the tile (the user, 2026-10-26: PR #73's design)
+      const pop = windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+      assert.ok(pop, 'the editor is open, a window of its own');
+      assert.equal(root.querySelector('.dc-ts-pop'), null, 'not over the tile');
+      assert.match(windows.querySelector('.dc-ts-window-title')?.textContent ?? '', /^New series C — Markets$/);
       const expr = pop.querySelector('.dc-ts-expr') as HTMLInputElement;
       const typed = (text: string): string => {
         expr.value = text;
@@ -209,7 +216,7 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
       const added = told.at(-1)!.series.at(-1)!;
       assert.equal(added.id, 'C');
       assert.deepEqual(added.expr, parseExpr('mean($A, 50)'));
-      assert.equal(pop.hidden, true, 'the editor closed');
+      assert.equal(windows.querySelector('.dc-ts-window'), null, 'the editor closed, its window gone');
     } finally {
       view.dispose();
     }
@@ -245,10 +252,10 @@ describe('a refusal said where it lands, never shown as something missing', () =
   });
 
   it("an instrument column's values refused: its picker says so", async () => {
-    const { root, view } = viewer(SPEC, (q) => q.includes('__ts_n'));
+    const { root, windows, view } = viewer(SPEC, (q) => q.includes('__ts_n'));
     try {
       [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === '+ Series')!.click();
-      const picker = (): HTMLSelectElement | null => root.querySelector<HTMLSelectElement>('select[aria-label="Instrument"]');
+      const picker = (): HTMLSelectElement | null => windows.querySelector<HTMLSelectElement>('select[aria-label="Instrument"]');
       await until(() => [...(picker()?.options ?? [])].some((o) => /refused/.test(o.textContent ?? '')), 'the instruments refused');
       const said = [...picker()!.options].find((o) => /refused/.test(o.textContent ?? ''))!;
       assert.equal(said.textContent, 'Its instruments were refused: the warehouse is down');
@@ -261,13 +268,13 @@ describe('a refusal said where it lands, never shown as something missing', () =
   it("a function on a blank box: of its source's first value by DataCube's rule, or refused -- never a column guessed", async () => {
     // a grid of no close: its first number (no price-like name) is its open (timeseries-expr.ts firstValue)
     const opens: TsGrid = { ...grid, snapshot: { ...grid.snapshot, columns: grid.snapshot.columns.filter((c) => c.name !== 'close') } };
-    const { root, view } = viewer({ ...SPEC, series: [{ id: 'A', expr: parseExpr('open[SPX]') }] }, undefined, opens);
+    const { root, windows, view } = viewer({ ...SPEC, series: [{ id: 'A', expr: parseExpr('open[SPX]') }] }, undefined, opens);
     try {
       [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === '+ Series')!.click();
-      const fn = root.querySelector<HTMLSelectElement>('select[aria-label="Function"]')!;
+      const fn = windows.querySelector<HTMLSelectElement>('select[aria-label="Function"]')!;
       fn.value = 'mean';
       fn.dispatchEvent(new root.ownerDocument.defaultView!.Event('change'));
-      assert.match(root.querySelector<HTMLInputElement>('input[aria-label="Expression"]')!.value, /^mean\(open\b/);
+      assert.match(windows.querySelector<HTMLInputElement>('input[aria-label="Expression"]')!.value, /^mean\(open\b/);
     } finally {
       view.dispose();
     }
@@ -275,11 +282,11 @@ describe('a refusal said where it lands, never shown as something missing', () =
     const none = viewer({ ...SPEC, series: [] }, undefined, dates);
     try {
       [...none.root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === '+ Series')!.click();
-      const fn = none.root.querySelector<HTMLSelectElement>('select[aria-label="Function"]')!;
+      const fn = none.windows.querySelector<HTMLSelectElement>('select[aria-label="Function"]')!;
       fn.value = 'mean';
       fn.dispatchEvent(new none.root.ownerDocument.defaultView!.Event('change'));
-      assert.equal(none.root.querySelector<HTMLInputElement>('input[aria-label="Expression"]')!.value, '');
-      assert.equal(none.root.querySelector('.dc-ts-error')?.textContent, 'Write the series it applies to first, or build one from a column.');
+      assert.equal(none.windows.querySelector<HTMLInputElement>('input[aria-label="Expression"]')!.value, '');
+      assert.equal(none.windows.querySelector('.dc-ts-error')?.textContent, 'Write the series it applies to first, or build one from a column.');
     } finally {
       none.view.dispose();
     }

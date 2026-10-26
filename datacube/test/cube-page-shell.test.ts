@@ -1005,6 +1005,36 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     assert.ok(hiddenCost < shownCost, `hidden, an edit of its grid asks it nothing (${hiddenCost} queries hidden, ${shownCost} shown)`);
   });
 
+  // the user, 2026-10-26: the timeseries tile in PR #73's design -- a chart's right-click (Create ▸, Properties…, View ▸),
+  // its state in its header in a chart's words, its Settings a window beside it, among the page's windows
+  it("a timeseries tile's right-click and header: a chart's shape, its Properties its Settings, a window of its own", async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const doc = pg().document('Q3')!;
+    const grid = doc.views.find((v) => v.id === a)!;
+    assert.ok(grid.kind === 'grid');
+    const spec: TimeseriesSpec = {
+      sources: [{ alias: 't', cube: grid.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }],
+    };
+    reopen({ ...doc, views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Notional', spec }],
+      sheets: doc.sheets.map((sh, i) => (i === 0 ? { ...sh, layout: { kind: 'bands', fit: true, bands: [
+        { height: 0.5, node: { tile: a } }, { height: 0.5, node: { tile: 'ts' } }] } } : sh)) });
+    await shown(host, '[data-tile="ts"] .dc-ts-bar');
+    assert.equal(pill('ts'), 'Dynamic', 'its state, a chart\'s word');
+    tile('ts').querySelector<HTMLElement>('.dc-ts-host')!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    const top = menuItems().filter((i) => !i.parentElement!.closest('.dc-menu-item')).map(label);
+    assert.deepEqual(top, ['Create', 'Properties\u2026', 'View'], 'a chart\'s right-click, but Show Grid (its grids are its own)');
+    menuItems().find((i) => label(i) === 'Properties\u2026')!.click();
+    await settle();
+    const win = dom.window.document.querySelector<HTMLElement>('.dc-ts-window');
+    assert.ok(win, 'its Settings, a window');
+    assert.ok(!tile('ts').contains(win), 'beside the tile, not over it');
+    assert.match(win.querySelector('.dc-ts-window-title')?.textContent ?? '', /^Settings — Notional$/);
+    win.querySelector<HTMLButtonElement>('.dc-overlay-close')!.click();
+    assert.equal(dom.window.document.querySelector('.dc-ts-window'), null, 'its x puts it away');
+  });
+
   // the review's G4 (docs/TIMESERIES_REVIEW_2026_10_25.md): a grid removed while a timeseries read it took its cube with
   // it, and the page reopened read a cube it no longer held; the owner, 2026-10-25: kept, as a frozen chart's is
   it('a grid removed while a timeseries reads it: its cube kept off the board, the tile reading it still, the page saving it', async () => {

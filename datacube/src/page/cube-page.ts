@@ -2264,6 +2264,12 @@ export class CubePage {
     return grid === GRID && this.#options.grid ? PAGE_CUBE : grid;
   }
 
+  /** The grid on the board that shows `cube` (#cubeOf's inverse), or null: none does (its grid removed). */
+  #gridOfCube(cube: string): string | null {
+    const grid = cube === PAGE_CUBE && this.#options.grid ? GRID : cube;
+    return this.#grids.has(grid) ? grid : null;
+  }
+
   /** A grid of the page as a timeseries reads it, by the cube the page names it by: its query, its filter, its runner and
    *  its formats as they are now; undefined when no grid on the board shows that cube (removed). */
   #tsGrid(cube: string): TsGrid | undefined {
@@ -2341,6 +2347,25 @@ export class CubePage {
         id: `tile.state.${s}` as const, label: SERIES_STATE_WORDS[s].label, hint: `It ${SERIES_STATE_WORDS[s].says.replace(/^it /, '')}`, checked: now === s,
       })) }], at.left, at.bottom);
     });
+    // RIGHT-CLICK (PR #73's one shape, a chart's): its Settings as its Properties, Create ▸ beside it of the grid it
+    // reads first (its grid gone, what needs one off and why), View ▸ -- the viewer's own toolbar the rest
+    body.addEventListener('contextmenu', (event) => {
+      const tile = this.#series.get(view.id);
+      if (!tile) return;
+      event.preventDefault();
+      const first = tile.spec.sources[0];
+      const grid = first === undefined ? null : this.#gridOfCube(first.cube);
+      this.#menuFor = (item) => {
+        if (item.id === 'tile.properties') tile.view?.openSettings();
+        this.#onTileCreate(view.id, grid, item);
+        this.#onTileView(view.id, item);
+      };
+      this.#menu.show([
+        { label: '', items: [this.#tileCreate(grid, 'Its grid is gone: it reads that grid\'s query as it was')] },
+        { label: '', items: [{ id: 'tile.properties', label: 'Properties\u2026', ...(tile.view ? {} : { disabled: true, hint: 'Show its sheet first' }) }] },
+        { label: '', items: [this.#tileView(view.id)] },
+      ], event.clientX, event.clientY);
+    });
     this.#series.set(view.id, { spec: view.spec, body, view: null, paint, stale: false });
     this.#place({ id: view.id, title: view.title ?? timeseriesTitle(view.id), element: body, actions: [], state: pill });
     paint();
@@ -2373,6 +2398,9 @@ export class CubePage {
           if (JSON.stringify(spec) === JSON.stringify(tile.spec)) return;
           if (!this.#tell('Timeseries Change', pageCommand('setTimeseries', { tile: id, spec }))) tile.view?.update(tile.spec);
         },
+        // its editors' windows among the page's, titled by its tile's name -- a chart's options' rule
+        windowHost: this.#options.windowHost ?? this.#options.host,
+        title: () => this.title(id) ?? timeseriesTitle(id),
       }, tile.spec);
     });
   }

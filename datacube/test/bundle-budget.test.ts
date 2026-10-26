@@ -529,8 +529,11 @@ const CHART_BUDGET = 303_500;
  *  below zero off a log axis, the statistics' blanks (P-2)). Measured 35,157.
  *  35,500 -> 36,000 (2026-10-26, the second audit's one-API fixes: one judge of a change for the viewer and Python
  *  (timeseries-edit.ts judgedEdit), the rows' notes one rule for the drawing and Python's frame (timeseries-query.ts
- *  seriesNotes), the catalog's ramp and beta said where they differ, a tick never "-0"). Measured 35,705. */
-const TIMESERIES_BUDGET = 36_000;
+ *  seriesNotes), the catalog's ramp and beta said where they differ, a tick never "-0"). Measured 35,705.
+ *  36,000 -> 36,900 (2026-10-26, the tile in PR #73's design, the user's ask: its series editor and Settings a window
+ *  beside it among the page's windows (ui/timeseries-view.ts #open over ui/window.ts, which the charts' chunk already
+ *  brings), its Properties for its right-click -- the headroom ~2%, as the review's G8 asked). Measured 36,189. */
+const TIMESERIES_BUDGET = 36_900;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

@@ -4715,17 +4715,16 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-ts-table-date { text-align: right; color: var(--dc-muted-strong); }
 .dc-ts-table-name { display: flex; align-items: center; gap: 6px; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; }
 
-/* its editors: a popover over the chart's right edge, scrolling when it is taller than the tile */
-.dc-ts-pop {
-  position: absolute; top: 34px; right: var(--dc-pad-1); bottom: var(--dc-pad-1); z-index: 3;
-  width: min(420px, calc(100% - 2 * var(--dc-pad-1))); overflow: auto; padding: var(--dc-pad-2);
-  display: flex; flex-direction: column; gap: var(--dc-pad-2);
-  background: var(--dc-bg); color: var(--dc-cell-fg); border: 1px solid var(--dc-line); border-radius: var(--dc-radius-sm);
-  box-shadow: var(--dc-popup-shadow);
-}
-.dc-ts-pop[hidden] { display: none; }
-.dc-ts-pop-head { display: flex; align-items: center; justify-content: space-between; }
-.dc-ts-pop-title { font-weight: 600; font-size: var(--dc-text-lg-size); }
+/* ITS EDITORS, A WINDOW (ui/timeseries-view.ts #open; the user, 2026-10-26: PR #73's design): the page's windows' frame,
+   title bar, x and grips, kept on the screen beside its tile (ui/window.ts besideWindow), as a chart's options are --
+   its series editor and its Settings, one at a time, their fields a column */
+.dc-ts-window:focus:not(:focus-visible) { outline: none; }
+.dc-ts-window:focus-visible { outline: 2px solid var(--dc-active); outline-offset: -2px; }
+.dc-ts-window-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-ts-window .dc-overlay-body { padding: 12px 16px 14px; }
+.dc-ts-pop { display: flex; flex-direction: column; gap: var(--dc-pad-2); color: var(--dc-cell-fg); }
+/* a field's label over its control, the control the column's width -- in a window a label is a centred row otherwise */
+.dc-ts-pop .dc-ts-field { display: flex; flex-direction: column; align-items: stretch; }
 .dc-ts-close {
   font: inherit; width: 22px; height: 22px; padding: 0; border: 1px solid transparent; border-radius: var(--dc-radius-sm);
   background: transparent; color: var(--dc-muted-strong); cursor: pointer;

@@ -296,16 +296,20 @@ const contextMenu = (el: Element): void => { el.dispatchEvent(new dom.window.Mou
 
 // -- a timeseries tile, as a person works it (ui/timeseries-view.ts): its toolbar, legend, series editor and settings --
 
-/** A select of a timeseries tile -- its toolbar's, its editor's or its settings' -- by its accessible name. */
+/** A timeseries tile's editor -- its series editor or its Settings -- a window of its own among the page's (the user,
+ *  2026-10-26: PR #73's design), while one is open; else nothing. */
+const tsEditor = (): HTMLElement => dom.window.document.querySelector<HTMLElement>('.dc-ts-window') ?? dom.window.document.createElement('div');
+/** A select of a timeseries tile -- its toolbar's, or its open editor's -- by its accessible name. */
 function tsSelect(series: string, name: string): HTMLSelectElement {
-  const s = tile(series).querySelector<HTMLSelectElement>(`select[aria-label="${name}"]`);
+  const s = tile(series).querySelector<HTMLSelectElement>(`select[aria-label="${name}"]`) ?? tsEditor().querySelector<HTMLSelectElement>(`select[aria-label="${name}"]`);
   assert.ok(s, `${series} offers ${name}`);
   return s;
 }
-/** A button of a timeseries tile, by what it says. */
+/** A button of a timeseries tile -- its toolbar's, or its open editor's -- by what it says. */
 function tsButton(series: string, text: string): HTMLButtonElement {
-  const b = [...tile(series).querySelectorAll<HTMLButtonElement>('button')].find((x) => x.textContent === text);
-  assert.ok(b, `${series} offers ${text} (it offers ${[...tile(series).querySelectorAll('button')].map((x) => x.textContent).join(' | ')})`);
+  const all = [...tile(series).querySelectorAll<HTMLButtonElement>('button'), ...tsEditor().querySelectorAll<HTMLButtonElement>('button')];
+  const b = all.find((x) => x.textContent === text);
+  assert.ok(b, `${series} offers ${text} (it offers ${all.map((x) => x.textContent).join(' | ')})`);
   return b;
 }
 const choose = (s: HTMLSelectElement, value: string): void => {
@@ -321,11 +325,11 @@ const chipOf = (series: string): Promise<HTMLElement> => shown<HTMLElement>(tile
 /** The series editor of its first line, opened as its chip's double-click opens it. */
 async function editorOfLine(series: string): Promise<void> {
   (await chipOf(series)).dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
-  await shown(tile(series), '.dc-ts-pop input[aria-label="Expression"]');
+  await shown(dom.window.document, '.dc-ts-window .dc-ts-pop input[aria-label="Expression"]');
 }
-const expression = (series: string): HTMLInputElement => tile(series).querySelector<HTMLInputElement>('.dc-ts-pop input[aria-label="Expression"]')!;
+const expression = (_series: string): HTMLInputElement => tsEditor().querySelector<HTMLInputElement>('.dc-ts-pop input[aria-label="Expression"]')!;
 /** A source row of its settings (open), by its place. */
-const sourceRow = (series: string, i: number): HTMLElement => [...tile(series).querySelectorAll<HTMLElement>('.dc-ts-pop .dc-ts-row')]
+const sourceRow = (_series: string, i: number): HTMLElement => [...tsEditor().querySelectorAll<HTMLElement>('.dc-ts-pop .dc-ts-row')]
   .filter((r) => r.querySelector('.dc-ts-alias'))[i]!;
 
 /** Each sheet tab at its own place along the bar (jsdom lays nothing out): tab i from x = 100 + 100i, 80 wide. */
@@ -683,7 +687,7 @@ const GESTURES: readonly Gesture[] = [
     setUp: withTimeseries,
     make: async ({ series }) => {
       tsButton(series!, '+ Series').click();
-      await shown(tile(series!), '.dc-ts-pop input[aria-label="Expression"]');
+      await shown(dom.window.document, '.dc-ts-window .dc-ts-pop input[aria-label="Expression"]');
       typed(expression(series!), 'mean(close, 5)');
       tsButton(series!, 'OK').click();
     },
@@ -739,7 +743,7 @@ const GESTURES: readonly Gesture[] = [
     setUp: withTimeseries,
     make: ({ series }) => {
       tsButton(series!, 'Settings').click();
-      const legend = [...tile(series!).querySelectorAll<HTMLLabelElement>('.dc-ts-pop label.dc-ts-check')].find((l) => l.textContent === 'Legend')!;
+      const legend = [...tsEditor().querySelectorAll<HTMLLabelElement>('.dc-ts-pop label.dc-ts-check')].find((l) => l.textContent === 'Legend')!;
       legend.querySelector('input')!.click();
     },
   },
@@ -749,7 +753,7 @@ const GESTURES: readonly Gesture[] = [
     make: ({ series }) => {
       tsButton(series!, 'Settings').click();
       choose(tsSelect(series!, 'Kind'), 'level');
-      tile(series!).querySelector<HTMLInputElement>('.dc-ts-pop input[aria-label="Value"]')!.value = '101';
+      tsEditor().querySelector<HTMLInputElement>('.dc-ts-pop input[aria-label="Value"]')!.value = '101';
       tsButton(series!, 'Add').click();
     },
   },
@@ -759,13 +763,13 @@ const GESTURES: readonly Gesture[] = [
       const g = await withTimeseries();
       tsButton(g.series, 'Settings').click();
       choose(tsSelect(g.series, 'Kind'), 'level');
-      tile(g.series).querySelector<HTMLInputElement>('.dc-ts-pop input[aria-label="Value"]')!.value = '101';
+      tsEditor().querySelector<HTMLInputElement>('.dc-ts-pop input[aria-label="Value"]')!.value = '101';
       tsButton(g.series, 'Add').click();
       await drawn();
       return g;
     },
-    make: ({ series }) => {
-      const row = [...tile(series!).querySelectorAll<HTMLElement>('.dc-ts-pop .dc-ts-row')].find((r) => r.textContent?.startsWith('Level 101'))!;
+    make: () => {
+      const row = [...tsEditor().querySelectorAll<HTMLElement>('.dc-ts-pop .dc-ts-row')].find((r) => r.textContent?.startsWith('Level 101'))!;
       row.querySelector<HTMLButtonElement>('.dc-ts-close')!.click();
     },
   },

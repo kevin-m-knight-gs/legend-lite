@@ -40,7 +40,9 @@ import {
 } from '../timeseries-option.ts';
 import type { MountedTimeseries } from '../timeseries-render.ts';
 import { lazily } from '../lazily.ts';
-import { closeMark } from './tile-icons.ts';
+import { chromeIcon, closeMark } from './tile-icons.ts';
+import { isTextEntry } from '../focus.ts';
+import { besideWindow, makeWindow, raiseWindow, screenOf } from './window.ts';
 
 /** A grid a source reads, as it is now: its query, its filter as the tile reads it, its runner and its formats. */
 export interface TsGrid {
@@ -86,6 +88,10 @@ export interface TimeseriesHost {
   together(cubes: readonly string[]): Promise<TsTogether>;
   /** The tile's spec as the person changed it: the page's (setTimeseries). */
   setSpec(spec: TimeseriesSpec): void;
+  /** Where its editors' windows go, among the page's windows (a chart's options' host: CubePageOptions.windowHost). */
+  readonly windowHost: HTMLElement;
+  /** Its name, as its tile says it: its editors' windows are titled by it. */
+  title(): string;
   /** Its renderer (a test's stand-in); else timeseries-render.ts. */
   readonly mount?: (el: HTMLElement, on: MountOn) => MountedTimeseries;
 }
@@ -189,6 +195,9 @@ const STYLES: readonly (readonly [TsStyleKind, string])[] = [['line', 'Line'], [
 const FAMILIES: readonly TsFamily[] = ['Returns', 'Level', 'Rolling statistics', 'Risk', 'Relationships', 'Technicals', 'Math'];
 
 /** The statistics table's columns: a statistic and how it is written (by the line's unit, or as a share, a date, a count). */
+/** Its editors' window: as a chart's options' is sized (chart-panel.ts CHART_WINDOW), narrower -- one column of fields. */
+const TS_WINDOW = { width: 440, height: 640, minWidth: 300, minHeight: 240 } as const;
+
 const STAT_COLUMNS: readonly { readonly stat: TsStat; readonly label: string; readonly as: 'value' | 'ratio' | 'percent' | 'number' | 'date' | 'count' }[] = [
   { stat: 'first', label: 'First', as: 'value' },
   { stat: 'last', label: 'Last', as: 'value' },
@@ -218,7 +227,11 @@ export class TimeseriesView {
   #banner!: HTMLElement;
   #canvas!: HTMLElement;
   #stats!: HTMLElement;
-  #pop!: HTMLElement;
+  /** Its editor's content, in its window while one is open. */
+  #pop: HTMLElement;
+  /** Its editor's window, while one is open; and what lets its listeners go when it closes. */
+  #window_: HTMLElement | null = null;
+  #closing: AbortController | null = null;
   #chart: MountedTimeseries | null = null;
   #mounting: Promise<MountedTimeseries | null> | null = null;
   /** Whether ECharts can draw candles (chart-render-kinds.ts registered before the chart was made). */
@@ -248,6 +261,7 @@ export class TimeseriesView {
   constructor(root: HTMLElement, host: TimeseriesHost, spec: TimeseriesSpec) {
     this.#root = root;
     this.#doc = root.ownerDocument;
+    this.#pop = this.#doc.createElement('div');
     this.#host = host;
     this.#spec = spec;
     this.#range = JSON.stringify(spec.range ?? null);
@@ -304,6 +318,7 @@ export class TimeseriesView {
 
   dispose(): void {
     this.#disposed = true;
+    this.#close();
     clearTimeout(this.#zoomTimer);
     clearTimeout(this.#refreshTimer);
     this.#chart?.dispose();
@@ -609,18 +624,9 @@ export class TimeseriesView {
     this.#banner = el(doc, 'div', 'dc-ts-banner', undefined, { role: 'status' });
     this.#canvas = el(doc, 'div', 'dc-ts-chart', undefined, { role: 'img' });
     this.#stats = el(doc, 'div', 'dc-ts-stats');
-    this.#pop = el(doc, 'div', 'dc-ts-pop');
-    this.#pop.hidden = true;
     const body = el(doc, 'div', 'dc-ts-body');
     body.append(this.#canvas);
-    // the editors over the whole tile under its toolbar, not the chart alone: a short tile's chart is a strip
-    this.#root.append(this.#bar, this.#legend, this.#banner, body, this.#stats, this.#pop);
-    this.#root.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !this.#pop.hidden) {
-        e.stopPropagation();
-        this.#close();
-      }
-    });
+    this.#root.append(this.#bar, this.#legend, this.#banner, body, this.#stats);
     this.#paintBar();
   }
 
@@ -856,19 +862,81 @@ export class TimeseriesView {
 
   // -- editing -------------------------------------------------------------------------------------------------------
 
+  /**
+   * AN EDITOR AS A WINDOW (the user, 2026-10-26: the timeseries tile in PR #73's design -- a chart's options are a window
+   * beside it): beside the tile, on the screen, among the page's windows -- dragged by its title, resized from its edges,
+   * its × or Escape putting it away, gone with its tile (its sheet left, moved, removed). One at a time: the series
+   * editor and Settings share it, its content replaced.
+   */
   #open(title: string, ...content: HTMLElement[]): void {
     const doc = this.#doc;
-    const close = closeMark(button(doc, '×', 'Close (Escape)', () => this.#close(), 'dc-ts-close'));
-    const head = el(doc, 'div', 'dc-ts-pop-head');
-    head.append(el(doc, 'span', 'dc-ts-pop-title', title), close);
-    this.#pop.replaceChildren(head, ...content);
-    this.#pop.hidden = false;
+    const view = doc.defaultView;
+    if (view === null) return;
+    const host = this.#host.windowHost;
+    let win = this.#window_;
+    if (!win) {
+      win = el(doc, 'div', 'dc-app-overlay dc-app-floating dc-ts-window', undefined, { role: 'dialog', tabindex: '-1' });
+      const head = el(doc, 'div', 'dc-overlay-head');
+      const close = el(doc, 'button', 'dc-overlay-close', undefined, { type: 'button', 'aria-label': 'Close (Escape)', title: 'Close (Escape)' });
+      close.append(chromeIcon(doc, 'close'));
+      close.addEventListener('click', () => this.#close());
+      head.append(el(doc, 'span', 'dc-ts-window-title'), close);
+      const scroller = el(doc, 'div', 'dc-overlay-body');
+      scroller.append(this.#pop = el(doc, 'div', 'dc-ts-pop'));
+      win.append(head, scroller);
+      host.append(win);
+      this.#window_ = win;
+      const closing = new AbortController();
+      this.#closing = closing;
+      makeWindow(win, head, host, {
+        viewport: true,
+        spec: besideWindow(this.#root.getBoundingClientRect(), screenOf(view), TS_WINDOW),
+        minWidth: TS_WINDOW.minWidth,
+        minHeight: TS_WINDOW.minHeight,
+        signal: closing.signal,
+      });
+      const opened = win;
+      opened.addEventListener('pointerdown', () => raiseWindow(opened, host));
+      // Escape puts it away -- not one typed in a field, where it is the field's (the page's windows' rule, app.ts)
+      opened.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented || isTextEntry(event.target)) return;
+        event.preventDefault();
+        this.#close();
+      });
+      // its tile off the page (its sheet left, moved to another, removed): it goes too, as a chart's options do
+      const Watch = (view as Window & { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
+      if (Watch) {
+        const watch = new Watch(() => {
+          const at = this.#root.getBoundingClientRect();
+          if (!this.#root.isConnected || (at.width === 0 && at.height === 0)) this.#close();
+        });
+        watch.observe(this.#root);
+        closing.signal.addEventListener('abort', () => watch.disconnect());
+      }
+    }
+    win.querySelector('.dc-ts-window-title')!.textContent = `${title} \u2014 ${this.#host.title()}`;
+    this.#pop.replaceChildren(...content);
+    raiseWindow(win, host);
     this.#pop.querySelector<HTMLElement>('input, select, textarea')?.focus();
   }
 
+  /** Its editor's window put away -- the focus, when it was in it, back on its tile. */
   #close(): void {
-    this.#pop.hidden = true;
-    this.#pop.replaceChildren();
+    const win = this.#window_;
+    if (!win) return;
+    const root = win.getRootNode() as Document | ShadowRoot;
+    const had = root.activeElement !== null && win.contains(root.activeElement);
+    this.#closing?.abort();
+    this.#closing = null;
+    win.remove();
+    this.#window_ = null;
+    this.#pop = this.#doc.createElement('div');
+    if (had) this.#root.focus({ preventScroll: true });
+  }
+
+  /** Its Settings, as its tile's right-click Properties… opens them (page/cube-page.ts). */
+  openSettings(): void {
+    this.#editSettings();
   }
 
   /** The series editor: a new one (`id` null) or one of the tile's. */
@@ -1200,7 +1268,7 @@ export class TimeseriesView {
       if (this.#edit({ kind: 'annotate', annotation: made })) this.#editSettings();
     }));
     parts.push(addRow, el(doc, 'div', 'dc-ts-hint', 'Double-click the chart to put an event at that date.'));
-    this.#open('Timeseries settings', ...parts);
+    this.#open('Settings', ...parts);
   }
 
   /** A double-click on the chart: an event at that date, labelled. */
