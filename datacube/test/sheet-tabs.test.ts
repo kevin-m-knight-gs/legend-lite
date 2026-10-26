@@ -152,4 +152,13 @@ describe('a page\'s sheet tabs', () => {
     pick('Flow');
     assert.deepEqual(asked, ['add', 'add flow']);
   });
+
+  it('add nothing from a + menu opened before the page was locked', () => {
+    tabs.element.querySelector<HTMLElement>('.dc-sheet-add')!.click();
+    const flow = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')]
+      .find((i) => i.querySelector('.dc-menu-label')?.textContent === 'Flow')!;
+    tabs.paint(SHEETS, 'sheet-1', false);
+    flow.click();
+    assert.deepEqual(asked, []);
+  });
 });

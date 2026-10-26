@@ -206,9 +206,22 @@ try {
       await p.click('.dc-titlebar-menu');
       await p.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Open…"))').first().click();
       if (await p.locator('#cubeswin').count() !== 0) throw new Error('the window opened while the store was held: the check holds nothing');
+      // what acts on the page meanwhile is greyed, saying why -- never a click that does nothing
+      const save = async () => {
+        await p.click('.dc-titlebar-menu');
+        const item = p.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Save"))').first();
+        const said = { off: await item.getAttribute('aria-disabled'), why: await item.getAttribute('title') };
+        await p.keyboard.press('Escape');
+        return said;
+      };
+      const meanwhile = await save();
+      if (meanwhile.off !== 'true' || meanwhile.why !== 'The page is still starting') throw new Error(`Save while the store was held: ${JSON.stringify(meanwhile)}`);
       await p.evaluate(() => window.__releaseStore());
       await p.locator('#cubeswin').waitFor({ state: 'visible', timeout: 30_000 });
-      return 'asked while the store was held; opened once it answered';
+      await p.click('#cubeswin .dc-picker-close');
+      const started = await save();
+      if (started.off === 'true') throw new Error(`Save once the page started: ${JSON.stringify(started)}`);
+      return 'asked while the store was held, Save greyed "The page is still starting"; opened once it answered, Save then offered';
     } finally {
       await held.close();
     }

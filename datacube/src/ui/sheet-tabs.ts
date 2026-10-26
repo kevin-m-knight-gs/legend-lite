@@ -1,5 +1,5 @@
 // A PAGE'S SHEET TABS, in its bar, as a browser's tabs (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §7.1; the user,
-// 2026-10-09): the sheet shown raised, a click shows another, a double click renames one in place, the + adds one, a
+// 2026-10-09): the sheet shown raised, a click shows another, a double click renames one in place, the + adds one (a Sheet or a Flow), a
 // tab's × deletes it (on the tab shown and the tab under the pointer; none for the last sheet, or on a locked page), its
 // right-click menu has Rename, Move Left, Move Right and Delete, and a tab dragged along the strip reorders.
 // Many sheets shrink their tabs, then the strip scrolls, with a list of every sheet at its end.
@@ -378,8 +378,9 @@ export class SheetTabs {
 
   #onMenu(item: MenuItem): void {
     const id = item.id ?? '';
-    if (id === 'sheet.new') this.#options.onAdd();
-    if (id === 'sheet.newFlow') this.#options.onAddFlow();
+    // the +'s, while the page may still change (its menu opened before the page was locked adds nothing)
+    if (id === 'sheet.new' && this.#editing) this.#options.onAdd();
+    if (id === 'sheet.newFlow' && this.#editing) this.#options.onAddFlow();
     const of = (verb: string): string | undefined => (id.startsWith(`sheet.${verb}.`) ? id.slice(`sheet.${verb}.`.length) : undefined);
     const show = of('show');
     if (show !== undefined) this.#options.onShow(show);

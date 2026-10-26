@@ -348,7 +348,7 @@ sheets -- a chart on one following a grid on the other -- saved, shared and reop
 
 - **A tile moved to another sheet** (its menu's Move to Sheet -- a grid's right-click Tile ▸, a chart's right-click menu -- or a
   drag onto the tab) leaves the sheet shown as it is; the tile goes to the bottom of its new sheet, and the move is
-  said. New ▸ Sheet in the page's menu adds a sheet as the + does.
+  said. Create ▸ Sheet in the page's menu adds a sheet as the +'s Sheet does (and Create ▸ Flow as its Flow).
 - **Renaming the page is a change** ("changed since saved"): the page's definition leaves its name out (so a page
   saved under another name compares equal), so the host compares the name it was saved under as well.
 - **The host's readout** is in the first grid's status bar of the sheet shown, and moves with the sheet shown.

@@ -1368,6 +1368,26 @@ describe("the page's ≡, grouped by purpose (docs/DATACUBE_UI_REVIEW_2026_10_24
     assert.deepEqual(files, ['Q3.page.json']);
   });
 
+  it('while the host is starting, New Page and Data Source… are greyed, saying so; started, they act (2026-10-26)', async () => {
+    let starting: string | undefined = 'The page is still starting';
+    let asked = 0;
+    sitePage({ onBlankPage: () => { asked += 1; }, openSource: () => Promise.resolve(undefined), starting: () => starting });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    const blank = entry(pageMenu(), 'New Page')!;
+    assert.equal(blank.getAttribute('aria-disabled'), 'true');
+    assert.equal(blank.title, 'The page is still starting');
+    blank.click();
+    assert.equal(asked, 0, 'greyed: nothing asked of the host');
+    const source = [...entry(pageMenu(), 'Create')!.querySelectorAll<HTMLElement>(':scope > .dc-submenu > [role^="menuitem"]')]
+      .find((i) => label(i) === 'Data Source…');
+    assert.equal(source?.getAttribute('aria-disabled'), 'true');
+    starting = undefined;
+    assert.equal(entry(pageMenu(), 'New Page')!.getAttribute('aria-disabled'), null);
+    entry(pageMenu(), 'New Page')!.click();
+    assert.equal(asked, 1);
+  });
+
   it('Edit Layout says what it will do and flips; off, Arrange… and Sheet are greyed, saying why', async () => {
     sitePage();
     page.addGrid(over('trades.csv'));

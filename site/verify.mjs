@@ -470,7 +470,7 @@ try {
     const flow = await flowing.newPage();
     flow.on('pageerror', (e) => errors.push(`datacube (flow): ${e.message}`));
     await flow.goto(`${SITE}/datacube/demo/index.html`);
-    // the start's grid landed first: until then the menu's Open… is not yet the page's to answer
+    // the page started: its first grid drawn
     await flow.waitForSelector('.dc-row', { timeout: 120_000 });
     await flow.click('.dc-titlebar-menu');
     await flow.locator('.dc-menu .dc-menu-item', { has: flow.locator(':scope > .dc-menu-label:text-is("Open…")') }).click();
@@ -481,8 +481,8 @@ try {
     await flow.waitForFunction(() => [...document.querySelectorAll('.dc-flow-run')].every((b) => /Run$/.test(b.textContent ?? '')),
       undefined, { timeout: 240_000 });
     const counts = await flow.locator('.dc-flow-box:visible').evaluateAll((els) => els.map((e) => e.querySelector('.dc-flow-count')?.textContent ?? ''));
-    if (!counts.every((c) => /^[\d,]+$/.test(c))) throw new Error(`the flow's boxes counted ${JSON.stringify(counts)}`);
-    const lines = (await readFile(await written.path(), 'utf8')).replace(/^\uFEFF/, '').trimEnd().split('\r\n');
+    if (counts.length !== 8 || !counts.every((c) => /^[\d,]+$/.test(c))) throw new Error(`the flow's boxes counted ${JSON.stringify(counts)}`);
+    const lines = (await readFile(await written.path(), 'utf8')).replace(/^\uFEFF/, '').trimEnd().split(/\r?\n/);
     if (written.suggestedFilename() !== 'revenue by continent.csv' || lines[0] !== 'continent,units,revenue,cost,profit' || lines.length < 6) {
       throw new Error(`the flow's Output wrote ${written.suggestedFilename()}: ${JSON.stringify(lines.slice(0, 2))}`);
     }
