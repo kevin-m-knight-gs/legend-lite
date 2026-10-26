@@ -31,7 +31,7 @@ export function textToolForm(host: HTMLElement, o: TextToolFormOptions): void {
     parent.append(e);
     return e;
   };
-  const body = el('div', `dc-sample dc-text-tool dc-text-tool-${o.kind}`, host);
+  const body = el('div', `dc-sample dc-text-tool-form dc-text-tool-${o.kind}`, host);
   const foot = (): { ok: HTMLButtonElement; status: HTMLParagraphElement } => {
     const status = el('p', 'dc-sample-status', body);
     status.setAttribute('role', 'status');

@@ -37,6 +37,7 @@ import { gridTitle } from '../page-ids.ts';
 import { handedOn } from '../box-columns.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { MenuView } from '../ui/menu-view.ts';
+import { chromeIcon, closeMark } from '../ui/tile-icons.ts';
 
 /** How far a pressed box or tool moves before it is dragged rather than clicked, in pixels. */
 const DRAG_PX = 4;
@@ -374,7 +375,7 @@ export class FlowCanvas {
     this.#unlink = doc.createElement('button');
     this.#unlink.type = 'button';
     this.#unlink.className = 'dc-flow-unlink';
-    this.#unlink.textContent = '×';
+    closeMark(this.#unlink, 'Disconnect');
     this.#unlink.title = 'Disconnect: the box it goes into keeps the rows it has now, frozen';
     this.#unlink.setAttribute('aria-label', 'Disconnect this line');
     this.#unlink.hidden = true;
@@ -457,7 +458,7 @@ export class FlowCanvas {
     const keysClose = doc.createElement('button');
     keysClose.type = 'button';
     keysClose.className = 'dc-flow-keys-close';
-    keysClose.textContent = '×';
+    closeMark(keysClose);
     keysClose.setAttribute('aria-label', 'Close');
     keysClose.addEventListener('click', () => { this.#keysPanel.hidden = true; });
     keysHead.append(keysClose);
@@ -1025,7 +1026,7 @@ export class FlowCanvas {
       + (lacking > 0 ? `, ${lacking} ${lacking === 1 ? 'Cross Tab' : 'Cross Tabs'} missing values` : '')
       + (stoppers.length > 0 ? `; stopped by ${stoppers.join(', ')}: nothing ${log.dry === true ? 'would be ' : ''}written`
         : log.dry === true ? '; nothing written' : '')));
-    const close = el('button', 'dc-flow-log-close', '×') as HTMLButtonElement;
+    const close = closeMark(el('button', 'dc-flow-log-close') as HTMLButtonElement);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close the run log');
     close.addEventListener('click', () => {
@@ -1130,7 +1131,7 @@ export class FlowCanvas {
     const remove = doc.createElement('button');
     remove.type = 'button';
     remove.className = 'dc-flow-x';
-    remove.textContent = '×';
+    closeMark(remove, 'Remove the box');
     remove.addEventListener('pointerdown', (e) => e.stopPropagation());
     remove.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1172,7 +1173,7 @@ export class FlowCanvas {
     const remove = doc.createElement('button');
     remove.type = 'button';
     remove.className = 'dc-flow-note-x';
-    remove.textContent = '×';
+    closeMark(remove, 'Remove the comment');
     remove.setAttribute('aria-label', 'Remove the comment');
     remove.addEventListener('pointerdown', (e) => e.stopPropagation());
     remove.addEventListener('click', () => this.#board.options.onRemove?.(id));
@@ -1244,7 +1245,7 @@ export class FlowCanvas {
       });
     }
     const fold = head.querySelector<HTMLButtonElement>('.dc-flow-frame-fold')!;
-    fold.textContent = frame.collapsed === true ? '▸' : '▾';
+    fold.replaceChildren(chromeIcon(fold.ownerDocument, frame.collapsed === true ? 'chevronRight' : 'chevronDown'));
     fold.title = frame.collapsed === true ? 'Unfold: its boxes drawn again' : 'Fold to its head: its boxes out of sight';
     fold.setAttribute('aria-label', frame.collapsed === true ? 'Unfold the container' : 'Fold the container');
     fold.disabled = !editing;
@@ -2467,7 +2468,7 @@ export class FlowCanvas {
       const off = d.createElement('button');
       off.type = 'button';
       off.className = 'dc-flow-input-off';
-      off.textContent = '×';
+      closeMark(off, 'Take it off');
       off.title = `Take off its ${sideWords(input.side, union)}: the inputs after it move up`;
       off.setAttribute('aria-label', `Take off its ${sideWords(input.side, union)}`);
       off.addEventListener('click', (e) => {

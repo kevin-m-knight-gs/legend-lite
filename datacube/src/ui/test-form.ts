@@ -5,6 +5,7 @@
 // options dock it. Fetched with the first Test.
 
 import type { Check } from '../checks.ts';
+import { closeMark } from './tile-icons.ts';
 
 export interface TestFormOptions {
   /** The columns it can check, each by name and whether it is a number (only a number is checked within bounds). */
@@ -101,7 +102,7 @@ export function testForm(host: HTMLElement, o: TestFormOptions): void {
     const text = el('input', 'dc-picker-input dc-test-text', line);
     text.type = 'text';
     text.spellcheck = false;
-    const off = el('button', 'dc-flow-input-off dc-test-off', line, '×');
+    const off = closeMark(el('button', 'dc-flow-input-off dc-test-off', line), 'Take this check off');
     off.type = 'button';
     off.title = 'Take this check off';
     off.setAttribute('aria-label', 'Take this check off');

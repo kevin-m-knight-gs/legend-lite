@@ -5,6 +5,7 @@
 // of it). Fetched with the first Text Input.
 
 import { focusedElement } from '../focus.ts';
+import { closeMark } from './tile-icons.ts';
 
 /** What the window was given back: the table's name, its columns' names, and its rows, a value a column each. */
 export interface TypedTable {
@@ -90,7 +91,7 @@ export function textInputDialog(doc: Document, o: TextInputOptions): Promise<boo
     const titles = el('div', 'dc-picker-titles', head);
     el('h2', 'dc-picker-title', titles, 'Text Input').id = 'dc-text-input-title';
     el('p', 'dc-picker-subtitle', titles, 'A small table of your own: type its values, or paste them from a sheet.');
-    const close = el('button', 'dc-picker-close', head, '×');
+    const close = closeMark(el('button', 'dc-picker-close', head));
     close.type = 'button';
     close.setAttribute('aria-label', 'Close');
     close.addEventListener('click', () => {
@@ -132,7 +133,7 @@ export function textInputDialog(doc: Document, o: TextInputOptions): Promise<boo
         });
         field.addEventListener('paste', (e) => pasted(e, -1, i));
         if (columns.length > 1) {
-          const drop = el('button', 'dc-text-input-drop', th, '×');
+          const drop = closeMark(el('button', 'dc-text-input-drop', th), 'Take the column off');
           drop.type = 'button';
           drop.title = `Take column ${c || i + 1} off`;
           drop.setAttribute('aria-label', drop.title);

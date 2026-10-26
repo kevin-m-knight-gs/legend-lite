@@ -1715,6 +1715,8 @@ try {
   check(/would write orders of 2024\.csv/.test(await logRow('Orders of 2024') ?? ''), 'its Output would be written, and is not');
 } catch (e) {
   bad(`threw: ${e.stack ?? e}`);
+  // the page as it was when it threw, beside the test's other outputs
+  await page.screenshot({ path: outPath('flow-threw.png') }).catch(() => {});
 } finally {
   check(errors.length === 0, `no page errors${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   check(alerts.length === 0, `no alerts${alerts.length ? `: ${alerts.join(' | ')}` : ''}`);

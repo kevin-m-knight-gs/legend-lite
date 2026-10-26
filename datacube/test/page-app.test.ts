@@ -1338,7 +1338,7 @@ describe("the page's ≡, grouped by purpose (docs/DATACUBE_UI_REVIEW_2026_10_24
       'Create', '─',
       'View',
     ]);
-    assert.deepEqual(under('Create'), ['Data Source…', 'Sheet', 'Text Box', 'Association…']);
+    assert.deepEqual(under('Create'), ['Data Source…', 'Sheet', 'Flow', 'Text Box', 'Association…']);
     // the app's Settings… under View, beside its Keyboard Shortcuts… (the user, 2026-10-25): this browser's, not a grid's
     assert.deepEqual(under('View'), ['Hide the Bar', 'Generated Pure & SQL…', 'Keyboard Shortcuts…', 'Settings…']);
   });
