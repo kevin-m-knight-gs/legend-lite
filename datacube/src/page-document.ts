@@ -104,11 +104,43 @@ export function readsCube(view: PageView, cube: string): boolean {
   return cubesRead(view).includes(cube);
 }
 
-/** The cubes a view reads, by readsCube's rule: what a page that writes its cubes from its views writes for it (the
- *  second audit's A-B1: a page's writers read a view's `cube`, which a timeseries has none of, and dropped its cubes). */
+/** The cubes a view reads: every kind of tile answers, a new kind not compiling until it does (the second audit's A-B1:
+ *  a page's writers read a view's `cube`, which a timeseries has none of, and dropped its cubes). */
 export function cubesRead(view: PageView): readonly string[] {
-  if (view.kind === 'timeseries') return view.spec.sources.map((s) => s.cube);
-  return view.kind === 'text' ? [] : [view.cube];
+  switch (view.kind) {
+    case 'grid':
+    case 'chart':
+      return [view.cube];
+    case 'timeseries':
+      return view.spec.sources.map((s) => s.cube);
+    case 'text':
+      return [];
+  }
+}
+
+/**
+ * THE CUBES A PAGE HOLDS: each its views read (cubesRead) -- a grid's, a detached chart's, a removed grid's a timeseries
+ * still reads -- and no other, a cube no view reads let go. The one rule every writer and every page command holds a
+ * page's cubes to (a page written out without one is refused: pageContent).
+ */
+export function cubesHeld(views: readonly PageView[]): ReadonlySet<string> {
+  return new Set(views.flatMap(cubesRead));
+}
+
+/** Of `cubes`, those `views` still read (cubesHeld): what a change that takes a view off leaves the page holding. */
+export function stillHeld<T extends { readonly id: string }>(cubes: readonly T[], views: readonly PageView[]): T[] {
+  const held = cubesHeld(views);
+  return cubes.filter((c) => held.has(c.id));
+}
+
+/** A page written out holding every cube its views read, or the writer's bug said: one without is a file the reader
+ *  refuses (the second audit's A-B1, a timeseries' kept cube written off its page). */
+function heldWhole(cubes: readonly { readonly id: string }[], views: readonly PageView[]): void {
+  const written = new Set(cubes.map((c) => c.id));
+  for (const view of views) {
+    const missing = cubesRead(view).find((c) => !written.has(c));
+    if (missing !== undefined) throw new Error(`the page is written without cube ${missing}, which ${view.kind} ${view.id} reads`);
+  }
 }
 
 /** Where the views sit: the page's bands (layout/bands.ts), each tile a view's id. */
@@ -369,7 +401,9 @@ export function writePage(o: {
 
 /**
  * A PAGE OF SEVERAL CUBES (a page of its own: one cube per grid, each over its own source, and one per grid kept off
- * the board for a detached chart). Each view names its cube by id; a cube no grid view names is a detached chart's.
+ * the board for a detached chart). Each view names its cube by id; a cube no grid view names is a detached chart's, or
+ * one a timeseries reads, its grid removed. A page the screen holds as it is now may name a grid's cube it cannot write
+ * yet (a grid that cannot say its source); a page written out holds every one (pageContent).
  */
 export function writePageOf(o: {
   readonly name: string;
@@ -475,8 +509,11 @@ export function openingOrder<T extends { readonly cube: CubeDocument }>(cubes: r
   return [...of((t) => t !== 'class' && t !== 'join'), ...of((t) => t === 'join'), ...of((t) => t === 'class')];
 }
 
-/** The page as a JSON-ready object: each cube as its own document writes itself. */
+/** The page as a JSON-ready object: each cube as its own document writes itself -- refused when a view reads a cube it
+ *  does not hold (cubesHeld's rule). */
 export function pageContent(page: PageDocument): Record<string, unknown> {
+  // every way a page leaves as data -- a page file, a saved record, its keeper, a link, Python's -- comes through here
+  heldWhole(page.cubes, page.views);
   const { unknown, cubes, ...rest } = page;
   return {
     ...unknown,

@@ -77,7 +77,7 @@ import type { CubePage, ChartSource, PageEdit, SpawnedGrid, SpawnOptions } from 
 import type { PageCommand, PageDraft } from './page-commands.ts';
 import type { PageState } from './page-state.ts';
 import {
-  PAGE_CUBE, cubesRead, gridCopyOf, pageFile, startingViews, writePage, writePageOf, type ChartView, type GridCopy, type PageDocument, type PageViews,
+  PAGE_CUBE, cubesHeld, gridCopyOf, pageFile, startingViews, writePage, writePageOf, type ChartView, type GridCopy, type PageDocument, type PageViews,
 } from './page-document.ts';
 import { FormatterCache, headlineFormat, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
@@ -3211,7 +3211,7 @@ export class CubeApp {
   #boardSeen(page: CubePage, idsOf: (page: PageDocument) => string[]): PageDraft {
     const cube = this.cubeDocument('');
     const views = page.views((grid) => (grid === 'grid' ? PAGE_CUBE : grid));
-    const others = [...new Set(views.views.flatMap(cubesRead))].filter((id) => id !== PAGE_CUBE).flatMap((id) => {
+    const others = [...cubesHeld(views.views)].filter((id) => id !== PAGE_CUBE).flatMap((id) => {
       const doc = page.documentOf(id);
       return doc ? [{ id, cube: doc }] : [];
     });

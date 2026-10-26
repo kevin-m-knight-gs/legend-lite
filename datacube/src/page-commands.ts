@@ -14,7 +14,7 @@ import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, tiles, type Bands, type Preset,
 } from './layout/bands.ts';
 import {
-  PageDocumentError, keptFor, readGridCopy, readLayout, readsCube, unnamedLabel, writePageOf, type ChartView, type GridCopy, type GridView,
+  PageDocumentError, keptFor, readGridCopy, readLayout, stillHeld, unnamedLabel, writePageOf, type ChartView, type GridCopy, type GridView,
   type PageDocument, type PageLayout, type PageSheet, type PageView, type TextView, type TimeseriesView,
 } from './page-document.ts';
 import { givenName } from './page-names.ts';
@@ -404,7 +404,7 @@ function withoutTile(page: PageDocument, tile: string): PageDocument {
     }
   }
   const views = next.views.filter((v) => !gone.has(v.id));
-  const cubes = next.cubes.filter((c) => views.some((v) => readsCube(v, c.id)));
+  const cubes = stillHeld(next.cubes, views);
   const sheets = next.sheets.map((s) => {
     let layout: Bands = s.layout;
     for (const id of gone) if (tiles(layout).includes(id)) layout = remove(layout, id);
@@ -582,7 +582,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       // a cube kept for the tile alone (its grid removed: G4) let go when it reads it no more, as a removal lets it go
       const on = holding.page;
       const views = on.views.map((v) => (v.id === view.id ? { ...view, spec } : v));
-      const cubes = on.cubes.filter((c) => views.some((v) => readsCube(v, c.id)));
+      const cubes = stillHeld(on.cubes, views);
       return done(rewritten({ ...on, ...(on.model ? { model: keptFor(on.model, cubes) } : {}) }, { views, cubes }), holding.held);
     }
     case 'setTextFiles': {
@@ -625,7 +625,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
         const { selection: _was, ...rest } = v;
         return { ...rest, cube: grid.cube };
       });
-      const cubes = unpicked.cubes.filter((c) => views.some((v) => readsCube(v, c.id)));
+      const cubes = stillHeld(unpicked.cubes, views);
       const kept = rewritten({ ...unpicked, ...(unpicked.model ? { model: keptFor(unpicked.model, cubes) } : {}) }, { views, cubes });
       return done(followedPage(kept, grid.cube, page));
     }
@@ -650,7 +650,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
         const { selection: _was, ...rest } = v;
         return { ...rest, cube: command.cube, spec: v.spec.frozen === true ? v.spec : { ...v.spec, frozen: true } };
       });
-      const read = unpicked.cubes.filter((c) => views.some((v) => readsCube(v, c.id)));
+      const read = stillHeld(unpicked.cubes, views);
       const cubes = read.some((c) => c.id === command.cube)
         ? read.map((c) => (c.id === command.cube ? { id: c.id, cube: command.document } : c))
         : [...read, { id: command.cube, cube: command.document }];
