@@ -95,9 +95,10 @@ writer alone; what they read is one result from one statement.
 
 **D1 to D5 ratified by the user on 2026-10-26** ("everything else is okay"), with the program's rulings beside them
 (`docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` §8): the database judge is never deleted; no Arrow library enters the
-product (the warehouse's own framer writes the format); D7 is the program's R5, its expert version waiting on the
-user's yes (results carry a Float's bits; one spelling inside a query; a temporary JavaScript function measured on
-Snowflake and BigQuery before it replaces the exact-digits expression).
+product (the batch is Arrow's column layout in our own code, seeded from the warehouse's framer); D7 is the
+program's R5, its expert version waiting on the user's yes (results carry a Float's bits; a Float printed as the last
+thing a column does is spelled by the writer, Pure's own implementation; a String built inside a query keeps the
+exact-digits expression; no JavaScript or other non-SQL code in the database).
 
 - **D1. One plan per query.** The plan is the base query and its column facts. The output format is never chosen
   at plan time: `TypedQuery.Output` stops being a planning input, and the `TextResult` node and its `Format` go.

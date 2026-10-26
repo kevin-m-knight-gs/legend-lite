@@ -38,10 +38,12 @@ the WebAssembly planner and the native image: no Arrow library enters the produc
   and nothing cheaper is lossless there; §8 item 3 says how to make it cheap where it can be.
 - The warehouse server already writes Arrow IPC streams with no Arrow library: its own framer
   (`warehouse/.../duck/ArrowStreams.java`, `FlatBuilder`) over the buffers DuckDB builds, inside the native image,
-  checked against pyarrow in its tests. The lean Arrow writer is that framer over our own column batches.
+  checked against pyarrow in its tests. The batch itself is Arrow's column layout, built by our own code, so that
+  writer frames it without copying (the user's question of 2026-10-26, "why not our warehouse implementation of
+  Arrow?": that is the answer).
 
 **What we will do, in order.** Measure first. Make the plan answer typed rows and nothing else. Define the result
-as a stream of batches of typed rows, in our own column arrays. Write legend-engine's JSON in Java and prove it byte
+as a stream of batches of typed rows, laid out as Arrow's columns by our own code. Write legend-engine's JSON in Java and prove it byte
 for byte, then delete the SQL that wrote it. Feed PCT and the corpus from typed rows, lane by lane, then delete the
 SQL that wrote TDS text. Add the lossless writers, the Arrow one over the warehouse's framer. Type the mixed lists and
 delete the text carrier. Delete the old executor and make "collect into memory" a test helper rather than a
@@ -80,9 +82,10 @@ AGENTS.md: guard files are the rules' mechanical form. A rule without a guard is
   writers are judged by the value round trip. Execution is never forked for a format (D6).
 - **R5. A String the query itself builds is computed in the query, lossless, with one spelling.** The shortest
   round-trip decimal in Pure's layout: the database's own text where its cast writes shortest digits, the exact
-  expression where it does not (Snowflake, BigQuery), a temporary function of the database's where that is measured
-  exact and cheaper (§8 item 3). This is D7. It is the only text the database writes for a result. Guard: the PCT
-  suites; a dated register row for any deliberate difference.
+  expression where it does not (Snowflake, BigQuery), a platform-owned SQL function only if measurement ever shows
+  that expression on a hot path (§8 item 3). A Float printed as the last thing a result column does is not a String
+  the query builds: it is carried as the Float and spelled by the writer, which is Pure's own implementation
+  (§8 item 3, the edge rule). This is D7. Guard: the PCT suites; a dated register row for any deliberate difference.
 - **R6. A value SQL has no type for rides as a typed encoding with a plan fact, never as a spelling.** The tagged
   winner is landed; mixed lists follow (step 6) as a list of tagged values, which is Arrow's list of a union, so the
   plan's vocabulary, the tagged carrier and the lean wire are one type system. Guard: `TaggedSelectionTest` and its
@@ -115,8 +118,8 @@ Pure query ──▶ PLAN: the statement + one column record per result column (
             EXECUTE: the database computes everything that has meaning
                  │
                  ▼
-            TYPED BATCHES: the session reads cells by the plan's facts into our own column arrays, up to N rows
-                 │        (a row driver fills small batches; DuckDB's native path hands over its own buffers)
+            TYPED BATCHES: the session reads cells by the plan's facts into Arrow's column layout (our code), up to N rows
+                 │        (a row driver fills small batches; DuckDB's native path hands over its own buffers as they are)
      ┌───────────┼──────────────────────────┬──────────────────────────┬────────────────────────┐
      ▼           ▼                          ▼                          ▼                        ▼
  lean writers   legacy writer            ValueBridge              a collector              the tab's own reader
@@ -139,14 +142,20 @@ columnar source and re-vectorize it at the Arrow writer: slowest exactly where t
 **Where the Arrow format lives, and where no library does (the user's question, 2026-10-26).** The compiler
 (`//core:planner`, exported by `//core:plan_side`, the WebAssembly planner's only core input) has no execution
 dependency and no Arrow; that is C2a, pinned today, and R9 adds the Bazel query guard. The execution side
-(`//core:exec`, the JDBC drivers in `//core:drivers`, the writers) gains no Arrow library either: the batch is our
-own typed column arrays, and the Arrow IPC writer is the warehouse server's existing dependency-free framer
-(`ArrowStreams` and `FlatBuilder`, the Flatbuffers messages and buffer layout written by hand, about 300 lines),
-moved to a shared dependency-free module so core's lean writer and the warehouse's SQL API use one. On DuckDB the
-warehouse's native path already hands over DuckDB's own Arrow buffers; on JDBC sessions our arrays become buffers by
-our code. The Arrow Java library and pyarrow stay what they are today: readers in tests (`arrow_matches_json`),
-which read back what our writer wrote. The native image (the warehouse server) therefore carries exactly what it
-carries today.
+(`//core:exec`, the JDBC drivers in `//core:drivers`, the writers) gains no Arrow library either, and it does not
+invent a representation of its own: **the batch is Arrow's column layout, built by our own code** (a validity bitmap
+and a fixed-width buffer per primitive column, offsets plus bytes for strings, type ids plus offsets for a tagged
+union, the same for lists and structs), seeded from the warehouse server's existing dependency-free framer
+(`ArrowStreams` and `FlatBuilder`, the messages and buffer layout written by hand, about 300 lines, with its column
+types) and moved to a shared module core and the warehouse both use. Two consequences. The Arrow IPC writer frames
+the batch without copying, and on DuckDB the warehouse's native path hands over DuckDB's own buffers as they are.
+The plan's three facts per column ride as Arrow field metadata, so the Arrow schema and the plan's column record are
+one thing, and a Pure-only fact (a Decimal whose scale the column does not fix, a DateTime's written precision, a
+partial date) is an extension type with that metadata, decided once in M2. The row-oriented writers (legend-engine's
+JSON, `ValueBridge`, the collector) read cells through one small accessor over the buffers, which is cheaper than
+boxing a value per cell. The Arrow Java library and pyarrow stay what they are today: readers in tests
+(`arrow_matches_json`), which read back what our writer wrote. The native image carries exactly what it carries
+today.
 
 ## 3. Where things stand (honest)
 
@@ -192,11 +201,10 @@ program, step 0". Each is the baseline a later step is judged against.
   `Double.toString` the `OutputMatrixTest` bytes came from (before JDK 19 it was not always shortest: 8.41E21 printed
   as `8.409999999999999E21`). Decides what legacy byte parity means on a lossy engine and whether the writers ship
   their own shortest-digits routine or pin the JDK. Half a day.
-- **M8. The cheaper lossless Float text on Snowflake and BigQuery: a temporary JavaScript function** (§8 item 3).
-  Over the same 1,946 doubles: exactness against Java's shortest digits byte for byte (JavaScript's own
-  `Number.toString` is the shortest round-trip form by its specification; the layout is rewritten to Pure's in the
-  same function), speed per 10,000 rows against the exact-digits expression, and the privileges a temporary function
-  needs on each cloud. One lane probe each. One day.
+- **M8. Where a Float becomes a String: at the edge or inside the query.** Of M6's occurrences, how many are the
+  last operation on a result column (a report column printed; the String is consumed by nothing in the query) and
+  how many feed a filter, a join, a group, or a longer String. Decides how much of §8 item 3's edge rule covers,
+  and whether the inline expression is ever on a hot path. Folded into M6. No extra time.
 
 Step 0 ends with §5 re-sized from the numbers.
 
@@ -211,8 +219,8 @@ counted), switch, delete (in the same step, never later). A step lands as one GA
   input (`TypedQuery.plan`, `PlanMaker`, `ExecuteOptions`, `Diagnostics` take no format); `PlanJson` format 11 writes
   no `TextResult`. The result API: `Execution.batches(...)` answers a stream of typed batches (R8's flush rule) to a
   writer; `executeStreaming` becomes a writer; `executeWire`'s `List<String>` is marked for step 3's deletion. The
-  batch type: our own typed column arrays under `exec/`, one array per column in the plan's slot vocabulary, with the
-  representation hidden behind the writer interface.
+  batch type: Arrow's column layout built by our own code (§2), one column per plan column in the slot vocabulary,
+  the plan's facts as field metadata, with cell access through one accessor so no writer touches the buffers' bytes.
 - Delete: nothing yet (the `TextResult` node stays until its last consumer switches at step 4).
 - Gate: `PlanJsonTest` 11, `PlanRoundTrip`, the core lanes, M1 showing every planner-made result typed; R9's query
   guard added now, so it watches every later step.
@@ -304,8 +312,9 @@ database judge here; the user ruled it stays, R10, and it is withdrawn.)
 ### What stays, by name, and why
 
 A String the query builds (R5); the database judge and the host judge with their canonical spellings in the query
-(R10); kind B's encodings until step 6 types them; the exact-digits Float text on Snowflake and BigQuery until M8
-measures a cheaper exact form (R5); the engine-style dialects until step 8 is ruled.
+(R10); kind B's encodings until step 6 types them; the exact-digits Float text on Snowflake and BigQuery for a String
+built inside a query (R5; the edge rule takes the common case off it); the engine-style dialects until step 8 is
+ruled.
 
 ## 6. Gates for the program
 
@@ -364,36 +373,57 @@ answers.
   with one cast and a layout fix (DuckDB, Postgres, H2, ClickHouse, Trino, MariaDB, MySQL, Databricks, MongoDB);
   Deephaven is Java and writes it natively. Snowflake and BigQuery cannot (measured: sixteen digits and a
   mis-rounded `%.17g`), so they compute the exact digits in SQL today, about 5 KB per Float printed, correct.
-- *Making those two cheap without giving anything up.* A temporary JavaScript function in the session:
-  JavaScript's `Number.toString` is the shortest round-trip form by its specification, so one line gives the digits
-  exactly, and the same function lays them out as Pure does. The statement then spells a Float as one call. M8
-  measures it before it is adopted: byte-exact against Java's shortest over the 1,946 doubles, the speed per 10,000
-  rows against the expression, and the privileges a temporary function needs (the session already creates temporary
-  tables for a `let`, plan path R11, so temporary objects are an accepted pattern). Adopted only where it is exact
-  and faster; the expression stays where it is not. Nothing in Java, one spelling, same SQL for both writers.
-- *Rejected and why:* a fifteen- or sixteen-digit standard (lossy by design on the lossless engines, and Snowflake's
-  own fifteen is double-rounded); Snowflake's sixteen digits as a per-database exception (one database would answer
-  differently; reconsidered only if M6 shows the case is common and M8 fails); fixed seventeen digits (shows binary
-  noise on ordinary values, which is why every modern runtime moved to shortest).
+- *Making those two cheap, practically, with no code running inside the database that is not SQL* (the user,
+  2026-10-26: no JavaScript in the database; `toString` inside a query is rare in real code). Four options, in the
+  order they should be used:
+  1. **The edge rule: a Float printed as the last thing a column does is carried as the Float and spelled by the
+     writer.** When `toString` (or `format` of one Float) is the final operation on a result column and nothing in
+     the query consumes the String, the plan keeps the DOUBLE slot and records the column's Pure type as String; the
+     writers spell it with the shortest-digits routine. This is not an approximation: Pure's reference
+     implementation of a Float's `toString` is Java's `Double.toString`, so the writer in Java is byte-identical to
+     the reference by construction, and `ValueBridge` builds the PCT value the same way. Covers the common real
+     case (a report column) at zero SQL cost on every engine. The database judge canons such a column as the String
+     the reference would print (the exact-digits expression inside the judge, test-only).
+  2. **Inside the query, the exact-digits expression stays, inline.** A String that feeds a filter, a join, a group
+     or a longer String is computed where it is used, correct, about 5 KB per Float on two engines, zero elsewhere.
+     Pay only when used; M6 and M8 say how rare that is.
+  3. **A platform-owned SQL function, installed once, as the escalation if 2 is ever on a hot path.** The same
+     expression as the body of a SQL function (`CREATE FUNCTION`, SQL language only, deterministic) in the
+     platform's own schema, the way the platform already ships views over its own system tables (`docs/WORLD_MAP.md`);
+     each statement then spells a Float as one call and the engine inlines it. Needs a schema and the privilege to
+     create a function; a deployment that refuses DDL falls back to 2. Built only on M6's number.
+  4. **A compile-time diagnostic** when a Float becomes a String inside a query on an engine that cannot print it
+     natively, naming the cost. Cheap, informative, changes nothing.
+- *Rejected and why:* JavaScript or any non-SQL function in the database (the user's ruling); a fifteen- or
+  sixteen-digit standard (lossy by design on the lossless engines, and Snowflake's own fifteen is double-rounded);
+  Snowflake's sixteen digits as a per-database exception (one database would answer differently, and it is not
+  lossless); fixed seventeen digits (shows binary noise on ordinary values, which is why every modern runtime moved
+  to shortest).
 
 **4. Arrow: where the dependency would sit, and the answer that it sits nowhere.** The compiler never sees it: the
 planner has no execution dependency (C2a, pinned), and the WebAssembly planner takes only `//core:plan_side`. The
-execution side does not take it either: the batch is our own typed column arrays, and the Arrow IPC writer is the
-warehouse server's existing framer, written by hand, already inside the native image, already checked by pyarrow in
-its tests. Step 2 moves that framer to a shared dependency-free module; step 5's `ArrowWriter` uses it over our
-batches; on DuckDB the warehouse's native path hands over DuckDB's own buffers as it does now. The Arrow Java library
-and pyarrow remain test-only readers. R9 pins it with a Bazel query guard over the planner, the WebAssembly planner
-and the native image. What this gives up against an Arrow-library-inside design: zero-copy from JDBC sessions that
-could hand out Arrow (BigQuery's storage read, the Snowflake and Databricks drivers), which would need the library;
-if a measured gap ever justifies it, it is an optional module beside the drivers, never in the compiler or the
-native image, and never the default.
+execution side does not take it either, and (the user's question, 2026-10-26: "why not our warehouse implementation
+of Arrow, if we are going to have our own representation anyway?") it does not invent a second representation: the
+batch is Arrow's column layout built by our own code, seeded from the warehouse server's framer, which is written by
+hand, already inside the native image, already checked by pyarrow in its tests (§2). Having two layouts, ours and
+Arrow's, with a copy between them, was the worse idea; one layout that is the standard one, implemented by us, is
+the better one. The costs, honestly: the row-oriented writers read cells through an accessor over buffers rather
+than from boxed values (a few hundred lines, faster), and a few Pure-only facts need extension metadata on the
+schema (M2 decides each). Step 2 shares the framer; step 5's `ArrowWriter` frames the batch as it is; on DuckDB the
+warehouse's native path hands over DuckDB's own buffers. The Arrow Java library and pyarrow remain test-only
+readers. R9 pins it with a Bazel query guard over the planner, the WebAssembly planner and the native image. What
+this gives up against an Arrow-library-inside design: zero-copy from cloud drivers that could hand out Arrow
+(BigQuery's storage read, the Snowflake and Databricks drivers), which would need the library; if a measured gap
+ever justifies it, it is an optional module beside the drivers, never in the compiler or the native image, never
+the default.
 
 ## 9. Status
 
 - **2026-10-26, revision 3, ruled in part.** The user's rulings recorded (§8): items 1, 2, 5, 6, 8 as written; the
-  database judge stays (R10); the Float rule and the Arrow placement answered with the expert version (R5 with M8,
-  R9 with the warehouse's framer), waiting on the user's yes. Next: the yes, then landing the branch on `main`, then
-  step 0.
+  database judge stays (R10); no JavaScript or other non-SQL code in the database. The Float rule answered with the
+  edge rule plus the inline expression, a platform SQL function only on a measured hot path (§8 item 3); the batch
+  is Arrow's column layout in our own code, seeded from the warehouse's framer, no library anywhere (§8 item 4, R9).
+  Both wait on the user's yes. Next: the yes, then landing the branch on `main`, then step 0.
 - **2026-10-26, the handoff written:** `docs/RESULT_BOUNDARY_START_HERE.md`.
 - **2026-10-26, revision 2.** After the user's three questions: batches as the unit; collecting into memory a test
   helper, never a production method; M4 and M7 added to step 0.

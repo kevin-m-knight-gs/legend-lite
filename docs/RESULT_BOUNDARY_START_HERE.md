@@ -67,11 +67,13 @@ collecting as a test helper only and the old executor deleted; the order. **The 
 (R10). **Zero dependencies stay zero** in the compiler, the WebAssembly planner and the native image (R9): no Arrow
 library in the product; the Arrow writer is the warehouse server's own framer.
 
-**Waiting on the user's yes** (§8 items 3 and 4, the expert versions): the Float rule (results carry bits; one
-spelling inside a query; a temporary JavaScript function measured on Snowflake and BigQuery before it replaces the
-exact-digits expression, M8) and the Arrow placement (nowhere: our own column batches, the shared framer, the
-libraries test-only). Also: the merge of this branch to `main` (every lane at or above the merge-base but
-`testFilterInstance`), which the program's §7 wants before step 0 starts.
+**Waiting on the user's yes** (§8 items 3 and 4, the expert versions): the Float rule (results carry bits; a Float
+printed as the last thing a column does is spelled by the writer, which is Pure's own implementation; a String built
+inside a query keeps the exact-digits expression inline; a platform-owned SQL function only on a measured hot path;
+never JavaScript or any non-SQL code in the database) and the batch (Arrow's column layout built by our own code,
+seeded from the warehouse's framer; no Arrow library anywhere; pyarrow and the Arrow Java library test-only
+readers). Also: the merge of this branch to `main` (every lane at or above the merge-base but `testFilterInstance`),
+which the program's §7 wants before step 0 starts.
 
 **The next action, once the yes is in:** land the branch on `main` (AGENTS.md "Pushing to main": rebase, the local
 gate, "local gate: //gates:local green" in the message); start a new branch from `main` for this program alone;
