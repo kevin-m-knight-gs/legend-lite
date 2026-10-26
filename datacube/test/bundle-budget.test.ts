@@ -710,8 +710,13 @@ const CHART_BUDGET = 303_500;
  *  drag a try until OK (ui/timeseries-view.ts #tried, #leaving), a picture's legend and height (timeseries-option.ts
  *  tsPictureHeight), the Data tab's day keys, the calendar's months by number, every histogram bin, a curve's lines of
  *  earlier days said (timeseries-views.ts curveNotes), the views' series by mode (viewChoices), the chart busy by its
- *  rounds -- the headroom ~2%). Measured 67,342. */
-const TIMESERIES_BUDGET = 68_700;
+ *  rounds -- the headroom ~2%). Measured 67,342.
+ *  68,700 -> 72,000 (2026-10-26, the next phases' 4, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: an analyst's
+ *  packs -- fifteen functions' signatures and words (timeseries-spec.ts, timeseries-expr.ts) and their queries
+ *  (timeseries-query.ts analystCalls, basket, the Dickey-Fuller regression): technicals of a candle's columns, a series
+ *  against a benchmark, a total return, a rebalanced basket, a lead, a reversion -- the headroom ~2%). Measured
+ *  70,558. */
+const TIMESERIES_BUDGET = 72_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

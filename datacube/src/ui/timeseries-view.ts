@@ -2185,7 +2185,7 @@ export class TimeseriesView {
     reference.append(el(doc, 'summary', undefined, 'Functions (gs-quant\'s names)'));
     const list = el(doc, 'dl', 'dc-ts-functions');
     for (const f of TS_FUNCTIONS) {
-      const reads = f.series === 'many' ? ['x', 'wx', 'y', 'wy', '...'] : f.series === 3 ? ['flags', 'x', 'y']
+      const reads = f.reads !== undefined ? [...f.reads] : f.series === 'many' ? ['x', 'wx', 'y', 'wy', '...'] : f.series === 3 ? ['flags', 'x', 'y']
         : Array.from({ length: f.series }, (_, i) => (i === 0 ? 'x' : 'y'));
       const sig = `${f.name}(${[...reads, ...f.params.map((p) => `${p.name}=${p.default}`)].join(', ')})`;
       list.append(el(doc, 'dt', undefined, sig), el(doc, 'dd', undefined, `${f.about}${f.differs ? ` (${f.differs})` : ''}`));

@@ -1428,6 +1428,267 @@ describe('a tile\'s views: a scatter, a histogram, a curve -- every figure the d
   });
 });
 
+// the next phases' 4: an analyst's packs -- technicals of a candle's columns, a series against a benchmark, a total
+// return, a basket, a pair's lead and its reversion. Each held to its textbook's arithmetic (TA-Lib's, Morningstar's,
+// statsmodels' OLS) or to gs-quant's own loop (backtesting.basket_series), written here.
+describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket, a lead, a reversion', () => {
+  const N = 110;
+  const PACK_DAYS: string[] = [];
+  for (let d = new Date(Date.UTC(2024, 0, 31)); PACK_DAYS.length < N; d = new Date(d.getTime() + 86_400_000)) {
+    if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) PACK_DAYS.push(d.toISOString().slice(0, 10));
+  }
+  const PC = PACK_DAYS.map((_, i) => round(100 * (1 + 0.05 * Math.sin(i / 5) + 0.003 * i + 0.01 * Math.sin(i * 1.7))));
+  const PH = PC.map((c, i) => round(c + 0.3 + 0.8 * Math.abs(Math.sin(i * 1.3))));
+  const PL = PC.map((c, i) => round(c - 0.3 - 0.8 * Math.abs(Math.cos(i * 0.7))));
+  const PV = PACK_DAYS.map((_, i) => 1000 + ((i * 37) % 500));
+  // P's dividends on two of its dates; PD's (a series of dividends alone) on a Saturday P has no price of and a date it has
+  const P_DIV = new Map([[20, 0.5], [45, 0.75]]);
+  const SATURDAY = '2024-03-16';
+  const Q_HAS = PACK_DAYS.map((_, i) => i % 7 !== 3);
+  const QC = PACK_DAYS.map((_, i) => round(50 * (1 + 0.04 * Math.cos(i / 4) + 0.002 * i + 0.015 * Math.cos(i * 2.3))));
+  const QH = QC.map((c, i) => round(c + 0.2 + 0.5 * Math.abs(Math.cos(i * 0.9))));
+  const QL = QC.map((c, i) => round(c - 0.2 - 0.5 * Math.abs(Math.sin(i * 1.1))));
+  let pack: TsInputs;
+  let packs: LitePlanner;
+  before(async () => {
+    const csv = ['symbol,day,high,low,close,volume,dividend',
+      ...PACK_DAYS.flatMap((d, i) => [
+        `P,${d},${PH[i]},${PL[i]},${PC[i]},${PV[i]},${P_DIV.get(i) ?? ''}`,
+        ...(Q_HAS[i] ? [`Q,${d},${QH[i]},${QL[i]},${QC[i]},${PV[i]! * 2},`] : []),
+      ]),
+      `PD,${SATURDAY},,,,,0.4`,
+      `PD,${PACK_DAYS[60]},,,,,0.3`,
+    ].join('\n');
+    const r = await ingestFile(engine, files, new File([csv], 'packs.csv'), writer, { table: 'packs' });
+    packs = plannerFor(r.model, r.runtime);
+    pack = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r.source }, columns: [
+      { name: 'symbol', type: 'String' },
+      { name: 'day', type: 'StrictDate' },
+      { name: 'high', type: 'Float' },
+      { name: 'low', type: 'Float' },
+      { name: 'close', type: 'Float' },
+      { name: 'volume', type: 'Integer', kind: 'measure' },
+      { name: 'dividend', type: 'Float' },
+    ] }, filter: undefined }]]);
+  });
+  const packLine = async (text: string, more: Partial<TimeseriesSpec> = {}): Promise<{ dates: string[]; values: Line; lower?: Line; upper?: Line }> => {
+    const ts = spec({ A: text }, more);
+    const q = seriesQuery(pack, ts, ts.series[0]!);
+    const t = await engine.execute(await packs.plan(q.query), 0);
+    return {
+      dates: values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse(),
+      values: values(t, TS_VALUE).map(num).reverse(),
+      ...(q.band ? { lower: values(t, TS_LOWER).map(num).reverse(), upper: values(t, TS_UPPER).map(num).reverse() } : {}),
+    };
+  };
+  const Q_IDX = PACK_DAYS.map((_, i) => i).filter((i) => Q_HAS[i]);
+  const Q_DAYS = Q_IDX.map((i) => PACK_DAYS[i]!);
+  /** TA-Lib's true range: the most of the high less the low, the high less the close before, the close before less the low. */
+  const trueRanges = (h: number[], l: number[], c: number[]): number[] =>
+    h.map((v, i) => (i === 0 ? v - l[i]! : Math.max(v - l[i]!, Math.abs(v - c[i - 1]!), Math.abs(c[i - 1]! - l[i]!))));
+  /** TA-Lib's ATR: none to the w-th, there the mean of the w true ranges after the first, then Wilder's ((w − 1)·y + tr) / w. */
+  const talibAtr = (tr: number[], w: number): Line => {
+    const out: Line = [];
+    for (let i = 0; i < tr.length; i++) out.push(i < w ? null : i === w ? avg(tr.slice(1, w + 1)) : ((w - 1) * out[i - 1]! + tr[i]!) / w);
+    return out;
+  };
+  const correlation = (a: number[], b: number[]): number => cov(a, b) / (sd(a) * sd(b));
+
+  it('atr: Wilder\'s average of true ranges, as TA-Lib\'s -- of an instrument with gaps, each close before its own', async () => {
+    const l = await packLine('atr(high[P], low[P], close[P], 14)');
+    assert.deepEqual(l.dates, PACK_DAYS);
+    close(l.values, talibAtr(trueRanges(PH, PL, PC), 14), 'ATR 14', 1e-9);
+    const q = await packLine('atr(high[Q], low[Q], close[Q], 5)');
+    assert.deepEqual(q.dates, Q_DAYS);
+    const pick = (x: number[]): number[] => Q_IDX.map((i) => x[i]!);
+    close(q.values, talibAtr(trueRanges(pick(QH), pick(QL), pick(QC)), 5), 'ATR 5 over Q\'s own dates', 1e-9);
+  });
+
+  it('stochastic: 100 × (close − lowest low) / (highest high − lowest low) over w, as TA-Lib\'s fast %K', async () => {
+    const l = await packLine('stochastic(high[P], low[P], close[P], 14)');
+    close(l.values, PC.map((c, i) => {
+      if (i < 13) return null;
+      const hh = Math.max(...PH.slice(i - 13, i + 1));
+      const ll = Math.min(...PL.slice(i - 13, i + 1));
+      return (100 * (c - ll)) / (hh - ll);
+    }), '%K 14', 1e-9);
+    assert.ok(l.values.every((v) => v === null || (v >= 0 && v <= 100)));
+  });
+
+  it('keltner_channels: k average true ranges either side of the close\'s exponential average', async () => {
+    const l = await packLine('keltner_channels(high[P], low[P], close[P], 20, 10, 2)');
+    const mid = ema(PC, 19 / 21);
+    const atr = talibAtr(trueRanges(PH, PL, PC), 10);
+    close(l.lower!, atr.map((a, i) => (a === null ? null : mid[i]! - 2 * a)), 'lower', 1e-9);
+    close(l.upper!, atr.map((a, i) => (a === null ? null : mid[i]! + 2 * a)), 'upper', 1e-9);
+  });
+
+  it('donchian_channels: the lowest low and the highest high of the last w', async () => {
+    const l = await packLine('donchian_channels(high[P], low[P], 20)');
+    close(l.lower!, rolling(PL, 20, (v) => Math.min(...v)), 'lower', 0);
+    close(l.upper!, rolling(PH, 20, (v) => Math.max(...v)), 'upper', 0);
+  });
+
+  it('obv: each volume added on a rise, taken off on a fall, from 0; vwap: Σ price × volume / Σ volume', async () => {
+    let total = 0;
+    close((await packLine('obv(close[P], volume[P])')).values,
+      PC.map((c, i) => (i === 0 ? 0 : (total += Math.sign(c - PC[i - 1]!) * PV[i]!))), 'OBV', 0);
+    const vwap = (v: number[][]): number => v.reduce((s, [p, q]) => s + p! * q!, 0) / v.reduce((s, [, q]) => s + q!, 0);
+    const pv = PC.map((p, i) => [p, PV[i]!]);
+    close((await packLine('vwap(close[P], volume[P], 10)')).values,
+      pv.map((_, i) => (i < 9 ? null : vwap(pv.slice(i - 9, i + 1)))), 'VWAP 10', 1e-12);
+    close((await packLine('vwap(close[P], volume[P], 0)')).values, pv.map((_, i) => vwap(pv.slice(0, i + 1))), 'VWAP to date', 1e-12);
+  });
+
+  /** P's simple returns and Q's, each on its own dates, on Q's (the dates both have); Q's `k` back (or on, below 0). */
+  const pairsOn = (k = 0): { a: Line; b: Line } => {
+    const rp = simple(PC);
+    const rq: Line = Q_IDX.map((i, j) => (j === 0 ? null : QC[i]! / QC[Q_IDX[j - 1]!]! - 1));
+    const shifted: Line = rq.map((_, j) => rq[j - k] ?? null);
+    const a = Q_IDX.map((i, j) => (shifted[j] === null ? null : rp[i]!));
+    return { a, b: shifted.map((v, j) => (a[j] === null ? null : v)) };
+  };
+  const windowed = (a: Line, b: Line, w: number, f: (p: number[], q: number[]) => number | null): Line => a.map((_, i) => {
+    if (i < w - 1) return null;
+    const p = a.slice(i - w + 1, i + 1);
+    const q = b.slice(i - w + 1, i + 1);
+    if (p.some((v) => v === null)) return null;
+    return f(p as number[], q as number[]);
+  });
+
+  it('tracking error and information ratio: of P\'s returns less Q\'s, each on its own dates, annualized', async () => {
+    const { a, b } = pairsOn();
+    const active = zip(a, b, (p, q) => p - q);
+    close((await packLine('tracking_error(close[P], close[Q], 10)', { grain: 'day' })).values,
+      rolling(active, 10, (v) => sd(v) * Math.sqrt(252) * 100), 'TE', 1e-9);
+    close((await packLine('information_ratio(close[P], close[Q], 10)', { grain: 'day' })).values,
+      rolling(active, 10, (v) => (avg(v) / sd(v)) * Math.sqrt(252)), 'IR', 1e-9);
+  });
+
+  it('up and down capture: P\'s mean return on the periods Q rose (fell) over Q\'s mean then', async () => {
+    const { a, b } = pairsOn();
+    for (const [f, up] of [['up_capture', true], ['down_capture', false]] as const) {
+      close((await packLine(`${f}(close[P], close[Q], 10)`)).values, windowed(a, b, 10, (p, q) => {
+        const on = q.map((_, i) => i).filter((i) => (up ? q[i]! > 0 : q[i]! < 0));
+        if (on.length === 0) return null;
+        return avg(on.map((i) => p[i]!)) / avg(on.map((i) => q[i]!));
+      }), f, 1e-9);
+    }
+  });
+
+  it('lead_lag: P\'s returns against Q\'s lag observations before (after, below 0), on Q\'s own dates', async () => {
+    for (const k of [0, 2, -2]) {
+      const { a, b } = pairsOn(k);
+      const l = await packLine(`lead_lag(close[P], close[Q], ${k}, 10)`);
+      assert.deepEqual(l.dates, Q_DAYS);
+      close(l.values, windowed(a, b, 10, correlation), `lag ${k}`, 1e-9);
+    }
+  });
+
+  it('total_return: dividends reinvested on their dates -- a Saturday\'s paid at Monday; a yield accrued day by day', async () => {
+    const day = (d: string): number => Date.parse(`${d}T00:00:00Z`) / 86_400_000;
+    const tr = (paid: (i: number) => number): number[] => {
+      const out = [PC[0]!];
+      for (let i = 1; i < PC.length; i++) out.push(out[i - 1]! * ((PC[i]! + paid(i)) / PC[i - 1]!));
+      return out;
+    };
+    close((await packLine('total_return(close[P], dividend[P])')).values, tr((i) => P_DIV.get(i) ?? 0), 'dividends on P\'s rows', 1e-9);
+    const monday = PACK_DAYS.indexOf('2024-03-18');
+    assert.ok(monday > 0 && !PACK_DAYS.includes(SATURDAY));
+    const l = await packLine('total_return(close[P], dividend[PD])');
+    assert.deepEqual(l.dates, PACK_DAYS, 'the price\'s dates alone: no Saturday');
+    close(l.values, tr((i) => (i === monday ? 0.4 : i === 60 ? 0.3 : 0)), 'a Saturday\'s dividend paid at Monday', 1e-9);
+    const y = await packLine('total_return(close[P], 0.03)');
+    const accrued: number[] = [PC[0]!];
+    for (let i = 1; i < PC.length; i++) {
+      accrued.push(accrued[i - 1]! * (PC[i]! / PC[i - 1]! + (0.03 * (day(PACK_DAYS[i]!) - day(PACK_DAYS[i - 1]!))) / 365));
+    }
+    close(y.values, accrued, 'a 3% yield', 1e-9);
+  });
+
+  /** gs-quant's backtesting.basket_series, its loop (no costs): units held from 100, reset at each rebalance date --
+   *  daily every date; weekly or monthly the first date on or after the first date plus k weeks or months
+   *  (relativedelta's month: its day, or the month's last), each before the last date. */
+  const gsBasket = (cal: string[], prices: number[][], weights: number[], freq: 'daily' | 'weekly' | 'monthly'): number[] => {
+    const at = (d: string): number => Date.parse(`${d}T00:00:00Z`);
+    const iso = (t: number): string => new Date(t).toISOString().slice(0, 10);
+    let rebal: Set<string>;
+    if (freq === 'daily') rebal = new Set(cal);
+    else {
+      const [c0, last] = [cal[0]!, cal.at(-1)!];
+      const hyp: string[] = [];
+      if (freq === 'weekly') {
+        const n = Math.floor((at(last) - at(c0)) / (7 * 86_400_000));
+        for (let i = 0; i <= n; i++) hyp.push(iso(at(c0) + i * 7 * 86_400_000));
+      } else {
+        const [y0, m0, d0] = c0.split('-').map(Number) as [number, number, number];
+        const [y1, m1] = last.split('-').map(Number) as [number, number];
+        const n = (y1 - y0) * 12 + m1 - m0;
+        for (let i = 0; i <= n; i++) {
+          const lastDay = new Date(Date.UTC(y0, m0 - 1 + i + 1, 0)).getUTCDate();
+          hyp.push(iso(Date.UTC(y0, m0 - 1 + i, Math.min(d0, lastDay))));
+        }
+      }
+      rebal = new Set(hyp.filter((h) => h < last).map((h) => cal.find((d) => d >= h)!));
+    }
+    const out = [100];
+    let units = weights.map((w, j) => (100 * w) / prices[j]![0]!);
+    for (let i = 1; i < cal.length; i++) {
+      out.push(out[i - 1]! + units.reduce((s, u, j) => s + u * (prices[j]![i]! - prices[j]![i - 1]!), 0));
+      if (rebal.has(cal[i]!)) units = weights.map((w, j) => (out[i]! * w) / prices[j]![i]!);
+    }
+    return out;
+  };
+
+  it('basket: gs-quant\'s backtest -- daily, weekly and monthly (a 31st\'s month its last day), on the dates all have', async () => {
+    const prices = [Q_IDX.map((i) => PC[i]!), Q_IDX.map((i) => QC[i]!)];
+    for (const freq of ['daily', 'weekly', 'monthly'] as const) {
+      const l = await packLine(`basket(close[P], 0.6, close[Q], 0.4, rebalance=${freq})`);
+      assert.deepEqual(l.dates, Q_DAYS, `${freq}: the dates both have`);
+      close(l.values, gsBasket(Q_DAYS, prices, [0.6, 0.4], freq), freq, 1e-9);
+    }
+    // the rebalances differ: a month's units are not a day's
+    const [d, m] = [gsBasket(Q_DAYS, prices, [0.6, 0.4], 'daily'), gsBasket(Q_DAYS, prices, [0.6, 0.4], 'monthly')];
+    assert.ok(Math.abs(d.at(-1)! - m.at(-1)!) > 1e-6, 'the sample tells a daily basket from a monthly one');
+    // three series, weights of no sum in particular
+    const three = await packLine('basket(close[P], 0.5, close[Q], 0.3, high[P], 0.4, rebalance=weekly)');
+    close(three.values, gsBasket(Q_DAYS, [...prices, Q_IDX.map((i) => PH[i]!)], [0.5, 0.3, 0.4], 'weekly'), 'three, weekly', 1e-9);
+  });
+
+  /** Δx = a + b·x[-1] by least squares over the pairs, written out: b, its standard error from the residuals. */
+  const ols = (x: number[]): { b: number; t: number } => {
+    const xs = x.slice(0, -1);
+    const ys = x.slice(1).map((v, i) => v - x[i]!);
+    const [mx, my] = [avg(xs), avg(ys)];
+    const sxx = xs.reduce((s, v) => s + (v - mx) ** 2, 0);
+    const b = xs.reduce((s, v, i) => s + (v - mx) * (ys[i]! - my), 0) / sxx;
+    const a = my - b * mx;
+    const ssr = xs.reduce((s, v, i) => s + (ys[i]! - a - b * v) ** 2, 0);
+    return { b, t: b / Math.sqrt(ssr / (xs.length - 2) / sxx) };
+  };
+
+  it('dickey_fuller and half_life: the t-statistic of b in Δx = a + b·x[-1], and −ln 2 / ln(1 + b), over w', async () => {
+    const df = await packLine('dickey_fuller(close[P], 30)');
+    // 30 pairs: the 31st value on
+    close(df.values, PC.map((_, i) => (i < 30 ? null : ols(PC.slice(i - 30, i + 1)).t)), 'DF over 30', 1e-9);
+    const hl = await packLine('half_life(close[P], 30)');
+    close(hl.values, PC.map((_, i) => {
+      if (i < 30) return null;
+      const { b } = ols(PC.slice(i - 30, i + 1));
+      return b >= 0 || b <= -1 ? null : -Math.log(2) / Math.log(1 + b);
+    }), 'half-life over 30', 1e-9);
+    assert.ok(hl.values.some((v) => v !== null) && hl.values.some((v, i) => i >= 30 && v === null), 'the sample reverts and does not');
+    // from the start: three pairs on
+    close((await packLine('dickey_fuller(close[P])')).values, PC.map((_, i) => (i < 3 ? null : ols(PC.slice(0, i + 1)).t)), 'DF to date', 1e-9);
+  });
+
+  it('a pack\'s series read by name: what each is, and how many', () => {
+    assert.throws(() => parseExpr('atr(high[P], low[P])'), /atr reads three series \(high, low and close\)/);
+    assert.throws(() => parseExpr('obv(close[P])'), /obv reads two series \(close and volume\)/);
+    assert.throws(() => parseExpr('basket(close[P], 0.5, close[Q], 0.5, rebalance=yearly)'), /rebalance/);
+  });
+});
+
 describe('a series of no instrument says how many rows each date had', () => {
   it('close with no [AAA] and no split: each date three rows or two, counted', async () => {
     const q = seriesQuery(inputs, spec({ A: 'close' }), spec({ A: 'close' }).series[0]!);
@@ -1939,8 +2200,8 @@ describe('a series combining two grids, planned over one model of their tables (
 /** The gallery's series: every function at least once, and the ways to view (2026-10-26: 92, the regression tile's four;
  *  102, the exponential averages', volatilities' and MACD's ten; 106, the percentiles' four; 109, a condition's three;
  *  113, the Dates sheet's alignment and interpolate, four; 144, gs-quant's remaining functions, 31; 149, the other
- *  views' sheet, five: the next phases' 3). */
-const GALLERY_SERIES = 149;
+ *  views' sheet, five: the next phases' 3; 171, an analyst's packs, 22: the next phases' 4). */
+const GALLERY_SERIES = 171;
 
 describe('the timeseries examples: every series of every tile, on its own samples', () => {
   const pages = [

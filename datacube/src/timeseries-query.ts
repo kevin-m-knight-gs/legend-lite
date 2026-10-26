@@ -1266,6 +1266,204 @@ function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | un
   }
 }
 
+/** A window or a lag a function is told: a whole number of observations, or a calendar period (the spec's reader holds
+ *  it to one). */
+function spanOf(e: Extract<TsExpr, { kind: 'call' }>, name: string): Span {
+  const v = paramOf(e, name);
+  if (typeof v === 'number') return v;
+  const t = tenorOf(v);
+  if (t === undefined) throw new CubeRefusal(`${e.fn}'s ${name} ${JSON.stringify(v)} is neither a whole number nor a calendar period (3m, 1y)`);
+  return t;
+}
+
+/**
+ * THE ANALYSTS' PACKS (the next phases' 4, 2026-10-26) of several series: a candle's columns' technicals (Wilder's true
+ * range, Lane's stochastic, Keltner's and Donchian's channels, Granville's on-balance volume, a volume-weighted price),
+ * a series against a benchmark, a total return, a basket, a pair's lead -- or undefined, the function another's. Each
+ * series on its own dates first (a benchmark's returns each on its own, as a correlation's), then joined on the dates
+ * all have; every figure the database's.
+ */
+function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | undefined {
+  const n = (name: string): number => paramOf(e, name) as number;
+  const R = Writer.read;
+  /** Each period's true range: the most of the high less the low, the high less the close before and the close before
+   *  less the low -- the first, its high less its low. */
+  const trueRange = (w: Writer, h: string, l: string, c: string): string => {
+    const pc = w.lag(c, 1);
+    const hl = op('minus', one(h), one(l));
+    return w.row('tr', when(fn('isEmpty', col(pc)), hl,
+      fn('max', fn('max', hl, fn('abs', op('minus', one(h), one(pc)))), fn('abs', op('minus', one(pc), one(l))))));
+  };
+  /** Two series' simple returns, each on its own dates, on the dates both have one (a pair's, a benchmark's). */
+  const returnsOf = (k = 0): { readonly w: Writer; readonly a: string; readonly b: string } => {
+    const x = seriesArg(sh, e, 0);
+    const y = seriesArg(sh, e, 1);
+    const ra = x.w.simple(columnOfValue(x.v));
+    const r0 = y.w.simple(columnOfValue(y.v));
+    // the second's k observations before (a lag), or after (a lead), on its own dates
+    const rb = k === 0 ? r0 : k > 0 ? y.w.lag(r0, k) : y.w.lead(r0, -k);
+    const w = joined(sh, [{ w: x.w, v: { column: ra } }, { w: y.w, v: { column: rb } }]);
+    return { w, a: w.row('pa', when(fn('isEmpty', col(rb)), none(), col(ra))), b: w.row('pb', when(fn('isEmpty', col(ra)), none(), col(rb))) };
+  };
+  switch (e.fn) {
+    case 'atr':
+    case 'stochastic':
+    case 'keltner_channels': {
+      const parts = [0, 1, 2].map((i) => seriesArg(sh, e, i));
+      const w = joined(sh, parts);
+      const [hi, lo, cl] = parts.map((x) => columnOfValue(x.v)) as [string, string, string];
+      if (e.fn === 'atr') return { w, v: { column: w.smoothed(trueRange(w, hi, lo, cl), n('w')) } };
+      if (e.fn === 'stochastic') {
+        const size = n('w');
+        const hh = w.window('hh', 'max', R(hi), size);
+        const ll = w.window('ll', 'min', R(lo), size);
+        const k = w.row('stoch', when(fn('equal', one(hh), one(ll)), none(),
+          op('times', lit.integer(100), fn('divide', op('minus', one(cl), one(ll)), op('minus', one(hh), one(ll))))));
+        return { w, v: { column: w.ramped(k, cl, size) } };
+      }
+      // the close's exponential average of span w (its weight of the one before (w - 1) / (w + 1), the database's), k
+      // average true ranges either side
+      const span = n('w');
+      const mid = span <= 1 ? cl : w.ewm(cl, fn('divide', lit.integer(span - 1), lit.integer(span + 1)));
+      const atr = w.smoothed(trueRange(w, hi, lo, cl), n('a'));
+      const k = float(n('k'));
+      const lower = w.row('lower', op('minus', one(mid), op('times', k, one(atr))));
+      const upper = w.row('upper', op('plus', one(mid), op('times', k, one(atr))));
+      return { w, v: { lower, upper, width: w.row('width', op('minus', one(upper), one(lower))) } };
+    }
+    case 'donchian_channels': {
+      const parts = [0, 1].map((i) => seriesArg(sh, e, i));
+      const w = joined(sh, parts);
+      const [hi, lo] = parts.map((x) => columnOfValue(x.v)) as [string, string];
+      const size = spanOf(e, 'w');
+      const frame = Writer.frame(size);
+      const upper = w.ramped(w.window('dc_hi', 'max', R(hi), frame), hi, size, frame);
+      const lower = w.ramped(w.window('dc_lo', 'min', R(lo), frame), lo, size, frame);
+      return { w, v: { lower, upper, width: w.row('width', op('minus', one(upper), one(lower))) } };
+    }
+    case 'obv': {
+      const parts = [0, 1].map((i) => seriesArg(sh, e, i));
+      const w = joined(sh, parts);
+      const [cl, vol] = parts.map((x) => columnOfValue(x.v)) as [string, string];
+      const d = w.row('d', op('minus', one(cl), one(w.lag(cl, 1))));
+      const signed = w.row('obv_v', when(fn('isEmpty', col(d)), float(0), when(fn('greaterThan', one(d), lit.integer(0)), one(vol),
+        when(fn('lessThan', one(d), lit.integer(0)), op('minus', float(0), one(vol)), float(0)))));
+      return { w, v: { column: w.window('obv', 'plus', R(signed), 'running') } };
+    }
+    case 'vwap': {
+      const parts = [0, 1].map((i) => seriesArg(sh, e, i));
+      const w = joined(sh, parts);
+      const [px, vol] = parts.map((x) => columnOfValue(x.v)) as [string, string];
+      const size = spanOf(e, 'w');
+      const frame = Writer.frame(size);
+      const traded = w.window('pv_s', 'plus', R(w.row('pv', op('times', one(px), one(vol)))), frame);
+      const volume = w.window('v_s', 'plus', R(vol), frame);
+      return { w, v: { column: w.ramped(w.ratio('vwap', one(traded), volume), px, size, frame) } };
+    }
+    case 'tracking_error':
+    case 'information_ratio':
+    case 'up_capture':
+    case 'down_capture': {
+      const { w, a, b } = returnsOf();
+      const size = spanOf(e, 'w');
+      const frame = Writer.frame(size);
+      if (e.fn === 'up_capture' || e.fn === 'down_capture') {
+        // the first's mean return on the periods the benchmark rose (fell) over the benchmark's mean then
+        const then = (c: string): string => w.row('cap', when(fn(e.fn === 'up_capture' ? 'greaterThan' : 'lessThan', one(b), lit.integer(0)), col(c), none()));
+        const ma = w.window('cap_a', 'average', R(then(a)), frame);
+        const mb = w.window('cap_b', 'average', R(then(b)), frame);
+        return { w, v: { column: w.ramped(w.ratio('capture', one(ma), mb), a, size, frame) } };
+      }
+      const active = w.row('act', op('minus', one(a), one(b)));
+      const sd = w.std(active, size);
+      if (e.fn === 'tracking_error') return { w, v: { column: w.row('te', op('times', op('times', one(sd), w.annual()), lit.integer(100))) } };
+      const mean = w.window('act_m', 'average', R(active), frame);
+      return { w, v: { column: w.row('ir', when(fn('equal', one(sd), lit.integer(0)), none(), op('times', fn('divide', one(mean), one(sd)), w.annual()))) } };
+    }
+    case 'lead_lag': {
+      const { w, a, b } = returnsOf(n('lag'));
+      const size = spanOf(e, 'w');
+      const frame = Writer.frame(size);
+      return { w, v: { column: w.ramped(w.window('corr', 'corr', fn('rowMapper', R(a), R(b)), frame), a, atLeast(size, 2), frame) } };
+    }
+    case 'total_return': {
+      const x = seriesArg(sh, e, 0);
+      const px = columnOfValue(x.v);
+      const told = e.args[1]!;
+      let w: Writer;
+      let g: string;
+      if (told.kind === 'number') {
+        // a yield a year, accrued day by day: each period's price over the one before, and the yield over the days since
+        w = x.w;
+        const days = w.seconds ? fn('divide', op('minus', one(ORD), one(w.lag(ORD, 1))), lit.integer(86400)) : op('minus', one(ORD), one(w.lag(ORD, 1)));
+        g = w.row('trg', op('plus', fn('divide', one(px), one(w.lag(px, 1))), op('times', float(told.value), fn('divide', days, lit.integer(365)))));
+      } else {
+        // dividends on their dates: (price + the dividends since the price before) / the price before, on the price's
+        // dates -- a dividend of a date the price has none of paid at its next: their running total over every date
+        // either has, then the dates of a price alone, kept by a filter reading that total (a filter of a plain column
+        // folds under its select's windows, Fold.filterSlot; one reading a window is the database's QUALIFY, after them)
+        const d = seriesArg(sh, e, 1);
+        const dv = columnOfValue(d.v);
+        const al = aligned(sh, [{ w: x.w, values: [px] }, { w: d.w, values: [dv] }], 'nan');
+        w = al.w;
+        const paid = w.window('tr_paid', 'plus', R(w.row('tr_dv', when(fn('isEmpty', col(dv)), float(0), col(dv)))), 'running');
+        w.rel = w.rel.filter(row(and(fn('isNotEmpty', col(paid)), fn('isNotEmpty', col(px)))));
+        g = w.row('trg', fn('divide', op('plus', one(px), op('minus', one(paid), one(w.lag(paid, 1)))), one(w.lag(px, 1))));
+      }
+      // its first value, then each period's growth compounded (the first's none: none before it)
+      return { w, v: { column: w.row('tr', when(fn('isEmpty', col(px)), none(), op('times', one(w.edgeValue(px, 'first')), one(w.product(g, 'running'))))) } };
+    }
+    case 'basket':
+      return basket(sh, e);
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * A BASKET (gs-quant's backtesting.basket_series, its costs none): its series held in weights from 100, on the dates
+ * all have -- units fixed between rebalances, set at each to the basket's then in its weights. Each date's rebalance
+ * period: its own (daily); the weeks, or the months, from the first date (a rebalance the first date on or after each,
+ * gs-quant's `min(cal[cal >= date])`; a month's day kept, or its last where it has none, as relativedelta's). Within a
+ * period, 1 + Σ w (price / its price at the period's first date - 1); into it, the period before's growth to its first
+ * date; the basket 100 times those growths compounded, times its growth within -- every figure the database's.
+ */
+function basket(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
+  const series = e.args.filter((_, i) => i % 2 === 0).map((_, i) => seriesArg(sh, e, i * 2));
+  const weights = e.args.filter((_, i) => i % 2 === 1).map((x) => (x as Extract<TsExpr, { kind: 'number' }>).value);
+  const w = joined(sh, series);
+  const R = Writer.read;
+  const prices = series.map((p) => columnOfValue(p.v));
+  const rebalance = paramOf(e, 'rebalance') as string;
+  const at = one(w.at);
+  const at0 = one(w.edgeValue(w.at, 'first'));
+  let period: ValueSpecification;
+  if (rebalance === 'daily') period = col(ORD);
+  else if (rebalance === 'weekly') {
+    const ord0 = one(w.edgeValue(ORD, 'first'));
+    const days = w.seconds ? fn('divide', op('minus', one(ORD), ord0), lit.integer(86400)) : op('minus', one(ORD), ord0);
+    period = fn('floor', fn('divide', days, lit.integer(7)));
+  } else {
+    // the months from the first date's, less one where the date is before its month's rebalance: the first date that
+    // many months on, the database's (its day kept, or its month's last where it has none -- relativedelta's)
+    const months = one(w.row('bk_m', op('plus', op('times', op('minus', fn('year', at), fn('year', at0)), lit.integer(12)),
+      op('minus', fn('monthNumber', at), fn('monthNumber', at0)))));
+    const due = fn('adjust', at0, months, enumValue(DURATION, 'MONTHS'));
+    period = op('minus', months, when(fn('lessThan', at, due), lit.integer(1), lit.integer(0)));
+  }
+  const k = w.row('bk_k', period);
+  const first = w.window('bk_f', 'min', R(ORD), 'all', k);
+  const atFirst = fn('equal', one(ORD), one(first));
+  const bases = prices.map((c) => w.window('bk_b', 'max', R(w.row('bk_bv', when(atFirst, col(c), none()))), 'all', k));
+  const growth = (over: readonly string[]): ValueSpecification =>
+    op('plus', lit.integer(1), weights.map((x, i) => op('times', float(x), op('minus', fn('divide', one(prices[i]!), one(over[i]!)), lit.integer(1)))).reduce((t, x) => op('plus', t, x)));
+  const within = w.row('bk_in', growth(bases));
+  // into a period, at its first date: each price over the period before's base (the row before carries it)
+  const before = bases.map((b) => w.lag(b, 1));
+  const into = w.row('bk_g', when(and(atFirst, fn('isNotEmpty', col(before[0]!))), growth(before), none()));
+  return { w, v: { column: w.row('basket', op('times', float(100), op('times', one(w.product(into, 'running')), one(within)))) } };
+}
+
 /** A cycle in the observations of a tile's frequency (a classical decomposition's period): undefined, none whole. */
 const CYCLES: Readonly<Partial<Record<TimeGrain, Readonly<Partial<Record<string, number>>>>>> = {
   day: { week: 5, month: 21, quarter: 63, year: 252 },
@@ -1277,13 +1475,7 @@ const CYCLES: Readonly<Partial<Record<TimeGrain, Readonly<Partial<Record<string,
 function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   const n = (name: string): number => paramOf(e, name) as number;
   // a window or a lag: a whole number of observations, or a calendar period (the spec's reader holds it to one)
-  const span = (name: string): Span => {
-    const v = paramOf(e, name);
-    if (typeof v === 'number') return v;
-    const t = tenorOf(v);
-    if (t === undefined) throw new CubeRefusal(`${e.fn}'s ${name} ${JSON.stringify(v)} is neither a whole number nor a calendar period (3m, 1y)`);
-    return t;
-  };
+  const span = (name: string): Span => spanOf(e, name);
   const word = (name: string): string => paramOf(e, name) as string;
   const R = Writer.read;
   // the pairs and the candle: each series on its own dates, then joined
@@ -1330,7 +1522,7 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     return { w, v: { column: w.ramped(v, pa, atLeast(size, 2), frame) } };
   }
   if (e.fn === 'ohlc') return candle(sh, e);
-  const special = otherCalls(sh, e);
+  const special = otherCalls(sh, e) ?? analystCalls(sh, e);
   if (special !== undefined) return special;
   if (e.fn === 'interpolate') {
     // x onto y's dates (gs-quant's datetime.interpolate; the Phase 1 review's 5): every date either has merged, then
@@ -1496,6 +1688,32 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     }
     case 'smoothed_moving_average':
       return done(w.smoothed(a, n('w')));
+    case 'dickey_fuller':
+    case 'half_life': {
+      // Δx = a + b·x[-1] over the window, least squares (the next phases' 4): b their covariance over x[-1]'s variance --
+      // its t-statistic Dickey and Fuller's (statsmodels' adfuller of no lags, a constant), its half-life −ln 2 / ln(1 + b)
+      const size = span('w');
+      const frame = Writer.frame(size);
+      const xl = w.lag(a, 1);
+      const dx = w.row('df_dx', op('minus', one(a), one(xl)));
+      const pl = w.row('df_l', when(fn('isEmpty', col(dx)), none(), col(xl)));
+      const pd = w.row('df_d', when(fn('isEmpty', col(xl)), none(), col(dx)));
+      const vl = w.window('df_vl', 'varianceSample', R(pl), frame);
+      const b = w.ratio('df_b', one(w.window('df_c', 'covarSample', fn('rowMapper', R(pd), R(pl)), frame)), vl);
+      if (e.fn === 'half_life') {
+        // none where it does not revert (b at or above 0), or overshoots past its mean (b at or below -1)
+        const hl = w.row('hl', when(or(fn('isEmpty', col(b)), fn('greaterThanEqual', one(b), lit.integer(0)), fn('lessThanEqual', one(b), lit.integer(-1))), none(),
+          fn('divide', op('minus', float(0), fn('log', float(2))), fn('log', op('plus', lit.integer(1), one(b))))));
+        return done(w.ramped(hl, pl, atLeast(size, 3), frame));
+      }
+      // b's standard error: √((var Δx − b² var x[-1]) / ((n − 2) var x[-1])), none of a perfect fit
+      const vd = w.window('df_vd', 'varianceSample', R(pd), frame);
+      const count = w.window('df_n', 'count', R(pl), frame);
+      const resid = w.row('df_r', op('minus', one(vd), op('times', op('times', one(b), one(b)), one(vl))));
+      const se = w.row('df_se', when(or(fn('isEmpty', col(b)), fn('lessThan', one(count), lit.integer(3)), fn('lessThanEqual', one(resid), lit.integer(0))), none(),
+        fn('sqrt', fn('divide', one(resid), op('times', op('minus', one(count), lit.integer(2)), one(vl))))));
+      return done(w.ramped(w.ratio('df_t', one(b), se), pl, atLeast(size, 3), frame));
+    }
     case 'percentiles': {
       // scipy's percentileofscore(window, value, kind='mean'), gs-quant's: the share of the window below the value, those
       // equal to it counted half, in percent
@@ -1657,6 +1875,20 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     case 'excess_returns':
     case 'weighted_sum':
       throw new Error(`${e.fn} is written by otherCalls`);
+    case 'atr':
+    case 'stochastic':
+    case 'keltner_channels':
+    case 'donchian_channels':
+    case 'obv':
+    case 'vwap':
+    case 'tracking_error':
+    case 'information_ratio':
+    case 'up_capture':
+    case 'down_capture':
+    case 'total_return':
+    case 'basket':
+    case 'lead_lag':
+      throw new Error(`${e.fn} is written by analystCalls`);
   }
 }
 

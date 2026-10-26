@@ -1062,6 +1062,31 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'a curve is of a line per value of a column'):
             tile.curve('A')
 
+    def test_a_timeseries_reads_an_analysts_packs_each_figure_the_databases(self):
+        # the next phases' 4 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): technicals of a candle's
+        # columns and a rebalanced basket -- the screen's parser and queries, held to pandas
+        import numpy as np
+        page = ll.Page('Packs')
+        days = list(pd.bdate_range('2024-01-31', periods=30).date)
+        s_close = [100.0 + i * 0.5 + (i % 3) * 0.7 - (i % 5) * 0.4 for i in range(30)]
+        t_close = [50.0 + (i % 4) * 0.6 - i * 0.1 for i in range(30)]
+        prices = pd.DataFrame({'symbol': ['S'] * 30 + ['T'] * 30, 'day': days * 2, 'close': s_close + t_close,
+                               'high': [c + 1 for c in s_close + t_close], 'low': [c - 1 for c in s_close + t_close],
+                               'volume': [1000 + 10 * i for i in range(30)] * 2})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['obv(close[S], volume[S])', 'basket(close[S], 0.5, close[T], 0.5)',
+                                            'donchian_channels(high[S], low[S], 5)'])
+        sc, tc, vol = pd.Series(s_close), pd.Series(t_close), pd.Series([1000 + 10 * i for i in range(30)], dtype=float)
+        obv = (np.sign(sc.diff()).fillna(0) * vol).cumsum()
+        self.assertEqual(list(tile.frame('A')['A']), list(obv))
+        # rebalanced daily: 100 compounded by the weighted returns
+        daily = 100 * (1 + 0.5 * sc.pct_change().fillna(0) + 0.5 * tc.pct_change().fillna(0)).cumprod()
+        np.testing.assert_allclose(tile.frame('B')['B'].to_numpy(dtype=float), daily.to_numpy(), rtol=1e-9)
+        band = tile.frame('C')
+        np.testing.assert_allclose(band['upper'].to_numpy(dtype=float)[4:], (sc + 1).rolling(5).max().to_numpy()[4:], rtol=1e-12)
+        with self.assertRaisesRegex(ValueError, r'atr reads three series \(high, low and close\)'):
+            tile.plot('atr(high[S], low[S])')
+
     def test_a_timeseries_tables_over_a_range_of_the_last_month_read_it_from_its_sources_latest_date(self):
         # the E9 review's 7: the screen's window of a range of the last of a period -- each source's bounds the database's,
         # the latest of them -- the tables' too (timeseries-query.ts rangeWindow, headless timeseriesWindow)

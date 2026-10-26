@@ -300,7 +300,10 @@ export type TsFunctionName =
   | 'log' | 'exp' | 'sqrt' | 'abs' | 'power' | 'floor' | 'ceil'
   | 'if' | 'not' | 'compare' | 'filter' | 'product' | 'geometrically_aggregate' | 'weighted_sum' | 'smooth_spikes'
   | 'excess_returns' | 'vol_swap_volatility' | 'consecutive' | 'trend' | 'seasonally_adjusted'
-  | 'interpolate' | 'union' | 'append' | 'prepend' | 'first' | 'last' | 'count' | 'day' | 'month' | 'year' | 'quarter' | 'weekday';
+  | 'interpolate' | 'union' | 'append' | 'prepend' | 'first' | 'last' | 'count' | 'day' | 'month' | 'year' | 'quarter' | 'weekday'
+  | 'atr' | 'stochastic' | 'keltner_channels' | 'donchian_channels' | 'obv' | 'vwap'
+  | 'tracking_error' | 'information_ratio' | 'up_capture' | 'down_capture' | 'total_return' | 'basket'
+  | 'lead_lag' | 'dickey_fuller' | 'half_life';
 
 /** A function's parameter as a spec holds it: a whole number, a span (a window, a lag: a whole number of observations
  *  or a calendar period, `3m`), a number, or a word (a kind of return). */
@@ -329,6 +332,9 @@ export interface TsSignature {
   /** One, two (a correlation's), three (an if's flags and its two branches), four (a candle's: its open, high, low and
    *  close), or `many`: series and their weights in pairs (a weighted sum's). */
   readonly series: 1 | 2 | 3 | 4 | 'many';
+  /** What each series is, in order, where they are not x and y (a true range's high, low and close): said by its
+   *  refusals and its reference. */
+  readonly reads?: readonly string[];
   readonly params: readonly TsParamShape[];
 }
 
@@ -348,6 +354,11 @@ const one = (...params: TsParamShape[]): TsSignature => ({ series: 1, params });
 /** A seasonal decomposition's model and its cycle (gs-quant's SeasonalModel and Frequency). */
 const SEASONAL_MODEL: TsParamShape = { name: 'method', kind: 'word', default: 'additive', words: ['additive', 'multiplicative'] };
 const CYCLE: TsParamShape = { name: 'freq', kind: 'word', default: 'year', words: ['year', 'quarter', 'month', 'week'] };
+
+/** A true range's series: a candle's high, low and close. */
+const HLC = ['high', 'low', 'close'] as const;
+/** A series against a benchmark, over a window: each one's simple returns, on the dates both have. */
+const AGAINST: TsSignature = { series: 2, reads: ['x', 'benchmark'], params: [W(63)] };
 
 /** Every function's signature, gs-quant's names (PlotTool Pro's words), in the catalog's order. */
 export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
@@ -377,6 +388,19 @@ export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
   smoothed_moving_average: one(whole('w', 14)),
   percentiles: one(W(0)), median: one(W(22)), percentile: one({ name: 'n', kind: 'number', default: 50, min: 0, max: 100 }, W(0)),
   log: one(), exp: one(), sqrt: one(), abs: one(), power: one(num('y', 2)), floor: one(num('value', 0)), ceil: one(num('value', 0)),
+  // the analysts' packs (the next phases' 4, 2026-10-26): technicals of a candle's columns, a benchmark's, a basket's, a
+  // pair's
+  atr: { series: 3, reads: HLC, params: [whole('w', 14)] },
+  stochastic: { series: 3, reads: HLC, params: [whole('w', 14)] },
+  keltner_channels: { series: 3, reads: HLC, params: [whole('w', 20), whole('a', 10), num('k', 2, 0)] },
+  donchian_channels: { series: 2, reads: ['high', 'low'], params: [W(20)] },
+  obv: { series: 2, reads: ['close', 'volume'], params: [] },
+  vwap: { series: 2, reads: ['price', 'volume'], params: [W(20)] },
+  tracking_error: AGAINST, information_ratio: AGAINST, up_capture: AGAINST, down_capture: AGAINST,
+  total_return: { series: 2, reads: ['price', 'dividends'], params: [] },
+  basket: { series: 'many', params: [{ name: 'rebalance', kind: 'word', default: 'daily', words: ['daily', 'weekly', 'monthly'] }] },
+  lead_lag: { series: 2, params: [{ name: 'lag', kind: 'whole', default: 1, min: -252, max: 252 }, W(63)] },
+  dickey_fuller: one(W(0)), half_life: one(W(0)),
 };
 
 /**
@@ -399,8 +423,13 @@ export function tenorOf(v: number | string): TsTenor | undefined {
   return m ? { n: Number(m[1]), unit: TENOR_UNITS[m[2]!]! } : undefined;
 }
 
-/** How many series a function reads, in words: one, two, or a candle's four. */
-export function seriesWords(n: TsSignature['series']): string {
+/** How many series a function reads, in words: one, two, or a candle's four -- what each is where it is told (`reads`:
+ *  a true range's high, low and close). */
+export function seriesWords(n: TsSignature['series'], reads?: readonly string[]): string {
+  if (reads !== undefined && n !== 'many') {
+    const listed = reads.length === 2 ? `${reads[0]} and ${reads[1]}` : `${reads.slice(0, -1).join(', ')} and ${reads.at(-1)}`;
+    return `${n === 2 ? 'two' : n === 3 ? 'three' : n === 4 ? 'four' : 'one'} series (${listed})`;
+  }
   return n === 1 ? 'one series' : n === 2 ? 'two series' : n === 3 ? 'three (its flags, then a series or a number for each of 1 and 0)'
     : n === 4 ? 'four series (its open, high, low and close)' : 'series and their weights, in pairs (x, 0.6, y, 0.4)';
 }
@@ -513,10 +542,10 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
       // the parser's words (timeseries-expr.ts NOT_BUILT): a saved one is refused here by its name
       if (!f) return `${what} calls ${JSON.stringify(e['fn'] ?? null)}, which this DataCube does not compute`;
       const fn = e['fn'] as TsFunctionName;
-      if (!Array.isArray(e['args'])) return `${what}: ${fn} reads ${seriesWords(f.series)}`;
+      if (!Array.isArray(e['args'])) return `${what}: ${fn} reads ${seriesWords(f.series, f.reads)}`;
       const many = f.series === 'many' ? manyProblem(e['args']) : undefined;
       if (many !== undefined) return `${what}: ${fn} ${many}`;
-      if (f.series !== 'many' && e['args'].length !== f.series) return `${what}: ${fn} reads ${seriesWords(f.series)}`;
+      if (f.series !== 'many' && e['args'].length !== f.series) return `${what}: ${fn} reads ${seriesWords(f.series, f.reads)}`;
       for (const [i, a] of e['args'].entries()) {
         const p = exprProblem(a, `${fn}'s series ${i + 1}`, depth + 1);
         if (p) return p;

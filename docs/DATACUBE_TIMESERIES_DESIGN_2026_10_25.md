@@ -593,6 +593,39 @@ dated budget notes; every figure still the database's.
   return from a dividend; a basket of weights, rebalanced; lead and lag correlations; a pair's cointegration (its
   residual's Dickey-Fuller statistic) and its half-life; ATR, the stochastic oscillator, VWAP, OBV, Keltner and Donchian
   channels.
+  *Built (2026-10-26).* Fifteen functions of the catalog, each one query of its series' relations, every figure the
+  database's (`timeseries-query.ts analystCalls`, `basket`, and the main switch's Dickey-Fuller regression). A
+  signature may name what each of its series is (`TsSignature.reads`: a true range's high, low and close), which its
+  refusals and the reference say ("atr reads three series (high, low and close)"). *Technicals* of a candle's columns,
+  each series on its own dates, then joined: `atr`, Wilder's average of true ranges (TA-Lib's: from the w-th, the mean
+  of the w after the first, then `((w - 1)·y + tr) / w`, the tile's `smoothed`); `stochastic`, Lane's %K over w (none
+  where the high and the low are one); `keltner_channels`, k average true ranges (over a) either side of the close's
+  exponential average of span w (`ewm`, its weight of the one before (w − 1) / (w + 1), pandas' adjust=False);
+  `donchian_channels`, the lowest low to the highest high of w; `obv`, the running total of each volume signed by its
+  close's move, 0 at the first (StockCharts'; TA-Lib starts at the first volume); `vwap`, Σ price × volume / Σ volume
+  over w (0: to date). *Against a benchmark*, each series' simple returns on its own dates, then the dates both have:
+  `tracking_error` (their difference's annualized deviation, in percent), `information_ratio` (its mean over that
+  deviation, annualized), `up_capture` and `down_capture` (the first's mean return on the periods the benchmark rose,
+  or fell, over the benchmark's then -- arithmetic means, a ratio). `total_return`: each period's (price + the dividends
+  since the price before) / the price before, compounded from the first price, on the price's dates -- a dividend of a
+  date with no price paid at the next (their running total over every date either has, kept by a filter reading that
+  total: a filter of a plain column folds under its select's windows, the rule §5's drawdowns taught) -- or, of a number, a
+  yield a year accrued day by day. `basket`: gs-quant's `backtesting.basket_series` with no costs -- each series held in
+  its weight from 100, on the dates all have, units fixed between rebalances: each date's period its own (daily), or
+  the weeks or months from the first date (weekly: the days since over 7; monthly: the months since, less one before
+  the first date that many months on, the database's `adjust`, which keeps its day or takes its month's last as
+  relativedelta does), so a rebalance is the first date on or after each, as gs-quant's `min(cal[cal >= date])`; the
+  basket 100 times each period's growth into it compounded, times its growth within (1 + Σ w (price / its price at the
+  period's first date − 1)). `lead_lag`: the rolling correlation of the first's returns with the second's `lag`
+  observations before (below 0, after), each lagged on its own dates. `dickey_fuller` and `half_life`: b of
+  Δx = a + b·x[-1] by least squares over w (their covariance over x[-1]'s variance), its t-statistic from the residual
+  variance (`√((var Δx − b² var x[-1]) / ((n − 2) var x[-1]))`, statsmodels' adfuller of no lags), its half-life
+  −ln 2 / ln(1 + b), none where b ≥ 0 or ≤ −1; a pair's cointegration is `dickey_fuller(residual(y, x, 0))` (Engle and
+  Granger's, its 5% level −3.34, said in its words). Held in `timeseries-queries.test.ts` to each textbook's
+  arithmetic over a sample of its own (TA-Lib's ATR and %K, the channels, OBV, VWAP, the active returns' deviation,
+  capture, Pearson's correlation of lagged returns, an OLS fit written out) and the basket to gs-quant's own loop,
+  daily, weekly and monthly (a 31st's month its last day, a rebalance on a date one series lacks taken at the next);
+  Python's to pandas in `test_page.py`; every one on its family's gallery sheet.
 - **Phase 5, on the chart itself.** A measure dragged between two dates (the change, the % and the days -- a statistics
   query over that span, the database's); drawn lines and notes; events marked from a grid's rows (earnings, meetings);
   shading from a 0/1 column in one step (recession bars); a replay stepping the window's end through time; a period

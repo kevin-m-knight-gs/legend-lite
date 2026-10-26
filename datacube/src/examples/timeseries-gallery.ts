@@ -77,6 +77,13 @@ const RETURNS: GallerySheet = {
       ],
       panes: [{ height: 2 }, { height: 1 }],
     }),
+    tile('total-return', 'Total return: the S&P 500 with a 1.5% dividend yield reinvested, beside its price', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[SPX]', { name: 'Price', style: { width: 1, dash: 'dashed' } }),
+        s('B', 'total_return(close[SPX], 0.015)', { name: 'With a 1.5% yield' }),
+      ],
+    }),
   ]],
 };
 
@@ -277,6 +284,23 @@ const RISK: GallerySheet = {
       ],
       annotations: [...MARKS],
     }),
+    tile('benchmark', 'Against a benchmark: Nvidia\'s tracking error to the S&P 500 and its information ratio, over 3 months', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'tracking_error(close[NVDA], close[SPX], 63)', { name: 'Tracking error' }),
+        s('B', 'information_ratio(close[NVDA], close[SPX], 63)', { name: 'Information ratio', pane: 1 }),
+      ],
+      panes: [{ height: 1 }, { height: 1 }],
+      annotations: [{ kind: 'level', value: 0, pane: 1 }],
+    }),
+    tile('capture', 'Up and down capture: the Nasdaq 100 on the S&P 500\'s up days and its down days, over a year', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'up_capture(close[NDX], close[SPX], 252)', { name: 'Up capture' }),
+        s('B', 'down_capture(close[NDX], close[SPX], 252)', { name: 'Down capture', style: { dash: 'dashed' } }),
+      ],
+      annotations: [{ kind: 'level', value: 1, label: '100%' }],
+    }),
   ]],
 };
 
@@ -324,6 +348,25 @@ const RELATIONSHIPS: GallerySheet = {
       ],
       panes: [{ height: 2 }, { height: 1 }],
       annotations: [{ kind: 'level', value: 2, pane: 1 }, { kind: 'level', value: -2, pane: 1 }],
+    }),
+  ], [
+    tile('lead-lag', 'Lead and lag: Nvidia\'s daily returns against the S&P 500\'s a day before, and a day after, over 3 months', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'lead_lag(close[NVDA], close[SPX], 1, 63)', { name: 'The index a day before' }),
+        s('B', 'lead_lag(close[NVDA], close[SPX], -1, 63)', { name: 'The index a day after', style: { dash: 'dashed' } }),
+      ],
+      annotations: [{ kind: 'level', value: 0 }],
+    }),
+    tile('reversion', 'Mean reversion: Apple over Microsoft, its Dickey-Fuller statistic over a year, and its half-life', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[AAPL] / close[MSFT]', { name: 'Apple / Microsoft' }),
+        s('B', 'dickey_fuller($A, 252)', { name: 'Dickey-Fuller t', pane: 1 }),
+        s('C', 'half_life($A, 252)', { name: 'Half-life (days)', pane: 2, style: { kind: 'area' } }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }, { height: 1 }],
+      annotations: [{ kind: 'level', value: -2.86, pane: 1, label: '5%' }],
     }),
   ]],
 };
@@ -375,6 +418,37 @@ const TECHNICALS: GallerySheet = {
       ],
       range: { last: '1y' },
       annotations: [{ kind: 'level', value: 0 }],
+    }),
+  ], [
+    tile('atr-stochastic', 'Average true range and stochastic: Nvidia\'s 14-day range, and where it closed within it', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[NVDA]', { name: 'Nvidia' }),
+        s('B', 'atr(high[NVDA], low[NVDA], close[NVDA], 14)', { name: 'ATR 14', pane: 1, style: { kind: 'area' } }),
+        s('C', 'stochastic(high[NVDA], low[NVDA], close[NVDA], 14)', { name: '%K 14', pane: 2 }),
+      ],
+      range: { last: '1y' },
+      panes: [{ height: 2 }, { height: 1 }, { height: 1 }],
+      annotations: [{ kind: 'level', value: 80, pane: 2 }, { kind: 'level', value: 20, pane: 2 }],
+    }),
+    tile('channels', 'Keltner and Donchian channels: the S&P 500 within 2 average true ranges of its average, and its 20-day range', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[SPX]', { name: 'S&P 500' }),
+        s('B', 'keltner_channels(high[SPX], low[SPX], close[SPX], 20, 10, 2)', { name: 'Keltner (20, 10, 2)' }),
+        s('C', 'donchian_channels(high[SPX], low[SPX], 20)', { name: 'Donchian 20' }),
+      ],
+      range: { last: '6m' },
+    }),
+    tile('volume-flow', 'On-balance volume and VWAP: Apple\'s volume behind its moves, and its 20-day volume-weighted price', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[AAPL]', { name: 'Apple' }),
+        s('B', 'vwap(close[AAPL], volume[AAPL], 20)', { name: 'VWAP 20', style: { dash: 'dashed', width: 1 } }),
+        s('C', 'obv(close[AAPL], volume[AAPL])', { name: 'On-balance volume', pane: 1, style: { kind: 'area' } }),
+      ],
+      range: { last: '1y' },
+      panes: [{ height: 2 }, { height: 1 }],
     }),
   ]],
 };
@@ -435,6 +509,13 @@ const MATH: GallerySheet = {
         s('C', 'weighted_sum(rebase(close[SPX]), 0.6, rebase(close[TLT]), 0.4)', { name: '60/40, from 100', axis: 'right' }),
       ],
       range: { last: '2y' },
+    }),
+    tile('basket', 'A rebalanced basket: 60% stocks, 40% long bonds from 100, rebalanced each day and each month', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'basket(close[SPX], 0.6, close[TLT], 0.4)', { name: 'Daily' }),
+        s('B', 'basket(close[SPX], 0.6, close[TLT], 0.4, rebalance=monthly)', { name: 'Monthly', style: { dash: 'dashed' } }),
+      ],
     }),
   ]],
 };

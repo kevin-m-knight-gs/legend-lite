@@ -42,6 +42,8 @@ export interface TsFunction {
   /** How many series it reads: one, two (a correlation's), three (an if's), four (a candle's), or `many` with their
    *  weights (a weighted sum's). */
   readonly series: 1 | 2 | 3 | 4 | 'many';
+  /** What each series is, where not x and y (timeseries-spec.ts TsSignature). */
+  readonly reads?: readonly string[];
   readonly params: readonly TsParam[];
   /** What its figures are; `input` where it depends on a parameter (returns' type). */
   readonly unit: TsUnit | 'input';
@@ -420,6 +422,86 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
     gsQuant: 'technicals.seasonally_adjusted',
     differs: DECOMPOSE_DIFFERS,
   },
+  // the analysts' packs (the next phases' 4, 2026-10-26): technicals of a candle's columns (Wilder's, Lane's, Keltner's,
+  // Donchian's, Granville's), a series against a benchmark, a total return, a basket, a pair's lead and its reversion
+  atr: {
+    label: 'Average true range', family: 'Technicals', unit: 'same', params: { w: 'the true ranges smoothed over' },
+    about: 'Wilder\'s smoothed average of the last w true ranges, each the most of the high less the low, the high less the close before and the close before less the low (the first, its high less its low).',
+    gsQuant: 'DataCube (Wilder\'s average true range)', aliases: ['average_true_range'],
+  },
+  stochastic: {
+    label: 'Stochastic oscillator (%K)', family: 'Technicals', unit: 'number', params: { w: 'observations its highest high and lowest low are of' },
+    about: '100 × (close − the lowest low) / (the highest high − the lowest low) over the last w observations: 0 to 100; none where the high and the low are one.',
+    gsQuant: 'DataCube (Lane\'s stochastic oscillator)', aliases: ['stoch', 'stochastic_oscillator'], bounds: [0, 100],
+  },
+  keltner_channels: { level: 'keeps',
+    label: 'Keltner channels', family: 'Technicals', unit: 'same', band: true,
+    params: { w: 'the close\'s exponential average\'s span (its weight of the one before (w − 1) / (w + 1))', a: 'the true ranges averaged', k: 'average true ranges either side' },
+    about: 'A band k average true ranges (over a) either side of the exponential moving average of the close (of span w).',
+    gsQuant: 'DataCube (Keltner\'s channels, as Raschke\'s)', aliases: ['keltner'],
+  },
+  donchian_channels: { level: 'keeps',
+    label: 'Donchian channels', family: 'Technicals', unit: 'same', band: true,
+    about: 'A band from the lowest low to the highest high of the last w observations.',
+    gsQuant: 'DataCube (Donchian\'s channels)', aliases: ['donchian'],
+  },
+  obv: {
+    label: 'On-balance volume', family: 'Technicals', unit: 'number',
+    about: 'The running total of each period\'s volume, added when the close rose and taken off when it fell: 0 at the first.',
+    gsQuant: 'DataCube (Granville\'s on-balance volume)', aliases: ['on_balance_volume'],
+  },
+  vwap: { level: 'keeps',
+    label: 'Volume-weighted average price', family: 'Technicals', unit: 'same',
+    about: 'Σ price × volume / Σ volume over the last w observations (0: every one to date); none where they traded none.',
+    gsQuant: 'DataCube (a volume-weighted average price)',
+  },
+  tracking_error: {
+    label: 'Tracking error', family: 'Risk', unit: 'percent',
+    about: 'The annualized standard deviation of the first\'s simple returns less the benchmark\'s, over the last w observations, in percent.',
+    gsQuant: 'DataCube (an active return\'s volatility)',
+  },
+  information_ratio: {
+    label: 'Information ratio', family: 'Risk', unit: 'number',
+    about: 'The mean of the first\'s simple returns less the benchmark\'s over their standard deviation, annualized, over the last w observations.',
+    gsQuant: 'DataCube (an active return\'s Sharpe ratio)',
+  },
+  up_capture: {
+    label: 'Up capture', family: 'Risk', unit: 'ratio',
+    about: 'The first\'s mean simple return on the periods the benchmark rose over the benchmark\'s mean then, over the last w observations: above 100%, it rose more.',
+    gsQuant: 'DataCube (an up-market capture ratio)',
+  },
+  down_capture: {
+    label: 'Down capture', family: 'Risk', unit: 'ratio',
+    about: 'The first\'s mean simple return on the periods the benchmark fell over the benchmark\'s mean then, over the last w observations: under 100%, it fell less.',
+    gsQuant: 'DataCube (a down-market capture ratio)',
+  },
+  total_return: { level: 'keeps',
+    label: 'Total return', family: 'Returns', unit: 'same',
+    about: 'The price with its dividends reinvested, from its first value: each period\'s (price + the dividends since the price before) / the price before, compounded, on the price\'s dates -- the second a series of dividends on their dates (one of a date with no price paid at the next), or a number: a dividend yield a year, accrued day by day.',
+    gsQuant: 'DataCube (a total return index)', aliases: ['tr'],
+  },
+  basket: { level: 'makes',
+    label: 'Basket, rebalanced', family: 'Math', unit: 'index',
+    params: { rebalance: 'daily: its weights every date; weekly, monthly: every week or month from its first date (the first date on or after)' },
+    about: 'Series held in weights, from 100, on the dates all have: basket(x, 0.6, y, 0.4) -- units fixed between rebalances, each a series\' weight of the basket then.',
+    gsQuant: 'backtesting.basket_series', differs: 'no costs; each series followed by its weight (gs-quant: a list of series and a list of weights)',
+  },
+  lead_lag: {
+    label: 'Lead-lag correlation', family: 'Relationships', unit: 'number', bounds: [-1, 1],
+    params: { lag: 'the second\'s returns this many observations before (negative: after) -- above 0, does the second lead?' },
+    about: 'The rolling correlation of the first\'s simple returns with the second\'s lag observations before, each on its own dates, over the last w.',
+    gsQuant: 'DataCube (econometrics.correlation of a lag)',
+  },
+  dickey_fuller: {
+    label: 'Dickey-Fuller statistic', family: 'Relationships', unit: 'number',
+    about: 'The t-statistic of b in Δx = a + b·x[-1] over the last w observations (0: every one to date): far below 0 (under −2.86 at 5%, MacKinnon\'s), it reverts; of a pair\'s residual, dickey_fuller(residual(y, x, 0)), Engle and Granger\'s test of their cointegration (at 5%, under −3.34).',
+    gsQuant: 'DataCube (statsmodels\' adfuller of no lags, a constant)', aliases: ['adf'],
+  },
+  half_life: {
+    label: 'Half-life of mean reversion', family: 'Relationships', unit: 'number',
+    about: '−ln 2 / ln(1 + b), b the slope of Δx = a + b·x[-1] over the last w observations (0: every one to date): the observations a gap takes to halve; none where it does not revert.',
+    gsQuant: 'DataCube (an Ornstein-Uhlenbeck half-life)',
+  },
 };
 
 /** THE FUNCTIONS: each one's signature (TS_SIGNATURES, what a saved spec is read by) with its words, in the catalog's
@@ -437,7 +519,7 @@ export const TS_FUNCTIONS: readonly TsFunction[] = (Object.keys(WORDS) as TsFunc
   const differs = [words.differs, sig.params.some((p) => p.name === 'w' && p.kind === 'span') && name !== 'vol_swap_volatility' ? RAMP_DIFFERS : undefined,
     sig.params.some((p) => p.name === 'obs') ? OBS_DIFFERS : undefined,
     name === 'beta' ? BETA_DIFFERS : undefined].filter((d): d is string => d !== undefined);
-  return { name, series: sig.series, params, ...words, ...(differs.length > 0 ? { differs: differs.join('; ') } : {}) };
+  return { name, series: sig.series, ...(sig.reads !== undefined ? { reads: sig.reads } : {}), params, ...words, ...(differs.length > 0 ? { differs: differs.join('; ') } : {}) };
 });
 
 /** The functions by name. */
@@ -963,14 +1045,14 @@ export function parseExpr(text: string): TsExpr {
           continue;
         }
         const param = f.params[positional++];
-        if (!param) throw new TsSyntaxError(`${f.name} takes ${seriesWords(f.series)}${f.params.length > 0 ? ` and ${f.params.map((q) => q.name).join(', ')}` : ''}`, t.at);
+        if (!param) throw new TsSyntaxError(`${f.name} takes ${seriesWords(f.series, f.reads)}${f.params.length > 0 ? ` and ${f.params.map((q) => q.name).join(', ')}` : ''}`, t.at);
         params[param.name] = paramValue(param);
       } while (isOp(',') && next());
     }
     expect(')');
     const many = f.series === 'many' ? manyProblem(args) : undefined;
     if (many !== undefined) throw new TsSyntaxError(`${f.name} ${many}`, at);
-    if (f.series !== 'many' && args.length < f.series) throw new TsSyntaxError(`${f.name} reads ${seriesWords(f.series)}`, at);
+    if (f.series !== 'many' && args.length < f.series) throw new TsSyntaxError(`${f.name} reads ${seriesWords(f.series, f.reads)}`, at);
     return { kind: 'call', fn: f.name, args, ...(Object.keys(params).length > 0 ? { params } : {}) };
   };
   const paramValue = (param: TsParam): number | string => {
