@@ -23,7 +23,7 @@ import {
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
 import type { FileSource } from '../src/cube-document.ts';
 import { catalogColumns } from '../src/upload.ts';
-import { col as column, fn as call, from, lambda, lit, minus } from '../../pure-protocol/src/index.ts';
+import { col as column, fn as call, from, lambda, lit, minus, toJson } from '../../pure-protocol/src/index.ts';
 
 // -- the prices: two instruments over 40 weekdays from 2024-01-01, and a third trading on fewer days --
 
@@ -478,6 +478,23 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     }), 'hedge ratio over 3w', 1e-7);
   });
 
+  // the E9 review's 1: a second series with leading empties (a lag, a ramped mean) -- its means, its variance and the
+  // ramp are of the window's pairs, the dates both have, or the intercept is of two different samples (its sign wrong)
+  it('a regression on a second series that starts later: every figure over the window\'s pairs', async () => {
+    const ra = simple(AAA);
+    const rb = simple(lagged(BBB, 3));
+    const slope = (p: number[], q: number[]): number => cov(p, q) / sd(q) ** 2;
+    close((await line(spec({ A: 'alpha(close[AAA], lag(close[BBB], 3), 8)' }))).values,
+      pairs(ra, rb, 8, (p, q) => (avg(p) - slope(p, q) * avg(q)) * 252), 'alpha on a lag', 1e-7);
+    close((await line(spec({ A: 'beta(close[AAA], lag(close[BBB], 3), 8)' }))).values, pairs(ra, rb, 8, slope), 'beta on a lag', 1e-7);
+    close((await line(spec({ A: 'correlation(close[AAA], lag(close[BBB], 3), 8)' }))).values,
+      pairs(ra, rb, 8, (p, q) => cov(p, q) / (sd(p) * sd(q))), 'correlation on a lag', 1e-7);
+    const mb = rolling(BBB, 5, avg);
+    close((await line(spec({ A: 'residual(close[AAA], mean(close[BBB], 5), 8)' }))).values,
+      pairs(AAA, mb, 8, (p, q) => p.at(-1)! - (avg(p) - slope(p, q) * avg(q)) - slope(p, q) * q.at(-1)!), 'residual on a mean', 1e-7);
+    close((await line(spec({ A: 'hedge_ratio(close[AAA], mean(close[BBB], 5), 8)' }))).values, pairs(AAA, mb, 8, slope), 'hedge ratio on a mean', 1e-7);
+  });
+
   it('a series read by another: $A', async () => {
     const ts = spec({ A: 'close[AAA]', B: 'returns($A)', C: 'volatility($A, 10) - volatility(close[BBB], 10)' });
     close((await line(ts, 'B')).values, simple(AAA), '$A');
@@ -677,20 +694,34 @@ describe('correlations: each pair of lines over the dates shown', () => {
     const x = both.map((i) => AAA[i]! / AAA[i - 1]! - 1);
     const z = both.map((i) => cR.get(i)!);
     close([num(values(ct, TS_CORR)[0])], [cov(x, z) / (sd(x) * sd(z))], 'AAA ~ returns(CCC)', 1e-9);
+    // counted over the dates both have (the E9 review's 11): CCC a level, its returns taken over its dates shown, its
+    // first shown none -- the AAA return of that date not counted
+    const D = spec({ A: 'close[AAA]', D: 'close[CCC]' });
+    const dt = await run(correlationsQuery(inputs, D, D.series[0]!, D.series[1]!, view));
+    assert.equal(Number(values(dt, TS_CORR_N)[0]), cIdx.filter((i) => i >= 5 && i <= 34).length - 1);
   });
 
   it('a split series\' lines against each other, each pair once', async () => {
     const ts = spec({ A: 'close' }, {}, 'symbol');
     const t = await run(correlationsQuery(inputs, ts, ts.series[0]!, ts.series[0]!));
     const pairs = values(t, TS_CORR_A).map((a, i) => `${String(a)}~${String(values(t, TS_CORR_B)[i])}`);
-    assert.deepEqual(pairs.sort(), ['AAA~BBB', 'AAA~CCC', 'BBB~CCC']);
+    // each with itself too, the diagonal the database's (the E9 review's 13)
+    assert.deepEqual([...pairs].sort(), ['AAA~AAA', 'AAA~BBB', 'AAA~CCC', 'BBB~BBB', 'BBB~CCC', 'CCC~CCC']);
+    close(['AAA~AAA', 'BBB~BBB', 'CCC~CCC'].map((p) => num(values(t, TS_CORR)[pairs.indexOf(p)])), [1, 1, 1], 'each line with itself', 1e-9);
     const ab = values(t, TS_CORR)[pairs.indexOf('AAA~BBB')];
     const at = values(t, TS_CORR_A).findIndex((a, i) => a === 'AAA' && values(t, TS_CORR_B)[i] === 'BBB');
     const ra = simple(AAA).slice(1) as number[];
     const rb = simple(BBB).slice(1) as number[];
     close([num(values(t, TS_CORR)[at])], [cov(ra, rb) / (sd(ra) * sd(rb))], 'AAA ~ BBB, split', 1e-9);
     void ab;
-    assert.throws(() => correlationsQuery(inputs, spec({ A: 'close[AAA]' }), spec({ A: 'close[AAA]' }).series[0]!, spec({ A: 'close[AAA]' }).series[0]!), /with itself is 1/);
+  });
+
+  // the E9 review's 13: the diagonal the database's -- 1 where a line varies, none where it does not
+  it('a series with itself: 1 where it varies, none where it is constant', async () => {
+    const ts = spec({ A: 'close[AAA]', B: 'close[AAA] - close[AAA]' });
+    const [A, B] = ts.series;
+    close([num(values(await run(correlationsQuery(inputs, ts, A!, A!)), TS_CORR)[0])], [1], 'AAA with itself', 1e-9);
+    assert.deepEqual(values(await run(correlationsQuery(inputs, ts, B!, B!)), TS_CORR).map(num), [null], 'a constant has no correlation');
   });
 });
 
@@ -711,11 +742,13 @@ describe('conditions: a comparison, and two joined, each date\'s run where it ho
       while (a > 0 && flag[a - 1] === 1) a--;
       let b = i;
       while (b < flag.length - 1 && flag[b + 1] === 1) b++;
-      return [DAYS[a]!, DAYS[b]!] as const;
+      // shaded to the next date, from which it no longer holds; to its own last at the line's end (the E9 review's 4)
+      return [DAYS[a]!, DAYS[Math.min(b + 1, DAYS.length - 1)]!] as const;
     });
     const day = (n: string): (string | null)[] => values(t, n).map((d) => (d === null ? null : String(d).slice(0, 10))).reverse();
     assert.deepEqual(day(TS_FROM), runOf.map((r) => r?.[0] ?? null), 'each run\'s first date');
-    assert.deepEqual(day(TS_TO), runOf.map((r) => r?.[1] ?? null), 'and its last');
+    assert.deepEqual(day(TS_TO), runOf.map((r) => r?.[1] ?? null), 'and the date after its last');
+    assert.ok(runOf.every((r) => r === null || r[0] < r[1] || r[1] === DAYS.at(-1)), 'every run of a width, but one of the last date alone');
     assert.ok(new Set(runOf.filter((r) => r !== null).map((r) => r![0])).size >= 2, 'more than one run in the fixture');
   });
 
@@ -749,6 +782,9 @@ describe('a window by its rows: percentile ranks, medians and percentiles', () =
     close((await line(spec({ A: 'median(close[AAA], 4)' }))).values, AAA.map((_, i) => (i < 3 ? null : quantile(AAA.slice(i - 3, i + 1), 0.5))), 'median of 4: the two middle ones\' mean', 1e-12);
     close((await line(spec({ A: 'percentile(close[AAA], 90, 10)' }))).values, AAA.map((_, i) => (i < 9 ? null : quantile(AAA.slice(i - 9, i + 1), 0.9))), '90th of 10', 1e-12);
     close((await line(spec({ A: 'percentile(close[AAA], 25)' }))).values, AAA.map(() => quantile(AAA, 0.25)), 'the 25th of every one', 1e-12);
+    // of every value: one aggregate a line joined back, never each row joined to every other (the E9 review's 5)
+    const joins = (text: string): number => (toJson(seriesQuery(inputs, spec({ A: text }), spec({ A: text }).series[0]!).query).match(/"function":"join"/g) ?? []).length;
+    assert.equal(joins('percentile(close[AAA], 25)') - joins('close[AAA]'), 1, 'one join: the line\'s figure');
   });
 });
 
@@ -795,6 +831,32 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
 
   it('smoothed_moving_average: Wilder\'s, from the mean of w', async () => {
     close(await longLine('smoothed_moving_average(close, 14)'), smma(LONG, 14), 'smma 14', 1e-10);
+  });
+
+  // the E9 review's weak tests: an average per line of a split, its blocks over each line's own values, and at a frequency
+  it('a line per instrument, each its own average; and at a weekly frequency, of each week\'s last close', async () => {
+    const l = await line(spec({ A: 'exponential_moving_average(close, 0.1)' }, {}, 'symbol'));
+    const of = (sym: string): Line => l.values.filter((_, i) => l.split![i] === sym);
+    close(of('AAA'), ema(AAA, 0.1), 'AAA', 1e-12);
+    close(of('BBB'), ema(BBB, 0.1), 'BBB', 1e-12);
+    close(of('CCC'), ema(CCC.filter((_, i) => i % 3 === 0), 0.1), 'CCC, on its own dates', 1e-12);
+    const weekOf = (d: string): string => {
+      const at = new Date(`${d}T00:00:00Z`);
+      return new Date(at.getTime() - ((at.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
+    };
+    const weeks = [...new Set(DAYS.map(weekOf))];
+    const last = weeks.map((w) => AAA[DAYS.map(weekOf).lastIndexOf(w)]!);
+    close((await line(spec({ A: 'exponential_moving_average(close[AAA], 0.1)' }, { grain: 'week' }))).values, ema(last, 0.1), 'weekly', 1e-12);
+  });
+
+  // the E9 review's 6: each average had joined the query to itself, so a chain of them doubled it each time (five: 311k
+  // characters); its block carried by windows, each adds the same few steps
+  it('averages of averages: the query grows by the same steps each, never doubling', () => {
+    const size = (text: string): number => toJson(seriesQuery(long, spec({ A: text }), spec({ A: text }).series[0]!).query).length;
+    const nest = (n: number): string => (n === 0 ? 'close' : `ema(${nest(n - 1)}, 0.9)`);
+    const [s1, s2, s3, s4] = [1, 2, 3, 4].map((n) => size(nest(n)));
+    const steps = [s2! - s1!, s3! - s2!, s4! - s3!];
+    assert.ok(steps.every((d) => Math.abs(d - steps[0]!) <= 0.1 * steps[0]!), `each average the same steps: ${[s1, s2, s3, s4].join(', ')}`);
   });
 });
 

@@ -205,6 +205,34 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
     }
   });
 
+  // the E9 review's 3 and 8: a hidden line's tables asked with the rest (tableSeries, Python's rule): shown again, its rows
+  // are there -- never left out, nothing asked again
+  it('a hidden line shown again: its drawdowns and its correlations there, nothing asked again', async () => {
+    const spec: TimeseriesSpec = { ...SPEC, series: [SPEC.series[0]!, SPEC.series[1]!, { id: 'C', expr: parseExpr('close[NDX]'), name: 'Nasdaq', hidden: true }] };
+    const { root, view } = viewer(spec);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      const tab = (name: string): void => [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-stats-tab')].find((b) => b.textContent === name)!.click();
+      tab('Drawdowns');
+      await until(() => statRows(root).length > 0, 'its drawdowns');
+      assert.ok(statRows(root).every((r) => r[0] === 'S&P 500'), 'the hidden Nasdaq not shown');
+      tab('Correlations');
+      await until(() => statRows(root).length === 2 && !statRows(root)[0]!.includes('Asking'), 'its matrix');
+      await new Promise((r) => setTimeout(r, 100));
+      const asked = runs;
+      ([...root.querySelectorAll<HTMLElement>('.dc-ts-chip')].find((c) => c.textContent!.startsWith('Nasdaq'))!).click();
+      await until(() => statRows(root).length === 3, 'the Nasdaq in the matrix');
+      const [spx, , ndx] = statRows(root);
+      assert.ok(spx![3] !== '—' && spx![3] === ndx![1], `the S&P with the Nasdaq, the database's: ${spx!.join(' | ')}`);
+      assert.equal(ndx![3], '1.00', 'the Nasdaq with itself');
+      tab('Drawdowns');
+      assert.ok(statRows(root).some((r) => r[0] === 'Nasdaq'), 'the Nasdaq\'s drawdowns');
+      assert.equal(runs, asked, 'nothing asked again: hiding is the drawing\'s');
+    } finally {
+      view.dispose();
+    }
+  });
+
   it('the statistics\' Correlations tab: a matrix of the lines, each pair the database\'s, asked when shown', async () => {
     const asked: string[] = [];
     const { root, view } = viewer(SPEC, (q) => { asked.push(q); return false; });
@@ -253,15 +281,17 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
       const shading = (option.series as { id: string; markArea?: { data: unknown[] } }[]).filter((x) => x.id === 'C' || x.id.startsWith('C:'));
       assert.equal(shading.length, 2, 'across both panes');
       assert.ok(shading.every((x) => (x.markArea?.data.length ?? 0) >= 1), 'each its periods');
-      // its periods: where the close is above its 21-day mean, each from its first date to its last
+      // its periods: where the close is above its 21-day mean, each from its first date to the next, from which it no
+      // longer holds (its own last at the line's end) -- a run of one date a day wide (the E9 review's 4)
       const spx = of('SPX');
       const mean = spx.closes.map((_, i) => (i < 20 ? null : spx.closes.slice(i - 20, i + 1).reduce((a, b) => a + b, 0) / 21));
       const holds = spx.closes.map((c, i) => mean[i] !== null && c > mean[i]!);
       const runs: [string, string][] = [];
       holds.forEach((h, i) => {
         if (!h) return;
-        if (i > 0 && holds[i - 1]) runs.at(-1)![1] = spx.days[i]!;
-        else runs.push([spx.days[i]!, spx.days[i]!]);
+        const end = spx.days[Math.min(i + 1, spx.days.length - 1)]!;
+        if (i > 0 && holds[i - 1]) runs.at(-1)![1] = end;
+        else runs.push([spx.days[i]!, end]);
       });
       assert.deepEqual(shading[0]!.markArea!.data.map((d) => (d as { xAxis: string }[]).map((e) => e.xAxis.slice(0, 10))), runs);
       const chip = chips(root).find((c) => c.startsWith('Above its 21-day'))!;
@@ -441,6 +471,11 @@ describe('a refusal said where it lands, never shown as something missing', () =
     try {
       await until(() => root.querySelector('.dc-ts-stats-blanks') !== null, 'why its figures are blank');
       assert.match(root.querySelector('.dc-ts-stats-blanks')!.textContent!, /^Gap is at or below zero over these dates: it has no volatility, drawdown, growth or Sharpe ratio/);
+      // and its Drawdowns tab says so, not that it never fell (the E9 review's 9)
+      [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-stats-tab')].find((b) => b.textContent === 'Drawdowns')!.click();
+      await until(() => root.querySelector('.dc-ts-stats-blanks')?.textContent?.includes('drawdowns') === true
+        && !root.querySelector('.dc-ts-stats-blanks')!.textContent!.startsWith('Asking'), 'why it has no drawdowns');
+      assert.equal(root.querySelector('.dc-ts-stats-blanks')!.textContent, 'Gap is at or below zero over these dates: it has no drawdowns.');
     } finally {
       view.dispose();
     }

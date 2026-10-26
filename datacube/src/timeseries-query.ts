@@ -108,7 +108,8 @@ export interface TsQuery {
   readonly band: boolean;
   /** It draws a candle per period (ohlc): its answer's TS_OPEN, TS_HIGH, TS_LOW and its close, TS_VALUE. */
   readonly candles?: boolean;
-  /** It is a condition, drawn as the periods it holds: its answer's TS_FROM and TS_TO, each date's run's. */
+  /** It is a condition, drawn as the periods it holds: its answer's TS_FROM and TS_TO, each date's run's (TS_TO the
+   *  line's next date after the run, or its last). */
   readonly shade?: boolean;
   readonly split?: string;
   /** Whether a period's value may be taken from several rows (a series of no instrument): its rows are counted. */
@@ -407,11 +408,11 @@ class Writer {
   /**
    * A FIGURE OF EACH PERIOD'S WINDOW BY ITS ROWS (a self-join, the database's: what a window frame's aggregate cannot
    * say -- the period's own value against each of its window's, a percentile any database takes): each period of the
-   * line joined to every period of its window -- the last w (0 every one to it), every one ('all'), or a calendar
-   * period's dates -- `figures` aggregated per period, each reading the window's value and the period's own, and
+   * line joined to every period of its window -- the last w (0 every one to it), or a calendar period's dates (a figure
+   * of every one is ofLine's: one aggregate a line) -- `figures` aggregated per period, each reading the window's value and the period's own, and
    * joined back by the period. Their names, in order.
    */
-  ofWindow(x: string, frame: 'running' | 'all' | number | TsTenor,
+  ofWindow(x: string, frame: 'running' | number | TsTenor,
     figures: (own: ValueSpecification, other: ValueSpecification) => readonly { readonly what: string; readonly read: ValueSpecification; readonly reduce: Lambda }[]): string[] {
     const rn = this.fresh('wj_rn');
     this.rel = this.rel.extend([derive(rn, lambda(['p', 'w', 'r'], fn('rowNumber', variable('p'), variable('r'))))], this.#over(null));
@@ -429,7 +430,7 @@ class Writer {
     const inWindow: ValueSpecification[] = [fn('equal', L(this.part), Rr(rp))];
     if (isTenor(frame)) inWindow.push(fn('greaterThan', Rr(ra), L(from)), fn('lessThanEqual', Rr(ra), L(this.at)));
     else if (frame === 'running') inWindow.push(fn('lessThanEqual', Rr(rr), L(rn)));
-    else if (frame !== 'all') inWindow.push(fn('greaterThan', Rr(rr), op('minus', L(rn), lit.integer(frame))), fn('lessThanEqual', Rr(rr), L(rn)));
+    else inWindow.push(fn('greaterThan', Rr(rr), op('minus', L(rn), lit.integer(frame))), fn('lessThanEqual', Rr(rr), L(rn)));
     const made = figures(col(x), col(rx)).map((f) => ({ ...f, name: this.fresh(f.what) }));
     const gp = this.fresh('wj_gp');
     const gper = this.fresh('wj_gper');
@@ -441,12 +442,33 @@ class Writer {
     return made.map((f) => f.name);
   }
 
-  /** A column `n` periods back: `$p->lag($r, n).<column>` -- or a calendar period back, as of that date (#valueBack). */
-  lag(column: string, n: Span): string {
-    if (typeof n !== 'number') return this.#valueBack(column, n);
+  /** A FIGURE OF ITS LINE'S EVERY VALUE, beside each of its rows: the line's values aggregated, grouped by its line, and
+   *  joined back by it -- one aggregate a line. */
+  ofLine(x: string, what: string, reduce: Lambda): string {
+    const name = this.fresh(what);
+    const gp = this.fresh('ol_gp');
+    const grouped = this.rel.groupBy([this.part], [agg(name, row(col(x)), reduce)]).rename(this.part, gp);
+    this.rel = this.rel.join(grouped, 'LEFT', lambda(['l', 'r'], fn('equal', property(variable('l'), this.part), property(variable('r'), gp))));
+    return name;
+  }
+
+  /** A column `n` periods back: `$p->lag($r, n).<column>` -- or a calendar period back, as of that date (#valueBack);
+   *  `by`: among the line's rows of the same value of that column. */
+  lag(column: string, n: Span, by?: string): string {
+    if (typeof n !== 'number') {
+      if (by !== undefined) throw new Error('a calendar period back is of its line alone');
+      return this.#valueBack(column, n);
+    }
     const name = this.fresh('lag');
     const call = fn('lag', variable('p'), variable('r'), ...(n !== 1 ? [lit.integer(n)] : []));
-    this.rel = this.rel.extend([derive(name, lambda(['p', 'w', 'r'], property(call, column)))], this.#over(null));
+    this.rel = this.rel.extend([derive(name, lambda(['p', 'w', 'r'], property(call, column)))], this.#over(null, by));
+    return name;
+  }
+
+  /** A column the next period on: `$p->lead($r).<column>` (none at the line's last). */
+  lead(column: string): string {
+    const name = this.fresh('lead');
+    this.rel = this.rel.extend([derive(name, lambda(['p', 'w', 'r'], property(fn('lead', variable('p'), variable('r')), column)))], this.#over(null));
     return name;
   }
 
@@ -482,8 +504,8 @@ class Writer {
    * (a frame's reducer is an aggregate, never a fold), written as its CLOSED FORM, the database's: y_t = (1 - decay)·
    * Σ decay^(t-i)·x'_i, x'_0 = x0 / (1 - decay) (so the first weighs decay^t). Summed in blocks of W values, W the
    * fewest with decay^W under 2^-60 (so decay^-pos, pos < W, stays under 2^60 in a double): within a block a running
-   * sum of x'·decay^-pos, times decay^pos; the block before carried in whole, its last value times decay^(pos + 1) (joined
-   * by its block), the blocks before it weighing under 2^-60 of it -- below a double's precision, so the
+   * sum of x'·decay^-pos, times decay^pos; the block before carried in whole, its last value times decay^(pos + 1) (its
+   * block's total, by windows), the blocks before it weighing under 2^-60 of it -- below a double's precision, so the
    * value is the recursion's to its last bits. `seed`: from the value of `seed.value` at the `seed.at`-th value (a
    * Wilder average's first, a mean of w), the series' own from there; rows of none have none.
    */
@@ -500,18 +522,18 @@ class Writer {
     const sum = this.fresh('ewm_s');
     this.rel = this.rel.extend([agg(sum, lambda(['p', 'w', 'r'], R(u)), lambda(['y'], fn('plus', variable('y'))))], this.#over('running', blk));
     const inBlock = this.row('ewm_p', op('times', op('times', a, fn('pow', decay, one(pos))), one(sum)));
-    // the block before's last value, beside each of this block's (its whole weight, carried in)
-    const bp = this.fresh('ewm_bp');
-    const bb = this.fresh('ewm_bb');
-    const bv = this.fresh('ewm_bv');
-    const ends = this.rel.filter(row(fn('equal', one(pos), op('minus', block, lit.integer(1)))))
-      .select([this.part, blk, inBlock]).rename(this.part, bp).rename(blk, bb).rename(inBlock, bv);
-    this.rel = this.rel.join(ends, 'LEFT', lambda(['l', 'r'], and(
-      fn('equal', property(variable('l'), this.part), property(variable('r'), bp)),
-      fn('equal', op('minus', property(variable('l'), blk), lit.integer(1)), property(variable('r'), bb)),
-    )));
-    return this.row('ewm', when(fn('isEmpty', col(k)), none(), when(fn('isEmpty', col(bv)), col(inBlock),
-      op('plus', one(inBlock), op('times', fn('pow', decay, op('plus', one(pos), lit.integer(1))), one(bv))))));
+    // the block before's last value, beside each of this block's (its whole weight, carried in): (1 - decay)·decay^(W-1)
+    // times its block's total -- each block's a window over it, the block before's read at this block's first value as
+    // the value before it (a lag over the line's values), and spread over the block -- windows, never the query joined
+    // to itself (the E9 review's 6: each average had doubled the query, five nested ones 311k characters)
+    const total = this.window('ewm_t', 'plus', R(u), 'all', blk);
+    const valued = this.row('ewm_has', when(fn('isEmpty', col(k)), lit.integer(0), lit.integer(1)));
+    const before = this.lag(total, 1, valued);
+    const atFirst = this.row('ewm_c0', when(fn('equal', one(pos), lit.integer(0)), col(before), none()));
+    const carried = this.window('ewm_c', 'max', R(atFirst), 'all', blk);
+    const bv = op('times', op('times', a, fn('pow', decay, op('minus', block, lit.integer(1)))), one(carried));
+    return this.row('ewm', when(fn('isEmpty', col(k)), none(), when(fn('isEmpty', col(carried)), col(inBlock),
+      op('plus', one(inBlock), op('times', fn('pow', decay, op('plus', one(pos), lit.integer(1))), bv)))));
   }
 
   /**
@@ -946,7 +968,12 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     const w = joined(sh, [{ w: a.w, v: { column: ra } }, { w: b.w, v: { column: rb } }]);
     const size = span('w');
     const frame = Writer.frame(size);
-    const pair = fn('rowMapper', R(ra), R(rb));
+    // each side on the window's pairs, the dates both have a value (a lag's, a ramped mean's, a first return's leading
+    // empties): a mean, a variance and the ramp of the same sample as the covariance's (the E9 review's 1: an intercept
+    // of two samples, its sign wrong)
+    const pa = w.row('pa', when(fn('isEmpty', col(rb)), none(), col(ra)));
+    const pb = w.row('pb', when(fn('isEmpty', col(ra)), none(), col(rb)));
+    const pair = fn('rowMapper', R(pa), R(pb));
     let v: string;
     if (e.fn === 'correlation') v = w.window('corr', 'corr', pair, frame);
     else if (e.fn === 'r_squared') {
@@ -956,21 +983,20 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     else {
       // the slope of the first on the second over the window (least squares): their covariance over its variance
       const cov = w.window('cov', 'covarSample', pair, frame);
-      const variance = w.window('var', 'varianceSample', R(rb), frame);
+      const variance = w.window('var', 'varianceSample', R(pb), frame);
       const slope = w.ratio(e.fn === 'beta' ? 'beta' : 'slope', one(cov), variance);
       if (e.fn === 'beta' || e.fn === 'hedge_ratio') v = slope;
       else {
-        // its intercept, the first's mean less the slope times the second's, over the same window (pairs: on the dates
-        // both have, so both means are over the window's pairs)
-        const ma = w.window('mean', 'average', R(ra), frame);
-        const mb = w.window('mean', 'average', R(rb), frame);
+        // its intercept, the first's mean less the slope times the second's, over the same window's pairs
+        const ma = w.window('mean', 'average', R(pa), frame);
+        const mb = w.window('mean', 'average', R(pb), frame);
         const intercept = op('minus', one(ma), op('times', one(slope), one(mb)));
         v = e.fn === 'alpha'
           ? w.row('alpha', op('times', intercept, w.perYear()))
           : w.row('resid', op('minus', one(ra), op('plus', intercept, op('times', one(slope), one(rb)))));
       }
     }
-    return { w, v: { column: w.ramped(v, ra, atLeast(size, 2), frame) } };
+    return { w, v: { column: w.ramped(v, pa, atLeast(size, 2), frame) } };
   }
   if (e.fn === 'ohlc') return candle(sh, e);
   const x = seriesArg(sh, e, 0);
@@ -1124,11 +1150,12 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       const size = span('w');
       // the planner takes the fraction as a literal alone (an aggregate's argument): gs-quant's n of 100 spelled as one
       const q = float(e.fn === 'median' ? 0.5 : n('n') / 100);
-      const frame = e.fn === 'percentile' && size === 0 ? 'all' : Writer.frame(size);
-      const [v] = w.ofWindow(a, frame, (_own, other) => [{
-        what: 'pct', read: other, reduce: lambda(['y'], fn('percentile', variable('y'), q, lit.boolean(true), lit.boolean(true))),
-      }]);
-      return done(frame === 'all' || size === 0 ? v! : w.ramped(v!, a, size, Writer.frame(size)));
+      const reduce = lambda(['y'], fn('percentile', variable('y'), q, lit.boolean(true), lit.boolean(true)));
+      // of every value (percentile's w 0): one aggregate a line, never each row joined to every other (the E9 review's 5:
+      // 4,000 rows took 4.5 s)
+      if (e.fn === 'percentile' && size === 0) return done(w.ofLine(a, 'pct', reduce));
+      const [v] = w.ofWindow(a, Writer.frame(size), (_own, other) => [{ what: 'pct', read: other, reduce }]);
+      return done(size === 0 ? v! : w.ramped(v!, a, size, Writer.frame(size)));
     }
     case 'exponential_moving_average':
       return done(n('beta') === 0 ? a : w.ewm(a, float(n('beta'))));
@@ -1267,7 +1294,9 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
     built = { value, ...(value !== own ? { levelValue: own } : {}) };
   }
   // a CONDITION's runs (gaps and islands, the database's): each change of it begins a run, numbered by a running count
-  // of them; each date where it holds carries its run's first date and its last -- what the drawing shades
+  // of them; each date where it holds carries its run's first date and where its shading ends -- the line's next date
+  // after it, from which it no longer holds (its own last at the line's end): what the drawing shades, a run of one date
+  // a period wide (the E9 review's 4: to its last date, a run of one had no width and every run was a period short)
   let shade: { readonly shadeFrom: string; readonly shadeTo: string } | undefined;
   if (isCondition(expr)) {
     const flag = built.value;
@@ -1275,7 +1304,9 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
     const change = w.row('sh_chg', when(or(fn('isEmpty', col(prev)), fn('not', fn('equal', one(flag), one(prev)))), lit.integer(1), lit.integer(0)));
     const runs = w.window('sh_run', 'plus', Writer.read(change), 'running');
     const first = w.window('sh_first', 'min', Writer.read(w.at), 'all', runs);
-    const last = w.window('sh_last', 'max', Writer.read(w.at), 'all', runs);
+    const after = w.lead(w.at);
+    const end = w.row('sh_end', when(fn('isEmpty', col(after)), col(w.at), col(after)));
+    const last = w.window('sh_last', 'max', Writer.read(end), 'all', runs);
     const holds = fn('equal', one(flag), lit.integer(1));
     shade = { shadeFrom: w.row('sh_from', when(holds, col(first), none())), shadeTo: w.row('sh_to', when(holds, col(last), none())) };
   }
@@ -1468,10 +1499,9 @@ export const TS_CORR_N = '__ts_corr_n';
  * Correlations tab): each line of `a` with each of `b` -- of one split series, each pair of its lines once -- their
  * correlation over the periods both have: a level's simple returns (gs-quant's correlation reads returns), anything
  * else as it is; each side cut to the dates shown, then its returns, then the two joined on the period and every pair
- * of lines aggregated -- the database's. Of a series with itself and no split there is nothing to ask (it is 1).
+ * of lines aggregated -- the database's. A series with itself: each line with itself too (the matrix's diagonal).
  */
 export function correlationsQuery(inputs: TsInputs, ts: TimeseriesSpec, a: TsSeries, b: TsSeries, view: TsWindow = {}): TsQuery {
-  if (a.id === b.id && a.split === undefined) throw new Error(`series ${a.id} with itself is 1: nothing to ask`);
   const names = { n: 0 };
   let periodType: string | undefined;
   const side = (s: TsSeries): { readonly w: Writer; readonly v: string; readonly sources: readonly string[] } => {
@@ -1508,9 +1538,10 @@ export function correlationsQuery(inputs: TsInputs, ts: TimeseriesSpec, a: TsSer
   const on = (also: ValueSpecification[]): Lambda =>
     lambda(['l', 'r'], and(fn('equal', property(variable('l'), PERIOD), property(variable('r'), bper)), ...also));
   if (a.id === b.id) {
-    // one split series' lines against each other, each pair once (by their values' order)
+    // a series' lines against each other, each pair once (by their values' order), each with itself too: its diagonal
+    // the database's, none where it has under two values or no variance (the E9 review's 13: a 1 written in its place)
     const right = A.w.rel.select([A.w.part, PERIOD, A.v]).rename(A.w.part, bp).rename(PERIOD, bper).rename(A.v, vb);
-    pairs = left.join(right, 'INNER', on([fn('lessThan', property(variable('l'), pa), property(variable('r'), bp))]));
+    pairs = left.join(right, 'INNER', on([fn('lessThanEqual', property(variable('l'), pa), property(variable('r'), bp))]));
   } else {
     const B = side(b);
     sources = [...new Set([...A.sources, ...B.sources])];
@@ -1518,10 +1549,21 @@ export function correlationsQuery(inputs: TsInputs, ts: TimeseriesSpec, a: TsSer
     pairs = left.join(right, 'INNER', on([]));
   }
   const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
+  // each side on the dates both have (the E9 review's 11: a first return of the other's none counted)
+  const onBoth = (x: string, other: string): ValueSpecification => when(fn('isEmpty', col(other)), none(), col(x));
+  const raw = `__ts_corr_raw_${names.n}`;
+  const varA = `__ts_corr_var_a_${names.n}`;
+  const varB = `__ts_corr_var_b_${names.n++}`;
   let rel = pairs.groupBy([pa, bp], [
-    agg(TS_CORR, row(fn('rowMapper', col(va), col(vb))), y('corr')),
-    agg(TS_CORR_N, row(col(va)), y('count')),
+    agg(raw, row(fn('rowMapper', col(va), col(vb))), y('corr')),
+    agg(TS_CORR_N, row(onBoth(va, vb)), y('count')),
+    agg(varA, row(onBoth(va, vb)), y('varianceSample')),
+    agg(varB, row(onBoth(vb, va)), y('varianceSample')),
   ]);
+  // none where a side does not vary, as on every database (DuckDB's corr says NaN there, Postgres' none): a line with
+  // itself 1 where it varies (the E9 review's 13)
+  rel = rel.extend([derive(TS_CORR, row(when(or(fn('isEmpty', col(varA)), fn('isEmpty', col(varB)),
+    fn('equal', col(varA), lit.integer(0)), fn('equal', col(varB), lit.integer(0))), none(), col(raw))))]);
   // each line by its split value: a series of one line has none to say
   const lines = [...(a.split !== undefined ? [derive(TS_CORR_A, row(col(pa)))] : []), ...(b.split !== undefined ? [derive(TS_CORR_B, row(col(bp)))] : [])];
   if (lines.length > 0) rel = rel.extend(lines);
@@ -1553,7 +1595,7 @@ export function tableSeries(ts: TimeseriesSpec): { readonly statistics: readonly
   return {
     statistics: onAxis.map(({ s }) => s.id),
     drawdowns: onAxis.filter(({ e }) => levelOf(e)).map(({ s }) => s.id),
-    correlations: paired.flatMap(({ s }, i) => paired.slice(i).flatMap(({ s: t }) => (s.id !== t.id || s.split !== undefined ? [[s.id, t.id] as const] : []))),
+    correlations: paired.flatMap(({ s }, i) => paired.slice(i).map(({ s: t }) => [s.id, t.id] as const)),
   };
 }
 

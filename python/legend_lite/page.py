@@ -1973,7 +1973,8 @@ class Timeseries(Tile):
     def correlations(self, *, start: str | None = None, end: str | None = None) -> Any:
         """Each pair of lines' correlation over the dates ``start`` to ``end``, each the database's -- the screen's
         Correlations tab's (timeseries-query.ts correlationsQuery: a level's simple returns, anything else as it is,
-        over the dates both have): a pandas DataFrame, a matrix of the lines, 1 on its diagonal."""
+        over the dates both have): a pandas DataFrame, a matrix of the lines -- each line with itself the database's too
+        (1, or none where it has under two values or does not vary)."""
         import pandas as pd
         window = {k: v for k, v in (('from', start), ('to', end)) if v is not None}
         cells: dict[tuple[str, str], Any] = {}
@@ -1989,7 +1990,7 @@ class Timeseries(Tile):
                 for x in (la, lb):
                     if x not in lines:
                         lines.append(x)
-        return pd.DataFrame([[1.0 if x == y else cells.get((x, y)) for y in lines] for x in lines], index=lines, columns=lines)
+        return pd.DataFrame([[cells.get((x, y)) for y in lines] for x in lines], index=lines, columns=lines)
 
     def _edit(self, change: dict[str, Any]) -> Timeseries:
         """``change`` (a timeseries-edit.ts TsChange) made by the tile's one rule, headless, and told as setTimeseries."""

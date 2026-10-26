@@ -868,6 +868,7 @@ export function parseExpr(text: string): TsExpr {
     if (n === undefined) throw new TsSyntaxError(param.kind === 'span' ? `${param.name} is a whole number of observations or a calendar period (3m, 1y)` : `${param.name} is a number`, t.at);
     if ((param.kind === 'whole' || param.kind === 'span') && !Number.isInteger(n)) throw new TsSyntaxError(`${param.name} is a whole number`, t.at);
     if (param.min !== undefined && n < param.min) throw new TsSyntaxError(`${param.name} is at least ${param.min}`, t.at);
+    if (param.above !== undefined && n <= param.above) throw new TsSyntaxError(`${param.name} is above ${param.above}`, t.at);
     if (param.below !== undefined && n >= param.below) throw new TsSyntaxError(`${param.name} is below ${param.below}`, t.at);
     if (param.max !== undefined && n > param.max) throw new TsSyntaxError(`${param.name} is at most ${param.max}`, t.at);
     return n;

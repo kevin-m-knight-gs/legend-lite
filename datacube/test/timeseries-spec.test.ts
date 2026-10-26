@@ -134,7 +134,12 @@ describe('the expression language', () => {
     assert.equal(exprText(parseExpr('macd(close, 12, 26, 9)')), 'macd(close, 12, 26, 9)');
     assert.equal(exprText(parseExpr('macd(close, 12, 26, 1)')), 'macd(close)');
     refused('exponential_moving_average(close, 1)', /beta is below 1/);
-    refused('exponential_std(close, -0.1)', /beta is at least 0/);
+    refused('exponential_std(close, -0.1)', /beta is above 0/);
+    // the E9 review's 2: at beta 0 each value weighs alone, which has no deviation (the database's log of 0 refused it)
+    refused('exponential_std(close, 0)', /beta is above 0/);
+    refused('exponential_volatility(close, 0)', /beta is above 0/);
+    refused('exponential_spread_volatility(close, 0)', /beta is above 0/);
+    refused('exponential_moving_average(close, -0.1)', /beta is at least 0/);
     refused('smoothed_moving_average(close, 3m)', /w is a number|whole/);
     refused('rsi(close, 1m)', /w is a number|whole/);
   });
@@ -260,6 +265,7 @@ describe('the saved spec\'s reader', () => {
       [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'percentile', args: [{ kind: 'column', column: 'c' }], params: { n: 120 } } }] }), /n 120 is above 100/],
       [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'exponential_moving_average', args: [{ kind: 'column', column: 'c' }], params: { beta: 1 } } }] }), /beta 1 is not below 1/],
       [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'returns', args: [{ kind: 'column', column: 'c' }], params: { obs: 0 } } }] }), /obs 0 is below 1/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'exponential_std', args: [{ kind: 'column', column: 'c' }], params: { beta: 0 } } }] }), /beta 0 is not above 0/],
       [with_({ series: [{ id: 'A', expr: { kind: 'column', source: 'fx', column: 'c' } }] }), /reads fx:..., which is none of its sources/],
       [with_({ series: [{ id: 'A', expr: { kind: 'column', column: 'c' }, pane: 4 }] }), /pane 4 is not one of 0 to 3/],
       [with_({ series: [{ id: 'A', expr: { kind: 'column', column: 'c' }, style: { kind: 'candles' } }] }), /style "candles"/],

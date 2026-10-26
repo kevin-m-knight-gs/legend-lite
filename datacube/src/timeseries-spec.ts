@@ -256,6 +256,8 @@ export interface TsParamShape {
   readonly words?: readonly string[];
   /** The least a number may be. */
   readonly min?: number;
+  /** What a number must be above (a deviation's weight of the one before: over 0, or it weighs one value alone). */
+  readonly above?: number;
   /** What a number must be below (an exponential average's weight: under 1). */
   readonly below?: number;
   /** The most a number may be (a percentile's: 100). */
@@ -283,6 +285,9 @@ const num = (name: string, fallback: number, min?: number): TsParamShape =>
 const whole = (name: string, fallback: number, min = 1): TsParamShape => ({ name, kind: 'whole', default: fallback, min });
 /** An exponential average's weight of the one before, 0 to under 1 (gs-quant's beta: 0.75). */
 const BETA: TsParamShape = { name: 'beta', kind: 'number', default: 0.75, min: 0, below: 1 };
+/** A deviation's beta, over 0: at 0 each value weighs alone, which has no deviation (pandas: none at every date; the E9
+ *  review's 2, refused in words rather than drawn as nothing). */
+const SPREAD_BETA: TsParamShape = { name: 'beta', kind: 'number', default: 0.75, above: 0, below: 1 };
 const one = (...params: TsParamShape[]): TsSignature => ({ series: 1, params });
 
 /** Every function's signature, gs-quant's names (PlotTool Pro's words), in the catalog's order. */
@@ -296,8 +301,8 @@ export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
   alpha: { series: 2, params: [W(63)] }, r_squared: { series: 2, params: [W(63)] }, hedge_ratio: { series: 2, params: [W(63)] },
   residual: { series: 2, params: [W(63)] },
   bollinger_bands: one(W(20), num('k', 2, 0)), rsi: one(whole('w', 14)), ohlc: { series: 4, params: [] },
-  exponential_moving_average: one(BETA), exponential_std: one(BETA), exponential_volatility: one(BETA),
-  exponential_spread_volatility: one(BETA), macd: one(whole('m', 12), whole('n', 26), whole('s', 1)),
+  exponential_moving_average: one(BETA), exponential_std: one(SPREAD_BETA), exponential_volatility: one(SPREAD_BETA),
+  exponential_spread_volatility: one(SPREAD_BETA), macd: one(whole('m', 12), whole('n', 26), whole('s', 1)),
   smoothed_moving_average: one(whole('w', 14)),
   percentiles: one(W(0)), median: one(W(22)), percentile: one({ name: 'n', kind: 'number', default: 50, min: 0, max: 100 }, W(0)),
   log: one(), exp: one(), sqrt: one(), abs: one(), power: one(num('y', 2)), floor: one(num('value', 0)), ceil: one(num('value', 0)),
@@ -438,6 +443,7 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
             if (typeof v !== 'number' || !Number.isFinite(v)) return `${fn}'s ${name} ${JSON.stringify(v)} is not a number`;
             if ((q.kind === 'whole' || q.kind === 'span') && !Number.isInteger(v)) return `${fn}'s ${name} ${v} is not a whole number`;
             if (q.min !== undefined && v < q.min) return `${fn}'s ${name} ${v} is below ${q.min}`;
+            if (q.above !== undefined && v <= q.above) return `${fn}'s ${name} ${v} is not above ${q.above}`;
             if (q.below !== undefined && v >= q.below) return `${fn}'s ${name} ${v} is not below ${q.below}`;
             if (q.max !== undefined && v > q.max) return `${fn}'s ${name} ${v} is above ${q.max}`;
           }
