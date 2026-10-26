@@ -229,7 +229,7 @@ export function boxSays(cube: CubeDocument): BoxSays {
   const summarized = q.rows.length > 0 && q.pivotOn.length === 0;
   // a Custom Filter's condition: its column and its filter one step (custom-filter.ts)
   const custom = customFilterOf(q);
-  const own = new Set([...(unique !== undefined ? [unique.column] : []), ...(sampled?.columns ?? []), ...(custom !== undefined ? [CUSTOM_FILTER_COLUMN] : []),
+  const own = new Set([...(unique?.columns ?? []), ...(sampled?.columns ?? []), ...(custom !== undefined ? [CUSTOM_FILTER_COLUMN] : []),
     ...(transposed !== undefined || summarized ? [...hiddenColumns(cube)] : []),
     ...(transposed !== undefined ? [transposed.name, transposed.value] : []), ...retyped.map((r) => r.name)]);
   // Imputation's window columns (an average across every row) are its own, said with the column they fill

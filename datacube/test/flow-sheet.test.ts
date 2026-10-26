@@ -291,13 +291,23 @@ describe('Unique (unique.ts): a row number per key, its first kept, the number h
 
   it('makes its row number, its filter and its column hidden, ordered by the first key unless given an order', () => {
     const [calc, filter, configure] = made(['region']);
+    // its ties broken by every other column that sorts, rising: each of its queries (U, D, its Output) numbers alike
+    // (the correctness audit's 14, 2026-10-26)
     assert.deepEqual(calc, { kind: 'calculate', level: 'row', column: {
-      name: 'UniqueRow', window: { fn: 'rowNumber', partition: ['region'], order: [{ column: 'region', direction: 'asc' }] },
+      name: 'UniqueRow', window: { fn: 'rowNumber', partition: ['region'], order: [{ column: 'region', direction: 'asc' }, { column: 'notional', direction: 'asc' }] },
     } });
     assert.deepEqual(filter, { kind: 'addFilter', condition: { kind: 'condition', column: 'UniqueRow', operator: 'equal', value: 1 } });
     assert.deepEqual(configure, { kind: 'configure', patch: { columns: { UniqueRow: { hidden: true } } } });
-    const ordered = made(['region'], { column: 'notional', direction: 'desc' })[0] as { column: DerivedColumn };
-    assert.deepEqual(ordered.column.window?.order, [{ column: 'notional', direction: 'desc' }]);
+    // largest first: its empties after every value, led by a flag of them (Pure's empty is the largest) -- hidden too
+    // (the correctness audit's 3)
+    const [flag, ordered, , hide] = made(['region'], { column: 'notional', direction: 'desc' }) as [{ column: DerivedColumn }, { column: DerivedColumn }, unknown, unknown];
+    assert.deepEqual(flag.column, { name: 'UniqueEmpty', kind: 'dimension', lambda: lambda(['x'], fn('isEmpty', property(variable('x'), 'notional'))) });
+    assert.deepEqual(ordered.column.window?.order, [{ column: 'UniqueEmpty', direction: 'asc' }, { column: 'notional', direction: 'desc' }]);
+    assert.deepEqual(hide, { kind: 'configure', patch: { columns: { UniqueRow: { hidden: true }, UniqueEmpty: { hidden: true } } } });
+    const box = cube(rows('grid-1'), (q) => ({ ...q, derived: [flag.column, ordered.column], filter: { kind: 'condition', column: 'UniqueRow', operator: 'equal', value: 1 } }),
+      { columns: { UniqueRow: { hidden: true }, UniqueEmpty: { hidden: true } } });
+    assert.deepEqual(uniqueOf(box.query), { keys: ['region'], by: { column: 'notional', direction: 'desc' }, column: 'UniqueRow', columns: ['UniqueEmpty', 'UniqueRow'] });
+    assert.deepEqual(boxSays(box), { tool: 'unique', also: [], says: 'by region' }, 'its flag its own, no Formula');
   });
 
   it('a box made so says Unique, by its keys: its number neither a Record ID nor its filter a Filter, nor hidden a Select', () => {
@@ -666,8 +676,12 @@ describe("Sample's other ways (row-sample.ts): a row number and a filter, as Uni
     assert.deepEqual(columnsOf(first)[0]!.window, { fn: 'rowNumber', partition: ['region'], order: [{ column: 'notional', direction: 'asc' }] });
     assert.deepEqual(first.find((c) => c.kind === 'addFilter'), { kind: 'addFilter', condition: { kind: 'condition', column: 'SampleRow', operator: 'lessThanEqual', value: 2 } });
     assert.deepEqual(first.at(-1), { kind: 'configure', patch: { columns: { SampleRow: { hidden: true } } } });
+    // the last: falling, its empties after every value -- a flag of them first (unique.ts rowNumberOrder; the audit's 3)
     const last = rowSampleCommands(typed, { kind: 'last', n: 1, by: 'notional', groups: ['region'] });
-    assert.equal(columnsOf(last)[0]!.window?.order[0]?.direction, 'desc');
+    assert.deepEqual(columnsOf(last).map((c) => c.name), ['SampleEmpty', 'SampleRow']);
+    assert.deepEqual(columnsOf(last)[1]!.window?.order, [{ column: 'SampleEmpty', direction: 'asc' }, { column: 'notional', direction: 'desc' }]);
+    assert.deepEqual(rowSampleOf({ derived: columnsOf(last), filter: (last.find((c) => c.kind === 'addFilter') as { condition: FilterNode }).condition }),
+      { kind: 'last', n: 1, by: 'notional', groups: ['region'], columns: ['SampleEmpty', 'SampleRow'] });
     const skip = rowSampleCommands(typed, { kind: 'skip', n: 10, by: 'notional', groups: [] });
     assert.equal((skip.find((c) => c.kind === 'addFilter') as { condition: { operator: string } }).condition.operator, 'greaterThan');
     const every = rowSampleCommands(typed, { kind: 'every', n: 3, by: 'notional', groups: [] });
@@ -675,6 +689,8 @@ describe("Sample's other ways (row-sample.ts): a row number and a filter, as Uni
     assert.equal(JSON.stringify(rem!.lambda?.body[0]), JSON.stringify(
       fn('mod', fn('toOne', property(variable('x'), 'SampleRow')), lit.integer(3))));
     assert.equal(row!.window?.fn, 'rowNumber');
+    // its ties broken by every other column that sorts (the audit's 14): one of every 3 the same rows each query
+    assert.deepEqual(row!.window?.order, [{ column: 'notional', direction: 'asc' }, { column: 'region', direction: 'asc' }]);
   });
 
   it('is read back off its query, a Sample box saying what it keeps; its columns none of a Formula or a Select', () => {

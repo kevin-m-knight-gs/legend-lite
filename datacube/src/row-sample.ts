@@ -16,7 +16,8 @@
 import { collection, fn, lambda, lit, property, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { familyOf } from '../../engine-client/src/types.ts';
 import type { GridCommand } from './grid-commands.ts';
-import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode } from './snapshot.ts';
+import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode, type SortSpec } from './snapshot.ts';
+import { ORDERED, rowNumberBy, rowNumberOrder } from './unique.ts';
 
 /** How it samples: the first or last `n` of each group, every row after the first `n`, one row of every `n`, or the rows
  *  at some places (`ranges`). */
@@ -64,9 +65,7 @@ export function rangesWords(ranges: readonly RecordRange[]): string {
 export const SAMPLE_COLUMN = 'SampleRow';
 const EVERY_COLUMN = 'SampleEvery';
 const CHANCE_COLUMN = 'SampleChance';
-
-/** The families a random sample's rows are ordered by, to be numbered the same each time: each that sorts. */
-const ORDERED = new Set(['text', 'numeric', 'temporal', 'boolean']);
+const EMPTY_COLUMN = 'SampleEmpty';
 
 /** What is wrong with a row sample's settings, in words, if anything: the grid's columns are `s`'s. */
 export function rowSampleProblem(s: CubeSnapshot, t: RowSample): string | undefined {
@@ -110,13 +109,17 @@ export function rowSampleCommands(s: CubeSnapshot, t: RowSample): GridCommand[] 
     return name;
   };
   const row = free(SAMPLE_COLUMN);
-  // a random sample's rows numbered in an order of every column that sorts: the same number each time it runs
-  const order = t.kind === 'random'
-    ? rowColumns(s).filter((c) => ORDERED.has(familyOf(c.type) ?? '')).map((c) => ({ column: c.name, direction: 'asc' as const }))
-    : [{ column: t.by, direction: t.kind === 'last' ? 'desc' as const : 'asc' as const }];
+  // a random sample's rows numbered in an order of every column that sorts: the same number each time it runs; any
+  // other's by its column, its empties last and its ties broken (unique.ts rowNumberOrder)
+  const { order, flag } = t.kind === 'random'
+    ? { order: rowColumns(s).filter((c) => ORDERED.has(familyOf(c.type) ?? '')).map((c): SortSpec => ({ column: c.name, direction: 'asc' })), flag: undefined }
+    : rowNumberOrder(s, { column: t.by, direction: t.kind === 'last' ? 'desc' : 'asc' }, t.groups, () => free(EMPTY_COLUMN));
   const numbered: DerivedColumn = { name: row, window: { fn: 'rowNumber', partition: [...t.groups], order } };
-  const commands: GridCommand[] = [{ kind: 'calculate', level: 'row', column: numbered }];
-  const hidden: Record<string, { readonly hidden: true }> = { [row]: { hidden: true } };
+  const commands: GridCommand[] = [
+    ...(flag !== undefined ? [{ kind: 'calculate', level: 'row', column: flag } as const] : []),
+    { kind: 'calculate', level: 'row', column: numbered },
+  ];
+  const hidden: Record<string, { readonly hidden: true }> = { [row]: { hidden: true }, ...(flag !== undefined ? { [flag.name]: { hidden: true } } : {}) };
   let condition: FilterNode;
   if (t.kind === 'random') {
     // its chance, 0 to 99: the database's hash of its number and the seed
@@ -158,18 +161,21 @@ export function rowSampleCommands(s: CubeSnapshot, t: RowSample): GridCommand[] 
 export function rowSampleOf(query: { readonly derived: readonly DerivedColumn[]; readonly filter?: FilterNode | undefined }):
   (RowSample & { readonly columns: readonly string[] }) | undefined {
   const f = query.filter;
-  const numberOf = (name: string): { readonly w: NonNullable<DerivedColumn['window']> } | undefined => {
+  // a row number in rowNumberOrder's order: its column, and any flag of its empties (its own column too)
+  interface Numbered { readonly w: NonNullable<DerivedColumn['window']>; readonly by: SortSpec; readonly flag?: string }
+  const numberOf = (name: string): Numbered | undefined => {
     const w = query.derived.find((d) => d.name === name)?.window;
-    return w?.fn === 'rowNumber' && w.order.length === 1 ? { w } : undefined;
+    const ordered = w?.fn === 'rowNumber' ? rowNumberBy(w.order, query.derived) : undefined;
+    return w === undefined || ordered === undefined ? undefined : { w, ...ordered };
   };
-  const sample = (kind: RowSampleKind, n: number, w: NonNullable<DerivedColumn['window']>, columns: string[]) =>
-    ({ kind, n, by: w.order[0]!.column, groups: w.partition, columns });
+  const sample = (kind: RowSampleKind, n: number, r: Numbered, columns: string[]) =>
+    ({ kind, n, by: r.by.column, groups: r.w.partition, columns: [...(r.flag !== undefined ? [r.flag] : []), ...columns] });
   // Select Records: its ranges, each over one row number numbered rising, any of them (an `or` of them, or one)
   const records = f === undefined ? undefined : recordsOf(f);
   const counted = records === undefined ? undefined : numberOf(records.column);
   if (records !== undefined && counted !== undefined) {
-    return counted.w.order[0]!.direction === 'desc' ? undefined
-      : { ...sample('records', records.ranges.length, counted.w, [records.column]), ranges: records.ranges };
+    return counted.by.direction === 'desc' ? undefined
+      : { ...sample('records', records.ranges.length, counted, [records.column]), ranges: records.ranges };
   }
   if (f?.kind !== 'condition' || typeof f.value !== 'number') return undefined;
   // a random sample: its chance under the percent -- the hash of a row number and its seed
@@ -182,10 +188,10 @@ export function rowSampleOf(query: { readonly derived: readonly DerivedColumn[];
   if (f.operator === 'lessThanEqual' || f.operator === 'greaterThan') {
     const r = numberOf(f.column);
     if (r === undefined) return undefined;
-    const desc = r.w.order[0]!.direction === 'desc';
-    if (f.operator === 'greaterThan') return desc ? undefined : sample('skip', f.value, r.w, [f.column]);
+    const desc = r.by.direction === 'desc';
+    if (f.operator === 'greaterThan') return desc ? undefined : sample('skip', f.value, r, [f.column]);
     // the first of all the rows is the Top N's; a first of each group, a sample's
-    return r.w.partition.length === 0 ? undefined : sample(desc ? 'last' : 'first', f.value, r.w, [f.column]);
+    return r.w.partition.length === 0 ? undefined : sample(desc ? 'last' : 'first', f.value, r, [f.column]);
   }
   if (f.operator !== 'equal' || f.value !== 1) return undefined;
   // one of every N: its remainder is mod(toOne($x.row), n) of a row number
@@ -200,7 +206,7 @@ export function rowSampleOf(query: { readonly derived: readonly DerivedColumn[];
   const p = one.parameters[0];
   if (p?._type !== 'property' || p.parameters[0]?._type !== 'var' || (p.parameters[0] as { name: string }).name !== param) return undefined;
   const r = numberOf(p.property);
-  return r === undefined || r.w.order[0]!.direction === 'desc' ? undefined : sample('every', Number(by.value), r.w, [p.property, f.column]);
+  return r === undefined || r.by.direction === 'desc' ? undefined : sample('every', Number(by.value), r, [p.property, f.column]);
 }
 
 /** A random sample's chance read back: `mod(abs(hashCode([toOne($x.<row>), <seed>])), 100)` -- its row number's column

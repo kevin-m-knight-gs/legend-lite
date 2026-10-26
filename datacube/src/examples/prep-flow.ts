@@ -24,7 +24,7 @@ import { writePageOf, type PageDocument, type PageView } from '../page-document.
 import { COUNTRIES_SAMPLE } from '../samples.ts';
 import type { ColumnSpec, CubeSnapshot, DerivedColumn } from '../snapshot.ts';
 import { TreeState } from '../tree.ts';
-import { UNIQUE_COLUMN } from '../unique.ts';
+import { uniqueCommands } from '../unique.ts';
 import { applyGridCommands, type GridCommand } from '../grid-commands.ts';
 import { rowSampleCommands } from '../row-sample.ts';
 import { selectCommands } from '../select-columns.ts';
@@ -102,10 +102,8 @@ export async function prepFlowPage(): Promise<PageDocument> {
     // what the summary shows, its Output's input: the continent and its sums
     { id: 'grid-7', cube: box('Revenue by continent', rowsOf('grid-6', 'By continent', summed), flat('written', summed), MONEYED) },
     // the top order of each country: a row number per country by revenue, its first kept, the number hidden (Unique)
-    { id: 'grid-8', cube: box('Top order of each country', rowsOf('grid-1', 'Orders', SALES_SPECS), flat('top', SALES_SPECS, {
-      derived: [{ name: UNIQUE_COLUMN, window: { fn: 'rowNumber', partition: ['country'], order: [{ column: 'revenue', direction: 'desc' }] } }],
-      filter: { kind: 'condition', column: UNIQUE_COLUMN, operator: 'equal', value: 1 },
-    }), { ...MONEYED, columns: { ...MONEYED.columns, [UNIQUE_COLUMN]: { hidden: true } } }) },
+    { id: 'grid-8', cube: stepped('Top order of each country', rowsOf('grid-1', 'Orders', SALES_SPECS), flat('top', SALES_SPECS), MONEYED,
+      (s) => uniqueCommands(s, { keys: ['country'], by: { column: 'revenue', direction: 'desc' } })) },
   ];
   // RESHAPE: the top two orders of each region by revenue, chosen and renamed, their money made rows and summed by measure
   const chosen: readonly ColumnSpec[] = [

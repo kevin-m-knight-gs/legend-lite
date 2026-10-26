@@ -793,7 +793,15 @@ function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: Pivo
   if (top !== undefined && ranked && !grandTotal && !pivoting) {
     // machinery (grid/columns.ts isMachinery): never shown -- named here, as the module loads before columns.ts's prefix
     const TOP_N_RANK = `${WINDOW_ALL_PREFIX}topN`;
-    rel = extendWindow(rel, TOP_N_RANK, { fn: 'rank', partition: [], order: [{ column: top.by, direction: top.bottom ? 'asc' : 'desc' }] });
+    // the largest first, its empties after every value (Pure's empty is the largest: first in a falling order), so led by
+    // whether it is empty, a value first (the correctness audit's 3, 2026-10-26); the smallest first puts them last already
+    let order: SortSpec[] = [{ column: top.by, direction: 'asc' }];
+    if (top.bottom !== true) {
+      const TOP_N_EMPTY = `${WINDOW_ALL_PREFIX}topN_empty`;
+      rel = rel.extend([derive(TOP_N_EMPTY, lambda(['x'], fn('isEmpty', property(variable('x'), top.by))))]);
+      order = [{ column: TOP_N_EMPTY, direction: 'asc' }, { column: top.by, direction: 'desc' }];
+    }
+    rel = extendWindow(rel, TOP_N_RANK, { fn: 'rank', partition: [], order });
     rel = rel.filter(lambda(['x'], fn('lessThanEqual', property(variable('x'), TOP_N_RANK), lit.integer(top.n))));
   }
 
