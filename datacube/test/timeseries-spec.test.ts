@@ -175,6 +175,16 @@ describe('what an expression reads, and is', () => {
       .map(level), [false, false, false, false, false, false, false, false]);
   });
 
+  // the second audit's B1 (docs/TIMESERIES_REVIEW_2026_10_25.md): a level shifted by a number was one -- index(close) - 1,
+  // gs-quant's cumulative return, compared from a start of zero (every value none) and given a level's statistics
+  it('a level shifted, turned negative or spread is none; a basket, a scale and a ratio of levels are', () => {
+    const level = (t: string): boolean => levelOf(parseExpr(t));
+    assert.deepEqual(['index(close) - 1', 'rebase(close) - 100', 'close - 200', 'close + 5', '5 + close', '-close', 'close * -2', '100 / close']
+      .map(level), [false, false, false, false, false, false, false, false]);
+    assert.deepEqual(['(close[A] + close[B]) / 2', 'close[A] * close[B]', 'close / 100', '0.5 * close', 'mean(close[A] + close[B], 5)']
+      .map(level), [true, true, true, true, true]);
+  });
+
   it('series ids run A to Z, then A2', () => {
     assert.equal(nextSeriesId([]), 'A');
     assert.equal(nextSeriesId([{ id: 'A', expr: parseExpr('close') }, { id: 'C', expr: parseExpr('close') }]), 'B');

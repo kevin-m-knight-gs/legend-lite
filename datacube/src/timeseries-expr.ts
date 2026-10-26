@@ -417,8 +417,9 @@ export function unitOf(e: TsExpr): TsUnit {
  * WHETHER AN EXPRESSION IS A LEVEL -- a price, an index, a ratio or product of prices: what compare starts from one
  * value, and what the statistics read a volatility, a drawdown, a growth and a Sharpe ratio of. A difference, a change,
  * a deviation, a spread of two levels is none, though it is in its input's units (the review's Q2: `change(close)`
- * rebased to nothing, `diff`'s volatility 2011%). A column is a level; a level times or over a number, or a level over
- * or times a level, is one; a level plus or less a number is one; a function's is as its words say (TsFunction.level).
+ * rebased to nothing, `diff`'s volatility 2011%). A column is a level; a level times or over a positive number, a level
+ * over or times a level, and a sum of levels (a basket) are; a level plus or less a number, a spread, or a level turned
+ * negative is none (the second audit's B1); a function's is as its words say (TsFunction.level).
  */
 export function levelOf(e: TsExpr): boolean {
   switch (e.kind) {
@@ -430,9 +431,14 @@ export function levelOf(e: TsExpr): boolean {
     case 'binary': {
       const l = levelOf(e.left);
       const r = levelOf(e.right);
-      if (e.op === '+' || e.op === '-') return (l && e.right.kind === 'number') || (r && e.left.kind === 'number' && e.op === '+');
-      if (e.op === '/') return l && (r || e.right.kind === 'number');
-      return (l && (r || e.right.kind === 'number')) || (r && e.left.kind === 'number');
+      const positive = (x: TsExpr): boolean => x.kind === 'number' && x.value > 0;
+      // a basket of levels is one; a level shifted by a number, or a spread of two, is none -- its start can be zero or
+      // below, which compare would divide by (the second audit's B1: index(close) - 1, rebase(close) - 100)
+      if (e.op === '+') return l && r;
+      if (e.op === '-') return false;
+      // a level scaled by a positive number, a ratio or a product of levels, is one; scaled by a negative one, none
+      if (e.op === '/') return l && (r || positive(e.right));
+      return (l && (r || positive(e.right))) || (r && positive(e.left));
     }
     case 'call': {
       const f = TS_FUNCTION.get(e.fn);

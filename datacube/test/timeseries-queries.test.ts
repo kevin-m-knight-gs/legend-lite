@@ -519,6 +519,16 @@ describe('the review\'s findings on the numbers, each pinned', () => {
     for (const s of ['vol', 'mdd', 'cagr', 'sharpe'] as const) assert.ok(!st.columns.some((c) => c.name === statName(s)), `no ${s} of a difference`);
   });
 
+  // the second audit's B1: a level shifted by a number -- index(close) - 1, gs-quant's cumulative return -- was compared
+  // from its start of zero (every value none, unsaid) and given a level's statistics (a volatility of 1303%)
+  it('a cumulative return (a level shifted) drawn as it is under compare, with no level statistics', async () => {
+    const shifted = spec({ A: 'index(close[AAA]) - 1' }, { view: { compare: 'rebase' } });
+    const got = await line(shifted);
+    close(got.values, AAA.map((v) => v / AAA[0]! - 1), 'its own values, not divided by a start of zero', 1e-9);
+    const st = await run(statsQuery(inputs, shifted, shifted.series[0]!));
+    for (const s of ['vol', 'mdd', 'cagr', 'sharpe'] as const) assert.ok(!st.columns.some((c) => c.name === statName(s)), `no ${s} of a shifted level`);
+  });
+
   // Q3: no frequency annualized by 252 whatever the dates were
   it('Q3: no frequency -- the periods a year the database infers from the dates: 252 for weekdays, none for every third weekday', async () => {
     const daily = await run(seriesQuery(inputs, spec({ A: 'volatility(close[AAA], 5)' }), spec({ A: 'volatility(close[AAA], 5)' }).series[0]!));
