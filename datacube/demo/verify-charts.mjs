@@ -241,7 +241,10 @@ try {
     if (wl < 0 || wt < 0 || wr > placed.screen[0] || wb > placed.screen[1]) throw new Error(`its options' window is off the screen: ${JSON.stringify(placed)}`);
     if (wl < cr && wr > cl && wt < cb && wb > ct) throw new Error(`its options' window covers the chart: ${JSON.stringify(placed)}`);
     // in the Properties window's design (the user, 2026-10-25): its sections titled as Properties' are, a short choice
-    // segmented with the chosen one sky-filled and sky-edged as a chosen Join kind
+    // segmented with the chosen one sky-filled and sky-edged as a chosen Join kind -- read once its form is drawn (the
+    // window comes before its sections: on a slower machine CI's run read a title not there yet, 2026-10-26)
+    await form.locator('.dc-section-title').first().waitFor();
+    await form.locator('.dc-segment.dc-chosen').first().waitFor();
     const look = await page.evaluate(() => {
       const win = document.querySelector('.dc-chart-options');
       const title = getComputedStyle(win.querySelector('.dc-section-title'));
