@@ -616,7 +616,7 @@ export class CubePage {
       onFile: (file) => this.#options.onFile?.(file, id),
       documentOf: (tile) => this.#boxes.get(tile)?.document ?? this.documentOf(tile),
       onTidy: () => this.#options.onTidy?.(id),
-      onRun: () => void this.#runFlow(id),
+      onRun: (dry) => void this.#runFlow(id, dry === true),
       onDuplicate: (tile) => this.#duplicateBox(id, tile),
       onCopy: (tiles, cut) => this.#copyBoxes(tiles, cut),
       profileOf: (tile) => {
@@ -839,9 +839,10 @@ export class CubePage {
   /**
    * RUN (the canvas's button: docs/DATACUBE_FLOW_MODE_2026_10_24.md M5, M6): each box of flow `sheet` shown in turn, left
    * to right -- its grid made over the page as it is, its rows counted as they land -- then the box shown before shown
-   * again. The screen's, no step of the page's: which box is shown is the screen's.
+   * again. The screen's, no step of the page's: which box is shown is the screen's. A DRY RUN (`dry`, M6) counts and
+   * judges every box as a run does and writes no Output: each says what it would write, or why it would not.
    */
-  async #runFlow(sheetId: string): Promise<void> {
+  async #runFlow(sheetId: string, dry = false): Promise<void> {
     const sheet = this.#sheets.find((s) => s.id === sheetId);
     if (sheet?.kind !== 'flow' || sheet.board.running !== undefined) return;
     const board = sheet.board;
@@ -849,7 +850,7 @@ export class CubePage {
     const order = [...board.layout.boxes].filter((b) => board.noteOf(b.tile) === undefined).sort((a, b) => a.x - b.x || a.y - b.y).map((b) => b.tile);
     const was = board.shown;
     const started = performance.now();
-    const logged: { id: string; ms: number; rows?: number; refused?: string; wrote?: string }[] = [];
+    const logged: { id: string; ms: number; rows?: number; refused?: string; wrote?: string; wouldWrite?: string }[] = [];
     // each Output written once every box has run: none when a Test that stops a run fails (FL8's refuse)
     const writes: { readonly id: string; readonly name: string; readonly at: number }[] = [];
     board.setRunning({ done: 0, of: order.length });
@@ -879,12 +880,19 @@ export class CubePage {
       const stoppers = stopped.map((id) => board.title(id) ?? id).join(', ');
       for (const w of writes) {
         if (this.#disposed) return;
+        // a Dry Run writes none: each Output says what it would write, or why it would not
+        if (dry) {
+          logged[w.at] = stopped.length > 0 ? { ...logged[w.at]!, refused: `would not be written: ${stoppers} failed` }
+            : { ...logged[w.at]!, wouldWrite: w.name };
+          continue;
+        }
         const why = stopped.length > 0 ? `not written: ${stoppers} failed` : await this.#writeBox(w.id);
         logged[w.at] = why === null ? { ...logged[w.at]!, wrote: w.name }
           : { ...logged[w.at]!, refused: stopped.length > 0 ? why : `could not write ${w.name}: ${why}` };
       }
       if (was !== undefined && board.shown !== was && board.layout.boxes.some((b) => b.tile === was)) await this.#showBox(was);
-      board.setLog({ at: new Date(), ms: Math.round(performance.now() - started), boxes: logged, ...(stopped.length > 0 ? { stopped } : {}) });
+      board.setLog({ at: new Date(), ms: Math.round(performance.now() - started), boxes: logged, ...(stopped.length > 0 ? { stopped } : {}),
+        ...(dry ? { dry: true } : {}) });
     } finally {
       board.setRunning(undefined);
     }

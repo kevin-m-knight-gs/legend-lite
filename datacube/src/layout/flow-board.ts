@@ -82,7 +82,8 @@ export interface FlowBoardOptions {
   /** Tidy Up (the canvas's button): the caller places every box by the flow's own rule (page-gestures.ts tidyCommands). */
   readonly onTidy?: () => void;
   /** Run (the canvas's button): the caller shows each box in turn, so each is counted (`counted`). */
-  readonly onRun?: () => void;
+  /** Run (`dry`: a Dry Run -- every box counted and judged, no Output written). */
+  readonly onRun?: (dry?: boolean) => void;
   /** Duplicate (Ctrl+D on a box, or its menu): the caller adds a copy of it, reading what it reads. */
   readonly onDuplicate?: (id: string) => void;
   /** Ctrl+C on a box or a note, or on the boxes picked together (Ctrl+X: `cut`, and taken off the page): the caller
@@ -116,9 +117,13 @@ export interface RunLog {
     readonly id: string; readonly ms: number; readonly rows?: number; readonly refused?: string;
     /** An Output's file, written this run. */
     readonly wrote?: string;
+    /** An Output's file, a Dry Run's: it would be written. */
+    readonly wouldWrite?: string;
   }[];
   /** The Tests that stopped it (a stopping Test's checks failing: FL8's refuse), by box: no Output written. */
   readonly stopped?: readonly string[];
+  /** A Dry Run's (M6): every box counted and judged, nothing written. */
+  readonly dry?: true;
 }
 
 /** A point of a flow's canvas, in its own units: where a tool or a line was let go, the box made there placed at it. */

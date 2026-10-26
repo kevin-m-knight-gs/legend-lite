@@ -863,6 +863,18 @@ stop), Python's `test_a_test_that_stops_a_run_writes_no_output` (refused, nothin
 and loaded) and the harness (the example's Checks sheet: run, 2024's orders written; its Test set to stop a run and run
 again: nothing written, said, the Test red).
 
+**Built, a Dry Run** (M6; `page/cube-page.ts` `#runFlow(dry)`, `layout/flow-canvas.ts`, `layout/flow-board.ts`
+`RunLog.dry`; 2026-10-25): a flow with an Output has **Dry Run** beside Run (Ctrl+Shift+Enter, and in the command
+palette). It runs every box as Run does -- each counted as its rows land, each Test and fixed Cross Tab judged, a run
+stopped by a stopping one that fails -- and writes no Output: each Output's line says "would write orders of
+2024.csv", or "would not be written: Orders checked failed", and the log's title "Dry run: ran 9 boxes in 2.1 s ...;
+nothing written". Python: `flow.dry_run()`, `{'rows': {box: n}, 'would_write': [...], 'stopped': [...]}` -- each box
+counted as the canvas counts it (its view's rows, the row cap's total when it cut them), the stopping boxes judged by
+the rule `flow.run` refuses by (`_stopped`). Tested by Python's `test_a_dry_run_counts_every_box_and_writes_nothing`
+(over DuckDB: each box's rows, the file it would write; a stopping Test failing, none) and the harness (the example's
+Checks sheet: a dry run stopped by its Test, its Output not written, said why; set to warn, a dry run that would write
+2024's orders and writes nothing).
+
 **Built, Custom Filter** (FL12's "filter by a Pure expression", §17.6 item 6; `custom-filter.ts`,
 `ui/custom-filter-form.ts`, `app.ts` `#openCustomFilter`, `cube.ts` `typed`; 2026-10-25): Alteryx's Filter, its Custom
 filter, as a tool of its own in Prepare. Its window takes a condition written in Pure over `$x`, the row -- each of its

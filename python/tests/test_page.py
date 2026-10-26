@@ -3169,6 +3169,24 @@ class Flows(Paged):
         with self.assertRaisesRegex(ValueError, 'Load its values to fix them'):
             after.to_pandas()
 
+    def test_a_dry_run_counts_every_box_and_writes_nothing(self):
+        # M6: flow.dry_run -- every box's rows counted as the canvas counts them, the boxes that stop a run judged, the
+        # files a run would write named; nothing written. A stopping Test failing: none would be, said why
+        page, flow, source, big = self.flowed()
+        out = flow.grid(input=source)
+        out.output('trades out.csv')
+        dry = flow.dry_run()
+        self.assertEqual((dry['rows'][source.id], dry['rows'][big.id], dry['rows'][out.id]), (3, 2, 3))
+        self.assertEqual((dry['would_write'], dry['stopped']), (['trades out.csv'], []))
+        checked = flow.grid(input=source)
+        checked.test([{'kind': 'rows', 'max': 1}])
+        checked.stops_run()
+        dry = flow.dry_run()
+        self.assertEqual(dry['would_write'], [])
+        self.assertEqual(len(dry['stopped']), 1)
+        self.assertRegex(dry['stopped'][0], 'stops the run: at most 1 row: it has 3 rows')
+        self.assertEqual(dry['rows'][checked.id], 1, 'its one row of counts')
+
     def test_a_custom_filter_keeps_the_rows_its_condition_is_true_for(self):
         # FL12: grid.custom_filter -- a condition in Pure over $x, parsed and typed by the compiler, the database judging;
         # its column hidden from the box after it; its False the rest; a condition that is no Boolean refused

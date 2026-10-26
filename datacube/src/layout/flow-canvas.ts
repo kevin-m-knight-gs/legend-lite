@@ -86,6 +86,7 @@ const KEYS: readonly (readonly [string, string])[] = [
   ['Ctrl+D, F2', 'duplicate a box, rename it'],
   ['Ctrl+Z, Ctrl+Shift+Z', 'undo, redo'],
   ['Ctrl+Enter', 'run the flow'],
+  ['Ctrl+Shift+Enter', 'a dry run: every box counted, no Output written'],
   ['Ctrl+K', 'a command: any tool, box or action of the canvas, by name'],
   ['Ctrl+A, Escape', 'pick every box, none'],
   ['Ctrl+G', 'a container round the boxes picked'],
@@ -271,6 +272,8 @@ export class FlowCanvas {
   /** The canvas's own tools, at its corner: Run, Tidy Up. */
   readonly #toolbar: HTMLElement;
   readonly #run: HTMLButtonElement;
+  /** A Dry Run (M6): every box counted and judged, no Output written. */
+  readonly #dry: HTMLButtonElement;
   readonly #tidy: HTMLButtonElement;
   readonly #undo: HTMLButtonElement;
   readonly #redo: HTMLButtonElement;
@@ -404,6 +407,8 @@ export class FlowCanvas {
       return b;
     };
     this.#run = tool('dc-flow-run', '▶ Run', 'Run every box, left to right, and count the rows each gives (Ctrl+Enter)', () => this.#board.options.onRun?.());
+    this.#dry = tool('dc-flow-dry', 'Dry Run', 'Run every box and count its rows, its Tests judged: no Output written (Ctrl+Shift+Enter)',
+      () => this.#board.options.onRun?.(true));
     this.#tidy = tool('dc-flow-tidy', 'Tidy Up', 'Place every box a column after the boxes it reads, level with them', () => this.#board.options.onTidy?.());
     // the page's own Undo and Redo, each saying what it would undo or redo
     this.#undo = tool('dc-flow-undo', '↶', 'Undo (Ctrl+Z)', () => this.#board.options.onUndo?.(false));
@@ -427,7 +432,7 @@ export class FlowCanvas {
     keys.setAttribute('aria-label', 'Keys and gestures');
     zoomOut.setAttribute('aria-label', 'Zoom out');
     zoomIn.setAttribute('aria-label', 'Zoom in');
-    this.#toolbar.append(this.#run, this.#tidy, this.#undo, this.#redo, zoomOut, this.#zoomLevel, zoomIn, fit, this.#mapButton, keys);
+    this.#toolbar.append(this.#run, this.#dry, this.#tidy, this.#undo, this.#redo, zoomOut, this.#zoomLevel, zoomIn, fit, this.#mapButton, keys);
     // what Undo and Redo would do read again as the pointer comes to them
     this.#toolbar.addEventListener('pointerenter', () => this.#paintHistory());
     this.#canvas.addEventListener('wheel', (e) => {
@@ -492,7 +497,7 @@ export class FlowCanvas {
       if (!this.#commands.contains(e.relatedTarget as Node | null)) this.#closeCommands(false);
     });
     this.#toolbarCommands = [
-      ['Run the flow', this.#run], ['Tidy Up', this.#tidy], ['Undo', this.#undo], ['Redo', this.#redo], ['Zoom in', zoomIn],
+      ['Run the flow', this.#run], ['Dry run the flow', this.#dry], ['Tidy Up', this.#tidy], ['Undo', this.#undo], ['Redo', this.#redo], ['Zoom in', zoomIn],
       ['Zoom out', zoomOut], ['Zoom to its own size', this.#zoomLevel], ['Fit every box in view', fit], ['Map', this.#mapButton],
       ['Keys and gestures', keys],
     ];
@@ -646,6 +651,8 @@ export class FlowCanvas {
     this.#tidy.hidden = !editing || layout.boxes.length < 2;
     this.#run.disabled = running !== undefined;
     this.#run.textContent = running === undefined ? '▶ Run' : `Running ${Math.min(running.done + 1, running.of)} of ${running.of}…`;
+    this.#dry.disabled = running !== undefined;
+    this.#dry.hidden = !layout.boxes.some((b) => b.output !== undefined);
     this.#paintLog();
     this.#paintResults();
     this.#paintSettings();
@@ -1005,10 +1012,13 @@ export class FlowCanvas {
     const lacking = [...tests.values()].filter((t) => t.failing.length > 0 && 'says' in t).length;
     const seconds = (ms: number): string => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toLocaleString(UI_LOCALE, { maximumFractionDigits: 1 })} s`);
     const stoppers = (log.stopped ?? []).map((id) => (this.#board.layout.boxes.some((x) => x.tile === id) ? this.#nameOf(id, 'test') : id));
-    head.append(el('span', 'dc-flow-log-title', `Ran ${log.boxes.length} ${log.boxes.length === 1 ? 'box' : 'boxes'} in ${seconds(log.ms)}`
+    // a Dry Run says so, and that it wrote nothing (M6)
+    const ran = `${log.dry === true ? 'Dry run: ran' : 'Ran'} ${log.boxes.length} ${log.boxes.length === 1 ? 'box' : 'boxes'} in ${seconds(log.ms)}`;
+    head.append(el('span', 'dc-flow-log-title', ran
       + (refused > 0 ? `, ${refused} refused` : '') + (failing > 0 ? `, ${failing} ${failing === 1 ? 'test' : 'tests'} failing` : '')
       + (lacking > 0 ? `, ${lacking} ${lacking === 1 ? 'Cross Tab' : 'Cross Tabs'} missing values` : '')
-      + (stoppers.length > 0 ? `; stopped by ${stoppers.join(', ')}: nothing written` : '')));
+      + (stoppers.length > 0 ? `; stopped by ${stoppers.join(', ')}: nothing ${log.dry === true ? 'would be ' : ''}written`
+        : log.dry === true ? '; nothing written' : '')));
     const close = el('button', 'dc-flow-log-close', '×') as HTMLButtonElement;
     close.type = 'button';
     close.setAttribute('aria-label', 'Close the run log');
@@ -1026,7 +1036,7 @@ export class FlowCanvas {
       const name = this.#board.layout.boxes.some((x) => x.tile === b.id) ? this.#nameOf(b.id, this.#said(b.id)?.tool ?? 'browse') : b.id;
       go.append(el('span', 'dc-flow-log-name', name),
         el('span', 'dc-flow-log-rows', b.refused ?? (tested !== undefined ? FlowCanvas.#testWords(tested)
-          : `${b.rows === undefined ? '' : `${b.rows.toLocaleString(UI_LOCALE)} ${b.rows === 1 ? 'row' : 'rows'}`}${b.wrote !== undefined ? `, wrote ${b.wrote}` : ''}`)),
+          : `${b.rows === undefined ? '' : `${b.rows.toLocaleString(UI_LOCALE)} ${b.rows === 1 ? 'row' : 'rows'}`}${b.wrote !== undefined ? `, wrote ${b.wrote}` : ''}${b.wouldWrite !== undefined ? `, would write ${b.wouldWrite}` : ''}`)),
         el('span', 'dc-flow-log-ms', seconds(b.ms)));
       go.title = b.refused ?? (tested !== undefined && tested.failing.length > 0 ? tested.failing.join('\n') : `Show ${name}`);
       go.addEventListener('click', () => {
@@ -1666,10 +1676,10 @@ export class FlowCanvas {
       this.#openCommands();
       return;
     }
-    // Run, from the keys: as its button, while no run is going
+    // Run, from the keys: as its button, while no run is going; with Shift, a Dry Run
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (!this.#run.disabled) this.#board.options.onRun?.();
+      if (!this.#run.disabled) this.#board.options.onRun?.(e.shiftKey);
       return;
     }
     const key = e.key.toLowerCase();

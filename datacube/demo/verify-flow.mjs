@@ -1589,6 +1589,26 @@ try {
   await page.waitForFunction(() => document.querySelector('.dc-flow-box[data-tile="grid-23"] .dc-flow-says')?.textContent === 'every value has a column', undefined, { timeout: 60_000 });
   check(await page.locator('.dc-flow-box[data-tile="grid-23"].dc-flow-passing').count() === 1, 'loaded again: every region a column, passing');
   check(/^Its columns: AMER, APAC, EMEA\.$/.test(await page.locator('.dc-flow-settings:visible .dc-flow-pin-words').textContent() ?? ''), 'its columns: all three');
+  // A DRY RUN (M6): every box counted and judged, nothing written -- its stopping Test failing, 2024's orders would not
+  // be; set to warn, they would be, and still nothing is written
+  const dryRun = async () => {
+    await page.locator('.dc-flow-dry:visible').click();
+    await page.waitForFunction(() => [...document.querySelectorAll('.dc-flow-run')].every((b) => /Run$/.test(b.textContent ?? '')), undefined, { timeout: 240_000 });
+    return await page.locator('.dc-flow-log:visible .dc-flow-log-title').textContent() ?? '';
+  };
+  const dryStopped = await dryRun();
+  check(/^Dry run: ran \d+ boxes/.test(dryStopped) && /stopped by Orders checked: nothing would be written/.test(dryStopped), `a dry run, stopped: ${dryStopped}`);
+  check(/would not be written: Orders checked failed/.test(await logRow('Orders of 2024') ?? ''), 'its Output would not be written, said why');
+  await page.locator('.dc-flow-log-close:visible').click();
+  await page.locator('.dc-flow-box[data-tile="grid-22"]').click();
+  // the Test's own mode, once it is the box shown (a Cross Tab's says a value, not a check)
+  await page.waitForFunction(() => [...document.querySelectorAll('.dc-flow-settings .dc-flow-stops')]
+    .some((e) => e.offsetParent !== null && /when a check fails/.test(e.textContent ?? '')), undefined, { timeout: 30_000 });
+  await page.locator('.dc-flow-settings:visible .dc-flow-stops .dc-flow-stops-check input').uncheck();
+  await page.waitForFunction(() => window.__dataPage.undoLabel === 'Warn On Failure', undefined, { timeout: 30_000 });
+  const dryWarned = await dryRun();
+  check(/; nothing written$/.test(dryWarned), `a dry run writes nothing: ${dryWarned}`);
+  check(/would write orders of 2024\.csv/.test(await logRow('Orders of 2024') ?? ''), 'its Output would be written, and is not');
 } catch (e) {
   bad(`threw: ${e.stack ?? e}`);
 } finally {

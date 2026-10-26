@@ -1665,11 +1665,9 @@ class Sheet:
             raise ValueError(f'{self!r} is a board: a flow runs its Outputs')
         out = Path(folder)
         # a Test that stops a run, failing (grid.stops_run; FL8's refuse): no Output written, said in its checks' words
-        stopping = [(box['tile'], self._page._tile(box['tile'], Grid).failing) for box in layout['boxes'] if box.get('stops')]
-        failed = [(tile, f) for tile, f in stopping if f]
+        failed = self._stopped()
         if failed:
-            raise ValueError('; '.join(f"{tile} stops the run: " + ', '.join(c['says'] for c in f)
-                                       for tile, f in failed) + ': no Output written')
+            raise ValueError('; '.join(failed) + ': no Output written')
         out.mkdir(parents=True, exist_ok=True)
         doc = self._page._doc
         written: list[Path] = []
@@ -1685,6 +1683,31 @@ class Sheet:
             rows[[c for c in rows.columns if c not in hidden]].to_csv(path, index=False)
             written.append(path)
         return written
+
+    def _stopped(self) -> list[str]:
+        """The boxes set to stop a run (``grid.stops_run()``) that fail -- a Test's checks, a fixed Cross Tab's values with
+        no column -- each in its words: what stops a run and a dry run alike (FL8's refuse)."""
+        stopping = [(box['tile'], self._page._tile(box['tile'], Grid).failing) for box in self._doc['layout']['boxes'] if box.get('stops')]
+        return [f"{tile} stops the run: " + ', '.join(c['says'] for c in f) for tile, f in stopping if f]
+
+    def dry_run(self) -> dict[str, Any]:
+        """The flow run as the canvas's Dry Run runs it (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every box's rows counted
+        as the canvas counts them (its view's, the row cap's total when it cut them), the boxes that stop a run judged,
+        nothing written -- ``{'rows': {box: n}, 'would_write': [names], 'stopped': [words]}``, ``would_write`` the files
+        a run would write (none when a stopping box fails, each said in ``stopped``). A board has no Outputs: refused."""
+        layout = self._doc['layout']
+        if layout.get('kind') != 'flow':
+            raise ValueError(f'{self!r} is a board: a flow runs its Outputs')
+        grids = {v['id'] for v in self._page._doc['views'] if v.get('kind') == 'grid'}
+        rows: dict[str, int] = {}
+        for box in layout['boxes']:
+            if box['tile'] not in grids:
+                continue
+            view = self._page._tile(box['tile'], Grid).view()
+            rows[box['tile']] = view.total_rows if view.total_rows is not None else len(view.rows)
+        stopped = self._stopped()
+        writes = [] if stopped else [box['output']['name'] for box in layout['boxes'] if box.get('output') is not None]
+        return {'rows': rows, 'would_write': writes, 'stopped': stopped}
 
     def grid(self, frame: Any = None, **given: Any) -> Grid:
         """A grid on this sheet, as ``page.grid(..., sheet=this)`` adds one: on a flow, a box -- after ``input``, the box
