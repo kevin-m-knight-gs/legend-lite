@@ -132,6 +132,8 @@ const BOARD_SITES: Record<string, string | readonly [string, number]> = {
   'dispose:#charts.clear(': 'the board taken down',
   'moveToSheet:board.remove(': "a chart with no spec yet moved: no page holds it",
   'moveToSheet:board.add(': "a chart with no spec yet moved: no page holds it",
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4; dated by the flow mode review, 2026-10-26): a sheet
+  // put back of the other kind -- a board where a flow was, or a flow where a board was -- is made again under its id
   'setSheets:#newSheet(': ['a saved page put back: a sheet it has not, or one of the other kind under its id made again', 2],
   'setSheets:sheet.name = ': 'a saved page put back',
   'setSheets:#sheets.splice(': ['a saved page put back: a sheet of the other kind made again, a sheet it has not left', 2],

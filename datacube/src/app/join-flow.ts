@@ -19,7 +19,7 @@ import { pageToJson, type PageDocument } from '../page-document.ts';
 import type { PageApp } from '../page/page-app.ts';
 import { CubeRefusal, sameValue } from '../snapshot.ts';
 import { joinDialog, type Choice, type JoinCandidate } from '../ui/join-dialog.ts';
-import { boxSays, FLOW_TOOLS, readersOf } from '../flow-boxes.ts';
+import { FLOW_TOOLS, pageBoxName, readersOf } from '../flow-boxes.ts';
 import type { LineEnd } from '../layout/flow-board.ts';
 import { catalogColumns } from '../upload.ts';
 import type { GridRows, HostJoin, LocalEngine, Services } from './services.ts';
@@ -284,16 +284,12 @@ export async function flowJoin(o: FlowJoinOf): Promise<void> {
   if (joined !== undefined && !isLive(joined.left)) throw new CubeRefusal('its Left reads a copy: link it to a box first (its settings\' Left)');
   const left = joined !== undefined && isLive(joined.left) ? joined.left.grid : o.cube;
   const right = joined !== undefined && isLive(joined.right) ? joined.right.grid : undefined;
-  // each box called as its canvas calls it: the name a person gave it, else its tool's (flow-boxes.ts boxSays)
   const cubeOf = (id: string) => {
     const v = now.views.find((x) => x.id === id);
     return v === undefined ? undefined : now.cubes.find((c) => c.id === v.cube)?.cube;
   };
-  const named = (id: string): string => {
-    const title = now.views.find((x) => x.id === id)?.title;
-    const cube = cubeOf(id);
-    return title ?? (cube === undefined ? id : FLOW_TOOLS[boxSays(cube).tool].name);
-  };
+  // each box called as its canvas calls it: the name a person gave it, else its tool's (flow-boxes.ts pageBoxName)
+  const named = (id: string): string => pageBoxName(now, id);
   // its Right: any other box of the flow -- set again, none that reads the Join box (it would read its own rows)
   const readers = o.box === undefined ? new Set<string>() : readersOf(o.box, o.boxes, cubeOf);
   const others = o.boxes.filter((b) => b !== left && b !== o.box && !readers.has(b)).map((id) => ({ id, name: named(id) }));

@@ -193,6 +193,21 @@ interface Canvas {
   dispose(): void;
 }
 
+/**
+ * THE BOXES THAT STOP A RUN (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL8's refuse) of `order`, each with why: a box set to
+ * stop it that fails -- or that was never judged, its rows refused or its question unanswered (`unanswered`: why, where
+ * the page knows): a stop that cannot be judged stops (the review of 2026-10-26's B7). None, every Output is written.
+ */
+export function runStoppers(board: Pick<FlowBoardState, 'layout' | 'testFails' | 'title' | 'refusal'>, order: readonly string[],
+  unanswered: (id: string) => string | undefined = () => undefined): { readonly id: string; readonly why: string }[] {
+  return order.filter((id) => board.layout.boxes.find((b) => b.tile === id)?.stops === true && board.testFails(id) !== false).map((id) => {
+    const name = board.title(id) ?? id;
+    if (board.testFails(id) === true) return { id, why: `${name} failed` };
+    const why = board.refusal(id) ?? unanswered(id);
+    return { id, why: `${name} could not be judged${why !== undefined ? ` (${why})` : ''}` };
+  });
+}
+
 export class FlowBoard implements FlowBoardState {
   readonly #host: HTMLElement;
   /** What it says to a screen reader: its own, so it is said before the drawing has come. */

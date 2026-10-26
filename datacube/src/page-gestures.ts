@@ -10,12 +10,12 @@ import type { ChartSpec } from './chart-spec.ts';
 import { asSaved, remove, tiles, type Bands, type Preset } from './layout/bands.ts';
 import { fieldNames } from './command-fields.ts';
 import { PAGE_COMMAND_FIELDS, type PageCommand } from './page-commands.ts';
-import { readPage, type PageDocument, type PageLayout } from './page-document.ts';
-import { arranged } from './layout/flow.ts';
+import { PageDocumentError, readPage, type PageDocument, type PageLayout } from './page-document.ts';
+import { FlowRefusal, arranged, containerMoves, type Frame } from './layout/flow.ts';
 import { liveGrids } from './live-inputs.ts';
 import { givenName } from './page-names.ts';
 import { CubeRefusal, sameValue } from './snapshot.ts';
-import { inputOn, inputSides, joinInputs, moreIndex, type CubeSource, type InputSide } from './cube-document.ts';
+import { inputOn, inputSides, joinInputs, moreIndex, type CubeDocument, type CubeSource, type InputSide } from './cube-document.ts';
 
 /** A page command of `kind` whose every field is the person's input -- what they typed, picked or pointed at -- built
  *  as Python's generated builder builds it (_commands.py, from the same list): its kind, then its fields in the order
@@ -157,6 +157,26 @@ export function takeOffCommands(grid: string, source: CubeSource, side: InputSid
   ];
 }
 
+/** A BOX DUPLICATED (Ctrl+D, its menu: docs/DATACUBE_FLOW_MODE_2026_10_24.md M7; Python's grid.copy of a flow's box):
+ *  `document`, its cube as the page has it -- reading what it reads -- added on `sheet` after the box it reads first,
+ *  titled by its number unless `title` is given: the page command every grid is added by. One rule for both (the
+ *  review of 2026-10-26: Python's copy went after the box copied, as a board's does). */
+export function duplicateCommands(document: CubeDocument, tile: string, sheet: string, title: string | null = null): PageCommand[] {
+  const near = liveGrids(document.source)[0] ?? tile;
+  return [{ kind: 'addGrid', document, sheet, near, title, columns: null }];
+}
+
+/** The page a gesture is asked over (`a.page`), read: one its reader refuses refused in its words; any other error is a
+ *  bug, thrown as it is (the review of 2026-10-26: every error was made a refusal). */
+function pageOf(a: Readonly<Record<string, unknown>>): PageDocument {
+  try {
+    return readPage(a['page'], { empty: true });
+  } catch (e) {
+    if (e instanceof PageDocumentError) throw new CubeRefusal(e.message);
+    throw e;
+  }
+}
+
 /** The page's gestures Python asks by name (headless pageGesture), with their arguments read from JSON: those whose
  *  meaning a Python call shares with the screen's; the board's own (a hand's move, a layout drawn) are the board's. */
 export const PAGE_GESTURES = {
@@ -171,13 +191,39 @@ export const PAGE_GESTURES = {
   // a flow's boxes tidied, over the page as it is (its boxes' links)
   'flow.tidy': (a: Readonly<Record<string, unknown>>): PageCommand[] => {
     if (typeof a['sheet'] !== 'string') throw new CubeRefusal("'flow.tidy' needs sheet, the flow sheet's id");
-    let page: PageDocument;
-    try {
-      page = readPage(a['page'], { empty: true });
-    } catch (e) {
-      throw new CubeRefusal(e instanceof Error ? e.message : String(e));
-    }
+    const page = pageOf(a);
     return tidyCommands(page, a['sheet']);
+  },
+  // a box placed -- a container, its boxes with it (flow.ts containerMoves), its frame set or kept -- over the page as it
+  // is: one step, as the canvas's drag tells it (the review of 2026-10-26's B6)
+  'flow.place': (a: Readonly<Record<string, unknown>>): PageCommand[] => {
+    if (typeof a['tile'] !== 'string') throw new CubeRefusal("'flow.place' needs tile, the box's id");
+    if (typeof a['x'] !== 'number' || typeof a['y'] !== 'number') throw new CubeRefusal("'flow.place' needs x and y, its place");
+    const page = pageOf(a);
+    const frame = a['frame'] as Frame | null | undefined;
+    const sheet = page.sheets.find((s) => s.layout.kind === 'flow' && s.layout.boxes.some((b) => b.tile === a['tile']));
+    // a tile of a board: the command alone, refused in its own words
+    if (sheet === undefined || sheet.layout.kind !== 'flow') {
+      return [{ kind: 'placeBox', tile: a['tile'], x: a['x'], y: a['y'], ...(frame !== undefined ? { frame } : {}) }];
+    }
+    let moves: ReturnType<typeof containerMoves>;
+    try {
+      moves = containerMoves(sheet.layout, a['tile'], a['x'], a['y']);
+    } catch (e) {
+      throw e instanceof FlowRefusal ? new CubeRefusal(e.message) : e;
+    }
+    return moves.map((m, i): PageCommand => ({ kind: 'placeBox', tile: m.tile, x: m.x, y: m.y, ...(i === 0 && frame !== undefined ? { frame } : {}) }));
+  },
+  // a flow's box duplicated, over the page as it is (duplicateCommands)
+  'flow.duplicate': (a: Readonly<Record<string, unknown>>): PageCommand[] => {
+    if (typeof a['tile'] !== 'string') throw new CubeRefusal("'flow.duplicate' needs tile, the box's id");
+    if (a['title'] !== undefined && a['title'] !== null && typeof a['title'] !== 'string') throw new CubeRefusal("a duplicate's title is text, or null");
+    const page = pageOf(a);
+    const sheet = page.sheets.find((s) => s.layout.kind === 'flow' && s.layout.boxes.some((b) => b.tile === a['tile']));
+    const view = page.views.find((v) => v.id === a['tile']);
+    const cube = view?.kind === 'grid' ? page.cubes.find((c) => c.id === view.cube) : undefined;
+    if (sheet === undefined || cube === undefined) throw new CubeRefusal(`'${a['tile']}' is no grid's box of a flow`);
+    return duplicateCommands(cube.cube, a['tile'], sheet.id, (a['title'] as string | null | undefined) ?? null);
   },
   // a Union's input taken off, over the page as it is (its grid's source)
   'flow.takeOff': (a: Readonly<Record<string, unknown>>): PageCommand[] => {
@@ -185,12 +231,7 @@ export const PAGE_GESTURES = {
     if (typeof a['side'] !== 'string' || (moreIndex(a['side']) === undefined && a['side'] !== 'left' && a['side'] !== 'right')) {
       throw new CubeRefusal(`'flow.takeOff' needs side, a Union's left, right or more1, more2, ..., not ${JSON.stringify(a['side'])}`);
     }
-    let page: PageDocument;
-    try {
-      page = readPage(a['page'], { empty: true });
-    } catch (e) {
-      throw new CubeRefusal(e instanceof Error ? e.message : String(e));
-    }
+    const page = pageOf(a);
     const view = page.views.find((v) => v.id === a['grid']);
     const cube = view?.kind === 'grid' ? page.cubes.find((c) => c.id === view.cube) : undefined;
     if (cube === undefined) throw new CubeRefusal(`'${a['grid']}' is no grid of the page`);

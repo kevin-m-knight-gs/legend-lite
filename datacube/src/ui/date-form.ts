@@ -6,7 +6,7 @@
 
 import { GRAIN_LABELS } from '../calc-presets.ts';
 import type { TimeGrain } from '../chart-spec.ts';
-import { DATE_FORMATS, PART_WORDS, type DatePart, type DateTool } from '../date-tools.ts';
+import { DATE_FORMATS, PART_WORDS, dateToolName, formatHasTime, type DatePart, type DateTool } from '../date-tools.ts';
 
 export interface DateFormOptions {
   /** The date columns it can take to a period or a part, by name. */
@@ -103,7 +103,7 @@ export function dateForm(host: HTMLElement, o: DateFormOptions): void {
     hint.textContent = m === 'period' ? 'A new column: each date taken to its period\'s first day (a day, its date).'
       : m === 'part' ? 'A new column of whole numbers: the part of each date.'
         : 'A new column of dates: the text read by its format, as yyyy-MM-dd, dd/MM/yyyy or yyyy-MM-dd HH:mm:ss. A value it cannot read stops its rows, said by the database: filter such text out before it.';
-    if (!named) name.value = m === 'part' ? `${partOf.value}_${which.value}` : `${text.value}_date`;
+    if (!named) name.value = m === 'part' ? dateToolName('datePart', partOf.value, which.value as DatePart) : dateToolName('dateParse', text.value);
     ok.disabled = m === 'parse' && format.value.trim() === '';
   };
   for (const s of [mode, which, partOf, text]) s.addEventListener('change', shown);
@@ -115,7 +115,7 @@ export function dateForm(host: HTMLElement, o: DateFormOptions): void {
     const asked = m === 'period' ? o.apply(column.value, grain.value as TimeGrain)
       : o.applyTool(m === 'part'
         ? { kind: 'datePart', column: partOf.value, part: which.value as DatePart, name: name.value }
-        : { kind: 'dateParse', column: text.value, format: format.value.trim(), time: /[Hhms]/.test(format.value), name: name.value });
+        : { kind: 'dateParse', column: text.value, format: format.value.trim(), time: formatHasTime(format.value), name: name.value });
     status.textContent = '';
     const refused = await asked;
     if (refused === null) o.close();

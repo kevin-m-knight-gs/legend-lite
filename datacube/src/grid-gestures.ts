@@ -14,7 +14,7 @@
 
 import { columnConfig, mergeColumnOrder, withColumn, type CubeConfiguration } from './config.ts';
 import { availableDimensions, drillDown, drillUp, useDimension, type Dimension } from './dimensions.ts';
-import { familyOf } from '../../engine-client/src/types.ts';
+import { familyOf, isDecimal } from '../../engine-client/src/types.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { headerSortCommand, type SortedHeader } from './header-sort.ts';
 import {
@@ -315,7 +315,8 @@ const GESTURES = {
   'pivot.clearHorizontal': { args: [], make: () => [{ kind: 'pivot', columns: [] }] },
   // A CROSS TAB'S LOAD VALUES (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2; Python's grid.pin_pivot): the values its rows
   // hold now, as the database answered them, pinned -- its columns those from then on (grid-edits.ts pinPivot), each
-  // typed as its column is (a number answered as text, as a database's big integer is, a number); null, its values its
+  // typed as its column is (a number answered as text, as a database's big integer is, a number; a Decimal's, its
+  // text); null, its values its
   // rows' again. An empty value is refused in words: it names no column. The same values pinned again: nothing
   'pivot.pin': {
     args: ['values'],
@@ -328,9 +329,12 @@ const GESTURES = {
       const type = rowColumns(g.snapshot).find((c) => c.name === on)?.type;
       const values = (given as readonly unknown[]).map((v): FilterValue => {
         if (v === null) throw new CubeRefusal(`its rows hold an empty '${on ?? ''}', which names no column: fill or filter its empty values first`);
-        // a number past what a double holds exactly kept as its text: its condition reads it as its column's type
+        // a number past what a double holds exactly kept as its text: its condition reads it as its column's type; a
+        // Decimal's text kept whole, every digit it has (a double rounds 12345678901234.567 and drops 12.10's zero: the
+        // review of 2026-10-26's B1)
         const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
-        if (familyOf(type) === 'numeric' && Number.isFinite(n) && (!Number.isInteger(n) || Number.isSafeInteger(n))) return n;
+        const exact = familyOf(type) === 'numeric' && !isDecimal(type);
+        if (exact && Number.isFinite(n) && (!Number.isInteger(n) || Number.isSafeInteger(n))) return n;
         return v as FilterValue;
       });
       return sameValue(had, values) ? [] : [{ kind: 'pinPivot', values }];

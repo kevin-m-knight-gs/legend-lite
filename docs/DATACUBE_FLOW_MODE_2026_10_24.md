@@ -235,7 +235,7 @@ How to read the status column:
 
 | Tool | Status | How |
 |---|---|---|
-| Filter (True, False) | Step | The grid's filter; the False port (§3.3) |
+| Filter (True, False) | Built (2026-10-25) | The grid's filter; the False port (§3.3, FL7): the rows its condition leaves out, empties among them |
 | Formula | Built | A calculated column, checked by the compiler as it is typed |
 | Multi-Row Formula | Built | A window column: `lag`, `lead`, `first`, `last` |
 | Multi-Field Formula | Built (2026-10-25) | One expression over `$v`, each column's value, parsed by the compiler: a calculated column of each (`<column><suffix>`), or in place, as Alteryx's "change existing fields" |
@@ -296,7 +296,7 @@ How to read the status column:
 
 | Tool | Status | How |
 |---|---|---|
-| Field Summary, Basic Data Profile | Step | **Profile** (§17.6): per column, the count, empties, distinct values and top values |
+| Field Summary, Basic Data Profile | Built (2026-10-25) | **Profile** (§17.6): per column, the count, empties, distinct values, smallest and largest, one row of aggregates the database computes; top values later |
 | Frequency Table, Histogram, Scatterplot | Built | Charts on a box's grid: bars over bins, scatter, box plot |
 | Pearson Correlation | Built (2026-10-25) | In every box's Profile, under its columns: each pair of its measures' `corr`, a matrix asked of the database as one row of aggregates |
 | Charts, Table, Layout, Render, Email | Built | Charts, KPIs, pages, exports and the email draft |
@@ -305,12 +305,13 @@ How to read the status column:
 
 | Tool | Status | How |
 |---|---|---|
-| Comment, Tool Container | Step | The flow sheet's own state (§3.4) |
+| Comment, Tool Container | Built (2026-10-25) | The flow sheet's own state (§3.4): a comment a text tile; a container one with a frame, its boxes moved with it (`layout/flow.ts containerMoves`, Python's `text.place`) |
 | Test | Built | Checks as a box (no empty value, no value repeated, a number within bounds, a count of rows within bounds, values one of a list, a text matching a pattern), counted by the database; a mode that stops a run (FL8) |
 | Block Until Done | Later | Run order, from runs and schedules (F3) |
 | Message | Later | The run's log |
 | Base 64 Encoder | Built | `encodeBase64` in a Formula |
-| Dynamic Rename, Select, Replace | Later | |
+| Dynamic Rename, Select | Built (2026-10-25) | Select's window (Preparation, above); Dynamic Rename, a prefix and a suffix given each kept column in sight |
+| Dynamic Replace | Later | |
 | Interface tools (an analytic app's inputs) | Core | Query parameters: execute takes no parameter values yet (F5) |
 | Standard macro | Later | A sub-flow saved as a Pure function with parameters, used as a box; needs a function with parameters as a source (§17.6, item 8) |
 | Batch and iterative macros | Out for now | A loop is not one query; it would be orchestration |
@@ -377,6 +378,7 @@ Every milestone ends usable: something a person does from start to finish, saved
 ### M4. Reshape
 
 - Cross Tab, with Load values, the cast, its check and the check's mode (FL2, FL3, FL8); Transpose, composed (FL14).
+  Built (2026-10-25): Load values (its values pinned), its check (a value its pin lacks, said), Stop Run On Failure.
 - The check modes on screen: amber and red boxes, Add to the cast.
 - **Done when:** a Cross Tab whose data gains a value is marked in a preview and refused by a run in refuse mode.
 
@@ -1306,7 +1308,7 @@ where it was let go).
 or `right` port -- the rows of its Left (or Right) its condition pairs with no row of the other, Alteryx's L and R. No
 new kind of source: resolved, the port is that input itself (its own rows, its columns as it hands them on) with its
 rows matched against the other's (`unmatched: [{by, on}]`), each an anti-join the database runs over one model of both
-(`overOneModel`'s side; the host's `rowsOpenedOn`), on the join's own condition -- turned round for its Right (each
+(`oneModel`'s side; the host's `rowsOpenedOn`), on the join's own condition -- turned round for its Right (each
 row's columns swapped, its comparison mirrored: `<` is `>`). The join's own query is its J's and reaches neither. The
 leaves of a port are both inputs' (`leavesOf`), so a chain read elsewhere than the page's own tables refuses it as a
 join refuses its inputs. Refused in words: a grid that is no join, a Union (it keeps every row of both), an as-of join,

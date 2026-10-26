@@ -1,7 +1,7 @@
 // OPENING A JOIN (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.3, §17.4): a join source made one relation over one
 // model. Its leaves -- the inputs that read a table straight, depth first -- are tables of the host's database; one model
 // declares them all (the writer's several tables, infer.ts tablesModel); each input is its cube's rows at their finest
-// level over its source (query.ts classLambda), a join inside an input opened the same way; then the two are joined
+// level over its source (query.ts handedOnLambda), a join inside an input opened the same way; then the two are joined
 // (join.ts joinRelation), and the compiler types what comes out. What drifted since it was saved is said. No DOM: the
 // tab's sources (app/sources.ts) and a test on Node's DuckDB (test/join-open.test.ts) call it alike.
 
@@ -11,7 +11,8 @@ import {
 } from './cube-document.ts';
 import type { CatalogColumn, TableModels } from './infer.ts';
 import { MOST_REPEATS, REPEATED_KEYS, joinRelation, type JoinHow, type JoinSide, type JoinSummaryCounts, type JoinSummaryQueries } from './join.ts';
-import { TOTAL_ROWS_COLUMN, classLambda } from './query.ts';
+import { TOTAL_ROWS_COLUMN, handedOnLambda } from './query.ts';
+import { WINDOW_ALL_PREFIX } from './grid/columns.ts';
 import type { RawTable } from '../../engine-client/src/engine.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { sourceColumns, type RelationTyper } from './source-columns.ts';
@@ -85,10 +86,9 @@ export interface OpenedJoin extends OpenedInputs {
 /**
  * AN INPUT'S ROWS, the one rule (a join's input; another grid's rows' input, docs/DATACUBE_FLOW_MODE_2026_10_24.md
  * §3.1): its cube opened over `over` -- what its source is now, as `typer` types it -- at its finest level (query.ts
- * classLambda: a flat cube's rows, a grouped cube's groups, a Cross Tab's groups by its pinned values), what drifted
- * since said in `notes` under its name. Refused in words when it is pivoted on values its rows decide: its columns are
- * its values, so its rows have no fixed columns. Its rows matched against
- * another input's (JoinInput.unmatched: a Join's L or R) are not these: they are read over one model of both, its side
+ * handedOnLambda: a flat cube's rows in its sorts' order, a grouped cube's groups, a Cross Tab's groups by its pinned
+ * values), what drifted since said in `notes` under its name. Refused in words when it is pivoted on values its rows
+ * decide: its columns are its values, so its rows have no fixed columns. Its rows matched against another input's (JoinInput.unmatched: a Join's L or R) are not these: they are read over one model of both, its side
  * (oneModel) or openRows.
  */
 export async function inputRows(input: JoinInput, over: ValueSpecification, typer: RelationTyper, notes: string[]): Promise<JoinSide> {
@@ -98,22 +98,44 @@ export async function inputRows(input: JoinInput, over: ValueSpecification, type
   if (opened.snapshot.pivotOn.length > 0 && (opened.snapshot.pivotValues ?? []).length === 0) {
     throw new CubeRefusal(`${input.name} is pivoted: its columns are its values, so its rows have no fixed columns; Load its values to fix them, or take its pivot off first`);
   }
-  const all = classLambda(opened.snapshot).body[0]!;
+  const all = handedOnLambda(opened.snapshot).body[0]!;
   const typed = (await sourceColumns(typer, all)).map((c) => ({ name: c.name, type: c.type }));
   // the columns its box leaves out (JoinInput.omit): selected away, the rest in the order its box hands them on
-  // (JoinInput.order: a Select's, those it does not list after them); then those it renames (JoinInput.rename), each
-  // by the relation's rename, what reads it reading them by their new names
+  // (JoinInput.order: a Select's, those it does not list after them); then those it renames (JoinInput.rename), what
+  // reads it reading them by their new names
   const omit = new Set(input.omit ?? []);
   const rank = new Map((input.order ?? []).map((c, i) => [c, i] as const));
   const at = (name: string): number => rank.get(name) ?? rank.size;
   const kept = typed.filter((c) => !omit.has(c.name)).sort((a, b) => at(a.name) - at(b.name));
-  const same = kept.length === typed.length && kept.every((c, i) => c.name === typed[i]!.name);
-  let rows = same ? all : fn('select', all, colSpecs(kept.map((c) => c.name)));
-  const renames = (input.rename ?? []).filter((r) => kept.some((c) => c.name === r.from));
-  for (const r of renames) rows = fn('rename', rows, colSpec(r.from), colSpec(r.to));
-  const to = new Map(renames.map((r) => [r.from, r.to] as const));
+  const to = new Map((input.rename ?? []).map((r) => [r.from, r.to] as const));
+  const on = kept.map((c) => ({ name: c.name, as: to.get(c.name) ?? c.name }));
   const columns = kept.map((c) => ({ name: to.get(c.name) ?? c.name, type: c.type }));
-  return { name: input.name, relation: rows, columns };
+  return { name: input.name, relation: handedOnRows(all, typed.map((c) => c.name), on), columns };
+}
+
+/** A name of the product's own a renamed column passes through (handedOnRows), never shown (grid/columns.ts isMachinery). */
+const RENAMING = `${WINDOW_ALL_PREFIX}renaming`;
+
+/**
+ * A BOX'S ROWS AS IT HANDS THEM ON, the one rule (what the box after it reads, inputRows; what its Output writes,
+ * flow-output.ts): `rows`, its rows (handedOnLambda), their columns `columns`; `on`, the columns it hands on, in its order,
+ * each under the name it hands it on by (box-columns.ts handedOn) -- selected, then renamed by the relation's rename. A
+ * rename takes a name no column has, so where one takes a name another column has (a Select's swap: a as b, b as a; the
+ * review of 2026-10-26's C11) each goes through a name of the product's own first.
+ */
+export function handedOnRows(rows: ValueSpecification, columns: readonly string[],
+  on: readonly { readonly name: string; readonly as: string }[]): ValueSpecification {
+  const same = on.length === columns.length && on.every((c, i) => c.name === columns[i]);
+  let out = same ? rows : fn('select', rows, colSpecs(on.map((c) => c.name)));
+  const renames = on.filter((c) => c.as !== c.name);
+  const names = new Set(on.map((c) => c.name));
+  if (!renames.some((r) => names.has(r.as))) {
+    for (const r of renames) out = fn('rename', out, colSpec(r.name), colSpec(r.as));
+    return out;
+  }
+  renames.forEach((r, i) => { out = fn('rename', out, colSpec(r.name), colSpec(`${RENAMING}${i}`)); });
+  renames.forEach((r, i) => { out = fn('rename', out, colSpec(`${RENAMING}${i}`), colSpec(r.as)); });
+  return out;
 }
 
 /** A join's how with their kept columns that are gone left out, each said; the rest is joinRelation's to judge. */

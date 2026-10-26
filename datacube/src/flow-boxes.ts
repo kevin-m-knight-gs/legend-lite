@@ -26,6 +26,8 @@ import { conditionWords, datesKept, datesKeptWords } from './page-filters.ts';
 import { CUSTOM_FILTER_COLUMN, customFilterOf, customFilterWords } from './custom-filter.ts';
 import { generatedHelpers, generatedOf, generatedWords } from './generate-rows.ts';
 import { pureWords } from './pure-box.ts';
+import { gridTitle } from './page-ids.ts';
+import type { PageDocument } from './page-document.ts';
 import { isEveryPair, isFuzzy, type JoinHow } from './join-how.ts';
 import { joinWords } from './join-words.ts';
 import { rowColumns, type DerivedColumn } from './snapshot.ts';
@@ -381,6 +383,20 @@ export function boxInputs(cube: CubeDocument): BoxInput[] {
     const input = inputOn(cube.source, side);
     return isLive(input) ? { side, grid: input.grid, ...(input.port !== undefined ? { port: input.port } : {}) } : { side, frozen: copyName(input) };
   });
+}
+
+/** A BOX'S NAME, as the canvas says it (its box, its run's log) and a Join's title is made of: its title -- unless it is
+ *  the one every new grid is given (page-ids.ts gridTitle) -- else its tool's (`tool`, boxSays'). One rule for the
+ *  canvas, the Join window (app/join-flow.ts) and Python's flow join (headless joinCube; the review of 2026-10-26's B3). */
+export function boxNamed(id: string, title: string | undefined, tool: FlowTool): string {
+  return title === undefined || title === gridTitle(id) ? FLOW_TOOLS[tool].name : title;
+}
+
+/** Box `id`'s name on page `page`'s canvas (boxNamed): its title, else its tool's, read off its cube document. */
+export function pageBoxName(page: Pick<PageDocument, 'views' | 'cubes'>, id: string): string {
+  const view = page.views.find((v) => v.id === id);
+  const cube = view?.kind === 'grid' ? page.cubes.find((c) => c.id === view.cube)?.cube : undefined;
+  return boxNamed(id, view?.title, cube === undefined ? 'browse' : boxSays(cube).tool);
 }
 
 /** What a frozen copy is called on a flow: the box it copies, as the canvas named it -- its title, else its tool's

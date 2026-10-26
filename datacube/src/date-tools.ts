@@ -92,6 +92,17 @@ export function dateToolOf(d: DerivedColumn): { readonly says: string } | undefi
 
 /** A date tool read from JSON (Python's): its kind one of DATE_TOOL_KINDS, its fields those the kind takes -- or refused
  *  in words. Its columns are the grid's to judge. */
+/** The name a date tool's column is given unless one is named -- `<column>_<part>`, `<column>_date` -- its window's and
+ *  Python's alike (the review of 2026-10-26: each spelt it). */
+export function dateToolName(kind: 'datePart' | 'dateParse', column: string, part?: DatePart): string {
+  return kind === 'datePart' ? `${column}_${part}` : `${column}_date`;
+}
+
+/** Whether a format reads a time of day (an hour, a minute, a second): what it reads is a date-time, not a date. */
+export function formatHasTime(format: string): boolean {
+  return /[Hhms]/.test(format);
+}
+
 export function readDateTool(raw: unknown): DateTool {
   const o = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : undefined;
   if (o === undefined) throw new CubeRefusal(`a date tool is {kind, ...}, not ${JSON.stringify(raw)}`);
@@ -105,13 +116,17 @@ export function readDateTool(raw: unknown): DateTool {
     return v;
   };
   let tool: DateTool;
+  // its name, unless given, its column's (dateToolName); a parse's time, unless given, its format's (formatHasTime)
   if (o['kind'] === 'datePart') {
     only(['column', 'part', 'name']);
-    tool = { kind: 'datePart', column: text('column'), part: text('part') as DatePart, name: text('name') };
+    const part = text('part') as DatePart;
+    tool = { kind: 'datePart', column: text('column'), part, name: o['name'] === undefined ? dateToolName('datePart', text('column'), part) : text('name') };
   } else if (o['kind'] === 'dateParse') {
     only(['column', 'format', 'time', 'name']);
-    if (typeof o['time'] !== 'boolean') throw new CubeRefusal(`its time is true or false, not ${JSON.stringify(o['time'])}`);
-    tool = { kind: 'dateParse', column: text('column'), format: text('format'), time: o['time'], name: text('name') };
+    const time = o['time'] ?? formatHasTime(text('format'));
+    if (typeof time !== 'boolean') throw new CubeRefusal(`its time is true or false, not ${JSON.stringify(o['time'])}`);
+    tool = { kind: 'dateParse', column: text('column'), format: text('format'), time,
+      name: o['name'] === undefined ? dateToolName('dateParse', text('column')) : text('name') };
   } else {
     throw new CubeRefusal(`a date tool is ${DATE_TOOL_KINDS.join(', ')}, not ${JSON.stringify(o['kind'])}`);
   }

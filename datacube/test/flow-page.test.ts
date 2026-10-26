@@ -15,7 +15,7 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { openCube, writeCube, type CubeDocument, type CubeSource, type FileSource, type RowsSource } from '../src/cube-document.ts';
 import type { FlowTool } from '../src/flow-boxes.ts';
 import { liveGrids } from '../src/live-inputs.ts';
-import { FlowBoard } from '../src/layout/flow-board.ts';
+import { FlowBoard, runStoppers } from '../src/layout/flow-board.ts';
 import { PageApp, type GridMaker } from '../src/page/page-app.ts';
 import { layoutTiles, pageToJson, readPage, writePageOf, type PageDocument } from '../src/page-document.ts';
 import { TreeState } from '../src/tree.ts';
@@ -201,6 +201,27 @@ describe('a flow sheet on a page of its own', () => {
     board.setRunning({ done: 1, of: 2 });
     assert.deepEqual(board.running, { done: 1, of: 2 });
     board.dispose();
+  });
+
+  it('stops a run on a stopping box that fails or was never judged, each said (runStoppers; the review of 2026-10-26\'s B7)', () => {
+    const results = new Map<string, boolean>();
+    const refused = new Map<string, string>([['grid-4', "its input 'x' is gone"]]);
+    const board = {
+      layout: { boxes: [{ tile: 'grid-2', x: 0, y: 0, stops: true }, { tile: 'grid-3', x: 0, y: 0, stops: true },
+        { tile: 'grid-4', x: 0, y: 0, stops: true }, { tile: 'grid-5', x: 0, y: 0 }] },
+      testFails: (id: string) => results.get(id),
+      title: (id: string) => `Box ${id}`,
+      refusal: (id: string) => refused.get(id),
+    } as unknown as Parameters<typeof runStoppers>[0];
+    const order = ['grid-2', 'grid-3', 'grid-4', 'grid-5'];
+    // none judged: each stopping box stops it, why said where it is known
+    assert.deepEqual(runStoppers(board, order, (id) => (id === 'grid-3' ? 'the database refused its question' : undefined)).map((s) => s.why), [
+      'Box grid-2 could not be judged', 'Box grid-3 could not be judged (the database refused its question)',
+      "Box grid-4 could not be judged (its input 'x' is gone)"]);
+    results.set('grid-2', false).set('grid-3', true).set('grid-4', false).set('grid-5', true);
+    assert.deepEqual(runStoppers(board, order), [{ id: 'grid-3', why: 'Box grid-3 failed' }], 'passing: none; a warning box never stops it');
+    results.set('grid-3', false);
+    assert.deepEqual(runStoppers(board, order), []);
   });
 
   it('moves a box by its arrow keys, one step of the page each, and tells the host a tool picked', async () => {

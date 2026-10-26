@@ -35,7 +35,7 @@ import { createItems, type MenuItem } from '../ui/menu.ts';
 import { chromeIcon, closeMark, paintState, stateButton } from '../ui/tile-icons.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
-import { FlowBoard, type FlowPoint, type LineEnd } from '../layout/flow-board.ts';
+import { FlowBoard, runStoppers, type FlowPoint, type LineEnd } from '../layout/flow-board.ts';
 import { liveGrids, relinked } from '../live-inputs.ts';
 import type { Profile } from '../profile.ts';
 import { CONTAINER_FRAME, EMPTY_FLOW, flowTiles, type Frame } from '../layout/flow.ts';
@@ -52,7 +52,7 @@ import {
   type TimeseriesView as TimeseriesPageView,
 } from '../page-document.ts';
 import {
-  layoutCommand, movedCommand, moveSheetCommand, moveToSheetCommands, pageCommand, renameSheetCommand, savedLayout, showGridCommands,
+  duplicateCommands, layoutCommand, movedCommand, moveSheetCommand, moveToSheetCommands, pageCommand, renameSheetCommand, savedLayout, showGridCommands,
   takeOffCommands,
 } from '../page-gestures.ts';
 import { chartTitle, gridTitle, nextPageId, textTitle, timeseriesTitle } from '../page-ids.ts';
@@ -552,6 +552,8 @@ export class CubePage {
   readonly #opening = new Map<string, Promise<void>>();
   /** Each Cross Tab's question of the values its columns lack, while it is asked (#askLacking): what a run waits for. */
   readonly #lackingAsked = new Map<string, Promise<void>>();
+  /** Each Cross Tab's question the database refused, last asked, in its words (#askLacking): why a run it stops stops. */
+  readonly #lackingRefused = new Map<string, string>();
   /** This page's crosshair group (chart-render.ts setGroup): its own, so two pages on one screen do not share. */
   readonly #crosshair = `page-${(crosshairs += 1)}`;
   /** A chart's right-click menu: its Options, Show Grid, Remove. */
@@ -994,18 +996,20 @@ export class CubePage {
         }
         board.setRunning({ done: i + 1, of: order.length });
       }
-      // a Test that stops a run, failing: no Output written, each saying why
-      const stopped = order.filter((id) => board.layout.boxes.find((b) => b.tile === id)?.stops === true && board.testFails(id) === true);
-      const stoppers = stopped.map((id) => board.title(id) ?? id).join(', ');
+      // a box that stops a run, failing -- or never judged (its rows refused, its question unanswered: the review of
+      // 2026-10-26's B7, a stop that cannot be judged stops): no Output written, each saying why
+      const stoppedBy = runStoppers(board, order, (id) => this.#lackingRefused.get(id));
+      const stopped = stoppedBy.map((s) => s.id);
+      const stoppers = stoppedBy.map((s) => s.why).join(', ');
       for (const w of writes) {
         if (this.#disposed) return;
         // a Dry Run writes none: each Output says what it would write, or why it would not
         if (dry) {
-          logged[w.at] = stopped.length > 0 ? { ...logged[w.at]!, refused: `would not be written: ${stoppers} failed` }
+          logged[w.at] = stopped.length > 0 ? { ...logged[w.at]!, refused: `would not be written: ${stoppers}` }
             : { ...logged[w.at]!, wouldWrite: w.name };
           continue;
         }
-        const why = stopped.length > 0 ? `not written: ${stoppers} failed` : await this.#writeBox(w.id);
+        const why = stopped.length > 0 ? `not written: ${stoppers}` : await this.#writeBox(w.id);
         logged[w.at] = why === null ? { ...logged[w.at]!, wrote: w.name }
           : { ...logged[w.at]!, refused: stopped.length > 0 ? why : `could not write ${w.name}: ${why}` };
       }
@@ -1037,10 +1041,11 @@ export class CubePage {
   #askLacking(id: string, cube: SpawnedGrid, board: FlowBoard): void {
     if ((cube.snapshot.pivotValues ?? []).length === 0 || cube.lackingPivotValues === undefined) return;
     if (board.lacking(id) !== undefined || this.#lackingAsked.has(id)) return;
+    this.#lackingRefused.delete(id);
     const asked = cube.lackingPivotValues()
       .then((values) => { if (!this.#disposed) board.setLacking(id, values); })
-      // a question the database refused: its box's refusal is its grid's own to say
-      .catch(() => undefined)
+      // a question the database refused: its box not judged, which stops a run it stops (#runFlow), in these words
+      .catch((e: unknown) => { this.#lackingRefused.set(id, e instanceof Error ? e.message : String(e)); })
       .finally(() => this.#lackingAsked.delete(id));
     this.#lackingAsked.set(id, asked);
   }
@@ -1094,12 +1099,12 @@ export class CubePage {
 
   /** A BOX DUPLICATED (Ctrl+D, its menu: docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): a copy of its cube as the page has
    *  it -- reading what it reads -- placed after the box it reads first, a document until it is shown, as every box not
-   *  shown is: the page command every grid is added by. */
+   *  shown is (page-gestures.ts duplicateCommands). */
   #duplicateBox(sheet: string, tile: string): void {
     const document = this.#boxes.get(tile)?.document ?? this.documentOf(tile);
     if (document === undefined) return;
-    const near = liveGrids(document.source)[0] ?? tile;
-    this.#tell('Duplicate Box', pageCommand('addGrid', { document, sheet, near, title: null, columns: null }));
+    // the one rule Python's grid.copy of a box duplicates by (page-gestures.ts duplicateCommands)
+    this.#tell('Duplicate Box', ...duplicateCommands(document, tile, sheet));
     this.#options.onChange();
   }
 

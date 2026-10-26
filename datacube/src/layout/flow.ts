@@ -141,6 +141,22 @@ export function framedBy(flow: Flow, container: string, size: { readonly w: numb
     && b.x >= c.x && b.y >= c.y + FRAME_HEAD && b.x + size.w <= c.x + f.w && b.y + size.h <= c.y + f.h).map((b) => b.tile);
 }
 
+/**
+ * A CONTAINER MOVED (M7, Alteryx's Tool Container), its boxes with it: `tile` to (`x`, `y`), each box inside it (framedBy)
+ * by as much -- the places the canvas's drag tells and Python's text.place sets alike (the review of 2026-10-26's B6).
+ * Any other box is itself alone. Refused in words when a box would go past the canvas's edge.
+ */
+export function containerMoves(flow: Flow, tile: string, x: number, y: number): { readonly tile: string; readonly x: number; readonly y: number }[] {
+  const at = flow.boxes.find((b) => b.tile === tile);
+  if (at === undefined) throw new FlowRefusal(`'${tile}' is no box of this flow`);
+  const dx = Math.round(x) - at.x;
+  const dy = Math.round(y) - at.y;
+  const inside = flow.boxes.filter((b) => framedBy(flow, tile).includes(b.tile));
+  const past = inside.find((b) => b.x + dx < 0 || b.y + dy < 0);
+  if (past !== undefined) throw new FlowRefusal(`'${past.tile}' in it would go past the canvas's edge, at (${past.x + dx}, ${past.y + dy})`);
+  return [{ tile, x: Math.round(x), y: Math.round(y) }, ...inside.map((b) => ({ tile: b.tile, x: b.x + dx, y: b.y + dy }))];
+}
+
 /** A box set to write its rows (`output`), or no longer (null). Refused when it is no box of the flow, or the output is
  *  not one (outputProblem). */
 export function setOutput(flow: Flow, tile: string, output: Output | null): Flow {

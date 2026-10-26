@@ -8,10 +8,10 @@ import { describe, it } from 'node:test';
 
 import { cubeOpenedAgain, inputSides, isLive, leavesOf, rawRows, writeCube, type CubeDocument, type CubeSource, type FileSource, type RowsSource } from '../src/cube-document.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
-import { boxInputs, boxSays, jsonFieldOf, readersOf } from '../src/flow-boxes.ts';
+import { boxInputs, boxNamed, boxSays, jsonFieldOf, pageBoxName, readersOf } from '../src/flow-boxes.ts';
 import { add, NEW_SHEET } from '../src/layout/bands.ts';
 import {
-  BOX_HEIGHT, BOX_WIDTH, EMPTY_FLOW, FlowRefusal, GAP_X, GAP_Y, MARGIN, arranged, flowProblems, framedBy, moveBox, placeAfter, removeBox,
+  BOX_HEIGHT, BOX_WIDTH, EMPTY_FLOW, FlowRefusal, GAP_X, GAP_Y, MARGIN, arranged, containerMoves, flowProblems, framedBy, moveBox, placeAfter, removeBox,
 } from '../src/layout/flow.ts';
 import { liveGrids, resolvedSource } from '../src/live-inputs.ts';
 import { applyPageCommand, idsOf, readPageCommand, type PageCommand, type PageDraft } from '../src/page-commands.ts';
@@ -19,7 +19,7 @@ import {
   boxCubes, layoutTiles, pageToJson, readPage, unnamedLabel, writePageOf, PageDocumentError, type PageDocument,
 } from '../src/page-document.ts';
 import { renamedCommand, rearranged } from '../src/page-rebase.ts';
-import { takeOffCommands, tidyCommands } from '../src/page-gestures.ts';
+import { PAGE_GESTURES, takeOffCommands, tidyCommands } from '../src/page-gestures.ts';
 import { applyPlanned, pageBetween } from '../src/page-between.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode } from '../src/snapshot.ts';
 import { readUnique, uniqueCommands, uniqueOf } from '../src/unique.ts';
@@ -43,6 +43,8 @@ import { TreeState } from '../src/tree.ts';
 import { accessor, collection, fn, gt, lambda, lit, property, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { boxRows, pureFrom, pureInput, pureInputOf, pureOver, pureProblem, pureShown, pureText, pureWords } from '../src/pure-box.ts';
 import { textToolOf } from '../src/text-tools.ts';
+import { lackingWords, pivotValuesOf, tooManyValues } from '../src/cross-tab.ts';
+import { MAX_PIVOT_VALUES } from '../src/query.ts';
 import { readTextTool, textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
 import { grainColumn, grainOf } from '../src/calc-presets.ts';
 import { CHECKS_COLUMN, checkCommands, checksOf, checkWords, failingChecks, failingWords, readChecks, testColumns, type Check } from '../src/checks.ts';
@@ -144,21 +146,28 @@ describe("a flow's layout (layout/flow.ts)", () => {
   });
 
   it('sets a Test box to stop a run (setStops), or to warn; read, written, renamed, undone', () => {
-    const d = apply(FLOW(), { kind: 'setStops', grid: 'grid-3', stops: true });
-    assert.equal(at(d.page, 'grid-3')?.stops, true);
+    // a Test after the Input (grid-5): its checks what a run is stopped on
+    const checked = applyGridCommands({ snapshot: rawRows(accessor('local::DB', 'trades'), COLUMNS), config: DEFAULT_CONFIGURATION },
+      checkCommands(rawRows(accessor('local::DB', 'trades'), COLUMNS), [{ kind: 'notEmpty', column: 'region' }])).snapshot;
+    const TESTED = (): PageDraft => apply(FLOW(), addGrid(cube(rows('grid-2'), (q) => ({ ...q, derived: checked.derived, rows: checked.rows })), 'sheet-2', 'grid-2'));
+    const d = apply(TESTED(), { kind: 'setStops', grid: 'grid-5', stops: true });
+    assert.equal(at(d.page, 'grid-5')?.stops, true);
     assert.equal(pageToJson(readPage(JSON.parse(pageToJson(d.page)))), pageToJson(d.page), 'written and read back the same');
-    refused(() => apply(d, { kind: 'setStops', grid: 'grid-3', stops: true }), /'grid-3' stops a run already/);
-    refused(() => apply(FLOW(), { kind: 'setStops', grid: 'grid-3', stops: false }), /'grid-3' stops no run/);
-    refused(() => apply(FLOW(), { kind: 'setStops', grid: 'grid-1', stops: true }), /'grid-1' is no box of a flow: a run is a flow's/);
-    assert.equal(at(apply(d, { kind: 'setStops', grid: 'grid-3', stops: false }).page, 'grid-3')?.stops, undefined);
-    assert.deepEqual(readPageCommand({ kind: 'setStops', grid: 'grid-3', stops: true }), { kind: 'setStops', grid: 'grid-3', stops: true });
-    refused(() => readPageCommand({ kind: 'setStops', grid: 'grid-3', stops: 'yes' }), /a Test stops a run \(true\) or warns \(false\), not "yes"/);
-    assert.deepEqual(renamedCommand({ kind: 'setStops', grid: 'grid-3', stops: true }, new Map([['grid-3', 'grid-9']])), { kind: 'setStops', grid: 'grid-9', stops: true });
-    const back = applyPlanned({ page: d.page, held: idsOf(d.page) }, pageBetween(d.page, FLOW().page, 'history'), false).draft.page;
-    assert.equal(at(back, 'grid-3')?.stops, undefined, 'undone by the commands between');
+    refused(() => apply(d, { kind: 'setStops', grid: 'grid-5', stops: true }), /'grid-5' stops a run already/);
+    refused(() => apply(TESTED(), { kind: 'setStops', grid: 'grid-5', stops: false }), /'grid-5' stops no run/);
+    refused(() => apply(TESTED(), { kind: 'setStops', grid: 'grid-1', stops: true }), /'grid-1' is no box of a flow: a run is a flow's/);
+    // a box that checks nothing is never judged, so it stops no run (the review of 2026-10-26: setStops took any box)
+    refused(() => apply(TESTED(), { kind: 'setStops', grid: 'grid-3', stops: true }),
+      /'grid-3' checks nothing: a run is stopped by a Test, or a Cross Tab with its columns fixed/);
+    assert.equal(at(apply(d, { kind: 'setStops', grid: 'grid-5', stops: false }).page, 'grid-5')?.stops, undefined);
+    assert.deepEqual(readPageCommand({ kind: 'setStops', grid: 'grid-5', stops: true }), { kind: 'setStops', grid: 'grid-5', stops: true });
+    refused(() => readPageCommand({ kind: 'setStops', grid: 'grid-5', stops: 'yes' }), /a Test stops a run \(true\) or warns \(false\), not "yes"/);
+    assert.deepEqual(renamedCommand({ kind: 'setStops', grid: 'grid-5', stops: true }, new Map([['grid-5', 'grid-9']])), { kind: 'setStops', grid: 'grid-9', stops: true });
+    const back = applyPlanned({ page: d.page, held: idsOf(d.page) }, pageBetween(d.page, TESTED().page, 'history'), false).draft.page;
+    assert.equal(at(back, 'grid-5')?.stops, undefined, 'undone by the commands between');
     // a page whose box stops otherwise is refused as it is read
     const bad = JSON.parse(pageToJson(d.page));
-    bad.sheets[1].layout.boxes.find((b: { tile: string }) => b.tile === 'grid-3').stops = false;
+    bad.sheets[1].layout.boxes.find((b: { tile: string }) => b.tile === 'grid-5').stops = false;
     assert.throws(() => readPage(bad), /stops a run \(true\) or is without it, not false/);
   });
 
@@ -168,6 +177,32 @@ describe("a flow's layout (layout/flow.ts)", () => {
       "'a' is on the canvas twice",
       "'a' is at (1.5, -2): a box's place is two whole numbers, neither below zero",
     ]);
+  });
+});
+
+describe("a Cross Tab's values as its questions answer them (cross-tab.ts pivotValuesOf): the screen's and Python's", () => {
+  const s = { ...rawRows(accessor('local::DB', 'trades'), [...COLUMNS, { name: 'year', type: 'Integer' }]), pivotOn: ['year'] };
+  const answer = (values: readonly unknown[]) => ({ columns: [{ name: 'year', type: 'Integer', values }], rowCount: values.length, epoch: 1, elapsedMs: 0 }) as never;
+  it('each typed as its column is; past what a pivot shows, said; an answer without its column refused, never none', () => {
+    assert.deepEqual(pivotValuesOf(s, answer([2023n, null])), { values: ['2023', null], more: false });
+    const many = Array.from({ length: MAX_PIVOT_VALUES + 1 }, (_, i) => i);
+    assert.equal(pivotValuesOf(s, answer(many)).more, true);
+    assert.match(tooManyValues('year'), /more than 500 values of year/);
+    assert.throws(() => pivotValuesOf(s, { columns: [], rowCount: 0, epoch: 1, elapsedMs: 0 } as never), /its values' answer has no column year/);
+    // a question asked one past the cap: at least as many said, never a count it did not make (the review of 2026-10-26)
+    assert.match(lackingWords('year', many), /and at least 493 more have no column of their own/);
+    assert.match(lackingWords('year', [2024, 2025]), /^year 2024, 2025 have no column of their own/);
+  });
+});
+
+describe("a box's name (flow-boxes.ts boxNamed, pageBoxName): the canvas's, a Join's title's, Python's", () => {
+  it('its title, unless it is the one every new grid is given; else its tool\'s', () => {
+    assert.equal(boxNamed('grid-3', 'Big trades', 'filter'), 'Big trades');
+    assert.equal(boxNamed('grid-3', 'Grid 3', 'filter'), 'Filter', "a new grid's title is no name of its own");
+    assert.equal(boxNamed('grid-3', undefined, 'sort'), 'Sort');
+    const page = FLOW().page;
+    assert.equal(pageBoxName(page, 'grid-3'), 'Filter', 'read off its query');
+    assert.equal(pageBoxName(page, 'grid-4'), 'Sort');
   });
 });
 
@@ -440,6 +475,7 @@ describe('a Custom Filter (custom-filter.ts): the rows a condition in Pure is tr
     refused(() => customFilterCommands(taken, big, 'Boolean'), /'CustomFilter' is already a column/);
     assert.equal(customFilterText(' $x.a > 1 '), 'x|$x.a > 1');
     assert.equal(customFilterText('r|$r.a > 1'), 'r|$r.a > 1');
+    assert.equal(customFilterText('true || $x.flag'), 'x|true || $x.flag', "a name and ||: an or, no lambda's head");
     assert.deepEqual(readCustomFilter({ kind: 'customFilter', expression: '$x.a > 1' }), { expression: '$x.a > 1' });
     refused(() => readCustomFilter({ kind: 'customFilter', expression: ' ' }), /its condition in Pure/);
     refused(() => readCustomFilter({ kind: 'customFilter', expression: '$x.a', column: 'a' }), /a custom filter takes no column/);
@@ -531,6 +567,7 @@ describe('a Pure box (pure-box.ts, setPure): its rows a function of its input\'s
   it('its text as the compiler parses it, and as its window shows it again', () => {
     assert.equal(pureText('  $input->limit(5) '), 'input|$input->limit(5)');
     assert.equal(pureText('rows | $rows->limit(5)'), 'rows | $rows->limit(5)');
+    assert.equal(pureText('true || false'), 'input|true || false', "a name and ||: an or, no lambda's head");
     assert.equal(pureShown('{input|$input->limit(5)}'), '$input->limit(5)');
     assert.equal(pureShown('{rows|$rows->limit(5)}'), 'rows|$rows->limit(5)');
     assert.equal(pureShown(' input | $input '), '$input');
@@ -843,6 +880,10 @@ describe("Select (select-columns.ts): the columns a box keeps and the names it h
       'its conversion where its column was');
     assert.equal(boxSays(cube(rows('grid-1'), (q) => ({ ...q, columns: draft.snapshot.columns, derived: draft.snapshot.derived }), config)).says,
       'code as Integer', 'in its place: no order of its own said');
+    // no order named (Python's grid.select): the grid's own, the same commands as its window's rows as they are -- its
+    // conversion in its column's place either way (the review of 2026-10-26's B4)
+    const unnamed = { keep: ['region', 'code', 'notional'], rename: {}, retype: { code: 'Integer' as const } };
+    assert.deepEqual(selectCommands(inPlace, unnamed), selectCommands(inPlace, { ...unnamed, order: ['region', 'code', 'notional'] }));
     refused(() => selectCommands(coded, { keep: ['region'], rename: {}, order: ['region', 'region'] }), /names 'region' twice/);
     refused(() => selectCommands(coded, { keep: ['region'], rename: {}, order: ['nope'] }), /its order names no column 'nope'/);
     assert.deepEqual(readSelection({ kind: 'selectColumns', keep: ['a'], order: ['a'] }), { keep: ['a'], rename: {}, order: ['a'] });
@@ -1114,6 +1155,11 @@ describe("the DateTime's part and text read (date-tools.ts): a column each, read
     assert.throws(() => dateToolCommands({ kind: 'datePart', column: 'd', part: 'year', name: ' ' }), /its column needs a name/);
     assert.throws(() => readDateTool({ kind: 'datePart', column: 'd', part: 'century', name: 'c' }), /a part is year, month, day, week, hour/);
     assert.throws(() => readDateTool({ kind: 'dateParse', column: 'd', format: '', time: false, name: 'c' }), /it reads by a format/);
+    // unnamed (Python's): its window's name; a parse's time its format's -- one rule (the review of 2026-10-26)
+    assert.deepEqual(readDateTool({ kind: 'datePart', column: 'd', part: 'year' }), { kind: 'datePart', column: 'd', part: 'year', name: 'd_year' });
+    assert.deepEqual(readDateTool({ kind: 'dateParse', column: 'd', format: 'yyyy-MM-dd HH:mm' }),
+      { kind: 'dateParse', column: 'd', format: 'yyyy-MM-dd HH:mm', time: true, name: 'd_date' });
+    assert.deepEqual(readTextTool({ kind: 'regex', column: 'desk', pattern: 'x', mode: 'extract' }), { kind: 'regex', column: 'desk', pattern: 'x', mode: 'extract', name: 'desk_extracted' });
   });
 });
 
@@ -1228,6 +1274,13 @@ describe("a flow sheet's page commands", () => {
       .map((b) => b.tile).sort());
     assert.deepEqual(readPageCommand({ kind: 'placeBox', tile: 'text-1', x: 1, y: 2, frame: { w: 300, h: 200, collapsed: true } }),
       { kind: 'placeBox', tile: 'text-1', x: 1, y: 2, frame: { w: 300, h: 200, collapsed: true } });
+    // moved, its boxes by as much: the canvas's drag and Python's text.place (containerMoves; the review of 2026-10-26's B6)
+    const inside = { boxes: [{ tile: 'c', x: 20, y: 10, frame: { w: 600, h: 200 } }, { tile: 'a', x: 40, y: 60 }, { tile: 'b', x: 700, y: 60 }] };
+    assert.deepEqual(containerMoves(inside, 'c', 120, 30), [{ tile: 'c', x: 120, y: 30 }, { tile: 'a', x: 140, y: 80 }]);
+    assert.deepEqual(containerMoves(inside, 'b', 5, 5), [{ tile: 'b', x: 5, y: 5 }], 'a box is itself alone');
+    assert.deepEqual(PAGE_GESTURES['flow.place']({ page: JSON.parse(pageToJson(d.page)), tile: 'text-1', x: 30, y: 20 })
+      .map((c) => (c as { tile: string }).tile)[0], 'text-1', 'one step: the container first, then its boxes');
+    assert.throws(() => containerMoves(inside, 'nope', 0, 0), (e: unknown) => e instanceof FlowRefusal && /'nope' is no box of this flow/.test(e.message));
   });
 
   it('refuses in words what only a board takes: a chart, a stack, an arrangement, a tile from a board', () => {
@@ -1285,6 +1338,14 @@ describe("a flow sheet's page commands", () => {
     if (now.kind !== 'layout' || now.layout.kind !== 'flow') throw new Error('not a flow layout');
     assert.deepEqual(now.layout.boxes.find((b) => b.tile === 'grid-2'), { tile: 'grid-2', x: 400, y: 400 });
     assert.deepEqual(now.layout.boxes.map((b) => b.tile).sort(), ['grid-2', 'grid-3', 'grid-4']);
+    // a box's Output and stopping, set by the other writer since, kept: its settings, not its place (the review of
+    // 2026-10-26: dropped); one the stale layout says it writes, and no longer does, writes nothing
+    const set = apply(FLOW(), { kind: 'setOutput', grid: 'grid-3', output: { format: 'csv', name: 'big.csv' } }).page;
+    const was: PageCommand = { kind: 'layout', sheet: 'sheet-2', layout: { kind: 'flow', boxes: [{ tile: 'grid-2', x: 400, y: 400, output: { format: 'csv', name: 'old.csv' } }] } };
+    const again = rearranged(was, set);
+    if (again.kind !== 'layout' || again.layout.kind !== 'flow') throw new Error('not a flow layout');
+    assert.deepEqual(again.layout.boxes.find((b) => b.tile === 'grid-3')?.output, { format: 'csv', name: 'big.csv' });
+    assert.deepEqual(again.layout.boxes.find((b) => b.tile === 'grid-2'), { tile: 'grid-2', x: 400, y: 400 });
   });
 });
 

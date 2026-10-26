@@ -373,6 +373,16 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     const planned: PageCommand = { kind: 'layout', sheet: s.id, layout: s.layout };
     const asHere = renamedCommand(planned, renamed) as Extract<PageCommand, { kind: 'layout' }>;
     if (!sameValue(here.layout, asHere.layout)) emit(planned);
+    // a box's Output and its stopping a run, its settings: a layout made again keeps them as the page has them
+    // (page-rebase.ts rearranged), so each is set as `to` has it, by its own command
+    if (s.layout.kind !== 'flow') continue;
+    for (const b of s.layout.boxes) {
+      const now = cur().sheets.find((x) => x.id === n(s.id))?.layout;
+      const at = now?.kind === 'flow' ? now.boxes.find((x) => x.tile === n(b.tile)) : undefined;
+      if (at === undefined) continue;
+      if (!sameValue(at.output ?? null, b.output ?? null)) emit({ kind: 'setOutput', grid: b.tile, output: b.output ?? null });
+      if ((at.stops === true) !== (b.stops === true)) emit({ kind: 'setStops', grid: b.tile, stops: b.stops === true });
+    }
   }
 
   // 9. sheets `to` has not; names; order

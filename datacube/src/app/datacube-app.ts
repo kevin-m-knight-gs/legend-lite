@@ -1538,11 +1538,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       })().catch((e: unknown) => window.alert(`${tool[0]!.toUpperCase()}${tool.slice(1)}: ${e instanceof Error ? e.message : String(e)}`));
     };
     // A FLOW'S JOIN BOX (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): made after a box, or set again -- the Join window over
-    // the flow's boxes, in this tab's own database (a page Python serves makes one by flow.join: refused here, said)
+    // the flow's boxes, in this tab's own database (a page Python serves makes one by page.join: refused here, said)
     const joinOnFlow = async (o: { readonly cube: string; readonly box?: string; readonly tool: 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace'; readonly sheet: string;
       readonly now: PageDocument; readonly into?: LineEnd }): Promise<void> => {
       const local = services.engine.local;
-      if (!local) throw new Error('a join on a flow is made where the page\'s tables are: on a page Python serves, by flow.join(...)');
+      if (!local) throw new Error('a join on a flow is made where the page\'s tables are: on a page Python serves, by page.join(mine, theirs, how)');
       const shown = placed;
       const layout = o.now.sheets.find((s) => s.id === o.sheet)?.layout;
       const boxes = layout?.kind === 'flow' ? layout.boxes.map((b) => b.tile) : [];

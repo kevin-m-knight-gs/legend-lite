@@ -257,12 +257,6 @@ async function openedAfterStart(h: JoinSourcesHost, source: RowsSource, resolved
   }
 }
 
-/**
- * A GRID OVER THE TAB'S TABLES (a join, another grid's rows): `over`'s leaves each a table of the tab's database -- given
- * (`how.tables`: the grids' own), or, a saved grid reopened, each file read again (a table read for a grid on the page
- * or beside it taken, a sample rebuilt, else asked for) and each remote file mounted -- `open` typing what is read over
- * one model of them, `written` what the grid writes down as its source; undefined when a file was not given.
- */
 /** The tables `leaves` read, each found or read in as a saved join's are (leafTable), what that said, the hold on those
  *  read for this one let go (`forget`), and the grids' tables it borrowed given back (`giveBack`: once a grid is made
  *  over them, which holds them itself; forget gives them back too); undefined when a file was not given. */
@@ -355,6 +349,12 @@ export async function openedInputsOf(h: JoinSourcesHost, left: JoinInput, right:
   }
 }
 
+/**
+ * A GRID OVER THE TAB'S TABLES (a join, another grid's rows): `over`'s leaves each a table of the tab's database -- given
+ * (`how.tables`: the grids' own), or, a saved grid reopened, each file read again (a table read for a grid on the page
+ * or beside it taken, a sample rebuilt, else asked for) and each remote file mounted -- `open` typing what is read over
+ * one model of them, `written` what the grid writes down as its source; undefined when a file was not given.
+ */
 async function openedOver<T extends { readonly relation: ValueSpecification; readonly columns: ColumnSpec[]; readonly notes: readonly string[] }>(
   h: JoinSourcesHost, over: CubeSource, name: string, open: (o: JoinOpening) => Promise<T>, written: (opened: T) => CubeSource,
   how: OpenedHow): Promise<Opened | undefined> {

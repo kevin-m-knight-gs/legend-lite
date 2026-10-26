@@ -3171,6 +3171,35 @@ class Flows(Paged):
         self.assertGreater(after['x'], first['x'])
         self.assertEqual(sorted(big.to_pandas()['notional']), [100.0, 250.0])
 
+    def test_a_box_duplicated_reads_what_it_reads(self):
+        # M7's Duplicate (page-gestures.ts duplicateCommands; the review of 2026-10-26): a flow's box copied reads what it
+        # read, placed after that box, as the canvas's Duplicate places it -- not after the box copied, as a board's grid
+        page, flow, source, big = self.flowed()
+        twin = big.copy()
+        self.assertEqual(twin.sheet, flow)
+        self.assertEqual(twin.input, source)
+        self.assertEqual(sorted(twin.to_pandas()['notional']), [100.0, 250.0])
+        boxes = {b['tile']: b for b in self.boxes(page, flow)}
+        self.assertEqual(boxes[twin.id]['x'], boxes[big.id]['x'], 'after the Input, beside its Filter')
+
+    def test_a_timeseries_of_a_box_and_another_grid(self):
+        # a timeseries of several grids reads them together, one a flow's box: its input resolved against the page first,
+        # as the box is read (headless join.ts sourcesOnHost; the review of 2026-10-26)
+        page = ll.Page('Markets')
+        days = pd.to_datetime(['2024-01-02', '2024-01-03', '2024-01-04']).date
+        prices = pd.DataFrame({'symbol': ['SPX'] * 3, 'day': days, 'close': [100.0, 101.0, 99.5]})
+        yields = pd.DataFrame({'tenor': ['10Y'] * 3, 'obs_date': days, 'yield': [4.0, 4.1, 3.9]})
+        flow = page.flow()
+        raw = flow.grid(prices, name='prices')
+        px = flow.grid(input=raw)
+        px.filter([('close', 'greaterThan', 99.6)])
+        rates = page.grid(yields, name='rates')
+        tile = page.timeseries({'px': px, 'rates': rates}, ['px:close[SPX]', 'rates:yield[10Y]', 'correlation($A, $B, 2)'])
+        alone = tile.frame('A')
+        self.assertEqual(sorted(v for v in alone.iloc[:, 0] if pd.notna(v)), [100.0, 101.0], "the box's rows, its filter kept")
+        # a series of both: the two read together, the box's input resolved
+        self.assertGreater(len(tile.frame('C')), 0)
+
     def test_a_box_placed_by_hand(self):
         page, flow, _source, big = self.flowed()
         big.place(300, 120)
@@ -3274,6 +3303,22 @@ class Flows(Paged):
         with self.assertRaisesRegex(ValueError, 'is a board'):
             page.sheets[0].run('.')
 
+    def test_an_output_writes_what_the_box_hands_on(self):
+        # one writer (flow-output.ts outputCsv, headless gridOutput; the review of 2026-10-26's B2, C1, C9, C10): every row
+        # in its sorts' order, the columns it hands on under their names, in its order, each value as it is -- the tab's
+        # own text, its BOM and CRLFs
+        page, flow, source, _big = self.flowed()
+        chosen = flow.grid(input=source)
+        chosen.select(['notional', 'region'], rename={'region': 'area'}, order=['notional', 'region'])
+        chosen.sort('notional', 'desc')
+        chosen.output('chosen.csv')
+        phones = flow.grid(pd.DataFrame({'phone': ['+44 20 7946 0958', '-']}), name='phones')
+        phones.output('phones.csv')
+        with tempfile.TemporaryDirectory() as folder:
+            written = {p.name: p.read_bytes().decode('utf-8') for p in flow.run(folder)}
+        self.assertEqual(written['chosen.csv'], '\ufeffnotional,area\r\n250,AMER\r\n100,EMEA\r\n75.5,EMEA\r\n')
+        self.assertEqual(written['phones.csv'], '\ufeffphone\r\n+44 20 7946 0958\r\n-\r\n', 'no value defused')
+
     def test_a_select_keeps_and_renames_for_what_reads_it(self):
         # a flow's Select (select-columns.ts selectCommands): the columns it keeps, by the names it gives them -- the box
         # after it reads them so (the relation's rename), its own grid showing them so
@@ -3317,6 +3362,14 @@ class Flows(Paged):
         rows = flow.grid(input=tidy).to_pandas()
         self.assertEqual(sorted(rows.columns), ['m', 'n', 'who'])
         self.assertEqual(sorted(zip(rows['who'], rows['n'], rows['m'])), [('ANA', 1.0, 20.0), ('BEN', 0.0, 40.0)])
+        # unsaid, as its window starts: in place on a flow's box; beside its column on a board's grid (the review of
+        # 2026-10-26: Python's default was the other way)
+        again = flow.grid(input=source)
+        again.cleanse(['who'], case='upper')
+        self.assertEqual(sorted(flow.grid(input=again).to_pandas().columns), ['m', 'n', 'who'])
+        board = page.grid(pd.DataFrame({'who': ['x']}), name='board_who')
+        board.cleanse(['who'])
+        self.assertIn('who_clean', board.to_pandas().columns)
 
     def test_a_summarize_gives_its_keys_and_aggregates(self):
         # a box after a Summarize reads a row per group, its keys and its aggregates -- the dimensions it is not grouped
@@ -3338,6 +3391,13 @@ class Flows(Paged):
         self.assertIn({'tile': box.id, 'x': 20, 'y': 300, 'frame': {'w': 420, 'h': 160}}, self.boxes(page, flow))
         box.place(30, 310)
         self.assertIn({'tile': box.id, 'x': 30, 'y': 310, 'frame': {'w': 420, 'h': 160}}, self.boxes(page, flow))
+        # a box placed inside it moves with it, by as much, as the canvas's drag moves it (flow.ts containerMoves; the
+        # review of 2026-10-26's B6)
+        big.place(60, 360)
+        box.place(130, 410)
+        self.assertIn({'tile': big.id, 'x': 160, 'y': 460}, self.boxes(page, flow))
+        box.place(30, 310)
+        self.assertIn({'tile': big.id, 'x': 60, 'y': 360}, self.boxes(page, flow))
         box.place(30, 310, width=420, height=160, folded=True)
         self.assertIn({'tile': box.id, 'x': 30, 'y': 310, 'frame': {'w': 420, 'h': 160, 'collapsed': True}}, self.boxes(page, flow))
         with self.assertRaisesRegex(ValueError, 'a frame is at least 200 by 100'):
@@ -3380,6 +3440,11 @@ class Flows(Paged):
         joined = page.join(big, source, on_region)
         self.assertEqual(joined.sheet, flow)
         self.assertEqual(joined.inputs, {'left': big, 'right': source})
+        # named as the canvas names its boxes, as the tab's Join window names it (flow-boxes.ts pageBoxName; the review of
+        # 2026-10-26's B3): the Filter by its tool, the Input by its title
+        doc = page.to_dict()
+        view = next(v for v in doc['views'] if v['id'] == joined.id)
+        self.assertEqual(next(c for c in doc['cubes'] if c['id'] == view['cube'])['cube']['source']['name'], 'Filter ⋈ trades')
         # the Filter's two rows (EMEA, AMER) against the three: EMEA twice, AMER once
         self.assertEqual(len(joined.to_pandas()), 3)
         big.filter([('notional', 'greaterThan', 200)])
@@ -3638,6 +3703,14 @@ class Flows(Paged):
         on_notional = {'form': 'join', 'kind': 'inner', 'on': {'rows': [{'left': 'notional', 'op': '==', 'right': 'notional'}]},
                        'prefix': 'their_', 'keep': None}
         joined = page.join(big, source, on_notional)
+        # a box added straight onto its R, as the canvas adds one on a port (headless rowsCube; the review of 2026-10-26's B5)
+        straight = flow.grid(input=joined, port='right')
+        self.assertEqual(sorted(straight.to_pandas()['notional']), [75.5])
+        self.assertEqual(straight.input, joined)
+        with self.assertRaisesRegex(ValueError, "its port 'false', 'left' or 'right', not \"middle\""):
+            flow.grid(input=joined, port='middle')
+        with self.assertRaisesRegex(ValueError, 'port= is one of another grid'):
+            flow.grid(trades(), port='left')
         rest = flow.grid(input=joined)
         rest.relink(joined, port='right')
         self.assertEqual(sorted(rest.to_pandas()['notional']), [75.5], 'the Input\'s rows the Filter left out')

@@ -13,6 +13,7 @@ import {
 } from './cube-document.ts';
 import { ProtocolError, readLambda, type Lambda } from '../../pure-protocol/src/index.ts';
 import { pureProblem } from './pure-box.ts';
+import { checksOf } from './checks.ts';
 import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, type Bands, type Preset,
 } from './layout/bands.ts';
@@ -984,6 +985,13 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       if (sheet === undefined || layout?.kind !== 'flow') throw new CubeRefusal(`'${command.grid}' is no box of a flow: a run is a flow's`);
       const had = layout.boxes.find((b) => b.tile === command.grid)?.stops === true;
       if (had === command.stops) throw new CubeRefusal(`'${command.grid}' ${command.stops ? 'stops a run already' : 'stops no run'}`);
+      // what a run is stopped on: a Test's checks, or a fixed Cross Tab's (its every value a column) -- any other box is
+      // never judged, so would stop every run (the review of 2026-10-26: it took any box)
+      const q = page.cubes.find((c) => c.id === view.cube)?.cube.query;
+      const fixed = q !== undefined && q.pivotOn.length === 1 && (q.pivotValues ?? []).length > 0;
+      if (command.stops && (q === undefined || (checksOf(q) === undefined && !fixed))) {
+        throw new CubeRefusal(`'${command.grid}' checks nothing: a run is stopped by a Test, or a Cross Tab with its columns fixed`);
+      }
       return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => setStops(layout, command.grid, command.stops)) })));
     }
     case 'modelInto':

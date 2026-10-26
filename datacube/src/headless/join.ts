@@ -14,6 +14,8 @@ import {
 } from '../join-open.ts';
 import { joinSummary, joinTitle, readJoinHow, summaryWords, type JoinHow } from '../join.ts';
 import { joinInputOf } from '../page-commands.ts';
+import { pageBoxName } from '../flow-boxes.ts';
+import { resolvedSource } from '../live-inputs.ts';
 import { layoutTiles, readPage, type PageDocument } from '../page-document.ts';
 import { CubeRefusal } from '../snapshot.ts';
 import { LitePlanner } from '../lite-planner.ts';
@@ -114,9 +116,13 @@ export async function joinCube(spec: string): Promise<string> {
   const sheet = s.added.sheet ?? s.page.sheets.find((sh) => layoutTiles(sh.layout).includes(s.mine))?.id ?? s.page.sheets[0]!.id;
   const name = s.page.name;
   const gridsOnPage = s.page.cubes.length + 1;
+  // a flow's boxes named as its canvas names them (flow-boxes.ts pageBoxName), as the tab's Join window titles the box
+  // (the review of 2026-10-26's B3); a board's grids, as their inputs are named
+  const onFlow = (id: string): boolean => s.page.sheets.some((sh) => sh.layout.kind === 'flow' && sh.layout.boxes.some((b) => b.tile === id));
+  const named = (id: string, input: JoinInput): string => (onFlow(id) ? pageBoxName(s.page, id) : input.name);
   return using(async (o) => {
     const source: JoinSource = {
-      _type: 'join', name: joinTitle(s.how, s.left.name, s.right.name), left: s.left, right: s.right, how: s.how, columns: [],
+      _type: 'join', name: joinTitle(s.how, named(s.mine, s.left), named(s.theirs, s.right)), left: s.left, right: s.right, how: s.how, columns: [],
     };
     const opened = await openJoin(source, o);
     const made = rebuilt(undefined, opened.relation, opened.columns, source.name, gridCapped(gridsOnPage));
@@ -167,8 +173,11 @@ export async function sourcesOnHost(page: PageDocument, cubes: readonly string[]
       tables.push(copy.table);
       continue;
     }
-    sources.push(cube.cube.source);
-    tables.push(...await leafTables(cube.cube.source, host));
+    // a flow's box reads another's rows: its input resolved against the page first, as the box itself is read (the
+    // review of 2026-10-26: a timeseries of several grids, one a box, was refused)
+    const source = resolvedSource(page, cube.cube.source);
+    sources.push(source);
+    tables.push(...await leafTables(source, host));
   }
   return { sources, tables };
 }

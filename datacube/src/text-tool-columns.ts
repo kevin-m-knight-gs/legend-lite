@@ -8,7 +8,7 @@ import { fn, lambda, lit, property, variable, type Lambda, type ValueSpecificati
 import { inPlaceCommand } from './box-columns.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { CubeRefusal, type DerivedColumn } from './snapshot.ts';
-import { CLEAN_SUFFIX, PUNCTUATION, SPACES, type Cleansing, type TextTool } from './text-tools.ts';
+import { CLEAN_SUFFIX, PUNCTUATION, SPACES, type Cleansing, type RegexMode, type TextTool } from './text-tools.ts';
 
 const x = (): ValueSpecification => variable('x');
 const col = (name: string): ValueSpecification => property(x(), name);
@@ -93,6 +93,12 @@ export function textToolCommands(t: TextTool): GridCommand[] {
     ? [...commands, inPlaceCommand(t.columns.map((c) => ({ column: c, made: `${c}${CLEAN_SUFFIX}` })))] : commands;
 }
 
+/** The name a RegEx's column is given unless one is named -- `<column>_matches`, `_replaced`, `_extracted` -- its
+ *  window's and Python's alike (the review of 2026-10-26: each spelt it). */
+export function regexName(column: string, mode: RegexMode): string {
+  return `${column}_${mode === 'match' ? 'matches' : mode === 'replace' ? 'replaced' : 'extracted'}`;
+}
+
 /** The kinds a text tool is, as Python names them (`grid.split`, `grid.regex`, `grid.cleanse`). */
 export const TEXT_TOOL_KINDS: readonly TextTool['kind'][] = ['split', 'regex', 'cleanse'];
 
@@ -133,8 +139,9 @@ export function readTextTool(raw: unknown): TextTool {
         throw new CubeRefusal(`its mode is match, replace or extract, not ${JSON.stringify(mode)}`);
       }
       if (o['replacement'] !== undefined && mode !== 'replace') throw new CubeRefusal(`a replacement is a replace's, not a ${mode}'s`);
+      // its name, unless given, its column's (regexName)
       tool = {
-        kind: 'regex', column: text('column'), pattern: text('pattern'), mode, name: text('name'),
+        kind: 'regex', column: text('column'), pattern: text('pattern'), mode, name: o['name'] === undefined ? regexName(text('column'), mode) : text('name'),
         ...(o['replacement'] !== undefined ? { replacement: text('replacement') } : {}),
       };
       break;

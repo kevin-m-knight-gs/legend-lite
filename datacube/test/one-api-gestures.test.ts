@@ -1300,8 +1300,9 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
  *  2026-10-25 (§8 step 1, files in a text box, on main): 53 -> 54, a file opened on a text box.
  *  2026-10-26 (main merged into both branches): the flow's 57 + 1 -> 58; the timeseries' 73 + 1 -> 74.
  *  2026-10-26 (a timeseries' states, a chart's words: the user's ask): 74 -> 75, a timeseries frozen from its header.
- *  2026-10-26 (the timeseries branch, PR #74, merged into the flow branch): 75 + the flow's 4 -> 79. */
-const GESTURES_AT_LEAST = 79;
+ *  2026-10-26 (the timeseries branch, PR #74, merged into the flow branch): 75 + the flow's 4 -> 79.
+ *  2026-10-26 (the flow mode review: the floor had not followed the list, 83 gestures): 79 -> 83. */
+const GESTURES_AT_LEAST = 83;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

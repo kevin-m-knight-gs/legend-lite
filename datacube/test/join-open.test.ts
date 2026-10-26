@@ -9,6 +9,7 @@ import { after, before, describe, it } from 'node:test';
 import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
+import { typedByPlan } from '../../engine-client/src/engine.ts';
 import { readJoinHow, joinSummary, type JoinHow } from '../src/join.ts';
 import { TAB_TABLES, eachRelation, leafRefusal, openInputs, openJoin, openRows, summaryCounts, type JoinOpening } from '../src/join-open.ts';
 import {
@@ -17,8 +18,11 @@ import {
 } from '../src/cube-document.ts';
 import { TOTAL_ROWS_COLUMN } from '../src/query.ts';
 import { catalogColumns } from '../src/upload.ts';
-import { CubeRefusal } from '../src/snapshot.ts';
+import { CubeRefusal, type CubeSnapshot } from '../src/snapshot.ts';
 import { plannerFor } from './catalog-builder.ts';
+import { outputCsv, type OutputQueries } from '../src/flow-output.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
+import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
 
 const file = (name: string, columns: [string, string][]): FileSource => ({
@@ -199,6 +203,48 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const ordered: RowsSource = { _type: 'rows', name: 'trades', input: { ...input(TRADES, 'trades'), order: ['qty', 'sym'] }, columns: [] };
     const opened = await openRows(ordered, opening(['trades']));
     assert.deepEqual(opened.columns.map((c) => c.name), ['qty', 'sym', 'id', 'cust', 'at']);
+  });
+
+  it("a Sort box's order reaches the box after it, every row of it (query.ts handedOnLambda; the review of 2026-10-26's C1)", async () => {
+    const sorted = query(TRADES, { sorts: [{ column: 'qty', direction: 'desc' }] });
+    const box: RowsSource = { _type: 'rows', name: 'trades', input: input(TRADES, 'trades', sorted), columns: [] };
+    const opened = await openRows(box, opening(['trades']));
+    const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
+    assert.deepEqual(got['id'], [2, 1, 5, 4, 3], 'qty 7, 5, 3, 2, 1');
+  });
+
+  it("a Select's swap, a as b and b as a, handed on through names of its own (join-open.ts handedOnRows; the review's C11)", async () => {
+    const swapped: RowsSource = { _type: 'rows', name: 'trades', columns: [], input: { ...input(TRADES, 'trades'),
+      omit: ['at', 'qty'], rename: [{ from: 'cust', to: 'sym' }, { from: 'sym', to: 'cust' }] } };
+    const opened = await openRows(swapped, opening(['trades']));
+    assert.deepEqual(opened.columns.map((c) => c.name), ['id', 'sym', 'cust']);
+    const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
+    assert.deepEqual(Object.keys(got), ['id', 'sym', 'cust'], 'no name of its own left');
+    const first = got['id']!.indexOf(1);
+    assert.deepEqual([got['sym']![first], got['cust']![first]], [10, 'A'], "trade 1's customer as sym, its symbol as cust");
+  });
+
+  it("an Output's file: every row in its sorts' order, the columns it hands on under their names, each value as it is (flow-output.ts; the review's B2, C9)", async () => {
+    const opened = await openRows({ _type: 'rows', name: 'trades', input: input(TRADES, 'trades'), columns: [] }, opening(['trades']));
+    const p = plannerFor(opened.model, opened.runtime);
+    planners.push(p);
+    const run = async (q: Lambda): Promise<ResultTable> => {
+      const plan = await p.plan(q);
+      return typedByPlan(await engine.run(plan.sql, 0), plan);
+    };
+    const queries: OutputQueries = {
+      runQuery: async (q) => ({ rows: await run(q), sql: '' }),
+      streamQuery: async (q, _s, onChunk) => onChunk(await run(q)),
+    };
+    const s: CubeSnapshot = { ...rawRows(opened.relation, opened.columns.map((c) => ({ ...c }))), sorts: [{ column: 'qty', direction: 'desc' }],
+      filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 2 } };
+    // its customer left out, its symbol written as `symbol`, its quantity before the rest (a Select's order)
+    const configuration = { columns: { cust: { hidden: true }, sym: { displayName: 'symbol' }, at: { hidden: true } }, columnOrder: ['qty'] };
+    const csv = await outputCsv(s, configuration, queries, false);
+    assert.equal(csv, 'qty,id,symbol\r\n7,2,B\r\n5,1,A\r\n3,5,A\r\n');
+    // none: its head row alone, the BOM a spreadsheet reads first
+    const none = await outputCsv({ ...s, filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 99 } }, configuration, queries);
+    assert.equal(none, '\ufeffqty,id,symbol\r\n');
   });
 
   it("a Join's L and R (cube-document.ts JoinInput.unmatched): each side's rows the other's pair with none", async () => {

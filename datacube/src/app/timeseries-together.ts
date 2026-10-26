@@ -9,6 +9,7 @@
 // Fetched with the join's code (join-app.ts): a page that combines no grids loads none of it.
 
 import { eachRelation, TAB_TABLES, openSources, type OpenedSource } from '../join-open.ts';
+import { resolvedSource } from '../live-inputs.ts';
 import type { PageApp } from '../page/page-app.ts';
 import type { PlanAndRun } from '../runner.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
@@ -64,7 +65,8 @@ export async function tabSources(grids: readonly string[], o: TabTablesOf): Prom
     const tables = o.sources.place(id)?.tables;
     const title = o.page.views().views.find((v) => v.id === id)?.title ?? id;
     if (!cube || !tables) throw new Error(`${title} reads no table of this tab's database: a series of several grids reads them together there`);
-    return { source: cube.source, tables };
+    // a flow's box reads another's rows: its input resolved against the page first, as the box itself is read
+    return { source: resolvedSource(now, cube.source), tables };
   });
   const typers: GridRows[] = [];
   try {

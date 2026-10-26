@@ -56,7 +56,7 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
 import type { HostSnap, SnapTarget } from './cube.ts';
-import { exportFileName, toClipboard, toCsv, toEml } from './export.ts';
+import { exportFileName, toClipboard, toEml } from './export.ts';
 import {
   ALERT_WINDOW,
   CODE_CHECK_WINDOW,
@@ -3922,33 +3922,16 @@ export class CubeApp {
   }
 
   /**
-   * THE GRID'S ROWS WRITTEN TO A FILE (a flow's Output, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every row at its finest
-   * level, the columns it shows -- the rows the box after it reads -- streamed from the database a chunk at a time, each
-   * chunk written as CSV (export.ts toCsv: its raw values, a field quoted where it must be) and let go, the file handed
-   * to the person as `name`. Refused in words for a pivoted grid, or a page with no way to hand a file over.
+   * THE GRID'S ROWS WRITTEN TO A FILE (a flow's Output, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every row, in its sorts'
+   * order, the columns it hands on -- the rows the box after it reads -- streamed from the database a chunk at a time,
+   * written as CSV by the one writer Python's flow.run writes by too (flow-output.ts outputCsv), the file handed to the
+   * person as `name`. Refused in words for a pivoted grid, or a page with no way to hand a file over.
    */
   async writeOutput(name: string): Promise<void> {
     const download = this.#options.download;
     if (!download) throw new Error('this page has no way to hand a file over');
-    const s = this.#snapshot;
-    if (s.pivotOn.length > 0 && (s.pivotValues ?? []).length === 0) {
-      throw new CubeRefusal('a pivoted grid\'s columns are its values: Load its values to fix them, or take its pivot off, to write it');
-    }
-    const { columnsLambda, rowsLambda } = await lazily(() => import('./profile.ts'));
-    const rows = classLambda(s).body[0]!;
-    const typed = await this.#controller.runQuery(columnsLambda(rows), s);
-    // the columns it hands on, under the names it gives them: what the box after it reads (box-columns.ts)
-    const on = handedOn(typed.rows.columns.map((c) => c.name), s, this.#config as unknown as Record<string, unknown>);
-    const shown = on.map((c) => c.as);
-    const query = on.length === typed.rows.columns.length && on.every((c) => c.as === c.name) ? classLambda(s) : rowsLambda(rows, on);
-    const parts: string[] = [];
-    await this.#controller.streamQuery(query, s, (chunk) => {
-      const text = toCsv(chunk, { bom: parts.length === 0 });
-      // its head row written once, with the file's first chunk
-      parts.push(parts.length === 0 ? text : text.slice(text.indexOf('\r\n') + 2));
-    });
-    if (parts.length === 0) parts.push(toCsv({ columns: shown.map((n) => ({ name: n, values: [] })), rowCount: 0, epoch: 0, elapsedMs: 0 } as never));
-    download(name, 'text/csv', parts.join(''));
+    const { outputCsv } = await lazily(() => import('./flow-output.ts'));
+    download(name, 'text/csv', await outputCsv(this.#snapshot, this.#config as unknown as Record<string, unknown>, this.#controller));
   }
 
   /**
@@ -3970,9 +3953,9 @@ export class CubeApp {
       if (e instanceof CubeRefusal) return e.message;
       throw e;
     }
-    const on = s.pivotOn[0]!;
-    const type = rowColumns(s).find((c) => c.name === on)?.type;
-    const values = (answered.columns.find((c) => c.name === on)?.values ?? []).map((v) => cellFilterValue(v, type));
+    const { pivotValuesOf, tooManyValues } = await lazily(() => import('./cross-tab.ts'));
+    const { values, more } = pivotValuesOf(s, answered);
+    if (more) return tooManyValues(s.pivotOn[0]!);
     return this.#gesture('pivot.pin', { values }, 'Load Values');
   }
 
@@ -3990,8 +3973,15 @@ export class CubeApp {
     const had = customFilterOf(this.#snapshot);
     let start = '';
     if (had !== undefined) {
-      // its condition as the compiler prints it, the lambda's braces off
-      const printed = (await this.#controller.print(had.lambda).catch(() => '')).trim();
+      // its condition as the compiler prints it, the lambda's braces off -- never opened blank on a condition it has (OK
+      // would set another: the review of 2026-10-26), the compiler's words said instead
+      let printed: string;
+      try {
+        printed = (await this.#controller.print(had.lambda)).trim();
+      } catch (e) {
+        this.#status(`its condition could not be printed: ${e instanceof Error ? e.message : String(e)}`, 'warn');
+        return;
+      }
       start = printed.startsWith('{') && printed.endsWith('}') ? printed.slice(1, -1).trim() : printed;
     }
     this.#showOverlay('Custom Filter', (host, close) => customFilterForm(host, {
@@ -4038,14 +4028,29 @@ export class CubeApp {
     const had = source.pure;
     // its input's rows: its own, or -- a Pure box already -- what stands where its function reads its input
     const input = pureInput(source, this.#snapshot.source.query);
-    const [start, columns] = await Promise.all([
-      had === undefined ? Promise.resolve('') : this.#controller.print(had).then(pureShown, () => ''),
-      had === undefined ? Promise.resolve(rowColumns(this.#snapshot).map((c) => c.name))
-        : this.#controller.relationColumns(input).then((cs) => cs.map((c) => c.name), () => [] as string[]),
-    ]);
+    // its function as the compiler prints it -- never opened blank on a function it has (OK would set another: the
+    // review of 2026-10-26), the compiler's words said instead -- and its input's columns, or why there are none
+    let start = '';
+    if (had !== undefined) {
+      try {
+        start = pureShown(await this.#controller.print(had));
+      } catch (e) {
+        this.#status(`its Pure could not be printed: ${e instanceof Error ? e.message : String(e)}`, 'warn');
+        return;
+      }
+    }
+    let columns: readonly string[] = [];
+    let note: string | undefined;
+    try {
+      columns = had === undefined ? rowColumns(this.#snapshot).map((c) => c.name)
+        : (await this.#controller.relationColumns(input)).map((c) => c.name);
+    } catch (e) {
+      note = `its input's columns could not be typed: ${e instanceof Error ? e.message : String(e)}`;
+    }
     const told = (pure: Lambda | null): string | null => (set(pure) ? null : 'the page refused it');
     this.#showOverlay('Pure', (host, close) => pureForm(host, {
       columns,
+      ...(note !== undefined ? { note } : {}),
       pure: start,
       apply: async (text) => {
         try {
@@ -4071,9 +4076,8 @@ export class CubeApp {
     const query = unpinnedValuesLambda(s);
     if (query === null) return [];
     const { rows: answered } = await this.#controller.runQuery(query, s);
-    const on = s.pivotOn[0]!;
-    const type = rowColumns(s).find((c) => c.name === on)?.type;
-    return (answered.columns.find((c) => c.name === on)?.values ?? []).map((v) => cellFilterValue(v, type));
+    const { pivotValuesOf } = await lazily(() => import('./cross-tab.ts'));
+    return pivotValuesOf(s, answered).values;
   }
 
   /** A FLOW'S JSON PARSE (Alteryx's): a JSON column's fields made columns of their own -- the column editor opened on its

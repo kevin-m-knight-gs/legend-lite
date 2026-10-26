@@ -162,10 +162,12 @@ export function selectCommands(s: CubeSnapshot, t: Selection): GridCommand[] {
     settings[c] = { hidden: kept && r === undefined ? null : true, displayName: kept && r === undefined && as !== c ? as : null };
     if (r !== undefined) settings[r] = { hidden: null, displayName: as };
   }
-  // its order: each column where it is named, a conversion in its column's place
-  const order = t.order === undefined ? undefined
-    : [...t.order, ...all.filter((c) => !t.order!.includes(c))].map((c) => made.get(c) ?? c);
-  return [...commands, { kind: 'configure', patch: { columns: settings, ...(order !== undefined ? { columnOrder: order } : {}) } }];
+  // its order: each column where it is named, those it does not name after them as they are, a conversion in its
+  // column's place -- none named, the grid's own: one order whoever sets it (the screen's window names every row,
+  // Python's grid.select may name none: the review of 2026-10-26's B4)
+  const listed = t.order ?? [];
+  const order = [...listed, ...all.filter((c) => !listed.includes(c))].map((c) => made.get(c) ?? c);
+  return [...commands, { kind: 'configure', patch: { columns: settings, columnOrder: order } }];
 }
 
 /** A Select read from JSON (Python's): `{kind: 'selectColumns', keep, rename?, retype?}` (a chart's `select` is a page

@@ -241,6 +241,10 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
     // pinned, so a query built as text cannot hide in an allowed file
     assert.equal(count('src/query.ts'), 1, 'query.ts: only the unpivotable refusal');
     assert.ok(count('src/calc.ts') > 0, 'calc.ts: the editor help still exists');
+    // pinned too (the flow mode review, 2026-10-26: the windows' allowances were open-ended): the Multi-Field Formula's
+    // examples, the Pure box's eight steps and its example
+    assert.equal(count('src/ui/multi-field-form.ts'), 4, "multi-field-form.ts: the window's examples");
+    assert.equal(count('src/ui/pure-form.ts'), 9, "pure-form.ts: the window's steps and its example");
   });
 
   it('calls no TDS function: the Relation API only (the user, 2026-09-27)', () => {

@@ -2,7 +2,7 @@
 // calculated columns text-tools.ts makes, said as each tool is -- a column, and what is done to it -- in a window its
 // grid docks where its options dock it. Fetched with the first of them.
 
-import { textToolProblem } from '../text-tool-columns.ts';
+import { regexName, textToolProblem } from '../text-tool-columns.ts';
 import type { Cleansing, RegexMode, TextTool } from '../text-tools.ts';
 
 export interface TextToolFormOptions {
@@ -139,7 +139,7 @@ export function textToolForm(host: HTMLElement, o: TextToolFormOptions): void {
       field('Named', name);
       let named = false;
       const suggest = (): void => {
-        if (!named) name.value = `${column.value}_${mode.value === 'match' ? 'matches' : mode.value === 'replace' ? 'replaced' : 'extracted'}`;
+        if (!named) name.value = regexName(column.value, mode.value as RegexMode);
       };
       const shown = (): void => {
         replacing.hidden = mode.value !== 'replace';

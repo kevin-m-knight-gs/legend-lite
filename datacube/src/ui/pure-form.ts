@@ -8,6 +8,8 @@ export interface PureFormOptions {
   readonly columns: readonly string[];
   /** Its Pure now, as the compiler prints it ('' for a new one). */
   readonly pure: string;
+  /** Said as it opens (why its input's columns are not a click away), in the words of what refused them. */
+  readonly note?: string;
   /** Its Pure set: null when it is, else why not (the form stays, saying it). */
   apply(pure: string): Promise<string | null>;
   /** Its Pure taken off, its rows its input's as they are: null when it is, else why not. Absent, it has none. */
@@ -87,6 +89,7 @@ export function pureForm(host: HTMLElement, o: PureFormOptions): void {
     + 'it. What no other tool says -- a box after it reads its rows, its columns as the compiler types them.');
   const status = el('p', 'dc-sample-status', body);
   status.setAttribute('role', 'status');
+  if (o.note !== undefined) status.textContent = o.note;
   const foot = el('div', 'dc-sample-foot', body);
   const remove = o.remove;
   if (remove !== undefined) {

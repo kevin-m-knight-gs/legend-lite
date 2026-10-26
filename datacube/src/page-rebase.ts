@@ -7,7 +7,7 @@
 import type { CubeDocument } from './cube-document.ts';
 import { leavesOf } from './cube-document.ts';
 import { relinked, relinkedInput, resolvedSource } from './live-inputs.ts';
-import { flowTiles, placeAfter, type Flow } from './layout/flow.ts';
+import { flowTiles, placeAfter, type Flow, type FlowBox } from './layout/flow.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { add, asSaved, remove, tiles, type Bands } from './layout/bands.ts';
 import { applyPageCommand, followedPage, idsOf, type PageCommand, type PageDraft } from './page-commands.ts';
@@ -161,9 +161,21 @@ export function rearranged(command: PageCommand, page: PageDocument): PageComman
   }
   if (command.layout.kind === 'flow') {
     // a flow's: the boxes it knew where it put them, a box there now that it did not know placed as adding places one
+    const knew = new Set(command.layout.boxes.map((b) => b.tile));
     let flow: Flow = { boxes: command.layout.boxes.filter((b) => now.includes(b.tile)) };
     for (const t of now) if (!flowTiles(flow).includes(t)) flow = placeAfter(flow, t);
-    return { ...command, layout: { kind: 'flow', ...flow } };
+    // a box's Output and its stopping a run are its settings, not its place: as the page has them now, the other
+    // writer's too; a box it did not know keeps its frame (the review of 2026-10-26: each was dropped)
+    const current = new Map(sheet.layout.kind === 'flow' ? sheet.layout.boxes.map((b) => [b.tile, b] as const) : []);
+    const settled = flow.boxes.map((b): FlowBox => {
+      const { output: _o, stops: _s, ...place } = b;
+      const c = current.get(b.tile);
+      const frame = knew.has(b.tile) ? place.frame : c?.frame;
+      const { frame: _f, ...at } = place;
+      return { ...at, ...(frame !== undefined ? { frame } : {}), ...(c?.output !== undefined ? { output: c.output } : {}),
+        ...(c?.stops === true ? { stops: true as const } : {}) };
+    });
+    return { ...command, layout: { kind: 'flow', boxes: settled } };
   }
   const { kind: _kind, ...given } = command.layout as PageLayout & Bands;
   let bands = given as Bands;

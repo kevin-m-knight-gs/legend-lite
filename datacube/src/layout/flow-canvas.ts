@@ -21,19 +21,18 @@
 // ×) takes it off -- the box reading it then reads a copy of what it read (frozen); a tool dropped on a line goes between
 // the two boxes.
 
-import { BOX_HEIGHT, BOX_WIDTH, CONTAINER_FRAME, FRAME_HEAD, FRAME_MIN, MARGIN, framedBy, type Flow, type FlowBox, type Frame } from './flow.ts';
+import { BOX_HEIGHT, BOX_WIDTH, CONTAINER_FRAME, FRAME_HEAD, FRAME_MIN, MARGIN, containerMoves, framedBy, type Flow, type FlowBox, type Frame } from './flow.ts';
 import type { FlowBoardState, FlowChart } from './flow-board.ts';
 import type { FlowPoint, LineEnd, RunLog } from './flow-board.ts';
 import { moreIndex, type InputPort, type InputSide } from '../cube-document.ts';
 import {
-  boxInputs, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowGroup, type FlowTool,
+  boxInputs, boxNamed, boxSays, FLOW_TOOLS, PALETTE, readersOf, TOOL_EDITORS, type BoxInput, type BoxSays, type FlowGroup, type FlowTool,
 } from '../flow-boxes.ts';
 import { rowSampleOf } from '../row-sample.ts';
 import { checksOf, failingChecks, failingWords } from '../checks.ts';
 import { lackingWords } from '../cross-tab.ts';
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import type { Profile } from '../profile.ts';
-import { gridTitle } from '../page-ids.ts';
 import { handedOn } from '../box-columns.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { MenuView } from '../ui/menu-view.ts';
@@ -1286,8 +1285,8 @@ export class FlowCanvas {
       this.#dragged = undefined;
       root.classList.remove('dc-flow-dragging');
       if (apply && (by.x !== 0 || by.y !== 0)) {
-        const moves = [{ id, x: Math.round(at.x + by.x), y: Math.round(at.y + by.y) },
-          ...[...inside.values()].map((b) => ({ id: b.tile, x: Math.round(b.x + by.x), y: Math.round(b.y + by.y) }))];
+        // the one rule Python's text.place moves one by (flow.ts containerMoves)
+        const moves = containerMoves(flow, id, at.x + by.x, at.y + by.y).map((m) => ({ id: m.tile, x: m.x, y: m.y }));
         if (moves.length === 1) this.#board.options.onMove?.(id, moves[0]!.x, moves[0]!.y);
         else this.#board.options.onMoveMany?.(moves, 'Move Container');
       }
@@ -1425,8 +1424,7 @@ export class FlowCanvas {
 
   /** What a box is called on the canvas: the name a person gave it, else its tool's (a flow never says "grid"). */
   #nameOf(id: string, tool: FlowTool): string {
-    const title = this.#board.title(id);
-    return title === undefined || title === gridTitle(id) ? FLOW_TOOLS[tool].name : title;
+    return boxNamed(id, this.#board.title(id), tool);
   }
 
   /**

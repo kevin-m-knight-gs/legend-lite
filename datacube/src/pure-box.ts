@@ -16,10 +16,11 @@ import { CubeRefusal } from './snapshot.ts';
 /** Its input's name where its text is written as an expression (`$input->filter(...)`). */
 export const PURE_INPUT = 'input';
 
-/** Its text as the compiler parses it: a lambda as written (`rows|$rows->...`), or an expression over `$input`. */
+/** Its text as the compiler parses it: a lambda as written (`rows|$rows->...`), or an expression over `$input` -- a
+ *  name and `||` its expression's `or`, never a lambda's head (`true || ...`). */
 export function pureText(text: string): string {
   const t = text.trim();
-  return /^[A-Za-z_]\w*\s*\|/.test(t) ? t : `${PURE_INPUT}|${t}`;
+  return /^[A-Za-z_]\w*\s*\|(?!\|)/.test(t) ? t : `${PURE_INPUT}|${t}`;
 }
 
 /** Its function as its window shows it, from the compiler's print of it (`printed`): the lambda's braces off, and its

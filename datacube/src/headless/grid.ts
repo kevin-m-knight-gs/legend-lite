@@ -67,8 +67,8 @@ import { gridLens, readPageFilters } from '../page-filters.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError, type ModelOptions } from '../planner.ts';
 import { classBasis, classLambda, pivotValuesLambda, snapPull, unpinnedValuesLambda, type ClassBasis } from '../query.ts';
-import { lackingCheck, lackingWords } from '../cross-tab.ts';
-import { cellFilterValue } from '../value-filter.ts';
+import { outputCsv } from '../flow-output.ts';
+import { lackingCheck, lackingWords, pivotValuesOf, tooManyValues } from '../cross-tab.ts';
 import type { PlanAndRun, QueryLens } from '../runner.ts';
 import { classSamples } from '../model-plans.ts';
 import { SampleRefusal, type SampleRows } from '../sample-rows.ts';
@@ -535,17 +535,23 @@ function openedAgain(was: CubeDocument, now: CubeSource, said: readonly string[]
  * limit when it is not the page's only grid (gridCapped), titled as that grid is called (live-inputs.ts gridInput) -- on
  * that grid's sheet unless `sheet` is named, near it; `title`, the one a person gave it. JSON: `{command, notes, model,
  * runtime, relation}`, as headless joinCube's: the command, what drifted on the way, and the base a host plans its rows
- * over.
+ * over. `port`: one of `input`'s ports it reads (a Filter's False, a Join's L or R), as the tab adds a box on one.
  */
 export async function rowsCube(spec: string): Promise<string> {
   // the protocol's exact JSON: a cube's numbers kept as they are
   const s = fromJson(spec) as unknown as {
-    readonly page: unknown; readonly input: string; readonly host: HostTables; readonly sheet: string | null;
+    readonly page: unknown; readonly input: string; readonly port?: unknown; readonly host: HostTables; readonly sheet: string | null;
     readonly title: string | null;
   };
+  // one of the input's ports (a Filter's False, a Join's L or R), as the tab adds a box on one (app/datacube-app.ts):
+  // the review of 2026-10-26's B5, Python's had none
+  const port = s.port ?? undefined;
+  if (port !== undefined && port !== 'false' && port !== 'left' && port !== 'right') {
+    throw new CubeRefusal(`a box reads its input's rows, or its port 'false', 'left' or 'right', not ${JSON.stringify(port)}`);
+  }
   const page = readPage(s.page, { empty: true });
-  const input = gridInput(page, s.input);
-  const live: RowsSource = { _type: 'rows', name: input.name, input: { grid: s.input }, columns: [] };
+  const input = gridInput(page, s.input, [], port);
+  const live: RowsSource = { _type: 'rows', name: input.name, input: { grid: s.input, ...(port !== undefined ? { port } : {}) }, columns: [] };
   const { base, notes, side } = await baseOver(resolvedSource(page, live), s.host);
   const columns = side!.columns;
   const made = rebuilt(undefined, side!.relation, columns, input.name, gridCapped(page.cubes.length + 1));
@@ -1334,8 +1340,7 @@ export async function gridFailing(spec: GridSpec): Promise<string> {
       const s = o.state.snapshot;
       const on = s.pivotOn[0]!;
       const { rows } = await controllerOf(o).runQuery(unpinned, s);
-      const type = rowColumns(s).find((c) => c.name === on)?.type;
-      const values = (rows.columns.find((c) => c.name === on)?.values ?? []).map((v) => cellFilterValue(v, type));
+      const { values } = pivotValuesOf(s, rows);
       return JSON.stringify({ failing: values.length === 0 ? []
         : [{ check: lackingCheck(on), rows: values.length, says: lackingWords(on, values) }] });
     }
@@ -1389,9 +1394,10 @@ export async function gridPivotValues(spec: GridSpec): Promise<string> {
     const query = pivotValuesLambda(s);
     if (query === null) return JSON.stringify({ problems: ['it pivots on no column: it has no values to load'] });
     const { rows } = await controllerOf(o).runQuery(query, s);
-    const on = s.pivotOn[0]!;
-    const type = rowColumns(s).find((c) => c.name === on)?.type;
-    return JSON.stringify({ values: (rows.columns.find((c) => c.name === on)?.values ?? []).map((v) => cellFilterValue(v, type)) });
+    // the screen's Load values' reading of them (cross-tab.ts pivotValuesOf), its refusal its own
+    const { values, more } = pivotValuesOf(s, rows);
+    if (more) return JSON.stringify({ problems: [tooManyValues(s.pivotOn[0]!)] });
+    return JSON.stringify({ values });
   });
 }
 
@@ -1402,6 +1408,22 @@ export async function gridRelation(spec: GridSpec): Promise<string> {
   return using(spec, async ({ planner, lens, state }) => {
     const rows = classLambda(state.snapshot);
     return planner.compose(planner.sent(lens ? lens(rows) : rows), 'STANDARD');
+  });
+}
+
+/**
+ * A FLOW'S OUTPUT AS PYTHON'S flow.run WRITES IT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): the box's rows as the tab's
+ * Output writes them, by the one writer (flow-output.ts outputCsv: in its sorts' order, the columns it hands on under
+ * their names, each value as it is) -- JSON `{csv}`, or `{problems}` in DataCube's words (a pivot its rows decide).
+ */
+export async function gridOutput(spec: GridSpec): Promise<string> {
+  return using(spec, async (o) => {
+    try {
+      return JSON.stringify({ csv: await outputCsv(o.state.snapshot, o.state.configuration as unknown as Record<string, unknown>, controllerOf(o)) });
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
   });
 }
 

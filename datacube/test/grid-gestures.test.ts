@@ -80,6 +80,14 @@ describe("a Cross Tab's values pinned (FL2: pivot.pin, grid-edits.ts pinPivot): 
     refused(() => gridGesture('pivot.pin', pivoted(), { values: [2023, null] }), /an empty 'year', which names no column/);
   });
 
+  it("a Decimal's values kept as their text, every digit (the review of 2026-10-26's B1); a Float's a number", () => {
+    const priced = grid({ columns: [...CUBE.columns, { name: 'px', type: 'Decimal' }, { name: 'rate', type: 'Float' }], pivotOn: ['px'] });
+    assert.deepEqual(gridGesture('pivot.pin', priced, { values: ['12.10', '12345678901234.567'] }),
+      [{ kind: 'pinPivot', values: ['12.10', '12345678901234.567'] }]);
+    assert.deepEqual(gridGesture('pivot.pin', { ...priced, snapshot: { ...priced.snapshot, pivotOn: ['rate'] } }, { values: ['0.25'] }),
+      [{ kind: 'pinPivot', values: [0.25] }]);
+  });
+
   it('applied: its values kept while it pivots on that column, taken off by another pivot; refused in words', () => {
     const applied = (s: Partial<CubeSnapshot>, commands: readonly unknown[]): CubeSnapshot =>
       applyGridCommands({ snapshot: { ...CUBE, ...s }, config: DEFAULT_CONFIGURATION }, commands as never).snapshot;

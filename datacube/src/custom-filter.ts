@@ -19,10 +19,11 @@ export const CUSTOM_FILTER_COLUMN = 'CustomFilter';
 /** The filter that keeps the rows its condition is true for: that alone. */
 const KEPT: FilterNode = { kind: 'condition', column: CUSTOM_FILTER_COLUMN, operator: 'equal', value: true };
 
-/** Its text as the compiler parses it: a lambda as written (`x|...`), or an expression over `$x`, the row. */
+/** Its text as the compiler parses it: a lambda as written (`x|...`), or an expression over `$x`, the row -- a name and
+ *  `||` its expression's `or`, never a lambda's head (`true || $x.flag`: the review of 2026-10-26). */
 export const customFilterText = (expression: string): string => {
   const e = expression.trim();
-  return /^\s*[A-Za-z_][\w]*\s*\|/.test(e) ? e : `x|${e}`;
+  return /^\s*[A-Za-z_][\w]*\s*\|(?!\|)/.test(e) ? e : `x|${e}`;
 };
 
 /** Its column, the condition parsed (`lambda`). */

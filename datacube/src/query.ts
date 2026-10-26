@@ -496,7 +496,18 @@ export function levelLambda(snapshot: QuerySnapshot, scope?: LevelScope, pivot?:
  */
 export function classLambda(snapshot: CubeSnapshot): Lambda {
   if (snapshot.pivotOn.length > 0) return crossTabRows(snapshot).lambda();
-  return levelRelation(snapshot, undefined, undefined, false).lambda();
+  return levelRelation(snapshot, undefined, undefined, 'none').lambda();
+}
+
+/**
+ * A BOX'S ROWS AS IT HANDS THEM ON (docs/DATACUBE_FLOW_MODE_2026_10_24.md: a flow's box; the review of 2026-10-26's C1):
+ * classLambda's, in the order its sorts give them -- a Sort box's order reaches the box after it and its Output, as
+ * Alteryx's records keep their order -- uncapped. A fixed Cross Tab's rows (crossTabRows) are its groups', in no order:
+ * a sort of one is its grid's.
+ */
+export function handedOnLambda(snapshot: CubeSnapshot): Lambda {
+  if (snapshot.pivotOn.length > 0) return crossTabRows(snapshot).lambda();
+  return levelRelation(snapshot, undefined, undefined, 'sorted').lambda();
 }
 
 /** The name of a pinned pivot's column as its rows hand it on (crossTabRows): its value alone when it spreads one
@@ -518,7 +529,7 @@ function crossTabRows(snapshot: CubeSnapshot): Relation {
   if (facts === null) {
     throw new CubeRefusal('its columns are its values, which its rows decide each time it runs: Load its values to fix them, or take its pivot off');
   }
-  let rel = levelRelation(snapshot, undefined, facts, false);
+  let rel = levelRelation(snapshot, undefined, facts, 'none');
   const cells = pivotColumns(snapshot, facts);
   const spread = spreadMeasures(snapshot).length;
   const kept = [
@@ -660,8 +671,11 @@ export function duplicateLambda(relation: ValueSpecification, column: string): L
     .lambda();
 }
 
-/** `ordered`: a level's rows sorted and capped as the grid reads them; a class's, neither. */
-function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: PivotFacts, ordered = true): Relation {
+/** A level's rows' order: `grid`, sorted and capped as the grid reads them; `sorted`, sorted and uncapped, as a box hands
+ *  them on (handedOnLambda); `none`, neither, a class's. */
+type LevelOrder = 'grid' | 'sorted' | 'none';
+
+function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: PivotFacts, order: LevelOrder = 'grid'): Relation {
   // each measure named a column of its own, grouped or pivoted, or the level writes two columns of one name: a
   // grouped level its measures beside the keys, a pivot its kept-out measures beside them (calc.ts measureNameProblem)
   for (let at = 0; at < askedMeasures(snapshot).length; at++) {
@@ -797,12 +811,13 @@ function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: Pivo
     rel = rel.filter(lambda(['x'], fn('lessThanEqual', property(variable('x'), TOP_N_RANK), lit.integer(top.n))));
   }
 
-  if (ordered && !isSingleRow(snapshot, groupCols, grandTotal)) {
+  if (order !== 'none' && !isSingleRow(snapshot, groupCols, grandTotal)) {
     const sorts = totalOrderSorts(snapshot, groupCols).filter((x) => produced === null || produced.has(x.column));
     if (sorts.length > 0) rel = rel.sort(sorts.map(sortKey));
-    if (scope?.limit !== undefined) {
+    // capped as the grid reads them; a box's handed on, every row
+    if (order === 'grid' && scope?.limit !== undefined) {
       rel = rel.limit(scope.limit);
-    } else if (snapshot.window) {
+    } else if (order === 'grid' && snapshot.window) {
       const { offset, limit } = snapshot.window;
       rel = rel.slice(offset, offset + limit);
     }
