@@ -377,7 +377,23 @@ text where that is better. The plan, in one table:
 
 Places A and B are where real code meets a Float's text and both cost nothing on any engine. Place C is the rare
 one, and the only place where LEGACY and LEAN could differ; the recommendation keeps one SQL because the
-difference buys nothing measurable and costs a String that changes meaning by database. The detail of each place:
+difference buys nothing measurable and costs a String that changes meaning by database.
+
+**"At the edge" is a property of a plan's root, not of the Pure function** (the user's question, 2026-10-26: does an
+`assert` pushed to the database turn place B into place C?). Yes, and by design. The edge rule applies when the
+plan's root projection is the printed Float and nothing in the statement consumes the String. An assertion run by
+the host judge reads the two operands as the plan's results and compares them in Java, so the printed Float is at
+the root there, carried as its bits, and the host judge spells it with Pure's own implementation. The same
+assertion composed by the database judge into one verdict statement consumes the String inside the SQL (`expected
+= actual`), so there it is place C: the database spells it, with the exact-digits expression on the two lossy
+engines, as channel B does today. R10 then requires the two judges to agree, which makes every such test a
+cross-check of the Java spelling against the SQL spelling on every lane: if either were wrong, the judges would
+disagree and name the test. That is the database judge doing exactly what it is kept for. The cost is test-only and
+already paid (channel B's statements carry the canon today); a product query whose root prints a Float pays
+nothing. PCT's channel A is place B throughout: `ValueBridge` builds the String with Pure's own function and
+legend-pure runs the assertion over it.
+
+The detail of each place:
 - *In a result.* A Float is its 64 bits, never a text: the DOUBLE slot, the driver's exact read, Arrow's float64.
   Nothing is lost, nothing is spelled, no database is involved. Where a lean writer must spell it (JSON, CSV), it
   writes the shortest decimal that reads back as the same double: 0.1 is `0.1`, a third is `0.3333333333333333`,
@@ -416,7 +432,8 @@ difference buys nothing measurable and costs a String that changes meaning by da
   lossless); fixed seventeen digits (shows binary noise on ordinary values, which is why every modern runtime moved
   to shortest).
 
-**4. Arrow: where the dependency would sit (nowhere), and what the batch is (our own).** The compiler never sees
+**4. Arrow: where the dependency would sit (nowhere), and what the batch is (our own). Ruled 2026-10-26 ("arrow
+look good").** The compiler never sees
 it: the planner has no execution dependency (C2a, pinned), and the WebAssembly planner takes only `//core:plan_side`.
 The execution side does not take it either. The batch is our own representation, typed arrays with a null mask
 behind one accessor interface (§2). The user asked whether the warehouse server's own Arrow layout should be the
@@ -438,8 +455,10 @@ default.
   edge rule plus the inline expression, a platform SQL function only on a measured hot path, one table for LEGACY,
   LEAN and PCT across the three places a Float meets text (§8 item 3); the batch is our own representation, typed
   arrays behind one accessor, the warehouse's IPC framing shared and its buffers not, no library anywhere (§8 item
-  4, R9; the user's "warehouse Arrow" was a suggestion, answered no with the reason). Both wait on the user's yes.
-  Next: the yes, then landing the branch on `main`, then step 0.
+  4, R9; the user's "warehouse Arrow" was a suggestion, answered no with the reason). **Item 4 ruled the same day
+  ("arrow look good").** Item 3 waits on the user's yes, its last question answered (an assertion pushed to the
+  database is a consumer: place C there, place B for the host judge and PCT, the two judges cross-checking the two
+  spellings). Next: the yes, then landing the branch on `main`, then step 0.
 - **2026-10-26, the handoff written:** `docs/RESULT_BOUNDARY_START_HERE.md`.
 - **2026-10-26, revision 2.** After the user's three questions: batches as the unit; collecting into memory a test
   helper, never a production method; M4 and M7 added to step 0.

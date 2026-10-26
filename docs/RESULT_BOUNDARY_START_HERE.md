@@ -67,12 +67,15 @@ collecting as a test helper only and the old executor deleted; the order. **The 
 (R10). **Zero dependencies stay zero** in the compiler, the WebAssembly planner and the native image (R9): no Arrow
 library in the product; the Arrow writer is the warehouse server's own framer.
 
-**Waiting on the user's yes** (§8 items 3 and 4, the expert versions): the Float rule (results carry bits; a Float
-printed as the last thing a column does is spelled by the writer, which is Pure's own implementation; a String built
-inside a query keeps the exact-digits expression inline; a platform-owned SQL function only on a measured hot path;
-never JavaScript or any non-SQL code in the database; one table for LEGACY, LEAN and PCT in the program's §8 item 3)
-and the batch (our own representation: typed arrays with a null mask behind one accessor; the warehouse's Arrow IPC
-framing shared, its buffers not; no Arrow library anywhere; pyarrow and the Arrow Java library test-only readers).
+**Ruled 2026-10-26, later the same day:** the batch (§8 item 4: our own representation, typed arrays with a null
+mask behind one accessor; the warehouse's Arrow IPC framing shared, its buffers not; no Arrow library anywhere;
+pyarrow and the Arrow Java library test-only readers).
+
+**Waiting on the user's yes** (§8 item 3, the Float rule): results carry bits; a Float printed as the last thing a
+column does is spelled by the writer, which is Pure's own implementation; a String built inside a query keeps the
+exact-digits expression inline; a platform-owned SQL function only on a measured hot path; never JavaScript or any
+non-SQL code in the database; one table for LEGACY, LEAN and PCT in the program's §8 item 3, and the note that "at
+the edge" is a property of a plan's root (an assertion the database judge pushes into SQL is a consumer there).
 Also: the merge of this branch to `main` (every lane at or above the merge-base but `testFilterInstance`), which the
 program's §7 wants before step 0 starts.
 
