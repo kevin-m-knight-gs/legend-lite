@@ -367,6 +367,8 @@ try {
   // SHEETS (the design's §7): a tile moved to another sheet by dragging it onto that sheet's tab
   await check('a tile dragged onto another sheet\'s tab moves there; the tab is marked while it is over it', async () => {
     await page.locator('.dc-sheet-add').click();
+    // the + offers a Sheet and a Flow (2026-10-26)
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Sheet")') }).click();
     await settle();
     const sheets = await page.evaluate(() => window.__dataPage.sheets);
     if (sheets.length !== 2) throw new Error(`the + made ${sheets.length} sheets`);

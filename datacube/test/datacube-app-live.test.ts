@@ -17,7 +17,7 @@ import type { LiveWrite } from '../src/app/services.ts';
 import { corpus } from './fixtures/pages/make.ts';
 import { FakeKeeper } from './fake-keeper.ts';
 import { pageHash } from '../src/page-hash.ts';
-import { GateEngine, StubPlanner } from './cube-fixture.ts';
+import { GateEngine, StubPlanner, plus } from './cube-fixture.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { cubeToJson, writeCube } from '../src/cube-document.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
@@ -159,7 +159,7 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     assert.equal(tabs.length, 2);
     assert.match(doc.querySelector('.dc-page-name')?.textContent ?? '', /Q3/, 'its name');
     // a sheet the person adds is given an id the keeper has not held
-    (doc.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(doc);
     await new Promise((done) => { setTimeout(done, 700); });
     const added = written.flatMap((w) => ('edits' in w ? w.edits : [])).flatMap((e) => ('page' in e && e.page.kind === 'addSheet' ? [e.page] : []));
     assert.equal(added.length, 1, 'the sheet added, written to its keeper');
@@ -441,7 +441,7 @@ describe("the ids the page has held, read with it (B12: the S4 audit's 5)", () =
     };
     await opened(editor, async () => ({ version: 0, model: '', runtime: '', source: { _type: 'packageableElementPtr', fullPath: 'trades' } }));
     await settle();
-    (dom.window.document.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(dom.window.document);
     // written once the change settles (live-channel.ts WRITE_AFTER)
     await new Promise((done) => { setTimeout(done, 700); });
     const added = written.flatMap((w) => ((w as { edits?: { page?: { kind: string; id?: string } }[] }).edits ?? []))

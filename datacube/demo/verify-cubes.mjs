@@ -177,6 +177,56 @@ async function openSaved(name) {
 const typed = () => readView(page);
 
 try {
+  // OPEN… ASKED BEFORE THE PAGE CAN OPEN FILES (2026-10-26, found clicking the published site): the menu offers it as soon
+  // as it is drawn, and the page's store answers only once the start's grid has landed. In a browser of its own, the
+  // store's database held open until the check lets it go: the start's grid lands, Open… is asked, nothing can show
+  // yet -- and once the store answers, the window opens. Each step waits on the page, never on a clock.
+  await check('Open… asked before the page can open files opens once it can, the ask not dropped', async () => {
+    const held = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+    try {
+      await held.addInitScript(() => {
+        let release;
+        const gate = new Promise((r) => { release = r; });
+        window.__releaseStore = release;
+        const open = IDBFactory.prototype.open;
+        IDBFactory.prototype.open = function (name, ...rest) {
+          const request = open.call(this, name, ...rest);
+          if (name !== 'datacube') return request;
+          // the page's store (cube-store.ts openCubeDatabase) told it is open only once released
+          let handler = null;
+          request.addEventListener('success', (e) => { void gate.then(() => handler?.call(request, e)); });
+          Object.defineProperty(request, 'onsuccess', { configurable: true, get: () => handler, set: (f) => { handler = f; } });
+          return request;
+        };
+      });
+      const p = await held.newPage();
+      p.on('pageerror', (e) => pageErrors.push(e.message));
+      await p.goto(`${URL_BASE}/demo/index.html`);
+      await p.waitForSelector('.dc-row', { timeout: 90_000 });
+      await p.click('.dc-titlebar-menu');
+      await p.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Open…"))').first().click();
+      if (await p.locator('#cubeswin').count() !== 0) throw new Error('the window opened while the store was held: the check holds nothing');
+      // what acts on the page meanwhile is greyed, saying why -- never a click that does nothing
+      const save = async () => {
+        await p.click('.dc-titlebar-menu');
+        const item = p.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Save"))').first();
+        const said = { off: await item.getAttribute('aria-disabled'), why: await item.getAttribute('title') };
+        await p.keyboard.press('Escape');
+        return said;
+      };
+      const meanwhile = await save();
+      if (meanwhile.off !== 'true' || meanwhile.why !== 'The page is still starting') throw new Error(`Save while the store was held: ${JSON.stringify(meanwhile)}`);
+      await p.evaluate(() => window.__releaseStore());
+      await p.locator('#cubeswin').waitFor({ state: 'visible', timeout: 30_000 });
+      await p.click('#cubeswin .dc-picker-close');
+      const started = await save();
+      if (started.off === 'true') throw new Error(`Save once the page started: ${JSON.stringify(started)}`);
+      return 'asked while the store was held, Save greyed "The page is still starting"; opened once it answered, Save then offered';
+    } finally {
+      await held.close();
+    }
+  });
+
   await check('a cube over a file is saved, and the list shows it', async () => {
     await load();
     const before = await statusNow();

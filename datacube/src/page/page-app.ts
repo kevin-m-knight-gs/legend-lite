@@ -140,6 +140,8 @@ export interface PageAppOptions {
   readonly openSource?: () => Promise<GridMaker | undefined>;
   /** New Page: the host clears the page (asking first about unsaved changes). */
   readonly onBlankPage?: () => void;
+  /** Why New Page and Data Source… cannot act yet (the host's start under way), or undefined: greyed, saying so. */
+  readonly starting?: () => string | undefined;
   /** Something on the page changed: a grid's state, a chart, the layout, a title. */
   readonly onChange?: () => void;
   /** A grid's Settings saved: in effect on every grid, and for the host to keep. */
@@ -274,6 +276,7 @@ export class PageApp {
     this.#sheetTabs = new SheetTabs(doc, {
       onShow: (id) => this.#page.showSheet(id),
       onAdd: () => this.#page.addSheet(),
+      onAddFlow: () => this.addFlow(),
       onRename: (id, name) => this.#page.renameSheet(id, name),
       onMove: (id, to) => this.#page.moveSheet(id, to),
       onRemove: (id) => this.#removeSheet(id),
@@ -1493,7 +1496,7 @@ export class PageApp {
       // OUT: a new page first (it replaces this one, the host asking first), the host's file entries, the page as a file
       // -- one entry until a second format comes
       { label: '', items: [
-        ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'New Page' }] : []),
+        ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'New Page', ...off(this.#options.starting?.()) }] : []),
         ...this.#hostItems('file'),
         ...(this.#options.download ? [{ id: 'page.export' as const, label: 'Export Page File…', ...off(this.saveRefusal()) }] : []),
       ] },
@@ -1512,7 +1515,7 @@ export class PageApp {
       // CREATE ▸, the word of every menu (menu.ts createItems): what the page makes beside what it has, the host's model
       // entries a line apart
       { label: '', items: submenu('Create', [
-        ...(this.#options.openSource ? [{ id: 'source.new' as const, label: 'Data Source…' }] : []),
+        ...(this.#options.openSource ? [{ id: 'source.new' as const, label: 'Data Source…', ...off(this.#options.starting?.()) }] : []),
         { id: 'sheet.new' as const, label: 'Sheet', ...off(page.editing ? undefined : 'Edit Layout first') },
         // a flow (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): its boxes on a canvas, each a step
         { id: 'sheet.newFlow' as const, label: 'Flow', ...off(page.editing ? undefined : 'Edit Layout first') },
