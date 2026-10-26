@@ -1720,7 +1720,7 @@ DuckDb	DuckDB	call	IS_DISTINCT_FROM	emulated	distinctFrom		0
 DuckDb	DuckDB	call	ALL_DISTINCT	emulated	allDistinct		0
 DuckDb	DuckDB	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom		3
 DuckDb	DuckDB	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom		10
-DuckDb	DuckDB	call	STRFTIME	spelled	strftime		193
+DuckDb	DuckDB	call	STRFTIME	emulated	strftime		193
 DuckDb	DuckDB	call	STRPTIME	spelled	strptime		0
 DuckDb	DuckDB	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
 DuckDb	DuckDB	call	LIST_REVERSE	spelled	list_reverse	via DuckDb.listCall	4

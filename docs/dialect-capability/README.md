@@ -43,7 +43,7 @@ input).
 | Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 82 | 121 | 4 | 15 | 36 |
 | BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 70 | 126 | 11 | 15 | 33 |
 | Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 96 | 105 | 6 | 15 | 34 |
-| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 145 | 62 | 0 | 15 | 41 |
+| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 144 | 63 | 0 | 15 | 41 |
 | ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 65 | 136 | 6 | 15 | 34 |
 | SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 144 | 7 | 15 | 35 |
 | MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 52 | 148 | 7 | 15 | 34 |
@@ -221,7 +221,7 @@ input).
 | `ALL_DISTINCT` | R | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R | R | R |
 | `NULL_SAFE_EQUAL` | E | E | E | E | E | E | E | E | E | E | S | S | E· | E | E | E |
 | `NULL_SAFE_NOT_EQUAL` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `STRFTIME` | S | S | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
+| `STRFTIME` | S | S | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
 | `STRPTIME` | S· | S | R | E· | E· | E· | E· | S· | E· | R | R | R | E· | E | E | E |
 | `PARSE_DATE` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
 | `LIST_REVERSE` | R | R | E | S | S | S | S | S | S | E | E | E | E· | E | E | E |

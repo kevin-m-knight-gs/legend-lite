@@ -1515,7 +1515,7 @@ Database types planned with it: DuckDB.
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
 | `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` |  | 3 |
 | `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` |  | 10 |
-| `STRFTIME` | spelled | `strftime` |  | 193 |
+| `STRFTIME` | emulated | `strftime` |  | 193 |
 | `STRPTIME` | spelled | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `castAs: TIMESTAMP` |  | 4 |
 | `LIST_REVERSE` | spelled | `list_reverse` | `via DuckDb.listCall` | 4 |
