@@ -561,7 +561,12 @@ function columnSourcesOf(e: TsExpr): string[] {
 }
 
 /** A date as a spec writes it, an ISO day. */
-const isDate = (v: unknown): v is string => typeof v === 'string' && DATE.test(v) && !Number.isNaN(Date.parse(v));
+/** A day of the calendar (2024-01-31; never 2024-02-30, which a date's parse rolls into March: the Phase 3 review's 10). */
+const isDate = (v: unknown): v is string => {
+  if (typeof v !== 'string' || !DATE.test(v)) return false;
+  const t = Date.parse(`${v.slice(0, 10)}T00:00:00Z`);
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === v.slice(0, 10);
+};
 
 /**
  * What stops a saved `ts` slot from being read, in words, or null: every key, word and number, a newer DataCube's
@@ -742,8 +747,10 @@ export function tsProblem(ts: unknown): string | null {
     const dates = view['dates'];
     if (dates !== undefined) {
       if (!Array.isArray(dates) || dates.length === 0 || dates.length > MAX_CURVE_DATES) return `its timeseries' curve dates are 1 to ${MAX_CURVE_DATES}`;
-      const bad = dates.find((d) => !(typeof d === 'string' && (d === 'latest' || tenorOf(d) !== undefined || /^\d{4}-\d{2}-\d{2}$/.test(d))));
+      const bad = dates.find((d) => !(typeof d === 'string' && (d === 'latest' || tenorOf(d) !== undefined || (/^\d{4}-\d{2}-\d{2}$/.test(d) && isDate(d)))));
       if (bad !== undefined) return `its timeseries' curve date ${JSON.stringify(bad)} is not latest, a period back (1m, 1y) or a day`;
+      const twice = dates.find((d, i) => dates.indexOf(d) !== i);
+      if (twice !== undefined) return `its timeseries' curve date ${JSON.stringify(twice)} is asked twice`;
     }
     for (const [key, least, most] of [['years', 1, MAX_SEASON_YEARS], ['bins', MIN_HIST_BINS, MAX_HIST_BINS]] as const) {
       const v = view[key];

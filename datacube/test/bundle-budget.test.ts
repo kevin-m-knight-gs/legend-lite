@@ -705,8 +705,13 @@ const CHART_BUDGET = 303_500;
  *  across a split's key (timeseries-query.ts scatterQuery, seasonalityQuery, histogramQuery, curveQuery, and their
  *  drawing, timeseries-views.ts) -- the Calendar tab and its query (calendarQuery), and each view's Settings and its
  *  ask (ui/timeseries-view.ts #viewAsk, #fetchView); the headroom ~2%. The views' drawing, about 2,500 of it, could be a
- *  chunk of its own fetched with the first view, if it grows). Measured 65,119. */
-const TIMESERIES_BUDGET = 66_400;
+ *  chunk of its own fetched with the first view, if it grows). Measured 65,119.
+ *  66,400 -> 68,700 (2026-10-26, the Phase 2 and Phase 3 reviews' fixes, docs/TIMESERIES_REVIEW_2026_10_25.md §13-§14: a
+ *  drag a try until OK (ui/timeseries-view.ts #tried, #leaving), a picture's legend and height (timeseries-option.ts
+ *  tsPictureHeight), the Data tab's day keys, the calendar's months by number, every histogram bin, a curve's lines of
+ *  earlier days said (timeseries-views.ts curveNotes), the views' series by mode (viewChoices), the chart busy by its
+ *  rounds -- the headroom ~2%). Measured 67,342. */
+const TIMESERIES_BUDGET = 68_700;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

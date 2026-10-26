@@ -372,3 +372,50 @@ Each fix pinned by a test that failed first, in `timeseries-view-dom` unless sai
   picture's heading and its lines' names in the SVG), the numeric swap, Cancel and Remove after a drag, ends on a
   bounded pane -- each above.
 
+## 14. The next phases' 3 review (2026-10-26)
+
+An independent review of Phase 3 (a tile's views and the Calendar tab), read with probes of its own: the commit's
+queries planned by the WASM planner over DuckDB-WASM on a sample of gaps (a month missing, a constant, a negative
+series, a tenor grid), each against numpy and pandas, and the real viewer in jsdom over a database slowed so asks
+overlap. The scatter, histogram, seasonality and curve values matched their references; the findings were in what a
+figure is labelled, what is dropped without a word, and the viewer's state. Each fix pinned by a test that failed first,
+in `timeseries-queries` unless said.
+
+- 1 (high), the calendar's month before was the last month present: over a missing month, two months' return under
+  one; a quarterly or yearly tile's quarters and years written under months. The month before is now the one numbered
+  one less (none after a gap, as pandas' resample), the year before likewise; a quarterly or yearly tile's calendar is
+  refused. Pinned: "a calendar over missing months".
+- 2, a daily seasonality placed each date by its day of the year: each place held the years that traded that day (3.4
+  of 5 on the probe), a leap year a day off. A daily series (or one of no frequency) is now by the week of the year,
+  each year its week's last value: every year before at every place. Pinned: "a daily seasonality".
+- 3, a curve drew a line's value of months before as of the date asked, and a date no line had a value by as an empty
+  line, neither said: each point its own day (hollow where earlier, in its tooltip), said in the banner (`curveNotes`);
+  Python's `attrs['line_dates']`. Pinned: `timeseries-option` "a curve's points of earlier days".
+- 4, one `of` serves every mode, and a mode took one it could not draw (a scatter's x for a curve: "series B is one
+  line -- split it" on a tile with a split series): `viewSeries` reads `of` where it fits the mode, else the tile's
+  first; one told to a scatter is its x. Settings offers what a view can draw (`viewChoices`: no candles). Pinned: "the
+  series each view draws".
+- 5, the chart's aria-busy: an ask superseded left it set, another's end cleared it while one still asked -- now a count
+  of the rounds asking (`#busyOn`), each released when done. Pinned: `timeseries-view-dom` "busy while it asks".
+- 6, a histogram listed the bins a value fell in alone, so the normal was drawn across empty ones and Python's frame
+  was not numpy's: every bin, an empty one 0. Pinned: "a histogram", 40 bins against numpy's.
+- 7, the tile's compare rebased each tenor of a curve from its own first value: a curve's lines as they are. Pinned:
+  "a curve".
+- 8, one key no tenor put every key by its text (1Y before 3M): the tenors by their span, ON, TN and SN among them,
+  then the rest. A split's first 20 lines are by their text (every split series, before this phase): a curve of 20
+  says it may have lost one. Pinned: "a curve's keys in order".
+- 9, the Calendar tab: a level at or below zero gave none in every cell, its footnote saying "the first of each"; a
+  column the database answered without read as no months. Now each said: the line's least level answered with it
+  (`TS_CAL_LOW`), a missing column refused by name. Pinned: "a calendar of returns".
+- 10, a curve's day no calendar has (2024-02-30) passed the reader and was refused by the database; a day asked of a
+  date-time source left that day's own observations out. The reader takes calendar days alone (its every date: the
+  range's, an event's), and a date asked twice is refused; a day asked is the whole of it. Pinned: `timeseries-spec`.
+- 11, Python: a scatter of a series against itself one column (now `(x)` and `(y)`); `calendar()`'s first level a
+  hidden one (now the first shown, as the tab's). Kept as they are: a month with no row and a month of no return both
+  None in Python (the tab writes '' and '—'), and the toolbar's CSV the time view's lines in a view mode (Python's
+  views each a table) -- follow-ups.
+- 12, the viewer: the range buttons of a seasonality and a curve pressed to no effect (now off, saying why); the Query
+  window showed the mode before's SQL while the new answer was asked (now the answer of what is asked alone); a
+  scatter's first pick lost where the tile had no pair yet (now kept till the pair is whole). Pinned:
+  `timeseries-view-dom`.
+

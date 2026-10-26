@@ -19,7 +19,7 @@ import {
   boundsQuery, correlationsQuery, drawdownsQuery, keyValuesQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN,
   TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
   TS_CORR, TS_CORR_A, TS_CORR_B, TS_CORR_N, TS_FROM, TS_TO, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_PER_YEAR, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
-  calendarQuery, curveOrder, curveQuery, histogramQuery, scatterQuery, seasonalityQuery, viewSeries, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN,
+  calendarQuery, curveOrder, curveQuery, histogramQuery, scatterQuery, seasonalityQuery, viewSeries, TS_CAL_LOW, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN,
   curveColumns, TS_HIST_COUNT, TS_HIST_HIGH, TS_HIST_LOW, TS_HIST_N, TS_HIST_NORMAL, TS_HIST_P5, TS_SC_CORR, TS_SC_FIT_HIGH, TS_SC_FIT_LOW,
   TS_SC_INTERCEPT, TS_SC_N, TS_SC_R2, TS_SC_SLOPE, TS_SC_X, TS_SC_Y, TS_SEA_HIGH, TS_SEA_LATEST, TS_SEA_LOW, TS_SEA_MEAN, TS_SEA_PLACE, TS_SEA_YEAR,
 } from '../src/timeseries-query.ts';
@@ -1194,6 +1194,50 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     close(values(r, TS_VALUE).map(num), months.map((m) => (lastOf(m) / firstOf(m.slice(0, 4))) * 100), 'each year from its start', 1e-9);
   });
 
+  // the Phase 3 review's 2: a daily seasonality placed each date by its day of the year -- weekends and holidays apart
+  // from year to year, so each place held some of the years before, and a leap year a day off
+  it('a daily seasonality: by the week of the year, each year its week\'s last value -- every year before at every place', async () => {
+    const ts = spec({ A: 'close' });
+    const t = await engine.execute(await own.plan(seasonalityQuery(long, ts, ts.series[0]!, 1).query), 0);
+    const weekOf = (d: string): number => {
+      const day = (Date.parse(`${d}T00:00:00Z`) - Date.UTC(Number(d.slice(0, 4)), 0, 1)) / 86_400_000 + 1;
+      return Math.floor((day - 1) / 7) + 1;
+    };
+    const lastOf = new Map<string, number>();
+    LONG_DAYS.forEach((d, i) => lastOf.set(`${d.slice(0, 4)}|${weekOf(d)}`, LONG[i]!));
+    const keys = values(t, TS_SEA_YEAR).map((y, i) => `${num(y)}|${num(values(t, TS_SEA_PLACE)[i])}`);
+    assert.deepEqual(keys, [...new Set(keys)], 'a year at a place once');
+    assert.deepEqual(keys, [...lastOf.keys()], 'every week each year has, in order');
+    close(values(t, TS_VALUE).map(num), keys.map((k) => lastOf.get(k)!), 'each week\'s last', 0);
+    // 2022 against 2021, at every week 2022 has: 2021's own
+    const late = keys.map((k, i) => [k, i] as const).filter(([k]) => k.startsWith('2022'));
+    close(late.map(([, i]) => num(values(t, TS_SEA_LOW)[i])), late.map(([k]) => lastOf.get(`2021|${k.split('|')[1]}`)!), 'the year before at each', 1e-12);
+  });
+
+  // the Phase 3 review's 1: a month's return was from the last month present -- over a missing month, two months as one
+  // -- and a quarterly tile's quarters were written under months
+  it('a calendar over missing months: none after a gap, never two months as one; refused at a quarterly frequency', async () => {
+    const kept = LONG_DAYS.map((d, i) => [d, LONG[i]!] as const).filter(([d]) => !d.startsWith('2021-03') && !d.startsWith('2021-12'));
+    const csv = ['symbol,day,close', ...kept.map(([d, v]) => `L,${d},${v}`)].join('\n');
+    const r = await ingestFile(engine, files, new File([csv], 'cal-gaps.csv'), writer, { table: 'cal_gaps' });
+    const gaps: TsInputs = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
+    const ts = spec({ A: 'close' });
+    const t = await engine.execute(await plannerFor(r.model, r.runtime).plan(calendarQuery(gaps, ts, ts.series[0]!).query), 0);
+    const at = (y: number, m: number): number | null => {
+      const i = values(t, TS_CAL_YEAR).findIndex((v, j) => num(v) === y && num(values(t, TS_CAL_MONTH)[j]) === m);
+      assert.ok(i >= 0, `${y}-${m} has a row`);
+      return num(values(t, TS_CAL_RETURN)[i]);
+    };
+    const lastOf = (m: string): number => kept.filter(([d]) => d.startsWith(m)).at(-1)![1];
+    assert.equal(at(2021, 4), null, 'April after a missing March: none');
+    assert.equal(at(2022, 1), null, 'January after a missing December: none');
+    assert.ok(Math.abs(at(2021, 5)! - (lastOf('2021-05') / lastOf('2021-04') - 1)) < 1e-12, 'May from April');
+    // a year's from the year before's last level -- November's, its December missing (pandas' year-end last)
+    const y22 = values(t, TS_CAL_YEAR_RETURN).find((_, j) => num(values(t, TS_CAL_YEAR)[j]) === 2022);
+    assert.ok(Math.abs(num(y22)! - (kept.at(-1)![1] / lastOf('2021-11') - 1)) < 1e-12);
+    assert.throws(() => calendarQuery(long, { ...ts, grain: 'quarter' }, ts.series[0]!), /a calendar of months reads a level at least monthly/);
+  });
+
   it('a calendar of returns: each month\'s from the month before\'s last, each year\'s from the year before\'s', async () => {
     const month = (d: string): string => d.slice(0, 7);
     const months = [...new Set(LONG_DAYS.map(month))];
@@ -1205,6 +1249,8 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     close(values(t, TS_CAL_RETURN).map(num), months.map((m, i) => (i === 0 ? null : lastOf(m) / lastOf(months[i - 1]!) - 1)), 'monthly', 1e-12);
     const yearEnd = (y: number): number => lastOf(months.filter((m) => m.startsWith(String(y))).at(-1)!);
     close(values(t, TS_CAL_YEAR_RETURN).map(num), months.map((m) => (m.startsWith('2021') ? null : yearEnd(2022) / yearEnd(2021) - 1)), 'yearly', 1e-12);
+    // the line's least month-end level on every row: what says a return from at or below zero is none
+    assert.ok(values(t, TS_CAL_LOW).every((v) => num(v) === Math.min(...months.map(lastOf))));
     assert.throws(() => calendarQuery(long, spec({ A: 'returns(close)' }), spec({ A: 'returns(close)' }).series[0]!), /no level/);
   });
 
@@ -1299,7 +1345,9 @@ describe('a tile\'s views: a scatter, a histogram, a curve -- every figure the d
     const width = (Math.max(...AAA) - lo) / 5;
     const counts = [0, 0, 0, 0, 0];
     for (const v of AAA) counts[Math.min(4, Math.floor((v - lo) / width))]! += 1;
-    const filled = counts.map((c, i) => [c, i] as const).filter(([c]) => c > 0);
+    // every bin, one a value fell in or not (the Phase 3 review's 6: the empty ones had no row, their normal never drawn)
+    const filled = counts.map((c, i) => [c, i] as const);
+    assert.equal(t.rowCount, 5);
     close(values(t, TS_HIST_LOW).map(num), filled.map(([, i]) => lo + i * width), 'edges', 1e-12);
     close(values(t, TS_HIST_HIGH).map(num), filled.map(([, i]) => lo + (i + 1) * width), 'edges', 1e-12);
     assert.deepEqual(values(t, TS_HIST_COUNT).map(num), filled.map(([c]) => c));
@@ -1311,6 +1359,13 @@ describe('a tile\'s views: a scatter, a histogram, a curve -- every figure the d
     }), 'the normal\'s counts', 1e-9);
     assert.ok(Math.abs(num(values(t, TS_HIST_P5)[0])! - quantile(AAA, 0.05)) < 1e-9);
     assert.equal(num(values(t, TS_HIST_N)[0]), AAA.length);
+    // as many bins as asked, the empty ones counted 0: numpy's histogram
+    const many = await run(histogramQuery(inputs, ts, ts.series[0]!, {}, 40));
+    const w40 = (Math.max(...AAA) - lo) / 40;
+    const c40 = Array.from({ length: 40 }, () => 0);
+    for (const v of AAA) c40[Math.min(39, Math.floor((v - lo) / w40))]! += 1;
+    assert.ok(c40.includes(0), 'the test has an empty bin');
+    assert.deepEqual(values(many, TS_HIST_COUNT).map(num), c40);
   });
 
   it('a curve: each line as of each date asked -- the latest, a week back, a day -- its last value at or before it', async () => {
@@ -1334,6 +1389,10 @@ describe('a tile\'s views: a scatter, a histogram, a curve -- every figure the d
     assert.deepEqual(got.sort((a, b) => a[0] - b[0]), want);
     assert.deepEqual(targets.map((_, k) => String(values(t, curveColumns(k).asked)[0]).slice(0, 10)), targets);
     assert.throws(() => curveQuery(inputs, spec({ A: 'close[AAA]' }), spec({ A: 'close[AAA]' }).series[0]!), /a curve is of a line per value/);
+    // the tile's compare is the time view's: a curve's lines as they are, never each from its own first value (the Phase
+    // 3 review's 7)
+    const compared = await run(curveQuery(inputs, { ...ts, view: { compare: 'rebase' } }, ts.series[0]!, asked));
+    assert.deepEqual(values(compared, curveColumns(0).value), values(t, curveColumns(0).value));
   });
 
   it('the series each view draws: the view\'s own, else the tile\'s first it can', () => {
@@ -1341,6 +1400,12 @@ describe('a tile\'s views: a scatter, a histogram, a curve -- every figure the d
     const split: TimeseriesSpec = { ...ts, series: ts.series.map((s) => (s.id === 'C' ? { ...s, split: 'symbol' } : s)) };
     assert.deepEqual(viewSeries(split), { scatter: ['A', 'D'], one: 'A', curve: 'C', calendar: ['A', 'C', 'D'] });
     assert.deepEqual(viewSeries({ ...split, view: { of: ['D', 'A'] } }).scatter, ['D', 'A']);
+    // an `of` a mode cannot draw is no mode's: a scatter's x for a curve, a curve's split for a histogram (the Phase 3
+    // review's 4); one told to a scatter its x, the next its y
+    assert.equal(viewSeries({ ...split, view: { of: ['D', 'A'] } }).curve, 'C');
+    assert.equal(viewSeries({ ...split, view: { of: ['C'] } }).one, 'A');
+    assert.deepEqual(viewSeries({ ...split, view: { of: ['D'] } }).scatter, ['D', 'A']);
+    assert.deepEqual(viewSeries({ ...split, view: { of: ['B', 'C'] } }).scatter, ['A', 'D'], 'a band and a split: neither a scatter\'s');
     // candles are a level, but no one level a calendar of returns reads (the gallery's technicals tile found it)
     const candles = spec({ A: 'ohlc(close[AAA], close[AAA], close[AAA], close[AAA])', B: 'close[BBB]' });
     assert.deepEqual(viewSeries(candles).calendar, ['B']);
@@ -1351,9 +1416,10 @@ describe('a tile\'s views: a scatter, a histogram, a curve -- every figure the d
     assert.deepEqual(curveOrder(keys).map((i) => keys[i]), ['1W', '3M', '1Y', '18M', '2Y', '10Y', '30Y']);
     const words = ['strip 10', 'strip 2', 'strip 1'];
     assert.deepEqual(curveOrder(words).map((i) => words[i]), ['strip 1', 'strip 2', 'strip 10']);
-    // one key no tenor: every key by its text
-    const mixed = ['2Y', 'cash', '10Y'];
-    assert.deepEqual(curveOrder(mixed).map((i) => mixed[i]), ['2Y', '10Y', 'cash']);
+    // a money market's: overnight, tom-next and spot-next by their days, any other key after the tenors (the Phase 3
+    // review's 8: one key no tenor put every key by its text, 1Y before 3M)
+    const mixed = ['10Y', 'Cash', '1Y', '3M', 'ON', '1W', 'TN'];
+    assert.deepEqual(curveOrder(mixed).map((i) => mixed[i]), ['ON', 'TN', '1W', '3M', '1Y', '10Y', 'Cash']);
   });
 
   it('a seasonality of a yearly frequency is refused: a year has one place', () => {

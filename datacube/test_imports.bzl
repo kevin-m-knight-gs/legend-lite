@@ -8480,6 +8480,7 @@ TEST_IMPORTS = {
         "src/timeseries-option.ts",
         "src/timeseries-query.ts",
         "src/timeseries-spec.ts",
+        "src/timeseries-views.ts",
         "src/tree.ts",
         "src/treeview.ts",
         "src/value-filter.ts",

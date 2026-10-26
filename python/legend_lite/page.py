@@ -2146,6 +2146,9 @@ class Timeseries(Tile):
         rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': x, 'with': y, 'window': self._window(start, end), 'table': 'scatter'})
         named = said['columns']
         xs, ys = said['name'], said['withName']
+        # two of one name (a series against itself) kept apart (the Phase 3 review's 11: one column of both)
+        if xs == ys:
+            xs, ys = f'{xs} (x)', f'{ys} (y)'
         out = pd.DataFrame({xs: rows[named['x']].tolist(), ys: rows[named['y']].tolist()},
                            index=pd.Index(rows[named['date']].tolist(), name='date'))
         first = (lambda c: None if len(rows) == 0 or pd.isna(rows[named[c]].iloc[0]) else float(rows[named[c]].iloc[0]))
@@ -2196,7 +2199,9 @@ class Timeseries(Tile):
         ``['latest', '1m', '1y']``: the latest date any line has, a period back from it, or a day) -- the screen's Curve
         (timeseries-query.ts curveQuery): a pandas DataFrame, a row per line in the screen's order (tenors by their span,
         3M before 2Y: headless timeseriesCurveOrder), a column per date asked, each its line's last value at or before
-        it -- the database's; and in its ``attrs['dates']`` each date asked as the database found it."""
+        it -- the database's; in its ``attrs['dates']`` each date asked as the database found it, and in its
+        ``attrs['line_dates']`` each line's own day there (an earlier one: its value is of that day, as the screen's
+        curve marks it; none: no value at or before it)."""
         import pandas as pd
         one = self._view_of('curve', series)
         rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': one, 'table': 'curve',
@@ -2211,6 +2216,8 @@ class Timeseries(Tile):
                            index=pd.Index([keys[i] for i in at], name=said['split']))
         out.attrs['dates'] = {d['told']: (None if len(rows) == 0 or pd.isna(rows[d['asked']].iloc[0]) else str(rows[d['asked']].iloc[0])[:10])
                               for d in named['dates']}
+        out.attrs['line_dates'] = {d['told']: {keys[i]: (None if pd.isna(rows[d['date']].iloc[i]) else str(rows[d['date']].iloc[i])[:10]) for i in at}
+                                   for d in named['dates']}
         return out
 
     def calendar(self, series: str | None = None) -> Any:
@@ -2218,10 +2225,14 @@ class Timeseries(Tile):
         Calendar tab's first level) -- the fund sheet's table (timeseries-query.ts calendarQuery): a pandas DataFrame, a
         row per year (latest first, as the screen lists them; a split's lines each apart, a level of the index ``line``),
         a column per month (``Jan`` ... ``Dec``) and the ``Year``'s -- each a simple return, the month before's last level
-        to its own (the year before's to its own), the database's; none where there is no level before it."""
+        to its own (the year before's to its own), the database's; none where there is no level the month (or the year)
+        before -- the first, and after one missing -- or the level before is at or below zero. Read at least monthly: a
+        quarterly or yearly tile's is refused."""
         import pandas as pd
         if series is None:
-            levels = self._tables()['views']['calendar']
+            # the first level shown, as the screen's tab picks it
+            hidden = {s['id'] for s in self._view['spec']['series'] if s.get('hidden')}
+            levels = [id for id in self._tables()['views']['calendar'] if id not in hidden]
             if not levels:
                 raise ValueError(f'{self!r} has no level: a return, a difference or a deviation has no calendar of returns')
             series = levels[0]

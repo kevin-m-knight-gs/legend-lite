@@ -9,7 +9,7 @@ import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { ChartTheme } from './chart-option.ts';
 import type { TimeGrain } from './chart-spec.ts';
-import type { TimeseriesSpec } from './timeseries-spec.ts';
+import { MAX_SPLIT_LINES, type TimeseriesSpec } from './timeseries-spec.ts';
 import {
   curveColumns, curveOrder, TS_DATE, TS_HIST_COUNT, TS_HIST_HIGH, TS_HIST_LOW, TS_HIST_MEAN, TS_HIST_NORMAL, TS_HIST_P5, TS_SC_CORR,
   TS_SC_FIT_HIGH, TS_SC_FIT_LOW, TS_SC_INTERCEPT, TS_SC_N, TS_SC_R2, TS_SC_SLOPE, TS_SC_X, TS_SC_X_HIGH, TS_SC_X_LOW, TS_SC_Y,
@@ -124,7 +124,8 @@ export function seasonalityOption(ts: TimeseriesSpec, t: ResultTable, name: stri
   const byPlace = new Map<number, readonly [number | null, number | null, number | null]>();
   places.forEach((p, i) => { if (p !== null && !byPlace.has(p)) byPlace.set(p, [low[i]!, span[i]!, mean[i]!]); });
   const placed = [...byPlace].sort((a, b) => a[0] - b[0]);
-  const label = (p: number): string => (grain === 'month' ? TS_MONTH_NAMES[p - 1] ?? String(p) : grain === 'quarter' ? `Q${p}` : grain === 'week' ? `W${p}` : String(p));
+  // a month's name, a quarter's number, else a week's (a daily series' seasonality is by the week of the year)
+  const label = (p: number): string => (grain === 'month' ? TS_MONTH_NAMES[p - 1] ?? String(p) : grain === 'quarter' ? `Q${p}` : `W${p}`);
   const head = heading(ts, ctx);
   const older = distinct.filter((y) => y !== latest);
   const lines = distinct.map((y) => {
@@ -203,24 +204,59 @@ export function curveDateName(asked: string, found: unknown): string {
   return asked === 'latest' ? `latest${day}` : /^\d{4}-/.test(asked) ? asked : `${asked} ago${day}`;
 }
 
+/** A curve's day as it is written: its date's ten characters; none, none. */
+const dayOf = (v: unknown): string | null => (v === null || v === undefined ? null : String(v).slice(0, 10));
+
+/**
+ * WHAT A CURVE'S ROWS SAY A READER SHOULD KNOW (the Phase 3 review's 3: a line's value of months before drawn as of the
+ * date asked, a date with no line's value an empty line -- neither said): each date asked whose lines' values are of
+ * earlier days, by line and day; each with no line's value at or before it. Compared, never computed.
+ */
+export function curveNotes(t: ResultTable, dates: readonly string[]): string[] {
+  const keys = column(t, TS_SPLIT).map((v) => String(v));
+  const out: string[] = [];
+  // a split's lines are its first MAX_SPLIT_LINES by their text (timeseries-query.ts seriesRelation): a curve of that
+  // many may have lost a tenor (9M after 30Y), said
+  if (keys.length >= MAX_SPLIT_LINES) out.push(`The first ${MAX_SPLIT_LINES} lines by their text: a split draws at most ${MAX_SPLIT_LINES}.`);
+  dates.forEach((d, k) => {
+    const c = curveColumns(k);
+    const asked = dayOf(column(t, c.asked)[0]);
+    const own = column(t, c.date).map(dayOf);
+    const name = curveDateName(d, asked);
+    const none = keys.filter((_, i) => own[i] === null);
+    if (none.length === keys.length) {
+      out.push(`${name}: no line has a value at or before it.`);
+      return;
+    }
+    const older = keys.map((key, i) => [key, own[i] ?? null] as const).filter(([, o]) => o !== null && asked !== null && o < asked);
+    if (older.length > 0) out.push(`${name}: ${older.map(([key, o]) => `${key} is of ${o}`).join(', ')}.`);
+    if (none.length > 0) out.push(`${name}: ${none.join(', ')} ${none.length === 1 ? 'has' : 'have'} no value at or before it.`);
+  });
+  return out;
+}
+
 /**
  * A CURVE (curveQuery's rows): a split series' lines across its key (3M before 2Y before 10Y: curveOrder), a line per
- * date asked -- the latest the boldest -- each point a line's value as of that date, the database's.
+ * date asked -- the latest the boldest -- each point a line's value as of that date, the database's; a point of an
+ * earlier day hollow, its own day in its tooltip (curveNotes says them).
  */
 export function curveOption(ts: TimeseriesSpec, t: ResultTable, dates: readonly string[], name: string, ctx: TsViewContext): EChartsOption {
   const theme = ctx.theme;
   const keys = column(t, TS_SPLIT).map((v) => String(v));
   const order = curveOrder(keys).map((i) => [keys[i]!, i] as const);
   const head = heading(ts, ctx);
+  const fmt = (v: number | null): string => (v === null ? '—' : ctx.format?.(v) ?? plain(v));
   const series = dates.map((d, k) => {
     const c = curveColumns(k);
     const vals = numbers(t, c.value);
+    const own = column(t, c.date).map(dayOf);
     const asked = column(t, c.asked)[0];
+    const day = dayOf(asked);
     return {
       id: `d${k}`, name: curveDateName(d, asked), type: 'line' as const, symbolSize: 6, z: k === 0 ? 5 : 3,
       lineStyle: { width: k === 0 ? 2.5 : 1.5, color: theme.series[k % theme.series.length] },
       itemStyle: { color: theme.series[k % theme.series.length] },
-      data: order.map(([, i]) => vals[i]),
+      data: order.map(([, i]) => ({ value: vals[i], day: own[i], ...(own[i] !== null && day !== null && own[i]! < day ? { symbol: 'emptyCircle' } : {}) })),
     };
   });
   return {
@@ -228,7 +264,10 @@ export function curveOption(ts: TimeseriesSpec, t: ResultTable, dates: readonly 
     ...(head.title !== undefined ? { title: head.title } : {}),
     grid: { left: 12, right: 24, top: head.top + 34, bottom: 28, containLabel: true },
     legend: { top: head.top + 4, left: 12, textStyle: { color: theme.ink } },
-    tooltip: { trigger: 'axis' },
+    tooltip: { trigger: 'axis', formatter: (items: unknown) => {
+      const list = items as readonly { seriesName?: string; axisValue?: string; data?: { value: number | null; day: string | null } }[];
+      return [String(list[0]?.axisValue ?? ''), ...list.map((it) => `${it.seriesName ?? ''}: ${fmt(it.data?.value ?? null)}${it.data?.day ? ` (of ${it.data.day})` : ''}`)].join('<br/>');
+    } },
     xAxis: { type: 'category', data: order.map(([k]) => k), ...axisStyle(theme) },
     yAxis: { type: 'value', scale: true, name, ...axisStyle(theme) },
     series,

@@ -11,6 +11,8 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { LIGHT_THEME } from '../src/chart-option.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
+import { curveColumns, TS_SPLIT as SPLIT } from '../src/timeseries-query.ts';
+import { curveNotes, curveOption } from '../src/timeseries-views.ts';
 import { tickText, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, tsHeading, tsLines, tsPictureHeight, valueText, type TsResult } from '../src/timeseries-option.ts';
 import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
@@ -116,6 +118,26 @@ describe('the lines, from what the database answered', () => {
       answered('B', 'same', { [TS_DATE]: ['2024-01-02T00:00:00'], [TS_VALUE]: [2] }),
     ], LIGHT_THEME).lines;
     assert.deepEqual(timeseriesTable(mixed).rows, [{ date: '2024-01-02', values: [1, 2] }]);
+  });
+});
+
+// the Phase 3 review's 3: a curve drew a line's value of months before as of the date asked, and a date no line had a
+// value by as an empty line -- neither said
+describe('a curve\'s points of earlier days', () => {
+  it('drawn hollow, their day in the tooltip, and said: an earlier day by line, a date of no line\'s value', () => {
+    const [a0, a1] = [curveColumns(0), curveColumns(1)];
+    const col_ = (name: string, values: readonly (string | number | null)[]) => ({ name, type: 'String', values: [...values] });
+    const t: ResultTable = {
+      columns: [col_(SPLIT, ['2Y', '10Y']), col_(a0.asked, ['2024-06-28', '2024-06-28']), col_(a0.value, [4.1, 4.4]), col_(a0.date, ['2024-06-28', '2023-12-29']),
+        col_(a1.asked, ['2019-01-01', '2019-01-01']), col_(a1.value, [null, null]), col_(a1.date, [null, null])],
+      rowCount: 2, epoch: 0, elapsedMs: 0,
+    };
+    assert.deepEqual(curveNotes(t, ['latest', '2019-01-01']), ['latest (2024-06-28): 10Y is of 2023-12-29.', '2019-01-01: no line has a value at or before it.']);
+    const o = curveOption(spec([S('A', 'close', { split: 'tenor' })]), t, ['latest', '2019-01-01'], 'Yield', { theme: LIGHT_THEME }) as Record<string, unknown>;
+    const latest = (o['series'] as { data: { value: number; day: string; symbol?: string }[] }[])[0]!;
+    assert.deepEqual(latest.data.map((d) => [d.value, d.day, d.symbol ?? 'circle']), [[4.1, '2024-06-28', 'circle'], [4.4, '2023-12-29', 'emptyCircle']]);
+    const tip = (o['tooltip'] as { formatter: (items: unknown) => string }).formatter([{ seriesName: 'latest (2024-06-28)', axisValue: '10Y', data: latest.data[1] }]);
+    assert.match(tip, /4\.4 \(of 2023-12-29\)/);
   });
 });
 

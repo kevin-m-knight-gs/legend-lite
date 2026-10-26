@@ -1056,6 +1056,9 @@ class Document(Paged):
         # a month back from 2024-03-10: 2024-02-10, the 41st day
         self.assertAlmostEqual(c.loc['3M', '1m'], 5.0 + 40 / 100, places=12)
         self.assertEqual(c.attrs['dates'], {'latest': '2024-03-10', '1m': '2024-02-10'})
+        self.assertEqual(c.attrs['line_dates']['latest'], {'3M': '2024-03-10', '2Y': '2024-03-10', '10Y': '2024-03-10'}, "each line's own day")
+        # the Phase 3 review's 11: a series against itself, two columns
+        self.assertEqual(list(tile.scatter('A', 'A').columns), ['close[S] (x)', 'close[S] (y)'])
         with self.assertRaisesRegex(ValueError, 'a curve is of a line per value of a column'):
             tile.curve('A')
 

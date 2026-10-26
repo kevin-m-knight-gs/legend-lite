@@ -315,6 +315,9 @@ describe('the saved spec\'s reader', () => {
       [with_({ view: { of: ['Q'] } }), /view reads series Q, which it has not/],
       [with_({ view: { dates: ['yesterday'] } }), /curve date "yesterday" is not latest, a period back \(1m, 1y\) or a day/],
       [with_({ view: { dates: ['latest', '1m', '2m', '3m', '6m', '1y', '2y'] } }), /curve dates are 1 to 6/],
+      // the Phase 3 review's 10: a day no calendar has, and a date asked twice
+      [with_({ view: { dates: ['2024-02-30'] } }), /curve date "2024-02-30" is not latest, a period back \(1m, 1y\) or a day/],
+      [with_({ view: { dates: ['latest', '1m', 'latest'] } }), /curve date "latest" is asked twice/],
       [with_({ view: { years: 0 } }), /years 0 is not a whole number of 1 to 20/],
       [with_({ view: { bins: 2.5 } }), /bins 2.5 is not a whole number of 5 to 100/],
     ];

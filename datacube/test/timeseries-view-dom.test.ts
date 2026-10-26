@@ -776,8 +776,9 @@ describe('the timeseries viewer\'s other views: a scatter, a histogram, seasonal
       await until(() => drawnSeries(drawn, 'd0') !== undefined, 'the curve');
       const axis = (drawn.at(-1)!.xAxis as { data: string[] }).data;
       assert.deepEqual([...axis].sort(), ['AAPL', 'EURUSD', 'GLD', 'JPM', 'MSFT', 'NDX', 'NVDA', 'SPX', 'TLT', 'XOM']);
-      const values = drawnSeries(drawn, 'd0')!.data as number[];
-      axis.forEach((k, i) => assert.equal(values[i], of(k).closes.at(-1), `${k}'s latest close`));
+      const values = drawnSeries(drawn, 'd0')!.data as { value: number; day: string }[];
+      axis.forEach((k, i) => assert.equal(values[i]!.value, of(k).closes.at(-1), `${k}'s latest close`));
+      axis.forEach((k, i) => assert.equal(values[i]!.day, of(k).days.at(-1), `${k}'s own day`));
       assert.match(drawnSeries(drawn, 'd0')!.name!, /^latest \(\d{4}-\d{2}-\d{2}\)$/, 'the date the database found');
     } finally {
       view.dispose();
@@ -806,6 +807,56 @@ describe('the timeseries viewer\'s other views: a scatter, a histogram, seasonal
       // the other line picked: its own calendar
       const line = root.querySelector<HTMLSelectElement>('.dc-ts-stats select[aria-label="Line"]')!;
       assert.deepEqual([...line.options].map((o) => o.textContent), ['S&P 500', 'Nasdaq 100']);
+    } finally {
+      view.dispose();
+    }
+  });
+
+  // the Phase 3 review's 12: a seasonality's and a curve's dates their own, the range buttons pressed to no effect
+  it('a seasonality\'s range buttons said not its own, never pressed to no effect', async () => {
+    const { root, view } = viewer({ ...TWO, view: { ...TWO.view, mode: 'seasonality' } });
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      const ranges = [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-range')];
+      assert.ok(ranges.length > 0 && ranges.every((b) => b.disabled), 'each off');
+      assert.match(ranges[0]!.title, /reads its own dates/);
+      pick(root, 'View', 'histogram');
+      assert.ok([...root.querySelectorAll<HTMLButtonElement>('.dc-ts-range')].every((b) => !b.disabled), 'a histogram\'s the dates shown');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  // the Phase 3 review's 5: an ask superseded left the chart busy; another's end cleared it while one still asked
+  it('busy while it asks, whatever asks overlap: none once every answer is in', async () => {
+    const slow: TsGrid = { ...grid, run: async (q, sn, sig) => { await new Promise((r) => setTimeout(r, 40)); return grid.run(q, sn, sig); } };
+    const { root, view } = viewer({ ...TWO, view: { ...TWO.view, mode: 'histogram' } }, undefined, slow);
+    const canvas = root.querySelector('.dc-ts-chart') as HTMLElement;
+    try {
+      await until(() => !canvas.hasAttribute('aria-busy') && statRows(root).length === 2, 'the first answers');
+      // the view's own ask, then the window's over it before it lands
+      view.update({ ...view.spec, view: { ...view.spec.view, bins: 12 } });
+      assert.equal(canvas.getAttribute('aria-busy'), 'true');
+      barButton(root, '1Y').click();
+      await until(() => !canvas.hasAttribute('aria-busy'), 'every answer in, busy no longer');
+      await new Promise((r) => setTimeout(r, 200));
+      assert.ok(!canvas.hasAttribute('aria-busy'));
+    } finally {
+      view.dispose();
+    }
+  });
+
+  // the Phase 3 review's 12: a scatter's first pick lost where the tile had no pair yet
+  it('a scatter\'s pickers: the first pick kept till its pair is whole', async () => {
+    const one: TimeseriesSpec = { ...TWO, series: [TWO.series[0]!], view: { mode: 'scatter' } };
+    const { root, windows, told, view } = viewer(one);
+    try {
+      await until(() => chips(root).length === 1, 'its line');
+      barButton(root, 'Settings').click();
+      pick(windows, 'Across (x)', 'A');
+      assert.equal(told.length, 0, 'half a pair told nothing');
+      pick(windows, 'Up (y)', 'A');
+      assert.deepEqual(told.at(-1)!.view?.of, ['A', 'A']);
     } finally {
       view.dispose();
     }

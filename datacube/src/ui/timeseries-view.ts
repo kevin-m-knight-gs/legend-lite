@@ -35,8 +35,8 @@ import {
 } from '../timeseries-edit.ts';
 import {
   boundsQuery, calendarQuery, correlationsQuery, curveQuery, drawdownsQuery, histogramQuery, keyValuesQuery, rangeWindow, readsAnchor, scatterQuery,
-  seasonalityQuery, seriesQuery, seriesSources, statBlanks, statName, statsQuery, tableSeries, viewSeries, TS_DATE,
-  TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN, TS_CORR, TS_CORR_A, TS_CORR_B, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
+  seasonalityQuery, seriesQuery, seriesSources, statBlanks, statName, statsQuery, tableSeries, viewChoices, viewSeries, TS_DATE,
+  TS_CAL_LOW, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN, TS_CORR, TS_CORR_A, TS_CORR_B, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
   TS_SPLIT, TS_STAT_LEVEL_LOW, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
 import {
@@ -44,7 +44,7 @@ import {
   valueText, type TsFormat, type TsLine, type TsResult,
 } from '../timeseries-option.ts';
 import type { MountedTimeseries } from '../timeseries-render.ts';
-import { curveOption, describeView, histogramOption, scatterOption, seasonalityOption, TS_MONTH_NAMES, type TsViewContext } from '../timeseries-views.ts';
+import { curveNotes, curveOption, describeView, histogramOption, scatterOption, seasonalityOption, TS_MONTH_NAMES, type TsViewContext } from '../timeseries-views.ts';
 import { lazily } from '../lazily.ts';
 import { chromeIcon, closeMark } from './tile-icons.ts';
 import { isTextEntry } from '../focus.ts';
@@ -352,6 +352,8 @@ export class TimeseriesView {
   #viewFailed: string | undefined;
   #viewAsked = '';
   #viewLanded = '';
+  /** What the view drawn says a reader should know (a curve's lines of earlier days: curveNotes), in the banner. */
+  #viewSaid: string[] = [];
   #viewGen = 0;
   /** The Calendar tab's line, by its key (the person's pick); and its series' calendar as the database answered it, or
    *  its refusal -- asked when the tab is shown (lazy Work), of every date, so asked again only when the rows move. */
@@ -403,6 +405,8 @@ export class TimeseriesView {
   #gen = 0;
   #zoomTimer: ReturnType<typeof setTimeout> | undefined;
   #disposed = false;
+  /** The rounds asking the database now (#busyOn). */
+  #busy = 0;
 
   constructor(root: HTMLElement, host: TimeseriesHost, spec: TimeseriesSpec) {
     this.#root = root;
@@ -593,18 +597,38 @@ export class TimeseriesView {
    *  together once for all of them. */
   async #fetch(): Promise<void> {
     const opened: Opened = new Map();
+    // busy until its statistics are answered too: a refused one is said by then (the second audit's G notes: a browser
+    // check that waited for the drawing alone met none)
+    const done = this.#busyOn();
     try {
       await this.#fetchOver(opened);
     } finally {
       putAway(opened);
+      done();
     }
+  }
+
+  /**
+   * THE CHART BUSY (its aria-busy) while a round asks the database: each round its own, the last done clearing it (the
+   * Phase 3 review's 5: a round superseded left it set, and another's end cleared it while one still asked). What ends
+   * this round's.
+   */
+  #busyOn(): () => void {
+    this.#busy += 1;
+    this.#canvas.setAttribute('aria-busy', 'true');
+    let done = false;
+    return () => {
+      if (done) return;
+      done = true;
+      this.#busy -= 1;
+      if (this.#busy === 0) this.#canvas.removeAttribute('aria-busy');
+    };
   }
 
   async #fetchOver(opened: Opened): Promise<void> {
     const gen = ++this.#gen;
     const spec = this.#spec;
     this.#asked = queryKey(spec);
-    this.#canvas.setAttribute('aria-busy', 'true');
     const problems = timeseriesProblems(spec, this.#columns(spec));
     this.#problems = problems;
     const signal = new AbortController().signal;
@@ -654,18 +678,17 @@ export class TimeseriesView {
     if (gen !== this.#gen || this.#disposed) return;
     await this.#draw();
     await this.#statistics(gen, opened);
-    // busy until its statistics are answered too: a refused one is said by then (the second audit's G notes: a browser
-    // check that waited for the drawing alone met none)
-    if (gen === this.#gen && !this.#disposed) this.#canvas.removeAttribute('aria-busy');
   }
 
   /** The window moved (a zoom, a range): the series that read its first date asked again, and the statistics. */
   async #windowed(): Promise<void> {
     const opened: Opened = new Map();
+    const done = this.#busyOn();
     try {
       await this.#windowedOver(opened);
     } finally {
       putAway(opened);
+      done();
     }
   }
 
@@ -835,11 +858,14 @@ export class TimeseriesView {
 
   /** The view's own settings moved (its mode, its series, its years): it alone asked again, and drawn. */
   async #viewed(): Promise<void> {
-    this.#canvas.setAttribute('aria-busy', 'true');
-    const landed = await this.#fetchView();
-    if (!landed || this.#disposed) return;
-    await this.#draw();
-    this.#canvas.removeAttribute('aria-busy');
+    const done = this.#busyOn();
+    try {
+      const landed = await this.#fetchView();
+      if (!landed || this.#disposed) return;
+      await this.#draw();
+    } finally {
+      done();
+    }
   }
 
   /** The view as an ECharts option, of its answer (timeseries-views.ts), `height` tall, a picture's `title` above it; its
@@ -938,10 +964,12 @@ export class TimeseriesView {
       let drawn: ViewDrawn | undefined;
       try {
         drawn = this.#viewOption(height);
+        this.#viewSaid = mode === 'curve' && this.#view !== undefined ? curveNotes(this.#view.table, spec.view?.dates ?? TS_CURVE_DATES) : [];
       } catch (e) {
         this.#viewFailed = e instanceof Error ? e.message : String(e);
-        this.#paintBanner();
+        this.#viewSaid = [];
       }
+      this.#paintBanner();
       chart.show(drawn?.option ?? { series: [] }, drawn?.described ?? `No ${mode}: ${this.#viewFailed ?? 'nothing to draw'}`);
       return;
     }
@@ -1003,9 +1031,15 @@ export class TimeseriesView {
     const doc = this.#doc;
     const r = this.#spec.range;
     const chosen = this.#zoom ? null : r && 'last' in r ? r.last : r ? 'custom' : 'max';
+    // a seasonality's and a curve's dates their own (every year; the dates asked): the range theirs to read, not the
+    // tile's -- said, never pressed to no effect (the Phase 3 review's 12)
+    const mode = this.#spec.view?.mode;
+    const own = mode === 'seasonality' || mode === 'curve';
     this.#ranges.replaceChildren(...TS_RANGES.map(({ word, label }) => {
-      const b = button(doc, label, `Show the last ${label === 'Max' ? 'of everything' : label}`, () => this.#setRange(word), 'dc-ts-range');
+      const b = button(doc, label, own ? `A ${mode} reads its own dates: ${mode === 'curve' ? 'the dates asked in Settings' : 'every year, the latest and the years before'}`
+        : `Show the last ${label === 'Max' ? 'of everything' : label}`, () => this.#setRange(word), 'dc-ts-range');
       b.setAttribute('aria-pressed', String(chosen === word));
+      b.disabled = own;
       return b;
     }));
     if (this.#zoom || chosen === 'custom') {
@@ -1170,7 +1204,8 @@ export class TimeseriesView {
     const mode = spec.view?.mode;
     if (mode !== undefined) {
       parts.push(el(doc, 'div', 'dc-ts-heading', `The ${mode}`));
-      const v = this.#view;
+      // its answer of what is asked now alone (the Phase 3 review's 12: the mode before's under this one's heading)
+      const v = this.#viewLanded === viewKey(spec, this.#window()) ? this.#view : undefined;
       if (v === undefined) parts.push(el(doc, 'div', 'dc-ts-error', this.#viewFailed !== undefined ? `Refused: ${this.#viewFailed}` : 'Not answered yet.'));
       else {
         const copies = el(doc, 'div', 'dc-ts-row');
@@ -1256,7 +1291,8 @@ export class TimeseriesView {
 
   #paintBanner(): void {
     const problems = [...this.#problems, ...this.#rangeProblems(), ...this.#statsProblems(), ...this.#viewProblems()];
-    const said = [...problems, ...this.#notes];
+    const viewing = this.#spec.view?.mode !== undefined && this.#viewLanded === viewKey(this.#spec, this.#window());
+    const said = [...problems, ...this.#notes, ...(viewing ? this.#viewSaid : [])];
     this.#banner.hidden = said.length === 0;
     this.#banner.replaceChildren(...said.map((t) => this.#doc.createTextNode(`${t} `)));
     this.#banner.classList.toggle('dc-ts-bad', problems.length > 0);
@@ -1597,12 +1633,28 @@ export class TimeseriesView {
     }
     if ('failed' in asked) return [bar, el(doc, 'div', 'dc-ts-error', `Refused: ${asked.failed}`)];
     const t = asked.table;
-    const column = (n: string): readonly unknown[] => t.columns.find((c) => c.name === n)?.values ?? [];
-    const splits = column(TS_SPLIT);
-    const years = column(TS_CAL_YEAR).map((v) => toNumber(v as Scalar));
-    const months = column(TS_CAL_MONTH).map((v) => toNumber(v as Scalar));
-    const returns = column(TS_CAL_RETURN).map((v) => toNumber(v as Scalar));
-    const yearly = column(TS_CAL_YEAR_RETURN).map((v) => toNumber(v as Scalar));
+    // a column the database answered without refused by name, never read as no months (the Phase 3 review's 9)
+    const column = (n: string): readonly unknown[] => {
+      const c = t.columns.find((x) => x.name === n);
+      if (!c) throw new Error(`the database answered without the calendar's ${n}`);
+      return c.values;
+    };
+    let splits: readonly unknown[];
+    let years: (number | null)[];
+    let months: (number | null)[];
+    let returns: (number | null)[];
+    let yearly: (number | null)[];
+    let lows: (number | null)[];
+    try {
+      splits = line.split === undefined ? [] : column(TS_SPLIT);
+      years = column(TS_CAL_YEAR).map((v) => toNumber(v as Scalar));
+      months = column(TS_CAL_MONTH).map((v) => toNumber(v as Scalar));
+      returns = column(TS_CAL_RETURN).map((v) => toNumber(v as Scalar));
+      yearly = column(TS_CAL_YEAR_RETURN).map((v) => toNumber(v as Scalar));
+      lows = column(TS_CAL_LOW).map((v) => toNumber(v as Scalar));
+    } catch (e) {
+      return [bar, el(doc, 'div', 'dc-ts-error', `Refused: ${e instanceof Error ? e.message : String(e)}`)];
+    }
     // its rows by year, each month's return in its place, the year's beside them
     const byYear = new Map<number, { months: (number | null | undefined)[]; year: number | null }>();
     years.forEach((y, i) => {
@@ -1632,8 +1684,12 @@ export class TimeseriesView {
       tr.append(el(doc, 'td', 'dc-ts-table-date', String(y)), ...row.months.map((v) => cell(v, 0.1)), cell(row.year, 0.25));
       table.append(tr);
     }
-    const said = 'A month\'s return from the month before\'s last level to its own last; a year\'s from the year before\'s last. The first of each has none (no level before it).';
-    return [bar, table, el(doc, 'div', 'dc-ts-stats-blanks', said)];
+    const said = ['A month\'s return from the month before\'s last level to its own last; a year\'s from the year before\'s last.'
+      + ' None where there is no level the month or the year before: the first, and after one missing.'];
+    // a level at or below zero at a month's end: a return from it none, said so (the Phase 3 review's 9)
+    const low = lows.find((_, i) => line.split === undefined || splits[i] === line.split);
+    if (low !== undefined && low !== null && low <= 0) said.push(`${line.name} is at or below zero at a month's end: a return from there is none.`);
+    return [bar, table, el(doc, 'div', 'dc-ts-stats-blanks', said.join(' '))];
   }
 
   /** A level series' calendar asked of the database, once for the rows drawn, then the tab painted again. */
@@ -2349,9 +2405,11 @@ export class TimeseriesView {
     const spec = this.#spec;
     const picked = viewSeries(spec);
     const out: HTMLElement[] = [];
-    const ofLine = (s: TsSeries): boolean => s.split === undefined;
-    const choices = (want: (s: TsSeries) => boolean): (readonly [string, string])[] =>
-      spec.series.filter((s) => want(s) && tableSeries(spec).statistics.includes(s.id)).map((s) => [s.id, `${s.id}: ${seriesName(s)}`] as const);
+    // the series a view can draw (timeseries-query.ts viewChoices: no band, no condition, no candles -- the Phase 3
+    // review's 12: candles offered, then refused)
+    const can = viewChoices(spec);
+    const choices = (ids: readonly string[]): (readonly [string, string])[] =>
+      ids.map((id) => spec.series.find((s) => s.id === id)!).map((s) => [s.id, `${s.id}: ${seriesName(s)}`] as const);
     const row = (label: string, ...controls: HTMLElement[]): HTMLElement => {
       const r = el(doc, 'div', 'dc-ts-row');
       r.append(el(doc, 'span', 'dc-ts-field-label', label), ...controls);
@@ -2359,17 +2417,20 @@ export class TimeseriesView {
     };
     if (mode === 'scatter') {
       const [x, y] = picked.scatter ?? ['', ''];
-      const one = choices(ofLine);
+      const one = choices(can.oneLine);
+      // a pick kept until its pair is whole (the Phase 3 review's 12: the first lost where the tile had no pair yet)
+      let pending: string[] = [x, y];
       const pick = (which: 0 | 1, at: string): HTMLSelectElement => select(doc, [...(at === '' ? [['', 'Pick a series'] as const] : []), ...one], at, (v) => {
         // the other as the tile has it now (a pick before this one kept)
-        const pair = [...(viewSeries(this.#spec).scatter ?? ['', ''])];
+        const pair = [...(viewSeries(this.#spec).scatter ?? pending)];
         pair[which] = v;
+        pending = pair;
         if (pair[0] !== '' && pair[1] !== '') this.#edit({ kind: 'view', view: { of: pair } });
       }, which === 0 ? 'Across (x)' : 'Up (y)');
       out.push(row('Across (x)', pick(0, x)), row('Up (y)', pick(1, y)));
     } else {
       const at = mode === 'curve' ? picked.curve : picked.one;
-      const one = choices(mode === 'curve' ? (s) => !ofLine(s) : ofLine);
+      const one = choices(mode === 'curve' ? can.split : can.oneLine);
       out.push(row('Series', select(doc, [...(at === undefined ? [['', 'Pick a series'] as const] : []), ...one], at ?? '', (v) => {
         if (v !== '') this.#edit({ kind: 'view', view: { of: [v] } });
       }, 'Series')));
