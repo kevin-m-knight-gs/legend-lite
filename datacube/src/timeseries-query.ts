@@ -33,7 +33,7 @@ import { isDay, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts
 import {
   filterRead,
   MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, tenorOf, TS_POINT_LIMIT, TS_RANGES, type TimeseriesSpec, type TsAggregate,
-  type TsExpr, type TsMatch, type TsOperator, type TsRangeWord, type TsSeries, type TsSource, type TsTenor,
+  type TsExpr, type TsMatch, type TsOperator, type TsRange, type TsRangeWord, type TsSeries, type TsSource, type TsTenor,
   isConditionOp,
 } from './timeseries-spec.ts';
 import { inlined, isBand, isCandles, isCondition, levelOf, TsInlineError, paramOf, seriesName, sourceAlias, sourcesOf, splitName, unitOf, type TsUnit } from './timeseries-expr.ts';
@@ -566,7 +566,12 @@ class Writer {
    * value -- an exponential average of decay (w - 1) / w from that mean.
    */
   smoothed(x: string, w_: number): string {
-    if (w_ <= 1) return x;
+    // of one: each value itself, from the first after the first (gs-quant's ramp of 1 drops the first -- the E9 review's
+    // nit: it had been kept)
+    if (w_ <= 1) {
+      const k = this.#places(x, 1);
+      return this.row('smma', when(fn('isEmpty', col(k)), none(), col(x)));
+    }
     const mean = this.window('smma_seed', 'average', Writer.read(x), w_);
     return this.ewm(x, fn('divide', lit.integer(w_ - 1), lit.integer(w_)), { at: w_, value: mean });
   }
@@ -677,8 +682,8 @@ class Writer {
 
   /** A sample standard deviation over `w` periods (0 from the start, or a calendar period), drawn once its window holds
    *  two. */
-  std(a: string, w: Span): string {
-    return this.ramped(this.window('std', 'stdDevSample', Writer.read(a), Writer.frame(w)), a, atLeast(w, 2), Writer.frame(w));
+  std(a: string, w: Span, since = a): string {
+    return this.ramped(this.window('std', 'stdDevSample', Writer.read(a), Writer.frame(w)), typeof w === 'number' ? a : since, atLeast(w, 2), Writer.frame(w));
   }
 
   /** Simple returns, for the functions gs-quant reads them for (a correlation's, a beta's, a Sharpe ratio's). */
@@ -1084,7 +1089,9 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     }
     case 'volatility': {
       const r = w.returns(a, 1, word('type'));
-      const sd = w.std(r, span('w'));
+      // over a calendar period, from the first price's date that period on: gs-quant's returns keep the first price's
+      // date (its return none), which its ramp counts from (the E9 review's nit: from the first return's, a date late)
+      const sd = w.std(r, span('w'), a);
       return done(w.row('vol', op('times', op('times', one(sd), w.annual()), lit.integer(100))));
     }
     case 'drawdown': {
@@ -1103,9 +1110,9 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       const size = span('w');
       const r = w.simple(a);
       const mean = w.window('mean', 'average', R(r), Writer.frame(size));
-      const sd = w.std(r, size);
+      const sd = w.std(r, size, a);
       return done(w.ramped(w.row('sharpe', when(fn('equal', one(sd), lit.integer(0)), none(),
-        op('times', fn('divide', one(mean), one(sd)), w.annual()))), r, size, Writer.frame(size)));
+        op('times', fn('divide', one(mean), one(sd)), w.annual()))), typeof size === 'number' ? r : a, size, Writer.frame(size)));
     }
     case 'bollinger_bands': {
       const size = span('w');
@@ -1399,6 +1406,62 @@ export function boundsQuery(input: TsInput, src: TsSource): Lambda {
     return derive(rangeStartName(r.word), row(body));
   });
   return rel.extend(starts).select([TS_LATEST, TS_EARLIEST, ...starts.map((c) => c.name)]).lambda();
+}
+
+/**
+ * WHY A LEVEL'S FIGURES ARE BLANK (the second audit's P-2b and S1: a "—" said nothing), from its statistics' own answer --
+ * its least over the dates shown (`low`, before compare took it from its start), its periods a year (`perYear`) and its
+ * growth (`cagr`): at or below zero, none of its returns' figures; no frequency, no volatility or Sharpe ratio; under a
+ * year, its growth not annualized. Each read off the database's answer, compared, never computed; undefined where its
+ * answer has no such column. The one rule the viewer's statistics panel and Python's statistics say it by (the E9
+ * review's 10: Python's had said nothing).
+ */
+export function statBlanks(name: string, f: { readonly low: number | null | undefined; readonly perYear: number | null | undefined; readonly cagr: number | null | undefined }): string[] {
+  if (f.low !== undefined && f.low !== null && f.low <= 0) {
+    return [`${name} is at or below zero over these dates: it has no volatility, drawdown, growth or Sharpe ratio, nor any figure of its returns' risk.`];
+  }
+  const out: string[] = [];
+  if (f.perYear === null) out.push(`${name}: its dates are no frequency to annualize its volatility and Sharpe ratio by: choose the tile's frequency.`);
+  // the database's growth blank above zero: these dates span under a year (the review's N3)
+  if (f.low !== undefined && f.low !== null && f.cagr === null) {
+    out.push(`${name}: these dates span under a year, so its growth is not annualized: its % change is its growth.`);
+  }
+  return out;
+}
+
+/**
+ * THE DATES A TILE'S RANGE SHOWS (its window, a zoom aside): a range of the last of a period from the source with the
+ * latest date of all -- found by comparing the dates the database gave in each source's bounds (boundsQuery), its start
+ * for the range the database's -- or its own dates; every one for Max, no range, or a tile of no source of dates. The one
+ * rule the viewer's window and Python's tables read (the E9 review's 7: Python's had read every date of a 1Y tile).
+ */
+export function rangeWindow(range: TsRange | undefined, bounds: Iterable<ResultTable>): TsWindow {
+  if (!range) return {};
+  if ('last' in range) {
+    if (range.last === 'max') return {};
+    // the bounds query writes both columns: one missing is a bug, never the whole range shown in its place (the second
+    // audit's G notes); a source of no dates has no latest
+    const value = (t: ResultTable, name: string): unknown => {
+      const c = t.columns.find((x) => x.name === name);
+      if (!c) throw new Error(`the tile's bounds answered with no ${name}`);
+      return c.values[0] ?? null;
+    };
+    let best: ResultTable | undefined;
+    let latest = '';
+    for (const t of bounds) {
+      const v = value(t, TS_LATEST);
+      if (v === null) continue;
+      const at = String(v);
+      if (at > latest) {
+        latest = at;
+        best = t;
+      }
+    }
+    if (!best) return {};
+    const from = value(best, rangeStartName(range.last));
+    return from === null ? {} : { from: String(from).slice(0, 10) };
+  }
+  return { ...(range.from !== undefined ? { from: range.from } : {}), ...(range.to !== undefined ? { to: range.to } : {}) };
 }
 
 /** A series' relation cut to the dates shown (`view`: from, to; either open): each period's value's date, its last

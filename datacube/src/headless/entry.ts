@@ -20,7 +20,9 @@ import {
   pageReads, pageRebase, pageRecord, pageSaved, pageSearch, pageWithCube,
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides, joinTogether } from './join.ts';
-import { timeseriesEdit, timeseriesMade, timeseriesNotes, timeseriesQuery, timeseriesTables } from './timeseries.ts';
+import {
+  timeseriesEdit, timeseriesMade, timeseriesNotes, timeseriesQuery, timeseriesStatNotes, timeseriesTables, timeseriesWindow,
+} from './timeseries.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
 export { REQUEST_KINDS };
@@ -154,6 +156,12 @@ export { timeseriesNotes };
  *  tableSeries): Python's Timeseries.statistics, drawdowns and correlations, each asked of timeseriesQuery with its
  *  `table`. */
 export { timeseriesTables };
+/** The dates a timeseries tile's tables read over its range, by the rule its screen's window reads (timeseries-query.ts
+ *  rangeWindow): Python's Timeseries tables asked of no dates, each source's bounds asked of timeseriesQuery. */
+export { timeseriesWindow };
+/** Why a level's statistics are blank, by the rule the screen's statistics panel says it by (timeseries-query.ts
+ *  statBlanks): Python's Timeseries.statistics, said as warnings. */
+export { timeseriesStatNotes };
 /** A timeseries' series of one grid, as the grid reads it (its copy, a class's mapping, the page's filters): Python's
  *  Timeseries.frame of a series of one grid (headless grid.ts gridTimeseries). */
 export { gridTimeseries } from './grid.ts';

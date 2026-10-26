@@ -1929,37 +1929,77 @@ class Timeseries(Tile):
 
     def _line(self, said: dict[str, Any], split: Any, name: str = 'name', series: str = '') -> str:
         """A line of a table, named: its series' name (else its id), and its split value after it -- every line of
-        every series apart (two series split by the same column have lines of the same values)."""
+        every series apart (two series split by the same column have lines of the same values; two of one name each its
+        id after it)."""
         own = said[name] or series
+        named = [s.get('name') or s['id'] for s in self._view['spec']['series']]
+        if named.count(own) > 1:
+            own = f'{own} ({series})'
         return own if split is None else f'{own} {split}'
 
-    def statistics(self, *, start: str | None = None, end: str | None = None) -> Any:
-        """Each line's statistics over the dates ``start`` to ``end`` (ISO days, either open), every figure the
-        database's -- the screen's Summary and Risk tabs' (timeseries-query.ts statsQuery: first, last, change, extremes,
-        mean, deviation; of a level its volatility, drawdown, growth, Sharpe, Sortino, Calmar, skew, kurtosis, up
-        periods, best, worst, value at risk and expected shortfall): a pandas DataFrame, a row per line, a column per
-        statistic (none where a line has none: a return has no volatility). A band and a condition have none."""
+    def _window(self, start: str | None, end: str | None) -> dict[str, Any]:
+        """The dates a table reads: ``start`` and ``end`` as given (either open); neither, the tile's range, as its
+        screen's tables read it (headless timeseriesWindow: timeseries-query.ts rangeWindow, the viewer's own rule) --
+        a range of the last of a period from its sources' latest date, each source's bounds the database's."""
+        if start is not None or end is not None:
+            return {k: v for k, v in (('from', start), ('to', end)) if v is not None}
         import pandas as pd
-        window = {k: v for k, v in (('from', start), ('to', end)) if v is not None}
+        page = self._page
+        engine = page._session.headless()
+        said = _json.loads(engine.call('timeseriesWindow', _json.dumps(page._doc), self._id, 'null'))
+        if 'bounds' in said:
+            told: dict[str, dict[str, Any]] = {}
+            for alias in said['bounds']:
+                rows, _ = self._rows({'page': page._doc, 'tile': self._id, 'table': 'bounds', 'source': alias})
+                told[alias] = {c: (None if len(rows) == 0 or pd.isna(rows[c].iloc[0]) else
+                                   rows[c].iloc[0].isoformat() if hasattr(rows[c].iloc[0], 'isoformat') else str(rows[c].iloc[0]))
+                               for c in rows.columns}
+            said = _json.loads(engine.call('timeseriesWindow', _json.dumps(page._doc), self._id, _json.dumps(told)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return said['window']
+
+    def statistics(self, *, start: str | None = None, end: str | None = None) -> Any:
+        """Each line's statistics over the dates ``start`` to ``end`` (ISO days, either open; neither, the tile's
+        range, as its screen shows them), every figure the database's -- the screen's Summary and Risk tabs'
+        (timeseries-query.ts statsQuery: first, last, change, extremes, mean, deviation; of a level its volatility,
+        drawdown, growth, Sharpe, Sortino, Calmar, skew, kurtosis, up periods, best, worst, value at risk and expected
+        shortfall): a pandas DataFrame, a row per line, a column per statistic (none where a line has none: a return has
+        no volatility). A band and a condition have none. Why a level's are blank -- at or below zero, no frequency,
+        under a year -- is said as a warning, in the screen's words (headless timeseriesStatNotes)."""
+        import pandas as pd
+        window = self._window(start, end)
         out = []
+        blank = []
         for series in self._tables()['statistics']:
             rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': series, 'window': window, 'table': 'statistics'})
-            named = said['columns']
+            named, why = said['columns'], said['why']
+            value = (lambda r, c: None if c not in rows.columns or pd.isna(r[c]) else r[c])
             for _, r in rows.iterrows():
                 split = r[named['split']] if named['split'] in rows.columns else None
                 line = {'line': self._line(said, split, series=series)}
-                line.update({stat: (None if pd.isna(r[col]) else r[col]) if col in rows.columns else None
-                             for stat, col in named.items() if stat != 'split'})
+                line.update({stat: value(r, col) for stat, col in named.items() if stat != 'split'})
                 out.append(line)
+                if said['level']:
+                    figure = (lambda v: None if v is None else float(v))
+                    blank.append({'name': line['line'], **{k: figure(value(r, c)) for k, c in (('low', why['levelLow']), ('perYear', why['perYear']),
+                                                                                                 ('cagr', named['cagr'])) if c in rows.columns}})
+        if blank:
+            notes = _json.loads(self._page._session.headless().call('timeseriesStatNotes', _json.dumps({'lines': blank})))
+            if 'problems' in notes:
+                raise ValueError('; '.join(notes['problems']))
+            for note in notes['notes']:
+                warnings.warn(note, stacklevel=2)
         return pd.DataFrame(out).set_index('line') if out else pd.DataFrame()
 
     def drawdowns(self, *, start: str | None = None, end: str | None = None) -> Any:
         """Each level line's deepest drawdowns over the dates ``start`` to ``end``, every date and figure the
         database's -- the screen's Drawdowns tab's (timeseries-query.ts drawdownsQuery): a pandas DataFrame, a row per
         drawdown, deepest first per line -- its line, its rank, its peak's date, its trough's and its recovery's (none:
-        not yet), its depth (-0.2 for 20%), the days down and the days back."""
+        not yet), its depth (-0.2 for 20%), the days down and the days back. Neither ``start`` nor ``end``: the tile's
+        range, as its screen shows them."""
         import pandas as pd
-        window = {k: v for k, v in (('from', start), ('to', end)) if v is not None}
+        window = self._window(start, end)
         out = []
         for series in self._tables()['drawdowns']:
             rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': series, 'window': window, 'table': 'drawdowns'})
@@ -1974,9 +2014,10 @@ class Timeseries(Tile):
         """Each pair of lines' correlation over the dates ``start`` to ``end``, each the database's -- the screen's
         Correlations tab's (timeseries-query.ts correlationsQuery: a level's simple returns, anything else as it is,
         over the dates both have): a pandas DataFrame, a matrix of the lines -- each line with itself the database's too
-        (1, or none where it has under two values or does not vary)."""
+        (1, or none where it has under two values or does not vary). Neither ``start`` nor ``end``: the tile's range, as
+        its screen shows them."""
         import pandas as pd
-        window = {k: v for k, v in (('from', start), ('to', end)) if v is not None}
+        window = self._window(start, end)
         cells: dict[tuple[str, str], Any] = {}
         lines: list[str] = []
         for a, b in self._tables()['correlations']:

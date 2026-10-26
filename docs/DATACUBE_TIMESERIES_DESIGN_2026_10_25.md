@@ -233,7 +233,11 @@ over the series' own rows does.
 - **Calendar periods** (gs-quant's tenors, `helper._to_offset`: `3m`, `1y`, `2w`, `10d`) for any window `w` and any lag
   `obs`. A window of a period is a SELF-JOIN of the line's periods to every one of its own whose date is in
   `(adjust(date, -n, unit), date]` (gs-quant's `rolling_offset`), its read aggregated per period and joined back
-  (`Writer #calendar`); drawn from the input's first date that period on (gs-quant's `apply_ramp` of a `DateOffset`).
+  (`Writer #calendar`); drawn from the input's first date that period on (gs-quant's `apply_ramp` of a `DateOffset`)
+  -- of a volatility or a Sharpe ratio, from the first PRICE's date, as gs-quant's returns keep it (none there; the E9
+  review). A function of two series (a correlation, a beta, a regression) is drawn from the first date both have a value
+  that period on: the join keeps only the dates both have, where gs-quant's ramp counts from the first series' own
+  first date -- a deliberate difference, of at most the second series' late start.
   A lag of a period is an AS-OF JOIN: the value as of `adjust(date, -n, unit)`, its last at or before
   (`Writer #valueBack`) -- where gs-quant's `lag` moves each date on and keeps only the dates it lands on, so a year
   back from a Monday whose date a year before was a Sunday has none there (the catalog says so).
@@ -249,7 +253,10 @@ over the series' own rows does.
   beta alone): `alpha` (of the simple returns, the mean less beta times the benchmark's, annualized: Jensen's at a
   risk-free rate of zero), `r_squared` (the returns' correlation squared), `hedge_ratio` (the least-squares slope of
   the levels) and `residual` (the level less its fitted value, the spread of a pairs trade -- with `zscores`, its
-  signal). Each from the window's covariance, variance and means, as beta is.
+  signal). Each from the window's covariance, variance and means, as beta is -- every one over the window's PAIRS, the
+  dates both sides have a value (a lag's, a ramped mean's, a first return's leading empties masked on either side), its
+  ramp a count of them (the E9 review: an intercept of two samples had its sign wrong; gs-quant's beta takes its
+  variance over the pairs for a calendar window, and so does this for every window).
 - **Drawdowns** (`drawdownsQuery`, the panel's Drawdowns tab, asked when shown): each level line's deepest five over
   the dates shown, each a run from a peak (a date at or above every one before it) to the next, its recovery (none: not
   yet), its trough the least between -- the peaks a running maximum, the runs numbered by a running count of them,
@@ -267,8 +274,11 @@ over the series' own rows does.
   queries are not reachable from a relation's Pure. So the DATABASE computes the recursion's CLOSED FORM: `y_t =
   (1 - beta)·Σ beta^(t-i)·x'_i`, `x'_0 = x_0 / (1 - beta)`, summed in blocks of W values (W the fewest with `beta^W`
   under 2^-60, so `beta^-pos` stays under 2^60 in a double): a running sum within a block, the block before carried in
-  whole by a join, the blocks before it weighing under 2^-60 -- below a double's precision, so the value is the
-  recursion's to its last bits on every database (`Writer.ewm`). The bias-corrected deviation is the weighted mean
+  whole -- its total a window over the block, read at this block's first value as the value before it (a lag over the
+  line's values) and spread over the block by a window, never the query joined to itself (the E9 review: a join had
+  doubled the query with each nested average, four 407k characters) -- the blocks before it weighing under 2^-60, below
+  a double's precision, so the value is the recursion's to its last bits on every database (`Writer.ewm`). A deviation
+  at beta 0 is refused in words: each value weighs alone, which has no deviation (pandas answers none at every date). The bias-corrected deviation is the weighted mean
   square less the squared weighted mean (of each value less the line's first) over 1 less the sum of squared weights
   (pandas' correction, its closed form). MACD's spans weigh `2 / (k + 1)`; Wilder's starts from the mean of w, as
   gs-quant's ramp has it. Pinned against the recursions themselves (and pandas' `ewmcov` loop) over 700 days.
@@ -278,25 +288,35 @@ over the series' own rows does.
   percentile, which Postgres takes in a GROUP BY but not as a window function). `percentiles` (scipy's
   `percentileofscore`, kind=mean: the share below, those equal counted half), `median` and `percentile` (pandas'
   quantile, the database's continuous percentile; a percentile of no window the whole series', gs-quant's scalar drawn
-  as a line). The planner takes the percentile's fraction as a literal alone: gs-quant's `n` of 100 is spelled as one.
+  as a line -- ONE aggregate a line, grouped and joined back (`Writer.ofLine`), never each row joined to every other:
+  the E9 review timed that at 4.5 s over 4,000 rows). The planner takes the percentile's fraction as a literal alone:
+  gs-quant's `n` of 100 is spelled as one.
 - **Conditions, shaded** (gs-quant's `algebra` comparisons; Bloomberg's and FRED's shaded periods): `<`, `<=`, `>`,
   `>=`, `==`, `!=` and `and`, `or` -- each 1 where it holds, 0 where not, none where a side has none, so a condition
   reads as a number too (`(returns($A) > 0) * returns($B)`). A series that IS a condition (its expression's top) is
   drawn as the periods it holds, shaded in its colour across every pane, on no axis: its runs the database's (each
-  change of it begins one, numbered by a running count; each date that holds carries its run's first and last date,
-  `TS_FROM`, `TS_TO`), the drawing placing each once. Its chip says whether it holds at the date shown last; it has
+  change of it begins one, numbered by a running count; each date that holds carries its run's first date and where
+  its shading ends, the line's next date after the run, from which it no longer holds -- its own last at the line's
+  end -- `TS_FROM`, `TS_TO`: a run of one date a period wide, where to its last date it had none, the E9 review), the
+  drawing placing each once. Its chip says whether it holds at the date shown last; it has
   no statistics, as a band has none.
 - **Correlations** (`correlationsQuery`, the panel's Correlations tab, asked when shown): a matrix of the lines drawn on
   an axis (the first 12), each pair's correlation over the dates both have shown -- a level's simple returns (as
   gs-quant's correlation reads them), anything else as it is -- one query per pair of series: each side written in its
   own Shared (one name counter), cut to the dates shown, its returns, the two joined on the period across their lines
-  (one split series' lines against each other, each pair once), and every pair of lines aggregated. Each cell tinted by
-  its sign and size, drawn.
+  (one split series' lines against each other, each pair once), and every pair of lines aggregated -- each line with
+  itself too, its diagonal the database's (1, or none where it has under two values or does not vary: DuckDB's `corr`
+  says NaN there and Postgres' none, so the query says none itself where a side's variance is zero), and its count of
+  the dates both have. Each cell tinted by its sign and size, drawn.
 - **One rule for the tables, the screen's and Python's** (`tableSeries`): the statistics every series drawn on an axis
   (no band, no condition), the drawdowns every level's, the correlations each pair but candles. Python's
   `Timeseries.statistics()`, `drawdowns()` and `correlations()` ask `timeseriesQuery` with a `table` -- the same queries
   the tabs run (headless `askedOf`), planned and run where the rows are -- each a pandas DataFrame, held in the Python
-  tests to pandas' own skew, kurtosis, quantile and correlation.
+  tests to pandas' own skew, kurtosis, quantile and correlation. The screen's tabs ask by it too, a hidden series
+  included, so showing a line again asks nothing (the E9 review: its rows had been left out); the screen draws the
+  first 12 series' lines of a matrix. Python's tables asked of no dates read the tile's range, as the screen's window
+  does (`rangeWindow`, headless `timeseriesWindow`: each source's bounds the database's, the latest of them), and say
+  why a level's figures are blank in the screen's words, as warnings (`statBlanks`, headless `timeseriesStatNotes`).
 
 ### 5.4 Proven so far
 

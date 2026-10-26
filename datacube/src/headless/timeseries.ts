@@ -8,10 +8,11 @@ import { readPage, type PageDocument } from '../page-document.ts';
 import { gridTitle } from '../page-ids.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot } from '../snapshot.ts';
 import {
-  correlationsQuery, drawdownsQuery, readsAnchor, seriesNotes, seriesQuery, seriesSources, statName, statsQuery, tableSeries,
+  boundsQuery, correlationsQuery, drawdownsQuery, rangeWindow, readsAnchor, seriesNotes, seriesQuery, seriesSources, statBlanks, statName,
+  statsQuery, tableSeries,
   TS_CORR, TS_CORR_A, TS_CORR_B, TS_CORR_N, TS_DATE, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED,
-  TS_DD_RECOVERY, TS_DD_TROUGH, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STATS, TS_UPPER, TS_VALUE,
-  type TsInputs, type TsQuery, type TsTable, type TsWindow,
+  TS_DD_RECOVERY, TS_DD_TROUGH, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_LEVEL_LOW,
+  TS_STAT_PER_YEAR, TS_STATS, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsTable, type TsWindow,
 } from '../timeseries-query.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { HostTables } from './host-tables.ts';
@@ -216,7 +217,10 @@ export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window'>, i
     case 'statistics': {
       const q = statsQuery(inputs, ts, series, window);
       const columns = Object.fromEntries([['split', TS_SPLIT], ...TS_STATS.map((st) => [st, statName(st)])]);
-      return `"query":${toJson(q.query)},"table":"statistics","columns":${JSON.stringify(columns)},"split":${JSON.stringify(q.split ?? null)},"name":${JSON.stringify(series.name ?? null)}`;
+      // and what says why a level's figures are blank (timeseriesStatNotes: statBlanks, the screen's words)
+      const why = { levelLow: TS_STAT_LEVEL_LOW, perYear: TS_STAT_PER_YEAR };
+      return `"query":${toJson(q.query)},"table":"statistics","columns":${JSON.stringify(columns)},"why":${JSON.stringify(why)},`
+        + `"level":${JSON.stringify(q.level)},"split":${JSON.stringify(q.split ?? null)},"name":${JSON.stringify(series.name ?? null)}`;
     }
     case 'drawdowns': {
       const q = drawdownsQuery(inputs, ts, series, window);
@@ -237,6 +241,81 @@ export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window'>, i
   }
 }
 
+/** What a host asks of a source's bounds (timeseriesQuery): the dates it spans and where each range button starts
+ *  (timeseries-query.ts boundsQuery) -- the tile's range read from them by timeseriesWindow. */
+export interface BoundsAsked {
+  readonly page: unknown;
+  readonly tile: string;
+  readonly table: 'bounds';
+  readonly source: string;
+  readonly host: HostTables;
+  readonly copies?: Readonly<Record<string, unknown>>;
+}
+
+/** A source's bounds as a host reads them: its query over the source's grid as the tile reads it. */
+export function boundsOf(ts: TimeseriesSpec, alias: string, input: TsInput): string {
+  const src = ts.sources.find((x) => x.alias === alias);
+  if (!src) throw new Problem(`the tile has no source ${alias}`);
+  return `"query":${toJson(boundsQuery(input, src))},"table":"bounds"`;
+}
+
+/** A timeseries tile of a page, or a refusal naming what is not. */
+function tileOf(page: PageDocument, tile: string): TimeseriesSpec {
+  const view = page.views.find((v) => v.id === tile);
+  if (!view || view.kind !== 'timeseries') throw new Problem(`'${tile}' is no timeseries tile of the page`);
+  return view.spec;
+}
+
+/**
+ * THE DATES A TILE'S TABLES READ, HEADLESS: tile `tile` of `page` over its range, by the rule its screen's window reads
+ * (timeseries-query.ts rangeWindow) -- for Python's Timeseries tables asked of no dates. `bounds`: null, the first ask
+ * (JSON `{window}`, or `{bounds}`: the sources whose bounds its range is read from, each asked of timeseriesQuery as
+ * `table: "bounds"`); else each such source's bounds as the host read them (by alias, each column's first value), JSON
+ * `{window}`. Or `{problems}`.
+ */
+export function timeseriesWindow(page: string, tile: string, bounds: string): string {
+  try {
+    const ts = tileOf(readPage(JSON.parse(page), { empty: true }), tile);
+    const told = JSON.parse(bounds) as unknown;
+    if (told === null) {
+      // the range's dates its own, or every one: no bounds to read
+      if (ts.range === undefined || !('last' in ts.range) || ts.range.last === 'max') return JSON.stringify({ window: rangeWindow(ts.range, []) });
+      return JSON.stringify({ bounds: ts.sources.map((x) => x.alias) });
+    }
+    if (!isRecord(told)) throw new Problem('a tile\'s bounds are by its sources\' aliases');
+    const tables = Object.entries(told).map(([alias, columns]): ResultTable => {
+      if (!isRecord(columns) || !(TS_LATEST in columns)) throw new Problem(`source ${alias}'s bounds are its bounds query's columns, each its value`);
+      return { columns: Object.entries(columns).map(([name, v]) => ({ name, type: 'String', values: [v === null ? null : String(v)] })), rowCount: 1, epoch: 0, elapsedMs: 0 };
+    });
+    return JSON.stringify({ window: rangeWindow(ts.range, tables) });
+  } catch (e) {
+    if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
+    throw e;
+  }
+}
+
+/**
+ * WHY A LEVEL'S STATISTICS ARE BLANK, HEADLESS: each line's words by the rule the screen's statistics panel says them by
+ * (timeseries-query.ts statBlanks) -- `asked` JSON `{lines: [{name, low, perYear, cagr}]}` (each the line's own answer's,
+ * absent where it has none) -- for Python's Timeseries.statistics, said as warnings. JSON: `{notes}`, or `{problems}`.
+ */
+export function timeseriesStatNotes(asked: string): string {
+  try {
+    const a = JSON.parse(asked) as { readonly lines?: unknown };
+    if (!Array.isArray(a.lines)) throw new Problem('a table\'s lines are a list');
+    const figure = (v: unknown): number | null | undefined => (v === undefined ? undefined : v === null ? null : Number(v));
+    return JSON.stringify({
+      notes: a.lines.flatMap((l: unknown) => {
+        if (!isRecord(l) || typeof l['name'] !== 'string') throw new Problem('a line of a table has its name');
+        return statBlanks(l['name'], { low: figure(l['low']), perYear: figure(l['perYear']), cagr: figure(l['cagr']) });
+      }),
+    });
+  } catch (e) {
+    if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
+    throw e;
+  }
+}
+
 /** The sources a host's ask reads, by alias: the series', and of a correlation the other's too. */
 export function askedSources(asked: Pick<SeriesAsked, 'table' | 'with'>, ts: TimeseriesSpec, series: TsSeries): string[] {
   const other = asked.table === 'correlations' && asked.with !== undefined ? ts.series.find((x) => x.id === asked.with) : undefined;
@@ -250,10 +329,7 @@ export function askedSources(asked: Pick<SeriesAsked, 'table' | 'with'>, ts: Tim
  */
 export function timeseriesTables(page: string, tile: string): string {
   try {
-    const doc = readPage(JSON.parse(page), { empty: true });
-    const view = doc.views.find((v) => v.id === tile);
-    if (!view || view.kind !== 'timeseries') throw new Problem(`'${tile}' is no timeseries tile of the page`);
-    return JSON.stringify(tableSeries(view.spec));
+    return JSON.stringify(tableSeries(tileOf(readPage(JSON.parse(page), { empty: true }), tile)));
   } catch (e) {
     if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
     throw e;
@@ -317,8 +393,15 @@ export function seriesOf(page: PageDocument, tile: string, id: string): { readon
  */
 export async function timeseriesQuery(spec: string): Promise<string> {
   try {
-    const asked = fromJson(spec) as unknown as SeriesAsked;
+    const asked = fromJson(spec) as unknown as SeriesAsked | BoundsAsked;
     const page = readPage(asked.page, { empty: true });
+    // a source's bounds: of its one grid, read as that grid is (headless grid.ts gridTimeseries)
+    if (asked.table === 'bounds') {
+      const src = tileOf(page, asked.tile).sources.find((x) => x.alias === asked.source);
+      if (!src) throw new Problem(`${asked.tile} has no source ${JSON.stringify(asked.source)}`);
+      if (!page.cubes.some((c) => c.id === src.cube)) throw new Problem(`source ${src.alias}'s grid is not on the page (it was removed)`);
+      return JSON.stringify({ grid: src.cube });
+    }
     const { ts, series } = seriesOf(page, asked.tile, asked.series);
     let aliases: string[];
     try {

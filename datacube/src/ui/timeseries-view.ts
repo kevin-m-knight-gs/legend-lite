@@ -31,7 +31,7 @@ import {
   editTimeseries, firstTimeseries as firstOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
 } from '../timeseries-edit.ts';
 import {
-  boundsQuery, correlationsQuery, drawdownsQuery, keyValuesQuery, rangeStartName, readsAnchor, seriesQuery, seriesSources, statName, statsQuery, tableSeries, TS_DATE, TS_LATEST,
+  boundsQuery, correlationsQuery, drawdownsQuery, keyValuesQuery, rangeWindow, readsAnchor, seriesQuery, seriesSources, statBlanks, statName, statsQuery, tableSeries, TS_DATE,
   TS_CORR, TS_CORR_A, TS_CORR_B, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
   TS_SPLIT, TS_STAT_LEVEL_LOW, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
@@ -112,12 +112,6 @@ export interface TimeseriesHost {
 }
 
 /** A source's bound as the database answered it (timeseries-query.ts boundsQuery): its one row's value, null for none. */
-function boundsValue(t: ResultTable, name: string): Scalar | null {
-  const c = t.columns.find((x) => x.name === name);
-  if (!c) throw new Error(`the tile's bounds answered with no ${name}`);
-  return c.values[0] ?? null;
-}
-
 /** A grid of the page as the tile's edits read it (timeseries-edit.ts TsGridColumns): its columns as its query is now. */
 function gridColumns(grid: TsGrid): TsGridColumns {
   return {
@@ -494,30 +488,8 @@ export class TimeseriesView {
 
   /** The window shown: the person's zoom, else the range's -- a period back from the latest date any source has. */
   #window(): TsWindow {
-    if (this.#zoom) return this.#zoom;
-    const r = this.#spec.range;
-    if (!r) return {};
-    if ('last' in r) {
-      if (r.last === 'max') return {};
-      // the source with the latest date of all, by comparing the dates the database gave; its start for the range
-      // (the bounds query writes both columns: one missing is a bug, never the whole range shown in its place -- the
-      // second audit's G notes; a source of no dates has no latest, and a tile of none shows what there is)
-      let best: ResultTable | undefined;
-      let latest = '';
-      for (const t of this.#bounds.values()) {
-        const v = boundsValue(t, TS_LATEST);
-        if (v === null) continue;
-        const at = String(v);
-        if (at > latest) {
-          latest = at;
-          best = t;
-        }
-      }
-      if (!best) return {};
-      const from = boundsValue(best, rangeStartName(r.last));
-      return from === null ? {} : { from: String(from).slice(0, 10) };
-    }
-    return { ...(r.from !== undefined ? { from: r.from } : {}), ...(r.to !== undefined ? { to: r.to } : {}) };
+    // a zoom, else the range's dates by the rule Python's tables read too (timeseries-query.ts rangeWindow)
+    return this.#zoom ?? rangeWindow(this.#spec.range, this.#bounds.values());
   }
 
   /** Every series asked again: the bounds, then the series, then the statistics -- the grids a combination reads opened
@@ -1210,19 +1182,9 @@ export class TimeseriesView {
   #statBlanks(): string[] {
     const out: string[] = [];
     for (const l of this.#lines.filter((x) => x.level && !x.band && !x.series.hidden && !this.#statsFailed.has(x.series.id))) {
-      // the level's own least, before compare took it from its start (a % change from its start is zero there)
-      const low = this.#statColumn(l, TS_STAT_LEVEL_LOW);
-      if (low !== undefined && low !== null && low <= 0) {
-        out.push(`${l.name} is at or below zero over these dates: it has no volatility, drawdown, growth or Sharpe ratio, nor any figure of its returns' risk.`);
-        continue;
-      }
-      if (this.#statColumn(l, TS_STAT_PER_YEAR) === null) {
-        out.push(`${l.name}: its dates are no frequency to annualize its volatility and Sharpe ratio by: choose the tile's frequency.`);
-      }
-      // the database's growth blank above zero: these dates span under a year (the review's N3)
-      if (low !== undefined && low !== null && this.#statColumn(l, statName('cagr')) === null) {
-        out.push(`${l.name}: these dates span under a year, so its growth is not annualized: its % change is its growth.`);
-      }
+      // by the rule Python's statistics say it by (timeseries-query.ts statBlanks)
+      out.push(...statBlanks(l.name, { low: this.#statColumn(l, TS_STAT_LEVEL_LOW), perYear: this.#statColumn(l, TS_STAT_PER_YEAR),
+        cagr: this.#statColumn(l, statName('cagr')) }));
     }
     return out;
   }

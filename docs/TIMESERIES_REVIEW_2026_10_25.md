@@ -238,3 +238,45 @@ of its grids still on the board; the editor's selects sized as the toolbar's; th
   where Python froze it from the page's cube. One rule now: each source's filter as the page holds its cube -- its
   grid's, else as the page saved it (`TimeseriesHost.heldFilter`, `CubePageOptions.unopenedCube`). Pinned:
   `one-api-gestures` P9 (the screen's spec is Python's).
+
+## 11. The expert functions' review (2026-10-26, E9)
+
+An independent review of the expert functions (§5.3½ of the design note: calendar periods, risk statistics, the
+regression, drawdowns, exponential averages, percentiles, conditions, correlations, the tables in Python), read with
+probes of its own against DuckDB, pandas and gs-quant 2.2.1's source. Each fix pinned by a test that failed first.
+
+- 1, alpha and residual of two samples: their means were each column's own while the covariance's were the pairs', so
+  a second series with leading empties (a lag, a ramped mean) gave an intercept of two samples (`alpha(close[AAA],
+  lag(close[BBB], 3), 8)`: its sign wrong). Every regression's means, variance and ramp are now of the window's pairs
+  -- beta's variance too. Pinned: `timeseries-queries` ("a regression on a second series that starts later").
+- 2, an exponential deviation at beta 0 refused by the database (its log of 0): refused in words by the reader
+  (`SPREAD_BETA`, above 0). Pinned: `timeseries-spec`.
+- 3 and 8, the Drawdowns and Correlations tabs asked of the lines shown, so a line shown again was left out (or "—"),
+  and Python's tables read another rule: the tabs ask by `tableSeries`, hidden series included. Pinned:
+  `timeseries-view-dom` ("a hidden line shown again").
+- 4, a condition's shading a period short, a run of one date none: shaded to the line's next date after the run.
+  Pinned: `timeseries-queries` (conditions), `timeseries-view-dom` (the drawing's areas).
+- 5, a percentile of every value a self-join of every row to every other (4.5 s over 4,000 rows): one aggregate a
+  line, joined back. Pinned: `timeseries-queries` (one join).
+- 6, each exponential average joined the query to itself, doubling it with every nested one (1-4 of them: 32,969,
+  86,469, 193,469, 407,469 characters): its block carried by windows, each adding the same steps. Pinned:
+  `timeseries-queries` ("averages of averages"), the recursions over 700 days unchanged, a split and a weekly one.
+- 7, Python's tables read every date where the screen's read the tile's range: one rule (`rangeWindow`, headless
+  `timeseriesWindow` over each source's bounds). Pinned: `test_page` (a fixed range; the last month).
+- 9, the Drawdowns tab said a level at or below zero "never fell": it says it is at or below zero. Pinned:
+  `timeseries-view-dom`.
+- 10, Python's statistics gave NaN where the screen says why: the screen's words as warnings (`statBlanks`, headless
+  `timeseriesStatNotes`). Pinned: `test_page`.
+- 11, a correlation's count of dates counted one side's alone: of the dates both have. Pinned: `timeseries-queries`.
+- 12, an ask in flight answering after the round that asked again: marked stale and asked again (a timing window: no
+  test).
+- 13, the matrix's diagonal a written 1: the database's (none for a line that does not vary). Pinned:
+  `timeseries-queries`, `test_page`.
+- Nits: a smoothed average and an RSI of 1 drop the first value as gs-quant's ramp does; a calendar window's volatility
+  and Sharpe ratio drawn from the first price's date that period on (gs-quant's), the pair functions' from the first
+  date both have (a deliberate difference: the design note §5.3½); two series of one name each their id after it in
+  Python's tables. Weak tests made strong: a regression's later-starting benchmark, an exponential average of a split
+  and at a frequency.
+- Fixed alongside (`75fc5395`): the legend's change in percent is a level's alone (a spread's start may be near zero).
+- Not changed: `percentiles` from the start stays a self-join (a value's rank among those before it is no window
+  aggregate).

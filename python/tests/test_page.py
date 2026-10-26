@@ -895,7 +895,9 @@ class Document(Paged):
         prices = pd.DataFrame({'symbol': ['S'] * 12 + ['T'] * 12, 'day': list(days) * 2, 'close': s + t})
         px = page.grid(prices, name='prices')
         tile = page.timeseries({'px': px}, ['close[S]', 'close[T]', 'returns(close[S])'])
-        stats = tile.statistics()
+        # under a year: its growth not annualized, said as the screen says it (the E9 review's 10: a NaN said nothing)
+        with self.assertWarnsRegex(UserWarning, 'A: these dates span under a year, so its growth is not annualized'):
+            stats = tile.statistics()
         self.assertEqual(list(stats.index), ['A', 'B', 'C'])
         self.assertEqual((stats.loc['A', 'count'], stats.loc['A', 'last'], stats.loc['A', 'high']), (12, 110.0, 110.0))
         rs = pd.Series(s).pct_change().dropna()
@@ -916,10 +918,37 @@ class Document(Paged):
         self.assertAlmostEqual(corr.loc['A', 'B'], rs.corr(rt), places=9)
         self.assertAlmostEqual(corr.loc['B', 'A'], rs.corr(rt), places=9)
         self.assertAlmostEqual(corr.loc['A', 'C'], 1.0, places=9, msg="a level's returns with the same returns")
-        self.assertEqual(corr.loc['B', 'B'], 1.0)
+        # each line with itself the database's (the E9 review's 13)
+        self.assertAlmostEqual(corr.loc['B', 'B'], 1.0, places=12)
         # over a window: the dates kept by the database before every figure
         late = tile.statistics(start='2024-01-06')
         self.assertEqual((late.loc['A', 'count'], late.loc['A', 'first']), (7, 97.0))
+        # no dates asked: the tile's range, as its screen's tables read it (the E9 review's 7: every date had been read)
+        tile.options(range={'from': '2024-01-06'})
+        ranged = tile.statistics()
+        self.assertEqual((ranged.loc['A', 'count'], ranged.loc['A', 'first']), (7, 97.0))
+        self.assertEqual(tile.statistics(start='2024-01-01').loc['A', 'count'], 12, 'dates asked: those')
+        # two series of one name: each line apart, by its id
+        tile.edit('A', 'close[S]', name='Same')
+        tile.edit('B', 'close[T]', name='Same')
+        self.assertEqual(list(tile.correlations().index), ['Same (A)', 'Same (B)', 'C'])
+
+    def test_a_timeseries_tables_over_a_range_of_the_last_month_read_it_from_its_sources_latest_date(self):
+        # the E9 review's 7: the screen's window of a range of the last of a period -- each source's bounds the database's,
+        # the latest of them -- the tables' too (timeseries-query.ts rangeWindow, headless timeseriesWindow)
+        page = ll.Page('Range')
+        days = pd.date_range('2024-01-01', '2024-02-29', freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * len(days), 'day': list(days), 'close': [100.0 + i for i in range(len(days))]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['close[S]'])
+        tile.options(range={'last': '1m'})
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            stats = tile.statistics()
+            # a month back from the latest, 2024-02-29: from 2024-01-29, 32 days
+            self.assertEqual((stats.loc['A', 'count'], stats.loc['A', 'first']), (32, 128.0))
+            self.assertEqual(tile.statistics(start='2024-01-01').loc['A', 'count'], 60)
+            self.assertTrue((tile.drawdowns().empty), 'a rising line has no drawdowns')
 
     def test_a_timeseries_is_changed_by_its_viewers_one_rule_and_refused_what_its_viewer_cannot_draw(self):
         # the review's A2, A3, A5, A6, A10 (docs/TIMESERIES_REVIEW_2026_10_25.md): every change Python makes is the tile's

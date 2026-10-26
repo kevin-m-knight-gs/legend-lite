@@ -512,10 +512,14 @@ describe('gs-quant\'s functions, as the database computes them', () => {
 
   it('RSI of Wilder\'s smoothed averages of the gains and the losses (gs-quant\'s)', async () => {
     const c = AAA.slice(1).map((v, i) => v - AAA[i]!);
-    const up = smma(c.map((v) => Math.max(v, 0)), 6);
-    const down = smma(c.map((v) => Math.max(-v, 0)), 6);
-    const want: Line = [null, ...c.map((_, j) => (up[j] === null ? null : down[j] === 0 ? 100 : 100 - 100 / (1 + up[j]! / down[j]!)))];
-    close((await line(spec({ A: 'rsi(close[AAA], 6)' }))).values, want, 'rsi', 1e-9);
+    const rsi = (w: number): Line => {
+      const up = smma(c.map((v) => Math.max(v, 0)), w);
+      const down = smma(c.map((v) => Math.max(-v, 0)), w);
+      return [null, ...c.map((_, j) => (up[j] === null ? null : down[j] === 0 ? 100 : 100 - 100 / (1 + up[j]! / down[j]!)))];
+    };
+    close((await line(spec({ A: 'rsi(close[AAA], 6)' }))).values, rsi(6), 'rsi', 1e-9);
+    // of one: from the second change, gs-quant's ramp of 1 (the E9 review's nit)
+    close((await line(spec({ A: 'rsi(close[AAA], 1)' }))).values, rsi(1), 'rsi of 1', 1e-9);
   });
 
   // the second audit's S5: initial at the first date -- gs-quant's product over the returns to date, as pandas' prod
@@ -610,15 +614,23 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
     }), 'diff 1w of CCC', 1e-9);
   });
 
-  it('volatility over 1m: its returns\' deviation over each month back, annualized, from its first return a month on', async () => {
+  // from its first price a month on, as gs-quant's ramp counts from the first price's date (its returns keep it, none): the
+  // E9 review's nit, from the first return's before
+  it('volatility over 1m: its returns\' deviation over each month back, annualized, from its first price a month on', async () => {
     const l = await line(spec({ A: 'volatility(close[AAA], 1m)' }));
     const r = simple(AAA);
-    const start = onBy(DAYS[1]!, 1, 'm');
+    const start = onBy(DAYS[0]!, 1, 'm');
     close(l.values, DAYS.map((d) => {
       if (d < start) return null;
       const vals = r.filter((v, j) => v !== null && DAYS[j]! > backBy(d, 1, 'm') && DAYS[j]! <= d) as number[];
       return vals.length < 2 ? null : sd(vals) * Math.sqrt(252) * 100;
     }), 'volatility 1m', 1e-9);
+    // a Sharpe ratio over 1m too: the mean return over its deviation, annualized, from the first price a month on
+    close((await line(spec({ A: 'sharpe_ratio(close[AAA], 1m)' }))).values, DAYS.map((d) => {
+      if (d < start) return null;
+      const vals = r.filter((v, j) => v !== null && DAYS[j]! > backBy(d, 1, 'm') && DAYS[j]! <= d) as number[];
+      return vals.length < 2 ? null : (avg(vals) / sd(vals)) * Math.sqrt(252);
+    }), 'sharpe 1m', 1e-9);
   });
 
   it('correlation over 3w: two series\' returns over the dates both have, each three weeks back', async () => {
@@ -831,6 +843,8 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
 
   it('smoothed_moving_average: Wilder\'s, from the mean of w', async () => {
     close(await longLine('smoothed_moving_average(close, 14)'), smma(LONG, 14), 'smma 14', 1e-10);
+    // of one: each value itself, from the first after the first -- gs-quant's ramp of 1 (the E9 review's nit)
+    close(await longLine('smoothed_moving_average(close, 1)'), smma(LONG, 1), 'smma 1', 0);
   });
 
   // the E9 review's weak tests: an average per line of a split, its blocks over each line's own values, and at a frequency

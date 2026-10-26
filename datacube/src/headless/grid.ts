@@ -11,7 +11,7 @@
 // page keeps it, and nothing here holds a grid between calls.
 
 import { type TsInputs, type TsTable, type TsWindow } from '../timeseries-query.ts';
-import { askedOf, askedSources, Problem, seriesOf } from './timeseries.ts';
+import { askedOf, askedSources, boundsOf, Problem, seriesOf } from './timeseries.ts';
 import { snapRefusal } from '../../../engine-client/src/snap.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
@@ -1447,18 +1447,28 @@ export async function gridOutput(spec: GridSpec): Promise<string> {
 export async function gridTimeseries(spec: GridSpec, asked: string): Promise<string> {
   try {
     return await using(spec, async ({ planner, lens, state }) => {
-      const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series: string; readonly window?: TsWindow; readonly table?: TsTable; readonly with?: string };
+      const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series: string; readonly window?: TsWindow; readonly table?: TsTable | 'bounds'; readonly with?: string; readonly source?: string };
+      const compose = async (said: Record<string, unknown>): Promise<string> => {
+        const query = fromJson(JSON.stringify(said['query'])) as Lambda;
+        const text = await planner.compose(planner.sent(lens ? lens(query) : query), 'STANDARD');
+        return JSON.stringify({ ...said, query: text });
+      };
+      // a source's bounds, over the grid as it is read (headless timeseries.ts timeseriesWindow reads the tile's range from them)
+      if (a.table === 'bounds') {
+        const view = readPage(a.page, { empty: true }).views.find((v) => v.id === a.tile);
+        if (!view || view.kind !== 'timeseries') throw new Problem(`'${a.tile}' is no timeseries tile of the page`);
+        return await compose(JSON.parse(`{${boundsOf(view.spec, a.source ?? '', { snapshot: state.snapshot, filter: state.snapshot.filter })}}`) as Record<string, unknown>);
+      }
       const { ts, series } = seriesOf(readPage(a.page, { empty: true }), a.tile, a.series);
-      const aliases = askedSources(a, ts, series);
+      const { table, ...rest } = a;
+      const told = { ...rest, ...(table !== undefined ? { table } : {}) };
+      const aliases = askedSources(told, ts, series);
       if (aliases.length !== 1) {
         throw new Problem(`series ${series.id} reads ${aliases.length} grids: it is read over their tables together (timeseriesQuery)`);
       }
       const inputs: TsInputs = new Map([[aliases[0]!, { snapshot: state.snapshot, filter: state.snapshot.filter }]]);
       // its points, or one of its tables (headless timeseries.ts askedOf): the query composed as it is sent
-      const said = JSON.parse(`{${askedOf(a, inputs, ts, series)}}`) as Record<string, unknown>;
-      const query = fromJson(JSON.stringify(said['query'])) as Lambda;
-      const text = await planner.compose(planner.sent(lens ? lens(query) : query), 'STANDARD');
-      return JSON.stringify({ ...said, query: text });
+      return await compose(JSON.parse(`{${askedOf(told, inputs, ts, series)}}`) as Record<string, unknown>);
     });
   } catch (e) {
     if (e instanceof Problem || e instanceof CubeRefusal) return JSON.stringify({ problems: [e.message] });
