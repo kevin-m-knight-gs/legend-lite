@@ -41,6 +41,7 @@ import {
 import { conditionWords, filterWords, gridLens, type PageFilter } from '../page-filters.ts';
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
 import { bothLenses, parametersLens, type PageParameter } from '../page-parameters.ts';
+import { pickCommands, type InputPick } from '../dynamic-input.ts';
 import type { PageMacro } from '../macros.ts';
 import type { PageParameterBar } from '../ui/page-parameter-bar.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
@@ -1070,6 +1071,8 @@ export class PageApp {
       // a flow's Macro: the page's macros (macros.ts), in the words of the parameters they read
       macros: () => this.#macros,
       parameters: () => this.#parameters,
+      // a Dynamic Input: a flow's Union picked by a parameter (dynamic-input.ts)
+      onPick: (box: string, pick: InputPick, called: (grid: string) => string) => this.pickInput(box, pick, called),
       // TIDY UP: the flow's boxes placed by its own rule, one step -- or, placed so already, nothing
       onTidy: (sheet: string) => {
         const commands = tidyCommands(this.#state.draft.page, sheet);
@@ -1408,6 +1411,26 @@ export class PageApp {
   async removeParameter(name: string, label = 'Remove Parameter'): Promise<void> {
     await this.#filterCommand(() => (this.#parameters.some((p) => p.name === name)
       ? pageCommand('removeParameter', { name }) : undefined), label);
+  }
+
+  /**
+   * A DYNAMIC INPUT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M8; dynamic-input.ts): flow box `box`, a Union, set to keep
+   * the rows of the one input a String parameter of the page names, of the one a new parameter of its inputs' names
+   * names, or of every input -- one step, by the one rule Python's grid.pick asks too (pickCommands); `called`, what a
+   * box no one named is named where two inputs would share a name (its canvas's). The refusal in words, or null.
+   */
+  pickInput(box: string, pick: InputPick, called?: (grid: string) => string): string | null {
+    let commands: PageCommand[];
+    try {
+      commands = pickCommands(this.#state.draft.page, box, pick, called);
+    } catch (e) {
+      if (e instanceof CubeRefusal) return e.message;
+      throw e;
+    }
+    if (commands.length === 0) return null;
+    if (!this.#edit({ label: pick === null ? 'Union' : 'Dynamic Input', commands })) return 'the page refused it';
+    this.#options.onChange?.();
+    return null;
   }
 
   /** ADD PARAMETER (the page's menu, a flow's palette): the parameters bar shown, its form open. */

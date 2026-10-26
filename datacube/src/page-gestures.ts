@@ -14,6 +14,7 @@ import { PAGE_COMMAND_FIELDS, type PageCommand } from './page-commands.ts';
 import { PageDocumentError, readPage, type PageDocument, type PageLayout } from './page-document.ts';
 import { FlowRefusal, arranged, containerMoves, type Frame } from './layout/flow.ts';
 import { liveGrids } from './live-inputs.ts';
+import { pickCommands, type InputPick } from './dynamic-input.ts';
 import { givenName } from './page-names.ts';
 import { CubeRefusal, sameValue } from './snapshot.ts';
 import { inputOn, inputSides, joinInputs, moreIndex, type CubeDocument, type CubeSource, type InputSide } from './cube-document.ts';
@@ -241,6 +242,17 @@ export const PAGE_GESTURES = {
     const cube = view?.kind === 'grid' ? page.cubes.find((c) => c.id === view.cube) : undefined;
     if (cube === undefined) throw new CubeRefusal(`'${a['grid']}' is no grid of the page`);
     return takeOffCommands(a['grid'], cube.cube.source, a['side'] as InputSide);
+  },
+  // a Union's pick -- a Dynamic Input -- over the page as it is: a parameter's name, `made` (a new parameter of its
+  // inputs' names), or null (every input's rows: dynamic-input.ts pickCommands)
+  'flow.pick': (a: Readonly<Record<string, unknown>>): PageCommand[] => {
+    if (typeof a['grid'] !== 'string') throw new CubeRefusal("'flow.pick' needs grid, the Union's id");
+    const by = a['parameter'];
+    if (by !== null && by !== true && typeof by !== 'string') {
+      throw new CubeRefusal(`'flow.pick' needs parameter: a parameter's name, true for a new one, or null, not ${JSON.stringify(by ?? null)}`);
+    }
+    const pick: InputPick = by === null ? null : by === true ? { made: true } : { parameter: by };
+    return pickCommands(pageOf(a), a['grid'], pick);
   },
 } as const;
 

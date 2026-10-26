@@ -3888,6 +3888,44 @@ class Flows(Paged):
         self.assertEqual(copied.inputs, {})
         self.assertEqual(len(copied.to_pandas()), 3 * len(board[0].to_pandas()))
 
+    def test_a_dynamic_input_keeps_the_rows_of_the_input_a_parameter_names(self):
+        # M8's Dynamic Input: a Union kept to one input's rows, picked as it runs by a String parameter naming it
+        # (dynamic-input.ts pickCommands; join.ts appended: each input's rows filtered by `$source == '<its name>'`, the
+        # database keeping one); its value set, the other's rows; every input's again by pick(None)
+        page, flow, source, big = self.flowed()
+        n_source, n_big = len(source.to_pandas()), len(big.to_pandas())
+        union = page.union(source, big)
+        with self.assertRaisesRegex(ValueError, 'two of its inputs are named trades: a Dynamic Input picks one by its name'):
+            union.pick(True)
+        big.title = 'Big'
+        union.pick(True)
+        self.assertEqual(page.parameters, {'source': 'trades'}, 'a new parameter, its inputs\' names its choices, the first its value')
+        self.assertEqual(next(p for p in page.to_dict()['parameters'])['choices'], ['trades', 'Big'])
+        self.assertEqual(len(union.to_pandas()), n_source)
+        page.set_parameter('source', 'Big')
+        self.assertEqual(len(union.to_pandas()), n_big, 'its value set: the other input\'s rows')
+        self.assertEqual(sorted(flow.grid(input=union).to_pandas()['notional']), sorted(big.to_pandas()['notional']), 'a box after it reads them')
+        # saved and loaded: its pick kept
+        again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
+        self.assertEqual(len(next(g for g in again.grids if g.id == union.id).to_pandas()), n_big)
+        # picked by a parameter of the page's own; every input's again
+        page.parameter('which', 'String', 'trades')
+        union.pick('which')
+        self.assertEqual(len(union.to_pandas()), n_source)
+        union.pick(None)
+        self.assertEqual(len(union.to_pandas()), n_source + n_big)
+        with self.assertRaisesRegex(ValueError, "'nope' is no parameter of the page"):
+            union.pick('nope')
+        page.parameter('n', 'Integer', 1)
+        with self.assertRaisesRegex(ValueError, 'n is no String, but Integer: a Dynamic Input picks an input by its name'):
+            union.pick('n')
+        with self.assertRaisesRegex(ValueError, 'is no Union'):
+            big.pick(True)
+        page.set_parameter('which', 'APAC')
+        with self.assertRaisesRegex(Exception, 'it picks "APAC", none of its inputs: trades, Big'):
+            union.pick('which')
+        self.assertEqual(len(union.to_pandas()), n_source + n_big, 'refused: nothing changed')
+
     def test_a_join_box_hands_on_the_rows_each_side_pairs_with_none(self):
         # M2: a Join's L and R ports (live-inputs.ts gridInput) -- the rows of its Left no row of its Right pairs with,
         # and of its Right no row of its Left: anti-joins the database runs, each read live

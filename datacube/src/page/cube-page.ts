@@ -43,6 +43,7 @@ import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import { MAX_RULES } from '../dynamic-replace.ts';
 import { MACRO_BOXES, macroOf, macroProblem, macroWords, type PageMacro } from '../macros.ts';
 import type { PageParameter } from '../page-parameters.ts';
+import type { InputPick } from '../dynamic-input.ts';
 import type { GestureArgs } from '../grid-gestures.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { CHART_STATES, chartGrid, MAP_MARKS, showGridWay, type ChartSpec, type ChartState } from '../chart-spec.ts';
@@ -361,9 +362,12 @@ export interface CubePageOptions {
   /** A flow's palette's Parameter: the page's Add Parameter (page-app.ts addParameter). */
   readonly onParameter?: () => void;
   /** The page's macros (macros.ts) and parameters, as its state holds them: what a flow's Macro offers, and in what
-   *  words. */
+   *  words -- and what a Dynamic Input is picked by. */
   readonly macros?: () => readonly PageMacro[];
   readonly parameters?: () => readonly PageParameter[];
+  /** A flow's Union set to keep the rows of one input, picked by a parameter (a Dynamic Input: dynamic-input.ts), or of
+   *  every input again: set by the page -- the refusal in words, or null. */
+  readonly onPick?: (box: string, pick: InputPick, called: (grid: string) => string) => string | null;
   /** Tidy Up on flow `sheet`: its boxes placed by the flow's own rule, by the page's owner (page-gestures.ts tidyCommands). */
   readonly onTidy?: (sheet: string) => void;
   /**
@@ -755,6 +759,9 @@ export class CubePage {
       macros: () => (this.#options.macros?.() ?? []).map((m) => ({ name: m.name, words: macroWords(m, this.#options.parameters?.() ?? []) })),
       onMacro: (name, after) => this.#useMacro(id, name, after),
       onSaveMacro: (tile, from, name) => this.#saveMacro(tile, from, name),
+      // A DYNAMIC INPUT (M8): a Union's pick, by a parameter of the page's
+      parameters: () => this.#options.parameters?.() ?? [],
+      ...(this.#options.onPick ? { onPick: (tile: string, pick: InputPick, called: (grid: string) => string) => this.#options.onPick!(tile, pick, called) } : {}),
       onAddPinned: async (tile, values) => {
         const grid = this.#grids.get(tile)?.added?.cube;
         if (grid?.addPivotValues === undefined) return 'its grid is not open';

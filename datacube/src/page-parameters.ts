@@ -9,6 +9,7 @@
 // One rule for the tab (page-app.ts #lensOf) and Python's (headless lensOf). PURE: no DOM, no planner.
 
 import { children, lit, ProtocolError, rewrite, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { familyOf, hasTimeOfDay, isBoolean, isDay, isTemporal } from '../../engine-client/src/types.ts';
 import type { QueryLens } from './runner.ts';
 import { CubeRefusal } from './snapshot.ts';
 
@@ -38,18 +39,18 @@ const RESERVED = new Set(['x', 'v', 'input', 'this']);
 
 /** A value spelt as its type's literal: refused in words where it is no value of that type -- never turned into one. */
 function literal(type: ParameterType, value: ParameterValue, says: string): ValueSpecification {
-  if (type === 'Boolean') {
+  if (isBoolean(type)) {
     if (typeof value !== 'boolean') throw new CubeRefusal(`${says} is true or false, not ${JSON.stringify(value)}`);
     return lit.boolean(value);
   }
   if (typeof value === 'boolean') throw new CubeRefusal(`${says} is a ${type}, not ${value}`);
-  if (type === 'String') {
+  if (familyOf(type) === 'text') {
     if (typeof value !== 'string') throw new CubeRefusal(`${says} is a text, not ${JSON.stringify(value)}`);
     return lit.string(value);
   }
-  if ((type === 'StrictDate' || type === 'DateTime') && typeof value !== 'string') throw new CubeRefusal(`${says} is a ${type}'s text, not ${value}`);
-  if (type === 'StrictDate' && !/^\d{4}-\d{2}-\d{2}$/.test(value as string)) throw new CubeRefusal(`${says} is a day, as 2024-01-31: not ${JSON.stringify(value)}`);
-  if (type === 'DateTime' && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(value as string)) {
+  if (isTemporal(type) && typeof value !== 'string') throw new CubeRefusal(`${says} is a ${type}'s text, not ${value}`);
+  if (isDay(type) && !/^\d{4}-\d{2}-\d{2}$/.test(value as string)) throw new CubeRefusal(`${says} is a day, as 2024-01-31: not ${JSON.stringify(value)}`);
+  if (hasTimeOfDay(type) && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(value as string)) {
     throw new CubeRefusal(`${says} is a time, as 2024-01-31T09:30:00: not ${JSON.stringify(value)}`);
   }
   try {

@@ -29,7 +29,7 @@ import { openedState } from '../src/cube-state.ts';
 import { TreeState } from '../src/tree.ts';
 import { boxOmitted } from '../src/box-columns.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
-import type { Lambda } from '../../pure-protocol/src/index.ts';
+import { lambda, lit, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
 
 const file = (name: string, columns: [string, string][]): FileSource => ({
@@ -381,6 +381,22 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     assert.notEqual(got['tags']![at(7)], null);
     // a join of two takes no more
     await assert.rejects(openJoin({ ...three, how: LEFT_ON_CUST }, opening(['trades', 'more', 'tagged', 'trades'])), /joins two inputs, not 4/);
+  });
+
+  it('append picking one (a Dynamic Input): each input filtered by its name, the database keeping the one picked', async () => {
+    // its pick as its parameter's value is bound into it where the source is resolved (page-parameters.ts boundIn)
+    const picking = (name: string): JoinSource => ({ ...join(input(TRADES, 'trades'), input(MORE, 'more'), { form: 'append', pick: lambda([], lit.string(name)) }),
+      more: [input(TAGGED, 'tagged')] });
+    const opened = await openJoin(picking('more'), opening(['trades', 'more', 'tagged']));
+    assert.deepEqual(opened.columns.map((c) => c.name), ['id', 'cust', 'sym', 'at', 'qty', 'venue', 'tags'], 'its columns all its inputs\'');
+    const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
+    assert.deepEqual(got['id']!.map(Number), [6], "more's rows alone");
+    const tagged = await openJoin(picking('tagged'), opening(['trades', 'more', 'tagged']));
+    const t = await rows(tagged.model, tagged.runtime, { _type: 'lambda', parameters: [], body: [tagged.relation] });
+    assert.deepEqual(t['id']!.map(Number), [7]);
+    await assert.rejects(openJoin(picking('nope'), opening(['trades', 'more', 'tagged'])), /it picks "nope", none of its inputs: trades, more, tagged/);
+    await assert.rejects(openJoin(join(input(TRADES, 'same'), input(MORE, 'same'), { form: 'append', pick: lambda([], lit.string('same')) }),
+      opening(['trades', 'more'])), /two of its inputs are named same/);
   });
 
   it('a row of != pairs only rows that both have a value: an empty key matches no row (the audit\'s 2)', async () => {

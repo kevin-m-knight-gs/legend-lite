@@ -8,6 +8,7 @@
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { gridCapped, isLive, leavesOf, type JoinInput, type JoinSource } from '../cube-document.ts';
 import { gridInput } from '../live-inputs.ts';
+import { namedApart, newPick } from '../dynamic-input.ts';
 import { pageCommand } from '../page-gestures.ts';
 import { HOST_TABLES, JoinInputs, TAB_TABLES, leafRefusal, openInputs, summaryCounts, type OpenedInputs } from '../join-open.ts';
 import {
@@ -252,9 +253,10 @@ export interface FlowJoinOf {
   /** The box joined: the new box's Left -- or, `box` given, the Join box set again. */
   readonly cube: string;
   readonly box?: string;
-  /** The tool it is: a Union's window starts at Append, an Append Fields' at Every pair, a Fuzzy Match's at matching
-   *  rows only on similar text. */
-  readonly tool: 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace';
+  /** The tool it is: a Union's window starts at Append (a Dynamic Input's too: made, it keeps the rows of the one a new
+   *  parameter of the page names), an Append Fields' at Every pair, a Fuzzy Match's at matching rows only on similar
+   *  text. */
+  readonly tool: 'join' | 'union' | 'dynamicInput' | 'appendFields' | 'fuzzyMatch' | 'findReplace';
   /** The flow's boxes, as its canvas names them: the boxes its Right is chosen among. */
   readonly boxes: readonly string[];
   /** Dropped on a line: the box that line went into, which reads the new box from then on (one step). */
@@ -308,8 +310,10 @@ export async function flowJoin(o: FlowJoinOf): Promise<void> {
       parse: (text) => local.planner.parse(text),
       summary: (their, how) => opened.use(their, ({ inputs, rows }) => summaryCounts(joinSummary(inputs.left, inputs.right, how),
         async (query) => rows.engine!.run((await rows.planner!.plan(query)).sql, 0))),
-      make: async (their, how) => {
+      make: async (their, asked) => {
         if (joined !== undefined) {
+          // a Dynamic Input set again an append still: its pick kept (its settings' Keep the rows of sets it)
+          const how = asked.form === 'append' && joined.how.form === 'append' && joined.how.pick !== undefined ? { ...asked, pick: joined.how.pick } : asked;
           // set again: its Right, then its join -- one step, one undo
           const commands: PageCommand[] = [
             ...(their !== right ? [pageCommand('setInput', { grid: o.box!, side: 'right', input: { grid: their } })] : []),
@@ -320,23 +324,33 @@ export async function flowJoin(o: FlowJoinOf): Promise<void> {
           }
           return undefined;
         }
+        const at = page.document(page.title);
+        if (!at) throw new Error('the page has no grid now');
+        // a Dynamic Input (M8; dynamic-input.ts): an append that keeps the rows of the one input a new parameter of the
+        // page names -- its inputs' names its choices, each box no one named that would share one named as the canvas
+        // names it -- opened over the page with them, set in the same step as the box
+        const apart = o.tool === 'dynamicInput' && asked.form === 'append'
+          ? namedApart(at, undefined, [{ grid: left }, { grid: their }], (g) => pageBoxName(at, g)) : undefined;
+        const picked = apart === undefined ? undefined : newPick(at.parameters ?? [], apart.names);
+        const how = picked?.how ?? asked;
         const source: JoinSource = {
           _type: 'join', name: joinTitle(how, named(left), named(their)), left: { grid: left }, right: { grid: their }, how, columns: [],
         };
-        const at = page.document(page.title);
-        if (!at) throw new Error('the page has no grid now');
-        const made = await sources.openedJoin(source, { capped: gridCapped(page.cubes.length + 1), on: { page: at, cube: '' } });
+        const onPage = apart === undefined || picked === undefined ? at
+          : { ...apart.page, parameters: [...(at.parameters ?? []), picked.parameter] };
+        const made = await sources.openedJoin(source, { capped: gridCapped(page.cubes.length + 1), on: { page: onPage, cube: '' } });
         if (!made) return undefined;
         if (!o.stillShown()) {
           await made.discard?.();
           return undefined;
         }
         const into = o.into;
+        const parameter = picked === undefined ? [] : [...apart!.titles, pageCommand('setParameter', { parameter: picked.parameter })];
         const id = page.addGrid(made.make, {
           near: left,
           ...(into !== undefined ? {
-            label: 'Insert Box', after: (id: string) => [pageCommand('setInput', { grid: into.tile, side: into.side, input: { grid: id } })],
-          } : {}),
+            label: 'Insert Box', after: (id: string) => [...parameter, pageCommand('setInput', { grid: into.tile, side: into.side, input: { grid: id } })],
+          } : picked !== undefined ? { label: 'Add Dynamic Input', after: () => parameter } : {}),
         });
         // a Find Replace: the join made, its column replaced in its own window, docked (TOOL_EDITORS)
         if (o.tool === 'findReplace') {
@@ -347,11 +361,12 @@ export async function flowJoin(o: FlowJoinOf): Promise<void> {
       },
     }, {
       lead: joined !== undefined ? `How ${named(left)} and its Right combine: the box's rows, read again as they are now.`
+        : o.tool === 'dynamicInput' ? `Pick between ${named(left)} and another box of the flow as it runs: a box after them that keeps the rows of the one a new parameter of the page names.`
         : o.tool === 'findReplace' ? `Find each row of ${named(left)} among another box's rows -- a column of yours, theirs it is found in -- then, beside, the column of theirs it becomes.`
           : `Combine ${named(left)} with another box of the flow: a box after it that reads both, live.`,
       action: joined !== undefined ? 'Apply' : `Add ${FLOW_TOOLS[o.tool].name}`,
       // a Union's window starts at Append, an Append Fields' at Every pair; a box set again, at its own join
-      ...(joined !== undefined ? { how: joined.how } : o.tool === 'union' ? { form: 'append' as const }
+      ...(joined !== undefined ? { how: joined.how } : o.tool === 'union' || o.tool === 'dynamicInput' ? { form: 'append' as const }
         : o.tool === 'appendFields' ? { form: 'cross' as const } : o.tool === 'fuzzyMatch' ? { form: 'inner' as const, op: '~' as const }
           // a Find Replace is a lookup: each of mine with one of theirs at most (C13)
           : o.tool === 'findReplace' ? { form: 'left' as const, once: true as const } : {}),

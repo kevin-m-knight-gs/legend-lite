@@ -98,7 +98,7 @@
 .dc-page-parameters { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--dc-pad-1);
   padding: 2px var(--dc-pad-2); border-bottom: 1px solid var(--dc-border-color); font-size: var(--dc-text-sm-size); }
 .dc-page-parameters[hidden] { display: none; }
-.dc-page-parameter { border-color: var(--tw-green-600); background: var(--tw-green-50); height: 22px; }
+.dc-page-parameter { border-color: var(--tw-green-600, #16a34a); background: var(--tw-green-50); height: 22px; }
 .dc-page-parameter-value { font: inherit; height: 18px; max-width: 12em; border: 1px solid var(--dc-border-color); border-radius: 3px; }
 .dc-page-parameter-value[type="checkbox"] { height: auto; }
 .dc-page-parameter-form input, .dc-page-parameter-form select { font: inherit; height: 18px; }

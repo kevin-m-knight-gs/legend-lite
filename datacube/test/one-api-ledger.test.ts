@@ -549,6 +549,8 @@ const SCREEN_OWN_MAKERS: Record<string, string> = {
   // 2026-10-24 (D19 W3, W7)
   // 2026-10-25 (the flow mode's Output, M6)
   outputCommand: "the palette's Output named after the box it reads, in the step that adds it; Python's grid.output is given its file's name",
+  // 2026-10-26 (the flow mode's M8, Dynamic Input)
+  namedApart: "the palette's Dynamic Input: two boxes no one named, read under one source's name, named as the canvas names them (Filter, Input) in the step that adds it -- its names the canvas's; Python's grid.pick names nothing (a grid is named by grid.title), refused in the same words when two are one name",
   gridBetween: "the commands between two states of a grid: the tab's own history (an undo or a redo told as the commands between: state-owner.ts toward) and its converge (a touched grid put back at the keeper's cube: live-converge.ts); Python's grid has no history",
 };
 

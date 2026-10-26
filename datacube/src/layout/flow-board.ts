@@ -16,6 +16,7 @@ import { EMPTY_FLOW, placeAfter, removeBox, type Flow, type Frame, type Output }
 import { isLive, joinInputs, type CubeDocument, type CubeInput, type InputPort, type InputSide } from '../cube-document.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
+import type { InputPick } from '../dynamic-input.ts';
 import type { Profile, TopValue } from '../profile.ts';
 import { lazily } from '../lazily.ts';
 import type { FilterValue } from '../snapshot.ts';
@@ -118,6 +119,12 @@ export interface FlowBoardOptions {
   readonly onPaste?: (at: FlowPoint | undefined) => void;
   /** Each box's cube document as the page has it: what it does, and the boxes it reads (the lines into it). */
   readonly documentOf?: (id: string) => CubeDocument | undefined;
+  /** The page's parameters (M8, page-parameters.ts), by name and type: what a Dynamic Input is picked by. */
+  readonly parameters?: () => readonly { readonly name: string; readonly type: string }[];
+  /** A Union set to keep the rows of the one input a parameter names, a new one of its inputs' names, or every input's
+   *  (null: dynamic-input.ts InputPick) -- `called`, each box's name on the canvas, what a box no one named is named
+   *  where two would share one: the refusal in words, or null. */
+  readonly onPick?: (id: string, pick: InputPick, called: (grid: string) => string) => string | null;
   /** THE PAGE'S MACROS (M8, macros.ts): each by its name, in words (its steps, the parameters it reads). */
   readonly macros?: () => readonly { readonly name: string; readonly words: string }[];
   /** Macro `name` used after box `after`: the caller adds a Pure box of its function, named after it. */

@@ -5,6 +5,7 @@
 // commands' one rule (page-parameters.ts), and paints it again; a refusal comes back in words.
 
 import { PARAMETER_TYPES, type PageParameter, type ParameterType, type ParameterValue } from '../page-parameters.ts';
+import { hasTimeOfDay, isBoolean, isDay, isDecimal, isNumeric } from '../../../engine-client/src/types.ts';
 import { chromeIcon } from './tile-icons.ts';
 
 export interface PageParameterBarOptions {
@@ -19,8 +20,8 @@ export interface PageParameterBarOptions {
 /** What a value typed is, read as its type's own JSON: a number's digits a number, a tick true or false, any other its
  *  text -- the page's rule judges it. */
 function typedValue(type: ParameterType, text: string, checked: boolean): ParameterValue {
-  if (type === 'Boolean') return checked;
-  if (type === 'Integer' || type === 'Float') return text.trim() === '' || !Number.isFinite(Number(text)) ? text : Number(text);
+  if (isBoolean(type)) return checked;
+  if (isNumeric(type) && !isDecimal(type)) return text.trim() === '' || !Number.isFinite(Number(text)) ? text : Number(text);
   return text;
 }
 
@@ -94,11 +95,11 @@ export class PageParameterBar {
       field = s;
     } else {
       const i = doc.createElement('input');
-      i.type = p.type === 'Boolean' ? 'checkbox' : p.type === 'Integer' || p.type === 'Float' ? 'number'
-        : p.type === 'StrictDate' ? 'date' : p.type === 'DateTime' ? 'datetime-local' : 'text';
+      i.type = isBoolean(p.type) ? 'checkbox' : isNumeric(p.type) && !isDecimal(p.type) ? 'number'
+        : isDay(p.type) ? 'date' : hasTimeOfDay(p.type) ? 'datetime-local' : 'text';
       if (i.type === 'checkbox') i.checked = p.value === true;
       else i.value = String(p.value);
-      if (p.type === 'DateTime') i.step = '1';
+      if (hasTimeOfDay(p.type)) i.step = '1';
       i.addEventListener('change', () => void (async () => {
         if (!await this.#set({ ...p, value: typedValue(p.type, i.value, i.checked) })) {
           if (i.type === 'checkbox') i.checked = p.value === true;
@@ -159,7 +160,7 @@ export class PageParameterBar {
       e.preventDefault();
       const t = type.value as ParameterType;
       const listed = choices.value.split(',').map((c) => c.trim()).filter((c) => c !== '');
-      const asValue = (text: string): ParameterValue => (t === 'Boolean' ? text === 'true' ? true : text === 'false' ? false : text : typedValue(t, text, false));
+      const asValue = (text: string): ParameterValue => (isBoolean(t) ? text === 'true' ? true : text === 'false' ? false : text : typedValue(t, text, false));
       void (async () => {
         if (await this.#set({ name: name.value.trim(), type: t, value: asValue(value.value),
           ...(listed.length > 0 ? { choices: listed.map(asValue) } : {}) })) close();

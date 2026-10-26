@@ -376,6 +376,25 @@ class Grid(Tile):
             page._current(self._view['cube'], 3)
         return self
 
+    def pick(self, parameter: str | bool | None) -> Grid:
+        """A Union kept to the rows of one of its inputs, picked as it runs -- a flow's Dynamic Input (Alteryx's;
+        docs/DATACUBE_FLOW_MODE_2026_10_24.md M8), as its settings' Keep the rows of sets it (headless pageGesture:
+        dynamic-input.ts pickCommands): ``parameter`` a String parameter of the page (``page.parameter``) whose value is
+        the name of the input kept -- each input read under its grid's title, else its source's name; ``True``, a new
+        parameter (``source``, else ``source2``, ...) whose choices are its inputs' names, the first its value; ``None``,
+        every input's rows again. Its value set (``page.set_parameter``), the grid reads the other input's rows. Refused in
+        DataCube's words: a grid that is no Union, two inputs of one name, a parameter the page lacks or of another type."""
+        _ = self._view
+        page = self._page
+        said = json.loads(page._session.headless().call('pageGesture', 'flow.pick', _json.dumps(
+            {'page': page._doc, 'grid': self._id, 'parameter': parameter})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        with page._batch():
+            page._apply_page([_plain(c) for c in said['commands']], 'a pick')
+            page._current(self._view['cube'], 3)
+        return self
+
     def rejoin(self, how: Mapping[str, Any]) -> Grid:
         """Its join made again as ``how`` says (page.join's ``how``, read strictly) -- a flow's Join or Union box set
         again, as its Join window's Apply sets it (page-commands.ts setJoin; docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) --

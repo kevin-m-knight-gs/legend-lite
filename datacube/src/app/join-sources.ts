@@ -15,6 +15,7 @@ import type { FileHandle } from '../file-handles.ts';
 import {
   TAB_TABLES, inputRows, leafRefusal, openInputs, openJoin, openRows, openedInputLeaves, openedLeaves, type CopyTable, type JoinOpening, type OpenedInputs,
 } from '../join-open.ts';
+import { heldHow } from '../join-how.ts';
 import { CubeRefusal } from '../snapshot.ts';
 import type { HeldCopy } from '../app.ts';
 import type { SnapTarget } from '../cube.ts';
@@ -190,8 +191,9 @@ type OpenedHow = {
 export async function openedJoin(h: JoinSourcesHost, source: JoinSource, resolved: JoinSource, how: OpenedHow = {}):
   Promise<Opened | undefined> {
   return openedOver(h, resolved, source.name, (o) => openJoin(resolved, o),
-    // the join as it opened: a kept column of theirs gone since is left out of it, as the notes say
-    (opened) => ({ ...source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) }), how);
+    // the join as it opened: a kept column of theirs gone since is left out of it, as the notes say -- a parameter it
+    // reads kept as the page holds it, `$name` (join-how.ts heldHow)
+    (opened) => ({ ...source, how: heldHow(source.how, opened.how), columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) }), how);
 }
 
 /**

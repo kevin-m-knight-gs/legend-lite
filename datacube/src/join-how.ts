@@ -59,8 +59,10 @@ export type JoinHow =
   }
   /** My rows that have a match (semi), or that have none (anti): my columns only, each row once. */
   | { readonly form: 'semi' | 'anti'; readonly on: JoinCondition }
-  /** The rows of both, columns matched by name: a column one side lacks is empty on its rows. */
-  | { readonly form: 'append' };
+  /** The rows of both, columns matched by name: a column one side lacks is empty on its rows. `pick` (Dynamic Input,
+   *  docs/DATACUBE_FLOW_MODE_2026_10_24.md M8): an expression in Pure of no parameter -- a page parameter, `|$source` --
+   *  naming the one input whose rows it keeps, by its name: each input's rows filtered by it, the database keeping one. */
+  | { readonly form: 'append'; readonly pick?: Lambda };
 
 /** A join of every row of mine with every row of theirs: matching rows only, on no condition (Alteryx's Append Fields;
  *  docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) -- the Join window's Every pair, a flow's Append Fields box. */
@@ -70,6 +72,32 @@ export const isEveryPair = (how: JoinHow): boolean =>
 /** A join pairing rows by similar text: a row of its condition `~` (a flow's Fuzzy Match box). */
 export const isFuzzy = (how: JoinHow): boolean =>
   how.form === 'join' && 'rows' in how.on && how.on.rows.some((r) => r.op === '~');
+
+/** Why an append's pick is no expression naming an input, in words, if it is not: one expression of no parameter. */
+export function pickProblem(pick: Lambda): string | undefined {
+  return pick.parameters.length > 0 || pick.body.length !== 1
+    ? "an append's pick is one expression of no parameter, as $source names a parameter of the page" : undefined;
+}
+
+/** A JOIN AS ITS PAGE HOLDS IT, OPENED (`held`, its source's own -- what it reads of the page's parameters `$name`,
+ *  never their values now: page-parameters.ts boundIn binds only what is opened), with what opening reconciled
+ *  (`opened`, join-open.ts reconciled: a kept column of theirs gone since left out) -- what a grid it opens writes. */
+export function heldHow(held: JoinHow, opened: JoinHow): JoinHow {
+  return (held.form === 'join' || held.form === 'asOf') && (opened.form === 'join' || opened.form === 'asOf') ? { ...held, keep: opened.keep } : held;
+}
+
+/** Why inputs called `names` cannot be picked among, in words, if they cannot: two called the same (a pick names one
+ *  by its name). */
+export function pickNamesProblem(names: readonly string[]): string | undefined {
+  const twice = names.find((n, i) => names.indexOf(n) !== i);
+  return twice === undefined ? undefined : `two of its inputs are named ${twice}: a Dynamic Input picks one by its name -- rename one`;
+}
+
+/** An append's pick in words: the parameter it reads (`$source`), or "an expression". */
+export function pickWords(pick: Lambda): string {
+  const e = pick.body[0];
+  return e?._type === 'var' ? `$${e.name}` : 'an expression';
+}
 
 export type JoinForm = JoinHow['form'];
 export const JOIN_FORMS: readonly JoinForm[] = ['join', 'asOf', 'semi', 'anti', 'append'];
@@ -184,9 +212,20 @@ export function readJoinHow(raw: unknown): JoinHow {
       const o = object(raw, `a ${form}-join`, ['form', 'on']);
       return { form, on: readJoinCondition(o['on'], `a ${form}-join's condition`) };
     }
-    case 'append':
-      object(raw, 'an append', ['form']);
-      return { form };
+    case 'append': {
+      const o = object(raw, 'an append', ['form', 'pick']);
+      if (o['pick'] === undefined) return { form };
+      let pick: Lambda;
+      try {
+        pick = readLambda(o['pick']);
+      } catch (e) {
+        if (!(e instanceof ProtocolError)) throw e;
+        throw new CubeRefusal(`an append's pick is an expression in Pure: ${e.message}`);
+      }
+      const why = pickProblem(pick);
+      if (why !== undefined) throw new CubeRefusal(why);
+      return { form, pick };
+    }
     default:
       throw new CubeRefusal(`a join's form is one of ${JOIN_FORMS.join(', ')}, not ${JSON.stringify(form)}`);
   }

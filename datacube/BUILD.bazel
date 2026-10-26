@@ -524,6 +524,8 @@ _HEADLESS_TESTS = [
     "page-parameters",
     # a flow's standard macros: a sub-flow as one Pure function of its input's rows (M8): pure
     "macros",
+    # a flow's Dynamic Input: a Union kept to the rows of the one input a parameter names (M8): pure
+    "dynamic-input",
     "format-code",
     "grid-commands",
     # a grid's and a page's gestures as their commands (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8)

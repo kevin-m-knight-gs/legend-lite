@@ -460,8 +460,15 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  417,500 -> 420,500 (2026-10-26, the flow mode's M8, standard macros: their rule, read where the page's document and
  *  commands are (macros.ts: setMacro, readPage), a box's Save as Macro form and the palette's Macro menu (layout/
  *  flow-canvas.ts #macroForm, #macroMenu), the page's save -- each box read in turn -- and use (page/cube-page.ts
- *  #saveMacro, #useMacro), a grid's own steps as a function (app.ts ownFunction)). Measured 419,896. */
-const BUDGET = 420_500;
+ *  #saveMacro, #useMacro), a grid's own steps as a function (app.ts ownFunction)). Measured 419,896.
+ *  420,500 -> 421,500 (2026-10-26, the flow mode's M8, Dynamic Input: its rule, where the page's commands and gestures
+ *  are (dynamic-input.ts pickCommands: page-app.ts pickInput, page-gestures.ts 'flow.pick' -- Python's grid.pick), an
+ *  append's pick read and said (join-how.ts readJoinHow, join-words.ts); its settings' Keep the rows of the canvas's
+ *  chunk (layout/flow-canvas.ts #paintPick)). Measured 420,901.
+ *  421,500 -> 422,500 (2026-10-26, its audit: a step's inverse carrying the page's parameters and macros and a box's
+ *  cache (page-between.ts byName, setCache), a grid's pick written as the page holds it (join-how.ts heldHow), a
+ *  parameter's type read by its family (engine-client/src/types.ts, page-parameters.ts)). Measured 421,550. */
+const BUDGET = 422_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -645,8 +652,10 @@ const BUDGET = 420_500;
  *  402,500 -> 405,500 (2026-10-26, the flow mode's M8, a page's parameters -- the grid-only page's note of the same
  *  date). Measured 404,894.
  *  405,500 -> 408,500 (2026-10-26, the flow mode's M8, standard macros -- the grid-only page's note of the same date).
- *  Measured 407,818. */
-const ENGINE_BUDGET = 408_500;
+ *  Measured 407,818.
+ *  408,500 -> 409,500 (2026-10-26, the flow mode's M8, Dynamic Input -- the grid-only page's note of the same date).
+ *  Measured 408,808. */
+const ENGINE_BUDGET = 409_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -925,8 +934,12 @@ const EXAMPLE_BUDGET = 4_000;
  *  430,000 -> 433,000 (2026-10-26, the flow mode's M8, a page's parameters -- the engine page's note of the same date --
  *  with the headless lane's lens and binding beside it). Measured 432,624.
  *  433,000 -> 436,000 (2026-10-26, the flow mode's M8, standard macros -- the engine page's note of the same date -- with
- *  the headless lane's gridFunction and macroComposed beside it). Measured 435,556. */
-const WIDGET_BUDGET = 436_000;
+ *  the headless lane's gridFunction and macroComposed beside it). Measured 435,556.
+ *  436,000 -> 437,000 (2026-10-26, the flow mode's M8, Dynamic Input -- the engine page's note of the same date -- with
+ *  the headless lane's 'flow.pick' beside it). Measured 436,538.
+ *  437,000 -> 438,000 (2026-10-26, Dynamic Input's audit -- the engine page's note of the same date -- with the headless
+ *  lane's heldHow beside it). Measured 437,193. */
+const WIDGET_BUDGET = 438_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

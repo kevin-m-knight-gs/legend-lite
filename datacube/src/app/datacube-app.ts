@@ -44,7 +44,7 @@ import {
   type SavedDocument,
 } from '../page-document.ts';
 import { idTag, joinInputOf, type PageCommand } from '../page-commands.ts';
-import type { JoinAsk } from './join-flow.ts';
+import type { FlowJoinOf, JoinAsk } from './join-flow.ts';
 import { JOIN_SOURCE, joinMenu } from './join-menu.ts';
 import type { PageModelRef } from '../page-model.ts';
 import { classBasis, duplicateLambda } from '../query.ts';
@@ -1555,7 +1555,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           throw new Error("this tool reads another box's rows: click a box first, or drop the tool on one");
         }
         // a Join or a Union: the Join window over this box (its Left) and another of the flow, each read live (M2)
-        if (tool === 'join' || tool === 'union' || tool === 'appendFields' || tool === 'fuzzyMatch' || tool === 'findReplace') {
+        if (tool === 'join' || tool === 'union' || tool === 'dynamicInput' || tool === 'appendFields' || tool === 'fuzzyMatch' || tool === 'findReplace') {
           await joinOnFlow({ cube: after, tool, sheet, now, ...(into !== undefined ? { into } : {}) });
           return;
         }
@@ -1603,7 +1603,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     };
     // A FLOW'S JOIN BOX (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): made after a box, or set again -- the Join window over
     // the flow's boxes, in this tab's own database (a page Python serves makes one by page.join: refused here, said)
-    const joinOnFlow = async (o: { readonly cube: string; readonly box?: string; readonly tool: 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace'; readonly sheet: string;
+    const joinOnFlow = async (o: { readonly cube: string; readonly box?: string; readonly tool: FlowJoinOf['tool']; readonly sheet: string;
       readonly now: PageDocument; readonly into?: LineEnd }): Promise<void> => {
       const local = services.engine.local;
       if (!local) throw new Error('a join on a flow is made where the page\'s tables are: on a page Python serves, by page.join(mine, theirs, how)');
@@ -1620,12 +1620,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     flowJoinBox = (box, sheet, now) => {
       const view = now.views.find((v) => v.id === box);
       const source = now.cubes.find((c) => c.id === view?.cube)?.cube.source;
-      // the tool its join is (flow-boxes.ts joinTool, whose module is the canvas's chunk): Union, Append Fields, Fuzzy Match
-      // or Join
+      // the tool its join is (flow-boxes.ts joinTool, whose module is the canvas's chunk): Union (a Dynamic Input, one that
+      // picks), Append Fields, Fuzzy Match or Join
       const how = source?._type === 'join' ? source.how : undefined;
-      const tool = how?.form === 'append' ? 'union' : how !== undefined && isEveryPair(how) ? 'appendFields'
+      const tool = how?.form === 'append' ? how.pick !== undefined ? 'dynamicInput' : 'union' : how !== undefined && isEveryPair(how) ? 'appendFields'
         : how !== undefined && isFuzzy(how) ? 'fuzzyMatch' : 'join';
-      const named = { join: 'Join', union: 'Union', appendFields: 'Append Fields', fuzzyMatch: 'Fuzzy Match' } as const;
+      const named = { join: 'Join', union: 'Union', dynamicInput: 'Dynamic Input', appendFields: 'Append Fields', fuzzyMatch: 'Fuzzy Match' } as const;
       void joinOnFlow({ cube: box, box, tool, sheet, now })
         .catch((e: unknown) => window.alert(`${named[tool]}: ${e instanceof Error ? e.message : String(e)}`));
     };

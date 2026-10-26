@@ -130,6 +130,8 @@ const lineKey = (end: LineEnd): string => `${end.tile}:${end.side}`;
 const ICONS: Readonly<Record<FlowTool, string>> = {
   input: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v8c0 1.1-2.2 2-5 2s-5-.9-5-2zM3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 8c0 1.1 2.2 2 5 2s5-.9 5-2',
   textInput: 'M2 2.5h12v11H2zM2 6h12M6.5 2.5v11M8.5 9.5h4M8.5 11.5h2.5',
+  // an input, and the switch that picks which
+  dynamicInput: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v3M3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 4v8c0 1.1 2.2 2 5 2M9.5 10h5l-1.5-1.5M14.5 13h-5l1.5 1.5',
   output: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v5M3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 4v8c0 1.1 2.2 2 5 2M10 11.5h5M13 9.5l2 2-2 2',
   cleanse: 'M10 2l4 4-6.5 6.5H3.5V8.5zM8 4l4 4M2 14.5h12',
   impute: 'M2 3h12v10H2zM2 6.5h12M2 10h12M6 3v10M10 6.5v3.5M10.5 8.2h3',
@@ -281,6 +283,11 @@ export class FlowCanvas {
   /** A box's cache, in the settings (#paintCache: FL10), and what it was drawn for. */
   readonly #cacheStrip: HTMLElement;
   #cacheKey = '';
+  /** A Union's pick, in the settings (#paintPick: a Dynamic Input), what it was drawn for, and what its last pick said,
+   *  by box. */
+  readonly #pickStrip: HTMLElement;
+  #pickKey = '';
+  readonly #pickSaid = new Map<string, string>();
   /** A Cross Tab's columns, in the settings (#paintPin): found as it runs, or fixed by Load values; what it was drawn for,
    *  and what its last Load values or Unfix said, by box. */
   readonly #pinStrip: HTMLElement;
@@ -418,7 +425,9 @@ export class FlowCanvas {
     this.#stopsStrip = el('div', 'dc-flow-output dc-flow-stops');
     this.#cacheStrip = el('div', 'dc-flow-output dc-flow-cache');
     this.#pinStrip = el('div', 'dc-flow-output dc-flow-pin');
-    this.#settings.append(settingsHead, this.#inputs, this.#outputStrip, this.#stopsStrip, this.#cacheStrip, this.#pinStrip, board.dock, this.#settingsEmpty);
+    this.#pickStrip = el('div', 'dc-flow-output dc-flow-pick');
+    this.#settings.append(settingsHead, this.#inputs, this.#pickStrip, this.#outputStrip, this.#stopsStrip, this.#cacheStrip, this.#pinStrip, board.dock,
+      this.#settingsEmpty);
     // the canvas on its stage, its own tools at its corner, over it as it scrolls
     const stage = el('div', 'dc-flow-stage');
     this.#toolbar = el('div', 'dc-flow-toolbar');
@@ -1632,7 +1641,7 @@ export class FlowCanvas {
     drawn.key = key;
     drawn.root.dataset['tool'] = tool;
     drawn.root.dataset['group'] = FLOW_TOOLS[tool].group;
-    this.#paintIns(drawn.root, tool === 'union' && inputs.length >= 2 ? inputs.map((i) => i.side) : undefined);
+    this.#paintIns(drawn.root, (tool === 'union' || tool === 'dynamicInput') && inputs.length >= 2 ? inputs.map((i) => i.side) : undefined);
     // its outputs, where it has several: a Filter's T and F, a Unique's U and D, a Sample's S and R, a Join's J between
     // its L and R
     drawn.root.classList.toggle('dc-flow-two', outs === 'two');
@@ -2019,9 +2028,10 @@ export class FlowCanvas {
     return i !== undefined && 'grid' in i ? { grid: i.grid, ...(i.port !== undefined ? { port: i.port } : {}) } : undefined;
   }
 
-  /** Whether a box is a Union (`inputs`, its own): an append, of two inputs or more. */
+  /** Whether a box is a Union (`inputs`, its own): an append, of two inputs or more -- a Dynamic Input's too. */
   #isUnion(id: string, inputs: readonly BoxInput[] = this.#inputsOf(id)): boolean {
-    return inputs.length >= 2 && this.#said(id)?.tool === 'union';
+    const tool = this.#said(id)?.tool;
+    return inputs.length >= 2 && (tool === 'union' || tool === 'dynamicInput');
   }
 
   /** Whether a line into box `id` taken off takes its input off too: a Union's of more than two (any other's freezes). */
@@ -2688,6 +2698,7 @@ export class FlowCanvas {
     const clicked = this.#clicked !== undefined && this.#board.layout.boxes.some((b) => b.tile === this.#clicked) ? this.#clicked : undefined;
     const id = this.#board.shown ?? clicked;
     this.#paintInputs(id);
+    this.#paintPick(id);
     this.#paintOutput(id);
     this.#paintStops(id);
     this.#paintCache(id);
@@ -2803,6 +2814,60 @@ export class FlowCanvas {
         ? `Cached: ${copy.rowCount.toLocaleString(UI_LOCALE)} ${copy.rowCount === 1 ? 'row' : 'rows'} (${copy.label}), for this session`
         : 'Not copied yet: its rows are copied when it is shown or the flow runs';
     this.#cacheStrip.replaceChildren(label, said);
+  }
+
+  /**
+   * A UNION'S PICK (docs/DATACUBE_FLOW_MODE_2026_10_24.md M8, a Dynamic Input; dynamic-input.ts): the rows of every
+   * input, or of the one a String parameter of the page names as it runs -- one of the page's, or a new one whose choices
+   * are its inputs' names. The page sets it (onPick); what it refused said beside it.
+   */
+  #paintPick(id: string | undefined): void {
+    const how = id === undefined ? undefined : this.#board.options.documentOf?.(id)?.source;
+    const append = how?._type === 'join' && how.how.form === 'append' ? how.how : undefined;
+    const pick = append?.pick?.body[0];
+    const by = pick === undefined ? '' : pick._type === 'var' ? `p:${pick.name}` : 'expression';
+    const strings = (this.#board.options.parameters?.() ?? []).filter((p) => familyOf(p.type) === 'text').map((p) => p.name);
+    const shown = append !== undefined && this.#board.options.onPick !== undefined;
+    const said = id === undefined ? undefined : this.#pickSaid.get(id);
+    const key = JSON.stringify([id, shown, by, strings, said, this.#board.editing]);
+    if (key === this.#pickKey) return;
+    this.#pickKey = key;
+    this.#pickStrip.hidden = !shown;
+    if (!shown || id === undefined) {
+      this.#pickStrip.replaceChildren();
+      return;
+    }
+    const d = this.#doc;
+    const label = d.createElement('label');
+    label.className = 'dc-flow-pick-label';
+    label.textContent = 'Keep the rows of ';
+    const select = d.createElement('select');
+    select.className = 'dc-flow-pick-select';
+    select.disabled = !this.#board.editing;
+    select.append(new Option('every input (a Union)', '', false, by === ''));
+    for (const name of strings) select.append(new Option(`the one $${name} names`, `p:${name}`, false, by === `p:${name}`));
+    // its pick another expression of the page's (Python's): kept as it is until another is picked
+    if (by === 'expression') select.append(new Option('the one its expression names', 'expression', false, true));
+    if (by.startsWith('p:') && !strings.includes(by.slice(2))) select.append(new Option(`the one $${by.slice(2)} names (no parameter now)`, by, false, true));
+    select.append(new Option('the one a new parameter names…', 'new'));
+    select.addEventListener('change', () => {
+      const v = select.value;
+      if (v === 'expression' || v === by) return;
+      const refused = this.#board.options.onPick?.(id, v === '' ? null : v === 'new' ? { made: true } : { parameter: v.slice(2) },
+        (g) => this.#nameOf(g, this.#said(g)?.tool ?? 'browse')) ?? null;
+      if (refused === null) this.#pickSaid.delete(id);
+      else this.#pickSaid.set(id, refused);
+      this.#pickKey = '';
+      this.#paintPick(id);
+    });
+    label.append(select);
+    const status = d.createElement('span');
+    status.className = 'dc-flow-pick-said';
+    status.setAttribute('role', 'status');
+    status.textContent = said !== undefined ? said
+      : by === '' ? 'A Dynamic Input keeps one input\'s rows, picked as it runs by a parameter of the page'
+        : 'Set the parameter on the page\'s Parameters bar: the box runs again with the rows of the one it names';
+    this.#pickStrip.replaceChildren(label, status);
   }
 
   /**

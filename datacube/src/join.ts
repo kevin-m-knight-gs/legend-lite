@@ -13,7 +13,7 @@ import { rowCountLambda } from './query.ts';
 import { CubeRefusal } from './snapshot.ts';
 import { ORDERED } from './unique.ts';
 import {
-  isEveryPair, onceRefusal, scoredRow, scoreRefusal, SIMILAR_WITHIN, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow,
+  isEveryPair, onceRefusal, pickNamesProblem, scoredRow, scoreRefusal, SIMILAR_WITHIN, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow,
   type JoinSide,
 } from './join-how.ts';
 
@@ -152,7 +152,7 @@ export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow, more
     case 'anti':
       return semi(left, from(right.relation), conditionLambda(how.on, (c) => c), how.form === 'semi' ? 'isNotEmpty' : 'isEmpty').node;
     case 'append':
-      return appended([left, right, ...more]).node;
+      return appended([left, right, ...more], how.pick).node;
   }
 }
 
@@ -163,7 +163,21 @@ export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow, more
  * two sides type differently is refused in words: the compiler unites an Integer and a Float as the first's type, its
  * rows' fractions under it (the correctness audit's 6, 2026-10-26) -- a Select retypes one side first.
  */
-function appended(sides: readonly JoinSide[]): Relation {
+function appended(sides: readonly JoinSide[], pick?: Lambda): Relation {
+  // Dynamic Input: each side's rows those of the one its pick names -- `<pick> == '<its name>'`, its pick a parameter's
+  // value bound where the source is resolved, so the database keeps one side's rows and reads none of the others'
+  if (pick !== undefined) {
+    const names = sides.map((s) => s.name);
+    const twice = pickNamesProblem(names);
+    if (twice !== undefined) throw new CubeRefusal(twice);
+    // its pick a value now (its parameter's, bound): one of its inputs' names, compared as spelled
+    const now = pick.body[0];
+    if (now?._type === 'string' && !names.includes(now.value)) {
+      throw new CubeRefusal(`it picks ${JSON.stringify(now.value)}, none of its inputs: ${names.join(', ')}`);
+    }
+    const picked = (s: JoinSide): JoinSide => ({ ...s, relation: from(s.relation).filter(lambda(['x'], eq(pick.body[0]!, lit.string(s.name)))).node });
+    return appended(sides.map(picked));
+  }
   const all: (JoinSide['columns'][number] & { readonly side: string })[] = [];
   for (const s of sides) {
     for (const c of s.columns) {

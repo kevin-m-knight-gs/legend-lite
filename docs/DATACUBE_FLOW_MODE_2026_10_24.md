@@ -229,7 +229,7 @@ How to read the status column:
 | Data Stream In / Out | Step | The Cache box (FL10), on Snap |
 | Date Time Now | Built | `now()` and `today()` in a Formula |
 | Directory | Out | It lists a file system, which is no relation a database holds |
-| Dynamic Input | Later | A source chosen at run time; needs runs (F3) and parameters (F5) |
+| Dynamic Input | Built (M8) | A Union that keeps the rows of the one input a String parameter of the page names, picked as it runs ("Built, Dynamic Input") |
 
 ### Preparation
 
@@ -410,7 +410,8 @@ Every milestone ends usable: something a person does from start to finish, saved
 
 - Schedules and run history (F3); parameters and analytic apps (F5); standard macros (a sub-flow as a function with
   parameters); Dynamic Input; FL15's Python box, if asked for. *Parameters built (2026-10-26): §5's M5 and M6 steps,
-  "Built, a page's parameters"; standard macros the same day, "Built, standard macros".*
+  "Built, a page's parameters"; standard macros the same day, "Built, standard macros"; Dynamic Input the same day,
+  "Built, Dynamic Input".*
 
 ### What makes it nicer than Alteryx, all the way through
 
@@ -1399,6 +1400,32 @@ Refused in words: a box over no other box's rows (a join's), boxes that do not r
 Tested by `macros.test.ts`, `flow-sheet.test.ts`, Python's `test_a_macro_is_a_sub_flow_used_as_one_box` and the harness
 (a Custom Filter reading a parameter saved, used after the Filter). Not built: a macro of several inputs (a join's), a
 macro's own questions apart from the page's parameters, and a macro shared between pages (it is the page's).
+
+**Built, Dynamic Input** (M8, Alteryx's Dynamic Input; `dynamic-input.ts`, an append's `pick` in `join-how.ts`,
+`join.ts` `appended`; `page/page-app.ts` `pickInput`, `layout/flow-canvas.ts` `#paintPick`, `app/join-flow.ts`;
+2026-10-26): **a Union that keeps the rows of one of its inputs, picked as it runs** by a String parameter of the page
+naming it. The append keeps its pick as Pure of no parameter (`|$source`); where the source is resolved its parameter's
+value is bound into it (`page-parameters.ts` `boundIn`), and each input's rows are filtered by `<pick> == '<its name>'`,
+so the database keeps one input's rows -- a value that names none of them refused in words, compared as spelled. The
+palette's *Dynamic Input* opens the Join window at Append over the box it is let go on and another; added, it keeps the
+rows of the one a new parameter names (`source`, else `source2`, ...: its inputs' names its choices, the first its
+value), one step with the box. Any Union's settings say *Keep the rows of*: every input (a Union), the one a String
+parameter of the page names, or a new parameter's. An input is picked by the name it is read under -- its box's title,
+else its source's -- so two boxes no one named over one file share one: the screen names each as its canvas does
+(Filter, Input) in the same step, and two of one name still are refused (*rename one*). A grid it opens writes its pick
+as the page holds it, `$source`, never its value then (`join-how.ts` `heldHow`, the tab's `openedJoin` and headless
+`gridOpened` both). Python: `grid.pick(parameter)` -- a parameter's name, `True` for a new one, `None` for every input's
+(the page gesture `flow.pick`, the same rule). Tested by `dynamic-input.test.ts`, `join-open.test.ts` (each input
+filtered on DuckDB), Python's `test_a_dynamic_input_keeps_the_rows_of_the_input_a_parameter_names` and the harness (made
+from the palette, its value picked on the parameters bar, a Union again from its settings, each undone). Not built: an
+input read from a path or a table named by a value (Alteryx's Dynamic Input reads files and queries a template names;
+here its inputs are the flow's boxes), and a value read from another box's rows.
+
+The audit of this step found that a step's inverse -- an undo, and a screen converging on its keeper's page
+(`page-between.ts`) -- carried neither the page's parameters nor its macros (an Add Parameter or a Save Macro undone did
+nothing), nor a box's cache (kept now as a box's Output and stopping are, `page-rebase.ts` `rearranged`); each is now
+set by its own command, in the page's order. Its walks, reshuffled, reached one more: a grid's removal undone brought it
+back under a new cube, a timeseries tile that read it still reading the cube kept for it -- it reads the grid again.
 
 **Built, the Cache** (FL10, FL11; `layout/flow.ts` `FlowBox.cache`, `setCache`; `page-commands.ts` `setCache`;
 `cube-document.ts` `JoinInput.copy`; `live-inputs.ts` `copyOf`; `join-open.ts` `openedInputLeaves`; `cube.ts`

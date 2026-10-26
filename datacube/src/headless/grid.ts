@@ -98,6 +98,7 @@ import { boxRows, pureChecked, pureFrom, pureInput, pureShown, pureText } from '
 import { boxFunction, macroOf } from '../macros.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { JoinSide } from '../join.ts';
+import { heldHow } from '../join-how.ts';
 import { gridInput, liveGrids, resolvedSource } from '../live-inputs.ts';
 import type { PageDocument } from '../page-document.ts';
 import { classGiven, className, type ClassElement } from '../class-source.ts';
@@ -530,7 +531,8 @@ async function openedOn(was: CubeDocument, cube: string, host: HostTables, name:
   // a join: over its inputs resolved (a flow's Join box reads them live); the source as the page holds it (its links)
   if (was.source._type !== 'join') throw new Error(`${was.source.name} opened as a join`);
   const opened = await joinOpenedOn(on.join, on.tables);
-  const now: JoinSource = { ...was.source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) };
+  // a parameter it reads (a Dynamic Input's pick) kept as the page holds it, `$name` (join-how.ts heldHow)
+  const now: JoinSource = { ...was.source, how: heldHow(was.source.how, opened.how), columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) };
   return openedAgain(was, now, opened.notes, { model: opened.model, runtime: opened.runtime,
     relation: toJson({ _type: 'lambda', parameters: [], body: [opened.relation] }) });
 }

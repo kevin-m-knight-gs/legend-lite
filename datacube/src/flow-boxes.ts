@@ -37,7 +37,7 @@ import type { ColumnEditorStart } from './ui/column-editor.ts';
 import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
-export type FlowTool = 'input' | 'textInput' | 'output' | 'test' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'dateFilter' | 'customFilter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
+export type FlowTool = 'input' | 'textInput' | 'dynamicInput' | 'output' | 'test' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'dateFilter' | 'customFilter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile' | 'binning' | 'generateRows'
   | 'datetime' | 'cleanse' | 'impute' | 'dynamicReplace' | 'textToColumns' | 'regex' | 'jsonParse' | 'runningTotal' | 'summarize' | 'countRecords' | 'crosstab' | 'transpose' | 'browse'
   | 'pure' | 'macro' | 'parameter' | 'comment' | 'container';
@@ -46,6 +46,7 @@ export type FlowTool = 'input' | 'textInput' | 'output' | 'test' | 'join' | 'uni
 export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: FlowGroup; readonly does: string }>> = {
   input: { name: 'Input', group: 'in', does: 'rows from a file, a table, a class or a saved query' },
   textInput: { name: 'Text Input', group: 'in', does: 'a small table of your own, typed in or pasted from a sheet' },
+  dynamicInput: { name: 'Dynamic Input', group: 'in', does: 'the rows of one of several inputs, picked as it runs by a parameter of the page' },
   output: { name: 'Output', group: 'in', does: 'its input\'s rows written to a CSV file, now and each time the flow runs' },
   test: { name: 'Test', group: 'in', does: 'checks of its input\'s rows: no empty value, no value repeated, numbers within bounds, how many rows' },
   join: { name: 'Join', group: 'join', does: 'two inputs joined on their keys: Left above, Right below' },
@@ -92,7 +93,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'textInput', 'output', 'test', 'browse', 'filter', 'dateFilter', 'customFilter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'binning', 'generateRows', 'datetime', 'cleanse', 'impute', 'dynamicReplace',
+  'input', 'textInput', 'dynamicInput', 'output', 'test', 'browse', 'filter', 'dateFilter', 'customFilter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'binning', 'generateRows', 'datetime', 'cleanse', 'impute', 'dynamicReplace',
   'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'jsonParse', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'pure', 'macro', 'parameter', 'comment', 'container',
 ];
 
@@ -180,6 +181,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   runningTotal: { window: 'column', start: { name: 'RunningTotal', window: { fn: 'sum', partition: [], order: [], frame: 'running' } } },
   join: { window: 'join' },
   union: { window: 'join' },
+  dynamicInput: { window: 'join' },
   appendFields: { window: 'join' },
   fuzzyMatch: { window: 'join' },
   findReplace: { window: 'findReplace' },
@@ -208,7 +210,8 @@ export function boxSays(cube: CubeDocument): BoxSays {
     if (replaced !== undefined) return { tool: 'findReplace', also: [], says: `${replaced.column} replaced by ${replaced.with}` };
     // a Union of more than two: the rows of each
     const n = 2 + (source.more?.length ?? 0);
-    return { tool: joinTool(source.how), also: [], says: n > 2 ? `the rows of all ${n}, columns by name` : joinWords(source.how) };
+    return { tool: joinTool(source.how), also: [], says: n > 2 && !(source.how.form === 'append' && source.how.pick !== undefined)
+      ? `the rows of all ${n}, columns by name` : joinWords(source.how) };
   }
   if (source._type !== 'rows') return { tool: 'input', also: [], says: source.name };
   const q = cube.query;
@@ -306,10 +309,13 @@ export function boxSays(cube: CubeDocument): BoxSays {
   return { tool: first.tool, also: steps.slice(1).map((s) => s.tool), says: first.says };
 }
 
-/** The tool a join is: an Append a Union, every row with every row an Append Fields (join-how.ts isEveryPair), one on
- *  similar text a Fuzzy Match (isFuzzy), any other a Join -- the box's, and the Join window's start when it is set again. */
-export function joinTool(how: JoinHow): 'join' | 'union' | 'appendFields' | 'fuzzyMatch' {
-  return how.form === 'append' ? 'union' : isEveryPair(how) ? 'appendFields' : isFuzzy(how) ? 'fuzzyMatch' : 'join';
+/** The tool a join is: an Append a Union -- one that keeps one input's rows, picked as it runs, a Dynamic Input --
+ *  every row with every row an Append Fields (join-how.ts isEveryPair), one on similar text a Fuzzy Match (isFuzzy), any
+ *  other a Join: the box's, and the Join window's start when it is set again. */
+export type JoinTool = 'join' | 'union' | 'dynamicInput' | 'appendFields' | 'fuzzyMatch';
+export function joinTool(how: JoinHow): JoinTool {
+  return how.form === 'append' ? how.pick !== undefined ? 'dynamicInput' : 'union'
+    : isEveryPair(how) ? 'appendFields' : isFuzzy(how) ? 'fuzzyMatch' : 'join';
 }
 
 /** The tool a calculated column is made by: a window column's by its function (a row number, the row before or after,

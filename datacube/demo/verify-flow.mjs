@@ -549,6 +549,47 @@ try {
   }
   check(await show(union.id) === fewer + all, 'a Union of two again: the rows of both');
 
+  // A DYNAMIC INPUT (M8, dynamic-input.ts): the palette's Dynamic Input dragged onto the Filter -- the window at Append,
+  // the Input picked; made, a Union that keeps the rows of the one a new parameter of the page names, `source` (the two
+  // boxes no one named, read under one file's name, named as the canvas names them in the same step), the Filter's
+  // first; its value set on the parameters bar, the Input's rows; its settings' Keep the rows of, every input's again;
+  // each undone, the box, its parameter and the names gone
+  const beforeDynamic = (await boxes()).map((b) => b.id);
+  await drag('dynamicInput', filter.id);
+  await joinWindow.waitFor({ timeout: 20_000 });
+  check(await joinWindow.locator('.dc-join-kind[data-kind="append"]').getAttribute('aria-checked') === 'true', 'a Dynamic Input\'s window starts at Append');
+  await joinWindow.locator('.dc-join-their').selectOption(input.id);
+  await page.waitForFunction(() => { const b = document.querySelector('.dc-join .dc-save-foot .dc-primary'); return b instanceof HTMLButtonElement && !b.disabled; }, undefined, { timeout: 60_000 });
+  check(await joinWindow.locator('.dc-save-foot .dc-primary').textContent() === 'Add Dynamic Input', 'its window adds a Dynamic Input');
+  await joinWindow.locator('.dc-save-foot .dc-primary').click();
+  await joinWindow.waitFor({ state: 'detached', timeout: 60_000 });
+  await boxCount(beforeDynamic.length + 1);
+  const dynamic = await added(beforeDynamic);
+  check(dynamic.tool === 'dynamicInput' && dynamic.says === 'the rows of the one $source names', `a Dynamic Input box: ${JSON.stringify(dynamic)}`);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Add Dynamic Input', 'one step: Add Dynamic Input');
+  const sourceChoice = page.locator('.dc-page-parameter[data-parameter="source"] select');
+  await sourceChoice.waitFor({ timeout: 20_000 });
+  check(JSON.stringify(await sourceChoice.locator('option').allTextContents()) === '["Filter","Input"]', `its choices, its inputs' names: ${await sourceChoice.locator('option').allTextContents()}`);
+  check(await show(dynamic.id) === fewer, `the Filter's rows, the first it names: ${fewer}`);
+  await sourceChoice.selectOption({ label: 'Input' });
+  await page.waitForFunction(() => window.__dataPage.undoLabel === 'Set source', undefined, { timeout: 20_000 });
+  await settled();
+  check(await resultRows() === all, `its value set, the Input's rows: ${all}`);
+  const keep = page.locator('.dc-flow-pick-select');
+  check(await keep.inputValue() === 'p:source', 'its settings say what picks it');
+  await keep.selectOption('');
+  await page.waitForFunction(() => window.__dataPage.undoLabel === 'Union', undefined, { timeout: 20_000 });
+  await settled();
+  check(await resultRows() === fewer + all, 'every input\'s rows again: a Union');
+  check((await boxes()).find((b) => b.id === dynamic.id)?.tool === 'union', 'drawn as a Union');
+  await page.screenshot({ path: outPath('flow-dynamic-input.png') });
+  await page.locator('.dc-flow-canvas').click({ position: { x: 5, y: 5 } });
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+z');
+  await boxCount(beforeDynamic.length);
+  check(await page.locator('.dc-page-parameter[data-parameter="source"]').count() === 0, 'undone: its parameter gone');
+  check(await page.evaluate((ids) => ids.map((id) => window.__dataPage.document('x').views.find((v) => v.id === id)?.title ?? null), [filter.id, input.id])
+    .then((t) => t.every((x) => x === null)), 'undone: the names it gave gone');
+
   // AN APPEND FIELDS BOX, dragged onto the Filter: the window at Every pair, no condition asked; the dropped targets'
   // four rows beside each of the Filter's
   const beforeAppend = (await boxes()).map((b) => b.id);
