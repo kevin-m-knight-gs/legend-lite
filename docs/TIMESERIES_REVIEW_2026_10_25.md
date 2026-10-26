@@ -326,3 +326,49 @@ by a test that failed first, in `timeseries-queries` unless said.
   edit rule keeps it as none whoever tells it; Python's `options` names `align`. Pinned: `timeseries-edit`.
 - Found by the review's probes and kept: a plain filter after a window folds under it -- the engine's own semantics,
   pinned by `FoldTest`, so the query writer reads a window where it filters after windows.
+
+## 13. The next phases' 2 review (2026-10-26)
+
+An independent review of Phase 2 (swap, the Data tab, pictures, a pane's axis by hand, the Query window, sliders), read
+with probes of its own: the real viewer, the edit rule and the drawing in jsdom, a picture made by ECharts' SVG painter.
+Each fix pinned by a test that failed first, in `timeseries-view-dom` unless said.
+
+- 1 (high), a slider's stop outlived Cancel, Escape and Remove: a drag then Cancel told the dragged value 400 ms later,
+  one paused past 400 ms was kept whatever Cancel said, a drag then Remove said "there is no series B", and each pause
+  was its own step to undo. A drag is now a try (the viewer's `#tried`): judged by the tile's one rule, drawn, never told;
+  OK tells it once; Cancel, Escape, the window's close, Remove or another editor take it back (the editor's
+  `#leaving`); a change told meanwhile (Log, a range) is made to the tile as the page has it, never with the try.
+  Pinned: "a parameter dragged ... kept by OK alone", "... then Cancel, Escape or Remove".
+- 2, a pane's ends by hand were dropped without a word: a bounded line's axis (an RSI's 0 to 100) drew its bounds over
+  them, a pane of right-axis lines set them on its empty left axis, and a log pane clamped a least at or below 0. The
+  ends now win over the bounds and land on the axis the pane's lines are read on; the reader refuses a log scale's end
+  at or below 0. Pinned: `timeseries-option` "a pane's ends by hand", `timeseries-spec`.
+- 3, Python's `table()` was not the Data tab: every date, an index's base the first date ever, hidden series and
+  conditions among its columns, named by ids; `query()` and `frame()` read no base where the screen reads the first
+  date shown. `table()` reads the tile's range (`_window`), skips what the tab skips, and names each column by the
+  screen's rule (headless `timeseriesLineNames`, `splitName`); `frame()` and `query()` read a tile as the screen draws
+  it (headless `anchor`: every date, the base the first date shown). Pinned: `test_page.py`.
+- 4, a picture named no line (the screen's legend is the tile's chips) and drew the navigator: a picture now carries its
+  lines' legend under its heading and no navigator. Pinned: `timeseries-option` "a picture", the picture test here,
+  and `timeseries-echarts` (11).
+- 5, swap's edges: a series reading the instrument through `$A` kept its old name; a `$` in the new name was read as a
+  replacement's pattern; a number from Python failed as no refusal, and spaces round a name matched nothing; the S of
+  "S&P" was a word. A series reading it through a reference is renamed; the new name is written as told; names are
+  words (Python's `swap` sends them as text, the edit refuses anything else), trimmed; a `&`, or an inner `.` or `-`,
+  joins a word. Pinned: `timeseries-edit` "a swap's edges", `test_page.py` (an instrument column of numbers).
+- 6, the Swap window's list, painted again before the database answered the first, took both answers (the instrument
+  read among them, others twice): each paint's answer its own. Pinned: "Swap's list painted again".
+- 7, the Data tab kept one of a line's two values on a date (Copy lost what the chart drew) and split one day written
+  as a date and as a midnight date-time into two rows: two values on a date refused in words, the day one row.
+  Pinned: `timeseries-option`.
+- 8, Settings' Least and Most took a number the box could not read ("5,000") for none, taking the end off; 1e400 did
+  nothing, the box still showing it: both said, the end kept, the box as the tile has it. Pinned: "Settings: ...".
+- 9, a number of no bound had its slider from 0: a filter's -0.02 could go no lower: either side of 0 now. Pinned: "a
+  number of no least or most".
+- 10, a picture was taller than its panes needed by the screen's heading, counted twice; an empty title kept a blank
+  line; a note told with a line break ran into the panes: `tsPictureHeight`, a title of nothing none, each heading one
+  line (`headingLine`). `pngUrl`, unused, taken off. Pinned: `timeseries-option` "a picture", the picture test here.
+- 11, tests the review found missing: the real export through ECharts' SVG painter (`timeseries-echarts`: the
+  picture's heading and its lines' names in the SVG), the numeric swap, Cancel and Remove after a drag, ends on a
+  bounded pane -- each above.
+

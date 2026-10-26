@@ -11,7 +11,7 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { LIGHT_THEME } from '../src/chart-option.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
-import { tickText, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, tsHeading, tsLines, valueText, type TsResult } from '../src/timeseries-option.ts';
+import { tickText, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, tsHeading, tsLines, tsPictureHeight, valueText, type TsResult } from '../src/timeseries-option.ts';
 import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
 import type { TsUnit } from '../src/timeseries-expr.ts';
@@ -102,6 +102,20 @@ describe('the lines, from what the database answered', () => {
     const k = tsLines(candles, [answered('A', 'same', { [TS_DATE]: ['2024-01-02'], [TS_VALUE]: [4], [TS_OPEN]: [1], [TS_HIGH]: [5], [TS_LOW]: [0.5] }, { candles: true })], LIGHT_THEME).lines;
     assert.deepEqual(timeseriesTable(k).columns.map((c) => c.name), ['K open', 'K high', 'K low', 'K close']);
     assert.deepEqual(timeseriesTable(k).rows[0]!.values, [1, 5, 0.5, 4]);
+  });
+
+  // the Phase 2 review's 7: a line's second value on a date was dropped without a word (Copy lost what the chart drew),
+  // and one day written two ways -- a date, a date-time at midnight -- was two rows
+  it('a line\'s two values on one date refused in words, never one dropped; one day written two ways, one row', () => {
+    const one = spec([S('A', 'close[SPX]', { name: 'SPX' })]);
+    const twice = tsLines(one, [answered('A', 'same', { [TS_DATE]: ['2024-01-02', '2024-01-02'], [TS_VALUE]: [2, 1] })], LIGHT_THEME).lines;
+    assert.throws(() => timeseriesTable(twice), /SPX has 2 values on 2024-01-02: a table has a row a date/);
+    const two = spec([S('A', 'close[SPX]', { name: 'SPX' }), S('B', 'close[NDX]', { name: 'NDX' })]);
+    const mixed = tsLines(two, [
+      answered('A', 'same', { [TS_DATE]: ['2024-01-02'], [TS_VALUE]: [1] }),
+      answered('B', 'same', { [TS_DATE]: ['2024-01-02T00:00:00'], [TS_VALUE]: [2] }),
+    ], LIGHT_THEME).lines;
+    assert.deepEqual(timeseriesTable(mixed).rows, [{ date: '2024-01-02', values: [1, 2] }]);
   });
 });
 
@@ -240,6 +254,40 @@ describe('the drawing', () => {
     assert.equal(tsHeading(headed, 'Markets'), 22 + 17 + 15);
     const grids = (o: Record<string, unknown>): { top: number }[] => o['grid'] as { top: number }[];
     assert.equal(grids(picture)[0]!.top - grids(draw(ts, results).option)[0]!.top, tsHeading(headed, 'Markets'), 'the panes under the heading');
+  });
+
+  // the Phase 2 review's 4 and 10: a picture said no line's name and drew the navigator; it was taller than its panes
+  // needed by the screen's heading; an empty title kept a blank line; a note of two lines ran into the panes
+  it('a picture: its lines\' legend under its heading, no navigator, its panes as tall as on the screen', () => {
+    const ts: TimeseriesSpec = { ...spec([S('A', 'close[SPX]', { name: 'SPX' }), S('B', 'volatility($A, 2)', { name: 'Vol', pane: 1 })]),
+      view: { subtitle: 'Daily', note: 'Source: the exchange\nand its vendor' } };
+    const results = [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }), answered('B', 'percent', { [TS_DATE]: DAYS, [TS_VALUE]: [20, 19, null] })];
+    const { lines } = tsLines(ts, results, LIGHT_THEME);
+    const screen = timeseriesOption(ts, lines, { theme: LIGHT_THEME, height: 480 }) as Record<string, unknown>;
+    const picture = timeseriesOption(ts, lines, { theme: LIGHT_THEME, height: tsPictureHeight(ts, 480, 'Markets'), title: 'Markets', picture: true }) as Record<string, unknown>;
+    const heights = (o: Record<string, unknown>): number[] => (o['grid'] as { height: number }[]).map((g) => g.height);
+    assert.deepEqual(heights(picture), heights(screen), 'its panes as tall as on the screen');
+    assert.deepEqual((picture['legend'] as { data: { name: string }[] }).data.map((d) => d.name), ['SPX', 'Vol']);
+    assert.equal(screen['legend'], undefined, 'on the screen the tile\'s chips name its lines');
+    assert.ok(!(picture['dataZoom'] as { type: string }[]).some((z) => z.type === 'slider') && (screen['dataZoom'] as { type: string }[]).some((z) => z.type === 'slider'));
+    assert.equal((picture['title'] as { text: string }[]).at(-1)!.text, 'Source: the exchange and its vendor', 'a note one line');
+    const untitled = timeseriesOption(ts, lines, { theme: LIGHT_THEME, height: 480, title: '  ', picture: true }) as Record<string, unknown>;
+    assert.deepEqual((untitled['title'] as { text: string }[]).map((t) => t.text), ['Daily', 'Source: the exchange and its vendor'], 'an empty title no line');
+    assert.equal(tsHeading(ts, ''), tsHeading(ts));
+  });
+
+  // the Phase 2 review's 2: a pane's ends by hand were quietly ignored -- a bounded line's axis took its own bounds over
+  // them, and a pane whose lines are on the right set them on its empty left axis
+  it('a pane\'s ends by hand: over a bounded line\'s, and on the axis its lines are on', () => {
+    const rsi = spec([S('A', 'rsi(close[SPX], 14)')], { panes: [{ min: 20, max: 80 }] });
+    const r = [answered('A', 'number', { [TS_DATE]: DAYS, [TS_VALUE]: [30, 50, 70] })];
+    const bounded = draw(rsi, r).option['yAxis'] as { min?: number; max?: number }[];
+    assert.deepEqual([bounded[0]!.min, bounded[0]!.max], [20, 80], 'the ends told, not the RSI\'s 0 and 100');
+    const plain = draw(spec([S('A', 'rsi(close[SPX], 14)')]), r).option['yAxis'] as { min?: number; max?: number }[];
+    assert.deepEqual([plain[0]!.min, plain[0]!.max], [0, 100], 'its own bounds where none are told');
+    const right = spec([S('A', 'close[SPX]', { axis: 'right' })], { panes: [{ max: 2 }] });
+    const sides = draw(right, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] })]).option['yAxis'] as { position: string; max?: number }[];
+    assert.deepEqual(sides.map((y) => [y.position, y.max]), [['left', undefined], ['right', 2]], 'on the right, where its line is');
   });
 
   it('the annotations over the panes: a level on its pane, an event and a period across the dates', () => {

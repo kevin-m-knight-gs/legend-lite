@@ -209,8 +209,13 @@ export function instrumentsOf(spec: TimeseriesSpec): { readonly alias: string; r
  * when told -- matched to `to` instead, each series' name saying it (a word) saying the other; refused where no series
  * reads it.
  */
-function swapped(spec: TimeseriesSpec, from: string, to: string, alias: string | undefined): TimeseriesSpec {
-  if (to.trim() === '') throw new TsEditRefusal('an instrument is swapped for another: name it');
+function swapped(spec: TimeseriesSpec, fromTold: string, toTold: string, alias: string | undefined): TimeseriesSpec {
+  // names in words, a host's JSON too (the Phase 2 review's 5: a number from Python failed as no refusal); the spaces
+  // round a name not of it
+  if (typeof fromTold !== 'string' || typeof toTold !== 'string') throw new TsEditRefusal('an instrument is swapped by its name, in words');
+  const from = fromTold.trim();
+  const to = toTold.trim();
+  if (to === '') throw new TsEditRefusal('an instrument is swapped for another: name it');
   if (alias !== undefined && !spec.sources.some((x) => x.alias === alias)) throw new TsEditRefusal(`the tile reads no source ${alias}`);
   const first = spec.sources[0]?.alias;
   let swaps = 0;
@@ -225,7 +230,7 @@ function swapped(spec: TimeseriesSpec, from: string, to: string, alias: string |
           const onKey = m.column === undefined || m.column === key;
           if (!onKey || String(m.value) !== from) return m;
           // an instrument column of numbers matched to a number, never to words
-          if (typeof m.value === 'number' && !(to.trim() !== '' && Number.isFinite(Number(to)))) {
+          if (typeof m.value === 'number' && !Number.isFinite(Number(to))) {
             throw new TsEditRefusal(`${src}'s instruments are numbers: ${JSON.stringify(to)} is none`);
           }
           swaps += 1;
@@ -242,13 +247,27 @@ function swapped(spec: TimeseriesSpec, from: string, to: string, alias: string |
         return e;
     }
   };
-  // the word itself in a name, never a part of another (SPX in SPXW)
-  const said = new RegExp(`(?<![\\p{L}\\p{N}_])${from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}_])`, 'gu');
-  const series = spec.series.map((s) => {
+  // the word itself in a name, never a part of another: SPX in SPXW, S in S&P or in BRK.S (a & or an inner . or - joins)
+  const word = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const said = new RegExp(`(?<![\\p{L}\\p{N}_&]|[\\p{L}\\p{N}][.\\-])${word}(?![\\p{L}\\p{N}_&]|[.\\-][\\p{L}\\p{N}])`, 'gu');
+  const exprs = new Map(spec.series.map((s) => {
     const before = swaps;
     const expr = swap(s.expr);
-    // a series that read it named again; any other kept as it is
-    return swaps === before ? s : { ...s, expr, ...(s.name !== undefined ? { name: s.name.replace(said, to) } : {}) };
+    return [s.id, swaps === before ? undefined : expr] as const;
+  }));
+  // a series that read it -- itself, or through the series it reads ($A) -- plots the other: its name says so
+  const reads = (id: string, seen: Set<string>): boolean => {
+    if (exprs.get(id) !== undefined) return true;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    const s = spec.series.find((x) => x.id === id);
+    return s !== undefined && refsOf(s.expr).some((r) => reads(r, seen));
+  };
+  const series = spec.series.map((s) => {
+    const expr = exprs.get(s.id);
+    if (expr === undefined && !reads(s.id, new Set())) return s;
+    // the new name as written: never read as a replacement's pattern ($&, $')
+    return { ...s, ...(expr !== undefined ? { expr } : {}), ...(s.name !== undefined ? { name: s.name.replace(said, () => to) } : {}) };
   });
   if (swaps === 0) throw new TsEditRefusal(`no series reads ${from}${alias !== undefined ? ` of ${alias}` : ''}`);
   return { ...spec, series };

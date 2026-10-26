@@ -26,8 +26,6 @@ export interface MountedTimeseries {
   /** The drawing's own height in pixels: what its panes are laid out in. */
   height(): number;
   picture(ratio?: number): ChartPicture | null;
-  /** The drawing as a PNG's data: URL, for its download. */
-  pngUrl(): string | null;
   /**
    * `option` drawn off the screen at `width` by `height` on `background` -- a picture's own, its heading in it -- as a PNG
    * at three times its pixels, or as SVG (its painter fetched then): a data: URL, for its download (the next phases' 2).
@@ -112,14 +110,6 @@ export function mountTimeseries(el: HTMLElement, on: {
         const jpeg = bytesOf(chart.getDataURL({ type: 'jpeg', pixelRatio: ratio, backgroundColor: '#ffffff' }));
         if (png.length === 0 || jpeg.length === 0) return null;
         return { width, height, pixelWidth: Math.round(width * ratio), pixelHeight: Math.round(height * ratio), png, jpeg };
-      } catch {
-        return null;
-      }
-    },
-    pngUrl() {
-      if (!shown) return null;
-      try {
-        return chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#ffffff' });
       } catch {
         return null;
       }

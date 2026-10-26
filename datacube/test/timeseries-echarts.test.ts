@@ -16,7 +16,7 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { LIGHT_THEME } from '../src/chart-option.ts';
 import { parseExpr, type TsUnit } from '../src/timeseries-expr.ts';
-import { timeseriesOption, tsLines, type TsResult } from '../src/timeseries-option.ts';
+import { timeseriesOption, tsLines, tsPictureHeight, type TsResult } from '../src/timeseries-option.ts';
 import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
 import { mountTimeseries } from '../src/timeseries-render.ts';
 import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
@@ -117,6 +117,35 @@ describe('the renderer that mounts a timeseries (timeseries-render.ts)', () => {
       assert.deepEqual(zooms.at(-1), ['2024-01-03', '2024-01-05'], 'the viewer told the dates shown');
     } finally {
       mounted.dispose();
+    }
+  });
+
+  // the Phase 2 review's 11: no test ran a picture's export through ECharts' SVG painter
+  it('a picture made as SVG off the screen, by the SVG painter: its heading and its lines\' names in it', async () => {
+    const { JSDOM } = await import('jsdom');
+    const { svgChart } = await import('../src/chart-render.ts');
+    const dom = new JSDOM('<!doctype html><body><div id="c"></div></body>');
+    const el = dom.window.document.getElementById('c') as unknown as HTMLElement;
+    // zrender's SVG painter makes its elements in the page's document: the test's own, while it draws
+    const g = globalThis as { document?: unknown };
+    const had = g.document;
+    g.document = dom.window.document;
+    const mounted = mountTimeseries(el, { onZoom: () => {} }, () => echarts.init(null, null, { renderer: 'svg', ssr: true, width: 720, height: 480 }), svgChart);
+    try {
+      const ts: TimeseriesSpec = { ...spec([S('A', 'close', { name: 'Close' }), S('B', 'mean($A, 2)', { name: 'Two-day mean' })]), view: { subtitle: 'Daily', note: 'Source: the exchange' } };
+      const results = [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [105, 104, 102, 101, 100] }),
+        answered('B', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [104.5, 103, 101.5, 100.5, null] })];
+      const tall = tsPictureHeight(ts, 480, 'Markets');
+      const option = timeseriesOption(ts, tsLines(ts, results, LIGHT_THEME).lines, { theme: LIGHT_THEME, height: tall, title: 'Markets', picture: true });
+      const url = await mounted.exportUrl(option, 'svg', 720, tall, '#ffffff');
+      const body = url.slice(url.indexOf(',') + 1);
+      const svg = url.includes(';base64,') ? Buffer.from(body, 'base64').toString('utf8') : decodeURIComponent(body);
+      assert.match(svg, /^<svg/, 'an SVG');
+      for (const words of ['Markets', 'Daily', 'Source: the exchange', 'Close', 'Two-day mean']) assert.ok(svg.includes(words), `${words} in the picture`);
+      assert.equal(dom.window.document.body.children.length, 1, 'its box off the screen put away');
+    } finally {
+      mounted.dispose();
+      g.document = had;
     }
   });
 });

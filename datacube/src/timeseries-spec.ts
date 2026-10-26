@@ -105,7 +105,8 @@ export interface TsPane {
   readonly log?: boolean;
   /** Its axes upside down (a yield's, a spread's: down is better) -- the next phases' 2. */
   readonly invert?: boolean;
-  /** Its left axis' least and most, set by hand; either absent, the drawing's own. */
+  /** Its value axis' least and most, set by hand -- its left's, or its right's where its lines are all there; over a
+   *  bounded line's (an RSI's 0 to 100); above 0 on a log scale. Either absent, the drawing's own. */
   readonly min?: number;
   readonly max?: number;
 }
@@ -684,6 +685,10 @@ export function tsProblem(ts: unknown): string | null {
       }
       if (typeof pane['min'] === 'number' && typeof pane['max'] === 'number' && pane['min'] >= pane['max']) {
         return `pane ${i}'s min ${pane['min']} is not below its max ${pane['max']}`;
+      }
+      // a log scale's ends above 0: ECharts clamps one at or below it without a word (the Phase 2 review's 2)
+      for (const end of ['min', 'max'] as const) {
+        if (pane['log'] === true && typeof pane[end] === 'number' && pane[end] <= 0) return `pane ${i}'s ${end} ${pane[end]} is not above 0: a log scale starts above it`;
       }
     }
   }

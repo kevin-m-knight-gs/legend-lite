@@ -131,6 +131,25 @@ describe('a timeseries tile changed by its one rule', () => {
     assert.deepEqual(venue.series[0]!.expr, parseExpr('close[venue=SPX, RUT]'));
   });
 
+  // the Phase 2 review's 5: swap's edges
+  it('a swap\'s edges: a name read through a reference, a $ in the new name, numbers, spaces, a word joined by &', () => {
+    // a series reading it through $A plots the other too: its name follows
+    const refs: TimeseriesSpec = { ...SPEC, series: [S('A', 'close[SPX]', { name: 'SPX' }), S('B', 'sma($A, 50)', { name: 'SPX 50d' }), S('C', 'close[NDX]', { name: 'SPX peer' })] };
+    assert.deepEqual(editTimeseries(refs, { kind: 'swap', from: 'SPX', to: 'RUT' }).series.map((x) => x.name), ['RUT', 'RUT 50d', 'SPX peer']);
+    // the new name as written, never read as a replacement's pattern
+    assert.equal(editTimeseries(refs, { kind: 'swap', from: 'SPX', to: "A$'B" }).series[0]!.name, "A$'B");
+    // an instrument column of numbers: a number for a number, refused for a word -- and a number told as one
+    const numbered: TimeseriesSpec = { ...SPEC, series: [S('A', 'close[10]', { name: '10 close' })] };
+    assert.deepEqual(editTimeseries(numbered, { kind: 'swap', from: '10', to: '20' }).series[0]!.expr, parseExpr('close[20]'));
+    refused(() => editTimeseries(numbered, { kind: 'swap', from: '10', to: 'RUT' }), /px's instruments are numbers: "RUT" is none/);
+    refused(() => editTimeseries(numbered, { kind: 'swap', from: 10 as unknown as string, to: '20' }), /an instrument is swapped by its name, in words/);
+    // spaces round a name are not of it
+    assert.deepEqual(editTimeseries(refs, { kind: 'swap', from: ' SPX ', to: ' RUT ' }).series[0]!.expr, parseExpr('close[RUT]'));
+    // S in S&P 500 is no word of its own
+    const sp: TimeseriesSpec = { ...SPEC, series: [S('A', 'close[S]', { name: 'S&P 500 close, S' })] };
+    assert.equal(editTimeseries(sp, { kind: 'swap', from: 'S', to: 'T' }).series[0]!.name, 'S&P 500 close, T');
+  });
+
   // the review's A3: Create ▸ Timeseries and Python's first tile, one rule and one refusal
   it('a first tile of a grid, and a first plot of a source told by its grid: one rule, refused in one set of words', () => {
     const made = firstTimeseries(PRICES);

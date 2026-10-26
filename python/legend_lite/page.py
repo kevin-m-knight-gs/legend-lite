@@ -1850,10 +1850,21 @@ class Timeseries(Tile):
         of its split (``SPX``, ``NDX``); a band's ``lower`` and ``upper``; candles' ``open``, ``high``, ``low`` and
         ``close``. ``start`` and ``end`` (ISO days): the dates it
         keeps -- kept by the database after every value is computed over every date (a window's first values have their
-        history), and an index's base, a compare's, its first."""
+        history), and an index's base, a compare's, its first. Neither: every date, an index's base the first date the
+        screen shows (the tile's range), as the screen draws it."""
+        return self._framed(self._drawn(series, start, end))[0]
+
+    def _drawn(self, series: str | None, start: str | None, end: str | None) -> dict[str, Any]:
+        """What is asked of series ``series`` over ``start`` to ``end`` (``_asked``): those dates kept; neither, every
+        date, its base the first date the screen shows -- the tile's range, by its screen's rule (``_window``) -- as the
+        screen draws the tile (the Phase 2 review's 3: Python's base had been its first date)."""
+        anchor = self._window(None, None).get('from') if start is None and end is None else None
+        return self._asked(series, start, end, anchor)
+
+    def _framed(self, asked: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
+        """A series' frame (``frame``) as ``asked``, and its answer's words."""
         import pandas as pd
         engine = self._page._session.headless()
-        asked = self._asked(series, start, end)
         series = asked['series']
         rows, said = self._rows(asked)
         # what its rows say a reader should know -- several rows a date, no frequency to annualize by -- said as the
@@ -1885,17 +1896,18 @@ class Timeseries(Tile):
         else:
             out = rows.set_index(named['date'])[[named['value']]].rename(columns={named['value']: said['name'] or series})
         out.index.name = 'date'
-        return out.sort_index()
+        return out.sort_index(), said
 
-    def _asked(self, series: str | None, start: str | None, end: str | None) -> dict[str, Any]:
-        """What is asked of series ``series`` (None: its first) over the dates ``start`` to ``end``."""
+    def _asked(self, series: str | None, start: str | None, end: str | None, anchor: str | None = None) -> dict[str, Any]:
+        """What is asked of series ``series`` (None: its first) over the dates ``start`` to ``end``; ``anchor``, the first
+        date shown where every date is kept (an index's base)."""
         spec = self._view['spec']
         if series is None:
             if not spec['series']:
                 raise ValueError(f'{self!r} plots no series')
             series = spec['series'][0]['id']
         window = {k: v for k, v in (('from', start), ('to', end)) if v is not None}
-        return {'page': self._page._doc, 'tile': self._id, 'series': series, 'window': window}
+        return {'page': self._page._doc, 'tile': self._id, 'series': series, 'window': window, **({'anchor': anchor} if anchor is not None else {})}
 
     def _query(self, asked: dict[str, Any]) -> tuple[Any, Mapping[str, Any], dict[str, Any]]:
         """One of the tile's queries, its base and its answer's words: asked of DataCube headless (timeseriesQuery: a
@@ -1933,13 +1945,15 @@ class Timeseries(Tile):
         return rows, said
 
     def query(self, series: str | None = None, *, start: str | None = None, end: str | None = None) -> dict[str, str]:
-        """Series ``series``' query (None: its first), as ``frame`` reads it over ``start`` to ``end`` -- the screen's
-        Query window's: ``pure``, the query DataCube wrote, as the compiler prints it; ``sql``, the SQL its plan runs
-        where its rows are. Planned, nothing run (the engine's dry run, plan.json). Refused in the planner's words."""
+        """Series ``series``' query (None: its first), as ``frame`` reads it over ``start`` to ``end`` -- neither, as the
+        screen draws it, its base the first date shown: the screen's Query window's. ``pure``, the query DataCube wrote,
+        as the compiler prints it; ``sql``, the SQL its plan runs where its rows are. Planned, nothing run (the engine's
+        dry run, plan.json). Refused in the planner's words."""
         from . import compiler
         session = self._page._session
+        asked = self._drawn(series, start, end)
         with session.frames.reading():
-            tree, base, _said = self._query(self._asked(series, start, end))
+            tree, base, _said = self._query(asked)
             asked = {'lambda': _json.dumps(tree), 'model': base['model'], 'runtime': base['runtime'],
                      **({'project': True} if base.get('project') is True else {})}
             answer = session.engine().answer('POST', '/plan.json', '', json.dumps(asked))
@@ -1949,24 +1963,44 @@ class Timeseries(Tile):
         return {'pure': compiler.print_tree(tree), 'sql': compiler.read_planned(said['plan']).sql}
 
     def table(self, *, start: str | None = None, end: str | None = None) -> Any:
-        """Every series' lines side by side, a row per date -- the screen's Data tab's: a pandas DataFrame indexed by
-        date, oldest first, its columns each series' ``frame`` (its lines, a band's edges, a candle's prices) by its name,
-        a split's lines each under its series' name and its value; none where a line has no point that date. Each frame
-        the database's, put side by side by their dates (nothing computed). ``start`` and ``end``: as ``frame`` keeps
-        them."""
+        """Every line side by side, a row per date over ``start`` to ``end`` (ISO days, either open; neither, the tile's
+        range, as its screen shows them) -- the screen's Data tab's: a pandas DataFrame indexed by date, oldest first,
+        a column per line shown (none hidden, no condition: a condition is shaded, no figures of its own) named as the
+        screen names it (a series' name, else its expression; a split's each line by its value beside it; a band's
+        ``lower`` and ``upper``, a candle's four prices after it -- headless timeseriesLineNames), each its ``frame`` over
+        those dates (an index's base their first); none where a line has no point that date. Each frame the database's,
+        put side by side by their dates (nothing computed). (The Phase 2 review's 3: every date had been read, its base
+        the first, hidden series and conditions among the columns, and the columns named by their ids.)"""
         import pandas as pd
+        window = self._window(start, end)
+        engine = self._page._session.headless()
+        doc = _json.dumps(self._page._doc)
         frames = []
         for s in self._view['spec']['series']:
-            f = self.frame(s['id'], start=start, end=end)
-            # each column named by its series too, as the screen's table names a line: no two series' lines one column
-            own = s.get('name') or s['id']
+            if s.get('hidden'):
+                continue
+            f, said = self._framed(self._asked(s['id'], window.get('from'), window.get('to')))
+            if said['shade']:
+                continue
+
+            def names(splits: list[Any] | None, series: str = s['id']) -> list[str]:
+                got = _json.loads(engine.call('timeseriesLineNames', doc, self._id, series, _json.dumps(splits)))
+                if 'problems' in got:
+                    raise ValueError('; '.join(got['problems']))
+                return got['names']
+
+            plain = (lambda v: v.item() if hasattr(v, 'item') else v)
             if isinstance(f.columns, pd.MultiIndex):
-                f.columns = [' '.join(str(x) for x in (own, *c)) for c in f.columns]
-            elif len(f.columns) > 1 or f.columns[0] != own:
-                f.columns = [f'{own} {c}' for c in f.columns]
+                # a candle per instrument: each line's four prices after its name
+                f.columns = [f'{n} {c[0]}' for n, c in zip(names([plain(c[1]) for c in f.columns]), f.columns)]
+            elif said['split'] is not None:
+                f.columns = names([plain(c) for c in f.columns])
+            else:
+                [own] = names(None)
+                f.columns = [own] if not (said['band'] or said['candles']) else [f'{own} {c}' for c in f.columns]
             frames.append(f)
         if not frames:
-            raise ValueError(f'{self!r} plots no series')
+            raise ValueError(f'{self!r} shows no line')
         return pd.concat(frames, axis=1).sort_index()
 
     def _tables(self) -> dict[str, Any]:
@@ -2206,11 +2240,12 @@ class Timeseries(Tile):
         index = pd.MultiIndex.from_tuples(keys, names=['line', 'year']) if split else pd.Index([k[1] for k in keys], name='year')
         return pd.DataFrame([table[k] for k in keys], index=index, columns=[*months, 'Year'])
 
-    def swap(self, instrument: str, to: str, *, source: str | None = None) -> Timeseries:
+    def swap(self, instrument: Any, to: Any, *, source: str | None = None) -> Timeseries:
         """Instrument ``instrument`` read as ``to`` in every series that reads it (``close[SPX]``: a match on its source's
         instrument column) -- of source ``source`` alone when given -- a name that says it saying the other: the screen's
-        Swap, by the tile's one rule (timeseries-edit.ts). Refused where no series reads it."""
-        return self._edit({'kind': 'swap', 'from': instrument, 'to': to, **({'alias': source} if source is not None else {})})
+        Swap, by the tile's one rule (timeseries-edit.ts). An instrument column of numbers takes them as numbers
+        (``swap(10, 20)``); the spaces round a name are not of it. Refused where no series reads it."""
+        return self._edit({'kind': 'swap', 'from': str(instrument), 'to': str(to), **({'alias': source} if source is not None else {})})
 
     def _edit(self, change: dict[str, Any]) -> Timeseries:
         """``change`` (a timeseries-edit.ts TsChange) made by the tile's one rule, headless, and told as setTimeseries."""

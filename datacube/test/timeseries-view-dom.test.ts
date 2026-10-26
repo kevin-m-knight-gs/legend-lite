@@ -100,7 +100,6 @@ function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over
     highlight: () => {},
     height: () => 480,
     picture: () => null,
-    pngUrl: () => null,
     exportUrl: async (option, kind, width, height, background) => { exported.push({ option, kind, width, height, background }); return `data:image/${kind};base64,AA==`; },
     dispose: () => {},
   });
@@ -412,6 +411,17 @@ const barButton = (root: HTMLElement, label: string): HTMLButtonElement =>
 /** A button of the open window, by its label. */
 const windowButton = (windows: HTMLElement, label: string): HTMLButtonElement =>
   [...windows.querySelectorAll<HTMLButtonElement>('.dc-ts-window button')].find((b) => b.textContent === label)!;
+/** A series' editor opened from its chip (a double-click), by the chip's name: its window's content. */
+function openSeries(root: HTMLElement, windows: HTMLElement, name: string): HTMLElement {
+  const chip = [...root.querySelectorAll<HTMLElement>('.dc-ts-chip')].find((c) => c.textContent?.startsWith(name))!;
+  chip.dispatchEvent(new chip.ownerDocument.defaultView!.MouseEvent('dblclick', { bubbles: true }));
+  return windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+}
+/** A slider moved to `value`, as a drag moves it. */
+function drag(slider: HTMLInputElement, value: string): void {
+  slider.value = value;
+  slider.dispatchEvent(new slider.ownerDocument.defaultView!.Event('input'));
+}
 /** The page's clipboard, what is written onto it kept. */
 function clipboardOf(root: HTMLElement): string[] {
   const written: string[] = [];
@@ -467,6 +477,27 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
     }
   });
 
+  // the Phase 2 review's 6: the list painted again before the database answered the first: both answers appended
+  it('Swap\'s list painted again while the database answers: the last paint\'s answer alone', async () => {
+    const two: TimeseriesSpec = { ...SPEC, series: [{ id: 'A', expr: parseExpr('close[SPX]') }, { id: 'B', expr: parseExpr('close[NDX]') }] };
+    const { root, windows, view } = viewer(two);
+    try {
+      await until(() => chips(root).length === 2, 'its lines');
+      barButton(root, 'Swap').click();
+      const pop = windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+      const [from, to] = [...pop.querySelectorAll('select')] as HTMLSelectElement[];
+      from!.value = '1';
+      from!.dispatchEvent(new (from!.ownerDocument.defaultView!.Event)('change'));
+      await until(() => [...to!.options].some((o) => o.value === 'SPX'), 'the instruments its source has');
+      await new Promise((r) => setTimeout(r, 200));
+      const values = [...to!.options].map((o) => o.value).filter((v) => v !== '');
+      assert.deepEqual(values, [...new Set(values)], 'each once');
+      assert.ok(!values.includes('NDX'), 'not the one it reads');
+    } finally {
+      view.dispose();
+    }
+  });
+
   it('Query: each series\' query as the compiler prints it and the SQL the database ran for it, each copied', async () => {
     const { root, windows, view } = viewer(SPEC);
     const written = clipboardOf(root);
@@ -490,7 +521,7 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
   });
 
   it('a picture: drawn again with the tile\'s title, subtitle and note above it, taller by them, on the page\'s surface', async () => {
-    const { root, exported, view } = viewer({ ...SPEC, view: { ...SPEC.view, subtitle: 'Daily', note: 'Source: the sample' } });
+    const { root, exported, drawn, view } = viewer({ ...SPEC, view: { ...SPEC.view, subtitle: 'Daily', note: 'Source: the sample' } });
     const saved: string[] = [];
     const Anchor = root.ownerDocument.defaultView!.HTMLAnchorElement;
     Anchor.prototype.click = function click(this: HTMLAnchorElement) { saved.push(`${this.download} ${this.href.slice(0, this.href.indexOf(";"))}`); };
@@ -507,33 +538,102 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       assert.deepEqual(saved, ['Markets.svg data:image/svg']);
       const [made] = exported;
       assert.equal(made!.kind, 'svg');
-      assert.deepEqual([made!.width, made!.height], [800, 480 + 22 + 17 + 15], 'its panes as tall as on the screen, its heading above');
+      // its panes as tall as on the screen (the Phase 2 review's 10: the screen's heading had been counted twice), its
+      // heading and its lines' legend above them, no navigator under them (the review's 4)
+      const panes = (o: EChartsOption): number[] => (o.grid as { height: number }[]).map((g) => g.height);
+      assert.equal(made!.width, 800);
+      assert.deepEqual(panes(made!.option), panes(drawn.at(-1)!), 'its panes as tall as on the screen');
       assert.deepEqual((made!.option.title as { text: string }[]).map((t) => t.text), ['Markets', 'Daily', 'Source: the sample']);
+      assert.deepEqual((made!.option.legend as { data: { name: string }[] }).data.map((d) => d.name), ['S&P 500', '21d vol'], 'its lines named in it');
+      assert.ok(!(made!.option.dataZoom as { type: string }[]).some((z) => z.type === 'slider'), 'no navigator in a picture');
       assert.ok(made!.background !== '' && made!.background !== 'transparent', `on a surface: ${made!.background}`);
     } finally {
       view.dispose();
     }
   });
 
-  it('a parameter dragged: its expression moved, the series drawn again when it stops, the editor kept open', async () => {
+  it('a parameter dragged: its expression moved, the series drawn again when it stops, kept by OK alone', async () => {
     const { root, windows, told, view } = viewer(SPEC);
     try {
       await until(() => statRows(root).length === 2, 'its statistics');
-      const chip = [...root.querySelectorAll<HTMLElement>('.dc-ts-chip')].find((c) => c.textContent?.startsWith('21d vol'))!;
-      chip.dispatchEvent(new chip.ownerDocument.defaultView!.MouseEvent('dblclick', { bubbles: true }));
-      const pop = windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+      const pop = openSeries(root, windows, '21d vol');
       const slider = pop.querySelector<HTMLInputElement>('.dc-ts-slider[aria-label$="w"]')!;
       assert.ok(slider, 'its window\'s length a slider');
       assert.equal(slider.value, '21');
-      const before = told.length;
-      slider.value = '30';
-      slider.dispatchEvent(new slider.ownerDocument.defaultView!.Event('input'));
+      drag(slider, '30');
       assert.equal((pop.querySelector('.dc-ts-expr') as HTMLInputElement).value, 'volatility($A, 30)');
-      assert.equal(told.length, before, 'nothing told while it moves');
-      await until(() => told.length > before, 'the series drawn again when it stops');
-      assert.deepEqual(told.at(-1)!.series[1]!.expr, parseExpr('volatility($A, 30)'));
-      assert.equal(told.at(-1)!.series[1]!.name, '21d vol', 'the rest of the series as it was');
+      // drawn again when it stops, as a look of the person's own: the page told nothing (the Phase 2 review's 1)
+      await until(() => JSON.stringify(view.spec.series[1]!.expr) === JSON.stringify(parseExpr('volatility($A, 30)')), 'the series drawn again when it stops');
+      await new Promise((r) => setTimeout(r, 450));
+      assert.equal(told.length, 0, 'nothing told while it is tried');
       assert.ok(windows.querySelector('.dc-ts-window'), 'its editor still open');
+      windowButton(windows, 'OK').click();
+      assert.equal(told.length, 1, 'kept by OK, once: one step to undo');
+      assert.deepEqual(told[0]!.series[1]!.expr, parseExpr('volatility($A, 30)'));
+      assert.equal(told[0]!.series[1]!.name, '21d vol', 'the rest of the series as it was');
+      assert.equal(windows.querySelector('.dc-ts-window'), null);
+    } finally {
+      view.dispose();
+    }
+  });
+
+  // the Phase 2 review's 9: a number of no least had its slider from 0 -- a filter's -0.02 could go no lower, a power no
+  // negative -- and a filter's 0 to 1 on prices was blind to their scale
+  it('a number of no least or most: its slider either side of 0, as far as its value goes', async () => {
+    const spec: TimeseriesSpec = { ...SPEC, series: [...SPEC.series, { id: 'C', expr: parseExpr('filter(returns($A), less_than, -0.02)'), name: 'Bad days' }] };
+    const { root, windows, view } = viewer(spec);
+    try {
+      await until(() => chips(root).length === 3, 'its lines');
+      const pop = openSeries(root, windows, 'Bad days');
+      const slider = pop.querySelector<HTMLInputElement>('.dc-ts-slider[aria-label$="value"]')!;
+      assert.ok(slider, 'its value a slider');
+      assert.equal(Number(slider.value), -0.02);
+      assert.ok(Number(slider.min) <= -0.08 && Number(slider.max) >= 0.08, `either side of 0: ${slider.min} to ${slider.max}`);
+      assert.equal(Number(slider.min), -Number(slider.max), 'as far down as up');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('a parameter dragged, then Cancel, Escape or Remove: nothing of the drag kept, nothing told after (the Phase 2 review\'s 1)', async () => {
+    const { root, windows, told, view } = viewer(SPEC);
+    const was = JSON.stringify(SPEC.series[1]!.expr);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      // tried and drawn, then Cancel: as it was, drawn so, the page told nothing
+      let pop = openSeries(root, windows, '21d vol');
+      drag(pop.querySelector<HTMLInputElement>('.dc-ts-slider[aria-label$="w"]')!, '40');
+      await until(() => JSON.stringify(view.spec.series[1]!.expr) === JSON.stringify(parseExpr('volatility($A, 40)')), 'the drag drawn');
+      windowButton(windows, 'Cancel').click();
+      assert.equal(JSON.stringify(view.spec.series[1]!.expr), was, 'Cancel leaves it as it was');
+      // dragged, then Escape before it stops: its stop never lands
+      pop = openSeries(root, windows, '21d vol');
+      drag(pop.querySelector<HTMLInputElement>('.dc-ts-slider[aria-label$="w"]')!, '30');
+      const win = windows.querySelector('.dc-ts-window') as HTMLElement;
+      win.dispatchEvent(new (win.ownerDocument.defaultView!.KeyboardEvent)('keydown', { key: 'Escape', bubbles: true }));
+      assert.equal(windows.querySelector('.dc-ts-window'), null, 'Escape put it away');
+      await new Promise((r) => setTimeout(r, 450));
+      assert.equal(JSON.stringify(view.spec.series[1]!.expr), was);
+      assert.equal(told.length, 0, 'nothing told by a drag put away');
+      // tried, then another change told (Log): made to the tile as the page has it, never with the try
+      pop = openSeries(root, windows, '21d vol');
+      drag(pop.querySelector<HTMLInputElement>('.dc-ts-slider[aria-label$="w"]')!, '50');
+      await until(() => JSON.stringify(view.spec.series[1]!.expr) === JSON.stringify(parseExpr('volatility($A, 50)')), 'the drag drawn');
+      barButton(root, 'Log').click();
+      assert.equal(told.at(-1)!.panes?.[0]?.log, true);
+      assert.equal(JSON.stringify(told.at(-1)!.series[1]!.expr), was, 'the try not told with it');
+      assert.equal(JSON.stringify(view.spec.series[1]!.expr), was, 'and drawn as the page has it');
+      windowButton(windows, 'Cancel').click();
+      told.length = 0;
+      // dragged, then Remove: the series taken off, and its drag's stop says nothing after
+      pop = openSeries(root, windows, '21d vol');
+      drag(pop.querySelector<HTMLInputElement>('.dc-ts-slider[aria-label$="w"]')!, '30');
+      windowButton(windows, 'Remove').click();
+      assert.deepEqual(told.at(-1)!.series.map((s) => s.id), ['A']);
+      await new Promise((r) => setTimeout(r, 450));
+      assert.equal(told.length, 1, 'the Remove alone');
+      assert.equal(told[0]!.panes?.[0]?.log, true, 'made to the page\'s tile');
+      assert.doesNotMatch(root.querySelector('.dc-ts-banner')?.textContent ?? '', /there is no series/);
     } finally {
       view.dispose();
     }
@@ -559,6 +659,23 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       most.value = '9000';
       most.dispatchEvent(new Event('change'));
       assert.equal(told.at(-1)!.panes?.[0]?.max, 9000);
+      // a number the box cannot read ("5,000"), or none it can draw (1e400): said, the end kept -- never taken off
+      // without a word (the Phase 2 review's 8)
+      const kept = told.length;
+      const bad = windows.querySelector<HTMLInputElement>('.dc-ts-window input[aria-label="Most"]')!;
+      Object.defineProperty(bad, 'validity', { configurable: true, value: { badInput: true } });
+      bad.value = '';
+      bad.dispatchEvent(new Event('change'));
+      assert.equal(told.length, kept, 'nothing told');
+      assert.match(root.querySelector('.dc-ts-banner')?.textContent ?? '', /Most: what was typed is not a number/);
+      const huge = windows.querySelector<HTMLInputElement>('.dc-ts-window input[aria-label="Most"]')!;
+      // read as typed (a DOM's number box keeps no 1e400 of its own), its validity none bad
+      Object.defineProperty(huge, 'validity', { configurable: true, value: { badInput: false } });
+      Object.defineProperty(huge, 'value', { configurable: true, writable: true, value: '1e400' });
+      huge.dispatchEvent(new Event('change'));
+      assert.equal(told.length, kept, 'nothing told');
+      assert.match(root.querySelector('.dc-ts-banner')?.textContent ?? '', /Most: 1e400 is no number the axis can end at/);
+      assert.equal(windows.querySelector<HTMLInputElement>('.dc-ts-window input[aria-label="Most"]')!.value, '9000', 'the box as the tile has it');
       await until(() => (drawn.at(-1)!.yAxis as { inverse?: boolean; max?: number }[])[0]?.max === 9000, 'drawn so');
       const left = (drawn.at(-1)!.yAxis as { inverse?: boolean; max?: number }[])[0]!;
       assert.equal(left.inverse, true);
@@ -848,7 +965,7 @@ describe('asking the database what is shown, once', () => {
       windowHost: dom.window.document.getElementById('w') as unknown as HTMLElement,
       title: () => 'Markets',
       mount: () => ({
-        show: () => {}, zoomTo: () => {}, zoomed: () => ({}), highlight: () => {}, height: () => 480, picture: () => null, pngUrl: () => null,
+        show: () => {}, zoomTo: () => {}, zoomed: () => ({}), highlight: () => {}, height: () => 480, picture: () => null,
         exportUrl: () => Promise.reject(new Error('no picture here')), dispose: () => {},
       }),
     }, spec);

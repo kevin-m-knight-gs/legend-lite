@@ -286,14 +286,33 @@ export interface TsDrawContext {
   readonly view?: { readonly from?: string; readonly to?: string };
   readonly height?: number;
   /** A picture's title (its export, the next phases' 2): drawn above its subtitle and note; on the screen, the tile's
-   *  header says it. */
+   *  header says it. Empty: none. */
   readonly title?: string;
+  /** A picture (its export): its lines' legend drawn in it -- on the screen, the tile's own chips -- and no navigator
+   *  (the Phase 2 review's 4: a picture said no line's name, and drew the navigator). */
+  readonly picture?: boolean;
 }
 
+/** A heading's line as it is drawn: one line (a note told with line breaks drawn over the panes below it -- the Phase 2
+ *  review's 10), none where empty. */
+export const headingLine = (text: string | undefined): string | undefined => text?.replace(/\s*[\r\n]+\s*/g, ' ').trim() || undefined;
+
 /** How tall a drawing's heading is -- a picture's `title`, the view's subtitle and note, each a line -- in pixels above
- *  its panes: a picture is made that much taller than the chart on the screen, its panes the same. */
+ *  its panes. */
 export function tsHeading(ts: TimeseriesSpec, title?: string): number {
-  return (title !== undefined ? 22 : 0) + (ts.view?.subtitle?.trim() ? 17 : 0) + (ts.view?.note?.trim() ? 15 : 0);
+  return (headingLine(title) !== undefined ? 22 : 0) + (headingLine(ts.view?.subtitle) !== undefined ? 17 : 0) + (headingLine(ts.view?.note) !== undefined ? 15 : 0);
+}
+
+/** A picture's legend: a row of its lines' names over its panes. */
+const LEGEND = 22;
+
+/**
+ * A PICTURE'S HEIGHT for panes as tall as on the screen's `height`: the screen's heading and navigator taken off, the
+ * picture's heading (its title) and its legend put on (the Phase 2 review's 10: the screen's heading was counted twice).
+ */
+export function tsPictureHeight(ts: TimeseriesSpec, height: number, title?: string): number {
+  const navigator = viewSetting(ts, 'navigator') ? NAVIGATOR + 8 : 0;
+  return height - tsHeading(ts) - navigator + tsHeading(ts, title) + LEGEND;
 }
 
 const NAVIGATOR = 30;
@@ -318,12 +337,15 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   const theme = ctx.theme;
   const panes = panesOf(ts, lines);
   const total = ctx.height ?? 420;
-  const navigator = viewSetting(ts, 'navigator');
+  const picture = ctx.picture === true;
+  const navigator = viewSetting(ts, 'navigator') && !picture;
   const bottom = AXIS_LABELS + (navigator ? NAVIGATOR + 8 : 0);
-  // its heading -- a picture's title, the subtitle, the note -- above the panes, in the room they leave
-  const subtitle = ts.view?.subtitle?.trim() || undefined;
-  const note = ts.view?.note?.trim() || undefined;
-  const headed = tsHeading(ts, ctx.title);
+  // its heading -- a picture's title, the subtitle, the note, a picture's legend -- above the panes, in the room they leave
+  const title = headingLine(ctx.title);
+  const subtitle = headingLine(ts.view?.subtitle);
+  const note = headingLine(ts.view?.note);
+  const heading = tsHeading(ts, title);
+  const headed = heading + (picture ? LEGEND : 0);
   const room = Math.max(60, total - TOP - headed - bottom - PANE_GAP * (panes.length - 1));
   const weight = panes.reduce((a, p) => a + p.height, 0);
   // the lines drawn on an axis; a condition's periods are shaded across the panes, on none (below)
@@ -350,13 +372,18 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
     const units: TsUnit[] = [];
     for (const l of here) if (l.series.axis === undefined && !units.includes(l.unit)) units.push(l.unit);
     const sideOf = (l: TsLine): 'left' | 'right' => l.series.axis ?? (units.indexOf(l.unit) === 0 ? 'left' : 'right');
+    // its ends by hand on the axis its lines are read on: its left, or its right where its lines are all there (the
+    // Phase 2 review's 2: set on an empty left axis, they changed nothing)
+    const endsOn = here.length > 0 && here.every((l) => sideOf(l) === 'right') ? 'right' : 'left';
+    const byHand = p.min !== undefined || p.max !== undefined;
     for (const side of ['left', 'right'] as const) {
       const on = here.filter((l) => sideOf(l) === side);
       if (on.length === 0 && !(side === 'left')) continue;
       const unit = on[0]?.unit ?? 'same';
-      // every line on it bounded alike (RSIs): the axis shows the bounds whole
+      // every line on it bounded alike (RSIs): the axis shows the bounds whole -- but where its ends are told (the
+      // review's 2: the bounds were drawn over them)
       const bounds = on[0]?.bounds;
-      const bounded = bounds !== undefined && on.every((l) => l.bounds?.[0] === bounds[0] && l.bounds?.[1] === bounds[1]) ? bounds : undefined;
+      const bounded = !(byHand && side === endsOn) && bounds !== undefined && on.every((l) => l.bounds?.[0] === bounds[0] && l.bounds?.[1] === bounds[1]) ? bounds : undefined;
       axisOf.set(`${gi}|${side}`, yAxes.length);
       yAxes.push({
         // a log pane's axes of levels alone: a return, a difference, a z-score may be zero or below, which a log axis drops
@@ -367,9 +394,9 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
         scale: bounded === undefined,
         // upside down, as a yield's or a spread's axis is read (the next phases' 2)
         ...(p.invert ? { inverse: true } : {}),
-        // its left axis' ends set by hand
-        ...(side === 'left' && p.min !== undefined ? { min: p.min } : {}),
-        ...(side === 'left' && p.max !== undefined ? { max: p.max } : {}),
+        // its ends set by hand
+        ...(side === endsOn && p.min !== undefined ? { min: p.min } : {}),
+        ...(side === endsOn && p.max !== undefined ? { max: p.max } : {}),
         // as many ticks as the pane has room for: a short pane's labels never run into each other; a bounded axis's at
         // even steps of its bounds (an RSI's 0, 50, 100 -- or every 25)
         ...(bounded !== undefined
@@ -557,15 +584,22 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   const crosshair = viewSetting(ts, 'crosshair');
   // the heading: each line its own text, the title's the boldest
   const heads = [
-    ...(ctx.title !== undefined ? [{ text: ctx.title, size: 15, weight: 600, color: theme.ink, top: 4 }] : []),
-    ...(subtitle !== undefined ? [{ text: subtitle, size: 12, weight: 400, color: theme.ink, top: 4 + (ctx.title !== undefined ? 22 : 0) }] : []),
-    ...(note !== undefined ? [{ text: note, size: 11, weight: 400, color: theme.inkSecondary, top: 4 + headed - 15 }] : []),
+    ...(title !== undefined ? [{ text: title, size: 15, weight: 600, color: theme.ink, top: 4 }] : []),
+    ...(subtitle !== undefined ? [{ text: subtitle, size: 12, weight: 400, color: theme.ink, top: 4 + (title !== undefined ? 22 : 0) }] : []),
+    ...(note !== undefined ? [{ text: note, size: 11, weight: 400, color: theme.inkSecondary, top: 4 + heading - 15 }] : []),
   ];
+  // a picture's legend under its heading: each line's name in its colour (a condition's too), as the tile's chips say them
+  const legend = picture ? {
+    top: TOP + heading, left: 12, selectedMode: false, itemWidth: 14, itemHeight: 8, icon: 'roundRect',
+    textStyle: { color: theme.ink, fontSize: 11, fontFamily: theme.font },
+    data: [...new Map([...shown, ...shaded].map((l) => [l.name, { name: l.name, itemStyle: { color: l.color } }] as const)).values()],
+  } : undefined;
   return {
     backgroundColor: 'transparent',
     textStyle: { fontFamily: theme.font },
     animation: false,
     ...(heads.length > 0 ? { title: heads.map((h) => ({ text: h.text, left: 12, top: h.top, textStyle: { fontSize: h.size, fontWeight: h.weight, color: h.color, fontFamily: theme.font } })) } : {}),
+    ...(legend !== undefined ? { legend } : {}),
     grid: grids,
     xAxis: xAxes,
     yAxis: yAxes,
@@ -657,6 +691,10 @@ export interface TsTable {
   readonly rows: readonly { readonly date: string; readonly values: readonly (number | null)[] }[];
 }
 
+/** A date as the table keys its rows: a day written as a date-time at midnight (a DateTime source's) the day itself, so
+ *  one day read from two sources is one row (the Phase 2 review's 7); any other time as it is. */
+const dayKey = (d: string): string => (/^\d{4}-\d{2}-\d{2}[T ]00:00(?::00(?:\.0+)?)?(?:Z|[+-]00:?00)?$/.test(d) ? d.slice(0, 10) : d);
+
 /**
  * THE LINES SIDE BY SIDE, wide form (the statistics panel's Data tab and its Copy, the next phases' 2): a row per date
  * any line has a point on within `view`, oldest first; a column per line's figure -- its value; a band's lower and upper
@@ -680,9 +718,21 @@ export function timeseriesTable(lines: readonly TsLine[], view: { readonly from?
       columns.push({ line: l, figure: 'value', name: l.name, values: closes });
     }
   }
-  // each column's figures by their dates: its line's points' own
-  const at = columns.map((c) => new Map(c.line.points.map((p, i) => [p[0], c.values[i] ?? null] as const)));
-  const dates = [...new Set(lines.flatMap((l) => l.points.map((p) => p[0])))].filter(within).sort();
+  // each column's figures by their dates: its line's points' own -- a second value on a date refused, never one of them
+  // dropped (the Phase 2 review's 7)
+  const at = columns.map((c) => {
+    const byDate = new Map<string, number | null>();
+    c.line.points.forEach((p, i) => {
+      const d = dayKey(p[0]);
+      if (byDate.has(d)) {
+        const n = c.line.points.filter((q) => dayKey(q[0]) === d).length;
+        throw new Error(`${c.line.name} has ${n} values on ${d}: a table has a row a date`);
+      }
+      byDate.set(d, c.values[i] ?? null);
+    });
+    return byDate;
+  });
+  const dates = [...new Set(lines.flatMap((l) => l.points.map((p) => dayKey(p[0]))))].filter(within).sort();
   return {
     columns: columns.map(({ line, figure, name }) => ({ line, figure, name })),
     rows: dates.map((date) => ({ date, values: at.map((m) => m.get(date) ?? null) })),

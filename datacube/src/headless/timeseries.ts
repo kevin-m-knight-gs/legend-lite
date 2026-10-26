@@ -23,7 +23,7 @@ import { eachRelation } from '../join-open.ts';
 import { sourcesOnHost, sourcesOpenedOn } from './join.ts';
 import { TS_CURVE_DATES, tsProblem, type TimeseriesSpec, type TsExpr, type TsSeries, type TsSource, type TsView } from '../timeseries-spec.ts';
 import {
-  aliasFor, nextSeriesId, parseExpr, seriesName, sourceOf, TsSyntaxError, type TsColumn
+  aliasFor, nextSeriesId, parseExpr, seriesName, sourceOf, splitName, TsSyntaxError, type TsColumn
 } from '../timeseries-expr.ts';
 import { editTimeseries, firstPlotOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns } from '../timeseries-edit.ts';
 
@@ -194,6 +194,9 @@ export interface SeriesAsked {
   readonly series: string;
   /** The first date it is read from (an index's base, compare's), and the last; absent, every date. */
   readonly window?: TsWindow;
+  /** The first date shown, where the dates kept are every one (`window` absent): an index's base, compare's, as the
+   *  screen draws the tile over its range (the Phase 2 review's 3); absent, the window's first. */
+  readonly anchor?: string;
   readonly host: HostTables;
   /** The copies the host holds, by table (Python's held_copies): a snapped grid is read over its copy. */
   readonly copies?: Readonly<Record<string, unknown>>;
@@ -214,7 +217,7 @@ export interface SeriesAsked {
  * over the window (the screen's own: statsQuery, drawdownsQuery, correlationsQuery), and its answer's words -- the names
  * of the columns it answers with, by role.
  */
-export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window' | 'years' | 'bins' | 'dates'>, inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries): string {
+export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window' | 'anchor' | 'years' | 'bins' | 'dates'>, inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries): string {
   const window = asked.window ?? {};
   const withOf = (what: string): TsSeries => {
     const other = asked.with === undefined ? undefined : ts.series.find((x) => x.id === asked.with);
@@ -235,7 +238,8 @@ export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window' | '
     case undefined: {
       // its first date its base where it reads one (an index, compare), and the window's dates alone kept -- by the
       // database; every point of them (the drawing's limit is the drawing's: the owner, 2026-10-25, the review's P5)
-      const q = seriesQuery(inputs, ts, series, readsAnchor(ts, series) && window.from !== undefined ? { from: window.from } : {}, window, null);
+      const from = asked.anchor ?? window.from;
+      const q = seriesQuery(inputs, ts, series, readsAnchor(ts, series) && from !== undefined ? { from } : {}, window, null);
       return `"query":${toJson(q.query)},${answerOf(q, series)}`;
     }
     case 'statistics': {
@@ -407,7 +411,25 @@ const ANSWER = `"columns":${JSON.stringify({ date: TS_DATE, value: TS_VALUE, spl
 /** A series' query as a host reads it: its unit, whether a band or candles, its split and its name, beside the query. */
 export function answerOf(q: TsQuery, series: TsSeries): string {
   return `${ANSWER},"unit":${JSON.stringify(q.unit)},"band":${JSON.stringify(q.band)},"candles":${JSON.stringify(q.candles === true)},`
-    + `"split":${JSON.stringify(q.split ?? null)},"name":${JSON.stringify(series.name ?? null)}`;
+    + `"shade":${JSON.stringify(q.shade === true)},"split":${JSON.stringify(q.split ?? null)},"name":${JSON.stringify(series.name ?? null)}`;
+}
+
+/**
+ * A SERIES' LINES NAMED, HEADLESS: tile `tile`'s series `series` of `page`, each line by the rule the screen names it by
+ * (timeseries-expr.ts splitName: its name, else its expression; a split's each its value beside it) -- `splits` (JSON) a
+ * split's values as its answer has them, or null for a series of one line. For Python's Timeseries.table, named as the
+ * screen's Data tab names its columns (the Phase 2 review's 3). JSON: `{names}`, or `{problems}`.
+ */
+export function timeseriesLineNames(page: string, tile: string, series: string, splits: string): string {
+  try {
+    const { series: s } = seriesOf(readPage(JSON.parse(page), { empty: true }), tile, series);
+    const told: unknown = JSON.parse(splits);
+    if (told !== null && !Array.isArray(told)) throw new Problem('a series\' lines are named by its split\'s values, or null for one line');
+    return JSON.stringify({ names: told === null ? [splitName(s, undefined)] : told.map((v) => splitName(s, v)) });
+  } catch (e) {
+    if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
+    throw e;
+  }
 }
 
 /**

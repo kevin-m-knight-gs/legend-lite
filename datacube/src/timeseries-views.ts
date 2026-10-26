@@ -15,7 +15,7 @@ import {
   TS_SC_FIT_HIGH, TS_SC_FIT_LOW, TS_SC_INTERCEPT, TS_SC_N, TS_SC_R2, TS_SC_SLOPE, TS_SC_X, TS_SC_X_HIGH, TS_SC_X_LOW, TS_SC_Y,
   TS_HIST_MID, TS_SEA_LATEST, TS_SEA_LOW, TS_SEA_MEAN, TS_SEA_PLACE, TS_SEA_SPAN, TS_SEA_YEAR, TS_SPLIT, TS_VALUE,
 } from './timeseries-query.ts';
-import { toNumber, tsHeading } from './timeseries-option.ts';
+import { headingLine, toNumber, tsHeading } from './timeseries-option.ts';
 
 /** What a view is drawn with: the theme, its height, a picture's title (its export), how a value is written. */
 export interface TsViewContext {
@@ -39,13 +39,15 @@ const plain = (v: number | null, digits = 4): string => (v === null ? '—' : v.
 /** A view's heading -- a picture's title, the view's subtitle and note -- above it, as the time view's is
  *  (timeseries-option.ts tsHeading), and its height. */
 function heading(ts: TimeseriesSpec, ctx: TsViewContext): { readonly top: number; readonly title?: EChartsOption['title'] } {
-  const top = tsHeading(ts, ctx.title);
-  const subtitle = ts.view?.subtitle?.trim() || undefined;
-  const note = ts.view?.note?.trim() || undefined;
+  // each a line, none where empty, as the time view's (timeseries-option.ts headingLine)
+  const title = headingLine(ctx.title);
+  const top = tsHeading(ts, title);
+  const subtitle = headingLine(ts.view?.subtitle);
+  const note = headingLine(ts.view?.note);
   const t = ctx.theme;
   const heads = [
-    ...(ctx.title !== undefined ? [{ text: ctx.title, size: 15, weight: 600, color: t.ink, top: 4 }] : []),
-    ...(subtitle !== undefined ? [{ text: subtitle, size: 12, weight: 400, color: t.ink, top: 4 + (ctx.title !== undefined ? 22 : 0) }] : []),
+    ...(title !== undefined ? [{ text: title, size: 15, weight: 600, color: t.ink, top: 4 }] : []),
+    ...(subtitle !== undefined ? [{ text: subtitle, size: 12, weight: 400, color: t.ink, top: 4 + (title !== undefined ? 22 : 0) }] : []),
     ...(note !== undefined ? [{ text: note, size: 11, weight: 400, color: t.inkSecondary, top: 4 + top - 15 }] : []),
   ];
   return {

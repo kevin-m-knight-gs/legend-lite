@@ -40,7 +40,7 @@ import {
   TS_SPLIT, TS_STAT_LEVEL_LOW, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
 import {
-  describeTimeseries, dateLabel, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, toNumber, tsHeading, tsLines,
+  describeTimeseries, dateLabel, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, toNumber, tsHeading, tsLines, tsPictureHeight,
   valueText, type TsFormat, type TsLine, type TsResult,
 } from '../timeseries-option.ts';
 import type { MountedTimeseries } from '../timeseries-render.ts';
@@ -219,12 +219,15 @@ function labelled(doc: Document, label: string, control: HTMLElement): HTMLLabel
 }
 
 /** A parameter's slider: from its least to its most -- its bounds where it has them, else to four times the larger of
- *  its default and its value -- a step of one for a count, of a hundredth of the span for a number; a bound it must be
- *  above or below kept out of reach. */
+ *  its default and its value (a number of neither bound as far below 0) -- a step of one for a count, of a hundredth of
+ *  the span for a number; a bound it must be above or below kept out of reach. */
 function sliderRange(p: TsParam, at: number): readonly [number, number, number] {
   const count = p.kind !== 'number';
-  const least = p.min ?? p.above ?? (count ? 1 : 0);
   const most = p.max ?? p.below ?? Math.max(count ? 10 : 1, 4 * Math.max(Math.abs(Number(p.default)), Math.abs(at)));
+  // a number of neither end told (a filter's value, a power): either side of 0, as far down as up (the Phase 2 review's
+  // 9: from 0, a filter's -0.02 went no lower)
+  const open = !count && p.min === undefined && p.above === undefined && p.max === undefined && p.below === undefined;
+  const least = p.min ?? p.above ?? (count ? 1 : open ? -most : 0);
   const step = count ? 1 : Number(((most - least) / 100).toPrecision(3));
   const lo = p.above !== undefined && p.min === undefined ? least + step : least;
   const hi = p.below !== undefined && p.max === undefined ? most - step : most;
@@ -364,6 +367,13 @@ export class TimeseriesView {
   #closing: AbortController | null = null;
   /** Whether the window open is its Settings (painted again after a refused change). */
   #settings = false;
+  /** What the editor open does when it is put away -- closed, or another editor opened in its window: a drag's stop
+   *  forgotten and what it tried taken back (the Phase 2 review's 1). */
+  #leaving: (() => void) | null = null;
+  /** A drag's try drawn (a slider's, the next phases' 2): the tile as the page has it, and as tried -- the person's own
+   *  look, never told; every change told is made to the page's (#edit), and the page's own spec takes its place
+   *  (update). */
+  #tried: { readonly from: TimeseriesSpec; readonly to: TimeseriesSpec } | undefined;
   #chart: MountedTimeseries | null = null;
   #mounting: Promise<MountedTimeseries | null> | null = null;
   /** Whether ECharts can draw candles (chart-render-kinds.ts registered before the chart was made). */
@@ -428,7 +438,10 @@ export class TimeseriesView {
    * when only the drawing changed, asked again when what a series reads changed (D4). The range changed: the zoom goes.
    */
   update(spec: TimeseriesSpec): void {
-    if (JSON.stringify(spec) === JSON.stringify(this.#spec)) return;
+    // the page's own spec: a drag's try under it gone
+    const tried = this.#tried !== undefined;
+    this.#tried = undefined;
+    if (!tried && JSON.stringify(spec) === JSON.stringify(this.#spec)) return;
     this.#apply(spec);
   }
 
@@ -1002,8 +1015,15 @@ export class TimeseriesView {
   }
 
   #setRange(word: TsRangeWord): void {
+    const tried = this.#untried();
     this.#zoom = null;
     const spec = editTimeseries(this.#spec, { kind: 'range', range: { last: word } });
+    // a drag's try set aside: the tile asked again as the page has it
+    if (tried !== undefined) {
+      this.#apply(spec);
+      this.#host.setSpec(spec);
+      return;
+    }
     this.#range = JSON.stringify(spec.range);
     this.#spec = spec;
     this.#host.setSpec(spec);
@@ -1030,12 +1050,13 @@ export class TimeseriesView {
     }
     const title = this.#host.title();
     const theme = themeOf(this.#root);
-    // the picture taller by its heading, its panes as tall as on the screen
-    const tall = height + tsHeading(this.#spec, title);
+    // the picture's panes as tall as on the screen: its heading -- its title, and a time view's legend -- above them, no
+    // navigator below (the Phase 2 review's 10: the screen's heading had been counted twice)
+    const tall = viewing ? height - tsHeading(this.#spec) + tsHeading(this.#spec, title) : tsPictureHeight(this.#spec, height, title);
     let option: EChartsOption;
     try {
       option = viewing ? this.#viewOption(tall, title)!.option : timeseriesOption(this.#spec, this.#lines, {
-        theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height: tall, title,
+        theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height: tall, title, picture: true,
       });
     } catch (e) {
       this.#say([`The picture could not be made: ${e instanceof Error ? e.message : String(e)}`], true);
@@ -1069,14 +1090,19 @@ export class TimeseriesView {
     const toSel = el(doc, 'select', 'dc-select dc-ts-select', undefined, { 'aria-label': 'For' });
     const typed = el(doc, 'input', 'dc-input', undefined, { 'aria-label': 'Or type one', placeholder: 'Or type one', spellcheck: 'false' });
     const error = el(doc, 'div', 'dc-ts-error', undefined, { role: 'alert' });
+    // each paint's own: an answer to a paint before the last dropped (the Phase 2 review's 6: both appended)
+    let painted = 0;
     const paintTo = (): void => {
+      const mine = ++painted;
       const r = read[Number(fromSel.value)]!;
       const src = spec.sources.find((x) => x.alias === r.alias);
       toSel.replaceChildren(option(doc, 'Pick one…', ''));
       if (src === undefined || src.key === undefined) return;
       void this.#keyValues(src, src.key).then((values) => {
+        if (mine !== painted) return;
         for (const v of values) if (v !== r.value) toSel.append(option(doc, v, v));
       }, (e: unknown) => {
+        if (mine !== painted) return;
         toSel.append(unpicked(doc, `Its instruments were refused: ${e instanceof Error ? e.message : String(e)}`));
       });
     };
@@ -1155,9 +1181,19 @@ export class TimeseriesView {
     this.#open('Queries', ...parts);
   }
 
+  /** A change about to be told made to the tile as the page has it: a drag's try under it set aside (never told with
+   *  it), not drawn -- the change draws. The try set aside, if one was drawn. */
+  #untried(): { readonly from: TimeseriesSpec; readonly to: TimeseriesSpec } | undefined {
+    const tried = this.#tried;
+    this.#tried = undefined;
+    if (tried !== undefined && this.#spec === tried.to) this.#spec = tried.from;
+    return tried;
+  }
+
   /** A change the person made, by the tile's one rule (timeseries-edit.ts editTimeseries, which Python asks too): kept
    *  and drawn, or refused in its words. */
   #edit(change: TsChange): boolean {
+    const tried = this.#untried();
     let made: TimeseriesSpec;
     let kept: boolean;
     try {
@@ -1170,6 +1206,8 @@ export class TimeseriesView {
     }
     // refused in Settings: its fields shown as the tile has them again, never the refused value (the third review's 1)
     if (!kept && this.#settings) this.#editSettings();
+    // refused after a try: the tile drawn as the page has it
+    if (!kept && tried !== undefined) this.#apply(this.#spec);
     return kept;
   }
 
@@ -1497,7 +1535,13 @@ export class TimeseriesView {
    */
   #dataTable(): HTMLElement[] {
     const doc = this.#doc;
-    const t = timeseriesTable(this.#lines.filter((l) => !l.series.hidden && !l.shades), this.#window());
+    let t: ReturnType<typeof timeseriesTable>;
+    try {
+      t = timeseriesTable(this.#lines.filter((l) => !l.series.hidden && !l.shades), this.#window());
+    } catch (e) {
+      // a line of two values a date: said, never a value dropped
+      return [el(doc, 'div', 'dc-ts-error', `No table: ${e instanceof Error ? e.message : String(e)}`)];
+    }
     if (t.columns.length === 0 || t.rows.length === 0) return [el(doc, 'div', 'dc-ts-stats-blanks', 'No line has a value over these dates.')];
     const table = el(doc, 'table', 'dc-ts-table dc-ts-data');
     const head = el(doc, 'tr');
@@ -1803,6 +1847,10 @@ export class TimeseriesView {
     const named = `${title} \u2014 ${this.#host.title()}`;
     win.querySelector('.dc-ts-window-title')!.textContent = named;
     win.setAttribute('aria-label', named);
+    // the editor it shows put away first
+    const leaving = this.#leaving;
+    this.#leaving = null;
+    leaving?.();
     this.#pop.replaceChildren(...content);
     this.#settings = false;
     raiseWindow(win, host);
@@ -1813,6 +1861,9 @@ export class TimeseriesView {
 
   /** Its editor's window put away -- the focus, when it was in it, back on its tile. */
   #close(): void {
+    const leaving = this.#leaving;
+    this.#leaving = null;
+    leaving?.();
     const win = this.#window_;
     if (!win) return;
     const root = win.getRootNode() as Document | ShadowRoot;
@@ -1870,7 +1921,9 @@ export class TimeseriesView {
     /**
      * A PARAMETER TRIED BY DRAGGING (the next phases' 2: TradingView's inputs): each number of the outermost function
      * its slider, moving the expression's own parameter -- and a series already plotted drawn again when it stops, by the
-     * tile's one rule, as its OK would.
+     * tile's one rule, as its OK would: tried, as the person's own look, not kept -- OK keeps it, one change told (one
+     * step to undo); Cancel, Escape, Remove or another editor take it back (the Phase 2 review's 1: each stop was told,
+     * and one after Cancel landed still).
      */
     let live: ReturnType<typeof setTimeout> | undefined;
     const paintSliders = (): void => {
@@ -2024,7 +2077,7 @@ export class TimeseriesView {
       }));
     };
     paintSwatches();
-    /** The series as the editor has it, plotted -- the window put away when `close`, kept (a slider's) when not. */
+    /** The series as the editor has it, plotted -- the window put away when `close`; tried (a slider's) when not. */
     const apply = (close: boolean): void => {
       check(close);
       if (!parsed) {
@@ -2044,16 +2097,31 @@ export class TimeseriesView {
         ...(axis.value !== '' ? { axis: axis.value as 'left' | 'right' } : {}),
         ...(was?.hidden ? { hidden: true } : {}),
       };
-      if (this.#edit({ kind: 'plot', series: made, ...(was ? { replace: true } : {}) }) && close) this.#close();
-    };
-    const ok = button(doc, 'OK', 'Plot it (Enter)', () => {
+      if (!close) {
+        const change: TsChange = { kind: 'plot', series: made, ...(was ? { replace: true } : {}) };
+        // tried: judged by the tile's one rule over the tile as the page has it, drawn, told nothing
+        const from = this.#tried?.from ?? this.#spec;
+        let read: TimeseriesSpec;
+        try {
+          read = judgedEdit(from, editTimeseries(from, change), (x) => this.#columns(x));
+        } catch (e) {
+          if (!(e instanceof TsEditRefusal)) throw e;
+          this.#say([e.message], true);
+          return;
+        }
+        this.#tried = { from, to: read };
+        this.#apply(read);
+        return;
+      }
       clearTimeout(live);
-      apply(true);
-    }, 'dc-button dc-primary');
+      if (this.#edit({ kind: 'plot', series: made, ...(was ? { replace: true } : {}) })) this.#close();
+    };
+    const ok = button(doc, 'OK', 'Plot it (Enter)', () => apply(true), 'dc-button dc-primary');
     expr.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') ok.click();
     });
     const remove = button(doc, 'Remove', 'Take this series off', () => {
+      clearTimeout(live);
       if (this.#edit({ kind: 'unplot', id: sid })) this.#close();
     });
     remove.hidden = was === undefined;
@@ -2076,6 +2144,13 @@ export class TimeseriesView {
     this.#open(was ? `Series ${sid}` : `New series ${sid}`,
       labelled(doc, 'Expression', expr), error, reads, sliders, builder, splitSel, fnSel, about,
       labelled(doc, 'Name', name), style, swatches, reference, actions);
+    // put away (Cancel, Escape, its close, another editor): a drag's stop forgotten, and what it tried taken back
+    this.#leaving = () => {
+      clearTimeout(live);
+      const tried = this.#tried;
+      this.#tried = undefined;
+      if (tried !== undefined && this.#spec === tried.to) this.#apply(tried.from);
+    };
     check();
   }
 
@@ -2195,7 +2270,7 @@ export class TimeseriesView {
       log.addEventListener('change', () => this.#edit({ kind: 'pane', index: p, log: log.checked }));
       const l = el(doc, 'label', 'dc-ts-check');
       l.append(log, doc.createTextNode('Log scale'));
-      // upside down, and its left axis' ends by hand (the next phases' 2)
+      // upside down, and its axis' ends by hand (the next phases' 2)
       const invert = el(doc, 'input', undefined, undefined, { type: 'checkbox' });
       invert.checked = spec.panes?.[p]?.invert === true;
       invert.addEventListener('change', () => this.#edit({ kind: 'pane', index: p, invert: invert.checked }));
@@ -2206,9 +2281,22 @@ export class TimeseriesView {
         const at = spec.panes?.[p]?.[which];
         box.value = at === undefined ? '' : String(at);
         box.addEventListener('change', () => {
+          // what the box cannot read ("5,000": its value then empty), or none an axis ends at (1e400): said, the end
+          // kept -- never taken off without a word (the Phase 2 review's 8)
+          const label = which === 'min' ? 'Least' : 'Most';
+          if (box.validity.badInput) {
+            this.#say([`${label}: what was typed is not a number.`], true);
+            return;
+          }
           const v = box.value.trim() === '' ? null : Number(box.value);
-          if (v !== null && !Number.isFinite(v)) return;
-          if (!this.#edit({ kind: 'pane', index: p, [which]: v })) this.#editSettings();
+          if (v !== null && !Number.isFinite(v)) {
+            this.#say([`${label}: ${box.value.trim()} is no number the axis can end at.`], true);
+            const now = this.#spec.panes?.[p]?.[which];
+            box.value = now === undefined ? '' : String(now);
+            return;
+          }
+          // refused: Settings painted again as the tile has it (#edit)
+          this.#edit({ kind: 'pane', index: p, [which]: v });
         });
         return box;
       };

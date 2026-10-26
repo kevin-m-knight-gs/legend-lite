@@ -262,7 +262,7 @@ describe('the saved spec\'s reader', () => {
     grain: 'day',
     series: [{ id: 'A', expr: parseExpr('rebase(close[AAPL])'), name: 'Apple', style: { kind: 'line', color: 2, width: 2, dash: 'dashed' }, pane: 0, axis: 'left' }],
     range: { last: '5y' },
-    panes: [{ height: 3, log: true, invert: true, min: 0, max: 400 }],
+    panes: [{ height: 3, log: true, invert: true, min: 50, max: 400 }],
     annotations: [{ kind: 'level', value: 100, label: 'par' }, { kind: 'event', date: '2024-03-20', label: 'FOMC' }, { kind: 'period', from: '2020-02-19', to: '2020-04-07' }],
     view: { compare: 'rebase', legend: true, lastValues: true, navigator: true, stats: false, crosshair: true, subtitle: 'Since 2020', note: 'Source: the exchange' },
   };
@@ -303,6 +303,9 @@ describe('the saved spec\'s reader', () => {
       [with_({ panes: [{ invert: 'yes' }] }), /pane 0's invert is not true or false/],
       [with_({ panes: [{ min: 'low' }] }), /pane 0's min "low" is not a number/],
       [with_({ panes: [{ min: 5, max: 5 }] }), /pane 0's min 5 is not below its max 5/],
+      // the Phase 2 review's 2: a log scale's ends above 0, never clamped without a word
+      [with_({ panes: [{ log: true, min: 0 }] }), /pane 0's min 0 is not above 0: a log scale starts above it/],
+      [with_({ panes: [{ log: true, max: -1 }] }), /pane 0's max -1 is not above 0: a log scale starts above it/],
       [with_({ view: { subtitle: 3 } }), /subtitle is not text/],
       [with_({ panes: [{ flip: true }] }), /flip/],
       // the next phases' 3: a view's mode, its series, its settings

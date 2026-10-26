@@ -972,11 +972,32 @@ class Document(Paged):
         self.assertIn("'T'", q['pure'], 'the instrument swapped in, in the query DataCube wrote')
         self.assertIn('SELECT', q['sql'].upper())
         both = tile.table()
-        self.assertEqual(list(both.columns), ['T close', 'B'])
+        # (sma is gs-quant's alias of mean: the screen writes the expression by the catalog's own name)
+        self.assertEqual(list(both.columns), ['T close', 'mean(close[T], 2)'], "named as the screen's Data tab names its columns")
         self.assertEqual(list(both['T close']), [10.0, 11.0, 12.0, 13.0])
-        self.assertTrue(pd.isna(both['B'].iloc[0]), 'a mean of two has none on the first date')
-        self.assertEqual(list(both['B'].iloc[1:]), [10.5, 11.5, 12.5])
+        self.assertTrue(pd.isna(both['mean(close[T], 2)'].iloc[0]), 'a mean of two has none on the first date')
+        self.assertEqual(list(both['mean(close[T], 2)'].iloc[1:]), [10.5, 11.5, 12.5])
         self.assertEqual(len(tile.table(start='2024-01-03')), 2, "the dates kept as frame keeps them")
+        # the Phase 2 review's 3: the screen's lines alone -- none hidden, no condition -- over the tile's range, an index's
+        # base its first date shown; frame and query as the screen draws them, every date, that base
+        tile.plot('rebase(close[T])', name='Rebased')
+        tile.plot('close[T] > 11', name='Up')
+        tile.hide('B')
+        tile.options(range={'from': '2024-01-02'})
+        shown = tile.table()
+        self.assertEqual(list(shown.columns), ['T close', 'Rebased'])
+        self.assertEqual(len(shown), 3, "the tile's range")
+        self.assertEqual(shown['Rebased'].iloc[0], 100.0, 'its base the first date shown')
+        drawn = tile.frame('C')
+        self.assertEqual((len(drawn), drawn['Rebased'].iloc[1]), (4, 100.0), 'every date, its base the first shown')
+        self.assertIn('2024-01-02', tile.query('C')['pure'], "the query the screen's Query window shows: its base")
+        # the Phase 2 review's 5: an instrument column of numbers swapped by numbers, the spaces round a name not of it
+        coded = page.grid(pd.DataFrame({'code': [10] * 4 + [20] * 4, 'day': list(days) * 2, 'close': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]}), name='coded')
+        numbered = page.timeseries({'c': {'grid': coded, 'key': 'code'}}, ['close[10]'])
+        numbered.swap(10, 20)
+        self.assertEqual(list(numbered.frame()['A']), [5.0, 6.0, 7.0, 8.0])
+        tile.swap(' T ', ' S ')
+        self.assertEqual(list(tile.frame('A')['S close']), [100.0, 101.0, 102.0, 103.0])
 
     def test_a_timeseries_views_are_its_screens_each_figure_the_databases(self):
         # the next phases' 3 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): the screen's Scatter,
