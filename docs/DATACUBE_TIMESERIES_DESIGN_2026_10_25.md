@@ -145,13 +145,23 @@ returns, prices, diff, lag, annualize; index, rebase, change, percent_change (fr
 (moving_average, sma), sum, min, max, range, std, var, zscores, winsorize; volatility (vol), drawdown, max_drawdown,
 sharpe_ratio; correlation (corr), beta, cov; bollinger_bands, rsi; log, exp, sqrt, abs, power, floor, ceil. A window
 `w` is observations, 0 from the start (gs-quant's `Window(None, 0)`: running); a rolling figure is drawn once its
-window is full (the ramp). Annualizing is by the tile's frequency: 252 days, 52 weeks, 12 months, 4 quarters
-(gs-quant reads it off the spacing of the dates).
+window is full (the ramp). Annualizing is by the tile's frequency: 252 days, 52 weeks, 12 months, 4 quarters; a tile
+of no frequency ("As the rows are") by what its dates' spacing says, worked out by the database -- gs-quant's own rule
+(`_get_annualization_factor`'s buckets: daily 252, weekly 52, monthly 12, quarterly 4, yearly 1; the owner's decision 2,
+docs/TIMESERIES_REVIEW_2026_10_25.md §5).
 
 **Where it differs from gs-quant, said in the catalog**: `volatility`'s window defaults to 22 (gs-quant: the whole
 series); `sharpe_ratio` takes a risk-free rate of zero and the arithmetic mean of simple returns (gs-quant: excess
 returns over a currency's rate, compounded); `rsi` averages its gains and losses simply (Cutler's; gs-quant smooths
-them, Wilder's); a window is a number of observations, not a calendar period.
+them, Wilder's); a window is a number of observations, not a calendar period. Each default window that differs from
+gs-quant's is said in the catalog (the review's Q10).
+
+**A level, and its unit** (`timeseries-expr.ts levelOf`, `unitOf`; the review's Q2, Q4): a result is a level -- a
+price, an index, a moving average of one -- or a figure of one (a return, a difference, a volatility, a z-score). Only a
+level is compared from 100 or by its % change, drawn on a log scale, or given a level's statistics (volatility,
+drawdown, growth, Sharpe); a pane of anything else asked for a log scale is drawn straight, and says why. A result's
+unit follows its arithmetic: a ratio times 100 is a percent, a percent over 100 a ratio, a number over a series a
+number; a function the rule does not know is refused, never guessed.
 
 **Not built, refused in these words when typed** (`NOT_BUILT`): exponential averages, MACD, exponential volatility
 and deviation, smoothed averages (each a recursion, every value from the one before, which a database's windows have
@@ -167,8 +177,14 @@ One query of its grid, run by the grid's own runner:
 1. the grid's source and its row-level calculated columns, its filter (as the tile reads it: following the grid, or
    frozen), and what the series matches (`close[AAPL]`);
 2. grouped by the period -- and the split -- each column the series reads taken by its period's aggregate: the latest
-   row's by default (`maxBy`, ordered by the day's number: `dateDiff` from 1970, since `maxBy` orders by a number);
-3. only the dates every column it reads has (intersect); a split's first 20 values;
+   row's by default (`maxBy`, ordered by the day's number: `dateDiff` from 1970, since `maxBy` orders by a number); the
+   period dated by its last observation (a week of daily rows by its last day, so a range from a date keeps the
+   period that holds it: the review's Q6), and the rows tied at a period's latest time counted, said when there are
+   more than one (Q7);
+3. each operand on its own dates: a column, and each function of it, over the periods its own rows have; two operands
+   (`a - b`, a correlation, a beta) joined on the period -- and the line, for a split -- where they meet, gs-quant's
+   rule (a function of one series runs over that series' dates alone, never the dates another operand has too: the
+   review's Q1, Q5); a split's first 20 values;
 4. each function, innermost first: a window over the periods partitioned by the split (a frame of the last `w`, or
    running), or an expression over the row -- a return over `lag`, a deviation by `stdDevSample`, a correlation by
    `corr` over `rowMapper`, a band's edges and its width;
@@ -181,15 +197,16 @@ history.
 
 ### 5.2 A series combining sources
 
-The same steps, with step 2 per source -- each source's rows (its own date, instrument and filter) grouped to the
-tile's frequency -- and the grouped sources joined on the period (inner: the dates both have, gs-quant's intersect)
-before step 3. Planned over ONE model of every source's tables, as DataCube's Join opens a join of two grids
+The same steps, each column of each source a part of its own -- its source's rows (its own date, instrument and
+filter) grouped to the tile's frequency -- the parts joined on the period where an operator or a two-series function
+meets them (inner: the dates both have, gs-quant's intersect), never before (the review's Q1). Planned over ONE model of every source's tables, as DataCube's Join opens a join of two grids
 (`join-open.ts openSources`: `openInputs`' rule for any number of sources). Where the tables are is the host's, the rule
 one: on the tab, its own DuckDB (`app/timeseries-together.ts tabSources`); on a page Python serves, which has no
 database of its own there, Python's tables, opened there by DataCube's code headless (`join.json` op `together`:
 headless `joinTogether`) -- and either way the series' one query is written by the tab over the relations given and
 planned and run where the grids' rows are (the host's plan-and-run). A source's tables are where its rows are now: a
-grid over a file reads its table; a snapped grid its copy (D3); a source anywhere else is refused for the combination
+grid over a file reads its table; a snapped grid its copy (D3), on the tab and on Python's host alike -- its copy's
+table, held by the session (the review's P1, P3); a source anywhere else is refused for the combination
 in the join's words (`leafRefusal`) -- it is still plotted on its own, by its own grid's runner.
 
 ### 5.3 The tile's bounds and statistics
@@ -200,6 +217,8 @@ in the join's words (`leafRefusal`) -- it is still plotted on its own, by its ow
 - **Statistics** (`statsQuery`), per line, over the dates shown: count, first and last date and value, the change and
   % change, the least and the most and when, the mean, the standard deviation; for a level its annualized volatility
   (of log returns), deepest drawdown, compound annual growth and Sharpe ratio -- each the database's, over what is shown.
+  Annualized by the tile's frequency, or its dates' spacing (§4); a candle series' least and most its lows' and highs'
+  (Q9); a % change over the start's size, so a start below zero rising is a rise (Q11).
 
 ### 5.4 Proven so far
 
@@ -244,6 +263,9 @@ bounds planned and run.
   the expression; its style, pane, axis and name.
 - **Settings**: each source's date and instrument column; the toggles; annotations (a double-click on the chart puts an
   event at that date); export as a picture and as CSV (the rows the database answered, long form).
+- **What the database refuses is said where it lands** (the review's P4; AGENTS.md invariant 4): a series refused on
+  its line; a range whose dates were refused in the banner, with what is shown instead; statistics refused on their
+  row and in the banner; an instrument list refused on its picker -- never shown as something missing.
 - Drawn by `timeseries-option.ts` (pure, tested in node) and `timeseries-render.ts` (ECharts: its own chunk, fetched
   with the first timeseries tile; the panes share one time axis, one crosshair, one zoom).
 
@@ -275,7 +297,10 @@ bounds planned and run.
   per instrument) -- the rule Python's headless `timeseriesMade` asks too.
 - **Python** (`python/legend_lite/page.py`): `page.timeseries(sources={'px': prices, 'rates': rates}, series=[...])`, a
   `Timeseries` tile whose `series`, `range`, `view` and `annotations` it sets; every word judged by DataCube's reader,
-  asked headless -- Python keeps no list of its own (the charts' rule, PR #47).
+  asked headless -- Python keeps no list of its own (the charts' rule, PR #47). Every change of a tile, its viewer's
+  and Python's `Timeseries` methods' alike, is made by one rule (`timeseries-edit.ts editTimeseries`, which Python asks
+  headless: `timeseriesEdit`; the review's A2), and every kind of change is made on both sides or listed with what the
+  other makes instead (`test/one-api-ledger.test.ts`; A8).
 - **Export**: the page's HTML and PDF take the tile as drawn (its picture), as a chart's.
 
 ## 8. Phases
@@ -297,7 +322,13 @@ refusals and the expression language's round trip (parse, print, parse); the dra
 the viewer's DOM (jsdom, the renderer stood in for); the page commands, the rebase and a removed grid; Python's
 `page.timeseries`; the example pages drawn in Chromium -- and the timeseries gallery (below) the catalog's own test:
 every function on its family's sheet, every series of it planned and answered on the samples
-(`test/examples.test.ts`, `test/timeseries-queries.test.ts`).
+(`test/examples.test.ts`, `test/timeseries-queries.test.ts`). Since the review (docs/TIMESERIES_REVIEW_2026_10_25.md):
+every change of a tile made on the screen as a person makes it and held to the one-API checks -- told as commands,
+read by the host as Python's keeper reads a write, replayed to the same page (`test/one-api-gestures.test.ts`, 20
+gestures) -- and every kind of change made by the viewer and by Python (`test/one-api-ledger.test.ts`); the drawing
+rendered by real ECharts (`test/timeseries-echarts.test.ts`); both example pages opened in Chromium, every tile drawn
+(`demo/verify-charts.mjs`); a combined series on a page Python serves, read together by Python
+(`test/python-engine/python-engine.mjs`).
 
 ## 10. What is built so far (on the branch)
 
@@ -346,5 +377,19 @@ every function on its family's sheet, every series of it planned and answered on
   asked, when its sheet is shown (`showSheet`, a step that leaves one shown, a page reopened) -- the gallery opens
   asking its first sheet's 10 series, not its 88 (docs/TENETS.md: lazy Work; `test/cube-page-shell.test.ts`). Charts
   on a sheet not shown still ask at opening, as before.
-- **Next**: per-source frozen filters; events from a grid's column; a regression of one series on another; a chart on a
-  sheet not shown asking only when shown, as a timeseries tile does.
+- **The review** (docs/TIMESERIES_REVIEW_2026_10_25.md, before the PR): four independent reviewers -- the execution
+  tenet, the one API, the numbers, the repository's rules -- and every blocking and should-fix finding fixed, each
+  pinned by a test (its §6): each operand on its own dates, levels apart from units, periods dated by their last
+  observation and annualized by their dates; snapped grids read from their copies on every path, Python's frame()
+  included; one rule for every change of a tile, on the screen and in Python, every gesture proved so; a removed
+  grid's cube kept while a tile reads it, its undo too; refusals said where they land. A second audit of those fixes
+  (its §7), and its findings fixed the same way (its §8): a range's start the value as of it, `prices` from `initial`, a
+  level below zero compared as a rise and given no returns' figures; one judge of a change for the viewer and Python,
+  the frame's notes the drawing's; the cubes a page holds one rule every tile kind answers; a hidden tile asking
+  nothing until shown.
+- **States, a chart's words** (the user, 2026-10-26; §7): Dynamic, Frozen (each grid's filter kept), Detached -- on
+  the screen and in Python (`Timeseries.state`).
+- **PR #73's design** (the user, 2026-10-26): its state in its header; its right-click a chart's (Create ▸,
+  Properties…, View ▸); its series editor and Settings a window beside it among the page's windows; both themes.
+- **Next**: events from a grid's column; a regression of one series on another; a chart on a sheet not shown asking
+  only when shown, as a timeseries tile does; the follow-ups of docs/TIMESERIES_REVIEW_2026_10_25.md §9.

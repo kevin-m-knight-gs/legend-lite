@@ -94,3 +94,103 @@ tiles; the guard holds behind a proxy and CI is unchanged.
    the drawing's.
 4. **A removed grid that a timeseries reads (G4): its cube kept.** The removed grid's cube stays in the page while a
    tile reads it, as a frozen chart's is kept, so the tile still draws after a reopen.
+
+## 6. Fixed (2026-10-25)
+
+Every confirmed finding of §1 and §2, fixed on the branch before the PR, each pinned by a test that failed on the code
+before it. The notes of §3 fixed with them are listed too; the rest are follow-ups (§9).
+
+| # | What changed | Commit | Pinned by |
+|---|---|---|---|
+| A1 | An undo bringing back a grid and a timeseries reading it renames the tile's spec once (the plan names `to`'s ids) | `a0d145a5` | `page-state.test.ts` (with and without an editor's tag) |
+| P2 | A grid's view landing asks the tile again, always (no answer kept across it) | `a0d145a5` | `timeseries-view-dom.test.ts` |
+| Q1, Q5 | Each operand computed on its own dates; operands joined on the period (and the line) where they meet | `b3f047f3` | `timeseries-queries.test.ts` "the review's findings on the numbers" |
+| Q2, Q4 | A level apart from its unit (`levelOf`, `unitOf`): compare, log and level statistics on levels alone; a ratio times 100 a percent | `b3f047f3` | `timeseries-spec.test.ts`, `timeseries-queries.test.ts` |
+| Q3 | No frequency: periods a year inferred from the dates' spacing, by the database (decision 2) | `b3f047f3` | `timeseries-queries.test.ts` |
+| Q6, Q7 | A period dated by its last observation; tied rows counted for every column | `b3f047f3` | `timeseries-queries.test.ts` |
+| Q8, Q9, Q11 | `prices` compounds every factor; a candle's extremes its lows' and highs'; % change over the start's size; drawdown ramped | `b3f047f3` | `timeseries-queries.test.ts` |
+| G2, G3 | A date of no date type refused by name; a log pane straight where a line is no level, said | `b3f047f3` | `timeseries-queries.test.ts`, `timeseries-option.test.ts` |
+| A2, A3, A6 | One rule for every change of a tile (`timeseries-edit.ts`), the viewer's and Python's; one first-tile rule; the editor keeps a split | `d0b0e6e0` | `timeseries-edit.test.ts`, `python/tests/test_page.py` |
+| A5 / G2 | Python refused what the viewer cannot draw, in the viewer's words | `d0b0e6e0` | `python/tests/test_page.py` |
+| A9, A10 | The left-out entry dated; Python's own small rules gone (an alias named `grid` read rightly) | `d0b0e6e0` | `python/tests/test_page.py` |
+| P1 / A4 | Python's `frame()` of one grid asks the grid's own query (headless `gridTimeseries`: its copy, snapped; its lens) | `2f99dcae` | `python/tests/test_page.py` |
+| P3 | A combination reads a snapped grid's copy, on the tab and on Python's host (held copies) | `2f99dcae` | `python/tests/test_page.py` (the tab's branch: by code, §9) |
+| P5 | `frame()` has no point limit (decision 3) | `2f99dcae` | `python/tests/test_page.py` |
+| G4 | A removed grid's cube kept while a tile reads it; the timeseries commands carry it (`kept`), so an undo brings the tile back on it | `6addbd2f` | `page-commands.test.ts`, `page-between.test.ts` (and its random walk), `cube-page-shell.test.ts` |
+| A8 | Every change of a tile a gesture, held to the one-API checks; every change kind made by both sides, or listed | `a65b8078` | `one-api-gestures.test.ts`, `one-api-ledger.test.ts` |
+| P4 | Refused dates, statistics and instruments said in the banner, on the row, on the picker | `ed060c4c` | `timeseries-view-dom.test.ts` "a refusal said where it lands" |
+| G7 | No guessed column, no swallowed inline, each relation checked against its source | `ed060c4c` | `timeseries-view-dom.test.ts`, `join-open.test.ts` |
+| G6 | The proxy read as Chromium reads it: no credentials or path, NO_PROXY's domains and the hosts under them, ALL_PROXY first | `63bde1a6` | `//tools/browser:proxy_args_test`, `//datacube:browser_guard_test` behind this container's proxy |
+| G5 | Drawn by real ECharts in node; both example pages opened in Chromium, every tile drawn | `aa3ea2b2` | `timeseries-echarts.test.ts`, `verify-charts.mjs` |
+| A7 | A combined series end to end on each host: the gallery's on the tab, one built with ll.Page on Python's | `3bf84dd4` | `verify-charts.mjs`, `python-engine.mjs`, cited as L12's proofs |
+| G8 | The guard reviewer's budget note: the timeseries chunk's headroom kept near 2% (it was 5.7%), each move dated | `d0b0e6e0` | `bundle-budget.test.ts` |
+
+## 7. The second audit (2026-10-26)
+
+The fixes of §6 audited again by four reviewers, the same four questions, before the PR (the owner: "Need to do full
+audit of all this new code too"). They found two blocking findings and thirteen to fix; main was merged (PR #73: one
+design language for the page) between.
+
+| # | Finding | Severity |
+|---|---|---|
+| Q-B1 | `levelOf` took a level plus or less a number for a level: `index(close) - 1` compared from a base of zero, every value none; its statistics nonsense | blocking |
+| A-B1 | Two of the page's writers took its cubes from each view's one `cube`, which a timeseries has none of: a removed grid's kept cube written off the page, a file its reader refused | blocking |
+| P-1 | A tile on a sheet not shown asked every query again on each view its grid landed (the P2 fix's regression) | should fix |
+| P-2 | A split line of no frequency drawn empty unsaid; a level's volatility and Sharpe blank unsaid | should fix |
+| P-3 | Python's `frame()` dropped what the drawing says (several rows a date, no frequency) | should fix |
+| P-4 | A combined series reading a kept cube refused on a page Python serves | should fix |
+| Q-S1 | A level at or below zero: compare and Sharpe signs turned, the statistics' % change the other way; off a log axis unsaid | should fix |
+| Q-S2 | Split by a column not the instrument's, `close / close[SPY]` kept SPY's own group's line alone | should fix |
+| Q-S3 | A range starting just after a period's last observation lost that period's move (YTD lost January, monthly) | should fix |
+| Q-S4 | A combination's periods a year were its first part's, so a part of no frequency was hidden | should fix |
+| Q-S5 | `prices` gave none at the first date (gs-quant's product gives `initial`); two tests asserted the wrong value | should fix |
+| A-S1 | The screen kept changes Python refused, and Python refused a change for a problem the tile had already | should fix |
+| A-S2 | Python's `Timeseries.spec` setter went past the one rule | should fix |
+| A-S3, G-1 | `options()` dropped a slot it has not without a word | should fix |
+| G-2 | = Q-S1's log axis | should fix |
+| G-3 | An ECharts test's "its lines drawn" passed with no line drawn | should fix |
+| G-4 | L12's proofs took `seen(` in every file, an assertion's message passing for a test | should fix |
+
+## 8. Fixed after the second audit (2026-10-26)
+
+| # | What changed | Commit | Pinned by |
+|---|---|---|---|
+| Q-B1 | A level plus or less a number, or turned negative, is no level | `ced3a738` | `timeseries-spec.test.ts`, `timeseries-queries.test.ts` |
+| A-B1 | One rule for the cubes a page holds (`page-document.ts cubesRead`: every tile kind answers, no default; `cubesHeld`, `stillHeld`), every writer and command through it; a page written out refused without a cube a view reads | `50df3a2d`, `0a97264e` | `page-document.test.ts`, `cube-page-shell.test.ts`, `chart-tiles.test.ts` |
+| Q-S1..S5 | The value as of a range's start; an operand of one instrument unsplit; `prices` from `initial`; a combination's periods a year none when any part's is; compare over its start's size, and no returns' figures at or below zero | `8a66d855` | `timeseries-queries.test.ts` (each failed before), the `prices` tests corrected |
+| P-2, G-2 | A split line of no frequency said by name; a level at or below zero keeps its pane's axis straight, said; the statistics' blanks said | `8a66d855` | `timeseries-option.test.ts`, `timeseries-view-dom.test.ts` |
+| A-S1 | One judge of a change for both sides (`timeseries-edit.ts judgedEdit`): a problem it makes refused, one the tile had not; a tile of no series either may leave | `dd6b08bd` | `timeseries-edit.test.ts`, `python/tests/test_page.py` |
+| A-S2, A-S3 | `Timeseries.spec` read only; a slot it has not refused by name | `dd6b08bd` | `python/tests/test_page.py`, `timeseries-edit.test.ts` |
+| P-3 | The rows' notes one rule (`timeseries-query.ts seriesNotes`), the drawing's and Python's frame's (headless `timeseriesNotes`, as warnings) | `dd6b08bd` | `python/tests/test_page.py` |
+| P-4 | `joinTogether` reads the page's cubes, a kept one among them | `dd6b08bd` | `python/tests/test_page.py` |
+| P-1 | A hidden tile marked stale, asked when its sheet is shown | `dd6b08bd` | `cube-page-shell.test.ts` (failed on the old code) |
+| G-3, G-4 | The ECharts test counts its lines against a drawing of none; `seen(` only in the Python engine harness | `dd6b08bd` | the tests themselves |
+| Notes | G9's "-0%"; N5's units (x0.01, /0.01, a variance a number); N1, N2 declared in the catalog (the ramp, beta's calendars); `readBy`'s catch typed; `#window`'s `?? ''` gone; "Undo brings it back" said no more; busy until the statistics answer; proxyArgs read as Chromium's GetVar (an empty lowercase variable is none) and refusing schemes the flag drops; N8's test compares figures; GATES.md lists proxy_args_test | `dd6b08bd` | `timeseries-option.test.ts`, `timeseries-spec.test.ts`, `proxy_args_test.mjs` |
+
+With them, the owner's asks of 2026-10-26: a timeseries' states in a chart's words -- Dynamic, Frozen (each grid's
+filter kept, read by the compiler for every query: `timeseries-spec.ts filterRead`), Detached -- on the screen and in
+Python (`4f74006f`); and the tile in PR #73's design: its state in its header, a chart's right-click, its editors a
+window beside it, both themes (`30aad6a6`).
+
+## 9. Follow-ups (not fixed here)
+
+- Q (numbers): CAGR over a short span (8,507% over 4 days, N3); `candled` sets a period's aggregate on bare columns
+  alone (`ohlc(close / 2, ...)` weekly draws flat candles, N4); `($A + $B) / 2` is no level (no compare, no level
+  statistics, N6); a month dated at its last row though that row's value is none (N7); the point limit cuts a split's
+  lines unevenly (Q12).
+- P (paths): `frame()` pivots and sorts in pandas, no value computed (P6); a date-time range start cut to its day and
+  a Decimal read as a double for the legend, statistics and CSV (P7); split lines ordered on the client while the
+  database cuts them at 20 by its own order (P8); a combination's joint model written again on every query, and on
+  every view landing since P2 (P9); the statistics asked with Stats and the legend both off; the tab's snapped-copy
+  branch of a combination run by no test (its shared copy path is: `join-open.ts`).
+- A (one API, suspected): a cube the screen keeps already is not replaced when a later `setTimeseries` carries its
+  `kept` document or copy; another editor's undo bringing back a cube this tab never held is refused ("maker is
+  gone"); a detached chart shares both. Python's `frame()` defaults to the first series by a rule of its own; a
+  source told as `{'grid': g}` is read with no alias.
+- A cube alone (not a page) saves no grid it added, so neither their charts nor a timeseries of them (a limitation of
+  the cube alone's save, said in the A-B1 commit).
+- G9's rest: a dangling doc comment in `chart-render.ts`; a tile on a sheet not shown is left out of the page's
+  picture. The cube-page-shell G4 test reads a date of no date type, so its tile never draws (the drawing is the
+  chart-tiles A-B1 test's).
+- Not run in this container: `//datacube:verify_app_test` (its embedded Postgres refuses root; CI runs it).
+
