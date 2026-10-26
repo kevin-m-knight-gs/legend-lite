@@ -563,8 +563,12 @@ const BUDGET = 383_000;
  *  368,500 -> 369,500 (2026-10-25, the flow mode's Test and a Test that stops a run -- the grid-only page's note of the
  *  same date). Measured 368,637.
  *  369,500 -> 370,500 (2026-10-25, the flow mode's Cross Tab with fixed columns -- the grid-only page's note of the same
- *  date). Measured 369,849. */
-const ENGINE_BUDGET = 370_500;
+ *  date). Measured 369,849.
+ *  370,500 -> 371,500 (2026-10-26, the flow mode's Cross Tab missing values, Custom Filter, Dry Run and New Box After:
+ *  the grid-only page's notes of 2026-10-25 for the first two; a run that writes nothing (page/cube-page.ts #runFlow's
+ *  dry) and a box's menu gesture made in a box after it (ui/menu.ts newBoxItems, app.ts onStepAfter, page/cube-page.ts
+ *  #stepAfter); no startup file added, measured). Measured 370,956. */
+const ENGINE_BUDGET = 371_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

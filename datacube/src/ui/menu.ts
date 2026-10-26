@@ -47,6 +47,7 @@ import { DATE_RANGES, DATE_RANGE_LABELS, type DateRange } from '../date-ranges.t
 import { isNumeric, isTemporal, isTimeOfDay } from '../../../engine-client/src/types.ts';
 import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, relativeDateWords, rowColumns } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
+import { TREE_COLUMN } from '../treeview.ts';
 import { takesOperator } from '../offers.ts';
 import { gestureTakes, isGridGesture, type GestureArgs, type GridGestureName } from '../grid-gestures.ts';
 import { COLOR_SCALES, ICON_SET_LABELS, ICON_SET_NAMES, RULE_PRESETS, type FormatRule, type IconSetName } from '../conditional.ts';
@@ -67,6 +68,8 @@ export interface MenuContext {
   readonly snapshot: CubeSnapshot;
   /** The column under the pointer, if any. */
   readonly column?: string;
+  /** A flow's box (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9): New Box After offers a step made in a box of its own. */
+  readonly stepAfter?: boolean;
   /** Whether that column is a row dimension already. */
   readonly isRowDimension?: boolean;
   /** Whether a selection exists, which gates the copy entries. */
@@ -391,6 +394,8 @@ export interface MenuItem {
   readonly separated?: boolean;
   /** Said on hover: why a disabled entry is off (Show Grid on a cube on its own). */
   readonly hint?: string;
+  /** A flow's box's New Box After (FL9): its gesture made in a new box after this one, never on this one. */
+  readonly after?: true;
 }
 
 /** What Conditional Formatting ▸ says of a column: its data bars, its colour scale, its icons, how many rules. */
@@ -477,6 +482,38 @@ function filterItem(
     operator,
     ...(value !== undefined ? { value } : {}),
   };
+}
+
+/**
+ * NEW BOX AFTER (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9: a gesture in the results pane adds a box after the box shown,
+ * so every box keeps doing one thing): the cell's value filtered by -- kept, or left out -- its column sorted by, or
+ * grouped by, each the grid's own gesture, made in a box after this one (`after`). Disabled off a column.
+ */
+function newBoxItems(ctx: MenuContext): MenuItem[] {
+  const { column, value } = ctx;
+  if (column === undefined || column === TREE_COLUMN) return [{ label: 'Filter, sort or group in a box of its own', disabled: true, hint: 'Right-click a cell or a header' }];
+  const named = columnLabel(column, ctx.totalLabel);
+  const items: MenuItem[] = [];
+  const filter = (operator: FilterOperator, v: FilterValue | undefined): void => {
+    items.push({ ...filterItem(column, operator, v), after: true,
+      label: `Filter: ${named} ${OPERATOR_LABEL[operator] ?? operator}${v === undefined ? '' : ` ${valueLabel(v)}`}` });
+  };
+  // a value to filter by: a row's, typed by the compiler (a pivot's cell has none of its own)
+  if (value !== undefined && ctx.pivotBase === undefined) {
+    if (value === null) {
+      filter('isEmpty', undefined);
+      filter('isNotEmpty', undefined);
+    } else if (ctx.columnType !== undefined && filterOperatorsFor(ctx.columnType).includes('equal')) {
+      filter('equal', value);
+      if (filterOperatorsFor(ctx.columnType).includes('notEqual')) filter('notEqual', value);
+    }
+  }
+  items.push(
+    { id: 'sort.asc', label: `Sort: ${named} ascending`, column, direction: 'asc', after: true, separated: items.length > 0 },
+    { id: 'sort.desc', label: `Sort: ${named} descending`, column, direction: 'desc', after: true },
+  );
+  if (ctx.canGroup !== false && ctx.pivotBase === undefined) items.push({ id: 'pivot.vertical', label: `Summarize: by ${named}`, column, after: true });
+  return items;
 }
 
 /**
@@ -658,6 +695,8 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
 
   // ---- Sort / Filter / Pivot ----------------------------------------
   push('', [
+    // a flow's box: a step after it, in a box of its own (FL9)
+    ctx.stepAfter === true ? { label: 'New Box After', submenu: newBoxItems(ctx) } : null,
     {
       label: 'Sort',
       submenu: [

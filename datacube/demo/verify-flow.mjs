@@ -925,6 +925,27 @@ try {
   check(/region/.test(printed) && /EMEA/.test(printed), `set again: its condition as the compiler prints it: ${printed}`);
   await page.locator('.dc-flow-dock .dc-sample-foot .dc-quiet').click();
 
+  // NEW BOX AFTER (FL9): a cell of the Filter's rows right-clicked, its region filtered by -- in a box of its own after
+  // the Filter, the Filter left doing its one thing
+  await page.locator(`.dc-flow-box[data-tile="${filter.id}"]`).click();
+  await settled();
+  const filterSays = (await boxes()).find((b) => b.id === filter.id)?.says;
+  const regionCell = page.locator('.dc-flow-results .dc-row .dc-cell[data-column="region"]').first();
+  const region = (await regionCell.textContent() ?? '').trim();
+  const beforeAfter = (await boxes()).map((b) => b.id);
+  await regionCell.click({ button: 'right' });
+  await item('New Box After').hover();
+  // its own entry, by its label (the parent's text holds every entry of its submenu)
+  await item(`Filter: region = '${region}'`).click();
+  await boxCount(beforeAfter.length + 1);
+  const afterBox = await added(beforeAfter);
+  await settled();
+  check(afterBox.tool === 'filter' && await readsOf(afterBox.id) === filter.id, `a Filter box after the Filter: ${JSON.stringify(afterBox)}, ${await readsOf(afterBox.id)}`);
+  await page.waitForFunction((t) => /region/.test(document.querySelector(`.dc-flow-box[data-tile="${t}"] .dc-flow-says`)?.textContent ?? ''), afterBox.id, { timeout: 30_000 });
+  check((await boxes()).find((b) => b.id === filter.id)?.says === filterSays, 'the Filter as it was: its one thing');
+  const regionRows = await resultRows();
+  check(regionRows > 0 && regionRows < fewer, `its rows: the Filter's of ${region}, ${regionRows} of ${fewer}`);
+
   // A TEST (FL8), dragged onto the Filter: its trade ids repeat none, its notionals within bounds -- each check's failing
   // rows counted by the database, its box marked by what its row says; set again, passing
   const beforeTest = (await boxes()).map((b) => b.id);

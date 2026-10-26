@@ -299,6 +299,9 @@ export interface CubeAppBaseOptions {
    * §3.4). Every other window floats as before.
    */
   readonly dock?: HTMLElement;
+  /** A flow's box's New Box After (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9): a gesture of its menu made in a new box
+   *  after it -- never on it -- by its page, named `label`. */
+  readonly onStepAfter?: (gesture: { readonly name: string; readonly args: GestureArgs }, label: string) => void;
   /** A cube in a tile (a page's grid): no title bar of its own; its columns panel folded. */
   readonly compact?: boolean;
   /** Its columns panel folded away at the start (default: when compact); open, a grid opened alone on its page. */
@@ -2144,6 +2147,7 @@ export class CubeApp {
       const measures = this.#modelMeasures();
       const groups = buildMenu({
         snapshot: this.#shown,
+        ...(this.#options.onStepAfter ? { stepAfter: true } : {}),
         ...(join.length > 0 && !this.#adhoc ? { join } : {}),
         create: this.#hostItems('create'),
         canOpenSource: this.#canOpenSource,
@@ -2262,6 +2266,11 @@ export class CubeApp {
     // layout, clipboard and export. The menu offers only what grid-edits.ts allows; a refusal is said, never thrown
     // away (#gesture).
     const gesture = menuGesture(item);
+    // New Box After (FL9): the gesture the page's, made in a box of its own after this one
+    if (gesture !== null && item.after === true) {
+      this.#options.onStepAfter?.(gesture, item.label);
+      return;
+    }
     if (gesture !== null) {
       void this.#gestureGiven(gesture.name, gesture.args, item.label);
       return;
@@ -2528,6 +2537,12 @@ export class CubeApp {
    *  The refusal, the gesture's words or the commands', or null. */
   async #gesture<N extends GridGestureName>(name: N, args: GridGestureArgs[N], label: string): Promise<string | null> {
     return this.#applyMade(this.#gestured((g) => gridGesture(name, g, args)), label);
+  }
+
+  /** A gesture made on this grid as its menu's entry makes it, named `label` (a flow's New Box After, FL9: the box made
+   *  after another, its one step this). The refusal, or null. */
+  gesture(name: string, args: GestureArgs, label: string): Promise<string | null> {
+    return this.#gestureGiven(name, args, label);
   }
 
   /** A menu entry's gesture (ui/menu.ts menuGesture: named by the entry's id, given what the entry carries), made as a

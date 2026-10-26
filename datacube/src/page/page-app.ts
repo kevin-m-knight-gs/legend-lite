@@ -27,7 +27,7 @@
 // the board put at the page it makes (CubePage.sync); what the grids change of themselves (a view, a chart following
 // it) is kept as they leave it. Undo and Redo put the board at a step the same way.
 
-import { CubePage, type PageEdit, type SheetInfo, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
+import { CubePage, type FlowStep, type PageEdit, type SheetInfo, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
@@ -157,7 +157,7 @@ export interface PageAppOptions {
   /** A tool of a flow's palette picked: a box of it on flow `sheet`, after box `after` (none: on its own), made by the
    *  host over the page as it is now -- its settings (`editor`) opened on its grid once it is made (PageGrid.openStep). */
   readonly onFlowTool?: (tool: FlowTool, after: string | undefined, sheet: string, page: PageDocument, editor: StepEditor | undefined,
-    into?: LineEnd, port?: InputPort, at?: FlowPoint) => void;
+    into?: LineEnd, port?: InputPort, at?: FlowPoint, step?: FlowStep) => void;
   /** A file dropped onto a flow's canvas: an Input box over it, opened by the host as its picker opens a file. */
   readonly onFlowFile?: (file: File) => void;
   /** A flow's Join or Union box's settings asked for: the Join window over its inputs, opened by the host over the page
@@ -1017,7 +1017,7 @@ export class PageApp {
       },
       ...(this.#options.onFlowTool ? {
         onTool: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined, into?: LineEnd, port?: InputPort,
-          at?: FlowPoint) => this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page, editor, into, port, at),
+          at?: FlowPoint, step?: FlowStep) => this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page, editor, into, port, at, step),
       } : {}),
     });
   }

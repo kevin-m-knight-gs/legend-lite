@@ -39,6 +39,7 @@ import { liveGrids, relinked } from '../live-inputs.ts';
 import type { Profile } from '../profile.ts';
 import { CONTAINER_FRAME, EMPTY_FLOW, flowTiles, type Frame } from '../layout/flow.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
+import type { GestureArgs } from '../grid-gestures.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { CHART_STATES, chartGrid, MAP_MARKS, showGridWay, type ChartSpec, type ChartState } from '../chart-spec.ts';
 import { chartPicked, type PageFilter } from '../page-filters.ts';
@@ -110,6 +111,12 @@ export interface ChartSource {
 }
 
 /** Where a grid on the page sends its own "+ Chart", "New grid" and the rest: to the page. */
+/** A step a flow's New Box After makes (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9): the grid's gesture, and its name. */
+export interface FlowStep {
+  readonly gesture: { readonly name: string; readonly args: GestureArgs };
+  readonly label: string;
+}
+
 export interface SpawnOptions {
   /** Its tile's id on the page (a page of its own: its host keeps what it knows of the grid by it). */
   readonly id?: string;
@@ -140,6 +147,8 @@ export interface SpawnOptions {
   readonly configuration?: CubeConfiguration;
   /** Where its windows that set it dock (CubeAppOptions.dock): a flow's box, its flow's settings pane. */
   readonly dock?: HTMLElement;
+  /** A flow's box's New Box After (CubeAppOptions.onStepAfter, FL9): the gesture made in a box after it. */
+  readonly onStepAfter?: (gesture: { readonly name: string; readonly args: GestureArgs }, label: string) => void;
 }
 
 /** A grid on a page (a CubeApp). */
@@ -181,6 +190,8 @@ export interface SpawnedGrid {
   /** A Cross Tab's values pinned as its rows hold them now, its columns fixed (FL2), or `pin` false its values its rows'
    *  again: the refusal in words, or null. */
   pinPivotValues?(pin: boolean): Promise<string | null>;
+  /** A gesture made on it as its menu makes one (a flow's New Box After: the new box's one step, FL9). */
+  gesture?(name: string, args: GestureArgs, label: string): Promise<string | null>;
   /** A Cross Tab's values its pinned columns lack, asked of the database (FL3): none when it pins nothing. */
   lackingPivotValues?(): Promise<readonly (FilterValue | null)[]>;
 }
@@ -274,7 +285,7 @@ export interface CubePageOptions {
    *  settings (`editor`) opened once it is shown -- dropped on a line, `into` the box that line goes into, which reads
    *  the new box from then on. */
   readonly onTool?: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined, into?: LineEnd,
-    port?: InputPort, at?: FlowPoint) => void;
+    port?: InputPort, at?: FlowPoint, step?: FlowStep) => void;
   /** A flow's Join or Union box's settings asked for (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): the Join window over its
    *  inputs, opened by the page's owner -- a window over the page, never docked. */
   readonly onJoinBox?: (box: string, sheet: string) => void;
@@ -896,6 +907,18 @@ export class CubePage {
     } finally {
       board.setRunning(undefined);
     }
+  }
+
+  /**
+   * NEW BOX AFTER (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9): a gesture of box `id`'s menu -- a value filtered by, a
+   * column sorted or grouped by -- made in a new box after it, as the palette's tool is added after a box (its owner's
+   * onTool), the gesture that box's one step; the box shown keeps doing its one thing.
+   */
+  #stepAfter(id: string, gesture: FlowStep['gesture'], label: string): void {
+    const sheet = this.#sheetOf(id);
+    if (sheet?.kind !== 'flow') return;
+    const tool: FlowTool = gesture.name.startsWith('sort.') ? 'sort' : gesture.name.startsWith('pivot.') ? 'summarize' : 'filter';
+    this.#options.onTool?.(tool, id, sheet.id, undefined, undefined, undefined, undefined, { gesture, label });
   }
 
   /**
@@ -1712,7 +1735,11 @@ export class CubePage {
     host.className = 'dc-grid-tile';
     // a flow's box: the windows that set it dock in its flow's settings pane
     const lands = this.#planned.get(id) ?? (how.near !== undefined ? this.#sheetOf(how.near) : undefined) ?? this.#shown;
-    const cube = make(host, { ...this.#spawnOptions(id), ...(lands.kind === 'flow' ? { dock: lands.board.dock } : {}) });
+    const cube = make(host, { ...this.#spawnOptions(id), ...(lands.kind === 'flow' ? {
+      dock: lands.board.dock,
+      // New Box After (FL9): its menu's gesture made in a box after it, as the palette's tool is
+      onStepAfter: (gesture: FlowStep['gesture'], label: string) => this.#stepAfter(id, gesture, label),
+    } : {}) });
     const stops = [
       cube.on('view', () => {
         this.#refreshGrid(id);

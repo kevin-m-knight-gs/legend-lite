@@ -863,6 +863,18 @@ stop), Python's `test_a_test_that_stops_a_run_writes_no_output` (refused, nothin
 and loaded) and the harness (the example's Checks sheet: run, 2024's orders written; its Test set to stop a run and run
 again: nothing written, said, the Test red).
 
+**Built, New Box After** (FL9; `ui/menu.ts` `newBoxItems`, `app.ts` `onStepAfter`, `page/cube-page.ts` `#stepAfter`,
+`app/datacube-app.ts` flowTool's `step`; 2026-10-25): a box's rows in the results pane are its full grid, and its own
+menus still edit it; its right-click menu now has **New Box After** too -- the cell's value filtered by ("Filter: region
+= 'EMEA'", or `!=`; an empty value's "is null" and "is not null"), its column sorted ascending or descending, or grouped
+by ("Summarize: by region"). Each is the grid's own gesture (`filter.add`, `sort.asc`, `pivot.vertical`), made in a new
+box after the shown one -- the box a Filter, Sort or Summarize, added as the palette's tool is added after a box, then
+the gesture made on its grid as its one step -- so the shown box keeps doing its one thing (FL5). A grid on a board has
+no such entry. Python adds the box and makes the gesture on it, as ever (`flow.grid(input=box)`, then the gesture's
+method). Tested by `menu-more.test.ts` (its entries, each the grid's gesture marked to be made after; an empty value's;
+none off a column, none on a board) and the harness (a cell of the Filter's rows right-clicked: a Filter box after it,
+its region's rows, the Filter as it was).
+
 **Built, a Dry Run** (M6; `page/cube-page.ts` `#runFlow(dry)`, `layout/flow-canvas.ts`, `layout/flow-board.ts`
 `RunLog.dry`; 2026-10-25): a flow with an Output has **Dry Run** beside Run (Ctrl+Shift+Enter, and in the command
 palette). It runs every box as Run does -- each counted as its rows land, each Test and fixed Cross Tab judged, a run

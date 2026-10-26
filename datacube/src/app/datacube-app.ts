@@ -24,6 +24,7 @@ import { handleKey } from '../file-handles.ts';
 import { Latest, TabWork, mayLeave } from '../host.ts';
 import { PlanThenRun, type PlanAndRun } from '../runner.ts';
 import { PageApp, type GridMaker } from '../page/page-app.ts';
+import type { FlowStep } from '../page/cube-page.ts';
 import {
   NOTHING_TO_SAVE,
   modelPageName,
@@ -387,7 +388,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
    *  open sources. */
   let openBox: ((box: string, document: CubeDocument, now: PageDocument) => Promise<GridMaker | undefined>) | undefined;
   let flowTool: ((tool: FlowTool, after: string | undefined, sheet: string, now: PageDocument, editor: StepEditor | undefined,
-    into?: LineEnd, port?: InputPort, at?: FlowPoint) => void) | undefined;
+    into?: LineEnd, port?: InputPort, at?: FlowPoint, step?: FlowStep) => void) | undefined;
   let flowFile: ((file: File) => void) | undefined;
   let flowJoinBox: ((box: string, sheet: string, now: PageDocument) => void) | undefined;
   /** JOIN… (§17.5): grid `cube` joined to another of the page -- in the tab, where a grid reads tables of its database; by
@@ -523,7 +524,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     ...(picks || services.pages ? { onBlankPage: () => blankPage?.({ asked: true }) } : {}),
     // a flow's box shown, over the page as it is now; a tool of its palette added
     openBox: (box, document, now) => openBox?.(box, document, now) ?? Promise.resolve(undefined),
-    onFlowTool: (tool, after, sheet, now, editor, into, port, at) => flowTool?.(tool, after, sheet, now, editor, into, port, at),
+    onFlowTool: (tool, after, sheet, now, editor, into, port, at, step) => flowTool?.(tool, after, sheet, now, editor, into, port, at, step),
     onFlowFile: (file) => flowFile?.(file),
     onFlowJoin: (box, sheet, now) => flowJoinBox?.(box, sheet, now),
     onChange: () => {
@@ -1370,7 +1371,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // `after` -- a grid over that box's rows, read live -- over the tables that box's grid reads when it is shown. Dropped
     // on a line, the box that line went into reads the new one, told in the same step (docs/DATACUBE_FLOW_MODE_2026_10_24.md
     // M2): one undo takes the box off and the line back
-    flowTool = (tool, after, sheet, now, editor, into, port, at) => {
+    flowTool = (tool, after, sheet, now, editor, into, port, at, step) => {
       void (async () => {
         const shown = placed;
         const { outputCommand, pageCommand } = await lazily(() => import('../page-gestures.ts'));
@@ -1436,7 +1437,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         });
         // drawn as the tool it was added as, and its settings docked in the flow's settings pane: what the tool is for
         page.boxAddedAs(box, tool);
-        if (editor !== undefined) page.grid(box)?.openStep?.(editor);
+        // New Box After (FL9): the gesture made on it, its one step
+        if (step !== undefined) void page.grid(box)?.gesture?.(step.gesture.name, step.gesture.args, step.label);
+        else if (editor !== undefined) page.grid(box)?.openStep?.(editor);
         // a tool with no settings does its step as it is made: Count Records counts
         else if (tool === 'countRecords') page.grid(box)?.openStep?.({ window: 'countRecords' });
       })().catch((e: unknown) => window.alert(`${tool[0]!.toUpperCase()}${tool.slice(1)}: ${e instanceof Error ? e.message : String(e)}`));

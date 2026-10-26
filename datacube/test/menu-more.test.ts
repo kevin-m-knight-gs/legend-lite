@@ -321,3 +321,21 @@ describe('applying an entry to the grid (its gesture)', () => {
       'the sort names \'2021__|__region\', which the grid does not have: one of its columns (desk, notional, region, year), or a pivot\'s header');
   });
 });
+
+describe("a flow's box: New Box After (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9)", () => {
+  const flat: CubeSnapshot = { ...CUBE, rows: [], pivotOn: [] };
+  it("offers the cell's value filtered by, its column sorted and grouped by -- each the grid's gesture, made after", () => {
+    const after = submenu({ snapshot: flat, stepAfter: true, column: 'region', value: 'EMEA', columnType: 'String' }, 'New Box After');
+    assert.deepEqual(labels(after), ["Filter: region = 'EMEA'", "Filter: region != 'EMEA'", 'Sort: region ascending', 'Sort: region descending',
+      'Summarize: by region']);
+    assert.ok(after.every((i) => i.after === true), 'each made in a box after this one');
+    assert.deepEqual(after.map((i) => menuGesture(i)?.name), ['filter.add', 'filter.add', 'sort.asc', 'sort.desc', 'pivot.vertical']);
+    assert.deepEqual(menuGesture(after[0]!)?.args, { column: 'region', operator: 'equal', value: 'EMEA' });
+    // an empty value: its emptiness filtered by; off a column, nothing to make
+    const empty = submenu({ snapshot: flat, stepAfter: true, column: 'region', value: null, columnType: 'String' }, 'New Box After');
+    assert.deepEqual(labels(empty).slice(0, 2), ['Filter: region is null', 'Filter: region is not null']);
+    assert.deepEqual(labels(submenu({ snapshot: flat, stepAfter: true }, 'New Box After')), ['Filter, sort or group in a box of its own [off]']);
+    // a grid on a board: none
+    assert.equal(find({ snapshot: flat, column: 'region', value: 'EMEA', columnType: 'String' }, 'New Box After'), undefined);
+  });
+});
