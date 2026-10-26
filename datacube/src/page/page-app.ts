@@ -35,7 +35,7 @@ import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
 import {
-  filtersFor, keptFor, newPage, NOTHING_TO_SAVE, pageFile, sheetLabel, writePageOf, type PageDocument, type PageView,
+  cubesRead, filtersFor, keptFor, newPage, NOTHING_TO_SAVE, pageFile, sheetLabel, writePageOf, type PageDocument, type PageView,
   type PageViews,
 } from '../page-document.ts';
 import { conditionWords, filterWords, gridLens, type PageFilter } from '../page-filters.ts';
@@ -814,7 +814,7 @@ export class PageApp {
    *  its grid's reading place (as page-commands.ts writes a page), the rest as they came. */
   #withUnopened(cubes: readonly { id: string; cube: CubeDocument }[], views: PageViews): { id: string; cube: CubeDocument }[] {
     if (this.#unopened.size === 0) return [...cubes];
-    const read = new Set(views.views.map((v) => v.cube));
+    const read = new Set(views.views.flatMap(cubesRead));
     const all = [...cubes, ...[...this.#unopened].filter(([id]) => read.has(id)).map(([id, cube]) => ({ id, cube }))];
     const grids = views.views.filter((v) => v.kind === 'grid').map((v) => v.cube);
     const place = (id: string): number => (grids.includes(id) ? grids.indexOf(id) : grids.length);

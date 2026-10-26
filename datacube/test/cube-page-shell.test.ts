@@ -1030,6 +1030,36 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     assert.ok(!/not on the page/.test(again), `it draws from it: ${again}`);
   });
 
+  // the second audit's A-B1: a page reopened whose kept cube's source is not opened again (a file not given) wrote the
+  // cube off the page -- its writer read each view's `cube`, which a timeseries has none of -- and its own reader then
+  // refused the page it wrote
+  it("a page reopened without its kept cube's source: the cube stays on the page, and the page reads back", async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    const b = pg().addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const doc = pg().document('Q3')!;
+    const gridB = doc.views.find((v) => v.id === b)!;
+    assert.ok(gridB.kind === 'grid');
+    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: gridB.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] };
+    reopen({ ...doc, views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Orders', spec }],
+      sheets: doc.sheets.map((s, i) => (i === 0 ? { ...s, layout: { ...s.layout, bands: [...s.layout.bands, { height: 0.5, node: { tile: 'ts' } }] } } : s)) });
+    await shown(host, '[data-tile="ts"] .dc-ts-bar');
+    tile(b).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    const saved = readPage(pageToJson(pg().document('Q3')!));
+    assert.ok(saved.cubes.some((c) => c.id === gridB.cube), 'saved with the cube kept for the tile');
+    // opened again, the kept cube's source not opened again: no maker for it
+    pg().dispose();
+    newPage();
+    pg().restore(saved, new Map(saved.cubes.filter((c) => c.id !== gridB.cube)
+      .map((c) => [c.id, over(c.cube.source._type === 'file' ? c.cube.source.name : c.id, c.cube)])));
+    await settle();
+    const written = pg().document('Q3')!;
+    assert.ok(written.cubes.some((c) => c.id === gridB.cube), 'its cube on the page still, as the page had it');
+    assert.doesNotThrow(() => readPage(pageToJson(written)), 'the page it writes reads back');
+  });
+
   it('a page whose first sheet was deleted reopens with its own sheets alone, on its first', async () => {
     newPage({ confirm: () => true });
     pg().addGrid(over('trades.csv'));

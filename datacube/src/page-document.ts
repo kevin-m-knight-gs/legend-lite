@@ -101,8 +101,14 @@ export type PageView = GridView | ChartView | TextView | TimeseriesView;
  * reading a cube the page no longer held).
  */
 export function readsCube(view: PageView, cube: string): boolean {
-  if (view.kind === 'timeseries') return view.spec.sources.some((s) => s.cube === cube);
-  return view.kind !== 'text' && view.cube === cube;
+  return cubesRead(view).includes(cube);
+}
+
+/** The cubes a view reads, by readsCube's rule: what a page that writes its cubes from its views writes for it (the
+ *  second audit's A-B1: a page's writers read a view's `cube`, which a timeseries has none of, and dropped its cubes). */
+export function cubesRead(view: PageView): readonly string[] {
+  if (view.kind === 'timeseries') return view.spec.sources.map((s) => s.cube);
+  return view.kind === 'text' ? [] : [view.cube];
 }
 
 /** Where the views sit: the page's bands (layout/bands.ts), each tile a view's id. */

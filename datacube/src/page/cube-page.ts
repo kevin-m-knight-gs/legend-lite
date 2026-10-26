@@ -1624,8 +1624,12 @@ export class CubePage {
     // the timeseries tiles in reading order, each with its spec as the page has it -- its sources by the cubes they read,
     // kept when a grid it reads is removed (it says so; an undo brings the grid back) -- and its own title only when
     // someone gave it one
+    // -- but not one reading a grid this page does not write (a cube alone's added grid, as that grid's charts are left
+    // out above: the second audit's A-B1, its page file refused by the reader for a cube it did not hold)
+    const unwritten = new Set([...this.#grids.keys(), ...this.#kept.keys()].filter((g) => cubeOf(g) === undefined).map((g) => this.#cubeOf(g)));
     for (const id of this.tileIds.filter((t) => this.#series.has(t))) {
       const title = this.title(id);
+      if (this.#series.get(id)!.spec.sources.some((s) => unwritten.has(s.cube))) continue;
       views.push({
         id, kind: 'timeseries', spec: this.#series.get(id)!.spec, ...(title !== undefined && title !== timeseriesTitle(id) ? { title } : {}),
       });
