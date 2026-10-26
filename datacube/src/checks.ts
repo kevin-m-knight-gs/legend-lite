@@ -10,7 +10,7 @@
 //
 // PURE: no DOM, no planner.
 
-import { fn, lambda, lit, property, toJson, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { collection, fn, lambda, lit, not, property, toJson, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { familyOf, isFractional } from '../../engine-client/src/types.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { CubeRefusal, rowColumns, sameValue, type CubeShape, type CubeSnapshot, type DerivedColumn } from './snapshot.ts';
@@ -22,9 +22,13 @@ export type Check =
   | { readonly kind: 'notEmpty'; readonly column: string }
   | { readonly kind: 'unique'; readonly column: string }
   | { readonly kind: 'between'; readonly column: string; readonly min?: number; readonly max?: number }
-  | { readonly kind: 'rows'; readonly min?: number; readonly max?: number };
+  | { readonly kind: 'rows'; readonly min?: number; readonly max?: number }
+  /** Its values one of a list (dbt's accepted values): a text's or a number's, an empty value no failure. */
+  | { readonly kind: 'oneOf'; readonly column: string; readonly values: readonly (string | number)[] }
+  /** A text that matches a pattern (a regular expression, as RegEx's Match reads one), an empty value no failure. */
+  | { readonly kind: 'matches'; readonly column: string; readonly pattern: string };
 
-export const CHECK_KINDS: readonly Check['kind'][] = ['notEmpty', 'unique', 'between', 'rows'];
+export const CHECK_KINDS: readonly Check['kind'][] = ['notEmpty', 'unique', 'between', 'rows', 'oneOf', 'matches'];
 
 /** The column of one value its rows are grouped by, its value, and the count of its rows beside its checks. */
 export const CHECKS_COLUMN = 'ChecksAll';
@@ -32,7 +36,9 @@ const ALL = 'checks';
 export const ROWS_COLUMN = 'Rows';
 
 /** What each check's count is called: its column's name, and what fails it (a count of rows: its count's). */
-const SUFFIX: Readonly<Record<Check['kind'], string>> = { notEmpty: '_empty', unique: '_repeated', between: '_outside', rows: '_outside' };
+const SUFFIX: Readonly<Record<Check['kind'], string>> = {
+  notEmpty: '_empty', unique: '_repeated', between: '_outside', rows: '_outside', oneOf: '_unexpected', matches: '_unmatched',
+};
 export const checkName = (c: Check): string => `${c.kind === 'rows' ? ROWS_COLUMN : c.column}${SUFFIX[c.kind]}`;
 /** A unique check's row number among the rows of its value (a window column, hidden). */
 const rowName = (column: string): string => `${column}__row`;
@@ -57,6 +63,9 @@ function failingLambda(c: Check, whole: boolean): Lambda {
     case 'unique': return failing(fn('greaterThan', fn('toOne', x(rowName(c.column))), lit.integer(1)));
     case 'between': return failing(fn('and', fn('isNotEmpty', x(c.column)), outside(fn('toOne', x(c.column)), c.min, c.max, whole)));
     case 'rows': return failing(outside(fn('toOne', x(ROWS_COLUMN)), c.min, c.max, true));
+    case 'oneOf': return failing(fn('and', fn('isNotEmpty', x(c.column)),
+      not(fn('in', fn('toOne', x(c.column)), collection(c.values.map((v) => (typeof v === 'string' ? lit.string(v) : bound(v, whole))))))));
+    case 'matches': return failing(fn('and', fn('isNotEmpty', x(c.column)), not(fn('regexpLike', fn('toOne', x(c.column)), lit.string(c.pattern)))));
   }
 }
 
@@ -110,6 +119,22 @@ export function checkCommands(s: CubeSnapshot, checks: readonly Check[]): GridCo
       if (!isFractional(type) && [c.min, c.max].some((v) => v !== undefined && !Number.isInteger(v))) {
         throw new CubeRefusal(`'${c.column}' holds whole numbers: bound it by whole numbers`);
       }
+    }
+    if (c.kind === 'oneOf') {
+      const family = familyOf(type);
+      if (family !== 'text' && family !== 'numeric') throw new CubeRefusal(`'${c.column}' is ${type ?? 'not typed yet'}: a text's or a number's values are listed`);
+      if (c.values.length === 0) throw new CubeRefusal(`list the values '${c.column}' may hold`);
+      for (const v of c.values) {
+        if (family === 'text' ? typeof v !== 'string' : typeof v !== 'number' || !Number.isFinite(v)) {
+          throw new CubeRefusal(`'${c.column}' holds ${family === 'text' ? 'text' : 'numbers'}: ${JSON.stringify(v)} is none`);
+        }
+        if (family === 'numeric' && !isFractional(type) && !Number.isInteger(v)) throw new CubeRefusal(`'${c.column}' holds whole numbers, not ${v}`);
+      }
+      if (new Set(c.values.map(String)).size !== c.values.length) throw new CubeRefusal(`a value of '${c.column}' is listed twice`);
+    }
+    if (c.kind === 'matches') {
+      if (familyOf(type) !== 'text') throw new CubeRefusal(`'${c.column}' is ${type ?? 'not typed yet'}: only a text matches a pattern`);
+      if (c.pattern === '') throw new CubeRefusal(`give the pattern '${c.column}' matches`);
     }
     const name = checkName(c);
     if (names.has(name)) throw new CubeRefusal(`'${c.column}' is checked that way twice`);
@@ -199,9 +224,28 @@ function checkOf(d: DerivedColumn, derived: readonly DerivedColumn[]): Check | u
       if (bounds.min === undefined && bounds.max === undefined) continue;
       c = { kind, column, ...bounds };
     }
+    if (kind === 'oneOf' || kind === 'matches') {
+      // `if(and(isNotEmpty($x.c), not(<in | regexpLike>(toOne($x.c), <its list | its pattern>))), ...)`
+      const negated = (conditionOf(d.lambda) as { parameters?: ValueSpecification[] } | undefined)?.parameters?.[1] as
+        { parameters?: ValueSpecification[] } | undefined;
+      const asked = negated?.parameters?.[0] as { parameters?: ValueSpecification[] } | undefined;
+      const given = asked?.parameters?.[1] as { _type?: string; value?: unknown; values?: ValueSpecification[] } | undefined;
+      if (kind === 'matches') {
+        if (given?._type !== 'string' || typeof given.value !== 'string') continue;
+        c = { kind, column, pattern: given.value };
+      } else {
+        const values = (given?.values ?? []).map((v) => {
+          const o = v as { _type?: string; value?: unknown };
+          return o._type === 'string' && typeof o.value === 'string' ? o.value : numberOf(v);
+        });
+        if (values.length === 0 || values.some((v) => v === undefined)) continue;
+        c = { kind, column, values: values as (string | number)[] };
+      }
+    }
     // its bounds whole numbers (a whole-number column's) or not: rebuilt each way they can be, compared as the protocol
     // writes them (a float read back from a page holds its double, one made here its exact digits: the same text)
-    const wholeBounds = c.kind !== 'between' || [c.min, c.max].every((v) => v === undefined || Number.isInteger(v));
+    const wholeBounds = c.kind === 'oneOf' ? c.values.every((v) => typeof v === 'string' || Number.isInteger(v))
+      : c.kind !== 'between' || [c.min, c.max].every((v) => v === undefined || Number.isInteger(v));
     const as = toJson(d.lambda);
     if ((wholeBounds && as === toJson(failingLambda(c, true))) || as === toJson(failingLambda(c, false))) return c;
   }
@@ -229,6 +273,8 @@ export function checkWords(c: Check): string {
       : c.min !== undefined ? `${c.column} at least ${c.min}` : `${c.column} at most ${c.max}`;
     case 'rows': return c.min !== undefined && c.max !== undefined ? `rows from ${c.min} to ${c.max}`
       : c.min !== undefined ? `at least ${rows(c.min)}` : `at most ${rows(c.max)}`;
+    case 'oneOf': return `${c.column} is one of ${c.values.join(', ')}`;
+    case 'matches': return `${c.column} matches ${c.pattern}`;
   }
 }
 
@@ -272,9 +318,21 @@ export function readChecks(raw: unknown): Check[] {
     if (!CHECK_KINDS.includes(k['kind'] as Check['kind'])) throw new CubeRefusal(`a check is ${CHECK_KINDS.join(', ')}, not ${JSON.stringify(k['kind'])}`);
     const rows = k['kind'] === 'rows';
     if (!rows && typeof k['column'] !== 'string') throw new CubeRefusal(`a check names its column, not ${JSON.stringify(k['column'])}`);
-    const odd = Object.keys(k).filter((key) => !['kind', ...(rows ? [] : ['column']), ...(k['kind'] === 'between' || rows ? ['min', 'max'] : [])].includes(key));
+    const own = k['kind'] === 'between' || rows ? ['min', 'max'] : k['kind'] === 'oneOf' ? ['values'] : k['kind'] === 'matches' ? ['pattern'] : [];
+    const odd = Object.keys(k).filter((key) => !['kind', ...(rows ? [] : ['column']), ...own].includes(key));
     if (odd.length > 0) throw new CubeRefusal(`a ${String(k['kind'])} check takes no ${odd.join(', ')}`);
     for (const b of ['min', 'max']) if (k[b] !== undefined && typeof k[b] !== 'number') throw new CubeRefusal(`a bound is a number, not ${JSON.stringify(k[b])}`);
+    if (k['kind'] === 'oneOf') {
+      const values = k['values'];
+      if (!Array.isArray(values) || !values.every((v) => typeof v === 'string' || typeof v === 'number')) {
+        throw new CubeRefusal(`a oneOf check lists its values, texts or numbers, not ${JSON.stringify(values)}`);
+      }
+      return { kind: 'oneOf', column: k['column'] as string, values: values as (string | number)[] };
+    }
+    if (k['kind'] === 'matches') {
+      if (typeof k['pattern'] !== 'string') throw new CubeRefusal(`a matches check gives its pattern, not ${JSON.stringify(k['pattern'])}`);
+      return { kind: 'matches', column: k['column'] as string, pattern: k['pattern'] };
+    }
     return { kind: k['kind'], ...(rows ? {} : { column: k['column'] }), ...(k['min'] !== undefined ? { min: k['min'] } : {}),
       ...(k['max'] !== undefined ? { max: k['max'] } : {}) } as Check;
   });

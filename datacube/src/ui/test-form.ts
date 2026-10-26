@@ -1,7 +1,8 @@
 // A TEST, SET (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL8: a flow's Test box, Alteryx's Test tool): its checks, a row
-// each -- what it checks (no empty value, no value repeated, a number within bounds, its count of rows within bounds)
-// and of which column (a count of rows of none), a between's smallest and largest -- added and taken off, in a window
-// its grid docks where its options dock it. Fetched with the first Test.
+// each -- what it checks (no empty value, no value repeated, a number within bounds, its count of rows within bounds,
+// its values one of a list, a text matching a pattern) and of which column (a count of rows of none), a between's
+// smallest and largest, a list's values or a pattern -- added and taken off, in a window its grid docks where its
+// options dock it. Fetched with the first Test.
 
 import type { Check } from '../checks.ts';
 
@@ -20,7 +21,12 @@ const KINDS: readonly { readonly kind: Check['kind']; readonly label: string }[]
   { kind: 'unique', label: 'repeats no value' },
   { kind: 'between', label: 'is within bounds' },
   { kind: 'rows', label: 'rows: a count within bounds' },
+  { kind: 'oneOf', label: 'is one of' },
+  { kind: 'matches', label: 'matches a pattern' },
 ];
+
+/** A check given as text: a list of values, a pattern. */
+const texted = (kind: string): boolean => kind === 'oneOf' || kind === 'matches';
 
 /** A check with bounds: a between, a count of rows. */
 const bounded = (kind: string): boolean => kind === 'between' || kind === 'rows';
@@ -38,7 +44,10 @@ export function testForm(host: HTMLElement, o: TestFormOptions): void {
   const body = el('div', 'dc-sample dc-test', host);
   el('span', 'dc-picker-field-label', body, 'Each row of its input passes every check');
   const list = el('div', 'dc-test-checks', body);
-  const rows: { readonly kind: HTMLSelectElement; readonly column: HTMLSelectElement; readonly min: HTMLInputElement; readonly max: HTMLInputElement }[] = [];
+  const rows: {
+    readonly kind: HTMLSelectElement; readonly column: HTMLSelectElement; readonly min: HTMLInputElement; readonly max: HTMLInputElement;
+    readonly text: HTMLInputElement;
+  }[] = [];
   const status = el('p', 'dc-sample-status', body);
   status.setAttribute('role', 'status');
   const ok = doc.createElement('button');
@@ -49,6 +58,10 @@ export function testForm(host: HTMLElement, o: TestFormOptions): void {
       r.max.hidden = !bounded(r.kind.value);
       // a count of rows is of no column
       r.column.hidden = r.kind.value === 'rows';
+      // a list of values, or a pattern: as text
+      r.text.hidden = !texted(r.kind.value);
+      r.text.placeholder = r.kind.value === 'oneOf' ? 'its values, a comma between' : 'its pattern: ^[A-Z]{3}$';
+      r.text.setAttribute('aria-label', r.kind.value === 'oneOf' ? 'Its values' : 'Its pattern');
       // a bound is a number's: a between offers the number columns, the others every column
       for (const opt of r.column.options) opt.hidden = between && !o.columns.find((c) => c.name === opt.value)?.number;
     }
@@ -56,7 +69,9 @@ export function testForm(host: HTMLElement, o: TestFormOptions): void {
       : rows.some((r) => bounded(r.kind.value) && r.min.value === '' && r.max.value === '') ? 'give a bound its smallest, its largest, or both'
         : rows.some((r) => r.kind.value === 'between' && !o.columns.find((c) => c.name === r.column.value)?.number) ? 'bound a number column'
           : rows.filter((r) => r.kind.value === 'rows').length > 1 ? 'check its count of rows once'
-            : undefined;
+            : rows.some((r) => texted(r.kind.value) && r.text.value.trim() === '') ? 'give its values or its pattern'
+              : rows.some((r) => r.kind.value === 'matches' && o.columns.find((c) => c.name === r.column.value)?.number) ? 'a pattern is a text\'s'
+                : undefined;
     ok.disabled = bad !== undefined;
     ok.title = bad === undefined ? '' : `Not yet: ${bad}`;
   };
@@ -83,11 +98,14 @@ export function testForm(host: HTMLElement, o: TestFormOptions): void {
     };
     const min = bound('smallest', 'dc-test-min');
     const max = bound('largest', 'dc-test-max');
+    const text = el('input', 'dc-picker-input dc-test-text', line);
+    text.type = 'text';
+    text.spellcheck = false;
     const off = el('button', 'dc-flow-input-off dc-test-off', line, '×');
     off.type = 'button';
     off.title = 'Take this check off';
     off.setAttribute('aria-label', 'Take this check off');
-    const row = { kind, column, min, max };
+    const row = { kind, column, min, max, text };
     off.addEventListener('click', () => {
       rows.splice(rows.indexOf(row), 1);
       line.remove();
@@ -100,9 +118,11 @@ export function testForm(host: HTMLElement, o: TestFormOptions): void {
         if (c.min !== undefined) min.value = String(c.min);
         if (c.max !== undefined) max.value = String(c.max);
       }
+      if (c.kind === 'oneOf') text.value = c.values.join(', ');
+      if (c.kind === 'matches') text.value = c.pattern;
     }
     for (const e of [kind, column]) e.addEventListener('change', check);
-    for (const e of [min, max]) e.addEventListener('input', check);
+    for (const e of [min, max, text]) e.addEventListener('input', check);
     rows.push(row);
     check();
   };
@@ -127,10 +147,17 @@ export function testForm(host: HTMLElement, o: TestFormOptions): void {
     const checks = rows.map((r): Check => {
       const kind = r.kind.value as Check['kind'];
       if (kind === 'notEmpty' || kind === 'unique') return { kind, column: r.column.value };
+      if (kind === 'matches') return { kind, column: r.column.value, pattern: r.text.value };
+      if (kind === 'oneOf') {
+        // a number column's values as numbers (the rule refuses one that is none, in words)
+        const numbers = o.columns.find((c) => c.name === r.column.value)?.number === true;
+        const values = r.text.value.split(',').map((v) => v.trim()).filter((v) => v !== '');
+        return { kind, column: r.column.value, values: numbers ? values.map((v) => (Number.isFinite(Number(v)) ? Number(v) : v)) : values };
+      }
       const min = number(r.min.value);
       const max = number(r.max.value);
       const bounds = { ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) };
-      return kind === 'rows' ? { kind, ...bounds } : { kind, column: r.column.value, ...bounds };
+      return kind === 'rows' ? { kind, ...bounds } : { kind: 'between', column: r.column.value, ...bounds };
     });
     status.textContent = '';
     const refused = await o.apply(checks);

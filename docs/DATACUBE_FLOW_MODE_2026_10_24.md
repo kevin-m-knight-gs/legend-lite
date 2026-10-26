@@ -306,7 +306,7 @@ How to read the status column:
 | Tool | Status | How |
 |---|---|---|
 | Comment, Tool Container | Step | The flow sheet's own state (§3.4) |
-| Test | Built | Checks as a box (no empty value, no value repeated, a number within bounds, a count of rows within bounds), counted by the database; a mode that stops a run (FL8) |
+| Test | Built | Checks as a box (no empty value, no value repeated, a number within bounds, a count of rows within bounds, values one of a list, a text matching a pattern), counted by the database; a mode that stops a run (FL8) |
 | Block Until Done | Later | Run order, from runs and schedules (F3) |
 | Message | Later | The run's log |
 | Base 64 Encoder | Built | `encodeBase64` in a Formula |
@@ -956,6 +956,16 @@ revenue by channel across the regions, fixed to AMER and EMEA, its APAC said. Te
 one refusing a run, nothing written; loaded again, written), `examples.test.ts` (its fixed values, its words) and the
 harness (the Checks sheet run: its box amber, said, counted in the log apart from the Test; its settings naming APAC;
 Load values again: passing, all three its columns) and the tour.
+
+**Built, a Test's list of values and pattern** (`checks.ts` kinds `oneOf` and `matches`; 2026-10-26): dbt's accepted
+values and a pattern check, counted as every check is. "region is one of EMEA, APAC, AMER" counts the rows whose value
+the list lacks (`<column>_unexpected`: `not(in(...))`, a text's or a number's values, a whole-number column's whole);
+"code matches ^[A-Z]{3}$" the rows whose text the pattern does not match (`<column>_unmatched`: `regexpLike`, as the
+RegEx tool's Match reads a pattern). An empty value fails neither. Its window takes the list (a comma between) or the
+pattern as text; read back off its column, rebuilt and compared whole. Python: `{'kind': 'oneOf', 'column': c,
+'values': [...]}`, `{'kind': 'matches', 'column': c, 'pattern': p}`. Tested by `flow-sheet.test.ts` (made and read
+back, said, refusals, its JSON), Python's `test_rows_checked_as_a_test_box_checks_them` (over DuckDB: APAC failing ^E)
+and the harness (the Test's second check made a list of the three regions: both passing, said, read back).
 
 **Built, a Test's count of rows** (FL8's row-count check; `checks.ts` kind `rows`; 2026-10-25): a check of no column --
 its input's count of rows from a smallest to a largest (whole numbers, either left out, a smallest 1 at least: every

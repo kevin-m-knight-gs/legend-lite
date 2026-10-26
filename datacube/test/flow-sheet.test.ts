@@ -358,6 +358,23 @@ describe("a Test (checks.ts): each check's failing rows counted by the database,
     refused(() => readChecks({ kind: 'test', checks: [{ kind: 'sometimes', column: 'region' }] }), /a check is notEmpty, unique, between/);
   });
 
+  it('checks a list of values and a pattern: each counted as the others are; read back, said, refused in words', () => {
+    const listed: Check[] = [{ kind: 'oneOf', column: 'region', values: ['EMEA', 'APAC'] }, { kind: 'matches', column: 'region', pattern: '^[A-Z]{4}$' },
+      { kind: 'oneOf', column: 'notional', values: [1, 2.5] }];
+    const s = apply(typed, checkCommands(typed, listed));
+    assert.deepEqual(checksOf(s), listed);
+    assert.deepEqual(testColumns(listed).slice(0, 3), ['region_unexpected', 'region_unmatched', 'notional_unexpected']);
+    assert.deepEqual(listed.map(checkWords), ['region is one of EMEA, APAC', 'region matches ^[A-Z]{4}$', 'notional is one of 1, 2.5']);
+    refused(() => checkCommands(typed, [{ kind: 'oneOf', column: 'region', values: [] }]), /list the values 'region' may hold/);
+    refused(() => checkCommands(typed, [{ kind: 'oneOf', column: 'region', values: [3] }]), /'region' holds text: 3 is none/);
+    refused(() => checkCommands(typed, [{ kind: 'oneOf', column: 'region', values: ['A', 'A'] }]), /a value of 'region' is listed twice/);
+    refused(() => checkCommands(typed, [{ kind: 'matches', column: 'notional', pattern: 'x' }]), /only a text matches a pattern/);
+    refused(() => checkCommands(typed, [{ kind: 'matches', column: 'region', pattern: '' }]), /give the pattern 'region' matches/);
+    assert.deepEqual(readChecks({ kind: 'test', checks: [{ kind: 'oneOf', column: 'region', values: ['EMEA'] }, { kind: 'matches', column: 'region', pattern: 'E' }] }),
+      [{ kind: 'oneOf', column: 'region', values: ['EMEA'] }, { kind: 'matches', column: 'region', pattern: 'E' }]);
+    refused(() => readChecks({ kind: 'test', checks: [{ kind: 'matches', column: 'region', values: ['E'] }] }), /a matches check takes no values/);
+  });
+
   it('checks its count of rows after grouping: a column over its group, 1 outside its bounds; read back, said', () => {
     const counted: Check[] = [{ kind: 'notEmpty', column: 'region' }, { kind: 'rows', min: 1, max: 500 }];
     const s = apply(typed, checkCommands(typed, counted));

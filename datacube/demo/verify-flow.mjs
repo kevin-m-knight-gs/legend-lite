@@ -1003,6 +1003,18 @@ try {
   await page.locator('.dc-flow-settings button', { hasText: 'Open its settings' }).click();
   await docked('Test');
   check(await page.locator('.dc-flow-dock .dc-test-check').nth(1).locator('.dc-test-kind').inputValue() === 'rows', 'read back: a count of rows');
+  // its second made a list of values: every region one of the three -- passing, both
+  const listCheck = page.locator('.dc-flow-dock .dc-test-check').nth(1);
+  await listCheck.locator('.dc-test-kind').selectOption('oneOf');
+  await listCheck.locator('.dc-test-column').selectOption('region');
+  await listCheck.locator('.dc-test-text').fill('EMEA, APAC, AMER');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  await page.waitForFunction((t) => document.querySelector(`.dc-flow-box[data-tile="${t}"] .dc-flow-says`)?.textContent === 'all 2 checks pass', tested.id, { timeout: 30_000 });
+  check(/region is one of EMEA, APAC, AMER/.test(await page.locator(`.dc-flow-box[data-tile="${tested.id}"] .dc-flow-says`).getAttribute('title') ?? ''), 'a list of values, said');
+  await page.locator('.dc-flow-settings button', { hasText: 'Open its settings' }).click();
+  await docked('Test');
+  check(await page.locator('.dc-flow-dock .dc-test-check').nth(1).locator('.dc-test-text').inputValue() === 'EMEA, APAC, AMER', 'read back: its values');
   await page.locator('.dc-flow-dock .dc-test-check').nth(1).locator('.dc-test-off').click();
   await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
   await settled();

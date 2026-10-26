@@ -4920,6 +4920,9 @@
 /* a Test's checks: a row each, and Add a check below them */
 .dc-test-checks { display: flex; flex-direction: column; gap: 6px; }
 .dc-test-check .dc-sample-n[hidden] { display: none; }
+/* a check's values or pattern, as text */
+.dc-test-text { min-width: 12em; flex: 1 1 12em; font-family: var(--dc-mono, ui-monospace, monospace); }
+.dc-test-text[hidden], .dc-test-column[hidden] { display: none; }
 .dc-test-add { align-self: flex-start; }
 /* a Date Filter's two days, asked only when it keeps the days between them */
 .dc-date-filter-days[hidden] { display: none; }

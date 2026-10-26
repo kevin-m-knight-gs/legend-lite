@@ -1731,6 +1731,10 @@ class Abilities(Paged):
             grid.test([{'kind': 'between', 'column': 'region', 'min': 1}])
         with self.assertRaisesRegex(ValueError, 'holds whole numbers: bound it by whole numbers'):
             grid.test([{'kind': 'between', 'column': 'id', 'min': 0.5}])
+        # its values one of a list, a text matching a pattern: each failing row counted, an empty value none
+        grid.test([{'kind': 'oneOf', 'column': 'region', 'values': ['EMEA', 'APAC']}, {'kind': 'matches', 'column': 'region', 'pattern': '^E'}])
+        self.assertEqual(counts('Rows', 'region_unexpected', 'region_unmatched'), {'Rows': 4, 'region_unexpected': 0, 'region_unmatched': 1})
+        self.assertEqual([f['says'] for f in grid.failing], ['region matches ^E: 1 row fails'])
         # its count of rows, checked after grouping: 1 when it is outside its bounds, its rows said
         grid.test([{'kind': 'notEmpty', 'column': 'id'}, {'kind': 'rows', 'min': 5}])
         self.assertEqual(counts('Rows', 'id_empty', 'Rows_outside'), {'Rows': 4, 'id_empty': 0, 'Rows_outside': 1})
