@@ -55,6 +55,12 @@ final class PlanMaker {
             // one value, an optional one's absence, or a list as one array (Declared.slot)
             slots.add(p.slot());
         }
+        if (query.writes()) {
+            // a program that changes a store: main's write plans (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7; merged
+            // 2026-10-26), a sequence of steps on one session
+            return new ExecutionPlan(declared.stream().map(p -> p.declaration(query.context())).toList(),
+                    program(query, runtime, output, slots, features, serverVersion));
+        }
         Compiler.LoweredQuery l = query.lower(runtime, output == TypedQuery.Output.STREAMED_JSON, slots, features);
         // the runtime decided: a null one is refused there, by name
         com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);

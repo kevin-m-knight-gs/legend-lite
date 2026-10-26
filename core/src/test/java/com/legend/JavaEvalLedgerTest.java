@@ -746,10 +746,11 @@ class JavaEvalLedgerTest {
             // PR): the datatype-to-store-type table gains the relational grammar's TIME and TIMESTAMP_NS column types
             // (one entry each); a type mapped, nothing evaluated. -> 2326 at main's merge into the plan path branch
             // (2026-10-22, measured): both sides' lines, nothing evaluated
-            // 2391 (main, the writes line) and 2326 (the plan path branch) -> 3410 at main's second merge into the plan
-            // path branch (2026-10-26, measured): main's lowererFor and the named lowerAndPrepare carry the branch's
-            // object layouts and declared egress; both sides' lines, nothing evaluated
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 3410),
+            // 2391 (main, the writes line) and 2326 (the plan path branch) -> 2419 at main's second merge into the plan
+            // path branch (2026-10-26, measured by the ledger's own run at d408e1b8: stripped code lines): main's
+            // lowererFor and the named lowerAndPrepare carry the branch's object layouts and declared egress; both
+            // sides' lines, nothing evaluated
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2419),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
