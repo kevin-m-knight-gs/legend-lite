@@ -256,7 +256,9 @@ final class Overloads {
         }
         boolean stereotyped = f.definition().stereotypes().stream()
                 .anyMatch(s -> s.stereotypeName().equals("NormalizeRequiredFunction"));
-        return stereotyped || f.parameters().stream()
+        // a function GENERIC OVER RELATIONS is expanded at its call too (RelationGenerics, docs/SEMANTICS_REGISTER.md
+        // S104): its body is typed over the call's own tables
+        return stereotyped || RelationGenerics.of(f) || f.parameters().stream()
                 .anyMatch(p -> isSchemaErased(p.type()))
                 || isSchemaErased(f.returnType());
     }
@@ -322,12 +324,18 @@ final class Overloads {
      * applied (Phase 5 batch 147, row 15). */
     private final java.util.ArrayDeque<LambdaFunction> storedLambdas = new java.util.ArrayDeque<>();
 
+    /** How deep one function may be expanded within itself: a call nested in another's argument (a mean of a mean, the
+     *  outer's body typed with the inner call in it) expands within it, never recursing; a body that calls itself
+     *  expands without end, and is stopped here (the 2026-10-26 relation-generic library: the guard had been "the same
+     *  function anywhere on the stack", which refused a call nested in another's argument as recursion). */
+    private static final int MAX_NESTED_EXPANSIONS = 16;
+
     private TypedSpec inlineNormalized(AppliedFunction af, TypedFunction chosen, Env env) {
         com.legend.model.FunctionId key = chosen.id();
-        if (normalizing.contains(key)) {
+        if (java.util.Collections.frequency(normalizing, key) >= MAX_NESTED_EXPANSIONS) {
             throw new TypeInferenceException("recursive NormalizeRequired function '"
-                    + chosen.qualifiedName() + "' cannot be inlined ("
-                    + normalizing.stream().map(Object::toString).collect(java.util.stream.Collectors.joining(" -> ")) + " -> " + key + ")");
+                    + chosen.qualifiedName() + "' cannot be inlined: it expands within itself more than "
+                    + MAX_NESTED_EXPANSIONS + " deep (" + key + ")");
         }
         LambdaFunction folded = SourceSubst.inlineLets(
                 new LambdaFunction(List.of(),

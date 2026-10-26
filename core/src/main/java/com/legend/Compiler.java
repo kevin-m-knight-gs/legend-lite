@@ -860,7 +860,10 @@ public final class Compiler {
                 continue;
             }
             for (com.legend.compiler.element.TypedFunction tf : overloads) {
-                if (tf.body().isEmpty() || bootIds.contains(tf.id())) {
+                // a function generic over relations is typed at each call, over that call's tables
+                // (RelationGenerics, docs/SEMANTICS_REGISTER.md S104): its body has no check of its own
+                if (tf.body().isEmpty() || bootIds.contains(tf.id())
+                        || com.legend.compiler.spec.RelationGenerics.of(tf)) {
                     continue;
                 }
                 try {

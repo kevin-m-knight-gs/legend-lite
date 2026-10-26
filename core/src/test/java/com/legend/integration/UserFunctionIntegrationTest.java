@@ -1510,4 +1510,119 @@ class UserFunctionIntegrationTest {
             assertTrue(names.contains("Jane"));
         }
     }
+
+    // ==================== Functions generic over relations (docs/SEMANTICS_REGISTER.md S104) ====================
+
+    /**
+     * The user, 2026-10-26: a library of timeseries functions written in Pure over ANY table -- its columns, its sort
+     * and its window parameters. legend-engine refuses type parameters in a user function; legend-lite expands a call
+     * of one generic over relations into its body, typed over the call's own tables (RelationGenerics).
+     */
+    @Nested
+    @DisplayName("Generic over relations: columns as parameters")
+    class RelationGeneric {
+
+        private static final String AGG = "AggColSpec<{Relation<T>[1],_Window<T>[1],T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]";
+
+        private static final String LIBRARY = """
+                function test::rolled<T,K,V,R>(r: Relation<T>[1], win: _Window<T>[1], agg: %1$s): Relation<T+R>[1]
+                {
+                    $r->extend($win, $agg)
+                }
+                function test::running<T,X,Z,K,V,R>(r: Relation<T>[1], part: ColSpec<X⊆T>[1], order: SortInfo<Z⊆T>[*], agg: %1$s): Relation<T+R>[1]
+                {
+                    $r->extend(over($part, $order, rows(unbounded(), 0)), $agg)
+                }
+                function test::lastN<T,X,Z,K,V,R>(r: Relation<T>[1], part: ColSpec<X⊆T>[1], order: SortInfo<Z⊆T>[*], w: Integer[1], agg: %1$s): Relation<T+R>[1]
+                {
+                    $r->extend(over($part, $order, rows(1 - $w, 0)), $agg)
+                }
+                """.formatted(AGG);
+
+        private static final String PEOPLE = "#>{store::PersonDatabase.T_PERSON}#";
+
+        /** A query's rows as (first name, value) pairs, by first name. */
+        private java.util.Map<String, Integer> byName(ExecutionResult result, int name, int value) {
+            java.util.Map<String, Integer> out = new java.util.TreeMap<>();
+            for (var row : result.rows()) {
+                out.put(String.valueOf(row.get(name)), ((Number) row.get(value)).intValue());
+            }
+            return out;
+        }
+
+        @Test
+        @DisplayName("a window and an aggregate as parameters: the call's own, placed by the body")
+        void windowAndAggregateAsParameters() throws SQLException {
+            var result = exec(modelWith(LIBRARY), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::rolled(over(~LAST_NAME, [~AGE_VAL->ascending()], rows(unbounded(), 0)), ~total:{p,w,r|$r.AGE_VAL}:y|$y->sum())");
+            // Smith: Jane 28, then John 28 + 30; Jones: Bob 45
+            assertEquals(java.util.Map.of("Bob", 45, "Jane", 28, "John", 58), byName(result, 0, 3));
+        }
+
+        @Test
+        @DisplayName("columns as parameters: the partition and the sort the caller names")
+        void columnsAsParameters() throws SQLException {
+            var result = exec(modelWith(LIBRARY), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::running(~LAST_NAME, [~AGE_VAL->ascending()], ~total:{p,w,r|$r.AGE_VAL}:y|$y->sum())");
+            assertEquals(java.util.Map.of("Bob", 45, "Jane", 28, "John", 58), byName(result, 0, 3));
+        }
+
+        @Test
+        @DisplayName("a window's length as a parameter: rows(1 - $w, 0) over the call's own w")
+        void windowLengthAsParameter() throws SQLException {
+            var result = exec(modelWith(LIBRARY), "|" + PEOPLE + "->select(~[FIRST_NAME, AGE_VAL])->extend(~all:x|'all')"
+                    + "->test::lastN(~all, [~AGE_VAL->ascending()], 2, ~two:{p,w,r|$r.AGE_VAL}:y|$y->sum())");
+            // by age 28, 30, 45: 28, 28 + 30, 30 + 45
+            assertEquals(java.util.Map.of("Jane", 28, "John", 58, "Bob", 75), byName(result, 0, 3));
+        }
+
+        @Test
+        @DisplayName("one function nested in its own argument: expanded within itself, never recursion")
+        void nestedInItsOwnArgument() throws SQLException {
+            var result = exec(modelWith(LIBRARY), "|" + PEOPLE + "->select(~[FIRST_NAME, AGE_VAL])->extend(~all:x|'all')"
+                    + "->test::lastN(~all, [~AGE_VAL->ascending()], 2, ~two:{p,w,r|$r.AGE_VAL}:y|$y->sum())"
+                    + "->test::lastN(~all, [~AGE_VAL->ascending()], 2, ~four:{p,w,r|$r.two}:y|$y->sum())");
+            // two: 28, 58, 75; four: 28, 28 + 58, 58 + 75
+            assertEquals(java.util.Map.of("Jane", 28, "John", 86, "Bob", 133), byName(result, 0, 4));
+        }
+
+        @Test
+        @DisplayName("over any table: the same function over another table's columns")
+        void overAnyTable() throws SQLException {
+            // the database declares T_EMPLOYEE too, a table of other columns
+            String model = modelWith(LIBRARY).replace("Table T_PERSON (", """
+                    Table T_EMPLOYEE (ID INTEGER PRIMARY KEY, FIRST_NAME VARCHAR(100), LAST_NAME VARCHAR(100), AGE_VAL INTEGER, DEPT VARCHAR(100))
+                    Table T_PERSON (""");
+            var result = exec(model, "|#>{store::PersonDatabase.T_EMPLOYEE}#->select(~[FIRST_NAME, DEPT, AGE_VAL])"
+                    + "->test::running(~DEPT, [~AGE_VAL->ascending()], ~n:{p,w,r|$r.AGE_VAL}:y|$y->count())");
+            assertEquals(java.util.Map.of("Alice", 1, "Charlie", 1), byName(result, 0, 3));
+        }
+
+        @Test
+        @DisplayName("a column the table has not: refused at the call, by name")
+        void columnTheTableHasNot() {
+            var ex = assertThrows(Exception.class, () -> exec(modelWith(LIBRARY), "|" + PEOPLE + "->select(~[FIRST_NAME, AGE_VAL])"
+                    + "->test::running(~NOPE, [~AGE_VAL->ascending()], ~total:{p,w,r|$r.AGE_VAL}:y|$y->sum())"));
+            assertTrue(ex.getMessage().contains("NOPE"), ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("a body calling itself: still refused, loudly")
+        void recursionStillLoud() {
+            String model = modelWith("""
+                    function test::loop<T>(r: Relation<T>[1]): Relation<T>[1]
+                    {
+                        $r->test::loop()
+                    }
+                    """);
+            var ex = assertThrows(Exception.class, () -> exec(model, "|" + PEOPLE + "->select(~[FIRST_NAME])->test::loop()"));
+            assertTrue(ex.getMessage().contains("recursive"), ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("the model compiles whole: a generic body is typed at its calls, so it reports no error of its own")
+        void compilesWhole() {
+            assertEquals(List.of(), com.legend.Compiler.compileErrors(modelWith(LIBRARY)));
+        }
+    }
 }
