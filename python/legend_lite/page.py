@@ -1033,6 +1033,20 @@ class Grid(Tile):
         ones it had."""
         return self._preset({'kind': 'test', 'checks': [dict(c) for c in checks]})
 
+    def generate_rows(self, name: str, start: int | str | None = None, end: int | str | None = None, *, step: int = 1,
+                      days: tuple[str, str] | None = None) -> Grid:
+        """Each row repeated once for each whole number from ``start`` to ``end`` (both kept; each a number, or the name of
+        a whole-number column of the row), by ``step`` -- or, ``days=(from_column, to_column)``, once for each day
+        between two of its date columns -- a new column ``name`` the number or the day: a flow's Generate Rows
+        (DataCube's code: generate-rows.ts; Alteryx's Generate Rows), the database's ``range`` exploded, a row whose
+        bound is empty repeated no time. Refused in DataCube's words: a bound that is no whole number, numbers the
+        wrong way round, a step below 1, a days' column that is no date, a name taken."""
+        if days is not None:
+            return self._preset({'kind': 'generateRows', 'name': name, 'days': {'from': days[0], 'to': days[1]}})
+        bound = lambda b: {'column': b} if isinstance(b, str) else b
+        return self._preset({'kind': 'generateRows', 'name': name, 'from': bound(start), 'to': bound(end),
+                             **({'step': step} if step != 1 else {})})
+
     def binning(self, columns: Sequence[str], bins: int) -> Grid:
         """Number ``columns`` each put into ``bins`` bins of equal width over its own range -- a flow's Binning (DataCube's
         code: binning.ts binningCommands; Alteryx's Multi-Field Binning, its equal intervals): the grid's own bins preset

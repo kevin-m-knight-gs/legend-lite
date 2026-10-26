@@ -160,7 +160,7 @@ import {
   ColumnsToolPanel,
   type ColumnsPanelChild,
 } from './ui/columns-panel.ts';
-import { familyOf, isTemporal, isVariant } from '../../engine-client/src/types.ts';
+import { familyOf, isFractional, isTemporal, isTimeOfDay, isVariant } from '../../engine-client/src/types.ts';
 import type { TextTool } from './text-tools.ts';
 import type { Profile } from './profile.ts';
 import { lazily } from './lazily.ts';
@@ -470,7 +470,7 @@ const windowStack = new WeakMap<HTMLElement, number>();
 /** The text tools' windows, by the tool each sets (text-tools.ts). */
 const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
 const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation' || key === 'Date Filter' || key === 'Test'
-  || key === 'Custom Filter' || key === 'Binning' || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize' || key === 'Find Replace'
+  || key === 'Custom Filter' || key === 'Binning' || key === 'Generate Rows' || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize' || key === 'Find Replace'
   || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
@@ -3661,6 +3661,9 @@ export class CubeApp {
       case 'binning':
         void this.#openBinning();
         return;
+      case 'generateRows':
+        void this.#openGenerateRows();
+        return;
       case 'test':
         void this.#openTest();
         return;
@@ -3981,8 +3984,9 @@ export class CubeApp {
   }
 
   /** A FLOW'S BINNING (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's Multi-Field Binning): number columns each put
-   *  into bins of equal width over its range -- the grid's own bins preset, the database placing each value (binning.ts,
-   *  the rule Python's grid.binning asks) -- in a window of its own (ui/binning-form.ts). Both fetched with the first. */
+   *  into bins of equal width over its range -- the grid's own bins preset, the database placing each value
+   *  (binning.ts, the rule Python's grid.binning asks) -- in a window of its own (ui/binning-form.ts). Both fetched with
+   *  the first. */
   async #openBinning(): Promise<void> {
     if (this.#cubeOnly()) return;
     const [{ binningForm }, { binningCommands }] = await Promise.all([
@@ -3993,6 +3997,30 @@ export class CubeApp {
       apply: async (binning) => {
         try {
           return await this.#apply(binningCommands(this.#snapshot, binning), 'Binning');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S GENERATE ROWS (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's): each row repeated for each number from
+   *  one to another, or each day between two dates -- an exploded column the database fills (generate-rows.ts, the rule
+   *  Python's grid.generate_rows asks) -- in a window of its own (ui/generate-rows-form.ts). Both fetched with the first. */
+  async #openGenerateRows(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ generateRowsForm }, { generateRowsCommands }] = await Promise.all([
+      lazily(() => import('./ui/generate-rows-form.ts')), lazily(() => import('./generate-rows.ts')),
+    ]);
+    const columns = rowColumns(this.#snapshot);
+    this.#showOverlay('Generate Rows', (host, close) => generateRowsForm(host, {
+      wholes: columns.filter((c) => familyOf(c.type) === 'numeric' && !isFractional(c.type)).map((c) => c.name),
+      dates: columns.filter((c) => isTemporal(c.type) && !isTimeOfDay(c.type)).map((c) => c.name),
+      apply: async (g) => {
+        try {
+          return await this.#apply(generateRowsCommands(this.#snapshot, g), 'Generate Rows');
         } catch (e) {
           if (e instanceof CubeRefusal) return e.message;
           throw e;

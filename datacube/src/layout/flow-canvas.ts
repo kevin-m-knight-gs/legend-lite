@@ -132,6 +132,8 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   test: 'M8 1.8l5.5 2v4c0 3.3-2.4 5.6-5.5 6.4C4.9 13.4 2.5 11.1 2.5 7.8v-4zM5.3 8l1.9 1.9 3.6-3.8',
   jsonParse: 'M5 2.5c-1.5 0-2 .7-2 2v1.8c0 .8-.4 1.2-1.2 1.2.8 0 1.2.4 1.2 1.2V10.5c0 1.3.5 2 2 2M11 2.5c1.5 0 2 .7 2 2v1.8c0 .8.4 1.2 1.2 1.2-.8 0-1.2.4-1.2 1.2V10.5c0 1.3-.5 2-2 2M6.5 7.5h3',
   dateFilter: 'M2 3.5h9v8H2zM2 6h9M4.5 2v3M8.5 2v3M10 9.5h5l-2 2.5v2.5l-1-1v-1.5z',
+  // a row, and the rows made of it beneath
+  generateRows: 'M2 2.5h7v3H2zM5.5 5.5v8M5.5 8.5h3M5.5 13h3M9 7.5h5v2H9zM9 12h5v2H9z',
   // bins of one width, side by side
   binning: 'M1.5 13.5h13M2.5 13V9h3v4M6.5 13V4.5h3V13M10.5 13V7.5h3V13',
   // a funnel, and a condition written out beside it

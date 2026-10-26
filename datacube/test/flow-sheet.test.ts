@@ -48,6 +48,7 @@ import { CHECKS_COLUMN, checkCommands, checksOf, checkWords, failingChecks, fail
 import { DATE_RANGES, dateRangeConditions, datesBetweenConditions } from '../src/date-ranges.ts';
 import { datesKept } from '../src/page-filters.ts';
 import { binningCommands, binsOf, readBinning } from '../src/binning.ts';
+import { generatedOf, generatedWords, generateRowsCommands, readGenerateRows } from '../src/generate-rows.ts';
 import { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterOf, customFilterProbe, customFilterText, readCustomFilter } from '../src/custom-filter.ts';
 import { pastedCells, tableCsv, tableProblem } from '../src/ui/text-input-dialog.ts';
 
@@ -475,6 +476,45 @@ describe('a Binning (binning.ts): number columns each into N bins of equal width
     refused(() => binningCommands(typed, { columns: ['region'], bins: 1.5 }), /a count of bins is a whole number from 1/);
     assert.deepEqual(readBinning({ kind: 'binning', columns: ['a'], bins: 3 }), { columns: ['a'], bins: 3 });
     refused(() => readBinning({ kind: 'binning', columns: ['a'], bins: 3, width: 2 }), /a binning takes no width/);
+  });
+});
+
+describe('a Generate Rows (generate-rows.ts): each row repeated by an exploded range the database makes', () => {
+  const plain = rawRows(accessor('local::DB', 'trades'), COLUMNS);
+  const typed: CubeSnapshot = { ...plain, columns: [...plain.columns, { name: 'n', type: 'Integer' }, { name: 'opened', type: 'StrictDate' }] };
+  const apply = (s: CubeSnapshot, commands: readonly unknown[]): CubeSnapshot =>
+    applyGridCommands({ snapshot: s, config: DEFAULT_CONFIGURATION }, commands as never).snapshot;
+  const whole = rowColumns(typed).find((c) => c.type === 'Integer')?.name;
+  const date = rowColumns(typed).find((c) => c.type === 'StrictDate')?.name;
+  it('makes its exploded column of numbers, given or its own, read back whole and said; set again, its own replaced', () => {
+    const s = apply(typed, generateRowsCommands(typed, { kind: 'numbers', name: 'N', from: 1, to: 10 }));
+    const made = s.derived.find((d) => d.name === 'N');
+    assert.equal(made?.unnest, true);
+    assert.deepEqual(generatedOf(s.derived), { kind: 'numbers', name: 'N', from: 1, to: 10 });
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived: s.derived }))), { tool: 'generateRows', also: [], says: 'N from 1 to 10' });
+    assert.ok(whole !== undefined);
+    const again = apply(s, generateRowsCommands(s, { kind: 'numbers', name: 'N', from: 0, to: { column: whole! }, step: 2 }));
+    assert.deepEqual(generatedOf(again.derived), { kind: 'numbers', name: 'N', from: 0, to: { column: whole! }, step: 2 });
+    assert.deepEqual(again.derived.map((d) => d.name), ['N']);
+    assert.equal(generatedWords(generatedOf(again.derived)!), `N from 0 to ${whole}, by 2`);
+  });
+  it('makes its days between two dates, its number hidden; refuses in words; reads its JSON', () => {
+    assert.ok(date !== undefined);
+    const commands = generateRowsCommands(typed, { kind: 'days', name: 'day', from: date!, to: date! });
+    const s = apply(typed, commands);
+    assert.deepEqual(generatedOf(s.derived), { kind: 'days', name: 'day', from: date, to: date });
+    assert.deepEqual((commands.at(-1) as unknown as { patch: { columns: Record<string, unknown> } }).patch.columns, { day__day: { hidden: true } });
+    refused(() => generateRowsCommands(typed, { kind: 'numbers', name: 'N', from: 5, to: 1 }), /its first is after its last/);
+    refused(() => generateRowsCommands(typed, { kind: 'numbers', name: 'N', from: 1.5, to: 3 }), /a bound is a whole number, not 1.5/);
+    refused(() => generateRowsCommands(typed, { kind: 'numbers', name: 'N', from: 1, to: 3, step: 0 }), /a step is a whole number from 1/);
+    refused(() => generateRowsCommands(typed, { kind: 'numbers', name: 'region', from: 1, to: 3 }), /'region' is already a column/);
+    refused(() => generateRowsCommands(typed, { kind: 'numbers', name: 'N', from: { column: 'region' }, to: 3 }), /'region' is String: a bound is a whole number/);
+    refused(() => generateRowsCommands(typed, { kind: 'days', name: 'd', from: 'region', to: date! }), /the days are between two date columns/);
+    refused(() => generateRowsCommands(typed, { kind: 'numbers', name: 'N', from: 0, to: 1_000_000 }), /more than 100,000 rows of each/);
+    assert.deepEqual(readGenerateRows({ kind: 'generateRows', name: 'N', from: 1, to: { column: 'n' }, step: 2 }),
+      { kind: 'numbers', name: 'N', from: 1, to: { column: 'n' }, step: 2 });
+    assert.deepEqual(readGenerateRows({ kind: 'generateRows', name: 'd', days: { from: 'a', to: 'b' } }), { kind: 'days', name: 'd', from: 'a', to: 'b' });
+    refused(() => readGenerateRows({ kind: 'generateRows', name: 'N', from: 'x', to: 1 }), /a bound is a whole number or \{column\}/);
   });
 });
 

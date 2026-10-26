@@ -113,6 +113,15 @@ export function grainEndColumn(column: string, grain: TimeGrain, name: string): 
 
 // ---------------------------------------------------------------- bins
 
+/** A preset's name no column of the grid has (`taken`): `base`, else `base_2`, `base_3`... -- each of the columns it makes
+ *  (`make`) free (grid-presets.ts presetCommands; a flow's Binning, binning.ts). */
+export function freeName(base: string, make: (name: string) => readonly DerivedColumn[], taken: ReadonlySet<string>): string {
+  const fits = (name: string): boolean => make(name).every((d) => !taken.has(d.name));
+  let free = base;
+  for (let i = 2; !fits(free); i += 1) free = `${base}_${i}`;
+  return free;
+}
+
 /** The column bins make of `column`: its name. */
 export function binName(column: string): string {
   return `${column}__bin`;

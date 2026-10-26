@@ -963,6 +963,21 @@ try {
   check(binHeads.includes('notional_bins') && !binHeads.some((c) => /__(min|max|upper)$/.test(c)), `its bin beside notional, its helpers hidden: ${JSON.stringify(binHeads)}`);
   check(await resultRows() === fewer, "its input's rows, each binned");
 
+  // A GENERATE ROWS (M3), dragged onto the Filter: each of its rows repeated for each number from 1 to 3, the database
+  // making every row
+  const beforeGen = (await boxes()).map((b) => b.id);
+  await drag('generateRows', filter.id);
+  await boxCount(beforeGen.length + 1);
+  const genBox = await added(beforeGen);
+  await docked('Generate Rows');
+  await page.locator('.dc-flow-dock .dc-generate-to').fill('3');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  const generated = (await boxes()).find((b) => b.id === genBox.id);
+  check(generated?.tool === 'generateRows' && generated.says === 'N from 1 to 3', `a Generate Rows box: ${JSON.stringify(generated)}`);
+  const tripled = await resultRows();
+  check(tripled === fewer * 3, `each of the Filter's ${fewer} rows three times: ${tripled}`);
+
   // A TEST (FL8), dragged onto the Filter: its trade ids repeat none, its notionals within bounds -- each check's failing
   // rows counted by the database, its box marked by what its row says; set again, passing
   const beforeTest = (await boxes()).map((b) => b.id);

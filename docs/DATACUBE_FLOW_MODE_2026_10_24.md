@@ -251,7 +251,7 @@ How to read the status column:
 | Imputation | Built (2026-10-25) | `coalesce` with a value, or with a window column of the column's average, smallest or largest across every row (hidden): a `<column>_filled` each. A median waits for a window `median` |
 | Date Filter | Built | Its own tool: a date column in a range relative to today, or between two days (date-ranges.ts) |
 | Filter's Custom filter | Built (2026-10-25) | Its own tool, Custom Filter: a condition written in Pure over `$x`, parsed and typed by the compiler (a Boolean), a hidden calculated column and the grid's filter on it alone; its T and F (FL12's "filter by a Pure expression") |
-| Generate Rows | Later | Core has no relation that makes rows from a rule; needs a design |
+| Generate Rows | Built (2026-10-26) | Each row repeated for each whole number from one to another (numbers given or its columns, by a step), or each day between two of its dates: an exploded calculated column of the database's `range`, a day `adjust`ed by each |
 | Auto Field | Out | Every column already has its type from the compiler; there is nothing to guess |
 | Create Samples | Built | A Sample's two outputs: its rows (S) and the rest (R), its False -- a split by a seed |
 | Multi-Field Binning | Built (2026-10-26) | Binning: number columns each into N bins of equal width over its range -- the grid's bins preset, the database placing each value; equal records are the Tile's |
@@ -863,6 +863,21 @@ its place. Tested by `flow-sheet.test.ts` (set, read, written, renamed, undone, 
 stop), Python's `test_a_test_that_stops_a_run_writes_no_output` (refused, nothing written; set to warn, written; saved
 and loaded) and the harness (the example's Checks sheet: run, 2024's orders written; its Test set to stop a run and run
 again: nothing written, said, the Test red).
+
+**Built, Generate Rows** (Alteryx's Generate Rows; `generate-rows.ts`, `ui/generate-rows-form.ts`, `app.ts`
+`#openGenerateRows`; 2026-10-26): the tool the table had as needing a design: core has no relation that makes rows from a
+rule, but the grid already explodes a calculated column that yields a list (`unnest`: `lateral(x|<list>->flatten(~name))`,
+Text To Columns' rows), and the platform has `range`. So each row is repeated once for each whole number from one to
+another -- each a number given or one of the row's whole-number columns, by a step (`range(from, to + 1, step)`) -- or
+once for each day between two of its date columns (`range(0, dateDiff(from, to, DAYS) + 1)`, each day the first
+`adjust`ed by it, that number hidden); both ends kept, a row whose bound is empty repeated no time (`if(isEmpty(...),
+|[], |range(...))`). Its new column is the number or the day. Numbers given the wrong way round, a step below 1 and more
+than 100,000 repeats a row are refused in words. Read back off its columns (rebuilt and compared whole: `generatedOf`), a
+box says "N from 1 to 3" or "day: each day from opened to closed"; set again, its own columns replaced. Python:
+`grid.generate_rows('k', 1, 'n')`, `grid.generate_rows('day', days=('opened', 'closed'))`. Tested by
+`flow-sheet.test.ts` (numbers given and a column's, its step, days, read back, said, set again, refusals, its JSON),
+Python's `test_rows_generated_as_a_generate_rows_box_makes_them` (over DuckDB: 1 to n per row; by a step; four and three
+days, a leap year's; refusals) and the harness (the Filter's rows, each three times).
 
 **Built, Binning** (Alteryx's Multi-Field Binning, its equal intervals; `binning.ts`, `ui/binning-form.ts`, `app.ts`
 `#openBinning`; 2026-10-26): a tool in Prepare whose window picks number columns and a count of bins. Each column is put

@@ -3190,6 +3190,30 @@ class Flows(Paged):
         with self.assertRaisesRegex(ValueError, 'a count of bins is a whole number from 1'):
             binned.binning(['notional'], 0)
 
+    def test_rows_generated_as_a_generate_rows_box_makes_them(self):
+        # M3: grid.generate_rows -- each row repeated for each number from one to another (numbers given, or its own
+        # columns), or for each day between two of its dates; the database makes every row
+        page = ll.Page('Generate Rows')
+        flow = page.flow()
+        frame = pd.DataFrame({'id': [1, 2], 'n': [3, 1], 'opened': pd.to_datetime(['2024-01-30', '2024-02-28']).date,
+                              'closed': pd.to_datetime(['2024-02-02', '2024-03-01']).date})
+        source = flow.grid(frame, name='spans')
+        made = flow.grid(input=source)
+        made.generate_rows('k', 1, 'n')
+        rows = flow.grid(input=made).to_pandas()
+        self.assertEqual(sorted(zip(rows['id'], rows['k'])), [(1, 1), (1, 2), (1, 3), (2, 1)])
+        made.generate_rows('k', 0, 10, step=5)
+        self.assertEqual(sorted(flow.grid(input=made).to_pandas()['k']), [0, 0, 5, 5, 10, 10], 'set again: its step')
+        dated = flow.grid(input=source)
+        dated.generate_rows('day', days=('opened', 'closed'))
+        days = flow.grid(input=dated).to_pandas()
+        self.assertEqual(len(days), 4 + 3, 'Jan 30 to Feb 2, and Feb 28 to Mar 1 (2024 a leap year)')
+        self.assertNotIn('day__day', days.columns, 'its number hidden')
+        with self.assertRaisesRegex(ValueError, 'its first is after its last'):
+            made.generate_rows('j', 5, 1)
+        with self.assertRaisesRegex(ValueError, "'opened' is StrictDate: a bound is a whole number"):
+            made.generate_rows('j', 'opened', 3)
+
     def test_a_dry_run_counts_every_box_and_writes_nothing(self):
         # M6: flow.dry_run -- every box's rows counted as the canvas counts them, the boxes that stop a run judged, the
         # files a run would write named; nothing written. A stopping Test failing: none would be, said why

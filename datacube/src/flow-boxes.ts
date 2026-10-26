@@ -9,6 +9,7 @@ import {
   derivedReads, inputCube, inputOn, inputSides, isLive, type CubeDocument, type InputPort, type InputSide, type JoinInput,
 } from './cube-document.ts';
 import { grainOf } from './calc-presets.ts';
+import { binHelpers, binsOf } from './binning.ts';
 import { textToolOf, type TextTool } from './text-tools.ts';
 import { uniqueOf } from './unique.ts';
 import { rowSampleOf, rowSampleWords } from './row-sample.ts';
@@ -23,7 +24,7 @@ import { multiFieldOf, type MultiFieldColumn } from './multi-field.ts';
 import { dateToolOf } from './date-tools.ts';
 import { conditionWords, datesKept, datesKeptWords } from './page-filters.ts';
 import { CUSTOM_FILTER_COLUMN, customFilterOf, customFilterWords } from './custom-filter.ts';
-import { binHelpers, binsOf } from './binning.ts';
+import { generatedHelpers, generatedOf, generatedWords } from './generate-rows.ts';
 import { isEveryPair, isFuzzy, type JoinHow } from './join-how.ts';
 import { joinWords } from './join-words.ts';
 import { rowColumns, type DerivedColumn } from './snapshot.ts';
@@ -32,7 +33,7 @@ import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
 export type FlowTool = 'input' | 'textInput' | 'output' | 'test' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'dateFilter' | 'customFilter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
-  | 'multiRow' | 'tile' | 'binning'
+  | 'multiRow' | 'tile' | 'binning' | 'generateRows'
   | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'jsonParse' | 'runningTotal' | 'summarize' | 'countRecords' | 'crosstab' | 'transpose' | 'browse'
   | 'comment' | 'container';
 
@@ -60,6 +61,7 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   multiRow: { name: 'Multi-Row', group: 'prepare', does: 'a column of the row before or after each one' },
   tile: { name: 'Tile', group: 'prepare', does: 'each row put in one of a number of equal buckets, by an order' },
   binning: { name: 'Binning', group: 'prepare', does: 'number columns put into bins of equal width over each one\'s range' },
+  generateRows: { name: 'Generate Rows', group: 'prepare', does: 'each row repeated for each number from one to another, or each day between two dates' },
   datetime: { name: 'DateTime', group: 'prepare', does: 'a date taken to its day, week, month, quarter or year' },
   cleanse: { name: 'Data Cleansing', group: 'prepare', does: 'text tidied: blanks, punctuation, spaces, its case' },
   impute: { name: 'Imputation', group: 'prepare', does: 'empty numbers filled: a value, or the column\'s average, smallest or largest' },
@@ -81,7 +83,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'textInput', 'output', 'test', 'browse', 'filter', 'dateFilter', 'customFilter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'binning', 'datetime', 'cleanse', 'impute',
+  'input', 'textInput', 'output', 'test', 'browse', 'filter', 'dateFilter', 'customFilter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'binning', 'generateRows', 'datetime', 'cleanse', 'impute',
   'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'jsonParse', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'comment', 'container',
 ];
 
@@ -107,6 +109,8 @@ export type StepEditor =
   | { readonly window: 'customFilter' }
   /** The Binning window (ui/binning-form.ts): its number columns, and how many bins each is put in. */
   | { readonly window: 'binning' }
+  /** The Generate Rows window (ui/generate-rows-form.ts): its new column, and its numbers or its days. */
+  | { readonly window: 'generateRows' }
   /** The column editor opened on a JSON column's fields (ui/json-fields.ts), the box's first JSON column's. */
   | { readonly window: 'jsonParse' }
   /** The Unique window (ui/unique-form.ts): the columns a key is, and the order a key's first row is first in. */
@@ -156,6 +160,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   multiRow: { window: 'column', start: { name: 'Previous', window: { fn: 'lag', partition: [], order: [], offset: 1 } } },
   tile: { window: 'column', start: { name: 'Tile', window: { fn: 'ntile', partition: [], order: [], buckets: 4 } } },
   binning: { window: 'binning' },
+  generateRows: { window: 'generateRows' },
   runningTotal: { window: 'column', start: { name: 'RunningTotal', window: { fn: 'sum', partition: [], order: [], frame: 'running' } } },
   join: { window: 'join' },
   union: { window: 'join' },
@@ -225,16 +230,20 @@ export function boxSays(cube: CubeDocument): BoxSays {
   const helpers = new Set(q.derived.flatMap((d) => imputedOf(d, q.derived)?.helper ?? []));
   // a Multi-Field Formula's columns: one formula, each over its own column
   const multi = multiFieldOf(q.derived);
-  // a Binning's: each bin of a column, its range and upper edge its own (binning.ts)
+  // a Binning's: each bin of a column, its range and upper edge its own (binning.ts binsOf)
   const binned = binsOf(q.derived);
   for (const h of binHelpers(binned)) helpers.add(h);
+  // a Generate Rows': its repeats' column, a days' number its own (generate-rows.ts)
+  const generated = generatedOf(q.derived);
+  for (const h of generatedHelpers(generated)) helpers.add(h);
   // its calculated columns, each by the tool that makes one so -- the ones of a tool together, in the order they come
   for (const d of q.derived) {
     if (own.has(d.name) || helpers.has(d.name)) continue;
     const bin = binned.get(d.name);
-    const tool = bin !== undefined ? 'binning' : columnTool(d, q.derived, multi.get(d.name));
+    const made = generated !== undefined && generated.name === d.name ? generated : undefined;
+    const tool = made !== undefined ? 'generateRows' : bin !== undefined ? 'binning' : columnTool(d, q.derived, multi.get(d.name));
     const last = steps.at(-1);
-    const said = bin !== undefined ? `${bin.column} in ${bin.bins} bins`
+    const said = made !== undefined ? generatedWords(made) : bin !== undefined ? `${bin.column} in ${bin.bins} bins`
       : `${columnWords(d, q.derived, multi.get(d.name))}${placedMade.has(d.name) ? ' in place' : ''}`;
     // a tool's columns said once each way: a split's parts are one split, a Multi-Field's columns one formula
     if (last?.tool === tool) last.says = last.says === said || last.says.split(', ').includes(said) ? last.says : `${last.says}, ${said}`;

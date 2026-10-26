@@ -17,6 +17,7 @@ import { nameProblem } from '../calc.ts';
 import { chartFrom, chartGrid, chartProblems, followCube, followRefusal, readChart, showGridWay } from '../chart-spec.ts';
 import { draftColumn, draftStage, existingDraft, newDraft, type ColumnDraft } from '../column-draft.ts';
 import { presetCommands, readGridPreset, type GridPreset } from '../grid-presets.ts';
+import { binningCommands, readBinning, type Binning } from '../binning.ts';
 import { readTextTool, TEXT_TOOL_KINDS, textToolCommands } from '../text-tool-columns.ts';
 import type { TextTool } from '../text-tools.ts';
 import { readUnique, uniqueCommands, type Unique } from '../unique.ts';
@@ -29,7 +30,7 @@ import { readSummary, summarizeCommands, type Summary } from '../summarize.ts';
 import { findReplaceCommands, readFindReplace, type FindReplace } from '../find-replace.ts';
 import { countRecordsCommands, readCountRecords } from '../count-records.ts';
 import { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterProbe, customFilterText, readCustomFilter } from '../custom-filter.ts';
-import { binningCommands, readBinning, type Binning } from '../binning.ts';
+import { generateRowsCommands, readGenerateRows, type GenerateRows } from '../generate-rows.ts';
 import { checkCommands, checksOf, checkWords, failingChecks, failingWords, readChecks, type Check } from '../checks.ts';
 import type { MultiFieldAsked } from '../multi-field.ts';
 import { DATE_TOOL_KINDS, dateToolCommands, readDateTool, type DateTool } from '../date-tools.ts';
@@ -786,7 +787,8 @@ export async function gridModelMeasure(spec: GridSpec, given: string): Promise<s
  * a Find Replace's replacing (find-replace.ts findReplaceCommands: page.find_replace), or Count Records
  * (count-records.ts countRecordsCommands: grid.count_records), or a Test (checks.ts checkCommands: grid.test), or a
  * Custom Filter (custom-filter.ts customFilterCommands, its condition parsed and typed by the compiler: grid.custom_filter),
- * or a Binning (binning.ts binningCommands: grid.binning).
+ * or a Binning (binning.ts binningCommands: grid.binning), or a Generate Rows (generate-rows.ts generateRowsCommands:
+ * grid.generate_rows).
  * `given`, the preset or the tool as JSON (readGridPreset, readTextTool, readUnique, readImputation, readMultiField, by
  * its kind; readRowSample), over the grid's columns as the compiler types them now.
  * JSON: as gridApply's, or `{problems}`, in DataCube's words.
@@ -796,7 +798,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
     | { readonly date: DateTool } | { readonly multi: MultiFieldAsked } | { readonly sample: RowSample | null }
     | { readonly transpose: Transpose } | { readonly select: Selection } | { readonly summarize: Summary } | { readonly findReplace: FindReplace }
     | { readonly count: { readonly name: string } } | { readonly checks: readonly Check[] } | { readonly custom: { readonly expression: string } }
-    | { readonly binning: Binning };
+    | { readonly binning: Binning } | { readonly generate: GenerateRows };
   try {
     const raw: unknown = JSON.parse(given);
     const kind = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>)['kind'] : undefined;
@@ -806,6 +808,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
       : kind === 'summarize' ? { summarize: readSummary(raw) } : kind === 'findReplace' ? { findReplace: readFindReplace(raw) }
       : kind === 'countRecords' ? { count: readCountRecords(raw) } : kind === 'test' ? { checks: readChecks(raw) }
       : kind === 'customFilter' ? { custom: readCustomFilter(raw) } : kind === 'binning' ? { binning: readBinning(raw) }
+      : kind === 'generateRows' ? { generate: readGenerateRows(raw) }
       : (DATE_TOOL_KINDS as readonly unknown[]).includes(kind) ? { date: readDateTool(raw) }
       : (TEXT_TOOL_KINDS as readonly unknown[]).includes(kind) ? { tool: readTextTool(raw) } : { preset: readGridPreset(raw) };
   } catch (e) {
@@ -848,6 +851,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
         : 'checks' in asked ? checkCommands(await typedColumns(o.runner, o.state.snapshot), asked.checks)
         : 'custom' in asked ? customFilterCommands(o.state.snapshot, lambda!, conditionType)
         : 'binning' in asked ? binningCommands(await typedColumns(o.runner, o.state.snapshot), asked.binning)
+        : 'generate' in asked ? generateRowsCommands(await typedColumns(o.runner, o.state.snapshot), asked.generate)
         : 'unique' in asked ? uniqueCommands(await typedColumns(o.runner, o.state.snapshot), asked.unique)
           : 'impute' in asked ? imputeCommands(await typedColumns(o.runner, o.state.snapshot), asked.impute)
           : presetCommands(await typedColumns(o.runner, o.state.snapshot), asked.preset);
