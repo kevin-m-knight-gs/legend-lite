@@ -55,8 +55,10 @@ export function gridInput(page: PageDocument, grid: string, through: readonly st
 
 /**
  * A GRID'S FALSE AS ITS QUERY (FL7): the same query with its filter turned round -- the rows of its input its
- * condition does not hold for (a row its condition is unknown for, a null compared, is in neither, as SQL's NOT says).
- * Refused in words when it has no filter: no row is left out.
+ * condition does not hold for, a row whose value is empty among them: a condition holds for a value only (its compare
+ * guarded, `isNotEmpty($x.c) && ...`), so its turn round holds for an empty one, and T and F are every row between them
+ * (the correctness audit's 15, 2026-10-26: a Filter's, a Custom Filter's and a Date Filter's each a partition). Refused
+ * in words when it has no filter: no row is left out.
  */
 function falseQuery(grid: string, query: JoinInput['query']): JoinInput['query'] {
   const filter = query.filter;

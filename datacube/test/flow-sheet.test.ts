@@ -30,7 +30,7 @@ import { multiFieldOf } from '../src/multi-field.ts';
 import { rangesWords, readRanges, readRowSample, rowSampleCommands, rowSampleOf, sampleCommands } from '../src/row-sample.ts';
 import { readTranspose, transposeCommands, transposeOf } from '../src/transpose.ts';
 import { readSelection, retypesOf, selectCommands, selectionOf } from '../src/select-columns.ts';
-import { handedOn } from '../src/box-columns.ts';
+import { boxOrder, handedOn } from '../src/box-columns.ts';
 import { readSummary, summarizeCommands } from '../src/summarize.ts';
 import { unmatchedOn } from '../src/join-how.ts';
 import { findReplaceCommands, findReplaceOf, readFindReplace } from '../src/find-replace.ts';
@@ -1082,6 +1082,15 @@ describe("Imputation (impute.ts): a number's empties filled, a value or the colu
       { columns: { qty: { hidden: true }, qty_filled: { displayName: 'qty' } } });
     assert.deepEqual(boxSays(box), { tool: 'impute', also: [], says: "qty's empties → 0 in place" });
     assert.deepEqual(readImputation({ kind: 'impute', columns: ['qty'], with: 0, inPlace: true }).inPlace, true);
+    // handed on in its column's place, not after the others (the correctness audit's 15, 2026-10-26)
+    const done = applyGridCommands({ snapshot: typed, config: DEFAULT_CONFIGURATION },
+      imputeCommands(typed, { columns: ['notional'], with: { kind: 'value', value: -1 }, inPlace: true }));
+    const config = done.config as unknown as Record<string, unknown>;
+    assert.deepEqual(handedOn(rowColumns(done.snapshot).map((c) => c.name), done.snapshot, config).map((c) => [c.name, c.as]),
+      [['region', 'region'], ['notional_filled', 'notional'], ['qty', 'qty']]);
+    assert.deepEqual(boxOrder(done.snapshot, config), ['region', 'notional_filled', 'qty'], "the relation's select, for what reads it");
+    // a negative filler read back: the protocol writes -1 as minus(1)
+    assert.deepEqual(imputedOf(done.snapshot.derived[0]!, done.snapshot.derived)?.with, { kind: 'value', value: -1 });
   });
 
   it('refuses in words what it cannot fill', () => {

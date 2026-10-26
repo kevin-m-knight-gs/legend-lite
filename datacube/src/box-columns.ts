@@ -9,8 +9,8 @@
 // it).
 //
 // IN PLACE (Alteryx's "change existing fields": a Data Cleansing, a Multi-Field Formula, an Imputation): a column a tool
-// makes of another handed on by that column's name, the column itself hidden -- the box after it reads `region`,
-// cleansed. Said by the settings alone (`inPlaceCommand`), read back off them (`inPlaceOf`).
+// makes of another handed on by that column's name, in its place, the column itself hidden -- the box after it reads
+// `region`, cleansed, where `region` was. Said by the settings alone (`inPlaceCommand`), read back off them (`inPlaceOf`).
 //
 // PURE: no DOM, no planner.
 
@@ -33,11 +33,24 @@ export function boxOmitted(query: Query, configuration: Readonly<Record<string, 
   return [...new Set([...hidden, ...ungroupedDimensions(query)])];
 }
 
+/** `columns` with each made in place of another (given the name of a column it hides) where that one stands among `all`
+ *  (its rows' columns, in order): a changed field keeps its place (the correctness audit's 15, 2026-10-26 -- it went to
+ *  the end). */
+function inTheirPlace(columns: readonly string[], all: readonly string[], configuration: Readonly<Record<string, unknown>>): string[] {
+  const settings = settingsOf(configuration);
+  const at = (c: string): number => {
+    const of = settings[c]?.['displayName'];
+    const place = typeof of === 'string' && of !== c && settings[of]?.['hidden'] === true ? all.indexOf(of) : -1;
+    return place >= 0 ? place : all.indexOf(c);
+  };
+  return [...columns].sort((a, b) => at(a) - at(b));
+}
+
 /** `columns` in the order a box's configuration puts them (its column order: a Select's), those it does not list after
- *  them in their own order. */
-function inOrder(columns: readonly string[], configuration: Readonly<Record<string, unknown>>): string[] {
+ *  them in their own order -- each made in place of another in that one's (`all`, its rows' columns: inTheirPlace). */
+function inOrder(columns: readonly string[], configuration: Readonly<Record<string, unknown>>, all: readonly string[] = columns): string[] {
   const order = configuration['columnOrder'];
-  if (!Array.isArray(order) || order.length === 0) return [...columns];
+  if (!Array.isArray(order) || order.length === 0) return inTheirPlace(columns, all, configuration);
   const at = new Map(order.map((c, i) => [c, i] as const));
   const rank = (c: string): number => at.get(c) ?? order.length;
   return [...columns].sort((a, b) => rank(a) - rank(b));
@@ -47,8 +60,9 @@ function inOrder(columns: readonly string[], configuration: Readonly<Record<stri
  *  own; undefined where it does not. */
 export function boxOrder(query: Query, configuration: Readonly<Record<string, unknown>>): string[] | undefined {
   const omitted = new Set(boxOmitted(query, configuration));
-  const own = rowColumns(query).map((c) => c.name).filter((c) => !omitted.has(c));
-  const ordered = inOrder(own, configuration);
+  const all = rowColumns(query).map((c) => c.name);
+  const own = all.filter((c) => !omitted.has(c));
+  const ordered = inOrder(own, configuration, all);
   return ordered.some((c, i) => c !== own[i]) ? ordered : undefined;
 }
 
@@ -86,5 +100,5 @@ export function handedOn(columns: readonly string[], query: Query, configuration
   { readonly name: string; readonly as: string }[] {
   const omitted = new Set(boxOmitted(query, configuration));
   const renamed = new Map(boxRenamed(query, configuration).map((r) => [r.from, r.to] as const));
-  return inOrder(columns.filter((c) => !omitted.has(c)), configuration).map((name) => ({ name, as: renamed.get(name) ?? name }));
+  return inOrder(columns.filter((c) => !omitted.has(c)), configuration, columns).map((name) => ({ name, as: renamed.get(name) ?? name }));
 }
