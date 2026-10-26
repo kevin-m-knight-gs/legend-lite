@@ -71,17 +71,17 @@ library in the product; the Arrow writer is the warehouse server's own framer.
 mask behind one accessor; the warehouse's Arrow IPC framing shared, its buffers not; no Arrow library anywhere;
 pyarrow and the Arrow Java library test-only readers).
 
-**Waiting on the user's yes** (§8 item 3, the Float rule): results carry bits; a Float printed as the last thing a
-column does is spelled by the writer, which is Pure's own implementation; a String built inside a query keeps the
-exact-digits expression inline; a platform-owned SQL function only on a measured hot path; never JavaScript or any
-non-SQL code in the database; one table for LEGACY, LEAN and PCT in the program's §8 item 3, and the note that "at
-the edge" is a property of a plan's root (an assertion the database judge pushes into SQL is a consumer there).
-Also: the merge of this branch to `main` (every lane at or above the merge-base but `testFilterInstance`), which the
-program's §7 wants before step 0 starts.
+**Ruled 2026-10-26, the last of the eight ("sounds great"):** the Float rule (§8 item 3): results carry bits; a
+Float printed as the last thing a column does is spelled by the writer, which is Pure's own implementation; a String
+built inside a query keeps the exact-digits expression inline; a platform-owned SQL function only on a measured hot
+path; never JavaScript or any non-SQL code in the database; one table for LEGACY, LEAN and PCT, and "at the edge" is
+a property of a plan's root (an assertion the database judge pushes into SQL is a consumer there). All eight rulings
+are in.
 
-**The next action, once the yes is in:** land the branch on `main` (AGENTS.md "Pushing to main": rebase, the local
-gate, "local gate: //gates:local green" in the message); start a new branch from `main` for this program alone;
-announce step 0 in `docs/IN_FLIGHT.md`; run step 0's eight measurements and write their one GATES entry.
+**The next action, in progress:** land the branch on `main` (AGENTS.md "Pushing to main": fresh against `main`, the
+local gate on the tip, "local gate: //gates:local green" in the message, `main`'s CI watched, revert on red); then
+this branch continues from `main` with nothing else on it; announce step 0 in `docs/IN_FLIGHT.md`; run step 0's
+eight measurements and write their one GATES entry.
 
 ## 4. How we work (the user's rules; each learned the hard way)
 

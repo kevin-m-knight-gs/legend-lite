@@ -1,10 +1,11 @@
 # The result boundary program: a typed plan, writers at the edge, the text path deleted
 
-**Status: RULED IN PART, revision 3, 2026-10-26.** The user ruled on 2026-10-26: the design (D1 to D5), the
-formatting-at-the-edge clause with its guards, lean JSON's numbers, collecting into memory as a test helper only,
-and the order are accepted as written in revision 2 ("everything else is okay"); **the database judge is never
-deleted** ("a crown jewel"); the Float rule and the Arrow question were sent back for the expert version, which
-revision 3 gives (§8, items 3 and 4) and which waits on the user's yes. Revision 1 was written the same day at the
+**Status: RULED, revision 3, 2026-10-26; landing the branch on `main`, then step 0.** The user ruled on
+2026-10-26: the design (D1 to D5), the formatting-at-the-edge clause with its guards, lean JSON's numbers,
+collecting into memory as a test helper only, and the order are accepted as written in revision 2 ("everything else
+is okay"); **the database judge is never deleted** ("a crown jewel"); the Float rule and the Arrow question were
+sent back for the expert version, which revision 3 gives (§8, items 3 and 4), and both were then accepted the same
+day ("arrow look good"; "sounds great"). Revision 1 was written the same day at the
 user's ask ("this is now becoming a huge blocker to our streaming/deephaven/real-time ambitions; how can we move this
 forward sanely AND delete all our historical cruft"); revision 2 folded in the user's three questions that followed.
 It is the execution plan for `docs/RESULTS_AND_RENDERERS_2026_10_22.md` (D1 to D6) and for the plan path program's
@@ -365,7 +366,8 @@ old executor goes at step 7; **7** the database judge is never deleted (R10; the
 
 Sent back for the expert version, given here, waiting on the user's yes:
 
-**3. A Float, the version that is best on every side and makes the lean experience good.** Three places, and
+**3. A Float, the version that is best on every side and makes the lean experience good. Ruled 2026-10-26
+("sounds great"), the last of the eight.** Three places, and
 the user's reminder (2026-10-26) that the legacy writer and the lean writer may hold different ideas of a Float's
 text where that is better. The plan, in one table:
 
@@ -450,6 +452,10 @@ default.
 
 ## 9. Status
 
+- **2026-10-26, all eight ruled; the landing begins.** The Float rule accepted ("sounds great") after the batch
+  ("arrow look good"). Next, in order: the branch on `main` under AGENTS.md's pushing rule (fresh against `main`,
+  the local gate on the tip, "local gate: //gates:local green" in the message, `main`'s CI watched, revert on red);
+  step 0 announced in `docs/IN_FLIGHT.md`; its eight measurements; their one GATES entry.
 - **2026-10-26, revision 3, ruled in part.** The user's rulings recorded (§8): items 1, 2, 5, 6, 8 as written; the
   database judge stays (R10); no JavaScript or other non-SQL code in the database. The Float rule answered with the
   edge rule plus the inline expression, a platform SQL function only on a measured hot path, one table for LEGACY,
