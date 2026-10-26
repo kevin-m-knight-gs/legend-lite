@@ -11,6 +11,8 @@
 // mounts it, keeps it sized to its box, reads the theme from CSS tokens,
 // and turns a click on a mark into the values behind it.
 
+/// <reference path="./echarts-renderers.d.ts" />
+// (its painters' declarations, for every program that compiles this file: Query's and Studio's too)
 import * as echarts from 'echarts/core';
 // Each chart and component by its own module, which registers it as it loads (ECharts' `lib/<kind>.js`:
 // `use(install)`), never through the `echarts/charts` or `echarts/components` index: chart-render-kinds.ts registers

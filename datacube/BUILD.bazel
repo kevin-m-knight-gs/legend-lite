@@ -65,6 +65,9 @@ exports_files(
 js_library(
     name = "src",
     srcs = glob(["src/**/*.ts"]),
+    # its declarations as files too (a `.d.ts` in srcs is passed on as types alone): a program that compiles a source
+    # referring to one (chart-render.ts: ECharts' painters, src/echarts-renderers.d.ts) finds it -- Query's, Studio's
+    data = glob(["src/**/*.d.ts"]),
     # the Query app runs its planned SQL on DataCube's engines (DuckDB-WASM, the warehouse)
     visibility = ["//query:__pkg__"],
     deps = [":src_base"],
