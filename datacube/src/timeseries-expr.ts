@@ -1139,6 +1139,20 @@ function columnText(c: string): string {
  * by place, those left at their defaults left off its end.
  */
 export function exprText(e: TsExpr, outer = 0): string {
+  return written(e, outer, false);
+}
+
+/**
+ * AN EXPRESSION'S TEXT THAT READS BACK AS ITSELF (the code that builds a tile, timeseries-code.ts): as exprText writes
+ * it, but each parameter as it was told -- one told by its place while every one before it is told, else by its name
+ * (`returns(close, type=log)`), one not told left out -- so parseExpr gives the very expression again (exprText's own
+ * drops a default told and writes a default before a later one told: the same figures, another spec).
+ */
+export function exprSource(e: TsExpr): string {
+  return written(e, 0, true);
+}
+
+function written(e: TsExpr, outer: number, exact: boolean): string {
   switch (e.kind) {
     case 'number':
       return numberText(e.value);
@@ -1153,19 +1167,37 @@ export function exprText(e: TsExpr, outer = 0): string {
       // a minus or a division binds its right side tighter: a - (b - c), a / (b * c); a comparison both (it is no chain)
       const compares = mine === PRECEDENCE['<'];
       const right = e.op === '-' || e.op === '/' || compares ? mine + 1 : mine;
-      const text = `${exprText(e.left, compares ? mine + 1 : mine)} ${e.op} ${exprText(e.right, right)}`;
+      const text = `${written(e.left, compares ? mine + 1 : mine, exact)} ${e.op} ${written(e.right, right, exact)}`;
       return mine < outer ? `(${text})` : text;
     }
     case 'call': {
       const f = TS_FUNCTION.get(e.fn);
-      const args = e.args.map((a) => exprText(a));
-      if (f) {
+      const args = e.args.map((a) => written(a, 0, exact));
+      const value = (v: number | string): string => (typeof v === 'number' ? numberText(v) : v);
+      // a function of many series' parameters by their names: after its series and weights in pairs, a word by its place
+      // reads as one more series (the basket's `monthly`)
+      const named = f?.series === 'many';
+      if (f && exact) {
+        // each told as it was: by its place while every one before it is told, then by its name
+        let placed = !named;
+        for (const q of f.params) {
+          const v = e.params?.[q.name];
+          if (v === undefined) {
+            placed = false;
+            continue;
+          }
+          args.push(placed ? value(v) : `${q.name}=${value(v)}`);
+        }
+        const unknown = Object.keys(e.params ?? {}).filter((k) => !f.params.some((q) => q.name === k));
+        if (unknown.length > 0) throw new Error(`${e.fn} takes no ${unknown.join(', ')}`);
+      } else if (f) {
         const told = f.params.map((q) => e.params?.[q.name]);
         let lastTold = told.length - 1;
         while (lastTold >= 0 && (told[lastTold] === undefined || told[lastTold] === f.params[lastTold]!.default)) lastTold--;
         for (let i = 0; i <= lastTold; i++) {
           const v = told[i] ?? f.params[i]!.default;
-          args.push(typeof v === 'number' ? numberText(v) : v);
+          if (named && told[i] === undefined) continue;
+          args.push(named ? `${f.params[i]!.name}=${value(v)}` : value(v));
         }
       }
       return `${e.fn}(${args.join(', ')})`;

@@ -358,6 +358,26 @@ askQuery the screen's; every one answered), `timeseries-view-dom.test.ts` "Query
 tile, which ran, which not yet, each printed, copied one and all; a tab shown, its question ran), and `test_page.py`
 `test_a_timeseries_lists_every_query_it_asks_each_its_pure_and_its_sql`.
 
+**And the tile as the code that builds it** (the user, 2026-10-26: "an option that shows how exactly to build that
+chart programmatically from TS and python"). The Query window's tabs -- Queries, Python, TypeScript -- show the program
+that builds the tile, written by one rule (`timeseries-code.ts tileCode`, a chunk of its own fetched with the first
+Query window) from its spec and where the page has it (its sheet, its title, each source's grid tile: the host's
+`codeOf`, headless `codeOfPage`). The **Python** is the sheet's `timeseries` over the page's grids -- each source by
+alias, its grid, date and key; each series its expression, or a mapping of it and how it is drawn (its id where it is
+not the next letter); every other slot as told -- then its frame, statistics and queries. The **TypeScript** is the
+spec, and the page command the screen's Create ▸ Timeseries sends (`addTimeseries`, on its sheet, a band of its own)
+applied by the one function every change goes through (`applyPageCommands`), and its questions (`tileAsks`). Each
+expression is written to read back as itself (`timeseries-expr.ts exprSource`: a parameter by its place while every
+one before it is told, else by its name), since `exprText` drops a default told and writes one before a later one, the
+same figures but another spec. Writing it found a bug: `exprText` wrote a basket's rebalance by its place
+(`basket(x, 0.6, y, 0.4, monthly)`), which reads as one more series; a function of many series' parameters are now
+written by name. Python's `tile.code(language)` is the same text (headless `timeseriesCode`). Pinned by running the
+programs: `timeseries-code.test.ts` imports every gallery tile's TypeScript and holds the spec it writes, the tile its
+command adds (on its sheet, titled as it is) and its questions to the tile's; `test_page.py`
+`test_a_timeseries_writes_the_code_that_builds_it_and_the_python_builds_it_again` runs the Python over the page and
+holds the tile it makes to the tile's spec, title and sheet; `timeseries-view-dom.test.ts` the window's tabs, each
+program and its copy.
+
 ## 6. The viewer
 
 ```

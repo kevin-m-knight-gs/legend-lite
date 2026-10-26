@@ -21,7 +21,7 @@ import {
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides, joinTogether } from './join.ts';
 import {
-  timeseriesAsks, timeseriesCurveOrder, timeseriesEdit, timeseriesLineNames, timeseriesMade, timeseriesNotes, timeseriesQuery, timeseriesStatNotes, timeseriesTables,
+  timeseriesAsks, timeseriesCode, timeseriesCurveOrder, timeseriesEdit, timeseriesLineNames, timeseriesMade, timeseriesNotes, timeseriesQuery, timeseriesStatNotes, timeseriesTables,
   timeseriesWindow,
 } from './timeseries.ts';
 
@@ -156,6 +156,9 @@ export { timeseriesNotes };
 /** Every question a timeseries tile asks the database, by the rule its screen's Query window reads (timeseries-query.ts
  *  tileAsks): Python's Timeseries.queries, each asked of timeseriesQuery as the screen asks it. */
 export { timeseriesAsks };
+/** A timeseries tile as the code that builds it, in Python or TypeScript, by the rule its screen's Code shows it by
+ *  (timeseries-code.ts tileCode): Python's Timeseries.code. */
+export { timeseriesCode };
 /** The series each of a timeseries tile's tables reads, by the rule its screen's tabs read (timeseries-query.ts
  *  tableSeries): Python's Timeseries.statistics, drawdowns and correlations, each asked of timeseriesQuery with its
  *  `table`. */

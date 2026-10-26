@@ -1967,6 +1967,17 @@ class Timeseries(Tile):
             raise ValueError(answer.body.decode('utf-8', errors='replace'))
         return {'pure': compiler.print_tree(tree), 'sql': compiler.read_planned(said['plan']).sql}
 
+    def code(self, language: str = 'python') -> str:
+        """The program that builds this tile, in ``language`` (``'python'``: its sheet's ``timeseries`` over the page's
+        grids, then its frame, statistics and queries; ``'typescript'``: its spec and the page command the screen's
+        Create ▸ Timeseries sends, applied by DataCube's one function) -- the screen's Code, by its one rule (headless
+        timeseriesCode: timeseries-code.ts tileCode). Run, it builds this tile again."""
+        page = self._page
+        said = _json.loads(page._session.headless().call('timeseriesCode', _json.dumps(page._doc), self._id, language))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return said['code']
+
     def queries(self, *, start: str | None = None, end: str | None = None) -> list[dict[str, Any]]:
         """Every question the tile asks the database, as its screen's Query window lists them, by its one rule (headless
         timeseriesAsks: timeseries-query.ts tileAsks) -- to draw the chart, each source's bounds, each series' points and

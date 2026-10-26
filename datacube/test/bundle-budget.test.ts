@@ -617,8 +617,12 @@ const BUDGET = 411_500;
  *  397,600 -> 398,900 (2026-10-26, the timeseries' next phases' 1 -- the grid-only page's note of the same date).
  *  Measured 398,329.
  *  398,900 -> 399,600 (2026-10-26, the timeseries' next phases' 2 and 3 -- the grid-only page's note of the same date).
- *  Measured 399,033. */
-const ENGINE_BUDGET = 399_600;
+ *  Measured 399,033.
+ *  399,600 -> 399,900 (2026-10-26, the user: "how exactly to build that chart programmatically from TS and python" --
+ *  the spec reader's expression text writes a basket's parameters by name, and writes an expression to read back as
+ *  itself (timeseries-expr.ts exprSource), which a saved page's reader carries; the code itself is a chunk of the Query
+ *  window's). Measured 399,611. */
+const ENGINE_BUDGET = 399_900;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

@@ -1090,6 +1090,34 @@ class Document(Paged):
         # a series' points as the screen draws them, as query() reads them, but for the drawing's limit
         self.assertIn('limit', asked[1]['pure'])
 
+    def test_a_timeseries_writes_the_code_that_builds_it_and_the_python_builds_it_again(self):
+        # the user, 2026-10-26: "an option that shows how exactly to build that chart programmatically from TS and python"
+        # -- the screen's Code, by its one rule (headless timeseriesCode: timeseries-code.ts tileCode); the Python run
+        # makes a tile of the very spec, on its sheet
+        page = ll.Page('Code')
+        days = pd.date_range('2024-01-01', periods=8, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 8 + ['T'] * 8, 'day': list(days) * 2,
+                               'close': [100.0 + i for i in range(8)] + [50.0 - i for i in range(8)]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['close[S]', {'expr': 'returns(close[T], type=log)', 'name': "T's log returns", 'pane': 1},
+                                            'basket($A, 0.5, close[T], 0.5, rebalance=weekly)'], title='Two',
+                               view={'stats': True}, annotations=[{'kind': 'level', 'value': 0, 'pane': 1}])
+        code = tile.code()
+        self.assertIn('tile = sheet.timeseries(', code)
+        self.assertIn("'returns(close[T], type=log)'", code)
+        # run, over this page: a second tile, of the same spec, on the same sheet
+        shim = type('ll', (), {'Page': type('Page', (), {'load': staticmethod(lambda _path: page)})})
+        before = [t.id for t in page.timeseries_tiles]
+        exec(compile(code.replace('import legend_lite as ll\n', ''), 'tile.py', 'exec'), {'ll': shim, 'print': lambda *a, **k: None})
+        made = [t for t in page.timeseries_tiles if t.id not in before]
+        self.assertEqual(len(made), 1)
+        self.assertEqual(made[0].spec, tile.spec)
+        self.assertEqual(made[0].title, 'Two')
+        self.assertEqual(made[0].sheet.id, tile.sheet.id)
+        self.assertIn("kind: 'addTimeseries'", tile.code('typescript'))
+        with self.assertRaisesRegex(ValueError, 'written in python or typescript, not "rust"'):
+            tile.code('rust')
+
     def test_a_timeseries_reads_an_analysts_packs_each_figure_the_databases(self):
         # the next phases' 4 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): technicals of a candle's
         # columns and a rebalanced basket -- the screen's parser and queries, held to pandas

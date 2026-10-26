@@ -3176,6 +3176,17 @@ export class CubePage {
         // its editors' windows among the page's, titled by its tile's name -- a chart's options' rule
         windowHost: this.#options.windowHost ?? this.#options.host,
         title: () => this.title(id) ?? timeseriesTitle(id),
+        // where it is, as the code that builds it names it: its sheet, its own title, each source's grid tile
+        codeOf: (spec) => {
+          const sheet = this.#sheetOf(id);
+          if (sheet === undefined) throw new Error(`${this.title(id) ?? timeseriesTitle(id)} is on no sheet of the page`);
+          const grids: Record<string, { readonly tile: string; readonly title: string }> = {};
+          for (const s of spec.sources) {
+            const g = this.#gridOfCube(s.cube);
+            if (g !== null) grids[s.cube] = { tile: g, title: this.title(g) ?? this.#titles.get(g) ?? g };
+          }
+          return { title: this.givenTitle(id) ?? null, sheet: sheet.id, grids };
+        },
       }, tile.spec);
     });
   }

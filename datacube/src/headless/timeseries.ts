@@ -25,6 +25,7 @@ import { TS_CURVE_DATES, tsProblem, type TimeseriesSpec, type TsExpr, type TsSer
 import {
   aliasFor, nextSeriesId, parseExpr, seriesName, sourceOf, splitName, TsSyntaxError, type TsColumn
 } from '../timeseries-expr.ts';
+import { codeOfPage, tileCode, TS_CODE_LANGUAGES, type TsCodeLanguage } from '../timeseries-code.ts';
 import { editTimeseries, firstPlotOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns } from '../timeseries-edit.ts';
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -416,6 +417,25 @@ export function timeseriesAsks(page: string, tile: string): string {
     return JSON.stringify({ asks: tileAsks(tileOf(readPage(JSON.parse(page), { empty: true }), tile)) });
   } catch (e) {
     if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
+    throw e;
+  }
+}
+
+/**
+ * A TILE AS THE CODE THAT BUILDS IT, HEADLESS: tile `tile` of `page` in `language` (python, typescript), by the one rule
+ * its screen's Code shows it by (timeseries-code.ts tileCode) -- for Python's Timeseries.code. JSON: `{code}`, or
+ * `{problems}`.
+ */
+export function timeseriesCode(page: string, tile: string, language: string): string {
+  try {
+    if (!(TS_CODE_LANGUAGES as readonly string[]).includes(language)) {
+      throw new Problem(`a tile's code is written in ${TS_CODE_LANGUAGES.join(' or ')}, not ${JSON.stringify(language)}`);
+    }
+    const doc = readPage(JSON.parse(page), { empty: true });
+    const { spec, of } = codeOfPage(doc, tile);
+    return JSON.stringify({ code: tileCode(spec, of, language as TsCodeLanguage) });
+  } catch (e) {
+    if (e instanceof Problem || e instanceof CubeRefusal) return JSON.stringify({ problems: [e.message] });
     throw e;
   }
 }

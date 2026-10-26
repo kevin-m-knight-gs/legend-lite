@@ -7,7 +7,7 @@ import { describe, it } from 'node:test';
 
 import { tsProblem, type TimeseriesSpec, type TsExpr } from '../src/timeseries-spec.ts';
 import {
-  aliasFor, candleOf, columnsOf, defaultTimeseries, exprText, functionNamed, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
+  aliasFor, candleOf, columnsOf, defaultTimeseries, exprSource, exprText, functionNamed, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
   levelOf, timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS,
 } from '../src/timeseries-expr.ts';
 
@@ -65,6 +65,26 @@ describe('the expression language', () => {
     assert.equal(exprText(parseExpr('returns(close, 1, simple)')), 'returns(close)');
     assert.equal(exprText(parseExpr('volatility(close, type=log)')), 'volatility(close, 22, log)');
     assert.equal(exprText(parseExpr('returns(close, type=absolute)')), 'returns(close, 1, absolute)');
+    // a function of many series' by name: by its place, a word after the weights read as one more series (it was
+    // written basket(x, 0.6, y, 0.4, monthly), which no reader read back)
+    assert.equal(exprText(parseExpr('basket(x, 0.6, y, 0.4, rebalance=monthly)')), 'basket(x, 0.6, y, 0.4, rebalance=monthly)');
+    assert.deepEqual(parseExpr(exprText(parseExpr('basket(x, 0.6, y, 0.4, rebalance=monthly)'))), parseExpr('basket(x, 0.6, y, 0.4, rebalance=monthly)'));
+  });
+
+  // the code that builds a tile (timeseries-code.ts): its text reads back as the very expression, each parameter as told
+  it('exprSource: each parameter as it was told -- by its place while each before it is, else by its name', () => {
+    for (const [text, source] of [
+      ['returns(close, type=log)', 'returns(close, type=log)'],
+      ['returns(close, 1, simple)', 'returns(close, 1, simple)'],
+      ['returns(close)', 'returns(close)'],
+      ['volatility(close, 63)', 'volatility(close, 63)'],
+      ['basket(x, 0.6, y, 0.4, rebalance=monthly)', 'basket(x, 0.6, y, 0.4, rebalance=monthly)'],
+      ['mean(close[AAPL], 3m) / lag($A, 1y)', 'mean(close[AAPL], 3m) / lag($A, 1y)'],
+    ] as const) {
+      const tree = parseExpr(text);
+      assert.equal(exprSource(tree), source);
+      assert.deepEqual(parseExpr(exprSource(tree)), tree, `${text}: read back as itself`);
+    }
   });
 
   it('aliases are gs-quant\'s other names, and its own spellings', () => {

@@ -18,6 +18,7 @@ import { marketsCsv } from '../src/samples.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import type { MountedTimeseries } from '../src/timeseries-render.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
+import { tileCode } from '../src/timeseries-code.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { ingestFile } from '../src/upload.ts';
 import { TimeseriesView, type TsGrid, type TsTogether } from '../src/ui/timeseries-view.ts';
@@ -111,6 +112,7 @@ function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over
     setSpec: (s) => { told.push(s); },
     windowHost: windows,
     title: () => 'Markets',
+    codeOf: () => ({ title: 'Markets', sheet: 'sheet-1', grids: { prices: { tile: 'prices', title: 'Prices' } } }),
     mount,
   }, spec);
   return { view, root, windows, drawn, told, zooms, exported };
@@ -548,6 +550,43 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       await until(() => asks().length === 10 && status(asks()[5]!) === 'ran', 'the drawdowns asked');
       await until(() => code(asks()[5]!)[0] !== 'Writing…', 'written');
       assert.match(code(asks()[5]!)[1]!, /select/i, 'the SQL it ran');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  // the user, 2026-10-26: "an option that shows how exactly to build that chart programmatically from TS and python"
+  it('Query: the tile as the code that builds it, in Python and in TypeScript, each copied', async () => {
+    const { root, windows, view } = viewer(SPEC);
+    const written = clipboardOf(root);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      barButton(root, 'Query').click();
+      const tabs = [...windows.querySelectorAll<HTMLButtonElement>('.dc-ts-window [role=tab]')];
+      assert.deepEqual(tabs.map((t) => t.textContent), ['Queries', 'Python', 'TypeScript']);
+      const panels = [...windows.querySelectorAll<HTMLElement>('.dc-ts-window .dc-ts-code-panel')];
+      assert.deepEqual(panels.map((p) => p.hidden), [false, true, true], 'the queries first');
+      tabs[1]!.click();
+      assert.deepEqual(panels.map((p) => p.hidden), [true, false, true]);
+      assert.deepEqual(tabs.map((t) => t.getAttribute('aria-selected')), ['false', 'true', 'false']);
+      // by the one rule Python's tile.code() reads (timeseries-code.ts tileCode), over where the page says the tile is
+      const of = { title: 'Markets', sheet: 'sheet-1', grids: { prices: { tile: 'prices', title: 'Prices' } } };
+      const program = (i: number): string => panels[i]!.querySelector('.dc-ts-program')!.textContent!;
+      await until(() => program(1) !== 'Writing…' && program(2) !== 'Writing…', 'its programs written');
+      const python = program(1);
+      assert.equal(python, tileCode(SPEC, of, 'python'));
+      assert.match(python, /tile = sheet\.timeseries\(/);
+      assert.match(python, /\{'expr': 'close\[SPX\]', 'name': 'S&P 500'\}/);
+      windowButton(windows, 'Copy Python').click();
+      await until(() => written.length === 1, 'its Python copied');
+      assert.equal(written[0], python);
+      tabs[2]!.click();
+      const typescript = program(2);
+      assert.equal(typescript, tileCode(SPEC, of, 'typescript'));
+      assert.match(typescript, /kind: 'addTimeseries', sheet: 'sheet-1'/);
+      windowButton(windows, 'Copy TypeScript').click();
+      await until(() => written.length === 2, 'its TypeScript copied');
+      assert.equal(written[1], typescript);
     } finally {
       view.dispose();
     }
@@ -1048,6 +1087,7 @@ describe('asking the database what is shown, once', () => {
       setSpec: () => {},
       windowHost: dom.window.document.getElementById('w') as unknown as HTMLElement,
       title: () => 'Markets',
+      codeOf: () => ({ title: 'Markets', sheet: 'sheet-1', grids: { prices: { tile: 'prices', title: 'Prices' }, prices2: { tile: 'prices2', title: 'Prices again' } } }),
       mount: () => ({
         show: () => {}, zoomTo: () => {}, zoomed: () => ({}), highlight: () => {}, height: () => 480, picture: () => null,
         exportUrl: () => Promise.reject(new Error('no picture here')), dispose: () => {},

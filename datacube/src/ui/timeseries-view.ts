@@ -46,6 +46,7 @@ import {
 import type { MountedTimeseries } from '../timeseries-render.ts';
 import { curveNotes, curveOption, describeView, histogramOption, scatterOption, seasonalityOption, TS_MONTH_NAMES, type TsViewContext } from '../timeseries-views.ts';
 import { lazily } from '../lazily.ts';
+import type { TsCodeLanguage, TsCodeOf } from '../timeseries-code.ts';
 import { chromeIcon, closeMark } from './tile-icons.ts';
 import { isTextEntry } from '../focus.ts';
 import { besideWindow, makeWindow, raiseWindow, screenOf } from './window.ts';
@@ -77,6 +78,20 @@ export interface TsTogether {
 
 /** A query's answer as the viewer keeps it: its rows, and the SQL the database ran for them. */
 type Ran = TsResult & { readonly sql: string };
+
+/** Each language's tab in the Query window: its name, and what its program does. */
+const CODE_WORDS: Readonly<Record<TsCodeLanguage, { readonly label: string; readonly title: string; readonly hint: string }>> = {
+  python: {
+    label: 'Python', title: 'The Python that builds this tile',
+    hint: 'This tile built in Python (legend_lite): its sheet\'s timeseries over the page\'s grids, as Create ▸ Timeseries makes it, then its '
+      + 'points, its statistics and its queries -- tile.code() in Python writes the same.',
+  },
+  typescript: {
+    label: 'TypeScript', title: 'The TypeScript that builds this tile',
+    hint: 'This tile built in TypeScript: its spec, and the page command Create ▸ Timeseries sends, applied by DataCube\'s one function '
+      + '(page-commands.ts applyPageCommands) -- as Python\'s sheet.timeseries applies it.',
+  },
+};
 
 /** A question the viewer asked the database, kept for the Query window: the tile and the dates it was asked of, its
  *  query as it was sent, and the SQL the database ran for it. */
@@ -131,6 +146,10 @@ export interface TimeseriesHost {
   title(): string;
   /** Its renderer (a test's stand-in); else timeseries-render.ts. */
   readonly mount?: (el: HTMLElement, on: MountOn) => MountedTimeseries;
+  /** Where it is on its page, as the code that builds it names it (timeseries-code.ts): its sheet, its own title (null:
+   *  its tile's numbered one) and each of `spec`'s sources' grid tiles by cube -- the Query window's Python and
+   *  TypeScript. */
+  codeOf(spec: TimeseriesSpec): TsCodeOf;
 }
 
 /** A source's bound as the database answered it (timeseries-query.ts boundsQuery): its one row's value, null for none. */
@@ -1228,12 +1247,53 @@ export class TimeseriesView {
       w.pure ?? `// not written`, `-- its SQL`, w.sql ?? `-- not run`].join('\n')).join('\n\n');
     const copyAll = el(doc, 'div', 'dc-ts-row');
     copyAll.append(button(doc, 'Copy all', 'Every query: its Pure and its SQL', () => void this.#copy(all(), `${asks.length} queries copied.`)));
-    this.#open('Queries',
+    const queries = el(doc, 'div', 'dc-ts-code-panel');
+    queries.append(
       el(doc, 'div', 'dc-ts-hint', `Every question this tile asks the database (${asks.length}): each written in Pure by DataCube, planned by `
         + 'legend-lite and run as the SQL below it. Every figure drawn is one of their answers.'),
       copyAll,
       el(doc, 'div', 'dc-ts-heading', 'Drawing the chart'), ...sections.get('chart')!,
       el(doc, 'div', 'dc-ts-heading', 'The statistics panel'), ...sections.get('panel')!);
+    // and the tile as the program that builds it (the user, 2026-10-26: "how exactly to build that chart
+    // programmatically from TS and python"): in each language, by the one rule Python's Timeseries.code reads
+    const languages = Object.keys(CODE_WORDS) as TsCodeLanguage[];
+    const panels: [string, string, HTMLElement][] = [['Queries', 'Every query it asks the database', queries],
+      ...languages.map((language): [string, string, HTMLElement] => [CODE_WORDS[language].label, CODE_WORDS[language].title, this.#codePanel(spec, language)])];
+    const tabs = el(doc, 'div', 'dc-ts-stats-tabs', undefined, { role: 'tablist' });
+    const pick = (i: number): void => {
+      panels.forEach(([, , panel], j) => { panel.hidden = j !== i; });
+      [...tabs.children].forEach((b, j) => b.setAttribute('aria-selected', String(j === i)));
+    };
+    panels.forEach(([label, title], i) => {
+      const b = button(doc, label, title, () => pick(i), 'dc-ts-stats-tab');
+      b.setAttribute('role', 'tab');
+      tabs.append(b);
+    });
+    pick(0);
+    this.#open('Queries', tabs, ...panels.map(([, , panel]) => panel));
+  }
+
+  /** The tile as the program that builds it in `language` (timeseries-code.ts tileCode, a chunk of its own fetched with
+   *  the first Query window), copied with a click; or why it cannot be written, in words. */
+  #codePanel(spec: TimeseriesSpec, language: TsCodeLanguage): HTMLElement {
+    const doc = this.#doc;
+    const words = CODE_WORDS[language];
+    const panel = el(doc, 'div', 'dc-ts-code-panel');
+    const program = el(doc, 'pre', 'dc-ts-code dc-ts-program', 'Writing…');
+    let code: string | undefined;
+    const copies = el(doc, 'div', 'dc-ts-row');
+    copies.append(button(doc, `Copy ${words.label}`, `The ${words.label} that builds this tile`, () => {
+      if (code === undefined) this.#say([`Its ${words.label} is not written: ${program.textContent ?? ''}`], true);
+      else void this.#copy(code, `Its ${words.label} copied.`);
+    }));
+    panel.append(el(doc, 'div', 'dc-ts-hint', words.hint), copies, program);
+    void lazily(() => import('../timeseries-code.ts')).then(({ tileCode }) => {
+      code = tileCode(spec, this.#host.codeOf(spec), language);
+      program.textContent = code;
+    }).catch((e: unknown) => {
+      program.textContent = `Not written: ${e instanceof Error ? e.message : String(e)}`;
+    });
+    return panel;
   }
 
   /** An ask's query written as a round would write it, without running it: over its grid's input, or several grids'
