@@ -665,6 +665,23 @@ describe("a Date Filter (date-ranges.ts): a range relative to today, or the days
     assert.equal(datesKept({ kind: 'and', children: [...between.children, one] }), undefined);
     assert.equal(datesKept({ kind: 'or', children: [...between.children] }), undefined);
   });
+
+  it("a date-time column's days are every moment of them: from the first's midnight to the next day's after the last", () => {
+    // the correctness audit's 5, 2026-10-26: a bare day was no literal of a date-time, and `<= to` left out its last day
+    assert.deepEqual(datesBetweenConditions('at', '2024-06-01', '2024-06-30', 'DateTime'), [
+      { kind: 'condition', column: 'at', operator: 'greaterThanEqual', value: '2024-06-01T00:00:00' },
+      { kind: 'condition', column: 'at', operator: 'lessThan', value: '2024-07-01T00:00:00' },
+    ]);
+    assert.equal((datesBetweenConditions('at', '2024-02-01', '2024-02-29', 'DateTime')[1] as { value: unknown }).value, '2024-03-01T00:00:00', 'a leap day');
+    assert.equal((datesBetweenConditions('at', '2024-12-31', '2024-12-31', 'DateTime')[1] as { value: unknown }).value, '2025-01-01T00:00:00', 'a year on');
+    // a day column's as it was: both days, as written
+    assert.deepEqual(datesBetweenConditions('d', '2024-06-01', '2024-06-30', 'StrictDate'), datesBetweenConditions('d', '2024-06-01', '2024-06-30'));
+    // read back as the days it keeps, said so
+    const timed = { kind: 'and', children: datesBetweenConditions('at', '2024-02-01', '2024-02-29', 'DateTime') } as const;
+    assert.deepEqual(datesKept(timed), { column: 'at', from: '2024-02-01', to: '2024-02-29' });
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, filter: timed }))), { tool: 'dateFilter', also: [], says: 'at from 2024-02-01 to 2024-02-29' });
+    assert.throws(() => datesBetweenConditions('t', '2024-06-01', '2024-06-30', 'StrictTime'), /'t' is a time of day: it has no days to keep/);
+  });
 });
 
 describe("Sample's other ways (row-sample.ts): a row number and a filter, as Unique's", () => {

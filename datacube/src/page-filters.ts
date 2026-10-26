@@ -16,7 +16,7 @@ import type { QueryLens } from './runner.ts';
 import { CubeRefusal, isRelativeDate, relativeDateWords, sameValue, type FilterCondition, type FilterNode, type FilterValue } from './snapshot.ts';
 // a filter's words of one column's dates (datesKept, below) beside its other words: here, as conditionWords is, so a flow's
 // box reads it with its other words (a module of its own would be a startup file of its own)
-import { DATE_RANGE_LABELS, DATE_RANGES, dateRangeConditions, isDay, type DateRange } from './date-ranges.ts';
+import { DATE_RANGE_LABELS, DATE_RANGES, dateRangeConditions, dayOn, isDay, MIDNIGHT, type DateRange } from './date-ranges.ts';
 
 /** One filter of the page. */
 export interface PageFilter {
@@ -257,6 +257,13 @@ export function datesKept(filter: FilterNode | undefined): DatesKept | undefined
   if (range !== undefined) return { column: a.column, range };
   if (a.operator === 'greaterThanEqual' && b.operator === 'lessThanEqual' && typeof a.value === 'string' && typeof b.value === 'string'
     && isDay(a.value) && isDay(b.value)) return { column: a.column, from: a.value, to: b.value };
+  // a date-time column's: from the first day's midnight to the next day's after the last (date-ranges.ts)
+  const day = (v: unknown): string | undefined =>
+    (typeof v === 'string' && v.endsWith(MIDNIGHT) && isDay(v.slice(0, -MIDNIGHT.length)) ? v.slice(0, -MIDNIGHT.length) : undefined);
+  const [from, after] = [day(a.value), day(b.value)];
+  if (a.operator === 'greaterThanEqual' && b.operator === 'lessThan' && from !== undefined && after !== undefined && from < after) {
+    return { column: a.column, from, to: dayOn(after, -1) };
+  }
   return undefined;
 }
 
