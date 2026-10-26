@@ -244,7 +244,8 @@ describe('the text tools (text-tools.ts): calculated columns, read back off thei
     // into rows: one column, exploded over split -- a row a part
     const rowsOf = textToolColumns({ kind: 'split', column: 'book', delimiter: ',', parts: 1, name: 'part', rows: true });
     assert.deepEqual(rowsOf.map((p) => [p.name, p.unnest]), [['part', true]]);
-    assert.equal(body(rowsOf[0]!), JSON.stringify(fn('split', fn('toOne', property(variable('x'), 'book')), lit.string(','))));
+    // an empty text kept, its one part blank: an explode of no parts would be no row (the correctness audit's 7)
+    assert.equal(body(rowsOf[0]!), JSON.stringify(fn('split', fn('coalesce', property(variable('x'), 'book'), lit.string('')), lit.string(','))));
     assert.deepEqual(said(rowsOf), { tool: 'textToColumns', also: [], says: "book split on ',' to rows" });
     assert.deepEqual(readTextTool({ kind: 'split', column: 'book', delimiter: ',', name: 'part', rows: true }),
       { kind: 'split', column: 'book', delimiter: ',', parts: 1, name: 'part', rows: true });

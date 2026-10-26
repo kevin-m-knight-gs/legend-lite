@@ -44,9 +44,14 @@ export function textToolColumns(t: TextTool): DerivedColumn[] {
   if (problem !== undefined) throw new CubeRefusal(problem);
   switch (t.kind) {
     case 'split':
-      // into rows: one column, each row once for each of its parts (an explode, as the column editor's Explode makes)
+      // into rows: one column, each row once for each of its parts (an explode, as the column editor's Explode makes) --
+      // a row whose text is empty kept, its one part empty text, as an empty text's is (an explode of no parts is no row:
+      // the correctness audit's 7, 2026-10-26)
       if (t.rows === true) {
-        return [{ name: t.name.trim(), lambda: row(fn('split', one(t.column), lit.string(t.delimiter))), kind: 'dimension', unnest: true }];
+        return [{
+          name: t.name.trim(), lambda: row(fn('split', fn('coalesce', col(t.column), lit.string('')), lit.string(t.delimiter))),
+          kind: 'dimension', unnest: true,
+        }];
       }
       return Array.from({ length: t.parts }, (_, i) => ({
         name: `${t.name.trim()}_${i + 1}`,

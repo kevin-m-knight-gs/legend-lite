@@ -85,9 +85,11 @@ export function textToolOf(d: DerivedColumn): TextToolSaid | undefined {
     const on = text(second);
     return column !== undefined && on !== undefined ? { tool: 'textToColumns', says: `${column} split on '${on}'` } : undefined;
   }
-  // each part its own row: an exploded split
+  // each part its own row: an exploded split (of its text, an empty one blank)
   if (top.function === 'split' && d.unnest === true) {
-    const column = read(first);
+    const blanked = first?._type === 'func' && first.function === 'coalesce' && first.parameters.length === 2
+      && text(first.parameters[1]) === '' ? first.parameters[0] : first;
+    const column = read(blanked);
     const on = text(second);
     return column !== undefined && on !== undefined ? { tool: 'textToColumns', says: `${column} split on '${on}' to rows` } : undefined;
   }
