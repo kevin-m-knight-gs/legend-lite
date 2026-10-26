@@ -1458,8 +1458,9 @@ describe('a tile\'s views: a scatter, a histogram, a curve -- every figure the d
 });
 
 // the next phases' 4: an analyst's packs -- technicals of a candle's columns, a series against a benchmark, a total
-// return, a basket, a pair's lead and its reversion. Each held to its textbook's arithmetic (TA-Lib's, Morningstar's,
-// statsmodels' OLS) or to gs-quant's own loop (backtesting.basket_series), written here.
+// return, a basket, a pair's lead and its reversion. Each held to its textbook's arithmetic (TA-Lib's ATR and %K,
+// StockCharts' OBV from 0, capture by arithmetic means, statsmodels' OLS) or to gs-quant's own loop
+// (backtesting.basket_series), written here.
 describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket, a lead, a reversion', () => {
   const N = 110;
   const PACK_DAYS: string[] = [];
@@ -1548,8 +1549,9 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     const l = await packLine('keltner_channels(high[P], low[P], close[P], 20, 10, 2)');
     const mid = ema(PC, 19 / 21);
     const atr = talibAtr(trueRanges(PH, PL, PC), 10);
-    close(l.lower!, atr.map((a, i) => (a === null ? null : mid[i]! - 2 * a)), 'lower', 1e-9);
-    close(l.upper!, atr.map((a, i) => (a === null ? null : mid[i]! + 2 * a)), 'upper', 1e-9);
+    // drawn once the average holds its 20 closes (the Phase 4 review's 7), the ATR's 10 before it
+    close(l.lower!, atr.map((a, i) => (a === null || i < 19 ? null : mid[i]! - 2 * a)), 'lower', 1e-9);
+    close(l.upper!, atr.map((a, i) => (a === null || i < 19 ? null : mid[i]! + 2 * a)), 'upper', 1e-9);
   });
 
   it('donchian_channels: the lowest low and the highest high of the last w', async () => {
@@ -1711,10 +1713,61 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     close((await packLine('dickey_fuller(close[P])')).values, PC.map((_, i) => (i < 3 ? null : ols(PC.slice(0, i + 1)).t)), 'DF to date', 1e-9);
   });
 
+  // the Phase 4 review's 1: at a frequency, each period's highest high, lowest low, last close and whole volume (a
+  // week's last high and last day's volume had been read), and a VWAP of each day's price times its volume
+  it('at a weekly frequency, each week a bar: its highest high, lowest low, last close and whole volume', async () => {
+    const week = (d: string): string => {
+      const t = Date.parse(`${d}T00:00:00Z`);
+      return new Date(t - ((new Date(t).getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
+    };
+    const weeks = [...new Set(PACK_DAYS.map(week))];
+    const of = (k: string): number[] => PACK_DAYS.map((_, i) => i).filter((i) => week(PACK_DAYS[i]!) === k);
+    const WH = weeks.map((k) => Math.max(...of(k).map((i) => PH[i]!)));
+    const WL = weeks.map((k) => Math.min(...of(k).map((i) => PL[i]!)));
+    const WC = weeks.map((k) => PC[of(k).at(-1)!]!);
+    const WV = weeks.map((k) => of(k).reduce((t, i) => t + PV[i]!, 0));
+    const WPV = weeks.map((k) => of(k).reduce((t, i) => t + PC[i]! * PV[i]!, 0));
+    const weekly = { grain: 'week' as const };
+    const atr = await packLine('atr(high[P], low[P], close[P], 3)', weekly);
+    assert.deepEqual(atr.dates, weeks.map((k) => PACK_DAYS[of(k).at(-1)!]!), 'each week at its last day');
+    close(atr.values, talibAtr(trueRanges(WH, WL, WC), 3), 'weekly ATR', 1e-9);
+    close((await packLine('stochastic(high[P], low[P], close[P], 4)', weekly)).values,
+      WC.map((c, i) => (i < 3 ? null : (100 * (c - Math.min(...WL.slice(i - 3, i + 1)))) / (Math.max(...WH.slice(i - 3, i + 1)) - Math.min(...WL.slice(i - 3, i + 1))))), 'weekly %K', 1e-9);
+    const dc = await packLine('donchian_channels(high[P], low[P], 4)', weekly);
+    close(dc.upper!, rolling(WH, 4, (v) => Math.max(...v)), 'weekly upper', 0);
+    close(dc.lower!, rolling(WL, 4, (v) => Math.min(...v)), 'weekly lower', 0);
+    let total = 0;
+    close((await packLine('obv(close[P], volume[P])', weekly)).values,
+      WC.map((c, i) => (i === 0 ? 0 : (total += Math.sign(c - WC[i - 1]!) * WV[i]!))), 'weekly OBV', 0);
+    close((await packLine('vwap(close[P], volume[P], 3)', weekly)).values,
+      WV.map((_, i) => (i < 2 ? null : WPV.slice(i - 2, i + 1).reduce((a, b) => a + b, 0) / WV.slice(i - 2, i + 1).reduce((a, b) => a + b, 0))), 'weekly VWAP', 1e-12);
+  });
+
+  // the Phase 4 review's 3 and 8: a long and a short (weights summing to 0) is a basket as any; a price of none makes
+  // the basket none from there, as gs-quant's NaN carries through its units (it had been taken as flat)
+  it('basket: a long and a short; none from a price of none on; a rebalance it has no word for refused', async () => {
+    const prices = [Q_IDX.map((i) => PC[i]!), Q_IDX.map((i) => QC[i]!)];
+    close((await packLine('basket(close[P], 1, close[Q], -1, rebalance=monthly)')).values,
+      gsBasket(Q_DAYS, prices, [1, -1], 'monthly'), 'long P, short Q', 1e-9);
+    const gap = await packLine('basket(lag(close[P], 1), 0.5, close[Q], 0.5)');
+    assert.ok(gap.values.length > 0 && gap.values.every((v) => v === null), 'none from its first price of none on');
+    const ts = spec({ A: 'basket(close[P], 0.5, close[Q], 0.5)' });
+    const yearly: TimeseriesSpec = { ...ts, series: [{ ...ts.series[0]!, expr: { ...ts.series[0]!.expr, params: { rebalance: 'yearly' } } as TsSeries['expr'] }] };
+    assert.throws(() => seriesQuery(pack, yearly, yearly.series[0]!), /a basket rebalances daily, weekly or monthly, not "yearly"/);
+  });
+
+  it('dickey_fuller over 1 or 2 differences refused: no deviation left to judge it by', async () => {
+    await assert.rejects(packLine('dickey_fuller(close[P], 2)'), /dickey_fuller over 2 differences has no deviation left: w is 0 \(every one to date\) or at least 3/);
+    await assert.rejects(packLine('half_life(close[P], 1)'), /half_life over 1 differences/);
+  });
+
   it('a pack\'s series read by name: what each is, and how many', () => {
     assert.throws(() => parseExpr('atr(high[P], low[P])'), /atr reads three series \(high, low and close\)/);
     assert.throws(() => parseExpr('obv(close[P])'), /obv reads two series \(close and volume\)/);
     assert.throws(() => parseExpr('basket(close[P], 0.5, close[Q], 0.5, rebalance=yearly)'), /rebalance/);
+    // a weighted sum divides by its weights' sum, a basket by nothing
+    assert.throws(() => parseExpr('weighted_sum(close[P], 1, close[Q], -1)'), /weights sum to 0/);
+    assert.doesNotThrow(() => parseExpr('basket(close[P], 1, close[Q], -1)'));
   });
 });
 

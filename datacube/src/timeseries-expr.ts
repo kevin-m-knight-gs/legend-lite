@@ -426,7 +426,7 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   // Donchian's, Granville's), a series against a benchmark, a total return, a basket, a pair's lead and its reversion
   atr: {
     label: 'Average true range', family: 'Technicals', unit: 'same', params: { w: 'the true ranges smoothed over' },
-    about: 'Wilder\'s smoothed average of the last w true ranges, each the most of the high less the low, the high less the close before and the close before less the low (the first, its high less its low).',
+    about: 'Wilder\'s smoothed average of true ranges, each the most of the high less the low, the high less the close before and the close before less the low: from the w-th, the mean of the w after the first, then ((w − 1)·atr + tr) / w (TA-Lib\'s). At a frequency, each period\'s highest high, lowest low and last close.',
     gsQuant: 'DataCube (Wilder\'s average true range)', aliases: ['average_true_range'],
   },
   stochastic: {
@@ -437,7 +437,7 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   keltner_channels: { level: 'keeps',
     label: 'Keltner channels', family: 'Technicals', unit: 'same', band: true,
     params: { w: 'the close\'s exponential average\'s span (its weight of the one before (w − 1) / (w + 1))', a: 'the true ranges averaged', k: 'average true ranges either side' },
-    about: 'A band k average true ranges (over a) either side of the exponential moving average of the close (of span w).',
+    about: 'A band k average true ranges (over a) either side of the exponential moving average of the close (of span w, from the first close), drawn once it holds w closes.',
     gsQuant: 'DataCube (Keltner\'s channels, as Raschke\'s)', aliases: ['keltner'],
   },
   donchian_channels: { level: 'keeps',
@@ -447,12 +447,12 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   },
   obv: {
     label: 'On-balance volume', family: 'Technicals', unit: 'number',
-    about: 'The running total of each period\'s volume, added when the close rose and taken off when it fell: 0 at the first.',
+    about: 'The running total of each period\'s volume, added when the close rose and taken off when it fell: 0 at the first (StockCharts\'; TA-Lib\'s starts at the first volume). At a frequency, each period\'s whole volume.',
     gsQuant: 'DataCube (Granville\'s on-balance volume)', aliases: ['on_balance_volume'],
   },
   vwap: { level: 'keeps',
     label: 'Volume-weighted average price', family: 'Technicals', unit: 'same',
-    about: 'Σ price × volume / Σ volume over the last w observations (0: every one to date); none where they traded none.',
+    about: 'Σ price × volume / Σ volume over the last w observations (0: every one to date), each price times its own volume on its own dates; none where they traded none.',
     gsQuant: 'DataCube (a volume-weighted average price)',
   },
   tracking_error: {
@@ -467,12 +467,12 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   },
   up_capture: {
     label: 'Up capture', family: 'Risk', unit: 'ratio',
-    about: 'The first\'s mean simple return on the periods the benchmark rose over the benchmark\'s mean then, over the last w observations: above 100%, it rose more.',
+    about: 'The first\'s arithmetic mean simple return on the periods the benchmark rose (above 0) over the benchmark\'s mean then, over the last w observations: above 100%, it rose more (Morningstar\'s compounds each).',
     gsQuant: 'DataCube (an up-market capture ratio)',
   },
   down_capture: {
     label: 'Down capture', family: 'Risk', unit: 'ratio',
-    about: 'The first\'s mean simple return on the periods the benchmark fell over the benchmark\'s mean then, over the last w observations: under 100%, it fell less.',
+    about: 'The first\'s arithmetic mean simple return on the periods the benchmark fell (below 0) over the benchmark\'s mean then, over the last w observations: under 100%, it fell less (Morningstar\'s compounds each).',
     gsQuant: 'DataCube (a down-market capture ratio)',
   },
   total_return: { level: 'keeps',
@@ -494,12 +494,12 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   },
   dickey_fuller: {
     label: 'Dickey-Fuller statistic', family: 'Relationships', unit: 'number',
-    about: 'The t-statistic of b in Δx = a + b·x[-1] over the last w observations (0: every one to date): far below 0 (under −2.86 at 5%, MacKinnon\'s), it reverts; of a pair\'s residual, dickey_fuller(residual(y, x, 0)), Engle and Granger\'s test of their cointegration (at 5%, under −3.34).',
+    about: 'The t-statistic of b in Δx = a + b·x[-1], by least squares over the last w differences (w + 1 values; 0: every one to date): far below 0 it reverts -- at 5%, under about −2.9 (MacKinnon\'s: −2.86 as w grows, −2.97 at 30). Of a spread written with its ratio, dickey_fuller(close[A] - 1.2 * close[B]), its stationarity; a running residual(y, x, 0) is each date\'s own fit, not Engle and Granger\'s one fit of the whole.',
     gsQuant: 'DataCube (statsmodels\' adfuller of no lags, a constant)', aliases: ['adf'],
   },
   half_life: {
     label: 'Half-life of mean reversion', family: 'Relationships', unit: 'number',
-    about: '−ln 2 / ln(1 + b), b the slope of Δx = a + b·x[-1] over the last w observations (0: every one to date): the observations a gap takes to halve; none where it does not revert.',
+    about: '−ln 2 / ln(1 + b), b the slope of Δx = a + b·x[-1] over the last w differences (w + 1 values; 0: every one to date): the observations a gap takes to halve; none where it does not revert (b at or above 0) or overshoots (b at or below −1).',
     gsQuant: 'DataCube (an Ornstein-Uhlenbeck half-life)',
   },
 };
@@ -1050,7 +1050,7 @@ export function parseExpr(text: string): TsExpr {
       } while (isOp(',') && next());
     }
     expect(')');
-    const many = f.series === 'many' ? manyProblem(args) : undefined;
+    const many = f.series === 'many' ? manyProblem(f.name, args) : undefined;
     if (many !== undefined) throw new TsSyntaxError(`${f.name} ${many}`, at);
     if (f.series !== 'many' && args.length < f.series) throw new TsSyntaxError(`${f.name} reads ${seriesWords(f.series, f.reads)}`, at);
     return { kind: 'call', fn: f.name, args, ...(Object.keys(params).length > 0 ? { params } : {}) };

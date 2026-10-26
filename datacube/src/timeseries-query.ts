@@ -35,7 +35,7 @@ import {
   filterRead,
   MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, tenorOf, TS_POINT_LIMIT, TS_RANGES, type TimeseriesSpec, type TsAggregate,
   type TsAlign, type TsExpr, type TsMatch, type TsOperator, type TsRange, type TsRangeWord, type TsSeries, type TsSource, type TsTenor,
-  isConditionOp, TS_CURVE_DATES, TS_HIST_BINS, TS_SEASON_YEARS,
+  isConditionOp, TS_CURVE_DATES, TS_HIST_BINS, TS_SEASON_YEARS, TS_SIGNATURES, type TsFunctionName,
 } from './timeseries-spec.ts';
 import { inlined, isBand, isCandles, isCondition, levelOf, TsInlineError, paramOf, seriesName, sourceAlias, sourcesOf, splitName, unitOf, type TsUnit } from './timeseries-expr.ts';
 import type { TimeGrain } from './chart-spec.ts';
@@ -760,6 +760,22 @@ const valueColumns = (v: Value): string[] =>
 /** How a candle's four series take each period's rows: its first open, its highest high, its lowest low, its last close. */
 const CANDLE: readonly TsAggregate[] = ['first', 'max', 'min', 'last'];
 
+/** How a series of each role a function reads (its signature's `reads`) is taken of a period's rows: a high its most, a
+ *  low its least, a close or a price its last, a volume or a dividend their total -- a candle's way (CANDLE). */
+const ROLE_TAKEN: Readonly<Record<string, TsAggregate>> = { high: 'max', low: 'min', close: 'last', price: 'last', volume: 'sum', dividends: 'sum' };
+
+/** How each series a function reads is taken of a period's rows, by its role; undefined where its series have none (a
+ *  series and its benchmark: each its last, as any column). */
+function roleTaken(name: TsFunctionName): readonly TsAggregate[] | undefined {
+  const reads = TS_SIGNATURES[name].reads;
+  if (reads === undefined || !reads.some((r) => r in ROLE_TAKEN)) return undefined;
+  return reads.map((r) => {
+    const t = ROLE_TAKEN[r];
+    if (t === undefined) throw new Error(`${name} reads a ${r}, which no period's rows are taken by`);
+    return t;
+  });
+}
+
 /** An expression with each candle's (ohlc's) plain columns taken by their date as a candle's are (CANDLE) -- unless one
  *  says how itself (`open[AAPL].first`) -- so a day of several rows is its first open, highest high, lowest low and
  *  last close; a period of the tile's frequency then takes its dates' the same way (`candle`). */
@@ -767,8 +783,9 @@ function candled(e: TsExpr): TsExpr {
   switch (e.kind) {
     case 'call': {
       const args = e.args.map(candled);
-      if (e.fn !== 'ohlc') return { ...e, args };
-      return { ...e, args: args.map((a, i) => (a.kind === 'column' && a.fn === undefined ? { ...a, fn: CANDLE[i]! } : a)) };
+      const taken = e.fn === 'ohlc' ? CANDLE : roleTaken(e.fn);
+      if (taken === undefined) return { ...e, args };
+      return { ...e, args: args.map((a, i) => (a.kind === 'column' && a.fn === undefined && taken[i] !== undefined ? { ...a, fn: taken[i] } : a)) };
     }
     case 'binary':
       return { ...e, left: candled(e.left), right: candled(e.right) };
@@ -1127,30 +1144,48 @@ function ordinal(n: number): string {
  * the period first, so a candle of `close / 2` weekly was the week's last, four times over, flat).
  */
 function candle(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
+  const r = rolled(sh, e, CANDLE);
+  const [open, high, low, close] = r.columns as [string, string, string, string];
+  return { w: r.w, v: { open, high, low, close } };
+}
+
+/**
+ * A FUNCTION'S SERIES AT THE TILE'S FREQUENCY, EACH BY ITS ROLE (a candle's; the Phase 4 review's 1: a weekly ATR read
+ * each week's last high and low, an OBV its last day's volume): under a frequency, its first series -- one a role in
+ * `taken` -- each read on its own dates, joined, then each period of the frequency taken by its role (an open its
+ * first, a high its most, a low its least, a close its last, a volume its total), and each of `sums` (a row of the
+ * series on their own dates: a price times its volume) its total over the period. Of no frequency, the series as they
+ * are, `sums` each a row of them.
+ */
+function rolled(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>, taken: readonly TsAggregate[],
+  sums: readonly ((columns: readonly string[]) => ValueSpecification)[] = []): { readonly w: Writer; readonly columns: readonly string[]; readonly sums: readonly string[] } {
   const own: Shared = sh.grain === undefined ? sh : { ...sh, grain: undefined, periodType: undefined };
-  const parts = [0, 1, 2, 3].map((i) => seriesArg(own, e, i));
+  const parts = taken.map((_, i) => seriesArg(own, e, i));
   const inner = joined(own, parts);
-  const [open, high, low, close] = parts.map((p) => columnOfValue(p.v)) as [string, string, string, string];
-  if (sh.grain === undefined) return { w: inner, v: { open, high, low, close } };
-  // each period of the tile's frequency, of the dates all four have
+  const columns = parts.map((p) => columnOfValue(p.v));
+  const made = sums.map((f) => inner.row('rs', f(columns)));
+  if (sh.grain === undefined) return { w: inner, columns, sums: made };
+  // each period of the tile's frequency, of the dates all have
   const fine = own.periodType!;
   const coarse = periodOf(sh.grain, PERIOD, fine);
   periodTyped(sh, coarse.type, sh.first);
   const p = freshName(sh, 'cp');
   const a = freshName(sh, 'ca');
   const rel = inner.rel
-    .filter(row(and(...[open, high, low, close].map((c) => fn('isNotEmpty', col(c))))))
+    .filter(row(and(...columns.map((c) => fn('isNotEmpty', col(c))))))
     .extend([derive(p, row(coarse.body)), derive(a, row(periodOf(sh.grain, inner.at, fine).at))]);
   const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
-  const v = { open: freshName(sh, 'open'), high: freshName(sh, 'high'), low: freshName(sh, 'low'), close: freshName(sh, 'close') };
+  const by = (t: TsAggregate, c: string, name: string): ColSpec => (t === 'last' || t === 'first'
+    ? agg(name, row(fn('rowMapper', col(c), col(ORD))), y(t === 'last' ? 'maxBy' : 'minBy'))
+    : agg(name, row(col(c)), y(t)));
+  const out = columns.map(() => freshName(sh, 'rv'));
+  const totals = made.map(() => freshName(sh, 'rsum'));
   // the most rows a date's value took one of, and the periods a year a function inside annualized by, carried
   const rows = inner.rows.map((c) => [c, freshName(sh, 'rows')] as const);
   const years = inner.years.map((c) => [c, freshName(sh, 'py')] as const);
   const grouped = rel.groupBy([inner.part, p], [
-    agg(v.open, row(fn('rowMapper', col(open), col(ORD))), y('minBy')),
-    agg(v.high, row(col(high)), y('max')),
-    agg(v.low, row(col(low)), y('min')),
-    agg(v.close, row(fn('rowMapper', col(close), col(ORD))), y('maxBy')),
+    ...columns.map((c, i) => by(taken[i]!, c, out[i]!)),
+    ...made.map((c, i) => by('sum', c, totals[i]!)),
     agg(AT, row(col(a)), y('max')),
     ...[...rows, ...years].map(([from, to]) => agg(to, row(col(from)), y('max'))),
     agg(ORD, row(col(ORD)), y('max')),
@@ -1158,7 +1193,7 @@ function candle(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   const w = new Writer(grouped, {
     part: inner.part, split: inner.split, at: AT, seconds: inner.seconds, rows: rows.map(([, c]) => c), years: years.map(([, c]) => c),
   }, sh);
-  return { w, v };
+  return { w, columns: out, sums: totals };
 }
 
 /** A part, a written argument that is no number. */
@@ -1309,9 +1344,9 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
     case 'atr':
     case 'stochastic':
     case 'keltner_channels': {
-      const parts = [0, 1, 2].map((i) => seriesArg(sh, e, i));
-      const w = joined(sh, parts);
-      const [hi, lo, cl] = parts.map((x) => columnOfValue(x.v)) as [string, string, string];
+      // each period's highest high, lowest low and last close, at the tile's frequency (rolled)
+      const { w, columns } = rolled(sh, e, roleTaken(e.fn)!);
+      const [hi, lo, cl] = columns as [string, string, string];
       if (e.fn === 'atr') return { w, v: { column: w.smoothed(trueRange(w, hi, lo, cl), n('w')) } };
       if (e.fn === 'stochastic') {
         const size = n('w');
@@ -1327,14 +1362,14 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
       const mid = span <= 1 ? cl : w.ewm(cl, fn('divide', lit.integer(span - 1), lit.integer(span + 1)));
       const atr = w.smoothed(trueRange(w, hi, lo, cl), n('a'));
       const k = float(n('k'));
-      const lower = w.row('lower', op('minus', one(mid), op('times', k, one(atr))));
-      const upper = w.row('upper', op('plus', one(mid), op('times', k, one(atr))));
+      // drawn once the average holds w closes (the Phase 4 review's 7: an EMA 20 of 11 drawn)
+      const lower = w.ramped(w.row('lower', op('minus', one(mid), op('times', k, one(atr)))), cl, span, 'running');
+      const upper = w.ramped(w.row('upper', op('plus', one(mid), op('times', k, one(atr)))), cl, span, 'running');
       return { w, v: { lower, upper, width: w.row('width', op('minus', one(upper), one(lower))) } };
     }
     case 'donchian_channels': {
-      const parts = [0, 1].map((i) => seriesArg(sh, e, i));
-      const w = joined(sh, parts);
-      const [hi, lo] = parts.map((x) => columnOfValue(x.v)) as [string, string];
+      const { w, columns } = rolled(sh, e, roleTaken(e.fn)!);
+      const [hi, lo] = columns as [string, string];
       const size = spanOf(e, 'w');
       const frame = Writer.frame(size);
       const upper = w.ramped(w.window('dc_hi', 'max', R(hi), frame), hi, size, frame);
@@ -1342,21 +1377,21 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
       return { w, v: { lower, upper, width: w.row('width', op('minus', one(upper), one(lower))) } };
     }
     case 'obv': {
-      const parts = [0, 1].map((i) => seriesArg(sh, e, i));
-      const w = joined(sh, parts);
-      const [cl, vol] = parts.map((x) => columnOfValue(x.v)) as [string, string];
+      // each period's last close and its whole volume
+      const { w, columns } = rolled(sh, e, roleTaken(e.fn)!);
+      const [cl, vol] = columns as [string, string];
       const d = w.row('d', op('minus', one(cl), one(w.lag(cl, 1))));
       const signed = w.row('obv_v', when(fn('isEmpty', col(d)), float(0), when(fn('greaterThan', one(d), lit.integer(0)), one(vol),
         when(fn('lessThan', one(d), lit.integer(0)), op('minus', float(0), one(vol)), float(0)))));
       return { w, v: { column: w.window('obv', 'plus', R(signed), 'running') } };
     }
     case 'vwap': {
-      const parts = [0, 1].map((i) => seriesArg(sh, e, i));
-      const w = joined(sh, parts);
-      const [px, vol] = parts.map((x) => columnOfValue(x.v)) as [string, string];
+      // each price times its volume on its own dates, totalled a period (at a frequency, a week's every day's)
+      const { w, columns, sums } = rolled(sh, e, roleTaken(e.fn)!, [([p, v]) => op('times', one(p!), one(v!))]);
+      const [px, vol] = columns as [string, string];
       const size = spanOf(e, 'w');
       const frame = Writer.frame(size);
-      const traded = w.window('pv_s', 'plus', R(w.row('pv', op('times', one(px), one(vol)))), frame);
+      const traded = w.window('pv_s', 'plus', R(sums[0]!), frame);
       const volume = w.window('v_s', 'plus', R(vol), frame);
       return { w, v: { column: w.ramped(w.ratio('vwap', one(traded), volume), px, size, frame) } };
     }
@@ -1443,13 +1478,15 @@ function basket(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     const ord0 = one(w.edgeValue(ORD, 'first'));
     const days = w.seconds ? fn('divide', op('minus', one(ORD), ord0), lit.integer(86400)) : op('minus', one(ORD), ord0);
     period = fn('floor', fn('divide', days, lit.integer(7)));
-  } else {
+  } else if (rebalance === 'monthly') {
     // the months from the first date's, less one where the date is before its month's rebalance: the first date that
     // many months on, the database's (its day kept, or its month's last where it has none -- relativedelta's)
     const months = one(w.row('bk_m', op('plus', op('times', op('minus', fn('year', at), fn('year', at0)), lit.integer(12)),
       op('minus', fn('monthNumber', at), fn('monthNumber', at0)))));
     const due = fn('adjust', at0, months, enumValue(DURATION, 'MONTHS'));
     period = op('minus', months, when(fn('lessThan', at, due), lit.integer(1), lit.integer(0)));
+  } else {
+    throw new CubeRefusal(`a basket rebalances daily, weekly or monthly, not ${JSON.stringify(rebalance)}`);
   }
   const k = w.row('bk_k', period);
   const first = w.window('bk_f', 'min', R(ORD), 'all', k);
@@ -1461,7 +1498,10 @@ function basket(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   // into a period, at its first date: each price over the period before's base (the row before carries it)
   const before = bases.map((b) => w.lag(b, 1));
   const into = w.row('bk_g', when(and(atFirst, fn('isNotEmpty', col(before[0]!))), growth(before), none()));
-  return { w, v: { column: w.row('basket', op('times', float(100), op('times', one(w.product(into, 'running')), one(within)))) } };
+  // none from a price of none on, as gs-quant's NaN carries through its units (the Phase 4 review's 8: taken as flat)
+  const gaps = w.window('bk_gaps', 'count', R(w.row('bk_gap', when(or(...prices.map((c) => fn('isEmpty', col(c)))), lit.integer(1), none()))), 'running');
+  return { w, v: { column: w.row('basket', when(fn('greaterThan', one(gaps), lit.integer(0)), none(),
+    op('times', float(100), op('times', one(w.product(into, 'running')), one(within))))) } };
 }
 
 /** A cycle in the observations of a tile's frequency (a classical decomposition's period): undefined, none whole. */
@@ -1693,6 +1733,8 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       // Δx = a + b·x[-1] over the window, least squares (the next phases' 4): b their covariance over x[-1]'s variance --
       // its t-statistic Dickey and Fuller's (statsmodels' adfuller of no lags, a constant), its half-life −ln 2 / ln(1 + b)
       const size = span('w');
+      // w differences (w + 1 values): a fit of a constant and a slope over under 3 has no deviation left to judge it by
+      if (typeof size === 'number' && size > 0 && size < 3) throw new CubeRefusal(`${e.fn} over ${size} differences has no deviation left: w is 0 (every one to date) or at least 3`);
       const frame = Writer.frame(size);
       const xl = w.lag(a, 1);
       const dx = w.row('df_dx', op('minus', one(a), one(xl)));

@@ -626,7 +626,10 @@ dated budget notes; every figure still the database's.
   exponential average of span w (`ewm`, its weight of the one before (w − 1) / (w + 1), pandas' adjust=False);
   `donchian_channels`, the lowest low to the highest high of w; `obv`, the running total of each volume signed by its
   close's move, 0 at the first (StockCharts'; TA-Lib starts at the first volume); `vwap`, Σ price × volume / Σ volume
-  over w (0: to date). *Against a benchmark*, each series' simple returns on its own dates, then the dates both have:
+  over w (0: to date). At a frequency, or of several rows a date, each series is taken by its role (`rolled`, a
+  candle's way; the Phase 4 review's 1: a week's last high and last volume had been read): a high its most, a low its
+  least, a close its last, a volume and a dividend their total, a price times its volume on its own dates, totalled;
+  Keltner's band is drawn once its average holds w closes. *Against a benchmark*, each series' simple returns on its own dates, then the dates both have:
   `tracking_error` (their difference's annualized deviation, in percent), `information_ratio` (its mean over that
   deviation, annualized), `up_capture` and `down_capture` (the first's mean return on the periods the benchmark rose,
   or fell, over the benchmark's then -- arithmetic means, a ratio). `total_return`: each period's (price + the dividends
@@ -639,12 +642,14 @@ dated budget notes; every figure still the database's.
   the first date that many months on, the database's `adjust`, which keeps its day or takes its month's last as
   relativedelta does), so a rebalance is the first date on or after each, as gs-quant's `min(cal[cal >= date])`; the
   basket 100 times each period's growth into it compounded, times its growth within (1 + Σ w (price / its price at the
-  period's first date − 1)). `lead_lag`: the rolling correlation of the first's returns with the second's `lag`
+  period's first date − 1)), none from a price of none on (gs-quant's NaN carries), any weights (a long and a short,
+  1 and −1: a basket divides by nothing). `lead_lag`: the rolling correlation of the first's returns with the second's `lag`
   observations before (below 0, after), each lagged on its own dates. `dickey_fuller` and `half_life`: b of
-  Δx = a + b·x[-1] by least squares over w (their covariance over x[-1]'s variance), its t-statistic from the residual
-  variance (`√((var Δx − b² var x[-1]) / ((n − 2) var x[-1]))`, statsmodels' adfuller of no lags), its half-life
-  −ln 2 / ln(1 + b), none where b ≥ 0 or ≤ −1; a pair's cointegration is `dickey_fuller(residual(y, x, 0))` (Engle and
-  Granger's, its 5% level −3.34, said in its words). Held in `timeseries-queries.test.ts` to each textbook's
+  Δx = a + b·x[-1] by least squares over w differences (w + 1 values; their covariance over x[-1]'s variance), its
+  t-statistic from the residual variance (`√((var Δx − b² var x[-1]) / ((n − 2) var x[-1]))`, statsmodels' adfuller of
+  no lags over those w + 1 values; a w of 1 or 2 refused), its half-life −ln 2 / ln(1 + b), none where b ≥ 0 or ≤ −1;
+  a spread written with its ratio is tested as it is -- a running `residual(y, x, 0)` is each date's own fit, not Engle
+  and Granger's one fit of the whole, so the words claim no cointegration test. Held in `timeseries-queries.test.ts` to each textbook's
   arithmetic over a sample of its own (TA-Lib's ATR and %K, the channels, OBV, VWAP, the active returns' deviation,
   capture, Pearson's correlation of lagged returns, an OLS fit written out) and the basket to gs-quant's own loop,
   daily, weekly and monthly (a 31st's month its last day, a rebalance on a date one series lacks taken at the next);

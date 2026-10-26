@@ -419,3 +419,39 @@ in `timeseries-queries` unless said.
   scatter's first pick lost where the tile had no pair yet (now kept till the pair is whole). Pinned:
   `timeseries-view-dom`.
 
+
+## 15. The next phases' 4 review (2026-10-26)
+
+An independent review of Phase 4 (an analyst's packs), read against TA-Lib, StockCharts, Morningstar, gs-quant's
+`backtesting.basket_series` and statsmodels' `adfuller`, with a probe of its own on the pack's sample at a weekly
+frequency. ATR, %K, Donchian, VWAP, tracking error, the information ratio, lead_lag, total_return, the basket's
+rebalance dates and the Dickey-Fuller algebra matched at the source's own frequency; the findings were at a frequency,
+in what the words claimed, and in what was refused. Each fix pinned by a test that failed first, in
+`timeseries-queries` unless said.
+
+- 1 (blocking), at a frequency (or of several rows a date) the technicals read each period's last value: a weekly ATR
+  of each week's last high and low (4.1033 where its bars give 4.6933), an OBV of a week's last day's volume (1259
+  where the week traded 5925), a total return of a period's last dividend. Each series a function reads is now taken by
+  its role (`TsSignature.reads`): a high its most, a low its least, a close or a price its last, a volume and a dividend
+  their total -- of a bare column its period's aggregate (`candled`), and under a frequency each read on its own dates
+  and rolled up to the period (`rolled`, the candle's way, which the candle now uses); a VWAP's price times its volume
+  on its own dates, totalled. Pinned: "at a weekly frequency, each week a bar".
+- 2, the words called `dickey_fuller(residual(y, x, 0))` Engle and Granger's cointegration test: a running residual
+  is each date's own fit, not one fit of the whole, so its −3.34 does not apply. The words now say so, and test a spread
+  written with its ratio as it is.
+- 3, a long and a short (`basket(x, 1, y, -1)`) was refused as weights summing to 0: a weighted sum's check, which a
+  basket (dividing by nothing, as gs-quant's) does not need. It is the weighted sum's alone. Pinned: "basket: a long
+  and a short", and the parser's own.
+- 4, Dickey-Fuller and the half-life said "the last w observations" over w differences (w + 1 values), and −2.86 at 5%
+  where 30 differences give about −2.97: both said as they are.
+- 5 and 6, capture is of arithmetic means (Morningstar's compounds each) and OBV starts at 0 (StockCharts'; TA-Lib's at
+  the first volume): said in the words, and the test's header no longer names Morningstar's or TA-Lib's for them.
+- 7, Keltner's band was drawn from the ATR's first (11 closes into an average of 20): now once its average holds w.
+- 8, against invariant 4: a Dickey-Fuller of 1 or 2 differences drew nothing and said nothing (refused now); the
+  basket read any word but daily and weekly as monthly (it throws); a price of none mid-basket was taken as flat (now
+  none from there on, as gs-quant's NaN carries). Pinned: "dickey_fuller over 1 or 2 differences refused", "basket:
+  ... none from a price of none on".
+- 9, ATR's words described a first true range that enters no value: they say TA-Lib's seed.
+
+Not changed: the tests' gaps the review named beyond these (a capture's benchmark exactly 0, stochastic's flat window,
+a date-time source's weekly basket and yield) are boundaries the queries state in words; they are left as they are.

@@ -435,16 +435,18 @@ export function seriesWords(n: TsSignature['series'], reads?: readonly string[])
 }
 
 /**
- * What is wrong with a weighted sum's arguments -- two series or more, each followed by its weight (a number), the
- * weights summing to other than 0 (the sum divides: weights of floats summing to near 0, 0.1 + 0.2 - 0.3, as much as 0
- * itself -- the Phase 1 review's 8) -- in words after its name, or undefined.
+ * What is wrong with the arguments of a function of many series (`fn`) -- two series or more, each followed by its
+ * weight (a number); a weighted sum's weights summing to other than 0 (its sum divides: weights of floats summing to near
+ * 0, 0.1 + 0.2 - 0.3, as much as 0 itself -- the Phase 1 review's 8), a basket's any (a long and a short, 1 and -1: its
+ * weights divide nothing, as gs-quant's -- the Phase 4 review's 3) -- in words after its name, or undefined.
  */
-export function manyProblem(args: readonly unknown[]): string | undefined {
+export function manyProblem(fn: TsFunctionName, args: readonly unknown[]): string | undefined {
   const pairs = `reads ${seriesWords('many')}`;
   if (args.length < 4 || args.length % 2 !== 0) return pairs;
   const weights = args.filter((_, i) => i % 2 === 1);
   if (!weights.every((w) => isRecord(w) && w['kind'] === 'number' && typeof w['value'] === 'number')) return pairs;
   const values = weights.map((w) => (w as { value: number }).value);
+  if (fn !== 'weighted_sum') return undefined;
   // a check of the spec's own numbers, never a figure drawn
   const sum = values.reduce((t, v) => t + v, 0);
   const size = values.reduce((t, v) => t + Math.abs(v), 0);
@@ -543,7 +545,7 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
       if (!f) return `${what} calls ${JSON.stringify(e['fn'] ?? null)}, which this DataCube does not compute`;
       const fn = e['fn'] as TsFunctionName;
       if (!Array.isArray(e['args'])) return `${what}: ${fn} reads ${seriesWords(f.series, f.reads)}`;
-      const many = f.series === 'many' ? manyProblem(e['args']) : undefined;
+      const many = f.series === 'many' ? manyProblem(fn, e['args']) : undefined;
       if (many !== undefined) return `${what}: ${fn} ${many}`;
       if (f.series !== 'many' && e['args'].length !== f.series) return `${what}: ${fn} reads ${seriesWords(f.series, f.reads)}`;
       for (const [i, a] of e['args'].entries()) {
