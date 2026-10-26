@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { editTimeseries, firstPlotOf, firstTimeseries, TsEditRefusal, type TsGridColumns } from '../src/timeseries-edit.ts';
+import { editTimeseries, firstPlotOf, firstTimeseries, judgedEdit, TsEditRefusal, type TsGridColumns } from '../src/timeseries-edit.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { readTimeseries, tsStateOf, type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import type { FilterNode } from '../src/snapshot.ts';
@@ -114,6 +114,26 @@ describe('a timeseries tile changed by its one rule', () => {
     assert.deepEqual(editTimeseries(more, { kind: 'state', state: 'dynamic', filters: new Map() }).sources.map((s) => s.kept), [undefined, undefined, undefined]);
     // a source whose grid is not open has no filter to keep: refused, not frozen on nothing
     refused(() => editTimeseries(SPEC, { kind: 'state', state: 'frozen', filters: new Map([['prices', tech]]) }), /source rates's grid is not open/);
+  });
+
+  // the second audit's A-S1, A-S3: one judge for both sides -- a change refused for a problem it makes, never for one
+  // the tile had; a tile of no series one either may leave; a slot it has not refused by name
+  it('a change judged alike on both sides: refused for a problem it makes, not one the tile had; no series allowed', () => {
+    const columns = new Map([['px', PRICES.columns], ['rates', [{ name: 'tenor', type: 'String' }, { name: 'obs', type: 'StrictDate' }, { name: 'yield', type: 'Float' }]]]);
+    const of = (): typeof columns => columns;
+    const px: TimeseriesSpec = { ...SPEC, sources: [{ alias: 'px', cube: 'prices', date: 'day', key: 'symbol' }, SPEC.sources[1]!], series: [S('A', 'close[SPX]')] };
+    // a series of a column there is not: a problem it makes, refused
+    refused(() => judgedEdit(px, editTimeseries(px, { kind: 'plot', series: { expr: parseExpr('nosuch') } }), of), /reads 'nosuch', which source px has not/);
+    // the tile with that problem already (its column since gone): another change is kept, the problem the tile's still
+    const broken: TimeseriesSpec = { ...px, series: [...px.series, S('B', 'gone')] };
+    const hidden = judgedEdit(broken, editTimeseries(broken, { kind: 'hide', id: 'A', hidden: true }), of);
+    assert.equal(hidden.series[0]!.hidden, true);
+    // the last series taken off: a tile of no series, on both sides
+    assert.deepEqual(judgedEdit(px, editTimeseries(px, { kind: 'unplot', id: 'A' }), of).series, []);
+    // a tile made new is judged whole
+    refused(() => judgedEdit(null, broken, of), /reads 'gone'/);
+    // a slot it has not, refused by name -- never dropped
+    refused(() => editTimeseries(px, { kind: 'slots', slots: { grian: 'week' } as never }), /there is no "grian" among a tile's slots/);
   });
 
   it('read back frozen whole or not at all: a tile half keeping its filters is refused by name', () => {

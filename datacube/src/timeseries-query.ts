@@ -28,13 +28,14 @@ import {
 import { filterNode, literalNode, sourceWithDerived } from './query.ts';
 import { columnType, CubeRefusal, type CubeSnapshot, type FilterNode } from './snapshot.ts';
 import { WINDOW_ALL_PREFIX } from './grid/columns.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import { isDay, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import {
   filterRead,
   MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, TS_POINT_LIMIT, TS_RANGES, type TimeseriesSpec, type TsAggregate,
   type TsExpr, type TsMatch, type TsRangeWord, type TsSeries, type TsSource,
 } from './timeseries-spec.ts';
-import { inlined, isBand, isCandles, levelOf, paramOf, sourceAlias, sourcesOf, unitOf, type TsUnit } from './timeseries-expr.ts';
+import { inlined, isBand, isCandles, levelOf, paramOf, seriesName, sourceAlias, sourcesOf, splitName, unitOf, type TsUnit } from './timeseries-expr.ts';
 import type { TimeGrain } from './chart-spec.ts';
 
 /** The columns a series' query answers with. */
@@ -1040,12 +1041,48 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
   };
 }
 
+/**
+ * WHAT A SERIES' ROWS SAY A READER SHOULD KNOW, from its query's answer -- the one rule the viewer's drawing and Python's
+ * frame say them by (the second audit's P-3: Python's frame dropped them): a period's value one of several rows at its
+ * latest time, the database's to pick (the review's Q7); a line whose dates are no frequency to annualize by, by its
+ * name (the review's Q3; the second audit's P-2a). `table`: its answer's columns, its counted rows and its periods a year
+ * among them (a host may send those alone); `first`: the source it reads first.
+ */
+export function seriesNotes(ts: TimeseriesSpec, s: TsSeries, table: ResultTable, first: string | undefined): string[] {
+  const notes: string[] = [];
+  const column = (name: string): readonly unknown[] | undefined => table.columns.find((c) => c.name === name)?.values;
+  const rows = column(TS_ROWS);
+  if (rows && rows.some((n) => n !== null && Number(n) > 1)) {
+    const key = ts.sources.find((x) => x.alias === first)?.key;
+    notes.push(`${seriesName(s)}: several rows share a date's latest time, and one was taken -- match one (a column's [...])`
+      + `${key !== undefined && s.split === undefined ? ` or split it by ${key}` : ''}, so each date has one.`);
+  }
+  const perYear = column(TS_PER_YEAR);
+  if (perYear && perYear.length > 0) {
+    const splits = column(TS_SPLIT);
+    const lines = new Map<string, { split: unknown; annualized: boolean }>();
+    perYear.forEach((n, i) => {
+      const split = splits ? splits[i] ?? null : undefined;
+      const k = split === undefined ? '' : JSON.stringify(split);
+      const line = lines.get(k) ?? { split, annualized: false };
+      if (n !== null) line.annualized = true;
+      lines.set(k, line);
+    });
+    const none = [...lines.values()].filter((l) => !l.annualized).map((l) => splitName(s, l.split))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    if (none.length > 0) {
+      notes.push(`${none.join(', ')}: ${none.length === 1 ? 'its' : 'their'} dates are no frequency it can be annualized by (daily, weekly, monthly, quarterly, yearly): choose the tile's frequency.`);
+    }
+  }
+  return notes;
+}
+
 /** Whether a series' expression reads the first date shown (an index, a change from the start, compare's rebasing). */
 export function readsAnchor(ts: TimeseriesSpec, series: TsSeries): boolean {
   const walk = (e: TsExpr): boolean => e.kind === 'call'
     ? ['index', 'rebase', 'change', 'percent_change'].includes(e.fn) || e.args.some(walk)
     : e.kind === 'binary' ? walk(e.left) || walk(e.right) : false;
-  // a series that cannot be read (one reading itself) is none to ask: its problem is said where it is drawn
+  // a series that cannot be inlined (one reading itself) is refused here, as where it is drawn
   const expr = inlined(series.expr, ts.series);
   return walk(expr) || (ts.view?.compare !== undefined && !isBand(expr) && !isCandles(expr) && levelOf(expr));
 }

@@ -983,6 +983,26 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     clickTab('Series');
     await shown(host, '[data-tile="ts"] .dc-ts-bar');
     assert.equal(pg().shownSheet, 'sheet-ts');
+    // the second audit's P-1: drawn once, its sheet then left -- a change of its grid asks it nothing while it is not
+    // shown (the grid's own queries alone), and asks it again when it is
+    const cost = async (desk: string): Promise<number> => {
+      const before = engine.queries;
+      await pg().grid(a)!.edit([{ kind: 'filter', filter: { kind: 'condition', column: 'desk', operator: 'equal', value: desk } }], 'filter');
+      await settle();
+      await new Promise((r) => setTimeout(r, 400));
+      return engine.queries - before;
+    };
+    await settle();
+    await new Promise((r) => setTimeout(r, 400));
+    clickTab('trades.csv');
+    const hiddenCost = await cost('FX');
+    const hidden = engine.queries;
+    clickTab('Series');
+    await settle();
+    await new Promise((r) => setTimeout(r, 400));
+    assert.ok(engine.queries > hidden, 'its sheet shown again, it asks again');
+    const shownCost = await cost('EM');
+    assert.ok(hiddenCost < shownCost, `hidden, an edit of its grid asks it nothing (${hiddenCost} queries hidden, ${shownCost} shown)`);
   });
 
   // the review's G4 (docs/TIMESERIES_REVIEW_2026_10_25.md): a grid removed while a timeseries read it took its cube with

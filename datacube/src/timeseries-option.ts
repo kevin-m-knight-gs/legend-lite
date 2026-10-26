@@ -17,9 +17,9 @@ import { escapeHtml, periodText, type ChartTheme } from './chart-option.ts';
 import {
   MAX_PANES, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsExpr, type TsSeries,
 } from './timeseries-spec.ts';
-import { boundsOf, exprText, inlined, seriesName, type TsUnit } from './timeseries-expr.ts';
+import { boundsOf, exprText, inlined, seriesName, splitName, type TsUnit } from './timeseries-expr.ts';
 import {
-  TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery,
+  TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, seriesNotes, type TsQuery,
 } from './timeseries-query.ts';
 
 /** A series' query and what the database answered. */
@@ -121,17 +121,9 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
     const lows = column(t, TS_LOW);
     const splits = column(t, TS_SPLIT);
     if (t.rowCount > TS_POINT_LIMIT) notes.push(`${seriesName(s)}: its latest ${TS_POINT_LIMIT.toLocaleString(UI_LOCALE)} points (it has more).`);
-    // a period's value one of several rows at its latest time: which one is the database's to pick (the review's Q7)
-    const rows = column(t, TS_ROWS);
-    if (rows && rows.some((n) => (toNumber(n) ?? 0) > 1)) {
-      const key = ts.sources.find((x) => x.alias === r.query.sources[0])?.key;
-      notes.push(`${seriesName(s)}: several rows share a date's latest time, and one was taken -- match one (a column's [...])`
-        + `${key !== undefined && s.split === undefined ? ` or split it by ${key}` : ''}, so each date has one.`);
-    }
-    // annualized with no frequency: by what the database inferred from its dates, or by nothing (the review's Q3) --
-    // line by line, a split's inferred from each line's own dates (the second audit's P-2a)
-    const perYear = column(t, TS_PER_YEAR);
-    const unannualized: string[] = [];
+    // what its rows say a reader should know -- several rows a date, no frequency to annualize by -- by the rule
+    // Python's frame says them by too (timeseries-query.ts seriesNotes)
+    notes.push(...seriesNotes(ts, s, t, r.query.sources[0]));
     // a log scale draws levels alone: a line that may be zero or below keeps its axis straight (the review's G3)
     if (ts.panes?.[s.pane ?? 0]?.log === true && !r.query.level) {
       notes.push(`${seriesName(s)} is no level (it may be zero or below), so its axis is not on a log scale.`);
@@ -164,7 +156,6 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
       const hi = take(upper);
       const wd = take(width);
       const candle = r.query.candles && opens && highs && lows ? { open: take(opens)!, high: take(highs)!, low: take(lows)! } : undefined;
-      if (perYear && g.at.length > 0 && g.at.every((i) => perYear[i] === null)) unannualized.push(splitName(s, g.split));
       lines.push({
         key: g.split === undefined ? s.id : `${s.id}\u0000${String(g.split)}`,
         series: s,
@@ -185,9 +176,6 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
         ...(bounds !== undefined ? { bounds } : {}),
       });
     }
-    if (unannualized.length > 0) {
-      notes.push(`${unannualized.join(', ')}: ${unannualized.length === 1 ? 'its' : 'their'} dates are no frequency it can be annualized by (daily, weekly, monthly, quarterly, yearly): choose the tile's frequency.`);
-    }
     // a level at or below zero on a log pane: a log scale cannot draw it, so its axis stays straight (the second
     // audit's S1: a yield gone negative, its points left off a log axis without a word)
     if (ts.panes?.[s.pane ?? 0]?.log === true && r.query.level) {
@@ -201,16 +189,6 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
   return { lines, notes };
 }
 
-/**
- * A line's name: its series' -- and, one of a split series' lines, its value with it: a named series' after its name
- * ("Yield 10Y"), a plain column's alone ("AAPL"), else before its expression ("AAPL volatility(close, 63)").
- */
-function splitName(s: TsSeries, split: Scalar | undefined): string {
-  if (split === undefined) return seriesName(s);
-  if (s.name !== undefined) return `${s.name} ${String(split)}`;
-  const plain = s.expr.kind === 'column' && (s.expr.where ?? []).length === 0;
-  return plain ? String(split) : `${String(split)} ${seriesName(s)}`;
-}
 
 // ------------------------------------------------------------------ writing a value
 
@@ -243,17 +221,23 @@ export function valueText(line: Pick<TsLine, 'unit'>, v: number | null, format?:
   }
 }
 
+/** A number to `digits` places, as a tick says it: one that rounds to zero is zero, never "-0" (the review's G9). */
+function places(v: number, digits: number): string {
+  const r = Math.round(v * 10 ** digits) / 10 ** digits;
+  return (r === 0 ? 0 : r).toLocaleString(UI_LOCALE, { maximumFractionDigits: digits });
+}
+
 /** An axis' tick written by the unit of the lines on it: shorter than a hover's (no places a tick does not need). */
-function tickText(unit: TsUnit, v: number): string {
+export function tickText(unit: TsUnit, v: number): string {
   switch (unit) {
-    case 'ratio': return `${(v * 100).toLocaleString(UI_LOCALE, { maximumFractionDigits: 1 })}%`;
-    case 'percent': return `${v.toLocaleString(UI_LOCALE, { maximumFractionDigits: 1 })}%`;
+    case 'ratio': return `${places(v * 100, 1)}%`;
+    case 'percent': return `${places(v, 1)}%`;
     default: {
       const a = Math.abs(v);
-      if (a >= 1e9) return `${(v / 1e9).toLocaleString(UI_LOCALE, { maximumFractionDigits: 1 })}B`;
-      if (a >= 1e6) return `${(v / 1e6).toLocaleString(UI_LOCALE, { maximumFractionDigits: 1 })}M`;
-      if (a >= 1e4) return `${(v / 1e3).toLocaleString(UI_LOCALE, { maximumFractionDigits: 1 })}K`;
-      return v.toLocaleString(UI_LOCALE, { maximumFractionDigits: a >= 100 ? 0 : a >= 1 ? 2 : 4 });
+      if (a >= 1e9) return `${places(v / 1e9, 1)}B`;
+      if (a >= 1e6) return `${places(v / 1e6, 1)}M`;
+      if (a >= 1e4) return `${places(v / 1e3, 1)}K`;
+      return places(v, a >= 100 ? 0 : a >= 1 ? 2 : 4);
     }
   }
 }

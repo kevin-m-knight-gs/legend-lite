@@ -77,6 +77,12 @@ const PARAM_ABOUT: Readonly<Record<string, string>> = {
   type: 'simple: x / x[-obs] - 1; log: ln x - ln x[-obs]; absolute: x - x[-obs]',
 };
 
+/** Where every rolling figure's first value differs from gs-quant's: drawn at the observation its window first holds
+ *  w, where gs-quant's ramp (apply_ramp, x[w:]) drops that one too. */
+const RAMP_DIFFERS = 'drawn from the observation its window first holds w (gs-quant\'s ramp starts one observation later)';
+/** Where beta differs on two calendars: each series' returns on its own dates, joined on the dates both have. */
+const BETA_DIFFERS = 'on two calendars, over the dates both have (gs-quant takes the covariance over every date either has, over the benchmark\'s own variance)';
+
 /**
  * THE FUNCTIONS' WORDS, gs-quant's names first (PlotTool Pro's words), each with what it computes -- and, where
  * DataCube's differs, how. Every one is written by timeseries-query.ts as columns the database computes.
@@ -137,8 +143,9 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
     gsQuant: 'statistics.std', aliases: ['stdev'],
     differs: 'w defaults to 22 observations (gs-quant: every observation)',
   },
+  // in its input's units squared: a number, never a ratio's or a price's units (the second audit's N5)
   var: {
-    label: 'Rolling variance', family: 'Rolling statistics', unit: 'same', about: 'The sample variance over the last w observations.',
+    label: 'Rolling variance', family: 'Rolling statistics', unit: 'number', about: 'The sample variance over the last w observations.',
     gsQuant: 'statistics.var', aliases: ['variance'],
     differs: 'w defaults to 22 observations (gs-quant: every observation)',
   },
@@ -234,7 +241,10 @@ export const TS_FUNCTIONS: readonly TsFunction[] = (Object.keys(WORDS) as TsFunc
     if (said === undefined) throw new Error(`${name}'s parameter ${p.name} is said by nothing`);
     return { ...p, about: said };
   });
-  return { name, series: sig.series, params, ...words };
+  // every rolling figure's ramp, and beta's calendar, said where they differ (the second audit's N1, N2: undeclared)
+  const differs = [words.differs, sig.params.some((p) => p.name === 'w') ? RAMP_DIFFERS : undefined,
+    name === 'beta' ? BETA_DIFFERS : undefined].filter((d): d is string => d !== undefined);
+  return { name, series: sig.series, params, ...words, ...(differs.length > 0 ? { differs: differs.join('; ') } : {}) };
 });
 
 /** The functions by name. */
@@ -361,13 +371,16 @@ export function aliasFor(title: string | undefined, taken: readonly string[]): s
   for (let n = 2; ; n++) if (!taken.includes(`${base}${n}`)) return `${base}${n}`;
 }
 
+/** A series that cannot be inlined: one reading itself, or a series there is not -- said where it is drawn. */
+export class TsInlineError extends Error {}
+
 /** An expression with every `$A` replaced by A's own expression (refs checked first: timeseriesProblems). */
 export function inlined(e: TsExpr, series: readonly TsSeries[], seen: readonly string[] = []): TsExpr {
   switch (e.kind) {
     case 'ref': {
-      if (seen.includes(e.series)) throw new Error(`series ${e.series} reads itself: ${[...seen, e.series].map((id) => `$${id}`).join(' reads ')}`);
+      if (seen.includes(e.series)) throw new TsInlineError(`series ${e.series} reads itself: ${[...seen, e.series].map((id) => `$${id}`).join(' reads ')}`);
       const s = series.find((x) => x.id === e.series);
-      if (!s) throw new Error(`there is no series ${e.series}`);
+      if (!s) throw new TsInlineError(`there is no series ${e.series}`);
       return inlined(s.expr, series, [...seen, e.series]);
     }
     case 'binary':
@@ -396,8 +409,10 @@ export function unitOf(e: TsExpr): TsUnit {
       // review's Q4: drawn a hundred times too large as a ratio still); any other number keeps its unit
       const by = e.right.kind === 'number' ? { unit: l, n: e.right.value } : e.left.kind === 'number' && e.op === '*' ? { unit: r, n: e.left.value } : undefined;
       if (by !== undefined) {
-        if (by.unit === 'ratio' && e.op === '*' && by.n === 100) return 'percent';
-        if (by.unit === 'percent' && e.op === '/' && by.n === 100) return 'ratio';
+        // and by a hundredth: a percent times 0.01 is a ratio, a ratio over 0.01 a percent (the second audit's N5)
+        const scale = e.op === '*' ? by.n : e.op === '/' ? 1 / by.n : undefined;
+        if (by.unit === 'ratio' && scale === 100) return 'percent';
+        if (by.unit === 'percent' && scale === 0.01) return 'ratio';
         return by.unit;
       }
       // a number over a series (1 / x), two series multiplied or divided: a number
@@ -816,6 +831,17 @@ export function seriesName(s: TsSeries): string {
   return s.name ?? exprText(s.expr);
 }
 
+/**
+ * A line's name: its series' -- and, one of a split series' lines, its value with it: a named series' after its name
+ * ("Yield 10Y"), a plain column's alone ("AAPL"), else before its expression ("AAPL volatility(close, 63)").
+ */
+export function splitName(s: TsSeries, split: unknown): string {
+  if (split === undefined) return seriesName(s);
+  if (s.name !== undefined) return `${s.name} ${String(split)}`;
+  const plain = s.expr.kind === 'column' && (s.expr.where ?? []).length === 0;
+  return plain ? String(split) : `${String(split)} ${seriesName(s)}`;
+}
+
 /** The next free series id: the first capital letter no series has (then A2, B2, ...). */
 export function nextSeriesId(series: readonly TsSeries[]): string {
   const taken = new Set(series.map((s) => s.id));
@@ -835,6 +861,9 @@ export interface TsColumn {
   readonly type: string | undefined;
 }
 
+/** What a tile of no series says where it is drawn: a tile either side may leave (timeseries-edit.ts judgedEdit). */
+export const NO_SERIES = 'Add a series to plot.';
+
 /**
  * What stops a timeseries from being drawn over its sources' columns, in words; empty when it can be. `columns`: each
  * source's columns by its alias, as its grid has them now -- undefined for a source whose grid the page cannot give
@@ -848,7 +877,8 @@ export function timeseriesProblems(ts: TimeseriesSpec, columns: ReadonlyMap<stri
   for (const src of ts.sources) {
     const cols = columns.get(src.alias);
     if (cols === undefined) {
-      out.push(`Source ${src.alias}'s grid is not on the page (it was removed): Undo brings it back, or Settings reads another grid.`);
+      // (no "Undo brings it back": a page reopened has no history -- the second audit's A notes)
+      out.push(`Source ${src.alias}'s grid is not on the page: Settings reads another grid.`);
       continue;
     }
     const typeOf = new Map(cols.map((c) => [c.name, c.type]));
@@ -858,7 +888,7 @@ export function timeseriesProblems(ts: TimeseriesSpec, columns: ReadonlyMap<stri
     else if (!isTemporal(dateType) || isTimeOfDay(dateType)) out.push(`Source ${src.alias}'s '${src.date}' is not a date: a timeseries is read along a date or a date-time.`);
     if (src.key !== undefined && !typeOf.has(src.key)) out.push(`Source ${src.alias} has no column '${src.key}' to name its instruments by.`);
   }
-  if (ts.series.length === 0) out.push('Add a series to plot.');
+  if (ts.series.length === 0) out.push(NO_SERIES);
   for (const s of ts.series) {
     const name = `Series ${s.id}`;
     for (const ref of refsOf(s.expr)) {

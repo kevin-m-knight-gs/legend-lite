@@ -349,6 +349,8 @@ interface SeriesTile {
   view: TimeseriesView | null;
   /** Its state button, as it now is (dynamic, frozen, detached). */
   readonly paint: () => void;
+  /** A grid it reads landed a view while its sheet was not shown: it asks again when its sheet is. */
+  stale: boolean;
 }
 
 interface ChartTile {
@@ -1569,7 +1571,13 @@ export class CubePage {
   /** The timeseries tiles reading grid `grid` told its view landed: each asks again, as a chart does. */
   #refreshSeries(grid: string): void {
     const cube = this.#cubeOf(grid);
-    for (const series of this.#series.values()) if (series.spec.sources.some((s) => s.cube === cube)) series.view?.refresh();
+    for (const [id, series] of this.#series) {
+      if (!series.spec.sources.some((s) => s.cube === cube)) continue;
+      // one on a sheet not shown asks nothing now -- it asks when its sheet is (`#drawShownSeries`): a grid sorted on
+      // its own sheet asked a hidden tile's every query again (the second audit's P-1; docs/TENETS.md lazy Work)
+      if (this.#sheetOf(id) === this.#shown) series.view?.refresh();
+      else if (series.view) series.stale = true;
+    }
   }
 
   #reconcileGrid(grid: string, filter: FilterNode | undefined): void {
@@ -2333,7 +2341,7 @@ export class CubePage {
         id: `tile.state.${s}` as const, label: SERIES_STATE_WORDS[s].label, hint: `It ${SERIES_STATE_WORDS[s].says.replace(/^it /, '')}`, checked: now === s,
       })) }], at.left, at.bottom);
     });
-    this.#series.set(view.id, { spec: view.spec, body, view: null, paint });
+    this.#series.set(view.id, { spec: view.spec, body, view: null, paint, stale: false });
     this.#place({ id: view.id, title: view.title ?? timeseriesTitle(view.id), element: body, actions: [], state: pill });
     paint();
     this.#drawTimeseries(view.id);
@@ -2371,7 +2379,13 @@ export class CubePage {
 
   /** The timeseries tiles of the sheet shown not yet drawn, drawn: a sheet shown, a step that leaves one shown. */
   #drawShownSeries(): void {
-    for (const [id, tile] of this.#series) if (!tile.view) this.#drawTimeseries(id);
+    for (const [id, tile] of this.#series) {
+      if (!tile.view) this.#drawTimeseries(id);
+      else if (tile.stale && this.#sheetOf(id) === this.#shown) {
+        tile.stale = false;
+        tile.view.refresh(0);
+      }
+    }
   }
 
   /** A timeseries tile off the board, as a step leaves it. */

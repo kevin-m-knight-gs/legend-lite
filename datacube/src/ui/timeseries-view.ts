@@ -20,7 +20,7 @@ import { themeOf } from '../chart-option.ts';
 import type { ChartPicture } from '../chart-render.ts';
 import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import {
-  MAX_PANES, readTimeseries, TS_RANGES, viewSetting, type TimeseriesSpec, type TsAnnotation, type TsExpr,
+  MAX_PANES, TS_RANGES, viewSetting, type TimeseriesSpec, type TsAnnotation, type TsExpr,
   type TsRangeWord, type TsSeries, type TsSource, type TsState, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
@@ -28,7 +28,7 @@ import {
   sourcesOf, timeseriesProblems, TsSyntaxError, type TsColumn, TS_FUNCTIONS, type TsFamily,
 } from '../timeseries-expr.ts';
 import {
-  editTimeseries, firstTimeseries as firstOf, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
+  editTimeseries, firstTimeseries as firstOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
 } from '../timeseries-edit.ts';
 import {
   boundsQuery, keyValuesQuery, rangeStartName, readsAnchor, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_LATEST,
@@ -88,6 +88,13 @@ export interface TimeseriesHost {
   setSpec(spec: TimeseriesSpec): void;
   /** Its renderer (a test's stand-in); else timeseries-render.ts. */
   readonly mount?: (el: HTMLElement, on: MountOn) => MountedTimeseries;
+}
+
+/** A source's bound as the database answered it (timeseries-query.ts boundsQuery): its one row's value, null for none. */
+function boundsValue(t: ResultTable, name: string): Scalar | null {
+  const c = t.columns.find((x) => x.name === name);
+  if (!c) throw new Error(`the tile's bounds answered with no ${name}`);
+  return c.values[0] ?? null;
 }
 
 /** A grid of the page as the tile's edits read it (timeseries-edit.ts TsGridColumns): its columns as its query is now. */
@@ -306,10 +313,14 @@ export class TimeseriesView {
   // -- the spec changed ----------------------------------------------------------------------------------------------
 
   /** The person changed the spec: kept by the page, and drawn (or asked) at once. */
+  /** A change kept, judged as Python's is (timeseries-edit.ts judgedEdit): refused for a problem it makes, in its words. */
   #set(spec: TimeseriesSpec): void {
-    const read = readTimeseries(JSON.parse(JSON.stringify(spec)));
-    if (typeof read === 'string') {
-      this.#say([read], true);
+    let read: TimeseriesSpec;
+    try {
+      read = judgedEdit(this.#spec, spec, (s) => this.#columns(s));
+    } catch (e) {
+      if (!(e instanceof TsEditRefusal)) throw e;
+      this.#say([e.message], true);
       return;
     }
     this.#apply(read);
@@ -394,17 +405,22 @@ export class TimeseriesView {
     if ('last' in r) {
       if (r.last === 'max') return {};
       // the source with the latest date of all, by comparing the dates the database gave; its start for the range
+      // (the bounds query writes both columns: one missing is a bug, never the whole range shown in its place -- the
+      // second audit's G notes; a source of no dates has no latest, and a tile of none shows what there is)
       let best: ResultTable | undefined;
       let latest = '';
       for (const t of this.#bounds.values()) {
-        const at = String(t.columns.find((c) => c.name === TS_LATEST)?.values[0] ?? '');
+        const v = boundsValue(t, TS_LATEST);
+        if (v === null) continue;
+        const at = String(v);
         if (at > latest) {
           latest = at;
           best = t;
         }
       }
-      const from = best?.columns.find((c) => c.name === rangeStartName(r.last))?.values[0];
-      return from === undefined || from === null ? {} : { from: String(from).slice(0, 10) };
+      if (!best) return {};
+      const from = boundsValue(best, rangeStartName(r.last));
+      return from === null ? {} : { from: String(from).slice(0, 10) };
     }
     return { ...(r.from !== undefined ? { from: r.from } : {}), ...(r.to !== undefined ? { to: r.to } : {}) };
   }
@@ -455,9 +471,11 @@ export class TimeseriesView {
     if (gen !== this.#gen || this.#disposed) return;
     this.#results = results;
     this.#failed = failed;
-    this.#canvas.removeAttribute('aria-busy');
     await this.#draw();
     await this.#statistics(gen);
+    // busy until its statistics are answered too: a refused one is said by then (the second audit's G notes: a browser
+    // check that waited for the drawing alone met none)
+    if (gen === this.#gen && !this.#disposed) this.#canvas.removeAttribute('aria-busy');
   }
 
   /** The window moved (a zoom, a range): the series that read its first date asked again, and the statistics. */
@@ -1081,7 +1099,7 @@ export class TimeseriesView {
       const key = select(doc, [['', 'No instruments'], ...cols.filter((c) => !isNumeric(c.type) && !isTemporal(c.type)).map((c) => [c.name, c.name] as const)],
         s.key ?? '', (v) => this.#edit({ kind: 'source', alias: s.alias, key: v === '' ? null : v }), 'Instrument column');
       const where = el(doc, 'span', 'dc-ts-hint', grid === undefined ? 'its grid is not on the page'
-        : grid.kept ? `${grid.title} (its grid removed: read as it was; Undo brings the grid back)` : grid.title);
+        : grid.kept ? `${grid.title} (its grid removed: read as it was)` : grid.title);
       // the tile's own rule says whether it may stop reading this grid, and why not
       let refused: string | undefined;
       try {

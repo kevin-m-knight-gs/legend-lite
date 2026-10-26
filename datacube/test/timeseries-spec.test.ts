@@ -163,6 +163,8 @@ describe('what an expression reads, and is', () => {
     // percent over 100 a ratio; another number keeps the unit; a number over a series is a number
     assert.deepEqual(['100 * returns(close)', 'returns(close) * 100', 'volatility(close) / 100', '2 * returns(close)', '1 / close']
       .map(u), ['percent', 'percent', 'ratio', 'ratio', 'number']);
+    // the second audit's N5: by a hundredth too, and a variance in its input's units squared -- a number
+    assert.deepEqual(['volatility(close) * 0.01', 'returns(close) / 0.01', 'var(returns(close))'].map(u), ['ratio', 'percent', 'number']);
   });
 
   // the review's Q2: what compare and the level statistics take -- a price, an index, a ratio or product of prices --

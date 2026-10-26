@@ -11,10 +11,15 @@
  * resolved here, and refused; every other host still goes through the proxy. No proxy named: no flag.
  */
 export function proxyArgs(env = process.env) {
-  // read as Chromium reads them itself (its Linux proxy settings): each name lowercase first, then uppercase; all_proxy,
-  // when named, the one proxy for every scheme, else https_proxy and http_proxy each for its own (the timeseries
-  // review's G6, docs/TIMESERIES_REVIEW_2026_10_25.md, 2026-10-25: ALL_PROXY lost to HTTPS_PROXY here)
-  const read = (name) => env[name] || env[name.toUpperCase()] || undefined;
+  // the variables named as Chromium names them itself (its Linux proxy settings, proxy_config_service_linux.cc): each
+  // lowercase first, then uppercase -- a lowercase one set empty is none, the uppercase not read (base/environment.cc
+  // GetVar finds it set); all_proxy, when named, the one proxy for every scheme, else https_proxy and http_proxy each
+  // for its own (the timeseries review's G6, docs/TIMESERIES_REVIEW_2026_10_25.md, 2026-10-25: ALL_PROXY lost to
+  // HTTPS_PROXY here). Unlike Chromium's own reading, which takes every one for an HTTP proxy, its scheme is kept.
+  const read = (name) => {
+    const v = env[name] !== undefined ? env[name] : env[name.toUpperCase()];
+    return v === undefined || v === '' ? undefined : v;
+  };
   const all = read('all_proxy');
   const https = read('https_proxy');
   const http = read('http_proxy');
@@ -36,7 +41,9 @@ function proxyServer(value) {
   const scheme = at < 0 ? '' : v.slice(0, at + 3);
   // its host and port: after any credentials, before any path -- a name, or an IPv6 address in brackets
   const authority = (at < 0 ? v : v.slice(at + 3)).split('/')[0].replace(/^[^@]*@/, '');
-  if ((scheme !== '' && !/^[a-z][a-z0-9+.-]*:\/\/$/i.test(scheme)) || !/^(?:\[[\da-f:.]+\]|[^:@\s[\]]+)(?::\d+)?$/i.test(authority)) {
+  // a scheme the flag takes (http, https, socks4, socks5, socks): another (socks5h, ftp) it drops, every host then going
+  // direct (the second audit's G notes)
+  if ((scheme !== '' && !/^(?:https?|socks[45]?):\/\/$/i.test(scheme)) || !/^(?:\[[\da-f:.]+\]|[^:@\s[\]]+)(?::\d+)?$/i.test(authority)) {
     throw new Error(`the proxy ${JSON.stringify(value)} is no proxy URL Chromium's --proxy-server takes`);
   }
   return `${scheme}${authority}`;

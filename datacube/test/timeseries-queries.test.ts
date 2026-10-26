@@ -318,12 +318,19 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close((await line(spec({ A: 'volatility(close[AAA], 10, log)' }))).values, logWant, 'log vol', 1e-7);
   });
 
-  it('volatility at a monthly frequency annualizes by twelve', async () => {
-    const months = [...new Set(DAYS.map((d) => d.slice(0, 7)))];
-    const last = months.map((m) => AAA[DAYS.map((d) => d.slice(0, 7)).lastIndexOf(m)]!);
+  // the second audit's N8: its monthly form compared two nones (40 weekdays are two months); a frequency's own periods a
+  // year read weekly here, where there are figures to compare (monthly by twelve: the Q3 test's)
+  it('volatility at a weekly frequency annualizes by 52', async () => {
+    const weekOf = (d: string): string => {
+      const at = new Date(`${d}T00:00:00Z`);
+      return new Date(at.getTime() - ((at.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
+    };
+    const weeks = [...new Set(DAYS.map(weekOf))];
+    const last = weeks.map((w) => AAA[DAYS.map(weekOf).lastIndexOf(w)]!);
     const r = simple(last);
-    const want = r.map((_, i) => (i < 2 ? null : sd(r.slice(i - 1, i + 1) as number[]) * Math.sqrt(12) * 100));
-    close((await line(spec({ A: 'volatility(close[AAA], 2)' }, { grain: 'month' }))).values, want, 'monthly vol', 1e-7);
+    const want = r.map((_, i) => (i < 2 ? null : sd(r.slice(i - 1, i + 1) as number[]) * Math.sqrt(52) * 100));
+    assert.ok(want.filter((v) => v !== null).length >= 4, 'figures to compare');
+    close((await line(spec({ A: 'volatility(close[AAA], 2)' }, { grain: 'week' }))).values, want, 'weekly vol', 1e-7);
   });
 
   it('drawdown from the running peak, and the deepest one over a window', async () => {

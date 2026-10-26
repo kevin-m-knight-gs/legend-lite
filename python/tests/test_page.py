@@ -950,6 +950,26 @@ class Document(Paged):
         both = page.timeseries({'grid': px, 'curve': rates}, ['grid:close[SPX]'])
         self.assertEqual([s['alias'] for s in both.spec['sources']], ['grid', 'curve'])
 
+    def test_a_timeseries_is_judged_as_its_viewer_judges_it_and_its_frame_says_what_the_screen_says(self):
+        # the second audit's A-S1, A-S2, A-S3, P-3: one judge for both sides -- a tile of no series either may leave, a
+        # slot it has not refused by name, no spec set past the rule -- and the frame's notes the drawing's own
+        page = ll.Page('Markets')
+        days = pd.to_datetime(['2024-01-02', '2024-01-06', '2024-01-11', '2024-01-15', '2024-01-22']).date
+        prices = pd.DataFrame({'symbol': ['SPX'] * 5, 'day': days, 'close': [100.0, 101.0, 99.5, 102.0, 103.0]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['close[SPX]', 'volatility($A, 2)'])
+        with self.assertRaisesRegex(ValueError, 'there is no "grian" among a tile\'s slots'):
+            tile.options(grian='week')
+        with self.assertRaises(AttributeError):
+            tile.spec = {**tile.spec, 'series': []}
+        # dates 4 to 7 days apart are no frequency to annualize by: said, as the screen says it
+        with self.assertWarnsRegex(UserWarning, 'its dates are no frequency it can be annualized by'):
+            vol = tile.frame('B')
+        self.assertTrue(vol['B'].isna().all())
+        tile.unplot('B')
+        tile.unplot('A')
+        self.assertEqual(tile.series, [], 'a tile of no series, as the screen leaves one')
+
     def test_a_timeseries_frozen_keeps_its_grids_filters_as_they_were_and_follows_them_again(self):
         # a timeseries' states, a chart's words (the user, 2026-10-26): frozen, each source keeps its grid's filter as it
         # is now (timeseries-edit.ts editTimeseries, the viewer's state button's rule), the database reading it whatever
@@ -2770,7 +2790,16 @@ class Joined(Paged):
         self.assertEqual(asked(grids=[])[0], 400)
         status, body = asked(grids=[px.id, 'nope'])
         self.assertEqual(status, 422)
-        self.assertIn("'nope' is no grid of the page", body)
+        self.assertIn("'nope' is no grid nor cube of the page", body)
+        # the second audit's P-4: a grid removed while a timeseries reads it -- its cube kept for the tile -- read with
+        # the other as the tab reads them, not refused as no grid of the page
+        page.timeseries({'px': px, 'rates': rates}, ['px:close[SPX] / rates:yield[10Y]'])
+        kept = rates.id
+        page.remove(rates)
+        self.assertIn(kept, [c['id'] for c in page.to_dict()['cubes']], 'its cube kept for the tile')
+        status, body = asked(grids=[px.id, kept])
+        self.assertEqual(status, 200, body)
+        self.assertEqual(len(json.loads(body)['relations']), 2)
 
     def test_shown_served_with_both_frames_versions(self):
         page, joined = self.joined()

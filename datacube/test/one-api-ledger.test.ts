@@ -590,9 +590,12 @@ describe("every change of a timeseries tile, made by its viewer and by Python's 
       else if (!both && !one) problems.push(`${k}: made by ${byViewer.has(k) ? 'the viewer' : 'Python'} alone -- make it on the other side, or list it with what it makes instead`);
     }
     for (const k of Object.keys(TS_CHANGE_ONE_SIDE)) if (!kinds.includes(k)) problems.push(`${k}: no such change`);
-    // what a viewer-only change is made by on Python's side: a slot the slots change lays (editTimeseries's 'slots' arm)
+    // what a viewer-only change is made by on Python's side: a slot the slots change lays (editTimeseries's 'slots' arm,
+    // over the SLOTS it names -- 2026-10-26, the second audit's A-S3: the arm refuses a slot not among them, so the list
+    // is read where it is written)
     const arm = edit.slice(edit.indexOf("case 'slots':"), edit.indexOf('return next;', edit.indexOf("case 'slots':")));
-    const slots = [...(arm.match(/for \(const key of \[([^\]]*)\]/)?.[1] ?? '').matchAll(/'([a-z]+)'/g)].map((m) => m[1]!);
+    assert.ok(/for \(const key of SLOTS\)/.test(arm), "the slots arm lays the SLOTS it names");
+    const slots = [...(edit.match(/const SLOTS = \[([^\]]*)\]/)?.[1] ?? '').matchAll(/'([a-z]+)'/g)].map((m) => m[1]!);
     for (const [k, { slot }] of Object.entries(TS_CHANGE_ONE_SIDE)) {
       if (slot !== undefined && !slots.includes(slot)) problems.push(`${k}: Python's options() lays no ${slot} (the slots change lays ${slots.join(', ')})`);
     }
@@ -1005,7 +1008,10 @@ function proved(proof: Proof): string | undefined {
   const lines = SOURCES.read(file).split('\n');
   const found = file.endsWith('.py')
     ? lines.some((l) => l.trimStart().startsWith(`def ${name}(`))
-    : lines.some((l) => /\b(?:it|describe|check|conformance|seen)\(/.test(l) && l.replace(/\\'/g, "'").includes(name));
+    // a test's call: `seen(` the Python engine harness's alone (2026-10-26, the second audit's G-4: accepted in every
+    // file, an assertion's message there passed for a test)
+    : lines.some((l) => (/\b(?:it|describe|check|conformance)\(/.test(l) || (file.endsWith('python-engine.mjs') && /\bseen\(/.test(l)))
+      && l.replace(/\\'/g, "'").includes(name));
   return found ? undefined : `${proof}: no test of that name in it`;
 }
 

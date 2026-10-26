@@ -179,9 +179,13 @@ export async function joinTogether(spec: string): Promise<string> {
   const s = fromJson(spec) as unknown as TogetherSpec;
   const page = readPage(s.page, { empty: true });
   if (!Array.isArray(s.grids) || s.grids.length === 0) throw new Error('grids read together are a list of the page\'s grids');
+  // each a cube of the page -- a grid's, or one kept for a tile that reads it, its grid removed (the timeseries' kept
+  // cube: the second audit's P-4, refused as "no grid of the page" on a host's page, read on the tab) -- or a grid by
+  // its tile's id
   const cubes = s.grids.map((id) => {
+    if (page.cubes.some((c) => c.id === id)) return id;
     const view = page.views.find((v) => v.id === id);
-    if (!view || view.kind !== 'grid') throw new Error(`'${id}' is no grid of the page`);
+    if (!view || view.kind !== 'grid') throw new Error(`'${id}' is no grid nor cube of the page`);
     return view.cube;
   });
   // each grid's tables as the host reads them, in the grids' order: a snapped one's copy (sourcesOnHost)

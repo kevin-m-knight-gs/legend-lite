@@ -7,10 +7,10 @@
 
 import type { TimeGrain } from './chart-spec.ts';
 import {
-  aliasFor, firstPlot, inlined, nextSeriesId, refsOf, sourceOf, sourcesOf, type TsColumn,
+  aliasFor, firstPlot, inlined, nextSeriesId, NO_SERIES, refsOf, sourceOf, sourcesOf, timeseriesProblems, TsInlineError, type TsColumn,
 } from './timeseries-expr.ts';
 import {
-  ALIAS, MAX_PANES, tsStateOf, type TimeseriesSpec, type TsAnnotation, type TsExpr, type TsPane, type TsRange, type TsSeries,
+  ALIAS, MAX_PANES, readTimeseries, tsStateOf, type TimeseriesSpec, type TsAnnotation, type TsExpr, type TsPane, type TsRange, type TsSeries,
   type TsSource, type TsState, type TsView,
 } from './timeseries-spec.ts';
 import type { FilterNode } from './snapshot.ts';
@@ -30,6 +30,9 @@ export interface TsGridColumns {
 
 /** A series as an editor tells it: an id it has replaces that series (kept hidden unless told), none (or a new one) adds. */
 export type TsSeriesTold = Omit<TsSeries, 'id'> & { readonly id?: string };
+
+/** The slots a tile's options tell (TsSlots), in order. */
+const SLOTS = ['grain', 'range', 'view', 'panes', 'annotations'] as const;
 
 /** The slots told whole, each replacing what the tile had, null taking it off (Python's Timeseries.options). */
 export interface TsSlots {
@@ -96,7 +99,9 @@ const noPlot = (grid: TsGridColumns): string =>
 function readBy(spec: TimeseriesSpec, s: TsSeries): string[] {
   try {
     return sourcesOf(spec, inlined(s.expr, spec.series));
-  } catch {
+  } catch (e) {
+    // one that cannot be inlined alone (the second audit's G notes: any error was taken for one)
+    if (!(e instanceof TsInlineError)) throw e;
     return sourcesOf(spec, s.expr);
   }
 }
@@ -132,6 +137,23 @@ const seriesNamed = (spec: TimeseriesSpec, id: string): TsSeries => {
   if (!s) throw new TsEditRefusal(`there is no series ${id}`);
   return s;
 };
+
+/**
+ * A TILE'S CHANGE JUDGED, by both sides alike (the second audit's A-S1: the screen kept changes Python refused, and Python
+ * refused a change for a problem the tile had before it): read by the tile's one reader, then refused for a problem it
+ * MAKES -- one the tile had already (a series over a column since gone) is said where the tile is drawn and blocks no
+ * other change -- a tile of no series one either side may leave (it says "Add a series to plot" where it is drawn).
+ * `before`: the tile as it was (null: one made new); `columnsOf`: each source's columns, as the page has its grid.
+ */
+export function judgedEdit(before: TimeseriesSpec | null, made: unknown,
+  columnsOf: (spec: TimeseriesSpec) => ReadonlyMap<string, readonly TsColumn[] | undefined>): TimeseriesSpec {
+  const spec = readTimeseries(JSON.parse(JSON.stringify(made)));
+  if (typeof spec === 'string') throw new TsEditRefusal(spec);
+  const had = new Set(before === null ? [] : timeseriesProblems(before, columnsOf(before)));
+  const makes = timeseriesProblems(spec, columnsOf(spec)).filter((p) => p !== NO_SERIES && !had.has(p));
+  if (makes.length > 0) throw new TsEditRefusal(makes.join(' '));
+  return spec;
+}
 
 /**
  * THE TILE'S SPEC, CHANGED: `change` laid over `spec` by the tile's rules -- the one function its editors and Python ask.
@@ -239,8 +261,12 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
       return { ...spec, sources };
     }
     case 'slots': {
+      // a slot it has not, refused by name -- never dropped without a word (the second audit's A-S3: options(grian=...)
+      // came back as it was)
+      const unknown = Object.keys(change.slots).find((k) => !(SLOTS as readonly string[]).includes(k));
+      if (unknown !== undefined) throw new TsEditRefusal(`there is no ${JSON.stringify(unknown)} among a tile's slots (${SLOTS.join(', ')})`);
       let next = spec;
-      for (const key of ['grain', 'range', 'view', 'panes', 'annotations'] as const) {
+      for (const key of SLOTS) {
         if (Object.hasOwn(change.slots, key)) next = slot(next, key, change.slots[key] as TimeseriesSpec[typeof key] | null);
       }
       return next;

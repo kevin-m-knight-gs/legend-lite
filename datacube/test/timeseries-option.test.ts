@@ -11,7 +11,7 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { LIGHT_THEME } from '../src/chart-option.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
-import { timeseriesCsv, timeseriesOption, tsLines, valueText, type TsResult } from '../src/timeseries-option.ts';
+import { tickText, timeseriesCsv, timeseriesOption, tsLines, valueText, type TsResult } from '../src/timeseries-option.ts';
 import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
 import type { TsUnit } from '../src/timeseries-expr.ts';
@@ -137,6 +137,12 @@ describe('the drawing', () => {
 
   // the second audit's P-2a: a split series' periods a year are each line's own -- one line of no frequency drawn empty
   // and said, by name, though the others were annualized
+  // the review's G9: a tick a hair below zero was written "-0%"
+  it('a tick that rounds to zero is zero, whatever its sign', () => {
+    assert.deepEqual([tickText('ratio', -0.0001), tickText('percent', -0.01), tickText('same', -0.00001), tickText('ratio', -0.05)],
+      ['0%', '0%', '0', '-5%']);
+  });
+
   it("a split's line of no frequency to annualize by: said by its name", () => {
     const ts = spec([S('A', 'volatility(close, 3)', { split: 'symbol' })]);
     const { notes } = tsLines(ts, [answered('A', 'percent', {

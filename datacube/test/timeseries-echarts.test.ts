@@ -62,12 +62,17 @@ describe('a timeseries drawn by ECharts, as the page draws it', () => {
     const ts = spec([S('A', 'close', { name: 'Close' }), S('B', 'bollinger_bands($A, 2, 1)'), S('C', 'rsi($A, 2)', { pane: 1 })], {
       annotations: [{ kind: 'level', value: 70, pane: 1, label: 'overbought' }, { kind: 'event', date: '2024-01-04', label: 'CPI' }],
     });
-    const { svg, kinds } = rendered(drawing(ts, [
+    const option = drawing(ts, [
       answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [105, 104, 102, 101, 100] }),
       answered('B', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [104, 103, 101, null, null], [TS_LOWER]: [102, 101, 100, null, null], [TS_UPPER]: [106, 105, 102, null, null], [TS_WIDTH]: [4, 4, 2, null, null] }, { band: true }),
       answered('C', 'number', { [TS_DATE]: DAYS, [TS_VALUE]: [80, 75, 60, null, null] }, { level: false }),
-    ]));
-    assert.ok((kinds.get('ec-polyline') ?? 0) + (kinds.get('path') ?? 0) >= 3, `its lines drawn: ${JSON.stringify([...kinds])}`);
+    ]);
+    const { svg, kinds } = rendered(option);
+    // its lines' own shapes: more than the same drawing with no series makes (its axes, its navigator) -- the second
+    // audit's G-3: a count of every polyline passed with no line drawn at all
+    const bare = rendered({ ...option, series: [] }).kinds;
+    const lines = (k: Map<string, number>): number => k.get('ec-polyline') ?? 0;
+    assert.ok(lines(kinds) - lines(bare) >= 3, `its lines drawn: ${lines(kinds)} polylines, ${lines(bare)} with none`);
     assert.ok(svg.includes('overbought') && svg.includes('CPI'), 'its annotations labelled');
     assert.ok(!/NaN|Infinity/.test(svg), 'every coordinate a number');
   });

@@ -1360,12 +1360,10 @@ class Timeseries(Tile):
 
     @property
     def spec(self) -> dict[str, Any]:
-        """Its spec as the page keeps it (a copy): its sources, series, frequency, range, panes, annotations and view."""
+        """Its spec as the page keeps it (a copy): its sources, series, frequency, range, panes, annotations and view. Read
+        only: every change is one of the tile's changes below, by its one rule (the second audit's A-S2: a spec set whole
+        went past the rule, a series re-pointed at another grid without a word)."""
         return copy.deepcopy(self._view['spec'])
-
-    @spec.setter
-    def spec(self, spec: Mapping[str, Any]) -> None:
-        self._set(dict(spec))
 
     @property
     def series(self) -> list[dict[str, Any]]:
@@ -1491,8 +1489,18 @@ class Timeseries(Tile):
                 rows = to_pandas(_engine_rows(session, compiler.parse(said['query']), spec, over))
             else:
                 rows = to_pandas(_engine_rows(session, said['query'], said, over))
-        # its dates as the database kept them (the window's alone), each a timestamp, as pandas indexes a series
+        # what its rows say a reader should know -- several rows a date, no frequency to annualize by -- said as the
+        # screen says them, by its rule (headless timeseriesNotes; the second audit's P-3: the frame dropped them)
         named = said['columns']
+        told = {k: [None if pd.isna(v) else v for v in rows[named[k]].tolist()]
+                for k in ('split', 'rows', 'perYear') if named[k] in rows.columns}
+        if 'rows' in told or 'perYear' in told:
+            notes = _json.loads(engine.call('timeseriesNotes', _json.dumps({**asked, 'columns': told})))
+            if 'problems' in notes:
+                raise ValueError('; '.join(notes['problems']))
+            for note in notes['notes']:
+                warnings.warn(note, stacklevel=2)
+        # its dates as the database kept them (the window's alone), each a timestamp, as pandas indexes a series
         rows = rows.assign(**{named['date']: pd.to_datetime(rows[named['date']])})
         if said['band']:
             out = rows.set_index(named['date'])[[named['lower'], named['upper']]].rename(columns={named['lower']: 'lower', named['upper']: 'upper'})
@@ -1511,14 +1519,6 @@ class Timeseries(Tile):
             out = rows.set_index(named['date'])[[named['value']]].rename(columns={named['value']: said['name'] or series})
         out.index.name = 'date'
         return out.sort_index()
-
-    def _set(self, spec: dict[str, Any]) -> None:
-        _ = self._view
-        page = self._page
-        said = json.loads(page._session.headless().call('timeseriesMade', _json.dumps(page._doc), _json.dumps(spec)))
-        if 'problems' in said:
-            raise ValueError('; '.join(said['problems']))
-        page._apply_page([_commands.page_set_timeseries(tile=self._id, spec=said['spec'])])
 
     def _edit(self, change: dict[str, Any]) -> Timeseries:
         """``change`` (a timeseries-edit.ts TsChange) made by the tile's one rule, headless, and told as setTimeseries."""
