@@ -38,6 +38,13 @@ export const RATE_SPECS: readonly ColumnSpec[] = [
   { name: 'yield', type: 'Float', kind: 'measure' },
 ];
 
+/** The macro sample's columns as the compiler types them. */
+export const MACRO_SPECS: readonly ColumnSpec[] = [
+  { name: 'series', type: 'String' },
+  { name: 'date', type: 'StrictDate' },
+  { name: 'value', type: 'Float', kind: 'measure' },
+];
+
 /** A sample's file as a cube records it, built here and hashed, so the page reopens over the same rows rebuilt. */
 export async function sampleSource(id: string, columns: readonly ColumnSpec[]): Promise<FileSource> {
   const sample = sampleById(id);
@@ -59,6 +66,7 @@ function cubeOf(name: string, source: CubeDocument['source'], snapshot: CubeSnap
 }
 
 export const PRICES: TsSource = { alias: 'px', cube: 'prices', date: 'date', key: 'symbol' };
+export const MACRO: TsSource = { alias: 'macro', cube: 'macro', date: 'date', key: 'series' };
 export const RATES: TsSource = { alias: 'rates', cube: 'rates', date: 'date', key: 'tenor' };
 
 /** A series as a person writes it: its id, its expression typed, and the rest of its slots. */
@@ -95,6 +103,16 @@ export async function marketCubes(): Promise<{ readonly id: string; readonly cub
   const rates = cubeOf('Rates', ratesFile, grouped('rates', RATE_SPECS, ['tenor']),
     { ...DEFAULT_CONFIGURATION, reportTitle: 'Rates', columns: { yield: average } });
   return [{ id: 'prices', cube: prices }, { id: 'rates', cube: rates }];
+}
+
+/** The macro sample's grid (the timeseries gallery's Dates sheet): monthly, by series, each value its month's average. */
+export const MACRO_GRID: PageView = { id: 'macro', kind: 'grid', cube: 'macro', title: 'Macro, monthly' };
+
+/** The cube of MACRO_GRID, over its sample rebuilt on opening. */
+export async function macroCube(): Promise<{ readonly id: string; readonly cube: CubeDocument }> {
+  const file = await sampleSource('macro', MACRO_SPECS);
+  return { id: 'macro', cube: cubeOf('Macro', file, grouped('macro', MACRO_SPECS, ['series']),
+    { ...DEFAULT_CONFIGURATION, reportTitle: 'Macro', columns: { value: { aggregateFn: 'average' } } }) };
 }
 
 /** The page: four sheets over the prices and the curve, each a timeseries tile or two beside its grid. */

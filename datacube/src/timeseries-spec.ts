@@ -182,6 +182,9 @@ export interface TimeseriesSpec {
    * different grids share one time axis. Absent: as the rows are.
    */
   readonly grain?: TimeGrain;
+  /** How two series' dates are combined where an operator or a condition reads both (the next phases' 1, 2026-10-26):
+   *  absent, `intersect`. A function of two series' statistics (a correlation, a beta) reads the dates both have. */
+  readonly align?: TsAlign;
   readonly series: readonly TsSeries[];
   /** The window shown first. Absent: every date. */
   readonly range?: TsRange;
@@ -189,6 +192,15 @@ export interface TimeseriesSpec {
   readonly annotations?: readonly TsAnnotation[];
   readonly view?: TsView;
 }
+
+/**
+ * HOW TWO SERIES' DATES ARE COMBINED (gs-quant's `Interpolate`, its algebra's `method`): `intersect`, the dates both
+ * have; `step`, every date either has, each side its last value at or before it (before its first, its first); `time`,
+ * every date either has, each side linear in time between its observations (none outside them); `nan`, every date
+ * either has, none where a side has none; `zero`, the same with 0 where a side has none.
+ */
+export type TsAlign = 'intersect' | 'step' | 'time' | 'nan' | 'zero';
+export const TS_ALIGNS: readonly TsAlign[] = ['intersect', 'step', 'time', 'nan', 'zero'];
 
 /** The view's settings before anyone sets one. */
 export const TS_VIEW_DEFAULTS: Required<Omit<TsView, 'compare'>> = {
@@ -245,7 +257,8 @@ export type TsFunctionName =
   | 'bollinger_bands' | 'rsi' | 'ohlc'
   | 'exponential_moving_average' | 'exponential_std' | 'exponential_volatility' | 'exponential_spread_volatility' | 'macd'
   | 'smoothed_moving_average' | 'percentiles' | 'median' | 'percentile'
-  | 'log' | 'exp' | 'sqrt' | 'abs' | 'power' | 'floor' | 'ceil';
+  | 'log' | 'exp' | 'sqrt' | 'abs' | 'power' | 'floor' | 'ceil'
+  | 'interpolate';
 
 /** A function's parameter as a spec holds it: a whole number, a span (a window, a lag: a whole number of observations
  *  or a calendar period, `3m`), a number, or a word (a kind of return). */
@@ -300,6 +313,7 @@ export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
   correlation: { series: 2, params: [W(63)] }, beta: { series: 2, params: [W(63)] }, cov: { series: 2, params: [W(63)] },
   alpha: { series: 2, params: [W(63)] }, r_squared: { series: 2, params: [W(63)] }, hedge_ratio: { series: 2, params: [W(63)] },
   residual: { series: 2, params: [W(63)] },
+  interpolate: { series: 2, params: [{ name: 'method', kind: 'word', default: 'step', words: ['intersect', 'nan', 'zero', 'step'] }] },
   bollinger_bands: one(W(20), num('k', 2, 0)), rsi: one(whole('w', 14)), ohlc: { series: 4, params: [] },
   exponential_moving_average: one(BETA), exponential_std: one(SPREAD_BETA), exponential_volatility: one(SPREAD_BETA),
   exponential_spread_volatility: one(SPREAD_BETA), macd: one(whole('m', 12), whole('n', 26), whole('s', 1)),
@@ -344,7 +358,7 @@ export const ALIAS = /^[A-Za-z][A-Za-z0-9_]*$/;
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 const TS_KEYS: Readonly<Record<keyof TimeseriesSpec, true>> = {
-  sources: true, grain: true, series: true, range: true, panes: true, annotations: true, view: true,
+  sources: true, grain: true, align: true, series: true, range: true, panes: true, annotations: true, view: true,
 };
 const SOURCE_KEYS: Readonly<Record<keyof TsSource, true>> = { alias: true, cube: true, date: true, key: true, kept: true };
 const KEPT_KEYS: Readonly<Record<keyof TsKept, true>> = { filter: true };
@@ -513,6 +527,9 @@ export function tsProblem(ts: unknown): string | null {
   if (keeping > 0 && keeping < sources.length) return 'a frozen timeseries keeps every source\'s filter: some of its sources keep none';
   if (ts['grain'] !== undefined && !GRAINS.includes(ts['grain'] as TimeGrain)) {
     return `its timeseries' frequency ${JSON.stringify(ts['grain'])} is not one of ${GRAINS.join(', ')}`;
+  }
+  if (ts['align'] !== undefined && !TS_ALIGNS.includes(ts['align'] as TsAlign)) {
+    return `its timeseries' alignment ${JSON.stringify(ts['align'])} is not one of ${TS_ALIGNS.join(', ')}`;
   }
   const series = ts['series'];
   if (!Array.isArray(series)) return 'its timeseries\' series are not a list';

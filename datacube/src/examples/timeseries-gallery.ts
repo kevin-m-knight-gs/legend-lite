@@ -8,9 +8,10 @@
 
 import type { Band, Node } from '../layout/bands.ts';
 import { writePageOf, type PageDocument, type PageSheet, type PageView } from '../page-document.ts';
-import { MARKET_GRIDS, MARKS, marketCubes, PRICES, RATES, s, tile } from './markets.ts';
+import { MACRO, MACRO_GRID, macroCube, MARKET_GRIDS, MARKS, marketCubes, PRICES, RATES, s, tile } from './markets.ts';
 
 const ON_PRICES = [PRICES];
+const PRICES_AND_MACRO = [PRICES, MACRO];
 
 /** A sheet of the gallery: its name, and its tiles row by row (each row sharing the width, the rows the height). */
 interface GallerySheet {
@@ -372,6 +373,29 @@ const MATH: GallerySheet = {
   ]],
 };
 
+const DATES: GallerySheet = {
+  name: 'Dates',
+  rows: [[
+    tile('align', 'Two calendars combined: the S&P 500 in real terms -- its daily close over the month-end price index, stepped to every day', {
+      sources: PRICES_AND_MACRO,
+      align: 'step',
+      series: [
+        s('A', 'px:close[SPX] / macro:value[CPI] * 100', { name: 'S&P 500 in real terms' }),
+        s('B', 'px:close[SPX]', { name: 'S&P 500', axis: 'right', style: { width: 1, dash: 'dashed' } }),
+      ],
+      range: { last: '5y' },
+    }),
+    tile('interpolate', 'Onto another\'s dates: the monthly price index on the S&P 500\'s trading days, each its last month-end', {
+      sources: PRICES_AND_MACRO,
+      series: [
+        s('A', 'interpolate(macro:value[CPI], px:close[SPX], step)', { name: 'Price index, stepped daily', style: { kind: 'step' } }),
+        s('B', 'macro:value[CPI]', { name: 'Month-end', style: { kind: 'dots' } }),
+      ],
+      range: { last: '2y' },
+    }),
+  ]],
+};
+
 const WAYS: GallerySheet = {
   name: 'Ways to view',
   rows: [[
@@ -442,7 +466,7 @@ const WAYS: GallerySheet = {
 };
 
 /** Every sheet of functions, in the catalog's order of families, then the ways to view. */
-export const TIMESERIES_GALLERY: readonly GallerySheet[] = [RETURNS, LEVEL, ROLLING, RISK, RELATIONSHIPS, TECHNICALS, MATH, WAYS];
+export const TIMESERIES_GALLERY: readonly GallerySheet[] = [RETURNS, LEVEL, ROLLING, RISK, RELATIONSHIPS, TECHNICALS, MATH, DATES, WAYS];
 
 /** A sheet's rows as bands that fit its window: each row an equal share of the height, its tiles of the width. */
 function bandsOf(rows: GallerySheet['rows']): Band[] {
@@ -460,12 +484,12 @@ export async function timeseriesGalleryPage(): Promise<PageDocument> {
   }));
   sheets.push({
     id: `sheet-${sheets.length + 1}`, name: 'The data', layout: { kind: 'bands', fit: true, bands: [{
-      height: 1, node: { split: 'row', parts: [{ size: 0.6, node: { tile: 'prices' } }, { size: 0.4, node: { tile: 'rates' } }] },
+      height: 1, node: { split: 'row', parts: [{ size: 0.5, node: { tile: 'prices' } }, { size: 0.3, node: { tile: 'rates' } }, { size: 0.2, node: { tile: 'macro' } }] },
     }] },
   });
   return writePageOf({
     name: 'Timeseries gallery',
-    cubes: await marketCubes(),
-    views: { views: [...MARKET_GRIDS, ...TIMESERIES_GALLERY.flatMap((g) => g.rows.flat())], sheets },
+    cubes: [...await marketCubes(), await macroCube()],
+    views: { views: [...MARKET_GRIDS, MACRO_GRID, ...TIMESERIES_GALLERY.flatMap((g) => g.rows.flat())], sheets },
   });
 }

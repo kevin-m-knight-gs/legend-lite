@@ -493,3 +493,47 @@ rendered by real ECharts (`test/timeseries-echarts.test.ts`); both example pages
   Properties…, View ▸); its series editor and Settings a window beside it among the page's windows; both themes.
 - **Next**: events from a grid's column; a regression of one series on another; a chart on a sheet not shown asking
   only when shown, as a timeseries tile does; the follow-ups of docs/TIMESERIES_REVIEW_2026_10_25.md §9.
+
+## 11. The next phases (the user, 2026-10-26: "lets do all the ones we can in phases")
+
+From a survey of the tools a person would otherwise open -- Bloomberg (HRA, GF, seasonality), Macrobond (scatter,
+frequency harmonization, forecasts, X-13), FRED (frequency aggregation, formulas, recession bars), TradingView (drawing
+and measuring, studies, replay), Koyfin -- and gs-quant 2.2.1's own source for the functions this catalog follows. Each
+phase lands with its tests against an independent reference, its gallery tile, Python's side by the one rule, and its
+dated budget notes; every figure still the database's.
+
+- **Phase 1, data: mixed frequencies and gs-quant's remaining functions.** A tile's `align` -- how two series' dates are
+  combined at an operator or a two-series function: `intersect` (the dates both have, as now), `step` (every date
+  either has, each side its last value at or before it -- before its first, its first: gs-quant's STEP, its arithmetic's
+  default), `time` (linear in time between each side's observations, inside them: gs-quant's TIME), `nan` (every date,
+  none where a side has none), `zero` (none as 0); `interpolate(x, y, method)` (x onto y's dates). The date parts
+  (`day`, `month`, `year`, `quarter`, `weekday`), `if`, `not`, `filter`, `compare`, `consecutive`, `first`, `last`,
+  `count`, `product`, `geometrically_aggregate`, `excess_returns` (over a benchmark series, or a rate accrued ACT/360),
+  `smooth_spikes`, `vol_swap_volatility`, `union`, `append`, `prepend`, `weighted_sum`, and `trend` and
+  `seasonally_adjusted` -- gs-quant's classical decomposition (a centred moving average, each position's mean of the
+  detrended values), which the database computes; over the series' own observations, a cycle counted in them (a year of
+  months 12, of weeks 52, of business days 252), where gs-quant first fills business days to calendar days (a
+  deliberate difference: no calendar of days the data does not have).
+- **Phase 2, everyday use.** Swap an instrument across every series of the tile (Bloomberg's change of security,
+  TradingView's symbol change), screen and Python by one edit; the data as a table in the tile, copied as Excel pastes
+  it; export with a title, a subtitle and a source note, as SVG and at high resolution; each pane's axis inverted or
+  ranged by hand; a series' window and parameters on a slider; the query shown (its Pure and its SQL).
+- **Phase 3, new views of a tile.** A scatter of one series against another over the dates shown, its regression line
+  and statistics the database's, coloured by time, the latest point marked (Bloomberg HRA, Macrobond's scatter);
+  seasonality -- each year a line over its calendar, the range and average of the years before (the commodities
+  standard) -- and periods overlaid from their start; a histogram of a series' values, its normal and its value at risk
+  marked; a curve -- a split's values across its key (tenors) at chosen dates; a Calendar tab, each month's and each
+  year's return.
+- **Phase 4, analysts' packs.** Against a benchmark: tracking error, information ratio, up and down capture; a total
+  return from a dividend; a basket of weights, rebalanced; lead and lag correlations; a pair's cointegration (its
+  residual's Dickey-Fuller statistic) and its half-life; ATR, the stochastic oscillator, VWAP, OBV, Keltner and Donchian
+  channels.
+- **Phase 5, on the chart itself.** A measure dragged between two dates (the change, the % and the days -- a statistics
+  query over that span, the database's); drawn lines and notes; events marked from a grid's rows (earnings, meetings);
+  shading from a 0/1 column in one step (recession bars); a replay stepping the window's end through time; a period
+  brushed on the chart filtering the page's other grids; a trend's projection forward.
+- **Not built, and why:** X-13 seasonal adjustment and `smooth_outliers` (iterative procedures no query states; gs-quant's
+  own seasonal adjustment is the decomposition above); PowerPoint (a document writer of its own in the bundle; the page
+  already exports HTML and PDF); alerts (a scheduler and a channel outside a page); `repeat`, `date_range`,
+  `day_countdown`, `align_calendar` (dates the data does not have, or business-day calendars, which no source here
+  holds); `generate_series` (random data); `corr_swap_correlation` (an index's constituents and weights).

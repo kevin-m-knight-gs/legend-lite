@@ -398,6 +398,54 @@ export function ratesCsv(rows = 6525, seed = 20261026): string {
   return `${out.join('\n')}\n`;
 }
 
+/** The macro sample's columns, in order. */
+export const MACRO_COLUMNS = ['series', 'date', 'value'] as const;
+
+/**
+ * MONTHLY MACRO DATA beside the markets sample (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, the next phases' 1
+ * and 3): ten years of month-ends of three series a macro desk reads -- a consumer price index (rising, faster through
+ * 2021 and 2022, a mild season: prices rise most in the first months of a year), retail sales in billions (growing, a
+ * December peak and a January trough, the spring of 2020 collapsing) and the unemployment rate in percent (falling, its
+ * 2020 spike, back) -- each dated at its month's last calendar day, a weekend some months, so a timeseries reads two
+ * calendars beside the daily prices. `rows`: divided among the three, the months counted back from the last.
+ */
+export function macroCsv(rows = 360, seed = 20261031): string {
+  const rand = rng(seed);
+  const months: { readonly y: number; readonly m: number }[] = [];
+  for (let y = 2015; y <= 2024; y++) for (let m = 0; m < 12; m++) months.push({ y, m });
+  const kept = months.slice(Math.max(0, months.length - Math.max(1, Math.ceil(rows / 3))));
+  const endOf = (y: number, m: number): string => new Date(Date.UTC(y, m + 1, 0)).toISOString().slice(0, 10);
+  // the unemployment rate's path: straight lines between turns, by month
+  const turns: readonly (readonly [number, number])[] = [[2015, 5.7], [2019.95, 3.5], [2020.2, 3.6], [2020.26, 14.7], [2020.95, 6.7], [2021.95, 3.9], [2023.5, 3.6], [2024.95, 4.2]];
+  const rate = (t: number): number => {
+    for (let i = 1; i < turns.length; i++) {
+      const [a, va] = turns[i - 1]!;
+      const [b, vb] = turns[i]!;
+      if (t <= b) return va + (vb - va) * (t - a) / (b - a);
+    }
+    return turns.at(-1)![1];
+  };
+  // retail sales' season by month (a December peak, a January trough), and the spring of 2020
+  const season = [0.92, 0.91, 1.01, 1.0, 1.04, 1.02, 1.03, 1.04, 0.98, 1.0, 1.03, 1.16];
+  const spring2020: Readonly<Record<string, number>> = { '2020-2': 0.93, '2020-3': 0.82, '2020-4': 0.95 };
+  let cpi = 237;
+  let retail = 440;
+  const out: string[] = [MACRO_COLUMNS.join(',')];
+  for (const { y, m } of months) {
+    const t = y + m / 12;
+    const inflation = t >= 2021.25 && t < 2022.75 ? 0.006 : t >= 2022.75 && t < 2023.5 ? 0.003 : 0.0015;
+    cpi *= 1 + inflation + (m < 4 ? 0.0012 : m >= 10 ? -0.0008 : 0) + normal(rand) * 0.0005;
+    retail *= 1.003 + normal(rand) * 0.002;
+    const sales = retail * season[m]! * (spring2020[`${y}-${m}`] ?? 1) * (1 + normal(rand) * 0.005);
+    const unemployment = Math.max(3.2, rate(t) + normal(rand) * 0.08);
+    if (!kept.some((k) => k.y === y && k.m === m)) continue;
+    const day = endOf(y, m);
+    out.push(['CPI', day, cpi.toFixed(3)].map(csvCell).join(','), ['RETAIL', day, sales.toFixed(1)].map(csvCell).join(','),
+      ['UNRATE', day, unemployment.toFixed(1)].map(csvCell).join(','));
+  }
+  return `${out.join('\n')}\n`;
+}
+
 export const SAMPLES: readonly Sample[] = [
   {
     id: 'trades',
@@ -440,6 +488,14 @@ export const SAMPLES: readonly Sample[] = [
       + 'timeseries to read beside the prices (a spread, a bond fund against its yield).',
     defaultRows: 6525,
     build: (rows, seed) => ratesCsv(rows, seed),
+  },
+  {
+    id: 'macro',
+    label: 'Macro -- monthly, for timeseries',
+    about: 'Ten years of month-ends of a price index, retail sales (a December peak) and the unemployment rate: a monthly '
+      + 'grid for a timeseries to read beside the daily prices (two calendars combined, a season taken out).',
+    defaultRows: 360,
+    build: (rows, seed) => macroCsv(rows, seed),
   },
   {
     // the sales sample's countries: a table to join its orders to (examples/prep-joins.ts)

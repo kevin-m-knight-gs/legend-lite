@@ -20,7 +20,7 @@ import { themeOf } from '../chart-option.ts';
 import type { ChartPicture } from '../chart-render.ts';
 import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import {
-  MAX_PANES, TS_RANGES, viewSetting, type TimeseriesSpec, type TsAnnotation, type TsExpr,
+  MAX_PANES, TS_RANGES, viewSetting, type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr,
   type TsRangeWord, type TsSeries, type TsSource, type TsState, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
@@ -136,7 +136,7 @@ export interface MountOn {
 /** What a spec's queries depend on: when it changes, the database is asked again; else the drawing alone changes. */
 function queryKey(ts: TimeseriesSpec): string {
   return JSON.stringify({
-    sources: ts.sources, grain: ts.grain ?? null, compare: ts.view?.compare ?? null,
+    sources: ts.sources, grain: ts.grain ?? null, align: ts.align ?? null, compare: ts.view?.compare ?? null,
     series: ts.series.map((s) => ({ id: s.id, expr: s.expr, split: s.split ?? null })),
   });
 }
@@ -201,7 +201,7 @@ const GRAINS: readonly (readonly [string, string])[] = [
 ];
 const COMPARES: readonly (readonly [string, string])[] = [['', 'Levels'], ['rebase', 'Rebase to 100'], ['percent', '% change']];
 const STYLES: readonly (readonly [TsStyleKind, string])[] = [['line', 'Line'], ['area', 'Area'], ['bars', 'Bars'], ['step', 'Steps'], ['dots', 'Dots']];
-const FAMILIES: readonly TsFamily[] = ['Returns', 'Level', 'Rolling statistics', 'Risk', 'Relationships', 'Technicals', 'Math'];
+const FAMILIES: readonly TsFamily[] = ['Returns', 'Level', 'Rolling statistics', 'Risk', 'Relationships', 'Technicals', 'Math', 'Dates'];
 
 /** The statistics table's columns: a statistic and how it is written (by the line's unit, or as a share, a date, a count). */
 /** Its editors' window: as a chart's options' is sized (chart-panel.ts CHART_WINDOW), narrower -- one column of fields. */
@@ -252,6 +252,15 @@ const STAT_TABS: readonly (readonly [StatsTab, string, string])[] = [
 type StatsTab = 'summary' | 'risk' | 'drawdowns' | 'correlations';
 /** The most lines the correlations' matrix has: its first, in the legend's order. */
 const MAX_CORRELATED = 12;
+
+/** How two series' dates are combined, in words (timeseries-spec.ts TsAlign). */
+const ALIGN_WORDS: readonly (readonly [TsAlign, string])[] = [
+  ['intersect', 'The dates both have'],
+  ['step', 'Every date, each its last value'],
+  ['time', 'Every date, interpolated in time'],
+  ['nan', 'Every date, gaps where one has none'],
+  ['zero', 'Every date, 0 where one has none'],
+];
 
 export class TimeseriesView {
   readonly #root: HTMLElement;
@@ -1566,6 +1575,12 @@ export class TimeseriesView {
       this.#edit({ kind: 'range', range: { ...(from.value ? { from: from.value } : {}), ...(to.value ? { to: to.value } : {}) } });
     }));
     parts.push(dates);
+    // how two series' dates are combined where an operator reads both (gs-quant's Interpolate)
+    const align = select(doc, ALIGN_WORDS, spec.align ?? 'intersect',
+      (v) => this.#edit({ kind: 'align', align: v === 'intersect' ? null : v as TsAlign }), 'Combining two series');
+    const combine = el(doc, 'div', 'dc-ts-row');
+    combine.append(el(doc, 'span', 'dc-ts-field-label', 'Combining'), align);
+    parts.push(combine);
     // the panes in use: each its share of the height, its scale
     const used = [...new Set([0, ...spec.series.map((s) => s.pane ?? 0)])].sort();
     parts.push(el(doc, 'div', 'dc-ts-heading', 'Panes'));

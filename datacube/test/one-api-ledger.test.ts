@@ -576,10 +576,11 @@ const DECIDED = /\[\s*\.\.\.|\.(?:filter|map|flatMap|concat|slice|splice|reduce|
  */
 const TS_CHANGE_ONE_SIDE: Record<string, { readonly other: string; readonly slot?: string }> = {
   grain: { other: "the viewer's Frequency; Python's options(grain=...), the slots change", slot: 'grain' },
+  align: { other: "the viewer's Settings' Dates; Python's options(align=...), the slots change", slot: 'align' },
   range: { other: "the viewer's ranges and Settings' dates; Python's options(range=...)", slot: 'range' },
   view: { other: "the viewer's Compare, Stats and Settings' toggles, a key each; Python's options(view=...), the view whole", slot: 'view' },
   pane: { other: "the viewer's Log and Settings' panes, a pane each; Python's options(panes=...), the panes whole", slot: 'panes' },
-  slots: { other: "Python's options(**slots), several slots at once; the viewer sets each by its own change (grain, range, view, pane, annotate)" },
+  slots: { other: "Python's options(**slots), several slots at once; the viewer sets each by its own change (grain, align, range, view, pane, annotate)" },
 };
 
 describe("every change of a timeseries tile, made by its viewer and by Python's Timeseries, or listed (the review's A8)", () => {

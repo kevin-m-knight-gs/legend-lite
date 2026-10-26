@@ -10,8 +10,8 @@ import {
   aliasFor, firstPlot, inlined, nextSeriesId, NO_SERIES, refsOf, sourceOf, sourcesOf, timeseriesProblems, TsInlineError, type TsColumn,
 } from './timeseries-expr.ts';
 import {
-  ALIAS, MAX_PANES, readTimeseries, tsStateOf, type TimeseriesSpec, type TsAnnotation, type TsExpr, type TsPane, type TsRange, type TsSeries,
-  type TsSource, type TsState, type TsView,
+  ALIAS, MAX_PANES, readTimeseries, tsStateOf, type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsPane, type TsRange,
+  type TsSeries, type TsSource, type TsState, type TsView,
 } from './timeseries-spec.ts';
 import type { FilterNode } from './snapshot.ts';
 
@@ -32,11 +32,12 @@ export interface TsGridColumns {
 export type TsSeriesTold = Omit<TsSeries, 'id'> & { readonly id?: string };
 
 /** The slots a tile's options tell (TsSlots), in order. */
-const SLOTS = ['grain', 'range', 'view', 'panes', 'annotations'] as const;
+const SLOTS = ['grain', 'align', 'range', 'view', 'panes', 'annotations'] as const;
 
 /** The slots told whole, each replacing what the tile had, null taking it off (Python's Timeseries.options). */
 export interface TsSlots {
   readonly grain?: TimeGrain | null;
+  readonly align?: TsAlign | null;
   readonly range?: TsRange | null;
   readonly view?: TsView | null;
   readonly panes?: readonly TsPane[] | null;
@@ -53,6 +54,8 @@ export type TsChange =
   /** A line hidden or shown (its legend chip; Python's hide and show): its legend entry stays. */
   | { readonly kind: 'hide'; readonly id: string; readonly hidden: boolean }
   | { readonly kind: 'grain'; readonly grain: TimeGrain | null }
+  /** How two series' dates are combined (Settings' Dates): null, the dates both have. */
+  | { readonly kind: 'align'; readonly align: TsAlign | null }
   | { readonly kind: 'range'; readonly range: TsRange | null }
   /** The view's settings told, each replacing its own, null taking it off (the toolbar's compare and stats, Settings). */
   | { readonly kind: 'view'; readonly view: { readonly [K in keyof TsView]?: TsView[K] | null } }
@@ -193,6 +196,8 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
     }
     case 'grain':
       return slot(spec, 'grain', change.grain);
+    case 'align':
+      return slot(spec, 'align', change.align);
     case 'range':
       return slot(spec, 'range', change.range);
     case 'view': {

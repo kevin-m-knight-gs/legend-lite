@@ -11,9 +11,9 @@ import { CHART_MARKS, chartProblems } from '../src/chart-spec.ts';
 import { chartsGalleryPage } from '../src/examples/charts-gallery.ts';
 import { pageToJson, readPage } from '../src/page-document.ts';
 import { tiles } from '../src/layout/bands.ts';
-import { COUNTRY_COLUMNS, countriesCsv, MARKET_COLUMNS, RATE_COLUMNS, salesCsv, SALES_COLUMNS } from '../src/samples.ts';
+import { COUNTRY_COLUMNS, countriesCsv, MACRO_COLUMNS, macroCsv, MARKET_COLUMNS, RATE_COLUMNS, salesCsv, SALES_COLUMNS } from '../src/samples.ts';
 import { COUNTRY_SPECS, prepJoinsPage } from '../src/examples/prep-joins.ts';
-import { MARKET_SPECS, RATE_SPECS, marketsPage } from '../src/examples/markets.ts';
+import { MACRO_SPECS, MARKET_SPECS, RATE_SPECS, marketsPage } from '../src/examples/markets.ts';
 import { timeseriesGalleryPage } from '../src/examples/timeseries-gallery.ts';
 import { timeseriesProblems, TS_FUNCTIONS } from '../src/timeseries-expr.ts';
 import type { TimeseriesSpec, TsExpr } from '../src/timeseries-spec.ts';
@@ -27,6 +27,25 @@ import { liveGrids } from '../src/live-inputs.ts';
 
 /** The pages of charts over the sales sample; the join example is read below. */
 const CHART_PAGES = EXAMPLE_PAGES.filter((e) => e.id.startsWith('charts-'));
+
+// the next phases' 1 (2026-10-26): a monthly grid beside the daily prices, its months ends, a season in its sales
+describe('the macro sample', () => {
+  it('ten years of month-ends of three series, each dated at its last calendar day; retail sales peaking each December', () => {
+    const lines = macroCsv().trim().split('\n');
+    assert.equal(lines[0], MACRO_COLUMNS.join(','));
+    const rows = lines.slice(1).map((l) => l.split(','));
+    assert.equal(rows.length, 360);
+    assert.deepEqual([...new Set(rows.map((r) => r[0]))], ['CPI', 'RETAIL', 'UNRATE']);
+    const lastDay = (d: string): boolean => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).getUTCDate() === 1;
+    assert.ok(rows.every((r) => lastDay(r[1]!)), 'each its month\'s last day');
+    assert.ok(rows.some((r) => [0, 6].includes(new Date(`${r[1]}T00:00:00Z`).getUTCDay())), 'a weekend, some months');
+    const retail = rows.filter((r) => r[0] === 'RETAIL');
+    for (let y = 2015; y <= 2024; y++) {
+      const of = (m: string): number => Number(retail.find((r) => r[1]!.startsWith(`${y}-${m}`))![2]);
+      assert.ok(of('12') > of('11') && of('01') < of('12'), `${y}: a December peak`);
+    }
+  });
+});
 
 describe('the example pages', () => {
   it('each is a page of charts, the join example, a timeseries example or the flow example', () => {
@@ -198,11 +217,11 @@ describe('the example pages', () => {
     }
     // every tile drawable over its grids' columns; the ways to view read a split, a frequency, a log scale, a compare
     // and two grids at once
-    const columns = new Map([['prices', MARKET_SPECS], ['rates', RATE_SPECS]] as const);
+    const columns = new Map([['prices', MARKET_SPECS], ['rates', RATE_SPECS], ['macro', MACRO_SPECS]] as const);
     const all = page.views.flatMap((v) => (v.kind === 'timeseries' ? [v] : []));
     assert.ok(all.length >= 30, `${all.length} tiles`);
     for (const v of all) {
-      const byAlias = new Map(v.spec.sources.map((s) => [s.alias, columns.get(s.cube as 'prices' | 'rates')!.map((c) => ({ name: c.name, type: c.type }))] as const));
+      const byAlias = new Map(v.spec.sources.map((s) => [s.alias, columns.get(s.cube as 'prices' | 'rates' | 'macro')!.map((c) => ({ name: c.name, type: c.type }))] as const));
       assert.deepEqual(timeseriesProblems(v.spec, byAlias), [], v.title ?? v.id);
     }
     const ways = specsOn('Ways to view');
@@ -212,9 +231,9 @@ describe('the example pages', () => {
     assert.ok(ways.some((ts) => ts.view?.compare === 'percent'), 'every line from one start');
     assert.deepEqual([...new Set(ways.flatMap((ts) => ts.series.map((x) => x.style?.kind ?? 'line')))].sort(), ['area', 'bars', 'dots', 'line', 'step']);
     assert.ok(ways.some((ts) => ts.sources.length === 2), 'two grids');
-    // the data sheet: the two grids every tile reads, each its sample rebuilt on opening
-    assert.deepEqual(layoutTiles(page.sheets.at(-1)!.layout), ['prices', 'rates']);
-    for (const [id, sample] of [['prices', 'markets'], ['rates', 'rates']] as const) {
+    // the data sheet: the grids the tiles read, each its sample rebuilt on opening -- the monthly one the Dates sheet's
+    assert.deepEqual(layoutTiles(page.sheets.at(-1)!.layout), ['prices', 'rates', 'macro']);
+    for (const [id, sample] of [['prices', 'markets'], ['rates', 'rates'], ['macro', 'macro']] as const) {
       const source = page.cubes.find((c) => c.id === id)!.cube.source;
       assert.ok(source._type === 'file' && source.sample?.id === sample, `${id} is the ${sample} sample`);
     }

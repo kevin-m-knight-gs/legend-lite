@@ -33,7 +33,7 @@ export interface TsParam extends TsParamShape {
   readonly about: string;
 }
 
-export type TsFamily = 'Returns' | 'Level' | 'Rolling statistics' | 'Risk' | 'Relationships' | 'Technicals' | 'Math';
+export type TsFamily = 'Returns' | 'Level' | 'Rolling statistics' | 'Risk' | 'Relationships' | 'Technicals' | 'Math' | 'Dates';
 
 export interface TsFunction {
   readonly name: TsFunctionName;
@@ -313,6 +313,13 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   ceil: { level: 'keeps',
     label: 'Cap at a value', family: 'Math', unit: 'same', params: { value: 'the most it may be' },
     about: 'Never above value: the lesser of x and value.', gsQuant: 'algebra.ceil',
+  },
+  // dates (the next phases' 1, 2026-10-26)
+  interpolate: { level: 'keeps',
+    label: 'Onto the dates of another', family: 'Dates', unit: 'same',
+    params: { method: "intersect: the dates both have; nan: none where x has none; zero: 0 there; step: x's last value at or before each (before its first, its first)" },
+    about: 'x on the dates of y -- its lines, a split\'s, under every line of y\'s -- by method.',
+    gsQuant: 'datetime.interpolate',
   },
 };
 

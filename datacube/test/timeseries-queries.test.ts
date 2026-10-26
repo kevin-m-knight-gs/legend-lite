@@ -686,6 +686,71 @@ const rankIn = (window: number[], v: number): number =>
 
 // -- the correlations of the lines over the dates shown (the expert tables, 2026-10-26) --
 
+// -- the dates of two series combined (the next phases' 1, 2026-10-26: gs-quant's Interpolate, its algebra's method) --
+
+describe('two series on two calendars: the tile\'s align, and interpolate', () => {
+  // CCC trades every third weekday, AAA every one: the union is AAA's, CCC's own every third
+  const own = DAYS.map((_, i) => i).filter((i) => i % 3 === 0);
+  const before = (i: number): number => own.filter((j) => j <= i).at(-1)!;
+  const after = (i: number): number | undefined => own.find((j) => j >= i);
+  const day = (d: string): number => Date.parse(`${d}T00:00:00Z`) / 86_400_000;
+  const aligned = (align: string): TimeseriesSpec => spec({ A: 'close[AAA] - close[CCC]' }, { align } as Partial<TimeseriesSpec>);
+
+  it('intersect: the dates both have, as before', async () => {
+    const l = await line(aligned('intersect'));
+    assert.deepEqual(l.dates, own.map((i) => DAYS[i]!));
+  });
+
+  it('step: every date either has, CCC its last close at or before each', async () => {
+    const l = await line(aligned('step'));
+    assert.deepEqual(l.dates, DAYS);
+    close(l.values, AAA.map((v, i) => v - CCC[before(i)]!), 'step', 1e-9);
+  });
+
+  it('time: CCC linear in time between its closes, none after its last', async () => {
+    const l = await line(aligned('time'));
+    assert.deepEqual(l.dates, DAYS);
+    close(l.values, AAA.map((v, i) => {
+      const a = before(i);
+      const b = after(i);
+      if (b === undefined) return null;
+      if (a === b) return v - CCC[a]!;
+      const t = (day(DAYS[i]!) - day(DAYS[a]!)) / (day(DAYS[b]!) - day(DAYS[a]!));
+      return v - (CCC[a]! + (CCC[b]! - CCC[a]!) * t);
+    }), 'time', 1e-9);
+  });
+
+  it('nan and zero: every date, none where CCC has none -- or 0 there', async () => {
+    close((await line(aligned('nan'))).values, AAA.map((v, i) => (i % 3 === 0 ? v - CCC[i]! : null)), 'nan', 1e-9);
+    close((await line(aligned('zero'))).values, AAA.map((v, i) => (i % 3 === 0 ? v - CCC[i]! : v)), 'zero', 1e-9);
+  });
+
+  it('step before a series\' first value: its first (gs-quant\'s ffill, then bfill)', async () => {
+    const l = await line(spec({ A: 'close[AAA] - mean(close[CCC], 3)' }, { align: 'step' } as Partial<TimeseriesSpec>));
+    const mean3 = (j: number): number => (CCC[j]! + CCC[j - 3]! + CCC[j - 6]!) / 3;
+    close(l.values, AAA.map((v, i) => v - mean3(Math.max(6, before(i)))), 'bfilled', 1e-9);
+  });
+
+  it('a line per symbol: each its own dates and CCC\'s', async () => {
+    const l = await line(spec({ A: 'close - close[CCC]' }, { align: 'step' } as Partial<TimeseriesSpec>, 'symbol'));
+    const of = (sym: string): Line => l.values.filter((_, i) => l.split![i] === sym);
+    close(of('AAA'), AAA.map((v, i) => v - CCC[before(i)]!), 'AAA', 1e-9);
+    close(of('BBB'), BBB.map((v, i) => v - CCC[before(i)]!), 'BBB', 1e-9);
+    close(of('CCC'), own.map(() => 0), 'CCC with itself', 1e-9);
+  });
+
+  it('interpolate: x onto the dates of y, by method', async () => {
+    const onto = async (method: string): Promise<{ dates: string[]; values: Line }> => line(spec({ A: `interpolate(close[CCC], close[AAA], ${method})` }));
+    const step = await onto('step');
+    assert.deepEqual(step.dates, DAYS);
+    close(step.values, DAYS.map((_, i) => CCC[before(i)]!), 'step', 1e-9);
+    close((await onto('nan')).values, DAYS.map((_, i) => (i % 3 === 0 ? CCC[i]! : null)), 'nan', 1e-9);
+    close((await onto('zero')).values, DAYS.map((_, i) => (i % 3 === 0 ? CCC[i]! : 0)), 'zero', 1e-9);
+    const both = await onto('intersect');
+    assert.deepEqual(both.dates, own.map((i) => DAYS[i]!));
+  });
+});
+
 describe('correlations: each pair of lines over the dates shown', () => {
   it('two levels\' returns, over the dates both have shown; a level with a return its returns with the return', async () => {
     const ts = spec({ A: 'close[AAA]', B: 'close[BBB]', C: 'returns(close[CCC])' });
@@ -1383,8 +1448,9 @@ describe('a series combining two grids, planned over one model of their tables (
 // grid's alone by its own planner, the series across both grids over one model of their tables (openSources), as the
 // tab runs them.
 /** The gallery's series: every function at least once, and the ways to view (2026-10-26: 92, the regression tile's four;
- *  102, the exponential averages', volatilities' and MACD's ten; 106, the percentiles' four; 109, a condition's three). */
-const GALLERY_SERIES = 109;
+ *  102, the exponential averages', volatilities' and MACD's ten; 106, the percentiles' four; 109, a condition's three;
+ *  113, the Dates sheet's alignment and interpolate, four). */
+const GALLERY_SERIES = 113;
 
 describe('the timeseries examples: every series of every tile, on its own samples', () => {
   const pages = [
@@ -1392,14 +1458,17 @@ describe('the timeseries examples: every series of every tile, on its own sample
     ['the timeseries gallery', GALLERY_SERIES, async () => (await import('../src/examples/timeseries-gallery.ts')).timeseriesGalleryPage()],
   ] as const;
   for (const [what, count, build] of pages) it(`${what}: the samples read as the page declares them, and every query plans and answers`, async () => {
-    const { MARKET_SPECS, RATE_SPECS } = await import('../src/examples/markets.ts');
-    const { marketsCsv, ratesCsv } = await import('../src/samples.ts');
+    const { MACRO_SPECS, MARKET_SPECS, RATE_SPECS } = await import('../src/examples/markets.ts');
+    const { macroCsv, marketsCsv, ratesCsv } = await import('../src/samples.ts');
     const db = await openDatabase();
     const local = new DuckDbEngine(db.connection);
     try {
       const page = await build();
       const grids = new Map<string, { input: TsInput; planner: LitePlanner; table: string }>();
-      for (const [cube, csv, specs] of [['prices', marketsCsv(), MARKET_SPECS], ['rates', ratesCsv(), RATE_SPECS]] as const) {
+      // each grid the page holds, its sample read in
+      const samples = ([['prices', marketsCsv(), MARKET_SPECS], ['rates', ratesCsv(), RATE_SPECS], ['macro', macroCsv(), MACRO_SPECS]] as const)
+        .filter(([cube]) => page.cubes.some((c) => c.id === cube));
+      for (const [cube, csv, specs] of samples) {
         const r = await ingestFile(local, db.files, new File([csv], `sample-${cube}.csv`), writer, { table: `ex_${cube}` });
         const own = plannerFor(r.model, r.runtime);
         const all = await local.execute(await own.plan(from(r.source).limit(1).lambda()), 0);
@@ -1407,15 +1476,16 @@ describe('the timeseries examples: every series of every tile, on its own sample
         const saved = page.cubes.find((c) => c.id === cube)!.cube.query;
         grids.set(cube, { input: { snapshot: { ...saved, source: { query: r.source }, epoch: 1 }, filter: undefined }, planner: own, table: r.table });
       }
-      // the two grids over one model of their tables, for the series that read both
-      const sources = ['prices', 'rates'].map((c) => page.cubes.find((x) => x.id === c)!.cube.source);
+      // the grids over one model of their tables, for the series that read several
+      const cubes = samples.map(([cube]) => cube);
+      const sources = cubes.map((c) => page.cubes.find((x) => x.id === c)!.cube.source);
       const opened = await openSources(sources, {
-        here: TAB_TABLES, tables: [grids.get('prices')!.table, grids.get('rates')!.table], models: writer, databaseType: 'DuckDB',
+        here: TAB_TABLES, tables: cubes.map((c) => grids.get(c)!.table), models: writer, databaseType: 'DuckDB',
         catalog: (table) => catalogColumns(local, writer, table),
         typer: (model, runtime) => plannerFor(model, runtime),
       });
       const joint = plannerFor(opened.model, opened.runtime);
-      const together = new Map(['prices', 'rates'].map((c, i) => [c, { ...grids.get(c)!.input, snapshot: { ...grids.get(c)!.input.snapshot, source: { query: opened.relations[i]! } } }] as const));
+      const together = new Map<string, TsInput>(cubes.map((c, i) => [c, { ...grids.get(c)!.input, snapshot: { ...grids.get(c)!.input.snapshot, source: { query: opened.relations[i]! } } }] as const));
       let ran = 0;
       for (const view of page.views) {
         if (view.kind !== 'timeseries') continue;
