@@ -12,7 +12,7 @@ import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { col, fn, lambda, lit, minus, toJson } from '../../pure-protocol/src/index.ts';
-import type { ResultTable } from '../../engine-client/src/result.ts';
+import type { RunOutcome } from '../src/runner.ts';
 import type { EChartsOption } from 'echarts';
 import { marketsCsv } from '../src/samples.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
@@ -34,7 +34,7 @@ const of = (symbol: string): { days: string[]; closes: number[] } => {
 
 let engine: DuckDbEngine;
 let grid: TsGrid;
-let plan: (query: Parameters<TsGrid['run']>[0]) => Promise<ResultTable>;
+let plan: (query: Parameters<TsGrid['run']>[0]) => Promise<RunOutcome>;
 let runs = 0;
 /** The database the grid reads, and its table: a test changes the rows under the grid's query. */
 let database: Awaited<ReturnType<typeof openDatabase>>;
@@ -48,17 +48,22 @@ before(async () => {
   const r = await ingestFile(engine, db.files, new File([CSV], 'sample-markets.csv'), writer);
   table = r.table;
   const planner = plannerFor(r.model, r.runtime);
-  plan = async (query) => engine.execute(await planner.plan(query), 0);
+  // a query planned and run: its rows, and the SQL its plan ran (the Query window's)
+  plan = async (query) => {
+    const planned = await planner.plan(query);
+    return { rows: await engine.execute(planned, 0), sql: planned.sql };
+  };
   const snapshot: CubeSnapshot = {
     source: { query: r.source }, columns: [...MARKET_SPECS], derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1,
   };
   grid = {
     cube: 'prices', title: 'Prices', snapshot, filter: undefined,
-    run: async (query): Promise<ResultTable> => {
+    run: async (query): Promise<RunOutcome> => {
       runs += 1;
-      return engine.execute(await planner.plan(query), 0);
+      return plan(query);
     },
     format: (value) => (typeof value === 'number' ? value.toFixed(2) : String(value)),
+    print: (query) => planner.print(query),
   };
 });
 
@@ -69,8 +74,13 @@ after(async () => {
 /** A viewer over the grid in a fresh DOM: what it drew, and the specs it told. `refused`: the queries its grid's
  *  database refuses, by their text (a bounds query's, a statistics query's...), as a warehouse that is down refuses them;
  *  `over`: the grid as it is read (its columns), the markets sample's by default. */
-function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over: TsGrid = grid):
-  { view: TimeseriesView; root: HTMLElement; windows: HTMLElement; drawn: EChartsOption[]; told: TimeseriesSpec[]; zooms: unknown[] } {
+/** A picture the viewer had made: what it drew, as what, at what size, on what. */
+interface Exported { option: EChartsOption; kind: 'png' | 'svg'; width: number; height: number; background: string }
+
+function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over: TsGrid = grid): {
+  view: TimeseriesView; root: HTMLElement; windows: HTMLElement; drawn: EChartsOption[]; told: TimeseriesSpec[]; zooms: unknown[];
+  exported: Exported[];
+} {
   const g: TsGrid = refused === undefined ? over : {
     ...over,
     run: (query, snapshot, signal) => (refused(toJson(query)) ? Promise.reject(new Error('the warehouse is down')) : over.run(query, snapshot, signal)),
@@ -82,6 +92,7 @@ function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over
   const drawn: EChartsOption[] = [];
   const told: TimeseriesSpec[] = [];
   const zooms: unknown[] = [];
+  const exported: Exported[] = [];
   const mount = (): MountedTimeseries => ({
     show: (option) => { drawn.push(option); },
     zoomTo: (from, to) => { zooms.push({ from, to }); },
@@ -90,6 +101,7 @@ function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over
     height: () => 480,
     picture: () => null,
     pngUrl: () => null,
+    exportUrl: async (option, kind, width, height, background) => { exported.push({ option, kind, width, height, background }); return `data:image/${kind};base64,AA==`; },
     dispose: () => {},
   });
   const view = new TimeseriesView(root, {
@@ -102,7 +114,7 @@ function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over
     title: () => 'Markets',
     mount,
   }, spec);
-  return { view, root, windows, drawn, told, zooms };
+  return { view, root, windows, drawn, told, zooms, exported };
 }
 
 /** Until `done` holds, the viewer's queries answered meanwhile (bounded). */
@@ -394,6 +406,169 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
   });
 });
 
+/** A button of the tile's toolbar, by its label. */
+const barButton = (root: HTMLElement, label: string): HTMLButtonElement =>
+  [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-bar button')].find((b) => b.textContent === label)!;
+/** A button of the open window, by its label. */
+const windowButton = (windows: HTMLElement, label: string): HTMLButtonElement =>
+  [...windows.querySelectorAll<HTMLButtonElement>('.dc-ts-window button')].find((b) => b.textContent === label)!;
+/** The page's clipboard, what is written onto it kept. */
+function clipboardOf(root: HTMLElement): string[] {
+  const written: string[] = [];
+  Object.defineProperty(root.ownerDocument.defaultView!.navigator, 'clipboard', {
+    configurable: true, value: { writeText: async (text: string) => { written.push(text); } },
+  });
+  return written;
+}
+
+// the next phases' 2 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): what makes a tile a day's tool
+describe('the timeseries viewer, every day: its data, a swap, its queries, a picture, a parameter dragged', () => {
+  it('the Data tab: every line side by side, latest first, each in its format; Copy every date, oldest first', async () => {
+    const { root, view } = viewer(SPEC);
+    const written = clipboardOf(root);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-stats-tab')].find((b) => b.textContent === 'Data')!.click();
+      assert.deepEqual([...root.querySelectorAll('.dc-ts-data th')].map((th) => th.textContent), ['Date', 'S&P 500', '21d vol']);
+      const spx = of('SPX');
+      const rows = statRows(root);
+      assert.equal(rows.length, Math.min(500, spx.days.length), 'the latest 500 dates at most');
+      assert.equal(rows[0]![1], spx.closes.at(-1)!.toFixed(2), 'the latest first, as the grid writes its close');
+      assert.match(rows[0]![2]!, /%$/, 'a volatility in percent');
+      [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-stats button')].find((b) => b.textContent === 'Copy')!.click();
+      await until(() => written.length === 1, 'the table copied');
+      const lines = written[0]!.trim().split('\n');
+      assert.equal(lines[0], 'date\tS&P 500\t21d vol');
+      assert.equal(lines.length, spx.days.length + 1, 'every date, not the latest 500 alone');
+      const [date, close] = lines[1]!.split('\t');
+      assert.deepEqual([date!.slice(0, 10), close], [spx.days[0], String(spx.closes[0])], 'oldest first, the figure as answered');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('Swap: one instrument for another of its source\'s, the database\'s list of them, told as the tile\'s one rule', async () => {
+    const { root, windows, told, view } = viewer(SPEC);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      barButton(root, 'Swap').click();
+      const pop = windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+      const [from, to] = [...pop.querySelectorAll('select')] as HTMLSelectElement[];
+      assert.deepEqual([...from!.options].map((o) => o.textContent), ['SPX']);
+      await until(() => [...to!.options].some((o) => o.value === 'NDX'), 'the instruments its source has');
+      assert.ok(![...to!.options].some((o) => o.value === 'SPX'), 'not the one it reads');
+      to!.value = 'NDX';
+      windowButton(windows, 'Swap').click();
+      assert.deepEqual(told.at(-1)!.series[0]!.expr, parseExpr('close[NDX]'));
+      assert.deepEqual(told.at(-1)!.series[1]!.expr, parseExpr('volatility($A, 21)'), 'its reader follows by its reference');
+      assert.equal(windows.querySelector('.dc-ts-window'), null, 'the window put away');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('Query: each series\' query as the compiler prints it and the SQL the database ran for it, each copied', async () => {
+    const { root, windows, view } = viewer(SPEC);
+    const written = clipboardOf(root);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      barButton(root, 'Query').click();
+      const pop = windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+      assert.deepEqual([...pop.querySelectorAll('.dc-ts-heading')].map((h) => h.textContent), ['A: S&P 500', 'B: 21d vol']);
+      const code = (): string[] => [...pop.querySelectorAll('.dc-ts-code')].map((c) => c.textContent ?? '');
+      await until(() => code().every((c) => c !== 'Printing…'), 'its queries printed');
+      const [pureA, sqlA] = code();
+      assert.match(pureA!.trimStart(), /^\|/, `a lambda, as the compiler prints one: ${pureA!.slice(0, 60)}`);
+      assert.match(pureA!, /'SPX'/);
+      assert.match(sqlA!, /select/i, 'the SQL its rows were read by');
+      windowButton(windows, 'Copy SQL').click();
+      await until(() => written.length === 1, 'its SQL copied');
+      assert.equal(written[0], sqlA);
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('a picture: drawn again with the tile\'s title, subtitle and note above it, taller by them, on the page\'s surface', async () => {
+    const { root, exported, view } = viewer({ ...SPEC, view: { ...SPEC.view, subtitle: 'Daily', note: 'Source: the sample' } });
+    const saved: string[] = [];
+    const Anchor = root.ownerDocument.defaultView!.HTMLAnchorElement;
+    Anchor.prototype.click = function click(this: HTMLAnchorElement) { saved.push(`${this.download} ${this.href.slice(0, this.href.indexOf(";"))}`); };
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      const canvas = root.querySelector('.dc-ts-chart') as HTMLElement;
+      // not drawn on the screen (no width): said, nothing made
+      barButton(root, 'PNG').click();
+      await until(() => /no chart drawn/.test(root.querySelector('.dc-ts-banner')?.textContent ?? ''), 'no picture of nothing');
+      assert.equal(exported.length, 0);
+      Object.defineProperty(canvas, 'clientWidth', { configurable: true, value: 800 });
+      barButton(root, 'SVG').click();
+      await until(() => saved.length === 1, 'the picture handed over');
+      assert.deepEqual(saved, ['Markets.svg data:image/svg']);
+      const [made] = exported;
+      assert.equal(made!.kind, 'svg');
+      assert.deepEqual([made!.width, made!.height], [800, 480 + 22 + 17 + 15], 'its panes as tall as on the screen, its heading above');
+      assert.deepEqual((made!.option.title as { text: string }[]).map((t) => t.text), ['Markets', 'Daily', 'Source: the sample']);
+      assert.ok(made!.background !== '' && made!.background !== 'transparent', `on a surface: ${made!.background}`);
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('a parameter dragged: its expression moved, the series drawn again when it stops, the editor kept open', async () => {
+    const { root, windows, told, view } = viewer(SPEC);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      const chip = [...root.querySelectorAll<HTMLElement>('.dc-ts-chip')].find((c) => c.textContent?.startsWith('21d vol'))!;
+      chip.dispatchEvent(new chip.ownerDocument.defaultView!.MouseEvent('dblclick', { bubbles: true }));
+      const pop = windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+      const slider = pop.querySelector<HTMLInputElement>('.dc-ts-slider[aria-label$="w"]')!;
+      assert.ok(slider, 'its window\'s length a slider');
+      assert.equal(slider.value, '21');
+      const before = told.length;
+      slider.value = '30';
+      slider.dispatchEvent(new slider.ownerDocument.defaultView!.Event('input'));
+      assert.equal((pop.querySelector('.dc-ts-expr') as HTMLInputElement).value, 'volatility($A, 30)');
+      assert.equal(told.length, before, 'nothing told while it moves');
+      await until(() => told.length > before, 'the series drawn again when it stops');
+      assert.deepEqual(told.at(-1)!.series[1]!.expr, parseExpr('volatility($A, 30)'));
+      assert.equal(told.at(-1)!.series[1]!.name, '21d vol', 'the rest of the series as it was');
+      assert.ok(windows.querySelector('.dc-ts-window'), 'its editor still open');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('Settings: a subtitle drawn under the chart\'s top, a pane turned upside down, its ends set', async () => {
+    const { root, windows, told, drawn, view } = viewer(SPEC);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      barButton(root, 'Settings').click();
+      const pop = windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+      const Event = pop.ownerDocument.defaultView!.Event;
+      const sub = pop.querySelector<HTMLInputElement>('input[aria-label="Subtitle"]')!;
+      sub.value = 'Daily close';
+      sub.dispatchEvent(new Event('change'));
+      assert.equal(told.at(-1)!.view?.subtitle, 'Daily close');
+      const upside = [...windows.querySelectorAll<HTMLLabelElement>('.dc-ts-window label')].find((l) => l.textContent === 'Upside down')!;
+      const box = upside.querySelector('input')!;
+      box.checked = true;
+      box.dispatchEvent(new Event('change'));
+      assert.equal(told.at(-1)!.panes?.[0]?.invert, true);
+      const most = windows.querySelector<HTMLInputElement>('.dc-ts-window input[aria-label="Most"]')!;
+      most.value = '9000';
+      most.dispatchEvent(new Event('change'));
+      assert.equal(told.at(-1)!.panes?.[0]?.max, 9000);
+      await until(() => (drawn.at(-1)!.yAxis as { inverse?: boolean; max?: number }[])[0]?.max === 9000, 'drawn so');
+      const left = (drawn.at(-1)!.yAxis as { inverse?: boolean; max?: number }[])[0]!;
+      assert.equal(left.inverse, true);
+      assert.deepEqual((drawn.at(-1)!.title as { text: string }[]).map((t) => t.text), ['Daily close'], 'the subtitle on the screen too; the title the header\'s');
+    } finally {
+      view.dispose();
+    }
+  });
+});
+
 // the review's P4 (docs/TIMESERIES_REVIEW_2026_10_25.md; AGENTS.md invariant 4): a refusal was shown as an absence -- a
 // refused bounds query made 1Y show everything, refused statistics blanked every cell, refused instruments an empty
 // picker, each with no word; and a function on a blank box guessed a column named close
@@ -519,7 +694,8 @@ describe('asking the database what is shown, once', () => {
       windowHost: dom.window.document.getElementById('w') as unknown as HTMLElement,
       title: () => 'Markets',
       mount: () => ({
-        show: () => {}, zoomTo: () => {}, zoomed: () => ({}), highlight: () => {}, height: () => 480, picture: () => null, pngUrl: () => null, dispose: () => {},
+        show: () => {}, zoomTo: () => {}, zoomed: () => ({}), highlight: () => {}, height: () => 480, picture: () => null, pngUrl: () => null,
+        exportUrl: () => Promise.reject(new Error('no picture here')), dispose: () => {},
       }),
     }, spec);
     return { view, root, opens: () => opens, disposed: () => disposed };

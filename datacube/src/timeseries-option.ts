@@ -265,13 +265,16 @@ export function tickText(unit: TsUnit, v: number): string {
 // ------------------------------------------------------------------ the layout
 
 /** The panes in use, top to bottom: each its index, its share of the height, its scale. */
-export function panesOf(ts: TimeseriesSpec, lines: readonly TsLine[]): { index: number; height: number; log: boolean }[] {
+export function panesOf(ts: TimeseriesSpec, lines: readonly TsLine[]): { index: number; height: number; log: boolean; invert: boolean; min?: number; max?: number }[] {
   // a condition is shaded across every pane: it makes none of its own
   const used = new Set<number>([0, ...lines.filter((l) => !l.series.hidden && !l.shades).map((l) => l.series.pane ?? 0)]);
   return [...used].filter((p) => p < MAX_PANES).sort((a, b) => a - b).map((index) => ({
     index,
     height: ts.panes?.[index]?.height ?? (index === 0 ? 3 : 1),
     log: ts.panes?.[index]?.log === true,
+    invert: ts.panes?.[index]?.invert === true,
+    ...(ts.panes?.[index]?.min !== undefined ? { min: ts.panes[index]!.min! } : {}),
+    ...(ts.panes?.[index]?.max !== undefined ? { max: ts.panes[index]!.max! } : {}),
   }));
 }
 
@@ -282,6 +285,15 @@ export interface TsDrawContext {
   readonly formatOf?: (line: TsLine) => TsFormat | undefined;
   readonly view?: { readonly from?: string; readonly to?: string };
   readonly height?: number;
+  /** A picture's title (its export, the next phases' 2): drawn above its subtitle and note; on the screen, the tile's
+   *  header says it. */
+  readonly title?: string;
+}
+
+/** How tall a drawing's heading is -- a picture's `title`, the view's subtitle and note, each a line -- in pixels above
+ *  its panes: a picture is made that much taller than the chart on the screen, its panes the same. */
+export function tsHeading(ts: TimeseriesSpec, title?: string): number {
+  return (title !== undefined ? 22 : 0) + (ts.view?.subtitle?.trim() ? 17 : 0) + (ts.view?.note?.trim() ? 15 : 0);
 }
 
 const NAVIGATOR = 30;
@@ -308,7 +320,11 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   const total = ctx.height ?? 420;
   const navigator = viewSetting(ts, 'navigator');
   const bottom = AXIS_LABELS + (navigator ? NAVIGATOR + 8 : 0);
-  const room = Math.max(60, total - TOP - bottom - PANE_GAP * (panes.length - 1));
+  // its heading -- a picture's title, the subtitle, the note -- above the panes, in the room they leave
+  const subtitle = ts.view?.subtitle?.trim() || undefined;
+  const note = ts.view?.note?.trim() || undefined;
+  const headed = tsHeading(ts, ctx.title);
+  const room = Math.max(60, total - TOP - headed - bottom - PANE_GAP * (panes.length - 1));
   const weight = panes.reduce((a, p) => a + p.height, 0);
   // the lines drawn on an axis; a condition's periods are shaded across the panes, on none (below)
   const shown = lines.filter((l) => !l.series.hidden && !l.shades);
@@ -318,7 +334,7 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   const tag = lastValues ? Math.max(0, ...shown.filter((l) => !l.band && !l.candles && !['bars', 'dots'].includes(l.series.style?.kind ?? 'line'))
     .map((l) => valueText(l, [...l.points].reverse().find((p) => p[1] !== null)?.[1] ?? null, ctx.formatOf?.(l)).length)) : 0;
   const right = 16 + (tag > 0 ? tag * 6 + 14 : 0);
-  let y = TOP;
+  let y = TOP + headed;
   const grids = panes.map((p) => {
     const h = Math.max(40, Math.round((room * p.height) / weight));
     const g = { left: 12, right, top: y, height: h, containLabel: true };
@@ -349,6 +365,11 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
         gridIndex: gi,
         position: side,
         scale: bounded === undefined,
+        // upside down, as a yield's or a spread's axis is read (the next phases' 2)
+        ...(p.invert ? { inverse: true } : {}),
+        // its left axis' ends set by hand
+        ...(side === 'left' && p.min !== undefined ? { min: p.min } : {}),
+        ...(side === 'left' && p.max !== undefined ? { max: p.max } : {}),
         // as many ticks as the pane has room for: a short pane's labels never run into each other; a bounded axis's at
         // even steps of its bounds (an RSI's 0, 50, 100 -- or every 25)
         ...(bounded !== undefined
@@ -534,10 +555,17 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   }
   const grain = ts.grain ?? 'day';
   const crosshair = viewSetting(ts, 'crosshair');
+  // the heading: each line its own text, the title's the boldest
+  const heads = [
+    ...(ctx.title !== undefined ? [{ text: ctx.title, size: 15, weight: 600, color: theme.ink, top: 4 }] : []),
+    ...(subtitle !== undefined ? [{ text: subtitle, size: 12, weight: 400, color: theme.ink, top: 4 + (ctx.title !== undefined ? 22 : 0) }] : []),
+    ...(note !== undefined ? [{ text: note, size: 11, weight: 400, color: theme.inkSecondary, top: 4 + headed - 15 }] : []),
+  ];
   return {
     backgroundColor: 'transparent',
     textStyle: { fontFamily: theme.font },
     animation: false,
+    ...(heads.length > 0 ? { title: heads.map((h) => ({ text: h.text, left: 12, top: h.top, textStyle: { fontSize: h.size, fontWeight: h.weight, color: h.color, fontFamily: theme.font } })) } : {}),
     grid: grids,
     xAxis: xAxes,
     yAxis: yAxes,
@@ -618,6 +646,56 @@ export function describeTimeseries(ts: TimeseriesSpec, lines: readonly TsLine[])
 /** A series' expression, as the editor shows it. */
 export function seriesText(s: TsSeries): string {
   return exprText(s.expr);
+}
+
+/** A figure of a line in the wide table: its value, a band's edges, a candle's prices (its close its value). */
+export type TsFigure = 'value' | 'lower' | 'upper' | 'open' | 'high' | 'low' | 'close';
+
+/** The lines side by side (timeseriesTable): each column a line's figure, named; each row a date and the figures. */
+export interface TsTable {
+  readonly columns: readonly { readonly line: TsLine; readonly figure: TsFigure; readonly name: string }[];
+  readonly rows: readonly { readonly date: string; readonly values: readonly (number | null)[] }[];
+}
+
+/**
+ * THE LINES SIDE BY SIDE, wide form (the statistics panel's Data tab and its Copy, the next phases' 2): a row per date
+ * any line has a point on within `view`, oldest first; a column per line's figure -- its value; a band's lower and upper
+ * edges; candles' open, high, low and close -- each as the database answered it, none where a line has no point that
+ * date. Arranged, never computed: a line's own points, put by their dates.
+ */
+export function timeseriesTable(lines: readonly TsLine[], view: { readonly from?: string; readonly to?: string } = {}): TsTable {
+  const within = (d: string): boolean => (view.from === undefined || d.slice(0, 10) >= view.from) && (view.to === undefined || d.slice(0, 10) <= view.to);
+  const columns: { line: TsLine; figure: TsFigure; name: string; values: readonly (number | null)[] }[] = [];
+  for (const l of lines) {
+    const closes = l.points.map((p) => p[1]);
+    if (l.band) {
+      columns.push({ line: l, figure: 'lower', name: `${l.name} lower`, values: l.lower ?? [] }, { line: l, figure: 'upper', name: `${l.name} upper`, values: l.upper ?? [] });
+    } else if (l.candles) {
+      columns.push(
+        { line: l, figure: 'open', name: `${l.name} open`, values: l.candles.open },
+        { line: l, figure: 'high', name: `${l.name} high`, values: l.candles.high },
+        { line: l, figure: 'low', name: `${l.name} low`, values: l.candles.low },
+        { line: l, figure: 'close', name: `${l.name} close`, values: closes });
+    } else {
+      columns.push({ line: l, figure: 'value', name: l.name, values: closes });
+    }
+  }
+  // each column's figures by their dates: its line's points' own
+  const at = columns.map((c) => new Map(c.line.points.map((p, i) => [p[0], c.values[i] ?? null] as const)));
+  const dates = [...new Set(lines.flatMap((l) => l.points.map((p) => p[0])))].filter(within).sort();
+  return {
+    columns: columns.map(({ line, figure, name }) => ({ line, figure, name })),
+    rows: dates.map((date) => ({ date, values: at.map((m) => m.get(date) ?? null) })),
+  };
+}
+
+/** A wide table as a spreadsheet pastes it: tab-separated, a header of the date and the columns' names, a row per date,
+ *  oldest first, a figure as the database answered it (none: empty). */
+export function timeseriesTsv(t: TsTable): string {
+  const cell = (v: string): string => v.replace(/[\t\r\n]+/g, ' ');
+  const out = [['date', ...t.columns.map((c) => c.name)].map(cell).join('\t')];
+  for (const r of t.rows) out.push([r.date, ...r.values.map((v) => (v === null ? '' : String(v)))].map(cell).join('\t'));
+  return `${out.join('\n')}\n`;
 }
 
 /**

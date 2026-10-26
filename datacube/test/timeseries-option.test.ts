@@ -11,7 +11,7 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { LIGHT_THEME } from '../src/chart-option.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
-import { tickText, timeseriesCsv, timeseriesOption, tsLines, valueText, type TsResult } from '../src/timeseries-option.ts';
+import { tickText, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, tsHeading, tsLines, valueText, type TsResult } from '../src/timeseries-option.ts';
 import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
 import type { TsUnit } from '../src/timeseries-expr.ts';
@@ -77,6 +77,31 @@ describe('the lines, from what the database answered', () => {
     const csv = timeseriesCsv(lines).trim().split('\n');
     assert.equal(csv.length, 4, 'a header and a row per date');
     assert.ok(csv.slice(1).every((row) => row.includes('SPX')));
+  });
+
+  // the next phases' 2 (2026-10-26): the statistics panel's Data tab and its Copy
+  it('side by side: a row per date any line has, oldest first; a band its edges, candles their prices; none where none', () => {
+    const ts = spec([S('A', 'close[SPX]', { name: 'SPX' }), S('B', 'bollinger_bands($A, 2, 1)', { name: 'Band' }), S('C', 'close[NDX]', { name: 'NDX' })]);
+    const { lines } = tsLines(ts, [
+      answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }),
+      answered('B', 'same', { [TS_DATE]: DAYS.slice(0, 2), [TS_VALUE]: [3, 2], [TS_LOWER]: [2, 1], [TS_UPPER]: [4, 3], [TS_WIDTH]: [2, 2] }, { band: true }),
+      answered('C', 'same', { [TS_DATE]: ['2024-01-05', '2024-01-02'], [TS_VALUE]: [9, 7] }),
+    ], LIGHT_THEME);
+    const t = timeseriesTable(lines);
+    assert.deepEqual(t.columns.map((c) => c.name), ['SPX', 'Band lower', 'Band upper', 'NDX']);
+    assert.deepEqual(t.rows, [
+      { date: '2024-01-02', values: [1, null, null, 7] },
+      { date: '2024-01-03', values: [2, 1, 3, null] },
+      { date: '2024-01-04', values: [3, 2, 4, null] },
+      { date: '2024-01-05', values: [null, null, null, 9] },
+    ]);
+    // the dates shown alone
+    assert.deepEqual(timeseriesTable(lines, { from: '2024-01-03', to: '2024-01-04' }).rows.map((r) => r.date), ['2024-01-03', '2024-01-04']);
+    assert.equal(timeseriesTsv(timeseriesTable(lines, { to: '2024-01-02' })), 'date\tSPX\tBand lower\tBand upper\tNDX\n2024-01-02\t1\t\t\t7\n');
+    const candles = spec([S('A', 'ohlc(open, high, low, close)', { name: 'K' })]);
+    const k = tsLines(candles, [answered('A', 'same', { [TS_DATE]: ['2024-01-02'], [TS_VALUE]: [4], [TS_OPEN]: [1], [TS_HIGH]: [5], [TS_LOW]: [0.5] }, { candles: true })], LIGHT_THEME).lines;
+    assert.deepEqual(timeseriesTable(k).columns.map((c) => c.name), ['K open', 'K high', 'K low', 'K close']);
+    assert.deepEqual(timeseriesTable(k).rows[0]!.values, [1, 5, 0.5, 4]);
   });
 });
 
@@ -196,6 +221,25 @@ describe('the drawing', () => {
     const tooltip = option['tooltip'] as { formatter: (items: unknown[]) => string };
     const said = tooltip.formatter([{ seriesId: 'A', value: ['2024-01-02', 9, 10, 8, 11], axisValue: '2024-01-02' }]);
     for (const words of ['O 9.00', 'H 11.00', 'L 8.00', 'C 10.00']) assert.ok(said.includes(words), `${words} in ${said}`);
+  });
+
+  // the next phases' 2 (2026-10-26): a yield's axis read upside down, its ends by hand; a picture's heading
+  it('a pane upside down and its left axis\' ends by hand; the heading -- title, subtitle, note -- above the panes', () => {
+    const ts = spec([S('A', 'close[SPX]'), S('B', 'volatility($A, 2)')], { panes: [{ invert: true, min: 0, max: 10 }] });
+    const results = [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }), answered('B', 'percent', { [TS_DATE]: DAYS, [TS_VALUE]: [20, 19, null] })];
+    const yAxes = draw(ts, results).option['yAxis'] as { position: string; inverse?: boolean; min?: number; max?: number }[];
+    assert.deepEqual(yAxes.map((y) => [y.position, y.inverse, y.min, y.max]), [['left', true, 0, 10], ['right', true, undefined, undefined]]);
+    const plain = draw(spec([S('A', 'close[SPX]')]), [results[0]!]).option;
+    assert.equal(plain['title'], undefined, 'no heading of its own on the screen: the tile\'s header says its title');
+    const headed: TimeseriesSpec = { ...ts, view: { subtitle: 'Daily close', note: 'Source: the exchange' } };
+    const { lines } = tsLines(headed, results, LIGHT_THEME);
+    const picture = timeseriesOption(headed, lines, { theme: LIGHT_THEME, height: 600, title: 'Markets' }) as Record<string, unknown>;
+    const titles = picture['title'] as { text: string; top: number }[];
+    assert.deepEqual(titles.map((t) => t.text), ['Markets', 'Daily close', 'Source: the exchange']);
+    assert.ok(titles[0]!.top < titles[1]!.top && titles[1]!.top < titles[2]!.top, 'each line under the one before');
+    assert.equal(tsHeading(headed, 'Markets'), 22 + 17 + 15);
+    const grids = (o: Record<string, unknown>): { top: number }[] => o['grid'] as { top: number }[];
+    assert.equal(grids(picture)[0]!.top - grids(draw(ts, results).option)[0]!.top, tsHeading(headed, 'Markets'), 'the panes under the heading');
   });
 
   it('the annotations over the panes: a level on its pane, an event and a period across the dates', () => {

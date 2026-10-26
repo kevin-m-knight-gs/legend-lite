@@ -59,8 +59,15 @@ export type TsChange =
   | { readonly kind: 'range'; readonly range: TsRange | null }
   /** The view's settings told, each replacing its own, null taking it off (the toolbar's compare and stats, Settings). */
   | { readonly kind: 'view'; readonly view: { readonly [K in keyof TsView]?: TsView[K] | null } }
-  /** A pane's height or scale (the toolbar's Log: the main pane's; Settings' panes). */
-  | { readonly kind: 'pane'; readonly index: number; readonly height?: number; readonly log?: boolean }
+  /** A pane's height, scale or axis (the toolbar's Log: the main pane's; Settings' panes): `min`, `max` null take the
+   *  hand-set end off. */
+  | {
+    readonly kind: 'pane'; readonly index: number; readonly height?: number; readonly log?: boolean; readonly invert?: boolean;
+    readonly min?: number | null; readonly max?: number | null;
+  }
+  /** One instrument for another in every series that reads it (Bloomberg's change of security), in the source `alias`
+   *  alone when told; a name saying it says the other. */
+  | { readonly kind: 'swap'; readonly from: string; readonly to: string; readonly alias?: string }
   | { readonly kind: 'annotate'; readonly annotation: TsAnnotation }
   /** An annotation taken off, by its place. */
   | { readonly kind: 'unannotate'; readonly index: number }
@@ -165,6 +172,82 @@ export function judgedEdit(before: TimeseriesSpec | null, made: unknown,
   return spec;
 }
 
+/** The instruments a tile's series read (`close[SPX]`: a match on its source's instrument column), each with its
+ *  source's alias, in the order the series read them -- what a swap may take (its window's list). */
+export function instrumentsOf(spec: TimeseriesSpec): { readonly alias: string; readonly value: string }[] {
+  const first = spec.sources[0]?.alias;
+  const out: { alias: string; value: string }[] = [];
+  const walk = (e: TsExpr): void => {
+    if (e.kind === 'column') {
+      const alias = e.source ?? first;
+      const key = spec.sources.find((x) => x.alias === alias)?.key;
+      for (const m of e.where ?? []) {
+        if (alias !== undefined && (m.column === undefined || m.column === key) && !out.some((o) => o.alias === alias && o.value === String(m.value))) {
+          out.push({ alias, value: String(m.value) });
+        }
+      }
+    } else if (e.kind === 'binary') {
+      walk(e.left);
+      walk(e.right);
+    } else if (e.kind === 'call') {
+      e.args.forEach(walk);
+    }
+  };
+  for (const s of spec.series) walk(s.expr);
+  return out;
+}
+
+/**
+ * ONE INSTRUMENT FOR ANOTHER across a tile (the next phases' 2, 2026-10-26: Bloomberg's change of security, TradingView's
+ * symbol change): every match of `from` on its source's instrument column (`close[SPX]`) -- in source `alias` alone,
+ * when told -- matched to `to` instead, each series' name saying it (a word) saying the other; refused where no series
+ * reads it.
+ */
+function swapped(spec: TimeseriesSpec, from: string, to: string, alias: string | undefined): TimeseriesSpec {
+  if (to.trim() === '') throw new TsEditRefusal('an instrument is swapped for another: name it');
+  if (alias !== undefined && !spec.sources.some((x) => x.alias === alias)) throw new TsEditRefusal(`the tile reads no source ${alias}`);
+  const first = spec.sources[0]?.alias;
+  let swaps = 0;
+  const swap = (e: TsExpr): TsExpr => {
+    switch (e.kind) {
+      case 'column': {
+        const src = e.source ?? first;
+        if (alias !== undefined && src !== alias) return e;
+        const key = spec.sources.find((x) => x.alias === src)?.key;
+        if (!e.where) return e;
+        const where = e.where.map((m) => {
+          const onKey = m.column === undefined || m.column === key;
+          if (!onKey || String(m.value) !== from) return m;
+          // an instrument column of numbers matched to a number, never to words
+          if (typeof m.value === 'number' && !(to.trim() !== '' && Number.isFinite(Number(to)))) {
+            throw new TsEditRefusal(`${src}'s instruments are numbers: ${JSON.stringify(to)} is none`);
+          }
+          swaps += 1;
+          return { ...m, value: typeof m.value === 'number' ? Number(to) : to };
+        });
+        return { ...e, where };
+      }
+      case 'binary':
+        return { ...e, left: swap(e.left), right: swap(e.right) };
+      case 'call':
+        return { ...e, args: e.args.map(swap) };
+      case 'ref':
+      case 'number':
+        return e;
+    }
+  };
+  // the word itself in a name, never a part of another (SPX in SPXW)
+  const said = new RegExp(`(?<![\\p{L}\\p{N}_])${from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}_])`, 'gu');
+  const series = spec.series.map((s) => {
+    const before = swaps;
+    const expr = swap(s.expr);
+    // a series that read it named again; any other kept as it is
+    return swaps === before ? s : { ...s, expr, ...(s.name !== undefined ? { name: s.name.replace(said, to) } : {}) };
+  });
+  if (swaps === 0) throw new TsEditRefusal(`no series reads ${from}${alias !== undefined ? ` of ${alias}` : ''}`);
+  return { ...spec, series };
+}
+
 /**
  * THE TILE'S SPEC, CHANGED: `change` laid over `spec` by the tile's rules -- the one function its editors and Python ask.
  * Refused (TsEditRefusal) where a rule says no; what it returns is read by the tile's reader before it is told.
@@ -212,10 +295,15 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
       const pane = laid(panes[change.index], {
         ...(change.height !== undefined ? { height: change.height } : {}),
         ...(change.log !== undefined ? { log: change.log ? true : null } : {}),
+        ...(change.invert !== undefined ? { invert: change.invert ? true : null } : {}),
+        ...(change.min !== undefined ? { min: change.min } : {}),
+        ...(change.max !== undefined ? { max: change.max } : {}),
       });
       panes[change.index] = pane;
       return { ...spec, panes };
     }
+    case 'swap':
+      return swapped(spec, change.from, change.to, change.alias);
     case 'annotate':
       return { ...spec, annotations: [...(spec.annotations ?? []), change.annotation] };
     case 'unannotate': {

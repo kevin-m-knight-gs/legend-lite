@@ -244,9 +244,9 @@ describe('the saved spec\'s reader', () => {
     grain: 'day',
     series: [{ id: 'A', expr: parseExpr('rebase(close[AAPL])'), name: 'Apple', style: { kind: 'line', color: 2, width: 2, dash: 'dashed' }, pane: 0, axis: 'left' }],
     range: { last: '5y' },
-    panes: [{ height: 3, log: true }],
+    panes: [{ height: 3, log: true, invert: true, min: 0, max: 400 }],
     annotations: [{ kind: 'level', value: 100, label: 'par' }, { kind: 'event', date: '2024-03-20', label: 'FOMC' }, { kind: 'period', from: '2020-02-19', to: '2020-04-07' }],
-    view: { compare: 'rebase', legend: true, lastValues: true, navigator: true, stats: false, crosshair: true },
+    view: { compare: 'rebase', legend: true, lastValues: true, navigator: true, stats: false, crosshair: true, subtitle: 'Since 2020', note: 'Source: the exchange' },
   };
   const with_ = (change: Record<string, unknown>): unknown => ({ ...JSON.parse(JSON.stringify(OK)), ...change });
 
@@ -279,6 +279,12 @@ describe('the saved spec\'s reader', () => {
       [with_({ range: { last: '1y', from: '2024-01-01' } }), /not both/],
       [with_({ annotations: [{ kind: 'event', date: 'March' }] }), /is not a date/],
       [with_({ view: { compare: 'log' } }), /compare "log"/],
+      // the next phases' 2: a pane upside down, its ends by hand; a subtitle and a note in words
+      [with_({ panes: [{ invert: 'yes' }] }), /pane 0's invert is not true or false/],
+      [with_({ panes: [{ min: 'low' }] }), /pane 0's min "low" is not a number/],
+      [with_({ panes: [{ min: 5, max: 5 }] }), /pane 0's min 5 is not below its max 5/],
+      [with_({ view: { subtitle: 3 } }), /subtitle is not text/],
+      [with_({ panes: [{ flip: true }] }), /flip/],
     ];
     for (const [spec, words] of cases) {
       const p = tsProblem(spec);

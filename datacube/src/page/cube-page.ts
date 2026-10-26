@@ -30,6 +30,7 @@
 // detached -- a grid of its own grouping and query, made in one step, which it follows from then on (D7).
 
 import { ChartPanel } from '../ui/chart-panel.ts';
+import type { RunOutcome } from '../runner.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import { createItems, type MenuItem } from '../ui/menu.ts';
 import { chromeIcon, closeMark, paintState, stateButton } from '../ui/tile-icons.ts';
@@ -61,7 +62,7 @@ import type { CubeDocument, CubeSource, InputPort } from '../cube-document.ts';
 import type { GridCopy, PageDocument } from '../page-document.ts';
 import { sameValue, withoutConditions, type CubeSnapshot, type FilterNode, type FilterValue } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
-import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
+import type { Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { lazily } from '../lazily.ts';
 import { TS_STATES, tsStateOf, type TimeseriesSpec, type TsState } from '../timeseries-spec.ts';
@@ -96,8 +97,10 @@ export interface ChartSource {
   readonly snapshot: CubeSnapshot;
   /** The grid's configuration as it is now: its Column Properties among it. */
   readonly configuration: CubeConfiguration;
-  /** Run a query the grid did not plan, through the grid's own runner. */
-  run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<ResultTable>;
+  /** Run a query the grid did not plan, through the grid's own runner: its rows, and the SQL the database ran. */
+  run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<RunOutcome>;
+  /** A query as the compiler prints it, for a person to read (a timeseries' Query window). */
+  print(query: Lambda): Promise<string>;
   /** A value as the grid writes it; `headline`: scaled, a KPI's number (format.ts `headlineFormat`). */
   format(value: Scalar, column: string, type: string | undefined, headline?: boolean): string;
   /** A column's unit as the grid formats it (`currency|USD|`), or undefined: two units, two value axes. */
@@ -767,7 +770,7 @@ export class CubePage {
         const source = (): ChartSource => grid.chartSource();
         const panel = new ChartPanel(host, {
           snapshot: () => source().snapshot,
-          run: (query, snapshot, signal) => source().run(query, snapshot, signal),
+          run: async (query, snapshot, signal) => (await source().run(query, snapshot, signal)).rows,
           label: (value, column, type, headline) => source().format(value, column, type, headline),
           unit: (column) => source().unit?.(column),
           shown: () => source().shown(),
@@ -2149,7 +2152,7 @@ export class CubePage {
       onSpec: () => this.#chartChanged(id, 'Chart Change'),
       ...(restore ? { initial: restore.spec } : {}),
       snapshot: () => source().snapshot,
-      run: (query, snapshot, signal) => source().run(query, snapshot, signal),
+      run: async (query, snapshot, signal) => (await source().run(query, snapshot, signal)).rows,
       label: (value, column, type, headline) => source().format(value, column, type, headline),
       unit: (column) => source().unit?.(column),
       // the page's charts with the same column across share a crosshair
@@ -2547,6 +2550,7 @@ export class CubePage {
       snapshot: detached.snapshot,
       get configuration() { return runs.configuration; },
       run: (query, s, signal) => runs.run(query, s, signal),
+      print: (query) => runs.print(query),
       format: (value, column, type, headline) => runs.format(value, column, type, headline),
       unit: (column) => runs.unit?.(column),
       label: (column) => runs.label(column),
@@ -3046,6 +3050,7 @@ export class CubePage {
       get filter() { return source.snapshot.filter; },
       run: (query, snapshot, signal) => source.run(query, snapshot, signal),
       format: (value, column, type) => source.format(value, column, type),
+      print: (query) => source.print(query),
     };
   }
 

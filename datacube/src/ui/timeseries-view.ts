@@ -18,6 +18,7 @@ import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { isNumeric, isTemporal, isTimeOfDay } from '../../../engine-client/src/types.ts';
 import { themeOf } from '../chart-option.ts';
 import type { ChartPicture } from '../chart-render.ts';
+import type { RunOutcome } from '../runner.ts';
 import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import {
   MAX_PANES, TS_RANGES, viewSetting, type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr,
@@ -25,10 +26,10 @@ import {
 } from '../timeseries-spec.ts';
 import {
   candleOf, columnRef, exprText, firstValue, functionNamed, inlined, nextSeriesId, parseExpr, seriesName,
-  sourcesOf, timeseriesProblems, TsSyntaxError, type TsColumn, TS_FUNCTIONS, type TsFamily,
+  sourcesOf, timeseriesProblems, TsSyntaxError, type TsColumn, TS_FUNCTIONS, type TsFamily, type TsParam,
 } from '../timeseries-expr.ts';
 import {
-  editTimeseries, firstTimeseries as firstOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
+  editTimeseries, firstTimeseries as firstOf, instrumentsOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
 } from '../timeseries-edit.ts';
 import {
   boundsQuery, correlationsQuery, drawdownsQuery, keyValuesQuery, rangeWindow, readsAnchor, seriesQuery, seriesSources, statBlanks, statName, statsQuery, tableSeries, TS_DATE,
@@ -36,8 +37,8 @@ import {
   TS_SPLIT, TS_STAT_LEVEL_LOW, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
 import {
-  describeTimeseries, dateLabel, timeseriesCsv, timeseriesOption, toNumber, tsLines, valueText, type TsFormat, type TsLine,
-  type TsResult,
+  describeTimeseries, dateLabel, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, toNumber, tsHeading, tsLines,
+  valueText, type TsFormat, type TsLine, type TsResult,
 } from '../timeseries-option.ts';
 import type { MountedTimeseries } from '../timeseries-render.ts';
 import { lazily } from '../lazily.ts';
@@ -54,17 +55,24 @@ export interface TsGrid {
   readonly kept?: true;
   readonly snapshot: CubeSnapshot;
   readonly filter: FilterNode | undefined;
-  run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<ResultTable>;
+  /** A query run by the grid's runner: its rows, and the SQL the database ran for them (the Query window's). */
+  run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<RunOutcome>;
   /** A value as the grid writes it in this column. */
   format(value: Scalar, column: string, type: string | undefined): string;
+  /** A query as the compiler prints it, for a person to read (the Query window: the next phases' 2). */
+  print(query: Lambda): Promise<string>;
 }
 
 /** Grids opened over one model of their tables, for a series that combines them: each cube's source over the model. */
 export interface TsTogether {
   readonly relations: ReadonlyMap<string, ValueSpecification>;
-  run(query: Lambda): Promise<ResultTable>;
+  /** A query over the model planned and run: its rows, and its plan's SQL the database ran. */
+  run(query: Lambda): Promise<RunOutcome>;
   dispose(): void;
 }
+
+/** A query's answer as the viewer keeps it: its rows, and the SQL the database ran for them. */
+type Ran = TsResult & { readonly sql: string };
 
 /** The grids opened together in one round of asking (a fetch, the window moved: its series and their statistics), by
  *  the cubes they are: each set opened once and put away when the round is done (the review's P9: opened again for
@@ -79,7 +87,7 @@ function putAway(opened: Opened): void {
 
 /** A series' answer as its query asked it, its dates and its values among its columns: else the series' failure, said on
  *  its line -- never drawn as no points (timeseries-option.ts tsLines reads them). */
-function answered(r: TsResult): TsResult {
+function answered<R extends TsResult>(r: R): R {
   for (const c of [TS_DATE, TS_VALUE]) {
     if (!r.table.columns.some((x) => x.name === c)) throw new Error(`the database answered without the series' ${c === TS_DATE ? 'dates' : 'values'}`);
   }
@@ -189,6 +197,24 @@ function labelled(doc: Document, label: string, control: HTMLElement): HTMLLabel
   return l;
 }
 
+/** A parameter's slider: from its least to its most -- its bounds where it has them, else to four times the larger of
+ *  its default and its value -- a step of one for a count, of a hundredth of the span for a number; a bound it must be
+ *  above or below kept out of reach. */
+function sliderRange(p: TsParam, at: number): readonly [number, number, number] {
+  const count = p.kind !== 'number';
+  const least = p.min ?? p.above ?? (count ? 1 : 0);
+  const most = p.max ?? p.below ?? Math.max(count ? 10 : 1, 4 * Math.max(Math.abs(Number(p.default)), Math.abs(at)));
+  const step = count ? 1 : Number(((most - least) / 100).toPrecision(3));
+  const lo = p.above !== undefined && p.min === undefined ? least + step : least;
+  const hi = p.below !== undefined && p.max === undefined ? most - step : most;
+  return [Math.min(lo, at), Math.max(hi, at), step];
+}
+
+/** A tile's title as a file's name: the characters a file system refuses put aside. */
+function fileName(title: string): string {
+  return title.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').trim() || 'timeseries';
+}
+
 function download(doc: Document, name: string, href: string): void {
   const a = doc.createElement('a');
   a.href = href;
@@ -248,8 +274,11 @@ const STAT_TABS: readonly (readonly [StatsTab, string, string])[] = [
   ['risk', 'Risk', 'Each level\'s returns\' risk over the dates shown: volatility, Sharpe, Sortino, Calmar, drawdown, skew, kurtosis, value at risk'],
   ['drawdowns', 'Drawdowns', 'Each level\'s deepest drawdowns over the dates shown: from its peak, to its trough, to its recovery'],
   ['correlations', 'Correlations', 'Each pair of lines\' correlation over the dates shown: of a level\'s returns, of anything else as it is'],
+  ['data', 'Data', 'Every line\'s value, date by date over the dates shown, as the database answered it -- copied as a spreadsheet pastes it'],
 ];
-type StatsTab = 'summary' | 'risk' | 'drawdowns' | 'correlations';
+type StatsTab = 'summary' | 'risk' | 'drawdowns' | 'correlations' | 'data';
+/** The most dates the Data tab lists (the latest): Copy takes every one. */
+const MAX_DATA_ROWS = 500;
 /** The most lines the correlations' matrix has: its first, in the legend's order. */
 const MAX_CORRELATED = 12;
 
@@ -311,6 +340,8 @@ export class TimeseriesView {
   #bounds = new Map<string, ResultTable>();
   #boundsFailed = new Map<string, string>();
   #lines: TsLine[] = [];
+  /** The SQL the database ran for each series' answer drawn, by its id (the Query window's). */
+  #sqls = new Map<string, string>();
   #notes: string[] = [];
   #problems: string[] = [];
   /** The person's own look: the dates the zoom shows, until a range is chosen again. */
@@ -452,7 +483,7 @@ export class TimeseriesView {
    * A series' query run where it runs (D2, D5): of one grid, by that grid's runner; of several, over one model of their
    * tables (the host's together).
    */
-  async #run(series: TsSeries, make: (inputs: TsInputs) => TsQuery, signal: AbortSignal, opened: Opened): Promise<TsResult> {
+  async #run(series: TsSeries, make: (inputs: TsInputs) => TsQuery, signal: AbortSignal, opened: Opened): Promise<Ran> {
     const aliases = seriesSources(this.#spec, series);
     if (aliases.length === 0) throw new Error(`series ${series.id} reads no column of a grid`);
     return this.#runOn(aliases, make, signal, opened);
@@ -460,14 +491,15 @@ export class TimeseriesView {
 
   /** A query of the sources `aliases` run where they run: of one grid, by that grid's runner; of several, over one model
    *  of their tables (the host's together, opened once a round). */
-  async #runOn(aliases: readonly string[], make: (inputs: TsInputs) => TsQuery, signal: AbortSignal, opened: Opened): Promise<TsResult> {
+  async #runOn(aliases: readonly string[], make: (inputs: TsInputs) => TsQuery, signal: AbortSignal, opened: Opened): Promise<Ran> {
     const spec = this.#spec;
     if (aliases.length === 1) {
       const alias = aliases[0]!;
       const own = this.#input(alias);
       if (!own) throw new Error(`source ${alias}'s grid is not on the page`);
       const query = make(new Map([[alias, own.input]]));
-      return { query, table: await own.grid.run(query.query, own.grid.snapshot, signal) };
+      const { rows, sql } = await own.grid.run(query.query, own.grid.snapshot, signal);
+      return { query, table: rows, sql };
     }
     const sources = aliases.map((a) => spec.sources.find((s) => s.alias === a)!);
     const grids = sources.map((s) => this.#host.grid(s.cube));
@@ -481,7 +513,8 @@ export class TimeseriesView {
       return [s.alias, { snapshot: { ...g.snapshot, source: { query: relation } }, filter: g.filter }] as const;
     }));
     const query = make(inputs);
-    return { query, table: await together.run(query.query) };
+    const { rows, sql } = await together.run(query.query);
+    return { query, table: rows, sql };
   }
 
   /** The grids of `cubes` opened together, once a round: by the set they are, whatever order a series reads them in. */
@@ -527,7 +560,7 @@ export class TimeseriesView {
       const own = this.#input(s.alias);
       if (!own) return;
       try {
-        bounds.set(s.alias, await own.grid.run(boundsQuery(own.input, s), own.grid.snapshot, signal));
+        bounds.set(s.alias, (await own.grid.run(boundsQuery(own.input, s), own.grid.snapshot, signal)).rows);
       } catch (e) {
         // its dates refused: a range from the latest date cannot be found from them -- said (#rangeProblems)
         boundsFailed.set(s.alias, e instanceof Error ? e.message : String(e));
@@ -541,6 +574,7 @@ export class TimeseriesView {
     const blocked = (s: TsSeries): string | undefined =>
       problems.find((p) => !p.startsWith('Series ')) ?? problems.find((p) => p.startsWith(`Series ${s.id} `));
     const results = new Map<string, TsResult>();
+    const sqls = new Map<string, string>();
     const failed = new Map<string, string>();
     await Promise.all(spec.series.map(async (s) => {
       const why = blocked(s);
@@ -549,13 +583,16 @@ export class TimeseriesView {
         return;
       }
       try {
-        results.set(s.id, answered(await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, readsAnchor(spec, s) && window.from ? { from: window.from } : {}), signal, opened)));
+        const { sql, ...r } = answered(await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, readsAnchor(spec, s) && window.from ? { from: window.from } : {}), signal, opened));
+        results.set(s.id, r);
+        sqls.set(s.id, sql);
       } catch (e) {
         failed.set(s.id, e instanceof Error ? e.message : String(e));
       }
     }));
     if (gen !== this.#gen || this.#disposed) return;
     this.#results = results;
+    this.#sqls = sqls;
     this.#failed = failed;
     await this.#draw();
     await this.#statistics(gen, opened);
@@ -590,7 +627,12 @@ export class TimeseriesView {
         }
       }));
       if (gen !== this.#gen || this.#disposed) return;
-      for (const r of again) if (r) this.#results.set(r[0], r[1]);
+      for (const r of again) {
+        if (!r) continue;
+        const { sql, ...answer } = r[1];
+        this.#results.set(r[0], answer);
+        this.#sqls.set(r[0], sql);
+      }
       await this.#draw();
     } else {
       this.#paintLegend();
@@ -659,9 +701,9 @@ export class TimeseriesView {
       let make = this.#host.mount;
       if (make === undefined) {
         // the drawing, over the charts' ECharts (chart-render.ts canvasChart): both fetched together
-        const [{ mountTimeseries }, { canvasChart }] = await Promise.all([
+        const [{ mountTimeseries }, { canvasChart, svgChart }] = await Promise.all([
           lazily(() => import('../timeseries-render.ts')), lazily(() => import('../chart-render.ts'))]);
-        make = (el, o) => mountTimeseries(el, o, canvasChart);
+        make = (el, o) => mountTimeseries(el, o, canvasChart, svgChart);
       }
       if (this.#disposed) return null;
       this.#chart = make(this.#canvas, on);
@@ -749,11 +791,11 @@ export class TimeseriesView {
     const settings = button(doc, 'Settings', 'Sources, panes, annotations, view and export', () => this.#editSettings());
     const csv = button(doc, 'CSV', 'Download the lines as CSV (the rows the database answered)', () =>
       download(doc, 'timeseries.csv', URL.createObjectURL(new Blob([timeseriesCsv(this.#lines)], { type: 'text/csv' }))));
-    const png = button(doc, 'PNG', 'Download the chart as a picture', () => {
-      const url = this.#chart?.pngUrl();
-      if (url) download(doc, 'timeseries.png', url);
-    });
-    this.#bar.replaceChildren(this.#ranges, el(doc, 'span', 'dc-ts-gap'), grain, compare, log, stats, add, settings, csv, png);
+    const png = button(doc, 'PNG', 'Download the chart as a picture, its title, subtitle and note above it, at three times its pixels', () => void this.#export('png'));
+    const svg = button(doc, 'SVG', 'Download the chart as SVG, its title, subtitle and note above it: a picture for a page or a deck', () => void this.#export('svg'));
+    const swap = button(doc, 'Swap', 'One instrument for another in every series that reads it', () => this.#swap());
+    const query = button(doc, 'Query', 'Each series\' query as the compiler prints it, and its SQL', () => void this.#showQueries());
+    this.#bar.replaceChildren(this.#ranges, el(doc, 'span', 'dc-ts-gap'), grain, compare, log, stats, add, swap, settings, query, csv, png, svg);
   }
 
   #paintRanges(): void {
@@ -781,6 +823,129 @@ export class TimeseriesView {
     const w = this.#window();
     this.#chart?.zoomTo(w.from, w.to);
     void this.#windowed();
+  }
+
+  /**
+   * THE CHART AS A PICTURE (the next phases' 2: a picture for a page or a deck): the lines as drawn now, over the dates
+   * shown, drawn again off the screen with the tile's title, subtitle and note above them -- a PNG at three times its
+   * pixels, or SVG -- on the page's own surface, and handed over as a file named by the tile. Refused in words.
+   */
+  async #export(kind: 'png' | 'svg'): Promise<void> {
+    const chart = await this.#mount();
+    if (!chart || this.#disposed) return;
+    const width = this.#canvas.clientWidth;
+    const height = chart.height() || this.#canvas.clientHeight;
+    if (!(width > 0 && height > 0) || this.#lines.length === 0) {
+      this.#say(['There is no chart drawn to make a picture of yet.'], true);
+      return;
+    }
+    const title = this.#host.title();
+    const theme = themeOf(this.#root);
+    // the picture taller by its heading, its panes as tall as on the screen
+    const tall = height + tsHeading(this.#spec, title);
+    const option = timeseriesOption(this.#spec, this.#lines, {
+      theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height: tall, title,
+    });
+    let url: string;
+    try {
+      url = await chart.exportUrl(option, kind, width, tall, theme.surface);
+    } catch (e) {
+      this.#say([`The picture could not be made: ${e instanceof Error ? e.message : String(e)}`], true);
+      return;
+    }
+    download(this.#doc, `${fileName(title)}.${kind}`, url);
+  }
+
+  /**
+   * SWAP AN INSTRUMENT (the next phases' 2: Bloomberg's change of security): one the tile's series read for another of
+   * its source's instruments -- the database's list of them, or one typed -- in every series that reads it, by the
+   * tile's one rule (timeseries-edit.ts, the swap change Python's Timeseries.swap tells too).
+   */
+  #swap(): void {
+    const doc = this.#doc;
+    const spec = this.#spec;
+    const read = instrumentsOf(spec);
+    if (read.length === 0) {
+      this.#say(['No series reads an instrument by its source\'s instrument column (close[SPX]): there is none to swap.'], true);
+      return;
+    }
+    const many = spec.sources.length > 1;
+    const fromSel = select(doc, read.map((r, i) => [String(i), many ? `${r.alias}: ${r.value}` : r.value] as const), '0', () => paintTo(), 'Instrument');
+    const toSel = el(doc, 'select', 'dc-select dc-ts-select', undefined, { 'aria-label': 'For' });
+    const typed = el(doc, 'input', 'dc-input', undefined, { 'aria-label': 'Or type one', placeholder: 'Or type one', spellcheck: 'false' });
+    const error = el(doc, 'div', 'dc-ts-error', undefined, { role: 'alert' });
+    const paintTo = (): void => {
+      const r = read[Number(fromSel.value)]!;
+      const src = spec.sources.find((x) => x.alias === r.alias);
+      toSel.replaceChildren(option(doc, 'Pick one…', ''));
+      if (src === undefined || src.key === undefined) return;
+      void this.#keyValues(src, src.key).then((values) => {
+        for (const v of values) if (v !== r.value) toSel.append(option(doc, v, v));
+      }, (e: unknown) => {
+        toSel.append(unpicked(doc, `Its instruments were refused: ${e instanceof Error ? e.message : String(e)}`));
+      });
+    };
+    paintTo();
+    const ok = button(doc, 'Swap', 'Read the other instrument in every series that reads this one (Enter)', () => {
+      const r = read[Number(fromSel.value)]!;
+      const to = typed.value.trim() !== '' ? typed.value.trim() : toSel.value;
+      if (to === '') {
+        error.textContent = 'Pick the instrument it is swapped for, or type one.';
+        return;
+      }
+      if (this.#edit({ kind: 'swap', from: r.value, to, ...(many ? { alias: r.alias } : {}) })) this.#close();
+    }, 'dc-button dc-primary');
+    typed.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') ok.click();
+    });
+    const actions = el(doc, 'div', 'dc-ts-actions');
+    actions.append(el(doc, 'span', 'dc-ts-gap'), button(doc, 'Cancel', 'Leave it as it was (Escape)', () => this.#close()), ok);
+    this.#open('Swap an instrument', labelled(doc, 'Instrument', fromSel), labelled(doc, 'For', toSel), labelled(doc, 'Or type one', typed), error,
+      el(doc, 'div', 'dc-ts-hint', 'Every series that reads it reads the other instead; a name that says it says the other.'), actions);
+  }
+
+  /**
+   * THE QUERIES (the next phases' 2: what each line is, for a person to check or take elsewhere): each series' query as
+   * DataCube wrote it, printed by the compiler, and the SQL the database ran for the answer drawn -- each copied with a
+   * click. A series refused says why.
+   */
+  #showQueries(): void {
+    const doc = this.#doc;
+    const spec = this.#spec;
+    const parts: HTMLElement[] = [];
+    for (const s of spec.series) {
+      parts.push(el(doc, 'div', 'dc-ts-heading', `${s.id}: ${seriesName(s)}`));
+      const refused = this.#failed.get(s.id);
+      const answer = this.#results.get(s.id);
+      const sql = this.#sqls.get(s.id);
+      if (refused !== undefined || answer === undefined || sql === undefined) {
+        parts.push(el(doc, 'div', 'dc-ts-error', refused !== undefined ? `Refused: ${refused}` : 'Not answered yet.'));
+        continue;
+      }
+      // printed by the grid it reads first (an answered series reads one): a print reads the query alone, no model
+      const first = seriesSources(spec, s)[0];
+      const grid = first === undefined ? undefined : this.#input(first)?.grid;
+      const pure = el(doc, 'pre', 'dc-ts-code', grid ? 'Printing…' : 'Its grid is not on the page: its query cannot be printed.');
+      let printed: string | undefined;
+      if (grid) {
+        void grid.print(answer.query.query).then((text) => {
+          printed = text;
+          pure.textContent = text;
+        }, (e: unknown) => {
+          pure.textContent = `Not printed: ${e instanceof Error ? e.message : String(e)}`;
+        });
+      }
+      const said = el(doc, 'pre', 'dc-ts-code', sql);
+      const copies = el(doc, 'div', 'dc-ts-row');
+      copies.append(
+        button(doc, 'Copy Pure', 'Its query as the compiler prints it', () => {
+          if (printed === undefined) this.#say([`Series ${s.id}'s query is not printed: ${pure.textContent ?? ''}`], true);
+          else void this.#copy(printed, `Series ${s.id}'s Pure copied.`);
+        }),
+        button(doc, 'Copy SQL', 'The SQL the database ran for it', () => void this.#copy(sql, `Series ${s.id}'s SQL copied.`)));
+      parts.push(el(doc, 'div', 'dc-ts-field-label', 'Pure'), pure, el(doc, 'div', 'dc-ts-field-label', 'SQL'), said, copies);
+    }
+    this.#open('Queries', ...parts);
   }
 
   /** A change the person made, by the tile's one rule (timeseries-edit.ts editTimeseries, which Python asks too): kept
@@ -866,6 +1031,21 @@ export class TimeseriesView {
     return [...this.#statsFailed].map(([id, why]) => `Series ${id}'s statistics were refused: ${why}`);
   }
 
+  /** Text onto the clipboard, `done` said when it is; refused in words where the page has none. */
+  async #copy(text: string, done: string): Promise<void> {
+    const clipboard = this.#doc.defaultView?.navigator.clipboard;
+    if (clipboard === undefined) {
+      this.#say(['This page has no clipboard to copy to.'], true);
+      return;
+    }
+    try {
+      await clipboard.writeText(text);
+      this.#say([done]);
+    } catch (e) {
+      this.#say([`Not copied: ${e instanceof Error ? e.message : String(e)}`], true);
+    }
+  }
+
   #say(words: readonly string[], bad = false): void {
     this.#banner.hidden = words.length === 0;
     this.#banner.textContent = words.join(' ');
@@ -915,6 +1095,10 @@ export class TimeseriesView {
     }
     if (this.#statsTab === 'correlations') {
       this.#stats.replaceChildren(head_, ...this.#correlationsTable());
+      return;
+    }
+    if (this.#statsTab === 'data') {
+      this.#stats.replaceChildren(head_, ...this.#dataTable());
       return;
     }
     const table = el(doc, 'table', 'dc-ts-table');
@@ -1085,6 +1269,45 @@ export class TimeseriesView {
     }
     said.push('A level\'s returns are correlated, anything else as it is, over the dates each pair has shown.');
     return [table, el(doc, 'div', 'dc-ts-stats-blanks', said.join(' '))];
+  }
+
+  /**
+   * THE DATA TAB: every line's figures side by side, a row per date shown (timeseries-option.ts timeseriesTable: the
+   * database's points, put by their dates) -- the latest MAX_DATA_ROWS listed, latest first, each in its line's format;
+   * Copy takes every date, oldest first, as a spreadsheet pastes it.
+   */
+  #dataTable(): HTMLElement[] {
+    const doc = this.#doc;
+    const t = timeseriesTable(this.#lines.filter((l) => !l.series.hidden && !l.shades), this.#window());
+    if (t.columns.length === 0 || t.rows.length === 0) return [el(doc, 'div', 'dc-ts-stats-blanks', 'No line has a value over these dates.')];
+    const table = el(doc, 'table', 'dc-ts-table dc-ts-data');
+    const head = el(doc, 'tr');
+    head.append(el(doc, 'th', undefined, 'Date'), ...t.columns.map((c) => {
+      const th = el(doc, 'th');
+      const swatch = el(doc, 'span', 'dc-ts-swatch');
+      swatch.style.background = c.line.color;
+      th.append(swatch, doc.createTextNode(c.name));
+      return th;
+    }));
+    table.append(head);
+    const grain = this.#spec.grain ?? 'day';
+    for (const r of t.rows.slice(-MAX_DATA_ROWS).reverse()) {
+      const tr = el(doc, 'tr');
+      tr.append(el(doc, 'td', 'dc-ts-table-date', dateLabel(r.date, grain)),
+        ...r.values.map((v, i) => el(doc, 'td', 'dc-ts-table-num', v === null ? '' : valueText(t.columns[i]!.line, v, this.#formatOf(t.columns[i]!.line)))));
+      table.append(tr);
+    }
+    const copy = button(doc, 'Copy', 'Every date shown, oldest first, as a spreadsheet pastes it', () =>
+      void this.#copy(timeseriesTsv(t), `${t.rows.length.toLocaleString(UI_LOCALE)} dates copied, oldest first.`));
+    const said = t.rows.length > MAX_DATA_ROWS
+      ? `The latest ${MAX_DATA_ROWS.toLocaleString(UI_LOCALE)} of ${t.rows.length.toLocaleString(UI_LOCALE)} dates, latest first: Copy takes every one.`
+      : `${t.rows.length.toLocaleString(UI_LOCALE)} dates, latest first.`;
+    const bar = el(doc, 'div', 'dc-ts-row');
+    bar.append(copy, el(doc, 'span', 'dc-ts-stats-blanks', said));
+    // its rows scrolled within the panel, its header kept above them
+    const scroll = el(doc, 'div', 'dc-ts-data-scroll');
+    scroll.append(table);
+    return [bar, scroll];
   }
 
   /** Each pair of series' lines' correlations asked of the database over the dates shown, once, then painted. */
@@ -1313,20 +1536,59 @@ export class TimeseriesView {
     const error = el(doc, 'div', 'dc-ts-error', undefined, { role: 'alert' });
     const reads = el(doc, 'div', 'dc-ts-hint');
     let parsed: TsExpr | undefined;
-    const check = (): void => {
+    // its outermost function's parameters as sliders, painted as the expression is read (`paint` false: a slider moving,
+    // which stays the one dragged)
+    const sliders = el(doc, 'div', 'dc-ts-sliders');
+    const check = (paint = true): void => {
       error.textContent = '';
       parsed = undefined;
-      if (expr.value.trim() === '') return;
-      try {
-        parsed = parseExpr(expr.value);
-        const read = sourcesOf(spec, inlined(parsed, spec.series.filter((s) => s.id !== sid)));
-        reads.textContent = `Reads ${read.join(', ') || 'no grid'}${read.length > 1 ? ': one query, the grids joined on the date' : ''}.`;
-      } catch (e) {
-        error.textContent = e instanceof TsSyntaxError ? `${e.message} (at ${e.at + 1})` : e instanceof Error ? e.message : String(e);
-        reads.textContent = '';
+      if (expr.value.trim() !== '') {
+        try {
+          parsed = parseExpr(expr.value);
+          const read = sourcesOf(spec, inlined(parsed, spec.series.filter((s) => s.id !== sid)));
+          reads.textContent = `Reads ${read.join(', ') || 'no grid'}${read.length > 1 ? ': one query, the grids joined on the date' : ''}.`;
+        } catch (e) {
+          error.textContent = e instanceof TsSyntaxError ? `${e.message} (at ${e.at + 1})` : e instanceof Error ? e.message : String(e);
+          reads.textContent = '';
+        }
       }
+      if (paint) paintSliders();
     };
-    expr.addEventListener('input', check);
+    /**
+     * A PARAMETER TRIED BY DRAGGING (the next phases' 2: TradingView's inputs): each number of the outermost function
+     * its slider, moving the expression's own parameter -- and a series already plotted drawn again when it stops, by the
+     * tile's one rule, as its OK would.
+     */
+    let live: ReturnType<typeof setTimeout> | undefined;
+    const paintSliders = (): void => {
+      const call = parsed?.kind === 'call' ? parsed : undefined;
+      const f = call ? functionNamed(call.fn) : undefined;
+      const tunable = call && f ? f.params.filter((p) => p.kind !== 'word' && typeof (call.params?.[p.name] ?? p.default) === 'number') : [];
+      sliders.replaceChildren(...tunable.map((p) => {
+        const at = Number(call!.params?.[p.name] ?? p.default);
+        const [lo, hi, step] = sliderRange(p, at);
+        const range = el(doc, 'input', 'dc-ts-slider', undefined, {
+          type: 'range', min: String(lo), max: String(hi), step: String(step), 'aria-label': `${f!.label}'s ${p.name}`, title: p.about,
+        });
+        range.value = String(at);
+        const shown = el(doc, 'span', 'dc-ts-slider-value', String(at));
+        range.addEventListener('input', () => {
+          const v = Number(Number(range.value).toPrecision(6));
+          shown.textContent = String(v);
+          // the expression as it is now: another slider moved too
+          const now = parsed?.kind === 'call' && parsed.fn === call!.fn ? parsed : call!;
+          expr.value = exprText({ ...now, params: { ...now.params, [p.name]: v } });
+          check(false);
+          if (was === undefined) return;
+          clearTimeout(live);
+          live = setTimeout(() => apply(false), 400);
+        });
+        const row = el(doc, 'label', 'dc-ts-field dc-ts-slider-row');
+        row.append(el(doc, 'span', 'dc-ts-field-label', p.name), range, shown);
+        return row;
+      }));
+    };
+    expr.addEventListener('input', () => check());
     // building one: a source, a column, an instrument, a line per instrument
     const sourceSel = select(doc, spec.sources.map((s) => [s.alias, `${s.alias} (${this.#host.grid(s.cube)?.title ?? 'its grid is gone'})`] as const),
       spec.sources[0]?.alias ?? '', () => paintPickers(), 'Source');
@@ -1449,8 +1711,9 @@ export class TimeseriesView {
       }));
     };
     paintSwatches();
-    const ok = button(doc, 'OK', 'Plot it (Enter)', () => {
-      check();
+    /** The series as the editor has it, plotted -- the window put away when `close`, kept (a slider's) when not. */
+    const apply = (close: boolean): void => {
+      check(close);
       if (!parsed) {
         if (expr.value.trim() === '') error.textContent = 'Write an expression, or build one from a column.';
         return;
@@ -1468,7 +1731,11 @@ export class TimeseriesView {
         ...(axis.value !== '' ? { axis: axis.value as 'left' | 'right' } : {}),
         ...(was?.hidden ? { hidden: true } : {}),
       };
-      if (this.#edit({ kind: 'plot', series: made, ...(was ? { replace: true } : {}) })) this.#close();
+      if (this.#edit({ kind: 'plot', series: made, ...(was ? { replace: true } : {}) }) && close) this.#close();
+    };
+    const ok = button(doc, 'OK', 'Plot it (Enter)', () => {
+      clearTimeout(live);
+      apply(true);
     }, 'dc-button dc-primary');
     expr.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') ok.click();
@@ -1494,7 +1761,7 @@ export class TimeseriesView {
     const actions = el(doc, 'div', 'dc-ts-actions');
     actions.append(remove, el(doc, 'span', 'dc-ts-gap'), button(doc, 'Cancel', 'Leave it as it was (Escape)', () => this.#close()), ok);
     this.#open(was ? `Series ${sid}` : `New series ${sid}`,
-      labelled(doc, 'Expression', expr), error, reads, builder, splitSel, fnSel, about,
+      labelled(doc, 'Expression', expr), error, reads, sliders, builder, splitSel, fnSel, about,
       labelled(doc, 'Name', name), style, swatches, reference, actions);
     check();
   }
@@ -1503,7 +1770,7 @@ export class TimeseriesView {
   async #keyValues(src: TsSource, key: string): Promise<string[]> {
     const own = this.#input(src.alias);
     if (!own) throw new Error(`${src.alias}'s grid is not on the page`);
-    const t = await own.grid.run(keyValuesQuery(own.input, src, key), own.grid.snapshot, new AbortController().signal);
+    const t = (await own.grid.run(keyValuesQuery(own.input, src, key), own.grid.snapshot, new AbortController().signal)).rows;
     const values = t.columns[0];
     if (values === undefined) throw new Error(`the database answered ${key}'s values with no column`);
     return values.values.map((v) => String(v));
@@ -1566,6 +1833,13 @@ export class TimeseriesView {
       toggles.append(l);
     }
     parts.push(toggles);
+    // a subtitle and a note on the chart and its pictures (the next phases' 2)
+    for (const [key, label, hint] of [['subtitle', 'Subtitle', 'A line under the title'], ['note', 'Note', 'Source: …']] as const) {
+      const box = el(doc, 'input', 'dc-input', undefined, { 'aria-label': label, placeholder: hint });
+      box.value = spec.view?.[key] ?? '';
+      box.addEventListener('change', () => this.#edit({ kind: 'view', view: { [key]: box.value.trim() === '' ? null : box.value.trim() } }));
+      parts.push(labelled(doc, label, box));
+    }
     // a range of two dates
     const r = spec.range;
     const from = el(doc, 'input', 'dc-input', undefined, { type: 'date', 'aria-label': 'From' });
@@ -1598,7 +1872,24 @@ export class TimeseriesView {
       log.addEventListener('change', () => this.#edit({ kind: 'pane', index: p, log: log.checked }));
       const l = el(doc, 'label', 'dc-ts-check');
       l.append(log, doc.createTextNode('Log scale'));
-      row.append(el(doc, 'span', 'dc-ts-field-label', p === 0 ? 'Main' : `Pane ${p + 1}`), height, l);
+      // upside down, and its left axis' ends by hand (the next phases' 2)
+      const invert = el(doc, 'input', undefined, undefined, { type: 'checkbox' });
+      invert.checked = spec.panes?.[p]?.invert === true;
+      invert.addEventListener('change', () => this.#edit({ kind: 'pane', index: p, invert: invert.checked }));
+      const inverted = el(doc, 'label', 'dc-ts-check');
+      inverted.append(invert, doc.createTextNode('Upside down'));
+      const end = (which: 'min' | 'max'): HTMLInputElement => {
+        const box = el(doc, 'input', 'dc-input dc-ts-small', undefined, { type: 'number', step: 'any', 'aria-label': which === 'min' ? 'Least' : 'Most', placeholder: which === 'min' ? 'Least' : 'Most' });
+        const at = spec.panes?.[p]?.[which];
+        box.value = at === undefined ? '' : String(at);
+        box.addEventListener('change', () => {
+          const v = box.value.trim() === '' ? null : Number(box.value);
+          if (v !== null && !Number.isFinite(v)) return;
+          if (!this.#edit({ kind: 'pane', index: p, [which]: v })) this.#editSettings();
+        });
+        return box;
+      };
+      row.append(el(doc, 'span', 'dc-ts-field-label', p === 0 ? 'Main' : `Pane ${p + 1}`), height, l, inverted, end('min'), end('max'));
       parts.push(row);
     }
     // the annotations

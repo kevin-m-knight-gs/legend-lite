@@ -5687,6 +5687,21 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-ts-swatches .dc-ts-swatch { width: 16px; height: 16px; border-radius: 3px; cursor: pointer; border: 2px solid transparent; }
 .dc-ts-swatches .dc-ts-swatch[aria-checked='true'] { border-color: var(--dc-cell-fg); }
 .dc-ts-reference summary { cursor: pointer; color: var(--dc-muted-strong); }
+/* the next phases' 2: a query as the compiler prints it, its SQL; the Data tab's rows; a parameter's slider */
+.dc-ts-code {
+  margin: 0; max-height: 14em; overflow: auto; padding: var(--dc-pad-1) var(--dc-pad-2); border: 1px solid var(--dc-line-faint);
+  border-radius: 4px; background: var(--dc-row-hover); font-family: var(--dc-font-mono); font-size: var(--dc-text-sm-size);
+  white-space: pre; user-select: text;
+}
+.dc-ts-data-scroll { max-height: 18em; overflow: auto; }
+.dc-ts-data th { position: sticky; top: 0; background: var(--dc-bg); }
+.dc-ts-data th .dc-ts-swatch { margin-right: 4px; vertical-align: middle; }
+.dc-ts-sliders { display: flex; flex-direction: column; gap: 2px; }
+.dc-ts-sliders:empty { display: none; }
+.dc-ts-pop .dc-ts-slider-row { flex-direction: row; align-items: center; gap: var(--dc-pad-1); }
+.dc-ts-slider-row .dc-ts-field-label { min-width: 6ch; font-family: var(--dc-font-mono); }
+.dc-ts-slider { flex: 1 1 auto; min-width: 0; accent-color: var(--dc-active); }
+.dc-ts-slider-value { min-width: 6ch; text-align: right; font-variant-numeric: tabular-nums; }
 .dc-ts-functions { display: grid; grid-template-columns: max-content 1fr; gap: 2px 8px; margin: var(--dc-pad-1) 0; font-size: var(--dc-text-sm-size); }
 .dc-ts-functions dt { font-family: var(--dc-font-mono); white-space: nowrap; }
 .dc-ts-functions dd { margin: 0; color: var(--dc-muted-strong); }

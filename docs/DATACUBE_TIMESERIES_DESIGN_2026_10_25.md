@@ -529,6 +529,25 @@ dated budget notes; every figure still the database's.
   TradingView's symbol change), screen and Python by one edit; the data as a table in the tile, copied as Excel pastes
   it; export with a title, a subtitle and a source note, as SVG and at high resolution; each pane's axis inverted or
   ranged by hand; a series' window and parameters on a slider; the query shown (its Pure and its SQL).
+  *Built (2026-10-26).* **Swap** (`timeseries-edit.ts` swap; Python's `swap(instrument, to, source=)`): every match of
+  an instrument on its source's instrument column (`close[SPX]`, not `close[venue=SPX, ...]`'s other column), of one
+  source when told; a series that read it renamed where its name says the word; refused where none reads it, and for a
+  word in a column of numbers. The window lists the instruments the series read and the source's own (its instrument
+  column's values, the database's). **Data** (the statistics panel's tab; `timeseries-option.ts timeseriesTable`;
+  Python's `table()`): every line's figures side by side by date over the dates shown -- a band's two edges, a candle's
+  four prices -- the latest 500 listed latest first in each line's format, Copy taking every date oldest first,
+  tab-separated as a spreadsheet pastes it; arranged, nothing computed. **A picture** (PNG and SVG on the toolbar): the
+  lines as drawn, over the dates shown, drawn again off the screen with the tile's title, its subtitle and its note (the
+  view's `subtitle` and `note`, drawn on the screen too) above the panes, on the page's surface -- a PNG at three times
+  its pixels, SVG by ECharts' SVG painter, fetched with the first SVG alone (a chunk of its own, budgeted; the canvas
+  painter now imported by its own module, as the charts are, so the `echarts/renderers` index brings neither). **A
+  pane** upside down (`invert`: a yield's, a spread's) and its left axis' least and most by hand (`min`, `max`, the
+  reader refusing them the wrong way round). **Query** (the toolbar; Python's `query(series)`): each series' query as
+  DataCube wrote it, printed by the compiler, and the SQL the database ran for the answer drawn -- carried with every
+  answer (`RunOutcome.sql`), never planned again; Python plans it (the engine's dry run, `plan.json`), nothing run.
+  **Sliders**: each number of a series' outermost function (a window's length, a beta) a slider in its editor, the
+  expression moved as it is dragged, the series drawn again when it stops (400 ms), by the tile's one rule, as its OK
+  would.
 - **Phase 3, new views of a tile.** A scatter of one series against another over the dates shown, its regression line
   and statistics the database's, coloured by time, the latest point marked (Bloomberg HRA, Macrobond's scatter);
   seasonality -- each year a line over its calendar, the range and average of the years before (the commodities

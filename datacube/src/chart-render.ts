@@ -41,7 +41,8 @@ import 'echarts/lib/component/toolbox.js';
 // a long series' slider, and zooming inside the chart
 import 'echarts/lib/component/dataZoom.js';
 import { AxisBreak } from 'echarts/features';
-import { CanvasRenderer } from 'echarts/renderers';
+// the canvas painter by its own module: the `echarts/renderers` index imports the SVG one too (echarts-renderers.d.ts)
+import { install as CanvasRenderer } from 'echarts/lib/renderer/installCanvasRenderer.js';
 import type { EChartsOption } from 'echarts';
 import type { BrushArea, Brushed, ChartDrawing, MarkKey } from './chart-option.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
@@ -57,6 +58,14 @@ echarts.use([AxisBreak, CanvasRenderer]);
  *  which registers nothing of its own -- one build of ECharts, fetched with whichever draws first. */
 export function canvasChart(el: HTMLElement): echarts.ECharts {
   return echarts.init(el, null, { renderer: 'canvas' });
+}
+
+/** A chart drawn as SVG, for a picture's export (a timeseries' SVG: the next phases' 2): ECharts' SVG painter fetched the
+ *  first time one is asked -- a chunk of its own, no page's start or first chart fetching it. */
+export async function svgChart(el: HTMLElement): Promise<echarts.ECharts> {
+  const { install } = await import('echarts/lib/renderer/installSVGRenderer.js');
+  echarts.use([install]);
+  return echarts.init(el, null, { renderer: 'svg' });
 }
 
 export interface ChartPicture {

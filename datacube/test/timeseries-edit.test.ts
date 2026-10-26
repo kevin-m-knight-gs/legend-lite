@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { editTimeseries, firstPlotOf, firstTimeseries, judgedEdit, TsEditRefusal, type TsGridColumns } from '../src/timeseries-edit.ts';
+import { editTimeseries, firstPlotOf, firstTimeseries, instrumentsOf, judgedEdit, TsEditRefusal, type TsGridColumns } from '../src/timeseries-edit.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { readTimeseries, tsStateOf, type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import type { FilterNode } from '../src/snapshot.ts';
@@ -84,6 +84,38 @@ describe('a timeseries tile changed by its one rule', () => {
     refused(() => editTimeseries(marked, { kind: 'unannotate', index: 3 }), /there is no annotation 4/);
     const slots = editTimeseries({ ...SPEC, view: { stats: true } }, { kind: 'slots', slots: { view: { compare: 'percent' }, grain: 'month', range: null } });
     assert.deepEqual([slots.view, slots.grain, slots.range], [{ compare: 'percent' }, 'month', undefined]);
+  });
+
+  // the next phases' 2 (2026-10-26): a pane upside down, its left axis' ends by hand
+  it('a pane turned upside down, its ends set and taken off; ends the wrong way round refused by the reader', () => {
+    const turned = editTimeseries(SPEC, { kind: 'pane', index: 0, invert: true, min: 0, max: 5 });
+    assert.deepEqual(turned.panes, [{ invert: true, min: 0, max: 5 }]);
+    assert.deepEqual(editTimeseries(turned, { kind: 'pane', index: 0, invert: false, min: null }).panes, [{ max: 5 }]);
+    const none = (sp: TimeseriesSpec): Map<string, undefined> => new Map(sp.sources.map((x) => [x.alias, undefined]));
+    refused(() => judgedEdit(SPEC, editTimeseries(SPEC, { kind: 'pane', index: 0, min: 5, max: 1 }), none), /pane 0's min 5 is not below its max 1/);
+  });
+
+  // the next phases' 2 (2026-10-26): Bloomberg's change of security, the viewer's Swap and Python's swap()
+  it('one instrument for another: every series reading it, of its source alone when told, a name saying it following', () => {
+    const spec: TimeseriesSpec = {
+      ...SPEC,
+      series: [S('A', 'close[SPX]', { name: 'SPX close' }), S('B', 'returns($A)'), S('C', 'close[SPX] - close[NDX]', { name: 'SPX spread' }),
+        S('D', 'rates:yield[10Y]', { name: 'SPXW 10Y' })],
+    };
+    assert.deepEqual(instrumentsOf(spec), [{ alias: 'px', value: 'SPX' }, { alias: 'px', value: 'NDX' }, { alias: 'rates', value: '10Y' }]);
+    const swapped = editTimeseries(spec, { kind: 'swap', from: 'SPX', to: 'RUT' });
+    assert.deepEqual(swapped.series.map((x) => x.expr),
+      [parseExpr('close[RUT]'), parseExpr('returns($A)'), parseExpr('close[RUT] - close[NDX]'), parseExpr('rates:yield[10Y]')]);
+    // a series that read it named again, the word alone; one that read it not kept as it was
+    assert.deepEqual(swapped.series.map((x) => x.name), ['RUT close', undefined, 'RUT spread', 'SPXW 10Y']);
+    assert.deepEqual(editTimeseries(spec, { kind: 'swap', from: '10Y', to: '2Y', alias: 'rates' }).series[3]!.expr, parseExpr('rates:yield[2Y]'));
+    refused(() => editTimeseries(spec, { kind: 'swap', from: 'SPX', to: 'RUT', alias: 'rates' }), /no series reads SPX of rates/);
+    refused(() => editTimeseries(spec, { kind: 'swap', from: 'DAX', to: 'RUT' }), /no series reads DAX/);
+    refused(() => editTimeseries(spec, { kind: 'swap', from: 'SPX', to: ' ' }), /name it/);
+    refused(() => editTimeseries(spec, { kind: 'swap', from: 'SPX', to: 'RUT', alias: 'fx' }), /reads no source fx/);
+    // a match on another column is no instrument: kept as it was
+    const venue = editTimeseries({ ...SPEC, series: [S('A', 'close[venue=SPX, SPX]')] }, { kind: 'swap', from: 'SPX', to: 'RUT' });
+    assert.deepEqual(venue.series[0]!.expr, parseExpr('close[venue=SPX, RUT]'));
   });
 
   // the review's A3: Create ▸ Timeseries and Python's first tile, one rule and one refusal

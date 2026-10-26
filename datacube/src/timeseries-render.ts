@@ -28,6 +28,11 @@ export interface MountedTimeseries {
   picture(ratio?: number): ChartPicture | null;
   /** The drawing as a PNG's data: URL, for its download. */
   pngUrl(): string | null;
+  /**
+   * `option` drawn off the screen at `width` by `height` on `background` -- a picture's own, its heading in it -- as a PNG
+   * at three times its pixels, or as SVG (its painter fetched then): a data: URL, for its download (the next phases' 2).
+   */
+  exportUrl(option: EChartsOption, kind: 'png' | 'svg', width: number, height: number, background: string): Promise<string>;
   dispose(): void;
 }
 
@@ -49,7 +54,7 @@ export function mountTimeseries(el: HTMLElement, on: {
   readonly onZoom: (from: string | undefined, to: string | undefined) => void;
   readonly onDate?: (date: string) => void;
   readonly onResize?: () => void;
-}, init: (el: HTMLElement) => ECharts): MountedTimeseries {
+}, init: (el: HTMLElement) => ECharts, svg?: (el: HTMLElement) => Promise<ECharts>): MountedTimeseries {
   const chart = init(el);
   let shown = false;
   let lastKey: string | null = null;
@@ -117,6 +122,25 @@ export function mountTimeseries(el: HTMLElement, on: {
         return chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#ffffff' });
       } catch {
         return null;
+      }
+    },
+    async exportUrl(option, kind, width, height, background) {
+      if (kind === 'svg' && svg === undefined) throw new Error('this chart was mounted with no SVG painter');
+      const doc = el.ownerDocument;
+      // a box of the picture's size off the screen: the chart on the screen is left as it is (its zoom, its size)
+      const off = doc.createElement('div');
+      off.style.cssText = `position:fixed;left:-10000px;top:0;width:${width}px;height:${height}px`;
+      doc.body.append(off);
+      try {
+        const picture = kind === 'svg' ? await svg!(off) : init(off);
+        try {
+          picture.setOption({ ...option, animation: false, backgroundColor: background }, { notMerge: true, lazyUpdate: false });
+          return picture.getDataURL(kind === 'svg' ? { type: 'svg' } : { type: 'png', pixelRatio: 3, backgroundColor: background });
+        } finally {
+          picture.dispose();
+        }
+      } finally {
+        off.remove();
       }
     },
     dispose() {

@@ -688,8 +688,13 @@ const CHART_BUDGET = 303_500;
  *  dates combined by the tile's align (timeseries-query.ts aligned, datesOf, onto), interpolate, and gs-quant's
  *  remaining functions -- the date parts, if, not, compare, filter, product, geometrically_aggregate, weighted_sum,
  *  smooth_spikes, excess_returns, vol_swap_volatility, consecutive, union, append, prepend, first, last, count, trend and
- *  seasonally_adjusted (decomposed) -- with their catalog words; the headroom ~2%). Measured 51,518. */
-const TIMESERIES_BUDGET = 52_600;
+ *  seasonally_adjusted (decomposed) -- with their catalog words; the headroom ~2%). Measured 51,518.
+ *  52,600 -> 56,600 (2026-10-26, the next phases' 2, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: an instrument
+ *  swapped across the tile (timeseries-edit.ts swapped), the Data tab and its Copy (timeseries-option.ts timeseriesTable),
+ *  a picture's heading and its export (tsHeading; timeseries-render.ts exportUrl -- ECharts' SVG painter a chunk of its
+ *  own, fetched with an SVG alone), a pane upside down and its ends by hand, the Query window, a parameter's slider --
+ *  the headroom ~2%). Measured 55,530. */
+const TIMESERIES_BUDGET = 56_600;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -710,6 +715,12 @@ const isKinds = (file: string): boolean => /[\\/]chart-(?:render-)?kinds-[^\\/]+
 const KINDS_BUDGET = 70_000;
 
 const isMaps = (file: string): boolean => /[\\/]chart-(?:render-)?maps-[^\\/]+\.js$/.test(file);
+/** A chunk of ECharts' SVG painter (chart-render.ts svgChart): fetched with a timeseries' picture as SVG alone. */
+const isSvgPainter = (file: string): boolean => (PAGE.get(file)?.modules ?? [])
+  .some((m) => /node_modules\/zrender\/lib\/svg\/(?:Painter|graphic|patch)\.js$/.test(m) || m.includes('node_modules/echarts/lib/renderer/installSVGRenderer'));
+/** Set 2026-10-26 at its first measure (the timeseries' next phases' 2: a picture as SVG, for a page or a deck), the
+ *  painter's chunks -- its installer and zrender's SVG drawing -- with room for an ECharts bump. Measured 9,354. */
+const SVG_BUDGET = 9_600;
 /** Set 2026-10-18 at its first measure (chart batch 5, the roadmap run's phase 6), 75,526: the drawing with the world's
  *  countries (Natural Earth 1:110m, prepared by tools/maps/prepare.py: about 60,000 of it) and ECharts' map chart and
  *  geo component, a chunk each. */
@@ -948,6 +959,8 @@ describe('the page loads ECharts only when a chart draws', () => {
     };
     chunksOf().filter((f) => holds(f, 'src/ui/timeseries-view.ts') || holds(f, 'src/timeseries-render.ts')).forEach(visit);
     for (const f of fetched) assert.ok(!holds(f, 'echarts') || chart.has(f), `${f}: ECharts a first chart does not fetch`);
+    // ECharts' SVG painter a chunk of its own, fetched with a picture's export as SVG alone (chart-render.ts svgChart)
+    for (const f of [...at, ...chart, ...fetched]) assert.ok(!isSvgPainter(f), `${f} carries the SVG painter`);
     const own = [...fetched].filter((f) => !at.has(f) && !chart.has(f));
     assert.ok(own.length >= 2, 'the timeseries chunks are found');
     const size = own.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
@@ -960,13 +973,24 @@ describe('the page loads ECharts only when a chart draws', () => {
     assert.equal(kinds.length, 2, 'the kinds\' drawing and their ECharts charts, a chunk each');
     // with them, the ECharts code they share only with the maps' chunks: fetched with the first of either, counted here
     // (the phase 6 audit: a chunk in no budget)
-    const shared = chunksOf().filter((f) => holds(f, 'echarts') && !isKinds(f) && !isMaps(f) && !firstChart().has(f));
+    const shared = chunksOf().filter((f) => holds(f, 'echarts') && !isKinds(f) && !isMaps(f) && !isSvgPainter(f) && !firstChart().has(f));
     for (const f of shared) {
       assert.ok([...PAGE].every(([importer, out]) => !out.statics.includes(f) || isKinds(importer) || isMaps(importer)),
         `${f} holds ECharts code a first chart does not fetch, and is fetched by something other than the kinds or the maps`);
     }
     const size = [...kinds, ...shared].reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= KINDS_BUDGET, `batch 3's kinds fetch ${size.toLocaleString()} bytes gzipped, over their budget of ${KINDS_BUDGET.toLocaleString()}`);
+  });
+
+  it(`ECharts' SVG painter is chunks of its own, fetched with a picture as SVG alone: at most ${SVG_BUDGET.toLocaleString()} bytes`, () => {
+    const painter = chunksOf().filter(isSvgPainter);
+    assert.ok(painter.length >= 1, 'the SVG painter is a chunk of the page');
+    // reached by a dynamic import alone: no file fetches it with itself
+    for (const [importer, out] of PAGE) {
+      for (const f of out.statics) assert.ok(!isSvgPainter(f) || isSvgPainter(importer), `${importer} fetches ${f}, the SVG painter, with itself`);
+    }
+    const size = painter.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
+    assert.ok(size <= SVG_BUDGET, `the SVG painter fetches ${size.toLocaleString()} bytes gzipped, over its budget of ${SVG_BUDGET.toLocaleString()}`);
   });
 
   it(`batch 5's maps are chunks of their own, fetched with the first of them: at most ${MAPS_BUDGET.toLocaleString()} bytes more`, () => {

@@ -951,6 +951,33 @@ class Document(Paged):
         tile.plot('weekday(close[S])')
         self.assertEqual(list(tile.frame('B')['B']), [d.weekday() for d in days])
 
+    def test_a_timeseries_swaps_an_instrument_shows_its_query_and_its_lines_side_by_side(self):
+        # the next phases' 2 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): the screen's Swap, Query
+        # window and Data tab -- swap() by the tile's one rule, query() the compiler's print and the plan's SQL (nothing
+        # run), table() every series' frame side by side by date
+        page = ll.Page('Swap')
+        days = pd.date_range('2024-01-01', periods=4, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 4 + ['T'] * 4, 'day': list(days) * 2,
+                               'close': [100.0, 101.0, 102.0, 103.0, 10.0, 11.0, 12.0, 13.0]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['close[S]', 'sma(close[S], 2)'])
+        tile.edit('A', 'close[S]', name='S close')
+        tile.swap('S', 'T')
+        self.assertEqual([s['name'] if 'name' in s else None for s in tile.series], ['T close', None], 'a name saying it says the other')
+        self.assertEqual(list(tile.frame('A')['T close']), [10.0, 11.0, 12.0, 13.0])
+        with self.assertRaisesRegex(ValueError, 'no series reads S'):
+            tile.swap('S', 'T')
+        q = tile.query('B')
+        self.assertTrue(q['pure'].lstrip().startswith('|'), q['pure'])
+        self.assertIn("'T'", q['pure'], 'the instrument swapped in, in the query DataCube wrote')
+        self.assertIn('SELECT', q['sql'].upper())
+        both = tile.table()
+        self.assertEqual(list(both.columns), ['T close', 'B'])
+        self.assertEqual(list(both['T close']), [10.0, 11.0, 12.0, 13.0])
+        self.assertTrue(pd.isna(both['B'].iloc[0]), 'a mean of two has none on the first date')
+        self.assertEqual(list(both['B'].iloc[1:]), [10.5, 11.5, 12.5])
+        self.assertEqual(len(tile.table(start='2024-01-03')), 2, "the dates kept as frame keeps them")
+
     def test_a_timeseries_tables_over_a_range_of_the_last_month_read_it_from_its_sources_latest_date(self):
         # the E9 review's 7: the screen's window of a range of the last of a period -- each source's bounds the database's,
         # the latest of them -- the tables' too (timeseries-query.ts rangeWindow, headless timeseriesWindow)

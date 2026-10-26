@@ -103,6 +103,11 @@ export type TsRange = { readonly last: TsRangeWord } | { readonly from?: string;
 export interface TsPane {
   readonly height?: number;
   readonly log?: boolean;
+  /** Its axes upside down (a yield's, a spread's: down is better) -- the next phases' 2. */
+  readonly invert?: boolean;
+  /** Its left axis' least and most, set by hand; either absent, the drawing's own. */
+  readonly min?: number;
+  readonly max?: number;
 }
 
 /** What is drawn over the series: a level, an event's date, a shaded period -- each with a label. */
@@ -127,6 +132,10 @@ export interface TsView {
   readonly stats?: boolean;
   /** A crosshair across the panes, with every line's value at the date pointed at. */
   readonly crosshair?: boolean;
+  /** A line under the tile's title, on the chart and its pictures (the next phases' 2: a picture for a page or a deck). */
+  readonly subtitle?: string;
+  /** Where its figures are from, said under the subtitle: "Source: the Treasury". */
+  readonly note?: string;
 }
 
 /**
@@ -202,8 +211,8 @@ export interface TimeseriesSpec {
 export type TsAlign = 'intersect' | 'step' | 'time' | 'nan' | 'zero';
 export const TS_ALIGNS: readonly TsAlign[] = ['intersect', 'step', 'time', 'nan', 'zero'];
 
-/** The view's settings before anyone sets one. */
-export const TS_VIEW_DEFAULTS: Required<Omit<TsView, 'compare'>> = {
+/** The view's switches before anyone sets one (its compare, subtitle and note none until told). */
+export const TS_VIEW_DEFAULTS: Required<Omit<TsView, 'compare' | 'subtitle' | 'note'>> = {
   legend: true,
   lastValues: true,
   navigator: true,
@@ -391,9 +400,9 @@ const SERIES_KEYS: Readonly<Record<keyof TsSeries, true>> = {
   id: true, expr: true, name: true, split: true, style: true, pane: true, axis: true, hidden: true,
 };
 const STYLE_KEYS: Readonly<Record<keyof TsStyle, true>> = { kind: true, color: true, width: true, dash: true };
-const PANE_KEYS: Readonly<Record<keyof TsPane, true>> = { height: true, log: true };
+const PANE_KEYS: Readonly<Record<keyof TsPane, true>> = { height: true, log: true, invert: true, min: true, max: true };
 const VIEW_KEYS: Readonly<Record<keyof TsView, true>> = {
-  compare: true, legend: true, lastValues: true, navigator: true, stats: true, crosshair: true,
+  compare: true, legend: true, lastValues: true, navigator: true, stats: true, crosshair: true, subtitle: true, note: true,
 };
 const MATCH_KEYS: Readonly<Record<keyof TsMatch, true>> = { column: true, value: true };
 const EXPR_KEYS: { readonly [K in TsExpr['kind']]: Readonly<Record<string, true>> } = {
@@ -626,6 +635,13 @@ export function tsProblem(ts: unknown): string | null {
         return `pane ${i}'s height ${JSON.stringify(pane['height'])} is not a share from above 0 to 10`;
       }
       if (pane['log'] !== undefined && typeof pane['log'] !== 'boolean') return `pane ${i}'s log is not true or false`;
+      if (pane['invert'] !== undefined && typeof pane['invert'] !== 'boolean') return `pane ${i}'s invert is not true or false`;
+      for (const end of ['min', 'max'] as const) {
+        if (pane[end] !== undefined && !(typeof pane[end] === 'number' && Number.isFinite(pane[end]))) return `pane ${i}'s ${end} ${JSON.stringify(pane[end])} is not a number`;
+      }
+      if (typeof pane['min'] === 'number' && typeof pane['max'] === 'number' && pane['min'] >= pane['max']) {
+        return `pane ${i}'s min ${pane['min']} is not below its max ${pane['max']}`;
+      }
     }
   }
   const annotations = ts['annotations'];
@@ -660,6 +676,9 @@ export function tsProblem(ts: unknown): string | null {
     }
     for (const flag of ['legend', 'lastValues', 'navigator', 'stats', 'crosshair'] as const) {
       if (view[flag] !== undefined && typeof view[flag] !== 'boolean') return `its timeseries' ${flag} is not true or false`;
+    }
+    for (const words of ['subtitle', 'note'] as const) {
+      if (view[words] !== undefined && typeof view[words] !== 'string') return `its timeseries' ${words} is not text`;
     }
   }
   return null;
