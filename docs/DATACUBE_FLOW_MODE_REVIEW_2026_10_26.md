@@ -29,7 +29,7 @@ test named beside it; the C reviewer's probes are in the session scratchpad (`au
 | B4 | **A Select with no order named (Python's) put a retyped column last; the screen's window names every row** | `select-columns.ts selectCommands`: no order named, the grid's own -- the same commands either way | `flow-sheet.test.ts` "hands its columns on in its order" (fails without the fix) |
 | B5 | **Python could not add a box straight onto a Join's L or R** (headless `rowsCube` had no port) | `rowsCube` takes `port` (`'false'`, `'left'`, `'right'`), as the canvas adds a box on one; `page.grid(input=..., port=...)` | `test_page.py` `test_a_join_box_hands_on_the_rows_each_side_pairs_with_none` |
 | B6 | **A container moved from Python left its boxes behind** | `layout/flow.ts containerMoves`: the container and each box inside it by as much -- the canvas's drag and Python's `text.place` (headless gesture `flow.place`) | `flow-sheet.test.ts` "sets a container's frame"; `test_page.py` `test_a_container_frames_boxes` |
-| C2-C4 | Data Cleansing's punctuation took out letters not ASCII; "largest first" and "last N" kept empties ahead of the largest; Count Records of no rows gave no row | see section 5 (the per-tool fixes) | section 5 |
+| C2-C4 | Data Cleansing's punctuation took out letters not ASCII; "largest first" and "last N" kept empties ahead of the largest; Count Records of no rows gave no row | see section 6 (the per-tool fixes) | section 6 |
 
 ## 2. Should fix -- fixed
 
@@ -40,15 +40,24 @@ test named beside it; the C reviewer's probes are in the session scratchpad (`au
 | S2 | Duplicate was the screen's alone; Python's `grid.copy()` of a box went after the box copied | `page-gestures.ts duplicateCommands` (gesture `flow.duplicate`): after the box it reads, as the canvas's Duplicate | `test_page.py` `test_a_box_duplicated_reads_what_it_reads` |
 | S3 | Python's Fuzzy Match spelt the Join window's default distance | `within=None` leaves it to `join.ts` (`SIMILAR_WITHIN`) | existing `test_alike_text_matched_as_fuzzy_match` |
 | S4 | A DateTime's and a RegEx's default names, and a format's "has a time", were spelt in Python and in the windows | `date-tools.ts dateToolName`, `formatHasTime`; `text-tool-columns.ts regexName` -- the readers supply them, Python sends none | `flow-sheet.test.ts` (the readers' defaults) |
-| S5 | `setStops` took any box (one that checks nothing would now stop every run) | refused unless a Test or a Cross Tab with its columns fixed | `flow-sheet.test.ts` "sets a Test box to stop a run" |
-| S6 / S8 | The Cross Tab's value questions were read twice (screen and headless), a missing column read as none; the lacking count said 501 for "more than 500" | `cross-tab.ts pivotValuesOf` (one reading; an answer without its column refused), `tooManyValues` (Load values refused past what a pivot shows), `lackingWords` "at least N more" | `flow-sheet.test.ts` "a Cross Tab's values as its questions answer them" |
+| S5 | `setStops` took any box (one that checks nothing would now stop every run) | refused unless a Test (its shape, read without the checks' readers) or a Cross Tab with its columns fixed | `flow-sheet.test.ts` "sets a Test box to stop a run" |
+| S6 / S8 | The Cross Tab's value questions were read twice (screen and headless), a missing column read as none; the lacking count said 501 for "more than 500" | `query.ts pivotValuesOf` (one reading, beside the questions; an answer without its column refused), `tooManyValues` (Load values refused past what a pivot shows), `cross-tab.ts lackingWords` "at least N more" | `flow-sheet.test.ts` "a Cross Tab's values as its questions answer them" |
 | S9 | The Pure-text allowlist's two windows had no pinned counts | pinned: `multi-field-form.ts` 4, `pure-form.ts` 9 (dated) | `guardrails.test.ts` |
 | S10 | The gestures floor (79) had not followed the list (83) | 83, dated | `one-api-gestures.test.ts` |
 | S11 | The Pure and Custom Filter windows opened blank when the compiler could not print their function -- OK would have set another | refused to open, in the compiler's words; the Pure window says why its columns are missing | read; `verify_flow` |
 | S12 | A timeseries of several grids, one a flow's box, was refused (its input not resolved) | resolved against the page first, on the tab (`timeseries-together.ts`) and headless (`join.ts sourcesOnHost`) | `test_page.py` `test_a_timeseries_of_a_box_and_another_grid` |
 | S13 | Python's cleanse, impute and multi-field defaulted to beside their column; the windows start in place | `in_place=None`: in place on a flow's box, as the windows start; beside on a board's grid | `test_page.py` `test_tools_in_place_hand_their_columns_on_by_their_own_names` |
 
-## 3. Notes -- fixed where small
+## 3. The startup's size
+
+The fixes add 2,458 bytes gzipped to a grid-only page's startup (405,574 -> 408,032; the engine page 393,657 ->
+396,140; a notebook's module 421,003 -> 423,483), the ceilings raised by that with dated notes
+(`bundle-budget.test.ts`). A first cut added 9,421: the checks' readers fetched at start by `setStops`, and three new
+lazy modules splitting the startup's shared chunks into 41 files from 33 (esbuild makes a chunk of each set of
+importers; each file is gzipped alone). The Output writer and the Cross Tab's values now read only what the page has
+at start and come with it; the Test's shape is read in `page-commands.ts`; the startup is 33 files again.
+
+## 4. Notes -- fixed where small
 
 - `pureText` and `customFilterText` read `true || ...` as a lambda named `true`: a name then `||` is an or (tested).
 - The page gestures made every error a refusal: only the page reader's (`PageDocumentError`) are now (`pageOf`).
@@ -57,7 +66,7 @@ test named beside it; the C reviewer's probes are in the session scratchpad (`au
   mode doc's stale rows (Filter, Profile, Comment and Container, Select and Dynamic Rename, `oneModel`, the Cross Tab's
   check) say what is built.
 
-## 4. Stays, and why
+## 5. Stays, and why
 
 - **Find Replace with a lookup that repeats a key repeats the row** (C13): the Join window counts repeated keys and
   warns before the box is made; one match per key needs a join form of its own (the first of theirs per key), recorded
@@ -68,7 +77,7 @@ test named beside it; the C reviewer's probes are in the session scratchpad (`au
 - **The WIP commit `88e0db52` stays in the branch's history**: the PR is merged by squash, which drops its message;
   the branch's history is not rewritten.
 
-## 5. The per-tool fixes (reviewer C)
+## 6. The per-tool fixes (reviewer C)
 
 Each re-run on DuckDB through the review's harness (each tool's commands, the box written, opened as the box after it
 reads it, planned and run), before and after:
