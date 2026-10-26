@@ -223,6 +223,19 @@ describe("a flow's layout (layout/flow.ts)", () => {
     assert.throws(() => readPage(bad), /a message is said always, rows, noRows, not "often"/);
   });
 
+  it("a layout told whole is held to its boxes' settings' rules (the roadmap audit of 2026-10-26)", () => {
+    const boxes = flowOf(FLOW().page).boxes;
+    refused(() => apply(FLOW(), { kind: 'layout', sheet: 'sheet-2', layout: { kind: 'flow', boxes: boxes.map((b) => (b.tile === 'grid-3' ? { ...b, stops: true as const } : b)) } }),
+      /'grid-3' checks nothing: a run is stopped by a Test/);
+    const noted = apply(FLOW(), { kind: 'addText', sheet: 'sheet-2', text: 'a note', title: null, columns: null });
+    const withNote = flowOf(noted.page).boxes;
+    const note = noted.page.views.find((v) => v.kind === 'text')!.id;
+    refused(() => apply(noted, { kind: 'layout', sheet: 'sheet-2', layout: { kind: 'flow', boxes: withNote.map((b) => (b.tile === note ? { ...b, cache: true as const } : b)) } }),
+      new RegExp(`${note} caches its rows: a cache is a grid's, not a comment`));
+    // its places alone changed: taken
+    assert.ok(apply(FLOW(), { kind: 'layout', sheet: 'sheet-2', layout: { kind: 'flow', boxes: boxes.map((b) => ({ ...b, x: b.x + 10 })) } }));
+  });
+
   it("a run's stages: the boxes after one that blocks run after every other; a Message's words, when its rows are as it asks", () => {
     // Input a -> b (blocks) -> c -> d; e reads a; f reads c and e (a join)
     const flow: Flow = { boxes: [{ tile: 'a', x: 0, y: 0 }, { tile: 'b', x: 200, y: 0, blocks: true }, { tile: 'c', x: 400, y: 0 },

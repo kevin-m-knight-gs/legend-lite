@@ -2954,6 +2954,13 @@ class Joined(Paged):
         # every row of mine: no score (a pair's alone)
         every = page.fuzzy_match(mine, theirs, ('who', 'name'), within=1, kind='left').to_pandas()
         self.assertNotIn('score', every.columns)
+        # a score asked of every row of mine: refused in words, never dropped (the roadmap audit of 2026-10-26)
+        with self.assertRaisesRegex(Exception, 'a score is each matched pair'):
+            page.fuzzy_match(mine, theirs, ('who', 'name'), within=1, kind='left', score='sim')
+        # one of theirs for each of mine: a lookup's, never a right join's
+        with self.assertRaisesRegex(Exception, 'one of theirs for each of mine is a lookup of mine'):
+            page.join(mine, theirs, {'form': 'join', 'kind': 'right', 'on': {'rows': [{'left': 'who', 'op': '==', 'right': 'name'}]},
+                                     'prefix': 'c_', 'keep': None, 'once': True})
 
     def test_placed_on_its_first_inputs_sheet_and_named_as_its_grids_show(self):
         # docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z9: as the tab's Join… places and names one (join-flow.ts), by
@@ -3807,6 +3814,31 @@ class Flows(Paged):
         with self.assertRaisesRegex(Exception, r"unbound variable '\$min'"):
             after.to_pandas()
 
+    def test_a_parameter_reaches_a_join_a_cache_and_keeps_a_decimal_exact(self):
+        # the roadmap audit of 2026-10-26: a join over a box reading a parameter opened with its value (it was unbound);
+        # a cached box after it copied again when its value changes (its copy was of the old one); a Decimal's digits kept
+        page, flow, source, big = self.flowed()
+        page.parameter('region', 'String', 'EMEA')
+        picked = flow.grid(input=source)
+        picked.custom_filter('$x.region == $region')
+        joined = page.join(picked, big, {'form': 'join', 'kind': 'inner', 'on': {'rows': [{'left': 'notional', 'op': '==', 'right': 'notional'}]},
+                                         'prefix': 'b_', 'keep': None})
+        self.assertEqual(sorted(joined.to_pandas()['notional']), [100.0])
+        cached = flow.grid(input=picked)
+        cached.cache()
+        after = flow.grid(input=cached)
+        self.assertEqual(sorted(after.to_pandas()['notional']), [75.5, 100.0])
+        page.set_parameter('region', 'AMER')
+        self.assertEqual(sorted(after.to_pandas()['notional']), [250.0], 'its cache copied again with the value now')
+        page.parameter('rate', 'Decimal', Decimal('1.10'))
+        self.assertEqual(next(p for p in page.to_dict()['parameters'] if p['name'] == 'rate')['value'], '1.10')
+        self.assertEqual(page.parameters['rate'], Decimal('1.10'))
+        # a table written from a cached copy: refused in words (this session's engine holds the copy)
+        after.output_table('regions_out')
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "this box reads a cached box's copy"):
+                flow.run(folder)
+
     def test_a_macro_is_a_sub_flow_used_as_one_box(self):
         # M8's standard macro: page.macro -- boxes, each over the one before it, saved as one Pure function of the first
         # one's input's rows; used after another box by grid.use_macro, a Pure box named after it; a parameter it reads
@@ -3872,8 +3904,15 @@ class Flows(Paged):
         # over the one before; the last box's rows the whole's
         page, flow, source, _big = self.flowed()
         box = flow.grid(input=source)
+        # a box that read it, and its Output: each the last box's from then on (page-gestures.ts importedCommands)
+        reader = flow.grid(input=box)
+        box.output('imported.csv')
         boxes = box.import_pure("$input->filter(x|$x.region == 'EMEA')->extend(~fee:x|$x.notional->toOne() * 0.01)->sort(~notional->descending())")
         self.assertEqual(len(boxes), 3)
+        self.assertIs(reader.input, boxes[-1], 'what read it reads the last box')
+        self.assertIn('fee', reader.to_pandas().columns)
+        outputs = {b['tile']: b.get('output') for s in page.to_dict()['sheets'] for b in s['layout'].get('boxes', [])}
+        self.assertEqual((outputs[box.id], outputs[boxes[-1].id]), (None, {'format': 'csv', 'name': 'imported.csv'}), 'its Output with its rows')
         self.assertIs(boxes[0], box)
         rows = flow.grid(input=boxes[-1]).to_pandas()
         self.assertEqual(list(rows['notional']), [100.0, 75.5])

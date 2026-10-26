@@ -1074,8 +1074,9 @@ export class FlowCanvas {
     };
     const head = el('div', 'dc-flow-log-head');
     const refused = log.boxes.filter((b) => b.refused !== undefined).length;
-    // a Test's result, as its rows landed in the run
-    const tests = new Map(log.boxes.flatMap((b) => {
+    // a Test's result, as its rows landed in the run -- the last run's alone: an earlier one picked says what it logged,
+    // never a Test's result now (the roadmap audit of 2026-10-26)
+    const tests = new Map(log !== last ? [] : log.boxes.flatMap((b) => {
       const t = this.#board.layout.boxes.some((x) => x.tile === b.id) ? this.#testOf(b.id) ?? this.#lackingOf(b.id) : undefined;
       return t === undefined ? [] : [[b.id, t] as const];
     }));

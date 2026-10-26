@@ -38,7 +38,7 @@ import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, pla
 import { FlowBoard, runStoppers, type FlowPoint, type LineEnd, type RunLog } from '../layout/flow-board.ts';
 import { liveGrids, relinked } from '../live-inputs.ts';
 import type { Profile, TopValue } from '../profile.ts';
-import { CONTAINER_FRAME, EMPTY_FLOW, flowTiles, messageProblem, messageSaid, outputWords, runStages, type Frame, type Output } from '../layout/flow.ts';
+import { CONTAINER_FRAME, EMPTY_FLOW, flowTiles, messageProblem, messageSaid, outputWords, runStages, type FlowBox, type Frame, type Output } from '../layout/flow.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import { MAX_RULES } from '../dynamic-replace.ts';
 import { MACRO_BOXES, macroOf, macroProblem, macroWords, type PageMacro } from '../macros.ts';
@@ -56,7 +56,8 @@ import {
   type TimeseriesView as TimeseriesPageView,
 } from '../page-document.ts';
 import {
-  duplicateCommands, layoutCommand, movedCommand, moveSheetCommand, moveToSheetCommands, pageCommand, renameSheetCommand, savedLayout, showGridCommands,
+  duplicateCommands, layoutCommand, movedCommand, moveSheetCommand, moveToSheetCommands, pageCommand, renameSheetCommand, savedLayout, settingsCommands,
+  showGridCommands,
   takeOffCommands,
 } from '../page-gestures.ts';
 import { chartTitle, gridTitle, nextPageId, textTitle, timeseriesTitle } from '../page-ids.ts';
@@ -136,6 +137,10 @@ export interface FlowStep {
   /** Import Pure (FL12): the box made a Pure box of this function, and a box after it of each of `next`, in turn. */
   readonly pure?: Lambda;
   readonly next?: readonly Lambda[];
+  /** Import Pure: the box taken apart, and the boxes made after it so far -- the last made, what read it reads the last
+   *  (page-gestures.ts importedCommands). */
+  readonly from?: string;
+  readonly made?: readonly string[];
   readonly label: string;
   /** The box's name, given as it is made (a macro used: its name). */
   readonly title?: string;
@@ -179,7 +184,7 @@ export interface SpawnOptions {
   readonly onSetPure?: (pure: Lambda | null) => boolean;
   /** A flow's Dynamic Replace's boxes to read rules from, and one read (CubeAppOptions.ruleBoxes, onReadRules). */
   readonly ruleBoxes?: () => readonly { readonly id: string; readonly label: string }[];
-  readonly onReadRules?: (box: string) => void;
+  readonly onReadRules?: (box: string, expressions: boolean) => void;
 }
 
 /** A grid on a page (a CubeApp). */
@@ -239,6 +244,7 @@ export interface SpawnedGrid {
   handOverCopy?(): { readonly copy: GridCopy; readonly discard: () => Promise<void> } | undefined;
   /** Its rows copied into the tab (its Snap), unless they are already or its plane cannot move. */
   snapNow?(): Promise<void>;
+  liveNow?(): Promise<void>;
   /** A gesture made on it as its menu makes one (a flow's New Box After: the new box's one step, FL9). */
   gesture?(name: string, args: GestureArgs, label: string): Promise<string | null>;
   /** A Cross Tab's values its pinned columns lack, asked of the database (FL3): none when it pins nothing. */
@@ -427,7 +433,7 @@ const layoutTilesOf = (layout: PageLayout): string[] => (layout.kind === 'flow' 
 /** A FLOW'S BOX NOT SHOWN: no grid made for it, its view and its cube as the page has them (M1's design, 3). */
 /** A box or a note a flow's Ctrl+C kept: its cube (or its words), and where it was. */
 type ClipItem = { readonly tile: string; readonly x: number; readonly y: number }
-  & ({ readonly document: CubeDocument } | { readonly text: string });
+  & ({ readonly document: CubeDocument; readonly box: FlowBox } | { readonly text: string });
 
 /** How far down and right of where they were boxes are pasted, given no place: their copies seen beside them. */
 const PASTE_OFFSET = 32;
@@ -734,7 +740,12 @@ export class CubePage {
         this.#tell(cache ? 'Cache Rows' : 'Stop Caching', pageCommand('setCache', { grid: tile, cache }));
         // cached while it is shown: copied now; no longer cached, the copy kept for it let go (cacheCopies' rule)
         if (cache) this.#cacheShown(tile, board);
-        else this.#letCacheGo(tile);
+        else {
+          this.#letCacheGo(tile);
+          // shown: its own grid read live again, as Python's cache(False) goes live (the roadmap audit of 2026-10-26: it
+          // stayed snapped, the boxes after it reading the copy)
+          void this.#grids.get(tile)?.added?.cube.liveNow?.();
+        }
         this.#options.onChange();
       },
       cachedCopy: (tile) => {
@@ -977,7 +988,12 @@ export class CubePage {
       if (sheet.kind !== 'flow') continue;
       const shown = sheet.board.shown;
       if (shown === undefined || this.#grids.get(shown)?.added === undefined) continue;
-      this.#closeBox(sheet);
+      // a cached box's copy is of the value it was copied with: let go with its grid -- its box live on the page again,
+      // so nothing reads the copy dropped -- and copied again as it opens (the roadmap audit of 2026-10-26)
+      const cached = sheet.board.layout.boxes.find((b) => b.tile === shown)?.cache === true;
+      const snapped = cached && this.#grids.get(shown)?.added?.cube.copy !== undefined;
+      this.#closeBox(sheet, undefined, !cached);
+      if (snapped) this.#options.onPageEdit({ label: 'Go Live', step: false, commands: [pageCommand('live', { grid: shown })] });
       void this.#showBox(shown);
     }
   }
@@ -987,7 +1003,7 @@ export class CubePage {
    * now), its view as the page saves it -- and the box left on the canvas, drawn from that document. No step of the page:
    * which box is shown is the screen's (§3.4).
    */
-  #closeBox(sheet: FlowSheet, document?: CubeDocument): void {
+  #closeBox(sheet: FlowSheet, document?: CubeDocument, handOver = true): void {
     const id = sheet.board.shown;
     if (id === undefined) return;
     const grid = this.#grids.get(id);
@@ -996,7 +1012,7 @@ export class CubePage {
     const title = this.title(id);
     const view: GridView = { id, kind: 'grid', cube: id, ...(title !== undefined && title !== this.#titles.get(id) ? { title } : {}) };
     // a cached box (FL10): its copy handed to the page, which the boxes after it read until what it is made of changes
-    if (sheet.board.layout.boxes.find((b) => b.tile === id)?.cache === true) {
+    if (handOver && sheet.board.layout.boxes.find((b) => b.tile === id)?.cache === true) {
       const handed = grid.added.cube.handOverCopy?.();
       if (handed !== undefined) this.#cacheKept.set(id, { ...handed, key: sheet.board.chain(id) });
     }
@@ -1086,12 +1102,24 @@ export class CubePage {
    * now let go here (FL11: a cache lasts its session, and is of what it was copied from).
    */
   cacheCopies(): ReadonlyMap<string, GridCopy> {
+    this.staleCaches();
+    return new Map([...this.#cacheKept].map(([id, kept]) => [id, kept.copy]));
+  }
+
+  /** The kept copies of cached boxes not shown that are of what their box is no more -- its box gone, no longer
+   *  caching, or made of something else now (its chain: an upstream edit, a parameter's value) -- each let go, its box
+   *  returned: what the page is told reads live again (page-app.ts), so no box after it reads the dropped copy. */
+  staleCaches(): string[] {
+    const gone: string[] = [];
     for (const [id, kept] of [...this.#cacheKept]) {
       const sheet = this.#sheetOf(id);
       const box = sheet?.kind === 'flow' ? sheet.board.layout.boxes.find((b) => b.tile === id) : undefined;
-      if (box?.cache !== true || sheet?.kind !== 'flow' || sheet.board.chain(id) !== kept.key) this.#letCacheGo(id);
+      if (box?.cache !== true || sheet?.kind !== 'flow' || sheet.board.chain(id) !== kept.key) {
+        this.#letCacheGo(id);
+        gone.push(id);
+      }
     }
-    return new Map([...this.#cacheKept].map(([id, kept]) => [id, kept.copy]));
+    return gone;
   }
 
   /** The copy kept for cached box `id` let go, if one is: its table dropped. */
@@ -1155,9 +1183,13 @@ export class CubePage {
             const box = board.layout.boxes.find((b) => b.tile === id);
             // an Output writes its file after its stage's boxes have run, its rows counted now
             if (box?.output !== undefined && refused === undefined) writes.push({ id, name: outputWords(box.output), at: logged.length });
-            // a Message: its words, when its rows are as it asks -- an error stopping the run
+            // a Message: its words, when its rows are as it asks -- an error stopping the run, as it does when it cannot
+            // be judged (its rows refused or not counted: a stop that cannot be judged stops, the review's B7)
             const said = box?.message !== undefined && refused === undefined ? messageSaid(box.message, rows) : undefined;
             if (said !== undefined && box?.message?.level === 'error') errors.push({ id, why: `${board.title(id) ?? id} said ${said}` });
+            else if (box?.message?.level === 'error' && (refused !== undefined || (rows === undefined && box.message.when !== 'always'))) {
+              errors.push({ id, why: `${board.title(id) ?? id} could not be judged${refused !== undefined ? ` (${refused})` : ''}` });
+            }
             logged.push({ id, ms: Math.round(performance.now() - t0), ...(rows !== undefined ? { rows } : {}), ...(refused !== undefined ? { refused } : {}),
               ...(said !== undefined ? { said, level: box!.message!.level } : {}) });
           }
@@ -1202,7 +1234,7 @@ export class CubePage {
     const sheet = this.#sheetOf(id);
     if (sheet?.kind !== 'flow') return `${id} is no box of a flow`;
     if (this.#options.onTool === undefined || steps.length === 0) return 'this page makes no box';
-    this.#options.onTool('pure', id, sheet.id, undefined, undefined, undefined, undefined, { pure: steps[0]!, next: steps.slice(1), label: 'Import Pure' });
+    this.#options.onTool('pure', id, sheet.id, undefined, undefined, undefined, undefined, { pure: steps[0]!, next: steps.slice(1), from: id, made: [], label: 'Import Pure' });
     return null;
   }
 
@@ -1236,7 +1268,7 @@ export class CubePage {
    * again, its window opened on them, or on why they could not be read. A flow shows one box at a time, as a Run shows
    * each in turn.
    */
-  async #readRules(id: string, rules: string): Promise<void> {
+  async #readRules(id: string, rules: string, expressions = false): Promise<void> {
     let read: { readonly rows?: ResultTable; readonly problem?: string };
     try {
       if (this.#grids.get(rules)?.added === undefined) {
@@ -1252,14 +1284,19 @@ export class CubePage {
       read = { problem: e instanceof Error ? e.message : String(e) };
     }
     if (this.#disposed || !this.#boxes.has(id)) return;
-    await this.#showBox(id, { window: 'dynamicReplace', rules: { box: rules, ...read } });
+    await this.#showBox(id, { window: 'dynamicReplace', rules: { box: rules, ...read, ...(expressions ? { expressions } : {}) } });
   }
 
   /** A MACRO USED (M8, macros.ts): a Pure box of its function after box `after`, named after it -- made by the host as
    *  the palette's Pure is, as Import Pure's boxes are. */
   #useMacro(sheet: string, name: string, after: string): void {
     const macro = (this.#options.macros?.() ?? []).find((m) => m.name === name);
-    if (macro === undefined) return;
+    if (macro === undefined) {
+      // taken off meanwhile (another editor's step): said, as Python's use_macro refuses it
+      const on = this.#sheets.find((s) => s.id === sheet);
+      if (on?.kind === 'flow') on.board.note(`'${name}' is no macro of the page now`);
+      return;
+    }
     this.#options.onTool?.('pure', after, sheet, undefined, undefined, undefined, undefined, { pure: macro.pure, label: 'Use Macro', title: name });
   }
 
@@ -1289,6 +1326,11 @@ export class CubePage {
       chain.unshift(at);
       if (chain.length > MACRO_BOXES) return `a macro is made of ${MACRO_BOXES} boxes at most`;
       const source: CubeSource | undefined = (this.#boxes.get(at)?.document ?? this.documentOf(at))?.source;
+      // a box's own steps are its rows as it hands them on: one reading another port (a Filter's False, a Join's L or R)
+      // reads rows no step of it says (the roadmap audit of 2026-10-26: its True rows were taken)
+      if (source?._type === 'rows' && 'grid' in source.input && source.input.port !== undefined) {
+        return `${this.title(at) ?? at} reads ${this.title(source.input.grid) ?? source.input.grid}'s ${source.input.port} rows: a macro's boxes each read the rows the one before hands on`;
+      }
       at = source?._type === 'rows' && 'grid' in source.input ? source.input.grid : undefined;
     }
     const steps: Lambda[] = [];
@@ -1375,8 +1417,10 @@ export class CubePage {
   #duplicateBox(sheet: string, tile: string): void {
     const document = this.#boxes.get(tile)?.document ?? this.documentOf(tile);
     if (document === undefined) return;
-    // the one rule Python's grid.copy of a box duplicates by (page-gestures.ts duplicateCommands)
-    this.#tell('Duplicate Box', ...duplicateCommands(document, tile, sheet));
+    // the one rule Python's grid.copy of a box duplicates by (page-gestures.ts duplicateCommands): its modes with it
+    const on = this.#sheets.find((s) => s.id === sheet);
+    const box = on?.kind === 'flow' ? on.board.layout.boxes.find((b) => b.tile === tile) : undefined;
+    this.#tell('Duplicate Box', ...duplicateCommands(document, tile, sheet, null, box !== undefined ? { id: this.#nextId('grid'), box } : undefined));
     this.#options.onChange();
   }
 
@@ -1397,7 +1441,7 @@ export class CubePage {
       const text = this.#texts.get(tile);
       const document = text === undefined ? this.#boxes.get(tile)?.document ?? this.documentOf(tile) : undefined;
       if (text !== undefined) items.push({ tile, text: text.text, x: at.x, y: at.y });
-      else if (document !== undefined) items.push({ tile, document, x: at.x, y: at.y });
+      else if (document !== undefined) items.push({ tile, document, box: at, x: at.x, y: at.y });
     }
     if (items.length === 0) return;
     // a box before the boxes that read it, so a paste adds each after what it reads
@@ -1447,7 +1491,7 @@ export class CubePage {
         const source = relinked(i.document.source, (g) => ids.get(g) ?? g);
         commands.push(pageCommand('addGrid', {
           id, document: { ...i.document, source }, sheet, near: liveGrids(source)[0] ?? null, title: null, columns: null,
-        }));
+        }), ...settingsCommands(id, i.box));
       }
       const p = placed(i);
       if (p !== undefined) commands.push(pageCommand('placeBox', { tile: id, x: p.x, y: p.y }));
@@ -2167,7 +2211,7 @@ export class CubePage {
       // Dynamic Replace: its rules a row each of another box of its flow, read by the page
       ruleBoxes: () => lands.board.layout.boxes.filter((b) => b.tile !== id && this.#boxes.has(b.tile))
         .map((b) => ({ id: b.tile, label: this.title(b.tile) ?? b.tile })),
-      onReadRules: (box: string) => void this.#readRules(id, box),
+      onReadRules: (box: string, expressions: boolean) => void this.#readRules(id, box, expressions),
       // a Pure box's function (FL12): its source's, so the page's to set -- the box then shown again over it
       onSetPure: (pure: Lambda | null) => {
         const told = this.#tell(pure === null ? 'Take Pure Off' : 'Set Pure', pageCommand('setPure', { grid: id, pure }));

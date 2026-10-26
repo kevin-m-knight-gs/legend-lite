@@ -471,8 +471,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  422,500 -> 423,500 (2026-10-26, the flow mode's M8, Block Until Done, Message and the run history: a box's blocking
  *  and its message, read where the page's commands and document are (layout/flow.ts readMessage: setBlocks, setMessage,
  *  readPage), a run in stages with its Messages said (page/cube-page.ts #runFlow: runStages, messageSaid), its log kept
- *  (layout/flow-board.ts logs); their settings and the log's history the canvas's chunk). Measured 422,951. */
-const BUDGET = 423_500;
+ *  (layout/flow-board.ts logs); their settings and the log's history the canvas's chunk). Measured 422,951.
+ *  423,500 -> 425,000 (2026-10-26, the flow mode's roadmap audit, #77: a join's sides bound with the page's parameters
+ *  and a lambda's own shadowing them (page-parameters.ts boundIn, parametersRead), a cache's chain keyed by what its box
+ *  is made of and let go live (layout/flow-board.ts chain, page/cube-page.ts staleCaches, liveNow), a told layout held
+ *  to its boxes' settings' rules (page-document.ts flowSheetProblem, page-commands.ts stopsProblem), a box's settings
+ *  carried by a move, a paste and a duplicate (page-gestures.ts settingsCommands)). Measured 424,587. */
+const BUDGET = 425_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -660,8 +665,10 @@ const BUDGET = 423_500;
  *  408,500 -> 409,500 (2026-10-26, the flow mode's M8, Dynamic Input -- the grid-only page's note of the same date).
  *  Measured 408,808.
  *  409,500 -> 411,000 (2026-10-26, the flow mode's M8: Dynamic Input's audit, then Block Until Done, Message and the run
- *  history -- the grid-only page's notes of the same date). Measured 410,880. */
-const ENGINE_BUDGET = 411_000;
+ *  history -- the grid-only page's notes of the same date). Measured 410,880.
+ *  411,000 -> 413,000 (2026-10-26, the flow mode's roadmap audit, #77 -- the grid-only page's note of the same date).
+ *  Measured 412,503. */
+const ENGINE_BUDGET = 413_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -946,8 +953,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  437,000 -> 438,000 (2026-10-26, Dynamic Input's audit -- the engine page's note of the same date -- with the headless
  *  lane's heldHow beside it). Measured 437,193.
  *  438,000 -> 439,000 (2026-10-26, Block Until Done, Message and the run history -- the engine page's note of the same
- *  date -- with the headless lane's flowRun beside it). Measured 438,768. */
-const WIDGET_BUDGET = 439_000;
+ *  date -- with the headless lane's flowRun beside it). Measured 438,768.
+ *  439,000 -> 441,000 (2026-10-26, the flow mode's roadmap audit, #77 -- the engine page's note of the same date -- with
+ *  the headless lane's 'flow.imported' and its joins bound with the page's parameters beside it). Measured 440,385. */
+const WIDGET_BUDGET = 441_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -321,7 +321,7 @@ export interface CubeAppBaseOptions {
   readonly ruleBoxes?: () => readonly { readonly id: string; readonly label: string }[];
   /** A flow's Dynamic Replace's rules box `box` read, as it hands its rows on, by its page -- its window opened again on
    *  them (a flow shows one box at a time). */
-  readonly onReadRules?: (box: string) => void;
+  readonly onReadRules?: (box: string, expressions: boolean) => void;
   /** A cube in a tile (a page's grid): no title bar of its own; its columns panel folded. */
   readonly compact?: boolean;
   /** Its columns panel folded away at the start (default: when compact); open, a grid opened alone on its page. */
@@ -3533,6 +3533,13 @@ export class CubeApp {
     await this.#movePlane('snap');
   }
 
+  /** ITS ROWS LIVE AGAIN, as its state's menu's Go Live makes it (a flow's box no longer cached: FL10): read where they
+   *  are from now on, its copy let go. Nothing when it reads them live already. */
+  async liveNow(): Promise<void> {
+    if (!this.#controller.snaps.isSnapped) return;
+    await this.#movePlane('live');
+  }
+
   /** Where its rows are as its page writes it (`copy`): set each time a move settles. */
   #settledCopy: GridCopy | undefined = undefined;
 
@@ -4267,7 +4274,7 @@ export class CubeApp {
    * in a window of its own (ui/dynamic-replace-form.ts), opened on a box's rows as its page read them (`start`). Both
    * fetched with the first.
    */
-  async #openDynamicReplace(start?: { readonly box: string; readonly rows?: ResultTable; readonly problem?: string }): Promise<void> {
+  async #openDynamicReplace(start?: { readonly box: string; readonly rows?: ResultTable; readonly problem?: string; readonly expressions?: boolean }): Promise<void> {
     if (this.#cubeOnly()) return;
     const [{ dynamicReplaceForm }, dr] = await Promise.all([
       lazily(() => import('./ui/dynamic-replace-form.ts')), lazily(() => import('./dynamic-replace-rules.ts')),
@@ -4277,7 +4284,7 @@ export class CubeApp {
       // a grid on no flow reads no other box
       boxes: read === undefined ? [] : this.#options.ruleBoxes?.() ?? [],
       ...(start !== undefined ? { start } : {}),
-      read: (box) => read?.(box),
+      read: (box, expressions) => read?.(box, expressions),
       apply: async (replace) => {
         let made: DerivedColumn[];
         let types: Map<string, string | undefined>;

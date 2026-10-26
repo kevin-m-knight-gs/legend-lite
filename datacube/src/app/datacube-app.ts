@@ -142,6 +142,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
    * warehouse: cache its box first, FL10).
    */
   let tablesTaken: ((table: string) => boolean) | undefined;
+  let tableWritten: ((table: string) => void) | undefined;
   const tableWriter = (place: GridPlace): ((rows: Lambda, output: TableOutput) => Promise<number>) | undefined => {
     const engine = local?.engine;
     const tables = place.tables;
@@ -149,7 +150,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const planner = place.planner ?? local.planner;
     return async (rows, output) => {
       const { writeTable } = await import('../table-output.ts');
-      return writeTable(rows, output, {
+      const wrote = await writeTable(rows, output, {
         databaseType: engine.databaseType,
         sources: tables.map((table) => ({ table, convertible: true })),
         held: (table) => tablesTaken?.(table) ?? true,
@@ -166,6 +167,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           }
         },
       });
+      // its table this tab's from now on: no file read in after takes its name (and replaces it)
+      tableWritten?.(output.name);
+      return wrote;
     };
   };
   const windows = appWindows(o.windows);
@@ -678,6 +682,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       services, page, gridMaker, taken: o.taken, ask: (content) => library?.ask(content),
     });
     tablesTaken = (table) => sources.isTaken(table);
+    tableWritten = (table) => sources.wrote(table);
     // the grids of a timeseries series of several, over one model of the tables they read: the tab's own (its database's),
     // or -- a page Python serves -- the host's, by the same rule (join.json together); its query then planned and run
     // where the grids' rows are, as every grid's is (rowsOf). Fetched with the join's code (join-app.ts)
@@ -1597,7 +1602,14 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         // Import Pure's next step: a box after this one, over its rows
         else if (step?.pure !== undefined && step.next !== undefined && step.next.length > 0) {
           flowTool?.('pure', box, sheet, page.document(page.title) ?? now, undefined, undefined, undefined, undefined,
-            { pure: step.next[0]!, next: step.next.slice(1), label: step.label });
+            { pure: step.next[0]!, next: step.next.slice(1), ...(step.from !== undefined ? { from: step.from, made: [...(step.made ?? []), box] } : {}), label: step.label });
+        }
+        // Import Pure's last box made: what read the box taken apart reads it, its settings with it (importedCommands)
+        else if (step?.pure !== undefined && step.from !== undefined) {
+          const { importedCommands } = await lazily(() => import('../page-gestures.ts'));
+          const at = page.document(page.title);
+          const commands = at === undefined ? [] : importedCommands(at, step.from, [...(step.made ?? []), box]);
+          if (commands.length > 0) page.editPage('Import Pure', commands);
         }
         else if (editor !== undefined) page.grid(box)?.openStep?.(editor);
         // a tool with no settings does its step as it is made: Count Records counts

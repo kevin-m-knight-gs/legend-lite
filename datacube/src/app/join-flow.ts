@@ -8,6 +8,7 @@
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { gridCapped, isLive, leavesOf, type JoinInput, type JoinSource } from '../cube-document.ts';
 import { gridInput } from '../live-inputs.ts';
+import { boundIn } from '../page-parameters.ts';
 import { namedApart, newPick } from '../dynamic-input.ts';
 import { pageCommand } from '../page-gestures.ts';
 import { HOST_TABLES, JoinInputs, TAB_TABLES, leafRefusal, openInputs, summaryCounts, type OpenedInputs } from '../join-open.ts';
@@ -130,7 +131,8 @@ export async function joinFlow(o: JoinFlowOf): Promise<void> {
     const other = others.get(their)!;
     let rows: GridRows | undefined;
     try {
-      const inputs = await openInputs(mine.input, other.input, {
+      // each read with the page's parameters' values now (page-parameters.ts boundIn), as a grid's base is
+      const inputs = await openInputs(boundIn(mine.input, now.parameters ?? []), boundIn(other.input, now.parameters ?? []), {
         here: TAB_TABLES,
         tables: [...mine.tables, ...other.tables],
         models: local.tables,
@@ -163,8 +165,9 @@ export async function joinFlow(o: JoinFlowOf): Promise<void> {
         const source: JoinSource = {
           _type: 'join', name: joinTitle(how, mine.input.name, other.input.name), left: mine.input, right: other.input, how, columns: [],
         };
+        // opened over the page as it is, its inputs read with its parameters' values (the page keeps them as `$name`)
         const made = await sources.openedJoin(source, {
-          capped: gridCapped(page.cubes.length + 1), tables: [...mine.tables, ...other.tables],
+          capped: gridCapped(page.cubes.length + 1), tables: [...mine.tables, ...other.tables], on: { page: now, cube: '' },
         });
         if (!made) return undefined;
         if (!o.stillShown()) {
@@ -298,7 +301,8 @@ export async function flowJoin(o: FlowJoinOf): Promise<void> {
   if (others.length === 0) throw new CubeRefusal('a join needs another box on the flow: add one first (an Input)');
   const opened = new JoinInputs<{ readonly inputs: OpenedInputs; readonly rows: GridRows; dispose(): Promise<void> }>(async (their) => {
     const at = page.document(page.title) ?? now;
-    const got = await sources.openedInputs(gridInput(at, left), gridInput(at, their), named(left));
+    const bound = (grid: string) => boundIn(gridInput(at, grid), at.parameters ?? []);
+    const got = await sources.openedInputs(bound(left), bound(their), named(left));
     if (got === undefined) throw new Error('a file it reads was not given');
     return got;
   });

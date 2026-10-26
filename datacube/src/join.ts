@@ -173,7 +173,8 @@ function appended(sides: readonly JoinSide[], pick?: Lambda): Relation {
     // its pick a value now (its parameter's, bound): one of its inputs' names, compared as spelled
     const now = pick.body[0];
     if (now?._type === 'string' && !names.includes(now.value)) {
-      throw new CubeRefusal(`it picks ${JSON.stringify(now.value)}, none of its inputs: ${names.join(', ')}`);
+      // an input renamed or relinked since its parameter was made: said, with what to do
+      throw new CubeRefusal(`it picks ${JSON.stringify(now.value)}, none of its inputs: ${names.join(', ')} -- set its parameter to one of them, or pick again in its settings (a new parameter of their names)`);
     }
     const picked = (s: JoinSide): JoinSide => ({ ...s, relation: from(s.relation).filter(lambda(['x'], eq(pick.body[0]!, lit.string(s.name)))).node });
     return appended(sides.map(picked));

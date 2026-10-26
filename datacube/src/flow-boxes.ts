@@ -115,7 +115,7 @@ export type StepEditor =
   | { readonly window: 'impute' }
   /** The Dynamic Replace window (ui/dynamic-replace-form.ts): the box its rules are loaded from, and their columns --
    *  opened again on a box's rows as its page read them (`rules`: the rows, or why they could not be read). */
-  | { readonly window: 'dynamicReplace'; readonly rules?: { readonly box: string; readonly rows?: ResultTable; readonly problem?: string } }
+  | { readonly window: 'dynamicReplace'; readonly rules?: { readonly box: string; readonly rows?: ResultTable; readonly problem?: string; readonly expressions?: boolean } }
   /** The Date Filter window (ui/date-filter-form.ts): a date column, and the range of its dates kept. */
   | { readonly window: 'dateFilter' }
   /** The Test window (ui/test-form.ts): its checks, each of a column. */

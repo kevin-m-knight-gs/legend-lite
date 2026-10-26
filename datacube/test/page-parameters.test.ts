@@ -47,6 +47,18 @@ describe("a page's parameters, bound where a query is sent", () => {
     assert.equal(boundIn(source, []), source, 'a page with none: the source itself');
   });
 
+  it("never binds a lambda's own parameter: a stored one's own, by name, is its own (the roadmap audit of 2026-10-26)", () => {
+    const ROWS: PageParameter = { name: 'rows', type: 'Integer', value: 5 };
+    const R: PageParameter = { name: 'r', type: 'Integer', value: 7 };
+    const pure = lambda(['rows'], fn('limit', variable('rows'), lit.integer(3)));
+    const derived = lambda(['r'], gt(property(variable('r'), 'amount'), variable('min')));
+    const bound = boundIn({ pure, derived }, [ROWS, R, MIN]);
+    assert.equal(toJson(bound.pure), toJson(pure), 'its own $rows');
+    assert.equal(toJson(bound.derived), toJson(lambda(['r'], gt(property(variable('r'), 'amount'), lit.float(90)))), 'its $min bound, its own $r not');
+    assert.deepEqual(parametersRead(pure, [ROWS]), [], 'it reads no parameter of the page');
+    assert.deepEqual(parametersRead(derived, [R, MIN]), ['min']);
+  });
+
   it('two lenses one, either alone the other', () => {
     const a = (q: Lambda): Lambda => ({ ...q, body: [fn('a', ...q.body)] });
     const b = (q: Lambda): Lambda => ({ ...q, body: [fn('b', ...q.body)] });

@@ -66,8 +66,12 @@ export class PageParameterBar {
     return !this.#form.hidden;
   }
 
+  /** The page's parameters' names, as last painted: what Add refuses to take again. */
+  #names: readonly string[] = [];
+
   /** The page's parameters now, each an input. */
   render(parameters: readonly PageParameter[]): void {
+    this.#names = parameters.map((p) => p.name);
     this.#inputs.replaceChildren(...parameters.map((p) => this.#input(p)));
   }
 
@@ -161,6 +165,12 @@ export class PageParameterBar {
       const t = type.value as ParameterType;
       const listed = choices.value.split(',').map((c) => c.trim()).filter((c) => c !== '');
       const asValue = (text: string): ParameterValue => (isBoolean(t) ? text === 'true' ? true : text === 'false' ? false : text : typedValue(t, text, false));
+      // Add makes a new one: one of a name the page has is set on its own input, never replaced from here (the roadmap
+      // audit of 2026-10-26: its type and choices were swapped under what read it)
+      if (this.#names.includes(name.value.trim())) {
+        this.#said.textContent = `the page has a parameter '${name.value.trim()}' already: set its value on its input, or take it off first`;
+        return;
+      }
       void (async () => {
         if (await this.#set({ name: name.value.trim(), type: t, value: asValue(value.value),
           ...(listed.length > 0 ? { choices: listed.map(asValue) } : {}) })) close();

@@ -64,6 +64,14 @@ _KEYS = itertools.count(1)
 _RUN_HISTORY = 20
 
 
+def _parameter_value(type: str, value: Any) -> Any:
+    """A parameter's value as the page keeps it: a Decimal's as its digits' text, its scale kept, as the parameters bar
+    keeps what is typed (ui/page-parameter-bar.ts) -- never a float's nearest; any other as JSON says it."""
+    if type == 'Decimal' and isinstance(value, (Decimal, numbers.Number)) and not isinstance(value, bool):
+        return str(value)
+    return _plain(value)
+
+
 def _operation(run: Any) -> Any:
     """A call on a page, or on one of its tiles or sheets: the page as its keeper has it when the call starts (its
     version pinned for the call, a change made in DataCube meanwhile read only by the next call), and -- the call over --
@@ -310,9 +318,27 @@ class Grid(Tile):
         self._page._apply_page([_commands.page_set_cache(grid=self.id, cache=cache)])
         if cache:
             self.snap()
-        elif self.snapped is not None:
-            self.live()
+            self._page._cache_keys[self.id] = self._chain_key()
+        else:
+            self._page._cache_keys.pop(self.id, None)
+            if self.snapped is not None:
+                self.live()
         return self
+
+    def _chain_key(self) -> str:
+        """What its rows are made of: its cube and every cube it reads through its inputs, live, and the page's
+        parameters -- the canvas's chain (layout/flow-board.ts chain): a cached box's copy is of what it was made of."""
+        seen: list[str] = []
+
+        def walk(grid: Grid) -> None:
+            if grid.id in seen:
+                return
+            seen.append(grid.id)
+            for i in grid.inputs.values():
+                walk(i)
+        walk(self)
+        return json.dumps([[g, self._page._tile(g, Grid)._cube] for g in seen] + [self._page._doc.get('parameters', [])],
+                          sort_keys=True, default=str)
 
     def block_until_done(self, blocks: bool = True) -> Grid:
         """This box blocks its flow's run (Alteryx's Block Until Done; docs/DATACUBE_FLOW_MODE_2026_10_24.md M8): the
@@ -557,7 +583,13 @@ class Grid(Tile):
             asked = _json.loads(engine.call('gridOutputQuery', spec))
         if 'problems' in asked:
             raise ValueError('; '.join(asked['problems']))
-        leaves = _cube_leaves(self._page._session, self._cube, self._page._doc, self._view['cube'])
+        leaves = _cube_leaves(self._page._session, self._cube, self._page._doc, self._view['cube'], opened=True)
+        # a cached box's copy is held by this session's engine, apart from the frames the write runs over: refused in
+        # words, never written from rows it cannot read (the roadmap audit of 2026-10-26)
+        copies = [leaf['name'] for leaf in leaves if leaf['_type'] == 'copy']
+        if copies:
+            raise ValueError(f"a table output writes from frames' rows: this box reads a cached box's copy ({', '.join(copies)}), which this "
+                             'session\'s engine holds -- write the table from a box before the cache, or take the cache off')
         others = [leaf['name'] for leaf in leaves if leaf['_type'] != 'frame']
         if others:
             raise ValueError(f"a table output writes from frames' rows: this box reads {', '.join(others)}")
@@ -1267,6 +1299,16 @@ class Grid(Tile):
         boxes = [self.pure(steps[0])]
         for step in steps[1:]:
             boxes.append(self.sheet.grid(input=boxes[-1]).pure(step))
+        if len(boxes) > 1:
+            # what read this box reads the last from now, its Output, cache, blocking and message with its rows
+            # (page-gestures.ts importedCommands, the canvas's rule)
+            page = self._page
+            moved = json.loads(page._session.headless().call('pageGesture', 'flow.imported', _json.dumps(
+                {'page': page._doc, 'grid': self._id, 'made': [b.id for b in boxes[1:]]})))
+            if 'problems' in moved:
+                raise ValueError('; '.join(moved['problems']))
+            if moved['commands']:
+                page._apply_page([_plain(c) for c in moved['commands']], 'an Import Pure')
         return boxes
 
     def pure(self, pure: str | None) -> Grid:
@@ -1567,12 +1609,12 @@ def _engine_rows(session: Any, tree: Any, base: Mapping[str, Any], over: Any) ->
 
 
 def _cube_leaves(session: Any, cube: Mapping[str, Any], page: Mapping[str, Any] | None = None,
-                 id: str | None = None) -> list[dict[str, str]]:
+                 id: str | None = None, opened: bool = False) -> list[dict[str, str]]:
     """A cube's leaves as DataCube says what a cube reads (headless cubeLeaves: cube-document.ts leavesOf), in its order:
     each ``{"_type", "name"}`` -- a frame's name its table in the frames' database. ``page`` and ``id``, the page it is on
     and its id there: a grid over another grid's rows reads what that grid reads (DataCube's rule, given the page)."""
     return json.loads(session.headless().call('cubeLeaves', _json.dumps(cube), None if page is None else _json.dumps(page),
-                                              id))
+                                              id, opened))
 
 
 def _cube_frames(session: Any, cube: Mapping[str, Any], page: Mapping[str, Any] | None = None,
@@ -2221,6 +2263,8 @@ class Sheet:
         at = datetime.datetime.now(datetime.timezone.utc)
         started = time.perf_counter()
         boxes = {b['tile']: b for b in layout['boxes']}
+        # a cached box copied again where its copy is of what it is no more
+        self._page._refresh_caches()
         counts: dict[str, int] = {}
         judged: list[str] = []
         written: list[Path | str] = []
@@ -2235,8 +2279,9 @@ class Sheet:
                         counts[tile] = view.total_rows if view.total_rows is not None else len(view.rows)
                 judged += stage
                 said = [m for m in self._plan(counts)['messages'] if m['box'] in judged]
-                for m in said[len(messages):] if not dry else []:
-                    if m['level'] == 'warning':
+                # each Message's warning warned once, as its stage is judged (its box's, never its place in the list)
+                for m in said if not dry else []:
+                    if m['level'] == 'warning' and m['box'] in stage:
                         warnings.warn(f"{m['box']}: {m['said']}", stacklevel=4)
                 messages = said
                 # a Test that stops a run, failing (grid.stops_run; FL8's refuse), or a Message's error, in this stage or
@@ -2416,6 +2461,8 @@ class Page:
         self._page_commands: list[dict[str, Any]] = []
         # each flow's runs this process made, by its sheet's id (flow.runs: the run history, F3's, this process's)
         self._flow_runs: dict[str, list[dict[str, Any]]] = {}
+        # each cached box's copy, by its id: what it was made of when copied (Grid._chain_key)
+        self._cache_keys: dict[str, str] = {}
         # what changed it since it was last served, as the commands it was (a page's, a grid's with its id) -- what a page
         # open on it applies rather than opening it again (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md); None once it was
         # changed by no command, which the open page follows by opening it again
@@ -2882,18 +2929,21 @@ class Page:
                                         'keep': None if keep is None else list(keep)}, title=title, sheet=sheet, live=live)
 
     def fuzzy_match(self, mine: Grid, theirs: Grid, on: tuple[str, str], *, within: int | None = None, kind: str = 'inner',
-                    score: str | None = 'score', prefix: str = 'their_', title: str | None = None, sheet: Sheet | None = None,
+                    score: Any = _KEEP, prefix: str = 'their_', title: str | None = None, sheet: Sheet | None = None,
                     live: bool | None = None) -> Grid:
         """``mine`` joined with ``theirs`` where their text is alike -- a flow's Fuzzy Match (Alteryx's), the Join window's
         similar comparison: ``on`` is my column and theirs, ``within`` how many edits apart they may be (a letter added,
         taken away or changed is one: the database's ``levenshteinDistance``; None, the Join window's own, join-how.ts
         SIMILAR_WITHIN), ``kind`` the join's (``'inner'``: the pairs alone; ``'left'``: every row of mine). ``score``: a
         column of this name holding each pair's likeness, 0 to 100 (100 less its edits apart for each 100 letters of the
-        longer, rounded: the database's), as the window's Fuzzy Match starts with -- matching rows only; None, none."""
+        longer, rounded: the database's), as the window's Fuzzy Match starts with -- matching rows only, so ``'score'``
+        when ``kind`` is ``'inner'`` and none otherwise unless given; None, none. A score asked of another kind is refused
+        in DataCube's words, never dropped."""
         left, right = on
         row = {'left': left, 'op': '~', 'right': right, **({'within': within} if within is not None else {})}
+        scored = ('score' if kind == 'inner' else None) if score is _KEEP else score
         return self.join(mine, theirs, {'form': 'join', 'kind': kind, 'on': {'rows': [row]}, 'prefix': prefix, 'keep': None,
-                                        **({'score': score} if score is not None and kind == 'inner' else {})},
+                                        **({'score': scored} if scored is not None else {})},
                          title=title, sheet=sheet, live=live)
 
     def find_replace(self, mine: Grid, theirs: Grid, column: str, find: str, replace: str, *, prefix: str = 'their_',
@@ -2989,12 +3039,13 @@ class Page:
         ``Boolean``, ``StrictDate`` (``'2024-01-31'``), ``DateTime``; ``choices``, a pick-list's values (its value one
         of them); ``label``, what its input says. Set (a ``setParameter`` command): the one of its name replaced, else
         added. Refused in DataCube's words: a name Pure cannot read, a value of another type, none of its choices."""
-        parameter: dict[str, Any] = {'name': name, 'type': type, 'value': _plain(value)}
+        parameter: dict[str, Any] = {'name': name, 'type': type, 'value': _parameter_value(type, value)}
         if choices is not None:
-            parameter['choices'] = [_plain(c) for c in choices]
+            parameter['choices'] = [_parameter_value(type, c) for c in choices]
         if label is not None:
             parameter['label'] = label
         self._apply_page([_commands.page_set_parameter(parameter=parameter)])
+        self._refresh_caches()
 
     def set_parameter(self, name: str, value: Any) -> None:
         """Parameter ``name``'s value changed, as its input on the page's parameters bar changes it (a ``setParameter``
@@ -3002,17 +3053,31 @@ class Page:
         found = next((p for p in self._doc.get('parameters', []) if p['name'] == name), None)
         if found is None:
             raise ValueError(f"'{name}' is not a parameter of the page")
-        self._apply_page([_commands.page_set_parameter(parameter={**found, 'value': _plain(value)})])
+        self._apply_page([_commands.page_set_parameter(parameter={**found, 'value': _parameter_value(found['type'], value)})])
+        self._refresh_caches()
 
     @property
     def parameters(self) -> dict[str, Any]:
         """Its parameters' values, by name, in the page's order."""
-        return {p['name']: copy.deepcopy(p['value']) for p in self._doc.get('parameters', [])}
+        return {p['name']: Decimal(p['value']) if p['type'] == 'Decimal' and isinstance(p['value'], str) else copy.deepcopy(p['value'])
+                for p in self._doc.get('parameters', [])}
 
     def remove_parameter(self, name: str) -> None:
         """Parameter ``name`` taken off (a ``removeParameter`` command), as the x on its input takes it: a Pure that
         still reads it is refused by the compiler, in its words."""
         self._apply_page([_commands.page_remove_parameter(name=name)])
+        self._refresh_caches()
+
+    def _refresh_caches(self) -> None:
+        """Each cached box whose copy is of what it is no more (Grid._chain_key: an input's edit, a parameter's value)
+        copied again, those it reads first -- as the canvas lets such a copy go and copies the box again (FL10, the
+        roadmap audit of 2026-10-26)."""
+        cached = [self._tile(b['tile'], Grid) for s in self._doc['sheets'] if s['layout'].get('kind') == 'flow'
+                  for b in s['layout']['boxes'] if b.get('cache')]
+        for grid in sorted(cached, key=lambda g: len(json.loads(g._chain_key()))):
+            if grid.snapped is not None and self._cache_keys.get(grid.id) != grid._chain_key():
+                grid.snap()
+                self._cache_keys[grid.id] = grid._chain_key()
 
     def macro(self, name: str, boxes: Sequence[Grid]) -> None:
         """A standard macro (DataCube's code: macros.ts; a box's menu, Save as Macro): ``boxes``, each over the one before
@@ -3028,6 +3093,10 @@ class Page:
             source = next(c['cube']['source'] for c in self._doc['cubes'] if c['id'] == after._view['cube'])
             if source.get('_type') != 'rows' or source.get('input', {}).get('grid') != before._id:
                 raise ValueError(f"{after._id} reads none of {before._id}'s rows: each box of a macro reads the one before it")
+            # a box's own steps are its rows as it hands them on: one reading another port (a Filter's False, a Join's L
+            # or R) reads rows no step of it says (the roadmap audit of 2026-10-26: its True rows were taken)
+            if source['input'].get('port') is not None:
+                raise ValueError(f"{after._id} reads {before._id}'s {source['input']['port']} rows: a macro's boxes each read the rows the one before hands on")
         steps = []
         for box in boxes:
             engine, frames = box._headless()

@@ -222,6 +222,8 @@ export interface PageSources {
   snapTarget(): SnapTarget | undefined;
   /** While a saved page opens, the tables its model keeps: no fresh name takes one of them (the audit's S3). */
   reserve(tables: Iterable<string>): void;
+  /** A table an Output wrote (M6/FL13): taken from then on, so no file read in after is given its name. */
+  wrote(table: string): void;
   release(): void;
   /** The chosen source opened for a grid: fresh, or -- `capped` -- added beside the others. */
   opened(chosen: Chosen, capped: boolean): Promise<Opened>;
@@ -399,8 +401,20 @@ export function pageSources(d: SourcesOf): PageSources {
   const taken = new Set<string>(d.taken);
   /** The names a saved page's model keeps for its grids, while that page opens. */
   const reserved = new Set<string>();
+  /** The tables this tab's Outputs wrote (M6/FL13): never given to a file read in after, whose read would replace them. */
+  const written = new Set<string>();
+  /** Whether `set` holds `t` as the database names it: DuckDB's names match whatever their case (the roadmap audit of
+   *  2026-10-26: an Output's `Trades` overwrote a grid's `trades`). */
+  const holds = (set: ReadonlySet<string>, t: string): boolean => {
+    const l = t.toLowerCase();
+    for (const x of set) if (x.toLowerCase() === l) return true;
+    return false;
+  };
+  /** A grid's table, or one a saved page keeps: no Output writes over it (table-output.ts held). */
+  const ownTable = (t: string): boolean => holds(taken, t) || holds(reserved, t);
+  /** ...nor is a file read in given one, nor a table an Output wrote, which an Output may write again. */
+  const busy = (t: string): boolean => ownTable(t) || holds(written, t);
   const freshTable = (base: string): string => {
-    const busy = (t: string): boolean => taken.has(t) || reserved.has(t);
     let name = base;
     for (let n = 2; busy(name); n += 1) name = `${base}_${n}`;
     taken.add(name);
@@ -978,7 +992,7 @@ export function pageSources(d: SourcesOf): PageSources {
       },
       take: (t) => { taken.add(t); },
       untake: (t) => { taken.delete(t); },
-      isTaken: (t) => taken.has(t),
+      isTaken: (t) => holds(taken, t),
       // a box's first source, opened as a grid over it opens, that grid never made: its start (the maker's, `starts`)
       openedStart: async (doc, several): Promise<GridStartOpened | undefined> => {
         const opened = await reopened(doc, undefined, several);
@@ -1394,7 +1408,8 @@ export function pageSources(d: SourcesOf): PageSources {
   }
 
   return {
-    isTaken: (t) => taken.has(t) || reserved.has(t),
+    isTaken: ownTable,
+    wrote: (t) => { written.add(t); },
     madeGrid,
     dropUnread,
     place: (id) => gridPlaces.get(id),

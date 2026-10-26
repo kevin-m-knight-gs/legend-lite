@@ -431,7 +431,9 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
 
     /** Whether one of theirs for each of mine is offered: a join on rows of equal keys, at least one (join-how.ts onceRefusal). */
     function onceOffered(): boolean {
-      if (chosen === 'cross' || chosen === 'asOf' || chosen === 'semi' || chosen === 'anti' || chosen === 'append' || pureOn.checked) return false;
+      // a lookup of mine: a matching or a left join's (join-how.ts onceRefusal)
+      if (chosen !== 'inner' && chosen !== 'left') return false;
+      if (pureOn.checked) return false;
       const rows = [...rowsBox.children];
       return rows.length > 0 && rows.every((r) => (r.querySelector('.dc-join-op') as HTMLSelectElement | null)?.value === '==');
     }

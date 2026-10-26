@@ -1450,6 +1450,39 @@ nothing), nor a box's cache (kept now as a box's Output and stopping are, `page-
 set by its own command, in the page's order. Its walks, reshuffled, reached one more: a grid's removal undone brought it
 back under a new cube, a timeseries tile that read it still reading the cube kept for it -- it reads the grid again.
 
+**The roadmap audit (2026-10-26)**, three independent reviews of M8 and the work before it, found and fixed:
+- **Parameters.** A Join box's sides, on the board, the flow and the headless host, are bound with the page's parameters
+  as a box's own query is (`page-parameters.ts` `boundIn`), so a parameter reaches a join; a lambda's own parameter of
+  the same name shadows the page's and is never bound. Python keeps a `Decimal` parameter exact (its digits as text, as
+  the bar keeps what is typed). The bar's Add refuses a name the page has; `setParameter` refuses the value it has, and
+  `setMacro` the function it has, as every command refuses a step that changes nothing.
+- **The Cache.** A copy is of what its box is made of -- each box's cube, port, Pure and handed-on columns, and the
+  page's parameters (`flow-board.ts` `chain`) -- so a parameter changed lets a cached box's copy go: the shown box is
+  closed without handing its copy over, and the boxes after it read it live until it is copied again. A Cache ticked off
+  goes live at once. Python copies a stale cached box again when a parameter changes and as a run starts
+  (`Page._refresh_caches`), and refuses, in words, a table Output over a cached box's copy (the copy is its engine's,
+  not the frames' a write runs over).
+- **Runs.** A Message's error, or a box that stops a run, that could not be judged (its rows refused) stops the run, as
+  a failing Test does. Python warns each Message's warning in its own box's stage.
+- **Macros, joins, Import Pure.** A macro's box reading another's port (a Filter's False, a Join's L or R) is refused:
+  its steps say its rows as it hands them on, never another port's. *One of theirs for each of mine* is a matching or a
+  left join's alone (refused on a right or full join; the Join window offers it for those two); Python's Fuzzy Match
+  refuses a score asked of a left join rather than dropping it. Import Pure moves what read the box -- and its Output,
+  cache, blocking and message -- to the last box it makes, in the tab and in Python (the gesture `flow.imported`).
+- **The plumbing.** A layout told whole (`layout`) is held to its boxes' settings' rules (`page-document.ts`
+  `flowSheetProblem`, a stop's `stopsProblem`); a box moved to another sheet keeps its settings; a box duplicated or
+  pasted keeps its stops, cache, blocking and message, never its Output (one writer to a file or table); Dynamic
+  Replace's *the values are expressions* is read back into its settings; a grid's table is never an Output's, its name
+  compared without case as DuckDB compares it, and a table an Output wrote is never given to a file read in after (an
+  Output may write it again); the log's test results are the last run's alone.
+
+Left named, each a limit rather than a wrong answer: Python's `grid.pick(True)` names inputs apart by their names as
+Python has them, not the canvas's; a Dynamic Input's choices go stale when an input is renamed or relinked (its refusal
+says to pick again in its settings, which makes a new parameter of their names); an Import Pure is one undo step for
+each box it makes, plus one, and a box it fails to make is said after its window has closed, the boxes before it kept;
+Python refuses a table Output over a cached box's copy, which the tab writes (Python's copy is its engine's, apart from
+the frames its write runs over); Python copies a cached box again only as a parameter changes and as a run starts.
+
 **Built, the Cache** (FL10, FL11; `layout/flow.ts` `FlowBox.cache`, `setCache`; `page-commands.ts` `setCache`;
 `cube-document.ts` `JoinInput.copy`; `live-inputs.ts` `copyOf`; `join-open.ts` `openedInputLeaves`; `cube.ts`
 `handOver`; `page/cube-page.ts` `#cacheKept`, `cacheCopies`; 2026-10-26): **a mode of any box, not a box of its own**.

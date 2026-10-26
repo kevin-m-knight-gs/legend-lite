@@ -14,9 +14,10 @@ export interface DynamicReplaceFormOptions {
   /** The page's other boxes it can load rules from, by id, as their tabs say them. */
   readonly boxes: readonly { readonly id: string; readonly label: string }[];
   /** The box it was opened on, its rows as its page read them -- or why they could not be read. */
-  readonly start?: { readonly box: string; readonly rows?: ResultTable; readonly problem?: string };
-  /** Box `box`'s rows read, as it hands them on, by its page: the window opened again on them (`start`). */
-  read(box: string): void;
+  readonly start?: { readonly box: string; readonly rows?: ResultTable; readonly problem?: string; readonly expressions?: boolean };
+  /** Box `box`'s rows read, as it hands them on, by its page: the window opened again on them (`start`), its values
+   *  expressions still when they were (`expressions`). */
+  read(box: string, expressions: boolean): void;
   /** Its values replaced: null when they were, else why not (the form stays, saying it). */
   apply(replace: DynamicReplace): Promise<string | null>;
   close(): void;
@@ -63,6 +64,8 @@ export function dynamicReplaceForm(host: HTMLElement, o: DynamicReplaceFormOptio
   const asExpressions = el('label', 'dc-text-tool-check', body);
   const expressions = el('input', 'dc-replace-expressions', asExpressions);
   expressions.type = 'checkbox';
+  // as it was ticked before its rules box was read (the roadmap audit of 2026-10-26: the tick was lost)
+  expressions.checked = o.start?.expressions === true;
   el('span', '', asExpressions, 'Values are expressions (Pure over $x)');
   el('p', 'dc-sample-hint', body, 'Each row of the rules box is a rule: the column it replaces, a condition in Pure over $x, the row ($x.region == \'EMEA\'), '
     + 'and the value put there. Of a column\'s rules the first whose condition holds; its own value where none does. Loaded now and kept: load them again to read the box again.');
@@ -116,7 +119,7 @@ export function dynamicReplaceForm(host: HTMLElement, o: DynamicReplaceFormOptio
     rows = undefined;
     status.textContent = '';
     judge();
-    if (from.value !== '') o.read(from.value);
+    if (from.value !== '') o.read(from.value, expressions.checked);
   });
   for (const s of [columnOf, conditionOf, valueOf]) s.addEventListener('change', judge);
   expressions.addEventListener('change', judge);

@@ -17,6 +17,8 @@ import { isLive, joinInputs, type CubeDocument, type CubeInput, type InputPort, 
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import type { InputPick } from '../dynamic-input.ts';
+import type { PageParameter } from '../page-parameters.ts';
+import { boxOmitted, boxOrder, boxRenamed } from '../box-columns.ts';
 import type { Profile, TopValue } from '../profile.ts';
 import { lazily } from '../lazily.ts';
 import type { FilterValue } from '../snapshot.ts';
@@ -124,7 +126,7 @@ export interface FlowBoardOptions {
   /** A box set to say a message in a run's log (M8), or nothing (null): the refusal in words, or null (setMessage). */
   readonly onMessage?: (id: string, message: FlowMessage | null) => string | null;
   /** The page's parameters (M8, page-parameters.ts), by name and type: what a Dynamic Input is picked by. */
-  readonly parameters?: () => readonly { readonly name: string; readonly type: string }[];
+  readonly parameters?: () => readonly PageParameter[];
   /** A Union set to keep the rows of the one input a parameter names, a new one of its inputs' names, or every input's
    *  (null: dynamic-input.ts InputPick) -- `called`, each box's name on the canvas, what a box no one named is named
    *  where two would share one: the refusal in words, or null. */
@@ -443,15 +445,22 @@ export class FlowBoard implements FlowBoardState {
     const doc = this.options.documentOf?.(id);
     if (doc === undefined || seen.has(id)) return '';
     const through = new Set([...seen, id]);
-    const input = (i: CubeInput): string => (isLive(i) ? `<${this.#chain(i.grid, through)}>` : toJson(i));
+    // a live input by the port it reads too (a Filter's True or False), and each box by what it hands on besides its
+    // query -- the columns its configuration leaves out, renames and orders (box-columns.ts): what a box after it reads
+    // (the roadmap audit of 2026-10-26: a column hidden upstream left a kept copy as it was)
+    const input = (i: CubeInput): string => (isLive(i) ? `<${i.port ?? ''}:${this.#chain(i.grid, through)}>` : toJson(i));
     const s = doc.source;
-    const source = s._type === 'rows' ? `rows ${input(s.input)}` : s._type === 'join'
+    const source = s._type === 'rows' ? `rows ${input(s.input)}${s.pure !== undefined ? ` ${toJson(s.pure)}` : ''}` : s._type === 'join'
       ? `join ${joinInputs(s).map(input).join(' ')} ${toJson(s.how)}` : toJson(s);
-    return `${source}|${toJson(doc.query)}`;
+    const c = doc.configuration;
+    const handed = JSON.stringify([boxOmitted(doc.query, c), boxRenamed(doc.query, c), boxOrder(doc.query, c) ?? null]);
+    return `${source}|${toJson(doc.query)}|${handed}`;
   }
 
+  /** A box's chain as it is now (#chain), with the page's parameters' values its Pure may read: a value changed, the
+   *  rows changed (the roadmap audit of 2026-10-26: a cached copy outlived its parameter). */
   chain(id: string): string {
-    return this.#chain(id);
+    return `${this.#chain(id)}|${JSON.stringify((this.options.parameters?.() ?? []).map((p) => [p.name, p.type, p.value]))}`;
   }
 
   /** A box added from the palette as `tool`: drawn as one until its grid does something. */

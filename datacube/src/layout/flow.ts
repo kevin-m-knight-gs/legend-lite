@@ -163,7 +163,8 @@ export function readOutput(raw: unknown): Output | string {
   if (o?.['format'] === 'table' && typeof o['name'] === 'string' && typeof o['mode'] === 'string' && odd(['format', 'name', 'mode', 'keys']).length === 0) {
     const keys = o['keys'];
     if (keys !== undefined && (!Array.isArray(keys) || !keys.every((k): k is string => typeof k === 'string'))) return `a table output's keys are a list of names, not ${JSON.stringify(keys)}`;
-    return { format: 'table', name: o['name'], mode: o['mode'] as TableMode, ...(keys !== undefined ? { keys } : {}) };
+    // no keys is no keys, as setOutput keeps it: `keys: []` read as none (the roadmap audit of 2026-10-26)
+    return { format: 'table', name: o['name'], mode: o['mode'] as TableMode, ...(keys !== undefined && keys.length > 0 ? { keys } : {}) };
   }
   return `an output is {format: 'csv', name} or {format: 'table', name, mode, keys?}, not ${JSON.stringify(raw)}`;
 }

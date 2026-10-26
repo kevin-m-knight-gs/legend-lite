@@ -308,6 +308,9 @@ export function quickJoins(mine: JoinColumns, others: readonly (JoinColumns & { 
  *  condition's rows, so the condition is rows, at least one, each `==`. */
 export function onceRefusal(how: JoinHow): string | undefined {
   if (how.form !== 'join' || how.once !== true) return undefined;
+  // a lookup keeps mine: theirs' rows each one of a key, those of no match a right or full join would keep are
+  // theirs no more (the roadmap audit of 2026-10-26: theirs' rows of an empty key were one)
+  if (how.kind === 'right' || how.kind === 'full') return `one of theirs for each of mine is a lookup of mine: a matching or a left join, not ${how.kind === 'right' ? 'all of theirs' : 'everything'}`;
   return 'rows' in how.on && how.on.rows.length > 0 && how.on.rows.every((r) => r.op === '==') ? undefined
     : 'one of theirs for each of mine takes a key: rows of equal (==) columns';
 }

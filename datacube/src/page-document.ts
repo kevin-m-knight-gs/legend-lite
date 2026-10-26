@@ -708,20 +708,8 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
   // chart goes on a board
   for (const sheet of sheets) {
     if (sheet.layout.kind !== 'flow') continue;
-    const notGrid = sheet.layout.boxes.find((b) => views.find((v) => v.id === b.tile)?.kind === 'chart');
-    if (notGrid !== undefined) throw new PageDocumentError(`sheet ${sheet.id} is a flow of grids and comments: ${notGrid.tile} is a chart`);
-    // a frame is a container's, a comment's: a grid is a box, never a container
-    const framedGrid = sheet.layout.boxes.find((b) => b.frame !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'text');
-    if (framedGrid !== undefined) throw new PageDocumentError(`${framedGrid.tile} has a frame: a container is a comment, not a grid`);
-    // an output is a grid's: a comment writes no rows
-    const textOut = sheet.layout.boxes.find((b) => b.output !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'grid');
-    if (textOut !== undefined) throw new PageDocumentError(`${textOut.tile} has an output: an output is a grid's rows, not a comment`);
-    const textStops = sheet.layout.boxes.find((b) => b.stops === true && views.find((v) => v.id === b.tile)?.kind !== 'grid');
-    if (textStops !== undefined) throw new PageDocumentError(`${textStops.tile} stops a run: a Test is a grid's, not a comment`);
-    const textCache = sheet.layout.boxes.find((b) => b.cache === true && views.find((v) => v.id === b.tile)?.kind !== 'grid');
-    if (textCache !== undefined) throw new PageDocumentError(`${textCache.tile} caches its rows: a cache is a grid's, not a comment`);
-    const textSays = sheet.layout.boxes.find((b) => (b.blocks === true || b.message !== undefined) && views.find((v) => v.id === b.tile)?.kind !== 'grid');
-    if (textSays !== undefined) throw new PageDocumentError(`${textSays.tile} blocks a run or says a message: each is a grid's, not a comment`);
+    const problem = flowSheetProblem(sheet.id, sheet.layout, views);
+    if (problem !== undefined) throw new PageDocumentError(problem);
   }
   const twice = placed.filter((id, i) => placed.indexOf(id) !== i);
   if (twice.length > 0) throw new PageDocumentError(`${[...new Set(twice)].join(', ')} on two sheets`);
@@ -972,6 +960,28 @@ export function readLayout(l: unknown, views: ReadonlySet<string>, what: string)
   const wrong = problems(layout);
   if (wrong.length > 0) throw new PageDocumentError(`${what} cannot be laid out: ${wrong.join('; ')}`);
   return { kind: 'bands', ...layout };
+}
+
+/** What is wrong with flow sheet `id`'s boxes on a page of `views`, in words, if anything: its boxes grids and comments,
+ *  a frame a comment's, every setting of a box (an output, its stopping, its cache, its blocking, its message) a grid's.
+ *  The page's reader's rule (readPage), and the layout command's (page-commands.ts layout: the roadmap audit of
+ *  2026-10-26, a layout gave a comment a cache the reader then refused). */
+export function flowSheetProblem(id: string, flow: FlowLayout, views: readonly PageView[]): string | undefined {
+  const notGrid = flow.boxes.find((b) => views.find((v) => v.id === b.tile)?.kind === 'chart');
+  if (notGrid !== undefined) return `sheet ${id} is a flow of grids and comments: ${notGrid.tile} is a chart`;
+  // a frame is a container's, a comment's: a grid is a box, never a container
+  const framedGrid = flow.boxes.find((b) => b.frame !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'text');
+  if (framedGrid !== undefined) return `${framedGrid.tile} has a frame: a container is a comment, not a grid`;
+  // an output is a grid's: a comment writes no rows
+  const textOut = flow.boxes.find((b) => b.output !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+  if (textOut !== undefined) return `${textOut.tile} has an output: an output is a grid's rows, not a comment`;
+  const textStops = flow.boxes.find((b) => b.stops === true && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+  if (textStops !== undefined) return `${textStops.tile} stops a run: a Test is a grid's, not a comment`;
+  const textCache = flow.boxes.find((b) => b.cache === true && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+  if (textCache !== undefined) return `${textCache.tile} caches its rows: a cache is a grid's, not a comment`;
+  const textSays = flow.boxes.find((b) => (b.blocks === true || b.message !== undefined) && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+  if (textSays !== undefined) return `${textSays.tile} blocks a run or says a message: each is a grid's, not a comment`;
+  return undefined;
 }
 
 /** A flow sheet's layout (layout/flow.ts): its boxes, each a tile of the page at a place, every rule of a flow held. */

@@ -1162,10 +1162,20 @@ export class PageApp {
       this.#restoring = undefined;
     }
     this.#applyLenses();
+    this.#liveAgain();
     // a value undone or another editor's: each flow's shown box opened again over its base with it
     if (!sameValue(parametersWere, this.#parameters)) this.#page.parametersChanged();
     this.#paintSheets();
     this.#paintEmpty();
+  }
+
+  /** A cached box's kept copy of what it is no more, let go (CubePage.staleCaches): its box live again on the page, so
+   *  no box after it reads the dropped copy (the roadmap audit of 2026-10-26). Where its rows are, no step. */
+  #liveAgain(): void {
+    const page = this.#state.draft.page;
+    const cubeOf = (grid: string): string | undefined => page.views.find((v) => v.id === grid && v.kind === 'grid')?.cube;
+    const live = this.#page.staleCaches().filter((grid) => { const cube = cubeOf(grid); return cube !== undefined && page.copies?.[cube] !== undefined; });
+    if (live.length > 0) this.#edit({ label: 'Go Live', commands: live.map((grid) => pageCommand('live', { grid })), step: false });
   }
 
   // -- undo and redo ----------------------------------------------------------------------------------------------

@@ -117,7 +117,7 @@ export function parametersRead(query: Lambda, parameters: readonly PageParameter
     }
     for (const c of children(n)) visit(c, shadowed);
   };
-  for (const b of query.body) visit(b, new Set());
+  for (const b of query.body) visit(b, new Set(query.parameters.map((p) => p.name)));
   return parameters.map((p) => p.name).filter((p) => read.has(p));
 }
 
@@ -127,7 +127,12 @@ export function parametersLens(parameters: readonly PageParameter[]): { readonly
   if (parameters.length === 0) return { key: '' };
   const values = new Map(parameters.map((p) => [p.name, parameterLiteral(p)] as const));
   return {
-    lens: (query) => ({ ...query, body: query.body.map((b) => bound(b, values)) }),
+    // a lambda's own parameters its own, never the page's: a stored one's too (a Pure box's `rows|$rows->limit(3)`, a
+    // calculated column's `r|$r.amount > 1`), each bound by its own lambda (the roadmap audit of 2026-10-26)
+    lens: (query) => {
+      const free = new Map([...values].filter(([name]) => !query.parameters.some((p) => p.name === name)));
+      return free.size === 0 ? query : { ...query, body: query.body.map((b) => bound(b, free)) };
+    },
     key: JSON.stringify(parameters.map((p) => [p.name, p.type, p.value])),
   };
 }

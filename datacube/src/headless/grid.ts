@@ -93,7 +93,7 @@ import { sourceColumns } from '../source-columns.ts';
 import { pythonRunner } from '../services/python-host.ts';
 import { hostCalls, hostDatabase, hostEngine, hostWords, hostWorker } from './host.ts';
 import { leafOnHost, leafTables, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
-import { inputRows } from '../join-open.ts';
+import { inputRows, openedLeaves } from '../join-open.ts';
 import { boxRows, pureChecked, pureFrom, pureInput, pureShown, pureText } from '../pure-box.ts';
 import { boxFunction, macroOf } from '../macros.ts';
 import type { PageCommand } from '../page-commands.ts';
@@ -329,9 +329,16 @@ export async function sourceCube(model: string | null, given: string, host: Host
  * sha256?, url?}]`.
  */
 // `page`, `id`: the page it is on and its cube there -- a grid over another grid's rows reads what that grid reads (onPage)
-export function cubeLeaves(cube: string, page: string | null = null, id: string | null = null): string {
+export function cubeLeaves(cube: string, page: string | null = null, id: string | null = null, opened = false): string {
   const on = page === null ? undefined : readPage(page, { empty: true });
-  return JSON.stringify(leavesOf(onPage(readCube(fromJson(cube)).source, on, id)).map((l) => ({
+  const source = onPage(readCube(fromJson(cube)).source, on, id);
+  // `opened`: as it is opened -- a snapped input read by its copy, one leaf (join-open.ts openedLeaves: a cached box's)
+  if (opened) {
+    return JSON.stringify(openedLeaves(source).map((l) => (l._type === 'copy' ? { _type: 'copy', name: l.table } : {
+      _type: l._type, name: l.name, ...(l._type === 'file' ? { sha256: l.sha256 } : {}), ...(l._type === 'remoteFile' ? { url: l.url } : {}),
+    })));
+  }
+  return JSON.stringify(leavesOf(source).map((l) => ({
     _type: l._type, name: l.name, ...(l._type === 'file' ? { sha256: l.sha256 } : {}), ...(l._type === 'remoteFile' ? { url: l.url } : {}),
   })));
 }

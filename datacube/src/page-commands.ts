@@ -21,7 +21,7 @@ import {
   type FlowMessage, type Frame, type Output,
 } from './layout/flow.ts';
 import {
-  PageDocumentError, keptFor, layoutTiles, readGridCopy, readLayout, stillHeld, unnamedLabel, writePageOf, type ChartView, type FlowLayout,
+  PageDocumentError, flowSheetProblem, keptFor, layoutTiles, readGridCopy, readLayout, stillHeld, unnamedLabel, writePageOf, type ChartView, type FlowLayout,
   type GridCopy, type GridView, type PageDocument, type PageLayout, type PageSheet, type PageView, type TextView, type TimeseriesView,
 } from './page-document.ts';
 import { frozenFrom, gridInput, liveGrids, liveProblem } from './live-inputs.ts';
@@ -34,7 +34,7 @@ import { readTimeseries, type TimeseriesSpec } from './timeseries-spec.ts';
 import { readTextFiles, type TextFile } from './text-files.ts';
 import { namedProperties, type PageFilter } from './page-filters.ts';
 import { parameterProblem, readParameter, type PageParameter } from './page-parameters.ts';
-import { macroProblem } from './macros.ts';
+import { macroProblem, sameMacro } from './macros.ts';
 import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageState } from './page-state.ts';
 import { CubeRefusal, sameValue, withoutConditions, type CubeShape, type FilterNode } from './snapshot.ts';
@@ -365,6 +365,16 @@ export function joinInputOf(page: PageDocument, grid: string): JoinInput {
   const view = viewNamed(page, grid);
   if (view.kind !== 'grid') throw new CubeRefusal(`'${grid}' is ${kindWords(view)}: a join is of two grids`);
   return gridInput(page, grid);
+}
+
+/** Why grid `grid` cannot stop a run, if it cannot: what a run is stopped on is a Test's checks, or a fixed Cross Tab's
+ *  (its every value a column) -- any other box is never judged, so would stop every run (the review of 2026-10-26: it
+ *  took any box). setStops's rule, and a layout's. */
+function stopsProblem(page: PageDocument, grid: string): string | undefined {
+  const view = page.views.find((v) => v.id === grid);
+  const q = view?.kind === 'grid' ? page.cubes.find((c) => c.id === view.cube)?.cube.query : undefined;
+  const fixed = q !== undefined && q.pivotOn.length === 1 && (q.pivotValues ?? []).length > 0;
+  return q === undefined || (!testShaped(q) && !fixed) ? `'${grid}' checks nothing: a run is stopped by a Test, or a Cross Tab with its columns fixed` : undefined;
 }
 
 const withSheet = (page: PageDocument, id: string, change: (s: PageSheet) => PageSheet): PageDocument =>
@@ -835,9 +845,16 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
           : `a flow sheet holds boxes, each a grid that does one step: ${kindWords(view)} stays on a board`);
       }
       const out = withSheet(page, from.id, (s) => ({ ...s, layout: takenOff(s.layout, command.tile) }));
-      return done(withSheet(out, to.id, (s) => ({
+      const moved = withSheet(out, to.id, (s) => ({
         ...s, layout: placedOn(s.layout, command.tile, undefined, (bands) => add(bands, command.tile, undefined, command.columns ?? MAX_COLUMNS)),
-      })));
+      }));
+      // a box moved to another flow is the same box: its settings (an Output, its stopping, its cache, its blocking, its
+      // message) go with it -- only its place is new (the roadmap audit of 2026-10-26: each was dropped)
+      if (from.layout.kind !== 'flow') return done(moved);
+      const { tile: _t, x: _x, y: _y, frame: _f, ...settings } = from.layout.boxes.find((b) => b.tile === command.tile)!;
+      if (Object.keys(settings).length === 0) return done(moved);
+      return done(withSheet(moved, to.id, (s) => (s.layout.kind !== 'flow' ? s
+        : { ...s, layout: { ...s.layout, boxes: s.layout.boxes.map((b) => (b.tile === command.tile ? { ...b, ...settings } : b)) } })));
     }
     case 'stack': {
       if (new Set(command.tiles).size < 2) throw new CubeRefusal('a stack is two tiles or more');
@@ -881,6 +898,15 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       if (JSON.stringify(had) !== JSON.stringify(has)) {
         throw new CubeRefusal(`a sheet's layout holds its tiles, each once: ${had.join(', ') || 'none'}, not ${has.join(', ') || 'none'}`);
       }
+      // a flow's boxes' settings held to their own rules: a grid's, never a comment's (page-document.ts
+      // flowSheetProblem); a box newly set to stop a run, one that checks something (setStops's rule)
+      if (read.kind === 'flow' && sheet.layout.kind === 'flow') {
+        const problem = flowSheetProblem(sheet.id, read, page.views);
+        if (problem !== undefined) throw new CubeRefusal(problem);
+        const was = sheet.layout;
+        const stopping = read.boxes.find((b) => b.stops === true && was.boxes.find((x) => x.tile === b.tile)?.stops !== true && stopsProblem(page, b.tile) !== undefined);
+        if (stopping !== undefined) throw new CubeRefusal(stopsProblem(page, stopping.tile)!);
+      }
       const now: PageLayout = read.kind === 'flow' ? read : saved(read);
       return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: now })));
     }
@@ -907,6 +933,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const p = command.parameter;
       const problem = parameterProblem(p, parameters.filter((q) => q.name !== p.name));
       if (problem !== undefined) throw new CubeRefusal(problem);
+      if (parameters.some((q) => sameValue(q, p))) throw new CubeRefusal(`the page has ${p.name} so already`);
       const next = parameters.some((q) => q.name === p.name) ? parameters.map((q) => (q.name === p.name ? p : q)) : [...parameters, p];
       return done(rewritten(page, { parameters: next }));
     }
@@ -932,6 +959,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const macro = { name: command.name, pure: command.pure };
       const problem = macroProblem(macro, others);
       if (problem !== undefined) throw new CubeRefusal(problem);
+      if (macros.some((m) => m.name === macro.name && sameMacro(m.pure, macro.pure))) throw new CubeRefusal(`the page has the macro '${macro.name}' so already`);
       const next = others.length < macros.length ? macros.map((m) => (m.name === macro.name ? macro : m)) : [...macros, macro];
       return done(rewritten(page, { macros: next }));
     }
@@ -1055,13 +1083,8 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       if (sheet === undefined || layout?.kind !== 'flow') throw new CubeRefusal(`'${command.grid}' is no box of a flow: a run is a flow's`);
       const had = layout.boxes.find((b) => b.tile === command.grid)?.stops === true;
       if (had === command.stops) throw new CubeRefusal(`'${command.grid}' ${command.stops ? 'stops a run already' : 'stops no run'}`);
-      // what a run is stopped on: a Test's checks, or a fixed Cross Tab's (its every value a column) -- any other box is
-      // never judged, so would stop every run (the review of 2026-10-26: it took any box)
-      const q = page.cubes.find((c) => c.id === view.cube)?.cube.query;
-      const fixed = q !== undefined && q.pivotOn.length === 1 && (q.pivotValues ?? []).length > 0;
-      if (command.stops && (q === undefined || (!testShaped(q) && !fixed))) {
-        throw new CubeRefusal(`'${command.grid}' checks nothing: a run is stopped by a Test, or a Cross Tab with its columns fixed`);
-      }
+      const why = command.stops ? stopsProblem(page, command.grid) : undefined;
+      if (why !== undefined) throw new CubeRefusal(why);
       return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => setStops(layout, command.grid, command.stops)) })));
     }
     case 'setCache': {
@@ -1247,6 +1270,8 @@ function sourceOf(v: unknown): CubeSource {
  *  how and a Union's more inputs. */
 export const EXACT_FIELD: Partial<Record<PageCommand['kind'], readonly ('document' | 'source' | 'input' | 'how' | 'more' | 'pure')[]>> = {
   addGrid: ['document'], rebuilt: ['source'], setInput: ['input'], setJoin: ['how', 'more'], setPure: ['pure'],
+  // a macro's function, its numbers exact (the roadmap audit of 2026-10-26: a 1.10 read as 1.1 from Python's command)
+  setMacro: ['pure'],
 };
 
 /**
