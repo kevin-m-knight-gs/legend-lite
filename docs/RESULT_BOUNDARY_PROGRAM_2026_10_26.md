@@ -325,6 +325,9 @@ of the two decoders. Step 8 adds about a thousand lines if ruled.
 
 ## 9. Status
 
+- **2026-10-26, the handoff written:** `docs/RESULT_BOUNDARY_START_HERE.md` (where everything is, the state, the
+  rules, every check's command, the cloud lanes' protocol, a brief per step, the traps already hit). A session with
+  no context starts there.
 - **2026-10-26, revision 2.** After the user's three questions: batches as the unit with Arrow as the ruling
   (§2); collecting into memory a test helper, never a production method (step 7, R8); the database judge and the
   engine-style dialects reopened (step 8); M4 (the collector over the plan path, once) and M7 (the JDK's
