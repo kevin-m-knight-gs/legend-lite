@@ -7,6 +7,7 @@ import { isLive, withJoinInputs, joinInputs, type CubeInput, type CubeSource, ty
 import type { PageDocument } from './page-document.ts';
 import { boxOmitted, boxOrder, boxRenamed } from './box-columns.ts';
 import { unmatchedOn } from './join-how.ts';
+import { boundIn } from './page-parameters.ts';
 import { CubeRefusal } from './snapshot.ts';
 
 /** The grids `source` reads live, each once, in the order it reads them -- through its frozen inputs too. */
@@ -112,7 +113,9 @@ function copyWith(i: JoinInput, f: (s: CubeSource) => CubeSource): JoinInput {
  * from now; without it, what they are a copy OF (a class maps those tables: §18.8 item 3).
  */
 export function resolvedSource(page: PageDocument, source: CubeSource, grid?: string, o: { readonly copies?: boolean } = {}): CubeSource {
-  return resolvedOn(page, source, grid === undefined ? [] : [grid], o.copies === true);
+  // its page's parameters bound into it (page-parameters.ts): the base a box is opened over reads their values now, as
+  // its own steps' queries read them through its lens
+  return boundIn(resolvedOn(page, source, grid === undefined ? [] : [grid], o.copies === true), page.parameters ?? []);
 }
 
 function resolvedOn(page: PageDocument, source: CubeSource, through: readonly string[], copies = false): CubeSource {

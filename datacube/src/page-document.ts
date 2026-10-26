@@ -30,6 +30,7 @@ import { type Bands, type Node, NEW_SHEET, add as addTile, problems, tiles as ti
 import { flowProblems, flowTiles, readOutput, type Flow } from './layout/flow.ts';
 import type { PageModelRef } from './page-model.ts';
 import { readPageFilters, type PageFilter } from './page-filters.ts';
+import { readParameters, type PageParameter } from './page-parameters.ts';
 import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
 import { textProblem } from './page-text-rule.ts';
@@ -335,6 +336,9 @@ export interface PageDocument extends PageViews {
   readonly model?: PageModelRef;
   /** Its filters, by a class's property (page-filters.ts): none, none written. */
   readonly filters?: readonly PageFilter[];
+  /** Its parameters, the values any Pure on it reads as `$name` (page-parameters.ts, an analytic app's inputs): none,
+   *  none written. */
+  readonly parameters?: readonly PageParameter[];
   /** The copy each snapped grid reads, by its cube's id (§18.8): none, none written. */
   readonly copies?: Readonly<Record<string, GridCopy>>;
   /**
@@ -380,15 +384,15 @@ export function pageFile(page: PageDocument): { readonly file: string; readonly 
   const name = suggestedName(page) || 'page';
   const named = page.name === name ? page : writePageOf({
     name, cubes: page.cubes, views: { views: page.views, sheets: page.sheets }, ...(page.model ? { model: page.model } : {}),
-    ...(page.filters ? { filters: page.filters } : {}), ...(page.copies ? { copies: page.copies } : {}),
-    ...(page.unknown ? { unknown: page.unknown } : {}),
+    ...(page.filters ? { filters: page.filters } : {}), ...(page.parameters ? { parameters: page.parameters } : {}),
+    ...(page.copies ? { copies: page.copies } : {}), ...(page.unknown ? { unknown: page.unknown } : {}),
   });
   // a page file is no saved record: opened elsewhere, its first save is a new one
   const { record: _record, ...file } = named;
   return { file: pageToJson(file), name };
 }
 
-const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'copies', 'record']);
+const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'parameters', 'copies', 'record']);
 
 /** The one cube of a step-1 page. */
 export const PAGE_CUBE = 'cube';
@@ -430,6 +434,7 @@ export function writePageOf(o: {
   readonly views: PageViews;
   readonly model?: PageModelRef;
   readonly filters?: readonly PageFilter[];
+  readonly parameters?: readonly PageParameter[];
   readonly copies?: Readonly<Record<string, GridCopy>>;
   readonly record?: string;
   readonly unknown?: Readonly<Record<string, unknown>>;
@@ -446,6 +451,7 @@ export function writePageOf(o: {
     sheets: o.views.sheets,
     ...(o.model ? { model: keptFor(o.model, o.cubes) } : {}),
     ...(filters.length > 0 ? { filters } : {}),
+    ...(o.parameters !== undefined && o.parameters.length > 0 ? { parameters: o.parameters } : {}),
     ...(Object.keys(copies).length > 0 ? { copies } : {}),
     ...(o.record !== undefined ? { record: o.record } : {}),
     ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
@@ -614,6 +620,8 @@ export function pageDefinitionText(page: PageDocument): string {
     ...(page.model ? { model: page.model } : {}),
     // a filter set or taken off, the page has changed
     ...(page.filters ? { filters: page.filters } : {}),
+    // a parameter set, its value changed or taken off, the page has changed
+    ...(page.parameters ? { parameters: page.parameters } : {}),
   });
 }
 
@@ -726,6 +734,15 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     // none is written as no field: an empty list is no page's
     if (filters.length === 0) throw new PageDocumentError("'filters' is an empty list: a page with none has no field");
   }
+  let parameters: readonly PageParameter[] | undefined;
+  if (raw['parameters'] !== undefined) {
+    try {
+      parameters = readParameters(plain(raw['parameters']));
+    } catch (e) {
+      throw new PageDocumentError(e instanceof Error ? e.message : String(e));
+    }
+    if (parameters.length === 0) throw new PageDocumentError("'parameters' is an empty list: a page with none has no field");
+  }
 
   const page: PageDocument = {
     kind: PAGE_KIND,
@@ -736,6 +753,7 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     sheets,
     ...(model ? { model } : {}),
     ...(filters ? { filters } : {}),
+    ...(parameters ? { parameters } : {}),
     ...(copies ? { copies } : {}),
     ...(record !== undefined ? { record } : {}),
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),

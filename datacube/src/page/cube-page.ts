@@ -352,6 +352,8 @@ export interface CubePageOptions {
   /** A flow's Join or Union box's settings asked for (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): the Join window over its
    *  inputs, opened by the page's owner -- a window over the page, never docked. */
   readonly onJoinBox?: (box: string, sheet: string) => void;
+  /** A flow's palette's Parameter: the page's Add Parameter (page-app.ts addParameter). */
+  readonly onParameter?: () => void;
   /** Tidy Up on flow `sheet`: its boxes placed by the flow's own rule, by the page's owner (page-gestures.ts tidyCommands). */
   readonly onTidy?: (sheet: string) => void;
   /**
@@ -754,6 +756,8 @@ export class CubePage {
       },
       // a Comment is the page's own (a text tile), any other tool its owner's to make
       onTool: (tool, after, editor, into, port, at) => (tool === 'comment' ? this.#addComment(id, at)
+        // a Parameter is the page's own (page-parameters.ts): its bar's Add form
+        : tool === 'parameter' ? this.#options.onParameter?.()
         // a Container clicked in the palette, or dropped on a box: one of its own size, below the flow's boxes
         : tool === 'container' ? this.#addContainer(id, at ?? this.#belowFlow(id), CONTAINER_FRAME)
           : this.#options.onTool?.(tool, after, id, editor, into, port, at)),
@@ -925,6 +929,21 @@ export class CubePage {
   #dropBox(id: string): void {
     if (!this.#boxes.delete(id)) return;
     this.#take(id);
+  }
+
+  /**
+   * THE PAGE'S PARAMETERS CHANGED (page-parameters.ts): each flow's shown box opened again, so its base -- its inputs'
+   * rows, its own Pure -- reads their values now (live-inputs.ts resolvedSource binds them where it resolves a source),
+   * as its own steps read them through its lens.
+   */
+  parametersChanged(): void {
+    for (const sheet of this.#sheets) {
+      if (sheet.kind !== 'flow') continue;
+      const shown = sheet.board.shown;
+      if (shown === undefined || this.#grids.get(shown)?.added === undefined) continue;
+      this.#closeBox(sheet);
+      void this.#showBox(shown);
+    }
   }
 
   /**

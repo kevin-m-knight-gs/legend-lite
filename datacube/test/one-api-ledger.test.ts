@@ -513,6 +513,9 @@ const PASS_THROUGH: Record<string, string> = {
   setTextFiles: "the files opened or dropped on a text box, each its name, size and fingerprint (setTextFiles judges them, by text-files.ts readTextFiles); Python's Text.files fingerprints a path the same way",
   renamePage: 'the name as typed (renamePage judges it)', savedAs: "the page store's record the page was saved as",
   setPageFilter: "the filter as the page's filter bar made it", removePageFilter: 'the page filter whose x was clicked',
+  // 2026-10-26 (the flow mode's M8, a page's parameters: page-parameters.ts): the parameters bar's
+  setParameter: "the parameter as the page's parameters bar made it -- its input's value changed, or Add Parameter's form (setParameter judges it whole: parameterProblem)",
+  removeParameter: "the parameter whose x was clicked",
   // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4, the flow sheet): Create ▸ Flow, and a box let go
   addFlow: "a new flow sheet's id, as the page numbers ids, unnamed",
   placeBox: "where the box was let go, or its arrow key took it (placeBox rounds and judges it: layout/flow.ts moveBox)",

@@ -30,6 +30,7 @@ import { textProblem } from './page-text-rule.ts';
 import { readTimeseries, type TimeseriesSpec } from './timeseries-spec.ts';
 import { readTextFiles, type TextFile } from './text-files.ts';
 import { namedProperties, type PageFilter } from './page-filters.ts';
+import { parameterProblem, readParameter, type PageParameter } from './page-parameters.ts';
 import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageState } from './page-state.ts';
 import { CubeRefusal, sameValue, withoutConditions, type CubeShape, type FilterNode } from './snapshot.ts';
@@ -166,6 +167,14 @@ export type PageCommand =
   /** A page filter taken off. */
   | { readonly kind: 'removePageFilter'; readonly filter: string }
   /**
+   * A parameter of the page (page-parameters.ts, an analytic app's input: a value any Pure on it reads as `$name`), set:
+   * the one of its name replaced -- its value changed, or its type, choices or label -- else added. Judged whole
+   * (parameterProblem): a value of its type, one of its choices.
+   */
+  | { readonly kind: 'setParameter'; readonly parameter: PageParameter }
+  /** A parameter of the page taken off: a Pure that still reads it is refused by the compiler, in its words. */
+  | { readonly kind: 'removeParameter'; readonly name: string }
+  /**
    * Grid `grid` reads `copy`, a copy of its base query its host has made (Snap: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
    * §18.8), in place of the one it read, if any (its host lets that one go). Not a step of the page's history: the
    * plane is where the grid's rows are, not what it shows.
@@ -218,7 +227,7 @@ export const PAGE_COMMAND_KINDS = [
   'renamePage', 'savedAs', 'addSheet', 'addFlow', 'placeBox', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid',
   'addChart', 'setChart',
   'addText', 'setText', 'addTimeseries', 'setTimeseries', 'setTextFiles', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile',
-  'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setPure', 'setOutput', 'setStops', 'setCache',
+  'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'setParameter', 'removeParameter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setPure', 'setOutput', 'setStops', 'setCache',
   'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
@@ -233,7 +242,7 @@ export const PAGE_COMMAND_FIELDS = {
   setTimeseries: ['tile', 'spec', 'kept?'], followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
-  removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how', 'more?'], setPure: ['grid', 'pure'], setOutput: ['grid', 'output'], setStops: ['grid', 'stops'], setCache: ['grid', 'cache'],
+  removePageFilter: ['filter'], setParameter: ['parameter'], removeParameter: ['name'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how', 'more?'], setPure: ['grid', 'pure'], setOutput: ['grid', 'output'], setStops: ['grid', 'stops'], setCache: ['grid', 'cache'],
   modelInto: ['project', 'workspace', 'package'], modelPin: ['revision'], modelKeep: ['cube', 'tables', 'class'],
 } as const satisfies CommandFields<PageCommand>;
 // every field of every kind listed: a field the list leaves out is a type error naming it
@@ -369,11 +378,12 @@ function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'ch
 /** The page written again by its own writer (page-document.ts writePageOf): its name each cube's too, its model kept
  *  for the cubes it holds, a chart's click filter for the charts it holds. */
 function rewritten(page: PageDocument,
-  change: Partial<Pick<PageDocument, 'name' | 'cubes' | 'views' | 'sheets' | 'filters' | 'copies'>>): PageDocument {
+  change: Partial<Pick<PageDocument, 'name' | 'cubes' | 'views' | 'sheets' | 'filters' | 'parameters' | 'copies'>>): PageDocument {
   const next = { ...page, ...change };
   return writePageOf({
     name: next.name, cubes: next.cubes, views: { views: next.views, sheets: next.sheets },
     ...(next.model ? { model: next.model } : {}), ...(next.filters ? { filters: next.filters } : {}),
+    ...(next.parameters ? { parameters: next.parameters } : {}),
     ...(next.copies ? { copies: next.copies } : {}), ...(next.record !== undefined ? { record: next.record } : {}),
     ...(next.unknown ? { unknown: next.unknown } : {}),
   });
@@ -876,6 +886,23 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const { filters: _all, ...rest } = page;
       return done(rewritten(left.length > 0 ? { ...rest, filters: left } : rest, {}));
     }
+    case 'setParameter': {
+      const parameters = page.parameters ?? [];
+      const p = command.parameter;
+      const problem = parameterProblem(p, parameters.filter((q) => q.name !== p.name));
+      if (problem !== undefined) throw new CubeRefusal(problem);
+      const next = parameters.some((q) => q.name === p.name) ? parameters.map((q) => (q.name === p.name ? p : q)) : [...parameters, p];
+      return done(rewritten(page, { parameters: next }));
+    }
+    case 'removeParameter': {
+      const parameters = page.parameters ?? [];
+      if (!parameters.some((q) => q.name === command.name)) {
+        throw new CubeRefusal(`'${command.name}' is not a parameter of the page${parameters.length ? ` (${parameters.map((q) => q.name).join(', ')})` : ''}`);
+      }
+      const left = parameters.filter((q) => q.name !== command.name);
+      const { parameters: _all, ...rest } = page;
+      return done(rewritten(left.length > 0 ? { ...rest, parameters: left } : rest, {}));
+    }
     case 'snap': {
       const view = gridNamed(page, command.grid);
       return done(rewritten(page, { copies: { ...(page.copies ?? {}), [view.cube]: command.copy } }));
@@ -1363,6 +1390,12 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'removePageFilter':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, filter: text(o['filter'], 'a page filter') };
+    case 'setParameter':
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      return { kind, parameter: readParameter(o['parameter']) };
+    case 'removeParameter':
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      return { kind, name: text(o['name'], "a parameter's name") };
     case 'snap': {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       let copy: GridCopy;

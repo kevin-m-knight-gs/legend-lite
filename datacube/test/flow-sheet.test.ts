@@ -1228,6 +1228,21 @@ describe("Imputation (impute.ts): a number's empties filled, a value or the colu
   });
 });
 
+describe("a page's parameters, set and taken off by its page commands (page-parameters.ts, M8)", () => {
+  it('sets one -- judged whole, replaced by its name -- writes it, reads it again, and takes it off', () => {
+    const min = { name: 'min', type: 'Float' as const, value: 90 };
+    let d = apply(FLOW(), { kind: 'setParameter', parameter: min }, { kind: 'setParameter', parameter: { name: 'region', type: 'String', value: 'EMEA' } });
+    assert.deepEqual(d.page.parameters?.map((p) => p.name), ['min', 'region']);
+    d = apply(d, { kind: 'setParameter', parameter: { ...min, value: 200 } });
+    assert.deepEqual(d.page.parameters?.map((p) => p.value), [200, 'EMEA'], 'its value changed in its place');
+    assert.deepEqual(readPage(JSON.parse(pageToJson(d.page))).parameters, d.page.parameters, 'written and read again');
+    refused(() => apply(d, { kind: 'setParameter', parameter: { ...min, value: 'many' } }), /min's value is no Float/);
+    refused(() => apply(d, { kind: 'removeParameter', name: 'nope' }), /'nope' is not a parameter of the page \(min, region\)/);
+    d = apply(d, { kind: 'removeParameter', name: 'min' }, { kind: 'removeParameter', name: 'region' });
+    assert.equal(d.page.parameters, undefined, 'none, none written');
+  });
+});
+
 describe("Dynamic Replace (dynamic-replace.ts): values replaced by rules read from another box's rows, pinned", () => {
   const typed = { ...rawRows(accessor('local::DB', 'trades'), [...COLUMNS, { name: 'qty', type: 'Integer' }]) };
   /** A rule's text parsed as the compiler parses `x|<text>`: here, `$x.<column> == <value>` alone. */

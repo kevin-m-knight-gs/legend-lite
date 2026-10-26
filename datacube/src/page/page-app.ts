@@ -40,6 +40,8 @@ import {
 } from '../page-document.ts';
 import { conditionWords, filterWords, gridLens, type PageFilter } from '../page-filters.ts';
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
+import { bothLenses, parametersLens, type PageParameter } from '../page-parameters.ts';
+import type { PageParameterBar } from '../ui/page-parameter-bar.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
 import type { QueryLens } from '../runner.ts';
 import { CubeRefusal, sameValue, type FilterNode } from '../snapshot.ts';
@@ -225,6 +227,9 @@ export class PageApp {
   /** THE PAGE'S FILTERS (page-filters.ts, §16.2), as its state holds them: set by page commands, put on its grids'
    *  queries by each one's lens. */
   #filters: readonly PageFilter[] = [];
+  /** THE PAGE'S PARAMETERS (page-parameters.ts, an analytic app's inputs), as its state holds them: set by page commands,
+   *  bound into its grids' queries by each one's lens, as its filters are put on them. */
+  #parameters: readonly PageParameter[] = [];
   /** The page's model (where its classes are: page-model.ts), as its state has it -- made and kept by its model actions'
    *  commands, its own and its other editor's (P15). */
   #model: PageModelRef | undefined;
@@ -240,6 +245,13 @@ export class PageApp {
   readonly #filterSlot: HTMLElement;
   #filterBar: PageFilterBar | undefined;
   #filterBarLoading = false;
+  /** The parameters bar's place, below the filters'; the bar fetched with the page's first parameter, or Add Parameter
+   *  (ui/page-parameter-bar.ts: a page with none never downloads it). */
+  readonly #parameterSlot: HTMLElement;
+  #parameterBar: PageParameterBar | undefined;
+  #parameterBarLoading = false;
+  /** Add Parameter asked for before the bar was fetched: its form opened once it is. */
+  #parameterFormAsked = false;
 
   constructor(options: PageAppOptions) {
     this.#options = options;
@@ -322,7 +334,10 @@ export class PageApp {
     this.#filterSlot = doc.createElement('div');
     this.#filterSlot.className = 'dc-page-filters';
     this.#filterSlot.hidden = true;
-    root.append(bar, this.#filterSlot, this.#boardHost, this.#emptySheet, this.#empty);
+    this.#parameterSlot = doc.createElement('div');
+    this.#parameterSlot.className = 'dc-page-parameters';
+    this.#parameterSlot.hidden = true;
+    root.append(bar, this.#filterSlot, this.#parameterSlot, this.#boardHost, this.#emptySheet, this.#empty);
     options.host.replaceChildren(root);
     this.#root = root;
     // a sheet tab's and a chart's right-click menus, on a touch screen: a long press (an empty page has no grid to do it)
@@ -719,6 +734,7 @@ export class PageApp {
     this.#unopened.clear();
     this.#unopenedCopies.clear();
     this.#filters = [];
+    this.#parameters = [];
     this.#model = undefined;
     this.#lensKeys.clear();
     this.#page = this.#newBoard();
@@ -826,7 +842,7 @@ export class PageApp {
     const views = this.views();
     const written = this.#withUnopened(cubes, views);
     return writePageOf({
-      name, cubes: written, views, filters: this.#filters, copies: this.#copies(ids, written),
+      name, cubes: written, views, filters: this.#filters, parameters: this.#parameters, copies: this.#copies(ids, written),
       ...(this.#model ? { model: keptFor(this.#model, written) } : {}),
       ...(this.record !== undefined ? { record: this.record } : {}),
       ...(unknown?.page ? { unknown: unknown.page } : {}),
@@ -911,6 +927,7 @@ export class PageApp {
     this.#unopenedCopies.clear();
     // its filters first: each grid opens with them (a chart's click, by the views it will have)
     this.#filters = page.filters ?? [];
+    this.#parameters = page.parameters ?? [];
     this.#model = page.model;
     this.#lensKeys.clear();
     this.#restoring = page.views;
@@ -1042,6 +1059,8 @@ export class PageApp {
       ...(this.#options.onFlowJoin ? {
         onJoinBox: (box: string, sheet: string) => this.#options.onFlowJoin?.(box, sheet, this.#state.draft.page),
       } : {}),
+      // a flow's palette's Parameter: the page's own Add Parameter
+      onParameter: () => this.addParameter(),
       // TIDY UP: the flow's boxes placed by its own rule, one step -- or, placed so already, nothing
       onTidy: (sheet: string) => {
         const commands = tidyCommands(this.#state.draft.page, sheet);
@@ -1067,7 +1086,8 @@ export class PageApp {
     const views = this.views();
     const written = this.#withUnopened(cubes, views);
     const page = writePageOf({
-      name: this.#name, cubes: written, views, filters: this.#filters, copies: this.#copies(this.cubes, written),
+      name: this.#name, cubes: written, views, filters: this.#filters, parameters: this.#parameters,
+      copies: this.#copies(this.cubes, written),
       ...(this.#model ? { model: keptFor(this.#model, written) } : {}),
       ...(record !== undefined ? { record } : {}),
     });
@@ -1110,6 +1130,8 @@ export class PageApp {
       this.#paintTitle();
     }
     this.#filters = to.filters ?? [];
+    const parametersWere = this.#parameters;
+    this.#parameters = to.parameters ?? [];
     this.#model = to.model;
     this.#restoring = to.views;
     this.#syncing = true;
@@ -1127,6 +1149,8 @@ export class PageApp {
       this.#restoring = undefined;
     }
     this.#applyLenses();
+    // a value undone or another editor's: each flow's shown box opened again over its base with it
+    if (!sameValue(parametersWere, this.#parameters)) this.#page.parametersChanged();
     this.#paintSheets();
     this.#paintEmpty();
   }
@@ -1354,6 +1378,75 @@ export class PageApp {
     await this.#filterCommand(() => pageCommand('removePageFilter', { filter: id }), label);
   }
 
+  // -- the page's parameters (page-parameters.ts; docs/DATACUBE_FLOW_MODE_2026_10_24.md M8) ---------------------------
+
+  /** The page's parameters, as its state holds them. */
+  get parameters(): readonly PageParameter[] {
+    return this.#parameters;
+  }
+
+  /**
+   * A PARAMETER OF THE PAGE SET -- the one of its name replaced (its value changed, say), else added -- as one step, by
+   * the page commands' one rule (page-commands.ts setParameter, Python's page.parameter and set_parameter too): refused
+   * in its words, nothing changed. Every grid runs again with it, bound into each query that reads it.
+   */
+  async setParameter(p: PageParameter, label = this.#parameters.some((q) => q.name === p.name) ? `Set ${p.name}` : 'Add Parameter'): Promise<void> {
+    await this.#filterCommand(() => pageCommand('setParameter', { parameter: p }), label);
+  }
+
+  /** A parameter of the page taken off, as one step: a Pure that reads it is refused by the compiler, in its words. */
+  async removeParameter(name: string, label = 'Remove Parameter'): Promise<void> {
+    await this.#filterCommand(() => (this.#parameters.some((p) => p.name === name)
+      ? pageCommand('removeParameter', { name }) : undefined), label);
+  }
+
+  /** ADD PARAMETER (the page's menu, a flow's palette): the parameters bar shown, its form open. */
+  addParameter(): void {
+    if (this.#parameterBar) {
+      this.#parameterSlot.hidden = false;
+      this.#parameterBar.openForm();
+      return;
+    }
+    this.#parameterFormAsked = true;
+    this.#paintParameters();
+  }
+
+  /** The parameters bar: each parameter an input of its type; shown while the page has one, or its form is asked. */
+  #paintParameters(): void {
+    if (this.#parameterBar) {
+      this.#parameterBar.render(this.#parameters);
+      this.#parameterBar.element.hidden = this.#parameters.length === 0 && !this.#parameterBar.formOpen;
+      return;
+    }
+    if ((this.#parameters.length === 0 && !this.#parameterFormAsked) || this.#parameterBarLoading) return;
+    this.#parameterBarLoading = true;
+    void lazily(() => import('../ui/page-parameter-bar.ts')).then(({ PageParameterBar: Bar }) => {
+      if (this.#disposed) return;
+      const made = new Bar(this.#doc, {
+        set: async (p) => {
+          try {
+            await this.setParameter(p);
+            return null;
+          } catch (e) {
+            if (e instanceof CubeRefusal) return e.message;
+            throw e;
+          }
+        },
+        remove: (name) => void this.removeParameter(name).catch((e: unknown) => this.#refused(e)),
+        closed: () => this.#paintParameters(),
+      });
+      this.#parameterSlot.replaceWith(made.element);
+      this.#parameterBar = made;
+      if (this.#parameterFormAsked) made.openForm();
+      this.#parameterFormAsked = false;
+      // painted as the page is now, which may have moved on while the bar was fetched
+      this.#paintParameters();
+    }).catch((e: unknown) => {
+      this.#parameterBarLoading = false;
+      this.#refused(new Error(`the page's parameters bar did not load: ${e instanceof Error ? e.message : String(e)}`));
+    });
+  }
+
   /**
    * A filter edit, after the ones before it: `make` decides its command on the page as they left it (undefined: nothing
    * to do now), applied by the page commands' rule as one step named `label`.
@@ -1374,7 +1467,11 @@ export class PageApp {
     // another editor's filter of that id in its place (the middle version's audit's 2)
     const applied = applyToState(this.#state, this.#named([command]), label);
     this.#filters = this.#state.draft.page.filters ?? [];
+    const parametersWere = this.#parameters;
+    this.#parameters = this.#state.draft.page.parameters ?? [];
     this.#applyLenses();
+    // a value changed: each flow's shown box opened again over its base with it (cube-page.ts parametersChanged)
+    if (!sameValue(parametersWere, this.#parameters)) this.#page.parametersChanged();
     this.#paintFilters();
     for (const c of applied) this.#options.onPageCommand?.(c);
     this.#options.onChange?.();
@@ -1395,7 +1492,12 @@ export class PageApp {
   /** What the page's filters make of grid `id`'s queries, `views` the page's: a click filter is not its own chart's grid's. */
   #lensOf(id: string, grid: PageGrid, views: readonly PageView[] = this.#viewsNow()): ReturnType<typeof gridLens> {
     const charts = new Set(views.filter((v) => v.kind === 'chart' && v.cube === id).map((v) => v.id));
-    return gridLens(this.#filters, grid.cubeSource, charts);
+    const filtered = gridLens(this.#filters, grid.cubeSource, charts);
+    // its parameters bound first (page-parameters.ts): a value changed, every grid's lens changed
+    const bound = parametersLens(this.#parameters);
+    if (bound.lens === undefined) return filtered;
+    const lens = bothLenses(bound.lens, filtered.lens);
+    return { ...filtered, ...(lens ? { lens } : {}), key: `${filtered.key}|${bound.key}` };
   }
 
   /** Each grid given the lens the page's filters make for it now: one whose lens changed runs again. */
@@ -1417,8 +1519,10 @@ export class PageApp {
     return this.#filters.filter((f) => taken.includes(f.id)).map((f) => conditionWords(f.condition)).join('; ');
   }
 
-  /** The filter bar: each filter in words, what it reaches; Add a Filter on the classes the page's grids read. */
+  /** The filter bar: each filter in words, what it reaches; Add a Filter on the classes the page's grids read -- and the
+   *  parameters bar beneath it, painted with it. */
   #paintFilters(): void {
+    this.#paintParameters();
     const views = this.#viewsNow();
     const classes = new Map<string, BarClass>();
     const reach = new Map<string, { tiles: number; not: string[] }>(this.#filters.map((f) => [f.id, { tiles: 0, not: [] }]));
@@ -1522,6 +1626,8 @@ export class PageApp {
         // a flow (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): its boxes on a canvas, each a step
         { id: 'sheet.newFlow' as const, label: 'Flow', ...off(page.editing ? undefined : 'Edit Layout first') },
         { id: 'text.new' as const, label: 'Text Box' },
+        // a value any Pure on the page reads as $name (page-parameters.ts: an analytic app's input)
+        { id: 'parameter.new' as const, label: 'Parameter' },
         ...this.#hostItems('create').map((h, i) => (i === 0 ? { ...h, separated: true } : h)),
       ]) },
       // HOW THE PAGE IS SHOWN, and the app's Settings… with its Keyboard Shortcuts… -- this browser's, how every grid is
@@ -1553,6 +1659,9 @@ export class PageApp {
         return;
       case 'text.new':
         this.#page.addText();
+        return;
+      case 'parameter.new':
+        this.addParameter();
         return;
       case 'page.arrange':
         this.#page.showLayouts(this.#burger.isConnected ? this.#burger : this.#root);

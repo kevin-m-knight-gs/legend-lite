@@ -133,6 +133,8 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   output: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v5M3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 4v8c0 1.1 2.2 2 5 2M10 11.5h5M13 9.5l2 2-2 2',
   cleanse: 'M10 2l4 4-6.5 6.5H3.5V8.5zM8 4l4 4M2 14.5h12',
   impute: 'M2 3h12v10H2zM2 6.5h12M2 10h12M6 3v10M10 6.5v3.5M10.5 8.2h3',
+  // a slider's knob on its track: a value the person sets
+  parameter: 'M2 8h12M5.5 5.5v5M2.5 4.5h6v7h-6z',
   // a list of rules beside, a value swapped for another
   dynamicReplace: 'M2 2.5h5v11H2zM2 6h5M2 9.5h5M9 5h5l-2-2M14 11H9l2 2',
   test: 'M8 1.8l5.5 2v4c0 3.3-2.4 5.6-5.5 6.4C4.9 13.4 2.5 11.1 2.5 7.8v-4zM5.3 8l1.9 1.9 3.6-3.8',

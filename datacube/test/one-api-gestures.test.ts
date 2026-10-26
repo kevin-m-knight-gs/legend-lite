@@ -1288,6 +1288,10 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
   // 2026-10-26 (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12, the Pure box): its window, docked in a flow's settings pane --
   // none in this harness; Python's grid.pure asks headless gridPure for the same command
   setPure: { items: [], why: "a Pure box's window (its Pure, Take Its Pure Off): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  // 2026-10-26 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M8, a page's parameters): the page's parameters bar -- an input's
+  // value changed, Add Parameter, its x -- none in this harness; Python's page.parameter, set_parameter, remove_parameter
+  setParameter: { items: [], why: "the page's parameters bar (a value changed, Add Parameter): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  removeParameter: { items: [], why: "the page's parameters bar (its x): python/tests/test_page.py Flows" },
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). 2026-10-22 (the S7 confirmation
  *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it.

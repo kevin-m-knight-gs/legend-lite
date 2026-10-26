@@ -18,7 +18,7 @@ import { toFilterNode } from '../filter-operators.ts';
 import { drillDown, drillLevels, drillRefusal, drillUp, markConditions, namedMark } from '../chart-spec.ts';
 import { chartPicked } from '../page-filters.ts';
 import { PAGE_GESTURES, isPageGesture } from '../page-gestures.ts';
-import { baseOnHost, draftFrom, gridApply, readGivenFilter, untagged, type HeldCopy } from './grid.ts';
+import { baseOnHost, draftFrom, gridApply, pageLensText, readGivenFilter, untagged, type HeldCopy } from './grid.ts';
 import { onHost, type HostTables } from './host-tables.ts';
 import { resolvedSource } from '../live-inputs.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
@@ -402,9 +402,11 @@ export function exactly(plainly: unknown, exact: unknown): unknown {
 export function heldPage(text: string): PageDocument {
   const { cubes, ...rest } = JSON.parse(text) as Record<string, unknown> & { cubes: { id: string }[] };
   const exact = (fromJson(text) as { cubes: { id: string; cube: unknown }[] }).cubes;
-  const { kind, version, name, views, sheets, model, filters, copies, record, ...unknown } = rest;
+  const { kind, version, name, views, sheets, model, filters, parameters, copies, record, ...unknown } = rest;
   return {
     kind, version, name, views, sheets, ...(model !== undefined ? { model } : {}), ...(filters !== undefined ? { filters } : {}),
+    // its parameters (page-parameters.ts): a field of the page, which its setParameter and removeParameter edit
+    ...(parameters !== undefined ? { parameters } : {}),
     // the copies its snapped grids read (§18.8): a field of the page, which its snap and live commands edit
     ...(copies !== undefined ? { copies } : {}),
     // the saved page it is (B13): a field of the page, which the savedAs command edits
@@ -496,7 +498,8 @@ export async function pageRebase(page: string, held: string, edits: string,
         // a snapped grid's edit over its copy, as the writer applied it (baseOnHost: the one rule)
         // over its page as the edit found it: a grid over another grid's rows reads that grid there
         const base = await baseOnHost(text, (at.copies ?? {})[id], host, copies, at, id);
-        const said = JSON.parse(await gridApply({ cube: text, ...base } as Parameters<typeof gridApply>[0],
+        // through its page's lens, as its writer applied it (its parameters bound, its filters put on it)
+        const said = JSON.parse(await gridApply({ cube: text, ...base, lens: pageLensText(at, id) } as Parameters<typeof gridApply>[0],
           `[${commands.map((c) => toJson(c)).join(',')}]`)) as { cube?: string; problems?: string[] };
         if (said.problems) throw new CubeRefusal(said.problems.join('; '));
         return readCube(fromJson(said.cube!));

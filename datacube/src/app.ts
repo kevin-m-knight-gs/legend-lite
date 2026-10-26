@@ -4000,7 +4000,9 @@ export class CubeApp {
       const write = this.#options.writeTable;
       if (!write) throw new CubeRefusal("this grid's rows are not in a database this page writes: a table output writes the page's own");
       const { query } = await outputQuery(this.#snapshot, config, this.#controller);
-      await write(query, output);
+      // planned by the table writer, not this grid's runner: through the page's lens as every query it runs is (its
+      // parameters bound, its filters put on it)
+      await write(this.#lens ? this.#lens(query) : query, output);
       return;
     }
     const download = this.#options.download;

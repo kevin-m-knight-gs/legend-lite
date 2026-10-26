@@ -312,7 +312,7 @@ How to read the status column:
 | Base 64 Encoder | Built | `encodeBase64` in a Formula |
 | Dynamic Rename, Select | Built (2026-10-25) | Select's window (Preparation, above); Dynamic Rename, a prefix and a suffix given each kept column in sight |
 | Dynamic Replace | Built (2026-10-26) | Rules read from another box's rows, a column, a condition in Pure and a value each, pinned as a column per column they name: a chain of `if`s, the column itself last, handed on in its place (`dynamic-replace.ts`) |
-| Interface tools (an analytic app's inputs) | Core | Query parameters: execute takes no parameter values yet (F5) |
+| Interface tools (an analytic app's inputs) | Built (2026-10-26) | The page's parameters (`page-parameters.ts`): a text, a number, a day, true or false, or one of a pick-list, set in the parameters bar and read by any Pure on the page as `$name`, bound where each query is sent. An app's value set before a run is the bar's; core's execute takes parameter values too (`PureV1Api`), which a scheduled run can use (F3) |
 | Standard macro | Later | A sub-flow saved as a Pure function with parameters, used as a box; needs a function with parameters as a source (§17.6, item 8) |
 | Batch and iterative macros | Out for now | A loop is not one query; it would be orchestration |
 | Python, R | Out in v1 | They compute outside the database (FL15) |
@@ -409,7 +409,8 @@ Every milestone ends usable: something a person does from start to finish, saved
 ### M8. Production (platform work)
 
 - Schedules and run history (F3); parameters and analytic apps (F5); standard macros (a sub-flow as a function with
-  parameters); Dynamic Input; FL15's Python box, if asked for.
+  parameters); Dynamic Input; FL15's Python box, if asked for. *Parameters built (2026-10-26): §5's M5 and M6 steps,
+  "Built, a page's parameters".*
 
 ### What makes it nicer than Alteryx, all the way through
 
@@ -1362,6 +1363,26 @@ Replace box again with its window opened on them, as a Run shows each box in tur
 column=, condition=, value=, expressions=)`, `rules` a grid or a list of `{column, condition, value}`. Tested by
 `flow-sheet.test.ts` and Python's `test_a_dynamic_replace_takes_its_rules_from_another_grid`. Not built: a rules box
 linked to the box on the canvas (Alteryx's L input), read again on each run -- the pin is read when asked.
+
+**Built, a page's parameters** (M8, Alteryx's interface tools, an analytic app's inputs; `page-parameters.ts`,
+`ui/page-parameter-bar.ts`, the page commands `setParameter` and `removeParameter`; 2026-10-26): named values of the
+page -- a text, a whole or decimal number, true or false, a day, a time, or one of a pick-list's choices -- that any Pure
+a person writes on it reads as `$name`: a Custom Filter's condition (`$x.region == $region_of`), a Formula, a Pure box,
+a Dynamic Replace's rules. Each parameter is an input in the **parameters bar** beneath the page's filters (Create ▸
+Parameter, or a flow's palette's Parameter, opens its Add form); a value changed is one step, and every grid reads it so.
+A parameter is **bound where a query is sent**, as the page's filters are (`runner.ts` QueryLens): each `$name` the query
+reads, free of a lambda of its own of that name, is put in as the parameter's literal -- a shape rewritten, its value the
+cell's spelling, nothing computed -- so a grid's own document, its undo and its copies keep `$name`. A box's **base** (its
+inputs' rows, its own Pure) is bound where it is resolved to be opened (`live-inputs.ts` resolvedSource), so a value
+changed opens a flow's shown box again over it (`cube-page.ts` parametersChanged). A table Output's write goes through the
+lens too. Python: `page.parameter(name, type, value, choices=, label=)`, `page.set_parameter`, `page.remove_parameter`,
+`page.parameters`; the same rule headless (`lensOf`, `pageLensText` -- the keeper's rebase among them). Refused in words:
+a name Pure cannot read (or one DataCube's own expressions use: `x`, `v`, `input`), a value of another type, one none of
+its choices; a Pure still reading a parameter taken off, by the compiler (`unbound variable '$min'`). Tested by
+`page-parameters.test.ts`, `flow-sheet.test.ts`, Python's `test_a_parameter_is_read_by_any_pure_on_the_page` and the
+harness (a pick-list read by a Custom Filter and the box after it, its value picked again). Not built: a board grid over
+another grid's rows opened again when a value changes (a flow's shown box is; a board's reads its inputs' values as they
+were when it opened until it opens again).
 
 **Built, the Cache** (FL10, FL11; `layout/flow.ts` `FlowBox.cache`, `setCache`; `page-commands.ts` `setCache`;
 `cube-document.ts` `JoinInput.copy`; `live-inputs.ts` `copyOf`; `join-open.ts` `openedInputLeaves`; `cube.ts`

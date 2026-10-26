@@ -93,6 +93,16 @@
 .dc-page-filter-form[hidden] { display: none; }
 .dc-page-filter-form select, .dc-page-filter-form input { font: inherit; height: 18px; }
 .dc-page-filter-said { color: var(--dc-muted); }
+/* THE PAGE'S PARAMETERS (page-parameters.ts; docs/DATACUBE_FLOW_MODE_2026_10_24.md M8, an analytic app's inputs):
+   beneath the filters, each an input of its type in a chip, its x; Add a Parameter's form inline */
+.dc-page-parameters { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--dc-pad-1);
+  padding: 2px var(--dc-pad-2); border-bottom: 1px solid var(--dc-border-color); font-size: var(--dc-text-sm-size); }
+.dc-page-parameters[hidden] { display: none; }
+.dc-page-parameter { border-color: var(--tw-green-600); background: var(--tw-green-50); height: 22px; }
+.dc-page-parameter-value { font: inherit; height: 18px; max-width: 12em; border: 1px solid var(--dc-border-color); border-radius: 3px; }
+.dc-page-parameter-value[type="checkbox"] { height: auto; }
+.dc-page-parameter-form input, .dc-page-parameter-form select { font: inherit; height: 18px; }
+.dc-page-parameter-choices { min-width: 16em; }
 /* a grid the page's filters reach says so in its status bar, beside its own filter: a chip in the filter's colours (as
    a chip's own: .dc-status-chip, later in this sheet, took them -- the 2026-10-25 audit) */
 .dc-status-chip.dc-status-page-filter { background: var(--tw-sky-100); color: var(--tw-sky-700); }

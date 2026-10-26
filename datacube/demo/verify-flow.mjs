@@ -927,6 +927,49 @@ try {
   check(/region/.test(printed) && /EMEA/.test(printed), `set again: its condition as the compiler prints it: ${printed}`);
   await page.locator('.dc-flow-dock .dc-sample-foot .dc-quiet').click();
 
+  // A PARAMETER OF THE PAGE (M8, an analytic app's input): the palette's Parameter opens the parameters bar's form -- a
+  // pick-list of regions -- and a Custom Filter reads it as $region_of; its value picked again, the box's rows are read so
+  await page.locator('.dc-flow-tool[data-tool="parameter"]').click();
+  const paramForm = page.locator('.dc-page-parameter-form');
+  await paramForm.waitFor({ timeout: 20_000 });
+  await paramForm.locator('.dc-page-parameter-name').fill('region_of');
+  await paramForm.locator('.dc-page-parameter-type').selectOption('String');
+  await paramForm.locator('.dc-page-parameter-first').fill('EMEA');
+  await paramForm.locator('.dc-page-parameter-choices').fill('EMEA, AMER');
+  await paramForm.locator('.dc-page-filter-apply').click();
+  await page.locator('.dc-page-parameter[data-parameter="region_of"] select').waitFor({ timeout: 20_000 });
+  const paramsSaved = await page.evaluate(() => window.__dataPage.document('x')?.parameters);
+  check(JSON.stringify(paramsSaved) === JSON.stringify([{ name: 'region_of', type: 'String', value: 'EMEA', choices: ['EMEA', 'AMER'] }]),
+    `the page writes it: ${JSON.stringify(paramsSaved)}`);
+  const beforeParam = (await boxes()).map((b) => b.id);
+  await drag('customFilter', filter.id);
+  await boxCount(beforeParam.length + 1);
+  const paramBox = await added(beforeParam);
+  await docked('Custom Filter');
+  await page.locator('.dc-flow-dock .dc-custom-filter-condition').fill('$x.region == $region_of');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  check(await resultRows() === inEmea, `read as EMEA, its value: ${await resultRows()} of ${inEmea}`);
+  await page.locator('.dc-page-parameter[data-parameter="region_of"] select').selectOption({ label: 'AMER' });
+  await page.waitForFunction(() => window.__dataPage.document('x')?.parameters?.[0]?.value === 'AMER', undefined, { timeout: 30_000 });
+  await settled();
+  const inAmer = await resultRows();
+  check(inAmer > 0 && inAmer !== inEmea, `its value picked again, read so: ${inAmer} AMER trades`);
+  // a box after it reads its rows with the value as it is; picked again, the box shown is opened again over them
+  const beforeParamAfter = (await boxes()).map((b) => b.id);
+  await drag('browse', paramBox.id);
+  await boxCount(beforeParamAfter.length + 1);
+  await added(beforeParamAfter);
+  await settled();
+  check(await resultRows() === inAmer, `the box after it: its ${inAmer} AMER trades`);
+  await page.locator('.dc-page-parameter[data-parameter="region_of"] select').selectOption({ label: 'EMEA' });
+  await page.waitForFunction((n) => {
+    const t = document.querySelector('.dc-flow-results')?.textContent ?? '';
+    const m = /of ([\d,]+) rows/.exec(t) ?? /([\d,]+) rows ×/.exec(t);
+    return m !== null && Number(m[1].replace(/,/g, '')) === n;
+  }, inEmea, { timeout: 60_000 }).catch(() => undefined);
+  check(await resultRows() === inEmea, `picked again: the box after it opened again over EMEA's ${inEmea}: ${await resultRows()}`);
+
   // A PURE BOX (FL12), dragged onto the Filter: its rows a function of the Filter's, in Pure over $input -- a step put in
   // by its button, one that is no relation refused in words; set, its box says its functions and its rows are theirs;
   // set again, its Pure as the compiler prints it; taken off in one step, undone
@@ -968,7 +1011,9 @@ try {
   // IMPORT PURE (FL12): its Pure taken apart by Import as Boxes -- this box its filter, a box after it of its limit
   await page.locator(`.dc-flow-box[data-tile="${pured.id}"]`).click();
   await settled();
-  await page.locator('.dc-flow-settings button', { hasText: 'Open its settings' }).click();
+  // its window docked already (it stays after Take Its Pure Off and its undo), or opened from its settings
+  const openPure = page.locator('.dc-flow-settings button:visible', { hasText: 'Open its settings' });
+  if (await openPure.count() > 0) await openPure.click();
   await docked('Pure');
   const beforeImport = (await boxes()).map((b) => b.id);
   await page.locator('.dc-flow-dock .dc-pure-import').click();

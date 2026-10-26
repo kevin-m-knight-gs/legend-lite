@@ -2864,6 +2864,40 @@ class Page:
         """The page filter ``id`` taken off (a ``removePageFilter`` command), as the screen's x on its chip takes it."""
         self._apply_page([_commands.page_remove_page_filter(filter=id)])
 
+    def parameter(self, name: str, type: str, value: Any, *, choices: Sequence[Any] | None = None,
+                  label: str | None = None) -> None:
+        """A parameter of the page -- an analytic app's input (DataCube's code: page-parameters.ts; Alteryx's interface
+        tools): a value any Pure on the page reads as ``$name`` -- a Custom Filter's condition (``"$x.notional > $min"``),
+        a Formula, a Pure box, a Dynamic Replace's rules -- bound into each query that reads it where the query is sent,
+        as the page's filters are put on it; ``type`` one of ``String``, ``Integer``, ``Float``, ``Decimal``,
+        ``Boolean``, ``StrictDate`` (``'2024-01-31'``), ``DateTime``; ``choices``, a pick-list's values (its value one
+        of them); ``label``, what its input says. Set (a ``setParameter`` command): the one of its name replaced, else
+        added. Refused in DataCube's words: a name Pure cannot read, a value of another type, none of its choices."""
+        parameter: dict[str, Any] = {'name': name, 'type': type, 'value': _plain(value)}
+        if choices is not None:
+            parameter['choices'] = [_plain(c) for c in choices]
+        if label is not None:
+            parameter['label'] = label
+        self._apply_page([_commands.page_set_parameter(parameter=parameter)])
+
+    def set_parameter(self, name: str, value: Any) -> None:
+        """Parameter ``name``'s value changed, as its input on the page's parameters bar changes it (a ``setParameter``
+        command of it whole, its value ``value``): every grid reads it so from now. Refused as ``parameter`` is."""
+        found = next((p for p in self._doc.get('parameters', []) if p['name'] == name), None)
+        if found is None:
+            raise ValueError(f"'{name}' is not a parameter of the page")
+        self._apply_page([_commands.page_set_parameter(parameter={**found, 'value': _plain(value)})])
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """Its parameters' values, by name, in the page's order."""
+        return {p['name']: copy.deepcopy(p['value']) for p in self._doc.get('parameters', [])}
+
+    def remove_parameter(self, name: str) -> None:
+        """Parameter ``name`` taken off (a ``removeParameter`` command), as the x on its input takes it: a Pure that
+        still reads it is refused by the compiler, in its words."""
+        self._apply_page([_commands.page_remove_parameter(name=name)])
+
     # -- the document --------------------------------------------------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:

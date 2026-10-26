@@ -520,6 +520,8 @@ _HEADLESS_TESTS = [
     "cypher-spike",
     # a flow sheet's layout, a box's words and its page commands (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): pure
     "flow-sheet",
+    # a page's parameters, bound where its queries are sent (docs/DATACUBE_FLOW_MODE_2026_10_24.md M8): pure
+    "page-parameters",
     "format-code",
     "grid-commands",
     # a grid's and a page's gestures as their commands (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8)

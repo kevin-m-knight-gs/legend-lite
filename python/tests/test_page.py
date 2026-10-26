@@ -3721,6 +3721,38 @@ class Flows(Paged):
         with self.assertRaisesRegex(ValueError, "its rules have no column 'Nope'"):
             box.dynamic_replace(rules, value='Nope')
 
+    def test_a_parameter_is_read_by_any_pure_on_the_page(self):
+        # M8's parameters (an analytic app's inputs): a value of the page any Pure on it reads as $name, bound where each
+        # query is sent -- a Custom Filter's condition and a Pure box over it; its value changed, every box reads it so;
+        # a pick-list's value one of its choices; written into the page; taken off, a Pure still reading it refused
+        page, flow, source, _big = self.flowed()
+        page.parameter('min', 'Float', 90.0)
+        kept = flow.grid(input=source)
+        kept.custom_filter('$x.notional->toOne() > $min')
+        after = flow.grid(input=kept)
+        self.assertEqual(sorted(after.to_pandas()['notional']), [100.0, 250.0])
+        page.set_parameter('min', 200.0)
+        self.assertEqual(sorted(after.to_pandas()['notional']), [250.0], 'its value changed: read so')
+        page.parameter('region', 'String', 'EMEA', choices=['EMEA', 'AMER'], label='Region')
+        picked = flow.grid(input=source)
+        picked.pure('$input->filter(x|$x.region == $region)')
+        self.assertEqual(sorted(flow.grid(input=picked).to_pandas()['notional']), [75.5, 100.0])
+        page.set_parameter('region', 'AMER')
+        self.assertEqual(sorted(flow.grid(input=picked).to_pandas()['notional']), [250.0])
+        self.assertEqual(page.parameters, {'min': 200.0, 'region': 'AMER'})
+        self.assertEqual([p['name'] for p in page.to_dict()['parameters']], ['min', 'region'])
+        with self.assertRaisesRegex(ValueError, 'none of its choices'):
+            page.set_parameter('region', 'APAC')
+        with self.assertRaisesRegex(ValueError, 'is no Float'):
+            page.set_parameter('min', 'many')
+        with self.assertRaisesRegex(ValueError, "what DataCube's own expressions call"):
+            page.parameter('x', 'Integer', 1)
+        with self.assertRaisesRegex(ValueError, "'nope' is not a parameter"):
+            page.set_parameter('nope', 1)
+        page.remove_parameter('min')
+        with self.assertRaisesRegex(Exception, r"unbound variable '\$min'"):
+            after.to_pandas()
+
     def test_a_pure_box_makes_its_rows_a_function_of_its_inputs(self):
         # FL12: grid.pure -- its rows a function of its input's, in Pure over $input, parsed and its rows typed as a
         # relation by the compiler before the page sets it; a box after it reads its rows, its columns the compiler's;

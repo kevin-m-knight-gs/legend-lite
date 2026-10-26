@@ -31,6 +31,7 @@ import { readSelection, selectCommands, type Selection } from '../select-columns
 import { readSummary, summarizeCommands, type Summary } from '../summarize.ts';
 import { findReplaceCommands, readFindReplace, type FindReplace } from '../find-replace.ts';
 import { countRecordsCommands, readCountRecords } from '../count-records.ts';
+import { bothLenses, boundIn, parametersLens, readParameters } from '../page-parameters.ts';
 import { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterProbe, customFilterText, readCustomFilter } from '../custom-filter.ts';
 import { MAX_RULES, type DynamicReplace } from '../dynamic-replace.ts';
 import {
@@ -77,7 +78,7 @@ import { writeTable } from '../table-output.ts';
 import { pureSteps } from '../pure-import.ts';
 import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { lackingCheck, lackingWords } from '../cross-tab.ts';
-import type { PlanAndRun, QueryLens } from '../runner.ts';
+import { lensed, type PlanAndRun, type QueryLens, type QueryRunner } from '../runner.ts';
 import { classSamples } from '../model-plans.ts';
 import { SampleRefusal, type SampleRows } from '../sample-rows.ts';
 import { formatOf } from '../upload.ts';
@@ -134,6 +135,9 @@ interface Opened {
   readonly runner: PlanAndRun;
   /** The page's filters' rewrite of its queries, as the screen's grid takes it (page-filters.ts gridLens); none, none. */
   readonly lens?: QueryLens;
+  /** What types its columns: its runner through its lens, as the screen's controller types them (a condition reading a
+   *  parameter of the page, page-parameters.ts, typed with it bound). */
+  readonly typing: QueryRunner;
   readonly cube: OpenedCube;
   /** Its state as the query sees it: the configuration folded into the snapshot. */
   readonly state: CubeState;
@@ -187,7 +191,8 @@ async function opened(spec: GridSpec): Promise<Opened> {
     const state = openedState(was.snapshot, was.configuration, was.tree);
     // what the page's filters do to it, as the screen's page gives its grid (page-app.ts #lensOf: one rule)
     const lens = spec.lens === undefined ? undefined : lensOf(spec.lens, doc.source);
-    return { planner, runner, ...(lens ? { lens } : {}), cube: { ...was, configuration: state.configuration }, state };
+    return { planner, runner, ...(lens ? { lens } : {}), typing: lens ? lensed(runner, lens) : runner,
+      cube: { ...was, configuration: state.configuration }, state };
   } catch (e) {
     planner.dispose();
     throw e;
@@ -351,7 +356,8 @@ export async function gridBase(cube: string, host: HostTables, page: string | nu
  * page given is refused in words, never read without it.
  */
 function onPage(source: CubeSource, page: PageDocument | undefined, id: string | null): CubeSource {
-  if (liveGrids(source).length === 0) return source;
+  // its page's parameters bound into it all the same (a Pure box over a frozen input: live-inputs.ts resolvedSource)
+  if (liveGrids(source).length === 0) return page === undefined ? source : boundIn(source, page.parameters ?? []);
   if (page === undefined) throw new CubeRefusal(`${source.name} reads another grid of its page: it is read with its page`);
   const grid = id === null ? undefined : page.views.find((v) => v.kind === 'grid' && v.cube === id)?.id;
   // a snapped input read by its copy, as the tab opens it (a cached box, FL10)
@@ -441,6 +447,16 @@ export async function baseOnHost(cube: string, snapped: GridCopy | undefined, ho
 }
 
 /**
+ * What page `page`'s filters and parameters are to its cube `id` (GridSpec.lens): its filters, the grid's charts with
+ * them (a click's filter is not its own chart's grid's), and its parameters, carried as the protocol's JSON (their values
+ * exact) for each grid call to read it through (lensOf) -- a grid's edit as its page has it, wherever it is applied.
+ */
+export function pageLensText(page: PageDocument, id: string): string {
+  const charts = page.views.filter((v) => v.kind === 'chart' && v.cube === id).map((v) => v.id);
+  return toJson({ filters: page.filters ?? [], charts, parameters: page.parameters ?? [] });
+}
+
+/**
  * A GRID'S BASE ON THE HOST, HEADLESS (baseOnHost): `cube` as the page holds it, `snapped` the page's copy for its grid
  * (null: it reads live, or its live base is asked), `host` and `copies` what the host serves and holds. JSON: `{model,
  * runtime, source}` or `{model, runtime, relation}`, as gridBase says it -- or `{problems}`, in DataCube's words.
@@ -452,10 +468,7 @@ export async function gridBaseOn(cube: string, snapped: unknown, host: HostTable
     const doc = page === null ? undefined : readPage(page, { empty: true });
     const base = await baseOnHost(cube, snapped === null ? undefined : readGridCopy(snapped), host, copies, doc, id ?? undefined);
     if (doc === undefined || id === null) return JSON.stringify(base);
-    // and its id: what its filters are to it, the grid's charts with them (a click's filter is not its own chart's
-    // grid's), carried as the protocol's JSON (their values exact) for each grid call to read it through (GridSpec.lens)
-    const charts = doc.views.filter((v) => v.kind === 'chart' && v.cube === id).map((v) => v.id);
-    return JSON.stringify({ ...base, lens: toJson({ filters: doc.filters ?? [], charts }) });
+    return JSON.stringify({ ...base, lens: pageLensText(doc, id) });
   } catch (e) {
     if (!(e instanceof CubeRefusal) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });
@@ -865,7 +878,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
     if ('custom' in asked) {
       try {
         lambda = await o.planner.parse(customFilterText(asked.custom.expression));
-        conditionType = (await typedColumns(o.runner, customFilterProbe(o.state.snapshot, lambda)))
+        conditionType = (await typedColumns(o.typing, customFilterProbe(o.state.snapshot, lambda)))
           .derived.find((d) => d.name === CUSTOM_FILTER_COLUMN)?.type;
       } catch (e) {
         if (!(e instanceof PlanError)) throw e;
@@ -875,7 +888,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
     // a Dynamic Replace's rules, each parsed as the window parses it, its columns typed as the window types them: a
     // refusal the compiler's, the rule named, or DataCube's
     if ('replace' in asked) {
-      const s = await typedColumns(o.runner, o.state.snapshot);
+      const s = await typedColumns(o.typing, o.state.snapshot);
       const r = asked.replace;
       try {
         const problem = dynamicReplaceProblem(s, r);
@@ -893,7 +906,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
         const values: Lambda[] = [];
         if (r.expressions) for (const [i, rule] of r.rules.entries()) values.push(await parsed(String(rule.value), i + 1, 'value'));
         const made = replacedColumnsOf(s, r, { conditions, ...(r.expressions ? { values } : {}) });
-        const typed = await typedColumns(o.runner, dynamicReplaceProbe(s, made));
+        const typed = await typedColumns(o.typing, dynamicReplaceProbe(s, made));
         commands = dynamicReplaceCommands(s, made, new Map(made.map((m) => [m.name, typed.derived.find((d) => d.name === m.name)?.type] as const)));
       } catch (e) {
         if (!(e instanceof CubeRefusal) && !(e instanceof PlanError)) throw e;
@@ -903,20 +916,20 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
     }
     try {
       commands = 'tool' in asked ? textToolCommands(asked.tool) : 'date' in asked ? dateToolCommands(asked.date)
-        : 'multi' in asked ? multiFieldCommands(await typedColumns(o.runner, o.state.snapshot), { ...asked.multi, lambda: lambda! })
-        : 'sample' in asked ? sampleCommands(await typedColumns(o.runner, o.state.snapshot), asked.sample)
-        : 'transpose' in asked ? transposeCommands(await typedColumns(o.runner, o.state.snapshot), asked.transpose)
-        : 'select' in asked ? selectCommands(await typedColumns(o.runner, o.state.snapshot), asked.select)
-        : 'summarize' in asked ? summarizeCommands(await typedColumns(o.runner, o.state.snapshot), asked.summarize)
-        : 'findReplace' in asked ? findReplaceCommands(await typedColumns(o.runner, o.state.snapshot), asked.findReplace)
-        : 'count' in asked ? countRecordsCommands(await typedColumns(o.runner, o.state.snapshot), asked.count.name)
-        : 'checks' in asked ? checkCommands(await typedColumns(o.runner, o.state.snapshot), asked.checks)
+        : 'multi' in asked ? multiFieldCommands(await typedColumns(o.typing, o.state.snapshot), { ...asked.multi, lambda: lambda! })
+        : 'sample' in asked ? sampleCommands(await typedColumns(o.typing, o.state.snapshot), asked.sample)
+        : 'transpose' in asked ? transposeCommands(await typedColumns(o.typing, o.state.snapshot), asked.transpose)
+        : 'select' in asked ? selectCommands(await typedColumns(o.typing, o.state.snapshot), asked.select)
+        : 'summarize' in asked ? summarizeCommands(await typedColumns(o.typing, o.state.snapshot), asked.summarize)
+        : 'findReplace' in asked ? findReplaceCommands(await typedColumns(o.typing, o.state.snapshot), asked.findReplace)
+        : 'count' in asked ? countRecordsCommands(await typedColumns(o.typing, o.state.snapshot), asked.count.name)
+        : 'checks' in asked ? checkCommands(await typedColumns(o.typing, o.state.snapshot), asked.checks)
         : 'custom' in asked ? customFilterCommands(o.state.snapshot, lambda!, conditionType)
-        : 'binning' in asked ? binningCommands(await typedColumns(o.runner, o.state.snapshot), asked.binning)
-        : 'generate' in asked ? generateRowsCommands(await typedColumns(o.runner, o.state.snapshot), asked.generate)
-        : 'unique' in asked ? uniqueCommands(await typedColumns(o.runner, o.state.snapshot), asked.unique)
-          : 'impute' in asked ? imputeCommands(await typedColumns(o.runner, o.state.snapshot), asked.impute)
-          : presetCommands(await typedColumns(o.runner, o.state.snapshot), asked.preset);
+        : 'binning' in asked ? binningCommands(await typedColumns(o.typing, o.state.snapshot), asked.binning)
+        : 'generate' in asked ? generateRowsCommands(await typedColumns(o.typing, o.state.snapshot), asked.generate)
+        : 'unique' in asked ? uniqueCommands(await typedColumns(o.typing, o.state.snapshot), asked.unique)
+          : 'impute' in asked ? imputeCommands(await typedColumns(o.typing, o.state.snapshot), asked.impute)
+          : presetCommands(await typedColumns(o.typing, o.state.snapshot), asked.preset);
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       return JSON.stringify({ problems: [e.message] });
@@ -970,15 +983,17 @@ export async function gridGesture(spec: GridSpec, name: string, given: string): 
 
 /** What a page's filters (GridSpec.lens) do to a grid over `source`: the screen's own rule (page-filters.ts gridLens). */
 function lensOf(text: string, source: CubeSource): QueryLens | undefined {
-  const said = fromJson(text) as unknown as { readonly filters: unknown; readonly charts: readonly string[] };
+  const said = fromJson(text) as unknown as { readonly filters: unknown; readonly charts: readonly string[]; readonly parameters?: unknown };
   const charts = new Set(said.charts);
   // its numbers plain, as a page's filters are read (page-document.ts readPage): a filter's value is a plain number
-  return gridLens(readPageFilters(plainNumbers(said.filters), charts), source, charts).lens;
+  const filtered = gridLens(readPageFilters(plainNumbers(said.filters), charts), source, charts).lens;
+  // its parameters bound first, as the screen's page binds them (page-app.ts #lensOf)
+  return bothLenses(parametersLens(readParameters(plainNumbers(said.parameters ?? []))).lens, filtered);
 }
 
 /** The grid's columns as the compiler types them now, its calculated ones too: the controller's step 0 (plan.ts
  *  typeColumns), compile-only -- the snapshot the screen's editors work on. */
-async function typedColumns(runner: PlanAndRun, snapshot: CubeSnapshot): Promise<CubeSnapshot> {
+async function typedColumns(runner: QueryRunner, snapshot: CubeSnapshot): Promise<CubeSnapshot> {
   return (await typeColumns(snapshot, runner)).snapshot;
 }
 
@@ -1209,7 +1224,7 @@ export async function gridAddFilter(spec: GridSpec, given: string): Promise<stri
  *  operators' own operands and offers) and converted as the editor converts its tree (toFilterNode: its normal form, a
  *  group of one that one, an empty group none) -- or why not, in its words. */
 async function editorFilter(o: Opened, read: GivenFilter): Promise<{ filter: FilterNode | null } | { problem: string }> {
-  const typed = await typedColumns(o.runner, o.state.snapshot);
+  const typed = await typedColumns(o.typing, o.state.snapshot);
   const types = new Map(rowColumns(typed).map((c) => [c.name, c.type] as const));
   const made = draftFrom(read, types);
   if (typeof made === 'string') return { problem: `${made} -- ${CONDITION_FORM}` };
@@ -1226,10 +1241,10 @@ async function editorFilter(o: Opened, read: GivenFilter): Promise<{ filter: Fil
  * -- or `{problems}`, why it was refused, in the screen's words.
  */
 async function applied(spec: GridSpec, o: Opened, commands: readonly GridCommand[]): Promise<string> {
-  const { runner, cube } = o;
+  const { typing, cube } = o;
   let d: Required<GridDraft>;
   try {
-    d = applyGridCommands({ snapshot: await typedColumns(runner, cube.snapshot), config: cube.configuration, tree: cube.tree },
+    d = applyGridCommands({ snapshot: await typedColumns(typing, cube.snapshot), config: cube.configuration, tree: cube.tree },
       commands);
   } catch (e) {
     if (!(e instanceof CubeRefusal)) throw e;
@@ -1240,7 +1255,7 @@ async function applied(spec: GridSpec, o: Opened, commands: readonly GridCommand
   const outcome = await compiled(o, { snapshot, tree });
   if (outcome.refusal !== null) return JSON.stringify({ problems: [outcome.refusal] });
   // as the screen's state lands after the edit: its columns typed by the run (the controller's step 0), folded
-  const landed = fold({ snapshot: await typedColumns(runner, snapshot), configuration: d.config, tree });
+  const landed = fold({ snapshot: await typedColumns(typing, snapshot), configuration: d.config, tree });
   const doc = readCube(fromJson(spec.cube));
   const written = writeCube({
     name: doc.name, source: doc.source, snapshot: landed.snapshot, configuration: landed.configuration, tree,
@@ -1309,9 +1324,9 @@ export async function gridSetUp(spec: GridSpec | null, given: string): Promise<s
   if (read.measures.length === 0) return JSON.stringify({ commands: [...shaped, ...sorts] });
   // the measures judged against the grid the steps before them make: its spec, which only they need
   if (spec === null) throw new Error("a grid's measures are judged against the grid: give its spec");
-  return using(spec, async ({ runner, cube }) => {
+  return using(spec, async ({ typing, cube }) => {
     try {
-      const d = applyGridCommands({ snapshot: await typedColumns(runner, cube.snapshot), config: cube.configuration, tree: cube.tree },
+      const d = applyGridCommands({ snapshot: await typedColumns(typing, cube.snapshot), config: cube.configuration, tree: cube.tree },
         shaped);
       const measures = measureCommands(d, read.measures.map(([column, fn]) => readMeasure({ column, fn })));
       return JSON.stringify({ commands: [...shaped, ...measures, ...sorts] });
@@ -1333,7 +1348,7 @@ export async function gridMeasure(spec: GridSpec, given: string): Promise<string
     try {
       const asked: unknown = JSON.parse(given);
       if (!Array.isArray(asked)) throw new CubeRefusal('the measures are a list');
-      commands = measureCommands({ snapshot: await typedColumns(o.runner, o.cube.snapshot), config: o.cube.configuration, tree: o.cube.tree },
+      commands = measureCommands({ snapshot: await typedColumns(o.typing, o.cube.snapshot), config: o.cube.configuration, tree: o.cube.tree },
         asked.map(readMeasure));
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
@@ -1418,11 +1433,12 @@ export async function gridPure(spec: GridSpec, grid: string, given: string): Pro
   const text = asked.pure;
   const source = readCube(fromJson(spec.cube)).source;
   if (source._type !== 'rows') return JSON.stringify({ problems: [`${source.name} is read from no other grid: a Pure box reads another grid's rows`] });
-  return using(spec, async ({ planner, state }) => {
+  return using(spec, async ({ planner, typing, state }) => {
     try {
-      // parsed, judged and its rows typed as a relation, as its window does (pure-box.ts pureFrom)
+      // parsed, judged and its rows typed as a relation through its lens (its page's parameters bound), as its window
+      // does (pure-box.ts pureFrom)
       return said(await pureFrom(text, pureInput(source, state.snapshot.source.query), {
-        parse: (t) => planner.parse(t), columns: (r) => planner.relationType({ _type: 'lambda', parameters: [], body: [r] }),
+        parse: (t) => planner.parse(t), columns: (r) => typing.relationType({ _type: 'lambda', parameters: [], body: [r] }),
       }));
     } catch (e) {
       // the planner's refusal is the compiler's words, a CubeRefusal DataCube's; any other failure is no mistake of the Pure's
@@ -1527,7 +1543,8 @@ export async function gridOutputQuery(spec: GridSpec): Promise<string> {
   return using(spec, async (o) => {
     try {
       const { query } = await outputQuery(o.state.snapshot, o.state.configuration as unknown as Record<string, unknown>, controllerOf(o));
-      return JSON.stringify({ query: toJson(query) });
+      // written by the table writer, not the grid's runner: through the page's lens, as the tab's (app.ts writeOutput)
+      return JSON.stringify({ query: toJson(o.lens ? o.lens(query) : query) });
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       return JSON.stringify({ problems: [e.message] });
@@ -1709,13 +1726,13 @@ export async function chartOwnGrid(spec: GridSpec, page: string, chart: string):
   // the grid it reads shown, or one of its own made: the screen's Show Grid's rule (chart-spec.ts showGridWay)
   const grid = views.find((v) => v.kind === 'grid' && v.cube === view.cube);
   if (grid !== undefined && showGridWay(view.spec, true) === 'reveal') return JSON.stringify({ grid: grid.id });
-  return using(spec, async ({ runner, state }) => {
+  return using(spec, async ({ typing, state }) => {
     // the chart's cube as the screen's chart reads it: its grid's columns as the compiler types them now
-    const snapshot = await typedColumns(runner, state.snapshot);
+    const snapshot = await typedColumns(typing, state.snapshot);
     const made = chartGrid({ snapshot, config: state.configuration }, view.spec, view.selection ?? []);
     // the tree a new grid starts with, as the screen's Show Grid's grid opens (the S7 audit's G-2)
     const tree = newGridTree(made.configuration);
-    const landed = fold({ snapshot: await typedColumns(runner, made.snapshot), configuration: made.configuration, tree });
+    const landed = fold({ snapshot: await typedColumns(typing, made.snapshot), configuration: made.configuration, tree });
     const doc = readCube(fromJson(spec.cube));
     const written = writeCube({ name: doc.name, source: doc.source, snapshot: landed.snapshot, configuration: landed.configuration, tree });
     return `{"cube":${JSON.stringify(cubeToJson(written))},"spec":${JSON.stringify(made.spec)},"notes":${JSON.stringify(made.notes)}}`;
@@ -1732,12 +1749,12 @@ export async function chartOwnGrid(spec: GridSpec, page: string, chart: string):
  * (`problems` empty when it draws).
  */
 export async function gridChart(spec: GridSpec, given: string, before: string | null): Promise<string> {
-  return using(spec, async ({ runner, state }) => {
+  return using(spec, async ({ typing, state }) => {
     const was = before === null ? undefined : readChart(JSON.parse(before));
     if (typeof was === 'string') return JSON.stringify({ problems: [`DataCube cannot read the chart as it was: ${was}.`] });
     // the grid's columns as the compiler types them now, its calculated ones too: the controller's step 0 (plan.ts
     // typeColumns), compile-only -- what the grid's run would type them as before its chart is drawn
-    const { snapshot } = await typeColumns(state.snapshot, runner);
+    const { snapshot } = await typeColumns(state.snapshot, typing);
     const told = JSON.parse(given) as Record<string, unknown>;
     const made = chartFrom(told, snapshot, was);
     if (typeof made === 'string') return JSON.stringify({ problems: [made] });

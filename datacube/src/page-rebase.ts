@@ -63,6 +63,9 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'savedAs':
     case 'modelInto':
     case 'modelPin':
+    // a parameter names no tile
+    case 'setParameter':
+    case 'removeParameter':
       return command;
     // a maker's planned id follows too (page-state.ts rename: a tile brought back under a new id is that tile in every
     // later step; the keeper gives a taken one out afresh either way)
