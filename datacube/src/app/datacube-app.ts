@@ -381,7 +381,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
 
   /** The host's own entries, from the page's menu or a grid's status bar. */
   function onHostItem(item: MenuItem): void {
-    if (item.id === 'host.open') showCubes?.();
+    if (item.id === 'host.open') openCubes();
     if (item.id === 'host.save') saveCube?.(false);
     if (item.id === 'host.saveAs') saveCube?.(true);
     if (item.id === 'host.share') void copyShareLink?.();
@@ -403,6 +403,14 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
 
   /** Opens the saved cubes' window; set once the page can open files. */
   let showCubes: (() => void) | undefined;
+  /** Open… asked for before the page could open files (while the start's grid lands, seconds on a first visit): the
+   *  window then opens once it can, rather than the ask being dropped (2026-10-26, found clicking the published site). */
+  let cubesAsked = false;
+  /** Open…, from the menu or the blank page's card: now, or once the page can open files. */
+  function openCubes(): void {
+    if (showCubes) showCubes();
+    else cubesAsked = true;
+  }
   /** Close the Open… window, when it is open. */
   let closeCubes: (() => void) | undefined;
   /** Save the page (over the one it was opened from), or Save As a new one. */
@@ -568,7 +576,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         saved.type = 'button';
         saved.className = `dc-picker-button ${picks ? 'dc-quiet' : 'dc-primary'}`;
         saved.textContent = 'Open a saved cube';
-        saved.addEventListener('click', () => showCubes?.());
+        saved.addEventListener('click', () => openCubes());
         actions.append(saved);
       }
       if (actions.childElementCount > 0) card.append(actions);
@@ -1185,6 +1193,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       }
       return box;
     };
+    // Open… asked for while the start's grid landed, before the page could open files: opened now
+    if (cubesAsked) showCubes?.();
 
     // THE MENU'S SAVE AND SAVE AS: a window of their own (src/ui/save-dialog.ts) -- the name, where
     // it is kept, what is saved and what is not (the rows), and what saving over would drop

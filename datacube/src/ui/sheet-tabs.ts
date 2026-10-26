@@ -22,7 +22,10 @@ export interface SheetTab {
 
 export interface SheetTabsOptions {
   readonly onShow: (id: string) => void;
+  /** The +'s Sheet: a sheet of grids and charts. */
   readonly onAdd: () => void;
+  /** The +'s Flow (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): a sheet of boxes on a canvas, each a step. */
+  readonly onAddFlow: () => void;
   /** A tab renamed: its new name, or '' to be named after what it shows again. */
   readonly onRename: (id: string, name: string) => void;
   /** A tab moved to `to` in the order (counted with it taken out). */
@@ -77,9 +80,17 @@ export class SheetTabs {
     this.#add.type = 'button';
     this.#add.className = 'dc-sheet-add';
     this.#add.textContent = '+';
-    this.#add.title = 'A new sheet';
-    this.#add.setAttribute('aria-label', 'New sheet');
-    this.#add.addEventListener('click', () => this.#options.onAdd());
+    this.#add.title = 'A new sheet or flow';
+    this.#add.setAttribute('aria-label', 'New sheet or flow');
+    this.#add.setAttribute('aria-haspopup', 'menu');
+    // what it adds, offered as Create ▸ offers it (the user, 2026-10-26: a flow from the +, not only the menu)
+    this.#add.addEventListener('click', () => {
+      const at = this.#add.getBoundingClientRect();
+      this.#showMenu([{ label: '', items: [
+        { id: 'sheet.new' as const, label: 'Sheet' },
+        { id: 'sheet.newFlow' as const, label: 'Flow' },
+      ] }], at.left, at.bottom, this.#add);
+    });
     // every sheet, when they are more than the strip shows
     this.#list = doc.createElement('button');
     this.#list.type = 'button';
@@ -367,6 +378,8 @@ export class SheetTabs {
 
   #onMenu(item: MenuItem): void {
     const id = item.id ?? '';
+    if (id === 'sheet.new') this.#options.onAdd();
+    if (id === 'sheet.newFlow') this.#options.onAddFlow();
     const of = (verb: string): string | undefined => (id.startsWith(`sheet.${verb}.`) ? id.slice(`sheet.${verb}.`.length) : undefined);
     const show = of('show');
     if (show !== undefined) this.#options.onShow(show);

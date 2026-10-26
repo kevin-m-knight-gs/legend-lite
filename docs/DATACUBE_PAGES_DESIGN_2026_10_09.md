@@ -283,7 +283,8 @@ lone grid's header (its source, pill, menu); the fold.**
   the name for its first Save. Renaming is a change of the page, saved by Save. The browser's tab title says the same
   name, as it does now. The old derived name (the first grid's report title, §6) becomes the first sheet's name.
 - **The sheet tabs** are a browser's tabs: the one shown is raised; a click shows another; a double click renames one
-  in place; the + adds a sheet after the last and shows it; a tab's × deletes its sheet, asking first when it has tiles
+  in place; the + adds a sheet after the last and shows it (since 2026-10-26 it asks which: a Sheet, or a Flow, as Create ▸
+  offers them); a tab's × deletes its sheet, asking first when it has tiles
   (on the tab shown and the tab under the pointer; none for the last sheet, or on a locked page; the user, 2026-10-09:
   "X is right"); a tab's right-click menu has Rename, Move Left, Move Right
   and Delete (a sheet with tiles asks first, and its tiles go with it); dragging a tab along the strip reorders. Many

@@ -22,7 +22,7 @@ import { gridCopyOf, newPage as freshPage, pageToJson, readPage, unnamedLabel, t
 import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
 import { applyPageCommands, idsOf, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, settle, plus } from './cube-fixture.ts';
 import { theirs } from './theirs.ts';
 import { convergeOn, type ConvergeGrid } from '../src/app/live-converge.ts';
 import { classRelation } from '../src/class-source.ts';
@@ -599,7 +599,7 @@ describe('a page of its own', () => {
     // the page as its keeper has it, sheet-9 among the ids it has held (made and taken off by its other editor)
     page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])), ['sheet-9']);
     await settle();
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.deepEqual(told.flatMap((c) => (c.kind === 'addSheet' ? [c.id] : [])), ['sheet-10']);
   });
@@ -612,7 +612,7 @@ describe('a page of its own', () => {
     const sheets = (): number => page.document('Q3')!.sheets.length;
     page.hold();
     assert.equal(page.held, true);
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.equal(sheets(), 1, 'nothing applied');
     assert.deepEqual(told.filter((c) => c.kind === 'addSheet'), [], 'nothing told');
@@ -621,10 +621,23 @@ describe('a page of its own', () => {
     assert.equal(page.document('Q3')!.views.length, 1, 'nothing moves');
     page.release();
     assert.equal(page.held, false);
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.equal(sheets(), 2, 'released: applied');
     assert.equal(told.filter((c) => c.kind === 'addSheet').length, 1, 'and told');
+  });
+
+  it("the +'s Flow adds a flow sheet, shown, told as the menu's Create ▸ Flow tells it (2026-10-26)", async () => {
+    const told: PageCommand[] = [];
+    newPage({ onPageCommand: (c) => told.push(c) });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    plus(host, 'Flow');
+    await settle();
+    const doc = page.document('Q3')!;
+    assert.deepEqual(doc.sheets.map((s) => s.layout.kind), ['bands', 'flow']);
+    assert.deepEqual(told.map((c) => c.kind).filter((k) => k !== 'addGrid'), ['addFlow'], 'told as one addFlow');
+    assert.equal(page.shownSheet, doc.sheets[1]!.id, 'the new flow is the sheet shown');
   });
 
   it('a frozen chart whose grid is removed keeps reading that grid, kept off the board; saved, and reopened detached', async () => {
@@ -846,7 +859,7 @@ describe('a page of its own', () => {
     await settle();
     const chart = await chartOf(a);
     const first = page.shownSheet;
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     await settle();
     assert.equal(tabs().length, 2);
     assert.notEqual(page.shownSheet, first, 'the new sheet is shown');
@@ -876,7 +889,7 @@ describe('a page of its own', () => {
     const a = page.addGrid(over('trades.csv'));
     await settle();
     const chart = await chartOf(a);
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     await settle();
     const [s1, s2] = page.sheets;
     clickTab(tabs()[0]!);
@@ -915,7 +928,7 @@ describe('a page of its own', () => {
     const a = page.addGrid(over('trades.csv'));
     await settle();
     const chart = await chartOf(a);
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     clickTab(tabs()[0]!);
     page.setLayoutEditing(false);
     await settle();
@@ -970,7 +983,7 @@ describe('a page of its own', () => {
     newPage({ confirm: (q) => { asked.push(q); return answer; }, hostStatus: (slot) => slot.append(readout) });
     const a = page.addGrid(over('trades.csv'));
     await settle();
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     const b = page.addGrid(over('orders.csv'));
     await settle();
     assert.ok(tile(b).contains(readout), 'in the first grid of the sheet shown');
@@ -1001,7 +1014,7 @@ describe('a page of its own', () => {
     assert.equal(page.undoLabel, 'Add Grid', 'a grid a person adds: a step');
     page.started();
     assert.equal(page.undoLabel, undefined, 'a fresh page offered "Undo Add Grid", which left it blank (2026-10-23)');
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.equal(page.undoLabel, 'Add Sheet');
   });
@@ -1028,7 +1041,7 @@ describe('a page of its own', () => {
     newPage({ confirm: () => true, onPageCommand: (c) => told.push(c) });
     const a = page.addGrid(over('trades.csv'));
     await settle();
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     told.length = 0;
     const step = page.undoLabel;
@@ -1071,7 +1084,7 @@ describe('a page of its own', () => {
     told.length = 0;
     // a sheet added; the second grid moved onto it from its menu; the chart removed from its menu; the first sheet
     // deleted with its grid
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     await settle();
     clickTab(tabs()[0]!);
     await settle();
@@ -1098,7 +1111,7 @@ describe('a page of its own', () => {
     newPage({ confirm: () => true });
     const a = page.addGrid(over('trades.csv'));
     await settle();
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     await settle();
     assert.equal(page.undoLabel, 'Add Sheet', "the screen's own edit: a step");
     const second = page.sheets[1]!;
@@ -1200,14 +1213,14 @@ describe('a page of its own', () => {
     const following = theirs(page, [{ kind: 'snap', grid: a, copy }], new Map());
     await settle();
     // the person adds a sheet while the converge waits for the copy: held, nothing
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     release();
     await following;
     await settle();
     assert.equal(page.sheets.length, 1, 'nothing added while the page was held');
     assert.deepEqual(page.grid(a)?.copy, copy, "the editor's snap: its grid reads the copy");
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.deepEqual(page.state.page.sheets.map((s) => s.id), page.sheets, 'the state holds the sheet added after');
     assert.ok(page.state.held.includes(page.sheets[1]!), 'and its id, held');
@@ -1721,7 +1734,7 @@ describe("another editor's commands followed: nothing told back that the page di
     page.restore(doc, new Map(doc.cubes.map((c) => [c.id, over(c.cube.source.name)])));
     await settle();
     assert.equal(page.record, 'r-3');
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     await settle();
     assert.equal(page.state.page.record, 'r-3', 'kept through an edit');
     // an undo or a redo of an edit made before a Save and a rename: neither is a step, so both stay (the S7

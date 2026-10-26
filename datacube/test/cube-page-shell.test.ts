@@ -30,7 +30,7 @@ import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { getInstanceByDom } from 'echarts/core';
 
 import * as cube from './cube-fixture.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, settle, shown, plus } from './cube-fixture.ts';
 import { theirs } from './theirs.ts';
 import { differing, sameButIds } from './page-same.ts';
 import { bandsOf } from './bands-of.ts';
@@ -852,7 +852,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     const a = pg().addGrid(over('trades.csv'));
     await settle();
     const chart = await chartOf(a);
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     const [first, second] = pg().sheets;
     clickTab('trades.csv');
@@ -886,7 +886,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     const following = await chartOf(b);
     const frozen = await chartOf(b);
     await togglePill(frozen);
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     clickTab('trades.csv');
     await settle();
@@ -1116,7 +1116,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     newPage({ confirm: () => true });
     pg().addGrid(over('trades.csv'));
     await settle();
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     const b = pg().addGrid(over('orders.csv'));
     await settle();
     const second = pg().shownSheet;
@@ -1151,7 +1151,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     (await shown<HTMLButtonElement>(host, '.dc-layout-picker [data-preset="stacked"]')).click();
     await settle();
     assert.deepEqual(bands(), [[a], [chart]]);
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.equal(pg().sheets.length, 2);
     // the page's Undo names its step, whichever sheet is shown
@@ -1248,7 +1248,7 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     await step('a chart frozen', told, () => togglePill(ids['other']!), 'Chart Change', ids);
     await step('a tile renamed', told, () => rename(ids['chart']!, 'Desk mix'), 'Rename Tile', ids);
     await step('a grid renamed', told, () => rename(ids['b']!, 'Orders'), 'Rename Tile', ids);
-    await step('a sheet added', told, () => (host.querySelector('.dc-sheet-add') as HTMLElement).click(), 'Add Sheet', ids);
+    await step('a sheet added', told, () => plus(host), 'Add Sheet', ids);
     clickTab('trades.csv');
     await settle();
     await step('a grid moved to the sheet', told, () => gridMenuItem(ids['b']!, 'Sheet 2').click(), 'Move to Sheet', ids);
@@ -1358,7 +1358,7 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     assert.equal(pg().grids[0], a);
     pg().redo();
     await drawn();
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.deepEqual([forgotten, disposed], [[], []], 'removed again: still a step an undo takes back');
     // the page cleared: no step can bring it back, and what it read goes
@@ -1554,7 +1554,7 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     pg().setTitle('Renamed');
     assert.equal(pg().undoLabel, 'Add Grid', 'the name is its host\'s: no step');
     assert.equal(pg().state.page.name, 'Renamed');
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     clickTab('trades.csv');
     await settle();
@@ -1591,7 +1591,7 @@ describe('titles and ids: renamed tiles moved and saved, a new grid beside a kep
     rename(chart, 'Desk mix');
     rename(a, 'Trades');
     await settle();
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     // the sheet is named after its first grid's source, not its tile's title
     clickTab('trades.csv');
@@ -1618,7 +1618,7 @@ describe('titles and ids: renamed tiles moved and saved, a new grid beside a kep
     // (the phase 1 audit's 4 and 5) what the screen tells replays to the page it writes
     const told: PageCommand[] = [];
     const { b } = await twoGrids({ onPageCommand: (c) => told.push(c) });
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     clickTab('trades.csv');
     await settle();
@@ -1721,7 +1721,7 @@ describe('what is looked at survives an edit: the board put at the page keeps it
 
   it('the sheet shown: another renamed, or a tile moved onto a new one', async () => {
     const { chart } = await aPage();
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.equal(pg().shownSheet, 'sheet-2', 'a sheet added is shown');
     await anEdit('First');
@@ -2117,7 +2117,7 @@ describe("the S3 audit's findings: a page of its own, again", () => {
     const under = (): boolean => tile(chart).style.left === tile(a).style.left
       && parseFloat(tile(chart).style.top) > parseFloat(tile(a).style.top);
     assert.ok(under(), 'under its grid');
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.ok(under(), 'still under its grid after the next edit');
   });
@@ -2152,7 +2152,7 @@ describe("the S3 audit's findings: a page of its own, again", () => {
     await settle();
     await theirs(pg(), [{ kind: 'addSheet', id: 'sheet-5', name: 'Briefly' }, { kind: 'removeSheet', sheet: 'sheet-5' }], new Map());
     assert.ok(pg().state.held.includes('sheet-5'), 'held');
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.ok(!pg().sheets.includes('sheet-5') && pg().sheets.length === 2, `a sheet added here takes another id: ${pg().sheets.join(', ')}`);
     assert.deepEqual(pg().state.page.cubes.map((c) => c.id), pg().cubes);

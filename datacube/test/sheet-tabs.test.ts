@@ -25,6 +25,7 @@ beforeEach(() => {
   tabs = new SheetTabs(dom.window.document, {
     onShow: (id) => asked.push(`show ${id}`),
     onAdd: () => asked.push('add'),
+    onAddFlow: () => asked.push('add flow'),
     onRename: (id, name) => asked.push(`rename ${id} ${name}`),
     onMove: (id, to) => asked.push(`move ${id} ${to}`),
     onRemove: (id) => asked.push(`remove ${id}`),
@@ -136,7 +137,19 @@ describe('a page\'s sheet tabs', () => {
     assert.deepEqual([...tabs.element.querySelectorAll('.dc-sheet-tab .dc-sheet-label')].map((t) => t.textContent), ['Sheet 3', 'Charts', 'trades.csv']);
     tabs.paint(SHEETS.slice(0, 2), 'sheet-1', true);
     assert.equal(tab('sheet-3'), null, 'a sheet gone takes its tab');
-    tabs.element.querySelector<HTMLElement>('.dc-sheet-add')!.click();
-    assert.deepEqual(asked, ['add']);
+  });
+
+  it('offer from the + a Sheet and a Flow, as Create ▸ offers them (2026-10-26)', () => {
+    const add = tabs.element.querySelector<HTMLElement>('.dc-sheet-add')!;
+    assert.equal(add.getAttribute('aria-haspopup'), 'menu');
+    const pick = (label: string): void => {
+      add.click();
+      const items = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')];
+      assert.deepEqual(items.map((i) => i.querySelector('.dc-menu-label')?.textContent), ['Sheet', 'Flow']);
+      items.find((i) => i.querySelector('.dc-menu-label')?.textContent === label)!.click();
+    };
+    pick('Sheet');
+    pick('Flow');
+    assert.deepEqual(asked, ['add', 'add flow']);
   });
 });

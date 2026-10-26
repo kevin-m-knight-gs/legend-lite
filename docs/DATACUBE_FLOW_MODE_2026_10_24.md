@@ -477,7 +477,7 @@ on both hosts). Not yet: an edit upstream re-reading the boxes after it in the t
 **Built in step 3, the `flow` layout kind** (`datacube/src/layout/flow.ts`, `page-document.ts`, `page-commands.ts`,
 `page-rebase.ts`, `headless/layout.ts`): a sheet's layout is a board's bands or a flow's boxes (`PageLayout`,
 `layoutTiles`), read and written, its rules held (each box once, at whole places, neither below zero; a flow's tile a
-grid). Two command kinds: `addFlow` (Create ▸ Flow) and `placeBox` (a box let go, its arrow keys). `addGrid` on a flow
+grid). Two command kinds: `addFlow` (Create ▸ Flow, or the sheet tabs' + ▸ Flow: 2026-10-26) and `placeBox` (a box let go, its arrow keys). `addGrid` on a flow
 puts the box after `near`, the box it reads (the next column on its row, else the first free row there: `placeAfter`).
 What only a board takes is refused in words: a chart, a text tile, a stack, an arrangement, a band layout; `moveTile`
 goes from board to board or flow to flow. A grid taken off leaves every grid that read it live reading a copy of what it

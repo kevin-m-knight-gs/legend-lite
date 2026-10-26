@@ -35,7 +35,7 @@ import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-a
 import { chartPick, readEdits } from '../src/headless/page.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { toJson } from '../../pure-protocol/src/index.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, settle, shown, plus } from './cube-fixture.ts';
 import { sameButIds } from './page-same.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { element } from '../../pure-protocol/src/index.ts';
@@ -621,7 +621,7 @@ const filtered = async (): Promise<Record<string, string>> => {
 };
 const withSheet = async (): Promise<Record<string, string>> => {
   const g = await twoGrids();
-  (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+  plus(host);
   await settle();
   return g;
 };
@@ -655,7 +655,7 @@ const pickInput = (value: string): void => {
 const GESTURES: readonly Gesture[] = [
   // the page
   { name: 'a grid added', setUp: twoGrids, make: async ({ a }) => { pg().addGrid(over('desks.csv'), { near: a! }); } },
-  { name: 'a sheet added', setUp: twoGrids, make: () => (host.querySelector('.dc-sheet-add') as HTMLElement).click() },
+  { name: 'a sheet added', setUp: twoGrids, make: () => plus(host) },
   {
     name: 'a sheet renamed',
     setUp: withSheet,
@@ -831,7 +831,7 @@ const GESTURES: readonly Gesture[] = [
     name: 'a timeseries tile dragged onto another sheet',
     setUp: async () => {
       const g = await withTimeseries();
-      (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+      plus(host);
       await settle();
       // its own sheet shown again (a new sheet is shown as it is added), as a click on its tab shows it
       const tab = tabOf('prices.csv');

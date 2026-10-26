@@ -274,6 +274,7 @@ export class PageApp {
     this.#sheetTabs = new SheetTabs(doc, {
       onShow: (id) => this.#page.showSheet(id),
       onAdd: () => this.#page.addSheet(),
+      onAddFlow: () => this.addFlow(),
       onRename: (id, name) => this.#page.renameSheet(id, name),
       onMove: (id, to) => this.#page.moveSheet(id, to),
       onRemove: (id) => this.#removeSheet(id),
