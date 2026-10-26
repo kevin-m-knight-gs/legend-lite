@@ -551,6 +551,18 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     // Expressions
     // ==================================================================
 
+    /** A tagged value (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its root projects it as its tag and slots, and
+     *  a rule consuming it reads a channel, so no execution dialect writes it. The engine-TEXT renderers override:
+     *  legend-engine has no tags, and its text of a mixed selection is the plain selection over the comparables
+     *  (2026-10-26: the corpus's {@code sqlstring::testGreatestLeast}, {@code greatest([$t.quantity, 1, 3])} in a
+     *  project column, whose expected text is {@code greatest("root".quantity, 1, 3)}). */
+    protected SqlWriter tagged(SqlWriter writer, SqlExpr.Tagged t, int parentPrec) {
+        throw new IllegalStateException("a tagged value reached the renderer: a mixed"
+                + " max, min, greatest, least or mode is returned, compared or printed, and any other consumer"
+                + " of it is not lowered (" + t.candidates().size() + " candidates of kinds "
+                + t.slots().stream().map(com.legend.sql.SqlType.Tagged.Slot::kind).toList() + ")");
+    }
+
     /** The CHECKED-NARROWING spelling (D1, the one semantic node):
      * execution dialects emit pure's toOne size guard; the engine-TEXT
      * subclasses override to the verbatim inner value (processNoOp). */
@@ -734,10 +746,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.CompactList cl -> compactList(writer, cl, parentPrec);
             // a value whose kind the database decides (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its root
             // projects it as its tag and slots, and a rule consuming it reads a channel; no dialect writes it
-            case SqlExpr.Tagged t -> throw new IllegalStateException("a tagged value reached the renderer: a mixed"
-                    + " max, min, greatest, least or mode is returned, compared or printed, and any other consumer"
-                    + " of it is not lowered (" + t.candidates().size() + " candidates of kinds "
-                    + t.slots().stream().map(com.legend.sql.SqlType.Tagged.Slot::kind).toList() + ")");
+            case SqlExpr.Tagged t -> tagged(writer, t, parentPrec);
             case SqlExpr.DeferredTdsString d -> throw new IllegalStateException(
                     "deferred relation-toString reached the renderer — the"
                     + " execution boundary must resolve the dynamic column"

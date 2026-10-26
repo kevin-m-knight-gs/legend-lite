@@ -404,6 +404,15 @@ by GitHub:
 the branch, then that exact commit pushed to `main` (`docs/build-inventory/program/START_HERE.md` §4). Whether other
 work keeps rule 2's PR path is open (`docs/build-inventory/program/PHASE_8.md` OD-9).
 
+**No session pushes to `main` without the user's explicit word, in that session (the user, 2026-10-26, after the
+plan path branch's 170-commit landing went straight to `main` on the strength of the rules above, turned 15 CI lanes
+red, and was reverted and reset).** The three conditions are necessary, never sufficient: a session that has met them
+says so and asks; a ratified plan that names a landing is not the go. A landing of more than one change (a long-lived
+branch, a merge of `main` carried back) goes through a PR whatever the rules above say, so CI runs on every OS before
+it lands: the local gate does not cover Windows, arm, macOS, the corpus lanes or the product build, and the branch had
+never run CI. Decision D17's fast loop stays for one small change the user asked to land. A revert, a reset or a
+force push of `main` is likewise the user's call, never a session's own.
+
 A documentation-only PR gets no gate run (`gate.yml`'s `paths-ignore`), so `gates green` never reports on it:
 the owner merges it by bypass.
 

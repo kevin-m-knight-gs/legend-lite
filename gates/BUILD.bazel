@@ -91,6 +91,8 @@ test_suite(
         "//tools/browser:revision_test",
         "//tools/browser:proxy_args_test",
         "//tools/bump:bump_test",
+        # the WebAssembly modules' data segment offsets re-encoded after TeaVM writes them (PARK-40, 2026-10-26)
+        "//tools/teavm:data_offsets_test",
         "//tools/java_run:pins_test",
         "//tools/js:lock_matches_package_json_test",
         "//tools/junit:pins_test",
@@ -325,6 +327,10 @@ test_suite(
         # in the test's outputs
         "//datacube:tour_test",
         "//parser-equivalence:diagnostics",
+        # the plan seam's benchmark (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8, 2026-10-18): a measurement, run by
+        # hand at its two heaps, in no per-push lane
+        "//core:seam_benchmark",
+        "//core:seam_benchmark_small_heap",
         # the #IQ{...}# island's real-world corpus lane (2026-10-15; core/BUILD.bazel's iq_corpus_test): manual, it
         # names corpora kept out of the repository (-Diq.corpus.root) and fails without them
         "//core:iq_corpus_test",

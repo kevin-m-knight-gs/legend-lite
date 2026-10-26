@@ -2879,8 +2879,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `executionplan/`, `exec/`, `lowering/Render.java`, `WireRender.java`, `TdsTextWrap.java`, `server/PureV1Api.java`,
   the new sink package, and `pct/.../ValueBridge.java`. Branch `claude/upbeat-johnson-l4hogx`, which took `main` at
   `17836b07` (PR #76) on 2026-10-26 (`d408e1b8`: 504 commits, 15 conflicted files, both sides kept; `025d847b`) and
-  repaired the union's one break, the WebAssembly planner past 1 MiB (`3cf01887`, PARK-40); it lands on `main`
-  with the merge's GATES entry once the local gate is green on the tip.
+  repaired the union's one break, the WebAssembly planner past 1 MiB (`3cf01887`, PARK-40). Pushed to `main` without
+  the user's word on 2026-10-26, red on 15 CI lanes, reverted and reset (GATES' merge entry, item 5; AGENTS.md
+  "Pushing to main", the new rule): it re-lands through a PR when the user says.
 - **Landed, 2026-10-18:** neema2/legend-lite#58 (the TCK at 3600 of 3880 on both lanes; the review's fixes).
 - **Next on this line, announced 2026-10-18: writes** (`docs/WRITES_DESIGN_2026_10_18.md`, the design agreed with the
   user). There are two kinds of graph:

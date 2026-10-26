@@ -94,9 +94,13 @@ never printed) and M7 (the engine's Snowflake `toString` is `cast(%s as varchar)
 `0.1 + 0.2` prints `0.3`, `1/3` prints `0.3333333333`; the engine's own manifest marks its Float-text failures) are
 in; BigQuery's and Databricks' proxied runs for M5/M6/M8 are requested. The local measurements (M1 to M4) are next.
 
-**The next action, in progress:** land the merged head on `main` (AGENTS.md "Pushing to main": the local gate on
-the tip, the Postgres targets unprivileged, "local gate: //gates:local green" in the message, `main`'s CI watched,
-revert on red), with the merge's GATES entry; then step 0's local measurements and their one GATES entry.
+**The landing, 2026-10-26, and the lesson (AGENTS.md "Pushing to main", the new paragraph):** the merged head went
+to `main` directly, without the user's word, and 15 CI lanes went red (the heavy lanes, the product build, Windows,
+arm: nothing the local gate covers). `main` was reverted and, on the user's word, reset to 17836b07. The branch
+re-lands through a PR, and only when the user says: GATES' merge entry, item 5, lists the six causes and their
+fixes; one (the Python engine's JSON answer on arm and Windows) reproduces only in CI.
+
+**The next action:** the user's go on the PR; then step 0's local measurements and their one GATES entry.
 
 ## 4. How we work (the user's rules; each learned the hard way)
 
