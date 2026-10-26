@@ -307,8 +307,8 @@ How to read the status column:
 |---|---|---|
 | Comment, Tool Container | Built (2026-10-25) | The flow sheet's own state (§3.4): a comment a text tile; a container one with a frame, its boxes moved with it (`layout/flow.ts containerMoves`, Python's `text.place`) |
 | Test | Built | Checks as a box (no empty value, no value repeated, a number within bounds, a count of rows within bounds, values one of a list, a text matching a pattern), counted by the database; a mode that stops a run (FL8) |
-| Block Until Done | Later | Run order, from runs and schedules (F3) |
-| Message | Later | The run's log |
+| Block Until Done | Built (M8) | A mode of any box: in a run, the boxes after it run, and their Outputs are written, once every Output before it is ("Built, Block Until Done, Message and the run history") |
+| Message | Built (M8) | A mode of any box: its words in the run's log (`{rows}` its rows counted) each run, when it has rows or when it has none; a note, a warning, or an error that stops the run as a failing Test does |
 | Base 64 Encoder | Built | `encodeBase64` in a Formula |
 | Dynamic Rename, Select | Built (2026-10-25) | Select's window (Preparation, above); Dynamic Rename, a prefix and a suffix given each kept column in sight |
 | Dynamic Replace | Built (2026-10-26) | Rules read from another box's rows, a column, a condition in Pure and a value each, pinned as a column per column they name: a chain of `if`s, the column itself last, handed on in its place (`dynamic-replace.ts`) |
@@ -411,7 +411,9 @@ Every milestone ends usable: something a person does from start to finish, saved
 - Schedules and run history (F3); parameters and analytic apps (F5); standard macros (a sub-flow as a function with
   parameters); Dynamic Input; FL15's Python box, if asked for. *Parameters built (2026-10-26): §5's M5 and M6 steps,
   "Built, a page's parameters"; standard macros the same day, "Built, standard macros"; Dynamic Input the same day,
-  "Built, Dynamic Input".*
+  "Built, Dynamic Input"; Block Until Done, Message and the run history the same day ("Built, Block Until Done, Message and
+  the run history"). Schedules are not built: F3's scheduler waits on where it lives (docs/BI_AND_ETL_PLAN_2026_09_29.md,
+  open decision 5).*
 
 ### What makes it nicer than Alteryx, all the way through
 
@@ -1420,6 +1422,27 @@ filtered on DuckDB), Python's `test_a_dynamic_input_keeps_the_rows_of_the_input_
 from the palette, its value picked on the parameters bar, a Union again from its settings, each undone). Not built: an
 input read from a path or a table named by a value (Alteryx's Dynamic Input reads files and queries a template names;
 here its inputs are the flow's boxes), and a value read from another box's rows.
+
+**Built, Block Until Done, Message and the run history** (M8; `layout/flow.ts` `FlowBox.blocks`, `FlowBox.message`,
+`runStages`, `messageSaid`; the page commands `setBlocks`, `setMessage`; `page/cube-page.ts` `#runFlow`; headless
+`flowRun`; 2026-10-26): each **a mode of any box**, as the Cache is. A run goes **in stages**: a box's stage is the most of
+its inputs', one more past an input that blocks; each stage's boxes are shown, then its Outputs written, before the next
+stage's boxes are shown -- so a box after a block reads what the Outputs before it wrote. A box that stops a run (FL8) is
+judged with its stage: failing, it stops its stage's Outputs and every later one's, the earlier stages' written already
+(the log says *nothing after it written*). A **Message** says its words in the run's log -- `{rows}` its rows, counted by
+the database as a run counts every box -- each run, when it has rows, or when it has none: a note, a warning, or an error
+that stops the run as a failing Test does. The palette's *Block Until Done* and *Message* add a box after the one shown
+with the mode set (its rows its input's); any box's settings say *Block until done* and, set, its message's words, when
+and how, or *Say Nothing*. **The run history**: each run's log kept this session (20 at most), the log's *Runs* picker
+reading an earlier one again. Python: `grid.block_until_done()`, `grid.message(text, when=, level=)`, `flow.run` and
+`flow.dry_run` in the same stages (headless `flowRun`, the canvas's rule: a warning warned, an error refusing the run,
+naming what was written before it), and `flow.runs`, this process's history of them. Tested by `flow-sheet.test.ts`
+(the commands, the stages, the words), Python's `test_a_flow_runs_in_stages_says_its_messages_and_keeps_its_runs` and the
+harness (a Message informing, then stopping a run; the Output blocking, written in its stage; the history; each undone).
+Not built: **schedules** -- a run at a time or on data changing, retried, alerting on failure (F3) -- whose scheduler
+waits on where it lives (docs/BI_AND_ETL_PLAN_2026_09_29.md, open decision 5: the warehouse process, or a service beside
+it); a run history kept past the session (F3's run records); Alteryx's Block Until Done's three ordered outputs (here,
+one box's stages order its Outputs); a Message's condition on each row (here, on its rows' count).
 
 The audit of this step found that a step's inverse -- an undo, and a screen converging on its keeper's page
 (`page-between.ts`) -- carried neither the page's parameters nor its macros (an Add Parameter or a Save Macro undone did

@@ -5194,6 +5194,24 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-flow-cache-check { margin-top: 8px; }
 .dc-flow-cache-said { display: block; margin-top: 4px; font-size: 12px; color: var(--dc-muted); }
 .dc-flow-cache-said:empty { display: none; }
+/* Block Until Done and a Message (M8): a box's checkbox, and its words with when and how it says them */
+.dc-flow-block-check { margin-top: 8px; }
+.dc-flow-message { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.dc-flow-message-text { width: 100%; box-sizing: border-box; }
+.dc-flow-message-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dc-flow-message-said { font-size: 12px; color: var(--tw-red-600); }
+.dc-flow-message-said:empty { display: none; }
+/* a Dynamic Input's Keep the rows of (M8) */
+.dc-flow-pick { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.dc-flow-pick-label { color: var(--dc-muted-strong); }
+.dc-flow-pick-said { font-size: 12px; color: var(--dc-muted); }
+/* the run log's history and a Message's words in it */
+.dc-flow-log-history { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-bottom: 1px solid var(--dc-line-faint); }
+.dc-flow-log-history-label { color: var(--dc-muted); font-size: 12px; }
+.dc-flow-log-runs { flex: 1; min-width: 0; font: inherit; font-size: 12px; }
+.dc-flow-log-said { display: block; padding: 0 6px 3px; font-size: 12px; color: var(--dc-muted-strong); white-space: normal; }
+.dc-flow-log-said-warning .dc-flow-log-said { color: var(--tw-amber-700, #b45309); }
+.dc-flow-log-said-error .dc-flow-log-said { color: var(--tw-red-600); }
 /* a cached box (FL10): a rail along its left edge, filled once its rows are copied */
 .dc-flow-box.dc-flow-cached { box-shadow: inset 3px 0 0 var(--tw-sky-300, #7dd3fc); }
 .dc-flow-box.dc-flow-cached[data-cached="copied"], .dc-flow-box.dc-flow-cached[data-cached="here"] { box-shadow: inset 3px 0 0 var(--tw-sky-600, #0284c7); }

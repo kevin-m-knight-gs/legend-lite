@@ -1572,9 +1572,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           await opened.discard?.();
           return;
         }
-        // an Output writes a CSV named after the box it reads, set in the same step (M6)
-        const writes = tool === 'output'
-          ? (id: string) => [outputCommand(id, live.name)] : undefined;
+        // an Output writes a CSV named after the box it reads, set in the same step (M6); a Block Until Done blocks, a
+        // Message says its rows counted (M8)
+        const writes = tool === 'output' ? (id: string) => [outputCommand(id, live.name)]
+          : tool === 'blockUntilDone' ? (id: string) => [pageCommand('setBlocks', { grid: id, blocks: true })]
+            : tool === 'message' ? (id: string) => [pageCommand('setMessage', { grid: id, message: { text: '{rows} rows', when: 'always', level: 'info' } })]
+              : undefined;
         const box = page.addGrid(opened.make, {
           near: after,
           // a macro used: named after it
@@ -1585,7 +1588,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
             after: (id: string) => [
               ...(placedAt.after?.(id) ?? []), pageCommand('setInput', { grid: into.tile, side: into.side, input: { grid: id } }), ...(writes?.(id) ?? []),
             ],
-          } : writes !== undefined ? { label: 'Add Output', after: (id: string) => [...(placedAt.after?.(id) ?? []), ...writes(id)] } : {}),
+          } : writes !== undefined ? { label: tool === 'blockUntilDone' ? 'Add Block Until Done' : tool === 'message' ? 'Add Message' : 'Add Output', after: (id: string) => [...(placedAt.after?.(id) ?? []), ...writes(id)] } : {}),
         });
         // drawn as the tool it was added as, and its settings docked in the flow's settings pane: what the tool is for
         page.boxAddedAs(box, tool);

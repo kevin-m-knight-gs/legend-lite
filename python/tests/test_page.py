@@ -11,6 +11,7 @@ import gc
 import hashlib
 import json
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -3564,6 +3565,59 @@ class Flows(Paged):
         checked.stops_run()
         again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
         self.assertTrue(next(b for s in again.to_dict()['sheets'] for b in s['layout'].get('boxes', []) if b['tile'] == checked.id).get('stops'))
+
+    def test_a_flow_runs_in_stages_says_its_messages_and_keeps_its_runs(self):
+        # M8: Block Until Done -- the boxes after a box that blocks run, and their Outputs are written, once every Output
+        # before it is (headless flowRun: the canvas's Run's stages); a Message's words (a warning warned, an error
+        # stopping the run from its stage on); each run kept in flow.runs (the run history, this process's)
+        page, flow, source, big = self.flowed()
+        source.output('first.csv')
+        big.block_until_done()
+        later = flow.grid(input=big)
+        later.output('later.csv')
+        checked = flow.grid(input=big)
+        checked.test([{'kind': 'between', 'column': 'notional', 'min': 0, 'max': 200}])
+        checked.stops_run()
+        with tempfile.TemporaryDirectory() as folder:
+            # the Test is after the block: the stage before it written, its own stage's not
+            with self.assertRaisesRegex(ValueError, r'stops the run: notional from 0 to 200: 1 row fails: no Output written \(written before it: .*first\.csv\)'):
+                flow.run(folder)
+            self.assertEqual(os.listdir(folder), ['first.csv'])
+            checked.stops_run(False)
+            self.assertEqual([p.name for p in flow.run(folder)], ['first.csv', 'later.csv'])
+            # a Message: a warning warned
+            big.message('{rows} big trades', when='rows', level='warning')
+            with self.assertWarnsRegex(UserWarning, re.escape(f'{big.id}: 2 big trades')):
+                flow.run(folder)
+            # an error, when its rows are as it asks: the run stopped from its stage on -- the block's own stage, so nothing
+            big.message('{rows} too many', when='rows', level='error')
+            with self.assertRaisesRegex(ValueError, re.escape(f'{big.id} said 2 too many: no Output written')):
+                flow.run(folder)
+            big.message('none at all', when='noRows', level='error')
+            self.assertEqual(len(flow.run(folder)), 2, 'its rows not as it asks: nothing said')
+        big.message('{rows} too many', when='rows', level='error')
+        dry = flow.dry_run()
+        self.assertEqual(dry['messages'], [{'box': big.id, 'level': 'error', 'said': '2 too many'}])
+        self.assertEqual(dry['would_write'], [])
+        self.assertEqual(set(dry['rows']), {source.id, big.id, later.id, checked.id}, 'every box counted all the same')
+        runs = flow.runs
+        self.assertEqual([r['dry'] for r in runs], [False, False, False, False, False, True])
+        self.assertEqual([Path(w).name for w in runs[0]['written']], ['first.csv'])
+        self.assertTrue(runs[0]['stopped'])
+        self.assertEqual((runs[1]['stopped'], runs[2]['messages']), ([], [{'box': big.id, 'level': 'warning', 'said': '2 big trades'}]))
+        with self.assertRaisesRegex(ValueError, 'says so already'):
+            big.message('{rows} too many', when='rows', level='error')
+        with self.assertRaisesRegex(ValueError, 'a message is info, warning, error, not "loud"'):
+            big.message('x', level='loud')
+        big.message(None)
+        with self.assertRaisesRegex(ValueError, 'says nothing'):
+            big.message(None)
+        # saved and loaded: it blocks still
+        again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
+        self.assertTrue(next(b for s in again.to_dict()['sheets'] for b in s['layout'].get('boxes', []) if b['tile'] == big.id).get('blocks'))
+        big.block_until_done(False)
+        with self.assertRaisesRegex(ValueError, 'blocks no run'):
+            big.block_until_done(False)
 
     def test_a_cross_tab_with_its_columns_fixed_is_read_by_the_box_after_it(self):
         # FL2: a Cross Tab box (desk by region, its measures summed) -- its columns its values, which a box after it

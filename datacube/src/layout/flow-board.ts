@@ -12,7 +12,7 @@
 // says what the hand did (`FlowBoardOptions`), and is put at the page the command makes (page/cube-page.ts sync).
 
 import type { BandTile } from './band-board.ts';
-import { EMPTY_FLOW, placeAfter, removeBox, type Flow, type Frame, type Output } from './flow.ts';
+import { EMPTY_FLOW, placeAfter, removeBox, type Flow, type FlowMessage, type Frame, type MessageLevel, type Output } from './flow.ts';
 import { isLive, joinInputs, type CubeDocument, type CubeInput, type InputPort, type InputSide } from '../cube-document.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
@@ -119,6 +119,10 @@ export interface FlowBoardOptions {
   readonly onPaste?: (at: FlowPoint | undefined) => void;
   /** Each box's cube document as the page has it: what it does, and the boxes it reads (the lines into it). */
   readonly documentOf?: (id: string) => CubeDocument | undefined;
+  /** A box set to block a run (Block Until Done, M8), or no longer: the caller tells it (setBlocks). */
+  readonly onBlocks?: (id: string, blocks: boolean) => void;
+  /** A box set to say a message in a run's log (M8), or nothing (null): the refusal in words, or null (setMessage). */
+  readonly onMessage?: (id: string, message: FlowMessage | null) => string | null;
   /** The page's parameters (M8, page-parameters.ts), by name and type: what a Dynamic Input is picked by. */
   readonly parameters?: () => readonly { readonly name: string; readonly type: string }[];
   /** A Union set to keep the rows of the one input a parameter names, a new one of its inputs' names, or every input's
@@ -145,12 +149,21 @@ export interface RunLog {
     readonly wrote?: string;
     /** An Output's file, a Dry Run's: it would be written. */
     readonly wouldWrite?: string;
+    /** A Message's words (M8, layout/flow.ts messageSaid), and how it said them. */
+    readonly said?: string;
+    readonly level?: MessageLevel;
   }[];
-  /** The Tests that stopped it (a stopping Test's checks failing: FL8's refuse), by box: no Output written. */
+  /** The boxes that stopped it (a stopping Test's checks failing: FL8's refuse; a Message's error, M8), by box: no
+   *  Output written from their stage on. */
   readonly stopped?: readonly string[];
+  /** Its stages, when it had more than one (Block Until Done, M8): how many. */
+  readonly stages?: number;
   /** A Dry Run's (M6): every box counted and judged, nothing written. */
   readonly dry?: true;
 }
+
+/** How many runs a flow keeps the logs of, this session (its run history). */
+export const RUN_HISTORY = 20;
 
 /** A point of a flow's canvas, in its own units: where a tool or a line was let go, the box made there placed at it. */
 export interface FlowPoint {
@@ -201,6 +214,8 @@ export interface FlowBoardState {
   readonly running: { readonly done: number; readonly of: number } | undefined;
   /** The last run's log, if one has run. */
   readonly log: RunLog | undefined;
+  /** Every run's log this session, the last last (the run history). */
+  readonly logs: readonly RunLog[];
   tile(id: string): BandTile | undefined;
   /** A comment of the flow (M7): its text tile, drawn as a note on the canvas. */
   noteOf(id: string): BandTile | undefined;
@@ -260,7 +275,7 @@ export class FlowBoard implements FlowBoardState {
   readonly #tests = new Map<string, { readonly fails: boolean; readonly chain: string }>();
   readonly #lacking = new Map<string, { readonly values: readonly (FilterValue | null)[]; readonly chain: string }>();
   #running: { readonly done: number; readonly of: number } | undefined;
-  #log: RunLog | undefined;
+  #logs: readonly RunLog[] = [];
   #layout: Flow = EMPTY_FLOW;
   #shown: string | undefined;
   #noted: string | undefined;
@@ -408,12 +423,17 @@ export class FlowBoard implements FlowBoardState {
   }
 
   get log(): RunLog | undefined {
-    return this.#log;
+    return this.#logs.at(-1);
   }
 
-  /** A run done: its log, drawn (layout/flow-canvas.ts). */
+  /** THE RUN HISTORY (F3's, this session's: M8): each run's log, the last last -- RUN_HISTORY at most. */
+  get logs(): readonly RunLog[] {
+    return this.#logs;
+  }
+
+  /** A run done: its log kept, the last of the history, drawn (layout/flow-canvas.ts). */
   setLog(log: RunLog): void {
-    this.#log = log;
+    this.#logs = [...this.#logs, log].slice(-RUN_HISTORY);
     this.#paint();
   }
 

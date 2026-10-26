@@ -35,10 +35,10 @@ import { createItems, type MenuItem } from '../ui/menu.ts';
 import { chromeIcon, closeMark, paintState, stateButton } from '../ui/tile-icons.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
-import { FlowBoard, runStoppers, type FlowPoint, type LineEnd } from '../layout/flow-board.ts';
+import { FlowBoard, runStoppers, type FlowPoint, type LineEnd, type RunLog } from '../layout/flow-board.ts';
 import { liveGrids, relinked } from '../live-inputs.ts';
 import type { Profile, TopValue } from '../profile.ts';
-import { CONTAINER_FRAME, EMPTY_FLOW, flowTiles, outputWords, type Frame, type Output } from '../layout/flow.ts';
+import { CONTAINER_FRAME, EMPTY_FLOW, flowTiles, messageProblem, messageSaid, outputWords, runStages, type Frame, type Output } from '../layout/flow.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import { MAX_RULES } from '../dynamic-replace.ts';
 import { MACRO_BOXES, macroOf, macroProblem, macroWords, type PageMacro } from '../macros.ts';
@@ -741,6 +741,19 @@ export class CubePage {
         const grid = this.#grids.get(tile)?.added?.cube;
         return this.#cacheKept.get(tile)?.copy ?? grid?.copy ?? (grid?.heldHere === true ? 'here' : undefined);
       },
+      // BLOCK UNTIL DONE and a MESSAGE (M8): a box's settings, each the page's command
+      onBlocks: (tile, blocks) => {
+        this.#tell(blocks ? 'Block Until Done' : 'Stop Blocking', pageCommand('setBlocks', { grid: tile, blocks }));
+        this.#options.onChange();
+      },
+      onMessage: (tile, message) => {
+        // judged by the flow's own rule before the page is told (layout/flow.ts messageProblem): its words said here
+        const why = message === null ? undefined : messageProblem(message);
+        if (why !== undefined) return why;
+        const told = this.#tell(message === null ? 'Say Nothing' : 'Set Message', pageCommand('setMessage', { grid: tile, message }));
+        this.#options.onChange();
+        return told ? null : 'the page did not take it';
+      },
       onStops: (tile, stops) => {
         this.#tell(stops ? 'Stop Run On Failure' : 'Warn On Failure', pageCommand('setStops', { grid: tile, stops }));
         this.#options.onChange();
@@ -1094,61 +1107,84 @@ export class CubePage {
    * to right -- its grid made over the page as it is, its rows counted as they land -- then the box shown before shown
    * again. The screen's, no step of the page's: which box is shown is the screen's. A DRY RUN (`dry`, M6) counts and
    * judges every box as a run does and writes no Output: each says what it would write, or why it would not.
+   *
+   * IN STAGES (Block Until Done, M8: layout/flow.ts runStages): each stage's boxes shown, then its Outputs written --
+   * none once a box that stops a run has failed, in this stage or before (FL8), or a Message has said an error -- before
+   * the next stage's boxes are shown, so a box after a block reads what the Outputs before it wrote. A Message (M8) says
+   * its words in the log when its rows are as it asks.
    */
   async #runFlow(sheetId: string, dry = false): Promise<void> {
     const sheet = this.#sheets.find((s) => s.id === sheetId);
     if (sheet?.kind !== 'flow' || sheet.board.running !== undefined) return;
     const board = sheet.board;
-    // its boxes, not its comments
-    const order = [...board.layout.boxes].filter((b) => board.noteOf(b.tile) === undefined).sort((a, b) => a.x - b.x || a.y - b.y).map((b) => b.tile);
+    // its boxes, not its comments, stage by stage
+    const reads = (id: string): readonly string[] => {
+      const doc = this.#boxes.get(id)?.document ?? this.documentOf(id);
+      return doc === undefined ? [] : liveGrids(doc.source);
+    };
+    const stages = runStages(board.layout, reads, (id) => board.noteOf(id) === undefined);
+    const order = stages.flat();
     const was = board.shown;
     const started = performance.now();
-    const logged: { id: string; ms: number; rows?: number; refused?: string; wrote?: string; wouldWrite?: string }[] = [];
-    // each Output written once every box has run: none when a Test that stops a run fails (FL8's refuse)
-    const writes: { readonly id: string; readonly name: string; readonly at: number }[] = [];
+    type Logged = RunLog['boxes'][number];
+    const logged: Logged[] = [];
+    // a Message's error, said: what stops the run as a failing Test does
+    const errors: { readonly id: string; readonly why: string }[] = [];
+    let stopped: { readonly id: string; readonly why: string }[] = [];
+    let done = 0;
     board.setRunning({ done: 0, of: order.length });
     try {
-      for (const [i, id] of order.entries()) {
-        if (this.#disposed) return;
-        if (board.layout.boxes.some((b) => b.tile === id)) {
-          const t0 = performance.now();
-          await this.#showBox(id);
-          await this.#opening.get(id)?.catch(() => undefined);
-          // a cached box's copy made before the box after it reads it (FL10)
-          await this.#caching.get(id);
-          // a Cross Tab's values its columns lack, asked as its rows land (FL3): known before any Output is written
-          const shown = this.#grids.get(id)?.added?.cube;
-          if (shown !== undefined) this.#askLacking(id, shown, board);
-          await this.#lackingAsked.get(id);
-          // its log: its rows, how long it took, or why it was refused
-          const rows = board.count(id);
-          let refused = board.refusal(id);
-          // an Output writes its file after every box has run, its rows counted now
-          const out = board.layout.boxes.find((b) => b.tile === id)?.output;
-          if (out !== undefined && refused === undefined) writes.push({ id, name: outputWords(out), at: logged.length });
-          logged.push({ id, ms: Math.round(performance.now() - t0), ...(rows !== undefined ? { rows } : {}), ...(refused !== undefined ? { refused } : {}) });
+      for (const [k, stage] of stages.entries()) {
+        // each Output of the stage written once its boxes have run: none when a box that stops a run fails (FL8's refuse)
+        const writes: { readonly id: string; readonly name: string; readonly at: number }[] = [];
+        for (const id of stage) {
+          if (this.#disposed) return;
+          if (board.layout.boxes.some((b) => b.tile === id)) {
+            const t0 = performance.now();
+            await this.#showBox(id);
+            await this.#opening.get(id)?.catch(() => undefined);
+            // a cached box's copy made before the box after it reads it (FL10)
+            await this.#caching.get(id);
+            // a Cross Tab's values its columns lack, asked as its rows land (FL3): known before any Output is written
+            const shown = this.#grids.get(id)?.added?.cube;
+            if (shown !== undefined) this.#askLacking(id, shown, board);
+            await this.#lackingAsked.get(id);
+            // its log: its rows, how long it took, or why it was refused
+            const rows = board.count(id);
+            const refused = board.refusal(id);
+            const box = board.layout.boxes.find((b) => b.tile === id);
+            // an Output writes its file after its stage's boxes have run, its rows counted now
+            if (box?.output !== undefined && refused === undefined) writes.push({ id, name: outputWords(box.output), at: logged.length });
+            // a Message: its words, when its rows are as it asks -- an error stopping the run
+            const said = box?.message !== undefined && refused === undefined ? messageSaid(box.message, rows) : undefined;
+            if (said !== undefined && box?.message?.level === 'error') errors.push({ id, why: `${board.title(id) ?? id} said ${said}` });
+            logged.push({ id, ms: Math.round(performance.now() - t0), ...(rows !== undefined ? { rows } : {}), ...(refused !== undefined ? { refused } : {}),
+              ...(said !== undefined ? { said, level: box!.message!.level } : {}) });
+          }
+          done += 1;
+          board.setRunning({ done, of: order.length });
         }
-        board.setRunning({ done: i + 1, of: order.length });
-      }
-      // a box that stops a run, failing -- or never judged (its rows refused, its question unanswered: the review of
-      // 2026-10-26's B7, a stop that cannot be judged stops): no Output written, each saying why
-      const stoppedBy = runStoppers(board, order, (id) => this.#lackingRefused.get(id));
-      const stopped = stoppedBy.map((s) => s.id);
-      const stoppers = stoppedBy.map((s) => s.why).join(', ');
-      for (const w of writes) {
-        if (this.#disposed) return;
-        // a Dry Run writes none: each Output says what it would write, or why it would not
-        if (dry) {
-          logged[w.at] = stopped.length > 0 ? { ...logged[w.at]!, refused: `would not be written: ${stoppers}` }
-            : { ...logged[w.at]!, wouldWrite: w.name };
-          continue;
+        // a box that stops a run, failing -- or never judged (its rows refused, its question unanswered: the review of
+        // 2026-10-26's B7, a stop that cannot be judged stops) -- in this stage or before, or a Message's error: no Output
+        // written from here on, each saying why
+        stopped = [...runStoppers(board, stages.slice(0, k + 1).flat(), (id) => this.#lackingRefused.get(id)), ...errors];
+        const stoppers = stopped.map((s) => s.why).join(', ');
+        for (const w of writes) {
+          if (this.#disposed) return;
+          // a Dry Run writes none: each Output says what it would write, or why it would not
+          if (dry) {
+            logged[w.at] = stopped.length > 0 ? { ...logged[w.at]!, refused: `would not be written: ${stoppers}` }
+              : { ...logged[w.at]!, wouldWrite: w.name };
+            continue;
+          }
+          const why = stopped.length > 0 ? `not written: ${stoppers}` : await this.#writeBox(w.id);
+          logged[w.at] = why === null ? { ...logged[w.at]!, wrote: w.name }
+            : { ...logged[w.at]!, refused: stopped.length > 0 ? why : `could not write ${w.name}: ${why}` };
         }
-        const why = stopped.length > 0 ? `not written: ${stoppers}` : await this.#writeBox(w.id);
-        logged[w.at] = why === null ? { ...logged[w.at]!, wrote: w.name }
-          : { ...logged[w.at]!, refused: stopped.length > 0 ? why : `could not write ${w.name}: ${why}` };
       }
       if (was !== undefined && board.shown !== was && board.layout.boxes.some((b) => b.tile === was)) await this.#showBox(was);
-      board.setLog({ at: new Date(), ms: Math.round(performance.now() - started), boxes: logged, ...(stopped.length > 0 ? { stopped } : {}),
+      board.setLog({ at: new Date(), ms: Math.round(performance.now() - started), boxes: logged,
+        ...(stopped.length > 0 ? { stopped: stopped.map((s) => s.id) } : {}), ...(stages.length > 1 ? { stages: stages.length } : {}),
         ...(dry ? { dry: true } : {}) });
     } finally {
       board.setRunning(undefined);

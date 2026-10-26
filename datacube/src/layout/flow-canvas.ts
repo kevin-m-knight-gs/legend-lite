@@ -22,8 +22,9 @@
 // the two boxes.
 
 import {
-  BOX_HEIGHT, BOX_WIDTH, CONTAINER_FRAME, FRAME_HEAD, FRAME_MIN, MARGIN, TABLE_MODES, TABLE_MODE_WORDS, containerMoves, framedBy, outputProblem, outputWords,
-  type Flow, type FlowBox, type Frame, type Output, type TableMode,
+  BOX_HEIGHT, BOX_WIDTH, CONTAINER_FRAME, FRAME_HEAD, FRAME_MIN, MARGIN, MESSAGE_LEVELS, MESSAGE_WHEN, TABLE_MODES,
+  TABLE_MODE_WORDS, containerMoves, framedBy, outputProblem, outputWords,
+  type Flow, type FlowBox, type FlowMessage, type Frame, type MessageLevel, type MessageWhen, type Output, type TableMode,
 } from './flow.ts';
 import type { FlowBoardState, FlowChart } from './flow-board.ts';
 import type { FlowPoint, LineEnd, RunLog } from './flow-board.ts';
@@ -123,6 +124,10 @@ interface Command { readonly label: string; readonly words: string; readonly kin
 /** A box's Code as asked (its key: the box, and how many views its grid had landed), answered or refused. */
 type Coded = { readonly key: string; readonly answer?: { readonly pure: string; readonly sql: string }; readonly refused?: string };
 
+/** A Message's when and how in words, as its settings offer them (layout/flow.ts FlowMessage). */
+const MESSAGE_WHEN_WORDS: Readonly<Record<MessageWhen, string>> = { always: 'Each run', rows: 'When it has rows', noRows: 'When it has no rows' };
+const MESSAGE_LEVEL_WORDS: Readonly<Record<MessageLevel, string>> = { info: 'Information', warning: 'A warning', error: 'An error: stop the run' };
+
 /** A line's key: the box it goes into, and its side. */
 const lineKey = (end: LineEnd): string => `${end.tile}:${end.side}`;
 
@@ -137,6 +142,10 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   impute: 'M2 3h12v10H2zM2 6.5h12M2 10h12M6 3v10M10 6.5v3.5M10.5 8.2h3',
   // boxes folded into one: a box holding three steps
   macro: 'M2 3h12v10H2zM4.5 6h2v4h-2zM7 6h2v4H7zM9.5 6h2v4h-2zM6.5 8h.5M9 8h.5',
+  // a hand held up before what comes after
+  blockUntilDone: 'M2 3h5v10H2zM9.5 8h5M12 5.5L14.5 8 12 10.5M7 8h2.5',
+  // a speech bubble with a line of words
+  message: 'M2.5 3h11v7.5h-6l-3 3v-3h-2zM5 6.75h6',
   // a slider's knob on its track: a value the person sets
   parameter: 'M2 8h12M5.5 5.5v5M2.5 4.5h6v7h-6z',
   // a list of rules beside, a value swapped for another
@@ -283,6 +292,12 @@ export class FlowCanvas {
   /** A box's cache, in the settings (#paintCache: FL10), and what it was drawn for. */
   readonly #cacheStrip: HTMLElement;
   #cacheKey = '';
+  /** A box's blocking (#paintBlock: Block Until Done) and its message (#paintMessage), in the settings, and what each
+   *  was drawn for. */
+  readonly #blockStrip: HTMLElement;
+  #blockKey = '';
+  readonly #messageStrip: HTMLElement;
+  #messageKey = '';
   /** A Union's pick, in the settings (#paintPick: a Dynamic Input), what it was drawn for, and what its last pick said,
    *  by box. */
   readonly #pickStrip: HTMLElement;
@@ -333,6 +348,9 @@ export class FlowCanvas {
   readonly #logPanel: HTMLElement;
   #logDrawn: RunLog | undefined;
   #logClosed: RunLog | undefined;
+  /** An earlier run picked in the log's history (F3's run history, this session's), until the next run lands. */
+  #logPicked: RunLog | undefined;
+  #logLast: RunLog | undefined;
   /** The palette's find field, and its tools by name. */
   readonly #find: HTMLInputElement;
   readonly #tools = new Map<FlowTool, HTMLButtonElement>();
@@ -426,8 +444,10 @@ export class FlowCanvas {
     this.#cacheStrip = el('div', 'dc-flow-output dc-flow-cache');
     this.#pinStrip = el('div', 'dc-flow-output dc-flow-pin');
     this.#pickStrip = el('div', 'dc-flow-output dc-flow-pick');
-    this.#settings.append(settingsHead, this.#inputs, this.#pickStrip, this.#outputStrip, this.#stopsStrip, this.#cacheStrip, this.#pinStrip, board.dock,
-      this.#settingsEmpty);
+    this.#blockStrip = el('div', 'dc-flow-output dc-flow-block');
+    this.#messageStrip = el('div', 'dc-flow-output dc-flow-message');
+    this.#settings.append(settingsHead, this.#inputs, this.#pickStrip, this.#outputStrip, this.#messageStrip, this.#stopsStrip, this.#cacheStrip,
+      this.#blockStrip, this.#pinStrip, board.dock, this.#settingsEmpty);
     // the canvas on its stage, its own tools at its corner, over it as it scrolls
     const stage = el('div', 'dc-flow-stage');
     this.#toolbar = el('div', 'dc-flow-toolbar');
@@ -1034,10 +1054,16 @@ export class FlowCanvas {
    * rows, its time, or why it was refused, red -- each a button that shows it. Closed by its ×, until the next run.
    */
   #paintLog(): void {
-    const log = this.#board.log;
-    const shown = log !== undefined && log !== this.#logClosed && this.#board.running === undefined;
+    const last = this.#board.log;
+    if (last !== this.#logLast) {
+      this.#logLast = last;
+      this.#logPicked = undefined;
+    }
+    const shown = last !== undefined && last !== this.#logClosed && this.#board.running === undefined;
     this.#logPanel.hidden = !shown;
-    if (!shown || log === this.#logDrawn) return;
+    // an earlier run picked shown until the next one lands
+    const log = this.#logPicked !== undefined && this.#board.logs.includes(this.#logPicked) ? this.#logPicked : last;
+    if (!shown || log === undefined || log === this.#logDrawn) return;
     this.#logDrawn = log;
     const d = this.#doc;
     const el = (tag: string, cls: string, text?: string): HTMLElement => {
@@ -1057,14 +1083,38 @@ export class FlowCanvas {
     const failing = [...tests.values()].filter((t) => t.failing.length > 0 && !('says' in t)).length;
     const lacking = [...tests.values()].filter((t) => t.failing.length > 0 && 'says' in t).length;
     const seconds = (ms: number): string => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toLocaleString(UI_LOCALE, { maximumFractionDigits: 1 })} s`);
-    const stoppers = (log.stopped ?? []).map((id) => (this.#board.layout.boxes.some((x) => x.tile === id) ? this.#nameOf(id, 'test') : id));
-    // a Dry Run says so, and that it wrote nothing (M6)
-    const ran = `${log.dry === true ? 'Dry run: ran' : 'Ran'} ${log.boxes.length} ${log.boxes.length === 1 ? 'box' : 'boxes'} in ${seconds(log.ms)}`;
+    const stoppers = (log.stopped ?? []).map((id) => (this.#board.layout.boxes.some((x) => x.tile === id) ? this.#nameOf(id, this.#said(id)?.tool ?? 'test') : id));
+    // a Dry Run says so, and that it wrote nothing (M6); a run in stages (Block Until Done) that wrote before it stopped,
+    // that nothing after was written
+    const wroteSome = log.boxes.some((b) => b.wrote !== undefined || b.wouldWrite !== undefined);
+    const ran = `${log.dry === true ? 'Dry run: ran' : 'Ran'} ${log.boxes.length} ${log.boxes.length === 1 ? 'box' : 'boxes'}`
+      + `${log.stages !== undefined ? ` in ${log.stages} stages` : ''} in ${seconds(log.ms)}`;
+    const said = log.boxes.filter((b) => b.said !== undefined);
+    const warned = said.filter((b) => b.level === 'warning').length;
     head.append(el('span', 'dc-flow-log-title', ran
       + (refused > 0 ? `, ${refused} refused` : '') + (failing > 0 ? `, ${failing} ${failing === 1 ? 'test' : 'tests'} failing` : '')
       + (lacking > 0 ? `, ${lacking} ${lacking === 1 ? 'Cross Tab' : 'Cross Tabs'} missing values` : '')
-      + (stoppers.length > 0 ? `; stopped by ${stoppers.join(', ')}: nothing ${log.dry === true ? 'would be ' : ''}written`
+      + (warned > 0 ? `, ${warned} ${warned === 1 ? 'warning' : 'warnings'}` : '')
+      + (stoppers.length > 0 ? `; stopped by ${stoppers.join(', ')}: nothing ${wroteSome ? 'after it ' : ''}${log.dry === true ? 'would be ' : ''}written`
         : log.dry === true ? '; nothing written' : '')));
+    // THE RUN HISTORY (F3's, this session's): each run kept, picked to read its log again -- a row of its own below the
+    // head
+    const logs = this.#board.logs;
+    const history = el('div', 'dc-flow-log-history');
+    if (logs.length > 1) {
+      const pick = d.createElement('select');
+      pick.className = 'dc-flow-log-runs';
+      pick.setAttribute('aria-label', 'Earlier runs');
+      const time = (at: Date): string => at.toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      logs.forEach((l, i) => pick.append(new Option(`${i === logs.length - 1 ? 'Last run' : `Run ${i + 1}`}, ${time(l.at)}${l.dry === true ? ' (dry)' : ''}${(l.stopped ?? []).length > 0 ? ', stopped' : ''}`,
+        String(i), false, l === log)));
+      pick.addEventListener('change', () => {
+        const picked = logs[Number(pick.value)];
+        this.#logPicked = picked === logs.at(-1) ? undefined : picked;
+        this.#paintLog();
+      });
+      history.append(el('span', 'dc-flow-log-history-label', 'Runs'), pick);
+    }
     const close = closeMark(el('button', 'dc-flow-log-close') as HTMLButtonElement);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close the run log');
@@ -1084,14 +1134,19 @@ export class FlowCanvas {
         el('span', 'dc-flow-log-rows', b.refused ?? (tested !== undefined ? FlowCanvas.#testWords(tested)
           : `${b.rows === undefined ? '' : `${b.rows.toLocaleString(UI_LOCALE)} ${b.rows === 1 ? 'row' : 'rows'}`}${b.wrote !== undefined ? `, wrote ${b.wrote}` : ''}${b.wouldWrite !== undefined ? `, would write ${b.wouldWrite}` : ''}`)),
         el('span', 'dc-flow-log-ms', seconds(b.ms)));
-      go.title = b.refused ?? (tested !== undefined && tested.failing.length > 0 ? tested.failing.join('\n') : `Show ${name}`);
+      // a Message's words (M8), as it said them
+      if (b.said !== undefined) {
+        item.classList.add(`dc-flow-log-said-${b.level ?? 'info'}`);
+        item.append(el('span', 'dc-flow-log-said', b.said));
+      }
+      go.title = b.refused ?? (tested !== undefined && tested.failing.length > 0 ? tested.failing.join('\n') : b.said ?? `Show ${name}`);
       go.addEventListener('click', () => {
         if (this.#board.layout.boxes.some((x) => x.tile === b.id)) this.#select(b.id);
       });
       item.append(go);
       list.append(item);
     }
-    this.#logPanel.replaceChildren(head, list);
+    this.#logPanel.replaceChildren(head, ...(logs.length > 1 ? [history] : []), list);
   }
 
   /** A box's place to be made at a point of the window: its middle there, in the canvas's own units. */
@@ -1545,12 +1600,16 @@ export class FlowCanvas {
   /** What a box does, as it is drawn: its document's (boxSays) -- or, added as a tool and doing nothing yet, that tool,
    *  not set yet. */
   #said(id: string): BoxSays | undefined {
-    const out = this.#board.layout.boxes.find((b) => b.tile === id)?.output;
+    const box = this.#board.layout.boxes.find((b) => b.tile === id);
     const own = this.#ownSaid(id);
+    if (box === undefined || own === undefined) return own;
+    // a box's own tool, when it has one of its own: drawn as what it is set to besides (an Output, a Message, a block)
+    const also = (tool: FlowTool): readonly FlowTool[] => (own.tool === 'browse' || own.tool === tool ? own.also : [own.tool, ...own.also]);
     // an Output: the file it writes, what its grid does besides after it
-    if (out !== undefined && own !== undefined) {
-      return { tool: 'output', also: own.tool === 'browse' || own.tool === 'output' ? own.also : [own.tool, ...own.also], says: `→ ${out.name}` };
-    }
+    if (box.output !== undefined) return { tool: 'output', also: also('output'), says: `→ ${box.output.name}` };
+    // a Message (M8): its words; a Block Until Done: that the boxes after it wait
+    if (box.message !== undefined) return { tool: 'message', also: also('message'), says: `“${box.message.text}”` };
+    if (box.blocks === true) return { tool: 'blockUntilDone', also: also('blockUntilDone'), says: 'the boxes after it wait for every Output before it' };
     return own;
   }
 
@@ -2702,6 +2761,8 @@ export class FlowCanvas {
     this.#paintOutput(id);
     this.#paintStops(id);
     this.#paintCache(id);
+    this.#paintBlock(id);
+    this.#paintMessage(id);
     this.#paintPin(id);
     const said = id === undefined ? undefined : this.#said(id);
     const name = id === undefined ? undefined : this.#nameOf(id, said?.tool ?? 'browse');
@@ -2814,6 +2875,82 @@ export class FlowCanvas {
         ? `Cached: ${copy.rowCount.toLocaleString(UI_LOCALE)} ${copy.rowCount === 1 ? 'row' : 'rows'} (${copy.label}), for this session`
         : 'Not copied yet: its rows are copied when it is shown or the flow runs';
     this.#cacheStrip.replaceChildren(label, said);
+  }
+
+  /** THE SETTINGS' BLOCK UNTIL DONE (M8, layout/flow.ts runStages): any box -- the boxes after it shown, and their
+   *  Outputs written, in a run once every Output before it is written. */
+  #paintBlock(id: string | undefined): void {
+    const box = id === undefined || this.#board.noteOf(id) !== undefined ? undefined : this.#board.layout.boxes.find((b) => b.tile === id);
+    const blocks = box?.blocks === true;
+    const key = JSON.stringify([id, box !== undefined, blocks, this.#board.editing]);
+    if (key === this.#blockKey) return;
+    this.#blockKey = key;
+    this.#blockStrip.hidden = box === undefined || this.#board.options.onBlocks === undefined;
+    if (box === undefined) {
+      this.#blockStrip.replaceChildren();
+      return;
+    }
+    const d = this.#doc;
+    const label = d.createElement('label');
+    label.className = 'dc-text-tool-check dc-flow-block-check';
+    const check = d.createElement('input');
+    check.type = 'checkbox';
+    check.checked = blocks;
+    check.disabled = !this.#board.editing;
+    check.addEventListener('change', () => this.#board.options.onBlocks?.(id!, check.checked));
+    label.append(check, Object.assign(d.createElement('span'), {
+      textContent: 'Block until done: in a run, the boxes after it run, and write, once every Output before it is written',
+    }));
+    this.#blockStrip.replaceChildren(label);
+  }
+
+  /** THE SETTINGS' MESSAGE (M8, Alteryx's Message): what a run's log says of the box -- its words, `{rows}` its rows --
+   *  when (each run, when it has rows, when it has none), and how (a note, a warning, an error that stops the run); each
+   *  change set by the page, its refusal said; Say Nothing takes it off. */
+  #paintMessage(id: string | undefined): void {
+    const message = id === undefined ? undefined : this.#board.layout.boxes.find((b) => b.tile === id)?.message;
+    const key = JSON.stringify([id, message, this.#board.editing]);
+    if (key === this.#messageKey) return;
+    this.#messageKey = key;
+    this.#messageStrip.hidden = message === undefined || this.#board.options.onMessage === undefined;
+    if (message === undefined || id === undefined) {
+      this.#messageStrip.replaceChildren();
+      return;
+    }
+    const d = this.#doc;
+    const text = d.createElement('input');
+    text.className = 'dc-flow-message-text';
+    text.value = message.text;
+    text.placeholder = 'Its words: {rows} its rows';
+    text.setAttribute('aria-label', 'What the run\'s log says: {rows} its rows counted');
+    const when = d.createElement('select');
+    when.className = 'dc-flow-message-when';
+    when.setAttribute('aria-label', 'When it says it');
+    for (const w of MESSAGE_WHEN) when.append(new Option(MESSAGE_WHEN_WORDS[w], w, false, w === message.when));
+    const level = d.createElement('select');
+    level.className = 'dc-flow-message-level';
+    level.setAttribute('aria-label', 'How it says it');
+    for (const l of MESSAGE_LEVELS) level.append(new Option(MESSAGE_LEVEL_WORDS[l], l, false, l === message.level));
+    const off = d.createElement('button');
+    off.type = 'button';
+    off.className = 'dc-picker-button dc-flow-message-off';
+    off.textContent = 'Say Nothing';
+    const said = d.createElement('span');
+    said.className = 'dc-flow-message-said';
+    said.setAttribute('role', 'status');
+    for (const e of [text, when, level, off]) (e as HTMLInputElement).disabled = !this.#board.editing;
+    const set = (m: FlowMessage | null): void => {
+      said.textContent = this.#board.options.onMessage?.(id, m) ?? '';
+    };
+    const now = (): FlowMessage => ({ text: text.value, when: when.value as MessageWhen, level: level.value as MessageLevel });
+    text.addEventListener('change', () => set(now()));
+    when.addEventListener('change', () => set(now()));
+    level.addEventListener('change', () => set(now()));
+    off.addEventListener('click', () => set(null));
+    const row = d.createElement('div');
+    row.className = 'dc-flow-message-row';
+    row.append(when, level, off);
+    this.#messageStrip.replaceChildren(Object.assign(d.createElement('span'), { className: 'dc-flow-pick-label', textContent: 'Message' }), text, row, said);
   }
 
   /**

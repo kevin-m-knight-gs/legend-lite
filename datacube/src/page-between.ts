@@ -5,7 +5,7 @@
 // arm accepts, each command applied as it is planned so the plan is one the page takes: sheets added; grids added (their
 // cube documents); charts added, re-pointed (`followGrid`), their spec, selection and title; grid titles; tiles moved to
 // their sheets; grids removed, then charts; page filters removed and set; the page's parameters and macros, taken off
-// and set; each sheet's layout whole, once its tiles agree (a box's Output, stopping and cache, each by its own command);
+// and set; each sheet's layout whole, once its tiles agree (a box's Output, stopping, cache, blocking and message, each by its own command);
 // sheets removed, renamed, reordered; copies (`live`, `snap`); and, `whole`, the name, the saved record and the model.
 //
 // IDS. A command that makes something names `to`'s id for it -- so a plan replayed where that id is free (a screen
@@ -405,6 +405,8 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
       if (!sameValue(at.output ?? null, b.output ?? null)) emit({ kind: 'setOutput', grid: b.tile, output: b.output ?? null });
       if ((at.stops === true) !== (b.stops === true)) emit({ kind: 'setStops', grid: b.tile, stops: b.stops === true });
       if ((at.cache === true) !== (b.cache === true)) emit({ kind: 'setCache', grid: b.tile, cache: b.cache === true });
+      if ((at.blocks === true) !== (b.blocks === true)) emit({ kind: 'setBlocks', grid: b.tile, blocks: b.blocks === true });
+      if (!sameValue(at.message ?? null, b.message ?? null)) emit({ kind: 'setMessage', grid: b.tile, message: b.message ?? null });
     }
   }
 

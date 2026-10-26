@@ -11,7 +11,8 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { boxInputs, boxNamed, boxSays, jsonFieldOf, pageBoxName, readersOf } from '../src/flow-boxes.ts';
 import { add, NEW_SHEET } from '../src/layout/bands.ts';
 import {
-  BOX_HEIGHT, BOX_WIDTH, EMPTY_FLOW, FlowRefusal, GAP_X, GAP_Y, MARGIN, arranged, containerMoves, flowProblems, framedBy, moveBox, placeAfter, removeBox,
+  BOX_HEIGHT, BOX_WIDTH, EMPTY_FLOW, FlowRefusal, GAP_X, GAP_Y, MARGIN, arranged, containerMoves, flowProblems, framedBy, messageSaid, moveBox, placeAfter,
+  removeBox, runStages, type Flow,
 } from '../src/layout/flow.ts';
 import { liveGrids, resolvedSource } from '../src/live-inputs.ts';
 import { applyPageCommand, idsOf, readPageCommand, type PageCommand, type PageDraft } from '../src/page-commands.ts';
@@ -193,6 +194,54 @@ describe("a flow's layout (layout/flow.ts)", () => {
     const bad = JSON.parse(pageToJson(d.page));
     bad.sheets[1].layout.boxes.find((b: { tile: string }) => b.tile === 'grid-2').cache = 'yes';
     assert.throws(() => readPage(bad), /caches its rows \(true\) or is without it, not "yes"/);
+  });
+
+  it('sets a box to block a run (setBlocks) and to say a message (setMessage); read, written, renamed, undone, kept by a move', () => {
+    const MESSAGE = { text: '{rows} big trades', when: 'rows', level: 'warning' } as const;
+    const d = apply(FLOW(), { kind: 'setBlocks', grid: 'grid-3', blocks: true }, { kind: 'setMessage', grid: 'grid-3', message: MESSAGE });
+    assert.equal(at(d.page, 'grid-3')?.blocks, true);
+    assert.deepEqual(at(d.page, 'grid-3')?.message, MESSAGE);
+    assert.equal(pageToJson(readPage(JSON.parse(pageToJson(d.page)))), pageToJson(d.page), 'written and read back the same');
+    refused(() => apply(d, { kind: 'setBlocks', grid: 'grid-3', blocks: true }), /'grid-3' blocks a run already/);
+    refused(() => apply(FLOW(), { kind: 'setBlocks', grid: 'grid-3', blocks: false }), /'grid-3' blocks no run/);
+    refused(() => apply(d, { kind: 'setMessage', grid: 'grid-3', message: MESSAGE }), /'grid-3' says so already/);
+    refused(() => apply(FLOW(), { kind: 'setMessage', grid: 'grid-1', message: MESSAGE }), /'grid-1' is no box of a flow: a message is a flow's box's/);
+    refused(() => apply(FLOW(), { kind: 'setMessage', grid: 'grid-3', message: { ...MESSAGE, text: ' ' } }), /a message says something/);
+    refused(() => readPageCommand({ kind: 'setMessage', grid: 'grid-3', message: { ...MESSAGE, level: 'loud' } }), /a message is info, warning, error, not "loud"/);
+    refused(() => readPageCommand({ kind: 'setBlocks', grid: 'grid-3', blocks: 1 }), /a box blocks a run \(true\) or not \(false\), not 1/);
+    assert.deepEqual(readPageCommand({ kind: 'setMessage', grid: 'grid-3', message: MESSAGE }), { kind: 'setMessage', grid: 'grid-3', message: MESSAGE });
+    assert.deepEqual(renamedCommand({ kind: 'setBlocks', grid: 'grid-3', blocks: true }, new Map([['grid-3', 'grid-9']])), { kind: 'setBlocks', grid: 'grid-9', blocks: true });
+    const back = applyPlanned({ page: d.page, held: idsOf(d.page) }, pageBetween(d.page, FLOW().page, 'history'), false).draft.page;
+    assert.deepEqual([at(back, 'grid-3')?.blocks, at(back, 'grid-3')?.message], [undefined, undefined], 'undone by the commands between');
+    const moved = apply(d, { kind: 'placeBox', tile: 'grid-3', x: 40, y: 40 }).page;
+    assert.deepEqual([at(moved, 'grid-3')?.blocks, at(moved, 'grid-3')?.message], [true, MESSAGE], 'a move keeps its settings');
+    // a layout told whole keeps them as the page has them (page-rebase.ts rearranged)
+    const told = rearranged({ kind: 'layout', sheet: 'sheet-2', layout: { kind: 'flow', boxes: flowOf(FLOW().page).boxes } }, d.page);
+    assert.ok(told.kind === 'layout' && told.layout.kind === 'flow' && told.layout.boxes.find((b) => b.tile === 'grid-3')?.blocks === true);
+    const bad = JSON.parse(pageToJson(d.page));
+    bad.sheets[1].layout.boxes.find((b: { tile: string }) => b.tile === 'grid-3').message.when = 'often';
+    assert.throws(() => readPage(bad), /a message is said always, rows, noRows, not "often"/);
+  });
+
+  it("a run's stages: the boxes after one that blocks run after every other; a Message's words, when its rows are as it asks", () => {
+    // Input a -> b (blocks) -> c -> d; e reads a; f reads c and e (a join)
+    const flow: Flow = { boxes: [{ tile: 'a', x: 0, y: 0 }, { tile: 'b', x: 200, y: 0, blocks: true }, { tile: 'c', x: 400, y: 0 },
+      { tile: 'd', x: 600, y: 0 }, { tile: 'e', x: 200, y: 100 }, { tile: 'f', x: 600, y: 100 }, { tile: 'note', x: 0, y: 300 }] };
+    const reads: Record<string, string[]> = { b: ['a'], c: ['b'], d: ['c'], e: ['a'], f: ['c', 'e'] };
+    assert.deepEqual(runStages(flow, (t) => reads[t] ?? [], (t) => t !== 'note'), [['a', 'b', 'e'], ['c', 'd', 'f']]);
+    assert.deepEqual(runStages({ boxes: flow.boxes.map(({ blocks: _b, ...x }) => x) }, (t) => reads[t] ?? []), [['a', 'note', 'b', 'e', 'c', 'd', 'f']],
+      'no block: one stage, in the canvas\'s order');
+    // two blocks in a chain: three stages -- f, after c as after b, waits for both
+    assert.deepEqual(runStages({ boxes: flow.boxes.map((b) => (b.tile === 'c' ? { ...b, blocks: true as const } : b)) }, (t) => reads[t] ?? [], (t) => t !== 'note'),
+      [['a', 'b', 'e'], ['c'], ['d', 'f']]);
+    const m = (when: 'always' | 'rows' | 'noRows') => ({ text: '{rows} rows of {rows}', when, level: 'info' as const });
+    assert.equal(messageSaid(m('always'), 1200), '1,200 rows of 1,200');
+    assert.equal(messageSaid(m('rows'), 0), undefined);
+    assert.equal(messageSaid(m('rows'), 3), '3 rows of 3');
+    assert.equal(messageSaid(m('noRows'), 0), '0 rows of 0');
+    assert.equal(messageSaid(m('noRows'), 2), undefined);
+    assert.equal(messageSaid(m('rows'), undefined), undefined, 'not counted: not said');
+    assert.equal(messageSaid(m('always'), undefined), '? rows of ?');
   });
 
   it('says what is wrong with a flow read from somewhere', () => {

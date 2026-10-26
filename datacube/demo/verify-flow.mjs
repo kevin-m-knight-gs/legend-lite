@@ -1759,6 +1759,56 @@ try {
   check(/wrote big trades\.csv/.test(await page.locator('.dc-flow-log').textContent() ?? ''), 'its log says it wrote it');
   await page.locator('.dc-flow-log-close').click();
 
+  // A MESSAGE AND BLOCK UNTIL DONE (M8), AND THE RUN HISTORY: the palette's Message clicked after the Output -- a box whose
+  // words a run's log says, its rows counted; set to an error, a run stopped, nothing written; the Output set to block (its
+  // settings' checkbox), a run in two stages, its Output written before the Message stops what is after it; the log's
+  // history of runs; each undone
+  const runDone = () => page.waitForFunction(() => /Run$/.test(document.querySelector('.dc-flow-run')?.textContent ?? ''), undefined, { timeout: 180_000 });
+  const beforeMessage = (await boxes()).map((b) => b.id);
+  await show(outBox.id);
+  await page.locator('.dc-flow-tool[data-tool="message"]').scrollIntoViewIfNeeded();
+  await page.locator('.dc-flow-tool[data-tool="message"]').click();
+  await boxCount(beforeMessage.length + 1);
+  const messageBox = await added(beforeMessage);
+  check(messageBox.tool === 'message' && messageBox.says === '“{rows} rows”', `a Message box: ${JSON.stringify(messageBox)}`);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Add Message', 'one step: Add Message');
+  const [ranMessage] = await Promise.all([page.waitForEvent('download', { timeout: 180_000 }), page.locator('.dc-flow-run').click()]);
+  check(ranMessage.suggestedFilename() === 'big trades.csv', 'a Message that informs: the Output written');
+  await runDone();
+  const saidRows = await page.locator('.dc-flow-log .dc-flow-log-said').allTextContents();
+  check(JSON.stringify(saidRows) === JSON.stringify([`${fewer.toLocaleString('en-US')} rows`]), `its words in the log, its rows counted: ${saidRows}`);
+  await show(messageBox.id);
+  await page.locator('.dc-flow-message-level').selectOption('error');
+  await page.waitForFunction(() => window.__dataPage.undoLabel === 'Set Message', undefined, { timeout: 20_000 });
+  await page.locator('.dc-flow-run').click();
+  await runDone();
+  const messageStopped = await page.locator('.dc-flow-log-title').textContent() ?? '';
+  check(/stopped by Message: nothing written/.test(messageStopped), `an error stops the run: ${messageStopped}`);
+  check(/not written: .*said/.test(await page.locator('.dc-flow-log').textContent() ?? ''), 'its Output not written, saying why');
+  // the run history: every run this session, an earlier one read again
+  const runs = await page.locator('.dc-flow-log-runs option').count();
+  check(runs >= 4, `the runs listed: ${runs}`);
+  await page.locator('.dc-flow-log-runs').selectOption(String(runs - 2));
+  check(!/stopped/.test(await page.locator('.dc-flow-log-title').textContent() ?? ''), 'the run before it, read again: it ran through');
+  await page.locator('.dc-flow-log-runs').selectOption(String(runs - 1));
+  // the Output blocks: written in its stage before the Message's stops the rest
+  await show(outBox.id);
+  await page.locator('.dc-flow-block-check input').check();
+  await page.waitForFunction(() => window.__dataPage.undoLabel === 'Block Until Done', undefined, { timeout: 20_000 });
+  check((await boxes()).find((b) => b.id === outBox.id)?.tool === 'output', 'an Output still, that blocks');
+  const [ranStaged] = await Promise.all([page.waitForEvent('download', { timeout: 180_000 }), page.locator('.dc-flow-run').click()]);
+  check(ranStaged.suggestedFilename() === 'big trades.csv', 'its stage written before the Message is judged');
+  await runDone();
+  const stagedTitle = await page.locator('.dc-flow-log-title').textContent() ?? '';
+  check(/in 2 stages/.test(stagedTitle) && /nothing after it written/.test(stagedTitle), `a run in two stages: ${stagedTitle}`);
+  await page.screenshot({ path: outPath('flow-message-block.png') });
+  await page.locator('.dc-flow-log-close').click();
+  await page.locator('.dc-flow-canvas').click({ position: { x: 5, y: 5 } });
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+z');
+  await boxCount(beforeMessage.length);
+  check(await page.evaluate((t) => window.__dataPage.document('x').sheets.flatMap((sh) => sh.layout.kind === 'flow' ? sh.layout.boxes : [])
+    .find((b) => b.tile === t)?.blocks === undefined, outBox.id), 'undone: it blocks no more');
+
   // THE PALETTE'S FIND: its tools narrowed to what is typed
   await page.fill('.dc-flow-find', 'join');
   const visible = await page.locator('.dc-flow-tool:visible').evaluateAll((els) => els.map((e) => e.dataset.tool));

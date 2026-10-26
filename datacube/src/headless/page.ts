@@ -20,7 +20,8 @@ import { chartPicked } from '../page-filters.ts';
 import { PAGE_GESTURES, isPageGesture } from '../page-gestures.ts';
 import { baseOnHost, draftFrom, gridApply, pageLensText, readGivenFilter, untagged, type HeldCopy } from './grid.ts';
 import { onHost, type HostTables } from './host-tables.ts';
-import { resolvedSource } from '../live-inputs.ts';
+import { liveGrids, resolvedSource } from '../live-inputs.ts';
+import { messageSaid, runStages } from '../layout/flow.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { defaultLabel } from '../../../engine-client/src/snap.ts';
 
@@ -249,6 +250,38 @@ export function pageGesture(name: string, given: string): string {
     return `{"commands":[${commands.map((c) => toJson(c)).join(',')}]}`;
   } catch (e) {
     if (!(e instanceof CubeRefusal)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
+}
+
+/**
+ * A FLOW'S RUN AS PYTHON RUNS IT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M8; the canvas's Run's rule, page/cube-page.ts
+ * #runFlow): flow sheet `sheet`'s boxes in stages (layout/flow.ts runStages: Block Until Done), and what each Message
+ * says of `counts` (JSON: each box's rows counted) -- `{stages, messages: [{box, level, said}]}` -- or `{problems}`, in
+ * DataCube's words.
+ */
+export function flowRun(text: string, sheet: string, counts: string): string {
+  try {
+    const page = readPage(text, { empty: true });
+    const at = page.sheets.find((x) => x.id === sheet);
+    if (at === undefined || at.layout.kind !== 'flow') throw new CubeRefusal(`'${sheet}' is no flow of the page`);
+    const cubeOf = (id: string) => {
+      const view = page.views.find((v) => v.id === id);
+      return view?.kind === 'grid' ? page.cubes.find((c) => c.id === view.cube)?.cube : undefined;
+    };
+    const reads = (id: string): readonly string[] => {
+      const cube = cubeOf(id);
+      return cube === undefined ? [] : liveGrids(cube.source);
+    };
+    const stages = runStages(at.layout, reads, (id) => cubeOf(id) !== undefined);
+    const n = JSON.parse(counts) as Readonly<Record<string, number>>;
+    const messages = at.layout.boxes.flatMap((b) => {
+      const said = b.message === undefined ? undefined : messageSaid(b.message, n[b.tile]);
+      return said === undefined ? [] : [{ box: b.tile, level: b.message!.level, said }];
+    });
+    return JSON.stringify({ stages, messages });
+  } catch (e) {
+    if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError) && !(e instanceof CubeRefusal)) throw e;
     return JSON.stringify({ problems: [e.message] });
   }
 }

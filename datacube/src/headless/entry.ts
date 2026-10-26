@@ -16,7 +16,7 @@ import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
-  chartDrill, chartPick, cubeOpensAgain, gridCopied, pageGesture, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
+  chartDrill, chartPick, cubeOpensAgain, flowRun, gridCopied, pageGesture, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
   pageReads, pageRebase, pageRecord, pageSaved, pageSearch, pageWithCube,
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides, joinTogether } from './join.ts';
@@ -118,6 +118,9 @@ export { chartDrill, chartPick };
 /** A gesture on a page, by the one function the screen's gesture calls (pageGesture: Python's chart.grid()'s steps;
  *  docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8). */
 export { pageGesture };
+/** A flow's run as Python runs it: its stages (Block Until Done) and what its Messages say (flowRun: Python's flow.run,
+ *  the canvas's Run's rule). */
+export { flowRun };
 /** A chart's grid shown, as Show Grid shows it: the one it follows, or one of its own grouping made (chartOwnGrid:
  *  Python's chart.grid(); chart-spec.ts chartGrid, the screen's rule). */
 export { chartOwnGrid };

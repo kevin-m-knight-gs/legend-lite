@@ -60,6 +60,9 @@ _KEEP: Any = object()
 # collected never shares one with a page made after it
 _KEYS = itertools.count(1)
 
+# how many runs of a flow its page keeps (flow.runs), as the canvas keeps a flow's (layout/flow-board.ts RUN_HISTORY)
+_RUN_HISTORY = 20
+
 
 def _operation(run: Any) -> Any:
     """A call on a page, or on one of its tiles or sheets: the page as its keeper has it when the call starts (its
@@ -309,6 +312,24 @@ class Grid(Tile):
             self.snap()
         elif self.snapped is not None:
             self.live()
+        return self
+
+    def block_until_done(self, blocks: bool = True) -> Grid:
+        """This box blocks its flow's run (Alteryx's Block Until Done; docs/DATACUBE_FLOW_MODE_2026_10_24.md M8): the
+        boxes after it run -- their rows read, their Outputs written -- once every Output of the boxes not after it is
+        written (``flow.run``'s stages: layout/flow.ts runStages), so a box after it reads what those wrote. False: no
+        longer (page-commands.ts setBlocks). A grid on a board refused in DataCube's words."""
+        self._page._apply_page([_commands.page_set_blocks(grid=self.id, blocks=blocks)])
+        return self
+
+    def message(self, text: str | None, *, when: str = 'always', level: str = 'info') -> Grid:
+        """What a run of this box's flow says of it (Alteryx's Message; M8): ``text`` -- ``{rows}`` its rows counted --
+        ``when`` its rows are as it asks (``'always'``, ``'rows'``: when it has some, ``'noRows'``: when it has none),
+        as ``level``: ``'info'``, ``'warning'`` (``flow.run`` warns), or ``'error'``, which stops the run as a failing Test
+        does -- no Output written from its stage on. None: it says nothing (page-commands.ts setMessage). Refused in
+        DataCube's words: no words, a ``when`` or a ``level`` it has not."""
+        message = None if text is None else {'text': text, 'when': when, 'level': level}
+        self._page._apply_page([_commands.page_set_message(grid=self.id, message=message)])
         return self
 
     @property
@@ -2157,56 +2178,111 @@ class Sheet:
         (``grid.output_table``) writes them into it, in one transaction (FL13). What was written, in the order of the
         flow's boxes: each file's path, each table as ``'table <name>'``. A Test that stops a run
         (``grid.stops_run()``), failing, writes none: refused, its failing checks said (FL8's refuse). A board has no
-        Outputs: refused."""
-        layout = self._doc['layout']
-        if layout.get('kind') != 'flow':
-            raise ValueError(f'{self!r} is a board: a flow runs its Outputs')
-        out = Path(folder)
-        # a Test that stops a run, failing (grid.stops_run; FL8's refuse): no Output written, said in its checks' words
-        failed = self._stopped()
-        if failed:
-            raise ValueError('; '.join(failed) + ': no Output written')
-        out.mkdir(parents=True, exist_ok=True)
-        written: list[Path | str] = []
-        for box in layout['boxes']:
-            target = box.get('output')
-            if target is None:
-                continue
-            if target['format'] == 'table':
-                self._page._tile(box['tile'], Grid)._write_table(target)
-                written.append(f"table {target['name']}")
-                continue
-            path = out / target['name']
-            # the text as the tab writes it, its CRLFs and its BOM as they are
-            path.write_text(self._page._tile(box['tile'], Grid)._output(), encoding='utf-8', newline='')
-            written.append(path)
-        return written
+        Outputs: refused.
 
-    def _stopped(self) -> list[str]:
-        """The boxes set to stop a run (``grid.stops_run()``) that fail -- a Test's checks, a fixed Cross Tab's values with
-        no column -- each in its words: what stops a run and a dry run alike (FL8's refuse)."""
-        stopping = [(box['tile'], self._page._tile(box['tile'], Grid).failing) for box in self._doc['layout']['boxes'] if box.get('stops')]
-        return [f"{tile} stops the run: " + ', '.join(c['says'] for c in f) for tile, f in stopping if f]
+        IN STAGES (M8, the canvas's Run's rule: headless flowRun): the boxes after one that blocks
+        (``grid.block_until_done()``) run, and their Outputs are written, once every Output before them is -- a stopping
+        Test judged with its stage, so a failing one after a block stops what is after it alone. A Message
+        (``grid.message``) says its words: a warning warned (``warnings.warn``), an error stopping the run as a failing
+        Test does. Each run is kept in ``runs``, refused or not."""
+        return self._run(Path(folder), dry=False)['written']
 
     def dry_run(self) -> dict[str, Any]:
         """The flow run as the canvas's Dry Run runs it (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every box's rows counted
         as the canvas counts them (its view's, the row cap's total when it cut them), the boxes that stop a run judged,
-        nothing written -- ``{'rows': {box: n}, 'would_write': [names], 'stopped': [words]}``, ``would_write`` the files
-        a run would write (none when a stopping box fails, each said in ``stopped``). A board has no Outputs: refused."""
+        nothing written -- ``{'rows': {box: n}, 'would_write': [names], 'stopped': [words], 'messages': [said]}``,
+        ``would_write`` the files a run would write (none from the stage on that a stopping box fails, each said in
+        ``stopped``), ``messages`` each Message's ``{'box', 'level', 'said'}`` (M8). A board has no Outputs: refused."""
+        return self._run(None, dry=True)
+
+    @property
+    def runs(self) -> list[dict[str, Any]]:
+        """THE RUN HISTORY (F3's, this process's; M8): each run and dry run of this flow made here, the last last --
+        ``{'at', 'seconds', 'dry', 'written', 'messages', 'stopped'}``, ``written`` what it wrote (a dry run's, what it
+        would), ``stopped`` the words of what stopped it (none, it ran through). A copy."""
+        return copy.deepcopy(self._page._flow_runs.get(self._id, []))
+
+    def _plan(self, counts: Mapping[str, int]) -> dict[str, Any]:
+        """The flow's stages and what its Messages say of ``counts`` (each box's rows), by DataCube's rule (headless
+        flowRun: the canvas's Run's)."""
+        said = json.loads(self._page._session.headless().call('flowRun', _json.dumps(self._page._doc), self._id, json.dumps(dict(counts))))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return said
+
+    def _run(self, out: Path | None, dry: bool) -> dict[str, Any]:
+        """A run (``out``, the folder its files go in) or a dry run, stage by stage (``_plan``): each stage's boxes counted
+        -- every box in a dry run, a Message's in a run -- its stopping boxes and Messages judged with every earlier
+        stage's, then its Outputs written (or, dry, named) unless one stops it. Kept in the page's run history."""
         layout = self._doc['layout']
         if layout.get('kind') != 'flow':
             raise ValueError(f'{self!r} is a board: a flow runs its Outputs')
-        grids = {v['id'] for v in self._page._doc['views'] if v.get('kind') == 'grid'}
-        rows: dict[str, int] = {}
-        for box in layout['boxes']:
-            if box['tile'] not in grids:
-                continue
-            view = self._page._tile(box['tile'], Grid).view()
-            rows[box['tile']] = view.total_rows if view.total_rows is not None else len(view.rows)
-        stopped = self._stopped()
-        writes = [] if stopped else [box['output']['name'] if box['output']['format'] == 'csv' else f"table {box['output']['name']}"
-                                     for box in layout['boxes'] if box.get('output') is not None]
-        return {'rows': rows, 'would_write': writes, 'stopped': stopped}
+        import time
+        at = datetime.datetime.now(datetime.timezone.utc)
+        started = time.perf_counter()
+        boxes = {b['tile']: b for b in layout['boxes']}
+        counts: dict[str, int] = {}
+        judged: list[str] = []
+        written: list[Path | str] = []
+        stopped: list[str] = []
+        messages: list[dict[str, Any]] = []
+        refused: BaseException | None = None
+        try:
+            for stage in self._plan({})['stages']:
+                for tile in stage:
+                    if dry or boxes[tile].get('message') is not None:
+                        view = self._page._tile(tile, Grid).view()
+                        counts[tile] = view.total_rows if view.total_rows is not None else len(view.rows)
+                judged += stage
+                said = [m for m in self._plan(counts)['messages'] if m['box'] in judged]
+                for m in said[len(messages):] if not dry else []:
+                    if m['level'] == 'warning':
+                        warnings.warn(f"{m['box']}: {m['said']}", stacklevel=4)
+                messages = said
+                # a Test that stops a run, failing (grid.stops_run; FL8's refuse), or a Message's error, in this stage or
+                # before: no Output written from here on, said in their words
+                stopped = self._stopped(judged) + [f"{m['box']} said {m['said']}" for m in messages if m['level'] == 'error']
+                if stopped and not dry:
+                    before = f" (written before it: {', '.join(str(w) for w in written)})" if written else ''
+                    raise ValueError('; '.join(stopped) + ': no Output written' + before)
+                # a dry run counts every box all the same, naming no Output from a stop on
+                if stopped:
+                    continue
+                if not dry:
+                    assert out is not None
+                    out.mkdir(parents=True, exist_ok=True)
+                for tile in stage:
+                    target = boxes[tile].get('output')
+                    if target is None:
+                        continue
+                    if dry:
+                        written.append(target['name'] if target['format'] == 'csv' else f"table {target['name']}")
+                    elif target['format'] == 'table':
+                        self._page._tile(tile, Grid)._write_table(target)
+                        written.append(f"table {target['name']}")
+                    else:
+                        path = out / target['name']
+                        # the text as the tab writes it, its CRLFs and its BOM as they are
+                        path.write_text(self._page._tile(tile, Grid)._output(), encoding='utf-8', newline='')
+                        written.append(path)
+        except BaseException as e:
+            refused = e
+            raise
+        finally:
+            self._page._flow_runs.setdefault(self._id, []).append({
+                'at': at, 'seconds': round(time.perf_counter() - started, 3), 'dry': dry, 'written': list(written),
+                'messages': copy.deepcopy(messages), 'stopped': stopped or ([str(refused)] if refused is not None else []),
+            })
+            del self._page._flow_runs[self._id][:-_RUN_HISTORY]
+        return {'rows': counts, 'would_write': written, 'stopped': stopped, 'messages': messages} if dry else {'written': written}
+
+    def _stopped(self, tiles: Sequence[str] | None = None) -> list[str]:
+        """The boxes set to stop a run (``grid.stops_run()``) that fail -- a Test's checks, a fixed Cross Tab's values with
+        no column -- each in its words, of ``tiles`` (None: every box): what stops a run and a dry run alike (FL8's
+        refuse)."""
+        stopping = [(box['tile'], self._page._tile(box['tile'], Grid).failing) for box in self._doc['layout']['boxes']
+                    if box.get('stops') and (tiles is None or box['tile'] in tiles)]
+        return [f"{tile} stops the run: " + ', '.join(c['says'] for c in f) for tile, f in stopping if f]
 
     def grid(self, frame: Any = None, **given: Any) -> Grid:
         """A grid on this sheet, as ``page.grid(..., sheet=this)`` adds one: on a flow, a box -- after ``input``, the box
@@ -2338,6 +2414,8 @@ class Page:
         self._commands: list[dict[str, Any]] = []
         # every page command DataCube applied to this page, in order, as applied (page-commands.ts)
         self._page_commands: list[dict[str, Any]] = []
+        # each flow's runs this process made, by its sheet's id (flow.runs: the run history, F3's, this process's)
+        self._flow_runs: dict[str, list[dict[str, Any]]] = {}
         # what changed it since it was last served, as the commands it was (a page's, a grid's with its id) -- what a page
         # open on it applies rather than opening it again (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md); None once it was
         # changed by no command, which the open page follows by opening it again

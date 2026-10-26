@@ -16,7 +16,10 @@ import { pureProblem } from './pure-box.ts';
 import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, type Bands, type Preset,
 } from './layout/bands.ts';
-import { EMPTY_FLOW, FlowRefusal, moveBox, placeAfter, removeBox, readOutput, setCache, setOutput, setStops, type Flow, type Frame, type Output } from './layout/flow.ts';
+import {
+  EMPTY_FLOW, FlowRefusal, moveBox, placeAfter, removeBox, readMessage, readOutput, setBlocks, setCache, setMessage, setOutput, setStops, type Flow,
+  type FlowMessage, type Frame, type Output,
+} from './layout/flow.ts';
 import {
   PageDocumentError, keptFor, layoutTiles, readGridCopy, readLayout, stillHeld, unnamedLabel, writePageOf, type ChartView, type FlowLayout,
   type GridCopy, type GridView, type PageDocument, type PageLayout, type PageSheet, type PageView, type TextView, type TimeseriesView,
@@ -221,6 +224,12 @@ export type PageCommand =
   /** A flow's box set to cache its rows (FL10: copied into its host's database when it is shown or run, the boxes after it
    *  reading the copy -- Python's grid.cache), or (false) no longer. */
   | { readonly kind: 'setCache'; readonly grid: string; readonly cache: boolean }
+  /** A flow's box set to block a run (Alteryx's Block Until Done, M8: the boxes after it shown, and their Outputs written,
+   *  once every Output not after it is -- Python's grid.block_until_done), or (false) no longer. */
+  | { readonly kind: 'setBlocks'; readonly grid: string; readonly blocks: boolean }
+  /** A flow's box set to say `message` in a run's log (Alteryx's Message, M8: an error stops the run, no Output written --
+   *  Python's grid.message), or (null) nothing. */
+  | { readonly kind: 'setMessage'; readonly grid: string; readonly message: FlowMessage | null }
   /** The page's model made by its first model action (Create a Class…, a Data Space): its project, DataCube's workspace
    *  in it, the package its classes go in (modelMade, above). */
   | { readonly kind: 'modelInto'; readonly project: string; readonly workspace: string; readonly package: string }
@@ -233,7 +242,7 @@ export const PAGE_COMMAND_KINDS = [
   'renamePage', 'savedAs', 'addSheet', 'addFlow', 'placeBox', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid',
   'addChart', 'setChart',
   'addText', 'setText', 'addTimeseries', 'setTimeseries', 'setTextFiles', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile',
-  'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'setParameter', 'removeParameter', 'setMacro', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setPure', 'setOutput', 'setStops', 'setCache',
+  'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'setParameter', 'removeParameter', 'setMacro', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setPure', 'setOutput', 'setStops', 'setCache', 'setBlocks', 'setMessage',
   'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
@@ -248,7 +257,7 @@ export const PAGE_COMMAND_FIELDS = {
   setTimeseries: ['tile', 'spec', 'kept?'], followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
-  removePageFilter: ['filter'], setParameter: ['parameter'], removeParameter: ['name'], setMacro: ['name', 'pure'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how', 'more?'], setPure: ['grid', 'pure'], setOutput: ['grid', 'output'], setStops: ['grid', 'stops'], setCache: ['grid', 'cache'],
+  removePageFilter: ['filter'], setParameter: ['parameter'], removeParameter: ['name'], setMacro: ['name', 'pure'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how', 'more?'], setPure: ['grid', 'pure'], setOutput: ['grid', 'output'], setStops: ['grid', 'stops'], setCache: ['grid', 'cache'], setBlocks: ['grid', 'blocks'], setMessage: ['grid', 'message'],
   modelInto: ['project', 'workspace', 'package'], modelPin: ['revision'], modelKeep: ['cube', 'tables', 'class'],
 } as const satisfies CommandFields<PageCommand>;
 // every field of every kind listed: a field the list leaves out is a type error naming it
@@ -1065,6 +1074,22 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       if (had === command.cache) throw new CubeRefusal(`'${command.grid}' ${command.cache ? 'caches its rows already' : 'caches no rows'}`);
       return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => setCache(layout, command.grid, command.cache)) })));
     }
+    case 'setBlocks':
+    case 'setMessage': {
+      const view = viewNamed(page, command.grid);
+      const what = command.kind === 'setBlocks' ? 'a block' : 'a message';
+      if (view.kind !== 'grid') throw new CubeRefusal(`'${command.grid}' is ${kindWords(view)}: ${what} is a grid's`);
+      const sheet = sheetOf(page, command.grid);
+      const layout = sheet?.layout;
+      if (sheet === undefined || layout?.kind !== 'flow') throw new CubeRefusal(`'${command.grid}' is no box of a flow: ${what} is a flow's box's`);
+      const box = layout.boxes.find((b) => b.tile === command.grid);
+      if (command.kind === 'setBlocks') {
+        if ((box?.blocks === true) === command.blocks) throw new CubeRefusal(`'${command.grid}' ${command.blocks ? 'blocks a run already' : 'blocks no run'}`);
+        return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => setBlocks(layout, command.grid, command.blocks)) })));
+      }
+      if (sameValue(box?.message ?? null, command.message)) throw new CubeRefusal(`'${command.grid}' ${command.message === null ? 'says nothing' : 'says so already'}`);
+      return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => setMessage(layout, command.grid, command.message)) })));
+    }
     case 'modelInto':
       return done(rewritten({ ...page, model: modelMade(page.model, command.project, command.workspace, command.package) }, {}));
     case 'modelPin':
@@ -1493,6 +1518,18 @@ export function readPageCommand(given: unknown): PageCommand {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       if (typeof o['cache'] !== 'boolean') throw new CubeRefusal(`a box caches its rows (true) or not (false), not ${JSON.stringify(o['cache'])}`);
       return { kind, grid: text(o['grid'], 'a grid'), cache: o['cache'] };
+    }
+    case 'setBlocks': {
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      if (typeof o['blocks'] !== 'boolean') throw new CubeRefusal(`a box blocks a run (true) or not (false), not ${JSON.stringify(o['blocks'])}`);
+      return { kind, grid: text(o['grid'], 'a grid'), blocks: o['blocks'] };
+    }
+    case 'setMessage': {
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      if (o['message'] === null) return { kind, grid: text(o['grid'], 'a grid'), message: null };
+      const read = readMessage(o['message']);
+      if (typeof read === 'string') throw new CubeRefusal(read);
+      return { kind, grid: text(o['grid'], 'a grid'), message: read };
     }
     case 'modelInto':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);

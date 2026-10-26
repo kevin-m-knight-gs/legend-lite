@@ -40,7 +40,7 @@ import type { EditorTab } from './ui/editor.ts';
 export type FlowTool = 'input' | 'textInput' | 'dynamicInput' | 'output' | 'test' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'dateFilter' | 'customFilter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile' | 'binning' | 'generateRows'
   | 'datetime' | 'cleanse' | 'impute' | 'dynamicReplace' | 'textToColumns' | 'regex' | 'jsonParse' | 'runningTotal' | 'summarize' | 'countRecords' | 'crosstab' | 'transpose' | 'browse'
-  | 'pure' | 'macro' | 'parameter' | 'comment' | 'container';
+  | 'pure' | 'macro' | 'parameter' | 'blockUntilDone' | 'message' | 'comment' | 'container';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
 export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; readonly group: FlowGroup; readonly does: string }>> = {
@@ -84,6 +84,8 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   pure: { name: 'Pure', group: 'transform', does: 'its rows a function of its input\'s, written in Pure: whatever no other tool says, the compiler checking it' },
   macro: { name: 'Macro', group: 'transform', does: 'a sub-flow saved as one box (a box\'s menu, Save as Macro…): its steps, used after any box' },
   parameter: { name: 'Parameter', group: 'in', does: 'a value of the flow\'s app, set above the canvas, that any Pure on the page reads as $name' },
+  blockUntilDone: { name: 'Block Until Done', group: 'in', does: 'its input\'s rows, the boxes after it run -- and their Outputs written -- once every Output before it is written' },
+  message: { name: 'Message', group: 'in', does: 'its input\'s rows, and words in the run\'s log when they are as it asks: a note, a warning, or an error that stops the run' },
   comment: { name: 'Comment', group: 'docs', does: 'a note on the canvas, in words of your own' },
   container: { name: 'Container', group: 'docs', does: 'a frame round boxes: moved together, folded away' },
 };
@@ -94,7 +96,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
   'input', 'textInput', 'dynamicInput', 'output', 'test', 'browse', 'filter', 'dateFilter', 'customFilter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'binning', 'generateRows', 'datetime', 'cleanse', 'impute', 'dynamicReplace',
-  'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'jsonParse', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'pure', 'macro', 'parameter', 'comment', 'container',
+  'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'jsonParse', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'pure', 'macro', 'parameter', 'blockUntilDone', 'message', 'comment', 'container',
 ];
 
 /**

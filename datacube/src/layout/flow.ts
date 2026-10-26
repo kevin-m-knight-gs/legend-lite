@@ -28,6 +28,78 @@ export interface FlowBox {
    *  its grid's Snap -- the boxes after it, and a join of it, reading the copy for as long as the session lasts (FL11).
    *  A grid's only. */
   readonly cache?: true;
+  /** A box after which nothing runs until every Output before it is written (Alteryx's Block Until Done; M8): the boxes
+   *  after it shown, and their Outputs written, once each Output of the boxes not after it is (runStages). A grid's only. */
+  readonly blocks?: true;
+  /** What a run's log says of a box (Alteryx's Message; M8), when its rows are as it asks: an error stops the run as a
+   *  failing Test does, no Output written (FL8). A grid's only. */
+  readonly message?: FlowMessage;
+}
+
+/** A box's message (Alteryx's Message tool): its words -- `{rows}` its rows counted -- said in a run's log `when` its
+ *  rows are as it asks (always, when it has some, when it has none), as information, a warning, or an error that stops
+ *  the run. */
+export interface FlowMessage {
+  readonly text: string;
+  readonly when: MessageWhen;
+  readonly level: MessageLevel;
+}
+export type MessageWhen = 'always' | 'rows' | 'noRows';
+export type MessageLevel = 'info' | 'warning' | 'error';
+export const MESSAGE_WHEN: readonly MessageWhen[] = ['always', 'rows', 'noRows'];
+export const MESSAGE_LEVELS: readonly MessageLevel[] = ['info', 'warning', 'error'];
+
+/** What is wrong with a message, in words, if anything. */
+export function messageProblem(m: FlowMessage): string | undefined {
+  if (typeof m.text !== 'string' || m.text.trim() === '') return 'a message says something: its words are none';
+  if (m.text.length > 500) return `a message is 500 letters at most, not ${m.text.length}`;
+  if (!MESSAGE_WHEN.includes(m.when)) return `a message is said ${MESSAGE_WHEN.join(', ')}, not ${JSON.stringify(m.when)}`;
+  if (!MESSAGE_LEVELS.includes(m.level)) return `a message is ${MESSAGE_LEVELS.join(', ')}, not ${JSON.stringify(m.level)}`;
+  return undefined;
+}
+
+/** A message read from JSON (the page's, a command's): `{text, when, level}`, or what is wrong with it. */
+export function readMessage(raw: unknown): FlowMessage | string {
+  const o = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : undefined;
+  if (o === undefined) return `a message is {text, when, level}, not ${JSON.stringify(raw)}`;
+  const odd = Object.keys(o).filter((k) => k !== 'text' && k !== 'when' && k !== 'level');
+  if (odd.length > 0) return `a message takes no ${odd.join(', ')}`;
+  const m = { text: o['text'], when: o['when'], level: o['level'] } as FlowMessage;
+  return messageProblem(m) ?? m;
+}
+
+/** What a box's message says of a run whose box gave `rows` rows -- its `{rows}` that count -- or undefined: its rows
+ *  are not as it asks, or were not counted. */
+export function messageSaid(m: FlowMessage, rows: number | undefined): string | undefined {
+  if (rows === undefined && m.when !== 'always') return undefined;
+  if (m.when === 'rows' && rows === 0) return undefined;
+  if (m.when === 'noRows' && rows !== 0) return undefined;
+  return m.text.replaceAll('{rows}', rows === undefined ? '?' : rows.toLocaleString('en-US'));
+}
+
+/**
+ * A RUN'S STAGES (Block Until Done, M8): the boxes of `flow` (its comments left out by `isBox`) in the order a run runs
+ * them, stage by stage -- a box's stage the most of its inputs' (`reads`: the boxes it reads live), one more past an
+ * input that blocks -- each stage in the canvas's order (left to right, then top to bottom). A run shows each stage's
+ * boxes and writes its Outputs before the next's.
+ */
+export function runStages(flow: Flow, reads: (tile: string) => readonly string[], isBox: (tile: string) => boolean = () => true): string[][] {
+  const boxes = flow.boxes.filter((b) => isBox(b.tile));
+  const at = new Map(boxes.map((b) => [b.tile, b] as const));
+  const stage = new Map<string, number>();
+  const stageOf = (tile: string, seen: readonly string[] = []): number => {
+    const known = stage.get(tile);
+    if (known !== undefined) return known;
+    // a box read twice on the way to itself is no flow a page holds (live-inputs.ts liveProblem): its stage its own
+    const s = Math.max(0, ...reads(tile).filter((i) => at.has(i) && !seen.includes(i))
+      .map((i) => stageOf(i, [...seen, tile]) + (at.get(i)!.blocks === true ? 1 : 0)));
+    stage.set(tile, s);
+    return s;
+  };
+  const order = [...boxes].sort((a, b) => a.x - b.x || a.y - b.y).map((b) => b.tile);
+  const stages: string[][] = [];
+  for (const t of order) (stages[stageOf(t)] ??= []).push(t);
+  return stages.filter((s) => s !== undefined);
 }
 
 /**
@@ -170,8 +242,9 @@ export function moveBox(flow: Flow, tile: string, x: number, y: number, frame?: 
       if (b.tile !== tile) return b;
       // its frame given, else the one it has (null: none)
       const kept = frame === undefined ? b.frame : frame === null ? undefined : framed(frame);
-      return { tile, x: Math.round(x), y: Math.round(y), ...(kept !== undefined ? { frame: kept } : {}), ...(b.output !== undefined ? { output: b.output } : {}),
-        ...(b.stops === true ? { stops: true as const } : {}), ...(b.cache === true ? { cache: true as const } : {}) };
+      // its settings (an Output, its stopping, its cache, its blocking, its message) as they are: its place alone moved
+      const { tile: _t, x: _x, y: _y, frame: _f, ...settings } = b;
+      return { tile, x: Math.round(x), y: Math.round(y), ...(kept !== undefined ? { frame: kept } : {}), ...settings };
     }),
   };
 }
@@ -251,6 +324,33 @@ export function setCache(flow: Flow, tile: string, cache: boolean): Flow {
       if (b.tile !== tile) return b;
       const { cache: _was, ...rest } = b;
       return cache ? { ...rest, cache: true } : rest;
+    }),
+  };
+}
+
+/** A box set to block (`blocks`: Block Until Done), or no longer. Refused when it is no box of the flow. */
+export function setBlocks(flow: Flow, tile: string, blocks: boolean): Flow {
+  if (!flow.boxes.some((b) => b.tile === tile)) throw new FlowRefusal(`'${tile}' is no box of this flow`);
+  return {
+    boxes: flow.boxes.map((b) => {
+      if (b.tile !== tile) return b;
+      const { blocks: _was, ...rest } = b;
+      return blocks ? { ...rest, blocks: true } : rest;
+    }),
+  };
+}
+
+/** A box set to say `message` in a run's log, or nothing (null). Refused when it is no box of the flow, or the message
+ *  is none (messageProblem). */
+export function setMessage(flow: Flow, tile: string, message: FlowMessage | null): Flow {
+  if (!flow.boxes.some((b) => b.tile === tile)) throw new FlowRefusal(`'${tile}' is no box of this flow`);
+  const problem = message === null ? undefined : messageProblem(message);
+  if (problem !== undefined) throw new FlowRefusal(problem);
+  return {
+    boxes: flow.boxes.map((b) => {
+      if (b.tile !== tile) return b;
+      const { message: _was, ...rest } = b;
+      return message === null ? rest : { ...rest, message: { text: message.text, when: message.when, level: message.level } };
     }),
   };
 }

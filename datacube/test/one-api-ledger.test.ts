@@ -531,6 +531,9 @@ const PASS_THROUGH: Record<string, string> = {
   setStops: "a Test box's settings' checkbox, ticked or not; setStops judges it",
   // 2026-10-26 (the flow mode's FL10, the Cache): a box's settings' checkbox, ticked or not; setCache judges it
   setCache: "a box's settings' Cache its rows checkbox, ticked or not; setCache judges it",
+  // 2026-10-26 (the flow mode's M8, Block Until Done and Message): a box's settings, as the person set them
+  setBlocks: "a box's settings' Block until done checkbox, ticked or not (and the palette's Block Until Done, which ticks it); setBlocks judges it",
+  setMessage: "a box's settings' Message -- its words, when and how, as typed and picked (the palette's Message, its first: its rows counted) -- or Say Nothing; setMessage judges it",
   // 2026-10-26 (the flow mode's Pure box, FL12)
   setPure: "the function a Pure box's window made of what was typed (pure-box.ts pureFrom, which headless gridPure asks for Python's grid.pure), or none (Take Its Pure Off); setPure judges its shape",
 };
