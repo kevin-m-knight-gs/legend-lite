@@ -2741,3 +2741,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   column), `lowering/CanonicalRenderSql.java` (the judges' canon), `executionplan/ColumnFacts.java`, `MirJson.java`
   and `PlanJson.java` (format 10), `exec/JdbcDecode.java`, `RowDecode.java` and `Executor.java` (the decode), the
   dialects' refusing arms. Branch `claude/upbeat-johnson-l4hogx`.
+- **Proposed 2026-10-26, nothing built: the result boundary program** (`docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md`,
+  at the user's ask: the typed plan, the host renderers, the output-text SQL deleted; the execution plan of
+  `docs/RESULTS_AND_RENDERERS_2026_10_22.md` and the plan path program's steps 7 to 11). Waits on the user's rulings
+  (its §8). When it starts, M0 measures (one GATES entry); then P1 to P6 each announce here before touching
+  `TypedQuery`, `PlanMaker`, `executionplan/`, `exec/`, `lowering/Render.java`, `WireRender.java`, `TdsTextWrap.java`,
+  `server/PureV1Api.java`, the new sink package, and `pct/.../ValueBridge.java`. Branch `claude/upbeat-johnson-l4hogx`.

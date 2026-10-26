@@ -5,6 +5,10 @@
 The rest of that document stands: the one plan record (P1 to P6), the result as a stream with sinks (S1 to S6), the
 decode by the plan's facts (§4) and the fast path (§6).
 
+**Its execution plan is `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md`** (proposed 2026-10-26, at the user's ask): the
+tenets T1 to T8 with their guards, measurement first (M0), six phases each ending in a deletion, the gates, and the
+rulings it needs (its §8: D1 to D5, D3's clause, D7, Arrow, LEAN JSON's numbers, the materialized result).
+
 It comes out of a review with the user on 2026-10-21/22 (branch `claude/upbeat-johnson-l4hogx`). That review started
 from one number: Snowflake's PCT statement for `1.5 + 2.25` was 48 KB, its served statement 6 MB.
 
