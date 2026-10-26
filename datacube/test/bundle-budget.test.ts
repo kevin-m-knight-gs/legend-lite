@@ -429,8 +429,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  the page: lazily, it was a chunk that split the startup files), a Cross Tab's values read once (query.ts
  *  pivotValuesOf), the page gestures Python shares (flow.place, flow.duplicate), a stopping box never judged
  *  (flow-board.ts runStoppers); the checks' readers kept out (setStops reads a Test's shape alone); no startup file
- *  added -- 33 as before, measured by esbuild's record). Measured 408,032. */
-const BUDGET = 408_500;
+ *  added -- 33 as before, measured by esbuild's record). Measured 408,032.
+ *  408,500 -> 409,500 (2026-10-26, the timeseries follow-ups rebased onto the flow mode, docs/TIMESERIES_REVIEW_2026_10_25.md
+ *  §10: the converge holds and opens a cube kept off the board for a tile (app/live-converge.ts cubeThere, cubesHeld), and
+ *  a timeseries frozen from the page's cubes, an unopened one's as saved (cube-page.ts heldFilter, page-app.ts
+ *  unopenedCube); no startup file added). Measured 408,946. */
+const BUDGET = 409_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -599,8 +603,10 @@ const BUDGET = 408_500;
  *  383,500 -> 394,000 (2026-10-26, the timeseries branch, PR #74, merged into the flow branch: its own steps there,
  *  353,500 -> 363,000 -> 364,000 -- the grid-only page's note of the same date). Measured 393,657.
  *  394,000 -> 396,500 (2026-10-26, the flow mode review's fixes -- the grid-only page's note of the same date). Measured
- *  396,140. */
-const ENGINE_BUDGET = 396_500;
+ *  396,140.
+ *  396,500 -> 397,600 (2026-10-26, the timeseries follow-ups rebased onto the flow mode -- the grid-only page's note of
+ *  the same date). Measured 397,097. */
+const ENGINE_BUDGET = 397_600;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -665,8 +671,14 @@ const CHART_BUDGET = 303_500;
  *  only over a year, and said (N3); a candle's series computed on their own dates, then each period's first, highest,
  *  lowest and last (N4, timeseries-query.ts candle); a combination's grids opened together once a round of asking, and
  *  no statistics asked while nothing shows them (ui/timeseries-view.ts Opened, #statistics) -- the headroom ~2%).
- *  Measured 37,063. */
-const TIMESERIES_BUDGET = 37_800;
+ *  Measured 37,063.
+ *  37,800 -> 46,800 (2026-10-26, the expert functions the user asked for, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md
+ *  §5.3½, and their review's fixes (docs/TIMESERIES_REVIEW_2026_10_25.md §11): windows and lags of a calendar period
+ *  (timeseries-query.ts #calendar, #valueBack), a level's returns' risk and the panel's Risk tab, a rolling regression,
+ *  the Drawdowns and Correlations tabs and their queries, exponential averages in closed form (Writer.ewm), percentiles
+ *  by each window's rows (ofWindow, ofLine), conditions shaded (timeseries-option.ts markArea), the catalog's words for
+ *  each, the range and blank rules shared with Python (rangeWindow, statBlanks) -- the headroom ~2%). Measured 45,854. */
+const TIMESERIES_BUDGET = 46_800;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -869,8 +881,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  374,500 -> 385,000 -> 386,000 -- the grid-only page's note of the same date, and the timeseries tile's styles).
  *  Measured 421,003.
  *  421,500 -> 424,000 (2026-10-26, the flow mode review's fixes -- the grid-only page's note of the same date). Measured
- *  423,483. */
-const WIDGET_BUDGET = 424_000;
+ *  423,483.
+ *  424,000 -> 425,100 (2026-10-26, the timeseries follow-ups rebased onto the flow mode -- the grid-only page's note of
+ *  the same date -- and the statistics panel's tabs' and the correlation matrix's styles). Measured 424,538. */
+const WIDGET_BUDGET = 425_100;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
