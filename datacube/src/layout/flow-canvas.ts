@@ -2359,12 +2359,12 @@ export class FlowCanvas {
       tr.dataset['column'] = c.name;
       el('td', 'dc-flow-profile-name', tr, c.name);
       el('td', 'dc-flow-profile-type', tr, c.type);
+      // its share filled and its empties the database's (profile.ts), a percent as its reader writes one
       const filled = el('td', 'dc-flow-profile-filled', tr);
-      const share = rows === 0 ? 0 : c.filled / rows;
       const bar = el('span', 'dc-flow-profile-bar', filled);
-      el('span', 'dc-flow-profile-fill', bar).style.width = `${Math.round(share * 100)}%`;
-      el('span', 'dc-flow-profile-count', filled, `${n(c.filled)} (${Math.round(share * 100)}%)`);
-      filled.title = `${n(rows - c.filled)} empty`;
+      el('span', 'dc-flow-profile-fill', bar).style.width = `${Math.round(c.share * 100)}%`;
+      el('span', 'dc-flow-profile-count', filled, `${n(c.filled)} (${Math.round(c.share * 100)}%)`);
+      filled.title = `${n(c.empty)} empty`;
       el('td', 'dc-flow-profile-num', tr, n(c.distinct));
       el('td', 'dc-flow-profile-value', tr, 'smallest' in c ? said(c.smallest) : '');
       el('td', 'dc-flow-profile-value', tr, 'largest' in c ? said(c.largest) : '');

@@ -8,7 +8,9 @@ import {
   agg, and, cast, collection, derive, eq, fn, from, ge, gt, lambda, le, lit, lt, ne, property, type, variable,
   type JoinKind, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
+import { plainType } from '../../engine-client/src/types.ts';
 import { rowCountLambda } from './query.ts';
+import { CubeRefusal } from './snapshot.ts';
 import { isEveryPair, SIMILAR_WITHIN, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow, type JoinSide } from './join-how.ts';
 
 export * from './join-how.ts';
@@ -114,11 +116,22 @@ export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow, more
 /**
  * An append of any number (a Union's, JoinSource.more): the first's columns in its order, then each next one's it lacks,
  * in turn; each side extended by the columns only the others have -- `[]` of the type the compiler gave that column (the
- * first side to have it) -- and selected in that order when its own differs; concatenated in the sides' order.
+ * first side to have it) -- and selected in that order when its own differs; concatenated in the sides' order. A name
+ * two sides type differently is refused in words: the compiler unites an Integer and a Float as the first's type, its
+ * rows' fractions under it (the correctness audit's 6, 2026-10-26) -- a Select retypes one side first.
  */
 function appended(sides: readonly JoinSide[]): Relation {
-  const all: JoinSide['columns'][number][] = [];
-  for (const s of sides) for (const c of s.columns) if (!all.some((a) => a.name === c.name)) all.push(c);
+  const all: (JoinSide['columns'][number] & { readonly side: string })[] = [];
+  for (const s of sides) {
+    for (const c of s.columns) {
+      const had = all.find((a) => a.name === c.name);
+      if (had === undefined) all.push({ ...c, side: s.name });
+      else if (plainType(had.type) !== plainType(c.type)) {
+        throw new CubeRefusal(`'${c.name}' is ${plainType(had.type)} in ${had.side} and ${plainType(c.type)} in ${s.name}: `
+          + "a Union's column is of one type -- retype one of them with a Select first");
+      }
+    }
+  }
   const order = all.map((c) => c.name);
   const side = (s: JoinSide): Relation => {
     const own = new Set(s.columns.map((c) => c.name));
@@ -172,6 +185,8 @@ export function joinSummary(left: JoinSide, right: JoinSide, how: JoinHow): Join
       const matched = rowCountLambda(semi(left, theirs, pairs, 'isNotEmpty'));
       if (how.form === 'asOf') return { mine, matched };
       const joined = rowCountLambda(from(joinRelation(left, right, how)));
+      // every pair (an Append Fields): their rows counted too, by the database -- never mine's quotient
+      if (isEveryPair(how)) return { mine, matched, joined, theirs: rowCountLambda(from(right.relation)) };
       const keys = 'rows' in how.on && how.on.rows.length > 0 && how.on.rows.every((r) => r.op === '==')
         ? [...new Set(how.on.rows.map((r) => r.right))] : [];
       return { mine, matched, joined, ...(keys.length > 0 ? { repeated: repeatedKeys(right, keys) } : {}) };
@@ -227,8 +242,8 @@ export function summaryWords(how: JoinHow, c: JoinSummaryCounts): string[] {
   // every pair (an Append Fields): each of mine beside each of theirs, no match asked of it
   if (isEveryPair(how)) {
     const joined = asked(c.joined, 'come out of it');
+    const theirs = asked(c.theirs, 'they have');
     if (c.mine === 0) return ['I have no rows: none after it.'];
-    const theirs = joined / c.mine;
     return [`Each of my ${plural(c.mine, 'row')} beside ${theirs === 1 ? 'the one row' : `each of the ${plural(theirs, 'row')}`} of theirs: ${plural(joined, 'row')}.`];
   }
   const matched = asked(c.matched, 'find a match');

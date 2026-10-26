@@ -96,9 +96,15 @@ export function imputedOf(d: DerivedColumn, derived: readonly DerivedColumn[]):
   };
   const column = read(value);
   if (column === undefined) return undefined;
-  if (filler._type === 'integer' || filler._type === 'float') {
-    return { column, with: { kind: 'value', value: Number((filler as { value: unknown }).value) } };
-  }
+  // a number given: an integer's, a float's, or a negative's (`minus(1)`, as the protocol writes -1)
+  const number = (v: ValueSpecification): number | undefined => {
+    if (v._type === 'integer' || v._type === 'float') return Number((v as { value: unknown }).value);
+    if (v._type !== 'func' || v.function !== 'minus' || v.parameters.length !== 1) return undefined;
+    const n = number(v.parameters[0]!);
+    return n === undefined ? undefined : -n;
+  };
+  const given = number(filler);
+  if (given !== undefined) return { column, with: { kind: 'value', value: given } };
   const helper = read(filler);
   const w = helper === undefined ? undefined : derived.find((x) => x.name === helper)?.window;
   if (w === undefined || w.column !== column || w.partition.length > 0 || w.frame !== 'partition') return undefined;

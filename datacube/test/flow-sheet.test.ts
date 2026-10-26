@@ -30,7 +30,7 @@ import { multiFieldOf } from '../src/multi-field.ts';
 import { rangesWords, readRanges, readRowSample, rowSampleCommands, rowSampleOf, sampleCommands } from '../src/row-sample.ts';
 import { readTranspose, transposeCommands, transposeOf } from '../src/transpose.ts';
 import { readSelection, retypesOf, selectCommands, selectionOf } from '../src/select-columns.ts';
-import { handedOn } from '../src/box-columns.ts';
+import { boxOrder, handedOn } from '../src/box-columns.ts';
 import { readSummary, summarizeCommands } from '../src/summarize.ts';
 import { unmatchedOn } from '../src/join-how.ts';
 import { findReplaceCommands, findReplaceOf, readFindReplace } from '../src/find-replace.ts';
@@ -40,9 +40,9 @@ import { applyGridCommands } from '../src/grid-commands.ts';
 import type { GridDraft } from '../src/grid-edits.ts';
 import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi-field-columns.ts';
 import { TreeState } from '../src/tree.ts';
-import { accessor, collection, fn, gt, lambda, lit, property, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { accessor, collection, fn, gt, lambda, lit, property, toJson, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { boxRows, pureFrom, pureInput, pureInputOf, pureOver, pureProblem, pureShown, pureText, pureWords } from '../src/pure-box.ts';
-import { textToolOf } from '../src/text-tools.ts';
+import { PUNCTUATION, textToolOf } from '../src/text-tools.ts';
 import { lackingWords, pivotValuesOf, tooManyValues } from '../src/cross-tab.ts';
 import { MAX_PIVOT_VALUES } from '../src/query.ts';
 import { readTextTool, textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
@@ -279,7 +279,8 @@ describe('the text tools (text-tools.ts): calculated columns, read back off thei
     // into rows: one column, exploded over split -- a row a part
     const rowsOf = textToolColumns({ kind: 'split', column: 'book', delimiter: ',', parts: 1, name: 'part', rows: true });
     assert.deepEqual(rowsOf.map((p) => [p.name, p.unnest]), [['part', true]]);
-    assert.equal(body(rowsOf[0]!), JSON.stringify(fn('split', fn('toOne', property(variable('x'), 'book')), lit.string(','))));
+    // an empty text kept, its one part blank: an explode of no parts would be no row (the correctness audit's 7)
+    assert.equal(body(rowsOf[0]!), JSON.stringify(fn('split', fn('coalesce', property(variable('x'), 'book'), lit.string('')), lit.string(','))));
     assert.deepEqual(said(rowsOf), { tool: 'textToColumns', also: [], says: "book split on ',' to rows" });
     assert.deepEqual(readTextTool({ kind: 'split', column: 'book', delimiter: ',', name: 'part', rows: true }),
       { kind: 'split', column: 'book', delimiter: ',', parts: 1, name: 'part', rows: true });
@@ -298,6 +299,10 @@ describe('the text tools (text-tools.ts): calculated columns, read back off thei
     assert.deepEqual(clean.map((c) => c.name), ['region_clean', 'desk_clean']);
     assert.match(body(clean[0]!), /^\{"_type":"func","function":"toLower","parameters":\[\{"_type":"func","function":"trim"/);
     assert.deepEqual(said(clean), { tool: 'cleanse', also: [], says: 'region cleansed, desk cleansed' });
+    // its punctuation is what is neither a letter nor a digit of any script, nor a space: `é`, `ü`, `東` are kept (the
+    // audit's 2 of 2026-10-26: ASCII's letters alone took them out)
+    const out = (text: string): string => text.replace(new RegExp(PUNCTUATION, 'gu'), '');
+    assert.deepEqual(["Côte d'Ivoire", 'José  Müller!', '東京', '¿Qué? 42½'].map(out), ['Côte dIvoire', 'José  Müller', '東京', 'Qué 42½']);
     // a replacement of its own pattern is a cleansing; of any other, a RegEx
     const spaces = textToolColumns({ kind: 'cleanse', columns: ['desk'], cleansing: { spaces: true } });
     assert.equal(textToolOf(spaces[0]!)?.tool, 'cleanse');
@@ -322,13 +327,23 @@ describe('Unique (unique.ts): a row number per key, its first kept, the number h
 
   it('makes its row number, its filter and its column hidden, ordered by the first key unless given an order', () => {
     const [calc, filter, configure] = made(['region']);
+    // its ties broken by every other column that sorts, rising: each of its queries (U, D, its Output) numbers alike
+    // (the correctness audit's 14, 2026-10-26)
     assert.deepEqual(calc, { kind: 'calculate', level: 'row', column: {
-      name: 'UniqueRow', window: { fn: 'rowNumber', partition: ['region'], order: [{ column: 'region', direction: 'asc' }] },
+      name: 'UniqueRow', window: { fn: 'rowNumber', partition: ['region'], order: [{ column: 'region', direction: 'asc' }, { column: 'notional', direction: 'asc' }] },
     } });
     assert.deepEqual(filter, { kind: 'addFilter', condition: { kind: 'condition', column: 'UniqueRow', operator: 'equal', value: 1 } });
     assert.deepEqual(configure, { kind: 'configure', patch: { columns: { UniqueRow: { hidden: true } } } });
-    const ordered = made(['region'], { column: 'notional', direction: 'desc' })[0] as { column: DerivedColumn };
-    assert.deepEqual(ordered.column.window?.order, [{ column: 'notional', direction: 'desc' }]);
+    // largest first: its empties after every value, led by a flag of them (Pure's empty is the largest) -- hidden too
+    // (the correctness audit's 3)
+    const [flag, ordered, , hide] = made(['region'], { column: 'notional', direction: 'desc' }) as [{ column: DerivedColumn }, { column: DerivedColumn }, unknown, unknown];
+    assert.deepEqual(flag.column, { name: 'UniqueEmpty', kind: 'dimension', lambda: lambda(['x'], fn('isEmpty', property(variable('x'), 'notional'))) });
+    assert.deepEqual(ordered.column.window?.order, [{ column: 'UniqueEmpty', direction: 'asc' }, { column: 'notional', direction: 'desc' }]);
+    assert.deepEqual(hide, { kind: 'configure', patch: { columns: { UniqueRow: { hidden: true }, UniqueEmpty: { hidden: true } } } });
+    const box = cube(rows('grid-1'), (q) => ({ ...q, derived: [flag.column, ordered.column], filter: { kind: 'condition', column: 'UniqueRow', operator: 'equal', value: 1 } }),
+      { columns: { UniqueRow: { hidden: true }, UniqueEmpty: { hidden: true } } });
+    assert.deepEqual(uniqueOf(box.query), { keys: ['region'], by: { column: 'notional', direction: 'desc' }, column: 'UniqueRow', columns: ['UniqueEmpty', 'UniqueRow'] });
+    assert.deepEqual(boxSays(box), { tool: 'unique', also: [], says: 'by region' }, 'its flag its own, no Formula');
   });
 
   it('a box made so says Unique, by its keys: its number neither a Record ID nor its filter a Filter, nor hidden a Select', () => {
@@ -382,8 +397,16 @@ describe("a Test (checks.ts): each check's failing rows counted by the database,
   });
 
   it('says which checks fail, by the counts its row has; refuses in words', () => {
-    const counts: Record<string, number> = { region_empty: 2, region_repeated: 0, notional_outside: 1 };
+    const counts: Record<string, number> = { region_empty: 2, region_repeated: 0, notional_outside: 1, Rows: 5 };
     assert.deepEqual(failingChecks(checks, (c) => counts[c]).map((f) => [f.check.kind, f.rows]), [['notEmpty', 2], ['between', 1]]);
+    // a row lacking a check's count is no row of this test: thrown, never read as none failing (AGENTS.md invariant 4)
+    assert.throws(() => failingChecks(checks, (c) => ({ ...counts, region_repeated: undefined })[c]),
+      /a test's row has no count 'region_repeated' \(region repeats no value\): it is no row of this test/);
+    // a value repeated counts its rows after its first; an empty value repeats nothing (the correctness audit's 8)
+    const unique = checkCommands(typed, [{ kind: 'unique', column: 'region' }])
+      .flatMap((c) => (c.kind === 'calculate' && c.column.name === 'region_repeated' ? [c.column] : []));
+    assert.equal(JSON.stringify(unique[0]!.lambda!.body[0]), JSON.stringify(fn('if', fn('and', fn('isNotEmpty', property(variable('x'), 'region')),
+      fn('greaterThan', fn('toOne', property(variable('x'), 'region__row')), lit.integer(1))), lambda([], lit.integer(1)), lambda([], lit.integer(0)))));
     refused(() => checkCommands(typed, []), /a test checks something: add a check/);
     refused(() => checkCommands(typed, [{ kind: 'notEmpty', column: 'nope' }]), /the grid has no column 'nope'/);
     refused(() => checkCommands(typed, [{ kind: 'between', column: 'region', min: 1 }]), /'region' is String: only a number is checked within bounds/);
@@ -547,6 +570,10 @@ describe('a Generate Rows (generate-rows.ts): each row repeated by an exploded r
     refused(() => generateRowsCommands(typed, { kind: 'numbers', name: 'region', from: 1, to: 3 }), /'region' is already a column/);
     refused(() => generateRowsCommands(typed, { kind: 'numbers', name: 'N', from: { column: 'region' }, to: 3 }), /'region' is String: a bound is a whole number/);
     refused(() => generateRowsCommands(typed, { kind: 'days', name: 'd', from: 'region', to: date! }), /the days are between two date columns/);
+    // a moment's days would run past the last (the correctness audit's 12, 2026-10-26): its day taken first
+    const timed: CubeSnapshot = { ...typed, columns: [...typed.columns, { name: 'closed', type: 'DateTime' }] };
+    refused(() => generateRowsCommands(timed, { kind: 'days', name: 'd', from: date!, to: 'closed' }),
+      /'closed' is a date and a time: the days are between two days -- take it to its day first/);
     refused(() => generateRowsCommands(typed, { kind: 'numbers', name: 'N', from: 0, to: 1_000_000 }), /more than 100,000 rows of each/);
     assert.deepEqual(readGenerateRows({ kind: 'generateRows', name: 'N', from: 1, to: { column: 'n' }, step: 2 }),
       { kind: 'numbers', name: 'N', from: 1, to: { column: 'n' }, step: 2 });
@@ -688,6 +715,23 @@ describe("a Date Filter (date-ranges.ts): a range relative to today, or the days
     assert.equal(datesKept({ kind: 'and', children: [...between.children, one] }), undefined);
     assert.equal(datesKept({ kind: 'or', children: [...between.children] }), undefined);
   });
+
+  it("a date-time column's days are every moment of them: from the first's midnight to the next day's after the last", () => {
+    // the correctness audit's 5, 2026-10-26: a bare day was no literal of a date-time, and `<= to` left out its last day
+    assert.deepEqual(datesBetweenConditions('at', '2024-06-01', '2024-06-30', 'DateTime'), [
+      { kind: 'condition', column: 'at', operator: 'greaterThanEqual', value: '2024-06-01T00:00:00' },
+      { kind: 'condition', column: 'at', operator: 'lessThan', value: '2024-07-01T00:00:00' },
+    ]);
+    assert.equal((datesBetweenConditions('at', '2024-02-01', '2024-02-29', 'DateTime')[1] as { value: unknown }).value, '2024-03-01T00:00:00', 'a leap day');
+    assert.equal((datesBetweenConditions('at', '2024-12-31', '2024-12-31', 'DateTime')[1] as { value: unknown }).value, '2025-01-01T00:00:00', 'a year on');
+    // a day column's as it was: both days, as written
+    assert.deepEqual(datesBetweenConditions('d', '2024-06-01', '2024-06-30', 'StrictDate'), datesBetweenConditions('d', '2024-06-01', '2024-06-30'));
+    // read back as the days it keeps, said so
+    const timed = { kind: 'and', children: datesBetweenConditions('at', '2024-02-01', '2024-02-29', 'DateTime') } as const;
+    assert.deepEqual(datesKept(timed), { column: 'at', from: '2024-02-01', to: '2024-02-29' });
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, filter: timed }))), { tool: 'dateFilter', also: [], says: 'at from 2024-02-01 to 2024-02-29' });
+    assert.throws(() => datesBetweenConditions('t', '2024-06-01', '2024-06-30', 'StrictTime'), /'t' is a time of day: it has no days to keep/);
+  });
 });
 
 describe("Sample's other ways (row-sample.ts): a row number and a filter, as Unique's", () => {
@@ -699,8 +743,12 @@ describe("Sample's other ways (row-sample.ts): a row number and a filter, as Uni
     assert.deepEqual(columnsOf(first)[0]!.window, { fn: 'rowNumber', partition: ['region'], order: [{ column: 'notional', direction: 'asc' }] });
     assert.deepEqual(first.find((c) => c.kind === 'addFilter'), { kind: 'addFilter', condition: { kind: 'condition', column: 'SampleRow', operator: 'lessThanEqual', value: 2 } });
     assert.deepEqual(first.at(-1), { kind: 'configure', patch: { columns: { SampleRow: { hidden: true } } } });
+    // the last: falling, its empties after every value -- a flag of them first (unique.ts rowNumberOrder; the audit's 3)
     const last = rowSampleCommands(typed, { kind: 'last', n: 1, by: 'notional', groups: ['region'] });
-    assert.equal(columnsOf(last)[0]!.window?.order[0]?.direction, 'desc');
+    assert.deepEqual(columnsOf(last).map((c) => c.name), ['SampleEmpty', 'SampleRow']);
+    assert.deepEqual(columnsOf(last)[1]!.window?.order, [{ column: 'SampleEmpty', direction: 'asc' }, { column: 'notional', direction: 'desc' }]);
+    assert.deepEqual(rowSampleOf({ derived: columnsOf(last), filter: (last.find((c) => c.kind === 'addFilter') as { condition: FilterNode }).condition }),
+      { kind: 'last', n: 1, by: 'notional', groups: ['region'], columns: ['SampleEmpty', 'SampleRow'] });
     const skip = rowSampleCommands(typed, { kind: 'skip', n: 10, by: 'notional', groups: [] });
     assert.equal((skip.find((c) => c.kind === 'addFilter') as { condition: { operator: string } }).condition.operator, 'greaterThan');
     const every = rowSampleCommands(typed, { kind: 'every', n: 3, by: 'notional', groups: [] });
@@ -708,6 +756,8 @@ describe("Sample's other ways (row-sample.ts): a row number and a filter, as Uni
     assert.equal(JSON.stringify(rem!.lambda?.body[0]), JSON.stringify(
       fn('mod', fn('toOne', property(variable('x'), 'SampleRow')), lit.integer(3))));
     assert.equal(row!.window?.fn, 'rowNumber');
+    // its ties broken by every other column that sorts (the audit's 14): one of every 3 the same rows each query
+    assert.deepEqual(row!.window?.order, [{ column: 'notional', direction: 'asc' }, { column: 'region', direction: 'asc' }]);
   });
 
   it('is read back off its query, a Sample box saying what it keeps; its columns none of a Formula or a Select', () => {
@@ -1073,6 +1123,15 @@ describe("Imputation (impute.ts): a number's empties filled, a value or the colu
       { columns: { qty: { hidden: true }, qty_filled: { displayName: 'qty' } } });
     assert.deepEqual(boxSays(box), { tool: 'impute', also: [], says: "qty's empties → 0 in place" });
     assert.deepEqual(readImputation({ kind: 'impute', columns: ['qty'], with: 0, inPlace: true }).inPlace, true);
+    // handed on in its column's place, not after the others (the correctness audit's 15, 2026-10-26)
+    const done = applyGridCommands({ snapshot: typed, config: DEFAULT_CONFIGURATION },
+      imputeCommands(typed, { columns: ['notional'], with: { kind: 'value', value: -1 }, inPlace: true }));
+    const config = done.config as unknown as Record<string, unknown>;
+    assert.deepEqual(handedOn(rowColumns(done.snapshot).map((c) => c.name), done.snapshot, config).map((c) => [c.name, c.as]),
+      [['region', 'region'], ['notional_filled', 'notional'], ['qty', 'qty']]);
+    assert.deepEqual(boxOrder(done.snapshot, config), ['region', 'notional_filled', 'qty'], "the relation's select, for what reads it");
+    // a negative filler read back: the protocol writes -1 as minus(1)
+    assert.deepEqual(imputedOf(done.snapshot.derived[0]!, done.snapshot.derived)?.with, { kind: 'value', value: -1 });
   });
 
   it('refuses in words what it cannot fill', () => {
@@ -1166,35 +1225,52 @@ describe("the DateTime's part and text read (date-tools.ts): a column each, read
 describe("a box's Profile (profile.ts): one row of aggregates asked of the database, read back a column each", () => {
   const columns = [{ name: 'region', type: 'String' }, { name: 'settled', type: 'Boolean' }];
 
-  it("asks each column's values and different values counted, and an ordered column's smallest and largest", () => {
-    const text = JSON.stringify(profileLambda(property(variable('r'), 'rows'), columns));
-    assert.match(text, /"function":"groupBy"/);
-    for (const name of ['c0_filled', 'c0_distinct', 'c0_smallest', 'c0_largest', 'c1_filled', 'c1_distinct']) assert.ok(text.includes(`"${name}"`), name);
+  it("asks each column's values and different values counted, an ordered column's smallest and largest, its empties and share", () => {
+    const text = toJson(profileLambda(property(variable('r'), 'rows'), columns));
+    // a keyless aggregate: its one row even of no rows (a grouping gives no group of none)
+    assert.match(text, /"function":"aggregate"/);
+    assert.doesNotMatch(text, /"function":"groupBy"/);
+    for (const name of ['c0_filled', 'c0_distinct', 'c0_smallest', 'c0_largest', 'c1_filled', 'c1_distinct', 'c0_empty', 'c0_share', 'c1_empty', 'c1_share']) {
+      assert.ok(text.includes(`"${name}"`), name);
+    }
     assert.ok(!text.includes('"c1_smallest"'), 'a Boolean has no smallest');
     assert.match(text, /"function":"distinct"/);
+    // its empties and share filled the database's: its rows less its values, its values over its rows (0 of none)
+    assert.match(text, /"function":"minus"/);
+    assert.match(text, /"function":"divide"/);
   });
 
-  it('reads its one row back; a box with no rows, every count none', () => {
+  it('reads its one row back -- of no rows too, the database\'s counts of none; anything else thrown', () => {
     const col = (name: string, v: unknown) => ({ name, type: 'Integer', values: [v] });
     const table = { rowCount: 1, epoch: 0, elapsedMs: 0, columns: [
-      col('__profile_rows__', 5), col('c0_filled', 4), col('c0_distinct', 3), col('c0_smallest', 'AMER'), col('c0_largest', 'EMEA'),
-      col('c1_filled', 5), col('c1_distinct', 2),
+      col('__profile_rows__', 5), col('c0_filled', 4), col('c0_empty', 1), col('c0_share', 0.8), col('c0_distinct', 3), col('c0_smallest', 'AMER'),
+      col('c0_largest', 'EMEA'), col('c1_filled', 5), col('c1_empty', 0), col('c1_share', 1), col('c1_distinct', 2),
     ] } as never;
     assert.deepEqual(profileOf(table, columns), { rows: 5, columns: [
-      { name: 'region', type: 'String', filled: 4, distinct: 3, smallest: 'AMER', largest: 'EMEA' },
-      { name: 'settled', type: 'Boolean', filled: 5, distinct: 2 },
+      { name: 'region', type: 'String', filled: 4, empty: 1, share: 0.8, distinct: 3, smallest: 'AMER', largest: 'EMEA' },
+      { name: 'settled', type: 'Boolean', filled: 5, empty: 0, share: 1, distinct: 2 },
     ] });
-    assert.deepEqual(profileOf({ rowCount: 0, epoch: 0, elapsedMs: 0, columns: [] } as never, columns).columns[0],
-      { name: 'region', type: 'String', filled: 0, distinct: 0 });
+    const none = { rowCount: 1, epoch: 0, elapsedMs: 0, columns: [
+      col('__profile_rows__', 0), col('c0_filled', 0), col('c0_empty', 0), col('c0_share', 0), col('c0_distinct', 0), col('c0_smallest', null),
+      col('c0_largest', null), col('c1_filled', 0), col('c1_empty', 0), col('c1_share', 0), col('c1_distinct', 0),
+    ] } as never;
+    assert.deepEqual(profileOf(none, columns).columns[0], { name: 'region', type: 'String', filled: 0, empty: 0, share: 0, distinct: 0, smallest: null, largest: null });
+    // no row, or a count of none: no answer of its question, never read as 0 (AGENTS.md invariant 4)
+    assert.throws(() => profileOf({ rowCount: 0, epoch: 0, elapsedMs: 0, columns: [] } as never, columns), /the profile's answer is one row, not 0/);
+    assert.throws(() => profileOf({ ...(table as object), columns: [col('__profile_rows__', null)] } as never, columns), /has no count __profile_rows__/);
   });
 
-  it("asks each pair of number columns' correlation, and reads them back a matrix: each with itself 1, empty where none", () => {
+  it("asks each pair of number columns' correlation, each with itself, and reads them back a matrix: empty where none", () => {
     const asked = JSON.stringify(correlationLambda(accessor('local::DB', 'trades'), ['a', 'b', 'c']));
-    for (const p of ['r0_1', 'r0_2', 'r1_2']) assert.ok(asked.includes(`"${p}"`), `asks ${p}`);
+    for (const p of ['r0_0', 'r0_1', 'r0_2', 'r1_1', 'r1_2', 'r2_2']) assert.ok(asked.includes(`"${p}"`), `asks ${p}`);
     assert.ok(asked.includes('"corr"') && asked.includes('"rowMapper"'), 'by corr over rows mapped a pair each');
+    assert.match(asked, /"function":"aggregate"/);
     const col = (name: string, v: unknown) => ({ name, type: 'Float', values: [v] });
-    const table = { rowCount: 1, epoch: 0, elapsedMs: 0, columns: [col('r0_1', 0.5), col('r0_2', -1), col('r1_2', null)] } as never;
-    assert.deepEqual(correlationsOf(table, ['a', 'b', 'c']), { columns: ['a', 'b', 'c'], r: [[1, 0.5, -1], [0.5, 1, null], [-1, null, 1]] });
+    // b does not vary (its own correlation none): it with itself none, as with the others; a with itself 1 to a double's
+    // last place, said 1
+    const table = { rowCount: 1, epoch: 0, elapsedMs: 0, columns: [col('r0_0', 0.9999999999999998), col('r0_1', null), col('r0_2', -1),
+      col('r1_1', null), col('r1_2', null), col('r2_2', 1)] } as never;
+    assert.deepEqual(correlationsOf(table, ['a', 'b', 'c']), { columns: ['a', 'b', 'c'], r: [[1, null, -1], [null, null, null], [-1, null, 1]] });
   });
 });
 

@@ -46,8 +46,9 @@ export type TextTool =
   /** `inPlace`: each cleansed column handed on by its column's name, the column hidden (box-columns.ts). */
   | { readonly kind: 'cleanse'; readonly columns: readonly string[]; readonly cleansing: Cleansing; readonly inPlace?: boolean };
 
-/** The pattern Data Cleansing takes punctuation out with: anything but a letter, a digit or a space. */
-export const PUNCTUATION = '[^A-Za-z0-9\\s]';
+/** The pattern Data Cleansing takes punctuation out with: anything but a letter, a digit or a space -- any script's
+ *  (`\p{L}`, `\p{N}`: `é`, `ü`, `東` are letters, kept), never ASCII's alone. */
+export const PUNCTUATION = '[^\\p{L}\\p{N}\\s]';
 /** The pattern Data Cleansing makes repeated spaces one with. */
 export const SPACES = '\\s+';
 /** What a cleansed column is called: its column's name and this. */
@@ -84,9 +85,11 @@ export function textToolOf(d: DerivedColumn): TextToolSaid | undefined {
     const on = text(second);
     return column !== undefined && on !== undefined ? { tool: 'textToColumns', says: `${column} split on '${on}'` } : undefined;
   }
-  // each part its own row: an exploded split
+  // each part its own row: an exploded split (of its text, an empty one blank)
   if (top.function === 'split' && d.unnest === true) {
-    const column = read(first);
+    const blanked = first?._type === 'func' && first.function === 'coalesce' && first.parameters.length === 2
+      && text(first.parameters[1]) === '' ? first.parameters[0] : first;
+    const column = read(blanked);
     const on = text(second);
     return column !== undefined && on !== undefined ? { tool: 'textToColumns', says: `${column} split on '${on}' to rows` } : undefined;
   }
