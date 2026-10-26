@@ -14826,3 +14826,51 @@ do".
    - `//gates:parser_equivalence`: 3 of 3;
    - `//spec:reference_lane` and `//spec:update_reference_lane_test`: green, the second for the first time since
      PR #58.
+
+## 2026-10-26 — main merged into the plan path branch (504 commits, the writes program and DataCube's flow mode), proven on every lane, and the WebAssembly planner's 1 MiB cliff (PARK-40)
+
+The plan path branch (`claude/upbeat-johnson-l4hogx`) took main at 17836b07 (PR #76) through two merges (d408e1b8:
+504 commits, 15 conflicted files; 025d847b: PR #76, clean), its fix-ups (344047da, ec360a89) and one repair the union
+needed that neither side did alone.
+
+1. **The 15 conflicts, both sides kept.** The planner's write branch (`PlanMaker.program`, main's Update and Check
+   nodes) beside the branch's `TdsResult` and typed-column plan (`PlanJson` format 11: "main's write plans merged in");
+   the runner's `sequence` of statements in one session beside the branch's rows/keyed/text legs; the lowerer built
+   with the branch's identity keys and object sites under main's `resolve`/`Resolved`/`writes()`; MongoDB's target
+   refusing main's new DML variants by name. Register rows renumbered: main's S97-S103 kept, the branch's S97-S104 are
+   now S104-S111 (every citation moved).
+2. **The pins, re-measured at the union, each dated:** `PlatformNamesGuardrailTest` 343 -> 346 (335 + the branch's 3 +
+   main's 8); `JavaEvalLedgerTest`'s StatementExecutor 2419 stripped code lines; the parser-equivalence own corpus
+   2,993 and 2,979 -> 2,996.
+3. **The planner module stopped loading, and why.** 77 targets of `//gates:local` (DataCube 60, Studio 7, query 4,
+   wasm 2, engine-client 2, site 1, pure-protocol 1) failed on one cause: "data segment 1 is out of bounds". TeaVM
+   0.15.0's binary renderer writes a data segment's offset UNSIGNED where the specification reads it SIGNED
+   (`WasmBinaryRenderer.renderInitializer`, `writeLEB`; 0.16.0 writes `writeSignedLEB`). The encodings agree while
+   the last byte's bit 6 is clear; the planner's string pool (segment 0) reached 1,056,011 bytes with main merged in,
+   so segment 1's offset (`8b ba 40`) read as -1,041,141. main alone is green (its gate at de68edbf and 17836b07): the
+   UNION crossed 1 MiB. `tools/teavm`'s `WasmDataOffsets` re-encodes every data segment offset after TeaVM writes the
+   module (JDK-only; idempotent; everything but the data section copied unchanged; an offset expression that is not
+   one `i32.const` refused by opcode), run by `TeaVmCompile` on every module, held by
+   `//tools/teavm:data_offsets_test`. PARK-40 (`docs/PARKED_WORK_LEDGER.md`): the fixer, its test and the row leave
+   together with the bump to TeaVM 0.16.0, whose anchor test reads MODULE.bazel's pin.
+4. **Measured on 3cf01887 (the code; 03ccec5a and this entry are documentation) against main 17836b07:**
+   - the core lanes, the guards and the census: green; the integration suite with main's write-plan tests: green;
+   - PCT on the platform's engine: DuckDB and MongoDB 10 of 10; channel B 5 of 5;
+   - `bazel test --lockfile_mode=error //gates:local`: 431 of 442 pass, 1 skipped, 10 fail in the container: the 8
+     Postgres targets and DataCube's `verify_app_test`, which refuse `initdb` as root, and Studio's `verify_test`.
+     The 8 Postgres targets pass unprivileged (8 of 8); `verify_app_test` passes unprivileged (22.4 s); Studio's
+     `verify_test` passes alone, 59.4 s (its "server" loop's 60 s wait timed out under the gate's load while its page loop
+     passed; the first gate run's 7 Studio failures were the module's). Before the fix the same gate failed 85: these
+     8 plus the 77 the module took down;
+   - the WebAssembly line after the fix: `//wasm:zone_test`, `round_trip_test`, `differential_test`,
+     `conformance_test`, DataCube's `calc_fix_test` and the gate's 60 DataCube targets: green; the planner's segment 1
+     offset reads `8b ba c0 00` (1,056,011);
+   - the clouds, by their lanes at ec360a89 (the merge's code; 025d847b adds DataCube's startup and the site's
+     example only): Snowflake channel A 5 of 5, zero moved; channel B standard + essential 540 PASS on both sides,
+     zero moved, no message changed; wall time standard 344 s against 325 s (+6%) while the warehouse was shared by
+     foreign legacy-route PCT sessions (three in standard's window, two in essential's). BigQuery channel A 5 of 5,
+     channel B no test moved (standard 205, essential 330 + 15 errors, identical), 1,021 s against 974 s (+5%, noise).
+     Databricks channel A 5 of 5, channel B no test moved (standard 205, essential 334 + 11 errors, identical),
+     1,856 s against 1,596 s (+16%, within the warehouse's run-to-run spread 1,563-1,728).
+   - Step 0's M5 baseline, Snowflake standard (own session): 1,410 statements, 705 SELECT, the largest 14,554 chars,
+     237 over 5,000; identical to 1963bfbc.
