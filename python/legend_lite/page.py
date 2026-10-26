@@ -2490,6 +2490,8 @@ class Page:
                         'page': self._doc, 'input': input.id, 'host': frames.hosted(),
                         'sheet': None if sheet is None else sheet.id, 'title': title,
                         **({'port': port} if port is not None else {})})))
+                if 'problems' in made:
+                    raise ValueError('; '.join(made['problems']))
                 for note in made['notes']:
                     warnings.warn(note, stacklevel=2)
                 with self._batch(tell=False):

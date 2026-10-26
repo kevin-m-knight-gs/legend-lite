@@ -3194,7 +3194,7 @@ class Flows(Paged):
         px = flow.grid(input=raw)
         px.filter([('close', 'greaterThan', 99.6)])
         rates = page.grid(yields, name='rates')
-        tile = page.timeseries({'px': px, 'rates': rates}, ['px:close[SPX]', 'rates:yield[10Y]', 'correlation($A, $B, 2)'])
+        tile = page.sheets[0].timeseries({'px': px, 'rates': rates}, ['px:close[SPX]', 'rates:yield[10Y]', 'correlation($A, $B, 2)'])
         alone = tile.frame('A')
         self.assertEqual(sorted(v for v in alone.iloc[:, 0] if pd.notna(v)), [100.0, 101.0], "the box's rows, its filter kept")
         # a series of both: the two read together, the box's input resolved
@@ -3441,10 +3441,10 @@ class Flows(Paged):
         self.assertEqual(joined.sheet, flow)
         self.assertEqual(joined.inputs, {'left': big, 'right': source})
         # named as the canvas names its boxes, as the tab's Join window names it (flow-boxes.ts pageBoxName; the review of
-        # 2026-10-26's B3): the Filter by its tool, the Input by its title
+        # 2026-10-26's B3): each untitled, by its tool
         doc = page.to_dict()
         view = next(v for v in doc['views'] if v['id'] == joined.id)
-        self.assertEqual(next(c for c in doc['cubes'] if c['id'] == view['cube'])['cube']['source']['name'], 'Filter ⋈ trades')
+        self.assertEqual(next(c for c in doc['cubes'] if c['id'] == view['cube'])['cube']['source']['name'], 'Filter ⋈ Input')
         # the Filter's two rows (EMEA, AMER) against the three: EMEA twice, AMER once
         self.assertEqual(len(joined.to_pandas()), 3)
         big.filter([('notional', 'greaterThan', 200)])

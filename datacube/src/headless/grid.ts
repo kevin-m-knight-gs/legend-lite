@@ -43,7 +43,7 @@ import { CubeController, type CubeView } from '../cube.ts';
 import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
   CubeDocumentError, cubeOpenedAgain, cubeTaken, cubeToJson, fileChanged, fileSourceOf, frameSource, gridCapped, leavesOf, newGridTree, openCube,
-  readCube, readCubeSource, rebuilt, remoteSourceOf, writeCube, type ClassSource, type CubeDocument, type CubeSource, type JoinSource,
+  readCube, readCubeSource, rebuilt, remoteSourceOf, writeCube, type ClassSource, type CubeDocument, type CubeSource, type JoinInput, type JoinSource,
   type OpenedCube, type QuerySource, type RowsSource, type WarehouseSource,
 } from '../cube-document.ts';
 import {
@@ -535,7 +535,8 @@ function openedAgain(was: CubeDocument, now: CubeSource, said: readonly string[]
  * limit when it is not the page's only grid (gridCapped), titled as that grid is called (live-inputs.ts gridInput) -- on
  * that grid's sheet unless `sheet` is named, near it; `title`, the one a person gave it. JSON: `{command, notes, model,
  * runtime, relation}`, as headless joinCube's: the command, what drifted on the way, and the base a host plans its rows
- * over. `port`: one of `input`'s ports it reads (a Filter's False, a Join's L or R), as the tab adds a box on one.
+ * over -- or `{problems}`, its input refused in DataCube's words. `port`: one of `input`'s ports it reads (a Filter's
+ * False, a Join's L or R), as the tab adds a box on one.
  */
 export async function rowsCube(spec: string): Promise<string> {
   // the protocol's exact JSON: a cube's numbers kept as they are
@@ -547,10 +548,17 @@ export async function rowsCube(spec: string): Promise<string> {
   // the review of 2026-10-26's B5, Python's had none
   const port = s.port ?? undefined;
   if (port !== undefined && port !== 'false' && port !== 'left' && port !== 'right') {
-    throw new CubeRefusal(`a box reads its input's rows, or its port 'false', 'left' or 'right', not ${JSON.stringify(port)}`);
+    return JSON.stringify({ problems: [`a box reads its input's rows, or its port 'false', 'left' or 'right', not ${JSON.stringify(port)}`] });
   }
   const page = readPage(s.page, { empty: true });
-  const input = gridInput(page, s.input, [], port);
+  let input: JoinInput;
+  try {
+    input = gridInput(page, s.input, [], port);
+  } catch (e) {
+    // the input refused in DataCube's words (no grid of the page; a port it has not)
+    if (!(e instanceof CubeRefusal)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
   const live: RowsSource = { _type: 'rows', name: input.name, input: { grid: s.input, ...(port !== undefined ? { port } : {}) }, columns: [] };
   const { base, notes, side } = await baseOver(resolvedSource(page, live), s.host);
   const columns = side!.columns;

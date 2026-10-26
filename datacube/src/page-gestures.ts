@@ -6,6 +6,7 @@
 // and passes it. A gesture whose every field is the person's input (a tile renamed as typed, a sheet removed) is built
 // by pageCommand, as Python's generated builder builds it (_commands.py, from the same kinds and fields).
 
+import { ExactNumber } from '../../pure-protocol/src/index.ts';
 import type { ChartSpec } from './chart-spec.ts';
 import { asSaved, remove, tiles, type Bands, type Preset } from './layout/bands.ts';
 import { fieldNames } from './command-fields.ts';
@@ -198,17 +199,21 @@ export const PAGE_GESTURES = {
   // is: one step, as the canvas's drag tells it (the review of 2026-10-26's B6)
   'flow.place': (a: Readonly<Record<string, unknown>>): PageCommand[] => {
     if (typeof a['tile'] !== 'string') throw new CubeRefusal("'flow.place' needs tile, the box's id");
-    if (typeof a['x'] !== 'number' || typeof a['y'] !== 'number') throw new CubeRefusal("'flow.place' needs x and y, its place");
+    // a place as JSON carries it exactly (pure-protocol's reader: an ExactNumber), or as a number
+    const at = (v: unknown): number => (v instanceof ExactNumber ? Number(v.text) : typeof v === 'number' ? v : NaN);
+    const x = at(a['x']);
+    const y = at(a['y']);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) throw new CubeRefusal("'flow.place' needs x and y, its place");
     const page = pageOf(a);
     const frame = a['frame'] as Frame | null | undefined;
     const sheet = page.sheets.find((s) => s.layout.kind === 'flow' && s.layout.boxes.some((b) => b.tile === a['tile']));
     // a tile of a board: the command alone, refused in its own words
     if (sheet === undefined || sheet.layout.kind !== 'flow') {
-      return [{ kind: 'placeBox', tile: a['tile'], x: a['x'], y: a['y'], ...(frame !== undefined ? { frame } : {}) }];
+      return [{ kind: 'placeBox', tile: a['tile'], x, y, ...(frame !== undefined ? { frame } : {}) }];
     }
     let moves: ReturnType<typeof containerMoves>;
     try {
-      moves = containerMoves(sheet.layout, a['tile'], a['x'], a['y']);
+      moves = containerMoves(sheet.layout, a['tile'], x, y);
     } catch (e) {
       throw e instanceof FlowRefusal ? new CubeRefusal(e.message) : e;
     }
