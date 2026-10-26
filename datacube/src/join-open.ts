@@ -43,7 +43,7 @@ const PLURAL: Readonly<Record<TableKind, string>> = { file: 'files', remoteFile:
 export function leafRefusal(leaf: LeafSource, here: readonly TableKind[]): string | undefined {
   if ((here as readonly string[]).includes(leaf._type)) return undefined;
   return `a join reads both its inputs in one place, this page's own database (${here.map((k) => PLURAL[k]).join(', ')}); `
-    + `${leaf.name} is ${WHAT[leaf._type]}`;
+    + `${leaf.name} is ${WHAT[leaf._type]} -- cache the box that reads it, and its rows are copied here when it runs (FL10)`;
 }
 
 /** What opening a join needs of its host. */

@@ -134,6 +134,20 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** A lambda's protocol JSON planned over a model held as an execution plan ({@code Boundary.executionPlanJsonHeld}). */
+    @CEntryPoint(name = "lite_execution_plan_json_held")
+    static CCharPointer executionPlanJsonHeld(IsolateThread thread, CCharPointer handle, CCharPointer lambdaJson,
+            CCharPointer runtime) {
+        String a;
+        try {
+            String h = text(handle), l = text(lambdaJson), r = text(runtime);
+            a = Folded.of(() -> Boundary.executionPlanJsonHeld(Integer.parseInt(h), l, r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** A lambda's protocol JSON typed, compile-only, over a model held ({@code Boundary.relationTypeJsonHeld}). */
     @CEntryPoint(name = "lite_relation_type_held")
     static CCharPointer relationTypeHeld(IsolateThread thread, CCharPointer handle, CCharPointer lambdaJson) {

@@ -21,7 +21,10 @@
 // ×) takes it off -- the box reading it then reads a copy of what it read (frozen); a tool dropped on a line goes between
 // the two boxes.
 
-import { BOX_HEIGHT, BOX_WIDTH, CONTAINER_FRAME, FRAME_HEAD, FRAME_MIN, MARGIN, containerMoves, framedBy, type Flow, type FlowBox, type Frame } from './flow.ts';
+import {
+  BOX_HEIGHT, BOX_WIDTH, CONTAINER_FRAME, FRAME_HEAD, FRAME_MIN, MARGIN, TABLE_MODES, TABLE_MODE_WORDS, containerMoves, framedBy, outputProblem, outputWords,
+  type Flow, type FlowBox, type Frame, type Output, type TableMode,
+} from './flow.ts';
 import type { FlowBoardState, FlowChart } from './flow-board.ts';
 import type { FlowPoint, LineEnd, RunLog } from './flow-board.ts';
 import { moreIndex, type InputPort, type InputSide } from '../cube-document.ts';
@@ -130,6 +133,8 @@ const ICONS: Readonly<Record<FlowTool, string>> = {
   output: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v5M3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 4v8c0 1.1 2.2 2 5 2M10 11.5h5M13 9.5l2 2-2 2',
   cleanse: 'M10 2l4 4-6.5 6.5H3.5V8.5zM8 4l4 4M2 14.5h12',
   impute: 'M2 3h12v10H2zM2 6.5h12M2 10h12M6 3v10M10 6.5v3.5M10.5 8.2h3',
+  // a list of rules beside, a value swapped for another
+  dynamicReplace: 'M2 2.5h5v11H2zM2 6h5M2 9.5h5M9 5h5l-2-2M14 11H9l2 2',
   test: 'M8 1.8l5.5 2v4c0 3.3-2.4 5.6-5.5 6.4C4.9 13.4 2.5 11.1 2.5 7.8v-4zM5.3 8l1.9 1.9 3.6-3.8',
   jsonParse: 'M5 2.5c-1.5 0-2 .7-2 2v1.8c0 .8-.4 1.2-1.2 1.2.8 0 1.2.4 1.2 1.2V10.5c0 1.3.5 2 2 2M11 2.5c1.5 0 2 .7 2 2v1.8c0 .8.4 1.2 1.2 1.2-.8 0-1.2.4-1.2 1.2V10.5c0 1.3-.5 2-2 2M6.5 7.5h3',
   dateFilter: 'M2 3.5h9v8H2zM2 6h9M4.5 2v3M8.5 2v3M10 9.5h5l-2 2.5v2.5l-1-1v-1.5z',
@@ -269,6 +274,9 @@ export class FlowCanvas {
   /** A Test's mode, in the settings (#paintStops), and what it was drawn for. */
   readonly #stopsStrip: HTMLElement;
   #stopsKey = '';
+  /** A box's cache, in the settings (#paintCache: FL10), and what it was drawn for. */
+  readonly #cacheStrip: HTMLElement;
+  #cacheKey = '';
   /** A Cross Tab's columns, in the settings (#paintPin): found as it runs, or fixed by Load values; what it was drawn for,
    *  and what its last Load values or Unfix said, by box. */
   readonly #pinStrip: HTMLElement;
@@ -402,8 +410,9 @@ export class FlowCanvas {
     this.#inputs = el('div', 'dc-flow-inputs');
     this.#outputStrip = el('div', 'dc-flow-output');
     this.#stopsStrip = el('div', 'dc-flow-output dc-flow-stops');
+    this.#cacheStrip = el('div', 'dc-flow-output dc-flow-cache');
     this.#pinStrip = el('div', 'dc-flow-output dc-flow-pin');
-    this.#settings.append(settingsHead, this.#inputs, this.#outputStrip, this.#stopsStrip, this.#pinStrip, board.dock, this.#settingsEmpty);
+    this.#settings.append(settingsHead, this.#inputs, this.#outputStrip, this.#stopsStrip, this.#cacheStrip, this.#pinStrip, board.dock, this.#settingsEmpty);
     // the canvas on its stage, its own tools at its corner, over it as it scrolls
     const stage = el('div', 'dc-flow-stage');
     this.#toolbar = el('div', 'dc-flow-toolbar');
@@ -1497,7 +1506,10 @@ export class FlowCanvas {
     // a Test's result, or a Cross Tab's values its columns lack (FL3): said and marked alike
     const tested = tool === 'test' ? this.#testOf(id) : this.#lackingOf(id);
     const stops = this.#board.layout.boxes.find((b) => b.tile === id)?.stops === true;
-    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted, inputs.length, outs, tested, stops]);
+    // a cached box (FL10): marked, and whether its rows are copied said on hover
+    const cached = this.#board.layout.boxes.find((b) => b.tile === id)?.cache === true;
+    const copied = cached ? this.#board.options.cachedCopy?.(id) : undefined;
+    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted, inputs.length, outs, tested, stops, cached, copied]);
     if (key === drawn.key) return;
     drawn.key = key;
     drawn.root.dataset['tool'] = tool;
@@ -1527,11 +1539,16 @@ export class FlowCanvas {
     drawn.root.classList.toggle('dc-flow-passing', tested !== undefined && tested.failing.length === 0);
     // a Test that stops a run: red when it fails (FL8's refuse), amber when it only warns
     drawn.root.classList.toggle('dc-flow-stops', stops);
+    drawn.root.classList.toggle('dc-flow-cached', cached);
+    drawn.root.dataset['cached'] = !cached ? '' : copied === 'here' ? 'here' : copied !== undefined ? 'copied' : 'not-yet';
     drawn.root.setAttribute('aria-pressed', String(shown));
     const frozenWords = frozen.length > 0 ? `Frozen: reads a copy of what ${frozen.join(' and ')} was` : undefined;
     drawn.root.setAttribute('aria-label', `${name}: ${refused ?? says}${frozenWords !== undefined ? `. ${frozenWords}` : ''}`);
     // what it hands on: its columns, as its document says them (no query run for it)
-    drawn.root.title = refused ?? [frozenWords, tested !== undefined ? [FlowCanvas.#testWords(tested), ...tested.failing].join('\n') : undefined,
+    const cacheWords = !cached ? undefined : copied === 'here' ? 'Cached: its rows are in this page\'s database already'
+      : copied !== undefined ? `Cached: ${copied.rowCount.toLocaleString(UI_LOCALE)} rows (${copied.label}); the boxes after it read the copy`
+        : 'Cached when it is shown or the flow runs';
+    drawn.root.title = refused ?? [frozenWords, cacheWords, tested !== undefined ? [FlowCanvas.#testWords(tested), ...tested.failing].join('\n') : undefined,
       columns.length > 0 ? `${columns.length} columns out: ${columns.join(', ')}` : undefined]
       .filter((t) => t !== undefined).join('\n');
     drawn.icon.replaceChildren(icon(this.#doc, tool));
@@ -2555,6 +2572,7 @@ export class FlowCanvas {
     this.#paintInputs(id);
     this.#paintOutput(id);
     this.#paintStops(id);
+    this.#paintCache(id);
     this.#paintPin(id);
     const said = id === undefined ? undefined : this.#said(id);
     const name = id === undefined ? undefined : this.#nameOf(id, said?.tool ?? 'browse');
@@ -2633,6 +2651,42 @@ export class FlowCanvas {
     this.#stopsStrip.replaceChildren(label);
   }
 
+  /** THE SETTINGS' CACHE (FL10, Alteryx's Cache): any box's rows copied into this page's database when it is shown or
+   *  run, the boxes after it -- and a join of it with what is read elsewhere -- reading the copy this session (FL11). */
+  #paintCache(id: string | undefined): void {
+    const box = id === undefined || this.#board.noteOf(id) !== undefined ? undefined : this.#board.layout.boxes.find((b) => b.tile === id);
+    const cached = box?.cache === true;
+    const copy = cached && id !== undefined ? this.#board.options.cachedCopy?.(id) : undefined;
+    const key = JSON.stringify([id, box !== undefined, cached, copy, this.#board.editing]);
+    if (key === this.#cacheKey) return;
+    this.#cacheKey = key;
+    this.#cacheStrip.hidden = box === undefined || this.#board.options.onCache === undefined;
+    if (box === undefined) {
+      this.#cacheStrip.replaceChildren();
+      return;
+    }
+    const d = this.#doc;
+    const label = d.createElement('label');
+    label.className = 'dc-text-tool-check dc-flow-cache-check';
+    const check = d.createElement('input');
+    check.type = 'checkbox';
+    check.checked = cached;
+    check.disabled = !this.#board.editing;
+    check.addEventListener('change', () => this.#board.options.onCache?.(id!, check.checked));
+    label.append(check, Object.assign(d.createElement('span'), {
+      textContent: 'Cache its rows: copied into this page\'s database when it is shown or run, the boxes after it reading the copy',
+    }));
+    const said = d.createElement('span');
+    said.className = 'dc-flow-cache-said';
+    said.setAttribute('role', 'status');
+    said.textContent = !cached ? '' : copy === 'here'
+      ? 'Nothing to copy: its rows are in this page\'s database already (read into this tab)'
+      : copy !== undefined
+        ? `Cached: ${copy.rowCount.toLocaleString(UI_LOCALE)} ${copy.rowCount === 1 ? 'row' : 'rows'} (${copy.label}), for this session`
+        : 'Not copied yet: its rows are copied when it is shown or the flow runs';
+    this.#cacheStrip.replaceChildren(label, said);
+  }
+
   /**
    * A CROSS TAB'S COLUMNS (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2): a pivoted box's columns are its values -- found
    * as it runs, so a box after it cannot read them -- or fixed by **Load values** (its values as its rows hold them now,
@@ -2700,8 +2754,12 @@ export class FlowCanvas {
       ...(pinned !== undefined ? [button('Unfix', 'dc-flow-pin-unfix', false)] : []), missing, ...(addable.length > 0 ? [add] : []), status);
   }
 
-  /** THE SETTINGS' OUTPUT (M6): the CSV file an Output box writes, named here (Enter, or leaving the field); Write now
-   *  writes it (its rows streamed from the database); Write no file makes it a box that writes none. */
+  /**
+   * THE SETTINGS' OUTPUT (M6): what an Output box writes -- a CSV file, named here (Enter, or leaving the field), or a
+   * table of this page's database (FL13), named here, written one of TABLE_MODES' ways (a merge by the key columns named
+   * beside it); Write now writes it (its rows streamed from the database, or its write run in one transaction); Write
+   * nothing makes it a box that writes none. Each change is the box's command (setOutput), judged by its rule.
+   */
   #paintOutput(id: string | undefined): void {
     const out = id === undefined ? undefined : this.#board.layout.boxes.find((b) => b.tile === id)?.output;
     const key = JSON.stringify([id, out, this.#board.editing]);
@@ -2713,53 +2771,127 @@ export class FlowCanvas {
       return;
     }
     const d = this.#doc;
-    const label = d.createElement('label');
-    label.className = 'dc-flow-input';
-    const words = d.createElement('span');
-    words.className = 'dc-flow-input-side';
-    words.textContent = 'Writes';
+    const said = d.createElement('span');
+    said.className = 'dc-flow-output-said';
+    said.setAttribute('role', 'status');
+    /** The output told as set now, unless its rule refuses it: then why, said. */
+    const tell = (next: Output): void => {
+      if (JSON.stringify(next) === JSON.stringify(out)) return;
+      const problem = outputProblem(next);
+      if (problem !== undefined) {
+        said.textContent = problem;
+        return;
+      }
+      this.#board.options.onOutput?.(id, next);
+    };
+    const line = (words: string, ...parts: HTMLElement[]): HTMLElement => {
+      const label = d.createElement('label');
+      label.className = 'dc-flow-input';
+      const side = d.createElement('span');
+      side.className = 'dc-flow-input-side';
+      side.textContent = words;
+      label.append(side, ...parts);
+      return label;
+    };
+    // a file or a table: switched, its name carried over as the other kind takes one
+    const kind = d.createElement('select');
+    kind.className = 'dc-select dc-flow-output-kind';
+    kind.setAttribute('aria-label', 'What it writes');
+    for (const [value, text] of [['csv', 'a CSV file'], ['table', "a table of this page's database"]] as const) {
+      const o = d.createElement('option');
+      o.value = value;
+      o.textContent = text;
+      kind.append(o);
+    }
+    kind.value = out.format;
+    kind.disabled = !this.#board.editing;
+    kind.addEventListener('change', () => {
+      const base = out.name.replace(/\.csv$/i, '');
+      tell(kind.value === 'table'
+        ? { format: 'table', name: base.replace(/[^A-Za-z0-9_]+/g, '_').replace(/^(?=\d)/, '_') || 'output', mode: 'create' }
+        : { format: 'csv', name: `${base}.csv` });
+    });
     const name = d.createElement('input');
     name.className = 'dc-picker-input dc-flow-output-name';
     name.value = out.name;
     name.disabled = !this.#board.editing;
-    name.setAttribute('aria-label', 'The CSV file it writes');
-    const said = d.createElement('span');
-    said.className = 'dc-flow-output-said';
-    said.setAttribute('role', 'status');
-    const tell = (): void => {
+    name.setAttribute('aria-label', out.format === 'csv' ? 'The CSV file it writes' : 'The table it writes');
+    const lines: HTMLElement[] = [line('Writes', kind), line(out.format === 'csv' ? 'File' : 'Table', name)];
+    let mode: HTMLSelectElement | undefined;
+    let keys: HTMLInputElement | undefined;
+    const asTable = (): Output | undefined => {
+      if (out.format !== 'table' || mode === undefined || keys === undefined) return undefined;
+      const m = mode.value as TableMode;
+      const k = keys.value.split(',').map((x) => x.trim()).filter((x) => x !== '');
+      return { format: 'table', name: name.value.trim(), mode: m, ...(m === 'merge' ? { keys: k } : {}) };
+    };
+    if (out.format === 'table') {
+      mode = d.createElement('select');
+      mode.className = 'dc-select dc-flow-output-mode';
+      mode.setAttribute('aria-label', 'How it writes the table');
+      for (const m of TABLE_MODES) {
+        const o = d.createElement('option');
+        o.value = m;
+        o.textContent = TABLE_MODE_WORDS[m];
+        mode.append(o);
+      }
+      mode.value = out.mode;
+      mode.disabled = !this.#board.editing;
+      keys = d.createElement('input');
+      keys.className = 'dc-picker-input dc-flow-output-keys';
+      keys.value = (out.keys ?? []).join(', ');
+      keys.placeholder = 'id, region';
+      keys.disabled = !this.#board.editing;
+      keys.setAttribute('aria-label', 'The key columns it merges by');
+      const keyLine = line('By key', keys);
+      keyLine.hidden = out.mode !== 'merge';
+      mode.addEventListener('change', () => {
+        keyLine.hidden = mode!.value !== 'merge';
+        // a merge waits for its keys: told once they are named
+        if (mode!.value === 'merge' && keys!.value.trim() === '') {
+          said.textContent = 'Name the key columns it merges by';
+          keys!.focus();
+          return;
+        }
+        tell(asTable()!);
+      });
+      keys.addEventListener('change', () => tell(asTable()!));
+      lines.push(line('Way', mode), keyLine);
+    }
+    const commitName = (): void => {
       const now = name.value.trim();
       if (now === out.name) return;
-      if (!now.toLowerCase().endsWith('.csv')) {
-        said.textContent = 'A CSV file\'s name ends .csv';
+      if (out.format === 'csv') {
+        tell({ format: 'csv', name: now });
         return;
       }
-      this.#board.options.onOutput?.(id, { format: 'csv', name: now });
+      tell(asTable()!);
     };
     name.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') tell();
+      if (e.key === 'Enter') commitName();
       if (e.key === 'Escape') name.value = out.name;
     });
-    name.addEventListener('change', tell);
-    label.append(words, name);
+    name.addEventListener('change', commitName);
     const write = d.createElement('button');
     write.type = 'button';
     write.className = 'dc-picker-button dc-primary dc-flow-output-write';
     write.textContent = 'Write now';
-    write.title = 'Its rows written to the file now -- every row, from the database; Run writes it too';
+    write.title = out.format === 'csv' ? 'Its rows written to the file now -- every row, from the database; Run writes it too'
+      : 'Its rows written into the table now, in one transaction -- every row, by the database; Run writes it too';
     write.addEventListener('click', () => void (async () => {
       write.disabled = true;
       said.textContent = 'Writing…';
-      const refused = await (this.#board.options.onWrite?.(id) ?? Promise.resolve('this page writes no file'));
-      said.textContent = refused ?? `Wrote ${out.name}`;
+      const refused = await (this.#board.options.onWrite?.(id) ?? Promise.resolve('this page writes nothing'));
+      said.textContent = refused ?? `Wrote ${outputWords(out)}`;
       write.disabled = false;
     })());
     const stop = d.createElement('button');
     stop.type = 'button';
     stop.className = 'dc-picker-button dc-quiet';
-    stop.textContent = 'Write no file';
+    stop.textContent = 'Write nothing';
     stop.hidden = !this.#board.editing;
     stop.addEventListener('click', () => this.#board.options.onOutput?.(id, null));
-    this.#outputStrip.replaceChildren(label, write, stop, said);
+    this.#outputStrip.replaceChildren(...lines, write, stop, said);
   }
 
   #startSide(e: PointerEvent): void {

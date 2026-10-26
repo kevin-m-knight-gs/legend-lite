@@ -587,9 +587,11 @@ try {
   await joinWindow.waitFor({ state: 'detached', timeout: 60_000 });
   await boxCount(beforeFuzzy.length + 1);
   const fuzzy = await added(beforeFuzzy);
-  check(fuzzy.tool === 'fuzzyMatch' && fuzzy.says === 'matching rows only, on region ≈ region (within 1)', `a Fuzzy Match box: ${JSON.stringify(fuzzy)}`);
+  check(fuzzy.tool === 'fuzzyMatch' && fuzzy.says === 'matching rows only, on region ≈ region (within 1), scored as score', `a Fuzzy Match box: ${JSON.stringify(fuzzy)}`);
   await settled();
   check(await resultRows() > 0, 'its pairs, alike regions matched');
+  // each pair scored as its window started (Alteryx's Score): the database's likeness, 0 to 100
+  check(await page.locator('.dc-flow-results:visible .dc-th[data-column="score"]').count() === 1, 'its pairs scored: a score column');
 
   // A FIND REPLACE (M2), dragged onto the Filter: a file of region names dropped, the Join window at all of mine on
   // region, then its window docked -- region replaced by their name where found
@@ -963,6 +965,20 @@ try {
   await page.keyboard.press('Control+z');
   await page.waitForFunction((id) => document.querySelector(`.dc-flow-box[data-tile="${id}"]`)?.textContent?.includes('filter → limit'), pured.id, { timeout: 30_000 });
   check((await boxes()).find((b) => b.id === pured.id)?.says === 'filter → limit', 'undone: its Pure back');
+  // IMPORT PURE (FL12): its Pure taken apart by Import as Boxes -- this box its filter, a box after it of its limit
+  await page.locator(`.dc-flow-box[data-tile="${pured.id}"]`).click();
+  await settled();
+  await page.locator('.dc-flow-settings button', { hasText: 'Open its settings' }).click();
+  await docked('Pure');
+  const beforeImport = (await boxes()).map((b) => b.id);
+  await page.locator('.dc-flow-dock .dc-pure-import').click();
+  await boxCount(beforeImport.length + 1);
+  const imported = await added(beforeImport);
+  await page.waitForFunction((id) => document.querySelector(`.dc-flow-box[data-tile="${id}"]`)?.textContent?.includes('filter'), pured.id, { timeout: 30_000 });
+  check((await boxes()).find((b) => b.id === pured.id)?.says === 'filter' && imported.tool === 'pure' && imported.says === 'limit',
+    `imported as boxes: a filter, then a limit after it: ${JSON.stringify([(await boxes()).find((b) => b.id === pured.id), imported])}`);
+  const importedInput = await page.evaluate((id) => window.__dataPage.document('x')?.cubes.find((c) => c.id === id)?.cube.source.input, imported.id);
+  check(JSON.stringify(importedInput) === JSON.stringify({ grid: pured.id }), `the limit reads the filter: ${JSON.stringify(importedInput)}`);
 
   // NEW BOX AFTER (FL9): a cell of the Filter's rows right-clicked, its region filtered by -- in a box of its own after
   // the Filter, the Filter left doing its one thing
@@ -1470,6 +1486,44 @@ try {
   const ratesAt = await page.evaluate((id) => window.__dataPage.document('x').sheets.find((s) => s.layout.kind === 'flow').layout.boxes.find((b) => b.tile === id), rates.id);
   check(Math.abs(ratesAt.x + 92 - textSpot.canvasX) <= 2, `made where it was let go: its middle at ${ratesAt.x + 92}`);
 
+  // DYNAMIC REPLACE (§4, Alteryx's): its rules a Text Input's rows -- a column, a condition in Pure, a value each -- the
+  // rules box picked in its window and read (that box shown, then this one again, its window opened on its rows), loaded:
+  // region replaced in place by the rule's value where its condition holds
+  const beforeRules = (await boxes()).map((b) => b.id);
+  const rulesSpot = await emptyCanvasPoint();
+  const rulesTool = await page.locator('.dc-flow-tool[data-tool="textInput"]').boundingBox();
+  await page.mouse.move(rulesTool.x + rulesTool.width / 2, rulesTool.y + rulesTool.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rulesSpot.x, rulesSpot.y, { steps: 12 });
+  await page.mouse.up();
+  const rulesIn = page.locator('.dc-text-input');
+  await rulesIn.waitFor({ timeout: 10_000 });
+  await rulesIn.locator('.dc-text-input-name input').fill('region rules');
+  await rulesIn.locator('.dc-text-input-head').first().evaluate((field) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', "Column\tCondition\tValue\r\nregion\t$x.region == 'EMEA'\tEurope\r\n");
+    field.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  });
+  await rulesIn.locator('.dc-save-foot .dc-primary').click();
+  await boxCount(beforeRules.length + 1);
+  const rulesBox = await added(beforeRules);
+  const beforeReplace = (await boxes()).map((b) => b.id);
+  await drag('dynamicReplace', filter.id);
+  await boxCount(beforeReplace.length + 1);
+  const replaceBox = await added(beforeReplace);
+  await docked('Dynamic Replace');
+  await page.locator('.dc-flow-dock .dc-replace-from').selectOption(rulesBox.id);
+  await page.waitForFunction(() => document.querySelector('.dc-flow-dock .dc-replace-read')?.textContent === '1 rule, replacing region',
+    undefined, { timeout: 60_000 });
+  check(await page.locator('.dc-flow-dock .dc-replace-condition').inputValue() === 'Condition', "read: its parts picked in its columns' order");
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  const replacedBox = (await boxes()).find((b) => b.id === replaceBox.id);
+  const replaceRefused = await page.locator('.dc-flow-dock .dc-sample-status').last().textContent().catch(() => '');
+  check(replacedBox?.tool === 'dynamicReplace' && replacedBox.says === 'region by 1 rule in place',
+    `a Dynamic Replace box: ${JSON.stringify(replacedBox)}${replaceRefused ? `, refused: ${replaceRefused}` : ''}`);
+  check(await page.locator('.dc-flow-results .dc-th[data-column="region_replaced"]').count() > 0, 'its column in its rows, handed on as region');
+
   // A BOX'S PROFILE (M5): the Input shown (Enter on it: other boxes cover it by now), its Profile -- each column
   // summarised by the database; its Rows again
   await page.locator(`.dc-flow-box[data-tile="${input.id}"]`).focus();
@@ -1730,6 +1784,47 @@ try {
   const dryWarned = await dryRun();
   check(/; nothing written$/.test(dryWarned), `a dry run writes nothing: ${dryWarned}`);
   check(/would write orders of 2024\.csv/.test(await logRow('Orders of 2024') ?? ''), 'its Output would be written, and is not');
+  // A CACHE (FL10): the Union set to cache its rows, one step -- its rows are this tab's own already (files read into
+  // it: a held copy, whose plane cannot move), so nothing is copied, and its settings and its box say so; ticked off,
+  // no longer cached. (A copy made and read by the box after it: Python's host, test_page.py's cached box.)
+  await page.locator('.dc-flow-log-close:visible').click();
+  await page.locator('.dc-flow-box[data-tile="grid-20"]').click();
+  await settled();
+  await page.locator('.dc-flow-settings:visible .dc-flow-cache-check input').check();
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Cache Rows', 'one step: Cache Rows');
+  await page.waitForFunction(() => /^Nothing to copy: its rows are in this page's database already/.test(
+    [...document.querySelectorAll('.dc-flow-settings .dc-flow-cache-said')].find((e) => e.offsetParent !== null)?.textContent ?? ''), undefined, { timeout: 60_000 });
+  check(await page.locator('.dc-flow-box[data-tile="grid-20"].dc-flow-cached[data-cached="here"]').count() === 1, 'its box marked cached, its rows here');
+  const cacheSaved = await page.evaluate(() => window.__dataPage.document('x')?.sheets.flatMap((s) => s.layout.boxes ?? []).find((b) => b.tile === 'grid-20')?.cache);
+  check(cacheSaved === true, `the page writes it so: ${cacheSaved}`);
+  await page.locator('.dc-flow-settings:visible .dc-flow-cache-check input').uncheck();
+  await page.waitForFunction(() => window.__dataPage.undoLabel === 'Stop Caching', undefined, { timeout: 30_000 });
+  check(await page.locator('.dc-flow-box[data-tile="grid-20"].dc-flow-cached').count() === 0, 'no longer cached');
+  await page.screenshot({ path: outPath('flow-example-cache.png') });
+  // AN OUTPUT INTO A TABLE (M6, FL13): the Date Filter's Output made a table of the tab's database -- its name carried
+  // over -- written now in one transaction; written again as a new table, refused in the database's words; appended
+  await page.locator('.dc-flow-box[data-tile="grid-21"]').click();
+  await settled();
+  await page.locator('.dc-flow-settings:visible .dc-flow-output-kind').selectOption('table');
+  await page.waitForFunction(() => window.__dataPage.document('x')?.sheets.flatMap((s) => s.layout.boxes ?? [])
+    .find((b) => b.tile === 'grid-21')?.output?.format === 'table', undefined, { timeout: 30_000 });
+  const tableOut = await page.evaluate(() => window.__dataPage.document('x').sheets.flatMap((s) => s.layout.boxes ?? []).find((b) => b.tile === 'grid-21').output);
+  check(JSON.stringify(tableOut) === JSON.stringify({ format: 'table', name: 'orders_of_2024', mode: 'create' }), `a table, its name carried over: ${JSON.stringify(tableOut)}`);
+  const writeSaid = async () => {
+    await page.locator('.dc-flow-settings:visible .dc-flow-output-write').click();
+    await page.waitForFunction(() => {
+      const said = [...document.querySelectorAll('.dc-flow-output-said')].find((e) => e.offsetParent !== null)?.textContent ?? '';
+      return said !== '' && said !== 'Writing…';
+    }, undefined, { timeout: 120_000 });
+    return page.locator('.dc-flow-settings:visible .dc-flow-output-said').textContent();
+  };
+  check(await writeSaid() === 'Wrote table orders_of_2024', 'written into its table now');
+  check(/already exists/i.test(await writeSaid() ?? ''), 'a new table again: refused, the database\'s words');
+  await page.locator('.dc-flow-settings:visible .dc-flow-output-mode').selectOption('append');
+  await page.waitForFunction(() => window.__dataPage.document('x')?.sheets.flatMap((s) => s.layout.boxes ?? [])
+    .find((b) => b.tile === 'grid-21')?.output?.mode === 'append', undefined, { timeout: 30_000 });
+  check(await writeSaid() === 'Wrote table orders_of_2024', 'appended to it');
+  await page.screenshot({ path: outPath('flow-example-table-output.png') });
 } catch (e) {
   bad(`threw: ${e.stack ?? e}`);
   // the page as it was when it threw, beside the test's other outputs

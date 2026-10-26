@@ -163,6 +163,28 @@ describe('the Join window', () => {
     assert.deepEqual(asked.at(-1), { form: 'join', kind: 'left', on: { rows: [{ left: 'customer_id', op: '~', right: 'id', within: 1 }] }, prefix: 'their_', keep: null });
   });
 
+  it("a Fuzzy Match's score: ticked from its start, offered on matching rows with a similar row alone, read into the join", async () => {
+    const { asked } = open({ start: { form: 'inner', op: '~' } });
+    await settle();
+    await debounce();
+    const score = $<HTMLInputElement>('.dc-join-score-on');
+    assert.equal(score.checked, true, "a Fuzzy Match's start scores its pairs");
+    assert.equal($<HTMLElement>('.dc-join-score').hidden, false);
+    assert.deepEqual(asked.at(-1), { form: 'join', kind: 'inner', on: { rows: [{ left: 'customer_id', op: '~', right: 'id', within: 2 }] }, prefix: 'their_', keep: null, score: 'score' });
+    // named again, then all of mine: offered no more, and none asked
+    const name = $<HTMLInputElement>('.dc-join-score-name');
+    name.value = 'likeness';
+    name.dispatchEvent(new doc.defaultView!.Event('input', { bubbles: true }));
+    await debounce();
+    assert.equal((asked.at(-1) as { score?: string }).score, 'likeness');
+    const op = $<HTMLSelectElement>('.dc-join-op');
+    op.value = '==';
+    op.dispatchEvent(new doc.defaultView!.Event('change', { bubbles: true }));
+    await debounce();
+    assert.equal($<HTMLElement>('.dc-join-score').hidden, true, 'an equal key has no score');
+    assert.equal((asked.at(-1) as { score?: string }).score, undefined);
+  });
+
   it("each of mine once (C13): offered on equal keys, ticked from a Find Replace's start, read into the join; gone for a comparison", async () => {
     const { asked } = open({ start: { form: 'left', once: true } });
     await settle();

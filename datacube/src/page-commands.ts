@@ -16,7 +16,7 @@ import { pureProblem } from './pure-box.ts';
 import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, type Bands, type Preset,
 } from './layout/bands.ts';
-import { EMPTY_FLOW, FlowRefusal, moveBox, placeAfter, removeBox, setOutput, setStops, type Flow, type Frame, type Output } from './layout/flow.ts';
+import { EMPTY_FLOW, FlowRefusal, moveBox, placeAfter, removeBox, readOutput, setCache, setOutput, setStops, type Flow, type Frame, type Output } from './layout/flow.ts';
 import {
   PageDocumentError, keptFor, layoutTiles, readGridCopy, readLayout, stillHeld, unnamedLabel, writePageOf, type ChartView, type FlowLayout,
   type GridCopy, type GridView, type PageDocument, type PageLayout, type PageSheet, type PageView, type TextView, type TimeseriesView,
@@ -203,6 +203,9 @@ export type PageCommand =
   /** A flow's Test box set to stop a run when its checks fail, before the run writes any Output (FL8's refuse: Python's
    *  grid.stops_run), or (false) to warn: the run writes on. */
   | { readonly kind: 'setStops'; readonly grid: string; readonly stops: boolean }
+  /** A flow's box set to cache its rows (FL10: copied into its host's database when it is shown or run, the boxes after it
+   *  reading the copy -- Python's grid.cache), or (false) no longer. */
+  | { readonly kind: 'setCache'; readonly grid: string; readonly cache: boolean }
   /** The page's model made by its first model action (Create a Class…, a Data Space): its project, DataCube's workspace
    *  in it, the package its classes go in (modelMade, above). */
   | { readonly kind: 'modelInto'; readonly project: string; readonly workspace: string; readonly package: string }
@@ -215,7 +218,7 @@ export const PAGE_COMMAND_KINDS = [
   'renamePage', 'savedAs', 'addSheet', 'addFlow', 'placeBox', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid',
   'addChart', 'setChart',
   'addText', 'setText', 'addTimeseries', 'setTimeseries', 'setTextFiles', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile',
-  'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setPure', 'setOutput', 'setStops',
+  'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setPure', 'setOutput', 'setStops', 'setCache',
   'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
@@ -230,7 +233,7 @@ export const PAGE_COMMAND_FIELDS = {
   setTimeseries: ['tile', 'spec', 'kept?'], followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
-  removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how', 'more?'], setPure: ['grid', 'pure'], setOutput: ['grid', 'output'], setStops: ['grid', 'stops'],
+  removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how', 'more?'], setPure: ['grid', 'pure'], setOutput: ['grid', 'output'], setStops: ['grid', 'stops'], setCache: ['grid', 'cache'],
   modelInto: ['project', 'workspace', 'package'], modelPin: ['revision'], modelKeep: ['cube', 'tables', 'class'],
 } as const satisfies CommandFields<PageCommand>;
 // every field of every kind listed: a field the list leaves out is a type error naming it
@@ -1002,6 +1005,16 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       }
       return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => setStops(layout, command.grid, command.stops)) })));
     }
+    case 'setCache': {
+      const view = viewNamed(page, command.grid);
+      if (view.kind !== 'grid') throw new CubeRefusal(`'${command.grid}' is ${kindWords(view)}: a cache is a grid's rows`);
+      const sheet = sheetOf(page, command.grid);
+      const layout = sheet?.layout;
+      if (sheet === undefined || layout?.kind !== 'flow') throw new CubeRefusal(`'${command.grid}' is no box of a flow: a cache is a flow's box's`);
+      const had = layout.boxes.find((b) => b.tile === command.grid)?.cache === true;
+      if (had === command.cache) throw new CubeRefusal(`'${command.grid}' ${command.cache ? 'caches its rows already' : 'caches no rows'}`);
+      return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => setCache(layout, command.grid, command.cache)) })));
+    }
     case 'modelInto':
       return done(rewritten({ ...page, model: modelMade(page.model, command.project, command.workspace, command.package) }, {}));
     case 'modelPin':
@@ -1399,15 +1412,19 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'setOutput': {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       const out = o['output'];
-      if (out !== null && (!isObject(out) || out['format'] !== 'csv' || typeof out['name'] !== 'string' || Object.keys(out).some((k) => k !== 'format' && k !== 'name'))) {
-        throw new CubeRefusal(`an output is {format: 'csv', name}, or null, not ${JSON.stringify(out)}`);
-      }
-      return { kind, grid: text(o['grid'], 'a grid'), output: out === null ? null : { format: 'csv', name: out['name'] as string } };
+      const read = out === null ? null : readOutput(out);
+      if (typeof read === 'string') throw new CubeRefusal(`${read}, or null`);
+      return { kind, grid: text(o['grid'], 'a grid'), output: read };
     }
     case 'setStops': {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       if (typeof o['stops'] !== 'boolean') throw new CubeRefusal(`a Test stops a run (true) or warns (false), not ${JSON.stringify(o['stops'])}`);
       return { kind, grid: text(o['grid'], 'a grid'), stops: o['stops'] };
+    }
+    case 'setCache': {
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      if (typeof o['cache'] !== 'boolean') throw new CubeRefusal(`a box caches its rows (true) or not (false), not ${JSON.stringify(o['cache'])}`);
+      return { kind, grid: text(o['grid'], 'a grid'), cache: o['cache'] };
     }
     case 'modelInto':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);

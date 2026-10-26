@@ -432,8 +432,28 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  added -- 33 as before, measured by esbuild's record). Measured 408,032.
  *  408,500 -> 409,500 (2026-10-26, the flow mode's roadmap: C13, a join's one of theirs per key (join-how.ts's reader of
  *  `once`), a Profile's top values (layout/flow-canvas.ts #drawProfile), and a Cross Tab's Add to the cast
- *  (flow-canvas.ts #paintPin, app.ts addPivotValues): no startup file added). Measured 408,617. */
-const BUDGET = 409_500;
+ *  (flow-canvas.ts #paintPin, app.ts addPivotValues): no startup file added). Measured 408,617.
+ *  409,500 -> 410,500 (2026-10-26, the flow mode's Cache, FL10: a box that copies its rows when it runs -- its copy
+ *  handed to the page as the box closes and released as its chain changes (cube.ts handOver, app.ts handOverCopy and
+ *  snapNow, page/cube-page.ts #cacheKept, cacheCopies), a snapped input opened by its copy (live-inputs.ts copyOf,
+ *  join-open.ts openedInputLeaves), its command read and written (page-commands.ts setCache, page-document.ts, layout/
+ *  flow.ts setCache), and Add to the cast's gesture (grid-gestures.ts pivot.addValues, the ledger's L11: the screen
+ *  decided the longer pin); the checkbox the canvas's chunk; no startup file added, measured). Measured 409,602.
+ *  410,500 -> 411,500 (2026-10-26, the flow mode's smaller tool gaps, #74: an Imputation by its median (snapshot.ts's
+ *  window function, query.ts's arm), a DateTime written as text (date-tools.ts dateFormat), a Fuzzy Match's score
+ *  (join-how.ts's reader and scoreRefusal), a RegEx's Tokenize (text-tools.ts's reader), an Oversample (row-sample.ts's
+ *  rule and its read-back), and a cached box with nothing to copy said so (app.ts heldHere): no startup file added,
+ *  measured). Measured 410,882.
+ *  411,500 -> 413,000 (2026-10-26, the flow mode's Output into a table, M6/FL13: an Output's table kind, its rule and its
+ *  one reader (layout/flow.ts outputProblem, readOutput: the page's and its command's), the grid's write of one and the
+ *  tab's writer handed to it (app.ts writeOutput, app/datacube-app.ts tableWriter), the planner's execution plan
+ *  (lite-planner.ts executionPlan) and the engine's hold (duckdb.ts exclusive); the writer and the plan runner a chunk of
+ *  their own, fetched with the first table written; no startup file added, measured). Measured 412,379.
+ *  413,000 -> 414,500 (2026-10-26, the flow mode's Dynamic Replace, #74: a box's read-back and words (dynamic-replace.ts,
+ *  the canvas's, as multi-field.ts is), the grid's window opener and its rows read for another box (app.ts
+ *  #openDynamicReplace, handedOnRows; flow-output.ts handedOnTable), the page's read of a rules box (page/cube-page.ts
+ *  #readRules); its rules and commands and its window chunks of their own, fetched with the first). Measured 414,089. */
+const BUDGET = 414_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -605,8 +625,16 @@ const BUDGET = 409_500;
  *  396,140.
  *  396,500 -> 397,000 (2026-10-26, the flow mode's roadmap, C13: a join's one of theirs per key -- join.ts firstOfEach,
  *  the engine page's at startup, and join-how.ts's reader of `once`; the Join window's checkbox lazy, no startup file
- *  added). Measured 396,543. */
-const ENGINE_BUDGET = 397_000;
+ *  added). Measured 396,543.
+ *  397,000 -> 398,500 (2026-10-26, the flow mode's Cache, FL10, and Add to the cast's gesture -- the grid-only page's note
+ *  of the same date -- with the Cross Tab's Add to the cast before it (app.ts addPivotValues)). Measured 397,758.
+ *  398,500 -> 399,500 (2026-10-26, the flow mode's smaller tool gaps, #74 -- the grid-only page's note of the same date).
+ *  Measured 398,986.
+ *  399,500 -> 401,000 (2026-10-26, the flow mode's Output into a table, M6/FL13 -- the grid-only page's note of the same
+ *  date). Measured 400,300.
+ *  401,000 -> 402,500 (2026-10-26, the flow mode's Dynamic Replace, #74 -- the grid-only page's note of the same date).
+ *  Measured 402,020. */
+const ENGINE_BUDGET = 402_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -873,8 +901,16 @@ const EXAMPLE_BUDGET = 4_000;
  *  423,483.
  *  424,000 -> 425,000 (2026-10-26, the flow mode's roadmap: C13, a join's one of theirs per key -- the engine page's note
  *  of the same date -- and a Profile's top values, its column opened (layout/flow-canvas.ts #drawProfile, profile.ts
- *  topValuesLambda): one module, everything in it). Measured 424,104. */
-const WIDGET_BUDGET = 425_000;
+ *  topValuesLambda): one module, everything in it). Measured 424,104.
+ *  425,000 -> 426,000 (2026-10-26, the flow mode's Cache, FL10, and Add to the cast -- the engine page's note of the same
+ *  date -- and the Cache's styles). Measured 425,324.
+ *  426,000 -> 427,000 (2026-10-26, the flow mode's smaller tool gaps, #74 -- the engine page's note of the same date --
+ *  and the score's name field's style). Measured 426,601.
+ *  427,000 -> 428,500 (2026-10-26, the flow mode's Output into a table, M6/FL13 -- the engine page's note of the same
+ *  date -- with the headless lane's writer beside it: one module, everything in it). Measured 427,946.
+ *  428,500 -> 430,000 (2026-10-26, the flow mode's Dynamic Replace, #74 -- the engine page's note of the same date --
+ *  with the headless lane's rules read beside it). Measured 429,681. */
+const WIDGET_BUDGET = 430_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

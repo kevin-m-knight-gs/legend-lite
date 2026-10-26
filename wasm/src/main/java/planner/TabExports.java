@@ -92,6 +92,12 @@ public final class TabExports {
         return Folded.of(() -> Boundary.planJsonHeld(handle, lambdaJson, runtime));
     }
 
+    /** {@link Boundary#executionPlanJsonHeld}. */
+    @JSExport
+    public static String executionPlanJsonHeldOrError(int handle, String lambdaJson, String runtime) {
+        return Folded.of(() -> Boundary.executionPlanJsonHeld(handle, lambdaJson, runtime));
+    }
+
     /** {@link Boundary#relationTypeHeld}. */
     @JSExport
     public static String relationTypeHeldOrError(int handle, String query) {

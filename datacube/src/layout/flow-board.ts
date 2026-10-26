@@ -45,6 +45,12 @@ export interface FlowBoardOptions {
   /** A Test box set to stop a run when its checks fail (its settings' checkbox), or to warn: the caller tells it
    *  (setStops). */
   readonly onStops?: (id: string, stops: boolean) => void;
+  /** A box set to cache its rows (FL10: copied into this page's database when it is shown or run, the boxes after it
+   *  reading the copy), or no longer. */
+  readonly onCache?: (id: string, cache: boolean) => void;
+  /** The copy a cached box's rows are in now (its grid's, or the page's while it is not shown), if one is -- or 'here',
+   *  its rows this page's database's own from the start (a file read into the tab): nothing to copy. */
+  readonly cachedCopy?: (id: string) => { readonly label: string; readonly rowCount: number } | 'here' | undefined;
   /** A Cross Tab box's Load values (`pin`: its values as its rows hold them now pinned, its columns fixed -- FL2) or
    *  Unfix: the refusal in words, or null. */
   readonly onPinValues?: (id: string, pin: boolean) => Promise<string | null>;

@@ -21,7 +21,7 @@ export function joinWords(how: JoinHow): string {
   const on = (c: JoinCondition): string => ('lambda' in c ? 'a condition in Pure'
     : c.rows.length === 0 ? 'every pair' : c.rows.map(rowWords).join(' and '));
   switch (how.form) {
-    case 'join': return `${KIND_WORDS[how.kind]}, on ${on(how.on)}`;
+    case 'join': return `${KIND_WORDS[how.kind]}, on ${on(how.on)}${how.score !== undefined ? `, scored as ${how.score}` : ''}`;
     case 'asOf': return `nearest ${rowWords(how.match)}${'rows' in how.on && how.on.rows.length === 0 ? '' : `, on ${on(how.on)}`}`;
     case 'semi': return `my rows with a match, on ${on(how.on)}`;
     case 'anti': return `my rows with no match, on ${on(how.on)}`;

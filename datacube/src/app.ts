@@ -59,7 +59,9 @@ import type { HostSnap, SnapTarget } from './cube.ts';
 import { exportFileName, toClipboard, toEml } from './export.ts';
 // a flow's Output: small, over what the page has at start -- fetched lazily, it was a chunk of its own that split the
 // page's startup files (test/bundle-budget.test.ts, the flow mode review of 2026-10-26)
-import { outputCsv } from './flow-output.ts';
+import { handedOnTable, outputCsv, outputQuery } from './flow-output.ts';
+import { pureSteps } from './pure-import.ts';
+import type { Output, TableOutput } from './layout/flow.ts';
 import {
   ALERT_WINDOW,
   CODE_CHECK_WINDOW,
@@ -312,6 +314,14 @@ export interface CubeAppBaseOptions {
    *  function of its input's, or (null) its input's as they are -- its page's to apply (setPure), the box then shown again
    *  over its rows as they are. Whether the page took it. */
   readonly onSetPure?: (pure: Lambda | null) => boolean;
+  /** A flow's Pure box's steps after its first (Import Pure, FL12: pure-import.ts), each a box after the one before --
+   *  its page's to make. The refusal, in words, or null. */
+  readonly onImportPure?: (steps: readonly Lambda[]) => Promise<string | null>;
+  /** A flow's Dynamic Replace (dynamic-replace.ts): the flow's other boxes, whose rows its rules are read from. */
+  readonly ruleBoxes?: () => readonly { readonly id: string; readonly label: string }[];
+  /** A flow's Dynamic Replace's rules box `box` read, as it hands its rows on, by its page -- its window opened again on
+   *  them (a flow shows one box at a time). */
+  readonly onReadRules?: (box: string) => void;
   /** A cube in a tile (a page's grid): no title bar of its own; its columns panel folded. */
   readonly compact?: boolean;
   /** Its columns panel folded away at the start (default: when compact); open, a grid opened alone on its page. */
@@ -365,6 +375,12 @@ export interface CubeAppBaseOptions {
    * because a test must not depend on a browser writing to disk.
    */
   readonly download?: (name: string, mime: string, content: string | Uint8Array) => void;
+  /**
+   * Its rows (`rows`: as it hands them on) written into a table of its host's database (a flow's table Output: its
+   * host's table-output.ts writeTable over the tables it reads); the rows written. Absent where its rows are not the
+   * host's own database's to write from.
+   */
+  readonly writeTable?: (rows: Lambda, output: TableOutput) => Promise<number>;
   /**
    * Hand a message with an attachment to the host's mail client.
    *
@@ -485,7 +501,7 @@ const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: '
  *  docks them (CubeAppOptions.dock); every other window floats. */
 const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation' || key === 'Date Filter' || key === 'Test'
   || key === 'Custom Filter' || key === 'Binning' || key === 'Generate Rows' || key === 'Pure' || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize' || key === 'Find Replace'
-  || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
+  || key === 'Dynamic Replace' || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
  * Which cube on a document a keystroke from OUTSIDE every cube belongs to: the one last
@@ -3491,6 +3507,32 @@ export class CubeApp {
     return this.#settledCopy;
   }
 
+  /**
+   * ITS COPY HANDED OVER as it closes (a flow's cached box: FL10): where its rows are written down, and how its new owner
+   * lets it go -- its grid then reads live, as a closing grid does. Undefined when it holds no copy of its own in the tab.
+   */
+  handOverCopy(): { readonly copy: GridCopy; readonly discard: () => Promise<void> } | undefined {
+    const copy = this.#settledCopy;
+    if (copy === undefined || this.#planeMoving) return undefined;
+    const handed = this.#controller.handOver();
+    if (handed === undefined) return undefined;
+    this.#settledCopy = undefined;
+    return { copy, discard: handed.discard };
+  }
+
+  /** Whether its rows are a copy held in this page's database from the start -- a file read into the tab, or a join of
+   *  such (app/join-sources.ts): its plane cannot move, so a cached box over it has nothing to copy (FL10). */
+  get heldHere(): boolean {
+    return this.#options.heldCopy !== undefined;
+  }
+
+  /** ITS SNAP, as its state's menu makes it (a flow's cached box shown or run: FL10): its rows copied into the tab, read
+   *  from the copy from now on. Nothing where its plane cannot move, or it is snapped already. */
+  async snapNow(): Promise<void> {
+    if (this.#controller.snaps.isSnapped || !this.#plane().toggles) return;
+    await this.#movePlane('snap');
+  }
+
   /** Where its rows are as its page writes it (`copy`): set each time a move settles. */
   #settledCopy: GridCopy | undefined = undefined;
 
@@ -3780,6 +3822,9 @@ export class CubeApp {
       case 'impute':
         void this.#openImpute();
         return;
+      case 'dynamicReplace':
+        void this.#openDynamicReplace(editor.rules);
+        return;
       case 'dateFilter':
         void this.#openDateFilter();
         return;
@@ -3942,15 +3987,34 @@ export class CubeApp {
   }
 
   /**
-   * THE GRID'S ROWS WRITTEN TO A FILE (a flow's Output, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every row, in its sorts'
-   * order, the columns it hands on -- the rows the box after it reads -- streamed from the database a chunk at a time,
-   * written as CSV by the one writer Python's flow.run writes by too (flow-output.ts outputCsv), the file handed to the
-   * person as `name`. Refused in words for a pivoted grid, or a page with no way to hand a file over.
+   * THE GRID'S ROWS WRITTEN (a flow's Output, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every row, in its sorts' order,
+   * the columns it hands on -- the rows the box after it reads -- to a FILE, streamed from the database a chunk at a time
+   * and written as CSV by the one writer Python's flow.run writes by too (flow-output.ts outputCsv), handed to the person
+   * by its name; or into a TABLE of its host's database, by the one table writer (table-output.ts writeTable: planned and
+   * run in one transaction), the rows written counted. Refused in words for a pivoted grid, or a page with no way to
+   * hand a file over or write a table.
    */
-  async writeOutput(name: string): Promise<void> {
+  async writeOutput(output: Output): Promise<void> {
+    const config = this.#config as unknown as Record<string, unknown>;
+    if (output.format === 'table') {
+      const write = this.#options.writeTable;
+      if (!write) throw new CubeRefusal("this grid's rows are not in a database this page writes: a table output writes the page's own");
+      const { query } = await outputQuery(this.#snapshot, config, this.#controller);
+      await write(query, output);
+      return;
+    }
     const download = this.#options.download;
     if (!download) throw new Error('this page has no way to hand a file over');
-    download(name, 'text/csv', await outputCsv(this.#snapshot, this.#config as unknown as Record<string, unknown>, this.#controller));
+    download(output.name, 'text/csv', await outputCsv(this.#snapshot, config, this.#controller));
+  }
+
+  /**
+   * A CROSS TAB'S VALUES ADDED TO ITS COLUMNS (FL8's fix, "Add to the cast"): the values its rows hold that its pin lacks,
+   * each a column of its own after the columns it has -- the gesture pivot.addValues (Python's grid.add_pivot_values).
+   * The refusal, in words, or null.
+   */
+  async addPivotValues(values: readonly (FilterValue | null)[]): Promise<string | null> {
+    return this.#gesture('pivot.addValues', { values }, 'Add to Columns');
   }
 
   /**
@@ -3959,19 +4023,6 @@ export class CubeApp {
    * box after it reads them (the gesture pivot.pin, Python's grid.load_pivot_values); `pin` false, its values its rows'
    * again. The refusal, in words, or null.
    */
-  /**
-   * A CROSS TAB'S VALUES ADDED TO ITS COLUMNS (FL8's fix, "Add to the cast"): the values its rows hold that its pin lacks,
-   * each a column of its own after the columns it has, in the order given -- the pin's own gesture (`pivot.pin`, Python's
-   * grid.pin_pivot with the longer list). A value it has already is not added twice; an empty one is no column's.
-   */
-  async addPivotValues(values: readonly (FilterValue | null)[]): Promise<string | null> {
-    const pinned = this.#snapshot.pivotValues ?? [];
-    if (pinned.length === 0) return 'its columns are not fixed: Load values fixes them';
-    const added = values.filter((v): v is FilterValue => v !== null && !pinned.some((p) => sameValue(p, v)));
-    if (added.length === 0) return 'it has a column for each of them already';
-    return this.#gesture('pivot.pin', { values: [...pinned, ...added] }, 'Add to Columns');
-  }
-
   async pinPivotValues(pin: boolean): Promise<string | null> {
     if (!pin) return this.#gesture('pivot.pin', { values: null }, 'Unfix Columns');
     const { pivotValues: _pinned, ...s } = this.#snapshot;
@@ -4096,6 +4147,22 @@ export class CubeApp {
         }
       },
       ...(had !== undefined ? { remove: async () => told(null) } : {}),
+      // its steps taken apart (pure-import.ts pureSteps): this box its first, the page making a box for each after it
+      ...(this.#options.onImportPure !== undefined ? {
+        importBoxes: async (text: string) => {
+          try {
+            const steps = pureSteps(await this.#check(pureFrom(text, input, {
+              parse: (t) => this.#controller.parse(t), columns: (r) => this.#controller.relationColumns(r),
+            })));
+            const first = told(steps[0]!);
+            if (first !== null || steps.length === 1) return first;
+            return await this.#options.onImportPure!(steps.slice(1));
+          } catch (e) {
+            if (e instanceof CubeRefusal) return e.message;
+            return e instanceof Error ? e.message : String(e);
+          }
+        },
+      } : {}),
       close,
     }));
   }
@@ -4189,6 +4256,61 @@ export class CubeApp {
       },
       close,
     }));
+  }
+
+  /**
+   * A FLOW'S DYNAMIC REPLACE (docs/DATACUBE_FLOW_MODE_2026_10_24.md §4, Alteryx's): its values replaced by rules read from
+   * another box's rows -- each condition (each value, as expressions) parsed by the compiler, the replaced columns typed
+   * before they are set, each of its column's type (dynamic-replace.ts, the rule Python's grid.dynamic_replace asks) --
+   * in a window of its own (ui/dynamic-replace-form.ts), opened on a box's rows as its page read them (`start`). Both
+   * fetched with the first.
+   */
+  async #openDynamicReplace(start?: { readonly box: string; readonly rows?: ResultTable; readonly problem?: string }): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ dynamicReplaceForm }, dr] = await Promise.all([
+      lazily(() => import('./ui/dynamic-replace-form.ts')), lazily(() => import('./dynamic-replace-rules.ts')),
+    ]);
+    const read = this.#options.onReadRules;
+    this.#showOverlay('Dynamic Replace', (host, close) => dynamicReplaceForm(host, {
+      // a grid on no flow reads no other box
+      boxes: read === undefined ? [] : this.#options.ruleBoxes?.() ?? [],
+      ...(start !== undefined ? { start } : {}),
+      read: (box) => read?.(box),
+      apply: async (replace) => {
+        let made: DerivedColumn[];
+        let types: Map<string, string | undefined>;
+        try {
+          const problem = dr.dynamicReplaceProblem(this.#snapshot, replace);
+          if (problem !== undefined) return problem;
+          // each rule's condition, and its value as an expression, parsed by the compiler: a refusal its words, the rule named
+          const parsed = (text: string, n: number, what: string): Promise<Lambda> => this.#check(this.#controller.parse(dr.ruleText(text)))
+            .catch((e: unknown) => { throw new CubeRefusal(`rule ${n}'s ${what}: ${e instanceof Error ? e.message : String(e)}`); });
+          const conditions = await Promise.all(replace.rules.map((r, i) => parsed(r.condition, i + 1, 'condition')));
+          const values = replace.expressions ? await Promise.all(replace.rules.map((r, i) => parsed(String(r.value), i + 1, 'value'))) : undefined;
+          made = dr.replacedColumnsOf(this.#snapshot, replace, { conditions, ...(values !== undefined ? { values } : {}) });
+          const probed = await this.#check(this.#controller.typed(dr.dynamicReplaceProbe(this.#snapshot, made)));
+          types = new Map(made.map((m) => [m.name, probed.derived.find((d) => d.name === m.name)?.type] as const));
+        } catch (e) {
+          // the compiler's refusal, in its words, or DataCube's
+          return e instanceof Error ? e.message : String(e);
+        }
+        try {
+          return await this.#apply(dr.dynamicReplaceCommands(this.#snapshot, made, types), 'Dynamic Replace');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /**
+   * ITS ROWS AS IT HANDS THEM ON (flow-output.ts outputQuery: what the box after it reads), at most `limit` of them, read by
+   * the database -- a Dynamic Replace's rules, another box's (dynamic-replace.ts). Refused in words as an Output is.
+   */
+  async handedOnRows(limit: number): Promise<ResultTable> {
+    return handedOnTable(this.#snapshot, this.#config as unknown as Record<string, unknown>, this.#controller, limit);
   }
 
   /** A FLOW'S BINNING (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's Multi-Field Binning): number columns each put

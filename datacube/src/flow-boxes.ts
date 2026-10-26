@@ -17,6 +17,7 @@ import { transposeOf } from './transpose.ts';
 import { boxOmitted, boxOrder, boxRenamed, inPlaceOf } from './box-columns.ts';
 import { retypesOf } from './select-columns.ts';
 import { imputedOf } from './impute.ts';
+import { replacedOf, replacedWords } from './dynamic-replace.ts';
 import { findReplaceOf } from './find-replace.ts';
 import { countRecordsOf } from './count-records.ts';
 import { checksOf, checkWords } from './checks.ts';
@@ -31,13 +32,14 @@ import type { PageDocument } from './page-document.ts';
 import { isEveryPair, isFuzzy, type JoinHow } from './join-how.ts';
 import { joinWords } from './join-words.ts';
 import { rowColumns, type DerivedColumn } from './snapshot.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { ColumnEditorStart } from './ui/column-editor.ts';
 import type { EditorTab } from './ui/editor.ts';
 
 /** A tool of the flow's palette, and what a box is drawn as. */
 export type FlowTool = 'input' | 'textInput' | 'output' | 'test' | 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace' | 'filter' | 'dateFilter' | 'customFilter' | 'formula' | 'multiField' | 'select' | 'sort' | 'sample' | 'unique' | 'recordId'
   | 'multiRow' | 'tile' | 'binning' | 'generateRows'
-  | 'datetime' | 'cleanse' | 'impute' | 'textToColumns' | 'regex' | 'jsonParse' | 'runningTotal' | 'summarize' | 'countRecords' | 'crosstab' | 'transpose' | 'browse'
+  | 'datetime' | 'cleanse' | 'impute' | 'dynamicReplace' | 'textToColumns' | 'regex' | 'jsonParse' | 'runningTotal' | 'summarize' | 'countRecords' | 'crosstab' | 'transpose' | 'browse'
   | 'pure' | 'comment' | 'container';
 
 /** Each tool's name, its group in the palette (Alteryx's: In/Out, Preparation, Join, Transform), and what it does. */
@@ -67,7 +69,8 @@ export const FLOW_TOOLS: Readonly<Record<FlowTool, { readonly name: string; read
   generateRows: { name: 'Generate Rows', group: 'prepare', does: 'each row repeated for each number from one to another, or each day between two dates' },
   datetime: { name: 'DateTime', group: 'prepare', does: 'a date taken to its day, week, month, quarter or year' },
   cleanse: { name: 'Data Cleansing', group: 'prepare', does: 'text tidied: blanks, punctuation, spaces, its case' },
-  impute: { name: 'Imputation', group: 'prepare', does: 'empty numbers filled: a value, or the column\'s average, smallest or largest' },
+  impute: { name: 'Imputation', group: 'prepare', does: 'empty numbers filled: a value, or the column\'s average, median, smallest or largest' },
+  dynamicReplace: { name: 'Dynamic Replace', group: 'prepare', does: 'values replaced by rules read from another box: a column, a condition and a value each' },
   textToColumns: { name: 'Text To Columns', group: 'parse', does: 'a text column split on a delimiter, a column a part' },
   regex: { name: 'RegEx', group: 'parse', does: 'a pattern over text: whether it matches, its matches replaced or taken out' },
   jsonParse: { name: 'JSON Parse', group: 'parse', does: 'a JSON column\'s fields made columns of their own: a value, a count, each element a row' },
@@ -87,7 +90,7 @@ export type FlowGroup = 'in' | 'prepare' | 'join' | 'parse' | 'transform' | 'doc
 
 /** The tools a person adds after a box, in the palette's order. */
 export const PALETTE: readonly FlowTool[] = [
-  'input', 'textInput', 'output', 'test', 'browse', 'filter', 'dateFilter', 'customFilter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'binning', 'generateRows', 'datetime', 'cleanse', 'impute',
+  'input', 'textInput', 'output', 'test', 'browse', 'filter', 'dateFilter', 'customFilter', 'formula', 'multiField', 'select', 'sort', 'sample', 'unique', 'recordId', 'multiRow', 'tile', 'binning', 'generateRows', 'datetime', 'cleanse', 'impute', 'dynamicReplace',
   'join', 'union', 'appendFields', 'fuzzyMatch', 'findReplace', 'textToColumns', 'regex', 'jsonParse', 'summarize', 'countRecords', 'crosstab', 'transpose', 'runningTotal', 'pure', 'comment', 'container',
 ];
 
@@ -105,6 +108,9 @@ export type StepEditor =
   | { readonly window: 'sample' }
   /** The Imputation window (ui/impute-form.ts): the number columns filled, and with what. */
   | { readonly window: 'impute' }
+  /** The Dynamic Replace window (ui/dynamic-replace-form.ts): the box its rules are loaded from, and their columns --
+   *  opened again on a box's rows as its page read them (`rules`: the rows, or why they could not be read). */
+  | { readonly window: 'dynamicReplace'; readonly rules?: { readonly box: string; readonly rows?: ResultTable; readonly problem?: string } }
   /** The Date Filter window (ui/date-filter-form.ts): a date column, and the range of its dates kept. */
   | { readonly window: 'dateFilter' }
   /** The Test window (ui/test-form.ts): its checks, each of a column. */
@@ -157,6 +163,7 @@ export const TOOL_EDITORS: Readonly<Partial<Record<FlowTool, StepEditor>>> = {
   sample: { window: 'sample' },
   unique: { window: 'unique' },
   impute: { window: 'impute' },
+  dynamicReplace: { window: 'dynamicReplace' },
   datetime: { window: 'datetime' },
   cleanse: { window: 'text', kind: 'cleanse' },
   textToColumns: { window: 'text', kind: 'split' },
@@ -310,7 +317,7 @@ function columnTool(d: DerivedColumn, derived: readonly DerivedColumn[], multi: 
   const w = d.window;
   if (w === undefined) {
     return grainOf(d) !== undefined || dateToolOf(d) !== undefined ? 'datetime'
-      : imputedOf(d, derived) !== undefined ? 'impute' : textToolOf(d)?.tool
+      : imputedOf(d, derived) !== undefined ? 'impute' : replacedOf(d) !== undefined ? 'dynamicReplace' : textToolOf(d)?.tool
         ?? (jsonFieldOf(d) !== undefined ? 'jsonParse' : multi !== undefined ? 'multiField' : 'formula');
   }
   if (w.fn === 'rowNumber') return 'recordId';
@@ -328,6 +335,8 @@ function columnWords(d: DerivedColumn, derived: readonly DerivedColumn[], multi:
   if (dated !== undefined) return dated.says;
   const filled = imputedOf(d, derived);
   if (filled !== undefined) return `${filled.column}'s empties → ${filled.with.kind === 'value' ? filled.with.value : `its ${filled.with.kind}`}`;
+  const replaced = replacedOf(d);
+  if (replaced !== undefined) return replacedWords(replaced);
   const tool = textToolOf(d);
   if (tool !== undefined) return tool.says;
   const json = jsonFieldOf(d);

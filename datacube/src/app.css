@@ -3966,6 +3966,7 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-join-add { align-self: flex-start; padding: 3px 0; font-size: 12px; }
 .dc-join-once { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--tw-neutral-600); }
 .dc-join-once[hidden] { display: none; }
+.dc-join-score-name { width: 8em; padding: 2px 6px; font-size: 12px; }
 .dc-join-pure-label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--tw-neutral-600); white-space: nowrap; }
 .dc-join-pure { min-height: 4.5em; font-family: var(--dc-mono, ui-monospace, monospace); font-size: 12px; }
 .dc-join-hint { margin: 0; font-size: 11px; color: var(--tw-neutral-500); }
@@ -5169,7 +5170,8 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-sample-word { color: var(--dc-muted-strong); }
 /* a part of the Sample window its way has no use for: hidden, whatever its own display */
 .dc-sample [hidden] { display: none !important; }
-.dc-sample-seed { width: 64px; }
+.dc-sample-seed, .dc-sample-over-seed { width: 64px; }
+.dc-sample-value { width: 9em; }
 .dc-sample-n { width: 6em; }
 /* a Test's result, once its rows have landed: amber with the checks it fails, its words green when every one passes */
 .dc-flow-box.dc-flow-failing { border-color: var(--tw-amber-500, #f59e0b); box-shadow: 0 0 0 1px var(--tw-amber-500, #f59e0b); }
@@ -5179,6 +5181,12 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-flow-box.dc-flow-failing.dc-flow-stops { border-color: var(--tw-red-500); box-shadow: 0 0 0 1px var(--tw-red-500); }
 .dc-flow-box.dc-flow-failing.dc-flow-stops .dc-flow-says { color: var(--tw-red-600); }
 .dc-flow-stops-check { margin-top: 8px; }
+.dc-flow-cache-check { margin-top: 8px; }
+.dc-flow-cache-said { display: block; margin-top: 4px; font-size: 12px; color: var(--dc-muted); }
+.dc-flow-cache-said:empty { display: none; }
+/* a cached box (FL10): a rail along its left edge, filled once its rows are copied */
+.dc-flow-box.dc-flow-cached { box-shadow: inset 3px 0 0 var(--tw-sky-300, #7dd3fc); }
+.dc-flow-box.dc-flow-cached[data-cached="copied"], .dc-flow-box.dc-flow-cached[data-cached="here"] { box-shadow: inset 3px 0 0 var(--tw-sky-600, #0284c7); }
 /* a Test's checks: a row each, and Add a check below them */
 .dc-test-checks { display: flex; flex-direction: column; gap: 6px; }
 .dc-test-check .dc-sample-n[hidden] { display: none; }

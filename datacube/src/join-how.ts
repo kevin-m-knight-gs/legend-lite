@@ -48,6 +48,10 @@ export type JoinHow =
      *  rows, every one `==` -- each key's rows in an order of their every column that sorts, rising (a lookup's, Alteryx's
      *  Find Replace: a key theirs repeats matches once, C13). Absent: every match. */
     readonly once?: true;
+    /** A Fuzzy Match's score (Alteryx's): each pair's likeness on its condition's first similar (`~`) row, 0 to 100 --
+     *  100 less its edits apart for each 100 letters of the longer, rounded -- a column of this name, the database's.
+     *  Matching rows only, so both texts have a value. Absent: none. */
+    readonly score?: string;
   }
   | {
     readonly form: 'asOf'; readonly match: JoinRow & { readonly op: AsOfOp }; readonly on: JoinCondition;
@@ -151,16 +155,20 @@ export function readJoinHow(raw: unknown): JoinHow {
   const form = (raw as { form?: unknown } | null)?.form;
   switch (form) {
     case 'join': {
-      const o = object(raw, 'a join', ['form', 'kind', 'on', 'prefix', 'keep', 'once']);
+      const o = object(raw, 'a join', ['form', 'kind', 'on', 'prefix', 'keep', 'once', 'score']);
       if (typeof o['kind'] !== 'string' || !(JOIN_KINDS as readonly string[]).includes(o['kind'])) {
         throw new CubeRefusal(`a join's kind is one of ${JOIN_KINDS.join(', ')}, not ${JSON.stringify(o['kind'])}`);
       }
       if (o['once'] !== undefined && o['once'] !== true) throw new CubeRefusal(`a join's once is true or left out, not ${JSON.stringify(o['once'])}`);
+      const score = o['score'];
+      if (score !== undefined && (typeof score !== 'string' || score.trim() === '')) {
+        throw new CubeRefusal(`a join's score is the name of its column, not ${JSON.stringify(score)}`);
+      }
       const how: JoinHow = {
         form, kind: o['kind'] as JoinKindWord, on: readJoinCondition(o['on'], "a join's condition"), prefix: readPrefix(o['prefix']),
-        keep: readKeep(o['keep']), ...(o['once'] === true ? { once: true as const } : {}),
+        keep: readKeep(o['keep']), ...(o['once'] === true ? { once: true as const } : {}), ...(score !== undefined ? { score } : {}),
       };
-      const why = onceRefusal(how);
+      const why = onceRefusal(how) ?? scoreRefusal(how);
       if (why !== undefined) throw new CubeRefusal(why);
       return how;
     }
@@ -263,6 +271,19 @@ export function onceRefusal(how: JoinHow): string | undefined {
   if (how.form !== 'join' || how.once !== true) return undefined;
   return 'rows' in how.on && how.on.rows.length > 0 && how.on.rows.every((r) => r.op === '==') ? undefined
     : 'one of theirs for each of mine takes a key: rows of equal (==) columns';
+}
+
+/** The similar row a join's score is of (`score`): its condition's first `~` row, or undefined. */
+export function scoredRow(how: JoinHow): JoinRow | undefined {
+  return how.form === 'join' && 'rows' in how.on ? how.on.rows.find((r) => r.op === '~') : undefined;
+}
+
+/** Why a join cannot score its pairs (`score`), or undefined: a score is of a similar (`~`) row's two texts, each a
+ *  value -- matching rows only. */
+export function scoreRefusal(how: JoinHow): string | undefined {
+  if (how.form !== 'join' || how.score === undefined) return undefined;
+  if (scoredRow(how) === undefined) return 'a score is a Fuzzy Match\'s: its condition needs a row of similar text (~)';
+  return how.kind === 'inner' ? undefined : 'a score is each matched pair\'s: it takes matching rows only';
 }
 
 /** The forms a quick join is made in: all of mine (a lookup), matching only, mine with a match, mine with none. */

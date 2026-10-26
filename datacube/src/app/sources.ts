@@ -204,6 +204,9 @@ export interface SourcesOf {
 
 /** The page's sources: what each grid reads, and opening one. */
 export interface PageSources {
+  /** Whether a table of the host's database is one of the page's own (a file's, a copy's, a view's): none an Output may
+   *  write (table-output.ts). */
+  isTaken(table: string): boolean;
   /** A grid made on the page, by its tile's id: what the page keeps of it (its planners, its file). */
   madeGrid(id: string, place: GridPlace): void;
   /** Told of every change on the page: a table no grid reads any more is dropped, a planner none plans through let go. */
@@ -1391,6 +1394,7 @@ export function pageSources(d: SourcesOf): PageSources {
   }
 
   return {
+    isTaken: (t) => taken.has(t) || reserved.has(t),
     madeGrid,
     dropUnread,
     place: (id) => gridPlaces.get(id),

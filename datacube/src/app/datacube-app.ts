@@ -48,6 +48,8 @@ import type { JoinAsk } from './join-flow.ts';
 import { JOIN_SOURCE, joinMenu } from './join-menu.ts';
 import type { PageModelRef } from '../page-model.ts';
 import { classBasis, duplicateLambda } from '../query.ts';
+import type { TableOutput } from '../layout/flow.ts';
+import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { isPageFragment, readPageFragment, shareLink } from '../share/link.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import { CubeLibrary } from '../ui/cube-library.ts';
@@ -132,6 +134,39 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const planner = place.planner ?? local?.planner;
     const engine = place.engine ?? local?.engine;
     return planner && engine ? new PlanThenRun(planner, engine) : undefined;
+  };
+  /**
+   * A GRID'S TABLE OUTPUT in the tab (table-output.ts writeTable): its rows written into the tab's own database, over one
+   * model of the tables it reads there and the target -- where its rows are the tab's (a file's, a join's of them, a
+   * copy's) and the database writes; none for a host's grid, nor one read live from elsewhere (a remote file, a
+   * warehouse: cache its box first, FL10).
+   */
+  let tablesTaken: ((table: string) => boolean) | undefined;
+  const tableWriter = (place: GridPlace): ((rows: Lambda, output: TableOutput) => Promise<number>) | undefined => {
+    const engine = local?.engine;
+    const tables = place.tables;
+    if (local === undefined || engine?.exclusive === undefined || tables === undefined || tables.length === 0 || place.runner || place.snapTarget) return undefined;
+    const planner = place.planner ?? local.planner;
+    return async (rows, output) => {
+      const { writeTable } = await import('../table-output.ts');
+      return writeTable(rows, output, {
+        databaseType: engine.databaseType,
+        sources: tables.map((table) => ({ table, convertible: true })),
+        held: (table) => tablesTaken?.(table) ?? true,
+        models: local.tables,
+        hold: (work) => engine.exclusive!(work),
+        sqlOf: async (query) => (await planner.plan(query)).sql,
+        executionPlan: async (model, runtime, program) => {
+          const p = local.another(model, runtime);
+          try {
+            if (p.executionPlan === undefined) throw new Error("this page's planner plans no write");
+            return await p.executionPlan(program);
+          } finally {
+            p.dispose?.();
+          }
+        },
+      });
+    };
   };
   const windows = appWindows(o.windows);
   // the status line is the app's, in its look: whatever element the host handed it (app.css)
@@ -275,6 +310,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         ...(start?.tree ? { tree: start.tree } : place.tree && !start ? { tree: place.tree } : {}),
         ...(place.heldCopy ? { heldCopy: place.heldCopy } : {}),
         ...(place.label !== undefined ? { sourceLabel: place.label } : {}),
+        // a flow's table Output: its rows written into the tab's own database, from the tables it reads there
+        ...(tableWriter(place) ? { writeTable: tableWriter(place)! } : {}),
         compact: true,
         // a copy is a grid added beside others; the same grid made again folds as it did
         foldPanel: (start !== undefined && start.tree === undefined) || place.foldPanel === true,
@@ -640,6 +677,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const sources = pageSources({
       services, page, gridMaker, taken: o.taken, ask: (content) => library?.ask(content),
     });
+    tablesTaken = (table) => sources.isTaken(table);
     // the grids of a timeseries series of several, over one model of the tables they read: the tab's own (its database's),
     // or -- a page Python serves -- the host's, by the same rule (join.json together); its query then planned and run
     // where the grids' rows are, as every grid's is (rowsOf). Fetched with the join's code (join-app.ts)
@@ -1524,6 +1562,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         // over its rows, or (`port`) a Filter's False: the rows its condition leaves out (FL7)
         const live: RowsSource = {
           _type: 'rows', name: gridInput(now, after, [], port).name, input: { grid: after, ...(port !== undefined ? { port } : {}) }, columns: [],
+          // Import Pure (FL12): a Pure box of its step, opened over it
+          ...(step?.pure !== undefined ? { pure: step.pure } : {}),
         };
         const tables = sources.place(after)?.tables;
         const opened = await sources.openedBox(live, now, { capped: gridCapped(now.cubes.length + 1), ...(tables ? { tables } : {}) });
@@ -1548,7 +1588,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         // drawn as the tool it was added as, and its settings docked in the flow's settings pane: what the tool is for
         page.boxAddedAs(box, tool);
         // New Box After (FL9): the gesture made on it, its one step
-        if (step !== undefined) void page.grid(box)?.gesture?.(step.gesture.name, step.gesture.args, step.label);
+        if (step?.gesture !== undefined) void page.grid(box)?.gesture?.(step.gesture.name, step.gesture.args, step.label);
+        // Import Pure's next step: a box after this one, over its rows
+        else if (step?.pure !== undefined && step.next !== undefined && step.next.length > 0) {
+          flowTool?.('pure', box, sheet, page.document(page.title) ?? now, undefined, undefined, undefined, undefined,
+            { pure: step.next[0]!, next: step.next.slice(1), label: step.label });
+        }
         else if (editor !== undefined) page.grid(box)?.openStep?.(editor);
         // a tool with no settings does its step as it is made: Count Records counts
         else if (tool === 'countRecords') page.grid(box)?.openStep?.({ window: 'countRecords' });

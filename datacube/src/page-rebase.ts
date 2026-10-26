@@ -81,6 +81,7 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'setPure':
     case 'setOutput':
     case 'setStops':
+    case 'setCache':
       return { ...command, grid: n(command.grid) };
     case 'setJoin':
       return { ...command, grid: n(command.grid), ...(command.more !== undefined ? { more: command.more.map((i) => relinkedInput(i, n)) } : {}) };

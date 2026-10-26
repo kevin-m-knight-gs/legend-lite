@@ -277,12 +277,49 @@ class Grid(Tile):
         self._page._apply_page([_commands.page_set_output(grid=self.id, output=given)])
         return self
 
+    def output_table(self, name: str, mode: str = 'create', *, keys: Sequence[str] | None = None) -> Grid:
+        """This box writes its rows into the table ``name`` of its frames' database -- a flow's Output Data to a table
+        (page-commands.ts setOutput; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, FL13), each time its flow runs: ``mode``
+        ``'create'`` (made for them; refused when it is there), ``'overwrite'`` (made again), ``'append'``,
+        ``'deleteAppend'`` (its rows deleted first) or ``'merge'`` (by ``keys``: a row of the same key updated, a new one
+        added) -- the write planned by the compiler and run in one transaction (DataCube's table writer,
+        table-output.ts). A name not plain, a frame's, a mode it has not, a merge without keys, refused in DataCube's
+        words."""
+        given = {'format': 'table', 'name': name, 'mode': mode, **({'keys': list(keys)} if keys else {})}
+        self._page._apply_page([_commands.page_set_output(grid=self.id, output=given)])
+        return self
+
     def stops_run(self, stops: bool = True) -> Grid:
         """This Test box stops its flow's run when one of its checks fails -- no Output written, as the canvas's Run writes
         none (page-commands.ts setStops; FL8's refuse) -- or, False, only warns. A Cross Tab whose columns are fixed stops
         it so when a value of its rows has no column (FL3: ``failing``). A grid on a board refused in DataCube's words."""
         self._page._apply_page([_commands.page_set_stops(grid=self.id, stops=stops)])
         return self
+
+    def cache(self, cache: bool = True) -> Grid:
+        """This box caches its rows (Alteryx's Cache; docs/DATACUBE_FLOW_MODE_2026_10_24.md FL10): marked so on its flow
+        (page-commands.ts setCache), and its rows copied now by this session's engine -- its ``snap`` -- the boxes after it
+        and a join of it reading the copy from then on, as a box after a cached box on the canvas reads the page's copy of
+        it (live-inputs.ts resolvedSource's ``copies``): a box over a warehouse table joined with one over a frame that
+        way. The copy lasts as long as the session (FL11); a page saved and loaded is marked cached and reads live until
+        it is cached again. False: no longer -- its copy let go, read live. A grid on a board refused in DataCube's
+        words."""
+        self._page._apply_page([_commands.page_set_cache(grid=self.id, cache=cache)])
+        if cache:
+            self.snap()
+        elif self.snapped is not None:
+            self.live()
+        return self
+
+    @property
+    def cached(self) -> bool:
+        """Whether this box caches its rows (``cache``): its flow marks it so."""
+        for sheet in self._page._doc['sheets']:
+            if sheet['layout'].get('kind') == 'flow':
+                for box in sheet['layout']['boxes']:
+                    if box['tile'] == self.id:
+                        return box.get('cache') is True
+        return False
 
     @property
     def failing(self) -> list[dict[str, Any]]:
@@ -470,6 +507,29 @@ class Grid(Tile):
             raise ValueError('; '.join(said['problems']))
         return said['csv']
 
+    def _write_table(self, output: Mapping[str, Any]) -> int:
+        """Its rows written into its table Output's table (``flow.run``), by DataCube's one table writer (headless
+        gridWriteTable, table-output.ts): its rows' query asked in a read of the frames (typed by the database), then the
+        write run in none, the frames held still and the engine's turn taken -- one transaction. The rows written."""
+        engine, frames = self._headless()
+        with frames.reading():
+            spec = self._spec(engine, frames)
+            asked = _json.loads(engine.call('gridOutputQuery', spec))
+        if 'problems' in asked:
+            raise ValueError('; '.join(asked['problems']))
+        leaves = _cube_leaves(self._page._session, self._cube, self._page._doc, self._view['cube'])
+        others = [leaf['name'] for leaf in leaves if leaf['_type'] != 'frame']
+        if others:
+            raise ValueError(f"a table output writes from frames' rows: this box reads {', '.join(others)}")
+        # each frame in its own package, as its model declares it (frames.py: a frame's model is its own)
+        tables = [{'table': name, 'pkg': name} for name in dict.fromkeys(leaf['name'] for leaf in leaves)]
+        with engine.turn(), frames.holding():
+            said = _json.loads(engine.call('gridWriteTable', spec, _json.dumps(output), asked['query'],
+                                           _json.dumps({'tables': tables, 'held': frames.owned()})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return int(said['rows'])
+
     def export(self, kind: str = 'csv', to: str | Path | None = None) -> str | bytes | Path:
         """The grid as its Export menu exports it, by DataCube's own code (the screen's core, run headless): what it
         shows, with its formats, appearance and heatmaps -- ``'csv'`` (raw values), ``'excel'`` (a workbook, the tree
@@ -543,6 +603,12 @@ class Grid(Tile):
         ``None``, its values its rows' each time it runs. Refused in DataCube's words: a pivot on no column, or on more
         than one, an empty value, a value twice."""
         return self._gesture('pivot.pin', {'values': None if values is None else list(values)})
+
+    def add_pivot_values(self, values: Sequence[Any]) -> Grid:
+        """The values ``values`` its pin lacks added to its columns, after those it has, in the order given -- a Cross
+        Tab's Add to the cast (FL8; the gesture ``pivot.addValues``): a value its rows hold that no column of its has.
+        Refused in DataCube's words: its columns not fixed, or a column for each of them already."""
+        return self._gesture('pivot.addValues', {'values': list(values)})
 
     def load_pivot_values(self) -> Grid:
         """Its pivot's values pinned as its rows hold them now, asked of the database as its pivot asks them -- a
@@ -942,8 +1008,10 @@ class Grid(Tile):
               name: str | None = None) -> Grid:
         """A regular expression over the text ``column``, a new column -- a flow's RegEx: ``'match'``, whether its value
         matches (true or false); ``'replace'``, its value with each match replaced by ``replacement``; ``'extract'``,
-        the first part it matches (empty where none does). Named ``name``, else ``<column>_matches``,
-        ``<column>_replaced`` or ``<column>_extracted``, as its window names it (text-tool-columns.ts regexName)."""
+        the first part it matches (empty where none does); ``'tokenize'``, each part it matches a row of its own (a
+        value with no match, no row: Alteryx's Tokenize). Named ``name``, else ``<column>_matches``,
+        ``<column>_replaced``, ``<column>_extracted`` or ``<column>_token``, as its window names it (text-tool-columns.ts
+        regexName)."""
         return self._preset({'kind': 'regex', 'column': column, 'pattern': pattern, 'mode': mode,
                              **({'replacement': replacement} if replacement is not None else {}),
                              **({'name': name} if name is not None else {})})
@@ -986,10 +1054,16 @@ class Grid(Tile):
         # its name and whether it reads a time of day: the window's rule (date-tools.ts dateToolName, formatHasTime)
         return self._preset({'kind': 'dateParse', 'column': column, 'format': format, **({'name': name} if name else {})})
 
+    def format_date(self, column: str, format: str, *, name: str | None = None) -> Grid:
+        """The date ``column`` written as text by ``format`` -- the engine's tokens (``yyyy``, ``MM``, ``dd``, ``HH``,
+        ``mm``, ``ss``: ``'dd/MM/yyyy'``, ``'yyyyMMdd'``), translated to the database's strftime -- a new column named ``<column>_text`` (or ``name``): a
+        flow's DateTime (DataCube's code: date-tools.ts dateToolCommands). An empty date, an empty text."""
+        return self._preset({'kind': 'dateFormat', 'column': column, 'format': format, **({'name': name} if name else {})})
+
     def impute(self, columns: Sequence[str], *, fill: float | str = 'average', in_place: bool | None = None) -> Grid:
         """The number ``columns``' empty values filled, a ``<column>_filled`` each -- a flow's Imputation (DataCube's code:
-        impute.ts imputeCommands): with ``fill``, a number, or the column's own ``'average'``, ``'smallest'`` or
-        ``'largest'`` across every row, which the database computes (a window column, hidden). A column that is no
+        impute.ts imputeCommands): with ``fill``, a number, or the column's own ``'average'``, ``'median'``,
+        ``'smallest'`` or ``'largest'`` across every row, which the database computes (a window column, hidden). A column that is no
         number, or a whole-number column filled with a fraction, refused in DataCube's words. ``in_place``: each filled
         column handed on by its own name, the column itself hidden, as Alteryx's Imputation does -- None, in place on a
         flow's box, as its window starts, and not on a board's grid."""
@@ -997,18 +1071,22 @@ class Grid(Tile):
                              **({'inPlace': True} if self._in_place(in_place) else {})})
 
     def sample(self, mode: str | None, n: int | None = None, by: str | None = None, *, groups: Sequence[str] = (),
-               ranges: str | None = None, seed: int = 1) -> Grid:
+               ranges: str | None = None, seed: int = 1, value: Any = None) -> Grid:
         """Its rows sampled -- a flow's Sample (DataCube's code: row-sample.ts sampleCommands), in the order of the column
         ``by``: ``mode`` ``'first'`` or ``'last'`` ``n`` rows (its smallest or largest: of all the rows, the grid's Top N,
         which keeps rows that tie; of each group of ``groups``, a row number per group), ``'skip'`` -- every row after
         the first ``n`` -- ``'every'``, one row of every ``n``, or ``'records'``, the rows at the places ``ranges`` says
         (``'1-10, 20, 30+'``: Alteryx's Select Records); either of all the rows or of each group -- or ``'random'``, about
         ``n`` percent of all the rows, the same for the same ``seed`` (the database's hash of each row's number and the
-        seed). The database numbers the rows (a window column, hidden). ``None``: every row again, its sample taken off."""
+        seed) -- or ``'oversample'``, every row whose ``by`` is ``value`` and as many of the others (chosen by that hash) as
+        make them ``n`` percent of the rows (Alteryx's Oversample Field). The database numbers the rows (a window column,
+        hidden). ``None``: every row again, its sample taken off."""
         if mode is None:
             return self._preset({'kind': 'sample', 'mode': None})
         if mode == 'random':
             return self._preset({'kind': 'sample', 'mode': mode, 'n': n, 'seed': seed})
+        if mode == 'oversample':
+            return self._preset({'kind': 'sample', 'mode': mode, 'n': n, 'by': by, 'value': value, 'seed': seed})
         if mode == 'records':
             return self._preset({'kind': 'sample', 'mode': mode, 'ranges': ranges, 'by': by, 'groups': list(groups)})
         return self._preset({'kind': 'sample', 'mode': mode, 'n': n, 'by': by, 'groups': list(groups)})
@@ -1091,6 +1169,46 @@ class Grid(Tile):
         condition that is no Boolean."""
         _expression(condition)
         return self._preset({'kind': 'customFilter', 'expression': condition})
+
+    def dynamic_replace(self, rules: Grid | Sequence[Mapping[str, Any]], *, column: str = 'Column', condition: str = 'Condition',
+                        value: str = 'Value', expressions: bool = False) -> Grid:
+        """Its values replaced by rules -- a flow's Dynamic Replace (DataCube's code: dynamic-replace.ts; Alteryx's Dynamic
+        Replace): each rule the column it replaces, a condition in Pure over ``$x``, the row (``"$x.region == 'EMEA'"``),
+        and the value put there; of a column's rules the first whose condition holds, its own value where none does.
+        ``rules``: a grid whose rows are the rules, read as it hands them on (the database reading them; ``column``,
+        ``condition`` and ``value`` name its columns holding each part), or the rules as ``{'column', 'condition',
+        'value'}`` mappings. ``expressions``: each value Pure over ``$x`` too, not a value of its column's type. The rules
+        are pinned, as a Cross Tab's values are: read now, each parsed by the compiler, written in as a column for each
+        column they name (``<column>_replaced``, handed on in its place); called again, read again, a column no rule names
+        now shown as it is. Refused in the compiler's words, the rule named, or DataCube's: a column the grid has not, a
+        value of another type than its column's, more than 200 rules."""
+        if isinstance(rules, Grid):
+            engine, frames = rules._headless()
+            with frames.reading():
+                said = _json.loads(engine.call('gridRules', rules._spec(engine, frames),
+                                               _json.dumps({'column': column, 'condition': condition, 'value': value})))
+            if 'problems' in said:
+                raise ValueError('; '.join(said['problems']))
+            given = said['rules']
+        else:
+            given = [dict(r) for r in rules]
+        return self._preset({'kind': 'dynamicReplace', 'rules': given, 'expressions': expressions})
+
+    def import_pure(self, pure: str) -> list[Grid]:
+        """Its Pure taken apart into boxes -- a flow's Import Pure (FL12; DataCube's code: pure-import.ts, the Pure window's
+        Import as Boxes): each step of ``pure`` (``"$input->filter(...)->extend(...)->groupBy(...)"``) a Pure box of its
+        own, this box its first, each after it over the one before, made as ``sheet.grid(input=...)`` makes a box. The
+        boxes, in order. Refused in the compiler's words or DataCube's, as ``pure`` refuses."""
+        _expression(pure)
+        engine, _frames = self._headless()
+        said = _json.loads(engine.call('pureImportSteps', pure))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        steps: list[str] = said['steps']
+        boxes = [self.pure(steps[0])]
+        for step in steps[1:]:
+            boxes.append(self.sheet.grid(input=boxes[-1]).pure(step))
+        return boxes
 
     def pure(self, pure: str | None) -> Grid:
         """Its rows a function of its input's, written in Pure -- a flow's Pure box (docs/DATACUBE_FLOW_MODE_2026_10_24.md
@@ -1993,13 +2111,15 @@ class Sheet:
             page._apply_page(commands, 'a tidy')
         return self
 
-    def run(self, folder: str | Path) -> list[Path]:
+    def run(self, folder: str | Path) -> list[Path | str]:
         """The flow run as the canvas's Run runs it, its Outputs written (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): each
         box that writes a file (``grid.output(name)``) writes every one of its rows -- in its sorts' order, the columns it
         hands on under the names it hands them on by, those the box after it reads -- to ``folder``/its name, as CSV, by
-        the tab's own writer (headless gridOutput: the same file, byte for byte). The files written, in the order of the
-        flow's boxes. A Test that stops a run (``grid.stops_run()``), failing, writes none: refused, its failing checks
-        said (FL8's refuse). A board has no Outputs: refused."""
+        the tab's own writer (headless gridOutput: the same file, byte for byte); each that writes a table
+        (``grid.output_table``) writes them into it, in one transaction (FL13). What was written, in the order of the
+        flow's boxes: each file's path, each table as ``'table <name>'``. A Test that stops a run
+        (``grid.stops_run()``), failing, writes none: refused, its failing checks said (FL8's refuse). A board has no
+        Outputs: refused."""
         layout = self._doc['layout']
         if layout.get('kind') != 'flow':
             raise ValueError(f'{self!r} is a board: a flow runs its Outputs')
@@ -2009,10 +2129,14 @@ class Sheet:
         if failed:
             raise ValueError('; '.join(failed) + ': no Output written')
         out.mkdir(parents=True, exist_ok=True)
-        written: list[Path] = []
+        written: list[Path | str] = []
         for box in layout['boxes']:
             target = box.get('output')
             if target is None:
+                continue
+            if target['format'] == 'table':
+                self._page._tile(box['tile'], Grid)._write_table(target)
+                written.append(f"table {target['name']}")
                 continue
             path = out / target['name']
             # the text as the tab writes it, its CRLFs and its BOM as they are
@@ -2042,7 +2166,8 @@ class Sheet:
             view = self._page._tile(box['tile'], Grid).view()
             rows[box['tile']] = view.total_rows if view.total_rows is not None else len(view.rows)
         stopped = self._stopped()
-        writes = [] if stopped else [box['output']['name'] for box in layout['boxes'] if box.get('output') is not None]
+        writes = [] if stopped else [box['output']['name'] if box['output']['format'] == 'csv' else f"table {box['output']['name']}"
+                                     for box in layout['boxes'] if box.get('output') is not None]
         return {'rows': rows, 'would_write': writes, 'stopped': stopped}
 
     def grid(self, frame: Any = None, **given: Any) -> Grid:
@@ -2641,15 +2766,19 @@ class Page:
                                         'keep': None if keep is None else list(keep)}, title=title, sheet=sheet, live=live)
 
     def fuzzy_match(self, mine: Grid, theirs: Grid, on: tuple[str, str], *, within: int | None = None, kind: str = 'inner',
-                    prefix: str = 'their_', title: str | None = None, sheet: Sheet | None = None, live: bool | None = None) -> Grid:
+                    score: str | None = 'score', prefix: str = 'their_', title: str | None = None, sheet: Sheet | None = None,
+                    live: bool | None = None) -> Grid:
         """``mine`` joined with ``theirs`` where their text is alike -- a flow's Fuzzy Match (Alteryx's), the Join window's
         similar comparison: ``on`` is my column and theirs, ``within`` how many edits apart they may be (a letter added,
         taken away or changed is one: the database's ``levenshteinDistance``; None, the Join window's own, join-how.ts
-        SIMILAR_WITHIN), ``kind`` the join's (``'inner'``: the pairs alone; ``'left'``: every row of mine)."""
+        SIMILAR_WITHIN), ``kind`` the join's (``'inner'``: the pairs alone; ``'left'``: every row of mine). ``score``: a
+        column of this name holding each pair's likeness, 0 to 100 (100 less its edits apart for each 100 letters of the
+        longer, rounded: the database's), as the window's Fuzzy Match starts with -- matching rows only; None, none."""
         left, right = on
         row = {'left': left, 'op': '~', 'right': right, **({'within': within} if within is not None else {})}
-        return self.join(mine, theirs, {'form': 'join', 'kind': kind, 'on': {'rows': [row]},
-                                        'prefix': prefix, 'keep': None}, title=title, sheet=sheet, live=live)
+        return self.join(mine, theirs, {'form': 'join', 'kind': kind, 'on': {'rows': [row]}, 'prefix': prefix, 'keep': None,
+                                        **({'score': score} if score is not None and kind == 'inner' else {})},
+                         title=title, sheet=sheet, live=live)
 
     def find_replace(self, mine: Grid, theirs: Grid, column: str, find: str, replace: str, *, prefix: str = 'their_',
                      title: str | None = None, sheet: Sheet | None = None, live: bool | None = None) -> Grid:

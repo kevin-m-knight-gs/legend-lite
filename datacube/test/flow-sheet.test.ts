@@ -42,6 +42,7 @@ import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi
 import { TreeState } from '../src/tree.ts';
 import { accessor, collection, fn, gt, lambda, lit, property, toJson, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { boxRows, pureFrom, pureInput, pureInputOf, pureOver, pureProblem, pureShown, pureText, pureWords } from '../src/pure-box.ts';
+import { pureSteps } from '../src/pure-import.ts';
 import { PUNCTUATION, textToolOf } from '../src/text-tools.ts';
 import { lackingWords, VALUES_COUNTED } from '../src/cross-tab.ts';
 import { MAX_PIVOT_VALUES, pivotValuesOf, tooManyValues } from '../src/query.ts';
@@ -52,6 +53,8 @@ import { DATE_RANGES, dateRangeConditions, datesBetweenConditions } from '../src
 import { datesKept } from '../src/page-filters.ts';
 import { binningCommands, binsOf, readBinning } from '../src/binning.ts';
 import { generatedOf, generatedWords, generateRowsCommands, readGenerateRows } from '../src/generate-rows.ts';
+import { MAX_RULES, replacedOf } from '../src/dynamic-replace.ts';
+import { dynamicReplaceCommands, dynamicReplaceProbe, readDynamicReplace, replacedColumnsOf, ruleText, rulesOf } from '../src/dynamic-replace-rules.ts';
 import { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterOf, customFilterProbe, customFilterText, readCustomFilter } from '../src/custom-filter.ts';
 import { pastedCells, tableCsv, tableProblem } from '../src/ui/text-input-dialog.ts';
 
@@ -169,6 +172,27 @@ describe("a flow's layout (layout/flow.ts)", () => {
     const bad = JSON.parse(pageToJson(d.page));
     bad.sheets[1].layout.boxes.find((b: { tile: string }) => b.tile === 'grid-5').stops = false;
     assert.throws(() => readPage(bad), /stops a run \(true\) or is without it, not false/);
+  });
+
+  it('sets a box to cache its rows (setCache, FL10), or no longer; read, written, renamed, undone, kept by Tidy Up', () => {
+    const d = apply(FLOW(), { kind: 'setCache', grid: 'grid-2', cache: true });
+    assert.equal(at(d.page, 'grid-2')?.cache, true);
+    assert.equal(pageToJson(readPage(JSON.parse(pageToJson(d.page)))), pageToJson(d.page), 'written and read back the same');
+    refused(() => apply(d, { kind: 'setCache', grid: 'grid-2', cache: true }), /'grid-2' caches its rows already/);
+    refused(() => apply(FLOW(), { kind: 'setCache', grid: 'grid-2', cache: false }), /'grid-2' caches no rows/);
+    refused(() => apply(FLOW(), { kind: 'setCache', grid: 'grid-1', cache: true }), /'grid-1' is no box of a flow: a cache is a flow's box's/);
+    assert.equal(at(apply(d, { kind: 'setCache', grid: 'grid-2', cache: false }).page, 'grid-2')?.cache, undefined);
+    assert.deepEqual(readPageCommand({ kind: 'setCache', grid: 'grid-2', cache: true }), { kind: 'setCache', grid: 'grid-2', cache: true });
+    refused(() => readPageCommand({ kind: 'setCache', grid: 'grid-2', cache: 1 }), /a box caches its rows \(true\) or not \(false\), not 1/);
+    assert.deepEqual(renamedCommand({ kind: 'setCache', grid: 'grid-2', cache: true }, new Map([['grid-2', 'grid-9']])), { kind: 'setCache', grid: 'grid-9', cache: true });
+    const back = applyPlanned({ page: d.page, held: idsOf(d.page) }, pageBetween(d.page, FLOW().page, 'history'), false).draft.page;
+    assert.equal(at(back, 'grid-2')?.cache, undefined, 'undone by the commands between');
+    // moved, it is still cached (layout/flow.ts moveBox keeps it)
+    assert.equal(at(apply(d, { kind: 'placeBox', tile: 'grid-2', x: 40, y: 40 }).page, 'grid-2')?.cache, true);
+    // a page whose box caches otherwise is refused as it is read
+    const bad = JSON.parse(pageToJson(d.page));
+    bad.sheets[1].layout.boxes.find((b: { tile: string }) => b.tile === 'grid-2').cache = 'yes';
+    assert.throws(() => readPage(bad), /caches its rows \(true\) or is without it, not "yes"/);
   });
 
   it('says what is wrong with a flow read from somewhere', () => {
@@ -293,6 +317,12 @@ describe('the text tools (text-tools.ts): calculated columns, read back off thei
     assert.deepEqual(said([one('replace')]), { tool: 'regex', also: [], says: '/^[A-Z]/ replaced in desk' });
     assert.deepEqual(said([one('extract')]), { tool: 'regex', also: [], says: '/^[A-Z]/ of desk' });
     assert.match(body(one('extract')), /"function":"first".*"function":"regexpExtract"/);
+    // tokenize: every match, exploded -- a row a match, an empty text's none
+    const tokens = textToolColumns({ kind: 'regex', column: 'desk', pattern: '[A-Z]+', mode: 'tokenize', name: 'tok' })[0]!;
+    assert.equal(tokens.unnest, true);
+    assert.equal(body(tokens), JSON.stringify(fn('regexpExtract', fn('coalesce', property(variable('x'), 'desk'), lit.string('')), lit.string('[A-Z]+'), lit.boolean(true))));
+    assert.deepEqual(said([tokens]), { tool: 'regex', also: [], says: '/[A-Z]+/ of desk to rows' });
+    assert.deepEqual(readTextTool({ kind: 'regex', column: 'desk', pattern: 'x', mode: 'tokenize' }), { kind: 'regex', column: 'desk', pattern: 'x', mode: 'tokenize', name: 'desk_token' });
   });
 
   it("Data Cleansing: a chain of its own functions over each column, in its order; a Formula's other functions none of it", () => {
@@ -624,6 +654,24 @@ describe('a Pure box (pure-box.ts, setPure): its rows a function of its input\'s
     assert.equal(pureInputOf(pure(), input), undefined, 'rows no Pure made');
   });
 
+  it("is taken apart into its steps (Import Pure, FL12): each a box's function of the rows before it", () => {
+    // limit(filter($rows, ...), 5): a filter, then a limit -- each over $input
+    const steps = pureSteps(pure('rows'));
+    assert.deepEqual(steps, [
+      lambda(['input'], fn('filter', variable('input'), lambda(['x'], gt(property(variable('x'), 'notional'), lit.integer(100))))),
+      lambda(['input'], fn('limit', variable('input'), lit.integer(5))),
+    ]);
+    // the steps over one another, the rows the whole gives
+    const input = fn('getAll', variable('t'));
+    assert.deepEqual(pureOver(steps[1]!, pureOver(steps[0]!, input)), pureOver(pure('rows'), input));
+    // a step that reads its input elsewhere too stays whole with what it reads, the steps after it their own
+    const self = lambda(['input'], fn('limit', fn('join', variable('input'), variable('input')), lit.integer(3)));
+    assert.deepEqual(pureSteps(self), [lambda(['input'], fn('join', variable('input'), variable('input'))), lambda(['input'], fn('limit', variable('input'), lit.integer(3)))]);
+    // one step: itself
+    assert.deepEqual(pureSteps(lambda(['input'], fn('limit', variable('input'), lit.integer(1)))), [lambda(['input'], fn('limit', variable('input'), lit.integer(1)))]);
+    assert.throws(() => pureSteps(lambda(['a', 'b'], variable('a'))), /takes one parameter/);
+  });
+
   it('judges its shape in words: one parameter, one expression, its input read', () => {
     assert.equal(pureProblem(pure()), undefined);
     assert.match(pureProblem({ _type: 'var', name: 'x' })!, /a Pure box's function is a lambda/);
@@ -829,6 +877,27 @@ describe("Sample's other ways (row-sample.ts): a row number and a filter, as Uni
     refused(() => rowSampleCommands(typed, { ...t, n: 100 }), /a whole percent of the rows, from 1 to 99/);
     refused(() => rowSampleCommands(typed, { ...t, groups: ['region'] }), /a random sample is of all the rows/);
     assert.deepEqual(readRowSample({ kind: 'sample', mode: 'random', n: 10, seed: 3 }), { kind: 'random', n: 10, by: '', groups: [], seed: 3 });
+  });
+
+  it("oversamples a value (Alteryx's Oversample Field): every row of it, the others numbered by their hash and kept to its share", () => {
+    const t = { kind: 'oversample' as const, n: 40, by: 'region', groups: [], seed: 2, value: 'EMEA' };
+    const commands = rowSampleCommands(typed, t);
+    const made = columnsOf(commands);
+    assert.deepEqual(made.map((d) => d.name), ['SampleRow', 'SampleChance', 'SampleInterest', 'SampleRank', 'SampleCount', 'SampleKeep']);
+    const [, , interest, rank, count, keep] = made;
+    assert.equal(JSON.stringify(interest!.lambda?.body[0]), JSON.stringify(fn('if', fn('and', fn('isNotEmpty', property(variable('x'), 'region')),
+      fn('equal', property(variable('x'), 'region'), lit.string('EMEA'))), lambda([], lit.integer(1)), lambda([], lit.integer(0)))));
+    assert.deepEqual(rank!.window, { fn: 'rowNumber', partition: ['SampleInterest'], order: [{ column: 'SampleChance', direction: 'asc' }, { column: 'SampleRow', direction: 'asc' }] });
+    assert.deepEqual(count!.window, { fn: 'sum', column: 'SampleInterest', partition: [], order: [], frame: 'partition' });
+    assert.match(JSON.stringify(keep!.lambda?.body[0]), /"function":"or".*"function":"lessThanEqual".*"function":"divide".*"function":"times"/);
+    const filter = (commands.find((c) => c.kind === 'addFilter') as { condition: FilterNode }).condition;
+    assert.deepEqual(filter, { kind: 'condition', column: 'SampleKeep', operator: 'equal', value: true });
+    assert.deepEqual(rowSampleOf({ derived: made, filter }), { ...t, columns: made.map((d) => d.name) });
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived: made, filter }))).says, 'region EMEA made 40% of the rows, seed 2');
+    refused(() => rowSampleCommands(typed, { ...t, n: 0 }), /a whole percent of the rows, from 1 to 99/);
+    refused(() => rowSampleCommands(typed, { ...t, by: 'desk' }), /the grid has no column 'desk'/);
+    assert.deepEqual(readRowSample({ kind: 'sample', mode: 'oversample', n: 40, by: 'region', value: 'EMEA', seed: 2 }), t);
+    refused(() => readRowSample({ kind: 'sample', mode: 'oversample', n: 40, by: 'region', value: null }), /its value is the value it keeps every row of/);
   });
 
   it("hands on the rest by its False (Alteryx's Create Samples): its filter turned round, its hidden columns as they are", () => {
@@ -1122,6 +1191,11 @@ describe("Imputation (impute.ts): a number's empties filled, a value or the colu
     const box = cube(rows('grid-1'), (q) => ({ ...q, derived: [helper.column, filled.column] }), { columns: { notional__average: { hidden: true } } });
     assert.deepEqual(boxSays(box), { tool: 'impute', also: [], says: "notional's empties → its average" });
     assert.deepEqual(imputedOf(filled.column, [helper.column, filled.column]), { column: 'notional', with: { kind: 'average' }, helper: 'notional__average' });
+    // its median, the database's (a window's median over every row): read back so, said so
+    const [middle, byMedian] = imputeCommands(typed, { columns: ['notional'], with: { kind: 'median' } }) as unknown as [{ column: DerivedColumn }, { column: DerivedColumn }];
+    assert.deepEqual(middle.column.window, { fn: 'median', column: 'notional', partition: [], order: [], frame: 'partition' });
+    assert.deepEqual(imputedOf(byMedian.column, [middle.column, byMedian.column]), { column: 'notional', with: { kind: 'median' }, helper: 'notional__median' });
+    assert.deepEqual(readImputation({ kind: 'impute', columns: ['qty'], with: 'median' }), { columns: ['qty'], with: { kind: 'median' } });
   });
 
   it('in place: the filled column handed on by its column\'s name, the column hidden, and the box says so', () => {
@@ -1150,7 +1224,87 @@ describe("Imputation (impute.ts): a number's empties filled, a value or the colu
     assert.throws(() => imputeCommands(typed, { columns: ['region'], with: { kind: 'average' } }), /only a number's empties are filled/);
     assert.throws(() => imputeCommands(typed, { columns: ['qty'], with: { kind: 'value', value: 0.5 } }), /holds whole numbers/);
     assert.deepEqual(readImputation({ kind: 'impute', columns: ['qty'], with: 3 }), { columns: ['qty'], with: { kind: 'value', value: 3 } });
-    assert.throws(() => readImputation({ kind: 'impute', columns: ['qty'], with: 'median' }), /not "median"/);
+    assert.throws(() => readImputation({ kind: 'impute', columns: ['qty'], with: 'mode' }), /not "mode"/);
+  });
+});
+
+describe("Dynamic Replace (dynamic-replace.ts): values replaced by rules read from another box's rows, pinned", () => {
+  const typed = { ...rawRows(accessor('local::DB', 'trades'), [...COLUMNS, { name: 'qty', type: 'Integer' }]) };
+  /** A rule's text parsed as the compiler parses `x|<text>`: here, `$x.<column> == <value>` alone. */
+  const cond = (column: string, value: string): Lambda => lambda(['x'], fn('equal', property(variable('x'), column), lit.string(value)));
+  const table = (rows: (string | number | null)[][]) => ({
+    rowCount: rows.length,
+    columns: ['Column', 'Condition', 'Value'].map((name, i) => ({ name, type: 'String', values: rows.map((r) => r[i] ?? null) })),
+  });
+  const by = { column: 'Column', condition: 'Condition', value: 'Value' };
+
+  it("reads a rule from each row of a box's rows, in order -- and refuses in words what is no rule", () => {
+    const rules = rulesOf(table([['region', "$x.region == 'EMEA'", 'Europe'], ['region', "$x.region == 'APAC'", 'Asia'], ['qty', '$x.qty < 0', 0]]), by);
+    assert.deepEqual(rules.map((r) => r.column), ['region', 'region', 'qty']);
+    assert.equal(rules[2]!.value, 0);
+    refused(() => rulesOf(table([]), by), /has no rows/);
+    refused(() => rulesOf(table([['', 'true', 'a']]), by), /rule 1 names no column/);
+    refused(() => rulesOf(table([['region', '  ', 'a']]), by), /rule 1 has no condition/);
+    refused(() => rulesOf(table([['region', 'true', null]]), by), /rule 1 has no value/);
+    refused(() => rulesOf(table([['region', 'true', 'a']]), { ...by, value: 'Nope' }), /its rules have no column 'Nope' for its value/);
+    refused(() => rulesOf(table(Array.from({ length: MAX_RULES + 1 }, () => ['region', 'true', 'a'])), by), /more than 200 rows/);
+    assert.equal(ruleText(" $x.qty > 1 "), 'x|$x.qty > 1');
+  });
+
+  it('pins its rules as one chain of ifs per column, handed on in its place, and reads it back', () => {
+    const replace = { rules: [
+      { column: 'region', condition: "$x.region == 'EMEA'", value: 'Europe' },
+      { column: 'qty', condition: '$x.qty < 0', value: '0' },
+      { column: 'region', condition: "$x.region == 'APAC'", value: 'Asia' },
+    ], expressions: false };
+    const made = replacedColumnsOf(typed, replace, { conditions: [cond('region', 'EMEA'), cond('qty', 'x'), cond('region', 'APAC')] });
+    assert.deepEqual(made.map((m) => m.name), ['region_replaced', 'qty_replaced']);
+    // the first rule outermost, the column itself last: of a column's rules the first that holds
+    const x = variable('x');
+    assert.equal(JSON.stringify(made[0]!.lambda), JSON.stringify(lambda(['x'], fn('if', cond('region', 'EMEA').body[0]!, lambda([], lit.string('Europe')),
+      lambda([], fn('if', cond('region', 'APAC').body[0]!, lambda([], lit.string('Asia')), lambda([], property(x, 'region'))))))));
+    // a number column's value its digits, written as its literal: never a text
+    assert.equal(JSON.stringify((made[1]!.lambda!.body[0] as unknown as { parameters: { body: unknown[] }[] }).parameters[1]!.body[0]), JSON.stringify(lit.integer(0)));
+    const types = new Map([['region_replaced', 'String'], ['qty_replaced', 'Integer']]);
+    const commands = dynamicReplaceCommands(typed, made, types);
+    assert.deepEqual(commands.map((c) => c.kind), ['calculate', 'calculate', 'configure']);
+    assert.deepEqual(commands.at(-1), { kind: 'configure', patch: { columns: {
+      region: { hidden: true }, region_replaced: { displayName: 'region' }, qty: { hidden: true }, qty_replaced: { displayName: 'qty' },
+    } } });
+    assert.deepEqual(replacedOf(made[0]!), { column: 'region', rules: 2 });
+    assert.equal(replacedOf({ ...made[0]!, name: 'other' }), undefined, 'its name says it, as an Imputation\'s does');
+    const done = applyGridCommands({ snapshot: typed, config: DEFAULT_CONFIGURATION }, commands);
+    const box = cube(rows('grid-1'), (q) => ({ ...q, columns: done.snapshot.columns, derived: done.snapshot.derived }), done.config as unknown as Record<string, unknown>);
+    assert.deepEqual(boxSays(box), { tool: 'dynamicReplace', also: [], says: 'region by 2 rules in place, qty by 1 rule in place' });
+    // loaded again with rules of region alone: its column set again, qty's taken off and qty shown again
+    const again = replacedColumnsOf(done.snapshot, { rules: [replace.rules[0]!], expressions: false }, { conditions: [cond('region', 'EMEA')] });
+    const reloaded = dynamicReplaceCommands(done.snapshot, again, new Map([['region_replaced', 'String']]));
+    assert.deepEqual(reloaded.map((c) => c.kind), ['editCalculated', 'configure', 'removeCalculated', 'configure']);
+    const after = applyGridCommands(done, reloaded);
+    assert.deepEqual(after.snapshot.derived.map((d) => d.name), ['region_replaced']);
+    assert.equal(dynamicReplaceProbe(done.snapshot, again).derived.filter((d) => d.name === 'region_replaced').length, 1, 'probed in place of the one it has');
+  });
+
+  it('values as expressions: each parsed, its type the compiler\'s -- one of another type than its column\'s refused', () => {
+    const replace = { rules: [{ column: 'notional', condition: '$x.notional < 0', value: '$x.notional * -1' }], expressions: true };
+    const value = lambda(['x'], fn('times', collection([property(variable('x'), 'notional'), lit.integer(-1)])));
+    const made = replacedColumnsOf(typed, replace, { conditions: [cond('notional', 'a')], values: [value] });
+    assert.equal(JSON.stringify((made[0]!.lambda!.body[0] as unknown as { parameters: { body: unknown[] }[] }).parameters[1]!.body[0]), JSON.stringify(value.body[0]));
+    refused(() => dynamicReplaceCommands(typed, made, new Map([['notional_replaced', 'String']])), /'notional' replaced is String: its values are Float/);
+  });
+
+  it('refuses in words a rule of a column the grid has not, a value no literal of its column\'s type', () => {
+    const one = (column: string, value: string | number | boolean, condition = 'true') => ({ rules: [{ column, condition, value }], expressions: false });
+    refused(() => replacedColumnsOf(typed, one('nope', 'a'), { conditions: [cond('region', 'a')] }), /rule 1 replaces 'nope', which the grid has not/);
+    refused(() => replacedColumnsOf(typed, one('qty', 'many'), { conditions: [cond('qty', 'a')] }), /rule 1's value "many" is no Integer, as 'qty' is/);
+    refused(() => replacedColumnsOf(typed, one('qty', 1.5), { conditions: [cond('qty', 'a')] }), /is no Integer/);
+    refused(() => replacedColumnsOf(typed, one('region', 3), { conditions: [cond('region', 'a')] }), /rule 1's value 3 is no String/);
+    refused(() => replacedColumnsOf(typed, one('region', 'a'), { conditions: [lambda(['y'], lit.boolean(true))] }), /rule 1's condition is one expression over \$x/);
+    refused(() => replacedColumnsOf(typed, { rules: [], expressions: false }, { conditions: [] }), /it has no rules/);
+    assert.deepEqual(readDynamicReplace({ kind: 'dynamicReplace', rules: [{ column: 'qty', condition: 'true', value: 1 }] }),
+      { rules: [{ column: 'qty', condition: 'true', value: 1 }], expressions: false });
+    refused(() => readDynamicReplace({ kind: 'dynamicReplace', rules: [{ column: 'qty', condition: 'true' }] }), /rule 1's value is a text/);
+    refused(() => readDynamicReplace({ kind: 'dynamicReplace', rules: [], extra: 1 }), /takes no extra/);
   });
 });
 
@@ -1219,12 +1373,20 @@ describe("the DateTime's part and text read (date-tools.ts): a column each, read
     assert.deepEqual(said([year, read]), { tool: 'datetime', also: [], says: 'year of trade_date, booked read as dd/MM/yyyy' });
     assert.equal(dateToolOf(col({ kind: 'dateParse', column: 'at', format: 'yyyy-MM-dd HH:mm:ss', time: true, name: 'a' }))?.says,
       'at read as yyyy-MM-dd HH:mm:ss');
+    // a date written as text: format's %t{...}, the compiler's to translate
+    const written = col({ kind: 'dateFormat', column: 'trade_date', format: 'dd.MM.yyyy', name: 't' });
+    assert.equal(JSON.stringify(written.lambda?.body[0]),
+      JSON.stringify(fn('format', lit.string('%t{dd.MM.yyyy}'), collection([property(variable('x'), 'trade_date')]))));
+    assert.equal(dateToolOf(written)?.says, 'trade_date written as dd.MM.yyyy');
   });
 
   it('refuses in words what it cannot make', () => {
     assert.throws(() => dateToolCommands({ kind: 'datePart', column: 'd', part: 'year', name: ' ' }), /its column needs a name/);
     assert.throws(() => readDateTool({ kind: 'datePart', column: 'd', part: 'century', name: 'c' }), /a part is year, month, day, week, hour/);
     assert.throws(() => readDateTool({ kind: 'dateParse', column: 'd', format: '', time: false, name: 'c' }), /it reads by a format/);
+    assert.throws(() => readDateTool({ kind: 'dateFormat', column: 'd', format: ' ' }), /it writes by a format/);
+    assert.throws(() => readDateTool({ kind: 'dateFormat', column: 'd', format: 'yyyy}' }), /a format has no \{ or \}/);
+    assert.deepEqual(readDateTool({ kind: 'dateFormat', column: 'd', format: 'dd/MM/yyyy' }), { kind: 'dateFormat', column: 'd', format: 'dd/MM/yyyy', name: 'd_text' });
     // unnamed (Python's): its window's name; a parse's time its format's -- one rule (the review of 2026-10-26)
     assert.deepEqual(readDateTool({ kind: 'datePart', column: 'd', part: 'year' }), { kind: 'datePart', column: 'd', part: 'year', name: 'd_year' });
     assert.deepEqual(readDateTool({ kind: 'dateParse', column: 'd', format: 'yyyy-MM-dd HH:mm' }),

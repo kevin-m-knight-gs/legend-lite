@@ -248,14 +248,14 @@ How to read the status column:
 | Record ID | Built | A window column: `rowNumber` |
 | Tile | Built | A window column: `ntile` |
 | Data Cleansing | Built (2026-10-25) | Calculated columns, a `<column>_clean` each: empties made blank (`coalesce`), punctuation out and repeated spaces one (`regexpReplace`), `trim`, `toUpper` / `toLower` (§17.6). In place, as Alteryx's: each handed on by its column's name |
-| Imputation | Built (2026-10-25) | `coalesce` with a value, or with a window column of the column's average, smallest or largest across every row (hidden): a `<column>_filled` each. A median waits for a window `median` |
+| Imputation | Built (2026-10-25) | `coalesce` with a value, or with a window column of the column's average, median (2026-10-26), smallest or largest across every row (hidden): a `<column>_filled` each |
 | Date Filter | Built | Its own tool: a date column in a range relative to today, or between two days (date-ranges.ts) |
 | Filter's Custom filter | Built (2026-10-25) | Its own tool, Custom Filter: a condition written in Pure over `$x`, parsed and typed by the compiler (a Boolean), a hidden calculated column and the grid's filter on it alone; its T and F (FL12's "filter by a Pure expression") |
 | Generate Rows | Built (2026-10-26) | Each row repeated for each whole number from one to another (numbers given or its columns, by a step), or each day between two of its dates: an exploded calculated column of the database's `range`, a day `adjust`ed by each |
 | Auto Field | Out | Every column already has its type from the compiler; there is nothing to guess |
 | Create Samples | Built | A Sample's two outputs: its rows (S) and the rest (R), its False -- a split by a seed |
 | Multi-Field Binning | Built (2026-10-26) | Binning: number columns each into N bins of equal width over its range -- the grid's bins preset, the database placing each value; equal records are the Tile's |
-| Oversample | Later | `random()` and a Sample's seed are the parts |
+| Oversample | Built (2026-10-26) | A Sample's way: every row of a value of interest kept, the others numbered in the order of the database's hash of each and a seed and kept while within the share that makes the value N% of the rows (a window count, all hidden) |
 
 ### Join
 
@@ -266,7 +266,7 @@ How to read the status column:
 | Union | Built | A join's append, of any number of inputs (`JoinSource.more`) |
 | Append Fields | Built (2026-10-25) | Every row with every row: a join, matching rows only, on no condition -- the Join window's Every pair |
 | Find Replace | Built (2026-10-25) | A Join box, all of mine on my column equal to theirs, its column then handed on as theirs where found (`coalesce`, in place). A key theirs repeats matches its first row only (2026-10-26, C13): the join's `once` cuts theirs to the first of each key, by a row number the database gives in an order of their other columns, rising -- the Join window's "Each of mine once", ticked for a Find Replace; Python's `page.find_replace` the same |
-| Fuzzy Match | Built (2026-10-25) | A join row comparing by similar text (`~`): both a value, at most N edits apart by `levenshteinDistance`; a Fuzzy Match box opens the Join window at it. `jaroWinklerSimilarity`, a score, waits for a row of its own |
+| Fuzzy Match | Built (2026-10-25) | A join row comparing by similar text (`~`): both a value, at most N edits apart by `levenshteinDistance`; a Fuzzy Match box opens the Join window at it. Its score (2026-10-26): a column of each matched pair's likeness, 0 to 100, from its edits apart for the longer text's length, the database's |
 | Make Group | Out for now | Groups made from pairs need a transitive closure, which one relation cannot say |
 
 ### Parse
@@ -275,8 +275,8 @@ How to read the status column:
 |---|---|---|
 | Text To Columns (to columns) | Built (2026-10-25) | `splitPart`, one calculated column per part |
 | Text To Columns (to rows) | Built (2026-10-25) | `split`, exploded: one column, each row once a part |
-| RegEx | Built (2026-10-25) | `regexpLike` (Match), `regexpReplace` (Replace), `regexpExtract`'s first (Extract), one tool. Tokenize (each match a row) is Expand's, later |
-| DateTime | Built (2026-10-25) | One tool, three ways: a date to its period (the grain preset), a date's part (`year`, `monthNumber`, `dayOfMonth`, `weekOfYear`, `hour`), text read as a date by a format (`convertDateFormat` / `convertDateTimeFormat`: strptime). A date written as text waits for a format the compiler takes as text (`formatDate` takes an enum) |
+| RegEx | Built (2026-10-25) | `regexpLike` (Match), `regexpReplace` (Replace), `regexpExtract`'s first (Extract), one tool; Tokenize (2026-10-26), each match its own row: `regexpExtract`'s all, exploded |
+| DateTime | Built (2026-10-25) | One tool, three ways: a date to its period (the grain preset), a date's part (`year`, `monthNumber`, `dayOfMonth`, `weekOfYear`, `hour`), text read as a date by a format (`convertDateFormat` / `convertDateTimeFormat`: strptime); a date written as text by a format (2026-10-26: `format`'s `%t{...}`, the engine's tokens the compiler translates to strftime) |
 | JSON Parse | Built | Its own tool: the column editor's JSON fields (`datacube/src/ui/json-fields.ts`) and Expand, on the box's JSON column |
 | XML Parse | Out | No XML function in the platform |
 
@@ -311,7 +311,7 @@ How to read the status column:
 | Message | Later | The run's log |
 | Base 64 Encoder | Built | `encodeBase64` in a Formula |
 | Dynamic Rename, Select | Built (2026-10-25) | Select's window (Preparation, above); Dynamic Rename, a prefix and a suffix given each kept column in sight |
-| Dynamic Replace | Later | |
+| Dynamic Replace | Built (2026-10-26) | Rules read from another box's rows, a column, a condition in Pure and a value each, pinned as a column per column they name: a chain of `if`s, the column itself last, handed on in its place (`dynamic-replace.ts`) |
 | Interface tools (an analytic app's inputs) | Core | Query parameters: execute takes no parameter values yet (F5) |
 | Standard macro | Later | A sub-flow saved as a Pure function with parameters, used as a box; needs a function with parameters as a source (§17.6, item 8) |
 | Batch and iterative macros | Out for now | A loop is not one query; it would be orchestration |
@@ -393,7 +393,9 @@ Every milestone ends usable: something a person does from start to finish, saved
 ### M6. Output and run
 
 - **Output Data to a table:** create, replace, append and merge by key, on the store writes now on main (FL13's note).
-- The Cache box (FL10); the grid's exports from any box.
+  *Built (2026-10-26): §5's M5 and M6 steps, "Built, an Output into a table".*
+- The Cache box (FL10); the grid's exports from any box. *The Cache built (2026-10-26) as a mode of any box: §5's M5
+  and M6 steps.*
 - **Run:** the whole flow in order, with a run log; check modes enforced (FL8); a dry run (the plan and row counts,
   nothing written).
 - **Done when:** a flow writes a table in one transaction, and a failed check writes nothing and says why.
@@ -402,7 +404,7 @@ Every milestone ends usable: something a person does from start to finish, saved
 
 - Comments and containers that collapse, auto-layout, a minimap, search, a command palette, copy and paste of boxes,
   keyboard operation, accessible announcements.
-- Import Pure and the Pure box (FL12). *The Pure box built (2026-10-26, its note above); Import Pure not yet.*
+- Import Pure and the Pure box (FL12). *The Pure box built (2026-10-26, its note above); Import Pure built the same day (§5's M5 and M6 steps, "Built, Import Pure").*
 
 ### M8. Production (platform work)
 
@@ -883,8 +885,8 @@ words, as is a function that never reads its input (a Text Input's work) and one
 the settings pane: the text, its steps a click away (filter, extend, groupBy, select, sort, distinct, limit, rename, each
 put in where the cursor is, to be finished there), its input's columns, and Take Its Pure Off. A box says the functions
 its rows go through ("filter → limit"), and a box after it reads its rows as any other box's. Python:
-`grid.pure("$input->...")`, `grid.pure(None)`. Not yet: Import Pure (a lambda turned into boxes), a Pure box of two
-inputs. Tested by `flow-sheet.test.ts` (its text both ways, the substitution and its inverse, shadowing, its shape's
+`grid.pure("$input->...")`, `grid.pure(None)`. Not yet: a Pure box of two inputs. (Import Pure, a lambda turned into
+boxes: built since, its note below.) Tested by `flow-sheet.test.ts` (its text both ways, the substitution and its inverse, shadowing, its shape's
 refusals, its words, `pureFrom`'s steps and refusals, the command applied, refused, read, renamed, written and read back,
 the page between both ways), Python's `test_a_pure_box_makes_its_rows_a_function_of_its_inputs` (a filter and an extend,
 a groupBy's columns as the compiler types them, taken off, each refusal) and the harness (a step put in, a value refused,
@@ -1293,6 +1295,102 @@ by `page-commands.test.ts`, Python's `test_outputs_written_when_the_flow_runs` (
 out, the refusals, saved and loaded) and the harness (the palette's Output, named again, Write now's file read back: its
 head row and its 503 rows; Run writes it too, its log saying it wrote it).
 
+**Built, an Output into a table** (M6, FL13; `layout/flow.ts` `Output`'s `table` kind, `outputProblem`, `readOutput`;
+`table-output.ts` `writeTable`; `engine-client/src/plan-runner.ts`; the planner's `executionPlan` kind -- `Boundary`
+`executionPlanJsonHeld`, the tab's export and the native library's `lite_execution_plan_json_held`; 2026-10-26): an
+Output box writes a CSV file or a **table of its host's own database**, named in its settings and written one of five
+ways (Alteryx's Output Data options): *Create a new table*, *Overwrite the table*, *Append to the table*, *Delete its rows,
+then append*, *Update by key, insert the new* (a merge, by the key columns named beside it). §6's item 3 settled:
+- **The write is Pure, planned by the compiler.** `rows->write(T)`, `T->delete(r|true); rows->write(T)`,
+  `rows->merge(T, ~[keys])` -- L1's store writes (docs/WRITES_DESIGN_2026_10_18.md) over one model of the box's tables and
+  the target (the several-tables model, its target read off the database's own catalog), planned as an **execution
+  plan** (PlanJson v5: a `Sequence` of `Update`s and the `TextResult` its count is bound into).
+- **A host's plan runner runs it** (`plan-runner.ts`): Java's `PlanRunner`'s rules for a host that runs its SQL itself --
+  its steps in one transaction, each change's count bound where a later step reads it, the answer written once it has
+  committed, a caller's open transaction joined. What a host's program never plans (parameters, a type hole, a list
+  bound, a step of another database, a database set up first) is refused by name. The tab binds by DuckDB-WASM's
+  prepared statements; Python's headless DataCube by a host call of its own (`calls.ts` `statement`, `_headless.py`
+  `_statement`), run in no read of the frames.
+- **One transaction, the table's making among it.** `create` and `overwrite` make the table first by the host's own
+  operation (`relation`, the database's CREATE from the box's rows with none of them -- as Snap makes its copy, D5: the
+  database decides the column types), then the catalog is read and the write planned and run, all with the connection
+  held (`DuckDbEngine.exclusive`: no grid's query between its statements); a failure anywhere takes every change back.
+- **One writer, both hosts.** The tab (`app.ts writeOutput`, the grid's `writeTable` from `datacube-app.ts tableWriter`)
+  and Python's `flow.run` (`grid.output_table(name, mode, keys=)`, headless `gridOutputQuery` in a read, then
+  `gridWriteTable` in none, the frames held) write by `writeTable`. Refused in words: a table of the page's own (a file's,
+  a frame's, a copy's) or one the box reads, a name not plain or one of legend-lite's own, a merge with no key, a box
+  read live from elsewhere in the tab (cache it first, FL10); in the database's words, a table that exists for a create,
+  one that does not for the rest, a column the table has not.
+- Tested by `engine-client`'s `plan_runner_test` (the planner's plan run on DuckDB-WASM: a count, a delete then a write,
+  a failure taking both back, the refusals), `table-output.test.ts` (each way, on DuckDB-WASM and in the headless lane on
+  Python's DuckDB), Python's `test_a_table_output_is_written_in_one_transaction_each_way` and the harness (the example's
+  Date Filter's Output made a table, written, refused as a new one again, appended). Not built: a table of another
+  database than the host's own (a warehouse's: F2's grants), and a run writing all its table Outputs in one transaction.
+
+**Built, Import Pure** (FL12; `pure-import.ts` `pureSteps`, the Pure window's *Import as Boxes*, headless
+`pureImportSteps`; 2026-10-26): a Pure box's function taken apart into boxes, a step each -- each function its rows go
+through in turn, its first argument the rows before it, a Pure box of its own over `$input` (this box its first step,
+each after it over the one before: the host makes them in turn, as the palette's Pure, `cube-page.ts #importAfter`). A
+step that reads its input elsewhere too (a join of the rows with themselves) stays whole with what it reads. Each box says
+its one function (`filter`, `extend`, `sort`), and the last box's rows are the whole's. Python: `grid.import_pure(text)`,
+the boxes in order. Tested by `flow-sheet.test.ts` (the steps, over one another the whole), Python's
+`test_a_pure_box_imported_as_boxes_a_step_each` and the harness (a filter then a limit, the limit reading the filter).
+Not built: a step made the tool it is (a filter a Filter's condition, a sort a Sort's) -- each stays a Pure box, which
+the compiler checks as it checks every one.
+
+**Built, the smaller tools** (§4's gaps, 2026-10-26): an Imputation by the column's **median** (a window `median`
+across every row, the database's); a DateTime that writes **a date as text** by a format (`format('%t{dd/MM/yyyy}',
+[$x.d])`, the formats the compiler's tokens spell -- a month's name it has not, and refuses); a Fuzzy Match's **score**
+(the Join window's Score column, `join-how.ts` `score`: each matched pair's likeness, 0 to 100, on its condition's first
+similar row, matching rows only); RegEx's **Tokenize** (each match its own row, `regexpExtract`'s all, exploded); and
+Sample's **Oversample** (`row-sample.ts`: Alteryx's Oversample Field, every row of a value of interest kept and of the
+others as many as make it N% of the rows, chosen by the database's hash and a seed, so the same rows each run). Each is
+read back off its query as its tool, set by its window and by Python (`grid.impute(fill='median')`,
+`grid.format_date`, `page.fuzzy_match(score=...)`, `grid.regex(mode='tokenize')`, `grid.sample('oversample', ...)`).
+
+**Built, Dynamic Replace** (`dynamic-replace.ts`, `ui/dynamic-replace-form.ts`, `page/cube-page.ts` `#readRules`,
+headless `gridRules`; 2026-10-26): Alteryx's Dynamic Replace -- a box's values replaced by **rules read from another
+box's rows**, each row a rule: the column it replaces, a condition in Pure over `$x` and the value put there (a value of
+the column's type, as the cell spells it, or -- *Values are expressions* -- Pure over `$x` too). Of a column's rules the
+first whose condition holds; its own value where none does. The rules are **pinned**, as a Cross Tab's values are (FL2):
+read once (the database reading the rules box's rows as it hands them on, 200 at most), each condition and value parsed
+by the compiler, the replaced columns typed before they are set (each must keep its column's type), and written in as a
+calculated column per column the rules name (`<column>_replaced`: `if(<c1>, |<v1>, |if(<c2>, |<v2>, |$x.<column>))`),
+handed on in its place. Loaded again, every replaced column is set again and one of a column no rule names now taken
+off. In the tab, a flow shows one box at a time, so picking the rules box shows it, reads its rows and shows the Dynamic
+Replace box again with its window opened on them, as a Run shows each box in turn. Python: `grid.dynamic_replace(rules,
+column=, condition=, value=, expressions=)`, `rules` a grid or a list of `{column, condition, value}`. Tested by
+`flow-sheet.test.ts` and Python's `test_a_dynamic_replace_takes_its_rules_from_another_grid`. Not built: a rules box
+linked to the box on the canvas (Alteryx's L input), read again on each run -- the pin is read when asked.
+
+**Built, the Cache** (FL10, FL11; `layout/flow.ts` `FlowBox.cache`, `setCache`; `page-commands.ts` `setCache`;
+`cube-document.ts` `JoinInput.copy`; `live-inputs.ts` `copyOf`; `join-open.ts` `openedInputLeaves`; `cube.ts`
+`handOver`; `page/cube-page.ts` `#cacheKept`, `cacheCopies`; 2026-10-26): **a mode of any box, not a box of its own**.
+A box's settings' *Cache its rows* (the command `setCache`, Python's `grid.cache()`) copies the box's rows into the
+host's own database -- its Snap, `snap` and `live` (§18.8) -- when it is shown or the flow runs, and the boxes after
+it read the copy. Built so because a separate Cache box after a box that reads another database would itself be
+refused: what has to be copied is the box that reads it, by its own query. The box is marked (its edge sky blue, darker
+once copied) and its settings say how many rows the copy holds; nothing is copied without the box saying so.
+- **The copy outlives the box's grid.** Only the shown box has a running grid, and a grid's close releases its snap. A
+  cached box's grid hands its copy to the page as it closes (`CubeController.handOver`); the page keeps it, reports it
+  among the page's copies (`page.copies`, by the box's cube), and lets it go when the box is made of something else (its
+  chain changes), its Cache is ticked off, the box is removed or the page goes (FL11: a cache lasts its session).
+- **Read by its copy, only to be opened.** A box over a cached box resolves its input with `copy` (`JoinInput.copy`,
+  never saved: `readFrozenInput` refuses it), and opens that table where it would have opened the cached box's
+  sources (`join-open.ts`, the headless host's `leafTables`); what the input is a copy *of* is unchanged, so a class
+  still maps its sources' tables. A Join's L or R is read from its inputs, which no copy of the join's rows holds.
+- **The refusal offers it.** A join over two databases is refused as before, and now says how through: "cache the box
+  that reads it, and its rows are copied here when it runs (FL10)" (`join-open.ts` `leafRefusal`). A run waits for a
+  cached box's copy before the box after it is shown.
+- Tested by `flow-sheet.test.ts` and `page-commands.test.ts` (the command, read and written, its refusals), Python's
+  `test_a_cached_box_is_copied_and_the_box_after_it_reads_the_copy_whatever_its_frame_does`, and the harness (the
+  example's Union cached, one step, written so).
+- **In the tab, a box over its files has nothing to copy.** A file read into the tab is a copy held there from the
+  start, and so is a join of such (`app/join-sources.ts`: their plane cannot move); a cached box over them says so
+  ("Nothing to copy: its rows are in this page's database already") and is marked as copied. The tab copies a box
+  whose rows are read elsewhere -- a remote file, a warehouse -- as its Snap does. Not built: a copy into a database
+  other than the host's own (FL10's "a chosen database"), which waits on a host with more than one.
+
 **Built, a Filter's False** (FL7; `cube-document.ts` `LiveInput.port`, `live-inputs.ts` `gridInput`'s port,
 `layout/flow-canvas.ts`): a live input may name a box's port -- `{grid, port: 'false'}`, its False: the same query with
 its filter turned round, the rows of its input its condition does not hold for (a row its condition is unknown for, a
@@ -1365,6 +1463,10 @@ Append Fields, Fuzzy Match, a Join's L and R, Find Replace.
    binding no parameters today), over a model that declares the target beside the sources. A host operation
    (`CREATE OR REPLACE TABLE ... AS` the box's SQL, as Snap copies) would write one today, but outside Pure: not the
    way, by the execution tenet. A table the tab writes lives in its in-memory DuckDB and goes when the tab does.
+   *Settled (2026-10-26): both hosts get the execution plan from their planner (the `executionPlan` kind) and run it by
+   one runner in TypeScript (`engine-client/src/plan-runner.ts`), the tab binding by DuckDB-WASM's prepared statements
+   and Python's headless DataCube by a host call; only the table's making (`create`, `overwrite`) is a host operation,
+   as Snap's copy is. §5's M5 and M6 steps, "Built, an Output into a table".*
 
 ---
 

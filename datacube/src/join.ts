@@ -5,7 +5,7 @@
 // No DOM, no planner: tested alone, and planned on DuckDB (test/join-open.test.ts).
 
 import {
-  agg, and, asc, cast, collection, derive, eq, fn, from, ge, gt, lambda, le, lit, lt, ne, over, property, type, variable,
+  agg, and, asc, cast, collection, derive, divide, eq, fn, from, ge, gt, lambda, le, lit, lt, minus, ne, over, property, times, type, variable,
   type JoinKind, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import { familyOf, plainType } from '../../engine-client/src/types.ts';
@@ -13,7 +13,8 @@ import { rowCountLambda } from './query.ts';
 import { CubeRefusal } from './snapshot.ts';
 import { ORDERED } from './unique.ts';
 import {
-  isEveryPair, onceRefusal, SIMILAR_WITHIN, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow, type JoinSide,
+  isEveryPair, onceRefusal, scoredRow, scoreRefusal, SIMILAR_WITHIN, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow,
+  type JoinSide,
 } from './join-how.ts';
 
 export * from './join-how.ts';
@@ -99,6 +100,18 @@ function matchLambda(how: Extract<JoinHow, { form: 'asOf' }>, named: (c: string)
   return lambda([...rows], rowTerm(how.match, named(how.match.right), rows));
 }
 
+/**
+ * A pair's likeness on a similar row (a join's `score`, a Fuzzy Match's): `round(100 * (1 - distance / longer))`, its
+ * longer text's length at least 1 -- over the joined row `$x`, their column named as it comes out (`right`). The database
+ * measures and rounds.
+ */
+function likeness(row: JoinRow, right: string): Lambda {
+  const a = fn('toOne', property(variable('x'), row.left));
+  const b = fn('toOne', property(variable('x'), right));
+  const longer = fn('max', fn('max', fn('length', a), fn('length', b)), lit.integer(1));
+  return lambda(['x'], fn('round', times(lit.integer(100), minus(lit.integer(1), divide(fn('levenshteinDistance', a, b), longer)))));
+}
+
 /** An as-of join's condition, or none when it has no rows (the match alone pairs). */
 function asOfCondition(how: Extract<JoinHow, { form: 'asOf' }>, named: (c: string) => string): Lambda | undefined {
   return 'rows' in how.on && how.on.rows.length === 0 ? undefined : conditionLambda(how.on, named);
@@ -120,17 +133,20 @@ export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow, more
       const names = theirNames(mine, right.columns.map((c) => c.name), how.prefix);
       const named = (c: string): string => names.get(c) ?? c;
       // one of theirs for each of mine: their rows cut to the first of each key before they are named and joined
-      const why = onceRefusal(how);
+      const why = onceRefusal(how) ?? scoreRefusal(how);
       if (why !== undefined) throw new CubeRefusal(why);
       const theirs = renamed(how.form === 'join' && how.once === true ? firstOfEach(right, onceKeys(how.on)) : right, names);
       let joined: Relation;
+      // a Fuzzy Match's score: each pair's likeness, after their columns
+      const scored = how.form === 'join' && how.score !== undefined ? { name: how.score, row: scoredRow(how)! } : undefined;
       if (how.form === 'join') {
         joined = from(left.relation).join(theirs, KIND[how.kind], conditionLambda(how.on, named));
+        if (scored !== undefined) joined = joined.extend([derive(scored.name, likeness(scored.row, named(scored.row.right)))]);
       } else {
         const on = asOfCondition(how, named);
         joined = from(left.relation).asOfJoin(theirs, matchLambda(how, named, on ? rowsOf(on) : ['a', 'b']), on);
       }
-      return (how.keep === null ? joined : joined.select([...mine, ...how.keep.map(named)])).node;
+      return (how.keep === null ? joined : joined.select([...mine, ...how.keep.map(named), ...(scored !== undefined ? [scored.name] : [])])).node;
     }
     case 'semi':
     case 'anti':

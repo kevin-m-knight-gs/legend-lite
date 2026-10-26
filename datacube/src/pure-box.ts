@@ -40,7 +40,7 @@ const shadows = (n: ValueSpecification, name: string): boolean =>
   n._type === 'lambda' && (n as Lambda).parameters.some((p) => p.name === name);
 
 /** Whether `n` reads variable `name` (a lambda of its own that names it reads its own). */
-function reads(n: ValueSpecification, name: string): boolean {
+export function reads(n: ValueSpecification, name: string): boolean {
   if (isRead(n, name)) return true;
   if (shadows(n, name) || n._type === 'genericTypeInstance') return false;
   return children(n).some((c) => reads(c, name));

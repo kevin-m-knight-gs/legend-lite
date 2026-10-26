@@ -147,6 +147,12 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     assert.throws(() => joinRelation(inputs.left, inputs.right, { ...once, on: { rows: [{ left: 'cust', op: '<', right: 'id' }] } }), /takes a key/);
     assert.throws(() => readJoinHow({ ...once, on: { rows: [] } }), /takes a key/);
     assert.throws(() => readJoinHow({ ...LEFT_ON_CUST, once: false }), /once is true or left out/);
+    // a score (a Fuzzy Match's) is of a similar row's pairs, matching rows only
+    const similar = { form: 'join', kind: 'inner', on: { rows: [{ left: 'cust', op: '~', right: 'id' }] }, prefix: 'c_', keep: null };
+    assert.deepEqual(readJoinHow({ ...similar, score: 'score' }), { ...similar, score: 'score' });
+    assert.throws(() => readJoinHow({ ...similar, kind: 'left', score: 'score' }), /a score is each matched pair's: it takes matching rows only/);
+    assert.throws(() => readJoinHow({ ...LEFT_ON_CUST, kind: 'inner', score: 'score' }), /a score is a Fuzzy Match's/);
+    assert.throws(() => readJoinHow({ ...similar, score: ' ' }), /a join's score is the name of its column/);
     assert.deepEqual(readJoinHow(JSON.parse(JSON.stringify(once))), once);
   });
 

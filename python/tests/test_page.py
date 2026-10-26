@@ -1795,8 +1795,8 @@ class Abilities(Paged):
         self.assertEqual(groups_of(grid.view(), 'doubled'), {'EMEA': 351.0, 'AMER': 500.0})
         with self.assertRaisesRegex(ValueError, 'a group-level column has no kind'):
             grid.calculate('kinded', '$x.notional', level='group', kind='measure')
-        with self.assertRaisesRegex(ValueError, 'median'):
-            grid.window('middle', 'median', column='notional')
+        with self.assertRaisesRegex(ValueError, 'mode'):
+            grid.window('middle', 'mode', column='notional')
         with self.assertRaisesRegex(ValueError, "a child aggregate is a group-level column"):
             grid._column({'name': 'rowwise', 'mode': 'children', 'child': {'fn': 'max', 'of': 'notional'}})
         # explode: each row once per element of what its expression gives
@@ -1870,7 +1870,11 @@ class Abilities(Paged):
         tags.split('tags', ',', name='tag', rows=True)
         self.assertEqual(sorted((int(r['id']), r['tag']) for r in tags.to_pandas().to_dict('records')),
                          [(1, 'a'), (1, 'b'), (1, 'c'), (2, 'd')])
-        with self.assertRaisesRegex(ValueError, 'its mode is match, replace or extract, not "find"'):
+        # tokenize: each match its own row (Alteryx's Tokenize), the database's matches exploded; no match, no row
+        coded = page.grid(pd.DataFrame({'id': [1, 2, 3], 'note': ['FX12 and IR7', 'none', None]}), name='coded')
+        coded.regex('note', '[0-9]+', 'tokenize')
+        self.assertEqual(sorted((int(r['id']), r['note_token']) for r in coded.to_pandas().to_dict('records')), [(1, '12'), (1, '7')])
+        with self.assertRaisesRegex(ValueError, 'its mode is match, replace, extract or tokenize, not "find"'):
             grid.regex('code', 'x', 'find')
         with self.assertRaisesRegex(ValueError, 'pick what to do to them'):
             grid.cleanse(['who'], trim=False)
@@ -1893,6 +1897,10 @@ class Abilities(Paged):
             grid.impute(['qty'], fill=0.5)
         with self.assertRaisesRegex(ValueError, "'notional_filled' is already a column"):
             grid.impute(['notional'], fill='largest')
+        # its median, the database's: 100, 300 and 900's middle
+        skewed = page.grid(pd.DataFrame({'n': [100.0, None, 300.0, 900.0]}), name='skewed')
+        skewed.impute(['n'], fill='median')
+        self.assertEqual(sorted(r['n_filled'] for r in skewed.to_pandas().to_dict('records')), [100.0, 300.0, 300.0, 900.0])
 
     def test_dates_read_and_taken_apart_as_a_flow_box_does(self):
         # (M3) grid.parse_date, grid.date_part: a flow's DateTime's other two ways (date-tools.ts dateToolCommands),
@@ -1912,6 +1920,15 @@ class Abilities(Paged):
         odd.parse_date('booked', 'dd/MM/yyyy')
         with self.assertRaisesRegex(ValueError, 'Could not parse string'):
             odd.to_pandas()
+        # a date written as text by a format, the database's strftime: an empty date an empty text
+        dated = page.grid(pd.DataFrame({'on': pd.to_datetime(['2024-01-03', None, '2024-02-15']).date, 'n': [1, 2, 3]}), name='dated')
+        dated.format_date('on', 'dd.MM.yyyy')
+        said = {r['n']: r['on_text'] for r in dated.to_pandas().to_dict('records')}
+        self.assertEqual(said[1], '03.01.2024')
+        self.assertEqual(said[3], '15.02.2024')
+        self.assertTrue(said[2] is None or pd.isna(said[2]), f'an empty date, an empty text: {said[2]!r}')
+        with self.assertRaisesRegex(ValueError, 'a format has no'):
+            dated.format_date('on', '{yyyy}')
 
     def test_columns_made_rows_as_a_flow_box_transposes_them(self):
         # (M4) grid.transpose: a flow's Transpose (transpose.ts transposeCommands) -- each row once per column, its name
@@ -2056,6 +2073,14 @@ class Abilities(Paged):
         self.assertEqual(kept(), picked, 'the same seed, the same rows')
         many.sample('random', 50, seed=4)
         self.assertNotEqual(kept(), picked, 'another seed, other rows')
+        # an oversample: every row of the value of interest, the others to make it its share -- 5 of 50 the 1..5 rows,
+        # 25% of the rows: 15 others kept, chosen by the hash and the seed, the same for its seed
+        many.sample('oversample', 25, by='n', value=3, seed=1)
+        once = kept()
+        self.assertIn(3, once)
+        self.assertEqual(len(once), 4, f'one of interest, three others: {once}')
+        many.sample('oversample', 25, by='n', value=3, seed=1)
+        self.assertEqual(kept(), once, 'the same seed, the same rows')
         grid.sample(None)
         self.assertEqual(ns(), [1, 2, 3, 4, 5])
         with self.assertRaisesRegex(ValueError, 'one row of every 1 is every row'):
@@ -2922,7 +2947,12 @@ class Joined(Paged):
         matched = page.fuzzy_match(mine, theirs, ('who', 'name'), within=1)
         rows = matched.to_pandas()
         self.assertEqual(sorted(zip(rows['who'], rows['id'].astype(int))), [('Ana Diaz', 2), ('Jon Smith', 1)])
+        # each pair scored, the database's: one edit in ten letters, 90; in nine, 89
+        self.assertEqual(sorted(zip(rows['who'], rows['score'].astype(int))), [('Ana Diaz', 89), ('Jon Smith', 90)])
         self.assertEqual(len(page.fuzzy_match(mine, theirs, ('who', 'name'), within=0).to_pandas()), 0)
+        # every row of mine: no score (a pair's alone)
+        every = page.fuzzy_match(mine, theirs, ('who', 'name'), within=1, kind='left').to_pandas()
+        self.assertNotIn('score', every.columns)
 
     def test_placed_on_its_first_inputs_sheet_and_named_as_its_grids_show(self):
         # docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z9: as the tab's Join… places and names one (join-flow.ts), by
@@ -3308,6 +3338,43 @@ class Flows(Paged):
         with self.assertRaisesRegex(ValueError, 'is a board'):
             page.sheets[0].run('.')
 
+    def test_a_table_output_is_written_in_one_transaction_each_way(self):
+        # M6, FL13: a box set to write a table of the frames' database (grid.output_table) -- made for its rows, appended,
+        # its rows deleted then appended, merged by a key, made again -- by DataCube's one table writer, the compiler's
+        # write run in one transaction; what the run wrote said
+        page, flow, _source, big = self.flowed()
+        big.output_table('big_trades')
+        box = next(b for b in self.boxes(page, flow) if b['tile'] == big.id)
+        self.assertEqual(box['output'], {'format': 'table', 'name': 'big_trades', 'mode': 'create'})
+        con = page._session.frames.connection
+        table = lambda: sorted(con.execute('SELECT notional FROM big_trades').fetchall())
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(flow.run(folder), ['table big_trades'])
+            self.assertEqual(table(), [(100.0,), (250.0,)])
+            # made already: the database's words, and the table as it was
+            with self.assertRaisesRegex(ValueError, 'already exists'):
+                flow.run(folder)
+            self.assertEqual(table(), [(100.0,), (250.0,)])
+            big.output_table('big_trades', 'append')
+            flow.run(folder)
+            self.assertEqual(table(), [(100.0,), (100.0,), (250.0,), (250.0,)])
+            big.output_table('big_trades', 'deleteAppend')
+            flow.run(folder)
+            self.assertEqual(table(), [(100.0,), (250.0,)])
+            big.output_table('big_trades', 'overwrite')
+            self.assertEqual(flow.dry_run()['would_write'], ['table big_trades'])
+            flow.run(folder)
+            self.assertEqual(table(), [(100.0,), (250.0,)])
+        with self.assertRaisesRegex(ValueError, 'a merge matches its rows by a key'):
+            big.output_table('big_trades', 'merge')
+        with self.assertRaisesRegex(ValueError, 'letters, digits and underscores'):
+            big.output_table('big trades')
+        # a frame's own table is none an Output writes
+        big.output_table('trades', 'overwrite')
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "one of this page's own tables"):
+                flow.run(folder)
+
     def test_an_output_writes_what_the_box_hands_on(self):
         # one writer (flow-output.ts outputCsv, headless gridOutput; the review of 2026-10-26's B2, C1, C9, C10): every row
         # in its sorts' order, the columns it hands on under their names, in its order, each value as it is -- the tab's
@@ -3529,6 +3596,12 @@ class Flows(Paged):
             crossed.load_pivot_values()
             self.assertEqual(crossed.failing, [])
             self.assertEqual([p.name for p in flow.run(folder)], ['crossed.csv'])
+        # Add to the cast (FL8): the value its columns lack added after those it has
+        crossed.pin_pivot(['EMEA'])
+        crossed.add_pivot_values(['AMER'])
+        self.assertEqual(list(after.to_pandas().columns), ['desk', 'EMEA_notional', 'EMEA_pnl', 'AMER_notional', 'AMER_pnl', 'Total_notional', 'Total_pnl'])
+        with self.assertRaisesRegex(ValueError, 'a column for each of them already'):
+            crossed.add_pivot_values(['AMER'])
         crossed.pin_pivot(['EMEA'])
         with self.assertRaisesRegex(ValueError, "'EMEA' is pinned twice"):
             crossed.pin_pivot(['EMEA', 'EMEA'])
@@ -3614,6 +3687,40 @@ class Flows(Paged):
         with self.assertRaises(ValueError):
             kept.custom_filter('$x.nope > 1')
 
+    def test_a_dynamic_replace_takes_its_rules_from_another_grid(self):
+        # §4's Dynamic Replace: grid.dynamic_replace -- rules read off another grid's rows (the database reading them), a
+        # column, a condition over $x and a value each; of a column's rules the first that holds, its own value where
+        # none does; pinned in place; the compiler typing each, refusing in its words, the rule named
+        page, flow, source, _big = self.flowed()
+        rules = flow.grid(pd.DataFrame({
+            'Column': ['region', 'region', 'notional'],
+            'Condition': ["$x.region == 'EMEA' && $x.desk == 'FX'", "$x.region == 'EMEA'", '$x.notional->toOne() > 200'],
+            'Value': ['Europe FX', 'Europe', '200'],
+        }), name='rules')
+        box = flow.grid(input=source)
+        box.dynamic_replace(rules)
+        rows = flow.grid(input=box).to_pandas().sort_values('pnl')
+        self.assertEqual(list(rows['region']), ['AMER', 'Europe', 'Europe FX'])
+        self.assertEqual(list(rows['notional']), [200.0, 75.5, 100.0])
+        self.assertNotIn('region_replaced', rows.columns, 'handed on in its column\'s place')
+        # loaded again, from rules given: region's alone, notional shown as it is
+        box.dynamic_replace([{'column': 'region', 'condition': "$x.desk == 'Rates'", 'value': 'R'}])
+        rows = flow.grid(input=box).to_pandas().sort_values('pnl')
+        self.assertEqual(list(rows['region']), ['R', 'R', 'EMEA'])
+        self.assertEqual(list(rows['notional']), [250.0, 75.5, 100.0])
+        # values as expressions, each Pure over $x
+        box.dynamic_replace([{'column': 'notional', 'condition': '$x.notional->toOne() < 90', 'value': '$x.notional->toOne() * 2.0'}],
+                            expressions=True)
+        self.assertEqual(sorted(flow.grid(input=box).to_pandas()['notional']), [100.0, 151.0, 250.0])
+        with self.assertRaisesRegex(ValueError, r"rule 1's value \"many\" is no Float, as 'notional' is"):
+            box.dynamic_replace([{'column': 'notional', 'condition': 'true', 'value': 'many'}])
+        with self.assertRaisesRegex(ValueError, "rule 1 replaces 'nope', which the grid has not"):
+            box.dynamic_replace([{'column': 'nope', 'condition': 'true', 'value': 1}])
+        with self.assertRaisesRegex(ValueError, "rule 1's condition"):
+            box.dynamic_replace([{'column': 'region', 'condition': '$x.region ==', 'value': 'a'}])
+        with self.assertRaisesRegex(ValueError, "its rules have no column 'Nope'"):
+            box.dynamic_replace(rules, value='Nope')
+
     def test_a_pure_box_makes_its_rows_a_function_of_its_inputs(self):
         # FL12: grid.pure -- its rows a function of its input's, in Pure over $input, parsed and its rows typed as a
         # relation by the compiler before the page sets it; a box after it reads its rows, its columns the compiler's;
@@ -3643,6 +3750,24 @@ class Flows(Paged):
             box.pure("$input->filter(x|$x.nope == 1)")
         with self.assertRaisesRegex(ValueError, "a Pure box reads another grid's rows"):
             source.pure('$input->limit(1)')
+
+    def test_a_pure_box_imported_as_boxes_a_step_each(self):
+        # FL12's Import Pure: grid.import_pure -- each step of its Pure a box of its own, this one its first, each after it
+        # over the one before; the last box's rows the whole's
+        page, flow, source, _big = self.flowed()
+        box = flow.grid(input=source)
+        boxes = box.import_pure("$input->filter(x|$x.region == 'EMEA')->extend(~fee:x|$x.notional->toOne() * 0.01)->sort(~notional->descending())")
+        self.assertEqual(len(boxes), 3)
+        self.assertIs(boxes[0], box)
+        rows = flow.grid(input=boxes[-1]).to_pandas()
+        self.assertEqual(list(rows['notional']), [100.0, 75.5])
+        self.assertEqual([round(f, 6) for f in rows['fee']], [1.0, 0.755])
+        # each box reads the one before it, each a Pure box of one step
+        cubes = {c['id']: c['cube'] for c in page.to_dict()['cubes']}
+        self.assertEqual([cubes[b._view['cube']]['source']['input'] for b in boxes[1:]], [{'grid': boxes[0].id}, {'grid': boxes[1].id}])
+        self.assertTrue(all(cubes[b._view['cube']]['source']['pure']['body'][0]['function'] in ('filter', 'extend', 'sort') for b in boxes))
+        with self.assertRaisesRegex(ValueError, r'its Pure never reads \$input'):
+            box.import_pure('1')
 
     def test_a_sample_hands_on_the_rest(self):
         # M3: a Sample a filter makes hands on the rest by its False (Alteryx's Create Samples, its estimation and holdout):
@@ -3806,6 +3931,29 @@ class Snapped(Paged):
         self.assertEqual(sorted(r[0] for r in grid.view().rows if r[0] is not None), ['EMEA'])
         with self.assertRaisesRegex(ValueError, 'reads its live rows already'):
             grid.live()
+
+    def test_a_cached_box_is_copied_and_the_box_after_it_reads_the_copy_whatever_its_frame_does(self):
+        # (FL10) grid.cache(): the box marked cached on its flow (setCache) and its rows copied (its snap) -- the box after
+        # it reads the copy (a link resolved to be opened reads its grid's copy: live-inputs.ts resolvedSource), so the
+        # frame moving reaches neither; cache(False): back live, and so the box after it
+        state, frame = self.moving()
+        page = ll.Page('Cache')
+        flow = page.flow()
+        box = flow.grid(frame, name='trades')
+        after = flow.grid(input=box)
+        self.assertFalse(box.cached)
+        self.assertIs(box.cache(), box)
+        self.assertTrue(box.cached)
+        self.assertIsNotNone(box.snapped)
+        self.assertEqual(page._page_commands[-2], {'kind': 'setCache', 'grid': box.id, 'cache': True})
+        state['df'] = trades().iloc[:1]
+        self.assertEqual(len(after.to_pandas()), len(trades()), 'the box after it reads its copy, not the frame as it is now')
+        box.cache(False)
+        self.assertFalse(box.cached)
+        self.assertIsNone(box.snapped)
+        self.assertEqual(len(after.to_pandas()), 1, 'live again: the frame as it is now')
+        with self.assertRaisesRegex(ValueError, 'is no box of a flow: a cache is a flow'):
+            page.grid(frame, name='board').cache()
 
     def test_a_copy_belongs_to_its_grid_snapped_again_or_removed_it_is_let_go(self):
         page = ll.Page('Snaps')

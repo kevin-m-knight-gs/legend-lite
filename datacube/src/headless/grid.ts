@@ -32,6 +32,10 @@ import { readSummary, summarizeCommands, type Summary } from '../summarize.ts';
 import { findReplaceCommands, readFindReplace, type FindReplace } from '../find-replace.ts';
 import { countRecordsCommands, readCountRecords } from '../count-records.ts';
 import { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterProbe, customFilterText, readCustomFilter } from '../custom-filter.ts';
+import { MAX_RULES, type DynamicReplace } from '../dynamic-replace.ts';
+import {
+  dynamicReplaceCommands, dynamicReplaceProbe, dynamicReplaceProblem, readDynamicReplace, replacedColumnsOf, ruleText, rulesOf,
+} from '../dynamic-replace-rules.ts';
 import { generateRowsCommands, readGenerateRows, type GenerateRows } from '../generate-rows.ts';
 import { checkCommands, checksOf, checkWords, failingChecks, failingWords, readChecks, type Check } from '../checks.ts';
 import type { MultiFieldAsked } from '../multi-field.ts';
@@ -67,7 +71,11 @@ import { gridLens, readPageFilters } from '../page-filters.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError, type ModelOptions } from '../planner.ts';
 import { classBasis, classLambda, pivotValuesLambda, pivotValuesOf, snapPull, tooManyValues, unpinnedValuesLambda, type ClassBasis } from '../query.ts';
-import { outputCsv } from '../flow-output.ts';
+import { handedOnTable, outputCsv, outputQuery } from '../flow-output.ts';
+import { outputProblem, readOutput } from '../layout/flow.ts';
+import { writeTable } from '../table-output.ts';
+import { pureSteps } from '../pure-import.ts';
+import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { lackingCheck, lackingWords } from '../cross-tab.ts';
 import type { PlanAndRun, QueryLens } from '../runner.ts';
 import { classSamples } from '../model-plans.ts';
@@ -82,10 +90,10 @@ import {
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { pythonRunner } from '../services/python-host.ts';
-import { hostCalls, hostEngine, hostWorker } from './host.ts';
+import { hostCalls, hostDatabase, hostEngine, hostWords, hostWorker } from './host.ts';
 import { leafOnHost, leafTables, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
 import { inputRows } from '../join-open.ts';
-import { boxRows, pureFrom, pureInput } from '../pure-box.ts';
+import { boxRows, pureFrom, pureInput, pureShown, pureText } from '../pure-box.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { JoinSide } from '../join.ts';
 import { gridInput, liveGrids, resolvedSource } from '../live-inputs.ts';
@@ -812,7 +820,8 @@ export async function gridModelMeasure(spec: GridSpec, given: string): Promise<s
  * (count-records.ts countRecordsCommands: grid.count_records), or a Test (checks.ts checkCommands: grid.test), or a
  * Custom Filter (custom-filter.ts customFilterCommands, its condition parsed and typed by the compiler: grid.custom_filter),
  * or a Binning (binning.ts binningCommands: grid.binning), or a Generate Rows (generate-rows.ts generateRowsCommands:
- * grid.generate_rows).
+ * grid.generate_rows), or a Dynamic Replace (dynamic-replace.ts dynamicReplaceCommands, each rule parsed and the replaced
+ * columns typed by the compiler: grid.dynamic_replace).
  * `given`, the preset or the tool as JSON (readGridPreset, readTextTool, readUnique, readImputation, readMultiField, by
  * its kind; readRowSample), over the grid's columns as the compiler types them now.
  * JSON: as gridApply's, or `{problems}`, in DataCube's words.
@@ -822,7 +831,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
     | { readonly date: DateTool } | { readonly multi: MultiFieldAsked } | { readonly sample: RowSample | null }
     | { readonly transpose: Transpose } | { readonly select: Selection } | { readonly summarize: Summary } | { readonly findReplace: FindReplace }
     | { readonly count: { readonly name: string } } | { readonly checks: readonly Check[] } | { readonly custom: { readonly expression: string } }
-    | { readonly binning: Binning } | { readonly generate: GenerateRows };
+    | { readonly binning: Binning } | { readonly generate: GenerateRows } | { readonly replace: DynamicReplace };
   try {
     const raw: unknown = JSON.parse(given);
     const kind = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>)['kind'] : undefined;
@@ -832,7 +841,7 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
       : kind === 'summarize' ? { summarize: readSummary(raw) } : kind === 'findReplace' ? { findReplace: readFindReplace(raw) }
       : kind === 'countRecords' ? { count: readCountRecords(raw) } : kind === 'test' ? { checks: readChecks(raw) }
       : kind === 'customFilter' ? { custom: readCustomFilter(raw) } : kind === 'binning' ? { binning: readBinning(raw) }
-      : kind === 'generateRows' ? { generate: readGenerateRows(raw) }
+      : kind === 'generateRows' ? { generate: readGenerateRows(raw) } : kind === 'dynamicReplace' ? { replace: readDynamicReplace(raw) }
       : (DATE_TOOL_KINDS as readonly unknown[]).includes(kind) ? { date: readDateTool(raw) }
       : (TEXT_TOOL_KINDS as readonly unknown[]).includes(kind) ? { tool: readTextTool(raw) } : { preset: readGridPreset(raw) };
   } catch (e) {
@@ -862,6 +871,35 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
         if (!(e instanceof PlanError)) throw e;
         return JSON.stringify({ problems: [e.message] });
       }
+    }
+    // a Dynamic Replace's rules, each parsed as the window parses it, its columns typed as the window types them: a
+    // refusal the compiler's, the rule named, or DataCube's
+    if ('replace' in asked) {
+      const s = await typedColumns(o.runner, o.state.snapshot);
+      const r = asked.replace;
+      try {
+        const problem = dynamicReplaceProblem(s, r);
+        if (problem !== undefined) return JSON.stringify({ problems: [problem] });
+        const parsed = async (text: string, n: number, what: string): Promise<Lambda> => {
+          try {
+            return await o.planner.parse(ruleText(text));
+          } catch (e) {
+            if (!(e instanceof PlanError)) throw e;
+            throw new CubeRefusal(`rule ${n}'s ${what}: ${e.message}`);
+          }
+        };
+        const conditions: Lambda[] = [];
+        for (const [i, rule] of r.rules.entries()) conditions.push(await parsed(rule.condition, i + 1, 'condition'));
+        const values: Lambda[] = [];
+        if (r.expressions) for (const [i, rule] of r.rules.entries()) values.push(await parsed(String(rule.value), i + 1, 'value'));
+        const made = replacedColumnsOf(s, r, { conditions, ...(r.expressions ? { values } : {}) });
+        const typed = await typedColumns(o.runner, dynamicReplaceProbe(s, made));
+        commands = dynamicReplaceCommands(s, made, new Map(made.map((m) => [m.name, typed.derived.find((d) => d.name === m.name)?.type] as const)));
+      } catch (e) {
+        if (!(e instanceof CubeRefusal) && !(e instanceof PlanError)) throw e;
+        return JSON.stringify({ problems: [e.message] });
+      }
+      return applied(spec, o, commands);
     }
     try {
       commands = 'tool' in asked ? textToolCommands(asked.tool) : 'date' in asked ? dateToolCommands(asked.date)
@@ -1394,6 +1432,25 @@ export async function gridPure(spec: GridSpec, grid: string, given: string): Pro
   });
 }
 
+/**
+ * A PURE BOX'S FUNCTION TAKEN APART INTO ITS STEPS (Import Pure, FL12: pure-import.ts pureSteps), as the Pure window's
+ * Import as Boxes takes it -- each step's text as the compiler prints it, an expression over `$input` (pureShown): what
+ * Python's grid.import_pure sets this box and each box after it to, in turn. JSON `{steps}`, or `{problems}` in the
+ * compiler's words or DataCube's.
+ */
+export async function pureImportSteps(text: string): Promise<string> {
+  const planner = new LitePlanner({ model: '', runtime: '', worker: () => hostWorker(hostCalls()) });
+  try {
+    const steps = pureSteps(await planner.parse(pureText(text)));
+    return JSON.stringify({ steps: await Promise.all(steps.map(async (s) => pureShown(await planner.print(s)))) });
+  } catch (e) {
+    if (!(e instanceof PlanError) && !(e instanceof CubeRefusal)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  } finally {
+    planner.dispose();
+  }
+}
+
 /** A PIVOT'S VALUES AS ITS ROWS HOLD THEM NOW (a Cross Tab's Load values, FL2: app.ts pinPivotValues, the screen's
  *  question): its values query asked with its pins taken off, run as the screen runs it, each value as the screen reads
  *  a cell -- what Python's grid.load_pivot_values pins by the gesture pivot.pin. JSON: `{values}`, or `{problems}` when
@@ -1433,6 +1490,90 @@ export async function gridOutput(spec: GridSpec): Promise<string> {
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       return JSON.stringify({ problems: [e.message] });
+    }
+  });
+}
+
+/**
+ * A DYNAMIC REPLACE'S RULES, READ (dynamic-replace.ts rulesOf, as the tab's window reads them): the grid's rows as it hands
+ * them on (flow-output.ts handedOnTable: as many as a Dynamic Replace takes and one more), each a rule, its parts by the
+ * columns `given` names (`{column, condition, value}`) -- what Python's grid.dynamic_replace loads from a grid. JSON
+ * `{rules}`, or `{problems}` in DataCube's words.
+ */
+export async function gridRules(spec: GridSpec, given: string): Promise<string> {
+  const by = JSON.parse(given) as Record<string, unknown>;
+  const named = (k: string): string | undefined => (typeof by[k] === 'string' ? by[k] as string : undefined);
+  const [column, condition, value] = [named('column'), named('condition'), named('value')];
+  if (column === undefined || condition === undefined || value === undefined) {
+    return JSON.stringify({ problems: [`its rules' columns are named {column, condition, value}, not ${given}`] });
+  }
+  return using(spec, async (o) => {
+    try {
+      const rows = await handedOnTable(o.state.snapshot, o.state.configuration as unknown as Record<string, unknown>, controllerOf(o), MAX_RULES + 1);
+      return JSON.stringify({ rules: rulesOf(rows, { column, condition, value }) });
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
+  });
+}
+
+/**
+ * A FLOW'S TABLE OUTPUT, ITS ROWS (Python's flow.run, FL13): the query its rows are written by, as the tab's writes them
+ * (flow-output.ts outputQuery: in its sorts' order, the columns it hands on under their names) -- typed by the
+ * database, so asked in a read of the host's -- JSON `{query}` (the protocol's JSON of its lambda), or `{problems}`.
+ */
+export async function gridOutputQuery(spec: GridSpec): Promise<string> {
+  return using(spec, async (o) => {
+    try {
+      const { query } = await outputQuery(o.state.snapshot, o.state.configuration as unknown as Record<string, unknown>, controllerOf(o));
+      return JSON.stringify({ query: toJson(query) });
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
+  });
+}
+
+/**
+ * A FLOW'S TABLE OUTPUT WRITTEN AS PYTHON'S flow.run WRITES IT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, FL13): the
+ * box's rows (`query`, gridOutputQuery's) written into a table of the host's database by the one writer the tab writes
+ * by (table-output.ts writeTable: the write planned, the host's plan runner running it in one transaction over the
+ * host's statements, calls.ts `statement`) -- in no read of the host's. `output` the box's table Output; `tables` the
+ * host's tables it reads (`[{table, pkg?}]`: a frame's, in its own package) and the names of the host's own (`held`:
+ * none an Output may write). JSON `{rows}`, the rows the database wrote, or `{problems}` in DataCube's words.
+ */
+export async function gridWriteTable(spec: GridSpec, output: string, query: string, tables: string): Promise<string> {
+  return using(spec, async (o) => {
+    try {
+      const out = readOutput(JSON.parse(output));
+      if (typeof out === 'string') throw new CubeRefusal(out);
+      if (out.format !== 'table') throw new CubeRefusal(`'${out.name}' is a file: a table output is written here`);
+      const problem = outputProblem(out);
+      if (problem !== undefined) throw new CubeRefusal(problem);
+      const given = JSON.parse(tables) as { readonly tables: readonly { readonly table: string; readonly pkg?: string }[]; readonly held: readonly string[] };
+      const calls = hostCalls();
+      const engine = new DuckDbEngine(hostDatabase(calls).connection);
+      const rows = await writeTable(fromJson(query) as unknown as Lambda, out, {
+        databaseType: engine.databaseType,
+        sources: given.tables.map((t) => ({ table: t.table, convertible: true, ...(t.pkg !== undefined ? { pkg: t.pkg } : {}) })),
+        held: (t) => given.held.some((h) => h.toLowerCase() === t.toLowerCase()),
+        models: o.planner,
+        hold: (work) => engine.exclusive(work),
+        sqlOf: async (q) => (await o.planner.plan(q)).sql,
+        executionPlan: async (model, runtime, program) => {
+          const p = new LitePlanner({ model, runtime, worker: () => hostWorker(calls) });
+          try {
+            return await p.executionPlan(program);
+          } finally {
+            p.dispose();
+          }
+        },
+      });
+      return JSON.stringify({ rows });
+    } catch (e) {
+      // DataCube's words, or the database's (a table that exists for a create, none for an append, a column it has not)
+      return JSON.stringify({ problems: [e instanceof CubeRefusal ? e.message : hostWords(e)] });
     }
   });
 }

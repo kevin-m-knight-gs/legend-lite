@@ -256,6 +256,8 @@ _DUCKDB_USERS = [
     "class-source",
     # a join opened over one model of its tables, its rows from DuckDB (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17)
     "join-open",
+    # a box's rows written into a table, planned by the compiler and run by the plan runner (flow mode M6, FL13)
+    "table-output",
     "sample-trades",
     "saved-queries",
     "sorting",
@@ -381,6 +383,8 @@ _WASM_TESTS = [
     "class-source",
     # a join's model of several tables, written by the compiler (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17)
     "join-open",
+    # a box's rows written into a table: its write planned by the compiler (flow mode M6, FL13)
+    "table-output",
     # a remote file's operations, and Snap's copy, their statements the planner's
     # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5)
     "remote",
@@ -560,6 +564,7 @@ _HEADLESS_TESTS = [
     "join-inputs",
     "join-menu",
     "join-open",
+    "table-output",
     "json-shape",
     "lazily",
     "lite-planner",

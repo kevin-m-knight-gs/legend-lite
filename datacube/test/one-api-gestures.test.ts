@@ -1280,6 +1280,8 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
   // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL8, a Test that stops a run): its settings' checkbox, on a flow's
   // canvas -- none in this harness
   setStops: { items: [], why: "a Test box's settings (Stop a run when a check fails): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  // 2026-10-26 (the flow mode's FL10): a box's settings' checkbox, the canvas's own
+  setCache: { items: [], why: "a box's settings (Cache its rows): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
   // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2, a Cross Tab's columns fixed): a pivoted box's settings' Load
   // values, on a flow's canvas -- none in this harness; the gesture pivot.pin tells it (grid-gestures.test.ts)
   pinPivot: { items: [], why: "a Cross Tab box's settings (Load values, Unfix): demo/verify-flow.mjs, python/tests/test_page.py Flows" },

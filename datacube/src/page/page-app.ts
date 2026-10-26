@@ -862,8 +862,10 @@ export class PageApp {
   /** The copy each of `ids`' grids reads, by its cube (§18.8): the page's record of where its snapped grids' rows are --
    *  and of `written`'s cubes the page could not open, each as its page saved it. */
   #copies(ids: readonly string[], written: readonly { id: string }[]): Readonly<Record<string, GridCopy>> {
+    // a flow's cached box not shown: the copy the page keeps for it, which the boxes after it read (FL10)
+    const cached = this.#page.cacheCopies();
     const kept = written.flatMap(({ id }) => {
-      const copy = ids.includes(id) ? undefined : this.#unopenedCopies.get(id);
+      const copy = ids.includes(id) ? undefined : this.#unopenedCopies.get(id) ?? cached.get(id);
       return copy ? [[id, copy] as const] : [];
     });
     return Object.fromEntries([...ids.flatMap((id) => {

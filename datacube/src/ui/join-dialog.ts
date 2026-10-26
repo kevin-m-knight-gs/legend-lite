@@ -216,6 +216,19 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     onceLabel.append(' Each of mine once: where a key of theirs repeats, the first of theirs');
     onceLabel.title = 'A key theirs has on several rows matches its first (in an order of their other columns, rising), so a row of mine is never repeated: a lookup';
     once.addEventListener('change', () => changed());
+    // each pair's likeness on its similar row (join.ts score: a Fuzzy Match's), offered with a similar row on matching rows
+    const scoreLabel = el(doc, 'label', 'dc-join-once dc-join-score', condition);
+    const score = el(doc, 'input', 'dc-join-score-on', scoreLabel);
+    score.type = 'checkbox';
+    const started = o.start?.how?.form === 'join' ? o.start.how.score : o.start?.op === '~' ? 'score' : undefined;
+    score.checked = started !== undefined;
+    scoreLabel.append(' Score each pair: its likeness, 0 to 100, as ');
+    const scoreName = el(doc, 'input', 'dc-picker-input dc-join-score-name', scoreLabel);
+    scoreName.value = started ?? 'score';
+    scoreName.setAttribute('aria-label', 'The score column\'s name');
+    scoreLabel.title = '100 less its edits apart for each 100 letters of the longer text, rounded: the database measures it';
+    score.addEventListener('change', () => changed());
+    scoreName.addEventListener('input', () => changed());
     const pure = el(doc, 'textarea', 'dc-picker-input dc-join-pure', condition);
     pure.setAttribute('aria-label', 'The condition in Pure');
     pure.spellcheck = false;
@@ -333,6 +346,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       suggested.hidden = pureOn.checked || suggested.children.length === 0;
       addRow.hidden = pureOn.checked;
       onceLabel.hidden = !onceOffered();
+      scoreLabel.hidden = !scoreOffered();
       const renamed = c === 'semi' || c === 'anti' ? 'by their own names' : 'as they come out (a name mine has, prefixed)';
       pureHint.textContent = `Two rows, mine and theirs, their columns named ${renamed}: {a, b | $a.cust == $b.id}`;
       // the prefix said on their names that mine has, and how many of theirs come
@@ -422,6 +436,12 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       return rows.length > 0 && rows.every((r) => (r.querySelector('.dc-join-op') as HTMLSelectElement | null)?.value === '==');
     }
 
+    /** Whether a score is offered: matching rows only, on rows with a similar one (join-how.ts scoreRefusal). */
+    function scoreOffered(): boolean {
+      if (chosen !== 'inner' || pureOn.checked) return false;
+      return [...rowsBox.children].some((r) => (r.querySelector('.dc-join-op') as HTMLSelectElement | null)?.value === '~');
+    }
+
     /** The `how` the window says now, or what it still needs. */
     const how = async (): Promise<JoinHow | string> => {
       const c = chosen;
@@ -447,7 +467,12 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
         if (!m.left || !m.right) return 'Choose the two columns the nearest row is found by.';
         return { form: 'asOf', match: { left: m.left, op: m.op as AsOfOp, right: m.right }, on, prefix: pre, keep };
       }
-      return { form: 'join', kind: c === 'cross' ? 'inner' : c, on, prefix: pre, keep, ...(once.checked && onceOffered() ? { once: true as const } : {}) };
+      const scored = score.checked && scoreOffered();
+      if (scored && scoreName.value.trim() === '') return 'Name the score\'s column, or take the score off.';
+      return {
+        form: 'join', kind: c === 'cross' ? 'inner' : c, on, prefix: pre, keep, ...(once.checked && onceOffered() ? { once: true as const } : {}),
+        ...(scored ? { score: scoreName.value.trim() } : {}),
+      };
     };
 
     let asked = 0;
