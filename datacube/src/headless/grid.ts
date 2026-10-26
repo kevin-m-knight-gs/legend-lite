@@ -346,7 +346,8 @@ function onPage(source: CubeSource, page: PageDocument | undefined, id: string |
   if (liveGrids(source).length === 0) return source;
   if (page === undefined) throw new CubeRefusal(`${source.name} reads another grid of its page: it is read with its page`);
   const grid = id === null ? undefined : page.views.find((v) => v.kind === 'grid' && v.cube === id)?.id;
-  return resolvedSource(page, source, grid);
+  // a snapped input read by its copy, as the tab opens it (a cached box, FL10)
+  return resolvedSource(page, source, grid, { copies: true });
 }
 
 /**
@@ -370,8 +371,9 @@ async function baseOver(source: CubeSource, host: HostTables, given: Readonly<Re
     };
   }
   const input = on.rows.input;
-  // a Join's L or R reads both of the join's inputs: over one model of the host's tables, as the join is
-  if (input.unmatched !== undefined) {
+  // a Join's L or R reads both of the join's inputs: over one model of the host's tables, as the join is -- and an input
+  // read by its grid's copy (a cached box, FL10), the copy one of those tables
+  if (input.unmatched !== undefined || input.copy !== undefined) {
     const opened = await rowsOpenedOn(on.rows, await leafTables(on.rows, host, given));
     return {
       base: { model: opened.model, runtime: opened.runtime, relation: toJson({ _type: 'lambda', parameters: [], body: [opened.relation] }) },
@@ -560,7 +562,7 @@ export async function rowsCube(spec: string): Promise<string> {
     return JSON.stringify({ problems: [e.message] });
   }
   const live: RowsSource = { _type: 'rows', name: input.name, input: { grid: s.input, ...(port !== undefined ? { port } : {}) }, columns: [] };
-  const { base, notes, side } = await baseOver(resolvedSource(page, live), s.host);
+  const { base, notes, side } = await baseOver(resolvedSource(page, live, undefined, { copies: true }), s.host);
   const columns = side!.columns;
   const made = rebuilt(undefined, side!.relation, columns, input.name, gridCapped(page.cubes.length + 1));
   // written as the screen holds a grid it opens (cube-state.ts openedState), as headless gridCube and joinCube write one

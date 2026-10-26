@@ -11,7 +11,7 @@ import { openDatabase } from '#test-host';
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { typedByPlan } from '../../engine-client/src/engine.ts';
 import { joinRelation, joinRepeats, joinSummary, readJoinHow, summaryWords, type JoinHow } from '../src/join.ts';
-import { TAB_TABLES, eachRelation, leafRefusal, openInputs, openJoin, openRows, summaryCounts, type JoinOpening } from '../src/join-open.ts';
+import { TAB_TABLES, eachRelation, leafRefusal, openInputs, openJoin, openRows, openedLeaves, summaryCounts, type JoinOpening } from '../src/join-open.ts';
 import {
   leavesOf, rawRows, readCube, cubeToJson, writeCube, type CubeSource, type FileSource, type JoinInput, type JoinSource, type LeafSource,
   type RowsSource, type SavedQuery,
@@ -202,6 +202,23 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     assert.deepEqual(pairs, ['A:8', 'B:7'], 'the second over the first: A 5 + 3, B 7');
     // its leaves are the chain's: one table, read once
     assert.deepEqual(leavesOf(second), [TRADES]);
+  });
+
+  it("an input read by its grid's copy (a cached box, FL10): the copy's table, its query over it -- a box over it, a join of it with a file", async () => {
+    // the copy: trades 1 and 2 only, so what reads it is told apart from what reads trades live
+    await engine.run('CREATE TABLE trades_copy AS SELECT * FROM trades WHERE id <= 2', 0);
+    const copy = { table: 'trades_copy', label: 'Snap 14:02', takenAt: '2026-10-26T14:02:00.000Z' };
+    const big = query(TRADES, { filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 2 } });
+    const box: RowsSource = { _type: 'rows', name: 'trades', input: { ...input(TRADES, 'Big', big), copy }, columns: [] };
+    assert.deepEqual(openedLeaves(box), [{ _type: 'copy', ...copy }], 'one leaf: the copy, not trades');
+    const opened = await openRows(box, opening(['trades_copy']));
+    const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
+    assert.deepEqual([...got['id']!].sort(), [1, 2], "the copy's rows its query keeps (trades 1 and 2: qty 5 and 7)");
+    // a join of the copy with a file: both tables of this database, one model
+    const joined = await openJoin(join({ ...input(TRADES, 'Big', big), copy }, input(CUSTOMERS, 'customers'), LEFT_ON_CUST), opening(['trades_copy', 'customers']));
+    const pairs = await rows(joined.model, joined.runtime, { _type: 'lambda', parameters: [], body: [joined.relation] });
+    assert.deepEqual(pairs['id']!.map((id, i) => `${String(id)}:${String(pairs['region']![i])}`).sort(), ['1:EMEA', '2:EMEA']);
+    await engine.run('DROP TABLE trades_copy', 0);
   });
 
   it("another grid's rows unresolved is refused, never guessed: its link is its page's", async () => {

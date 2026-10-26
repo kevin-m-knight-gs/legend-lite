@@ -902,7 +902,8 @@ export function pageSources(d: SourcesOf): PageSources {
     // a flow's Join box reads its inputs live (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): resolved against its page, as
     // another grid's rows are -- a join of copies is as it is
     const { on, ...rest } = how;
-    const resolved = on === undefined ? source : resolvedSource(on.page, source, gridOf(on));
+    // a snapped input read by its copy (a cached box, FL10)
+    const resolved = on === undefined ? source : resolvedSource(on.page, source, gridOf(on), { copies: true });
     if (resolved._type !== 'join') throw new Error(`${source.name} resolved as another kind of source (${resolved._type})`);
     const { openedJoin: opened } = await joinSources();
     return opened(tablesHost(local), source, resolved, rest);
@@ -940,7 +941,8 @@ export function pageSources(d: SourcesOf): PageSources {
     readonly capped?: boolean; readonly page?: string; readonly kept?: readonly string[]; readonly tables?: readonly string[] } = {}):
     Promise<Opened | undefined> {
     if (!local) throw new Error(`${source.name} reads another grid's rows, opened in this tab's own database: this page has none`);
-    const resolved = resolvedSource(page, source, cube === undefined ? undefined : gridOf({ page, cube }));
+    // a snapped input read by its copy (a cached box, FL10)
+    const resolved = resolvedSource(page, source, cube === undefined ? undefined : gridOf({ page, cube }), { copies: true });
     if (resolved._type !== 'rows') throw new Error(`${source.name} resolved as another kind of source (${resolved._type})`);
     const { openedRows: opened } = await joinSources();
     return opened(tablesHost(local), source, resolved, how);
