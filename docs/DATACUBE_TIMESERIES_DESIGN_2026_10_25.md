@@ -335,6 +335,29 @@ one series, monthly), and the Markets example end to end -- its two samples read
 typed as the page declares them, and its every series (24, two across both grids), its statistics and its sources'
 bounds planned and run.
 
+### 5.5 Every question a tile asks (the user, 2026-10-26: "we need to somehow show all the pure queries used to create a timeseries chart")
+
+A chart is drawn from several queries, not one: each source's bounds (the latest date, where each range button
+starts), each series' points (a hidden one's too), the view's (a mode's), and the statistics panel's -- each line's
+statistics, each level's drawdowns, each pair's correlation, each level's calendar. Which ones is one rule,
+`timeseries-query.ts tileAsks`, by the rules each drawing reads (`tableSeries`, `viewSeries`): each ask its kind, what
+it is of (a series, a pair, a source), its words and what it serves (the chart, or a tab). Each ask's query is written
+by one function, `askQuery`, which every round of the viewer writes it by (`#runAsk`; a series' points from the first
+date shown where it reads one, every date kept, the drawing's limit) and Python's too: headless `askedOf` writes each
+table and view by it, and a series' points by it when asked `drawn`.
+
+The **Query** window (the toolbar) lists every ask, the chart's open and the panel's folded: each its query as it was
+sent (kept with the SQL the database ran, by its ask, for the tile it was asked of, and the dates it was asked over),
+printed by the compiler, with its SQL -- or, not asked yet (a tab not shown), written as it would be, saying which tab
+asks for it; or refused, saying why. Each copied, and all at once (Copy all: each its words, its Pure, its SQL).
+Python's `Timeseries.queries()` is the same list (headless `timeseriesAsks`), each asked of `timeseriesQuery` as the
+screen asks it and planned (the engine's dry run): `what`, `serves`, `kind`, its series, pair or source, `pure` and
+`sql`, or `refused`. `query(series)` stays the frame's own (the dates asked alone, every point). Pinned:
+`timeseries-queries.test.ts` "every question a tile asks" (the asks of a tile with a band, a return and a scatter;
+askQuery the screen's; every one answered), `timeseries-view-dom.test.ts` "Query: every question" (the ten of a two-series
+tile, which ran, which not yet, each printed, copied one and all; a tab shown, its question ran), and `test_page.py`
+`test_a_timeseries_lists_every_query_it_asks_each_its_pure_and_its_sql`.
+
 ## 6. The viewer
 
 ```

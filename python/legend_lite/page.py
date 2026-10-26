@@ -1946,21 +1946,58 @@ class Timeseries(Tile):
 
     def query(self, series: str | None = None, *, start: str | None = None, end: str | None = None) -> dict[str, str]:
         """Series ``series``' query (None: its first), as ``frame`` reads it over ``start`` to ``end`` -- neither, as the
-        screen draws it, its base the first date shown: the screen's Query window's. ``pure``, the query DataCube wrote,
-        as the compiler prints it; ``sql``, the SQL its plan runs where its rows are. Planned, nothing run (the engine's
-        dry run, plan.json). Refused in the planner's words."""
+        screen draws it, its base the first date shown. ``pure``, the query DataCube wrote, as the compiler prints it;
+        ``sql``, the SQL its plan runs where its rows are. Planned, nothing run (the engine's dry run, plan.json).
+        Refused in the planner's words. Every question the tile asks, as its screen's Query window lists them:
+        ``queries``."""
+        return self._planned(self._drawn(series, start, end))
+
+    def _planned(self, asked: dict[str, Any]) -> dict[str, str]:
+        """One of the tile's queries (``_query``), its ``pure`` as the compiler prints it and its ``sql`` as its plan runs
+        it where its rows are: planned, nothing run (the engine's dry run, plan.json)."""
         from . import compiler
         session = self._page._session
-        asked = self._drawn(series, start, end)
         with session.frames.reading():
             tree, base, _said = self._query(asked)
-            asked = {'lambda': _json.dumps(tree), 'model': base['model'], 'runtime': base['runtime'],
-                     **({'project': True} if base.get('project') is True else {})}
-            answer = session.engine().answer('POST', '/plan.json', '', json.dumps(asked))
+            told = {'lambda': _json.dumps(tree), 'model': base['model'], 'runtime': base['runtime'],
+                    **({'project': True} if base.get('project') is True else {})}
+            answer = session.engine().answer('POST', '/plan.json', '', json.dumps(told))
         said = json.loads(answer.body)
         if not (isinstance(said, dict) and isinstance(said.get('plan'), str)):
             raise ValueError(answer.body.decode('utf-8', errors='replace'))
         return {'pure': compiler.print_tree(tree), 'sql': compiler.read_planned(said['plan']).sql}
+
+    def queries(self, *, start: str | None = None, end: str | None = None) -> list[dict[str, Any]]:
+        """Every question the tile asks the database, as its screen's Query window lists them, by its one rule (headless
+        timeseriesAsks: timeseries-query.ts tileAsks) -- to draw the chart, each source's bounds, each series' points and
+        its view's; for its statistics panel, each line's statistics, each level's drawdowns, each pair's correlation
+        and each level's calendar of returns. Each a dict: ``what`` (in words), ``serves`` (``chart``, ``statistics``,
+        ``drawdowns``, ``correlations``, ``calendar``), ``kind``, its ``series``, ``with`` or ``source``, and ``pure``,
+        the query DataCube wrote -- each by the one function the screen writes it by (askQuery) -- as the compiler
+        prints it, and ``sql``, the SQL its plan runs where its rows are; one refused has ``refused`` instead, in
+        DataCube's or the planner's words. Over ``start`` to ``end`` (ISO days, either open); neither, the dates the
+        screen shows (the tile's range). Planned, nothing run."""
+        page = self._page
+        said = _json.loads(page._session.headless().call('timeseriesAsks', _json.dumps(page._doc), self._id))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        window = self._window(start, end)
+        out: list[dict[str, Any]] = []
+        for ask in said['asks']:
+            told: dict[str, Any] = {'page': page._doc, 'tile': self._id}
+            if ask['kind'] == 'bounds':
+                told.update({'table': 'bounds', 'source': ask['source']})
+            else:
+                told.update({'series': ask['series'], 'window': window, 'drawn': True,
+                             **({'table': ask['kind']} if ask['kind'] != 'series' else {}),
+                             **({'with': ask['with']} if 'with' in ask else {})})
+            row = {k: ask[k] for k in ('what', 'serves', 'kind', 'series', 'with', 'source') if k in ask}
+            try:
+                row.update(self._planned(told))
+            except ValueError as e:
+                row['refused'] = str(e)
+            out.append(row)
+        return out
 
     def table(self, *, start: str | None = None, end: str | None = None) -> Any:
         """Every line side by side, a row per date over ``start`` to ``end`` (ISO days, either open; neither, the tile's

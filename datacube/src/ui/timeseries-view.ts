@@ -34,8 +34,8 @@ import {
   editTimeseries, firstTimeseries as firstOf, instrumentsOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
 } from '../timeseries-edit.ts';
 import {
-  boundsQuery, calendarQuery, correlationsQuery, curveQuery, drawdownsQuery, histogramQuery, keyValuesQuery, rangeWindow, readsAnchor, scatterQuery,
-  seasonalityQuery, seriesQuery, seriesSources, statBlanks, statName, statsQuery, tableSeries, viewChoices, viewSeries, TS_DATE,
+  askKey, askQuery, askSources, boundsQuery, keyValuesQuery, rangeWindow, readsAnchor, statBlanks, statName, tableSeries, tileAsks,
+  viewChoices, viewSeries, TS_DATE, TS_SERVES_WORDS, type TsAsk, type TsAskOf,
   TS_CAL_LOW, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN, TS_CORR, TS_CORR_A, TS_CORR_B, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
   TS_SPLIT, TS_STAT_LEVEL_LOW, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
@@ -77,6 +77,10 @@ export interface TsTogether {
 
 /** A query's answer as the viewer keeps it: its rows, and the SQL the database ran for them. */
 type Ran = TsResult & { readonly sql: string };
+
+/** A question the viewer asked the database, kept for the Query window: the tile and the dates it was asked of, its
+ *  query as it was sent, and the SQL the database ran for it. */
+type Asked = { readonly spec: TimeseriesSpec; readonly window: TsWindow; readonly query: Lambda; readonly sql: string };
 
 /** A series' calendar of returns as the database answered it (timeseries-query.ts calendarQuery), or its refusal. */
 type CalendarAnswer = { readonly id: string; readonly table: ResultTable } | { readonly id: string; readonly failed: string };
@@ -392,8 +396,9 @@ export class TimeseriesView {
   #bounds = new Map<string, ResultTable>();
   #boundsFailed = new Map<string, string>();
   #lines: TsLine[] = [];
-  /** The SQL the database ran for each series' answer drawn, by its id (the Query window's). */
-  #sqls = new Map<string, string>();
+  /** Every question asked of the database, by its ask (timeseries-query.ts askKey): what the Query window shows. A
+   *  round's asks of another tile, or of other dates, are not what is drawn: each kept with the tile it was asked of. */
+  #ran = new Map<string, Asked>();
   #notes: string[] = [];
   #problems: string[] = [];
   /** The person's own look: the dates the zoom shows, until a range is chosen again. */
@@ -538,27 +543,24 @@ export class TimeseriesView {
     return grid ? { input: { snapshot: grid.snapshot, filter: grid.filter }, grid } : undefined;
   }
 
-  /**
-   * A series' query run where it runs (D2, D5): of one grid, by that grid's runner; of several, over one model of their
-   * tables (the host's together).
-   */
-  async #run(series: TsSeries, make: (inputs: TsInputs) => TsQuery, signal: AbortSignal, opened: Opened): Promise<Ran> {
-    const aliases = seriesSources(this.#spec, series);
-    if (aliases.length === 0) throw new Error(`series ${series.id} reads no column of a grid`);
-    return this.#runOn(aliases, make, signal, opened);
-  }
-
   /** A query of the sources `aliases` run where they run: of one grid, by that grid's runner; of several, over one model
    *  of their tables (the host's together, opened once a round). */
   async #runOn(aliases: readonly string[], make: (inputs: TsInputs) => TsQuery, signal: AbortSignal, opened: Opened): Promise<Ran> {
+    const on = await this.#inputsOn(aliases, opened);
+    const query = make(on.inputs);
+    const { rows, sql } = await on.run(query.query, signal);
+    return { query, table: rows, sql };
+  }
+
+  /** What a query of the sources `aliases` is written over, and where it runs: of one grid, that grid's own input and
+   *  runner; of several, their relations over one model of their tables (the host's together, opened once a round). */
+  async #inputsOn(aliases: readonly string[], opened: Opened): Promise<{ readonly inputs: TsInputs; readonly run: (query: Lambda, signal: AbortSignal) => Promise<RunOutcome> }> {
     const spec = this.#spec;
     if (aliases.length === 1) {
       const alias = aliases[0]!;
       const own = this.#input(alias);
       if (!own) throw new Error(`source ${alias}'s grid is not on the page`);
-      const query = make(new Map([[alias, own.input]]));
-      const { rows, sql } = await own.grid.run(query.query, own.grid.snapshot, signal);
-      return { query, table: rows, sql };
+      return { inputs: new Map([[alias, own.input]]), run: (query, signal) => own.grid.run(query, own.grid.snapshot, signal) };
     }
     const sources = aliases.map((a) => spec.sources.find((s) => s.alias === a)!);
     const grids = sources.map((s) => this.#host.grid(s.cube));
@@ -571,9 +573,18 @@ export class TimeseriesView {
       if (!relation) throw new Error(`${s.alias} was not opened with the others`);
       return [s.alias, { snapshot: { ...g.snapshot, source: { query: relation } }, filter: g.filter }] as const;
     }));
-    const query = make(inputs);
-    const { rows, sql } = await together.run(query.query);
-    return { query, table: rows, sql };
+    return { inputs, run: (query) => together.run(query) };
+  }
+
+  /**
+   * ONE OF THE TILE'S QUESTIONS ASKED (timeseries-query.ts tileAsks): its query written by the one function Python's
+   * Timeseries.queries writes it by (askQuery) over the dates `window`, run where it runs, and kept -- as it was sent,
+   * with the SQL the database ran -- for the Query window.
+   */
+  async #runAsk(spec: TimeseriesSpec, ask: TsAskOf, window: TsWindow, signal: AbortSignal, opened: Opened): Promise<Ran> {
+    const ran = await this.#runOn(askSources(spec, ask), (inputs) => askQuery(inputs, spec, ask, window), signal, opened);
+    this.#ran.set(askKey(ask), { spec, window, query: ran.query.query, sql: ran.sql });
+    return ran;
   }
 
   /** The grids of `cubes` opened together, once a round: by the set they are, whatever order a series reads them in. */
@@ -639,7 +650,10 @@ export class TimeseriesView {
       const own = this.#input(s.alias);
       if (!own) return;
       try {
-        bounds.set(s.alias, (await own.grid.run(boundsQuery(own.input, s), own.grid.snapshot, signal)).rows);
+        const query = boundsQuery(own.input, s);
+        const { rows, sql } = await own.grid.run(query, own.grid.snapshot, signal);
+        bounds.set(s.alias, rows);
+        this.#ran.set(askKey({ kind: 'bounds', source: s.alias }), { spec, window: {}, query, sql });
       } catch (e) {
         // its dates refused: a range from the latest date cannot be found from them -- said (#rangeProblems)
         boundsFailed.set(s.alias, e instanceof Error ? e.message : String(e));
@@ -651,7 +665,6 @@ export class TimeseriesView {
     const window = this.#window();
     const blocked = (s: TsSeries): string | undefined => this.#blocked(s);
     const results = new Map<string, TsResult>();
-    const sqls = new Map<string, string>();
     const failed = new Map<string, string>();
     await Promise.all(spec.series.map(async (s) => {
       const why = blocked(s);
@@ -660,16 +673,14 @@ export class TimeseriesView {
         return;
       }
       try {
-        const { sql, ...r } = answered(await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, readsAnchor(spec, s) && window.from ? { from: window.from } : {}), signal, opened));
+        const { sql: _sql, ...r } = answered(await this.#runAsk(spec, { kind: 'series', series: s.id }, window, signal, opened));
         results.set(s.id, r);
-        sqls.set(s.id, sql);
       } catch (e) {
         failed.set(s.id, e instanceof Error ? e.message : String(e));
       }
     }));
     if (gen !== this.#gen || this.#disposed) return;
     this.#results = results;
-    this.#sqls = sqls;
     this.#failed = failed;
     // the rows moved: the calendar asked again when its tab is shown
     this.#calendar = undefined;
@@ -705,7 +716,7 @@ export class TimeseriesView {
     if (anchored.length > 0) {
       const again = await Promise.all(anchored.map(async (s) => {
         try {
-          return [s.id, answered(await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, window.from ? { from: window.from } : {}), signal, opened))] as const;
+          return [s.id, answered(await this.#runAsk(spec, { kind: 'series', series: s.id }, window, signal, opened))] as const;
         } catch (e) {
           this.#failed.set(s.id, e instanceof Error ? e.message : String(e));
           return undefined;
@@ -714,9 +725,8 @@ export class TimeseriesView {
       if (gen !== this.#gen || this.#disposed) return;
       for (const r of again) {
         if (!r) continue;
-        const { sql, ...answer } = r[1];
+        const { sql: _sql, ...answer } = r[1];
         this.#results.set(r[0], answer);
-        this.#sqls.set(r[0], sql);
       }
       await this.#draw();
     } else if (viewMoved) {
@@ -756,7 +766,7 @@ export class TimeseriesView {
     // a band's and a condition's none: drawn, never figures of their own
     await Promise.all(spec.series.filter((s) => this.#results.has(s.id) && !this.#results.get(s.id)!.query.band && !this.#results.get(s.id)!.query.shade).map(async (s) => {
       try {
-        rows.set(s.id, (await this.#run(s, (inputs) => statsQuery(inputs, spec, s, window), signal, opened)).table);
+        rows.set(s.id, (await this.#runAsk(spec, { kind: 'statistics', series: s.id }, window, signal, opened)).table);
       } catch (e) {
         // refused: said on its row and in the banner, never as figures missing
         failed.set(s.id, e instanceof Error ? e.message : String(e));
@@ -784,7 +794,7 @@ export class TimeseriesView {
    * WHAT THE VIEW ASKS (the next phases' 3): the series it draws -- by the one rule Python's views read
    * (timeseries-query.ts viewSeries) -- and its query, or why there is none to draw, in words.
    */
-  #viewAsk(spec: TimeseriesSpec, window: TsWindow): { readonly of: readonly TsSeries[]; readonly make: (inputs: TsInputs) => TsQuery } | string {
+  #viewAsk(spec: TimeseriesSpec): { readonly of: readonly TsSeries[]; readonly ask: TsAskOf } | string {
     const mode = spec.view?.mode;
     const picked = viewSeries(spec);
     const named = (id: string): TsSeries => {
@@ -798,18 +808,18 @@ export class TimeseriesView {
       case 'scatter': {
         if (picked.scatter === undefined) return 'A scatter is of two series of one line: plot another, or pick them in Settings.';
         const [x, y] = [named(picked.scatter[0]), named(picked.scatter[1])];
-        return { of: [x, y], make: (inputs) => scatterQuery(inputs, spec, x, y, window) };
+        return { of: [x, y], ask: { kind: 'scatter', series: x.id, with: y.id } };
       }
       case 'seasonality':
       case 'histogram': {
         if (picked.one === undefined) return `A ${mode} is of a series of one line: plot one, or read one instrument of a split (close[SPX]).`;
         const one = named(picked.one);
-        return { of: [one], make: mode === 'seasonality' ? (inputs) => seasonalityQuery(inputs, spec, one) : (inputs) => histogramQuery(inputs, spec, one, window) };
+        return { of: [one], ask: { kind: mode, series: one.id } };
       }
       case 'curve': {
         if (picked.curve === undefined) return 'A curve is of a series split by a column (its tenors): split one in its editor.';
         const one = named(picked.curve);
-        return { of: [one], make: (inputs) => curveQuery(inputs, spec, one) };
+        return { of: [one], ask: { kind: 'curve', series: one.id } };
       }
     }
   }
@@ -835,13 +845,12 @@ export class TimeseriesView {
     let failed: string | undefined;
     const own: Opened = opened ?? new Map();
     try {
-      const ask = this.#viewAsk(spec, window);
+      const ask = this.#viewAsk(spec);
       if (typeof ask === 'string') failed = ask;
       else {
         failed = ask.of.map((s) => this.#blocked(s) ?? this.#failed.get(s.id)).find((w) => w !== undefined);
         if (failed === undefined) {
-          const aliases = [...new Set(ask.of.flatMap((s) => seriesSources(spec, s)))];
-          view = { ...await this.#runOn(aliases, ask.make, new AbortController().signal, own), of: ask.of.map((s) => s.id) };
+          view = { ...await this.#runAsk(spec, ask.ask, window, new AbortController().signal, own), of: ask.of.map((s) => s.id) };
         }
       }
     } catch (e) {
@@ -1160,60 +1169,111 @@ export class TimeseriesView {
   }
 
   /**
-   * THE QUERIES (the next phases' 2: what each line is, for a person to check or take elsewhere): each series' query as
-   * DataCube wrote it, printed by the compiler, and the SQL the database ran for the answer drawn -- each copied with a
-   * click. A series refused says why.
+   * THE QUERIES (the next phases' 2; every one of them, the user, 2026-10-26: "show all the pure queries used to create a
+   * timeseries chart"): each question the tile asks the database, by the one rule Python's Timeseries.queries reads
+   * (timeseries-query.ts tileAsks) -- each source's bounds, each series' points, the view's, then the statistics panel's
+   * -- each its query as DataCube wrote it, printed by the compiler, and the SQL the database ran for it, each copied
+   * with a click, and all of them at once. A question asked is shown as it was sent; one not asked yet (a tab not shown)
+   * is written as it would be, and says when it is asked; one refused says why.
    */
   #showQueries(): void {
     const doc = this.#doc;
     const spec = this.#spec;
-    const parts: HTMLElement[] = [];
-    for (const s of spec.series) {
-      parts.push(el(doc, 'div', 'dc-ts-heading', `${s.id}: ${seriesName(s)}`));
-      const refused = this.#failed.get(s.id);
-      const answer = this.#results.get(s.id);
-      const sql = this.#sqls.get(s.id);
-      if (refused !== undefined || answer === undefined || sql === undefined) {
-        parts.push(el(doc, 'div', 'dc-ts-error', refused !== undefined ? `Refused: ${refused}` : 'Not answered yet.'));
-        continue;
-      }
-      // printed by the grid it reads first (an answered series reads one): a print reads the query alone, no model
-      const first = seriesSources(spec, s)[0];
-      const grid = first === undefined ? undefined : this.#input(first)?.grid;
-      const pure = el(doc, 'pre', 'dc-ts-code', grid ? 'Printing…' : 'Its grid is not on the page: its query cannot be printed.');
-      let printed: string | undefined;
-      if (grid) {
-        void grid.print(answer.query.query).then((text) => {
-          printed = text;
-          pure.textContent = text;
-        }, (e: unknown) => {
-          pure.textContent = `Not printed: ${e instanceof Error ? e.message : String(e)}`;
-        });
-      }
-      const said = el(doc, 'pre', 'dc-ts-code', sql);
+    const window = this.#window();
+    const asks = tileAsks(spec);
+    const opened: Opened = new Map();
+    const written: { readonly ask: TsAsk; pure?: string; sql?: string }[] = asks.map((ask) => ({ ask }));
+    const sections = new Map<'chart' | 'panel', HTMLElement[]>([['chart', []], ['panel', []]]);
+    const jobs = asks.map(async (ask, i) => {
+      const told = written[i]!;
+      const kept = this.#ran.get(askKey(ask));
+      const ran = kept !== undefined && kept.spec === spec ? kept : undefined;
+      const refused = this.#refusalOf(ask);
+      const box = el(doc, 'details', 'dc-ts-ask');
+      if (ask.serves === 'chart') box.open = true;
+      const status = ran !== undefined ? 'ran' : refused !== undefined ? 'refused' : 'not asked yet';
+      const summary = el(doc, 'summary', 'dc-ts-ask-what');
+      summary.append(el(doc, 'span', undefined, `${i + 1}. ${ask.what}`), el(doc, 'span', `dc-ts-ask-status dc-ts-ask-${status.replace(/ /g, '-')}`, status));
+      const pure = el(doc, 'pre', 'dc-ts-code', 'Writing…');
+      if (ran !== undefined) told.sql = ran.sql;
+      const sql = el(doc, 'pre', 'dc-ts-code', ran !== undefined ? ran.sql
+        : refused !== undefined ? `Refused: ${refused}` : `Not asked yet: ${TS_SERVES_WORDS[ask.serves]} asks for it when shown.`);
+      const over = ran !== undefined && (ran.window.from !== undefined || ran.window.to !== undefined)
+        ? el(doc, 'div', 'dc-ts-hint', `Asked of the dates ${ran.window.from ?? 'from the first'} to ${ran.window.to ?? 'the last'}.`) : undefined;
       const copies = el(doc, 'div', 'dc-ts-row');
       copies.append(
         button(doc, 'Copy Pure', 'Its query as the compiler prints it', () => {
-          if (printed === undefined) this.#say([`Series ${s.id}'s query is not printed: ${pure.textContent ?? ''}`], true);
-          else void this.#copy(printed, `Series ${s.id}'s Pure copied.`);
+          if (told.pure === undefined) this.#say([`Query ${i + 1} is not written: ${pure.textContent ?? ''}`], true);
+          else void this.#copy(told.pure, `Query ${i + 1}'s Pure copied.`);
         }),
-        button(doc, 'Copy SQL', 'The SQL the database ran for it', () => void this.#copy(sql, `Series ${s.id}'s SQL copied.`)));
-      parts.push(el(doc, 'div', 'dc-ts-field-label', 'Pure'), pure, el(doc, 'div', 'dc-ts-field-label', 'SQL'), said, copies);
-    }
-    // the view's own query (a mode's): its SQL, as the database ran it
-    const mode = spec.view?.mode;
-    if (mode !== undefined) {
-      parts.push(el(doc, 'div', 'dc-ts-heading', `The ${mode}`));
-      // its answer of what is asked now alone (the Phase 3 review's 12: the mode before's under this one's heading)
-      const v = this.#viewLanded === viewKey(spec, this.#window()) ? this.#view : undefined;
-      if (v === undefined) parts.push(el(doc, 'div', 'dc-ts-error', this.#viewFailed !== undefined ? `Refused: ${this.#viewFailed}` : 'Not answered yet.'));
-      else {
-        const copies = el(doc, 'div', 'dc-ts-row');
-        copies.append(button(doc, 'Copy SQL', 'The SQL the database ran for the view', () => void this.#copy(v.sql, `The ${mode}'s SQL copied.`)));
-        parts.push(el(doc, 'div', 'dc-ts-field-label', 'SQL'), el(doc, 'pre', 'dc-ts-code', v.sql), copies);
+        button(doc, 'Copy SQL', 'The SQL the database ran for it', () => {
+          if (told.sql === undefined) this.#say([`Query ${i + 1} has no SQL: ${sql.textContent ?? ''}`], true);
+          else void this.#copy(told.sql, `Query ${i + 1}'s SQL copied.`);
+        }));
+      box.append(summary, ...(over ? [over] : []), el(doc, 'div', 'dc-ts-field-label', 'Pure'), pure, el(doc, 'div', 'dc-ts-field-label', 'SQL'), sql, copies);
+      sections.get(ask.serves === 'chart' ? 'chart' : 'panel')!.push(box);
+      try {
+        // as it was sent, or as it would be: written by the one function every round writes it by (askQuery)
+        const query = ran?.query ?? await this.#queryOf(spec, ask, window, opened);
+        const grid = this.#printer(spec, ask);
+        if (grid === undefined) throw new Error('its grid is not on the page');
+        told.pure = await grid.print(query);
+        pure.textContent = told.pure;
+      } catch (e) {
+        pure.textContent = `Not written: ${e instanceof Error ? e.message : String(e)}`;
       }
+    });
+    void Promise.allSettled(jobs).then(() => putAway(opened));
+    const all = (): string => written.map((w, i) => [`// ${i + 1}. ${w.ask.what} -- for ${TS_SERVES_WORDS[w.ask.serves]}`,
+      w.pure ?? `// not written`, `-- its SQL`, w.sql ?? `-- not run`].join('\n')).join('\n\n');
+    const copyAll = el(doc, 'div', 'dc-ts-row');
+    copyAll.append(button(doc, 'Copy all', 'Every query: its Pure and its SQL', () => void this.#copy(all(), `${asks.length} queries copied.`)));
+    this.#open('Queries',
+      el(doc, 'div', 'dc-ts-hint', `Every question this tile asks the database (${asks.length}): each written in Pure by DataCube, planned by `
+        + 'legend-lite and run as the SQL below it. Every figure drawn is one of their answers.'),
+      copyAll,
+      el(doc, 'div', 'dc-ts-heading', 'Drawing the chart'), ...sections.get('chart')!,
+      el(doc, 'div', 'dc-ts-heading', 'The statistics panel'), ...sections.get('panel')!);
+  }
+
+  /** An ask's query written as a round would write it, without running it: over its grid's input, or several grids'
+   *  relations opened together (`opened`, put away by the caller). */
+  async #queryOf(spec: TimeseriesSpec, ask: TsAsk, window: TsWindow, opened: Opened): Promise<Lambda> {
+    if (ask.kind === 'bounds') {
+      const src = spec.sources.find((x) => x.alias === ask.source);
+      const own = src === undefined ? undefined : this.#input(src.alias);
+      if (src === undefined || own === undefined) throw new Error(`source ${ask.source ?? ''}'s grid is not on the page`);
+      return boundsQuery(own.input, src);
     }
-    this.#open('Queries', ...parts);
+    const on = await this.#inputsOn(askSources(spec, ask), opened);
+    return askQuery(on.inputs, spec, ask, window).query;
+  }
+
+  /** The grid that prints an ask's query: the first it reads (a print reads the query alone, no model). */
+  #printer(spec: TimeseriesSpec, ask: TsAsk): TsGrid | undefined {
+    const first = askSources(spec, ask)[0];
+    return first === undefined ? undefined : this.#input(first)?.grid;
+  }
+
+  /** Why an ask was refused, where the tile has said so: a series', the view's, a source's bounds'. */
+  #refusalOf(ask: TsAsk): string | undefined {
+    switch (ask.kind) {
+      case 'bounds':
+        return this.#boundsFailed.get(ask.source!);
+      case 'series':
+        return this.#failed.get(ask.series!);
+      case 'statistics':
+        return this.#statsFailed.get(ask.series!);
+      case 'scatter':
+      case 'seasonality':
+      case 'histogram':
+      case 'curve':
+        return this.#viewFailed;
+      case 'drawdowns':
+      case 'correlations':
+      case 'calendar':
+        return undefined;
+    }
   }
 
   /** A change about to be told made to the tile as the page has it: a drag's try under it set aside (never told with
@@ -1705,7 +1765,7 @@ export class TimeseriesView {
     const opened: Opened = new Map();
     let answer: CalendarAnswer;
     try {
-      answer = { id: s.id, table: (await this.#run(s, (inputs) => calendarQuery(inputs, spec, s), new AbortController().signal, opened)).table };
+      answer = { id: s.id, table: (await this.#runAsk(spec, { kind: 'calendar', series: s.id }, {}, new AbortController().signal, opened)).table };
     } catch (e) {
       answer = { id: s.id, failed: e instanceof Error ? e.message : String(e) };
     } finally {
@@ -1745,8 +1805,7 @@ export class TimeseriesView {
         .map(([x, y]) => [spec.series.find((s) => s.id === x)!, spec.series.find((s) => s.id === y)!] as const);
       await Promise.all(pairs.map(async ([a, b]) => {
         try {
-          const aliases = [...new Set([...seriesSources(spec, a), ...seriesSources(spec, b)])];
-          const t = (await this.#runOn(aliases, (inputs) => correlationsQuery(inputs, spec, a, b, window), signal, opened)).table;
+          const t = (await this.#runAsk(spec, { kind: 'correlations', series: a.id, with: b.id }, window, signal, opened)).table;
           const column = (n: string): readonly unknown[] | undefined => t.columns.find((c) => c.name === n)?.values;
           const corr = column(TS_CORR) ?? [];
           corr.forEach((v, i) => {
@@ -1795,9 +1854,8 @@ export class TimeseriesView {
     try {
       const ids = tableSeries(spec).drawdowns;
       await Promise.all(ids.map(async (id) => {
-        const s = spec.series.find((x) => x.id === id)!;
         try {
-          rows.set(id, (await this.#run(s, (inputs) => drawdownsQuery(inputs, spec, s, window), signal, opened)).table);
+          rows.set(id, (await this.#runAsk(spec, { kind: 'drawdowns', series: id }, window, signal, opened)).table);
         } catch (e) {
           failed.set(id, e instanceof Error ? e.message : String(e));
         }

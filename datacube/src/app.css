@@ -5693,6 +5693,12 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
   border-radius: 4px; background: var(--dc-row-hover); font-family: var(--dc-font-mono); font-size: var(--dc-text-sm-size);
   white-space: pre; user-select: text;
 }
+/* every query a tile asks (the user, 2026-10-26): each a question, open for the chart's, its status beside it */
+.dc-ts-ask { border-top: 1px solid var(--dc-line-faint); padding: var(--dc-pad-1) 0; }
+.dc-ts-ask > summary { display: flex; justify-content: space-between; gap: var(--dc-pad-1); cursor: pointer; color: var(--dc-cell-fg); }
+.dc-ts-ask[open] > summary { margin-bottom: var(--dc-pad-1); }
+.dc-ts-ask-status { flex: none; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-ts-ask-refused { color: var(--tw-red-600); }
 .dc-ts-data-scroll { max-height: 18em; overflow: auto; }
 .dc-ts-data th { position: sticky; top: 0; background: var(--dc-bg); }
 .dc-ts-data th .dc-ts-swatch { margin-right: 4px; vertical-align: middle; }

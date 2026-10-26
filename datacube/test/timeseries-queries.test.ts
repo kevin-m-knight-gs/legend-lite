@@ -20,7 +20,7 @@ import {
   TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
   TS_CORR, TS_CORR_A, TS_CORR_B, TS_CORR_N, TS_FROM, TS_TO, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_PER_YEAR, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
   calendarQuery, curveOrder, curveQuery, histogramQuery, scatterQuery, seasonalityQuery, viewSeries, TS_CAL_LOW, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN,
-  curveColumns, TS_HIST_COUNT, TS_HIST_HIGH, TS_HIST_LOW, TS_HIST_N, TS_HIST_NORMAL, TS_HIST_P5, TS_SC_CORR, TS_SC_FIT_HIGH, TS_SC_FIT_LOW,
+  askKey, askQuery, askSources, tileAsks, curveColumns, TS_HIST_COUNT, TS_HIST_HIGH, TS_HIST_LOW, TS_HIST_N, TS_HIST_NORMAL, TS_HIST_P5, TS_SC_CORR, TS_SC_FIT_HIGH, TS_SC_FIT_LOW,
   TS_SC_INTERCEPT, TS_SC_N, TS_SC_R2, TS_SC_SLOPE, TS_SC_X, TS_SC_Y, TS_SEA_HIGH, TS_SEA_LATEST, TS_SEA_LOW, TS_SEA_MEAN, TS_SEA_PLACE, TS_SEA_YEAR,
 } from '../src/timeseries-query.ts';
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
@@ -1409,6 +1409,35 @@ describe('a tile\'s views: a scatter, a histogram, a curve -- every figure the d
     // candles are a level, but no one level a calendar of returns reads (the gallery's technicals tile found it)
     const candles = spec({ A: 'ohlc(close[AAA], close[AAA], close[AAA], close[AAA])', B: 'close[BBB]' });
     assert.deepEqual(viewSeries(candles).calendar, ['B']);
+  });
+
+  // the user, 2026-10-26: "show all the pure queries used to create a timeseries chart" -- the one rule the screen's
+  // Query window and Python's queries() list them by, each written by the one function every round writes it by
+  it('every question a tile asks: its bounds, each series, its view, then its panel\'s -- each query askQuery\'s', async () => {
+    const ts = spec({ A: 'close[AAA]', B: 'returns(close[BBB])', C: 'bollinger_bands(close[AAA], 5)' }, { view: { mode: 'scatter', compare: 'rebase' } });
+    const asks = tileAsks(ts);
+    assert.deepEqual(asks.map((a) => [a.kind, a.series ?? a.source, a.with ?? null, a.serves]), [
+      ['bounds', 'px', null, 'chart'],
+      ['series', 'A', null, 'chart'], ['series', 'B', null, 'chart'], ['series', 'C', null, 'chart'],
+      ['scatter', 'A', 'B', 'chart'],
+      // a band has no figures of its own; a return no drawdown, no calendar
+      ['statistics', 'A', null, 'statistics'], ['statistics', 'B', null, 'statistics'],
+      ['drawdowns', 'A', null, 'drawdowns'],
+      ['correlations', 'A', 'A', 'correlations'], ['correlations', 'A', 'B', 'correlations'], ['correlations', 'B', 'B', 'correlations'],
+      ['calendar', 'A', null, 'calendar'],
+    ]);
+    assert.equal(new Set(asks.map(askKey)).size, asks.length, 'each asked once');
+    // a series' points as the screen asks them: from the first date shown where it reads one (compare), the drawing's limit
+    const shown = { from: DAYS[5]! };
+    const a = ts.series[0]!;
+    assert.equal(toJson(askQuery(inputs, ts, { kind: 'series', series: 'A' }, shown).query), toJson(seriesQuery(inputs, ts, a, { from: DAYS[5]! }).query));
+    assert.equal(toJson(askQuery(inputs, ts, { kind: 'statistics', series: 'A' }, shown).query), toJson(statsQuery(inputs, ts, a, shown).query));
+    // and each answers: the database runs every one
+    for (const ask of asks.filter((x) => x.kind !== 'bounds')) {
+      const t = await run(askQuery(inputs, ts, ask, shown));
+      assert.ok(t.columns.length > 0, `${ask.what}: answered`);
+    }
+    assert.deepEqual(askSources(ts, asks.find((x) => x.kind === 'scatter')!), ['px']);
   });
 
   it('a curve\'s keys in order: tenors by their span (3M before 2Y), else their text, numbers as numbers', () => {

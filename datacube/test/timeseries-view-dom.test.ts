@@ -498,23 +498,56 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
     }
   });
 
-  it('Query: each series\' query as the compiler prints it and the SQL the database ran for it, each copied', async () => {
+  // the user, 2026-10-26: "show all the pure queries used to create a timeseries chart"
+  it('Query: every question the tile asks the database, its Pure as the compiler prints it and the SQL it ran, each copied and all', async () => {
     const { root, windows, view } = viewer(SPEC);
     const written = clipboardOf(root);
     try {
       await until(() => statRows(root).length === 2, 'its statistics');
       barButton(root, 'Query').click();
-      const pop = windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
-      assert.deepEqual([...pop.querySelectorAll('.dc-ts-heading')].map((h) => h.textContent), ['A: S&P 500', 'B: 21d vol']);
-      const code = (): string[] => [...pop.querySelectorAll('.dc-ts-code')].map((c) => c.textContent ?? '');
-      await until(() => code().every((c) => c !== 'Printing…'), 'its queries printed');
-      const [pureA, sqlA] = code();
-      assert.match(pureA!.trimStart(), /^\|/, `a lambda, as the compiler prints one: ${pureA!.slice(0, 60)}`);
+      const pop = (): HTMLElement => windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+      const asks = (): HTMLElement[] => [...pop().querySelectorAll<HTMLElement>('.dc-ts-ask')];
+      const said = (a: HTMLElement): string => a.querySelector('summary span')!.textContent ?? '';
+      const status = (a: HTMLElement): string => a.querySelector('.dc-ts-ask-status')!.textContent ?? '';
+      const code = (a: HTMLElement): string[] => [...a.querySelectorAll('.dc-ts-code')].map((c) => c.textContent ?? '');
+      // by the one rule Python's queries() reads (timeseries-query.ts tileAsks): the chart's, then the panel's
+      assert.deepEqual(asks().map(said), [
+        "1. Source px's dates: its latest and earliest, where each range button starts",
+        '2. Series A (S&P 500): its points',
+        '3. Series B (21d vol): its points',
+        '4. Series A (S&P 500): its statistics over the dates shown',
+        '5. Series B (21d vol): its statistics over the dates shown',
+        '6. Series A (S&P 500): its deepest drawdowns over the dates shown',
+        '7. Series A (S&P 500): its correlation with itself',
+        '8. The correlation of A (S&P 500) and B (21d vol)',
+        '9. Series B (21d vol): its correlation with itself',
+        '10. Series A (S&P 500): its returns each month and each year',
+      ]);
+      assert.deepEqual([...pop().querySelectorAll('.dc-ts-heading')].map((h) => h.textContent), ['Drawing the chart', 'The statistics panel']);
+      // what was asked to draw the chart and its statistics ran; the tabs not shown not yet
+      assert.deepEqual(asks().map(status), ['ran', 'ran', 'ran', 'ran', 'ran', 'not asked yet', 'not asked yet', 'not asked yet', 'not asked yet', 'not asked yet']);
+      assert.deepEqual(asks().map((a) => a.hasAttribute('open')), [true, true, true, false, false, false, false, false, false, false], "the chart's open");
+      await until(() => asks().every((a) => code(a)[0] !== 'Writing…'), 'every query written');
+      for (const a of asks()) assert.match(code(a)[0]!.trimStart(), /^\|/, `${said(a)}: a lambda, as the compiler prints one: ${code(a)[0]!.slice(0, 80)}`);
+      const [pureA, sqlA] = code(asks()[1]!);
       assert.match(pureA!, /'SPX'/);
       assert.match(sqlA!, /select/i, 'the SQL its rows were read by');
-      windowButton(windows, 'Copy SQL').click();
+      assert.match(code(asks()[5]!)[1]!, /^Not asked yet: the Drawdowns tab asks for it when shown\.$/);
+      assert.match(code(asks()[5]!)[0]!, /'SPX'/, 'written as its tab would ask it');
+      windowButton(asks()[1]!, 'Copy SQL').click();
       await until(() => written.length === 1, 'its SQL copied');
       assert.equal(written[0], sqlA);
+      windowButton(pop(), 'Copy all').click();
+      await until(() => written.length === 2, 'every query copied');
+      for (const a of asks()) assert.ok(written[1]!.includes(`// ${said(a)} -- for `), `${said(a)} among them`);
+      assert.ok(written[1]!.includes(pureA!) && written[1]!.includes(sqlA!), 'each its Pure and its SQL');
+      // a tab shown asks its question: the window says it ran, as it was sent
+      [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-stats-tab')].find((b) => b.textContent === 'Drawdowns')!.click();
+      await until(() => statRows(root).length > 0 && statRows(root)[0]!.length === 8, 'its drawdowns');
+      barButton(root, 'Query').click();
+      await until(() => asks().length === 10 && status(asks()[5]!) === 'ran', 'the drawdowns asked');
+      await until(() => code(asks()[5]!)[0] !== 'Writing…', 'written');
+      assert.match(code(asks()[5]!)[1]!, /select/i, 'the SQL it ran');
     } finally {
       view.dispose();
     }
@@ -728,7 +761,7 @@ describe('the timeseries viewer\'s other views: a scatter, a histogram, seasonal
       assert.match(drawnSeries(drawn, 'fit')!.name!, /^y = .*R² /, 'its equation and R² in its legend');
       // its query in the Query window; a picture of it
       barButton(root, 'Query').click();
-      assert.ok([...windows.querySelectorAll('.dc-ts-heading')].some((h) => h.textContent === 'The scatter'));
+      assert.ok([...windows.querySelectorAll('.dc-ts-ask summary span')].some((h) => /^\d+\. The scatter: /.test(h.textContent ?? '')), 'the scatter\'s own query');
       const canvas = root.querySelector('.dc-ts-chart') as HTMLElement;
       Object.defineProperty(canvas, 'clientWidth', { configurable: true, value: 800 });
       const Anchor = root.ownerDocument.defaultView!.HTMLAnchorElement;

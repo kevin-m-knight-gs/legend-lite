@@ -715,8 +715,12 @@ const CHART_BUDGET = 303_500;
  *  packs -- fifteen functions' signatures and words (timeseries-spec.ts, timeseries-expr.ts) and their queries
  *  (timeseries-query.ts analystCalls, basket, the Dickey-Fuller regression): technicals of a candle's columns, a series
  *  against a benchmark, a total return, a rebalanced basket, a lead, a reversion -- the headroom ~2%). Measured
- *  70,558. */
-const TIMESERIES_BUDGET = 72_000;
+ *  70,558.
+ *  72,000 -> 73,500 (2026-10-26, the user: "show all the pure queries used to create a timeseries chart" -- every
+ *  question a tile asks by one rule, each written by one function (timeseries-query.ts tileAsks, askQuery), and the
+ *  Query window listing them all, each as it was sent with its SQL (ui/timeseries-view.ts #showQueries, #runAsk) -- the
+ *  headroom ~2%). Measured 72,007. */
+const TIMESERIES_BUDGET = 73_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -931,8 +935,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  425,100 -> 426,400 (2026-10-26, the timeseries' next phases' 1 -- the grid-only page's note of the same date).
  *  Measured 425,778.
  *  426,400 -> 427,100 (2026-10-26, the timeseries' next phases' 2 and 3 -- the grid-only page's note of the same date).
- *  Measured 426,627. */
-const WIDGET_BUDGET = 427_100;
+ *  Measured 426,627.
+ *  427,100 -> 427,400 (2026-10-26, the user: "show all the pure queries used to create a timeseries chart" -- the Query
+ *  window's styles for each question, app.css .dc-ts-ask). Measured 427,157. */
+const WIDGET_BUDGET = 427_400;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

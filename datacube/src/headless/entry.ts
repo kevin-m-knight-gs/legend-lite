@@ -21,7 +21,7 @@ import {
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides, joinTogether } from './join.ts';
 import {
-  timeseriesCurveOrder, timeseriesEdit, timeseriesLineNames, timeseriesMade, timeseriesNotes, timeseriesQuery, timeseriesStatNotes, timeseriesTables,
+  timeseriesAsks, timeseriesCurveOrder, timeseriesEdit, timeseriesLineNames, timeseriesMade, timeseriesNotes, timeseriesQuery, timeseriesStatNotes, timeseriesTables,
   timeseriesWindow,
 } from './timeseries.ts';
 
@@ -153,6 +153,9 @@ export { timeseriesQuery };
 /** What a series' rows say a reader should know, by the rule the viewer's drawing says them by (timeseries-query.ts
  *  seriesNotes): Python's Timeseries.frame, said as warnings. */
 export { timeseriesNotes };
+/** Every question a timeseries tile asks the database, by the rule its screen's Query window reads (timeseries-query.ts
+ *  tileAsks): Python's Timeseries.queries, each asked of timeseriesQuery as the screen asks it. */
+export { timeseriesAsks };
 /** The series each of a timeseries tile's tables reads, by the rule its screen's tabs read (timeseries-query.ts
  *  tableSeries): Python's Timeseries.statistics, drawdowns and correlations, each asked of timeseriesQuery with its
  *  `table`. */

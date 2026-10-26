@@ -2809,6 +2809,131 @@ export function tableSeries(ts: TimeseriesSpec): { readonly statistics: readonly
   };
 }
 
+/** Where an ask's answer is shown: the chart itself, or one of the statistics panel's tabs. */
+export type TsServes = 'chart' | 'statistics' | 'drawdowns' | 'correlations' | 'calendar';
+
+/** The words of where an answer is shown, for a person reading the queries. */
+export const TS_SERVES_WORDS: Readonly<Record<TsServes, string>> = {
+  chart: 'the chart', statistics: 'the Summary and Risk tabs', drawdowns: 'the Drawdowns tab',
+  correlations: 'the Correlations tab', calendar: 'the Calendar tab',
+};
+
+/**
+ * ONE QUESTION A TILE ASKS THE DATABASE: a source's bounds (its dates: the range buttons' starts), a series' points, or
+ * one of its tables or views -- of a series (`series`), of a pair (`with`), or of a source (`source`) -- in words
+ * (`what`), and where its answer is shown (`serves`).
+ */
+export interface TsAsk {
+  readonly kind: 'bounds' | 'series' | TsTable;
+  readonly series?: string;
+  readonly with?: string;
+  readonly source?: string;
+  readonly what: string;
+  readonly serves: TsServes;
+}
+
+/** What an ask is of: what its query is built from, without its words. */
+export type TsAskOf = Pick<TsAsk, 'kind' | 'series' | 'with' | 'source'>;
+
+/** An ask's key: what it is of, the same for every round that asks it. */
+export const askKey = (a: TsAskOf): string =>
+  JSON.stringify([a.kind, a.series ?? null, a.with ?? null, a.source ?? null]);
+
+/**
+ * EVERY QUESTION A TILE ASKS THE DATABASE -- the one rule the screen's Query window and Python's Timeseries.queries
+ * read (the user, 2026-10-26: "show all the pure queries used to create a timeseries chart"): to draw the chart, each
+ * source's bounds, each series' points (a hidden one's too: its chip says it) and the view's (a mode's); for the
+ * statistics panel, each line's statistics, each level's drawdowns, each pair's correlation and each level's calendar
+ * of returns -- each by the rule its own drawing reads (tableSeries, viewSeries). Each ask's query is askQuery's.
+ */
+export function tileAsks(ts: TimeseriesSpec): TsAsk[] {
+  const named = (id: string): string => {
+    const s = ts.series.find((x) => x.id === id);
+    return s === undefined ? id : `${id} (${seriesName(s)})`;
+  };
+  const tables = tableSeries(ts);
+  const views = viewSeries(ts);
+  const asks: TsAsk[] = [
+    ...ts.sources.map((s): TsAsk => ({
+      kind: 'bounds', source: s.alias, serves: 'chart',
+      what: `Source ${s.alias}'s dates: its latest and earliest, where each range button starts`,
+    })),
+    ...ts.series.map((s): TsAsk => ({
+      kind: 'series', series: s.id, serves: 'chart', what: `Series ${named(s.id)}: its points${s.hidden === true ? ' (hidden)' : ''}`,
+    })),
+  ];
+  const mode = ts.view?.mode;
+  if (mode === 'scatter' && views.scatter !== undefined) {
+    asks.push({ kind: 'scatter', series: views.scatter[0], with: views.scatter[1], serves: 'chart', what: `The scatter: ${named(views.scatter[0])} across, ${named(views.scatter[1])} up, and the fit` });
+  } else if ((mode === 'seasonality' || mode === 'histogram') && views.one !== undefined) {
+    asks.push({ kind: mode, series: views.one, serves: 'chart', what: `The ${mode} of ${named(views.one)}` });
+  } else if (mode === 'curve' && views.curve !== undefined) {
+    asks.push({ kind: 'curve', series: views.curve, serves: 'chart', what: `The curve of ${named(views.curve)} across its lines` });
+  }
+  asks.push(
+    ...tables.statistics.map((id): TsAsk => ({ kind: 'statistics', series: id, serves: 'statistics', what: `Series ${named(id)}: its statistics over the dates shown` })),
+    ...tables.drawdowns.map((id): TsAsk => ({ kind: 'drawdowns', series: id, serves: 'drawdowns', what: `Series ${named(id)}: its deepest drawdowns over the dates shown` })),
+    ...tables.correlations.map(([a, b]): TsAsk => ({
+      kind: 'correlations', series: a, with: b, serves: 'correlations',
+      what: a !== b ? `The correlation of ${named(a)} and ${named(b)}`
+        : ts.series.find((x) => x.id === a)?.split !== undefined ? `Series ${named(a)}: its lines' correlations with each other` : `Series ${named(a)}: its correlation with itself`,
+    })),
+    ...views.calendar.map((id): TsAsk => ({ kind: 'calendar', series: id, serves: 'calendar', what: `Series ${named(id)}: its returns each month and each year` })),
+  );
+  return asks;
+}
+
+/** The sources an ask reads, by alias: its series', and its pair's too. */
+export function askSources(ts: TimeseriesSpec, ask: TsAskOf): string[] {
+  if (ask.kind === 'bounds') return [ask.source!];
+  const of = (id: string | undefined): TsSeries[] => {
+    if (id === undefined) return [];
+    const s = ts.series.find((x) => x.id === id);
+    if (!s) throw new Error(`the tile has no series ${id}`);
+    return [s];
+  };
+  const read = [...new Set([...of(ask.series), ...of(ask.with)].flatMap((s) => seriesSources(ts, s)))];
+  if (read.length === 0) throw new CubeRefusal(`series ${ask.series ?? ''} reads no column of a grid`);
+  return read;
+}
+
+/**
+ * AN ASK'S QUERY, as the screen asks it -- the one function the viewer's every round and Python's Timeseries.queries
+ * build each query by: a series' points from the first date shown where it reads one (an index's base, compare's), every
+ * date kept, the drawing's limit; a table or a view over the dates shown (`window`), where it reads them. A source's
+ * bounds are boundsQuery's, of its one grid.
+ */
+export function askQuery(inputs: TsInputs, ts: TimeseriesSpec, ask: TsAskOf, window: TsWindow): TsQuery {
+  const named = (id: string | undefined): TsSeries => {
+    const s = id === undefined ? undefined : ts.series.find((x) => x.id === id);
+    if (!s) throw new Error(`the tile has no series ${JSON.stringify(id ?? null)}`);
+    return s;
+  };
+  const s = named(ask.series);
+  switch (ask.kind) {
+    case 'bounds':
+      throw new Error('a source\'s bounds are boundsQuery\'s, of its one grid');
+    case 'series':
+      return seriesQuery(inputs, ts, s, readsAnchor(ts, s) && window.from ? { from: window.from } : {});
+    case 'statistics':
+      return statsQuery(inputs, ts, s, window);
+    case 'drawdowns':
+      return drawdownsQuery(inputs, ts, s, window);
+    case 'correlations':
+      return correlationsQuery(inputs, ts, s, named(ask.with), window);
+    case 'scatter':
+      return scatterQuery(inputs, ts, s, named(ask.with), window);
+    case 'seasonality':
+      return seasonalityQuery(inputs, ts, s);
+    case 'histogram':
+      return histogramQuery(inputs, ts, s, window);
+    case 'curve':
+      return curveQuery(inputs, ts, s);
+    case 'calendar':
+      return calendarQuery(inputs, ts, s);
+  }
+}
+
 /**
  * A SERIES' STATISTICS over the dates shown (`view`: from, to; either open), per line: how many, the first and the last
  * date, the first and the last value and the change between them, the least and the most (and when), the mean and the

@@ -8,8 +8,8 @@ import { readPage, type PageDocument } from '../page-document.ts';
 import { gridTitle } from '../page-ids.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot } from '../snapshot.ts';
 import {
-  boundsQuery, calendarQuery, correlationsQuery, curveColumns, curveOrder, curveQuery, drawdownsQuery, histogramQuery, rangeWindow, readsAnchor, scatterQuery,
-  seasonalityQuery, seriesNotes, seriesQuery, seriesSources, statBlanks, statName, statsQuery, tableSeries, viewSeries,
+  askQuery, boundsQuery, curveColumns, curveOrder, rangeWindow, readsAnchor, seriesNotes, seriesQuery, seriesSources, statBlanks, statName,
+  tableSeries, tileAsks, viewSeries,
   TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN, TS_HIST_COUNT, TS_HIST_HIGH, TS_HIST_LOW, TS_HIST_MEAN, TS_HIST_MID, TS_HIST_N,
   TS_HIST_NORMAL, TS_HIST_P5, TS_HIST_SD, TS_SC_CORR, TS_SC_INTERCEPT, TS_SC_N, TS_SC_R2, TS_SC_SLOPE, TS_SC_X, TS_SC_Y, TS_SEA_HIGH,
   TS_SEA_LATEST, TS_SEA_LOW, TS_SEA_MEAN, TS_SEA_PLACE, TS_SEA_YEAR,
@@ -210,6 +210,10 @@ export interface SeriesAsked {
   readonly years?: number;
   readonly bins?: number;
   readonly dates?: readonly string[];
+  /** A series' points as the screen asks them (timeseries-query.ts askQuery: from the window's first date where it reads
+   *  one, every date kept, the drawing's limit) -- Python's Timeseries.queries, the screen's Query window's; absent, as
+   *  a frame reads them (the window's dates alone, every point). */
+  readonly drawn?: boolean;
 }
 
 /**
@@ -217,7 +221,7 @@ export interface SeriesAsked {
  * over the window (the screen's own: statsQuery, drawdownsQuery, correlationsQuery), and its answer's words -- the names
  * of the columns it answers with, by role.
  */
-export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window' | 'anchor' | 'years' | 'bins' | 'dates'>, inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries): string {
+export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window' | 'anchor' | 'years' | 'bins' | 'dates' | 'drawn'>, inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries): string {
   const window = asked.window ?? {};
   const withOf = (what: string): TsSeries => {
     const other = asked.with === undefined ? undefined : ts.series.find((x) => x.id === asked.with);
@@ -234,8 +238,15 @@ export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window' | '
   if (problem !== null) throw new Problem(problem.replace(/^its timeseries' /, ''));
   // a view's series named as the screen's view names it: its name, else its expression (timeseries-expr.ts seriesName)
   const named = (s: TsSeries): string => JSON.stringify(seriesName(s));
+  // each table's and view's query the screen's own (askQuery, the one function its rounds write them by)
+  const asking = (table: TsTable, on: TimeseriesSpec = ts): TsQuery =>
+    askQuery(inputs, on, { kind: table, series: series.id, ...(asked.with !== undefined ? { with: asked.with } : {}) }, window);
   switch (asked.table) {
     case undefined: {
+      if (asked.drawn === true) {
+        const q = askQuery(inputs, ts, { kind: 'series', series: series.id }, window);
+        return `"query":${toJson(q.query)},${answerOf(q, series)}`;
+      }
       // its first date its base where it reads one (an index, compare), and the window's dates alone kept -- by the
       // database; every point of them (the drawing's limit is the drawing's: the owner, 2026-10-25, the review's P5)
       const from = asked.anchor ?? window.from;
@@ -243,7 +254,7 @@ export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window' | '
       return `"query":${toJson(q.query)},${answerOf(q, series)}`;
     }
     case 'statistics': {
-      const q = statsQuery(inputs, ts, series, window);
+      const q = asking('statistics');
       const columns = Object.fromEntries([['split', TS_SPLIT], ...TS_STATS.map((st) => [st, statName(st)])]);
       // and what says why a level's figures are blank (timeseriesStatNotes: statBlanks, the screen's words)
       const why = { levelLow: TS_STAT_LEVEL_LOW, perYear: TS_STAT_PER_YEAR };
@@ -251,13 +262,13 @@ export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window' | '
         + `"level":${JSON.stringify(q.level)},"split":${JSON.stringify(q.split ?? null)},"name":${JSON.stringify(series.name ?? null)}`;
     }
     case 'drawdowns': {
-      const q = drawdownsQuery(inputs, ts, series, window);
+      const q = asking('drawdowns');
       const columns = { split: TS_SPLIT, rank: TS_DD_RANK, peak: TS_DD_PEAK, trough: TS_DD_TROUGH, recovered: TS_DD_RECOVERED, depth: TS_DD_DEPTH, decline: TS_DD_DECLINE, recovery: TS_DD_RECOVERY };
       return `"query":${toJson(q.query)},"table":"drawdowns","columns":${JSON.stringify(columns)},"split":${JSON.stringify(q.split ?? null)},"name":${JSON.stringify(series.name ?? null)}`;
     }
     case 'correlations': {
       const other = withOf('a correlation');
-      const q = correlationsQuery(inputs, ts, series, other, window);
+      const q = asking('correlations');
       const columns = { a: TS_CORR_A, b: TS_CORR_B, corr: TS_CORR, n: TS_CORR_N };
       return `"query":${toJson(q.query)},"table":"correlations","columns":${JSON.stringify(columns)},"split":${JSON.stringify(series.split ?? null)},"withSplit":${JSON.stringify(other.split ?? null)},`
         + `"name":${JSON.stringify(series.name ?? null)},"withName":${JSON.stringify(other.name ?? null)}`;
@@ -265,28 +276,28 @@ export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window' | '
     // the views (the next phases' 3): each the screen's own query, its answer's columns by role
     case 'scatter': {
       const other = withOf('a scatter');
-      const q = scatterQuery(inputs, ts, series, other, window);
+      const q = asking('scatter');
       const columns = { date: TS_DATE, x: TS_SC_X, y: TS_SC_Y, n: TS_SC_N, slope: TS_SC_SLOPE, intercept: TS_SC_INTERCEPT, corr: TS_SC_CORR, r2: TS_SC_R2 };
       return `"query":${toJson(q.query)},"table":"scatter","columns":${JSON.stringify(columns)},"name":${named(series)},"withName":${named(other)}`;
     }
     case 'seasonality': {
-      const q = seasonalityQuery(inputs, viewed, series);
+      const q = asking('seasonality', viewed);
       const columns = { date: TS_DATE, year: TS_SEA_YEAR, place: TS_SEA_PLACE, value: TS_VALUE, low: TS_SEA_LOW, high: TS_SEA_HIGH, mean: TS_SEA_MEAN, latest: TS_SEA_LATEST };
       return `"query":${toJson(q.query)},"table":"seasonality","columns":${JSON.stringify(columns)},"unit":${JSON.stringify(q.unit)},"name":${named(series)}`;
     }
     case 'histogram': {
-      const q = histogramQuery(inputs, viewed, series, window);
+      const q = asking('histogram', viewed);
       const columns = { low: TS_HIST_LOW, middle: TS_HIST_MID, high: TS_HIST_HIGH, count: TS_HIST_COUNT, normal: TS_HIST_NORMAL, p5: TS_HIST_P5, mean: TS_HIST_MEAN, sd: TS_HIST_SD, n: TS_HIST_N };
       return `"query":${toJson(q.query)},"table":"histogram","columns":${JSON.stringify(columns)},"unit":${JSON.stringify(q.unit)},"name":${named(series)}`;
     }
     case 'curve': {
       const dates = viewed.view?.dates ?? TS_CURVE_DATES;
-      const q = curveQuery(inputs, viewed, series, dates);
+      const q = asking('curve', viewed);
       const columns = { split: TS_SPLIT, dates: dates.map((d, k) => ({ told: d, ...curveColumns(k) })) };
       return `"query":${toJson(q.query)},"table":"curve","columns":${JSON.stringify(columns)},"split":${JSON.stringify(q.split ?? null)},"name":${named(series)}`;
     }
     case 'calendar': {
-      const q = calendarQuery(inputs, ts, series);
+      const q = asking('calendar');
       const columns = { split: TS_SPLIT, year: TS_CAL_YEAR, month: TS_CAL_MONTH, return: TS_CAL_RETURN, yearReturn: TS_CAL_YEAR_RETURN };
       return `"query":${toJson(q.query)},"table":"calendar","columns":${JSON.stringify(columns)},"split":${JSON.stringify(q.split ?? null)},"name":${named(series)}`;
     }
@@ -388,6 +399,21 @@ export function timeseriesTables(page: string, tile: string): string {
     const ts = tileOf(readPage(JSON.parse(page), { empty: true }), tile);
     // and the series each view draws, by the rule the screen's views read (timeseries-query.ts viewSeries)
     return JSON.stringify({ ...tableSeries(ts), views: viewSeries(ts) });
+  } catch (e) {
+    if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
+    throw e;
+  }
+}
+
+/**
+ * EVERY QUESTION A TILE ASKS THE DATABASE, HEADLESS: tile `tile` of `page`, by the one rule its screen's Query window
+ * reads (timeseries-query.ts tileAsks: each source's bounds, each series' points, the view's, the statistics panel's) --
+ * for Python's Timeseries.queries, each asked of timeseriesQuery as the screen asks it. JSON: `{asks}` (each its kind,
+ * its series, pair or source, its words and what it serves), or `{problems}`.
+ */
+export function timeseriesAsks(page: string, tile: string): string {
+  try {
+    return JSON.stringify({ asks: tileAsks(tileOf(readPage(JSON.parse(page), { empty: true }), tile)) });
   } catch (e) {
     if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
     throw e;

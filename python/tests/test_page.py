@@ -1062,6 +1062,34 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'a curve is of a line per value of a column'):
             tile.curve('A')
 
+    def test_a_timeseries_lists_every_query_it_asks_each_its_pure_and_its_sql(self):
+        # the user, 2026-10-26: "show all the pure queries used to create a timeseries chart" -- the screen's Query
+        # window's every question, by its one rule (headless timeseriesAsks: timeseries-query.ts tileAsks), each written
+        # by the screen's own function (askQuery) and planned, nothing run
+        page = ll.Page('Queries')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['close[S]', 'returns(close[S])'])
+        asked = tile.queries()
+        self.assertEqual([(q['kind'], q.get('series', q.get('source')), q.get('with'), q['serves']) for q in asked], [
+            ('bounds', 'px', None, 'chart'), ('series', 'A', None, 'chart'), ('series', 'B', None, 'chart'),
+            ('statistics', 'A', None, 'statistics'), ('statistics', 'B', None, 'statistics'), ('drawdowns', 'A', None, 'drawdowns'),
+            ('correlations', 'A', 'A', 'correlations'), ('correlations', 'A', 'B', 'correlations'),
+            ('correlations', 'B', 'B', 'correlations'), ('calendar', 'A', None, 'calendar')])
+        for q in asked:
+            self.assertNotIn('refused', q, q['what'])
+            self.assertTrue(q['pure'].lstrip().startswith('|'), q['what'])
+            self.assertIn('SELECT', q['sql'].upper(), q['what'])
+        self.assertEqual(asked[1]['what'], 'Series A (close[S]): its points')
+        self.assertIn("'S'", asked[1]['pure'])
+        # a view's question with them, as the screen asks it: after the series', before the panel's
+        tile.options(view={'mode': 'histogram'})
+        kinds = [(q['kind'], q.get('series')) for q in tile.queries()]
+        self.assertEqual(kinds[3], ('histogram', 'A'))
+        # a series' points as the screen draws them, as query() reads them, but for the drawing's limit
+        self.assertIn('limit', asked[1]['pure'])
+
     def test_a_timeseries_reads_an_analysts_packs_each_figure_the_databases(self):
         # the next phases' 4 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): technicals of a candle's
         # columns and a rebalanced basket -- the screen's parser and queries, held to pandas
