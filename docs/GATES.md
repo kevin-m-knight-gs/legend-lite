@@ -14898,5 +14898,15 @@ needed that neither side did alone.
      `DatabaseDefinition`, which `Sectionize` placed under `###Relational`: a MongoDB store under the engine's own
      `###MongoDB` header is in its section;
    - linux-arm and Windows warehouse: `//datacube:python_execute_test`'s byte-for-byte JSON answer fails with
-     "Expected ',' or '}' in object at line 1 col 89" from the native library, and only there (x64 Linux green):
-     open; the PR's CI run is the only place it reproduces.
+     "Expected ',' or '}' in object at line 1 col 89" from the native library, and only there (x64 Linux green).
+     PR #78's arm run, with the refusal now showing what it read, named it: the database's JSON wire carried
+     `"at":"2024-03-10T03:00:00.000000+0000e\r\u0000"`, six fraction digits and bytes past the text where the
+     wire asked DuckDB's `strftime` for nine (`%n`). Reproduced on x64 with the same 1.5.5 wheel: `%n` followed by
+     more of the format writes six digits, the rest, then three bytes past the text (NULs on x64, which the x64 lane
+     swallowed; `e\r\0]` on arm, which broke the JSON); `%n` as the last code is whole on every timestamp kind, nine
+     digits (`.123456789` for a TIMESTAMP_NS, which `OutputMatrixTest` pins). The DuckDB dialect splits the format
+     there: `strftime(x, '...%n') || '+0000'` (`DuckDb.strftime`; a first attempt at `%f` and three zeros lost the
+     nanoseconds and was withdrawn before it was pushed).
+   - The pgcrypto fix's own miss, found by the same run: the warehouse's Postgres live tests start the embedded
+     server from a JVM with no JDBC driver ("No suitable driver found"), so the client connection could not open;
+     `//testing` now carries the driver at runtime, the client every such JVM needs.
