@@ -254,7 +254,8 @@ How to read the status column:
 | Generate Rows | Later | Core has no relation that makes rows from a rule; needs a design |
 | Auto Field | Out | Every column already has its type from the compiler; there is nothing to guess |
 | Create Samples | Built | A Sample's two outputs: its rows (S) and the rest (R), its False -- a split by a seed |
-| Oversample, Multi-Field Binning | Later | `random()` and the bins preset are the parts |
+| Multi-Field Binning | Built (2026-10-26) | Binning: number columns each into N bins of equal width over its range -- the grid's bins preset, the database placing each value; equal records are the Tile's |
+| Oversample | Later | `random()` and a Sample's seed are the parts |
 
 ### Join
 
@@ -862,6 +863,18 @@ its place. Tested by `flow-sheet.test.ts` (set, read, written, renamed, undone, 
 stop), Python's `test_a_test_that_stops_a_run_writes_no_output` (refused, nothing written; set to warn, written; saved
 and loaded) and the harness (the example's Checks sheet: run, 2024's orders written; its Test set to stop a run and run
 again: nothing written, said, the Test red).
+
+**Built, Binning** (Alteryx's Multi-Field Binning, its equal intervals; `binning.ts`, `ui/binning-form.ts`, `app.ts`
+`#openBinning`; 2026-10-26): a tool in Prepare whose window picks number columns and a count of bins. Each column is put
+into that many bins of equal width over its own range by the grid's own bins preset (`grid-presets.ts`, `calc-presets.ts
+binColumns`, what the header menu's Bins and Python's `grid.bins` make): the database finds the column's smallest and
+largest across every row and places each value, the largest in the last bin. Its box hands on a column of each value's
+bin, its lower edge (`notional_bins`), beside the column; the range and the upper edge it reads are hidden. Read back by
+rebuilding the preset's columns and comparing them whole (`binsOf`), a box says "notional in 5 bins". Equal records
+are the Tile's (`ntile`). Python: `grid.binning(['notional'], 5)`. Tested by `flow-sheet.test.ts` (made, read back,
+said, a name taken moving on, refusals, its JSON), Python's `test_number_columns_binned_as_a_binning_box_bins_them`
+(over DuckDB: two bins of 87.25 from 75.5, the largest in the last; refusals) and the harness (the Filter's notionals
+into five bins: the bin beside its column, its helpers hidden).
 
 **Built, New Box After** (FL9; `ui/menu.ts` `newBoxItems`, `app.ts` `onStepAfter`, `page/cube-page.ts` `#stepAfter`,
 `app/datacube-app.ts` flowTool's `step`; 2026-10-25): a box's rows in the results pane are its full grid, and its own

@@ -47,6 +47,7 @@ import { grainColumn, grainOf } from '../src/calc-presets.ts';
 import { CHECKS_COLUMN, checkCommands, checksOf, checkWords, failingChecks, failingWords, readChecks, testColumns, type Check } from '../src/checks.ts';
 import { DATE_RANGES, dateRangeConditions, datesBetweenConditions } from '../src/date-ranges.ts';
 import { datesKept } from '../src/page-filters.ts';
+import { binningCommands, binsOf, readBinning } from '../src/binning.ts';
 import { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterOf, customFilterProbe, customFilterText, readCustomFilter } from '../src/custom-filter.ts';
 import { pastedCells, tableCsv, tableProblem } from '../src/ui/text-input-dialog.ts';
 
@@ -425,6 +426,38 @@ describe('a Custom Filter (custom-filter.ts): the rows a condition in Pure is tr
     refused(() => readCustomFilter({ kind: 'customFilter', expression: '$x.a', column: 'a' }), /a custom filter takes no column/);
     // the grid with its column as it would be, for the compiler to type
     assert.deepEqual(customFilterProbe(typed, big).derived.map((d) => d.name), [CUSTOM_FILTER_COLUMN]);
+  });
+});
+
+describe('a Binning (binning.ts): number columns each into N bins of equal width, the bins preset', () => {
+  const typed = { ...rawRows(accessor('local::DB', 'trades'), COLUMNS) };
+  const apply = (s: CubeSnapshot, commands: readonly unknown[]): CubeSnapshot =>
+    applyGridCommands({ snapshot: s, config: DEFAULT_CONFIGURATION }, commands as never).snapshot;
+  it('makes the bins preset of each, its helpers hidden; read back whole, said', () => {
+    const numbers = rowColumns(typed).filter((c) => c.type === 'Float' || c.type === 'Integer').map((c) => c.name);
+    assert.ok(numbers.length > 0);
+    const column = numbers[0]!;
+    const commands = binningCommands(typed, { columns: [column], bins: 4 });
+    const s = apply(typed, commands);
+    const bins = binsOf(s.derived);
+    assert.deepEqual([...bins], [[`${column}_bins`, { column, bins: 4 }]]);
+    const hidden = (commands.at(-1) as unknown as { patch: { columns: Record<string, unknown> } }).patch.columns;
+    assert.deepEqual(Object.keys(hidden), [`${column}_bins__min`, `${column}_bins__max`, `${column}_bins__upper`]);
+    assert.deepEqual(boxSays(cube(rows('grid-1'), (q) => ({ ...q, derived: s.derived }), { columns: hidden })),
+      { tool: 'binning', also: [], says: `${column} in 4 bins` });
+    // its columns as the compiler types them: read back the same
+    assert.deepEqual([...binsOf(s.derived.map((d) => ({ ...d, type: 'Float' })))], [[`${column}_bins`, { column, bins: 4 }]]);
+    // a name taken moves on, as the preset's does
+    const again = apply(s, binningCommands(s, { columns: [column], bins: 10 }));
+    assert.deepEqual([...binsOf(again.derived).values()].map((b) => b.bins), [4, 10]);
+  });
+  it('refuses in words; reads its JSON', () => {
+    refused(() => binningCommands(typed, { columns: [], bins: 3 }), /pick a number column/);
+    refused(() => binningCommands(typed, { columns: ['region'], bins: 3 }), /'region' is String: only a number is put into bins/);
+    refused(() => binningCommands(typed, { columns: ['nope'], bins: 3 }), /the grid has no column 'nope'/);
+    refused(() => binningCommands(typed, { columns: ['region'], bins: 1.5 }), /a count of bins is a whole number from 1/);
+    assert.deepEqual(readBinning({ kind: 'binning', columns: ['a'], bins: 3 }), { columns: ['a'], bins: 3 });
+    refused(() => readBinning({ kind: 'binning', columns: ['a'], bins: 3, width: 2 }), /a binning takes no width/);
   });
 });
 

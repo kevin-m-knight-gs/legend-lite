@@ -205,8 +205,8 @@ export async function prepFlowPage(): Promise<PageDocument> {
     { tile: 'grid-19', x: 40, y: 300 },
     { tile: 'grid-20', x: 288, y: 180 },
     { tile: 'grid-21', x: 536, y: 60, output: { format: 'csv', name: 'orders of 2024.csv' } },
+    { tile: 'grid-23', x: 536, y: 180 },
     { tile: 'grid-22', x: 536, y: 300 },
-    { tile: 'grid-23', x: 536, y: 420 },
     { tile: 'text-7', x: 40, y: 430 },
   ];
   // three columns wide, so the whole of it is in sight beside the settings: its inputs, its steps, its report

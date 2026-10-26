@@ -3169,6 +3169,23 @@ class Flows(Paged):
         with self.assertRaisesRegex(ValueError, 'Load its values to fix them'):
             after.to_pandas()
 
+    def test_number_columns_binned_as_a_binning_box_bins_them(self):
+        # M3: grid.binning -- each number column into N bins of equal width over its own range, the database placing each
+        # value; the box after it reads each bin's lower edge beside its column, the range and upper edge hidden
+        page, flow, source, _big = self.flowed()
+        binned = flow.grid(input=source)
+        binned.binning(['notional', 'pnl'], 2)
+        rows = flow.grid(input=binned).to_pandas()
+        self.assertIn('notional_bins', rows.columns)
+        self.assertIn('pnl_bins', rows.columns)
+        self.assertFalse([c for c in rows.columns if c.endswith('__min') or c.endswith('__upper')], 'its helpers hidden')
+        # notional 75.5 to 250: two bins of 87.25, the largest in the last
+        self.assertEqual(sorted(zip(rows['notional'], rows['notional_bins'])), [(75.5, 75.5), (100.0, 75.5), (250.0, 162.75)])
+        with self.assertRaisesRegex(ValueError, "'region' is String: only a number is put into bins"):
+            binned.binning(['region'], 3)
+        with self.assertRaisesRegex(ValueError, 'a count of bins is a whole number from 1'):
+            binned.binning(['notional'], 0)
+
     def test_a_dry_run_counts_every_box_and_writes_nothing(self):
         # M6: flow.dry_run -- every box's rows counted as the canvas counts them, the boxes that stop a run judged, the
         # files a run would write named; nothing written. A stopping Test failing: none would be, said why

@@ -946,6 +946,23 @@ try {
   const regionRows = await resultRows();
   check(regionRows > 0 && regionRows < fewer, `its rows: the Filter's of ${region}, ${regionRows} of ${fewer}`);
 
+  // A BINNING (M3, Alteryx's Multi-Field Binning), dragged onto the Filter: its notionals into five bins of equal width,
+  // the database placing each; the bin beside its column, its helpers hidden
+  const beforeBins = (await boxes()).map((b) => b.id);
+  await drag('binning', filter.id);
+  await boxCount(beforeBins.length + 1);
+  const binnedBox = await added(beforeBins);
+  await docked('Binning');
+  await page.locator('.dc-flow-dock .dc-text-tool-check', { hasText: /^notional$/ }).locator('input').check();
+  await page.locator('.dc-flow-dock .dc-binning-bins').fill('5');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  const binBox = (await boxes()).find((b) => b.id === binnedBox.id);
+  check(binBox?.tool === 'binning' && binBox.says === 'notional in 5 bins', `a Binning box: ${JSON.stringify(binBox)}`);
+  const binHeads = await page.locator('.dc-flow-results .dc-th[data-column]').evaluateAll((els) => els.map((e) => e.dataset.column));
+  check(binHeads.includes('notional_bins') && !binHeads.some((c) => /__(min|max|upper)$/.test(c)), `its bin beside notional, its helpers hidden: ${JSON.stringify(binHeads)}`);
+  check(await resultRows() === fewer, "its input's rows, each binned");
+
   // A TEST (FL8), dragged onto the Filter: its trade ids repeat none, its notionals within bounds -- each check's failing
   // rows counted by the database, its box marked by what its row says; set again, passing
   const beforeTest = (await boxes()).map((b) => b.id);

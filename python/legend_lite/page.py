@@ -1033,6 +1033,14 @@ class Grid(Tile):
         ones it had."""
         return self._preset({'kind': 'test', 'checks': [dict(c) for c in checks]})
 
+    def binning(self, columns: Sequence[str], bins: int) -> Grid:
+        """Number ``columns`` each put into ``bins`` bins of equal width over its own range -- a flow's Binning (DataCube's
+        code: binning.ts binningCommands; Alteryx's Multi-Field Binning, its equal intervals): the grid's own bins preset
+        (``grid.bins``), the database finding each column's smallest and largest across every row and placing each
+        value, a column of each value's bin beside it (its lower edge: ``notional_bins``), its range and upper edge
+        hidden. Refused in DataCube's words: no column, one that is no number, a count of bins no whole number from 1."""
+        return self._preset({'kind': 'binning', 'columns': list(columns), 'bins': bins})
+
     def custom_filter(self, condition: str) -> Grid:
         """Its rows those a condition written in Pure is true for -- a flow's Custom Filter (DataCube's code:
         custom-filter.ts customFilterCommands; Alteryx's Filter, its Custom filter): ``condition`` over ``$x``, the row
