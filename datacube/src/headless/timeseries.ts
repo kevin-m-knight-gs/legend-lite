@@ -8,8 +8,11 @@ import { readPage, type PageDocument } from '../page-document.ts';
 import { gridTitle } from '../page-ids.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot } from '../snapshot.ts';
 import {
-  boundsQuery, correlationsQuery, drawdownsQuery, rangeWindow, readsAnchor, seriesNotes, seriesQuery, seriesSources, statBlanks, statName,
-  statsQuery, tableSeries,
+  boundsQuery, calendarQuery, correlationsQuery, curveColumns, curveOrder, curveQuery, drawdownsQuery, histogramQuery, rangeWindow, readsAnchor, scatterQuery,
+  seasonalityQuery, seriesNotes, seriesQuery, seriesSources, statBlanks, statName, statsQuery, tableSeries, viewSeries,
+  TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN, TS_HIST_COUNT, TS_HIST_HIGH, TS_HIST_LOW, TS_HIST_MEAN, TS_HIST_MID, TS_HIST_N,
+  TS_HIST_NORMAL, TS_HIST_P5, TS_HIST_SD, TS_SC_CORR, TS_SC_INTERCEPT, TS_SC_N, TS_SC_R2, TS_SC_SLOPE, TS_SC_X, TS_SC_Y, TS_SEA_HIGH,
+  TS_SEA_LATEST, TS_SEA_LOW, TS_SEA_MEAN, TS_SEA_PLACE, TS_SEA_YEAR,
   TS_CORR, TS_CORR_A, TS_CORR_B, TS_CORR_N, TS_DATE, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED,
   TS_DD_RECOVERY, TS_DD_TROUGH, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_LEVEL_LOW,
   TS_STAT_PER_YEAR, TS_STATS, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsTable, type TsWindow,
@@ -18,9 +21,9 @@ import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { HostTables } from './host-tables.ts';
 import { eachRelation } from '../join-open.ts';
 import { sourcesOnHost, sourcesOpenedOn } from './join.ts';
-import { type TimeseriesSpec, type TsExpr, type TsSeries, type TsSource } from '../timeseries-spec.ts';
+import { TS_CURVE_DATES, tsProblem, type TimeseriesSpec, type TsExpr, type TsSeries, type TsSource, type TsView } from '../timeseries-spec.ts';
 import {
-  aliasFor, nextSeriesId, parseExpr, sourceOf, TsSyntaxError, type TsColumn
+  aliasFor, nextSeriesId, parseExpr, seriesName, sourceOf, TsSyntaxError, type TsColumn
 } from '../timeseries-expr.ts';
 import { editTimeseries, firstPlotOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns } from '../timeseries-edit.ts';
 
@@ -195,9 +198,15 @@ export interface SeriesAsked {
   /** The copies the host holds, by table (Python's held_copies): a snapped grid is read over its copy. */
   readonly copies?: Readonly<Record<string, unknown>>;
   /** Absent, the series' points; else one of its tables over the window (the statistics panel's tabs) -- of
-   *  correlations, the series' lines with `with`'s. */
+   *  correlations, the series' lines with `with`'s -- or one of its views (the next phases' 3): a scatter of the series
+   *  across and `with`'s up, a seasonality, a histogram, a curve, the calendar. */
   readonly table?: TsTable;
   readonly with?: string;
+  /** A view's own settings told for this ask (a seasonality's years, a histogram's bins, a curve's dates); absent, the
+   *  tile's view's, else its defaults -- judged by the tile's reader. */
+  readonly years?: number;
+  readonly bins?: number;
+  readonly dates?: readonly string[];
 }
 
 /**
@@ -205,8 +214,23 @@ export interface SeriesAsked {
  * over the window (the screen's own: statsQuery, drawdownsQuery, correlationsQuery), and its answer's words -- the names
  * of the columns it answers with, by role.
  */
-export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window'>, inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries): string {
+export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window' | 'years' | 'bins' | 'dates'>, inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries): string {
   const window = asked.window ?? {};
+  const withOf = (what: string): TsSeries => {
+    const other = asked.with === undefined ? undefined : ts.series.find((x) => x.id === asked.with);
+    if (!other) throw new Problem(`${what} of ${series.id} is with another series of the tile: ${JSON.stringify(asked.with ?? null)} is none`);
+    return other;
+  };
+  // a view's settings told for this ask: the tile's view with them, judged by its reader as a change of the tile is
+  const given: { -readonly [K in 'years' | 'bins' | 'dates']?: TsView[K] } = {};
+  if (asked.years !== undefined) given.years = asked.years;
+  if (asked.bins !== undefined) given.bins = asked.bins;
+  if (asked.dates !== undefined) given.dates = asked.dates;
+  const viewed: TimeseriesSpec = Object.keys(given).length === 0 ? ts : { ...ts, view: { ...ts.view, ...given } };
+  const problem = viewed === ts ? null : tsProblem(viewed);
+  if (problem !== null) throw new Problem(problem.replace(/^its timeseries' /, ''));
+  // a view's series named as the screen's view names it: its name, else its expression (timeseries-expr.ts seriesName)
+  const named = (s: TsSeries): string => JSON.stringify(seriesName(s));
   switch (asked.table) {
     case undefined: {
       // its first date its base where it reads one (an index, compare), and the window's dates alone kept -- by the
@@ -228,16 +252,43 @@ export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window'>, i
       return `"query":${toJson(q.query)},"table":"drawdowns","columns":${JSON.stringify(columns)},"split":${JSON.stringify(q.split ?? null)},"name":${JSON.stringify(series.name ?? null)}`;
     }
     case 'correlations': {
-      const other = asked.with === undefined ? undefined : ts.series.find((x) => x.id === asked.with);
-      if (!other) throw new Problem(`a correlation of ${series.id} is with another series of the tile: ${JSON.stringify(asked.with ?? null)} is none`);
+      const other = withOf('a correlation');
       const q = correlationsQuery(inputs, ts, series, other, window);
       const columns = { a: TS_CORR_A, b: TS_CORR_B, corr: TS_CORR, n: TS_CORR_N };
       return `"query":${toJson(q.query)},"table":"correlations","columns":${JSON.stringify(columns)},"split":${JSON.stringify(series.split ?? null)},"withSplit":${JSON.stringify(other.split ?? null)},`
         + `"name":${JSON.stringify(series.name ?? null)},"withName":${JSON.stringify(other.name ?? null)}`;
     }
+    // the views (the next phases' 3): each the screen's own query, its answer's columns by role
+    case 'scatter': {
+      const other = withOf('a scatter');
+      const q = scatterQuery(inputs, ts, series, other, window);
+      const columns = { date: TS_DATE, x: TS_SC_X, y: TS_SC_Y, n: TS_SC_N, slope: TS_SC_SLOPE, intercept: TS_SC_INTERCEPT, corr: TS_SC_CORR, r2: TS_SC_R2 };
+      return `"query":${toJson(q.query)},"table":"scatter","columns":${JSON.stringify(columns)},"name":${named(series)},"withName":${named(other)}`;
+    }
+    case 'seasonality': {
+      const q = seasonalityQuery(inputs, viewed, series);
+      const columns = { date: TS_DATE, year: TS_SEA_YEAR, place: TS_SEA_PLACE, value: TS_VALUE, low: TS_SEA_LOW, high: TS_SEA_HIGH, mean: TS_SEA_MEAN, latest: TS_SEA_LATEST };
+      return `"query":${toJson(q.query)},"table":"seasonality","columns":${JSON.stringify(columns)},"unit":${JSON.stringify(q.unit)},"name":${named(series)}`;
+    }
+    case 'histogram': {
+      const q = histogramQuery(inputs, viewed, series, window);
+      const columns = { low: TS_HIST_LOW, middle: TS_HIST_MID, high: TS_HIST_HIGH, count: TS_HIST_COUNT, normal: TS_HIST_NORMAL, p5: TS_HIST_P5, mean: TS_HIST_MEAN, sd: TS_HIST_SD, n: TS_HIST_N };
+      return `"query":${toJson(q.query)},"table":"histogram","columns":${JSON.stringify(columns)},"unit":${JSON.stringify(q.unit)},"name":${named(series)}`;
+    }
+    case 'curve': {
+      const dates = viewed.view?.dates ?? TS_CURVE_DATES;
+      const q = curveQuery(inputs, viewed, series, dates);
+      const columns = { split: TS_SPLIT, dates: dates.map((d, k) => ({ told: d, ...curveColumns(k) })) };
+      return `"query":${toJson(q.query)},"table":"curve","columns":${JSON.stringify(columns)},"split":${JSON.stringify(q.split ?? null)},"name":${named(series)}`;
+    }
+    case 'calendar': {
+      const q = calendarQuery(inputs, ts, series);
+      const columns = { split: TS_SPLIT, year: TS_CAL_YEAR, month: TS_CAL_MONTH, return: TS_CAL_RETURN, yearReturn: TS_CAL_YEAR_RETURN };
+      return `"query":${toJson(q.query)},"table":"calendar","columns":${JSON.stringify(columns)},"split":${JSON.stringify(q.split ?? null)},"name":${named(series)}`;
+    }
     default:
       // a host's JSON: a word the tile has no table of, refused by name
-      throw new Problem(`a timeseries has no table ${JSON.stringify(asked.table)} (statistics, drawdowns, correlations)`);
+      throw new Problem(`a timeseries has no table ${JSON.stringify(asked.table)} (statistics, drawdowns, correlations, scatter, seasonality, histogram, curve, calendar)`);
   }
 }
 
@@ -318,22 +369,36 @@ export function timeseriesStatNotes(asked: string): string {
 
 /** The sources a host's ask reads, by alias: the series', and of a correlation the other's too. */
 export function askedSources(asked: Pick<SeriesAsked, 'table' | 'with'>, ts: TimeseriesSpec, series: TsSeries): string[] {
-  const other = asked.table === 'correlations' && asked.with !== undefined ? ts.series.find((x) => x.id === asked.with) : undefined;
+  const other = (asked.table === 'correlations' || asked.table === 'scatter') && asked.with !== undefined ? ts.series.find((x) => x.id === asked.with) : undefined;
   return [...new Set([...seriesSources(ts, series), ...(other ? seriesSources(ts, other) : [])])];
 }
 
 /**
  * THE SERIES A TILE'S TABLES READ, HEADLESS: tile `tile` of `page` by the one rule its screen's tabs read
- * (timeseries-query.ts tableSeries) -- for Python's Timeseries tables. JSON: `{statistics, drawdowns, correlations}`
- * (ids; correlations each a pair), or `{problems}`.
+ * (timeseries-query.ts tableSeries) -- for Python's Timeseries tables -- and the series each of its views draws
+ * (viewSeries). JSON: `{statistics, drawdowns, correlations, views: {scatter, one, curve, calendar}}` (ids; correlations
+ * each a pair, a scatter its x and y), or `{problems}`.
  */
 export function timeseriesTables(page: string, tile: string): string {
   try {
-    return JSON.stringify(tableSeries(tileOf(readPage(JSON.parse(page), { empty: true }), tile)));
+    const ts = tileOf(readPage(JSON.parse(page), { empty: true }), tile);
+    // and the series each view draws, by the rule the screen's views read (timeseries-query.ts viewSeries)
+    return JSON.stringify({ ...tableSeries(ts), views: viewSeries(ts) });
   } catch (e) {
     if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
     throw e;
   }
+}
+
+/**
+ * A CURVE'S KEYS IN ORDER, HEADLESS: `keys` (JSON, a curve's lines' split values as its answer has them) by the rule the
+ * screen's curve orders them by (timeseries-query.ts curveOrder: tenors by their span, else their text) -- for Python's
+ * Timeseries.curve. JSON: `{order}` (the places of the keys), or `{problems}`.
+ */
+export function timeseriesCurveOrder(keys: string): string {
+  const told: unknown = JSON.parse(keys);
+  if (!Array.isArray(told) || !told.every((k) => typeof k === 'string')) return JSON.stringify({ problems: ['a curve\'s keys are its lines\' values, as text'] });
+  return JSON.stringify({ order: curveOrder(told as string[]) });
 }
 
 /** What a series' query answers with, by role, as a host reads its answer. */

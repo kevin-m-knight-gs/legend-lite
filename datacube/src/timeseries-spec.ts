@@ -136,7 +136,37 @@ export interface TsView {
   readonly subtitle?: string;
   /** Where its figures are from, said under the subtitle: "Source: the Treasury". */
   readonly note?: string;
+  /**
+   * How its series are drawn (the next phases' 3): along time (absent); one against another, a point a date, with their
+   * regression (`scatter`, Bloomberg's HRA); each year along its calendar against the range of the years before
+   * (`seasonality`); its values' distribution (`histogram`); a split's lines across its key at chosen dates (`curve`, a
+   * yield curve). Every figure of each the database's.
+   */
+  readonly mode?: TsMode;
+  /** The series a mode reads, by id: a scatter's x and y, the others' one; absent, the tile's first it can draw. */
+  readonly of?: readonly string[];
+  /** A curve's dates: `latest`, a period back from it (`1m`, `1y`), or a day (`2024-03-29`); absent, TS_CURVE_DATES. */
+  readonly dates?: readonly string[];
+  /** A seasonality's years before the latest whose range and mean it draws; absent, TS_SEASON_YEARS. */
+  readonly years?: number;
+  /** A histogram's bins; absent, TS_HIST_BINS. */
+  readonly bins?: number;
 }
+
+/** How a tile draws its series (TsView mode): along time absent. */
+export type TsMode = 'scatter' | 'seasonality' | 'histogram' | 'curve';
+export const TS_MODES: readonly TsMode[] = ['scatter', 'seasonality', 'histogram', 'curve'];
+/** A curve's dates before any are told: the latest, a month back, a year back. */
+export const TS_CURVE_DATES: readonly string[] = ['latest', '1m', '1y'];
+/** The most dates a curve draws. */
+export const MAX_CURVE_DATES = 6;
+/** A seasonality's years before the latest, before any are told; and the most. */
+export const TS_SEASON_YEARS = 5;
+export const MAX_SEASON_YEARS = 20;
+/** A histogram's bins before any are told; and the least and the most. */
+export const TS_HIST_BINS = 30;
+export const MIN_HIST_BINS = 5;
+export const MAX_HIST_BINS = 100;
 
 /**
  * A GRID THE TILE READS: its cube on the page (a grid's, or -- its grid removed -- one kept for the tile, detached), the
@@ -212,7 +242,7 @@ export type TsAlign = 'intersect' | 'step' | 'time' | 'nan' | 'zero';
 export const TS_ALIGNS: readonly TsAlign[] = ['intersect', 'step', 'time', 'nan', 'zero'];
 
 /** The view's switches before anyone sets one (its compare, subtitle and note none until told). */
-export const TS_VIEW_DEFAULTS: Required<Omit<TsView, 'compare' | 'subtitle' | 'note'>> = {
+export const TS_VIEW_DEFAULTS: Required<Pick<TsView, 'legend' | 'lastValues' | 'navigator' | 'stats' | 'crosshair'>> = {
   legend: true,
   lastValues: true,
   navigator: true,
@@ -414,6 +444,7 @@ const STYLE_KEYS: Readonly<Record<keyof TsStyle, true>> = { kind: true, color: t
 const PANE_KEYS: Readonly<Record<keyof TsPane, true>> = { height: true, log: true, invert: true, min: true, max: true };
 const VIEW_KEYS: Readonly<Record<keyof TsView, true>> = {
   compare: true, legend: true, lastValues: true, navigator: true, stats: true, crosshair: true, subtitle: true, note: true,
+  mode: true, of: true, dates: true, years: true, bins: true,
 };
 const MATCH_KEYS: Readonly<Record<keyof TsMatch, true>> = { column: true, value: true };
 const EXPR_KEYS: { readonly [K in TsExpr['kind']]: Readonly<Record<string, true>> } = {
@@ -691,6 +722,29 @@ export function tsProblem(ts: unknown): string | null {
     }
     for (const words of ['subtitle', 'note'] as const) {
       if (view[words] !== undefined && typeof view[words] !== 'string') return `its timeseries' ${words} is not text`;
+    }
+    const mode = view['mode'];
+    if (mode !== undefined && !(TS_MODES as readonly unknown[]).includes(mode)) {
+      return `its timeseries' mode ${JSON.stringify(mode)} is not one of ${TS_MODES.join(', ')}`;
+    }
+    const of = view['of'];
+    if (of !== undefined) {
+      if (!Array.isArray(of) || of.length === 0 || of.length > 2 || !of.every((x) => typeof x === 'string')) return 'its timeseries\' view reads one series or two, by id';
+      const series = Array.isArray(ts['series']) ? ts['series'] as readonly unknown[] : [];
+      const missing = (of as string[]).find((id) => !series.some((x) => isRecord(x) && x['id'] === id));
+      if (missing !== undefined) return `its timeseries' view reads series ${missing}, which it has not`;
+    }
+    const dates = view['dates'];
+    if (dates !== undefined) {
+      if (!Array.isArray(dates) || dates.length === 0 || dates.length > MAX_CURVE_DATES) return `its timeseries' curve dates are 1 to ${MAX_CURVE_DATES}`;
+      const bad = dates.find((d) => !(typeof d === 'string' && (d === 'latest' || tenorOf(d) !== undefined || /^\d{4}-\d{2}-\d{2}$/.test(d))));
+      if (bad !== undefined) return `its timeseries' curve date ${JSON.stringify(bad)} is not latest, a period back (1m, 1y) or a day`;
+    }
+    for (const [key, least, most] of [['years', 1, MAX_SEASON_YEARS], ['bins', MIN_HIST_BINS, MAX_HIST_BINS]] as const) {
+      const v = view[key];
+      if (v !== undefined && !(typeof v === 'number' && Number.isInteger(v) && v >= least && v <= most)) {
+        return `its timeseries' ${key} ${JSON.stringify(v)} is not a whole number of ${least} to ${most}`;
+      }
     }
   }
   return null;

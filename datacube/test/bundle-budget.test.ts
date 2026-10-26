@@ -437,8 +437,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  409,500 -> 410,800 (2026-10-26, the timeseries' next phases' 1, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: the
  *  spec's reader of a tile's align and of gs-quant's remaining functions' signatures (timeseries-spec.ts TsAlign,
  *  manyArgs), and the monthly macro sample's generator beside the others (samples.ts macroCsv); no startup file added).
- *  Measured 410,159. */
-const BUDGET = 410_800;
+ *  Measured 410,159.
+ *  410,800 -> 411,500 (2026-10-26, the timeseries' next phases' 2 and 3, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md
+ *  §11: the spec's reader of a pane upside down and its ends, a subtitle and a note, and a tile's view -- its mode, its
+ *  series, a seasonality's years, a histogram's bins, a curve's dates (timeseries-spec.ts TsView) -- which a saved page
+ *  is read by as it opens; no startup file added). Measured 410,869. */
+const BUDGET = 411_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -611,8 +615,10 @@ const BUDGET = 410_800;
  *  396,500 -> 397,600 (2026-10-26, the timeseries follow-ups rebased onto the flow mode -- the grid-only page's note of
  *  the same date). Measured 397,097.
  *  397,600 -> 398,900 (2026-10-26, the timeseries' next phases' 1 -- the grid-only page's note of the same date).
- *  Measured 398,329. */
-const ENGINE_BUDGET = 398_900;
+ *  Measured 398,329.
+ *  398,900 -> 399,600 (2026-10-26, the timeseries' next phases' 2 and 3 -- the grid-only page's note of the same date).
+ *  Measured 399,033. */
+const ENGINE_BUDGET = 399_600;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -693,8 +699,14 @@ const CHART_BUDGET = 303_500;
  *  swapped across the tile (timeseries-edit.ts swapped), the Data tab and its Copy (timeseries-option.ts timeseriesTable),
  *  a picture's heading and its export (tsHeading; timeseries-render.ts exportUrl -- ECharts' SVG painter a chunk of its
  *  own, fetched with an SVG alone), a pane upside down and its ends by hand, the Query window, a parameter's slider --
- *  the headroom ~2%). Measured 55,530. */
-const TIMESERIES_BUDGET = 56_600;
+ *  the headroom ~2%). Measured 55,530.
+ *  56,600 -> 66,400 (2026-10-26, the next phases' 3, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: a tile's other
+ *  views -- a scatter and its regression, seasonality against the years before, a histogram and its normal, a curve
+ *  across a split's key (timeseries-query.ts scatterQuery, seasonalityQuery, histogramQuery, curveQuery, and their
+ *  drawing, timeseries-views.ts) -- the Calendar tab and its query (calendarQuery), and each view's Settings and its
+ *  ask (ui/timeseries-view.ts #viewAsk, #fetchView); the headroom ~2%. The views' drawing, about 2,500 of it, could be a
+ *  chunk of its own fetched with the first view, if it grows). Measured 65,119. */
+const TIMESERIES_BUDGET = 66_400;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -907,8 +919,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  424,000 -> 425,100 (2026-10-26, the timeseries follow-ups rebased onto the flow mode -- the grid-only page's note of
  *  the same date -- and the statistics panel's tabs' and the correlation matrix's styles). Measured 424,538.
  *  425,100 -> 426,400 (2026-10-26, the timeseries' next phases' 1 -- the grid-only page's note of the same date).
- *  Measured 425,778. */
-const WIDGET_BUDGET = 426_400;
+ *  Measured 425,778.
+ *  426,400 -> 427,100 (2026-10-26, the timeseries' next phases' 2 and 3 -- the grid-only page's note of the same date).
+ *  Measured 426,627. */
+const WIDGET_BUDGET = 427_100;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -2082,6 +2082,130 @@ class Timeseries(Tile):
                         lines.append(x)
         return pd.DataFrame([[cells.get((x, y)) for y in lines] for x in lines], index=lines, columns=lines)
 
+    # -- its views (the next phases' 3, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): each the screen's own query --
+
+    def _view_of(self, kind: str, series: str | None) -> str:
+        """The series view ``kind`` draws: ``series`` as given, else the one the screen's draws (the view's ``of``, else
+        the tile's first it can draw: headless timeseriesTables' ``views``, timeseries-query.ts viewSeries)."""
+        if series is not None:
+            return series
+        picked = self._tables()['views'].get(kind)
+        if picked is None:
+            words = {'one': 'a series of one line', 'curve': 'a series split by a column (its tenors)'}
+            raise ValueError(f'{self!r} has no {words[kind]} to draw')
+        return picked
+
+    def scatter(self, x: str | None = None, y: str | None = None, *, start: str | None = None, end: str | None = None) -> Any:
+        """Series ``y`` against series ``x`` over the dates ``start`` to ``end`` (neither, the tile's range), a point a
+        date both have shown -- the screen's Scatter (timeseries-query.ts scatterQuery): a pandas DataFrame indexed by
+        date, oldest first, its columns ``x`` and ``y`` named as the screen's axes are (a series' name, else its
+        expression); and in its ``attrs['regression']`` y's
+        ordinary least squares on x over those dates -- ``slope``, ``intercept``, ``r2``, ``corr`` and ``n`` -- every
+        figure the database's (none of the fit where x does not vary, or under two dates). Neither ``x`` nor ``y``: the
+        two the screen's draws (the view's ``of``, else the tile's first two series of one line)."""
+        import pandas as pd
+        if x is None or y is None:
+            pair = self._tables()['views'].get('scatter')
+            if pair is None and (x is None or y is None):
+                raise ValueError(f'{self!r} has no two series of one line to draw one against the other')
+            x, y = x or pair[0], y or pair[1]
+        rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': x, 'with': y, 'window': self._window(start, end), 'table': 'scatter'})
+        named = said['columns']
+        xs, ys = said['name'], said['withName']
+        out = pd.DataFrame({xs: rows[named['x']].tolist(), ys: rows[named['y']].tolist()},
+                           index=pd.Index(rows[named['date']].tolist(), name='date'))
+        first = (lambda c: None if len(rows) == 0 or pd.isna(rows[named[c]].iloc[0]) else float(rows[named[c]].iloc[0]))
+        out.attrs['regression'] = {k: first(k) for k in ('slope', 'intercept', 'r2', 'corr')}
+        out.attrs['regression']['n'] = 0 if len(rows) == 0 else int(rows[named['n']].iloc[0])
+        return out
+
+    def seasonality(self, series: str | None = None, *, years: int | None = None) -> Any:
+        """Series ``series``' last ``years`` years before its latest (None: the view's, else 5) and its latest, each
+        along its calendar -- the screen's Seasonality (timeseries-query.ts seasonalityQuery): a pandas DataFrame, a row
+        per date, its ``year``, its ``place`` in the year by the tile's frequency (a day of the year; a week, month or
+        quarter number) and its ``value``; and at its place the ``low``, ``high`` and ``mean`` of the years before the
+        latest -- every figure the database's. The tile's compare takes each year from its own start (rebase 100, or its
+        % change). ``df.pivot(index='place', columns='year', values='value')`` lays the years side by side."""
+        import pandas as pd
+        one = self._view_of('one', series)
+        rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': one, 'table': 'seasonality',
+                                 **({'years': years} if years is not None else {})})
+        named = said['columns']
+        keep = ['date', 'year', 'place', 'value', 'low', 'high', 'mean']
+        out = pd.DataFrame({k: rows[named[k]].tolist() for k in keep})
+        for k in ('year', 'place'):
+            out[k] = out[k].astype('int64')
+        out.attrs['latest'] = None if len(rows) == 0 else int(rows[named['latest']].iloc[0])
+        return out
+
+    def histogram(self, series: str | None = None, *, bins: int | None = None, start: str | None = None, end: str | None = None) -> Any:
+        """Series ``series``' values over the dates ``start`` to ``end`` (neither, the tile's range) in ``bins`` bins of
+        one width from their least to their most (None: the view's, else 30) -- the screen's Histogram
+        (timeseries-query.ts histogramQuery): a pandas DataFrame, a row per bin a value fell in, its ``low``, ``middle``
+        and ``high`` edges, its ``count``, and ``normal``: the count a normal of the values' mean and sample deviation
+        would give it; and in its ``attrs`` the values' ``p5`` (5th percentile), ``mean``, ``sd`` and ``n`` -- every
+        figure the database's."""
+        import pandas as pd
+        one = self._view_of('one', series)
+        rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': one, 'window': self._window(start, end), 'table': 'histogram',
+                                 **({'bins': bins} if bins is not None else {})})
+        named = said['columns']
+        out = pd.DataFrame({k: rows[named[k]].tolist() for k in ('low', 'middle', 'high', 'count', 'normal')})
+        out['count'] = out['count'].astype('int64')
+        first = (lambda c: None if len(rows) == 0 or pd.isna(rows[named[c]].iloc[0]) else float(rows[named[c]].iloc[0]))
+        out.attrs.update({k: first(k) for k in ('p5', 'mean', 'sd')})
+        out.attrs['n'] = 0 if len(rows) == 0 else int(rows[named['n']].iloc[0])
+        return out
+
+    def curve(self, series: str | None = None, *, dates: list[str] | None = None) -> Any:
+        """Split series ``series``' lines across its key -- its tenors -- as of each of ``dates`` (None: the view's, else
+        ``['latest', '1m', '1y']``: the latest date any line has, a period back from it, or a day) -- the screen's Curve
+        (timeseries-query.ts curveQuery): a pandas DataFrame, a row per line in the screen's order (tenors by their span,
+        3M before 2Y: headless timeseriesCurveOrder), a column per date asked, each its line's last value at or before
+        it -- the database's; and in its ``attrs['dates']`` each date asked as the database found it."""
+        import pandas as pd
+        one = self._view_of('curve', series)
+        rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': one, 'table': 'curve',
+                                 **({'dates': list(dates)} if dates is not None else {})})
+        named = said['columns']
+        keys = [str(k) for k in rows[named['split']].tolist()]
+        order = _json.loads(self._page._session.headless().call('timeseriesCurveOrder', _json.dumps(keys)))
+        if 'problems' in order:
+            raise ValueError('; '.join(order['problems']))
+        at = order['order']
+        out = pd.DataFrame({d['told']: [rows[d['value']].iloc[i] for i in at] for d in named['dates']},
+                           index=pd.Index([keys[i] for i in at], name=said['split']))
+        out.attrs['dates'] = {d['told']: (None if len(rows) == 0 or pd.isna(rows[d['asked']].iloc[0]) else str(rows[d['asked']].iloc[0])[:10])
+                              for d in named['dates']}
+        return out
+
+    def calendar(self, series: str | None = None) -> Any:
+        """Level series ``series``' return each month and each year over every date it has (None: the screen's
+        Calendar tab's first level) -- the fund sheet's table (timeseries-query.ts calendarQuery): a pandas DataFrame, a
+        row per year (latest first, as the screen lists them; a split's lines each apart, a level of the index ``line``),
+        a column per month (``Jan`` ... ``Dec``) and the ``Year``'s -- each a simple return, the month before's last level
+        to its own (the year before's to its own), the database's; none where there is no level before it."""
+        import pandas as pd
+        if series is None:
+            levels = self._tables()['views']['calendar']
+            if not levels:
+                raise ValueError(f'{self!r} has no level: a return, a difference or a deviation has no calendar of returns')
+            series = levels[0]
+        rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': series, 'table': 'calendar'})
+        named = said['columns']
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        split = said['split'] is not None and named['split'] in rows.columns
+        table: dict[tuple[Any, int], dict[str, Any]] = {}
+        for _, r in rows.iterrows():
+            key = (r[named['split']] if split else None, int(r[named['year']]))
+            row = table.setdefault(key, {m: None for m in months} | {'Year': None})
+            value = (lambda c: None if pd.isna(r[c]) else float(r[c]))
+            row[months[int(r[named['month']]) - 1]] = value(named['return'])
+            row['Year'] = value(named['yearReturn'])
+        keys = sorted(table, key=lambda k: (str(k[0]), -k[1]))
+        index = pd.MultiIndex.from_tuples(keys, names=['line', 'year']) if split else pd.Index([k[1] for k in keys], name='year')
+        return pd.DataFrame([table[k] for k in keys], index=index, columns=[*months, 'Year'])
+
     def swap(self, instrument: str, to: str, *, source: str | None = None) -> Timeseries:
         """Instrument ``instrument`` read as ``to`` in every series that reads it (``close[SPX]``: a match on its source's
         instrument column) -- of source ``source`` alone when given -- a name that says it saying the other: the screen's

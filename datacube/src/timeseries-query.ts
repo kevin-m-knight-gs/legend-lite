@@ -29,12 +29,13 @@ import { filterNode, literalNode, sourceWithDerived } from './query.ts';
 import { columnType, CubeRefusal, type CubeSnapshot, type FilterNode } from './snapshot.ts';
 import { WINDOW_ALL_PREFIX } from './grid/columns.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
+import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { isDay, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import {
   filterRead,
   MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, tenorOf, TS_POINT_LIMIT, TS_RANGES, type TimeseriesSpec, type TsAggregate,
   type TsAlign, type TsExpr, type TsMatch, type TsOperator, type TsRange, type TsRangeWord, type TsSeries, type TsSource, type TsTenor,
-  isConditionOp,
+  isConditionOp, TS_CURVE_DATES, TS_HIST_BINS, TS_SEASON_YEARS,
 } from './timeseries-spec.ts';
 import { inlined, isBand, isCandles, isCondition, levelOf, TsInlineError, paramOf, seriesName, sourceAlias, sourcesOf, splitName, unitOf, type TsUnit } from './timeseries-expr.ts';
 import type { TimeGrain } from './chart-spec.ts';
@@ -1756,11 +1757,12 @@ export function periodType(ts: TimeseriesSpec, input: TsInput, src: TsSource): s
  * function reads them together -- and a split's first MAX_SPLIT_LINES lines. `anchor`: the first date shown, where an
  * index starts.
  */
-function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, anchor: string | undefined): Built {
+function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, anchor: string | undefined, names: { n: number } = { n: 0 }): Built {
   const expr = candled(inlined(series.expr, ts.series));
   const read = sourcesOf(ts, expr);
   if (read.length === 0) throw new CubeRefusal(`series ${series.id} reads no column of a grid`);
-  const sh: Shared = { ts, grain: ts.grain, series, inputs, split: series.split, first: read[0]!, anchor, periodType: undefined, names: { n: 0 } };
+  // `names`: a query of two series' relations names their columns apart (a scatter's)
+  const sh: Shared = { ts, grain: ts.grain, series, inputs, split: series.split, first: read[0]!, anchor, periodType: undefined, names };
   const top = write(sh, expr);
   if ('constant' in top) throw new CubeRefusal(`series ${series.id} reads no column of a grid`);
   const w = top.w;
@@ -2135,8 +2137,355 @@ export function correlationsQuery(inputs: TsInputs, ts: TimeseriesSpec, a: TsSer
   return { series: a.id, query: rel.lambda(), unit: 'number', band: false, level: false, counted: false, sources };
 }
 
-/** The tables of a tile's series (the statistics panel's tabs, and Python's Timeseries tables). */
-export type TsTable = 'statistics' | 'drawdowns' | 'correlations';
+// -- the views of a tile (the next phases' 3, 2026-10-26: a scatter, seasonality, a histogram, a curve, the calendar):
+// each a query of its series' relations, every figure the database's --
+
+/** The tile without its compare: a view that takes its own starts (a seasonality's years) or none (a calendar). */
+function uncompared(ts: TimeseriesSpec): TimeseriesSpec {
+  if (ts.view?.compare === undefined) return ts;
+  const { compare: _taken, ...view } = ts.view;
+  return { ...ts, view };
+}
+
+/** A window over every row of `rel` by a key every row has (`k`, a constant): the views' figures of the whole. */
+const overAll = (k: string): AppliedFunction => fn('over', { _type: 'classInstance', type: 'colSpecArray', value: { colSpecs: [{ name: k }] } },
+  collection([asc(PERIOD)]), fn('rows', fn('unbounded'), fn('unbounded')));
+
+/** A series a view draws, as it is read: one line (a view of a split series' lines is a curve's), no band, no candles,
+ *  no condition -- refused in words, by the view's name. */
+function viewLine(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries, what: string, names: { n: number }, anchor?: string): Built {
+  const expr = inlined(s.expr, ts.series);
+  if (isBand(expr) || isCandles(expr) || isCondition(expr)) throw new CubeRefusal(`a ${what} draws a series' values: series ${s.id} is a band, candles or a condition`);
+  if (s.split !== undefined) throw new CubeRefusal(`a ${what} is of one line: series ${s.id} is a line per ${s.split} -- read one ${s.split} (close[SPX])`);
+  return seriesRelation(inputs, ts, s, anchor, names);
+}
+
+/** The columns a scatter answers with, a row per date both series have shown (its date, x and y), and on every row the
+ *  regression of y on x over them: its slope, its intercept, R², the correlation, how many dates, and the fit at the
+ *  least and the most x (the line drawn). */
+export const TS_SC_X = '__ts_sc_x';
+export const TS_SC_Y = '__ts_sc_y';
+export const TS_SC_SLOPE = '__ts_sc_slope';
+export const TS_SC_INTERCEPT = '__ts_sc_intercept';
+export const TS_SC_R2 = '__ts_sc_r2';
+export const TS_SC_CORR = '__ts_sc_corr';
+export const TS_SC_N = '__ts_sc_n';
+export const TS_SC_X_LOW = '__ts_sc_x_low';
+export const TS_SC_X_HIGH = '__ts_sc_x_high';
+export const TS_SC_FIT_LOW = '__ts_sc_fit_low';
+export const TS_SC_FIT_HIGH = '__ts_sc_fit_high';
+
+/**
+ * A SCATTER OF TWO SERIES (Bloomberg's HRA, Macrobond's scatter): a point a date both have shown, y against x, each as
+ * the series draws it -- and y's regression on x over those dates, ordinary least squares (the slope their sample
+ * covariance over x's variance; the intercept through their means), its R² the correlation squared -- the database's.
+ * None of the regression where x does not vary, or under two dates.
+ */
+export function scatterQuery(inputs: TsInputs, ts: TimeseriesSpec, x: TsSeries, y: TsSeries, view: TsWindow = {}): TsQuery {
+  const names = { n: 0 };
+  const X = viewLine(inputs, ts, x, 'scatter', names, view.from);
+  const Y = viewLine(inputs, ts, y, 'scatter', names, view.from);
+  if (X.periodType !== Y.periodType) throw new CubeRefusal(`series ${x.id} and ${y.id} are of dates of two types: give the tile a frequency (Daily) to read both by day`);
+  onlyShown(X, view);
+  onlyShown(Y, view);
+  const fresh = (what: string): string => `__ts_sc_${what}_${names.n++}`;
+  const yp = fresh('p');
+  const left = X.writer.rel.select([PERIOD, X.at, X.value]).rename(X.at, TS_DATE).rename(X.value, TS_SC_X);
+  const right = Y.writer.rel.select([PERIOD, Y.value]).rename(PERIOD, yp).rename(Y.value, TS_SC_Y);
+  const k = fresh('k');
+  let rel = left.join(right, 'INNER', lambda(['l', 'r'], fn('equal', property(variable('l'), PERIOD), property(variable('r'), yp))))
+    .extend([derive(k, row(lit.integer(1)))]);
+  const R = Writer.read;
+  const all = (what: string, reduce: string, read: ValueSpecification): string => {
+    const name = fresh(what);
+    rel = rel.extend([agg(name, lambda(['p', 'w', 'r'], read), lambda(['y'], fn(reduce, variable('y'))))], overAll(k));
+    return name;
+  };
+  const pair = fn('rowMapper', R(TS_SC_Y), R(TS_SC_X));
+  const n = all('n', 'count', R(TS_SC_X));
+  const cov = all('cov', 'covarSample', pair);
+  const varX = all('vx', 'varianceSample', R(TS_SC_X));
+  const varY = all('vy', 'varianceSample', R(TS_SC_Y));
+  const mx = all('mx', 'average', R(TS_SC_X));
+  const my = all('my', 'average', R(TS_SC_Y));
+  const lo = all('lo', 'min', R(TS_SC_X));
+  const hi = all('hi', 'max', R(TS_SC_X));
+  const flat = or(fn('lessThan', one(n), lit.integer(2)), fn('isEmpty', col(varX)), fn('equal', one(varX), lit.integer(0)));
+  rel = rel.extend([
+    derive(TS_SC_N, row(col(n))),
+    derive(TS_SC_SLOPE, row(when(flat, none(), fn('divide', one(cov), one(varX))))),
+    derive(TS_SC_X_LOW, row(col(lo))),
+    derive(TS_SC_X_HIGH, row(col(hi))),
+  ]).extend([derive(TS_SC_INTERCEPT, row(when(fn('isEmpty', col(TS_SC_SLOPE)), none(), op('minus', one(my), op('times', one(TS_SC_SLOPE), one(mx))))))])
+    .extend([
+      derive(TS_SC_CORR, row(when(or(flat, fn('isEmpty', col(varY)), fn('equal', one(varY), lit.integer(0))), none(),
+        fn('divide', one(cov), fn('sqrt', op('times', one(varX), one(varY))))))),
+      derive(TS_SC_FIT_LOW, row(when(fn('isEmpty', col(TS_SC_SLOPE)), none(), op('plus', one(TS_SC_INTERCEPT), op('times', one(TS_SC_SLOPE), one(TS_SC_X_LOW)))))),
+      derive(TS_SC_FIT_HIGH, row(when(fn('isEmpty', col(TS_SC_SLOPE)), none(), op('plus', one(TS_SC_INTERCEPT), op('times', one(TS_SC_SLOPE), one(TS_SC_X_HIGH)))))),
+    ])
+    .extend([derive(TS_SC_R2, row(when(fn('isEmpty', col(TS_SC_CORR)), none(), op('times', one(TS_SC_CORR), one(TS_SC_CORR)))))]);
+  rel = rel.select([TS_DATE, TS_SC_X, TS_SC_Y, TS_SC_N, TS_SC_SLOPE, TS_SC_INTERCEPT, TS_SC_CORR, TS_SC_R2, TS_SC_X_LOW, TS_SC_X_HIGH, TS_SC_FIT_LOW, TS_SC_FIT_HIGH])
+    .sort([asc(TS_DATE)]);
+  return { series: y.id, query: rel.lambda(), unit: Y.unit, band: false, level: false, counted: false, sources: [...new Set([...X.sources, ...Y.sources])] };
+}
+
+/** The columns a seasonality answers with, a row per date of its last years: the date's year, its place in the year (a
+ *  day of the year, a week, a month or a quarter by the tile's frequency), its value; and, at its place, the least, the
+ *  most and the mean of the years before the latest -- with the latest year itself. */
+export const TS_SEA_YEAR = '__ts_sea_year';
+export const TS_SEA_PLACE = '__ts_sea_place';
+export const TS_SEA_LOW = '__ts_sea_low';
+export const TS_SEA_HIGH = '__ts_sea_high';
+export const TS_SEA_MEAN = '__ts_sea_mean';
+export const TS_SEA_LATEST = '__ts_sea_latest';
+/** The years before's range at the place, its most less its least: what the drawing shades over its least. */
+export const TS_SEA_SPAN = '__ts_sea_span';
+
+/**
+ * SEASONALITY (the commodities desk's chart, Bloomberg's SEAG): each of the last `years` years and the latest along its
+ * calendar -- its place in the year by the tile's frequency -- and at each place the least, the most and the mean of the
+ * years before the latest: the range the latest is read against. Compare (the view's) takes each year from its own start
+ * (rebase 100, or its % change): the periods overlaid from their starts. The dates shown are its years', not the range's.
+ */
+export function seasonalityQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries, years = ts.view?.years ?? TS_SEASON_YEARS): TsQuery {
+  if (ts.grain === 'year') throw new CubeRefusal('a seasonality is of the places in a year: at a yearly frequency a year has one -- read it monthly, weekly or daily');
+  const compare = ts.view?.compare;
+  // the series as it is, each year taken from its own start below -- never from the window's
+  const plain = uncompared(ts);
+  const b = viewLine(inputs, plain, s, 'seasonality', { n: 0 });
+  const w = b.writer;
+  const R = Writer.read;
+  w.rel = w.rel.filter(row(fn('isNotEmpty', col(b.value))));
+  const at = one(b.at);
+  const year = w.row('sea_y', fn('year', at));
+  const grain = ts.grain;
+  const place = w.row('sea_pl', grain === 'month' ? fn('monthNumber', at) : grain === 'quarter' ? fn('quarterNumber', at)
+    : grain === 'week' ? op('plus', fn('floor', fn('divide', op('minus', fn('dayOfYear', at), lit.integer(1)), lit.integer(7))), lit.integer(1))
+      : fn('dayOfYear', at));
+  let value = b.value;
+  if (compare !== undefined && b.level) {
+    // each year from its first value: 100 there (rebase), or its change from there over its size (percent)
+    const firstP = w.window('sea_fp', 'min', R(PERIOD), 'all', year);
+    const first = w.window('sea_fv', 'max', R(w.row('sea_f', when(fn('equal', col(PERIOD), col(firstP)), col(b.value), none()))), 'all', year);
+    const change = w.row('sea_chg', when(fn('equal', one(first), lit.integer(0)), none(), fn('divide', op('minus', one(b.value), one(first)), fn('abs', one(first)))));
+    value = compare === 'rebase' ? w.row('sea_cmp', op('times', op('plus', lit.integer(1), one(change)), lit.integer(100))) : change;
+  }
+  const latest = w.window('sea_l', 'max', R(year), 'all');
+  // its last years: a window's figure, kept by the database's QUALIFY (after the windows above)
+  w.rel = w.rel.filter(row(fn('greaterThanEqual', one(year), op('minus', one(latest), lit.integer(years)))));
+  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
+  const pk = w.fresh('sea_pk');
+  const before = w.rel.filter(row(fn('lessThan', one(year), one(latest))))
+    .groupBy([place], [agg(TS_SEA_LOW, row(col(value)), y('min')), agg(TS_SEA_HIGH, row(col(value)), y('max')), agg(TS_SEA_MEAN, row(col(value)), y('average'))])
+    .rename(place, pk);
+  const rel = w.rel.join(before, 'LEFT', lambda(['l', 'r'], fn('equal', property(variable('l'), place), property(variable('r'), pk))))
+    .extend([derive(TS_DATE, row(col(b.at))), derive(TS_VALUE, row(col(value))), derive(TS_SEA_YEAR, row(col(year))), derive(TS_SEA_PLACE, row(col(place))),
+      derive(TS_SEA_LATEST, row(col(latest))), derive(TS_SEA_SPAN, row(op('minus', one(TS_SEA_HIGH), one(TS_SEA_LOW))))])
+    .select([TS_DATE, TS_SEA_YEAR, TS_SEA_PLACE, TS_VALUE, TS_SEA_LOW, TS_SEA_HIGH, TS_SEA_SPAN, TS_SEA_MEAN, TS_SEA_LATEST])
+    .sort([asc(TS_SEA_YEAR), asc(TS_DATE)]);
+  const unit = compare === 'rebase' && b.level ? 'index' : compare === 'percent' && b.level ? 'ratio' : b.unit;
+  return { series: s.id, query: rel.lambda(), unit, band: false, level: b.level, counted: false, sources: b.sources };
+}
+
+/** The columns a histogram answers with, a row per bin a value fell in: its edges, how many fell in it, how many a
+ *  normal of the values' mean and deviation would put there; and on every row the values' 5th percentile, mean,
+ *  deviation and count. */
+export const TS_HIST_LOW = '__ts_hist_low';
+export const TS_HIST_HIGH = '__ts_hist_high';
+/** A bin's middle: where its bar and its normal's count are drawn. */
+export const TS_HIST_MID = '__ts_hist_mid';
+export const TS_HIST_COUNT = '__ts_hist_count';
+export const TS_HIST_NORMAL = '__ts_hist_normal';
+export const TS_HIST_P5 = '__ts_hist_p5';
+export const TS_HIST_MEAN = '__ts_hist_mean';
+export const TS_HIST_SD = '__ts_hist_sd';
+export const TS_HIST_N = '__ts_hist_n';
+
+/**
+ * A HISTOGRAM OF A SERIES' VALUES over the dates shown: `bins` of one width from its least to its most (the most in
+ * the last), each counted; beside each, the count a normal of the same mean and sample deviation would give it (n times
+ * the width times its density at the bin's middle); and the values' 5th percentile -- a return's historical value at
+ * risk, marked -- every figure the database's.
+ */
+export function histogramQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries, view: TsWindow = {}, bins = ts.view?.bins ?? TS_HIST_BINS): TsQuery {
+  const b = viewLine(inputs, ts, s, 'histogram', { n: 0 }, view.from);
+  const w = b.writer;
+  onlyShown(b, view);
+  const R = Writer.read;
+  const v = b.value;
+  const lo = w.window('h_lo', 'min', R(v), 'all');
+  const hi = w.window('h_hi', 'max', R(v), 'all');
+  const mean = w.window('h_m', 'average', R(v), 'all');
+  const sd = w.window('h_sd', 'stdDevSample', R(v), 'all');
+  const n = w.window('h_n', 'count', R(v), 'all');
+  const width = w.row('h_w', fn('divide', op('minus', one(hi), one(lo)), float(bins)));
+  const raw = w.row('h_raw', when(fn('equal', one(width), lit.integer(0)), lit.integer(0), fn('floor', fn('divide', op('minus', one(v), one(lo)), one(width)))));
+  const bin = w.row('h_bin', when(fn('greaterThanEqual', one(raw), lit.integer(bins)), lit.integer(bins - 1), col(raw)));
+  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
+  const key = w.part;
+  // the 5th percentile of the values: the database's (continuous, as pandas' quantile), one aggregate, joined back
+  const qk = w.fresh('h_qk');
+  const quantile = w.rel.groupBy([key], [agg(TS_HIST_P5, row(col(v)), lambda(['y'], fn('percentile', variable('y'), float(VAR_LEVEL), lit.boolean(true), lit.boolean(true))))])
+    .rename(key, qk);
+  const [cl, cw, cm, cs, cn] = ['h_cl', 'h_cw', 'h_cm', 'h_cs', 'h_cn'].map((x) => w.fresh(x)) as [string, string, string, string, string];
+  let rel = w.rel.groupBy([key, bin], [
+    agg(TS_HIST_COUNT, row(col(v)), y('count')),
+    agg(cl, row(col(lo)), y('max')), agg(cw, row(col(width)), y('max')), agg(cm, row(col(mean)), y('max')), agg(cs, row(col(sd)), y('max')), agg(cn, row(col(n)), y('max')),
+  ]);
+  rel = rel.join(quantile, 'LEFT', lambda(['l', 'r'], fn('equal', property(variable('l'), key), property(variable('r'), qk))));
+  const middle = op('plus', one(TS_HIST_LOW), fn('divide', one(cw), lit.integer(2)));
+  const z = fn('divide', op('minus', middle, one(cm)), one(cs));
+  rel = rel.extend([
+    derive(TS_HIST_LOW, row(op('plus', one(cl), op('times', one(bin), one(cw))))),
+    derive(TS_HIST_MEAN, row(col(cm))), derive(TS_HIST_SD, row(col(cs))), derive(TS_HIST_N, row(col(cn))),
+  ]).extend([
+    derive(TS_HIST_HIGH, row(op('plus', one(TS_HIST_LOW), one(cw)))),
+    derive(TS_HIST_MID, row(middle)),
+    // the normal's count: n * width * exp(-z² / 2) / (sd * sqrt(2 pi)); none where the values do not vary
+    derive(TS_HIST_NORMAL, row(when(or(fn('isEmpty', col(cs)), fn('equal', one(cs), lit.integer(0))), none(),
+      fn('divide', op('times', op('times', one(cn), one(cw)), fn('exp', op('times', float(-0.5), op('times', z, z)))),
+        op('times', one(cs), fn('sqrt', float(2 * Math.PI))))))),
+  ]).select([TS_HIST_LOW, TS_HIST_MID, TS_HIST_HIGH, TS_HIST_COUNT, TS_HIST_NORMAL, TS_HIST_P5, TS_HIST_MEAN, TS_HIST_SD, TS_HIST_N])
+    .sort([asc(TS_HIST_LOW)]);
+  return { series: s.id, query: rel.lambda(), unit: b.unit, band: false, level: b.level, counted: false, sources: b.sources };
+}
+
+/** The columns a curve answers with, a row per line (its split value, TS_SPLIT) and for each date asked (its place
+ *  among them, `k`): the date as the database found it (the latest date, a period back from it, a day), the line's
+ *  value as of then -- its last at or before -- and that value's own date. */
+export const curveColumns = (k: number): { readonly asked: string; readonly value: string; readonly date: string } =>
+  ({ asked: `__ts_curve_asked_${k}`, value: `__ts_curve_value_${k}`, date: `__ts_curve_date_${k}` });
+
+/**
+ * A CURVE (a yield curve, a futures strip): a split series' lines across its key -- its tenors -- as of each date asked:
+ * `latest`, the latest date any line has; a period back from it (`1m`, `1y`); a day. Each line its last value at or
+ * before the date, and the date it is of: one aggregate a line, every date asked beside the others -- the database's.
+ */
+export function curveQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries, dates: readonly string[] = ts.view?.dates ?? TS_CURVE_DATES): TsQuery {
+  if (s.split === undefined) throw new CubeRefusal(`a curve is of a line per value of a column (tenors): series ${s.id} is one line -- split it`);
+  const expr = inlined(s.expr, ts.series);
+  if (isBand(expr) || isCandles(expr) || isCondition(expr)) throw new CubeRefusal(`a curve draws a series' values: series ${s.id} is a band, candles or a condition`);
+  const b = seriesRelation(inputs, ts, s, undefined);
+  const w = b.writer;
+  const split = b.split!;
+  w.rel = w.rel.filter(row(fn('isNotEmpty', col(b.value))));
+  const k = w.fresh('cv_k');
+  const latest = w.fresh('cv_latest');
+  w.rel = w.rel.extend([derive(k, row(lit.integer(1)))])
+    .extend([agg(latest, lambda(['p', 'w', 'r'], Writer.read(b.at)), lambda(['y'], fn('max', variable('y'))))], overAll(k));
+  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
+  const aggs = dates.flatMap((d, i) => {
+    const t = tenorOf(d);
+    const target = w.row('cv_t', d === 'latest' ? col(latest) : t !== undefined ? back(one(latest), t) : dateLiteral(d, b.periodType));
+    const before = fn('lessThanEqual', one(b.at), one(target));
+    const c = curveColumns(i);
+    // each line's last value at or before it: the latest by its number in time (ORD: a maxBy's key is a number)
+    return [
+      agg(c.asked, row(col(target)), y('max')),
+      agg(c.date, row(when(before, col(b.at), none())), y('max')),
+      agg(c.value, row(fn('rowMapper', col(b.value), when(before, col(ORD), none()))), y('maxBy')),
+    ];
+  });
+  const rel = w.rel.groupBy([split], aggs).extend([derive(TS_SPLIT, row(col(split)))])
+    .select([TS_SPLIT, ...dates.flatMap((_, i) => { const c = curveColumns(i); return [c.asked, c.value, c.date]; })])
+    .sort([asc(TS_SPLIT)]);
+  return { series: s.id, query: rel.lambda(), unit: b.unit, band: false, level: b.level, split, counted: false, sources: b.sources };
+}
+
+/** A tenor as a curve's key spells it (`3M`, `10Y`, `1W`): its span in days, to order by (never drawn). */
+const KEY_TENOR = /^(\d+(?:\.\d+)?)\s*([DWMY])$/i;
+const TENOR_DAYS: Readonly<Record<string, number>> = { D: 1, W: 7, M: 30.4375, Y: 365.25 };
+
+/**
+ * A CURVE'S KEYS IN ORDER -- the one rule the screen's curve and Python's read (headless timeseriesCurveOrder): tenors
+ * (`3M`, `2Y`, `10Y`) by their span, as a yield curve is read (3M before 2Y); any other keys by their text, their numbers
+ * as numbers (2 before 10). The places of `keys`, in that order.
+ */
+export function curveOrder(keys: readonly string[]): number[] {
+  const spans = keys.map((k) => {
+    const m = KEY_TENOR.exec(k.trim());
+    return m ? Number(m[1]) * TENOR_DAYS[m[2]!.toUpperCase()]! : undefined;
+  });
+  const tenors = spans.every((d) => d !== undefined);
+  return keys.map((_, i) => i).sort((a, b) => (tenors ? spans[a]! - spans[b]! : 0) || keys[a]!.localeCompare(keys[b]!, UI_LOCALE, { numeric: true }));
+}
+
+/** The columns a calendar answers with, a row per month a line has: its year, its month, its return (from the month
+ *  before's last level to its own), and its year's (from the year before's last to its own). */
+export const TS_CAL_YEAR = '__ts_cal_year';
+export const TS_CAL_MONTH = '__ts_cal_month';
+export const TS_CAL_RETURN = '__ts_cal_return';
+export const TS_CAL_YEAR_RETURN = '__ts_cal_year_return';
+
+/**
+ * A LEVEL'S CALENDAR OF RETURNS (the monthly returns table every fund sheet has): each month's simple return, from the
+ * month before's last level to its own last, and each year's, from the year before's last to its own -- the first month
+ * and the first year none (no level before them). Of every date the line has, each line apart -- the database's.
+ */
+export function calendarQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries): TsQuery {
+  const expr = inlined(s.expr, ts.series);
+  if (isBand(expr) || isCandles(expr) || isCondition(expr)) throw new CubeRefusal(`a calendar of returns is of a level: series ${s.id} is a band, candles or a condition`);
+  const b = seriesRelation(inputs, uncompared(ts), s, undefined);
+  if (!b.level) throw new CubeRefusal(`series ${s.id} is no level: a return, a difference or a deviation has no calendar of returns`);
+  const w = b.writer;
+  const key = b.split ?? w.part;
+  w.rel = w.rel.filter(row(fn('isNotEmpty', col(b.value))));
+  const yearOf = w.row('cal_y', fn('year', one(b.at)));
+  const monthOf = w.row('cal_m', fn('monthNumber', one(b.at)));
+  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
+  const last = w.fresh('cal_last');
+  // each month's last level: the latest by its number in time (ORD: a maxBy's key is a number)
+  const months = w.rel.groupBy([key, yearOf, monthOf], [agg(last, row(fn('rowMapper', col(b.value), col(ORD))), y('maxBy'))]);
+  const lagged = (rel: Relation, of: string, order: readonly string[], name: string): Relation =>
+    rel.extend([derive(name, lambda(['p', 'w', 'r'], property(fn('lag', variable('p'), variable('r')), of)))],
+      fn('over', { _type: 'classInstance', type: 'colSpecArray', value: { colSpecs: [{ name: key }] } }, collection(order.map((c) => asc(c)))));
+  const prev = w.fresh('cal_prev');
+  const ret = (now: string, before: string): ValueSpecification =>
+    when(or(fn('isEmpty', col(before)), fn('lessThanEqual', one(before), lit.integer(0))), none(), op('minus', fn('divide', one(now), one(before)), lit.integer(1)));
+  const monthly = lagged(months, last, [yearOf, monthOf], prev).extend([derive(TS_CAL_RETURN, row(ret(last, prev)))]);
+  // each year's last level: its last month's, the year before's lagged
+  const yl = w.fresh('cal_yl');
+  const yp = w.fresh('cal_yp');
+  const [yk, yy] = [w.fresh('cal_yk'), w.fresh('cal_yy')];
+  const yearly = lagged(months.groupBy([key, yearOf], [agg(yl, row(fn('rowMapper', col(last), op('plus', op('times', one(yearOf), lit.integer(100)), one(monthOf)))), y('maxBy'))]),
+    yl, [yearOf], yp).extend([derive(TS_CAL_YEAR_RETURN, row(ret(yl, yp)))]).select([key, yearOf, TS_CAL_YEAR_RETURN]).rename(key, yk).rename(yearOf, yy);
+  let rel = monthly.join(yearly, 'LEFT', lambda(['l', 'r'], and(fn('equal', property(variable('l'), key), property(variable('r'), yk)),
+    fn('equal', property(variable('l'), yearOf), property(variable('r'), yy)))))
+    .extend([derive(TS_CAL_YEAR, row(col(yearOf))), derive(TS_CAL_MONTH, row(col(monthOf)))]);
+  if (b.split !== undefined) rel = rel.extend([derive(TS_SPLIT, row(col(b.split)))]);
+  rel = rel.select([...(b.split !== undefined ? [TS_SPLIT] : []), TS_CAL_YEAR, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR_RETURN])
+    .sort([...(b.split !== undefined ? [asc(TS_SPLIT)] : []), asc(TS_CAL_YEAR), asc(TS_CAL_MONTH)]);
+  return { series: s.id, query: rel.lambda(), unit: 'ratio', band: false, level: false, counted: false, sources: b.sources, ...(b.split !== undefined ? { split: b.split } : {}) };
+}
+
+/**
+ * THE SERIES EACH VIEW DRAWS -- the one rule the screen and Python's views read: the view's `of`, else the tile's first
+ * it can draw -- a scatter two series of one line (x then y), a seasonality and a histogram one, a curve a split series;
+ * the calendar every level's but candles'. None where the tile has none to draw: said by the view.
+ */
+export function viewSeries(ts: TimeseriesSpec): {
+  readonly scatter?: readonly [string, string]; readonly one?: string; readonly curve?: string; readonly calendar: readonly string[];
+} {
+  const tables = tableSeries(ts);
+  const drawable = tables.statistics.filter((id) => {
+    const s = ts.series.find((x) => x.id === id)!;
+    return !isCandles(inlined(s.expr, ts.series));
+  });
+  const oneLine = drawable.filter((id) => ts.series.find((x) => x.id === id)!.split === undefined);
+  const split = drawable.filter((id) => ts.series.find((x) => x.id === id)!.split !== undefined);
+  const of = ts.view?.of;
+  const pairOf = of !== undefined && of.length === 2 ? [of[0]!, of[1]!] as const : oneLine.length >= 2 ? [oneLine[0]!, oneLine[1]!] as const : undefined;
+  const oneOf = of?.[0] ?? oneLine[0];
+  const curveOf = of?.[0] ?? split[0];
+  return {
+    ...(pairOf !== undefined ? { scatter: pairOf } : {}), ...(oneOf !== undefined ? { one: oneOf } : {}), ...(curveOf !== undefined ? { curve: curveOf } : {}),
+    // every level's but a candle's (its four prices no one level)
+    calendar: tables.drawdowns.filter((id) => drawable.includes(id)),
+  };
+}
+
+/** The tables of a tile's series (the statistics panel's tabs, and Python's Timeseries tables), and its views'. */
+export type TsTable = 'statistics' | 'drawdowns' | 'correlations' | 'scatter' | 'seasonality' | 'histogram' | 'curve' | 'calendar';
 
 /**
  * THE SERIES EACH OF A TILE'S TABLES READS -- the one rule the screen's tabs and Python's tables read: the statistics,

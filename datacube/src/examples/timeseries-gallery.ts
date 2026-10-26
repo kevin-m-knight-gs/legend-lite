@@ -562,8 +562,41 @@ const WAYS: GallerySheet = {
   ]],
 };
 
-/** Every sheet of functions, in the catalog's order of families, then the ways to view. */
-export const TIMESERIES_GALLERY: readonly GallerySheet[] = [RETURNS, LEVEL, ROLLING, RISK, RELATIONSHIPS, TECHNICALS, MATH, DATES, WAYS];
+/** The other views (the next phases' 3, 2026-10-26): a tile's series drawn otherwise than along time -- one against
+ *  another, each year against the years before, its values' distribution, a curve across a split's key -- every
+ *  figure the database's. Every level's Calendar tab beside them. */
+const VIEWS: GallerySheet = {
+  name: 'Other views',
+  rows: [[
+    tile('view-scatter', 'A scatter: the Nasdaq\'s daily return against the S&P 500\'s, a year of them, and their regression', {
+      sources: ON_PRICES,
+      series: [s('A', 'returns(close[SPX])', { name: 'S&P 500' }), s('B', 'returns(close[NDX])', { name: 'Nasdaq 100' })],
+      range: { last: '1y' },
+      view: { mode: 'scatter', stats: true },
+    }),
+    tile('view-seasonality', 'Seasonality: each year of the S&P 500 week by week from its own start, against the four before', {
+      sources: ON_PRICES,
+      grain: 'week',
+      series: [s('A', 'close[SPX]', { name: 'S&P 500' })],
+      view: { mode: 'seasonality', compare: 'rebase', years: 4 },
+    }),
+  ], [
+    tile('view-histogram', 'A histogram: the S&P 500\'s daily returns over three years, a normal beside them, the 5% marked', {
+      sources: ON_PRICES,
+      series: [s('A', 'returns(close[SPX])', { name: 'Daily return' })],
+      range: { last: '3y' },
+      view: { mode: 'histogram', bins: 40 },
+    }),
+    tile('view-curve', 'A curve: the Treasury curve now, a year ago and two years ago', {
+      sources: [RATES],
+      series: [s('A', 'yield', { name: 'Yield', split: 'tenor' })],
+      view: { mode: 'curve', dates: ['latest', '1y', '2y'] },
+    }),
+  ]],
+};
+
+/** Every sheet of functions, in the catalog's order of families, then the ways to view and the other views. */
+export const TIMESERIES_GALLERY: readonly GallerySheet[] = [RETURNS, LEVEL, ROLLING, RISK, RELATIONSHIPS, TECHNICALS, MATH, DATES, WAYS, VIEWS];
 
 /** A sheet's rows as bands that fit its window: each row an equal share of the height, its tiles of the width. */
 function bandsOf(rows: GallerySheet['rows']): Band[] {

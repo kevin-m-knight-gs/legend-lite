@@ -40,6 +40,11 @@ describe('a timeseries tile changed by its one rule', () => {
     refused(() => editTimeseries(SPEC, { kind: 'unplot', id: 'A' }), /series B reads \$A: take it off first/);
     assert.deepEqual(editTimeseries(SPEC, { kind: 'unplot', id: 'B' }).series.map((s) => s.id), ['A', 'C']);
     refused(() => editTimeseries(SPEC, { kind: 'unplot', id: 'Z' }), /there is no series Z/);
+    // a view that read it reads the tile's first it can draw instead (the next phases' 3): its own of without it, the
+    // view's other settings kept; a view of it alone, its of gone
+    const viewing = { ...SPEC, view: { mode: 'scatter' as const, of: ['B', 'C'], bins: 20 } };
+    assert.deepEqual(editTimeseries(viewing, { kind: 'unplot', id: 'B' }).view, { mode: 'scatter', of: ['C'], bins: 20 });
+    assert.deepEqual(editTimeseries({ ...SPEC, view: { of: ['C'] } }, { kind: 'unplot', id: 'C' }).view, undefined);
   });
 
   // the review's probe: the first source let go while a column of no alias reads it re-pointed that series at the next

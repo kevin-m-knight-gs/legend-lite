@@ -21,7 +21,7 @@ import {
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides, joinTogether } from './join.ts';
 import {
-  timeseriesEdit, timeseriesMade, timeseriesNotes, timeseriesQuery, timeseriesStatNotes, timeseriesTables, timeseriesWindow,
+  timeseriesCurveOrder, timeseriesEdit, timeseriesMade, timeseriesNotes, timeseriesQuery, timeseriesStatNotes, timeseriesTables, timeseriesWindow,
 } from './timeseries.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
@@ -162,6 +162,8 @@ export { timeseriesWindow };
 /** Why a level's statistics are blank, by the rule the screen's statistics panel says it by (timeseries-query.ts
  *  statBlanks): Python's Timeseries.statistics, said as warnings. */
 export { timeseriesStatNotes };
+/** A curve's keys in the order the screen's curve draws them (timeseries-query.ts curveOrder): Python's Timeseries.curve. */
+export { timeseriesCurveOrder };
 /** A timeseries' series of one grid, as the grid reads it (its copy, a class's mapping, the page's filters): Python's
  *  Timeseries.frame of a series of one grid (headless grid.ts gridTimeseries). */
 export { gridTimeseries } from './grid.ts';

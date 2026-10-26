@@ -12,6 +12,7 @@
 //
 // Fetched with the first timeseries tile (a chunk of its own, page/cube-page.ts); ECharts with it (timeseries-render.ts).
 
+import type { EChartsOption } from 'echarts';
 import type { Lambda, ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
@@ -21,8 +22,9 @@ import type { ChartPicture } from '../chart-render.ts';
 import type { RunOutcome } from '../runner.ts';
 import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import {
-  MAX_PANES, TS_RANGES, viewSetting, type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr,
-  type TsRangeWord, type TsSeries, type TsSource, type TsState, type TsStyleKind,
+  MAX_HIST_BINS, MAX_PANES, MAX_SEASON_YEARS, MIN_HIST_BINS, TS_CURVE_DATES, TS_HIST_BINS, TS_RANGES, TS_SEASON_YEARS, viewSetting,
+  type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsMode, type TsRangeWord, type TsSeries, type TsSource,
+  type TsState, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
   candleOf, columnRef, exprText, firstValue, functionNamed, inlined, nextSeriesId, parseExpr, seriesName,
@@ -32,8 +34,9 @@ import {
   editTimeseries, firstTimeseries as firstOf, instrumentsOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
 } from '../timeseries-edit.ts';
 import {
-  boundsQuery, correlationsQuery, drawdownsQuery, keyValuesQuery, rangeWindow, readsAnchor, seriesQuery, seriesSources, statBlanks, statName, statsQuery, tableSeries, TS_DATE,
-  TS_CORR, TS_CORR_A, TS_CORR_B, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
+  boundsQuery, calendarQuery, correlationsQuery, curveQuery, drawdownsQuery, histogramQuery, keyValuesQuery, rangeWindow, readsAnchor, scatterQuery,
+  seasonalityQuery, seriesQuery, seriesSources, statBlanks, statName, statsQuery, tableSeries, viewSeries, TS_DATE,
+  TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN, TS_CORR, TS_CORR_A, TS_CORR_B, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
   TS_SPLIT, TS_STAT_LEVEL_LOW, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
 import {
@@ -41,6 +44,7 @@ import {
   valueText, type TsFormat, type TsLine, type TsResult,
 } from '../timeseries-option.ts';
 import type { MountedTimeseries } from '../timeseries-render.ts';
+import { curveOption, describeView, histogramOption, scatterOption, seasonalityOption, TS_MONTH_NAMES, type TsViewContext } from '../timeseries-views.ts';
 import { lazily } from '../lazily.ts';
 import { chromeIcon, closeMark } from './tile-icons.ts';
 import { isTextEntry } from '../focus.ts';
@@ -73,6 +77,12 @@ export interface TsTogether {
 
 /** A query's answer as the viewer keeps it: its rows, and the SQL the database ran for them. */
 type Ran = TsResult & { readonly sql: string };
+
+/** A series' calendar of returns as the database answered it (timeseries-query.ts calendarQuery), or its refusal. */
+type CalendarAnswer = { readonly id: string; readonly table: ResultTable } | { readonly id: string; readonly failed: string };
+
+/** A view drawn (timeseries-views.ts): its option, and its words for a reader of the screen. */
+type ViewDrawn = { readonly option: EChartsOption; readonly described: string };
 
 /** The grids opened together in one round of asking (a fetch, the window moved: its series and their statistics), by
  *  the cubes they are: each set opened once and put away when the round is done (the review's P9: opened again for
@@ -146,6 +156,17 @@ function queryKey(ts: TimeseriesSpec): string {
   return JSON.stringify({
     sources: ts.sources, grain: ts.grain ?? null, align: ts.align ?? null, compare: ts.view?.compare ?? null,
     series: ts.series.map((s) => ({ id: s.id, expr: s.expr, split: s.split ?? null })),
+  });
+}
+
+/** What a tile's view asks (the next phases' 3): its mode, its series, its settings -- and the dates shown, for the views
+ *  of them (a scatter's, a histogram's). When it changes, the view is asked again; '' along time (no view to ask). */
+function viewKey(ts: TimeseriesSpec, window: TsWindow): string {
+  const v = ts.view;
+  if (v?.mode === undefined) return '';
+  const shown = v.mode === 'scatter' || v.mode === 'histogram';
+  return JSON.stringify({
+    query: queryKey(ts), mode: v.mode, of: v.of ?? null, dates: v.dates ?? null, years: v.years ?? null, bins: v.bins ?? null, window: shown ? window : null,
   });
 }
 
@@ -226,6 +247,10 @@ const GRAINS: readonly (readonly [string, string])[] = [
   ['', 'As the rows are'], ['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly'], ['quarter', 'Quarterly'], ['year', 'Yearly'],
 ];
 const COMPARES: readonly (readonly [string, string])[] = [['', 'Levels'], ['rebase', 'Rebase to 100'], ['percent', '% change']];
+/** How a tile draws its series (timeseries-spec.ts TsMode), in words. */
+const MODES: readonly (readonly [string, string])[] = [
+  ['', 'Over time'], ['scatter', 'Scatter'], ['seasonality', 'Seasonality'], ['histogram', 'Histogram'], ['curve', 'Curve'],
+];
 const STYLES: readonly (readonly [TsStyleKind, string])[] = [['line', 'Line'], ['area', 'Area'], ['bars', 'Bars'], ['step', 'Steps'], ['dots', 'Dots']];
 const FAMILIES: readonly TsFamily[] = ['Returns', 'Level', 'Rolling statistics', 'Risk', 'Relationships', 'Technicals', 'Math', 'Dates'];
 
@@ -275,8 +300,9 @@ const STAT_TABS: readonly (readonly [StatsTab, string, string])[] = [
   ['drawdowns', 'Drawdowns', 'Each level\'s deepest drawdowns over the dates shown: from its peak, to its trough, to its recovery'],
   ['correlations', 'Correlations', 'Each pair of lines\' correlation over the dates shown: of a level\'s returns, of anything else as it is'],
   ['data', 'Data', 'Every line\'s value, date by date over the dates shown, as the database answered it -- copied as a spreadsheet pastes it'],
+  ['calendar', 'Calendar', 'A level\'s return month by month and year by year, over every date it has: the fund sheet\'s table'],
 ];
-type StatsTab = 'summary' | 'risk' | 'drawdowns' | 'correlations' | 'data';
+type StatsTab = 'summary' | 'risk' | 'drawdowns' | 'correlations' | 'data' | 'calendar';
 /** The most dates the Data tab lists (the latest): Copy takes every one. */
 const MAX_DATA_ROWS = 500;
 /** The most lines the correlations' matrix has: its first, in the legend's order. */
@@ -317,6 +343,20 @@ export class TimeseriesView {
   #correlationsFailed: string[] = [];
   #correlationsAsking = false;
   #correlationsStale = false;
+  /** The view's answer drawn (a mode's, the next phases' 3: timeseries-views.ts) and the series it is of, or what it
+   *  refused; what it was asked for (viewKey), and what its answer is of -- drawn only when they are one. */
+  #view: (Ran & { readonly of: readonly string[] }) | undefined;
+  #viewFailed: string | undefined;
+  #viewAsked = '';
+  #viewLanded = '';
+  #viewGen = 0;
+  /** The Calendar tab's line, by its key (the person's pick); and its series' calendar as the database answered it, or
+   *  its refusal -- asked when the tab is shown (lazy Work), of every date, so asked again only when the rows move. */
+  #calendarLine: string | undefined;
+  #calendar: CalendarAnswer | undefined;
+  #calendarAsking = false;
+  #calendarStale = false;
+  #calendarGen = 0;
   /** Its editor's content, in its window while one is open. */
   #pop: HTMLElement;
   /** Its editor's window, while one is open; and what lets its listeners go when it closes. */
@@ -453,8 +493,10 @@ export class TimeseriesView {
     if (queryKey(spec) !== this.#asked) void this.#fetch();
     else {
       // the drawing alone changed (a line's style, its pane, hidden; an annotation; the legend): drawn from the rows it
-      // has (D4) -- and the window moved, what reads its first date asked again, and the statistics
+      // has (D4) -- and the window moved, what reads its first date asked again, and the statistics; the view's own
+      // settings moved (its mode, its series), the view asked again alone
       void this.#draw();
+      if (!moved && viewKey(spec, this.#window()) !== this.#viewAsked) void this.#viewed();
       if (moved) void this.#windowed();
       // the statistics shown again, asked if nothing showed them when the lines were
       else if (!this.#statsAsked && (viewSetting(spec, 'stats') || viewSetting(spec, 'legend'))) void this.#statistics(this.#gen);
@@ -570,9 +612,7 @@ export class TimeseriesView {
     this.#bounds = bounds;
     this.#boundsFailed = boundsFailed;
     const window = this.#window();
-    // the series with no problem of their own (a problem of the tile's stops them all)
-    const blocked = (s: TsSeries): string | undefined =>
-      problems.find((p) => !p.startsWith('Series ')) ?? problems.find((p) => p.startsWith(`Series ${s.id} `));
+    const blocked = (s: TsSeries): string | undefined => this.#blocked(s);
     const results = new Map<string, TsResult>();
     const sqls = new Map<string, string>();
     const failed = new Map<string, string>();
@@ -594,6 +634,11 @@ export class TimeseriesView {
     this.#results = results;
     this.#sqls = sqls;
     this.#failed = failed;
+    // the rows moved: the calendar asked again when its tab is shown
+    this.#calendar = undefined;
+    this.#calendarGen++;
+    await this.#fetchView(opened);
+    if (gen !== this.#gen || this.#disposed) return;
     await this.#draw();
     await this.#statistics(gen, opened);
     // busy until its statistics are answered too: a refused one is said by then (the second audit's G notes: a browser
@@ -617,6 +662,10 @@ export class TimeseriesView {
     const window = this.#window();
     const signal = new AbortController().signal;
     const anchored = spec.series.filter((s) => this.#results.has(s.id) && readsAnchor(spec, s));
+    // a view of the dates shown asked again for the dates shown now (a scatter's, a histogram's)
+    const viewMoved = viewKey(spec, window) !== this.#viewAsked;
+    if (viewMoved) await this.#fetchView(opened);
+    if (gen !== this.#gen || this.#disposed) return;
     if (anchored.length > 0) {
       const again = await Promise.all(anchored.map(async (s) => {
         try {
@@ -633,6 +682,8 @@ export class TimeseriesView {
         this.#results.set(r[0], answer);
         this.#sqls.set(r[0], sql);
       }
+      await this.#draw();
+    } else if (viewMoved) {
       await this.#draw();
     } else {
       this.#paintLegend();
@@ -687,6 +738,123 @@ export class TimeseriesView {
     this.#paintBanner();
   }
 
+  /** A series' problem that stops it being asked (a problem of the tile's stops them all), in its words. */
+  #blocked(s: TsSeries): string | undefined {
+    const problems = this.#problems;
+    return problems.find((p) => !p.startsWith('Series ')) ?? problems.find((p) => p.startsWith(`Series ${s.id} `));
+  }
+
+  /**
+   * WHAT THE VIEW ASKS (the next phases' 3): the series it draws -- by the one rule Python's views read
+   * (timeseries-query.ts viewSeries) -- and its query, or why there is none to draw, in words.
+   */
+  #viewAsk(spec: TimeseriesSpec, window: TsWindow): { readonly of: readonly TsSeries[]; readonly make: (inputs: TsInputs) => TsQuery } | string {
+    const mode = spec.view?.mode;
+    const picked = viewSeries(spec);
+    const named = (id: string): TsSeries => {
+      const s = spec.series.find((x) => x.id === id);
+      if (!s) throw new Error(`the view reads series ${id}, which the tile has not`);
+      return s;
+    };
+    switch (mode) {
+      case undefined:
+        throw new Error('a tile drawn along time asks no view');
+      case 'scatter': {
+        if (picked.scatter === undefined) return 'A scatter is of two series of one line: plot another, or pick them in Settings.';
+        const [x, y] = [named(picked.scatter[0]), named(picked.scatter[1])];
+        return { of: [x, y], make: (inputs) => scatterQuery(inputs, spec, x, y, window) };
+      }
+      case 'seasonality':
+      case 'histogram': {
+        if (picked.one === undefined) return `A ${mode} is of a series of one line: plot one, or read one instrument of a split (close[SPX]).`;
+        const one = named(picked.one);
+        return { of: [one], make: mode === 'seasonality' ? (inputs) => seasonalityQuery(inputs, spec, one) : (inputs) => histogramQuery(inputs, spec, one, window) };
+      }
+      case 'curve': {
+        if (picked.curve === undefined) return 'A curve is of a series split by a column (its tenors): split one in its editor.';
+        const one = named(picked.curve);
+        return { of: [one], make: (inputs) => curveQuery(inputs, spec, one) };
+      }
+    }
+  }
+
+  /**
+   * THE VIEW ASKED (a mode's): its answer kept, or its refusal -- said in the banner, never drawn as nothing. Along time,
+   * none kept. `opened`: the round's grids opened together, else its own. Whether its answer is the latest asked (a
+   * later ask's lands instead).
+   */
+  async #fetchView(opened?: Opened): Promise<boolean> {
+    const spec = this.#spec;
+    const window = this.#window();
+    const key = viewKey(spec, window);
+    const gen = ++this.#viewGen;
+    this.#viewAsked = key;
+    if (key === '') {
+      this.#view = undefined;
+      this.#viewFailed = undefined;
+      this.#viewLanded = '';
+      return true;
+    }
+    let view: (Ran & { readonly of: readonly string[] }) | undefined;
+    let failed: string | undefined;
+    const own: Opened = opened ?? new Map();
+    try {
+      const ask = this.#viewAsk(spec, window);
+      if (typeof ask === 'string') failed = ask;
+      else {
+        failed = ask.of.map((s) => this.#blocked(s) ?? this.#failed.get(s.id)).find((w) => w !== undefined);
+        if (failed === undefined) {
+          const aliases = [...new Set(ask.of.flatMap((s) => seriesSources(spec, s)))];
+          view = { ...await this.#runOn(aliases, ask.make, new AbortController().signal, own), of: ask.of.map((s) => s.id) };
+        }
+      }
+    } catch (e) {
+      failed = e instanceof Error ? e.message : String(e);
+    } finally {
+      if (opened === undefined) putAway(own);
+    }
+    if (gen !== this.#viewGen || this.#disposed) return false;
+    this.#view = view;
+    this.#viewFailed = failed;
+    this.#viewLanded = key;
+    return true;
+  }
+
+  /** The view's own settings moved (its mode, its series, its years): it alone asked again, and drawn. */
+  async #viewed(): Promise<void> {
+    this.#canvas.setAttribute('aria-busy', 'true');
+    const landed = await this.#fetchView();
+    if (!landed || this.#disposed) return;
+    await this.#draw();
+    this.#canvas.removeAttribute('aria-busy');
+  }
+
+  /** The view as an ECharts option, of its answer (timeseries-views.ts), `height` tall, a picture's `title` above it; its
+   *  description for a reader of the screen. Undefined with no answer to draw. */
+  #viewOption(height: number, title?: string): ViewDrawn | undefined {
+    const spec = this.#spec;
+    const mode = spec.view?.mode;
+    const v = this.#view;
+    if (mode === undefined || v === undefined) return undefined;
+    const named = (id: string | undefined): string => {
+      const s = spec.series.find((x) => x.id === id);
+      return s ? seriesName(s) : String(id);
+    };
+    const line = this.#lines.find((l) => l.series.id === v.of[0]);
+    const format = line && line.unit === v.query.unit ? this.#formatOf(line) : undefined;
+    const ctx: TsViewContext = {
+      theme: themeOf(this.#root), height, ...(title !== undefined ? { title } : {}), format: (n) => valueText({ unit: v.query.unit }, n, format),
+    };
+    const about = v.of.map((id) => named(id)).join(' against ');
+    const described = describeView(mode, about, v.table.rowCount);
+    switch (mode) {
+      case 'scatter': return { option: scatterOption(spec, v.table, { x: named(v.of[0]), y: named(v.of[1]) }, ctx), described };
+      case 'seasonality': return { option: seasonalityOption(spec, v.table, named(v.of[0]), spec.grain, ctx), described };
+      case 'histogram': return { option: histogramOption(spec, v.table, named(v.of[0]), ctx), described };
+      case 'curve': return { option: curveOption(spec, v.table, spec.view?.dates ?? TS_CURVE_DATES, named(v.of[0]), ctx), described };
+    }
+  }
+
   // -- drawing -------------------------------------------------------------------------------------------------------
 
   /** The chart's renderer, made the first time it is needed. */
@@ -695,7 +863,10 @@ export class TimeseriesView {
     this.#mounting ??= (async () => {
       const on: MountOn = {
         onZoom: (from, to) => this.#zoomed(from, to),
-        onDate: (date) => this.#eventAt(date),
+        // a date of the time view's (a view's x is no date)
+        onDate: (date) => {
+          if (this.#spec.view?.mode === undefined) this.#eventAt(date);
+        },
         onResize: () => void this.#draw(),
       };
       let make = this.#host.mount;
@@ -746,8 +917,23 @@ export class TimeseriesView {
     }
     const chart = await this.#mount();
     if (!chart || this.#disposed) return;
+    const height = chart.height() || this.#canvas.clientHeight || 420;
+    const mode = spec.view?.mode;
+    if (mode !== undefined) {
+      // a view: drawn when its answer is of what is asked now (until then, what was drawn stays)
+      if (this.#viewLanded !== viewKey(spec, this.#window())) return;
+      let drawn: ViewDrawn | undefined;
+      try {
+        drawn = this.#viewOption(height);
+      } catch (e) {
+        this.#viewFailed = e instanceof Error ? e.message : String(e);
+        this.#paintBanner();
+      }
+      chart.show(drawn?.option ?? { series: [] }, drawn?.described ?? `No ${mode}: ${this.#viewFailed ?? 'nothing to draw'}`);
+      return;
+    }
     const option = timeseriesOption(spec, lines, {
-      theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height: chart.height() || this.#canvas.clientHeight || 420,
+      theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height,
     });
     chart.show(option, describeTimeseries(spec, lines));
   }
@@ -783,6 +969,8 @@ export class TimeseriesView {
     this.#paintRanges();
     const grain = select(doc, GRAINS, spec.grain ?? '', (v) => this.#edit({ kind: 'grain', grain: v === '' ? null : v as NonNullable<TimeseriesSpec['grain']> }), 'Frequency');
     const compare = select(doc, COMPARES, spec.view?.compare ?? '', (v) => this.#edit({ kind: 'view', view: { compare: v === '' ? null : v as 'rebase' | 'percent' } }), 'Compare');
+    // how its series are drawn: along time, or one of its other views (the next phases' 3)
+    const mode = select(doc, MODES, spec.view?.mode ?? '', (v) => this.#edit({ kind: 'view', view: { mode: v === '' ? null : v as TsMode } }), 'View');
     const log = button(doc, 'Log', 'The main pane on a log scale', () => this.#edit({ kind: 'pane', index: 0, log: !(this.#spec.panes?.[0]?.log ?? false) }));
     log.setAttribute('aria-pressed', String(spec.panes?.[0]?.log === true));
     const stats = button(doc, 'Stats', 'The statistics of every line over the dates shown', () => this.#edit({ kind: 'view', view: { stats: !viewSetting(this.#spec, 'stats') } }));
@@ -795,7 +983,7 @@ export class TimeseriesView {
     const svg = button(doc, 'SVG', 'Download the chart as SVG, its title, subtitle and note above it: a picture for a page or a deck', () => void this.#export('svg'));
     const swap = button(doc, 'Swap', 'One instrument for another in every series that reads it', () => this.#swap());
     const query = button(doc, 'Query', 'Each series\' query as the compiler prints it, and its SQL', () => void this.#showQueries());
-    this.#bar.replaceChildren(this.#ranges, el(doc, 'span', 'dc-ts-gap'), grain, compare, log, stats, add, swap, settings, query, csv, png, svg);
+    this.#bar.replaceChildren(this.#ranges, el(doc, 'span', 'dc-ts-gap'), grain, compare, mode, log, stats, add, swap, settings, query, csv, png, svg);
   }
 
   #paintRanges(): void {
@@ -821,7 +1009,7 @@ export class TimeseriesView {
     this.#host.setSpec(spec);
     this.#paintRanges();
     const w = this.#window();
-    this.#chart?.zoomTo(w.from, w.to);
+    if (spec.view?.mode === undefined) this.#chart?.zoomTo(w.from, w.to);
     void this.#windowed();
   }
 
@@ -835,7 +1023,8 @@ export class TimeseriesView {
     if (!chart || this.#disposed) return;
     const width = this.#canvas.clientWidth;
     const height = chart.height() || this.#canvas.clientHeight;
-    if (!(width > 0 && height > 0) || this.#lines.length === 0) {
+    const viewing = this.#spec.view?.mode !== undefined;
+    if (!(width > 0 && height > 0) || (viewing ? this.#view === undefined || this.#viewLanded !== viewKey(this.#spec, this.#window()) : this.#lines.length === 0)) {
       this.#say(['There is no chart drawn to make a picture of yet.'], true);
       return;
     }
@@ -843,9 +1032,15 @@ export class TimeseriesView {
     const theme = themeOf(this.#root);
     // the picture taller by its heading, its panes as tall as on the screen
     const tall = height + tsHeading(this.#spec, title);
-    const option = timeseriesOption(this.#spec, this.#lines, {
-      theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height: tall, title,
-    });
+    let option: EChartsOption;
+    try {
+      option = viewing ? this.#viewOption(tall, title)!.option : timeseriesOption(this.#spec, this.#lines, {
+        theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height: tall, title,
+      });
+    } catch (e) {
+      this.#say([`The picture could not be made: ${e instanceof Error ? e.message : String(e)}`], true);
+      return;
+    }
     let url: string;
     try {
       url = await chart.exportUrl(option, kind, width, tall, theme.surface);
@@ -945,6 +1140,18 @@ export class TimeseriesView {
         button(doc, 'Copy SQL', 'The SQL the database ran for it', () => void this.#copy(sql, `Series ${s.id}'s SQL copied.`)));
       parts.push(el(doc, 'div', 'dc-ts-field-label', 'Pure'), pure, el(doc, 'div', 'dc-ts-field-label', 'SQL'), said, copies);
     }
+    // the view's own query (a mode's): its SQL, as the database ran it
+    const mode = spec.view?.mode;
+    if (mode !== undefined) {
+      parts.push(el(doc, 'div', 'dc-ts-heading', `The ${mode}`));
+      const v = this.#view;
+      if (v === undefined) parts.push(el(doc, 'div', 'dc-ts-error', this.#viewFailed !== undefined ? `Refused: ${this.#viewFailed}` : 'Not answered yet.'));
+      else {
+        const copies = el(doc, 'div', 'dc-ts-row');
+        copies.append(button(doc, 'Copy SQL', 'The SQL the database ran for the view', () => void this.#copy(v.sql, `The ${mode}'s SQL copied.`)));
+        parts.push(el(doc, 'div', 'dc-ts-field-label', 'SQL'), el(doc, 'pre', 'dc-ts-code', v.sql), copies);
+      }
+    }
     this.#open('Queries', ...parts);
   }
 
@@ -1010,7 +1217,7 @@ export class TimeseriesView {
   }
 
   #paintBanner(): void {
-    const problems = [...this.#problems, ...this.#rangeProblems(), ...this.#statsProblems()];
+    const problems = [...this.#problems, ...this.#rangeProblems(), ...this.#statsProblems(), ...this.#viewProblems()];
     const said = [...problems, ...this.#notes];
     this.#banner.hidden = said.length === 0;
     this.#banner.replaceChildren(...said.map((t) => this.#doc.createTextNode(`${t} `)));
@@ -1023,6 +1230,13 @@ export class TimeseriesView {
     if (!r || !('last' in r) || r.last === 'max' || this.#zoom || this.#boundsFailed.size === 0) return [];
     const refused = [...this.#boundsFailed].map(([alias, why]) => `${alias}'s dates were refused (${why})`).join('; ');
     return [`The ${r.last} range is not known: ${refused}. Shown from ${this.#window().from ?? 'the first date'}.`];
+  }
+
+  /** The view's refusal, said (never drawn as nothing): its mode's, in its words. */
+  #viewProblems(): string[] {
+    const mode = this.#spec.view?.mode;
+    if (mode === undefined || this.#viewFailed === undefined || this.#viewLanded !== viewKey(this.#spec, this.#window())) return [];
+    return [`The ${mode} is not drawn: ${this.#viewFailed}`];
   }
 
   /** Each series' statistics the database refused, by its id. */
@@ -1088,7 +1302,8 @@ export class TimeseriesView {
       tabs.append(b);
     }
     const head_ = el(doc, 'div', 'dc-ts-stats-head');
-    head_.append(tabs, doc.createTextNode(`Over ${window.from ?? 'the first date'} to ${window.to ?? 'the latest'}: every figure the database's`));
+    head_.append(tabs, doc.createTextNode(this.#statsTab === 'calendar' ? 'Over every date each line has: every figure the database\'s'
+      : `Over ${window.from ?? 'the first date'} to ${window.to ?? 'the latest'}: every figure the database's`));
     if (this.#statsTab === 'drawdowns') {
       this.#stats.replaceChildren(head_, ...this.#drawdownsTable());
       return;
@@ -1099,6 +1314,10 @@ export class TimeseriesView {
     }
     if (this.#statsTab === 'data') {
       this.#stats.replaceChildren(head_, ...this.#dataTable());
+      return;
+    }
+    if (this.#statsTab === 'calendar') {
+      this.#stats.replaceChildren(head_, ...this.#calendarTable());
       return;
     }
     const table = el(doc, 'table', 'dc-ts-table');
@@ -1308,6 +1527,100 @@ export class TimeseriesView {
     const scroll = el(doc, 'div', 'dc-ts-data-scroll');
     scroll.append(table);
     return [bar, scroll];
+  }
+
+  /**
+   * THE CALENDAR TAB (the next phases' 3: the fund sheet's monthly returns): a level line's return each month and each
+   * year, a row a year (the latest first), as the database answered them (timeseries-query.ts calendarQuery) -- asked the
+   * first time the tab shows its series. Each cell tinted by its sign and size: drawn, not computed.
+   */
+  #calendarTable(): HTMLElement[] {
+    const doc = this.#doc;
+    const ids = new Set(viewSeries(this.#spec).calendar);
+    const lines = this.#lines.filter((l) => ids.has(l.series.id) && !l.series.hidden);
+    if (lines.length === 0) return [el(doc, 'div', 'dc-ts-stats-blanks', 'No line is a level: a return, a difference or a deviation has no calendar of returns.')];
+    const line = lines.find((l) => l.key === this.#calendarLine) ?? lines[0]!;
+    const pick = select(doc, lines.map((l) => [l.key, l.name] as const), line.key, (k) => {
+      this.#calendarLine = k;
+      this.#paintStats();
+    }, 'Line');
+    const bar = el(doc, 'div', 'dc-ts-row');
+    bar.append(pick);
+    const asked = this.#calendar;
+    if (asked === undefined || asked.id !== line.series.id) {
+      void this.#askCalendar(line.series);
+      return [bar, el(doc, 'div', 'dc-ts-stats-blanks', 'Asking the database for its months\' returns…')];
+    }
+    if ('failed' in asked) return [bar, el(doc, 'div', 'dc-ts-error', `Refused: ${asked.failed}`)];
+    const t = asked.table;
+    const column = (n: string): readonly unknown[] => t.columns.find((c) => c.name === n)?.values ?? [];
+    const splits = column(TS_SPLIT);
+    const years = column(TS_CAL_YEAR).map((v) => toNumber(v as Scalar));
+    const months = column(TS_CAL_MONTH).map((v) => toNumber(v as Scalar));
+    const returns = column(TS_CAL_RETURN).map((v) => toNumber(v as Scalar));
+    const yearly = column(TS_CAL_YEAR_RETURN).map((v) => toNumber(v as Scalar));
+    // its rows by year, each month's return in its place, the year's beside them
+    const byYear = new Map<number, { months: (number | null | undefined)[]; year: number | null }>();
+    years.forEach((y, i) => {
+      if (y === null || (line.split !== undefined && splits[i] !== line.split)) return;
+      const row = byYear.get(y) ?? { months: Array.from({ length: 12 }, () => undefined), year: null };
+      const m = months[i];
+      if (m !== null && m !== undefined && m >= 1 && m <= 12) row.months[m - 1] = returns[i];
+      row.year = yearly[i] ?? null;
+      byYear.set(y, row);
+    });
+    if (byYear.size === 0) return [bar, el(doc, 'div', 'dc-ts-stats-blanks', `${line.name} has no month with a level.`)];
+    const table = el(doc, 'table', 'dc-ts-table dc-ts-cal');
+    const head = el(doc, 'tr');
+    head.append(el(doc, 'th', undefined, 'Year'), ...TS_MONTH_NAMES.map((m) => el(doc, 'th', undefined, m)), el(doc, 'th', undefined, 'Year'));
+    table.append(head);
+    // a month of 10% (a year of 25%) the strongest tint
+    const cell = (v: number | null | undefined, full: number): HTMLElement => {
+      const td = el(doc, 'td', 'dc-ts-table-num', v === undefined ? '' : valueText({ unit: 'ratio' }, v));
+      if (v !== undefined && v !== null && v !== 0) {
+        td.classList.add(v > 0 ? 'dc-ts-corr-pos' : 'dc-ts-corr-neg');
+        td.style.setProperty('--dc-ts-corr', String(Math.min(1, Math.abs(v) / full)));
+      }
+      return td;
+    };
+    for (const [y, row] of [...byYear].sort((a, b) => b[0] - a[0])) {
+      const tr = el(doc, 'tr');
+      tr.append(el(doc, 'td', 'dc-ts-table-date', String(y)), ...row.months.map((v) => cell(v, 0.1)), cell(row.year, 0.25));
+      table.append(tr);
+    }
+    const said = 'A month\'s return from the month before\'s last level to its own last; a year\'s from the year before\'s last. The first of each has none (no level before it).';
+    return [bar, table, el(doc, 'div', 'dc-ts-stats-blanks', said)];
+  }
+
+  /** A level series' calendar asked of the database, once for the rows drawn, then the tab painted again. */
+  async #askCalendar(s: TsSeries): Promise<void> {
+    if (this.#calendarAsking) {
+      this.#calendarStale = true;
+      return;
+    }
+    this.#calendarAsking = true;
+    this.#calendarStale = false;
+    const gen = this.#calendarGen;
+    const spec = this.#spec;
+    const opened: Opened = new Map();
+    let answer: CalendarAnswer;
+    try {
+      answer = { id: s.id, table: (await this.#run(s, (inputs) => calendarQuery(inputs, spec, s), new AbortController().signal, opened)).table };
+    } catch (e) {
+      answer = { id: s.id, failed: e instanceof Error ? e.message : String(e) };
+    } finally {
+      putAway(opened);
+      this.#calendarAsking = false;
+    }
+    if (this.#disposed) return;
+    // asked again since (the rows moved, or another line's asked while this was in flight): asked for what is shown now
+    if (gen !== this.#calendarGen || this.#calendarStale) {
+      this.#calendarStale = false;
+      if (this.#statsTab === 'calendar') this.#paintStats();
+      return;
+    }
+    this.#calendar = answer;
+    if (this.#statsTab === 'calendar') this.#paintStats();
   }
 
   /** Each pair of series' lines' correlations asked of the database over the dates shown, once, then painted. */
@@ -1840,6 +2153,16 @@ export class TimeseriesView {
       box.addEventListener('change', () => this.#edit({ kind: 'view', view: { [key]: box.value.trim() === '' ? null : box.value.trim() } }));
       parts.push(labelled(doc, label, box));
     }
+    // how its series are drawn, and what a view reads (the next phases' 3): by the rule the view reads them by
+    // (timeseries-query.ts viewSeries) when none is picked
+    const mode = spec.view?.mode;
+    const drawn = el(doc, 'div', 'dc-ts-row');
+    drawn.append(el(doc, 'span', 'dc-ts-field-label', 'Drawn'),
+      select(doc, MODES, mode ?? '', (v) => {
+        if (this.#edit({ kind: 'view', view: { mode: v === '' ? null : v as TsMode } })) this.#editSettings();
+      }, 'Drawn'));
+    parts.push(drawn);
+    if (mode !== undefined) parts.push(...this.#viewFields(mode));
     // a range of two dates
     const r = spec.range;
     const from = el(doc, 'input', 'dc-input', undefined, { type: 'date', 'aria-label': 'From' });
@@ -1929,6 +2252,65 @@ export class TimeseriesView {
     parts.push(addRow, el(doc, 'div', 'dc-ts-hint', 'Double-click the chart to put an event at that date.'));
     this.#open('Settings', ...parts);
     this.#settings = true;
+  }
+
+  /** A view's own fields in Settings: the series it reads (a scatter's x and y), a seasonality's years, a histogram's
+   *  bins, a curve's dates -- each a change by the tile's one rule, refused in its words. */
+  #viewFields(mode: TsMode): HTMLElement[] {
+    const doc = this.#doc;
+    const spec = this.#spec;
+    const picked = viewSeries(spec);
+    const out: HTMLElement[] = [];
+    const ofLine = (s: TsSeries): boolean => s.split === undefined;
+    const choices = (want: (s: TsSeries) => boolean): (readonly [string, string])[] =>
+      spec.series.filter((s) => want(s) && tableSeries(spec).statistics.includes(s.id)).map((s) => [s.id, `${s.id}: ${seriesName(s)}`] as const);
+    const row = (label: string, ...controls: HTMLElement[]): HTMLElement => {
+      const r = el(doc, 'div', 'dc-ts-row');
+      r.append(el(doc, 'span', 'dc-ts-field-label', label), ...controls);
+      return r;
+    };
+    if (mode === 'scatter') {
+      const [x, y] = picked.scatter ?? ['', ''];
+      const one = choices(ofLine);
+      const pick = (which: 0 | 1, at: string): HTMLSelectElement => select(doc, [...(at === '' ? [['', 'Pick a series'] as const] : []), ...one], at, (v) => {
+        // the other as the tile has it now (a pick before this one kept)
+        const pair = [...(viewSeries(this.#spec).scatter ?? ['', ''])];
+        pair[which] = v;
+        if (pair[0] !== '' && pair[1] !== '') this.#edit({ kind: 'view', view: { of: pair } });
+      }, which === 0 ? 'Across (x)' : 'Up (y)');
+      out.push(row('Across (x)', pick(0, x)), row('Up (y)', pick(1, y)));
+    } else {
+      const at = mode === 'curve' ? picked.curve : picked.one;
+      const one = choices(mode === 'curve' ? (s) => !ofLine(s) : ofLine);
+      out.push(row('Series', select(doc, [...(at === undefined ? [['', 'Pick a series'] as const] : []), ...one], at ?? '', (v) => {
+        if (v !== '') this.#edit({ kind: 'view', view: { of: [v] } });
+      }, 'Series')));
+    }
+    const whole = (key: 'years' | 'bins', label: string, least: number, most: number, at: number): void => {
+      const box = el(doc, 'input', 'dc-input dc-ts-small', undefined, { type: 'number', min: String(least), max: String(most), step: '1', 'aria-label': label });
+      box.value = String(at);
+      box.addEventListener('change', () => {
+        // a number the box could not read is said, never taken for none (the Phase 2 review's 8)
+        if (box.validity.badInput) {
+          this.#say([`${label}: ${JSON.stringify(box.value)} is not a whole number.`], true);
+          return;
+        }
+        this.#edit({ kind: 'view', view: { [key]: box.value.trim() === '' ? null : Number(box.value) } });
+      });
+      out.push(row(label, box));
+    };
+    if (mode === 'seasonality') whole('years', 'Years before', 1, MAX_SEASON_YEARS, spec.view?.years ?? TS_SEASON_YEARS);
+    if (mode === 'histogram') whole('bins', 'Bins', MIN_HIST_BINS, MAX_HIST_BINS, spec.view?.bins ?? TS_HIST_BINS);
+    if (mode === 'curve') {
+      const box = el(doc, 'input', 'dc-input', undefined, { 'aria-label': 'Dates', placeholder: 'latest, 1m, 1y, 2024-03-29' });
+      box.value = (spec.view?.dates ?? TS_CURVE_DATES).join(', ');
+      box.addEventListener('change', () => {
+        const told = box.value.split(',').map((d) => d.trim()).filter((d) => d !== '');
+        this.#edit({ kind: 'view', view: { dates: told.length === 0 ? null : told } });
+      });
+      out.push(row('Dates', box), el(doc, 'div', 'dc-ts-hint', 'Each line as of each date: latest, a period back from it (1m, 1y), or a day.'));
+    }
+    return out;
   }
 
   /** A double-click on the chart: an event at that date, labelled. */

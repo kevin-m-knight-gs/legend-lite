@@ -19,6 +19,9 @@ import {
   boundsQuery, correlationsQuery, drawdownsQuery, keyValuesQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN,
   TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
   TS_CORR, TS_CORR_A, TS_CORR_B, TS_CORR_N, TS_FROM, TS_TO, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_PER_YEAR, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
+  calendarQuery, curveOrder, curveQuery, histogramQuery, scatterQuery, seasonalityQuery, viewSeries, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN,
+  curveColumns, TS_HIST_COUNT, TS_HIST_HIGH, TS_HIST_LOW, TS_HIST_N, TS_HIST_NORMAL, TS_HIST_P5, TS_SC_CORR, TS_SC_FIT_HIGH, TS_SC_FIT_LOW,
+  TS_SC_INTERCEPT, TS_SC_N, TS_SC_R2, TS_SC_SLOPE, TS_SC_X, TS_SC_Y, TS_SEA_HIGH, TS_SEA_LATEST, TS_SEA_LOW, TS_SEA_MEAN, TS_SEA_PLACE, TS_SEA_YEAR,
 } from '../src/timeseries-query.ts';
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
 import type { FileSource } from '../src/cube-document.ts';
@@ -1170,6 +1173,41 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
   });
 
   // the next phases' 1: an odd cycle, a quarter of months (3), its moving average centred whole
+  // the next phases' 3: a seasonality and a calendar of returns, over 700 days
+  it('seasonality: each year along its months, the years before\'s least, most and mean at each; each year from its start', async () => {
+    const month = (d: string): string => d.slice(0, 7);
+    const months = [...new Set(LONG_DAYS.map(month))];
+    const lastOf = (m: string): number => LONG[LONG_DAYS.map(month).lastIndexOf(m)]!;
+    const ts = spec({ A: 'close' }, { grain: 'month' });
+    const sea = async (over: TimeseriesSpec, years: number): Promise<ResultTable> => engine.execute(await own.plan(seasonalityQuery(long, over, over.series[0]!, years).query), 0);
+    const t = await sea(ts, 1);
+    assert.deepEqual(values(t, TS_SEA_YEAR).map(num), months.map((m) => Number(m.slice(0, 4))));
+    assert.deepEqual(values(t, TS_SEA_PLACE).map(num), months.map((m) => Number(m.slice(5, 7))));
+    close(values(t, TS_VALUE).map(num), months.map(lastOf), 'each month\'s last', 0);
+    // the years before the latest (2022): 2021 alone -- its value at each month the least, the most and the mean
+    const before = (m: string): number => lastOf(`2021-${m.slice(5, 7)}`);
+    for (const col_ of [TS_SEA_LOW, TS_SEA_HIGH, TS_SEA_MEAN]) close(values(t, col_).map(num), months.map(before), col_, 1e-12);
+    assert.ok(values(t, TS_SEA_LATEST).every((y) => num(y) === 2022));
+    // compare rebase: each year 100 at its first month
+    const r = await sea({ ...ts, view: { compare: 'rebase' } }, 1);
+    const firstOf = (y: string): number => lastOf(months.find((m) => m.startsWith(y))!);
+    close(values(r, TS_VALUE).map(num), months.map((m) => (lastOf(m) / firstOf(m.slice(0, 4))) * 100), 'each year from its start', 1e-9);
+  });
+
+  it('a calendar of returns: each month\'s from the month before\'s last, each year\'s from the year before\'s', async () => {
+    const month = (d: string): string => d.slice(0, 7);
+    const months = [...new Set(LONG_DAYS.map(month))];
+    const lastOf = (m: string): number => LONG[LONG_DAYS.map(month).lastIndexOf(m)]!;
+    const ts = spec({ A: 'close' });
+    const t = await engine.execute(await own.plan(calendarQuery(long, ts, ts.series[0]!).query), 0);
+    assert.deepEqual(values(t, TS_CAL_YEAR).map(num), months.map((m) => Number(m.slice(0, 4))));
+    assert.deepEqual(values(t, TS_CAL_MONTH).map(num), months.map((m) => Number(m.slice(5, 7))));
+    close(values(t, TS_CAL_RETURN).map(num), months.map((m, i) => (i === 0 ? null : lastOf(m) / lastOf(months[i - 1]!) - 1)), 'monthly', 1e-12);
+    const yearEnd = (y: number): number => lastOf(months.filter((m) => m.startsWith(String(y))).at(-1)!);
+    close(values(t, TS_CAL_YEAR_RETURN).map(num), months.map((m) => (m.startsWith('2021') ? null : yearEnd(2022) / yearEnd(2021) - 1)), 'yearly', 1e-12);
+    assert.throws(() => calendarQuery(long, spec({ A: 'returns(close)' }), spec({ A: 'returns(close)' }).series[0]!), /no level/);
+  });
+
   it('trend and seasonally adjusted over a quarter of months: an odd cycle', async () => {
     const month = (d: string): string => d.slice(0, 7);
     const months = [...new Set(LONG_DAYS.map(month))];
@@ -1220,6 +1258,107 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     const [s1, s2, s3, s4] = [1, 2, 3, 4].map((n) => size(nest(n)));
     const steps = [s2! - s1!, s3! - s2!, s4! - s3!];
     assert.ok(steps.every((d) => Math.abs(d - steps[0]!) <= 0.1 * steps[0]!), `each average the same steps: ${[s1, s2, s3, s4].join(', ')}`);
+  });
+});
+
+// -- the views of a tile (the next phases' 3, 2026-10-26), each held to its definition written out --
+
+describe('a tile\'s views: a scatter, a histogram, a curve -- every figure the database\'s', () => {
+  it('a scatter: a point a date both have, and y\'s least-squares regression on x over them', async () => {
+    const ts = spec({ A: 'close[AAA]', B: 'close[BBB]' });
+    const t = await run(scatterQuery(inputs, ts, ts.series[0]!, ts.series[1]!));
+    const xs = values(t, TS_SC_X).map(num) as number[];
+    const ys = values(t, TS_SC_Y).map(num) as number[];
+    assert.deepEqual(values(t, TS_DATE).map((d) => String(d).slice(0, 10)), DAYS);
+    close(xs, AAA, 'x', 0);
+    close(ys, BBB, 'y', 0);
+    const slope = cov(AAA, BBB) / (sd(AAA) ** 2);
+    const intercept = avg(BBB) - slope * avg(AAA);
+    const corr = cov(AAA, BBB) / (sd(AAA) * sd(BBB));
+    const first = (name: string): number => num(values(t, name)[0])!;
+    assert.ok(Math.abs(first(TS_SC_SLOPE) - slope) < 1e-9 * Math.abs(slope), `slope ${first(TS_SC_SLOPE)}, not ${slope}`);
+    assert.ok(Math.abs(first(TS_SC_INTERCEPT) - intercept) < 1e-7, `intercept ${first(TS_SC_INTERCEPT)}, not ${intercept}`);
+    assert.ok(Math.abs(first(TS_SC_CORR) - corr) < 1e-9 && Math.abs(first(TS_SC_R2) - corr * corr) < 1e-9);
+    assert.equal(first(TS_SC_N), DAYS.length);
+    const lo = Math.min(...AAA);
+    const hi = Math.max(...AAA);
+    assert.ok(Math.abs(first(TS_SC_FIT_LOW) - (intercept + slope * lo)) < 1e-7 && Math.abs(first(TS_SC_FIT_HIGH) - (intercept + slope * hi)) < 1e-7);
+    // two calendars: the dates both have, over the dates shown
+    const some = spec({ A: 'close[AAA]', C: 'close[CCC]' });
+    const both = await run(scatterQuery(inputs, some, some.series[0]!, some.series[1]!, { from: DAYS[9]! }));
+    assert.deepEqual(values(both, TS_DATE).map((d) => String(d).slice(0, 10)), DAYS.filter((_, i) => i % 3 === 0 && i >= 9));
+    // a split series is no point a date
+    const split = spec({ A: 'close' }, {}, 'symbol');
+    assert.throws(() => scatterQuery(inputs, split, split.series[0]!, split.series[0]!), /a scatter is of one line/);
+  });
+
+  it('a histogram: bins of one width from the least to the most, each counted, its normal and the 5th percentile', async () => {
+    const ts = spec({ A: 'close[AAA]' });
+    const t = await run(histogramQuery(inputs, ts, ts.series[0]!, {}, 5));
+    const lo = Math.min(...AAA);
+    const width = (Math.max(...AAA) - lo) / 5;
+    const counts = [0, 0, 0, 0, 0];
+    for (const v of AAA) counts[Math.min(4, Math.floor((v - lo) / width))]! += 1;
+    const filled = counts.map((c, i) => [c, i] as const).filter(([c]) => c > 0);
+    close(values(t, TS_HIST_LOW).map(num), filled.map(([, i]) => lo + i * width), 'edges', 1e-12);
+    close(values(t, TS_HIST_HIGH).map(num), filled.map(([, i]) => lo + (i + 1) * width), 'edges', 1e-12);
+    assert.deepEqual(values(t, TS_HIST_COUNT).map(num), filled.map(([c]) => c));
+    const m = avg(AAA);
+    const s = sd(AAA);
+    close(values(t, TS_HIST_NORMAL).map(num), filled.map(([, i]) => {
+      const z = (lo + (i + 0.5) * width - m) / s;
+      return (AAA.length * width * Math.exp(-0.5 * z * z)) / (s * Math.sqrt(2 * Math.PI));
+    }), 'the normal\'s counts', 1e-9);
+    assert.ok(Math.abs(num(values(t, TS_HIST_P5)[0])! - quantile(AAA, 0.05)) < 1e-9);
+    assert.equal(num(values(t, TS_HIST_N)[0]), AAA.length);
+  });
+
+  it('a curve: each line as of each date asked -- the latest, a week back, a day -- its last value at or before it', async () => {
+    const ts = spec({ A: 'close' }, {}, 'symbol');
+    const asked = ['latest', '1w', DAYS[10]!];
+    const t = await run(curveQuery(inputs, ts, ts.series[0]!, asked));
+    const back = new Date(Date.parse(`${DAYS.at(-1)}T00:00:00Z`) - 7 * 86_400_000).toISOString().slice(0, 10);
+    const targets = [DAYS.at(-1)!, back, DAYS[10]!];
+    const of: Record<string, (readonly [string, number])[]> = {
+      AAA: DAYS.map((d, i) => [d, AAA[i]!] as const), BBB: DAYS.map((d, i) => [d, BBB[i]!] as const),
+      CCC: DAYS.map((d, i) => [d, CCC[i]!] as const).filter((_, i) => i % 3 === 0),
+    };
+    const want = targets.flatMap((d, k) => ['AAA', 'BBB', 'CCC'].map((sym) => {
+      const last = of[sym]!.filter(([day]) => day <= d).at(-1)!;
+      return [k, sym, last[1], last[0]] as const;
+    }));
+    // a row a line, each date asked its own columns
+    assert.deepEqual(values(t, TS_SPLIT), ['AAA', 'BBB', 'CCC']);
+    const got = targets.flatMap((_, k) => values(t, TS_SPLIT).map((sym, i) => [k, String(sym), num(values(t, curveColumns(k).value)[i]),
+      String(values(t, curveColumns(k).date)[i]).slice(0, 10)] as const));
+    assert.deepEqual(got.sort((a, b) => a[0] - b[0]), want);
+    assert.deepEqual(targets.map((_, k) => String(values(t, curveColumns(k).asked)[0]).slice(0, 10)), targets);
+    assert.throws(() => curveQuery(inputs, spec({ A: 'close[AAA]' }), spec({ A: 'close[AAA]' }).series[0]!), /a curve is of a line per value/);
+  });
+
+  it('the series each view draws: the view\'s own, else the tile\'s first it can', () => {
+    const ts = spec({ A: 'close[AAA]', B: 'bollinger_bands($A, 2, 1)', C: 'close', D: 'close[BBB]' });
+    const split: TimeseriesSpec = { ...ts, series: ts.series.map((s) => (s.id === 'C' ? { ...s, split: 'symbol' } : s)) };
+    assert.deepEqual(viewSeries(split), { scatter: ['A', 'D'], one: 'A', curve: 'C', calendar: ['A', 'C', 'D'] });
+    assert.deepEqual(viewSeries({ ...split, view: { of: ['D', 'A'] } }).scatter, ['D', 'A']);
+    // candles are a level, but no one level a calendar of returns reads (the gallery's technicals tile found it)
+    const candles = spec({ A: 'ohlc(close[AAA], close[AAA], close[AAA], close[AAA])', B: 'close[BBB]' });
+    assert.deepEqual(viewSeries(candles).calendar, ['B']);
+  });
+
+  it('a curve\'s keys in order: tenors by their span (3M before 2Y), else their text, numbers as numbers', () => {
+    const keys = ['10Y', '3M', '2Y', '1Y', '18M', '30Y', '1W'];
+    assert.deepEqual(curveOrder(keys).map((i) => keys[i]), ['1W', '3M', '1Y', '18M', '2Y', '10Y', '30Y']);
+    const words = ['strip 10', 'strip 2', 'strip 1'];
+    assert.deepEqual(curveOrder(words).map((i) => words[i]), ['strip 1', 'strip 2', 'strip 10']);
+    // one key no tenor: every key by its text
+    const mixed = ['2Y', 'cash', '10Y'];
+    assert.deepEqual(curveOrder(mixed).map((i) => mixed[i]), ['2Y', '10Y', 'cash']);
+  });
+
+  it('a seasonality of a yearly frequency is refused: a year has one place', () => {
+    const ts: TimeseriesSpec = { ...spec({ A: 'close[AAA]' }), grain: 'year' };
+    assert.throws(() => seasonalityQuery(inputs, ts, ts.series[0]!), /at a yearly frequency a year has one/);
   });
 });
 
@@ -1733,8 +1872,9 @@ describe('a series combining two grids, planned over one model of their tables (
 // tab runs them.
 /** The gallery's series: every function at least once, and the ways to view (2026-10-26: 92, the regression tile's four;
  *  102, the exponential averages', volatilities' and MACD's ten; 106, the percentiles' four; 109, a condition's three;
- *  113, the Dates sheet's alignment and interpolate, four; 144, gs-quant's remaining functions, 31). */
-const GALLERY_SERIES = 144;
+ *  113, the Dates sheet's alignment and interpolate, four; 144, gs-quant's remaining functions, 31; 149, the other
+ *  views' sheet, five: the next phases' 3). */
+const GALLERY_SERIES = 149;
 
 describe('the timeseries examples: every series of every tile, on its own samples', () => {
   const pages = [
@@ -1795,6 +1935,31 @@ describe('the timeseries examples: every series of every tile, on its own sample
             assert.ok(st.rowCount >= 1, `${view.id} ${series.id}: its statistics`);
           }
           ran += 1;
+        }
+        // a tile drawn otherwise than along time: its view's query too, by the rule the screen's view reads its series
+        const mode = ts.view?.mode;
+        if (mode !== undefined) {
+          const picked = viewSeries(ts);
+          const named = (id: string | undefined): TsSeries => ts.series.find((x) => x.id === id)!;
+          const ofOne = (one: TsSeries): [TsInputs, LitePlanner] => {
+            const alias = seriesSources(ts, one)[0]!;
+            return [new Map([[alias, grids.get(cubeOf(alias))!.input]]), grids.get(cubeOf(alias))!.planner];
+          };
+          const [one, other] = mode === 'scatter' ? [named(picked.scatter?.[0]), named(picked.scatter?.[1])] : [named(mode === 'curve' ? picked.curve : picked.one), undefined];
+          const [inputsOf, plannerOf] = ofOne(one);
+          const q = mode === 'scatter' ? scatterQuery(inputsOf, ts, one, other!) : mode === 'seasonality' ? seasonalityQuery(inputsOf, ts, one)
+            : mode === 'histogram' ? histogramQuery(inputsOf, ts, one) : curveQuery(inputsOf, ts, one);
+          const t = await local.execute(await plannerOf.plan(q.query), 0);
+          assert.ok(t.rowCount > 3, `${view.id}'s ${mode}: ${t.rowCount} rows`);
+        }
+        // and every level's calendar of returns (each tile's Calendar tab)
+        for (const id of viewSeries(ts).calendar.slice(0, 1)) {
+          const one = ts.series.find((x) => x.id === id)!;
+          const aliases = seriesSources(ts, one);
+          if (aliases.length > 1) continue;
+          const g = grids.get(cubeOf(aliases[0]!))!;
+          const t = await local.execute(await g.planner.plan(calendarQuery(new Map([[aliases[0]!, g.input]]), ts, one).query), 0);
+          assert.ok(t.rowCount > 0, `${view.id} ${id}'s calendar`);
         }
       }
       assert.equal(ran, count, 'every series of the page');

@@ -557,6 +557,26 @@ dated budget notes; every figure still the database's.
   standard) -- and periods overlaid from their start; a histogram of a series' values, its normal and its value at risk
   marked; a curve -- a split's values across its key (tenors) at chosen dates; a Calendar tab, each month's and each
   year's return.
+  *Built (2026-10-26).* A tile's view `mode` (`scatter`, `seasonality`, `histogram`, `curve`; absent, along time) and
+  its settings -- `of` (the series it reads; absent, the tile's first it can draw, `timeseries-query.ts viewSeries`,
+  the one rule the screen and Python read), a seasonality's `years`, a histogram's `bins`, a curve's `dates` (`latest`,
+  a period back from it, or a day) -- each judged by the tile's reader and changed by its one edit (a series taken off
+  leaves the `of` that read it). Each view is one query of its series' relations (`scatterQuery`, `seasonalityQuery`,
+  `histogramQuery`, `curveQuery`, `calendarQuery`), every figure the database's: a scatter's points on the dates both
+  have shown and y's least squares on x over them (its slope the sample covariance over x's variance, the intercept
+  through the means, R² the correlation squared, the fit at the least and the most x); a seasonality's last years, each
+  date's place in its year by the tile's frequency, and at each place the least, the most and the mean of the years
+  before the latest -- compare taking each year from its own start, refused at a yearly frequency; a histogram's bins of
+  one width (the most in the last), each counted, a normal of the values' mean and sample deviation as the counts it
+  would give each bin, and the 5th percentile (continuous, as pandas'); a curve's lines each its last value at or
+  before each date asked, one aggregate a line (a `maxBy` keyed by the period's number); a calendar's month-end levels,
+  each month's simple return and each year's. Drawn by `timeseries-views.ts` (placed and worded, nothing computed; a
+  curve's keys ordered by `curveOrder` -- tenors by their span, 3M before 2Y, else their text -- which Python asks too,
+  headless `timeseriesCurveOrder`); the view's query asked alone when only the view's settings move, its SQL in the
+  Query window, its picture made as the time view's is. The Calendar tab asks for the line picked, once for the rows
+  drawn. Python's `scatter()`, `seasonality()`, `histogram()`, `curve()` and `calendar()` are the same queries
+  (headless timeseriesQuery's `table`), held in `test_page.py` to numpy's and pandas' figures; the screen's in
+  `timeseries-view-dom.test.ts` to the sample's rows; the gallery's Other views sheet has one of each.
 - **Phase 4, analysts' packs.** Against a benchmark: tracking error, information ratio, up and down capture; a total
   return from a dividend; a basket of weights, rebalanced; lead and lag correlations; a pair's cointegration (its
   residual's Dickey-Fuller statistic) and its half-life; ATR, the stochastic oscillator, VWAP, OBV, Keltner and Donchian

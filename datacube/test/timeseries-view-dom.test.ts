@@ -569,6 +569,160 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
   });
 });
 
+/** A select of the tile's toolbar, by its label, set to `value` as the person picks it. */
+function pick(root: HTMLElement, label: string, value: string): void {
+  const s = root.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!;
+  s.value = value;
+  s.dispatchEvent(new (root.ownerDocument.defaultView!.Event)('change'));
+}
+/** A series of the last option drawn, by its id. */
+const drawnSeries = (drawn: EChartsOption[], id: string): { data: unknown[]; name?: string } | undefined =>
+  (drawn.at(-1)?.series as { id?: string; data: unknown[]; name?: string }[] | undefined)?.find((x) => x.id === id);
+
+// the next phases' 3 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): a tile's other views, each the
+// database's answer to its own query -- held here to the sample's rows themselves
+describe('the timeseries viewer\'s other views: a scatter, a histogram, seasonality, a curve, the calendar', () => {
+  const TWO: TimeseriesSpec = {
+    sources: [{ alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }],
+    series: [{ id: 'A', expr: parseExpr('close[SPX]'), name: 'S&P 500' }, { id: 'B', expr: parseExpr('close[NDX]'), name: 'Nasdaq 100' }],
+    view: { stats: true },
+  };
+
+  it('View ▸ Scatter: a point a date, y against x, and the database\'s regression drawn from the least x to the most', async () => {
+    const { root, windows, told, drawn, exported, view } = viewer(TWO);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      pick(root, 'View', 'scatter');
+      assert.equal(told.at(-1)!.view?.mode, 'scatter');
+      await until(() => drawnSeries(drawn, 'points') !== undefined, 'the scatter');
+      const [x, y] = [of('SPX'), of('NDX')];
+      assert.equal(drawnSeries(drawn, 'points')!.data.length, x.days.length, 'a point a date both have');
+      // ordinary least squares of y on x, by the test's own arithmetic
+      const n = x.closes.length;
+      const mx = x.closes.reduce((a, b) => a + b, 0) / n;
+      const my = y.closes.reduce((a, b) => a + b, 0) / n;
+      const cov = x.closes.reduce((a, v, i) => a + (v - mx) * (y.closes[i]! - my), 0);
+      const vx = x.closes.reduce((a, v) => a + (v - mx) ** 2, 0);
+      const slope = cov / vx;
+      const lo = Math.min(...x.closes);
+      const fit = drawnSeries(drawn, 'fit')!.data as [number, number][];
+      assert.ok(Math.abs(fit[0]![0] - lo) < 1e-9, 'from the least x');
+      assert.ok(Math.abs(fit[0]![1] - (my - slope * mx + slope * lo)) < 1e-6 * Math.abs(fit[0]![1]), `the database's fit: ${fit[0]![1]}`);
+      assert.match(drawnSeries(drawn, 'fit')!.name!, /^y = .*R² /, 'its equation and R² in its legend');
+      // its query in the Query window; a picture of it
+      barButton(root, 'Query').click();
+      assert.ok([...windows.querySelectorAll('.dc-ts-heading')].some((h) => h.textContent === 'The scatter'));
+      const canvas = root.querySelector('.dc-ts-chart') as HTMLElement;
+      Object.defineProperty(canvas, 'clientWidth', { configurable: true, value: 800 });
+      const Anchor = root.ownerDocument.defaultView!.HTMLAnchorElement;
+      Anchor.prototype.click = function click() { /* handed over */ };
+      barButton(root, 'SVG').click();
+      await until(() => exported.length === 1, 'the picture made');
+      assert.ok((exported[0]!.option.series as { id?: string }[]).some((x) => x.id === 'points'), 'the scatter drawn, not the lines');
+      assert.equal((exported[0]!.option.title as { text: string }[])[0]!.text, 'Markets');
+      // along time again: the lines, from the rows it has
+      pick(root, 'View', '');
+      await until(() => drawnSeries(drawn, 'points') === undefined && (drawn.at(-1)!.series as unknown[]).length > 0, 'the lines again');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('a histogram of the first series\' values, every one counted; seasonality by year; no curve of a series of one line', async () => {
+    const { root, drawn, view } = viewer(TWO);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      pick(root, 'View', 'histogram');
+      await until(() => drawnSeries(drawn, 'bins') !== undefined, 'the histogram');
+      const bins = drawnSeries(drawn, 'bins')!.data as { value: [number, number] }[];
+      assert.ok(bins.length <= 30, `at most its 30 bins: ${bins.length}`);
+      assert.equal(bins.reduce((a, b) => a + b.value[1], 0), of('SPX').days.length, 'every value in a bin');
+      pick(root, 'View', 'seasonality');
+      await until(() => drawnSeries(drawn, 'mean') !== undefined, 'the seasonality');
+      const years = [...new Set(of('SPX').days.map((d) => d.slice(0, 4)))];
+      for (const y of years) assert.ok(drawnSeries(drawn, `y${y}`) !== undefined, `a line for ${y}`);
+      pick(root, 'View', 'curve');
+      await until(() => /A curve is of a series split by a column/.test(root.querySelector('.dc-ts-banner')?.textContent ?? ''), 'its refusal said');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('a curve: a split series\' lines across its key, each its latest value, as of the latest date', async () => {
+    const spec: TimeseriesSpec = {
+      sources: [{ alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }],
+      series: [{ id: 'A', expr: parseExpr('close'), split: 'symbol' }],
+      view: { mode: 'curve', dates: ['latest'] },
+    };
+    const { drawn, view } = viewer(spec);
+    try {
+      await until(() => drawnSeries(drawn, 'd0') !== undefined, 'the curve');
+      const axis = (drawn.at(-1)!.xAxis as { data: string[] }).data;
+      assert.deepEqual([...axis].sort(), ['AAPL', 'EURUSD', 'GLD', 'JPM', 'MSFT', 'NDX', 'NVDA', 'SPX', 'TLT', 'XOM']);
+      const values = drawnSeries(drawn, 'd0')!.data as number[];
+      axis.forEach((k, i) => assert.equal(values[i], of(k).closes.at(-1), `${k}'s latest close`));
+      assert.match(drawnSeries(drawn, 'd0')!.name!, /^latest \(\d{4}-\d{2}-\d{2}\)$/, 'the date the database found');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('the Calendar tab: a level\'s return each month and each year, the database\'s, asked when shown', async () => {
+    const { root, view } = viewer(TWO);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-stats-tab')].find((b) => b.textContent === 'Calendar')!.click();
+      await until(() => root.querySelector('.dc-ts-cal') !== null, 'the calendar');
+      const spx = of('SPX');
+      // each month's last close, by the test's own reading of the rows
+      const ends = new Map<string, number>();
+      spx.days.forEach((d, i) => ends.set(d.slice(0, 7), spx.closes[i]!));
+      const months = [...ends.keys()];
+      const last = months.at(-1)!;
+      const expected = ends.get(last)! / ends.get(months.at(-2)!)! - 1;
+      const rows = statRows(root);
+      assert.equal(rows[0]![0], last.slice(0, 4), 'the latest year first');
+      const cell = rows[0]![Number(last.slice(5, 7))]!;
+      assert.ok(Math.abs(parseFloat(cell) - expected * 100) < 0.006, `${last}'s return: ${cell} against ${expected}`);
+      const first = rows.at(-1)!;
+      assert.equal(first[Number(months[0]!.slice(5, 7))], '—', 'the first month has no level before it');
+      // the other line picked: its own calendar
+      const line = root.querySelector<HTMLSelectElement>('.dc-ts-stats select[aria-label="Line"]')!;
+      assert.deepEqual([...line.options].map((o) => o.textContent), ['S&P 500', 'Nasdaq 100']);
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('Settings: what it is drawn as, and a scatter\'s x and y picked, told as the tile\'s one rule', async () => {
+    const { root, windows, told, view } = viewer(TWO);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      barButton(root, 'Settings').click();
+      pick(windows, 'Drawn', 'scatter');
+      assert.equal(told.at(-1)!.view?.mode, 'scatter');
+      // the pair by the rule the view reads (A across, B up), each pick told with the other as it is now
+      pick(windows, 'Across (x)', 'B');
+      assert.deepEqual(told.at(-1)!.view?.of, ['B', 'B']);
+      pick(windows, 'Up (y)', 'A');
+      assert.deepEqual(told.at(-1)!.view?.of, ['B', 'A']);
+      // a histogram's bins: a number the box cannot read is said, never taken for none
+      pick(windows, 'Drawn', 'histogram');
+      const bins = windows.querySelector<HTMLInputElement>('input[aria-label="Bins"]')!;
+      assert.equal(bins.value, '30');
+      bins.value = '12';
+      bins.dispatchEvent(new (root.ownerDocument.defaultView!.Event)('change'));
+      assert.equal(told.at(-1)!.view?.bins, 12);
+      bins.value = '500';
+      bins.dispatchEvent(new (root.ownerDocument.defaultView!.Event)('change'));
+      assert.equal(told.at(-1)!.view?.bins, 12, 'refused by the tile\'s reader');
+      assert.match(root.querySelector('.dc-ts-banner')?.textContent ?? '', /bins 500 is not a whole number of 5 to 100/);
+    } finally {
+      view.dispose();
+    }
+  });
+});
+
 // the review's P4 (docs/TIMESERIES_REVIEW_2026_10_25.md; AGENTS.md invariant 4): a refusal was shown as an absence -- a
 // refused bounds query made 1Y show everything, refused statistics blanked every cell, refused instruments an empty
 // picker, each with no word; and a function on a blank box guessed a column named close

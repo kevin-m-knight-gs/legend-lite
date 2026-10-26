@@ -978,6 +978,66 @@ class Document(Paged):
         self.assertEqual(list(both['B'].iloc[1:]), [10.5, 11.5, 12.5])
         self.assertEqual(len(tile.table(start='2024-01-03')), 2, "the dates kept as frame keeps them")
 
+    def test_a_timeseries_views_are_its_screens_each_figure_the_databases(self):
+        # the next phases' 3 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): the screen's Scatter,
+        # Seasonality, Histogram, Curve and Calendar, each the same query (headless timeseriesQuery's table), held here to
+        # numpy's and pandas' own figures
+        import numpy as np
+        page = ll.Page('Views')
+        months = pd.date_range('2022-01-31', periods=30, freq='ME').date
+        s = [100.0 + 3 * i + (5.0 if i % 12 == 6 else 0.0) for i in range(30)]
+        t = [50.0 + 1.5 * i + (i % 3) for i in range(30)]
+        px = page.grid(pd.DataFrame({'symbol': ['S'] * 30 + ['T'] * 30, 'day': list(months) * 2, 'close': s + t}), name='prices')
+        tile = page.timeseries({'px': px}, ['close[S]', 'close[T]'], grain='month')
+        # a scatter of the first two, T up and S across: y's least squares on x, the database's
+        sc = tile.scatter()
+        self.assertEqual((list(sc.columns), len(sc)), (['close[S]', 'close[T]'], 30))
+        slope, intercept = np.polyfit(s, t, 1)
+        fit = sc.attrs['regression']
+        self.assertAlmostEqual(fit['slope'], slope, places=9)
+        self.assertAlmostEqual(fit['intercept'], intercept, places=6)
+        self.assertAlmostEqual(fit['r2'], pd.Series(s).corr(pd.Series(t)) ** 2, places=9)
+        self.assertEqual(fit['n'], 30)
+        self.assertEqual(len(tile.scatter(start='2024-01-01')), 6, "the dates kept as the screen's window keeps them")
+        # seasonality by month: 2024 against the year before's range at each month
+        sea = tile.seasonality('A', years=1)
+        self.assertEqual(sorted(set(sea['year'])), [2023, 2024])
+        late = sea[sea['year'] == 2024].set_index('place')
+        before = dict(zip(range(1, 13), s[12:24]))
+        self.assertEqual(list(late.index), [1, 2, 3, 4, 5, 6])
+        for m in late.index:
+            self.assertEqual((late.loc[m, 'low'], late.loc[m, 'high'], late.loc[m, 'mean']), (before[m],) * 3, f'month {m}: 2023 alone before')
+        self.assertEqual(sea.attrs['latest'], 2024)
+        with self.assertRaisesRegex(ValueError, 'years 0 is not a whole number of 1 to 20'):
+            tile.seasonality('A', years=0)
+        # a histogram of 5 bins: every value counted, its 5th percentile pandas' (linear, as the database's continuous)
+        h = tile.histogram('A', bins=5)
+        self.assertEqual((int(h['count'].sum()), h['low'].iloc[0]), (30, min(s)))
+        self.assertAlmostEqual(h['high'].iloc[-1], max(s), places=9)
+        self.assertAlmostEqual(h.attrs['p5'], pd.Series(s).quantile(0.05), places=9)
+        self.assertEqual(h.attrs['n'], 30)
+        # the calendar: each month's return from the month before's, each year's from the year before's, latest first
+        cal = tile.calendar('A')
+        self.assertEqual(list(cal.index), [2024, 2023, 2022])
+        self.assertAlmostEqual(cal.loc[2023, 'Mar'], s[14] / s[13] - 1, places=12)
+        self.assertAlmostEqual(cal.loc[2023, 'Year'], s[23] / s[11] - 1, places=12)
+        self.assertTrue(pd.isna(cal.loc[2022, 'Jan']) and pd.isna(cal.loc[2022, 'Year']), 'no level before the first')
+        self.assertTrue(pd.isna(cal.loc[2024, 'Dec']), 'a month it has not')
+        # a curve across a split's tenors, in the screen's order (3M before 2Y), as of the latest and a month back
+        days = pd.date_range('2024-01-01', periods=70, freq='D').date
+        tenors = {'2Y': 4.0, '10Y': 4.5, '3M': 5.0}
+        rates = page.grid(pd.DataFrame({'tenor': [k for k in tenors for _ in days], 'day': list(days) * 3,
+                                        'rate': [v + i / 100 for v in tenors.values() for i in range(70)]}), name='rates')
+        curve = page.timeseries({'r': rates}, [{'expr': 'rate', 'split': 'tenor'}])
+        c = curve.curve(dates=['latest', '1m'])
+        self.assertEqual((list(c.index), list(c.columns)), (['3M', '2Y', '10Y'], ['latest', '1m']))
+        self.assertAlmostEqual(c.loc['10Y', 'latest'], 4.5 + 69 / 100, places=12)
+        # a month back from 2024-03-10: 2024-02-10, the 41st day
+        self.assertAlmostEqual(c.loc['3M', '1m'], 5.0 + 40 / 100, places=12)
+        self.assertEqual(c.attrs['dates'], {'latest': '2024-03-10', '1m': '2024-02-10'})
+        with self.assertRaisesRegex(ValueError, 'a curve is of a line per value of a column'):
+            tile.curve('A')
+
     def test_a_timeseries_tables_over_a_range_of_the_last_month_read_it_from_its_sources_latest_date(self):
         # the E9 review's 7: the screen's window of a range of the last of a period -- each source's bounds the database's,
         # the latest of them -- the tables' too (timeseries-query.ts rangeWindow, headless timeseriesWindow)

@@ -272,6 +272,8 @@ describe('the saved spec\'s reader', () => {
     assert.equal(tsProblem(JSON.parse(JSON.stringify(OK))), null);
     // a window of a calendar period, and a lag of one
     assert.equal(tsProblem(with_({ series: [{ id: 'A', expr: parseExpr('returns(mean(close, 3m), 1y)') }] })), null);
+    // the next phases' 3: a view of its series, and each view's settings
+    assert.equal(tsProblem(with_({ view: { mode: 'curve', of: ['A'], dates: ['latest', '1m', '2024-03-29'], years: 10, bins: 40 } })), null);
   });
 
   it('refuses a word, a key or a number it has no place for, by name', () => {
@@ -303,6 +305,15 @@ describe('the saved spec\'s reader', () => {
       [with_({ panes: [{ min: 5, max: 5 }] }), /pane 0's min 5 is not below its max 5/],
       [with_({ view: { subtitle: 3 } }), /subtitle is not text/],
       [with_({ panes: [{ flip: true }] }), /flip/],
+      // the next phases' 3: a view's mode, its series, its settings
+      [with_({ view: { mode: 'pie' } }), /mode "pie" is not one of scatter, seasonality, histogram, curve/],
+      [with_({ view: { of: [] } }), /view reads one series or two, by id/],
+      [with_({ view: { of: ['A', 'A', 'A'] } }), /view reads one series or two, by id/],
+      [with_({ view: { of: ['Q'] } }), /view reads series Q, which it has not/],
+      [with_({ view: { dates: ['yesterday'] } }), /curve date "yesterday" is not latest, a period back \(1m, 1y\) or a day/],
+      [with_({ view: { dates: ['latest', '1m', '2m', '3m', '6m', '1y', '2y'] } }), /curve dates are 1 to 6/],
+      [with_({ view: { years: 0 } }), /years 0 is not a whole number of 1 to 20/],
+      [with_({ view: { bins: 2.5 } }), /bins 2.5 is not a whole number of 5 to 100/],
     ];
     for (const [spec, words] of cases) {
       const p = tsProblem(spec);
