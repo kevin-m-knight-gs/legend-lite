@@ -42,7 +42,7 @@ import { multiFieldCommands, multiFieldText, readMultiField } from '../src/multi
 import { TreeState } from '../src/tree.ts';
 import { accessor, collection, fn, gt, lambda, lit, property, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { boxRows, pureFrom, pureInput, pureInputOf, pureOver, pureProblem, pureShown, pureText, pureWords } from '../src/pure-box.ts';
-import { textToolOf } from '../src/text-tools.ts';
+import { PUNCTUATION, textToolOf } from '../src/text-tools.ts';
 import { readTextTool, textToolColumns, textToolProblem } from '../src/text-tool-columns.ts';
 import { grainColumn, grainOf } from '../src/calc-presets.ts';
 import { CHECKS_COLUMN, checkCommands, checksOf, checkWords, failingChecks, failingWords, readChecks, testColumns, type Check } from '../src/checks.ts';
@@ -263,6 +263,10 @@ describe('the text tools (text-tools.ts): calculated columns, read back off thei
     assert.deepEqual(clean.map((c) => c.name), ['region_clean', 'desk_clean']);
     assert.match(body(clean[0]!), /^\{"_type":"func","function":"toLower","parameters":\[\{"_type":"func","function":"trim"/);
     assert.deepEqual(said(clean), { tool: 'cleanse', also: [], says: 'region cleansed, desk cleansed' });
+    // its punctuation is what is neither a letter nor a digit of any script, nor a space: `é`, `ü`, `東` are kept (the
+    // audit's 2 of 2026-10-26: ASCII's letters alone took them out)
+    const out = (text: string): string => text.replace(new RegExp(PUNCTUATION, 'gu'), '');
+    assert.deepEqual(["Côte d'Ivoire", 'José  Müller!', '東京', '¿Qué? 42½'].map(out), ['Côte dIvoire', 'José  Müller', '東京', 'Qué 42½']);
     // a replacement of its own pattern is a cleansing; of any other, a RegEx
     const spaces = textToolColumns({ kind: 'cleanse', columns: ['desk'], cleansing: { spaces: true } });
     assert.equal(textToolOf(spaces[0]!)?.tool, 'cleanse');
