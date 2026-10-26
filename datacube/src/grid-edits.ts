@@ -41,6 +41,13 @@ export function columnKind(draft: GridDraft, name: string): ColumnKind | undefin
   return c.derived ? c.kind : columnConfig(draft.config, name).kind ?? c.kind;
 }
 
+/** Whether a grid leaf holds a measure's figures: not a row dimension, nor a column of kind dimension (written, or by
+ *  its type) -- a pivot's value column and a total, named by no column, are measures. What its alignment reads
+ *  (style.ts autoTextAlign), on the screen and in an export. */
+export function isMeasureLeaf(draft: GridDraft, leaf: { readonly name: string; readonly isDimension: boolean }): boolean {
+  return !leaf.isDimension && columnKind(draft, leaf.name) !== 'dimension';
+}
+
 /**
  * The columns a row group or a pivot may use: the dimensions, as DataCube's `enableRowGroup: kind === DIMENSION`.
  * Grouping by a notional makes one group per distinct amount, which is never what anyone meant.

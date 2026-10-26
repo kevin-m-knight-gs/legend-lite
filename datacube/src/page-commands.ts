@@ -27,6 +27,7 @@ import { readJoinHow, type JoinHow } from './join-how.ts';
 import type { PageModelRef } from './page-model.ts';
 import { chartTitle, gridTitle, idShape, nextPageId, textTitle } from './page-ids.ts';
 import { textProblem } from './page-text-rule.ts';
+import { readTextFiles, type TextFile } from './text-files.ts';
 import { namedProperties, type PageFilter } from './page-filters.ts';
 import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageState } from './page-state.ts';
@@ -114,6 +115,9 @@ export type PageCommand =
   }
   /** A text tile's words, whole (its editor's OK). */
   | { readonly kind: 'setText'; readonly tile: string; readonly text: string }
+  /** A text tile's files, whole (text-files.ts: pointed to by name, size and fingerprint, never copied): opened or dropped
+   *  on it, or one taken off by its tab's x. */
+  | { readonly kind: 'setTextFiles'; readonly tile: string; readonly files: readonly TextFile[] }
   /** A chart reading another grid's cube from now on (D7: Show Grid made the grid of its own grouping) -- its selection
    *  taken off the cube it read, and that cube let go when no view reads it any more (a detached chart's). */
   | { readonly kind: 'followGrid'; readonly chart: string; readonly grid: string }
@@ -194,7 +198,7 @@ export type PageCommand =
 export const PAGE_COMMAND_KINDS = [
   'renamePage', 'savedAs', 'addSheet', 'addFlow', 'placeBox', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid',
   'addChart', 'setChart',
-  'addText', 'setText', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter',
+  'addText', 'setText', 'setTextFiles', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter',
   'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setPure', 'setOutput', 'setStops', 'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
@@ -205,7 +209,7 @@ export const PAGE_COMMAND_FIELDS = {
   renameSheet: ['sheet', 'name'], moveSheet: ['sheet', 'to'],
   removeSheet: ['sheet'], renameTile: ['tile', 'title'], addGrid: ['id?', 'document', 'sheet', 'near', 'title', 'columns'],
   addChart: ['id?', 'near', 'spec', 'title', 'columns'], setChart: ['chart', 'spec'], addText: ['id?', 'sheet', 'text', 'title', 'columns'],
-  setText: ['tile', 'text'], followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
+  setText: ['tile', 'text'], setTextFiles: ['tile', 'files'], followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
   removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how', 'more?'], setPure: ['grid', 'pure'], setOutput: ['grid', 'output'], setStops: ['grid', 'stops'],
@@ -591,6 +595,16 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const problem = textProblem(command.text);
       if (problem !== null) throw new CubeRefusal(problem);
       return done({ ...page, views: page.views.map((v) => (v.id === view.id ? { ...view, text: command.text } : v)) });
+    }
+    case 'setTextFiles': {
+      const view = viewNamed(page, command.tile);
+      if (view.kind !== 'text') throw new CubeRefusal(`'${command.tile}' is ${kindWords(view)}, not a text tile`);
+      // by the one rule (text-files.ts readTextFiles): a list of named, sized, fingerprinted files of a kind it shows
+      const files = readTextFiles(command.files);
+      if (typeof files === 'string') throw new CubeRefusal(files);
+      const { files: _was, ...rest } = view;
+      const next: TextView = files.length > 0 ? { ...rest, files } : rest;
+      return done({ ...page, views: page.views.map((v) => (v.id === view.id ? next : v)) });
     }
     case 'setChart': {
       const view = viewNamed(page, command.chart);
@@ -1160,6 +1174,12 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'setText':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, tile: text(o['tile'], 'a tile'), text: text(o['text'], "a text tile's text") };
+    case 'setTextFiles': {
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      const files = readTextFiles(o['files']);
+      if (typeof files === 'string') throw new CubeRefusal(files);
+      return { kind, tile: text(o['tile'], 'a tile'), files };
+    }
     case 'arrange': {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       const order = o['order'];

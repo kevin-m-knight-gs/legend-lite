@@ -412,8 +412,14 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  it shares with headless (app.ts #openPure, pure-box.ts pureFrom), a relation typed with nothing run (cube.ts
  *  relationColumns), and pure-protocol's top-down rewrite; the window a chunk of its own; no startup file added, measured.
  *  Not tried: all but the reader's check in a lazy module of its own -- some 600 bytes by estimate, and a lazy module
- *  importing that check would split it into a startup file of its own, as Summarize's rule split one). Measured 384,564. */
-const BUDGET = 385_000;
+ *  importing that check would split it into a startup file of its own, as Summarize's rule split one). Measured 384,564.
+ *  385,000 -> 395,500 (2026-10-26, main merged into the flow branch: its own steps there, 355,500 -> 356,000 -> 357,500 ->
+ *  358,500 -> 359,500 -> 360,500 -> 361,500 -> 365,000 -> 365,500 -- the UI waves the user asked for (a measure's numbers
+ *  right-aligned, the page's ≡ by purpose), the one tile header, the grid's status bar, the text box as a Markdown editor
+ *  and its files (setTextFiles), the menus' one design language, the chrome in one icon set and a chart's options as a
+ *  window beside it, each in main's history with its own measure -- now on top of the flow mode's; no startup file
+ *  added, measured). Measured 395,242. */
+const BUDGET = 395_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -488,7 +494,7 @@ const BUDGET = 385_000;
  *  305,000 -> 305,500 (2026-10-21, step S3's audit round -- the grid's note of the same date). Measured 305,177.
  *  305,500 -> 306,000 (2026-10-21, step S4, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md "the host applies the commands":
  *  the page Python serves written as its edits or, undone or redone, whole (a restore), the ids it has held read with it,
- *  and Open..., in place and Blank Page leaving it for a page of the tab's own (D1), said on a blank page's card).
+ *  and Open..., in place and New Page leaving it for a page of the tab's own (D1), said on a blank page's card).
  *  Measured 305,535.
  *  306,000 -> 306,500 (2026-10-22, step S5's B8, B14, B6, B5, Z18, B4 and B13 -- the grid's note of the same date, and
  *  the saved page it is kept with the page and told (savedAs), so either editor saves over one record). Measured
@@ -576,8 +582,10 @@ const BUDGET = 385_000;
  *  dry) and a box's menu gesture made in a box after it (ui/menu.ts newBoxItems, app.ts onStepAfter, page/cube-page.ts
  *  #stepAfter); no startup file added, measured). Measured 370,956.
  *  371,500 -> 373,500 (2026-10-26, the flow mode's Pure box -- the grid-only page's note of the same date). Measured
- *  372,937. */
-const ENGINE_BUDGET = 373_500;
+ *  372,937.
+ *  373,500 -> 383,500 (2026-10-26, main merged into the flow branch: its own steps there, 344,000 -> 345,500 -> 347,000 ->
+ *  348,000 -> 348,500 -> 349,500 -> 353,000 -> 353,500 -- the grid-only page's note of the same date). Measured 383,307. */
+const ENGINE_BUDGET = 383_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -800,8 +808,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  395,000 -> 396,000 (2026-10-25, the flow mode's Cross Tab missing values and Custom Filter -- the grid-only page's
  *  note of the same date -- and the Custom Filter window's styles). Measured 395,109.
  *  396,000 -> 398,000 (2026-10-26, the flow mode's Pure box -- the grid-only page's note of the same date -- and its
- *  window's styles). Measured 397,684. */
-const WIDGET_BUDGET = 398_000;
+ *  window's styles). Measured 397,684.
+ *  398,000 -> 410,000 (2026-10-26, main merged into the flow branch: its own steps there, 363,000 -> 365,000 -> 366,500 ->
+ *  367,500 -> 368,500 -> 370,000 -> 373,500 -> 374,000 -> 374,500 -- the grid-only page's note of the same date, and
+ *  their styles). Measured 409,703. */
+const WIDGET_BUDGET = 410_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

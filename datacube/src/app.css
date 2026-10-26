@@ -93,33 +93,35 @@
 .dc-page-filter-form[hidden] { display: none; }
 .dc-page-filter-form select, .dc-page-filter-form input { font: inherit; height: 18px; }
 .dc-page-filter-said { color: var(--dc-muted); }
-/* a grid the page's filters reach says so in its status bar, beside its own filter */
-.dc-status-page-filter { color: var(--tw-sky-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* a grid the page's filters reach says so in its status bar, beside its own filter: a chip in the filter's colours (as
+   a chip's own: .dc-status-chip, later in this sheet, took them -- the 2026-10-25 audit) */
+.dc-status-chip.dc-status-page-filter { background: var(--tw-sky-100); color: var(--tw-sky-700); }
 .dc-page-alone:empty { display: none; }
 .dc-page-alone > .dc-tile-cube { align-self: stretch; }
 
-/* THE NAME BOX (the design's §7.1): the page's name, after the menu -- "Untitled page" before it has one, a dot once
-   it changed since it was saved; a click renames it in place */
+/* THE PAGE'S NAME (the design's §7.1), after the menu: its title -- plain words, not a box (the user, 2026-10-25;
+   docs/DATACUBE_UI_REVIEW_2026_10_24.md §4) -- "Untitled page" before it has one, a dot once it changed since it was
+   saved; pointed at, the box a click renames it in */
 .dc-page-name {
   flex: 0 1 auto;
   min-width: 48px;
-  max-width: 240px;
-  height: 20px;
+  max-width: 280px;
+  height: 22px;
   margin: 0 var(--dc-pad-1);
   padding: 0 var(--dc-pad-2);
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  border: 1px solid var(--dc-line);
+  border: 1px solid transparent;
   border-radius: var(--dc-radius-sm);
-  background: var(--tw-white);
-  font-weight: 500;
+  background: transparent;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .dc-page-name[role='button'] { cursor: text; }
-.dc-page-name[role='button']:hover { border-color: var(--dc-line-strong); }
+.dc-page-name[role='button']:hover { border-color: var(--dc-line); background: var(--tw-white); }
 .dc-page-name.dc-page-name-untitled { color: var(--dc-muted); font-weight: 400; font-style: italic; }
 .dc-page-name.dc-page-name-changed::after { content: '\2022'; margin-left: 6px; color: var(--dc-active); }
 .dc-page-name-field { width: 200px; font: inherit; border: 0; padding: 0; background: transparent; outline: none; }
@@ -129,10 +131,12 @@
 .dc-sheet-tabs { flex: 0 1 auto; min-width: 0; align-self: stretch; display: flex; align-items: flex-end; gap: 2px; }
 .dc-sheet-strip { min-width: 0; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 .dc-sheet-strip::-webkit-scrollbar { display: none; }
+/* each as wide as its name (the user, 2026-10-25; §4): cut short only when the strip runs out of room -- they were all
+   160px, and "Bars and lines" read "Bars and li..." with half the bar empty */
 .dc-sheet-tab {
-  flex: 0 1 160px;
+  flex: 0 1 auto;
   min-width: 56px;
-  max-width: 200px;
+  max-width: 240px;
   height: 24px;
   padding: 0 var(--dc-pad-2);
   display: flex;
@@ -332,13 +336,6 @@
 .dc-tile-cube { display: flex; align-items: center; gap: 4px; }
 .dc-tile-cube .dc-titlebar-host { flex: none; }
 
-/* In a tile's header the pills (a grid's Live / Snapped, a chart's Dynamic / Frozen) are the
-   header's size, not the title bar's. */
-.dc-tile-actions .dc-titlebar-toggle {
-  height: 20px;
-  font-size: var(--dc-text-sm-size);
-  padding: 0 6px;
-}
 
 /* WHAT THE GRID READS, beside its pill (the user, 2026-09-30): quiet, it is a fact, not a control. */
 .dc-source-tag {
@@ -355,13 +352,6 @@
 .dc-tile-cube { display: flex; align-items: center; gap: 4px; }
 .dc-tile-cube .dc-titlebar-host { flex: none; }
 
-/* In a tile's header the pills (a grid's Live / Snapped, a chart's Dynamic / Frozen) are the
-   header's size, not the title bar's. */
-.dc-tile-actions .dc-titlebar-toggle {
-  height: 20px;
-  font-size: var(--dc-text-sm-size);
-  padding: 0 6px;
-}
 
 .dc-titlebar-menu {
   font: inherit;
@@ -828,7 +818,11 @@
   display: flex;
   align-items: center;
   min-width: 0;
+  /* a narrow tile: each group gives way, its words cut short, never pushed out of the bar (the 2026-10-25 audit) */
+  flex: 0 1 auto;
+  overflow: hidden;
 }
+.dc-status-readout { gap: 6px; padding-right: 2px; }
 
 /* the readout that changes where the planner runs: it says it can be clicked */
 .dc-status-host-pick { cursor: pointer; border-radius: var(--dc-radius-sm); }
@@ -850,8 +844,12 @@
 }
 
 .dc-status-rows {
-  color: var(--tw-neutral-500);
+  color: var(--tw-neutral-600);
   padding: 0 var(--dc-pad-2);
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dc-status-sep {
@@ -860,18 +858,26 @@
   background: var(--tw-neutral-200);
 }
 
-.dc-status-warning {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 var(--dc-pad-2);
-  font-weight: 600;
-  color: var(--tw-orange-500);
-}
+/* a cut result: the one chip in a warning's colours (as a chip's own, which come later: the 2026-10-25 audit) */
+.dc-status-chip.dc-status-warning { background: var(--tw-amber-50, #fffbeb); color: var(--tw-amber-700, #b45309); font-weight: 500; }
 
+/* the selection's figures, after the rows, while cells are selected */
 .dc-status-stats {
   padding: 0 var(--dc-pad-2);
   color: var(--tw-neutral-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dc-status-stats:empty { display: none; }
+.dc-status-stats::before {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 12px;
+  margin-right: var(--dc-pad-2);
+  vertical-align: middle;
+  background: var(--tw-neutral-200);
 }
 
 /* a note beside the rows until put away (CubeApp.note: what a quick join did) -- cut short, its whole text on hover */
@@ -900,7 +906,7 @@
 }
 
 .dc-status-note-close:hover {
-  color: var(--tw-neutral-800);
+  color: var(--tw-neutral-800, #262626);
 }
 
 /* -- the grid and its sidebar ---------------------------------------- */
@@ -959,34 +965,66 @@
   flex: 0 0 auto;
 }
 
-.dc-status-link {
-  font: inherit;
-  line-height: 1;
+/* THE GRID'S TOOLS, as icons (the user, 2026-10-25): quiet until pointed at, as a tile's buttons are. They were
+   underlined links, the one place the app looked like a 2005 web page. */
+.dc-status-tools { display: flex; flex: none; align-items: center; gap: 1px; padding: 0 2px; }
+.dc-status-tool,
+.dc-status-receipt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 18px;
+  padding: 0;
   border: 0;
-  padding: 0 var(--dc-pad-1);
+  border-radius: var(--dc-radius-sm);
   background: transparent;
-  /* Underlined and in the accent, as theirs is: in a strip of
-     read-only figures, the one thing that is clickable has to look
-     it. */
-  color: var(--dc-active, #0284c7);
-  text-decoration: underline;
+  color: var(--tw-neutral-500);
   cursor: pointer;
 }
+.dc-status-tool:hover,
+.dc-status-receipt:hover { background: var(--tw-neutral-200); color: var(--tw-neutral-800, #262626); }
+.dc-status-tool:focus-visible,
+.dc-status-receipt:focus-visible { outline: 1.5px solid var(--dc-active, #0284c7); outline-offset: -1px; }
+.dc-status-tool[aria-disabled='true'] { opacity: .4; cursor: default; }
+.dc-status-tool[aria-disabled='true']:hover { background: transparent; color: var(--tw-neutral-500); }
+/* a filter in force is state, not decoration: it changes what every number in the cube means */
+.dc-status-filter.dc-on { color: var(--dc-active, #0284c7); }
+/* a tool's name: for a screen reader and a test, not the eye (its tooltip says it) */
+.dc-status-tool-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-.dc-status-link:hover {
-  color: var(--tw-black);
+/* WHAT IS TRUE OF THE GRID, at the right: a chip each, only while it is so */
+.dc-status-chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+  max-width: 36ch;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tw-neutral-200);
+  color: var(--tw-neutral-700);
+  font: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
-.dc-status-link:focus-visible {
-  outline: 1.5px solid var(--dc-active, #0284c7);
-  outline-offset: -1px;
+button.dc-status-chip { cursor: pointer; }
+button.dc-status-chip:hover { background: var(--tw-neutral-300); }
+.dc-status-filtered { background: var(--tw-sky-100); color: var(--tw-sky-700); }
+button.dc-status-filtered:hover { background: var(--tw-sky-50); }
+.dc-status-chip-close {
+  border: 0;
+  background: none;
+  padding: 0 0 0 2px;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+  font: inherit;
 }
-
-/* A filter in force is state, not decoration: it changes what every
-   number in the cube means. */
-.dc-status-filter.dc-on {
-  font-weight: 500;
-}
+.dc-status-chip-close:hover { color: var(--tw-neutral-800, #262626); }
 
 /* -- the overlay ------------------------------------------------------ */
 
@@ -1031,6 +1069,12 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+}
+
+/* A window kept on the screen (ui/window.ts `viewport`): fixed to the browser's window, never in the page's flow nor
+   clipped by a tile -- a chart's options, beside it however the page scrolls. */
+.dc-app-overlay.dc-window.dc-window-fixed {
+  position: fixed;
 }
 
 /* The title bar is the handle, so it says so. `grab` while resting
@@ -1780,6 +1824,9 @@
 }
 
 .dc-selector-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
   font-size: var(--dc-text-lg-size);
   line-height: 1;
@@ -2387,15 +2434,21 @@
   color: var(--tw-neutral-600);
 }
 
-/* Upstream's task progress: a 192 x 14 box, a green indeterminate bar
-   while anything runs, the tasks in its tooltip. */
+/* WHAT RUNS: a thin bar along the grid's top edge, only while something does (the user, 2026-10-25). It was upstream's
+   192 x 14 box in the status bar, there and empty when idle, where it looked like an input. */
+.dc-app-middle { position: relative; }
 .dc-status-progress {
-  position: relative;
-  width: 192px;
-  height: 14px;
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
   overflow: hidden;
-  border: 0.5px solid var(--tw-neutral-300);
+  pointer-events: none;
+  z-index: 5;
 }
+.dc-status-progress.dc-busy { display: block; }
 
 .dc-status-progress.dc-busy::after {
   content: '';
@@ -2403,7 +2456,7 @@
   top: 0;
   bottom: 0;
   width: 40%;
-  background: var(--tw-green-500, #22c55e);
+  background: var(--dc-active, #0284c7);
   animation: dc-indeterminate 1.2s ease-in-out infinite;
 }
 
@@ -2434,6 +2487,7 @@
 
 /* ---- Ad Hoc Analysis mode ------------------------------------------- */
 .dc-adhoc {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -2789,7 +2843,7 @@
 .dc-lib-unsaved[hidden] { display: none; }
 .dc-lib-ask { white-space: pre-line; }
 
-/* The chart window (ui/chart-panel.ts): options left, the chart right.
+/* The chart (ui/chart-panel.ts); its options are a window of their own (.dc-chart-options).
    The --dc-chart-* tokens are the dataviz reference palette (light); the
    renderer reads them (chart-render.ts themeOf), since canvas cannot. */
 .dc-chartpanel {
@@ -2809,30 +2863,141 @@
   min-height: 0;
 }
 
-.dc-overlay-body.dc-chartpanel { padding: 0; }
 
-.dc-chartpanel-form {
-  flex: 0 0 220px;
-  overflow: auto;
-  padding: var(--dc-pad-2);
-  border-right: 1px solid var(--dc-line);
+/* A CHART'S OPTIONS, A WINDOW (ui/chart-panel.ts openForm): the page's windows' frame, title bar, x and grips, kept
+   on the screen beside its chart (ui/window.ts besideWindow). Moved into by the keyboard, it says so (the 2026-10-25
+   audit: the one cue was taken away). */
+.dc-chart-options:focus:not(:focus-visible) { outline: none; }
+.dc-chart-options:focus-visible { outline: 2px solid var(--dc-active); outline-offset: -2px; }
+.dc-chart-options-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ITS FIELDS IN THE PROPERTIES WINDOW'S DESIGN (the user, 2026-10-25: "nice and sleek like we upgraded Properties,
+   Filters, Join"): its sections' titles, controls and focus are the Properties window's own rules (.dc-pe, below,
+   shared); in a narrow column each label sits above its control, the control full width. Its kind in a card at the
+   top, as the Join window's grids; a short choice segmented, chosen as a Join kind is; each value after the first a
+   card with its x at the corner; "+ Add a value" a link. */
+.dc-chart-options .dc-overlay-body { padding: 12px 16px 14px; }
+/* TWO COLUMNS WHERE THERE IS ROOM (the user, 2026-10-25: "more of a square"): what it reads on the left, how it is drawn
+   on the right (ui/chart-form.ts puts each section in its column), each at least 216px -- so a window opened beside its
+   chart, about 500px wide or more, reads Data and Layout side by side and barely scrolls, and one dragged narrow is one
+   column, the right's sections under the left's. Fixed columns, not the browser's balanced ones: folding a section
+   never moves another across (the 2026-10-25 review). Its kind, and the hint under it all, are the whole width. */
+.dc-chartpanel-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(216px, 1fr));
+  column-gap: 24px;
+  align-items: start;
 }
-
-/* a narrow column: each label above its control, the control full width */
 .dc-chartpanel-form .dc-field {
   flex-direction: column;
   align-items: stretch;
-  gap: 2px;
-  margin-bottom: 8px;
+  gap: 3px;
+  min-height: 0;
+  margin: 0 0 6px;
 }
 .dc-chartpanel-form .dc-field-label {
   width: auto;
   text-align: left;
-  color: var(--dc-muted-strong);
+  font-size: 12px;
+  color: var(--tw-neutral-600);
 }
 .dc-chartpanel-form .dc-field-body > * { flex: 1 1 auto; }
 .dc-chartpanel-form .dc-select,
 .dc-chartpanel-form .dc-input { width: 100%; }
+.dc-chartpanel-form .dc-check { display: flex; gap: 6px; margin: 2px 0 6px; font-size: 12px; color: var(--tw-neutral-700); }
+.dc-chartpanel-form .dc-check-box { margin: 0; accent-color: var(--tw-sky-600); }
+.dc-chartpanel-kind {
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: 8px;
+  background: var(--tw-neutral-50);
+}
+/* its one field a row: the word, then the kind -- a header, not a stretched dropdown */
+.dc-chartpanel-kind .dc-field { flex-direction: row; align-items: center; gap: 10px; margin: 0; }
+.dc-chartpanel-kind .dc-field-label { flex: none; font-weight: 600; color: var(--tw-neutral-700); }
+.dc-chartpanel-kind .dc-field-body { flex: 1 1 auto; max-width: 260px; }
+.dc-chartpanel-measure {
+  position: relative;
+  margin: 0 0 8px;
+  padding: 8px 10px 2px;
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: 6px;
+  background: var(--tw-neutral-50);
+}
+.dc-chartpanel-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+}
+.dc-chartpanel-remove:hover { background: var(--tw-neutral-100); color: var(--tw-red-600); }
+.dc-chartpanel-remove .dc-chrome-icon { width: 12px; height: 12px; }
+.dc-chartpanel-add {
+  align-self: flex-start;
+  margin: 0 0 4px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--tw-sky-700);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dc-chartpanel-add:hover:not(:disabled) { text-decoration: underline; }
+.dc-chartpanel-add:disabled { color: var(--tw-neutral-400); cursor: default; }
+.dc-chartpanel-hint,
+.dc-chartpanel-note { margin: 4px 0 0; font-size: 11px; line-height: 15px; color: var(--tw-neutral-500); }
+
+/* A few short choices side by side (ui/chart-form.ts segmented): the chosen one as a chosen Join kind -- sky-edged, sky-filled,
+   its words strong. */
+.dc-segmented {
+  display: flex;
+  width: 100%;
+  border: 1px solid var(--tw-neutral-300);
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--tw-white);
+}
+.dc-segment {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-left: 1px solid var(--tw-neutral-300);
+  border-radius: 0;
+  background: transparent;
+  color: var(--tw-neutral-700);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.dc-segment:first-child { border-left: 0; }
+.dc-segment:hover { background: var(--tw-sky-50); }
+.dc-segment.dc-chosen {
+  background: var(--tw-sky-50);
+  box-shadow: inset 0 0 0 1px var(--tw-sky-600);
+  color: var(--tw-sky-800);
+  font-weight: 600;
+}
+/* the keyboard's place: a ring inside the segment, clear of the chosen one's edge and of the group's -- the page's own
+   button ring (.dc-app-floating button:focus-visible) fell on that edge, and Tab into a choice showed nothing (the
+   2026-10-25 review) */
+.dc-segmented .dc-segment:focus-visible { outline: 2px solid var(--tw-sky-700); outline-offset: -4px; }
 
 .dc-chartpanel-main {
   flex: 1 1 auto;
@@ -3090,6 +3255,43 @@
 .dc-tile-tab.dc-tile-tab-after { box-shadow: inset -2px 0 0 var(--dc-active); }
 .dc-tile-title[hidden] { display: none; }
 
+/* A TILE'S STATE, LEFT OF ITS TITLE (ui/tile-icons.ts; the user, 2026-10-25): every tile says it in the same place,
+   quiet for the usual state and accented for an exception -- a page of ordinary tiles is calm, the one that is
+   different stands out. A grid: Live quiet, Snapped amber; a chart: Dynamic quiet, Pinned the accent, Frozen blue; a
+   text box: its pencil quiet, accented while its words are edited, gone in view mode (nothing is edited there). */
+.dc-tile-state {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--dc-radius-sm);
+  background: transparent;
+  color: var(--tw-neutral-400);
+  cursor: pointer;
+}
+.dc-tile-state:hover:not([aria-disabled='true']):not(:disabled) { border-color: var(--dc-line); background: var(--tw-neutral-100); }
+.dc-tile-state:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
+.dc-tile-state:is([aria-disabled='true'], :disabled) { cursor: default; }
+.dc-tile-state[data-state='snapped'] { color: var(--tw-amber-500); }
+.dc-tile-state:is([data-state='pinned'], [data-state='editing']) { color: var(--dc-active); }
+.dc-tile-state[data-state='frozen'] { color: var(--tw-blue-600, #2563eb); }
+.dc-tile-state[data-state='detached'] { color: var(--tw-neutral-600); }
+.dc-tile-state-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.dc-bands-view .dc-tile-state[data-state='viewing'] { display: none; }
+
+/* a lone grid's state, in its sheet's tab, before its name */
+.dc-sheet-state { display: inline-flex; align-items: center; margin-right: 2px; }
+.dc-sheet-state:empty { display: none; }
+.dc-sheet-state .dc-tile-state { width: 16px; height: 16px; }
+
+/* what a grid in a tile reads and where its rows are, in words, in its status bar */
+.dc-status-source { color: var(--tw-neutral-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 36ch; }
+.dc-status-source[data-state='snapped'] { color: var(--tw-amber-700, #b45309); }
+
 /* a lone grid (a page of its own with one tile): no frame, no header -- its header's buttons are in the page's bar */
 .dc-band-tile.dc-band-tile-alone { border: 0; border-radius: 0; }
 .dc-band-tile.dc-band-tile-alone > .dc-tile-head { display: none; }
@@ -3244,54 +3446,16 @@
 
 .dc-chart-tile { display: flex; }
 .dc-chart-tile .dc-chartpanel { flex: 1 1 auto; min-width: 0; }
-.dc-chart-tile .dc-chartpanel-form[hidden] { display: none; }
 
 .dc-chartpanel-status[hidden] { display: none; }
-.dc-chartpanel-hint { margin: var(--dc-pad-2) 0 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
-/* batch 2: a value after the first (its own mark and axis), the add button, a section's heading */
-.dc-chartpanel-measure {
-  display: flex; flex-direction: column; gap: var(--dc-pad-1);
-  padding: var(--dc-pad-2) 0; border-top: 1px solid var(--dc-line);
-}
-.dc-chartpanel-measure > .dc-btn { align-self: flex-end; }
-.dc-chartpanel-add { align-self: flex-start; margin: var(--dc-pad-1) 0; }
 /* a drilled chart's path (batch 2 item 10): each step a way back up */
 .dc-chartpanel-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 0 var(--dc-pad-2); font-size: var(--dc-text-sm-size); color: var(--dc-muted); }
 .dc-chartpanel-crumb { border: 0; background: none; padding: 0; color: var(--dc-active); cursor: pointer; text-decoration: underline; font: inherit; }
 .dc-chartpanel-crumb-here { color: var(--dc-muted-strong); }
 .dc-chartpanel-crumbs-hint .dc-chartpanel-crumb-here { color: var(--dc-muted); }
-.dc-chartpanel-heading {
-  margin: var(--dc-pad-2) 0 var(--dc-pad-1); padding-top: var(--dc-pad-2); border-top: 1px solid var(--dc-line);
-  color: var(--dc-muted-strong); font-size: var(--dc-text-sm-size); font-weight: 600;
-}
-
-/* In a tile the options float over the chart, from its left edge, rather
-   than taking width from it: a small tile keeps its chart whole. */
-.dc-chart-tile .dc-chartpanel { position: relative; }
-.dc-chart-tile .dc-chartpanel-form {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 220px;
-  max-width: 85%;
-  z-index: 1;
-  background: var(--dc-bg);
-  box-shadow: var(--dc-popup-shadow);
-}
 
 /* THE RECEIPT: what answered the view, as the engine that ran it said. */
-.dc-status-receipt {
-  font: inherit;
-  border: none;
-  background: none;
-  padding: 0 var(--dc-pad-1, 4px);
-  cursor: pointer;
-  color: var(--tw-neutral-600);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 40ch;
-}
-.dc-status-receipt:hover { text-decoration: underline; }
+/* its i, as the tools are (above); a warehouse's or an engine's answer in sky */
 .dc-status-receipt.dc-receipt-warehouse,
 .dc-status-receipt.dc-receipt-engine { color: var(--tw-sky-700); }
 .dc-receipts { padding: var(--dc-pad-2, 8px); overflow: auto; }
@@ -3642,10 +3806,10 @@
 .dc-picker-rows { width: 110px; font-variant-numeric: tabular-nums; }
 .dc-picker-choice-actions { display: flex; gap: 8px; }
 
-/* a line above an entry: what follows is apart (New ▸ Blank Page) */
+/* a line above an entry: what follows is apart (New Page) */
 .dc-menu-item.dc-menu-separated { border-top: 1px solid var(--tw-neutral-200); margin-top: 3px; padding-top: 3px; }
 
-/* ---- a blank page (demo New ▸ Blank Page): what to do first ---- */
+/* ---- a blank page (demo New Page): what to do first ---- */
 .dc-blank {
   display: flex;
   align-items: center;
@@ -4243,8 +4407,8 @@
 .dc-pe .dc-editor-tab:focus-visible { outline: 1px solid var(--tw-sky-600); outline-offset: -1px; }
 .dc-pe .dc-editor-body { flex: 1; min-width: 0; overflow: auto; margin: 0; padding: 14px 18px; border: 0; }
 .dc-pe .dc-panel-title { font-size: 15px; line-height: 20px; font-weight: 600; margin: 0 0 12px; padding: 0; border: 0; }
-.dc-pe .dc-section { margin: 0 0 14px; padding: 0; border: 0; }
-.dc-pe .dc-section-title {
+:is(.dc-pe, .dc-chartpanel-form) .dc-section { margin: 0 0 14px; padding: 0; border: 0; }
+:is(.dc-pe, .dc-chartpanel-form) .dc-section-title {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -4260,7 +4424,8 @@
 .dc-pe .dc-field { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; }
 .dc-pe .dc-field-label { flex: none; width: 150px; text-align: left; color: var(--tw-neutral-600); }
 .dc-pe :is(select, input, textarea, button) { font-family: inherit; }
-.dc-pe select, .dc-pe input[type=text], .dc-pe input[type=number], .dc-pe input[type=search] {
+.dc-pe select, .dc-pe input[type=text], .dc-pe input[type=number], .dc-pe input[type=search],
+.dc-chartpanel-form select, .dc-chartpanel-form input[type=text], .dc-chartpanel-form input[type=number] {
   height: 26px;
   box-sizing: border-box;
   padding: 0 6px;
@@ -4270,7 +4435,10 @@
   color: var(--tw-neutral-700);
   font-size: 12px;
 }
-.dc-pe select:focus, .dc-pe input:focus { border-color: var(--tw-sky-600); outline: none; }
+/* a text field's or a dropdown's focus is its sky border; a checkbox keeps the page's own ring -- `input:focus` took it
+   from every checkbox here, where a border shows nothing (the 2026-10-25 review) */
+.dc-pe :is(select, input[type=text], input[type=number], input[type=search]):focus,
+.dc-chartpanel-form :is(select, input[type=text], input[type=number]):focus { border-color: var(--tw-sky-600); outline: none; }
 .dc-pe .dc-button { border-radius: 2px; font-size: 12px; }
 .dc-pe .dc-editor-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 18px; margin: 0; border-top: 1px solid var(--tw-neutral-200); }
 .dc-pe .dc-editor-footer .dc-button:last-child { background: var(--tw-sky-700); border-color: var(--tw-sky-700); color: var(--tw-white); min-width: 64px; }
@@ -4303,8 +4471,10 @@
 .dc-pe-colhead { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .dc-pe-colname { font: 600 14px/20px var(--dc-font-mono, ui-monospace, monospace); }
 .dc-pe-fold > .dc-section-title { cursor: pointer; user-select: none; }
-.dc-pe-fold > .dc-section-title::before { content: '\25be'; width: 10px; font-size: 10px; color: var(--tw-neutral-400); }
-.dc-pe-fold.dc-folded > .dc-section-title::before { content: '\25b8'; }
+.dc-pe-fold > .dc-section-title:hover { color: var(--tw-neutral-700); }
+.dc-pe-fold > .dc-section-title:focus-visible { outline: 2px solid var(--tw-sky-600); outline-offset: 2px; }
+.dc-pe-fold > .dc-section-title > .dc-chrome-icon { width: 10px; height: 10px; flex: none; color: var(--tw-neutral-400); }
+.dc-pe-fold.dc-folded > .dc-section-title > .dc-chrome-icon { transform: rotate(-90deg); }
 .dc-pe-fold.dc-folded > :not(.dc-section-title) { display: none; }
 
 /* THE APP'S STATUS LINE (src/app/datacube-app.ts): what the planner says as it starts, the page's errors, and that it no
@@ -4317,6 +4487,22 @@
   font: inherit; opacity: .75; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 40vw; margin: 0;
 }
+/* AN ERROR, A CHIP (datacube-app.ts sayError): its mark and first words, the whole on hover and in "What went wrong" */
+.dc-status-host .dc-app-status.bad {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 40ch;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--tw-red-50, #fef2f2);
+  color: var(--tw-red-700, #b91c1c);
+  opacity: 1;
+  cursor: pointer;
+}
+.dc-app-status-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.errortext { margin: 0 0 8px; white-space: pre-wrap; word-break: break-word; font-family: var(--dc-mono, ui-monospace, monospace); font-size: 12px; }
 
 /* THE APP'S WINDOWS (src/app/datacube-app.ts: Open…'s list, Share, the Generated Pure & SQL), floating: `makeWindow`
    positions and sizes them, so only the frame is described here. They were the tab's page's; the app builds them on
@@ -4368,16 +4554,90 @@
 
 /* A TEXT TILE (page-text.ts): a page's title or a note, its small Markdown drawn; edited in place */
 .dc-text-host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.dc-text-tile { flex: 1 1 auto; overflow: auto; padding: var(--dc-pad-2) var(--dc-pad-3); line-height: 1.45; }
-.dc-text-tile > :first-child { margin-top: 0; }
-.dc-text-tile h3 { font-size: 1.5em; margin: 0.2em 0 0.4em; }
-.dc-text-tile h4 { font-size: 1.2em; margin: 0.6em 0 0.3em; }
-.dc-text-tile h5 { font-size: 1em; margin: 0.6em 0 0.3em; }
-.dc-text-tile p { margin: 0 0 0.6em; }
-.dc-text-tile ul, .dc-text-tile ol { margin: 0 0 0.6em; padding-left: 1.4em; }
-.dc-text-tile code { font-family: var(--dc-mono, ui-monospace, monospace); background: var(--dc-hover, rgba(127, 127, 127, 0.12)); padding: 0 0.25em; border-radius: 3px; }
-.dc-text-tile a { color: var(--dc-accent, #2f6fde); }
+/* FILES IN A TEXT BOX (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): a tab each beside its words, the one shown below */
+.dc-text-host.dc-text-drop { outline: 2px dashed var(--dc-active); outline-offset: -4px; background: var(--dc-selected-bg); }
+.dc-text-files {
+  flex: none; display: flex; gap: 2px; overflow-x: auto; padding: 4px var(--dc-pad-2) 0;
+  border-bottom: 1px solid var(--dc-line);
+}
+.dc-text-file-tab { flex: none; display: inline-flex; align-items: center; }
+.dc-text-file-name {
+  font: inherit; font-size: var(--dc-text-sm-size); max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; padding: 3px 8px; border: 1px solid transparent; border-bottom: 0;
+  border-radius: var(--dc-radius-sm) var(--dc-radius-sm) 0 0; background: transparent; color: var(--dc-muted); cursor: pointer;
+}
+.dc-text-file-name:hover { color: inherit; background: var(--dc-hover); }
+.dc-text-file-name[aria-pressed='true'] { color: inherit; border-color: var(--dc-line); background: var(--tw-white); }
+.dc-text-file-close {
+  display: inline-flex; align-items: center; padding: 2px; margin-left: -4px; border: 0; background: transparent;
+  color: var(--dc-muted); cursor: pointer; font-size: 10px;
+}
+.dc-text-file-close:hover { color: inherit; }
+.dc-text-pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.dc-text-file { flex: 1 1 auto; overflow: auto; padding: var(--dc-pad-2) var(--dc-pad-3, 12px); line-height: 1.45; }
+.dc-text-file-plain { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--dc-mono, ui-monospace, monospace); font-size: 12px; }
+.dc-text-file-table { border-collapse: collapse; font-size: var(--dc-text-sm-size); }
+.dc-text-file-table th, .dc-text-file-table td { border: 1px solid var(--dc-line); padding: 2px 6px; text-align: left; white-space: nowrap; }
+.dc-text-file-table th { position: sticky; top: 0; background: var(--tw-white); font-weight: 600; }
+.dc-text-file-note { margin: 0 0 0.6em; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-text-file-missing { margin: auto; max-width: 360px; text-align: center; color: var(--dc-muted); padding: var(--dc-pad-2); }
+.dc-text-file-missing p { margin: 0 0 0.6em; }
+/* a text tile's words (page-text.ts textElement): the tile's box, then the words' type -- the tile's and its editor's
+   preview's alike */
+.dc-text-tile { flex: 1 1 auto; overflow: auto; padding: var(--dc-pad-2) var(--dc-pad-3, 12px); line-height: 1.45; }
+.dc-text-words > :first-child { margin-top: 0; }
+.dc-text-words h3 { font-size: 1.5em; margin: 0.2em 0 0.4em; }
+.dc-text-words h4 { font-size: 1.2em; margin: 0.6em 0 0.3em; }
+.dc-text-words h5 { font-size: 1em; margin: 0.6em 0 0.3em; }
+.dc-text-words p { margin: 0 0 0.6em; }
+.dc-text-words ul, .dc-text-words ol { margin: 0 0 0.6em; padding-left: 1.4em; }
+.dc-text-words code { font-family: var(--dc-mono, ui-monospace, monospace); background: var(--dc-hover, rgba(127, 127, 127, 0.12)); padding: 0 0.25em; border-radius: 3px; }
+.dc-text-words a { color: var(--tw-blue-600, #2563eb); }
 .dc-text-area { flex: 1 1 auto; min-height: 4em; resize: none; margin: var(--dc-pad-2); font: inherit; font-family: var(--dc-mono, ui-monospace, monospace); }
+.dc-text-words blockquote { margin: 0 0 0.6em; padding: 0 0 0 0.8em; border-left: 3px solid var(--tw-neutral-300); color: var(--tw-neutral-600); }
+.dc-text-words pre { margin: 0 0 0.6em; padding: 0.5em 0.7em; overflow: auto; border-radius: var(--dc-radius-sm); background: var(--dc-hover, rgba(127, 127, 127, 0.12)); }
+.dc-text-words pre code { padding: 0; background: none; }
+.dc-text-words hr { border: 0; border-top: 1px solid var(--tw-neutral-300); margin: 0.8em 0; }
+.dc-text-words h6 { font-size: 0.9em; margin: 0.6em 0 0.3em; color: var(--tw-neutral-600); }
+.dc-text-words li > ul, .dc-text-words li > ol { margin: 0.2em 0 0; }
+.dc-text-words li.dc-text-task { list-style: none; margin-left: -1.2em; }
+.dc-text-words li.dc-text-task > input { margin: 0 0.4em 0 0; vertical-align: -1px; }
+/* a list under a task: past its box, as under any item */
+.dc-text-words li.dc-text-task > ul, .dc-text-words li.dc-text-task > ol { padding-left: 2.6em; }
+.dc-text-table { overflow-x: auto; margin: 0 0 0.6em; }
+.dc-text-words table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.dc-text-words th, .dc-text-words td { padding: 2px 8px; border: 1px solid var(--tw-neutral-200); }
+.dc-text-words th { background: var(--tw-neutral-100); font-weight: 600; }
+
+/* ITS EDITOR (the user, 2026-10-25: Markdown with a toolbar): the marks, then the words and what they will look like side
+   by side -- one above the other where the tile is narrow -- then its bar */
+.dc-text-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 1px; padding: var(--dc-pad-1) var(--dc-pad-2) 0; }
+.dc-text-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--dc-radius-sm);
+  background: transparent;
+  color: var(--tw-neutral-600);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dc-text-tool:hover { background: var(--tw-neutral-200); color: var(--tw-neutral-800, #262626); }
+.dc-text-tool:focus-visible { outline: 1.5px solid var(--dc-active, #0284c7); outline-offset: -1px; }
+.dc-text-tool[data-mark='Italic'] { font-style: italic; font-family: Georgia, 'Times New Roman', serif; }
+.dc-text-tool[data-mark='Strikethrough'] { text-decoration: line-through; }
+.dc-text-tools-sep { width: 1px; height: 14px; margin: 0 4px; background: var(--tw-neutral-200); }
+.dc-text-panes { display: flex; flex-wrap: wrap; flex: 1 1 auto; gap: var(--dc-pad-2); min-height: 0; padding: var(--dc-pad-2); overflow: auto; }
+.dc-text-panes > .dc-text-area,
+.dc-text-panes > .dc-text-preview { flex: 1 1 220px; min-width: 0; min-height: 6em; margin: 0; }
+.dc-text-preview { overflow: auto; border: 1px dashed var(--tw-neutral-300); border-radius: var(--dc-radius-sm); }
+.dc-text-preview > .dc-text-words { padding: var(--dc-pad-2); line-height: 1.45; }
+.dc-text-help { color: var(--tw-neutral-500); font-size: var(--dc-text-sm-size); }
 .dc-text-bar { display: flex; align-items: center; gap: var(--dc-pad-2); padding: 0 var(--dc-pad-2) var(--dc-pad-2); }
 .dc-text-problem { flex: 1 1 auto; color: var(--dc-error, #c62828); font-size: var(--dc-text-sm-size); }
 

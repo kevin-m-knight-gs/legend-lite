@@ -54,6 +54,7 @@ import {
   type WindowFunction,
 } from '../snapshot.ts';
 import { isVariant } from '../../../engine-client/src/types.ts';
+import { chromeIcon } from './tile-icons.ts';
 
 export type { ColumnLevel };
 
@@ -1172,7 +1173,7 @@ export class ColumnEditor {
         o.direction, (v) => setAt({ direction: v as 'asc' | 'desc' }));
       const remove = el(doc, 'button', 'dc-button dc-win-order-remove', line) as HTMLButtonElement;
       remove.type = 'button';
-      remove.textContent = '×';
+      remove.append(chromeIcon(doc, 'close'));
       remove.setAttribute('aria-label', `Remove ${o.column} from the order`);
       remove.addEventListener('click', () => {
         this.#draft.window = {

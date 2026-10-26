@@ -196,11 +196,18 @@
 
 .dc-chevron {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 12px;
-  text-align: center;
   cursor: pointer;
   opacity: 0.75;
   user-select: none;
+}
+
+.dc-chevron .dc-chrome-icon {
+  width: 12px;
+  height: 12px;
 }
 
 .dc-chevron:hover {
@@ -743,7 +750,31 @@
 }
 
 .dc-menu-chevron {
+  display: flex;
   color: var(--tw-neutral-500);
+}
+
+/* The page chrome's marks (ui/tile-icons.ts chromeIcon; docs/DATACUBE_UI_REVIEW_2026_10_24.md,
+   found 4), one drawn set in place of glyphs from four fonts: at the size of the text of the
+   button they sit in, on its middle, the button the target of a press. */
+.dc-chrome-icon {
+  display: inline-block;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.2em;
+  pointer-events: none;
+}
+
+/* An entry's key, right-aligned and quiet, where one does what the entry
+   does (the menus: docs/DATACUBE_UI_REVIEW_2026_10_24.md). */
+.dc-menu-shortcut {
+  flex: none;
+  margin-left: auto;
+  padding-left: 24px;
+  color: var(--tw-neutral-500);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Upstream's check mark: a fixed gutter, so checked and unchecked

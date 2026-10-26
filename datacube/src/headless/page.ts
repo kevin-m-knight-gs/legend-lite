@@ -99,7 +99,7 @@ export function pageRecord(fresh: string, name: string | null, text: string, asN
 
 /**
  * A NEW PAGE, as DataCube starts one (page-document.ts newPage, the one skeleton: D11, B9): unnamed when `name` is null
- * ('', as the tab's Blank Page), else named by DataCube's one rule (givenName) -- so Python writes no page skeleton of
+ * ('', as the tab's New Page), else named by DataCube's one rule (givenName) -- so Python writes no page skeleton of
  * its own. JSON: `{page}`, its text as DataCube writes it, or `{problems}`, why the name was refused, in DataCube's words.
  * A page with no cube is shown and followed (D2), never saved (pageSaved): Python's first grid makes it one DataCube
  * saves.

@@ -32,6 +32,11 @@ export interface JoinSourcesHost {
    * opens, or one read for another join (`joinRead`).
    */
   readFile(sha256: string): { readonly table: string; readonly file: File; readonly handle?: FileHandle } | undefined;
+  /**
+   * A table a grid holds, read by a join not made yet: kept even if that grid goes (with the page it was on) until the
+   * returned give-back is called -- once the join's grid is made, or the join let go.
+   */
+  borrow(table: string): () => void;
   /** A saved cube's file got back (sources.ts fileFor): rebuilt, from the handle `page` kept, or asked for. */
   fileFor(src: FileSource, cube: string, page: string | undefined): Promise<{ file: File; handle?: FileHandle } | undefined>;
   /** A table name of the host's database no grid holds, taken; given back with `untake`, or taken as read with `take`. */
@@ -85,7 +90,7 @@ export interface JoinRead {
  * (`joinRead`), and -- a file given that is not the one the join was saved over -- that, said.
  */
 async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, page: string | undefined,
-  kept: string | undefined): Promise<{ table: string; held?: boolean; note?: string } | undefined> {
+  kept: string | undefined): Promise<{ table: string; held?: boolean; giveBack?: () => void; note?: string } | undefined> {
   /** The name the page's model keeps for this leaf's table (its project's store reads it so), when no grid holds it; else
    *  a fresh one. */
   const asked = (base: string): string => {
@@ -110,7 +115,8 @@ async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, pag
     const renamed = kept !== undefined && already.table !== kept
       ? { note: `${already.file.name} is read as ${already.table} in this tab, not ${kept} as the page's classes read it` } : {};
     const read = h.joinRead.get(already.table);
-    if (!read) return { table: already.table, ...renamed };
+    // a grid's table: borrowed, so a grid that goes meanwhile (the page this one replaces) does not take it with it
+    if (!read) return { table: already.table, giveBack: h.borrow(already.table), ...renamed };
     read.users += 1;
     return { table: already.table, held: true, ...renamed };
   }
@@ -137,6 +143,17 @@ async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, pag
     ? `${got.file.name} is read as ${opened.table} in this tab, not ${kept} as the page's classes read it` : undefined;
   const said = [note, renamed].filter((n): n is string => n !== undefined);
   return { table: opened.table, held: true, ...(said.length > 0 ? { note: said.join('; ') } : {}) };
+}
+
+/** `make`, with `then` called once it has made its grid. */
+function madeThen<M extends (...args: never[]) => unknown>(make: M, then: () => void): M {
+  return ((...args: Parameters<M>) => {
+    try {
+      return make(...args);
+    } finally {
+      then();
+    }
+  }) as M;
 }
 
 /**
@@ -246,15 +263,22 @@ async function openedAfterStart(h: JoinSourcesHost, source: RowsSource, resolved
  * or beside it taken, a sample rebuilt, else asked for) and each remote file mounted -- `open` typing what is read over
  * one model of them, `written` what the grid writes down as its source; undefined when a file was not given.
  */
-/** The tables `leaves` read, each found or read in as a saved join's are (leafTable), what that said, and the hold on
- *  those read for this one let go (`forget`); undefined when a file was not given. */
+/** The tables `leaves` read, each found or read in as a saved join's are (leafTable), what that said, the hold on those
+ *  read for this one let go (`forget`), and the grids' tables it borrowed given back (`giveBack`: once a grid is made
+ *  over them, which holds them itself; forget gives them back too); undefined when a file was not given. */
 async function leafTablesOf(h: JoinSourcesHost, leaves: readonly LeafSource[], name: string, page: string | undefined,
-  kept: readonly string[] | undefined): Promise<{ readonly tables: string[]; readonly said: string[]; forget(): Promise<void> } | undefined> {
+  kept: readonly string[] | undefined): Promise<{
+  readonly tables: string[]; readonly said: string[]; forget(): Promise<void>; giveBack(): void;
+} | undefined> {
   /** The tables read in for joins that this one holds. */
   const holding: string[] = [];
+  /** The grids' tables it borrows (JoinSourcesHost.borrow), given back once its grid is made or it is let go. */
+  const borrowing: (() => void)[] = [];
+  const giveBack = (): void => { for (const back of borrowing.splice(0)) back(); };
   const said: string[] = [];
   /** Its hold on them let go: one no other join holds, and no grid made of one does, is dropped. */
   const forget = async (): Promise<void> => {
+    giveBack();
     for (const t of holding.splice(0)) {
       const read = h.joinRead.get(t);
       if (!read) continue;
@@ -275,6 +299,7 @@ async function leafTablesOf(h: JoinSourcesHost, leaves: readonly LeafSource[], n
         return undefined;
       }
       if (got.held) holding.push(got.table);
+      if (got.giveBack) borrowing.push(got.giveBack);
       if (got.note !== undefined) said.push(got.note);
       tables.push(got.table);
     }
@@ -282,7 +307,7 @@ async function leafTablesOf(h: JoinSourcesHost, leaves: readonly LeafSource[], n
     await forget();
     throw e;
   }
-  return { tables, said, forget };
+  return { tables, said, forget, giveBack };
 }
 
 /** The tab's opening of `open` over `tables`: its model written over them, its typer the grid's own rows (`made`). */
@@ -335,13 +360,15 @@ async function openedOver<T extends { readonly relation: ValueSpecification; rea
   how: OpenedHow): Promise<Opened | undefined> {
   let said: string[] = [];
   let forget = async (): Promise<void> => {};
+  /** What it borrowed of the grids' tables, given back once its grid is made (leafTablesOf; forget gives it back too). */
+  let giveBack = (): void => {};
   let rows: GridRows | undefined;
   try {
     let tables = how.tables;
     if (tables === undefined) {
       const read = await leafTablesOf(h, leavesOf(over), how.saved?.name ?? name, how.page, how.kept);
       if (read === undefined) return undefined;
-      ({ tables, said, forget } = read);
+      ({ tables, said, forget, giveBack } = read);
     }
     const opened = await open(tabOpening(h, tables, (r) => { rows = r; }));
     const grid = rows!;
@@ -360,11 +387,12 @@ async function openedOver<T extends { readonly relation: ValueSpecification; rea
         h.letGo(grid);
         await forget();
       },
-      make: h.gridMaker(r.snapshot, r.configuration, [], {
+      // its grid made holds its tables itself (sources.ts madeGrid): what it borrowed is given back then
+      make: madeThen(h.gridMaker(r.snapshot, r.configuration, [], {
         // what it reads, its links resolved (a box's chain): its leaves are what the page holds for it
         ...h.rowsPlace(grid), ...plane, cubeSource, reads: over, label: name, ...(r.tree ? { tree: r.tree } : {}), tables,
         foldPanel: how.capped === true,
-      }),
+      }), giveBack),
     };
   } catch (e) {
     if (rows) h.letGo(rows);
