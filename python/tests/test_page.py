@@ -3519,7 +3519,7 @@ class Flows(Paged):
         # FL3: a value its rows hold that its columns lack, said by the database's answer -- and, set to stop a run (FL8),
         # no Output written; its values loaded again, written
         self.assertEqual(crossed.failing, [{'check': 'every region has a column', 'rows': 1,
-                                            'says': 'region AMER has no column of its own: Load values again to add it'}])
+                                            'says': 'region AMER has no column of its own: add it to its columns, or Load values again'}])
         after.output('crossed.csv')
         crossed.stops_run()
         with tempfile.TemporaryDirectory() as folder:

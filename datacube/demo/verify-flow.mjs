@@ -1702,12 +1702,14 @@ try {
   await page.locator('.dc-flow-box[data-tile="grid-23"]').click();
   await settled();
   const lackingSaid = await page.locator('.dc-flow-settings:visible .dc-flow-pin-lacking').textContent();
-  check(lackingSaid === 'region APAC has no column of its own: Load values again to add it', `its settings name it: ${lackingSaid}`);
+  check(lackingSaid === 'region APAC has no column of its own: add it to its columns, or Load values again', `its settings name it: ${lackingSaid}`);
   check(/^Its columns: AMER, EMEA\.$/.test(await page.locator('.dc-flow-settings:visible .dc-flow-pin-words').textContent() ?? ''), 'its columns: AMER, EMEA');
-  await page.locator('.dc-flow-settings:visible .dc-flow-pin-load').click();
+  // the fix offered (FL8's "Add to the cast"): the value it lacks given a column after its own, one step
+  await page.locator('.dc-flow-settings:visible .dc-flow-pin-add').click();
   await page.waitForFunction(() => document.querySelector('.dc-flow-box[data-tile="grid-23"] .dc-flow-says')?.textContent === 'every value has a column', undefined, { timeout: 60_000 });
-  check(await page.locator('.dc-flow-box[data-tile="grid-23"].dc-flow-passing').count() === 1, 'loaded again: every region a column, passing');
-  check(/^Its columns: AMER, APAC, EMEA\.$/.test(await page.locator('.dc-flow-settings:visible .dc-flow-pin-words').textContent() ?? ''), 'its columns: all three');
+  check(await page.locator('.dc-flow-box[data-tile="grid-23"].dc-flow-passing').count() === 1, 'added: every region a column, passing');
+  check(/^Its columns: AMER, EMEA, APAC\.$/.test(await page.locator('.dc-flow-settings:visible .dc-flow-pin-words').textContent() ?? ''), 'its columns: its two, then APAC after them');
+  check(await page.locator('.dc-flow-settings:visible .dc-flow-pin-add').count() === 0, 'nothing more to add: the fix gone');
   // A DRY RUN (M6): every box counted and judged, nothing written -- its stopping Test failing, 2024's orders would not
   // be; set to warn, they would be, and still nothing is written
   const dryRun = async () => {

@@ -214,6 +214,8 @@ export interface SpawnedGrid {
   /** A Cross Tab's values pinned as its rows hold them now, its columns fixed (FL2), or `pin` false its values its rows'
    *  again: the refusal in words, or null. */
   pinPivotValues?(pin: boolean): Promise<string | null>;
+  /** A Cross Tab's values its pin lacks, each a column of its own after its columns (FL8's "Add to the cast"). */
+  addPivotValues?(values: readonly (FilterValue | null)[]): Promise<string | null>;
   /** A gesture made on it as its menu makes one (a flow's New Box After: the new box's one step, FL9). */
   gesture?(name: string, args: GestureArgs, label: string): Promise<string | null>;
   /** A Cross Tab's values its pinned columns lack, asked of the database (FL3): none when it pins nothing. */
@@ -704,6 +706,11 @@ export class CubePage {
           return (on?.kind === 'flow' ? on.board.refusal(tile) : undefined) ?? 'its grid could not be opened';
         }
         return grid.pinPivotValues(pin);
+      },
+      onAddPinned: async (tile, values) => {
+        const grid = this.#grids.get(tile)?.added?.cube;
+        if (grid?.addPivotValues === undefined) return 'its grid is not open';
+        return grid.addPivotValues(values);
       },
       onWrite: (tile) => this.#writeBox(tile),
       onSelect: (tile, editor) => void this.#showBox(tile, editor),

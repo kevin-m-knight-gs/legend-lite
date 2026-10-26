@@ -429,8 +429,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  the page: lazily, it was a chunk that split the startup files), a Cross Tab's values read once (query.ts
  *  pivotValuesOf), the page gestures Python shares (flow.place, flow.duplicate), a stopping box never judged
  *  (flow-board.ts runStoppers); the checks' readers kept out (setStops reads a Test's shape alone); no startup file
- *  added -- 33 as before, measured by esbuild's record). Measured 408,032. */
-const BUDGET = 408_500;
+ *  added -- 33 as before, measured by esbuild's record). Measured 408,032.
+ *  408,500 -> 409,500 (2026-10-26, the flow mode's roadmap: C13, a join's one of theirs per key (join-how.ts's reader of
+ *  `once`), a Profile's top values (layout/flow-canvas.ts #drawProfile), and a Cross Tab's Add to the cast
+ *  (flow-canvas.ts #paintPin, app.ts addPivotValues): no startup file added). Measured 408,617. */
+const BUDGET = 409_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

@@ -2682,8 +2682,22 @@ export class FlowCanvas {
     status.className = 'dc-flow-pin-said';
     status.setAttribute('role', 'status');
     status.textContent = said ?? '';
+    // the fix offered (FL8): each value it lacks a column of its own, after the columns it has -- an empty one none's
+    const addable = (lacking ?? []).filter((v) => v !== null);
+    const add = d.createElement('button');
+    add.type = 'button';
+    add.className = 'dc-picker-button dc-flow-pin-add';
+    add.textContent = `Add ${addable.length === 1 ? 'it' : `the ${addable.length}`} to its columns`;
+    add.title = 'Each value its rows hold that it has no column for given one, after the columns it has';
+    add.disabled = !this.#board.editing || this.#board.options.onAddPinned === undefined;
+    add.addEventListener('click', () => void (async () => {
+      add.disabled = true;
+      const refused = await this.#board.options.onAddPinned?.(id, addable);
+      this.#pinSaid.set(id, refused ?? `Its columns: ${addable.map(String).join(', ')} added`);
+      this.#paintPin(id);
+    })());
     this.#pinStrip.replaceChildren(words, button(pinned === undefined ? 'Load values' : 'Load values again', 'dc-flow-pin-load', true),
-      ...(pinned !== undefined ? [button('Unfix', 'dc-flow-pin-unfix', false)] : []), missing, status);
+      ...(pinned !== undefined ? [button('Unfix', 'dc-flow-pin-unfix', false)] : []), missing, ...(addable.length > 0 ? [add] : []), status);
   }
 
   /** THE SETTINGS' OUTPUT (M6): the CSV file an Output box writes, named here (Enter, or leaving the field); Write now

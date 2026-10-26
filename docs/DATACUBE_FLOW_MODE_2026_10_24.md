@@ -379,7 +379,9 @@ Every milestone ends usable: something a person does from start to finish, saved
 
 - Cross Tab, with Load values, the cast, its check and the check's mode (FL2, FL3, FL8); Transpose, composed (FL14).
   Built (2026-10-25): Load values (its values pinned), its check (a value its pin lacks, said), Stop Run On Failure.
-- The check modes on screen: amber and red boxes, Add to the cast.
+- The check modes on screen: amber and red boxes, Add to the cast. *Built: amber for a check that warns, red for one
+  that stops a run (2026-10-25); Add to the cast (2026-10-26): a Cross Tab's values its pin lacks given columns after its
+  own, one step (`pivot.pin`, Python's `grid.pin_pivot` with the longer list).*
 - **Done when:** a Cross Tab whose data gains a value is marked in a preview and refused by a run in refuse mode.
 
 ### M5. Understand the data
@@ -984,7 +986,7 @@ columns are fixed asks the database, as its rows land (shown, or the flow run), 
 pin lacks -- its pivot's own values query with a filter keeping the empty value and those `not in` the pin (SQL's
 `not in` leaves an empty value out, so it is asked for by name) -- once for each thing it is (its chain). Some found,
 its box is drawn as a failing Test is -- amber, saying "1 value has no column", its title and its settings naming them
-("region APAC has no column of its own: Load values again to add it") -- and the run's log counts it apart from the
+("region APAC has no column of its own: add it to its columns, or Load values again"; the fix beside it since 2026-10-26) -- and the run's log counts it apart from the
 Tests ("1 Cross Tab missing values"). Its settings offer a Test's mode (**Stop a run when a value has no column**, the
 same `setStops`): set, a run waits for its answer before any Output is written and writes none, drawn red. Load
 values again adds the value: every value a column, passing. Python: `grid.failing` answers for a Cross Tab whose columns

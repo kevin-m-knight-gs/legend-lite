@@ -48,6 +48,9 @@ export interface FlowBoardOptions {
   /** A Cross Tab box's Load values (`pin`: its values as its rows hold them now pinned, its columns fixed -- FL2) or
    *  Unfix: the refusal in words, or null. */
   readonly onPinValues?: (id: string, pin: boolean) => Promise<string | null>;
+  /** A Cross Tab's values its pin lacks (FL3), each given a column of its own after its columns (FL8's fix, "Add to the
+   *  cast"); why not when it could not. */
+  readonly onAddPinned?: (id: string, values: readonly (FilterValue | null)[]) => Promise<string | null>;
   /** An Output's Write now: the caller writes its rows to its file, and says why not when it could not. */
   readonly onWrite?: (id: string) => Promise<string | null>;
   /** A box clicked, or Enter on it: the caller shows its rows (its grid made, `add`) -- and its settings, `editor` (the

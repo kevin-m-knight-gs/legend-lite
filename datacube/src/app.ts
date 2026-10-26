@@ -3959,6 +3959,19 @@ export class CubeApp {
    * box after it reads them (the gesture pivot.pin, Python's grid.load_pivot_values); `pin` false, its values its rows'
    * again. The refusal, in words, or null.
    */
+  /**
+   * A CROSS TAB'S VALUES ADDED TO ITS COLUMNS (FL8's fix, "Add to the cast"): the values its rows hold that its pin lacks,
+   * each a column of its own after the columns it has, in the order given -- the pin's own gesture (`pivot.pin`, Python's
+   * grid.pin_pivot with the longer list). A value it has already is not added twice; an empty one is no column's.
+   */
+  async addPivotValues(values: readonly (FilterValue | null)[]): Promise<string | null> {
+    const pinned = this.#snapshot.pivotValues ?? [];
+    if (pinned.length === 0) return 'its columns are not fixed: Load values fixes them';
+    const added = values.filter((v): v is FilterValue => v !== null && !pinned.some((p) => sameValue(p, v)));
+    if (added.length === 0) return 'it has a column for each of them already';
+    return this.#gesture('pivot.pin', { values: [...pinned, ...added] }, 'Add to Columns');
+  }
+
   async pinPivotValues(pin: boolean): Promise<string | null> {
     if (!pin) return this.#gesture('pivot.pin', { values: null }, 'Unfix Columns');
     const { pivotValues: _pinned, ...s } = this.#snapshot;
