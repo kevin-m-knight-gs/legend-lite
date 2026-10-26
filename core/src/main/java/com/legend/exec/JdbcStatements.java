@@ -62,6 +62,24 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
+    public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
+            throws IOException {
+        try (PreparedStatement st = c.prepareStatement(statement)) {
+            for (int i = 0; i < slots.size(); i++) {
+                bind(st, i + 1, slots.get(i), values.get(i));
+            }
+            return st.executeUpdate();
+        } catch (SQLException e) {
+            throw PlanSessions.dataError(e, c);
+        }
+    }
+
+    @Override
+    public <T> T inTransaction(java.util.function.Supplier<T> work) {
+        return Executor.inTransaction(c, work);
+    }
+
+    @Override
     public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
         try (PreparedStatement st = c.prepareStatement(statement)) {

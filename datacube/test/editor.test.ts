@@ -63,9 +63,12 @@ describe('the aggregate list', () => {
     // catches the other direction.
     // 13 since `unique` joined them: DataCube's default aggregate
     // for every non-numeric column, and what lets grouping keep the
-    // text columns instead of dropping them.
-    assert.equal(AGGREGATES.length, 13);
-    assert.equal(new Set(AGGREGATES.map((a) => a.value)).size, 13);
+    // text columns instead of dropping them; 15 since the quartiles
+    // did (chart batch 4, a box plot's box); 21 since the aggregates
+    // of two columns and the distinct count (BI parity P2: corr, the
+    // covariances, max by, min by, distinctCount).
+    assert.equal(AGGREGATES.length, 21);
+    assert.equal(new Set(AGGREGATES.map((a) => a.value)).size, 21);
   });
 });
 

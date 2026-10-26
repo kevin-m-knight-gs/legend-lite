@@ -66,6 +66,26 @@ export function grainColumn(column: string, grain: TimeGrain, name = grainName(c
   return { name, lambda: row(fn(GRAIN_FUNCTION[grain], one(column))), kind: 'dimension' };
 }
 
+/**
+ * The period a column takes a date to, if it is one (grainColumn's shape, by the function it calls -- whoever wrote
+ * it: the preset, Python's grid.grain, or a person typing `$x.d->toOne()->firstDayOfMonth()`), and the column it takes.
+ * A flow's DateTime box is drawn by it (flow-boxes.ts).
+ */
+export function grainOf(d: DerivedColumn): { readonly column: string; readonly grain: TimeGrain } | undefined {
+  const param = d.lambda?.parameters[0]?.name;
+  const body = d.lambda?.body;
+  if (param === undefined || body?.length !== 1) return undefined;
+  const call = body[0]!;
+  if (call._type !== 'func' || call.parameters.length !== 1) return undefined;
+  const grain = (Object.keys(GRAIN_FUNCTION) as TimeGrain[]).find((g) => GRAIN_FUNCTION[g] === call.function);
+  const toOne = call.parameters[0]!;
+  if (grain === undefined || toOne._type !== 'func' || toOne.function !== 'toOne' || toOne.parameters.length !== 1) return undefined;
+  const read = toOne.parameters[0]!;
+  if (read._type !== 'property' || read.parameters.length !== 1) return undefined;
+  const owner = read.parameters[0]!;
+  return owner._type === 'var' && owner.name === param ? { column: read.property, grain } : undefined;
+}
+
 /** One period of each grain, as the compiler's `adjust` takes it: how many of which DurationUnit. */
 const GRAIN_STEP: Readonly<Record<TimeGrain, readonly [number, string]>> = {
   day: [1, 'DAYS'], week: [7, 'DAYS'], month: [1, 'MONTHS'], quarter: [3, 'MONTHS'], year: [1, 'YEARS'],
@@ -93,6 +113,15 @@ export function grainEndColumn(column: string, grain: TimeGrain, name: string): 
 
 // ---------------------------------------------------------------- bins
 
+/** A preset's name no column of the grid has (`taken`): `base`, else `base_2`, `base_3`... -- each of the columns it makes
+ *  (`make`) free (grid-presets.ts presetCommands; a flow's Binning, binning.ts). */
+export function freeName(base: string, make: (name: string) => readonly DerivedColumn[], taken: ReadonlySet<string>): string {
+  const fits = (name: string): boolean => make(name).every((d) => !taken.has(d.name));
+  let free = base;
+  for (let i = 2; !fits(free); i += 1) free = `${base}_${i}`;
+  return free;
+}
+
 /** The column bins make of `column`: its name. */
 export function binName(column: string): string {
   return `${column}__bin`;
@@ -111,8 +140,7 @@ export function binName(column: string): string {
  * row (before the grid's filter, so the bins stay put as the filter changes); the last bin keeps the maximum, its upper
  * edge one width past it.
  */
-export function binColumns(column: string, bins: Bins): DerivedColumn[] {
-  const name = binName(column);
+export function binColumns(column: string, bins: Bins, name = binName(column)): DerivedColumn[] {
   const v = one(column);
   if (bins.width !== undefined) {
     if (!(bins.width > 0)) throw new Error('a bin is wider than nothing');
@@ -194,6 +222,69 @@ export const SHOW_AS_LABELS: Readonly<Record<ShowAsKind, string>> = {
   movingAverage: 'Moving average',
   rank: 'Rank',
 };
+
+/**
+ * What the GRID's Show As offers (grid-presets.ts; Excel's Show Values As): the chart's, and what a tree of groups has
+ * that a chart's rows have not -- a share of the grand total at every depth, a share of the parent row, a running share,
+ * a rank from the smallest.
+ */
+export const GRID_SHOW_AS_KINDS = [
+  'percentOfTotal', 'percentOfParent', 'runningTotal', 'percentRunningTotal', 'difference', 'percentChange',
+  'movingAverage', 'rank', 'rankAscending',
+] as const;
+export type GridShowAsKind = (typeof GRID_SHOW_AS_KINDS)[number];
+
+export const GRID_SHOW_AS_LABELS: Readonly<Record<GridShowAsKind, string>> = {
+  percentOfTotal: '% of grand total',
+  percentOfParent: '% of parent row total',
+  runningTotal: 'Running total',
+  percentRunningTotal: '% running total',
+  difference: 'Difference from previous',
+  percentChange: '% change from previous',
+  movingAverage: 'Moving average',
+  rank: 'Rank, largest first',
+  rankAscending: 'Rank, smallest first',
+};
+
+/** Whether the grid's Show As reads as a percentage: its preset shows it as one. */
+export function isGridRatio(kind: GridShowAsKind): boolean {
+  return kind === 'percentOfTotal' || kind === 'percentOfParent' || kind === 'percentRunningTotal' || kind === 'percentChange';
+}
+
+/**
+ * A measure shown as something computed from it in the GRID, as group-level columns: each level's rows are its
+ * parent's (query.ts LevelScope), `along` the grid's row groups in order. A share of the grand total or of the parent
+ * row divides by the measure AT THAT GRAIN (snapshot.ts Grain: the same aggregate over the coarser group's rows, so an
+ * average's share is of the average, exact at every depth); a running share by its running total's own end, so the
+ * last group reads 100%. The rest are the chart's (showAsColumns). The last column returned is the one shown, `name`;
+ * any it reads are named after it.
+ */
+export function gridShowAsColumns(kind: GridShowAsKind, base: string, along: readonly string[], name: string): DerivedColumn[] {
+  switch (kind) {
+    case 'percentOfTotal':
+    case 'percentOfParent': {
+      const whole = `${name}__${kind === 'percentOfTotal' ? 'total' : 'parent'}`;
+      return [
+        { name: whole, grain: { of: base, at: kind === 'percentOfTotal' ? 'all' : 'parent' } },
+        { name, lambda: row(share(one(base), whole)) },
+      ];
+    }
+    case 'percentRunningTotal': {
+      const running = `${name}__running`;
+      const total = `${name}__total`;
+      const order: SortSpec[] = along.map((column) => ({ column, direction: 'asc' }));
+      return [
+        { name: running, window: { fn: 'sum', column: base, partition: [], order, frame: 'running' } },
+        { name: total, window: wholeOf('sum', base) },
+        { name, lambda: row(share(one(running), total)) },
+      ];
+    }
+    case 'rankAscending':
+      return [{ name, window: { fn: 'rank', partition: [], order: [{ column: base, direction: 'asc' }] } }];
+    default:
+      return showAsColumns({ kind }, base, along, [], name);
+  }
+}
 
 /** Whether a show-as is a ratio (a share, a change): it reads as a percentage. */
 export function isRatio(kind: ShowAsKind): boolean {
@@ -331,6 +422,86 @@ export function ringTotalColumn(measure: string, across: string): DerivedColumn 
     name: ringTotalName(measure),
     window: { fn: 'sum', column: measure, partition: [across], order: [{ column: measure, direction: 'asc' }], frame: 'partition' },
   };
+}
+
+/**
+ * A part over a whole that may be nothing: empty when the whole is zero (a P&L that nets to nothing), as a change from
+ * nothing is (showAsColumns' percentChange) -- where a database would refuse the division, or answer infinity.
+ */
+function share(part: ValueSpecification, whole: string): ValueSpecification {
+  return fn('if', fn('equal', one(whole), lit.integer(0)), lambda([], collection([])), lambda([], divide(part, one(whole))));
+}
+
+/** A Marimekko's columns: where each column starts across and how wide it is, where each cell starts up and ends. */
+export function marimekkoNames(measure: string): {
+  readonly x0: string; readonly x1: string; readonly width: string; readonly y0: string; readonly y1: string;
+} {
+  return {
+    x0: `mekko_x0_${measure}`, x1: `mekko_x1_${measure}`, width: `mekko_width_${measure}`,
+    y0: `mekko_y0_${measure}`, y1: `mekko_y1_${measure}`,
+  };
+}
+
+/**
+ * A MARIMEKKO'S CELLS, the database's (batch 3's leftovers): each column across as wide as its share of the whole, each
+ * cell up it as tall as its share of the column -- every figure a share between 0 and 1. A column starts where the
+ * ones before it (in the order across, `direction`) end: the running total through the cell, less the running total
+ * within its column through the cell, over the whole, and ends that start plus its own total over the whole; a cell
+ * starts where the cells below it in its column (in the split's order) end. The chart draws each cell from its four
+ * edges; nothing is added up in the page.
+ */
+export function marimekkoColumns(measure: string, across: string, split: string, direction: 'asc' | 'desc'): DerivedColumn[] {
+  const { x0, x1, width, y0, y1 } = marimekkoNames(measure);
+  const total = `${width}__column`;
+  const all = `${width}__all`;
+  const run = `${x0}__running`;
+  const within = `${y1}__running`;
+  return [
+    { name: total, window: { fn: 'sum', column: measure, partition: [across], order: [{ column: measure, direction: 'asc' }], frame: 'partition' } },
+    { name: all, window: wholeOf('sum', measure) },
+    {
+      name: run,
+      window: { fn: 'sum', column: measure, partition: [], frame: 'running', order: [{ column: across, direction }, { column: split, direction: 'asc' }] },
+    },
+    { name: within, window: { fn: 'sum', column: measure, partition: [across], frame: 'running', order: [{ column: split, direction: 'asc' }] } },
+    { name: x0, lambda: row(share(minus(one(run), one(within)), all)) },
+    { name: x1, lambda: row(share(plus(minus(one(run), one(within)), one(total)), all)) },
+    { name: width, lambda: row(share(one(total), all)) },
+    { name: y0, lambda: row(share(minus(one(within), one(measure)), total)) },
+    { name: y1, lambda: row(share(one(within), total)) },
+  ];
+}
+
+/** A waffle's columns: the first of its hundred cells a category fills, and the one after its last. */
+export function waffleNames(measure: string): { readonly from: string; readonly to: string } {
+  return { from: `waffle_from_${measure}`, to: `waffle_to_${measure}` };
+}
+
+/** A waffle's cells: a hundred, ten by ten. */
+export const WAFFLE_CELLS = 100;
+
+/**
+ * A WAFFLE'S CELLS, the database's (batch 3's leftovers): each category fills the cells from where the category before
+ * it ended to its running share through it, each a hundredth, rounded -- a running total rounded, never each share on
+ * its own, so the ranges meet and add up to a hundred exactly. In the chart's own order (`order`, ties broken by the
+ * category); a whole of nothing has no cells (empty, as a share of nothing is). The chart colours each cell by the
+ * category whose range holds it, comparing, never counting.
+ */
+export function waffleColumns(measure: string, order: readonly SortSpec[]): DerivedColumn[] {
+  const { from, to } = waffleNames(measure);
+  const run = `${to}__running`;
+  const all = `${to}__all`;
+  const before = `${from}__before`;
+  // a range starts where the one before it ended (the same column, the row before: a lag), never at its own share
+  // rounded again -- two roundings of nearly one figure can part by a cell; the first starts at the first cell
+  return [
+    { name: run, window: { fn: 'sum', column: measure, partition: [], order: [...order], frame: 'running' } },
+    { name: all, window: wholeOf('sum', measure) },
+    { name: to, lambda: row(fn('if', fn('equal', one(all), lit.integer(0)), lambda([], collection([])),
+      lambda([], fn('round', times(divide(one(run), one(all)), lit.integer(WAFFLE_CELLS)))))) },
+    { name: before, window: { fn: 'lag', column: to, partition: [], order: [...order] } },
+    { name: from, lambda: row(fn('if', fn('isEmpty', col(before)), lambda([], lit.integer(0)), lambda([], one(before)))) },
+  ];
 }
 
 // ---------------------------------------------------------------- a clicked period or bin

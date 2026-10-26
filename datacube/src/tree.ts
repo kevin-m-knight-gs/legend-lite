@@ -145,6 +145,12 @@ export class TreeState {
     return new TreeState(new Set(paths.map(pathKey)), showTotals);
   }
 
+  /** A tree as a saved cube keeps it (cube-document.ts treeDocument): its open groups, its grand total, its expand
+   *  level and the groups closed under that level. */
+  static saved(open: readonly RowPath[], showTotals: boolean, expandTo: number, closed: readonly RowPath[]): TreeState {
+    return new TreeState(new Set(open.map(pathKey)), showTotals, Math.max(0, expandTo), new Set(closed.map(pathKey)));
+  }
+
   get showTotals(): boolean {
     return this.#showTotals;
   }
@@ -156,6 +162,15 @@ export class TreeState {
   /** Open paths, for persisting a saved view. */
   get openPaths(): string[] {
     return [...this.#open];
+  }
+
+  /**
+   * Whether a group may be open in a grid of `depth` row groups: one opened by hand, or one its expand level opens --
+   * which never opens the deepest (isOpen), so a grid of one row group opened to a level has none (the S7 confirmation
+   * audit's G2-4: Collapse All offered there changed nothing a person sees).
+   */
+  opensAny(depth: number): boolean {
+    return this.#open.size > 0 || (this.#expandTo > 0 && depth > 1);
   }
 
   /** Groups the user closed that the expand level would otherwise open. */
@@ -232,6 +247,14 @@ export class TreeState {
   /** Collapse All closes everything, the expand level's groups too. */
   collapseAll(): TreeState {
     return new TreeState(new Set(), this.#showTotals);
+  }
+
+  /**
+   * Expand All opens every group above the detail rows, `depth` the grid's row groups -- the closes made by hand
+   * forgotten. The deepest groups stay shut: open, each would ask for its source rows.
+   */
+  expandAll(depth: number): TreeState {
+    return new TreeState(new Set(), this.#showTotals, Math.max(0, depth));
   }
 
   withTotals(show: boolean): TreeState {

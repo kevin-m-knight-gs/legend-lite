@@ -53,6 +53,12 @@ echarts.use([AxisBreak, CanvasRenderer]);
  * A chart as a picture, for an export of the page: the live chart's own pixels at `ratio`
  * times its size, on white (a PNG for a page or a workbook, a JPEG a PDF embeds as it is).
  */
+/** A canvas chart in `el` over the charts' ECharts, as every chart is drawn: a timeseries tile's (timeseries-render.ts),
+ *  which registers nothing of its own -- one build of ECharts, fetched with whichever draws first. */
+export function canvasChart(el: HTMLElement): echarts.ECharts {
+  return echarts.init(el, null, { renderer: 'canvas' });
+}
+
 export interface ChartPicture {
   /** The chart's size on screen, in CSS pixels. */
   readonly width: number;
@@ -116,15 +122,15 @@ export function mountChart(
 ): MountedChart {
   const chart = echarts.init(el, null, { renderer: 'canvas' });
   let drawing: ChartDrawing | null = null;
-  const markOf = (params: unknown): { key: MarkKey; dataIndex: number } | null => {
+  const markOf = (params: unknown): { key: MarkKey; dataIndex: number; datum: unknown } | null => {
     const p = params as { seriesIndex?: number; dataIndex?: number; data?: unknown };
     if (!drawing || p.seriesIndex === undefined || p.dataIndex === undefined) return null;
     const key = drawing.keyAt(p.seriesIndex, p.dataIndex, p.data);
-    return key ? { key, dataIndex: p.dataIndex } : null;
+    return key ? { key, dataIndex: p.dataIndex, datum: p.data } : null;
   };
   chart.on('click', (params: unknown) => {
     const mark = markOf(params);
-    if (mark && onPick) onPick(mark.key, drawing?.upperAt?.(mark.dataIndex));
+    if (mark && onPick) onPick(mark.key, drawing?.upperAt?.(mark.dataIndex, mark.datum));
   });
   chart.on('dblclick', (params: unknown) => {
     const mark = markOf(params);

@@ -25,18 +25,17 @@ export const WAREHOUSE = process.env.WAREHOUSE
   : undefined;
 
 /**
- * Open the warehouse's table in place of the page, as a person does: New > Blank Page, Add a data
+ * Open the warehouse's table in place of the page, as a person does: New Page, Add a data
  * source, Database, sign in (once: the page keeps the session), then the table.
  */
 export async function openWarehouseTable(page) {
   if (!WAREHOUSE) throw new Error('no WAREHOUSE');
   if (!(await page.locator('.dc-titlebar-menu').isVisible())) {
-    await page.evaluate(() => window.__dataCube.change((s) => ({ ...s, configuration: { ...s.configuration, showTitleBar: true } })));
+    await page.evaluate(() => window.__dataCube.edit([{ kind: 'configure', patch: { showTitleBar: true } }], 'title bar'));
     await page.locator('.dc-titlebar-menu').waitFor({ timeout: 10_000 });
   }
   await page.click('.dc-titlebar-menu');
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
   await page.locator('.dc-picker').waitFor({ timeout: 10_000 });
@@ -54,11 +53,12 @@ export async function openWarehouseTable(page) {
   await row.click();
   await page.locator('.dc-picker').waitFor({ state: 'detached', timeout: 60_000 });
   if (WAREHOUSE.snap) {
-    // the plane button, as a person snaps: the rows copied into the tab, every query planned for it
-    await page.locator('.dc-titlebar-toggle').waitFor({ timeout: 60_000 });
+    // the grid's state's Snap, as a person snaps: the rows copied into the tab, every query planned for it
+    await page.locator('.dc-tile-state').waitFor({ timeout: 60_000 });
     await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, null, { timeout: 60_000 });
-    await page.click('.dc-titlebar-toggle');
-    await page.waitForFunction(() => window.__dataCube?.controller.snaps.state.mode === 'snapped'
+    await page.click('.dc-tile-state');
+    await page.click('.dc-menu .dc-menu-item:has(> .dc-menu-label:text-is("Snap"))');
+    await page.waitForFunction(() => document.querySelector('.dc-tile-state')?.dataset.state === 'snapped'
       && !window.__dataCube.busy, null, { timeout: 60_000 });
   }
 }

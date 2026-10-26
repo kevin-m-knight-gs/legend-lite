@@ -297,22 +297,31 @@ describe('the editor', () => {
     assert.equal(agg().disabled, false);
   });
 
-  it('offers a weight column only for a weighted average', () => {
+  it('offers a second column only for an aggregate of two, named by what it is to it', () => {
     go('Column Properties');
     chooseColumn(root, 'notional');
 
-    const weight = (): HTMLSelectElement =>
-      fieldWithLabel('Weight column:').querySelector(
+    const second = (label: string): HTMLSelectElement =>
+      fieldWithLabel(label).querySelector(
         'select',
       ) as HTMLSelectElement;
-    assert.equal(weight().disabled, true);
+    assert.equal(second('Second column:').disabled, true);
 
-    const agg = fieldWithLabel('Aggregation:').querySelector(
+    const agg = (): HTMLSelectElement => fieldWithLabel('Aggregation:').querySelector(
       'select',
     ) as HTMLSelectElement;
-    agg.value = 'wavg';
-    agg.dispatchEvent(new dom.window.Event('change'));
-    assert.equal(weight().disabled, false);
+    const pick = (fn: string): void => {
+      agg().value = fn;
+      agg().dispatchEvent(new dom.window.Event('change'));
+    };
+    pick('wavg');
+    assert.equal(second('Weight column:').disabled, false);
+    // a correlation's other column, a number as the compiler's corr takes
+    pick('corr');
+    const paired = [...second('Paired column:').options].map((o) => o.value).filter((v) => v !== '');
+    assert.ok(paired.includes('year') && !paired.includes('desk'), paired.join(', '));
+    pick('maxBy');
+    assert.equal(second('Ordering column:').disabled, false);
   });
 
   it('offers as a weight the columns the rows have, never a group-level one', () => {
@@ -322,7 +331,7 @@ describe('the editor', () => {
     });
     go('Column Properties');
     chooseColumn(root, 'notional');
-    const weight = fieldWithLabel('Weight column:').querySelector('select') as HTMLSelectElement;
+    const weight = fieldWithLabel('Second column:').querySelector('select') as HTMLSelectElement;
     const offered = [...weight.options].map((o) => o.value).filter((v) => v !== '');
     assert.ok(offered.includes('notional') && offered.includes('margin'), offered.join(', '));
     assert.equal(offered.includes('share'), false, 'a group-level column exists only after grouping');
@@ -401,7 +410,8 @@ describe('the editor', () => {
 
     it('offers only the aggregates that keep the type', () => {
       choose('desk');
-      assert.deepEqual(options('Aggregation:'), ['min', 'max', 'joinStrings', 'unique']);
+      // a text column's own, and the value on the row whose number is greatest or least
+      assert.deepEqual(options('Aggregation:'), ['min', 'max', 'joinStrings', 'unique', 'maxBy', 'minBy']);
       choose('notional');
       assert.ok(options('Aggregation:').includes('sum'));
       assert.ok(!options('Aggregation:').includes('joinStrings'));
@@ -523,5 +533,60 @@ describe('the editor', () => {
       ) as HTMLButtonElement
     ).click();
     assert.deepEqual(rows('available'), ['region', 'desk', 'year']);
+  });
+
+  // the user, 2026-10-23: a dimension's grouping and Ad Hoc Analysis are started from this tab, not a menu
+  describe("Dimensions starts what is done with them: the draft applied, the editor closed, then the app's", () => {
+    const buttonNamed = (text: string): HTMLButtonElement | undefined =>
+      [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text);
+    const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+    let asked: string[];
+    const withActions = (onApply: () => boolean): void => {
+      asked = [];
+      root.replaceChildren();
+      editor = new CubeEditor(root, draftFor(CUBE, undefined, [{ name: 'Geo', columns: ['region', 'desk'] }]), {
+        onApply: (d) => { applied.push(d); return onApply(); },
+        onClose: () => (closed += 1),
+        onUseDimension: (name) => asked.push(`use ${name}`),
+        onAdHoc: () => asked.push('ad hoc'),
+      });
+      go('Dimensions');
+    };
+
+    it('offers neither without the app\'s actions', () => {
+      go('Dimensions');
+      assert.equal(buttonNamed('Start Ad Hoc Analysis'), undefined);
+      assert.equal(root.querySelector('.dc-dimension-use'), null);
+    });
+
+    it('Group Rows by: the draft applied (a hierarchy made in it too), closed, then the rows grouped', async () => {
+      withActions(() => true);
+      buttonNamed('Add')!.click();
+      assert.equal(buttonNamed('Group Rows by Dimension 1')?.disabled, true, 'a dimension of no columns groups nothing');
+      (root.querySelector('.dc-dimension-row') as HTMLElement).click();
+      buttonNamed('Group Rows by Geo')!.click();
+      await tick();
+      assert.deepEqual(applied.at(-1)?.dimensions.map((d) => d.name), ['Geo', 'Dimension 1'], 'the draft applied first');
+      assert.equal(closed, 1);
+      assert.deepEqual(asked, ['use Geo']);
+    });
+
+    it('Start Ad Hoc Analysis: applied, closed, then the mode', async () => {
+      withActions(() => true);
+      buttonNamed('Start Ad Hoc Analysis')!.click();
+      await tick();
+      assert.equal(applied.length, 1);
+      assert.equal(closed, 1);
+      assert.deepEqual(asked, ['ad hoc']);
+    });
+
+    it('a draft the cube refuses starts neither, and stays open', async () => {
+      withActions(() => false);
+      buttonNamed('Start Ad Hoc Analysis')!.click();
+      buttonNamed('Group Rows by Geo')!.click();
+      await tick();
+      assert.equal(closed, 0);
+      assert.deepEqual(asked, []);
+    });
   });
 });

@@ -79,7 +79,20 @@ function acting(source: string): Set<string> {
   return out;
 }
 
-const handled = new Set([...acting(MENU), ...acting(APP)]);
+/** Ids that are a grid's gestures (grid-gestures.ts: the menu's own ids where it has the gesture), which app.ts makes
+ *  whole by one dispatch (ui/menu.ts menuGesture) -- each one the menu emits acts, by the gesture's own function; the
+ *  rest are other controls' (a drag in the zones, a dragged column edge), no menu's (2026-10-22, S8). */
+const GESTURES = read('src/grid-gestures.ts');
+// each with what it needs: a menu entry carries a column, an operator and a value, so a gesture needing more (a width,
+// a filter) is no menu entry's (the S8 audit's 9) -- and, since 2026-10-24 (the BI and Excel parity program's P2), a
+// date range (Filter > Date Range) and a top N's N and side (Filter > Top 10, Bottom 10): ui/menu.ts menuGesture
+// ...and Conditional Formatting's choices: data bars on or off, a colour scale, an icon set, a rule (conditional.ts)
+const CARRIED = new Set(['column', 'operator', 'value', 'range', 'n', 'bottom', 'on', 'scale', 'set', 'rule']);
+const gestures = [...GESTURES.slice(GESTURES.indexOf('const GESTURES = {'), GESTURES.indexOf('} satisfies {'))
+  .matchAll(/^  '([a-zA-Z][\w.]*)': \{\s*args: \[([^\]]*)\]/gm)]
+  .filter((m) => [...(m[2] as string).matchAll(/'(\w+)'/g)].every((a) => CARRIED.has(a[1] as string)))
+  .map((m) => m[1] as string);
+const handled = new Set([...acting(MENU), ...acting(APP), ...(/\bmenuGesture\(/.test(APP) ? gestures.filter((id) => emitted.has(id)) : [])]);
 
 describe('the menu has no dead entries', () => {
   it('found the ids at all', () => {
@@ -90,6 +103,8 @@ describe('the menu has no dead entries', () => {
       `only ${emitted.size} ids emitted — the scan is broken`);
     assert.ok(handled.size > 30,
       `only ${handled.size} ids act — the scan is broken`);
+    assert.ok(gestures.length > 30, `only ${gestures.length} grid gestures a menu entry can make found — the scan is broken`);
+    assert.ok(!gestures.includes('column.show') && gestures.includes('column.pinLeft'), 'a gesture needing more than an entry carries is none of its');
   });
 
   it('every id the menu emits is handled by something that acts', () => {

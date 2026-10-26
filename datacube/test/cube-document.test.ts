@@ -19,6 +19,7 @@ import {
   rebuilt,
   sha256,
   writeCube,
+  type ClassSource,
   type FileSource,
   type QuerySource,
   type FrameSource,
@@ -70,6 +71,7 @@ const EVERY: Required<CubeSnapshot> = {
   pivotSort: { desk: 'desc' },
   pivotTotal: { placement: 'left', functions: { notional: 'max' } },
   keepGroupedColumns: true,
+  topN: { by: 'notional', n: 5, bottom: true },
   leafCount: true,
   childCount: true,
   sorts: [{ column: 'region', direction: 'desc' }],
@@ -93,6 +95,16 @@ const doc = () => writeCube({
 });
 
 describe('writing and reading a cube', () => {
+  it("writes no group-level column's type: a run learns it (its level query's plan), so no side writes one (V4)", () => {
+    // the screen's snapshot after a run carries the type its level query's plan gave; a host's, never run, none
+    const ran = { ...EVERY, groupDerived: EVERY.groupDerived.map((d) => ({ ...d, type: 'Integer' })) };
+    const written = (snapshot: CubeSnapshot) => cubeToJson(writeCube({
+      name: 'Q3 review', source: SOURCE, snapshot, configuration: CONFIG, tree: TreeState.fromPaths([]),
+    }));
+    assert.equal(written(ran), written(EVERY), 'the same document, run or not');
+    assert.equal(readCube(written(ran)).query.groupDerived?.[0]?.type, undefined);
+  });
+
   it('reads back every field of the cube, exactly, through JSON text', () => {
     const back = readCube(cubeToJson(doc()));
     const { source: _s, epoch: _e, window: _w, ...query } = EVERY;
@@ -229,9 +241,42 @@ describe('a cube over a dataframe: by its name on the engine that serves it, nev
     const named = JSON.parse(cubeToJson(over(FRAME)));
     named.source.name = 'trades; drop';
     assert.throws(() => readCube(named), /the frame source has no name/);
+    // nor a literal's word: Python's frames refuse it as a name (frames._NAME), as the grammar reads it as a literal
+    named.source.name = 'true';
+    assert.throws(() => readCube(named), /the frame source has no name/);
     const noColumns = JSON.parse(cubeToJson(over(FRAME)));
     delete noColumns.source.columns;
     assert.throws(() => readCube(noColumns), /the frame source has no columns/);
+  });
+});
+
+describe('a cube over a class: by what it is -- the class, its project and the revision it was read at', () => {
+  const CLASS: ClassSource = {
+    _type: 'class', name: 'Trade', class: 'trades::domain::Trade', project: 'datacube:trades', workspace: 'datacube',
+    revision: '3', mapping: 'trades::mapping::Model', runtime: 'trades::runtime::Browser',
+    columns: [{ name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }],
+  };
+  const over = (source: ClassSource) => writeCube({
+    name: 'Trades', source, snapshot: EVERY, configuration: CONFIG, tree: TreeState.fromPaths([]),
+  });
+
+  it('writes it down and reads it back exactly', () => {
+    assert.deepEqual(readCube(cubeToJson(over(CLASS))).source, CLASS);
+  });
+
+  it('refuses one missing what reopens it, and a column that is no property\'s name', () => {
+    for (const f of ['class', 'project', 'workspace', 'revision', 'mapping', 'runtime']) {
+      const raw = JSON.parse(cubeToJson(over(CLASS)));
+      delete raw.source[f];
+      assert.throws(() => readCube(raw), new RegExp(`the class source has no ${f}`));
+    }
+    const noColumns = JSON.parse(cubeToJson(over(CLASS)));
+    delete noColumns.source.columns;
+    assert.throws(() => readCube(noColumns), /the class source has no columns/);
+    // a column is read as `$x.p`: a name the grammar reads bare, so a pivot's name or a literal's word is none
+    const quoted = JSON.parse(cubeToJson(over(CLASS)));
+    quoted.source.columns[0].name = 'true';
+    assert.throws(() => readCube(quoted), /the class source's column 'true' is no property's name/);
   });
 });
 
@@ -284,6 +329,30 @@ describe('opening a cube over its file as it is now', () => {
       now([['region', 'String'], ['desk', 'String'], ['notional', 'Decimal'], ['qty', 'Integer']]));
     assert.match(opened.notes.join('\n'), /notional is now Decimal \(it was Float\)/);
     assert.equal(opened.snapshot.columns.find((c) => c.name === 'notional')?.type, 'Decimal');
+  });
+
+  it('keeps the expand level and the groups closed under it, the grouping as it was (V5)', () => {
+    const levelled = writeCube({
+      name: 'Q3 review', source: SOURCE, snapshot: EVERY, configuration: CONFIG,
+      tree: TreeState.empty(true).withExpandTo(1).setOpen(['EMEA'], false),
+    });
+    const opened = openCube(readCube(cubeToJson(levelled)), RELATION,
+      now([['region', 'String'], ['desk', 'String'], ['notional', 'Float'], ['qty', 'Integer']]));
+    assert.equal(opened.tree.expandTo, 1);
+    assert.equal(opened.tree.isOpen(['AMER'], 2), true, 'a group the level opens is open');
+    assert.equal(opened.tree.isOpen(['EMEA'], 2), false, 'the one closed under it stays closed');
+    // regrouped, the closed paths are of the old grouping: the level stays, they go
+    const regrouped = openCube(readCube(cubeToJson(levelled)), RELATION, now([['desk', 'String'], ['notional', 'Float'], ['qty', 'Integer']]));
+    assert.deepEqual([regrouped.tree.expandTo, regrouped.tree.closedPaths], [1, []]);
+  });
+
+  it('refuses a saved expand level or closed groups it cannot read, in words', () => {
+    const text = (tree: unknown): string => JSON.stringify({ ...JSON.parse(cubeToJson(doc())), tree });
+    assert.throws(() => readCube(text({ open: [], showTotals: false, expandTo: -1 })), /expand level is a whole number/);
+    assert.throws(() => readCube(text({ open: [], showTotals: false, expandTo: 1, closed: 'EMEA' })), /closed groups are row paths/);
+    // closed under a level it has not: refused, never dropped (the S2 audit's 10)
+    assert.throws(() => readCube(text({ open: [], showTotals: false, closed: [['EMEA']] })), /closed under its expand level: it has none/);
+    assert.throws(() => readCube(text({ open: [], showTotals: false, expandTo: 0, closed: [['EMEA']] })), /it has none/);
   });
 
   it('closes the open rows when the grouping changed', () => {
@@ -349,5 +418,13 @@ describe("a new grid is capped when it is not its page's only grid (gridCapped, 
     assert.equal(gridCapped(2), true);
     assert.equal(gridCapped(3), true);
     assert.equal(fresh(2).maxRows, DEFAULT_MAX_ROWS);
+  });
+});
+
+describe("a saved cube's format code is judged on open, as when it was set (format-code.ts)", () => {
+  it('kept; refused naming the column and the part', () => {
+    const coded = (code: string): string => cubeToJson(doc()).replace('"decimals":3', `"decimals":3,"code":${JSON.stringify(code)}`);
+    assert.equal(readCube(coded('#,##0.000')).configuration['columns'] && (readCube(coded('#,##0.000')).configuration['columns'] as Record<string, { format?: { code?: string } }>)['notional']?.format?.code, '#,##0.000');
+    assert.throws(() => readCube(coded('[>100]0')), /'configuration\.columns\.notional\.format\.code': the format code "\[>100\]0" has \[>100\]/);
   });
 });

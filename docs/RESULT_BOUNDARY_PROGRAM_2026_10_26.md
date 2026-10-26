@@ -243,10 +243,10 @@ counted), switch, delete (in the same step, never later). A step lands as one GA
 - Build: one writer package (`com.legend.sink`, name the implementer's) under R3's guards. `PureV1Writer`: a row's
   cells as legend-engine spells them from the plan's facts and the typed cell: a Float by the shortest-digits routine
   (M7 decides: the JDK's `Double.toString` pinned, or our own), a DateTime by the nine-digit `+0000` form at the
-  plan's precision, a Decimal at its own scale (S97), a tagged winner by its slot's kind, an Integer past 64 bits as
+  plan's precision, a Decimal at its own scale (S104), a tagged winner by its slot's kind, an Integer past 64 bits as
   digits; the envelope `PureV1Api` already writes. CSV and the JSON array the same way, batch by batch.
 - Run both: every `OutputMatrixTest` cell (192 on DuckDB and H2) and every served-route integration test, old route
-  and new, zero byte differences or a dated register row each (as S97). M3's speed beside it.
+  and new, zero byte differences or a dated register row each (as S104). M3's speed beside it.
 - Switch: `pure/v1` execute, the streamed JSON and CSV routes read the batch stream through the writer. `jsonPlan`'s
   `run` (the tab running the server's wire SQL) becomes the base statement plus the plan's columns: the tab types
   its own rows, as it already does for Arrow and DuckDB in the browser.

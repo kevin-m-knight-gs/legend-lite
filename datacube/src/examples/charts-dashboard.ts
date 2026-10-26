@@ -8,8 +8,9 @@ import { fn, lambda, property, variable, element } from '../../../pure-protocol/
 import { CHART_VERSION, DEFAULT_OPTIONS, type ChartOptions, type ChartSpec } from '../chart-spec.ts';
 import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../config.ts';
 import { fileSource, writeCube } from '../cube-document.ts';
+import { openedState } from '../cube-state.ts';
 import type { Band, Node } from '../layout/bands.ts';
-import { writePageOf, type PageDocument, type PageSheet, type PageView } from '../page-document.ts';
+import { writePageOf, type ChartView, type PageDocument, type PageSheet, type PageView } from '../page-document.ts';
 import { sampleById, sampleFileName } from '../samples.ts';
 import type { ColumnSpec, CubeSnapshot } from '../snapshot.ts';
 import { TreeState } from '../tree.ts';
@@ -73,7 +74,7 @@ const CONFIGURATION: CubeConfiguration = {
 const CUBE = 'cube';
 
 /** A frozen chart of the cube (it keeps its own grouping as the grid changes), its options over the defaults. */
-export function chart(id: string, title: string, spec: Partial<Omit<ChartSpec, 'options'>> & { options?: Partial<ChartOptions> }): PageView {
+export function chart(id: string, title: string, spec: Partial<Omit<ChartSpec, 'options'>> & { options?: Partial<ChartOptions> }): ChartView {
   const { options, ...rest } = spec;
   return {
     id,
@@ -95,10 +96,18 @@ export const REVENUE = { column: 'revenue', fn: 'sum' } as const;
 export const PROFIT = { column: 'profit', fn: 'sum' } as const;
 export const BY_TIME = { sort: { by: 'x', direction: 'asc' }, limit: 2000 } as const;
 
-/** Each sheet: its name, and its tiles two to a band, simplest first. */
+/** Each sheet: its name, and its tiles two to a band, simplest first -- or laid out in `bands` of its own. */
 export interface ExampleSheet {
   readonly name: string;
   readonly views: readonly PageView[];
+  /** Its own layout: each band's share of the height, and its tiles' shares of the width, left to right. */
+  readonly bands?: readonly ExampleBand[];
+}
+
+/** A band of a sheet laid out by hand: its share of the sheet's height, its tiles (by id) and each one's share of the width. */
+export interface ExampleBand {
+  readonly height: number;
+  readonly tiles: readonly (readonly [id: string, width: number])[];
 }
 
 const SHEETS: readonly ExampleSheet[] = [
@@ -218,16 +227,25 @@ const SHEETS: readonly ExampleSheet[] = [
   },
 ];
 
-/** Tiles two to a band, half a screen each. */
-function bandsOf(tiles: readonly string[]): Band[] {
+/** Tiles `perRow` to a band, half a screen each -- or, on a page that fits its window, its bands sharing the screen. */
+function bandsOf(tiles: readonly string[], perRow = 2, fit = false): Band[] {
   const out: Band[] = [];
-  for (let i = 0; i < tiles.length; i += 2) {
-    const pair = tiles.slice(i, i + 2);
-    const node: Node = pair.length === 1 ? { tile: pair[0]! }
-      : { split: 'row', parts: pair.map((tile) => ({ node: { tile }, size: 1 / pair.length })) };
-    out.push({ height: 0.5, node });
+  const rows = Math.ceil(tiles.length / perRow);
+  for (let i = 0; i < tiles.length; i += perRow) {
+    const run = tiles.slice(i, i + perRow);
+    const node: Node = run.length === 1 ? { tile: run[0]! }
+      : { split: 'row', parts: run.map((tile) => ({ node: { tile }, size: 1 / run.length })) };
+    out.push({ height: fit ? 1 / rows : 0.5, node });
   }
   return out;
+}
+
+/** A band laid out by hand (ExampleBand): its tiles side by side, each its share of the width. */
+function bandOf(band: ExampleBand): Band {
+  const [only] = band.tiles;
+  const node: Node = band.tiles.length === 1 && only ? { tile: only[0] }
+    : { split: 'row', parts: band.tiles.map(([tile, width]) => ({ node: { tile }, size: width })) };
+  return { height: band.height, node };
 }
 
 /** The page: its sheets of charts, and a last sheet of the grid they are views of. */
@@ -236,10 +254,12 @@ export async function chartsDashboardPage(): Promise<PageDocument> {
 }
 
 /**
- * A page of examples over the sales sample: `sheets` of charts, two to a band, and a last sheet of the grid they are
- * views of -- its groups open at `expanded` (a sunburst or a tree draws the grid's rows as shown).
+ * A page of examples over the sales sample: `sheets` of charts, two to a band (`perRow`), and a last sheet of the grid
+ * they are views of -- its groups open at `expanded` (a sunburst or a tree draws the grid's rows as shown). `fit`: each
+ * sheet fits its window, its charts seen without scrolling.
  */
-export async function salesPage(name: string, sheets: readonly ExampleSheet[], expanded: readonly (readonly string[])[] = []): Promise<PageDocument> {
+export async function salesPage(name: string, sheets: readonly ExampleSheet[], expanded: readonly (readonly string[])[] = [],
+  how: { readonly fit?: boolean; readonly perRow?: number } = {}): Promise<PageDocument> {
   const sample = sampleById(EXAMPLE_SAMPLE);
   if (!sample) throw new Error(`no sample '${EXAMPLE_SAMPLE}'`);
   const bytes = new TextEncoder().encode(sample.build(EXAMPLE_ROWS));
@@ -249,18 +269,19 @@ export async function salesPage(name: string, sheets: readonly ExampleSheet[], e
     SALES_SPECS,
     { id: EXAMPLE_SAMPLE, rows: EXAMPLE_ROWS },
   );
-  const cube = writeCube({
-    name,
-    source,
-    snapshot: EXAMPLE_CUBE,
-    configuration: CONFIGURATION,
-    tree: TreeState.fromPaths(expanded.map((p) => [...p]), false),
-  });
+  // written as the screen holds the cube it opens (cube-state.ts openedState): a page written unfolded was reopened and
+  // saved as another document (the saved-page corpus holds the example pages to it)
+  const state = openedState(EXAMPLE_CUBE, CONFIGURATION, TreeState.fromPaths(expanded.map((p) => [...p]), false));
+  const cube = writeCube({ name, source, snapshot: state.snapshot, configuration: state.configuration, tree: state.tree });
   const grid: PageView = { id: 'grid', kind: 'grid', cube: CUBE, title: 'The sales' };
   const placed: PageSheet[] = sheets.map((s, i) => ({
     id: `sheet-${i + 1}`,
     name: s.name,
-    layout: { kind: 'bands', fit: false, bands: bandsOf(s.views.map((v) => v.id)) },
+    layout: {
+      kind: 'bands',
+      fit: how.fit === true,
+      bands: s.bands ? s.bands.map(bandOf) : bandsOf(s.views.map((v) => v.id), how.perRow, how.fit === true),
+    },
   }));
   placed.push({ id: `sheet-${sheets.length + 1}`, name: 'The data', layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] } });
   return writePageOf({

@@ -51,22 +51,38 @@ import {
   shareText,
   sharesBeside,
   snapped,
+  stackOf,
   stacked,
   tiles,
   tradeBands,
 } from './bands.ts';
 import { givenName } from '../page-names.ts';
+import { chromeIcon } from '../ui/tile-icons.ts';
 
 export interface BandTile {
   readonly id: string;
   readonly title: string;
   /** What the tile shows. Placed in the tile once, never moved in the DOM. */
   readonly element: HTMLElement;
-  /** Extra buttons for the title bar (a chart's pill, a grid's source). */
+  /** Extra buttons for the title bar, at its right (a chart's filter chip, a grid's zones' way back). */
   readonly actions?: readonly HTMLElement[];
+  /** Its state, an icon left of its title, always shown (ui/tile-icons.ts; the user, 2026-10-25): a grid's Live or
+   *  Snapped, a chart's Dynamic, Pinned or Frozen, a text box's pencil. A lone tile's goes where `setAlone` says. */
+  readonly state?: HTMLElement;
+  /** What the tile reads, a sentence said on its title's hover ("Reads trades.csv"): the header shows its title alone. */
+  readonly about?: string;
   /** Whether the tile offers to be removed. */
   readonly removable?: boolean;
 }
+
+/**
+ * A change by hand that is a page command of its own (P14): `stack` -- a lone tile let go on another's middle, the two
+ * stacked where that one is (bands.ts stackTiles of [onto, tile]: a drop's own rule); `arrange` -- a preset picked,
+ * `first` in its first slot, the rest in reading order.
+ */
+export type LayoutMove =
+  | { readonly kind: 'stack'; readonly tiles: readonly [string, string] }
+  | { readonly kind: 'arrange'; readonly preset: Preset; readonly first?: string };
 
 export interface BandBoardOptions {
   /** Space between tiles, in pixels. */
@@ -75,8 +91,12 @@ export interface BandBoardOptions {
   readonly leastBand?: number;
   /** Below this width the page is stacked, one tile under another, and cannot be rearranged. */
   readonly narrowBelow?: number;
-  /** The layout changed by the user's hand (not by the screen's width), from `before`: one step, to undo. */
-  readonly onChange?: (layout: Bands, before: Bands) => void;
+  /**
+   * The layout changed by the user's hand (not by the screen's width), from `before`: one step, to undo. `move` says
+   * what the hand did when it is a page command's own (page-commands.ts `stack`, `arrange`): a lone tile let go on
+   * another's middle, a preset picked; any other change (a divider, a band's edge, a drop beside a tile) is the layout.
+   */
+  readonly onChange?: (layout: Bands, before: Bands, move?: LayoutMove) => void;
   /** Ctrl+Z (Shift for redo) on a focused tile's frame: the caller undoes the last arrangement. */
   readonly onUndo?: (redo: boolean) => void;
   /** The user asked to remove a tile. The caller removes it. */
@@ -128,6 +148,8 @@ interface Placed {
   renaming: boolean;
   /** The header's buttons: the tile's own (`spec.actions`), then the board's (layouts, maximise, remove). */
   readonly actions: HTMLElement;
+  /** Its maximise button: ⤢, or ⤡ while it fills the page. */
+  readonly maximise: HTMLButtonElement;
   readonly remove: HTMLButtonElement;
   name: string;
 }
@@ -227,17 +249,23 @@ export class BandBoard {
   }
 
   /**
-   * Add a tile, placed where it is wanted (bands.ts `add`): beside `near` while its band has room for one more at a
-   * readable width, else below it; with no `near`, at the bottom.
+   * Add a tile, placed where it is wanted (bands.ts `add`): under `near` -- into the band under it when `joins` takes
+   * that band's tiles and it has room for one more at a readable width, else a band of its own --; with no `near`, at
+   * the bottom.
    */
-  add(tile: BandTile, near?: string): void {
+  add(tile: BandTile, near?: string, joins?: (tiles: readonly string[]) => boolean): void {
     if (this.#tiles.has(tile.id)) throw new Error(`a tile ${tile.id} is already on the board`);
     // a divider's or an edge's drag ends first (undone): it would end on a layout from before this tile
     this.#gesture?.end(false);
     this.#tiles.set(tile.id, this.#make(tile));
+    this.#commit(add(this.#layout, tile.id, near, this.columns, joins));
+  }
+
+  /** How many tiles fit side by side at a readable width, as wide as the board is now; undefined while it has no width
+   *  (bands.ts add then takes its most): what a placing command says it placed by (page-commands.ts `columns`). */
+  get columns(): number | undefined {
     const { width } = this.#size();
-    const columns = width > 0 ? Math.max(1, Math.floor((width + this.#gap) / (READABLE_WIDTH + this.#gap))) : undefined;
-    this.#commit(add(this.#layout, tile.id, near, columns));
+    return width > 0 ? Math.max(1, Math.floor((width + this.#gap) / (READABLE_WIDTH + this.#gap))) : undefined;
   }
 
   /**
@@ -245,14 +273,17 @@ export class BandBoard {
    * buttons (`actions`: a grid's source, pill and menu) moved into `slot`, the page's bar. `null` puts every tile back
    * in its own frame, its buttons in its header.
    */
-  setAlone(id: string | null, slot: HTMLElement | null): void {
+  setAlone(id: string | null, slot: HTMLElement | null, stateSlot: HTMLElement | null = null): void {
     const next = id !== null && slot !== null && this.#tiles.has(id) ? id : null;
     const was = this.#alone !== null ? this.#tiles.get(this.#alone) : undefined;
-    if (was && this.#alone !== next) was.actions.prepend(...(was.spec.actions ?? []));
+    if (was && this.#alone !== next) this.#takeBack(was);
     this.#alone = next;
     const now = next !== null ? this.#tiles.get(next) : undefined;
     if (now && slot) slot.replaceChildren(...(now.spec.actions ?? []));
     else slot?.replaceChildren();
+    // ITS STATE, where the page says (the user, 2026-10-25: a lone grid's Live or Snapped in its sheet's tab)
+    if (now?.spec.state && stateSlot) stateSlot.replaceChildren(now.spec.state);
+    else stateSlot?.replaceChildren();
     this.#host.classList.toggle('dc-bands-alone', next !== null);
     for (const [tile, p] of this.#tiles) p.root.classList.toggle('dc-band-tile-alone', tile === next);
     this.#paint();
@@ -263,13 +294,19 @@ export class BandBoard {
     return this.#alone;
   }
 
+  /** A tile no longer alone: its buttons and its state back in its own header. */
+  #takeBack(placed: Placed): void {
+    placed.actions.prepend(...(placed.spec.actions ?? []));
+    if (placed.spec.state) placed.title.before(placed.spec.state);
+  }
+
   /** Take a tile off the board, its neighbours closing over its place. Its element is detached, not destroyed. */
   remove(id: string): void {
     const placed = this.#tiles.get(id);
     if (!placed) return;
     if (this.#alone === id) {
       // its buttons go back to it, and go with it
-      placed.actions.prepend(...(placed.spec.actions ?? []));
+      this.#takeBack(placed);
       this.#alone = null;
       this.#host.classList.remove('dc-bands-alone');
     }
@@ -303,7 +340,8 @@ export class BandBoard {
   /** Arrange every tile on the page as a preset, `first` in its first slot; the others in reading order. */
   arrange(preset: Preset, first?: string): void {
     this.#gesture?.end(false);
-    this.#change(arrange(this.#layout, preset, this.#order(first)), 'Arranged.');
+    this.#change(arrange(this.#layout, preset, this.#order(first)), 'Arranged.',
+      { kind: 'arrange', preset, ...(first !== undefined ? { first } : {}) });
   }
 
   /** Even out the whole page: every split's parts alike, every band as tall as the rest. */
@@ -419,7 +457,7 @@ export class BandBoard {
     const title = doc.createElement('span');
     title.className = 'dc-tile-title';
     title.textContent = spec.title;
-    title.title = 'Drag to move; double-click to rename';
+    title.title = `${spec.about !== undefined ? `${spec.about}. ` : ''}Drag to move; double-click to rename`;
     // a stack's tabs, while this tile is its tile in front (`#paintTabs`)
     const tabs = doc.createElement('span');
     tabs.className = 'dc-tile-tabs';
@@ -432,7 +470,7 @@ export class BandBoard {
     const layout = doc.createElement('button');
     layout.type = 'button';
     layout.className = 'dc-tile-tool dc-tile-layout';
-    layout.textContent = '⊞';
+    layout.append(chromeIcon(doc, 'layout'));
     layout.title = 'Layouts';
     layout.setAttribute('aria-label', `Layouts for ${spec.title}`);
     layout.hidden = this.#options.onLayout === undefined;
@@ -440,26 +478,26 @@ export class BandBoard {
     const maximise = doc.createElement('button');
     maximise.type = 'button';
     maximise.className = 'dc-tile-tool dc-tile-maximise';
-    maximise.textContent = '⤢';
+    maximise.append(chromeIcon(doc, 'maximise'));
     maximise.title = 'Fill the page with this tile (and back)';
     maximise.setAttribute('aria-label', `Maximise ${spec.title}`);
     maximise.addEventListener('click', () => this.maximise(this.#maximised === spec.id ? null : spec.id));
     const remove = doc.createElement('button');
     remove.type = 'button';
     remove.className = 'dc-tile-remove';
-    remove.textContent = '×';
+    remove.append(chromeIcon(doc, 'close'));
     remove.title = `Remove ${spec.title}`;
     remove.setAttribute('aria-label', `Remove ${spec.title}`);
     remove.hidden = spec.removable === false;
     remove.addEventListener('click', () => this.#options.onRemove?.(spec.id));
     actions.append(layout, maximise, remove);
-    head.append(title, tabs, actions);
+    head.append(...(spec.state ? [spec.state] : []), title, tabs, actions);
     const body = doc.createElement('div');
     body.className = 'dc-tile-body';
     body.append(spec.element);
     root.append(head, body);
     this.#canvas.append(root);
-    const placed: Placed = { spec, root, title, tabs, tabsKey: '', renaming: false, actions, remove, name: spec.title };
+    const placed: Placed = { spec, root, title, tabs, tabsKey: '', renaming: false, actions, maximise, remove, name: spec.title };
     head.addEventListener('pointerdown', (e) => this.#startMove(spec.id, e));
     root.addEventListener('keydown', (e) => this.#onKey(spec.id, e));
     head.addEventListener('dblclick', (e) => {
@@ -503,7 +541,7 @@ export class BandBoard {
     const close = this.#doc.createElement('button');
     close.type = 'button';
     close.className = 'dc-tile-tab-close';
-    close.textContent = '\u00d7';
+    close.append(chromeIcon(this.#doc, 'close'));
     close.title = `Remove ${name}`;
     close.setAttribute('aria-label', `Remove ${name}`);
     close.tabIndex = -1;
@@ -640,6 +678,13 @@ export class BandBoard {
         : id === maximised ? { x: 0, y: 0, w: width, h: screen } : undefined;
       p.root.hidden = box === undefined;
       if (box) place(p.root, box);
+      // its corners pulled out fill the page with it; pushed in, on the tile that fills it, they put it back
+      const filling = id === maximised;
+      if (p.maximise.firstElementChild?.getAttribute('data-icon') !== (filling ? 'restore' : 'maximise')) {
+        p.maximise.replaceChildren(chromeIcon(this.#doc, filling ? 'restore' : 'maximise'));
+      }
+      p.maximise.title = filling ? 'Restore: back to the page' : 'Fill the page with this tile';
+      p.maximise.setAttribute('aria-label', `${filling ? 'Restore' : 'Maximise'} ${p.name}`);
     }
     // a tile taken out of its stack, as it is dragged: where it was, following the pointer from there
     const floating = this.#floating !== null ? this.#tiles.get(this.#floating.id) : undefined;
@@ -708,11 +753,11 @@ export class BandBoard {
     wanted.forEach((w, i) => place(this.#handles[i]!.el, w.box));
   }
 
-  /** A change by the user's hand: committed, and told with the layout it came from. */
-  #change(next: Bands, announce?: string): void {
+  /** A change by the user's hand: committed, and told with the layout it came from (and, a command's own, what it was). */
+  #change(next: Bands, announce?: string, move?: LayoutMove): void {
     const before = this.#layout;
     this.#commit(next, announce);
-    this.#options.onChange?.(next, before);
+    this.#options.onChange?.(next, before, move);
   }
 
   #commit(next: Bands, announce?: string): void {
@@ -884,10 +929,14 @@ export class BandBoard {
         return;
       }
       if (!apply || target === undefined) return;
+      // a lone tile onto another's middle: the two stacked, as stackTiles stacks them (a tab dragged out of its stack is
+      // not one: stackTiles would carry its whole stack)
+      const move: LayoutMove | undefined = 'stack' in target && !leaving && stackOf(this.#layout, id).length === 1
+        ? { kind: 'stack', tiles: [target.stack, id] } : undefined;
       const next = drop(this.#layout, id, target);
       // put back where it was (a tab dragged out, let go on its own stack): no step
       if (next === this.#layout || JSON.stringify(next) === JSON.stringify(this.#layout)) return;
-      this.#change(next, `${tile.name} moved.`);
+      this.#change(next, `${tile.name} moved.`, move);
     });
   }
 
@@ -1024,7 +1073,8 @@ export class BandBoard {
 
   #onKey(id: string, e: KeyboardEvent): void {
     const p = this.#tiles.get(id);
-    if (e.key === 'Escape' && this.#maximised === id && e.target === p?.root) {
+    // one another listener used (a chart's options put away: ui/chart-panel.ts) fills it no less
+    if (e.key === 'Escape' && !e.defaultPrevented && this.#maximised === id && e.target === p?.root) {
       e.preventDefault();
       this.maximise(null);
       p.root.focus();

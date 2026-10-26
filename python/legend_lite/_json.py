@@ -25,23 +25,16 @@ def dumps(value: Any, indent: int | None = None) -> str:
     return ''.join(out)
 
 
-def protocol(value: Any) -> str:
-    """Protocol JSON as pure-protocol's ``toJson`` writes it, byte for byte: compact, every object's ``_type`` first and
-    its other keys in order, ``Decimal`` as its own digits -- what a TypeScript client sends
-    and so what Python sends as its twin (legend_lite.model)."""
-    return dumps(_ordered(value))
+def canonical(value: Any) -> str:
+    """The one text of a JSON value, whoever wrote it: compact, each object's keys in code point order, every number its
+    own digits (``Decimal``, ``int``) -- what two editors hash to check they hold one page
+    (docs/DATACUBE_LIVE_EDITING_2026_10_24.md §6, W17: DataCube's page-hash.ts writes the same)."""
+    out: list[str] = []
+    _write(value, out, None, 0, sort_keys=True)
+    return ''.join(out)
 
 
-def _ordered(v: Any) -> Any:
-    if isinstance(v, dict):
-        keys = sorted(v, key=lambda k: (k != '_type', k))
-        return {k: _ordered(v[k]) for k in keys}
-    if isinstance(v, (list, tuple)):
-        return [_ordered(x) for x in v]
-    return v
-
-
-def _write(v: Any, out: list[str], indent: int | None, depth: int) -> None:
+def _write(v: Any, out: list[str], indent: int | None, depth: int, sort_keys: bool = False) -> None:
     if v is None:
         out.append('null')
     elif v is True:
@@ -62,20 +55,21 @@ def _write(v: Any, out: list[str], indent: int | None, depth: int) -> None:
         out.append(json.dumps(v, ensure_ascii=False))
     elif isinstance(v, dict):
         out.append('{')
-        for i, (k, x) in enumerate(v.items()):
+        items = sorted(v.items(), key=lambda kv: kv[0]) if sort_keys else v.items()
+        for i, (k, x) in enumerate(items):
             if not isinstance(k, str):
                 raise TypeError(f'a JSON object key must be a string, not {type(k).__name__}')
             _between(out, i, indent, depth + 1)
             out.append(json.dumps(k, ensure_ascii=False))
             out.append(': ' if indent is not None else ':')
-            _write(x, out, indent, depth + 1)
+            _write(x, out, indent, depth + 1, sort_keys)
         _close(out, len(v), indent, depth)
         out.append('}')
     elif isinstance(v, (list, tuple)):
         out.append('[')
         for i, x in enumerate(v):
             _between(out, i, indent, depth + 1)
-            _write(x, out, indent, depth + 1)
+            _write(x, out, indent, depth + 1, sort_keys)
         _close(out, len(v), indent, depth)
         out.append(']')
     else:

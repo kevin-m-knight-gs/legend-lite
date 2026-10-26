@@ -7,9 +7,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  applyMenuAction,
   buildMenu,
   calcStageOf,
+  menuGesture,
   menuItems,
   valueLabel,
   type MenuContext,
@@ -17,6 +17,8 @@ import {
 } from '../src/ui/menu.ts';
 import { CubeRefusal, pivotTotalColumn, type CubeSnapshot, type FilterNode } from '../src/snapshot.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
+import { applyGridCommands, type GridCommand } from '../src/grid-commands.ts';
+import { gridGestureGiven } from '../src/grid-gestures.ts';
 import { element, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
 
 // grouped by region, pivoted by year: the menu test's own cube
@@ -56,8 +58,19 @@ const labels = (list: readonly MenuItem[]): string[] => list.map((i) => `${i.lab
 const submenu = (ctx: MenuContext, verb: string): MenuItem[] =>
   [...(buildMenu(ctx).flatMap((g) => g.items).find((i) => i.label === verb)?.submenu ?? [])];
 
-const apply = (s: CubeSnapshot, item: Omit<MenuItem, 'label'>): CubeSnapshot =>
-  applyMenuAction(s, { label: '', ...item }, DEFAULT_CONFIGURATION);
+/** A menu entry made as the grid makes it (app.ts #onMenuAction): its gesture (menuGesture, grid-gestures.ts gridGesture,
+ *  the one Python's grid.gesture asks), its commands applied -- the very same grid when it makes none. */
+const menuCommands = (s: CubeSnapshot, item: MenuItem): GridCommand[] | null => {
+  const gesture = menuGesture(item);
+  return gesture === null ? null
+    : gridGestureGiven(gesture.name, { snapshot: s, config: DEFAULT_CONFIGURATION, dimensions: [], view: null }, gesture.args);
+};
+const applyMenuAction = (s: CubeSnapshot, item: MenuItem): CubeSnapshot => {
+  const commands = menuCommands(s, item);
+  return commands === null || commands.length === 0 ? s
+    : applyGridCommands({ snapshot: s, config: DEFAULT_CONFIGURATION }, commands).snapshot;
+};
+const apply = (s: CubeSnapshot, item: Omit<MenuItem, 'label'>): CubeSnapshot => applyMenuAction(s, { label: '', ...item });
 
 describe('a calculated column\'s own entries (Extended Columns)', () => {
   it('a calculated column says its stage; a source column, or none the cube has, says none', () => {
@@ -70,18 +83,18 @@ describe('a calculated column\'s own entries (Extended Columns)', () => {
   it('a row-stage column is extended, binned, edited and deleted from its own header, each entry naming it', () => {
     const ctx: MenuContext = { snapshot: CALCULATED, column: 'big', extendable: true, ...calcStageOf(CALCULATED, 'big') };
     assert.deepEqual(labels(submenu(ctx, 'Extended Columns')),
-      ['Add New Column...', 'Extend Column big...', 'Bins of big...', 'Edit Column big...', 'Delete Column big']);
+      ['Add New Column…', 'Extend Column big…', 'Bins of big…', 'Edit Column big…', 'Delete Column big']);
     const del = find(ctx, 'Delete Column big');
     assert.equal(del?.id, 'calc.delete');
     assert.equal(del?.column, 'big');
-    assert.equal(find(ctx, 'Edit Column big...')?.id, 'calc.edit');
+    assert.equal(find(ctx, 'Edit Column big…')?.id, 'calc.edit');
   });
 
   it('a group-stage column is edited and deleted, never extended: a row-stage expression cannot see it', () => {
     // the app spreads extendable only over a column that exists before aggregation (app.ts #kindOf)
     const ctx: MenuContext = { snapshot: CALCULATED, column: 'margin', ...calcStageOf(CALCULATED, 'margin') };
     assert.deepEqual(labels(submenu(ctx, 'Extended Columns')),
-      ['Add New Column...', 'Edit Column margin...', 'Delete Column margin']);
+      ['Add New Column…', 'Edit Column margin…', 'Delete Column margin']);
   });
 
   it('a source column has no Edit or Delete: it is not the editor\'s to change', () => {
@@ -92,7 +105,7 @@ describe('a calculated column\'s own entries (Extended Columns)', () => {
   });
 
   it('with no column under the pointer, Extended Columns offers a new column alone', () => {
-    assert.deepEqual(labels(submenu({ snapshot: CALCULATED }, 'Extended Columns')), ['Add New Column...']);
+    assert.deepEqual(labels(submenu({ snapshot: CALCULATED }, 'Extended Columns')), ['Add New Column…']);
   });
 });
 
@@ -101,26 +114,26 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     const bare = items({ snapshot: CUBE });
     const off = labels(bare).filter((l) => l.endsWith(' [off]'));
     for (const want of [
-      'Selected Column as Plain Text', 'Ascending', 'Descending', 'Add Ascending', 'Add Descending',
+      'Copy Column', 'Ascending', 'Descending', 'Add Ascending', 'Add Descending',
       'Vertical Pivot', 'Add Vertical Pivot', 'Remove Vertical Pivot', 'Horizontal Pivot', 'Add Horizontal Pivot',
       'Remove Horizontal Pivot', 'Auto-size to Fit Content', 'Minimize Column', 'Pin Left', 'Pin Right', 'Unpin', 'Hide',
-      'Add Heatmap', 'Remove Heatmap',
+      'Add Heatmap',
     ]) {
       assert.ok(off.includes(`${want} [off]`), `${want}: ${off.join(' | ')}`);
     }
     // none of them carries a column to act on
     assert.ok(bare.filter((i) => i.disabled).every((i) => i.column === undefined));
     for (const live of ['Auto-size All Columns', 'Minimize All Columns', 'Size Grid to Fit Screen', 'Remove All Pinnings',
-      'Filters...', 'Add New Column...', 'Visualization', 'Copy of Grid', 'Properties...']) {
+      'Filters…', 'Add New Column…', 'Visualization', 'Copy of This Grid', 'Properties…']) {
       assert.ok(labels(bare).includes(live), live);
     }
   });
 
-  it('a heatmap is added to a column that has none and removed from one that has', () => {
-    assert.deepEqual(labels(submenu({ snapshot: CUBE, column: 'notional' }, 'Heatmap')),
-      ['Add Heatmap to notional', 'Remove Heatmap [off]']);
-    assert.deepEqual(labels(submenu({ snapshot: CUBE, column: 'notional', hasHeatmap: true }, 'Heatmap')),
-      ['Add Heatmap to notional [off]', 'Remove Heatmap']);
+  // the user, 2026-10-25: one click in Conditional Formatting ▸, saying what it will do
+  it('a heatmap is added to a column that has none and removed from one that has (Conditional Formatting ▸, first)', () => {
+    const heat = (ctx: MenuContext) => labels(items(ctx).filter((i) => i.id === 'heatmap.add' || i.id === 'heatmap.remove'));
+    assert.deepEqual(heat({ snapshot: CUBE, column: 'notional' }), ['Add Heatmap']);
+    assert.deepEqual(heat({ snapshot: CUBE, column: 'notional', hasHeatmap: true }), ['Remove Heatmap']);
   });
 
   it('the cube itself is exported as a file only when the host knows its source; the grid\'s exports always', () => {
@@ -155,7 +168,7 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     const total = pivotTotalColumn('notional');
     const ctx: MenuContext = { snapshot: { ...CUBE, pivotTotal: { placement: 'right' } }, column: total, pivotBase: 'notional',
       canGroup: false, isMeasure: true };
-    for (const label of ['Hide Total / notional', 'Column Total / notional as Plain Text', 'Add Heatmap to Total / notional',
+    for (const label of ['Hide Total / notional', 'Copy Column Total / notional', 'Add Heatmap',
       'Minimize Column', 'Auto-size to Fit Content']) {
       assert.equal(find(ctx, label)?.disabled, false, label);
       assert.equal(find(ctx, label)?.column, total, label);
@@ -168,14 +181,14 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     assert.equal(find({ ...ctx, totalLabel: 'All years' }, 'Hide All years / notional')?.column, total);
     // nothing about it as a calculated column (the app finds no stage for it: calcStageOf), nor as a dimension
     assert.deepEqual(calcStageOf(ctx.snapshot, total), {});
-    assert.deepEqual(labels(submenu(ctx, 'Extended Columns')), ['Add New Column...']);
+    assert.deepEqual(labels(submenu(ctx, 'Extended Columns')), ['Add New Column…']);
     assert.ok(labels(submenu(ctx, 'Pivot')).every((l) => !/on Total/.test(l) || l.endsWith('[off]')), labels(submenu(ctx, 'Pivot')).join(' | '));
   });
 
   it('a value on a column whose type is not known yet offers no value filter: the operators are the type\'s, never guessed', () => {
     // a calculated column the compiler has not typed yet (the app passes no columnType)
     const filter = submenu({ snapshot: CALCULATED, column: 'big', value: 5 }, 'Filter');
-    assert.deepEqual(labels(filter), ['Filters...', 'Clear All Filters [off]']);
+    assert.deepEqual(labels(filter), ['Filters…', 'Clear All Filters [off]']);
   });
 
   it('a date\'s value filters compare it; a relative date is named TODAY or NOW, a JSON document as written', () => {
@@ -190,29 +203,57 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     // a time of day is compared for equality only
     const time = submenu({ snapshot: DATED, column: 'cutoff', columnType: 'StrictTime', value: '17:30:00' }, 'Filter');
     assert.deepEqual(labels(time), [
-      'Add Filter: cutoff = \'17:30:00\'', 'More Filters on cutoff...', 'Filters...', 'Clear All Filters [off]',
-    ]);
+      'Add Filter: cutoff = \'17:30:00\'', 'More Filters on cutoff…', 'Filter Values of cutoff…', 'Filters…',
+      'Clear All Filters [off]',
+    ], 'its values to tick; no date range for a time of day');
+    // a date offers its ranges relative to today, each the dateRange gesture with its range
+    const ranges = today.find((i) => i.label === 'Date Range')?.submenu ?? [];
+    assert.deepEqual(ranges.slice(0, 3).map((i) => [i.label, i.id, i.range]),
+      [['Today', 'filter.dateRange', 'today'], ['Yesterday', 'filter.dateRange', 'yesterday'], ['This Week', 'filter.dateRange', 'thisWeek']]);
+    assert.deepEqual(menuGesture(ranges[0]!), { name: 'filter.dateRange', args: { column: 'trade_date', range: 'today' } });
   });
 });
 
-describe('applying an entry to the grid (applyMenuAction)', () => {
+describe('Filter ▸ Top 10 and Bottom 10', () => {
+  const filterOf = (ctx: Parameters<typeof buildMenu>[0]) => submenu(ctx, 'Filter');
+  it('by a grouped grid\'s measure, or a flat grid\'s number; never a pivot\'s; Clear when one is set', () => {
+    const UNPIVOTED = { ...CUBE, pivotOn: [] };
+    const grouped = filterOf({ snapshot: UNPIVOTED, column: 'notional', columnType: 'Float', isMeasure: true });
+    const tops = grouped.filter((i) => i.id === 'filter.topN');
+    assert.deepEqual(tops.map((i) => i.label), ['Top 10 by notional', 'Bottom 10 by notional']);
+    assert.deepEqual(menuGesture(tops[1]!), { name: 'filter.topN', args: { column: 'notional', n: 10, bottom: true } });
+    // a dimension of a grouped grid is no rank
+    assert.equal(filterOf({ snapshot: UNPIVOTED, column: 'region', columnType: 'String' }).some((i) => i.id === 'filter.topN'), false);
+    // a flat grid's number is
+    const flat = { ...UNPIVOTED, rows: [] };
+    assert.equal(filterOf({ snapshot: flat, column: 'notional', columnType: 'Float' }).some((i) => i.id === 'filter.topN'), true);
+    assert.equal(filterOf({ snapshot: CUBE, column: 'notional', columnType: 'Float', isMeasure: true })
+      .some((i) => i.id === 'filter.topN'), false, 'a pivot\'s figures are its values\' columns');
+    assert.deepEqual(filterOf({ snapshot: { ...CUBE, topN: { by: 'notional', n: 10, bottom: true } } })
+      .filter((i) => i.id === 'filter.topNOff').map((i) => i.label), ['Clear Bottom 10']);
+  });
+});
+
+describe('applying an entry to the grid (its gesture)', () => {
   const SORTED: CubeSnapshot = {
     ...CUBE, sorts: [{ column: 'region', direction: 'asc' }, { column: 'desk', direction: 'desc' }, { column: 'notional', direction: 'asc' }],
   };
 
   it('Clear Sort takes the column\'s sort away, the others kept in order; Clear All Sorts takes every one', () => {
+    // by the one rule Python's clear_sort asks (a clearSort command: grid-edits.ts clearSort), not a list the menu makes
+    assert.deepEqual(menuCommands(SORTED, { id: 'sort.clearColumn', label: '', column: 'desk' }), [{ kind: 'clearSort', column: 'desk' }]);
     assert.deepEqual(apply(SORTED, { id: 'sort.clearColumn', column: 'desk' }).sorts,
       [{ column: 'region', direction: 'asc' }, { column: 'notional', direction: 'asc' }]);
     assert.deepEqual(apply(SORTED, { id: 'sort.clearAll' }).sorts, []);
   });
 
-  it('a column entry with no column changes nothing: the very same grid, so nothing is asked again', () => {
+  it('a column entry with no column is refused in words, nothing changed (the menu offers none: disabled)', () => {
     for (const id of ['sort.asc', 'sort.addDesc', 'sort.clearColumn', 'pivot.vertical', 'pivot.addVertical', 'pivot.removeVertical',
       'pivot.horizontal', 'pivot.addHorizontal', 'pivot.removeHorizontal', 'filter.add'] as const) {
-      assert.equal(apply(SORTED, { id }), SORTED, id);
+      assert.throws(() => apply(SORTED, { id }), (e: unknown) => e instanceof CubeRefusal && /needs column/.test(e.message), id);
     }
     // a filter with no operator is no filter
-    assert.equal(apply(SORTED, { id: 'filter.add', column: 'region', value: 'EMEA' }), SORTED);
+    assert.throws(() => apply(SORTED, { id: 'filter.add', column: 'region', value: 'EMEA' }), /'filter.add' needs operator/);
   });
 
   it('Add Filter adds: alone it is the filter; beside one it is AND-ed; to an AND it joins it, flat', () => {
@@ -232,12 +273,12 @@ describe('applying an entry to the grid (applyMenuAction)', () => {
     const offered = items({ snapshot: CUBE, column: 'region', columnType: 'String', value: 'EMEA' })
       .find((i) => i.label === 'Add Filter: region does not start with \'EMEA\'');
     assert.ok(offered);
-    assert.deepEqual(applyMenuAction(CUBE, offered, DEFAULT_CONFIGURATION).filter,
+    assert.deepEqual(applyMenuAction(CUBE, offered).filter,
       { kind: 'condition', column: 'region', operator: 'notStartsWith', value: 'EMEA' });
     const blank = items({ snapshot: CUBE, column: 'region', columnType: 'String', value: null })
       .find((i) => i.label === 'Add Filter: region is null');
     assert.ok(blank);
-    const filter = applyMenuAction(CUBE, blank, DEFAULT_CONFIGURATION).filter;
+    const filter = applyMenuAction(CUBE, blank).filter;
     assert.deepEqual(filter, { kind: 'condition', column: 'region', operator: 'isEmpty' });
     assert.ok(filter && !('value' in filter), 'no value key: a null predicate takes none');
   });
@@ -279,5 +320,23 @@ describe('applying an entry to the grid (applyMenuAction)', () => {
     // a header of a column the pivot does not spread (region is a row group, not a measure) is no header of the grid's
     refused(CUBE, { id: 'sort.addAsc', column: '2021__|__region', direction: 'asc' },
       'the sort names \'2021__|__region\', which the grid does not have: one of its columns (desk, notional, region, year), or a pivot\'s header');
+  });
+});
+
+describe("a flow's box: New Box After (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9)", () => {
+  const flat: CubeSnapshot = { ...CUBE, rows: [], pivotOn: [] };
+  it("offers the cell's value filtered by, its column sorted and grouped by -- each the grid's gesture, made after", () => {
+    const after = submenu({ snapshot: flat, stepAfter: true, column: 'region', value: 'EMEA', columnType: 'String' }, 'New Box After');
+    assert.deepEqual(labels(after), ["Filter: region = 'EMEA'", "Filter: region != 'EMEA'", 'Sort: region ascending', 'Sort: region descending',
+      'Summarize: by region']);
+    assert.ok(after.every((i) => i.after === true), 'each made in a box after this one');
+    assert.deepEqual(after.map((i) => menuGesture(i)?.name), ['filter.add', 'filter.add', 'sort.asc', 'sort.desc', 'pivot.vertical']);
+    assert.deepEqual(menuGesture(after[0]!)?.args, { column: 'region', operator: 'equal', value: 'EMEA' });
+    // an empty value: its emptiness filtered by; off a column, nothing to make
+    const empty = submenu({ snapshot: flat, stepAfter: true, column: 'region', value: null, columnType: 'String' }, 'New Box After');
+    assert.deepEqual(labels(empty).slice(0, 2), ['Filter: region is null', 'Filter: region is not null']);
+    assert.deepEqual(labels(submenu({ snapshot: flat, stepAfter: true }, 'New Box After')), ['Filter, sort or group in a box of its own [off]']);
+    // a grid on a board: none
+    assert.equal(find({ snapshot: flat, column: 'region', value: 'EMEA', columnType: 'String' }, 'New Box After'), undefined);
   });
 });

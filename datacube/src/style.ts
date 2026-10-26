@@ -217,6 +217,16 @@ export function cellStyle(
   return style;
 }
 
+/**
+ * A COLUMN'S ALIGNMENT WHEN NONE IS SET (the user, 2026-10-25: DataCube's rule): a measure's figures right, so they line
+ * up by place value and a larger one is seen before it is read -- a pivot's value column and a total are measures;
+ * everything else left: a dimension (a year or an id grouped by too: a label), a text, a date, a text measure (a
+ * `unique`), the tree. A header is centred whatever its column (grid.css .dc-th); an alignment set wins.
+ */
+export function autoTextAlign(measure: boolean, type: string | undefined): TextAlign {
+  return measure && isNumeric(type) ? 'right' : 'left';
+}
+
 function justify(align: TextAlign): string {
   return align === 'left'
     ? 'flex-start'
@@ -274,6 +284,8 @@ export interface HeatmapSpec {
   readonly from: string;
   /** Colour at the high end. */
   readonly to: string;
+  /** Colour at the middle of the range: Excel's three-colour scale (green, yellow, red). */
+  readonly mid?: string;
   /**
    * Fix the scale rather than deriving it from the data.
    *
@@ -360,5 +372,7 @@ export function heatColour(
   if (n === null) return null;
   const r = spec.range ?? range;
   if (!r) return null;
-  return mixHex(spec.from, spec.to, heatPosition(n, r));
+  const t = heatPosition(n, r);
+  if (spec.mid === undefined) return mixHex(spec.from, spec.to, t);
+  return t <= 0.5 ? mixHex(spec.from, spec.mid, t * 2) : mixHex(spec.mid, spec.to, (t - 0.5) * 2);
 }

@@ -10,6 +10,7 @@ import { CubeApp } from '../src/app.ts';
 import type { Planner } from '../src/cube.ts';
 import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
+import { SessionExpired } from '../../engine-client/src/warehouse-session.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import type { CubeAppOptions } from '../src/app.ts';
 import { FakeEngine } from './fake-engine.ts';
@@ -38,11 +39,14 @@ export class GateEngine extends FakeEngine {
   queries = 0;
   /** Answer with an extra column `n`: which query this was, so two answers can be told apart. */
   tag = false;
+  /** Refuse every query as a warehouse whose sign-in expired does (the cube offers to sign in again). */
+  expired = false;
   async answer(_sql: string, epoch: number): Promise<ResultTable> {
     this.queries += 1;
     const n = this.queries;
     const tagged = this.tag;
     await this.gate.pass();
+    if (this.expired) throw new SessionExpired('http://warehouse.test', 'rita');
     return {
       columns: [
         { name: 'region', type: 'String', values: ['EMEA', 'AMER'] },
@@ -80,6 +84,19 @@ let savedRejectionListeners: NodeJS.UnhandledRejectionListener[] = [];
 /** Let every promise the app started settle (menus and chevrons do not return theirs). */
 export async function settle(): Promise<void> {
   for (let i = 0; i < 20; i += 1) await new Promise((r) => setTimeout(r, 0));
+}
+
+/** The element `selector` names under `root`, once it is there. A part of the app fetched when it is first wanted (the
+ *  layouts, ui/layout-picker.ts, behind the page's Arrange...) arrives after its dynamic import, and that first import
+ *  outlasted settle()'s ticks on Windows' CI (2026-10-24, PR #71: `the layouts` null once in cube-page-shell.test.ts),
+ *  so a test that opens such a part waits for it, bounded, instead of counting ticks. */
+export async function shown<E extends Element>(root: ParentNode, selector: string): Promise<E> {
+  for (let i = 0; i < 250; i += 1) {
+    const found = root.querySelector<E>(selector);
+    if (found) return found;
+    await settle();
+  }
+  throw new Error(`${selector} did not appear`);
 }
 
 /** The other half of setUp, from each test file's afterEach (Bazel workplan P3-10): the process's own

@@ -39,7 +39,7 @@ lists typed and the text carrier deleted, 7 the old executor deleted and "collec
 | The Arrow IPC framer (no library; step 2 shares it) | `warehouse/src/main/java/com/legend/warehouse/server/duck/ArrowStreams.java` and `FlatBuilder` (the messages and buffers written by hand over DuckDB's own buffers), `Collect.java` (the chunking), `sqlapi/SqlApi.java` (the media type); its judge `warehouse/src/test/python/arrow_matches_json.py` (pyarrow, test-only) |
 | The test backends | `core/src/test/java/com/legend/testbackend/` (`TestBackends.named("snowflake")`, `CloudBackend` and the per-cloud backends, `TestBackend.held()`) |
 | Tests that pin this line | `core/src/test/java/com/legend/exec/TaggedSelectionTest.java`, `executionplan/PlanJsonTest.java`, `PlanMakerTest`, `testcases/PlanRoundTrip`, `OutputMatrixTest` (192 recorded cells), `JavaEvalLedgerTest`, `TenetRatchetTest` (JDBC accessor sites at 21), `ArchitectureTest` (`theRunnerIsModelFree`), `NoSaltedIterationOrderTest`, `CodeShapeGuardrailTest` |
-| Documents | the program; its design `docs/RESULTS_AND_RENDERERS_2026_10_22.md` (§5 the kinds, §5a the tagged carrier, §10.5 the Float-text measurements); the ratified result model `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md`; the plan path program `docs/PLAN_PATH_PROGRAM_2026_10_17.md` (§0 rulings R1 to R11, §9 status); `docs/TENET_CHARTER.md`; `docs/SEMANTICS_REGISTER.md` (S97: a Decimal at its own scale); `docs/GATES.md` (every landing's numbers); `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` (the clouds: §4 the properties file, §5 running, §6 a cloud session's setup); `docs/CLOUD_SESSIONS.md` (Bazel in a cloud container) |
+| Documents | the program; its design `docs/RESULTS_AND_RENDERERS_2026_10_22.md` (§5 the kinds, §5a the tagged carrier, §10.5 the Float-text measurements); the ratified result model `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md`; the plan path program `docs/PLAN_PATH_PROGRAM_2026_10_17.md` (§0 rulings R1 to R11, §9 status); `docs/TENET_CHARTER.md`; `docs/SEMANTICS_REGISTER.md` (S104: a Decimal at its own scale); `docs/GATES.md` (every landing's numbers); `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` (the clouds: §4 the properties file, §5 running, §6 a cloud session's setup); `docs/CLOUD_SESSIONS.md` (Bazel in a cloud container) |
 
 ## 3. State, and the next action
 
@@ -189,7 +189,7 @@ Arrow tests unchanged; the guard green. Trap: the framer's type decisions are th
 text, ENUM as text, a zoned timestamp tagged UTC): core's writer maps the plan's slots onto them in step 5 and adds
 nothing here.
 
-**Step 3, the legacy writer.** Read: RESULTS_AND_RENDERERS §4; S97; `OutputMatrixTest`. Files: a new package
+**Step 3, the legacy writer.** Read: RESULTS_AND_RENDERERS §4; S104; `OutputMatrixTest`. Files: a new package
 `com.legend.sink` (`PureV1Writer`, `CsvWriter`, the JSON array writer), `server/PureV1Api` (rows from the batch
 stream; `jsonPlan`'s `run` becomes the base statement plus columns), the two new guards in `ArchitectureTest` and a
 `WriterCarriageGuardTest`, then the deletions (`WireRender`, `Render.jsonWire`/`csvWire`/`jsonWireRows`,
@@ -197,7 +197,7 @@ stream; `jsonPlan`'s `run` becomes the base statement plus columns), the two new
 `MariaDb.floatLayout`, `Execution.executeWire`, `Format.JSON`/`JSON_PER_ROW`/`CSV`). Side by side: every
 `OutputMatrixTest` cell and every served-route test, old and new, zero byte differences or a dated register row.
 Acceptance: `OutputMatrixTest` unchanged; the served routes' tests; the guards; M3's number recorded. Traps: the
-JDK's `Double.toString` (M7); a Decimal's scale is the value's, not the column's (S97); a DateTime's precision comes
+JDK's `Double.toString` (M7); a Decimal's scale is the value's, not the column's (S104); a DateTime's precision comes
 from the plan's slot kind (`DateTime(n)`) or the data, never from the text; the tagged winner is spelled by its
 slot's kind (`RowDecode.presented`).
 
@@ -284,7 +284,7 @@ are typed (steps 4 and 6) the canon simplifies, it does not go.
 3. `docs/RESULTS_AND_RENDERERS_2026_10_22.md` §0 to §5a, §10.5.
 4. `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` §2 to §6 (the ratified result model this program executes).
 5. `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §0 (the rulings) and §9 (what has landed).
-6. `docs/TENET_CHARTER.md` Clauses 1 to 4; `docs/SEMANTICS_REGISTER.md` S97.
+6. `docs/TENET_CHARTER.md` Clauses 1 to 4; `docs/SEMANTICS_REGISTER.md` S104.
 7. `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §4 to §6 before the first message to a lane.
 8. `core/src/test/java/com/legend/exec/TaggedSelectionTest.java` and `ExecutionPlan.java`'s javadoc: the typed seam
    as it is.

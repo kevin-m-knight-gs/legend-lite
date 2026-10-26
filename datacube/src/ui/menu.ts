@@ -34,21 +34,24 @@
 import type { MemberPath } from '../adhoc/state.ts';
 import type {
   CubeSnapshot,
-  FilterNode,
   FilterOperator,
   FilterValue,
+  RelatedPath,
   SortDirection,
-  SortSpec,
 } from '../snapshot.ts';
+import { className, relatedLabel, type RelatedOffer } from '../class-tree.ts';
 import type { CalcStage } from '../calc.ts';
-import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
-import { SHOW_AS_KINDS, TIME_GRAINS, type ShowAsKind, type TimeGrain } from '../chart-spec.ts';
-import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
-import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, rowColumns } from '../snapshot.ts';
+import { GRAIN_LABELS, GRID_SHOW_AS_KINDS, GRID_SHOW_AS_LABELS, type GridShowAsKind } from '../calc-presets.ts';
+import { TIME_GRAINS, type TimeGrain } from '../chart-spec.ts';
+import { DATE_RANGES, DATE_RANGE_LABELS, type DateRange } from '../date-ranges.ts';
+import { isNumeric, isTemporal, isTimeOfDay } from '../../../engine-client/src/types.ts';
+import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, relativeDateWords, rowColumns } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
+import { TREE_COLUMN } from '../treeview.ts';
 import { takesOperator } from '../offers.ts';
-import { addSort, setGrouping, setPivot, setSorts } from '../grid-edits.ts';
-import type { CubeConfiguration } from '../config.ts';
+import { gestureTakes, isGridGesture, type GestureArgs, type GridGestureName } from '../grid-gestures.ts';
+import { COLOR_SCALES, ICON_SET_LABELS, ICON_SET_NAMES, RULE_PRESETS, type FormatRule, type IconSetName } from '../conditional.ts';
+import type { HeatmapSpec } from '../style.ts';
 
 /**
  * A pivoted column's name is a PATH -- `2021__|__notional` -- and a
@@ -65,14 +68,25 @@ export interface MenuContext {
   readonly snapshot: CubeSnapshot;
   /** The column under the pointer, if any. */
   readonly column?: string;
+  /** A flow's box (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9): New Box After offers a step made in a box of its own. */
+  readonly stepAfter?: boolean;
   /** Whether that column is a row dimension already. */
   readonly isRowDimension?: boolean;
   /** Whether a selection exists, which gates the copy entries. */
   readonly hasSelection?: boolean;
+  /** Whether the grid has a step to undo, and one to redo: Edit ▸ Undo and Redo, disabled without. */
+  readonly canUndo?: boolean;
+  readonly canRedo?: boolean;
   /** Whether any group is currently open, which gates Collapse All. */
   readonly hasExpanded?: boolean;
   /** Whether the column under the pointer already has a heatmap. */
   readonly hasHeatmap?: boolean;
+  /** The column under the pointer is one of the grid's rows' columns, whose values Group Values gathers. */
+  readonly groupable?: boolean;
+  /** The column under the pointer gathers another's values into groups (snapshot.ts ValueGroups): Edit Groups. */
+  readonly groupsColumn?: boolean;
+  /** The column under the pointer's conditional formats (Conditional Formatting ▸). */
+  readonly conditional?: ConditionalFacts;
   /** What a pivot total's header is named (Properties' Pivot Statistic Column Name), when it is renamed. */
   readonly totalLabel?: string;
   /**
@@ -96,6 +110,12 @@ export interface MenuContext {
   readonly canEmail?: boolean;
   /** Whether the host knows where the cube's rows come from, so the cube can be written down. */
   readonly canSaveCube?: boolean;
+  /** A grid over a class: the related columns one hop away it has not yet (class-tree.ts relatedOffers). */
+  readonly related?: readonly RelatedOffer[];
+  /** The column under the pointer is a related column: the class tree's, never a formula to edit. */
+  readonly relatedColumn?: boolean;
+  /** A grid over a class: the model's measures of it the grid has not yet (model-measures.ts measuresOf). */
+  readonly modelMeasures?: readonly { readonly name: string; readonly path: string; readonly doc?: string }[];
   /** From a header: Properties... opens Column Properties on this. */
   readonly propertiesColumn?: string;
   /** The column pivot's headers are measure-first (a checked entry). */
@@ -133,6 +153,42 @@ export interface MenuContext {
   readonly fixedWidth?: boolean;
   /** The cube's controls are hidden (the grid alone): the last entry brings them back. */
   readonly controlsHidden?: boolean;
+  /**
+   * A grid on a page of sheets: View ▸ Move to Sheet's entries (each other sheet, then a new one), or `locked` -- the
+   * page locked, the entry offered disabled. Absent off such a page.
+   */
+  readonly sheets?: readonly MenuItem[] | 'locked';
+  /** A grid on a page of its own: View ▸ Remove from Page. */
+  readonly canRemove?: boolean;
+  /**
+   * The host's Join ▸ on the column clicked (the user, 2026-10-23): a quick join to each grid sharing a column, the
+   * other ways, the window, a data source not on the page yet -- or its Join… disabled, saying why. Absent (a cube
+   * on no page): Join ▸ is still there, its Join… disabled, saying a join is made on a page.
+   */
+  readonly join?: readonly MenuItem[];
+  /** The host's own Create ▸ entries (Class…, Association…, Data Space…), after the grid's. */
+  readonly create?: readonly MenuItem[];
+  /** Whether a data source can be opened beside the grid: Create ▸ Data Source…. */
+  readonly canOpenSource?: boolean;
+}
+
+/**
+ * CREATE ▸, the same in every menu -- the right-click, a grid's own menu, the title bar's (the user, 2026-10-23: "Insert"
+ * became "Create", one word for all three): a grid over another source, a copy of this one, a chart of it; then, a line
+ * above them, the host's (Class…, Association…, Data Space…).
+ */
+export function createItems(o: { readonly source: boolean; readonly host: readonly MenuItem[]; readonly disabled?: boolean }): MenuItem[] {
+  const off = o.disabled === true ? { disabled: true } : {};
+  return [
+    ...(o.source ? [{ id: 'source.new' as const, label: 'Data Source\u2026', ...off }] : []),
+    { id: 'grid.new', label: 'Copy of This Grid', ...off },
+    { id: 'chart.plot', label: 'Visualization', ...off },
+    // a timeseries tile (ui/timeseries-view.ts): its series along the grid's dates, gs-quant's functions over them
+    { id: 'timeseries.new', label: 'Timeseries', ...off },
+    // a text tile (page-text.ts): a page's title, a note beside a chart
+    { id: 'text.new', label: 'Text Box', ...off },
+    ...o.host.map((h, i) => (i === 0 ? { ...h, separated: true } : h)),
+  ];
 }
 
 /**
@@ -155,9 +211,10 @@ export type MenuActionId =
   /**
    * A HOST's own entry, which must be prefixed.
    *
-   * The cube's ids stay a closed union, so `applyMenuAction` and the
-   * dispatch in app.ts remain exhaustive over them and
-   * `menu-ids.test.ts` can still tell a dead entry from a live one.
+   * The cube's ids stay a closed union, so the dispatch in app.ts -- a
+   * grid's gesture by its id (menuGesture), the rest by their cases --
+   * covers them, and `menu-ids.test.ts` can still tell a dead entry
+   * from a live one.
    * A host adds items to the title bar menu and gets them back
    * through `onHostMenu`; the prefix is what keeps the two sets from
    * ever being confused for one another.
@@ -193,6 +250,7 @@ export type MenuActionId =
   | 'column.unpin'
   | 'column.unpinAll'
   | 'tree.collapseAll'
+  | 'tree.expandAll'
   | 'copy.selection'
   | 'copy.column'
   | 'export.csv'
@@ -208,20 +266,39 @@ export type MenuActionId =
   | 'email.pdf'
   | 'heatmap.add'
   | 'heatmap.remove'
+  | 'format.dataBar'
+  | 'format.colorScale'
+  | 'format.iconSet'
+  | 'format.addRule'
+  | 'format.clear'
   | 'chart.plot'
+  | 'timeseries.new'
+  | 'text.new'
   | 'grid.new'
   | 'source.new'
   | 'page.blank'
   // the page's layouts (ui/layout-picker.ts), and edit or view mode (nothing moves)
   | 'page.arrange'
-  // a grid on a page of its own, taken off it from its own menu
+  // a grid on a page of its own, taken off it from its right-click's Tile ▸
   | 'grid.remove'
   // a page of its own as a file (page/page-app.ts)
   | 'page.export'
   | 'page.undoLayout'
   | 'page.redoLayout'
+  | 'page.undo'
+  | 'page.redo'
   | 'page.editLayout'
+  // the page's bar folded or shown (its View ▸ Hide the Bar)
+  | 'page.bar'
   | 'view.properties'
+  | 'view.shortcuts'
+  // a grid's plane, from its tile's state (app.ts #movePlane): live again, or a copy snapped (afresh)
+  | 'plane.live'
+  | 'plane.snap'
+  | 'filter.valueList'
+  | 'filter.dateRange'
+  | 'filter.topN'
+  | 'filter.topNOff'
   // the cube's controls hidden or shown, the grid alone (setControlsHidden)
   | 'view.controls'
   // Upstream's Copy > Selected Rows, Resize > Minimize and Size to Fit,
@@ -240,20 +317,21 @@ export type MenuActionId =
   | 'calc.grain'
   | 'calc.bins'
   | 'calc.showAs'
+  | 'calc.related'
+  | 'calc.groupValues'
+  | 'calc.editGroups'
+  | 'calc.modelMeasure'
   | 'calc.edit'
   | 'calc.delete'
   // The chrome, toggled from the title bar's menu. Not a snapshot
   // change and not a column operation: what is on SCREEN. It left the
   // grid's menu by the user's direction (2026-09-25); a folded title
   // bar leaves a lip that restores it.
-  // Host-level entries, which live in the title bar's menu rather
-  // than the grid's. DataCube reserves that menu for the embedding
-  // application the same way.
-  | 'view.dimension'
+  // The grid's history, in the title bar's menu and the right-click's Edit ▸, and the
+  // title bar's Settings.
   | 'view.undo'
   | 'view.redo'
   | 'view.settings'
-  | 'view.adhoc'
   | 'adhoc.zoomNext'
   | 'adhoc.zoomAll'
   | 'adhoc.zoomBottom'
@@ -277,9 +355,10 @@ export interface MenuItem {
   readonly label: string;
   /**
    * A host's entry: where it goes -- the main menu's file group (the default), its View, its
-   * top-level data entries, or the status bar's planner readout (`plane`: where the planner runs).
+   * top-level data entries, its Create ▸ (Class…, Association…, Data Space…), or the status bar's planner readout
+   * (`plane`: where the planner runs).
    */
-  readonly section?: 'file' | 'view' | 'data' | 'plane';
+  readonly section?: 'file' | 'view' | 'data' | 'create' | 'plane';
   /** Column the action applies to, when it is column-specific. */
   readonly column?: string;
   readonly direction?: SortDirection;
@@ -304,9 +383,40 @@ export interface MenuItem {
   /** A preset's choice: the period a date is taken to (`calc.grain`). */
   readonly grain?: TimeGrain;
   /** A preset's choice: what a measure is shown as (`calc.showAs`). */
-  readonly showAs?: ShowAsKind;
-  /** A line above it: what follows is apart from what precedes (New ▸ Blank Page, which replaces everything). */
+  readonly showAs?: GridShowAsKind;
+  /** A related class's property to add (`calc.related`: class-tree.ts relatedOffers). */
+  readonly related?: RelatedPath;
+  /** A model measure to add, by its path (`calc.modelMeasure`: model-measures.ts). */
+  readonly measure?: string;
+  /** A date range relative to today (Filter ▸ Date Range ▸, date-ranges.ts). */
+  readonly range?: DateRange;
+  /** A top N's N, and whether it is the bottom's (Filter ▸ Top 10). */
+  readonly n?: number;
+  readonly bottom?: boolean;
+  /** Conditional Formatting ▸'s choices: data bars on or off, a colour scale, an icon set (null: none), a rule. */
+  readonly on?: boolean;
+  readonly scale?: HeatmapSpec;
+  readonly set?: IconSetName | null;
+  readonly rule?: FormatRule;
+  /** A line above it: what follows is apart from what precedes (the host's model entries under Create ▸). */
   readonly separated?: boolean;
+  /** Said on hover: why a disabled entry is off (Show Grid on a cube on its own). */
+  readonly hint?: string;
+  /** A flow's box's New Box After (FL9): its gesture made in a new box after this one, never on this one. */
+  readonly after?: true;
+  /**
+   * Its key, shown right-aligned (docs/DATACUBE_UI_REVIEW_2026_10_24.md, the menus): only where the key does what the
+   * entry does (shortcuts.ts lists them), spelled as that list spells it.
+   */
+  readonly shortcut?: string;
+}
+
+/** What Conditional Formatting ▸ says of a column: its data bars, its colour scale, its icons, how many rules. */
+export interface ConditionalFacts {
+  readonly dataBar: boolean;
+  readonly scale: boolean;
+  readonly iconSet?: IconSetName;
+  readonly rules: number;
 }
 
 export interface MenuGroup {
@@ -361,7 +471,10 @@ export function filterOperatorsFor(type: string): FilterOperator[] {
  * the same shape as the Pure literal the filter sends.
  */
 export function valueLabel(value: FilterValue): string {
-  if (isRelativeDate(value)) return value.relative === 'today' ? 'TODAY' : 'NOW';
+  if (isRelativeDate(value)) {
+    return value.startOf === undefined && value.offset === undefined ? (value.relative === 'today' ? 'TODAY' : 'NOW')
+      : relativeDateWords(value);
+  }
   if (isJsonValue(value)) return value.json;
   // Text QUOTED, as upstream's: "region = 'EMEA'", so a value that
   // looks like a number or is blank still reads as the text it is.
@@ -382,6 +495,38 @@ function filterItem(
     operator,
     ...(value !== undefined ? { value } : {}),
   };
+}
+
+/**
+ * NEW BOX AFTER (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9: a gesture in the results pane adds a box after the box shown,
+ * so every box keeps doing one thing): the cell's value filtered by -- kept, or left out -- its column sorted by, or
+ * grouped by, each the grid's own gesture, made in a box after this one (`after`). Disabled off a column.
+ */
+function newBoxItems(ctx: MenuContext): MenuItem[] {
+  const { column, value } = ctx;
+  if (column === undefined || column === TREE_COLUMN) return [{ label: 'Filter, sort or group in a box of its own', disabled: true, hint: 'Right-click a cell or a header' }];
+  const named = columnLabel(column, ctx.totalLabel);
+  const items: MenuItem[] = [];
+  const filter = (operator: FilterOperator, v: FilterValue | undefined): void => {
+    items.push({ ...filterItem(column, operator, v), after: true,
+      label: `Filter: ${named} ${OPERATOR_LABEL[operator] ?? operator}${v === undefined ? '' : ` ${valueLabel(v)}`}` });
+  };
+  // a value to filter by: a row's, typed by the compiler (a pivot's cell has none of its own)
+  if (value !== undefined && ctx.pivotBase === undefined) {
+    if (value === null) {
+      filter('isEmpty', undefined);
+      filter('isNotEmpty', undefined);
+    } else if (ctx.columnType !== undefined && filterOperatorsFor(ctx.columnType).includes('equal')) {
+      filter('equal', value);
+      if (filterOperatorsFor(ctx.columnType).includes('notEqual')) filter('notEqual', value);
+    }
+  }
+  items.push(
+    { id: 'sort.asc', label: `Sort: ${named} ascending`, column, direction: 'asc', after: true, separated: items.length > 0 },
+    { id: 'sort.desc', label: `Sort: ${named} descending`, column, direction: 'desc', after: true },
+  );
+  if (ctx.canGroup !== false && ctx.pivotBase === undefined) items.push({ id: 'pivot.vertical', label: `Summarize: by ${named}`, column, after: true });
+  return items;
 }
 
 /**
@@ -432,13 +577,77 @@ function presetItems(ctx: MenuContext, column: string | undefined, named: string
       id: 'calc.grain' as const, label: GRAIN_LABELS[g], column, grain: g,
     })) });
   }
-  if (ctx.extendable && isNumeric(type)) out.push({ id: 'calc.bins', label: `Bins of ${named}...`, column });
+  if (ctx.extendable && isNumeric(type)) out.push({ id: 'calc.bins', label: `Bins of ${named}…`, column });
   if (ctx.isMeasure && ctx.pivotBase === undefined && s.rows.length > 0 && s.pivotOn.length === 0) {
-    out.push({ label: `Show ${named} As`, submenu: SHOW_AS_KINDS.map((k) => ({
-      id: 'calc.showAs' as const, label: SHOW_AS_LABELS[k], column, showAs: k,
+    out.push({ label: `Show ${named} As`, submenu: GRID_SHOW_AS_KINDS.map((k) => ({
+      id: 'calc.showAs' as const, label: GRID_SHOW_AS_LABELS[k], column, showAs: k,
     })) });
   }
   return out;
+}
+
+/** Extended Columns ▸ Add Related Column ▸ (a grid over a class): each class one hop away, and its columns -- a to-one
+ *  end's values, a to-many end's count and aggregates (class-tree.ts relatedOffers). */
+function relatedItems(ctx: MenuContext): MenuItem[] {
+  if (!ctx.related || ctx.related.length === 0) return [];
+  return [{
+    label: 'Add Related Column',
+    submenu: ctx.related.map((o) => ({
+      label: `${o.property} (${o.many ? `each ${className(o.target)}` : className(o.target)})`,
+      submenu: o.columns.map((related) => ({ id: 'calc.related' as const, label: relatedLabel(related), related })),
+    })),
+  }];
+}
+
+/** Extended Columns ▸ Add Model Measure ▸ (a grid over a class whose model declares measures of it): each by its name,
+ *  its words its hint (model-measures.ts). */
+function modelMeasureItems(ctx: MenuContext): MenuItem[] {
+  if (!ctx.modelMeasures || ctx.modelMeasures.length === 0) return [];
+  return [{
+    label: 'Add Model Measure',
+    submenu: ctx.modelMeasures.map((m) => ({ id: 'calc.modelMeasure' as const, label: m.name, measure: m.path, ...(m.doc !== undefined ? { hint: m.doc } : {}) })),
+  }];
+}
+
+/**
+ * Conditional Formatting ▸ (Excel's; conditional.ts): the heatmap and Data Bars on or off, a colour scale, an icon set,
+ * the one-click rules -- a rule of a value of one's own is the column's Properties' -- and the column's formats cleared.
+ * Each on what a heatmap is on (a pivoted column's measure). The heatmap is the grid's colour scale, one setting with the
+ * presets: its entry comes first, one click, and says what it will do -- Heatmap, or Remove Heatmap while a scale is on
+ * (the user, 2026-10-25: it was lost two levels down, under Color Scales ▸; a toggle names its action and flips).
+ */
+function conditionalItems(ctx: MenuContext, column: string | undefined): MenuItem[] {
+  const c = ctx.conditional;
+  const on: Pick<MenuItem, 'column'> = column !== undefined ? { column } : {};
+  return [{
+    label: 'Conditional Formatting',
+    submenu: [
+      ctx.hasHeatmap
+        ? { id: 'heatmap.remove' as const, label: 'Remove Heatmap', disabled: !column, ...on }
+        : { id: 'heatmap.add' as const, label: 'Add Heatmap', disabled: !column, ...on },
+      { id: 'format.dataBar', label: c?.dataBar ? 'Remove Data Bars' : 'Add Data Bars', disabled: !column, on: !c?.dataBar, ...on },
+      {
+        label: 'Color Scales',
+        submenu: COLOR_SCALES.map((s) => ({ id: 'format.colorScale' as const, label: s.label, disabled: !column, scale: s.scale, ...on })),
+      },
+      {
+        label: 'Icon Sets',
+        submenu: [
+          ...ICON_SET_NAMES.map((set) => ({ id: 'format.iconSet' as const, label: ICON_SET_LABELS[set], disabled: !column,
+            checked: c?.iconSet === set, set, ...on })),
+          { id: 'format.iconSet' as const, label: 'No Icons', disabled: !column || c?.iconSet === undefined, set: null, separated: true, ...on },
+        ],
+      },
+      {
+        label: 'Highlight Rules',
+        submenu: RULE_PRESETS.map((r) => ({ id: 'format.addRule' as const, label: r.label, disabled: !column, rule: r.rule, ...on })),
+      },
+      {
+        id: 'format.clear', label: 'Clear Formatting from Column', separated: true,
+        disabled: !column || !(c && (c.dataBar || c.scale || c.iconSet !== undefined || c.rules > 0)), ...on,
+      },
+    ],
+  }];
 }
 
 export function buildMenu(ctx: MenuContext): MenuGroup[] {
@@ -462,28 +671,34 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
   const isHorizontal = column ? s.pivotOn.includes(column) : false;
   const groupable = column !== undefined && ctx.canGroup !== false;
 
-  // ---- Export / Copy ----------------------------------------------
+  // ---- Export / Edit ----------------------------------------------
+  // EDIT ▸ where Copy ▸ was (the user, 2026-10-23: "change it to Edit with undo/redo and copy"): the grid's own Undo
+  // and Redo -- its menu's, before the grid's menu button went -- then its copies, as plain text
   push('', [
     { label: 'Export', submenu: exportItems(ctx.canSaveCube === true) },
     { label: 'Email', submenu: emailItems(ctx.canEmail === true) },
     {
-      label: 'Copy',
+      label: 'Edit',
       submenu: [
+        { id: 'view.undo', label: 'Undo', disabled: ctx.canUndo !== true, shortcut: 'Ctrl+Z' },
+        { id: 'view.redo', label: 'Redo', disabled: ctx.canRedo !== true, shortcut: 'Ctrl+Shift+Z' },
         {
           id: 'copy.selection',
-          label: 'Selected Cells as Plain Text',
+          label: 'Copy Selected Cells',
           disabled: !ctx.hasSelection,
+          separated: true,
+          shortcut: 'Ctrl+C',
         },
         {
           id: 'copy.rows',
-          label: 'Selected Rows as Plain Text',
+          label: 'Copy Selected Rows',
           disabled: !ctx.hasSelection,
         },
         {
           id: 'copy.column',
           label: column
-            ? `Column ${columnLabel(column, ctx.totalLabel)} as Plain Text`
-            : 'Selected Column as Plain Text',
+            ? `Copy Column ${columnLabel(column, ctx.totalLabel)}`
+            : 'Copy Column',
           disabled: !column,
           ...(column ? { column } : {}),
         },
@@ -493,6 +708,8 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
 
   // ---- Sort / Filter / Pivot ----------------------------------------
   push('', [
+    // a flow's box: a step after it, in a box of its own (FL9)
+    ctx.stepAfter === true ? { label: 'New Box After', submenu: newBoxItems(ctx) } : null,
     {
       label: 'Sort',
       submenu: [
@@ -535,6 +752,14 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       ],
     },
     { label: 'Filter', submenu: filterSubmenu(ctx) },
+    // JOIN, beside Filter (the user, 2026-10-23): the host's -- a quick join to each grid sharing a column, the window, a
+    // data source -- and always there (the user, 2026-10-24: an entry is disabled, never missing): with nothing to join
+    // from here, Join… disabled, saying why
+    {
+      label: 'Join',
+      submenu: ctx.join !== undefined && ctx.join.length > 0 ? ctx.join
+        : [{ label: 'Join…', disabled: true, hint: 'A join is made on a page: between its grids, or with a data source' }],
+    },
     {
       label: 'Pivot',
       submenu: [
@@ -616,11 +841,11 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           disabled: s.pivotOn.length === 0,
         },
         // Ours: the header measure-first (notional > 2021, 2022) or
-        // value-first (2021 > notional, pnl, upstream's). Checked when on.
+        // value-first (2021 > notional, pnl, upstream's). A switch says
+        // what it will do, and flips (the menus, docs/DATACUBE_UI_REVIEW_2026_10_24.md).
         {
           id: 'pivot.measuresFirst',
-          label: 'Measures First in Column Headers',
-          checked: ctx.measuresFirst === true,
+          label: ctx.measuresFirst === true ? 'Values First in Column Headers' : 'Measures First in Column Headers',
           disabled: s.pivotOn.length === 0,
         },
       ],
@@ -637,16 +862,22 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     {
       label: 'Extended Columns',
       submenu: [
-        { id: 'calc.add', label: 'Add New Column...' },
+        { id: 'calc.add', label: 'Add New Column…' },
         ...(column !== undefined && ctx.extendable
-          ? [{ id: 'calc.extend' as const, label: `Extend Column ${named}...`,
+          ? [{ id: 'calc.extend' as const, label: `Extend Column ${named}…`,
             column }]
           : []),
         ...presetItems(ctx, column, named),
+        ...relatedItems(ctx),
+        // Group Values: a column's values gathered by hand into named groups, a column of its own; its groups edited again
+        ...(column !== undefined && ctx.groupsColumn
+          ? [{ id: 'calc.editGroups' as const, label: `Edit Groups of ${named}…`, column }]
+          : column !== undefined && ctx.groupable ? [{ id: 'calc.groupValues' as const, label: `Group Values of ${named}…`, column }] : []),
+        ...modelMeasureItems(ctx),
         ...(column !== undefined && ctx.calcStage !== undefined
           ? [
-            { id: 'calc.edit' as const, label: `Edit Column ${named}...`,
-              column },
+            // a related column is the class tree's (Add Related Column), never a formula to edit
+            ...(ctx.relatedColumn || ctx.groupsColumn ? [] : [{ id: 'calc.edit' as const, label: `Edit Column ${named}…`, column }]),
             { id: 'calc.delete' as const, label: `Delete Column ${named}`,
               column },
           ]
@@ -714,54 +945,45 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       disabled: !column,
       ...(column ? { column } : {}),
     },
-    {
-      id: 'tree.collapseAll',
-      label: 'Collapse All',
-      disabled: !ctx.hasExpanded,
-    },
-    {
-      label: 'Heatmap',
-      submenu: [
-        {
-          id: 'heatmap.add',
-          label: column
-            ? `Add Heatmap to ${columnLabel(column, ctx.totalLabel)}`
-            : 'Add Heatmap',
-          disabled: !column || Boolean(ctx.hasHeatmap),
-          ...(column ? { column } : {}),
-        },
-        {
-          id: 'heatmap.remove',
-          label: 'Remove Heatmap',
-          disabled: !column || !ctx.hasHeatmap,
-          ...(column ? { column } : {}),
-        },
-      ],
-    },
+    ...conditionalItems(ctx, column),
   ]);
 
-  // INSERT sits beside Properties, as plot and treemap did: a chart or another grid is a view OF
-  // the cube rather than an operation ON a column. A treemap is one of the chart's types now
-  // (the user, 2026-09-30); the grid starts as this one is (page/cube-page.ts).
-  push('', [{
-    label: 'Insert',
-    submenu: [
-      { id: 'chart.plot', label: 'Visualization' },
-      { id: 'grid.new', label: 'Copy of Grid' },
-    ],
-  }]);
+  // CREATE sits beside Properties, as Insert did: a chart, another grid, a class is made OF the cube rather than an
+  // operation ON a column (createItems: the same in every menu). A treemap is one of the chart's types (the user,
+  // 2026-09-30); a copy starts as this grid is (page/cube-page.ts).
+  push('', [{ label: 'Create', submenu: createItems({ source: ctx.canOpenSource === true, host: ctx.create ?? [] }) }]);
 
   push('', [{
     id: 'view.properties',
-    label: 'Properties...',
+    label: 'Properties…',
+    shortcut: 'Ctrl+E',
     ...(ctx.propertiesColumn !== undefined ? { column: ctx.propertiesColumn } : {}),
   }]);
 
-  // LAST, after every entry people know by its place (the user: the right-click order stays as it
-  // is): the one switch for the cube's controls -- title bar, drag zones, columns panel, status
-  // bar -- hidden together for the grid alone, and the way back. The right-click menu is the only
-  // way back (the user, 2026-10-01: "right click only").
-  push('', [{ id: 'view.controls', label: ctx.controlsHidden ? 'Show Controls' : 'Hide Controls' }]);
+  // LAST, after every entry people know by its place (the user: the right-click order stays as it is): VIEW ▸, how the
+  // grid is shown and where (the user, 2026-10-24: one bucket, the menu shorter) -- its groups all open or all closed;
+  // the one switch for the cube's controls (title bar, drag zones, columns panel, status bar), hidden together for the
+  // grid alone, and the way back: the right-click menu is the only way back (the user, 2026-10-01: "right click only");
+  // the keyboard's shortcuts; and on a page, what is done to the grid's tile -- onto another sheet, off the page (once
+  // Tile ▸, the user, 2026-10-23: the grid's menu button gone).
+  const tile: MenuItem[] = [
+    ...(ctx.sheets === undefined ? []
+      : [{ label: 'Move to Sheet', ...(ctx.sheets === 'locked' ? { disabled: true, hint: 'Edit Layout first' } : { submenu: ctx.sheets }) }]),
+    // off while the page is locked, as its tile's x is (nothing moves by accident: the 2026-10-25 audit)
+    ...(ctx.canRemove === true ? [{ id: 'grid.remove' as const, label: 'Remove from Page',
+      ...(ctx.sheets === 'locked' ? { disabled: true, hint: 'Edit Layout first' } : {}) }] : []),
+  ];
+  push('', [{
+    label: 'View',
+    submenu: [
+      // groups under groups to open: one level of groups has only its rows under it
+      { id: 'tree.expandAll', label: 'Expand All', disabled: s.rows.length < 2 },
+      { id: 'tree.collapseAll', label: 'Collapse All', disabled: !ctx.hasExpanded },
+      { id: 'view.controls', label: ctx.controlsHidden ? 'Show Controls' : 'Hide Controls', separated: true },
+      { id: 'view.shortcuts', label: 'Keyboard Shortcuts…' },
+      ...tile.map((item, i) => (i === 0 ? { ...item, separated: true } : item)),
+    ],
+  }]);
 
   return groups;
 }
@@ -792,7 +1014,7 @@ function filterSubmenu(ctx: MenuContext): MenuItem[] {
         const more = operators.filter((op) => op !== 'equal');
         if (more.length > 0) {
           items.push({
-            label: `More Filters on ${columnLabel(column, ctx.totalLabel)}...`,
+            label: `More Filters on ${columnLabel(column, ctx.totalLabel)}…`,
             submenu: more.map((op) => filterItem(column, op, value)),
           });
         }
@@ -800,8 +1022,35 @@ function filterSubmenu(ctx: MenuContext): MenuItem[] {
     }
   }
 
+  // a row's column the compiler has typed (the app's columnType: a source column or a row-stage calculated one) --
+  // what a filter can run on, its values' literals written by its type -- offers its values to tick, and a date (not a
+  // time of day) its ranges relative to today; a pivot's cell offers neither
+  const type = column === undefined || ctx.pivotBase !== undefined ? undefined : ctx.columnType;
+  if (column !== undefined && type !== undefined) {
+    items.push({ id: 'filter.valueList', label: `Filter Values of ${columnLabel(column, ctx.totalLabel)}…`, column });
+    if (isTemporal(type) && !isTimeOfDay(type)) {
+      items.push({ label: 'Date Range', submenu: DATE_RANGES.map((range) => ({
+        id: 'filter.dateRange' as const, label: DATE_RANGE_LABELS[range], column, range,
+      })) });
+    }
+  }
+  // TOP OR BOTTOM N by a measure -- a grouped grid's groups, each parent's own -- or by a flat grid's number; never a
+  // pivot's (its figures are its values' columns)
+  const s = ctx.snapshot;
+  const rankable = column !== undefined && ctx.pivotBase === undefined && s.pivotOn.length === 0
+    && (s.rows.length > 0 ? ctx.isMeasure === true : isNumeric(type));
+  if (rankable) {
+    const named = columnLabel(column, ctx.totalLabel);
+    items.push(
+      { id: 'filter.topN', label: `Top 10 by ${named}`, column, n: 10 },
+      { id: 'filter.topN', label: `Bottom 10 by ${named}`, column, n: 10, bottom: true },
+    );
+  }
+  if (s.topN !== undefined) {
+    items.push({ id: 'filter.topNOff', label: `Clear ${s.topN.bottom ? 'Bottom' : 'Top'} ${s.topN.n}` });
+  }
   items.push(
-    { id: 'filter.column', label: 'Filters...' },
+    { id: 'filter.column', label: 'Filters…' },
     {
       id: 'filter.clearAll',
       label: 'Clear All Filters',
@@ -818,95 +1067,23 @@ export function menuItems(groups: readonly MenuGroup[]): MenuItem[] {
   return groups.flatMap((g) => walk(g.items));
 }
 
-// -- applying an action to the snapshot -------------------------------
+// -- an entry as its gesture -------------------------------------------
 
 /**
- * Apply a menu action, returning a NEW snapshot.
- *
- * Actions that change nothing return the snapshot unchanged by
- * identity, so a caller can skip a refresh rather than re-running the
- * same query. Sorts and pivots are set by grid-edits.ts, the one way a
- * grid's are set (`config`: the grid's, which says a column's kind);
- * an action its offers refuse throws its words (CubeRefusal).
+ * The grid's gesture a menu entry makes (grid-gestures.ts: its id the gesture's name, the one Python's grid.gesture
+ * takes) and what the entry carries of what the gesture takes -- the column under it, an operator and its value -- or
+ * null: an entry that is the screen's own (a column measured, a window opened), layout, clipboard or export. What the
+ * gesture means is grid-gestures.ts's: an entry that would change nothing makes no command there, one its offers refuse
+ * is refused when applied, in their words (CubeRefusal).
  */
-export function applyMenuAction(
-  s: CubeSnapshot,
-  item: MenuItem,
-  config: CubeConfiguration,
-): CubeSnapshot {
-  const col = item.column;
-  const without = <T>(xs: readonly T[], p: (x: T) => boolean): T[] =>
-    xs.filter((x) => !p(x));
-  const draft = { snapshot: s, config };
-  const sorted = (sorts: readonly SortSpec[]): CubeSnapshot => setSorts(draft, sorts).snapshot;
-  const rows = (names: readonly string[]): CubeSnapshot => setGrouping(draft, names).snapshot;
-  const pivotOn = (names: readonly string[]): CubeSnapshot => setPivot(draft, names).snapshot;
-
-  switch (item.id) {
-    case 'sort.asc':
-    case 'sort.desc':
-      return col
-        ? sorted([{ column: col, direction: item.direction ?? 'asc' }])
-        : s;
-    case 'sort.addAsc':
-    case 'sort.addDesc':
-      return col ? addSort(draft, col, item.direction ?? 'asc').snapshot : s;
-    case 'sort.clearColumn':
-      return col
-        ? sorted(without(s.sorts, (x) => x.column === col))
-        : s;
-    case 'sort.clearAll':
-      return sorted([]);
-
-    case 'filter.add': {
-      // ADDS to the filter rather than replacing it, which is what
-      // "Add Filter" says and what makes the entry usable twice in
-      // a row. The new condition joins the existing tree with AND;
-      // an OR is the filter editor's job.
-      if (!col || !item.operator) return s;
-      const condition: FilterNode = {
-        kind: 'condition',
-        column: col,
-        operator: item.operator,
-        ...(item.value !== undefined ? { value: item.value } : {}),
-      };
-      const filter: FilterNode = s.filter
-        ? s.filter.kind === 'and'
-          ? { kind: 'and', children: [...s.filter.children, condition] }
-          : { kind: 'and', children: [s.filter, condition] }
-        : condition;
-      return { ...s, filter };
-    }
-
-    case 'filter.clearAll': {
-      const { filter: _drop, ...rest } = s;
-      return rest;
-    }
-
-    case 'pivot.vertical':
-      return col ? rows([col]) : s;
-    case 'pivot.addVertical':
-      return col && !s.rows.includes(col)
-        ? rows([...s.rows, col])
-        : s;
-    case 'pivot.removeVertical':
-      return col ? rows(without(s.rows, (x) => x === col)) : s;
-    case 'pivot.clearVertical':
-      return rows([]);
-
-    case 'pivot.horizontal':
-      return col ? pivotOn([col]) : s;
-    case 'pivot.addHorizontal':
-      return col && !s.pivotOn.includes(col)
-        ? pivotOn([...s.pivotOn, col])
-        : s;
-    case 'pivot.removeHorizontal':
-      return col ? pivotOn(without(s.pivotOn, (x) => x === col)) : s;
-    case 'pivot.clearHorizontal':
-      return pivotOn([]);
-
-    default:
-      // Layout, copy and export actions do not touch the query.
-      return s;
-  }
+export function menuGesture(item: MenuItem): { readonly name: GridGestureName; readonly args: GestureArgs } | null {
+  if (!isGridGesture(item.id)) return null;
+  const carried: Record<string, unknown> = {
+    column: item.column, operator: item.operator, value: item.value, range: item.range, n: item.n, bottom: item.bottom,
+    on: item.on, scale: item.scale, set: item.set, rule: item.rule,
+  };
+  return {
+    name: item.id,
+    args: Object.fromEntries(gestureTakes(item.id).flatMap((k) => (carried[k] !== undefined ? [[k, carried[k]]] : []))),
+  };
 }

@@ -1,17 +1,20 @@
 // The chart window: a chart of the cube, and the options that shape it.
 //
-// Left, the options (mark, what goes across, what is plotted and how it is
-// aggregated, the split, orientation, stacking, order, how many, labels,
-// legend); right, the chart. The chart follows the cube: its query is the
-// cube's own, regrouped (`chart-spec.ts`), so a filter added to the grid
-// narrows the chart, and a click on a mark (a bar, a slice, a cell) adds
-// that mark's values to the cube's filter.
+// The chart, and beside it on asking, a window of its options (mark, what
+// goes across, what is plotted and how it is aggregated, the split,
+// orientation, stacking, order, how many, labels, legend). The chart
+// follows the cube: its query is the cube's own, regrouped
+// (`chart-spec.ts`), so a filter added to the grid narrows the chart, and a
+// click on a mark (a bar, a slice, a cell) adds that mark's values to the
+// cube's filter.
 
 import {
   axisName,
   brushConditions,
   chartProblems,
   chartQuery,
+  chartState,
+  chartStateOf,
   defaultChart,
   drilledView,
   drillDown,
@@ -21,6 +24,7 @@ import {
   followCube,
   GRID_MARKS,
   KIND_MARKS,
+  MAP_MARKS,
   kpiQueries,
   markConditions,
   MAX_FACETS,
@@ -28,6 +32,7 @@ import {
   type ChartChange,
   type ChartMark,
   type ChartSpec,
+  type ChartState,
 } from '../chart-spec.ts';
 import type { FormHost } from './chart-form.ts';
 // the drawing (chart-option.ts) comes with ECharts, the first time a chart draws: a grid alone fetches neither
@@ -37,15 +42,28 @@ import type { ChartPicture, MountedChart } from '../chart-render.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { CubeSnapshot, FilterNode } from '../snapshot.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
+import { isTextEntry } from '../focus.ts';
+import { lazily } from '../lazily.ts';
+import { chromeIcon } from './tile-icons.ts';
+import { besideWindow, makeWindow, moveWindow, raiseWindow, screenOf, windowSpecOf, type WindowSpec } from './window.ts';
 
 /** The kinds with an axis of categories or time across, whose pointer a page's other charts follow (a crosshair). */
 const CROSSHAIRED: ReadonlySet<ChartMark> = new Set(['bar', 'line', 'area', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto']);
 
 /** Whether batch 3's rarer ECharts charts are registered on this page (chart-render-kinds.ts, fetched once). */
 let kindsRegistered = false;
+/** Whether the maps' ECharts and the world's countries are registered on this page (chart-render-maps.ts, fetched once). */
+let mapsRegistered = false;
 
 /** How long a click on a chart that drills waits for a second click (a double-click drills instead of filtering). */
 const DOUBLE_CLICK_MS = 250;
+
+/**
+ * The options' window: two columns of sections where the room beside the chart allows (its form flows into them,
+ * app.css), one where it does not -- `besideWindow` makes it narrower to fit, never under one column -- and no taller
+ * than its form, once painted, nor than the screen.
+ */
+const CHART_WINDOW = { width: 588, height: 880, minWidth: 248, minHeight: 200 } as const;
 
 export interface ChartPanelOptions {
   /** The cube as it is NOW (the chart follows it). */
@@ -64,14 +82,18 @@ export interface ChartPanelOptions {
   readonly crosshair?: string;
   /** Upstream-style debounce between an edit and the query; a test passes 0. */
   readonly debounceMs?: number;
-  /** Whether the options start open (a chart tile starts with the chart alone). */
+  /** Whether the options open with the chart (default not: a chart tile starts with the chart alone). */
   readonly formOpen?: boolean;
-  /** The chart froze or went live (by the Freeze button, or by an edit to its grouping). */
-  readonly onFrozen?: (frozen: boolean) => void;
+  /** The chart's state changed (ChartState: by its pill, or pinned by an edit to its grouping). */
+  readonly onState?: (state: ChartState) => void;
   /** The user changed the chart (an option in its form). */
   readonly onSpec?: () => void;
   /** What the grid shows now: a treemap draws exactly that, not a query of its own. */
   readonly shown?: () => GridShown | null;
+  /** Where its options' window floats -- the page's windows' place, above its tiles; else in the chart's own element. */
+  readonly windowHost?: HTMLElement;
+  /** Its name as its tile says it: its options' window's title. */
+  readonly title?: () => string;
 }
 
 export class ChartPanel {
@@ -79,17 +101,27 @@ export class ChartPanel {
   readonly #doc: Document;
   readonly #options: ChartPanelOptions;
   #spec: ChartSpec | null;
-  #form!: HTMLElement;
+  /** Its options' window, while it is open (`openForm`). */
+  #window: HTMLElement | null = null;
+  /** The window's body: what the form (ui/chart-form.ts) paints. */
+  #formBody: HTMLElement | null = null;
+  /** Lets the open window's listeners go when it closes. */
+  #closing: AbortController | null = null;
+  /** The size a person left its window at: its next opening's. */
+  #size: { width: number; height: number } | null = null;
+  /** Its window just opened: fitted to its form once the form is painted (`#fit`), unless it moved meanwhile. */
+  #fitting = false;
+  /** Where its window opened: `#fit` leaves a window moved or resized since (the form's code still loading). */
+  #opened: WindowSpec | null = null;
   #canvas!: HTMLElement;
   #status!: HTMLElement;
   /** A drilled chart's path, above it (batch 2 item 10). */
   #crumbs!: HTMLElement;
   #clickTimer: ReturnType<typeof setTimeout> | undefined;
-  /** The spec changed while the form was closed: painted when it is next shown. */
-  #formStale = false;
   /** What the options form (ui/chart-form.ts) reads and changes. */
   readonly #formHost: FormHost = ((panel: ChartPanel): FormHost => ({
     get doc() { return panel.#doc; },
+    folds: {},
     spec: () => this.#spec,
     set: (change, redraw) => this.#set(change, redraw),
     setOption: (key, value) => this.#setOption(key, value),
@@ -98,6 +130,7 @@ export class ChartPanel {
   #chart: MountedChart | null = null;
   /** Whether the chart was made after batch 3's rarer ECharts charts were registered (`#mount`). */
   #chartKnowsKinds = false;
+  #chartKnowsMaps = false;
   /** A KPI's trend line, mounted under its number (the number is the canvas's own, not a chart). */
   #trend: MountedChart | null = null;
   #timer: ReturnType<typeof setTimeout> | undefined;
@@ -120,26 +153,33 @@ export class ChartPanel {
     return this.#spec;
   }
 
-  /** Whether the chart keeps its own grouping, or follows the cube's pivots. */
+  /** Whether the chart keeps its own grouping (pinned or frozen), or follows the cube's pivots (dynamic). */
   get frozen(): boolean {
     return this.#spec?.frozen === true;
   }
 
-  /** Freeze the chart's grouping, or make it live again (it regroups the way the cube is now). */
-  setFrozen(frozen: boolean): void {
-    if (!this.#spec || this.frozen === frozen) return;
-    const { frozen: _was, ...rest } = this.#spec;
-    this.#spec = frozen ? { ...rest, frozen: true } : rest;
-    this.#options.onFrozen?.(frozen);
+  /** Its state, as its pill says it: dynamic, pinned or frozen (chart-spec.ts chartStateOf). */
+  get state(): ChartState {
+    return this.#spec ? chartStateOf(this.#spec) : 'dynamic';
+  }
+
+  /**
+   * Put the chart in a state (chart-spec.ts chartState): dynamic, it regroups the way the cube is now -- before it says
+   * so, so what it says is what it draws --; pinned, its grouping its own; frozen, the grid's filter now kept too.
+   */
+  setState(state: ChartState): void {
+    if (!this.#spec || this.state === state) return;
+    this.#spec = chartState(this.#spec, state, this.#options.snapshot());
+    this.#options.onState?.(state);
     this.refresh(0);
   }
 
   /** Draw `spec` instead (a pinned chart updated from the live one): its form follows. */
   setSpec(spec: ChartSpec): void {
-    const wasFrozen = this.frozen;
+    const was = this.state;
     this.#spec = spec;
     this.#paintForm();
-    if (this.frozen !== wasFrozen) this.#options.onFrozen?.(this.frozen);
+    if (this.state !== was) this.#options.onState?.(this.state);
     this.refresh(0);
   }
 
@@ -156,15 +196,136 @@ export class ChartPanel {
     this.#timer = setTimeout(() => void this.#draw(), delay);
   }
 
-  /** Show or hide the options; answers whether they are now shown. */
-  toggleForm(): boolean {
-    this.#form.hidden = !this.#form.hidden;
-    if (!this.#form.hidden && this.#formStale) this.#paintForm();
-    return !this.#form.hidden;
+  /**
+   * THE OPTIONS, A WINDOW (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §2): the page's windows' own title
+   * bar, x and grips (app.ts #showOverlay, ui/window.ts makeWindow), floating where the page's windows float, above its
+   * tiles. It opens BESIDE ITS CHART, NOT OVER IT, AND WHOLLY ON THE SCREEN (ui/window.ts besideWindow) -- each time, as
+   * the chart may have moved; the size a person gave it kept -- and stays on the screen however it is dragged. Its x or
+   * Escape puts it away; Properties... again brings it forward. A popover before, it went at every press elsewhere.
+   */
+  openForm(): void {
+    const open = this.#window;
+    if (open) {
+      this.#retitle(open);
+      raiseWindow(open, this.#windowHost);
+      open.focus({ preventScroll: true });
+      return;
+    }
+    const doc = this.#doc;
+    const view = doc.defaultView;
+    if (view === null) return;
+    const host = this.#windowHost;
+    const win = doc.createElement('div');
+    // outside the cube it does not inherit the cube's type and colours, so it carries them (app.ts #showOverlay)
+    win.className = 'dc-app-overlay dc-app-floating dc-chart-options';
+    win.tabIndex = -1;
+    win.setAttribute('role', 'dialog');
+    const head = doc.createElement('div');
+    head.className = 'dc-overlay-head';
+    const title = doc.createElement('span');
+    title.className = 'dc-chart-options-title';
+    const close = doc.createElement('button');
+    close.type = 'button';
+    close.className = 'dc-overlay-close';
+    close.append(chromeIcon(doc, 'close'));
+    close.addEventListener('click', () => this.closeForm());
+    head.append(title, close);
+    // the window's body scrolls; the form inside it flows into columns, as tall as its sections (app.css)
+    const scroller = doc.createElement('div');
+    scroller.className = 'dc-overlay-body';
+    const body = doc.createElement('div');
+    body.className = 'dc-chartpanel-form';
+    scroller.append(body);
+    win.append(head, scroller);
+    host.append(win);
+    this.#window = win;
+    this.#formBody = body;
+    this.#fitting = this.#size === null;
+    this.#retitle(win);
+    const closing = new AbortController();
+    this.#closing = closing;
+    this.#opened = makeWindow(win, head, host, {
+      viewport: true,
+      spec: besideWindow(this.#anchor().getBoundingClientRect(), screenOf(view), { ...CHART_WINDOW, ...this.#size }),
+      minWidth: CHART_WINDOW.minWidth,
+      minHeight: CHART_WINDOW.minHeight,
+      signal: closing.signal,
+      // only a size a person gave it with a grip is kept for its next opening -- not one a press on its title bar or the
+      // browser shrinking settled (the 2026-10-25 review: one click there kept a squeezed window squeezed for good)
+      onChange: (spec, by) => { if (by === 'resized') this.#size = { width: spec.width, height: spec.height }; },
+    });
+    // touched, it comes to the front of the page's windows
+    win.addEventListener('pointerdown', () => raiseWindow(win, host));
+    // Escape puts it away -- not one typed in a field, where it is the field's (the page's windows' rule, app.ts)
+    win.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (isTextEntry(event.target)) return;
+      event.preventDefault();
+      this.closeForm();
+    });
+    // its chart off the page (its sheet left, moved to another, removed): it goes too (the 2026-10-25 audit)
+    const Watch = (view as Window & { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
+    if (Watch) {
+      const watch = new Watch(() => {
+        const at = this.#root.getBoundingClientRect();
+        if (!this.#root.isConnected || (at.width === 0 && at.height === 0)) this.closeForm();
+      });
+      watch.observe(this.#root);
+      closing.signal.addEventListener('abort', () => watch.disconnect());
+    }
+    raiseWindow(win, host);
+    this.#paintForm();
+    win.focus({ preventScroll: true });
+  }
+
+  /** The options put away -- the focus, when it was in them, back on their chart's tile (the 2026-10-25 audit: it fell
+   *  to the body). */
+  closeForm(): void {
+    const win = this.#window;
+    if (!win) return;
+    const root = win.getRootNode() as Document | ShadowRoot;
+    const focused = root.activeElement !== null && win.contains(root.activeElement);
+    this.#shut();
+    if (focused) this.#root.closest<HTMLElement>('[tabindex]')?.focus({ preventScroll: true });
+  }
+
+  /** Whether the options are open. */
+  get formOpen(): boolean {
+    return this.#window !== null;
+  }
+
+  /** What its window opens beside: its whole tile, its header too -- never over the tile's own title and buttons. */
+  #anchor(): HTMLElement {
+    return this.#root.closest<HTMLElement>('[data-tile]') ?? this.#root;
+  }
+
+  /** Where its options' window floats: the page's windows' place, else its own. */
+  get #windowHost(): HTMLElement {
+    return this.#options.windowHost ?? this.#root;
+  }
+
+  /** The window's title: whose properties, by its chart's name as its tile says it now. */
+  #retitle(win: HTMLElement): void {
+    const title = `Properties \u2014 ${this.#options.title?.() ?? 'Chart'}`;
+    win.setAttribute('aria-label', title);
+    win.querySelector('.dc-chart-options-title')!.textContent = title;
+    const close = win.querySelector<HTMLElement>('.dc-overlay-close')!;
+    close.title = 'Close (Escape)';
+    close.setAttribute('aria-label', `Close ${title}`);
+  }
+
+  /** Its window gone, its listeners with it. */
+  #shut(): void {
+    this.#closing?.abort();
+    this.#closing = null;
+    this.#window?.remove();
+    this.#window = null;
+    this.#formBody = null;
   }
 
   dispose(): void {
     this.#disposed = true;
+    this.#shut();
     clearTimeout(this.#timer);
     clearTimeout(this.#clickTimer);
     this.#inflight?.abort();
@@ -180,8 +341,6 @@ export class ChartPanel {
     const doc = this.#doc;
     this.#root.replaceChildren();
     this.#root.classList.add('dc-chartpanel');
-    this.#form = doc.createElement('div');
-    this.#form.className = 'dc-chartpanel-form';
     const right = doc.createElement('div');
     right.className = 'dc-chartpanel-main';
     this.#canvas = doc.createElement('div');
@@ -195,18 +354,18 @@ export class ChartPanel {
     this.#crumbs.setAttribute('aria-label', 'Drill path');
     this.#crumbs.hidden = true;
     right.append(this.#crumbs, this.#canvas, this.#status);
-    this.#root.append(this.#form, right);
-    this.#form.hidden = this.#options.formOpen === false;
-    this.#paintForm();
+    this.#root.append(right);
+    this.#paintCrumbs();
+    if (this.#options.formOpen === true) this.openForm();
   }
 
   #set(change: ChartChange, redrawForm = false): void {
     if (!this.#spec) return;
     // changed by hand as a chart Python makes is (chart-spec.ts editChart): a hand on the grouping of a live chart
     // freezes it, as the next pivot change would otherwise undo the choice
-    const wasFrozen = this.frozen;
+    const was = this.state;
     this.#spec = editChart(this.#spec, change, this.#options.snapshot());
-    if (this.frozen && !wasFrozen) this.#options.onFrozen?.(true);
+    if (this.state !== was) this.#options.onState?.(this.state);
     this.#options.onSpec?.();
     if (redrawForm) this.#paintForm();
     this.refresh();
@@ -218,23 +377,45 @@ export class ChartPanel {
 
   /**
    * The options form (ui/chart-form.ts): fetched the first time it is shown -- a grid alone, or a chart whose options
-   * stay closed, never downloads it -- and painted again whenever the spec changes while it is shown.
+   * stay closed, never downloads it -- painted as its window opens, and again whenever the spec changes while it is
+   * open.
    */
   #paintForm(): void {
     this.#paintCrumbs();
-    if (this.#form.hidden) {
-      this.#formStale = true;
-      return;
-    }
-    this.#formStale = false;
-    void import('./chart-form.ts').then(({ paintChartForm }) => {
-      if (this.#disposed || this.#form.hidden) return;
-      paintChartForm(this.#formHost, this.#form);
+    if (this.#formBody === null) return;
+    void lazily(() => import('./chart-form.ts')).then(({ paintChartForm }) => {
+      const body = this.#formBody;
+      if (this.#disposed || body === null) return;
+      paintChartForm(this.#formHost, body);
+      if (this.#fitting) this.#fit();
     });
   }
 
-
-
+  /**
+   * The window just opened, its form painted: no taller than the form needs, placed beside the chart again at that
+   * height (a shorter window sits level with the chart's top, where a tall one was raised to fit the screen). Once, as
+   * it opens -- a window that changed height at every option would jump under the pointer -- and never over a size a
+   * person gave it. Where nothing is laid out (no height measured), left as it is.
+   */
+  #fit(): void {
+    this.#fitting = false;
+    const win = this.#window;
+    const body = this.#formBody;
+    const scroller = body?.parentElement;
+    const view = this.#doc.defaultView;
+    const now = win ? windowSpecOf(win) : undefined;
+    if (!win || !body || !scroller || !view || !now || body.scrollHeight === 0) return;
+    // moved or resized while the form's code loaded: where the person put it, it stays (the 2026-10-25 review)
+    const opened = this.#opened;
+    if (!opened || now.x !== opened.x || now.y !== opened.y || now.width !== opened.width || now.height !== opened.height) return;
+    const head = win.querySelector<HTMLElement>('.dc-overlay-head');
+    const pad = scroller.offsetHeight - scroller.clientHeight + parseFloat(view.getComputedStyle(scroller).paddingTop)
+      + parseFloat(view.getComputedStyle(scroller).paddingBottom);
+    const needs = Math.ceil((head?.offsetHeight ?? 0) + pad + body.scrollHeight + (win.offsetHeight - win.clientHeight));
+    if (!Number.isFinite(needs) || needs >= now.height) return;
+    moveWindow(win, besideWindow(this.#anchor().getBoundingClientRect(), screenOf(view),
+      { ...CHART_WINDOW, width: now.width, height: Math.max(CHART_WINDOW.minHeight, needs) }));
+  }
 
   // -- drawing ----------------------------------------------------------------
 
@@ -273,12 +454,12 @@ export class ChartPanel {
       this.#shownKept = now;
       const chart = await this.#mount(spec.mark !== 'treemap');
       if (this.#disposed || !chart) return;
-      const { treemapOfGrid, themeOf } = await import('../chart-option.ts');
+      const { treemapOfGrid, themeOf } = await lazily(() => import('../chart-option.ts'));
       if (this.#disposed) return;
       const mark = spec.mark;
       let drawing;
       if (mark === 'sunburst' || mark === 'tree') {
-        const { gridKindOption } = await import('../chart-kinds.ts');
+        const { gridKindOption } = await lazily(() => import('../chart-kinds.ts'));
         if (this.#disposed) return;
         drawing = gridKindOption(mark, now, themeOf(this.#canvas), this.#options.label);
       } else {
@@ -303,14 +484,20 @@ export class ChartPanel {
       const rows = await this.#options.run(query, snapshot, abort.signal);
       if (abort.signal.aborted || this.#disposed) return;
       const kinds = KIND_MARKS.has(spec.mark) || spec.facet !== undefined;
-      const chart = await this.#mount(kinds);
+      const maps = MAP_MARKS.has(spec.mark);
+      const chart = await this.#mount(kinds, maps);
       if (abort.signal.aborted || this.#disposed || !chart) return;
-      const { chartOption, themeOf } = await import('../chart-option.ts');
+      const { chartOption, themeOf } = await lazily(() => import('../chart-option.ts'));
       if (abort.signal.aborted || this.#disposed) return;
       let drawing;
-      if (kinds) {
+      if (maps) {
+        // batch 5's maps: their drawing and the world's countries, fetched with the first of them
+        const { mapOption } = await lazily(() => import('../chart-maps.ts'));
+        if (abort.signal.aborted || this.#disposed) return;
+        drawing = mapOption(spec, rows, themeOf(this.#canvas), this.#options.label);
+      } else if (kinds) {
         // batch 3's kinds and small multiples: their drawing and the rarer ECharts charts, fetched with the first of them
-        const { kindOption, facetOption } = await import('../chart-kinds.ts');
+        const { kindOption, facetOption } = await lazily(() => import('../chart-kinds.ts'));
         if (abort.signal.aborted || this.#disposed) return;
         drawing = spec.facet !== undefined
           ? facetOption(spec, rows, themeOf(this.#canvas), this.#options.label, this.#options.unit)
@@ -346,20 +533,34 @@ export class ChartPanel {
    * registered first (chart-render-kinds.ts): ECharts builds an instance's layout stages when the instance is made, so
    * one made before they were registered cannot lay a funnel out -- it is made again. Null when the panel went meanwhile.
    */
-  async #mount(kinds: boolean): Promise<MountedChart | null> {
+  async #mount(kinds: boolean, maps = false): Promise<MountedChart | null> {
     if (kinds) {
-      await import('../chart-render-kinds.ts');
+      await lazily(() => import('../chart-render-kinds.ts'));
       kindsRegistered = true;
       if (this.#chart && !this.#chartKnowsKinds) {
         this.#chart.dispose();
         this.#chart = null;
       }
     }
+    // the maps likewise: an instance made before the map chart was registered cannot lay a map out; the shapes come
+    // with the drawing (chart-maps.ts), registered once
+    if (maps && !mapsRegistered) {
+      const [{ registerWorld }, { WORLD }] = await Promise.all([lazily(() => import('../chart-render-maps.ts')), lazily(() => import('../chart-maps.ts'))]);
+      registerWorld(WORLD.name, WORLD.shapes);
+      mapsRegistered = true;
+    }
+    if (maps) {
+      if (this.#chart && !this.#chartKnowsMaps) {
+        this.#chart.dispose();
+        this.#chart = null;
+      }
+    }
     if (!this.#chart) {
-      const { mountChart } = await import('../chart-render.ts');
+      const { mountChart } = await lazily(() => import('../chart-render.ts'));
       if (this.#disposed) return null;
       this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key), onBrush: (took) => this.#brush(took), onKind: (mark) => this.#kind(mark) });
       this.#chartKnowsKinds = kindsRegistered;
+      this.#chartKnowsMaps = mapsRegistered;
     }
     return this.#chart;
   }
@@ -380,7 +581,7 @@ export class ChartPanel {
         trend ? this.#options.run(trend.query, trend.snapshot, abort.signal) : Promise.resolve(null),
       ]);
       if (abort.signal.aborted || this.#disposed) return;
-      const { kpiDrawing, themeOf } = await import('../chart-option.ts');
+      const { kpiDrawing, themeOf } = await lazily(() => import('../chart-option.ts'));
       if (abort.signal.aborted || this.#disposed) return;
       const drawing = kpiDrawing(spec, rows, line, themeOf(this.#canvas), this.#options.label);
       // a chart drawn before (another kind) gives way to the number
@@ -389,26 +590,47 @@ export class ChartPanel {
       this.#trend?.dispose();
       this.#trend = null;
       const doc = this.#doc;
-      const box = doc.createElement('div');
-      box.className = 'dc-kpi';
-      const value = doc.createElement('div');
-      value.className = 'dc-kpi-value';
-      value.textContent = drawing.value;
+      const div = (className: string, text?: string): HTMLDivElement => {
+        const el = doc.createElement('div');
+        el.className = className;
+        if (text !== undefined) el.textContent = text;
+        return el;
+      };
+      // a stat tile: the headline (in full on a hover); against its target, said and metered; its latest period
+      // against the one before; its trend's line
+      const box = div('dc-kpi');
+      const value = div('dc-kpi-value', drawing.value);
+      if (drawing.exact !== drawing.value) value.title = drawing.exact;
       box.append(value);
+      /** A line of the tile: its difference, coloured by good or bad (and said by its arrow), then the rest in words. */
+      const said = (className: string, delta: string, words: string, good: boolean | null): HTMLDivElement => {
+        const line = div(className);
+        if (delta) line.append(div(`dc-kpi-delta${good === null ? '' : good ? ' dc-kpi-good' : ' dc-kpi-bad'}`, delta));
+        line.append(div('dc-kpi-words', words));
+        return line;
+      };
       if (drawing.target) {
-        const against = doc.createElement('div');
-        against.className = `dc-kpi-target ${drawing.target.good ? 'dc-kpi-good' : 'dc-kpi-bad'}`;
-        against.textContent = drawing.target.text;
-        box.append(against);
+        const { delta, words, goal, good, reached } = drawing.target;
+        box.append(said('dc-kpi-target', delta, words, good));
+        // how much of the target is reached, the target at the meter's end
+        const meter = div(`dc-kpi-meter ${good ? 'dc-kpi-good' : 'dc-kpi-bad'}`);
+        meter.setAttribute('role', 'img');
+        meter.setAttribute('aria-label', `${Math.round(reached * 100)}% of the target, ${goal}`);
+        const track = div('dc-kpi-meter-track');
+        const fill = div('dc-kpi-meter-fill');
+        fill.style.width = `${(reached * 100).toFixed(1)}%`;
+        track.append(fill);
+        meter.append(track, div('dc-kpi-goal', goal));
+        box.append(meter);
       }
-      const place = doc.createElement('div');
-      place.className = 'dc-kpi-trend';
+      if (drawing.change) box.append(said('dc-kpi-change', drawing.change.delta, drawing.change.words, drawing.change.good));
+      const place = div('dc-kpi-trend');
       if (drawing.trend) box.append(place);
       this.#canvas.replaceChildren(box);
       this.#canvas.setAttribute('aria-label', drawing.description);
       this.#canvas.classList.add('dc-chartpanel-kpi');
       if (drawing.trend) {
-        const { mountChart } = await import('../chart-render.ts');
+        const { mountChart } = await lazily(() => import('../chart-render.ts'));
         if (abort.signal.aborted || this.#disposed) return;
         this.#trend = mountChart(place);
         this.#trend.show(drawing.trend);

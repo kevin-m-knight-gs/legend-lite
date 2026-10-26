@@ -26,7 +26,8 @@ import type {
   PivotTotal,
   SortDirection,
 } from './snapshot.ts';
-import { rowColumns } from './snapshot.ts';
+import { rowColumns, SECOND_COLUMN } from './snapshot.ts';
+import type { DataBarSpec, FormatRule, IconSetSpec } from './conditional.ts';
 import type { CellAppearance, GridAppearance, HeatmapSpec } from './style.ts';
 import { isFractional, isNumeric } from '../../engine-client/src/types.ts';
 
@@ -77,6 +78,11 @@ export interface ColumnConfiguration {
   readonly format?: ColumnFormat;
   readonly appearance?: CellAppearance;
   readonly heatmap?: HeatmapSpec;
+  /** Conditional formats (conditional.ts; Excel's): a bar in each cell, an icon by the value's third of the range, the
+   *  colours of the first rule that holds. */
+  readonly dataBar?: DataBarSpec;
+  readonly iconSet?: IconSetSpec;
+  readonly rules?: readonly FormatRule[];
 
   readonly excludedFromPivot?: boolean;
   /** Direction this column's values take as pivot headers. */
@@ -290,8 +296,8 @@ export const REQUIRED_SETTINGS = {
 export const COLUMN_SETTINGS = {
   displayName: true, kind: true, aggregateFn: true, aggregationParameters: true, hidden: true, blurred: true,
   pinned: true, widthMode: true, width: true, minWidth: true, maxWidth: true, format: true, appearance: true,
-  heatmap: true, excludedFromPivot: true, pivotSortDirection: true, pivotStatisticColumnFunction: true,
-  displayAsLink: true, linkLabelParameter: true,
+  heatmap: true, dataBar: true, iconSet: true, rules: true, excludedFromPivot: true, pivotSortDirection: true,
+  pivotStatisticColumnFunction: true, displayAsLink: true, linkLabelParameter: true,
 } as const satisfies Record<keyof ColumnConfiguration, true>;
 
 export const APPEARANCE_SETTINGS = {
@@ -341,7 +347,8 @@ export const DEFAULT_CONFIGURATION: CubeConfiguration = {
     alternateRowsColor: '#d7e0eb',
     fontFamily: 'Roboto',
     fontSize: 11,
-    textAlign: 'left',
+    // no alignment: each column's by its kind -- a measure's figures right, the rest left (style.ts autoTextAlign; the
+    // user, 2026-10-25). One set here, or on a column, wins.
     normalForeground: '#000000',
     negativeForeground: '#ef4444',
     zeroForeground: '#a3a3a3',
@@ -414,7 +421,7 @@ export function withSettings(
 }
 
 /**
- * A configuration patch as a host applies one (CubeApp.applyConfiguration, Python's Grid.configure): its settings by
+ * A configuration patch as a host applies one (a configure command: CubeApp.edit, Python's Grid.configure): its settings by
  * withSettings, the grid-wide appearance by withAppearance and each column's by withColumn, each merged into what it
  * has. `columns` and `appearance` are split out rather than passed through: withSettings prunes undefined keys and
  * replaces the rest, so `columns: undefined` would delete the column map, and a part of the appearance would replace
@@ -689,10 +696,13 @@ export function toColumnAppearance(
  * The epoch is NOT bumped here. A caller that means to refetch bumps
  * it; one that is only reconciling does not.
  */
+export function applyToSnapshot(snapshot: CubeSnapshot, config: CubeConfiguration): CubeSnapshot;
+/** A cube's query alone (a document's: cube-document.ts cubeOpenedAgain), its relation no part of it. */
+export function applyToSnapshot(snapshot: Omit<CubeSnapshot, 'source'>, config: CubeConfiguration): Omit<CubeSnapshot, 'source'>;
 export function applyToSnapshot(
-  snapshot: CubeSnapshot,
+  snapshot: Omit<CubeSnapshot, 'source'>,
   config: CubeConfiguration,
-): CubeSnapshot {
+): Omit<CubeSnapshot, 'source'> {
   const columns: ColumnSpec[] = snapshot.columns.map((spec) => {
     const c = columnConfig(config, spec.name);
     // kept out of the pivot as the aggregate is: the configuration's alone, so a setting cleared there (Column
@@ -751,7 +761,7 @@ export function applyToSnapshot(
  * defaults.
  */
 export function fromSnapshot(
-  snapshot: CubeSnapshot,
+  snapshot: Omit<CubeSnapshot, 'source'>,
   base: CubeConfiguration = DEFAULT_CONFIGURATION,
 ): CubeConfiguration {
   const limit = snapshot.maxRows ?? base.maxRows;
@@ -816,9 +826,9 @@ function pivotTotalOf(config: CubeConfiguration): { pivotTotal?: PivotTotal } {
 /**
  * Column Properties > Aggregation, as the query reads it.
  *
- * The weight rides only with `wavg`, the one aggregate that takes a
- * parameter; kept on any other it would be a setting the query
- * silently ignores.
+ * The second column rides only with an aggregate of two (snapshot.ts
+ * SECOND_COLUMN: `wavg`'s weight, `corr`'s pair, ...); kept on any other
+ * it would be a setting the query silently ignores.
  */
 function aggregateOf(
   c: ColumnConfiguration,
@@ -827,7 +837,7 @@ function aggregateOf(
   const weight = c.aggregationParameters?.[0];
   return {
     aggregate: c.aggregateFn,
-    ...(c.aggregateFn === 'wavg' && weight !== undefined
+    ...(SECOND_COLUMN[c.aggregateFn] !== undefined && weight !== undefined
       ? { aggregateWeight: weight }
       : {}),
   };

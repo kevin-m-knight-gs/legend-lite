@@ -7,10 +7,14 @@ import { before, beforeEach, describe, it } from 'node:test';
 
 import { JSDOM } from 'jsdom';
 import { CubeApp } from '../src/app.ts';
+import { classRelation } from '../src/class-source.ts';
+import { classTree } from '../src/class-tree.ts';
 import type { Planner } from '../src/cube.ts';
 import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
+import type { GridCommand } from '../src/grid-commands.ts';
+import type { ModelMeasure } from '../src/model-measures.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { pivotTotalColumn } from '../src/snapshot.ts';
 import { setHeaderDrag } from '../src/ui/pivot-panel.ts';
@@ -161,6 +165,8 @@ describe('the app', () => {
   let downloads: [string, string, string | Uint8Array][];
   let clipboard: string[];
   let statuses: [string, string][];
+  /** Each grid command the screen applied and the cube kept (onCommand). */
+  let commands: GridCommand[];
 
   beforeEach(async () => {
     dom = new JSDOM('<!doctype html><body><div id="r"></div></body>');
@@ -175,12 +181,14 @@ describe('the app', () => {
     downloads = [];
     clipboard = [];
     statuses = [];
+    commands = [];
     app = new CubeApp(root, SNAPSHOT, {
       engine,
       planner,
       dimensions: [{ name: 'Geography', columns: ['region', 'desk'] }],
       showColumnZone: true,
       onStatus: (text, kind) => statuses.push([text, kind]),
+      onCommand: (command) => commands.push(command),
       writeClipboard: (t) => {
         clipboard.push(t);
       },
@@ -218,6 +226,76 @@ describe('the app', () => {
     }
     item.click();
   };
+
+  it("a grid over a class offers its related classes' columns, and one chosen is added as the column editor adds one", async () => {
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const classes: CubeSnapshot = { ...SNAPSHOT, source: { query: classRelation('m::Trade', ['region', 'desk', 'notional']) } };
+    const tree = classTree([
+      { _type: 'class', package: 'm', name: 'Trade', properties: [] },
+      { _type: 'class', package: 'm', name: 'Customer', properties: [{ name: 'name', genericType: { rawType: { _type: 'packageableType', fullPath: 'String' } }, multiplicity: { lowerBound: 1, upperBound: 1 } }] },
+      { _type: 'association', package: 'm', name: 'TradeCustomer', properties: [
+        { name: 'customer', genericType: { rawType: { _type: 'packageableType', fullPath: 'm::Customer' } }, multiplicity: { lowerBound: 0, upperBound: 1 } },
+        { name: 'trades', genericType: { rawType: { _type: 'packageableType', fullPath: 'm::Trade' } }, multiplicity: { lowerBound: 0 } },
+      ] },
+    ]);
+    const sent: GridCommand[] = [];
+    const own = new CubeApp(host, classes, { engine, planner, classTree: { class: 'm::Trade', tree }, onCommand: (c) => sent.push(c) });
+    await own.open();
+    (host.querySelector('.dc-app-grid') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    pick('name');
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(sent.filter((c) => c.kind === 'calculate'), [{ kind: 'calculate', level: 'row',
+      column: { name: 'customer_name', related: { path: ['customer', 'name'] }, kind: 'dimension' } }]);
+    // chosen once, offered no more
+    (host.querySelector('.dc-app-grid') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    assert.ok(!menuItems().some((i) => i.textContent === 'Add Related Column'));
+    own.dispose();
+  });
+
+  it("a grid over a class offers its model's measures, and one chosen is added as the steps a person would make", async () => {
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const classes: CubeSnapshot = { ...SNAPSHOT, source: { query: classRelation('m::Trade', ['region', 'desk', 'notional']) } };
+    const of = 'm::Trade';
+    const measures: ModelMeasure[] = [{
+      path: 'm::grossNotional', name: 'grossNotional', of, param: 't', format: '$#,##0', doc: 'Gross notional booked',
+      body: { _type: 'func', function: 'sum', parameters: [{ _type: 'property', property: 'notional', parameters: [{ _type: 'var', name: 't' }] }] } as never,
+    }];
+    const sent: GridCommand[] = [];
+    const own = new CubeApp(host, classes, { engine, planner, classTree: { class: of, tree: classTree([]), measures }, onCommand: (c) => sent.push(c) });
+    await own.open();
+    (host.querySelector('.dc-app-grid') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    pick('grossNotional');
+    // the steps that add it are a chunk fetched with the first measure added (model-measure-commands.ts): ticks later
+    for (let i = 0; i < 200 && sent.length === 0; i++) await new Promise((r) => setTimeout(r, 5));
+    assert.deepEqual(sent.map((c) => c.kind), ['calculate', 'column', 'configure']);
+    assert.deepEqual(sent[1], { kind: 'column', name: 'grossNotional', change: { aggregate: 'sum' } });
+    // added once, offered no more
+    (host.querySelector('.dc-app-grid') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    assert.ok(!menuItems().some((i) => i.textContent === 'Add Model Measure'));
+    own.dispose();
+  });
+
+  it("conditional formats: a data bar behind each figure, an icon by its third of the range, a rule's colours where it holds", async () => {
+    await app.applyGridCommands([{ kind: 'configure', patch: { columns: { notional: {
+      dataBar: { color: '#9fc3ea' }, iconSet: { set: 'arrows' },
+      rules: [{ when: { op: 'top', count: 1 }, style: { background: '#ffc7ce', bold: true } }],
+    } } } }], 'formats');
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    const cells = [...root.querySelectorAll('.dc-cell[data-column="notional"]')] as HTMLElement[];
+    const drawn = cells.map((c) => ({
+      icon: c.querySelector('.dc-cond-icon')?.getAttribute('aria-label') ?? null,
+      bar: c.style.backgroundImage, ruled: c.style.backgroundColor === 'rgb(255, 199, 206)' && c.style.fontWeight === '700',
+    }));
+    // EMEA's 600 the region's largest: the high arrow, the whole bar, the top rule's colours; AMER's 400 the low arrow, two thirds
+    const high = drawn.find((d) => d.icon === 'high' && d.ruled);
+    const low = drawn.find((d) => d.icon === 'low' && !d.ruled);
+    assert.ok(high && low, JSON.stringify(drawn));
+    // the bar's colour as the DOM spells it back
+    assert.match(high.bar, /linear-gradient\(90deg, transparent 0%, rgb\(159, 195, 234\) 0%, rgb\(159, 195, 234\) 100%, transparent 100%\)/);
+    assert.match(low.bar, /rgb\(159, 195, 234\) 66\.7%/);
+  });
 
   describe('value filters on a group row', () => {
     /**
@@ -405,7 +483,7 @@ describe('the app', () => {
     // the DOM cannot drift apart. (The drag zones have no setting there: they fold from their
     // own chevron, the user, 2026-09-30.)
     hamburger();
-    pick('Properties...');
+    pick('Properties…');
     const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
     [...overlay.querySelectorAll('.dc-editor-tab')]
       .find((b) => b.textContent === 'General Properties')
@@ -441,17 +519,36 @@ describe('the app', () => {
     assert.equal(labels.some((l) => /Drag Zones|Title Bar/.test(l)), false, labels.join(', '));
   });
 
-  it('switches to Ad Hoc Analysis from the hamburger, and back as it was', async () => {
+  // the user, 2026-10-23: Ad Hoc Analysis and a dimension's grouping are started from Properties' Dimensions tab, not a
+  // menu entry
+  /** Properties ▸ Dimensions, picked from the open hamburger: the editor's window. */
+  const dimensionsTab = (): HTMLElement => {
+    pick('Properties…');
+    const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
+    [...overlay.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Dimensions')!
+      .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    return overlay;
+  };
+  const buttonIn = (where: Element, text: string): HTMLButtonElement => {
+    const found = [...where.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text);
+    assert.ok(found, `a ${text} button; saw ${[...where.querySelectorAll('button')].map((b) => b.textContent).join(', ')}`);
+    return found;
+  };
+  /** Apply compiles the draft first, so the cube answers some ticks later; Ad Hoc's first answer after that. */
+  const settled = async (): Promise<void> => {
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    for (let i = 0; i < 20 && (app.adhoc?.busy ?? false); i++) await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+  };
+
+  it('switches to Ad Hoc Analysis from Properties ▸ Dimensions (no menu entry), and back by its own Exit, as it was', async () => {
     hamburger();
-    pick('Ad Hoc Analysis');
-    const settle = async (): Promise<void> => {
-      for (let i = 0; i < 20 && (app.adhoc?.busy ?? false); i++) {
-        await new Promise((r) => setTimeout(r, 0));
-      }
-      await new Promise((r) => setTimeout(r, 0));
-    };
-    await settle();
+    const labels = menuItems().map((i) => i.querySelector('.dc-menu-label')?.textContent ?? '');
+    assert.ok(!labels.some((l) => /Ad Hoc|^Dimensions$/.test(l)), `no menu entry of its own: ${labels.join(', ')}`);
+    buttonIn(dimensionsTab(), 'Start Ad Hoc Analysis').click();
+    await settled();
     assert.ok(app.adhoc, 'the mode is on');
+    assert.equal(root.querySelector('.dc-app-overlay:not([hidden]) .dc-editor'), null, 'Properties closed');
     const middle = root.querySelector('.dc-app-middle') as HTMLElement;
     assert.equal(middle.hidden, true, "the cube's grid waits");
     assert.equal((root.querySelector('.dc-zone-bar') as HTMLElement).hidden, true);
@@ -459,16 +556,56 @@ describe('the app', () => {
     // The host's hierarchy is the outline; the opening grid is its top.
     assert.deepEqual(app.adhoc.session.grid.rows.map((a) => a.dimension), ['Geography']);
     assert.deepEqual(app.adhoc.view?.table.columns[0]?.values, ['Geography']);
-    // Checked while on; choosing it again leaves.
-    hamburger();
-    // by its own label: View's entry holds the submenu's words too
-    const entry = menuItems().find((i) => i.querySelector('.dc-menu-label')?.textContent === 'Ad Hoc Analysis');
-    assert.equal(entry?.getAttribute('aria-checked'), 'true');
-    pick('Ad Hoc Analysis');
+    // its own bar's Exit leaves
+    buttonIn(root.querySelector('.dc-adhoc') as HTMLElement, 'Exit').click();
     assert.equal(app.adhoc, null);
     assert.equal(root.querySelector('.dc-adhoc'), null);
     assert.equal(middle.hidden, false);
     assert.equal((root.querySelector('.dc-zone-bar') as HTMLElement).hidden, false);
+  });
+
+  it('groups the rows by a dimension from Properties ▸ Dimensions, the draft applied first', async () => {
+    // its own app, whose dimension starts at a column the grid is not grouped by
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const own = new CubeApp(host, SNAPSHOT, { engine, planner, dimensions: [{ name: 'Desks', columns: ['desk', 'region'] }] });
+    await own.open();
+    (host.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
+    pick('Properties…');
+    const tab = host.querySelector('.dc-app-overlay') as HTMLElement;
+    [...tab.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Dimensions')!
+      .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    // a hierarchy made in the draft, not applied yet: Group Rows applies it too
+    buttonIn(tab, 'Add').click();
+    assert.deepEqual([...tab.querySelectorAll('.dc-dimension-name')].map((n) => n.textContent), ['Desks', 'Dimension 1']);
+    assert.equal(buttonIn(tab, 'Group Rows by Dimension 1').disabled, true, 'a dimension of no columns groups nothing');
+    [...tab.querySelectorAll<HTMLElement>('.dc-dimension-row')][0]!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    buttonIn(tab, 'Group Rows by Desks').click();
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(own.snapshot.rows, ['desk'], "grouped by Desks' first level");
+    assert.deepEqual(own.configuration.dimensions?.map((d) => d.name), ['Desks', 'Dimension 1'], 'the draft applied');
+    assert.equal(host.querySelector('.dc-editor'), null, 'Properties closed');
+    own.dispose();
+  });
+
+  it('Group Rows by a dimension naming a column the grid lacks: refused in words, the rows as they were', async () => {
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const said: string[] = [];
+    const own = new CubeApp(host, SNAPSHOT, {
+      engine, planner, dimensions: [{ name: 'Ghost', columns: ['nope'] }], onStatus: (text) => said.push(text),
+    });
+    await own.open();
+    (host.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
+    pick('Properties…');
+    const tab = host.querySelector('.dc-app-overlay') as HTMLElement;
+    [...tab.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Dimensions')!
+      .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    buttonIn(tab, 'Group Rows by Ghost').click();
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(own.snapshot.rows, ['region'], 'the rows as they were');
+    assert.ok(said.some((t) => /Ghost' names nope, which the grid does not have/.test(t)), `said: ${said.join(' | ')}`);
+    own.dispose();
   });
 
   it('a disposed app no longer answers the shortcuts', () => {
@@ -500,6 +637,19 @@ describe('the app', () => {
       root.querySelector('.dc-zone-rows') as HTMLElement
     ).dispatchEvent(new dom.window.Event('drop', { bubbles: true }));
     assert.deepEqual(app.snapshot.rows, ['region', 'desk']);
+  });
+
+  it("a column double-clicked in the columns panel groups by it, last: the menu's Add Vertical Pivot (S8)", async () => {
+    // the panel's pick is the gesture pivot.addVertical (grid-gestures.ts), the one Python's add_group asks; what an
+    // app before this one tells late is let land first (its `commands` is this test's array)
+    await new Promise((r) => setTimeout(r, 0));
+    const from = commands.length;
+    const row = root.querySelector('.dc-tool-panel-row[data-column="desk"]');
+    assert.notEqual(row, null, 'the panel lists desk');
+    row!.dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+    assert.deepEqual(app.snapshot.rows, ['region', 'desk']);
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(commands.slice(from), [{ kind: 'group', rows: ['region', 'desk'] }]);
   });
 
   it('a measure dropped in the row zone is REFUSED', () => {
@@ -628,7 +778,7 @@ describe('the app', () => {
 
   it('opens the editor from the right-click menu, as DataCube does', () => {
     rightClick();
-    pick('Properties...');
+    pick('Properties…');
     assert.equal(
       (root.querySelector('.dc-app-overlay') as HTMLElement).hidden,
       false,
@@ -666,11 +816,68 @@ describe('the app', () => {
     assert.deepEqual(app.snapshot.sorts, []);
     assert.equal(app.configuration.treeColumnSort, 'desc');
     assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark')?.textContent, '\u2193');
+    // each click a grid command (grid-commands.ts), its first direction the one the header's type gives
+    const notional: GridCommand = { kind: 'clickSort', column: 'notional', first: 'desc', chained: false };
+    assert.deepEqual(commands, [notional, notional, notional, notional,
+      { kind: 'clickTreeSort', chained: true }, { kind: 'clickTreeSort', chained: false }]);
   });
 
-  it('adds and removes a heatmap from the menu', () => {
+  it("a grouped column's header, shown by Show Grouped Columns, sorts as any header does (the S7 confirmation audit's third round's 2)", async () => {
+    const settle = async (): Promise<void> => {
+      for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    };
+    await app.edit([{ kind: 'configure', patch: { showGroupedColumns: true } }], 'settings');
+    await settle();
+    // the grid grouped by region: region's own header painted beside the tree's
+    const head = root.querySelector('.dc-th[data-column="region"]') as HTMLElement | null;
+    assert.ok(head, 'its header painted');
+    head.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await settle();
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'region', direction: 'asc' }]);
+  });
+
+  it('tells a host only the commands the cube kept: a change undone as it runs is never told, one carried is, in order', async () => {
+    const settle = async (): Promise<void> => {
+      for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    };
+    const click = (): void => {
+      (root.querySelector('.dc-th[data-column="notional"]') as HTMLElement)
+        .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    };
+    const notional: GridCommand = { kind: 'clickSort', column: 'notional', first: 'desc', chained: false };
+    // a click, undone while its query runs: cancelled, its command never told
+    click();
+    await app.undo();
+    await settle();
+    assert.deepEqual(app.snapshot.sorts, []);
+    assert.deepEqual(commands, []);
+    // two clicks, the second laid on the first while it runs (it carries it): both told, in order, when it lands
+    click();
+    click();
+    assert.deepEqual(commands, [], 'nothing told while the change runs');
+    await settle();
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'asc' }]);
+    assert.deepEqual(commands, [notional, notional]);
+  });
+
+  it("a column's presentation from the menu -- pinned, every pin taken off -- is the configure command Python builds", async () => {
     rightClick('.dc-cell:not(.dc-dim)');
-    pick('Add Heatmap to notional');
+    pick('Pin Left');
+    assert.equal(app.configuration.columns['notional']?.pinned, 'left');
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Remove All Pinnings');
+    assert.equal(app.configuration.columns['notional']?.pinned, undefined);
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(commands, [
+      { kind: 'configure', patch: { columns: { notional: { pinned: 'left' } } } },
+      // null takes a setting off, as JSON cannot write undefined
+      { kind: 'configure', patch: { columns: { notional: { pinned: null } } } },
+    ]);
+  });
+
+  it('adds and removes a heatmap from the menu (Conditional Formatting ▸ Heatmap, then Remove Heatmap)', async () => {
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Add Heatmap');
     const column = Object.entries(app.configuration.columns).find(
       ([, c]) => c.heatmap,
     );
@@ -681,6 +888,134 @@ describe('the app', () => {
       Object.values(app.configuration.columns).some((c) => c.heatmap),
       false,
     );
+    // each by the configure command Python's configure builds: null takes it off
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(commands, [
+      { kind: 'configure', patch: { columns: { notional: { heatmap: { from: '#ffffff', to: '#ff8a65' } } } } },
+      { kind: 'configure', patch: { columns: { notional: { heatmap: null } } } },
+    ]);
+  });
+
+  it("the menu's copies are what Ctrl+C copies: tab-separated, no byte-order mark, so a paste fills Excel's columns", () => {
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Copy Column notional');
+    assert.deepEqual(clipboard, ['notional\n600\n400\n']);
+    // the selected cells: clicked, then Shift+clicked across to the measure -- the grid's own Ctrl+C text
+    const cell = (text: string): HTMLElement =>
+      [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === text) as HTMLElement;
+    cell('EMEA').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    cell('400.00').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, shiftKey: true }));
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Copy Selected Cells');
+    // the tree column heads its copy with what it groups by, as an export does, never its machinery name
+    assert.equal(clipboard.at(-1), 'region\tnotional\nEMEA\t600\nAMER\t400\n');
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Copy Selected Rows');
+    assert.equal(clipboard.at(-1), 'region\tnotional\nEMEA\t600\nAMER\t400\n');
+    // and Ctrl+C, the grid's own copy, writes the same text
+    const copies = clipboard.length;
+    (root.querySelector('.dc-grid') as HTMLElement).dispatchEvent(
+      new dom.window.KeyboardEvent('keydown', { key: 'c', ctrlKey: true, bubbles: true }));
+    assert.equal(clipboard.length, copies + 1, 'Ctrl+C copied');
+    assert.equal(clipboard.at(-1), 'region\tnotional\nEMEA\t600\nAMER\t400\n');
+  });
+
+  it('a double-click on a value shows the rows behind it, in a grid, with what they are', async () => {
+    // each click finds the cell afresh: the first one's selection re-renders the rows, as a browser's second click lands
+    // on the cell drawn there now
+    const value = (): HTMLElement => [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === '600.00') as HTMLElement;
+    value().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 1 }));
+    value().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 2 }));
+    for (let i = 0; i < 50 && !root.querySelector('[data-window="Drill-through"]'); i++) await new Promise((r) => setTimeout(r, 0));
+    const win = root.querySelector('[data-window="Drill-through"]') as HTMLElement;
+    assert.ok(win, 'the window opened');
+    assert.equal(win.querySelector('.dc-drill-caption')?.textContent, '2 rows where region = EMEA');
+    // a grid, headed by the columns and its rows formatted as the cube formats them -- not CSV text
+    const grid = win.querySelector('.dc-drill.dc-grid') as HTMLElement;
+    assert.ok(grid, 'a grid of the rows');
+    assert.deepEqual([...grid.querySelectorAll('.dc-th[data-column]')].map((h) => h.textContent), ['region', 'notional']);
+    assert.deepEqual([...grid.querySelectorAll('.dc-row')].map((r) => [...r.querySelectorAll('.dc-cell')].map((c) => c.textContent)),
+      [['EMEA', '600.00'], ['AMER', '400.00']]);
+    // Copy: the rows as the clipboard's text, every row
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'Copy') as HTMLButtonElement).click();
+    assert.equal(clipboard.at(-1), 'region\tnotional\nEMEA\t600\nAMER\t400\n');
+  });
+
+  it('a double-click on a group\'s label opens it, and again closes it, as a pivot\'s row label does', async () => {
+    const label = [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === 'EMEA') as HTMLElement;
+    label.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 2 }));
+    for (let i = 0; i < 50 && commands.length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.equal(root.querySelector('[data-window="Drill-through"]'), null, 'no drill from a label');
+    assert.deepEqual(commands, [{ kind: 'open', path: ['EMEA'], open: true }]);
+  });
+
+  it("Filter Values: a column's values with their rows, the database's, ticked as the filter keeps them; OK keeps the ticked", async () => {
+    // the values query answers each value once with its rows (query.ts columnValuesLambda); the grid's queries as before
+    const values = new (class extends FakeEngine {
+      readonly name = 'values';
+      async answer(sql: string, epoch: number): Promise<ResultTable> {
+        if (sql.includes('__rows__')) {
+          return { columns: [
+            { name: 'region', type: 'String', values: ['AMER', 'EMEA', null] },
+            { name: '__rows__', type: 'Integer', values: [2, 1200, 1] },
+          ], rowCount: 3, epoch, elapsedMs: 0 };
+        }
+        return result(epoch);
+      }
+    })();
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const told: GridCommand[] = [];
+    // the EchoPlanner's "SQL" is the query's JSON, so the values query is told apart by its count column
+    const own = new CubeApp(host, SNAPSHOT, { engine: values, planner: new EchoPlanner(), onCommand: (c) => told.push(c) });
+    await own.open();
+    const cell = [...host.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === 'EMEA') as HTMLElement;
+    cell.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    pick('Filter Values of region…');
+    for (let i = 0; i < 50 && !host.querySelector('[data-window="Filter Values"]'); i++) await new Promise((r) => setTimeout(r, 0));
+    const win = host.querySelector('[data-window="Filter Values"]') as HTMLElement;
+    assert.ok(win, 'the window opened');
+    const items = (): HTMLElement[] => [...win.querySelectorAll<HTMLElement>('.dc-value-item:not(.dc-value-all)')];
+    assert.deepEqual(items().map((i) => [i.querySelector('.dc-value-label')?.textContent, i.querySelector('.dc-value-count')?.textContent,
+      (i.querySelector('input') as HTMLInputElement).checked]),
+      [['AMER', '2', true], ['EMEA', '1,200', true], ['(Blank)', '1', true]], 'every value kept: nothing filters it yet');
+    // a search shows the matching ones; (Select All) ticks those shown
+    const search = win.querySelector('.dc-value-search') as HTMLInputElement;
+    search.value = 'me';
+    search.dispatchEvent(new dom.window.Event('input'));
+    assert.deepEqual(items().filter((i) => !i.hidden).map((i) => i.querySelector('.dc-value-label')?.textContent), ['AMER', 'EMEA']);
+    search.value = '';
+    search.dispatchEvent(new dom.window.Event('input'));
+    // the blanks left out: OK keeps AMER and EMEA, in place of the column's own conditions (none yet)
+    (items()[2]!.querySelector('input') as HTMLInputElement).click();
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'OK') as HTMLButtonElement).click();
+    for (let i = 0; i < 50 && told.length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(told, [{ kind: 'refilter', remove: [], add: [
+      { kind: 'condition', column: 'region', operator: 'in', value: ['AMER', 'EMEA'] },
+    ] }]);
+    assert.deepEqual(own.snapshot.filter, { kind: 'condition', column: 'region', operator: 'in', value: ['AMER', 'EMEA'] });
+  });
+
+  it('? shows the keyboard shortcuts, as View ▸ Keyboard Shortcuts… does; not while typing', () => {
+    const grid = root.querySelector('.dc-grid') as HTMLElement;
+    grid.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '?', bubbles: true }));
+    const win = root.querySelector('[data-window="Keyboard Shortcuts"]') as HTMLElement;
+    assert.ok(win, 'the window opened');
+    const rows = [...win.querySelectorAll('tr')].map((r) => [...r.querySelectorAll('td, th')].map((c) => c.textContent));
+    assert.ok(rows.some(([keys, what]) => keys === 'Ctrl+A' && /every cell/.test(what ?? '')), JSON.stringify(rows));
+    assert.ok(rows.some(([keys]) => keys === 'Ctrl+Arrow'));
+    win.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    const shown = (): boolean => root.querySelector('[data-window="Keyboard Shortcuts"]:not([hidden])') !== null;
+    assert.equal(shown(), false, 'Escape closed it');
+    // typing a ? into a field types it
+    const input = dom.window.document.createElement('input');
+    root.append(input);
+    input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '?', bubbles: true }));
+    assert.equal(shown(), false);
+    // and from the menu
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Keyboard Shortcuts…');
+    assert.equal(shown(), true);
   });
 
   it('a right-click on a TREE cell resolves the dimension at that level', () => {
@@ -759,7 +1094,7 @@ describe('the app', () => {
       download: (n, m, t) => downloads.push([n, m, t]),
     });
     await withSource.open();
-    await withSource.applyConfiguration({ maxRows: 123 });
+    await withSource.edit([{ kind: 'configure', patch: { maxRows: 123 } }], 'settings');
     const doc = withSource.cubeDocument('mine');
     assert.ok(doc);
     assert.equal(doc.kind, 'datacube.cube');
@@ -797,23 +1132,21 @@ describe('the app', () => {
 
     const moved = [before[before.length - 1], ...before.slice(0, -1)]
       .filter((n): n is string => n !== undefined);
-    await app.applyConfiguration({ columnOrder: moved });
+    await app.edit([{ kind: 'configure', patch: { columnOrder: moved } }], 'settings');
 
     assert.deepEqual(named(), moved,
       'the panel must read in the order the grid does');
   });
 
-  it('offers each named dimension in the title bar menu', () => {
+  it('offers no named dimension in the title bar menu: Properties ▸ Dimensions groups by one (the user, 2026-10-23)', () => {
     hamburger();
-    pick('Geography');
-    // Starts at ONE level: opening it fully would fetch desk-level
-    // groups for every region before anyone asked.
-    assert.deepEqual(app.snapshot.rows, ['region']);
+    const labels = menuItems().map((i) => i.querySelector('.dc-menu-label')?.textContent ?? '');
+    assert.ok(labels.includes('Properties…') && !labels.includes('Geography'), labels.join(', '));
   });
 
   it('opens the editor, and Cancel closes it', () => {
     rightClick();
-    pick('Properties...');
+    pick('Properties…');
     const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
     assert.equal(overlay.hidden, false);
     assert.notEqual(overlay.querySelector('.dc-editor'), null);
@@ -826,9 +1159,9 @@ describe('the app', () => {
     assert.equal(root.querySelector('.dc-app-overlay'), null);
   });
 
-  it('Properties... from a HEADER opens Column Properties on that column', () => {
+  it('Properties… from a HEADER opens Column Properties on that column', () => {
     rightClick('.dc-th[data-column="notional"]');
-    pick('Properties...');
+    pick('Properties…');
     const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
     const active = win.querySelector('.dc-editor-tab[aria-selected="true"]');
     assert.equal(active?.textContent, 'Column Properties');
@@ -837,14 +1170,92 @@ describe('the app', () => {
     assert.equal(win.querySelector<HTMLElement>('.dc-pe-col.dc-on')?.dataset['column'], 'notional');
   });
 
-  it('Properties... from a CELL opens Column Properties on its column too (the user, 2026-09-30)', () => {
+  it('Properties… from a CELL opens Column Properties on its column too (the user, 2026-09-30)', () => {
     rightClick('.dc-row [data-column="notional"]');
-    pick('Properties...');
+    pick('Properties…');
     const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
     const active = win.querySelector('.dc-editor-tab[aria-selected="true"]');
     assert.equal(active?.textContent, 'Column Properties');
     // the column shown: the one marked in Column Properties' list
     assert.equal(win.querySelector<HTMLElement>('.dc-pe-col.dc-on')?.dataset['column'], 'notional');
+  });
+
+  it("Column Properties' Colors: data bars, an icon set, a rule of a value of one's own, applied as the grid's configure", async () => {
+    rightClick('.dc-th[data-column="notional"]');
+    pick('Properties…');
+    const win = (): HTMLElement => root.querySelector('[data-window="Properties"]') as HTMLElement;
+    // the panel is redrawn after each change: each control found anew
+    const field = (label: string): HTMLElement => [...win().querySelectorAll('.dc-field')]
+      .find((f) => f.querySelector('.dc-field-label')?.textContent === label) as HTMLElement;
+    const change = (el: HTMLInputElement | HTMLSelectElement, value: string): void => {
+      el.value = value;
+      el.dispatchEvent(new dom.window.Event('change'));
+    };
+    (field('Data bars:').querySelector('input[type="checkbox"]') as HTMLInputElement).click();
+    change(field('Icons:').querySelector('select') as HTMLSelectElement, 'trafficLights');
+    const [op, style] = [...field('Rules:').querySelectorAll('select')] as HTMLSelectElement[];
+    change(op!, 'atLeast');
+    change(field('Rules:').querySelector('input[placeholder="value"]') as HTMLInputElement, '500');
+    change(style!, 'green');
+    ([...field('Rules:').querySelectorAll('button')].find((b) => b.textContent === 'Add Rule') as HTMLButtonElement).click();
+    // listed in words, a Remove beside it; a rule that is no rule said, not added
+    assert.deepEqual([...field('Rules:').querySelectorAll('.dc-rule-words')].map((w) => w.textContent), ['At least 500']);
+    change(field('Rules:').querySelectorAll('select')[0] as HTMLSelectElement, 'top');
+    ([...field('Rules:').querySelectorAll('button')].find((b) => b.textContent === 'Add Rule') as HTMLButtonElement).click();
+    assert.match(field('Rules:').querySelector('.dc-rule-problem')?.textContent ?? '', /count is missing/);
+    ([...win().querySelectorAll('.dc-editor-footer button')].find((b) => b.textContent === 'Apply') as HTMLButtonElement).click();
+    for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    const told = commands.filter((c) => c.kind === 'configure').at(-1) as unknown as { patch: { columns: Record<string, Record<string, unknown>> } };
+    assert.deepEqual(told.patch.columns['notional'], {
+      dataBar: { color: '#9fc3ea' }, iconSet: { set: 'trafficLights' },
+      rules: [{ when: { op: 'atLeast', value: 500 }, style: { foreground: '#006100', background: '#c6efce' } }],
+    });
+  });
+
+  it("a format code writes and colours the column as Excel would; Properties' Format Code refuses one it cannot draw", async () => {
+    await app.applyGridCommands([{ kind: 'configure', patch: { columns: { notional: { format: { kind: 'auto', code: '[Blue]#,##0.0,"k"' } } } } }], 'code');
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    const cells = [...root.querySelectorAll('.dc-row .dc-cell[data-column="notional"]')] as HTMLElement[];
+    assert.deepEqual(cells.map((c) => [c.textContent, c.style.color]).filter(([t]) => t !== ''),
+      [['0.6k', 'rgb(0, 0, 255)'], ['0.4k', 'rgb(0, 0, 255)']]);
+    rightClick('.dc-th[data-column="notional"]');
+    pick('Properties…');
+    const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
+    const field = [...win.querySelectorAll('.dc-field')].find((f) => f.querySelector('.dc-field-label')?.textContent === 'Format Code:') as HTMLElement;
+    const input = field.querySelector('input') as HTMLInputElement;
+    assert.equal(input.value, '[Blue]#,##0.0,"k"');
+    input.value = '0.0E+00';
+    input.dispatchEvent(new dom.window.Event('change'));
+    assert.match(field.querySelector('.dc-rule-problem')?.textContent ?? '', /has an exponent, which DataCube does not read/);
+  });
+
+  it('Group Values: its values ticked and named into a group, the rest as themselves, made as the calculate command', async () => {
+    // the grid's grouping, region, has no header of its own: the window opened as its menu entry opens it
+    await app.openGroupValues('region');
+    const win = root.querySelector('.dc-group-values') as HTMLElement;
+    const items = [...win.querySelectorAll('.dc-value-item')] as HTMLElement[];
+    assert.deepEqual(items.map((i) => i.textContent), ['EMEA', 'AMER']);
+    (items[0]!.querySelector('input') as HTMLInputElement).click();
+    const name = win.querySelector('.dc-group-name') as HTMLInputElement;
+    name.value = 'Europe';
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'Group Selected') as HTMLButtonElement).click();
+    assert.deepEqual([...win.querySelectorAll('.dc-group-words')].map((w) => w.textContent), ['Europe: EMEA']);
+    assert.equal(win.querySelector('.dc-value-item input')?.hasAttribute('disabled'), true, "a grouped value is its group's");
+    // a name taken: the gesture's words said in the window, which stays open, and nothing made
+    const column = win.querySelector('.dc-group-column') as HTMLInputElement;
+    column.value = 'desk';
+    const made = commands.filter((c) => c.kind === 'calculate').length;
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'OK') as HTMLButtonElement).click();
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.match(win.querySelector('.dc-group-problem')?.textContent ?? '', /desk/);
+    assert.ok(win.isConnected, 'the window stays open');
+    assert.equal(commands.filter((c) => c.kind === 'calculate').length, made);
+    column.value = 'region_group';
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'OK') as HTMLButtonElement).click();
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.ok(!win.isConnected, 'made, the window closes');
+    assert.deepEqual(commands.filter((c) => c.kind === 'calculate').at(-1), { kind: 'calculate', level: 'row',
+      column: { name: 'region_group', groups: { of: 'region', groups: [{ name: 'Europe', values: ['EMEA'] }] }, kind: 'dimension' } });
   });
 
   it('keeps several windows open at once, as upstream\'s layout', () => {
@@ -994,7 +1405,7 @@ describe('the app', () => {
     };
     assert.ok(cells(total).length > 0, 'the total is on screen');
     assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'no heatmap yet');
-    await pickOnTotal('Add Heatmap to Total / notional');
+    await pickOnTotal('Add Heatmap');
     assert.ok(app.configuration.columns[total]?.heatmap, "the total's own heatmap");
     assert.equal(app.configuration.columns['notional']?.heatmap, undefined, "its measure's is left alone");
     assert.ok(cells(total).some((c) => c.style.backgroundColor !== ''), 'the total is painted');
@@ -1018,6 +1429,12 @@ describe('the app', () => {
       planner: new EchoPlanner(),
     });
     await pivoted.open();
+    // It arrives folded under its measure (found 3 of
+    // docs/DATACUBE_UI_REVIEW_2026_10_24.md); unfolded here.
+    const twist = host.querySelector<HTMLButtonElement>(
+      '.dc-tool-panel-row[data-column="notional"] button.dc-tool-panel-twist');
+    assert.equal(twist?.getAttribute('aria-expanded'), 'false', 'the pivot columns arrive folded');
+    twist!.click();
     const rows = [...host.querySelectorAll('.dc-tool-panel-row')]
       .map((r) => ({
         column: (r as HTMLElement).dataset['column'],
@@ -1095,7 +1512,7 @@ describe('the app', () => {
     // Once, here, so a setting that shapes the query cannot reach the
     // engine through one path and not another.
     rightClick();
-    pick('Properties...');
+    pick('Properties…');
     const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
     [...overlay.querySelectorAll('.dc-editor-tab')]
       .find((b) => b.textContent === 'General Properties')
@@ -1151,11 +1568,8 @@ describe('the bar says what you are looking at, and nothing else', () => {
     );
   });
 
-  it('states the result and its cost in the STATUS bar', async () => {
-    // The row count, the column count and the elapsed time went to
-    // the host through `onStatus` and were rendered above the grid,
-    // while the status bar said "Rows: 2" -- two readouts of one
-    // fact, the fuller one in the wrong place.
+  it('says what the last query returned and what it cost, as a host is told it', async () => {
+    // the user, 2026-10-25: "just show stats/num rows of the last query" -- its own figures, nothing summed or guessed
     const statuses: string[] = [];
     const app = new CubeApp(root, SNAPSHOT, {
       engine: new StubEngine(),
@@ -1163,50 +1577,118 @@ describe('the bar says what you are looking at, and nothing else', () => {
       onStatus: (text) => statuses.push(text),
     });
     await app.open();
-    const timing = root.querySelector('.dc-status-timing')?.textContent ?? '';
-    assert.match(timing, /^2 rows × \d+ cols in \d+ms$/);
-    // The same line, so a host's figure and the screen's cannot
-    // drift apart.
-    assert.equal(statuses.at(-1), timing);
-    assert.equal(
-      root.querySelector('.dc-app-stats')?.textContent?.includes('Rows:'),
-      false,
-    );
+    const readout = root.querySelector('.dc-status-rows') as HTMLElement;
+    assert.match(readout.textContent ?? '', /^2 rows × \d+ cols in \d+ms$/);
+    // the very line a host is told, so the two cannot drift apart
+    assert.equal(readout.textContent, statuses.at(-1));
+    // and for a script: the rows on screen, and which view this is
+    assert.equal(readout.dataset['rows'], '2');
+    assert.match(readout.dataset['view'] ?? '', /^\d+$/);
   });
 
-  it('puts what you can DO at one end and what is TRUE at the other',
-    async () => {
-      // DataCube's own bar is `justify-between`: two link buttons at
-      // the left -- Properties, then Filter -- and its readouts at
-      // the right. Ours had one link with every figure crowded after
-      // it, and both editors were reachable only from the grid's
-      // right-click menu, two levels down.
-      const app = new CubeApp(root, SNAPSHOT, {
-        engine: new StubEngine(),
-        planner: new StubPlanner(),
-        hostStatus: (slot) => {
-          slot.textContent = 'local';
-        },
-      });
-      await app.open();
-      const actions = root.querySelector('.dc-app-stats .dc-status-actions');
-      const readout = root.querySelector('.dc-app-stats .dc-status-readout');
-      assert.notEqual(actions, null);
-      assert.notEqual(readout, null);
-      // Properties FIRST, as theirs is.
-      assert.deepEqual(
-        [...(actions?.querySelectorAll('.dc-status-link') ?? [])]
-          .map((b) => b.textContent?.replace(/^\W+\s*/, '')),
-        ['Properties', 'Filter'],
-      );
-      // And every figure on the other side, the backend's word last.
-      assert.notEqual(readout?.querySelector('.dc-status-timing'), null);
-      assert.equal(
-        readout?.querySelector('.dc-status-host')?.textContent,
-        'local',
-      );
-      assert.equal(actions?.querySelector('.dc-status-timing'), null);
+  it('which view the readout says: a repaint that runs no query is not another; a cube built in another\u2019s place is', async () => {
+    const flat = new CubeApp(root, { ...SNAPSHOT, rows: [] }, { engine: new StubEngine(), planner: new StubPlanner() });
+    await flat.open();
+    const readout = (): HTMLElement => root.querySelector('.dc-status-rows') as HTMLElement;
+    const first = Number(readout().dataset['view']);
+    // a presentation change (a note) paints the bar again over the same view
+    flat.note('a note');
+    assert.equal(Number(readout().dataset['view']), first, 'the same view, said again');
+    await flat.edit([{ kind: 'group', rows: ['region'] }], 'group');
+    await flush();
+    assert.equal(Number(readout().dataset['view']), first + 1, 'a view landed');
+    // a cube built in its place, saying the same: its view's number is another, so a script waiting on it sees it land
+    flat.dispose();
+    root.replaceChildren();
+    const again = new CubeApp(root, SNAPSHOT, { engine: new StubEngine(), planner: new StubPlanner() });
+    await again.open();
+    assert.equal(Number(readout().dataset['view']) > first + 1, true, `${readout().dataset['view']} after ${first + 1}`);
+  });
+
+  it('puts the grid’s tools and what it shows at the left, and what is true of it at the right', async () => {
+    // DataCube's own bar is `justify-between`; ours had its figures crowded after two underlined links, the one place
+    // the app looked like a 2005 web page (the user, 2026-10-25): its tools are icons now, named for a screen reader
+    const app = new CubeApp(root, SNAPSHOT, {
+      engine: new StubEngine(),
+      planner: new StubPlanner(),
+      hostStatus: (slot) => {
+        slot.textContent = 'local';
+      },
     });
+    await app.open();
+    const actions = root.querySelector('.dc-app-stats .dc-status-actions');
+    const readout = root.querySelector('.dc-app-stats .dc-status-readout');
+    assert.deepEqual([...(actions?.querySelectorAll('.dc-status-tool') ?? [])].map((b) => b.textContent),
+      ['Properties', 'Filter', 'Add Column'], 'no Join without a host that joins');
+    assert.equal([...(actions?.querySelectorAll('.dc-status-tool svg') ?? [])].length, 3, 'each an icon');
+    assert.notEqual(actions?.querySelector('.dc-status-rows'), null, 'what it shows, after its tools');
+    // nothing narrows it, so no chip; the host's word last
+    assert.equal(readout?.querySelector('.dc-status-chip'), null);
+    assert.equal(readout?.querySelector('.dc-status-host')?.textContent, 'local');
+    // what runs is no longer a box in the bar: a bar on the grid's top edge, while something runs
+    assert.equal(root.querySelector('.dc-app-stats .dc-status-progress'), null);
+    assert.notEqual(root.querySelector('.dc-app-middle > .dc-status-progress'), null);
+  });
+
+  it('Add Column opens the column editor; a filter in force says so in a chip that opens it', async () => {
+    const app = new CubeApp(root, {
+      ...SNAPSHOT,
+      filter: { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' },
+    }, { engine: new StubEngine(), planner: new StubPlanner() });
+    await app.open();
+    (root.querySelector('.dc-status-add-column') as HTMLButtonElement).click();
+    assert.notEqual(root.querySelector('[data-window^="column:new:"]'), null, 'no column editor');
+    assert.equal(root.querySelector('.dc-status-filter')?.classList.contains('dc-on'), true, 'the funnel accented');
+    const chip = root.querySelector('.dc-status-filtered') as HTMLButtonElement;
+    assert.equal(chip.textContent, 'Filtered');
+    chip.click();
+    assert.notEqual(root.querySelector('.dc-filters'), null, 'the chip opened no filter');
+  });
+
+  it('a top N says so in a chip, and its × shows every row again', async () => {
+    const app = new CubeApp(root, { ...SNAPSHOT, topN: { by: 'notional', n: 10 } },
+      { engine: new StubEngine(), planner: new StubPlanner() });
+    await app.open();
+    const chip = (): HTMLElement | null => root.querySelector('.dc-status-topn');
+    assert.match(chip()?.textContent ?? '', /^Top 10 by notional/);
+    (chip()?.querySelector('.dc-status-chip-close') as HTMLButtonElement).click();
+    await flush();
+    assert.equal(app.snapshot.topN, undefined, 'the top N cleared');
+    assert.equal(chip(), null, 'and its chip gone');
+  });
+
+  it('Join opens its host’s entries on no column, and a pick reaches the host; with nothing to join it is greyed, saying why', async () => {
+    let entries: { id?: 'host.join.window'; label: string; disabled?: boolean; hint?: string }[] =
+      [{ label: 'Join…', disabled: true, hint: 'There is no other grid on this page to join' }];
+    const asked: (string | undefined)[] = [];
+    const picked: string[] = [];
+    const app = new CubeApp(root, SNAPSHOT, {
+      engine: new StubEngine(),
+      planner: new StubPlanner(),
+      joinMenu: (column) => { asked.push(column); return entries; },
+      onHostMenu: (item) => picked.push(item.id ?? ''),
+    });
+    await app.open();
+    const join = root.querySelector('.dc-status-join') as HTMLButtonElement;
+    assert.equal(join.textContent, 'Join');
+    assert.deepEqual(asked, [], 'not asked at a paint');
+    join.dispatchEvent(new dom.window.Event('pointerenter'));
+    assert.deepEqual(asked, [undefined], 'asked on no column, as the pointer reached it');
+    assert.equal(join.getAttribute('aria-disabled'), 'true');
+    assert.equal(join.title, 'Join: There is no other grid on this page to join');
+    join.click();
+    assert.equal(dom.window.document.querySelector('.dc-menu'), null, 'a greyed Join opens nothing');
+    // another grid joins the page
+    entries = [{ id: 'host.join.window', label: 'Join…' }];
+    join.dispatchEvent(new dom.window.Event('pointerenter'));
+    assert.equal(join.hasAttribute('aria-disabled'), false);
+    join.click();
+    const entry = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu-item')]
+      .find((el) => el.querySelector(':scope > .dc-menu-label')?.textContent === 'Join…');
+    assert.ok(entry, 'its host’s entries, under it');
+    entry.click();
+    assert.deepEqual(picked, ['host.join.window'], 'the pick given back to the host');
+  });
 
   it('opens the properties editor from the status bar', async () => {
     const app = new CubeApp(root, SNAPSHOT, {
@@ -1275,7 +1757,7 @@ describe('the bar says what you are looking at, and nothing else', () => {
     const app = new CubeApp(root, SNAPSHOT, {
       engine: new CountingEngine(),
       planner: new StubPlanner(),
-      snapTarget: { table: 'TRADES_SNAP', source: element('TRADES_SNAP'), conversions: [], planner: new StubPlanner(), host: copies },
+      snapTarget: { host: copies, copy: () => ({ table: 'snap_1', landed: async () => ({ source: element('snap_1'), planner: new StubPlanner() }), dispose: () => {} }) },
     });
     await app.open();
     const toggle = root.querySelector('.dc-titlebar-toggle') as HTMLButtonElement;
@@ -1299,7 +1781,7 @@ describe('the bar says what you are looking at, and nothing else', () => {
     const app = new CubeApp(root, SNAPSHOT, {
       engine,
       planner: new StubPlanner(),
-      snapTarget: { table: 'TRADES_SNAP', source: element('TRADES_SNAP'), conversions: [], planner: new StubPlanner(), host: copies },
+      snapTarget: { host: copies, copy: () => ({ table: 'snap_1', landed: async () => ({ source: element('snap_1'), planner: new StubPlanner() }), dispose: () => {} }) },
       heldCopy: { label: 'trades.csv', takenAt: new Date(2026, 8, 29, 9, 30), rowCount: 1234 },
     });
     await app.open();
@@ -1315,7 +1797,7 @@ describe('the bar says what you are looking at, and nothing else', () => {
     await flush();
     assert.equal(engine.sql.length, before, 'a click ran nothing');
     assert.equal(toggle.textContent, 'Snapped');
-    assert.equal(app.controller.snaps.isSnapped, false);
+    assert.equal(app.copy, undefined, 'it reads its rows live');
   });
 
   it('shows the receipt of what answered, and an open Receipts window follows the plane', async () => {
@@ -1328,7 +1810,7 @@ describe('the bar says what you are looking at, and nothing else', () => {
     const app = new CubeApp(root, SNAPSHOT, {
       engine: new SigningEngine(),
       planner: new StubPlanner(),
-      snapTarget: { table: 'TRADES_SNAP', source: element('TRADES_SNAP'), conversions: [], planner: new StubPlanner(), host: copies },
+      snapTarget: { host: copies, copy: () => ({ table: 'snap_1', landed: async () => ({ source: element('snap_1'), planner: new StubPlanner() }), dispose: () => {} }) },
     });
     await app.open();
     const chip = () => root.querySelector('.dc-status-receipt') as HTMLButtonElement;

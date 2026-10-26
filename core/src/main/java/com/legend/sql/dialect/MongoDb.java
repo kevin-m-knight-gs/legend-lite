@@ -2639,7 +2639,17 @@ public final class MongoDb extends AnsiSqlRenderer {
             case com.legend.sql.SqlDml.DeleteAll da -> "{\"delete\": "
                     + MongoJson.string(collection(da.schema(), da.table())) + ", \"deletes\": [{\"q\": {},"
                     + " \"limit\": 0}]}";
-            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct);
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).text();
+            // a program that changes a store (main's writes, docs/WRITES_DESIGN_2026_10_18.md; merged 2026-10-26) is not
+            // shaped on MongoDb: its writes are the bulk load alone (docs/MONGODB_PLAN_2026_10_16.md)
+            case com.legend.sql.SqlDml.InsertSelect is -> throw new DialectCapability("an insert of a query's rows"
+                    + " reached MongoDb: a store write is not shaped on MongoDb");
+            case com.legend.sql.SqlDml.Update u -> throw new DialectCapability("an update reached MongoDb: a store"
+                    + " write is not shaped on MongoDb");
+            case com.legend.sql.SqlDml.DeleteWhere dw -> throw new DialectCapability("a delete of a condition's rows"
+                    + " reached MongoDb: a store write is not shaped on MongoDb");
+            case com.legend.sql.SqlDml.Merge m -> throw new DialectCapability("a merge reached MongoDb: a store write"
+                    + " is not shaped on MongoDb");
         };
     }
 
@@ -2700,7 +2710,7 @@ public final class MongoDb extends AnsiSqlRenderer {
 
     /** MongoDB: a dynamic pivot's probe plan reads the keys and then the body, two commands with no transaction
      *  across them on a server that is no replica set (a key written between the two is not the body's: register
-     *  S103). */
+     *  S110). */
     @Override
     public KeysSnapshot keysSnapshot() {
         return KeysSnapshot.NONE;

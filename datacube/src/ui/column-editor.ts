@@ -26,18 +26,19 @@ import {
 import { explodeLambda, explodeName, explodeType, type Extraction } from '../json-shape.ts';
 import { buildJsonFields, freeName, type JsonColumnReader } from './json-fields.ts';
 import type { CompileOutcome } from '../cube.ts';
-import type { Lambda } from '../../../pure-protocol/src/index.ts';
+import { IDENTIFIER_LETTERS, type Lambda } from '../../../pure-protocol/src/index.ts';
 import type { PivotColumn } from '../query.ts';
 import { docHint } from './docs.ts';
 import { emptyOperands, isEmptyOperandRefusal, sayEmpty, type EmptyAs } from '../calc-fix.ts';
-import { columnType } from '../snapshot.ts';
+import { columnType, type WindowSpec } from '../snapshot.ts';
 import {
   NEW_CHILD,
+  NEW_GRAIN,
   NEW_WINDOW,
   draftCandidate,
-  draftLists,
-  draftRename,
+  draftColumn,
   draftStage,
+  existingDraft,
   newDraft,
   type ColumnDraft,
   type ColumnLevel,
@@ -48,10 +49,12 @@ import {
   type CubeSnapshot,
   type DerivedColumn,
   type ChildAggregateFn,
+  type GrainAt,
   type WindowFrame,
   type WindowFunction,
 } from '../snapshot.ts';
-import { defaultKind, isVariant } from '../../../engine-client/src/types.ts';
+import { isVariant } from '../../../engine-client/src/types.ts';
+import { chromeIcon } from './tile-icons.ts';
 
 export type { ColumnLevel };
 
@@ -65,7 +68,10 @@ export const LEVELS: readonly { value: ColumnLevel; label: string }[] = [
 export type ColumnEditorStart =
   | { readonly expression?: string; readonly level?: ColumnLevel;
     /** A JSON column whose fields to offer first. */
-    readonly json?: string }
+    readonly json?: string;
+    /** A window column to start from (a flow's Record ID, Running Total, Multi-Row Formula, Tile:
+     *  docs/DATACUBE_FLOW_MODE_2026_10_24.md M3), and the name to start with -- a free one like it when taken. */
+    readonly window?: WindowSpec; readonly name?: string }
   | { readonly edit: string };
 
 export interface ColumnEditorOptions {
@@ -83,12 +89,18 @@ export interface ColumnEditorOptions {
     candidate: CubeSnapshot,
     signal: AbortSignal,
   ) => Promise<CompileOutcome | undefined>;
-  /** Offer both lists to the cube: its refusal, or null when it took them. */
-  readonly apply: (
-    row: readonly DerivedColumn[],
-    group: readonly DerivedColumn[],
-    rename?: { readonly from: string; readonly to: string },
-  ) => Promise<string | null>;
+  /**
+   * The column being edited replaced by the draft's, at its level (Edit Column's OK: the grid command Python's
+   * edit_calculated builds, grid-commands.ts editCalculated): its refusal, or null when it took it.
+   */
+  readonly edit: (name: string, level: CalcStage, column: DerivedColumn) => Promise<string | null>;
+  /** The column being edited taken out (Delete: removeCalculated): refused too while another column reads it. */
+  readonly remove: (name: string) => Promise<string | null>;
+  /**
+   * Offer a new column to the cube, at its level (the grid command Python's calculate builds, grid-commands.ts): its
+   * refusal, or null when it took it.
+   */
+  readonly add: (level: CalcStage, column: DerivedColumn) => Promise<string | null>;
   /** The window goes: after OK or Delete succeeds, or on Cancel. */
   readonly onClose: () => void;
   /** Upstream's 500 ms; a test passes 0. */
@@ -115,7 +127,7 @@ export interface ColumnPreview {
 }
 
 /** What a calculated column computes: each kind its own builder, on one page. */
-type Kind = 'formula' | 'window' | 'ratio' | 'children' | 'json';
+type Kind = 'formula' | 'window' | 'ratio' | 'children' | 'grain' | 'json';
 
 interface KindMeta {
   readonly id: Kind;
@@ -130,6 +142,7 @@ const KINDS: readonly KindMeta[] = [
   { id: 'window', label: 'Running, rank, previous', hint: 'From the rows around each one', title: 'From the rows around each one' },
   { id: 'ratio', label: 'Ratio of totals', hint: 'After grouping, from each group\u2019s figures', title: 'From each group\u2019s figures, after grouping' },
   { id: 'children', label: 'From child groups', hint: 'Smallest, largest, average\u2026 of those beneath', title: 'From the groups beneath each group' },
+  { id: 'grain', label: 'Parent or grand total', hint: 'A measure as the group above has it', title: 'A measure as its parent group or the grand total has it' },
   { id: 'json', label: 'Field from JSON', hint: 'A field of a JSON column', title: 'A field of a JSON column' },
 ];
 
@@ -139,12 +152,15 @@ const KINDS: readonly KindMeta[] = [
  * the whole lambda, this only decides what the box shows.
  */
 function splitHead(text: string): { readonly head: string; readonly body: string } {
-  const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\|/.exec(text);
+  const m = new RegExp(`^\\s*(${IDENTIFIER_LETTERS})\\s*\\|`).exec(text);
   return m ? { head: `${m[1]}|`, body: text.slice(m[0].length).replace(/^ /, '') } : { head: 'x|', body: text };
 }
 
 /** The form's draft: the column as column-draft.ts makes it into the cube's columns, as Python's headless calls do. */
 type Draft = ColumnDraft;
+
+/** Where a measure at a grain is taken, in the form's words. */
+const GRAIN_PLACES: readonly (readonly [GrainAt, string])[] = [['parent', 'Its parent group has it'], ['all', 'The grand total has it']];
 
 const CHILD_FUNCTIONS: readonly (readonly [ChildAggregateFn, string])[] = [
   ['min', 'Minimum'], ['max', 'Maximum'], ['average', 'Average'],
@@ -206,19 +222,22 @@ export class ColumnEditor {
     const start = options.start;
     let printing: Lambda | undefined;
     if ('edit' in start) {
-      const found = findColumn(options.snapshot(), start.edit);
+      const found = existingDraft(options.snapshot(), start.edit);
       this.#original = start.edit;
       printing = found?.lambda;
       this.#initial = found?.draft ?? {
         name: start.edit, level: 'measure', mode: 'expression', expression: '', unnest: false,
-        window: NEW_WINDOW, child: NEW_CHILD,
+        window: NEW_WINDOW, child: NEW_CHILD, grain: NEW_GRAIN,
       };
     } else {
       this.#original = undefined;
       // MEASURE by default, as upstream (DataCubeNewColumnState): column-draft.ts newDraft
-      this.#initial = newDraft(freshName(options.snapshot()), start.expression ?? 'x|', start.level);
+      const s = options.snapshot();
+      const named = start.name === undefined ? freshName(s) : freeName(start.name, new Set(rowColumns(s).map((c) => c.name)));
+      const drafted = newDraft(named, start.expression ?? 'x|', start.level);
+      this.#initial = start.window !== undefined ? { ...drafted, mode: 'window', window: start.window } : drafted;
     }
-    this.#autoName = !('edit' in start);
+    this.#autoName = !('edit' in start) && start.name === undefined;
     this.#json = !('edit' in start) && start.json !== undefined;
     this.#draft = { ...this.#initial, window: { ...this.#initial.window }, child: { ...this.#initial.child } };
     this.#render();
@@ -279,15 +298,6 @@ export class ColumnEditor {
     }
   }
 
-  /** The cube's two lists with this draft (its lambda parsed) in place of the original (column-draft.ts). */
-  #lists(lambda?: Lambda): { row: DerivedColumn[]; group: DerivedColumn[] } {
-    return draftLists(this.#options.snapshot(), this.#original, this.#draft, lambda);
-  }
-
-  #rename(): { from: string; to: string } | undefined {
-    return draftRename(this.#original, this.#draft);
-  }
-
   #candidate(lambda?: Lambda): CubeSnapshot {
     return draftCandidate(this.#options.snapshot(), this.#original, this.#draft, lambda);
   }
@@ -306,6 +316,12 @@ export class ColumnEditor {
       if (d.level !== 'group') return 'Child groups are a Group Level calculation';
       if (s.pivotOn.length > 0) return 'Not on a cube with column pivots';
       return d.child.of === '' ? 'Choose the measure whose child figures are aggregated' : null;
+    }
+    if (d.mode === 'grain') {
+      const s = this.#options.snapshot();
+      if (d.level !== 'group') return 'A parent\u2019s or the grand total\u2019s figure is a Group Level calculation';
+      if (s.pivotOn.length > 0) return 'Not on a cube with column pivots';
+      return d.grain.of === '' ? 'Choose the measure' : null;
     }
     const w = d.window;
     const meta = WINDOW_FUNCTIONS.find((f) => f.fn === w.fn);
@@ -419,8 +435,11 @@ export class ColumnEditor {
       if ('refusal' in parsed) {
         this.#refusal = parsed.refusal;
       } else {
-        const { row, group } = this.#lists(parsed.lambda);
-        this.#refusal = await this.#options.apply(row, group, this.#rename());
+        // a new column is added (last of its level), an edited one replaced (in its place): each one command
+        const column = draftColumn(this.#draft, parsed.lambda);
+        this.#refusal = this.#original === undefined
+          ? await this.#options.add(this.#stage(), column)
+          : await this.#options.edit(this.#original, this.#stage(), column);
       }
     } finally {
       this.#busy = false;
@@ -435,14 +454,12 @@ export class ColumnEditor {
 
   async #delete(): Promise<void> {
     if (this.#busy || this.#original === undefined) return;
-    const s = this.#options.snapshot();
-    const row = s.derived.filter((d) => d.name !== this.#original);
-    const group = (s.groupDerived ?? []).filter((d) => d.name !== this.#original);
+    const original = this.#original;
     this.#busy = true;
     this.#paint();
     try {
       // Refused too, when another column refers to this one.
-      this.#refusal = await this.#options.apply(row, group);
+      this.#refusal = await this.#options.remove(original);
     } finally {
       this.#busy = false;
     }
@@ -477,6 +494,7 @@ export class ColumnEditor {
   #kind(): Kind {
     const d = this.#draft;
     if (d.mode === 'children') return 'children';
+    if (d.mode === 'grain') return 'grain';
     if (d.mode === 'window') return 'window';
     if (d.level === 'group') return 'ratio';
     return this.#json ? 'json' : 'formula';
@@ -490,6 +508,7 @@ export class ColumnEditor {
     if (k === 'formula' || k === 'json') { d.mode = 'expression'; d.level = rowLevel(); }
     if (k === 'ratio') { d.mode = 'expression'; d.level = 'group'; }
     if (k === 'children') { d.mode = 'children'; d.level = 'group'; }
+    if (k === 'grain') { d.mode = 'grain'; d.level = 'group'; }
     if (k === 'window') d.mode = 'window';
     if (k !== 'json') d.unnest = false;
     // another kind: the last preview was of something else
@@ -508,9 +527,11 @@ export class ColumnEditor {
     const json = this.#options.readJson !== undefined
       && rowColumns(s).some((c) => c.name !== this.#original && isVariant(c.type));
     const children = s.pivotOn.length === 0 || this.#kind() === 'children';
+    const grain = s.pivotOn.length === 0 || this.#kind() === 'grain';
     return KINDS.map((k) => {
       if (k.id === 'json' && !json) return { ...k, unavailable: 'This cube has no JSON column to read a field of' };
       if (k.id === 'children' && !children) return { ...k, unavailable: 'Not on a cube that pivots its columns' };
+      if (k.id === 'grain' && !grain) return { ...k, unavailable: 'Not on a cube that pivots its columns' };
       return k;
     });
   }
@@ -654,6 +675,7 @@ export class ColumnEditor {
     }
     if (kind === 'window') this.#paintWindow(el(doc, 'div', 'dc-calc-window', builder));
     if (kind === 'children') this.#paintChildren(el(doc, 'div', 'dc-calc-children', builder));
+    if (kind === 'grain') this.#paintGrain(el(doc, 'div', 'dc-calc-grain', builder));
 
     const check = el(doc, 'div', 'dc-calc-check', main);
     check.setAttribute('role', 'status');
@@ -982,42 +1004,69 @@ export class ColumnEditor {
   }
 
   /** The child-groups form: the function, and the measure it reads. */
+  /**
+   * The group level's figures: measures (or, with none, the columns the groupBy aggregates) -- not the group keys, not
+   * other calculated columns, which neither the child query nor a grain's computes.
+   */
+  #groupMeasures(): string[] {
+    const s = this.#options.snapshot();
+    const derivedNames = new Set((s.groupDerived ?? []).map((d) => d.name));
+    return columnsInScope(s, 'group', this.#original, this.#pivot()).map((x) => x.label)
+      .filter((n) => !s.rows.includes(n) && !derivedNames.has(n));
+  }
+
+  /** A labelled dropdown in `box`, each change the draft's (`set`) and an edit. */
+  #pick(box: HTMLElement, label: string, cls: string, options: readonly (readonly [string, string])[], value: string,
+    set: (v: string) => void): void {
+    const doc = this.#doc;
+    const sel = el(doc, 'select', cls, field(doc, box, label)) as HTMLSelectElement;
+    for (const [v, text] of options) {
+      const o = doc.createElement('option');
+      o.value = v;
+      o.textContent = text;
+      sel.append(o);
+    }
+    sel.value = value;
+    sel.addEventListener('change', () => {
+      set(sel.value);
+      this.#edited();
+    });
+  }
+
   #paintChildren(box: HTMLElement): void {
     const doc = this.#doc;
     box.replaceChildren();
-    const s = this.#options.snapshot();
     const c = this.#draft.child;
-    const derivedNames = new Set((s.groupDerived ?? []).map((d) => d.name));
-    // The group level's figures: measures (or, with none, the columns
-    // the groupBy aggregates) -- not the group keys, not other
-    // calculated columns, which the child query does not compute.
-    const measures = columnsInScope(s, 'group', this.#original, this.#pivot()).map((x) => x.label)
-      .filter((n) => !s.rows.includes(n) && !derivedNames.has(n));
-    const pick = (label: string, cls: string, options: readonly (readonly [string, string])[],
-      value: string, set: (v: string) => void): void => {
-      const sel = el(doc, 'select', cls, field(doc, box, label)) as HTMLSelectElement;
-      for (const [v, text] of options) {
-        const o = doc.createElement('option');
-        o.value = v;
-        o.textContent = text;
-        sel.append(o);
-      }
-      sel.value = value;
-      sel.addEventListener('change', () => {
-        set(sel.value);
-        this.#edited();
-      });
-    };
-    pick('Function:', 'dc-child-fn', CHILD_FUNCTIONS, c.fn, (v) => {
+    const measures = this.#groupMeasures();
+    this.#pick(box, 'Function:', 'dc-child-fn', CHILD_FUNCTIONS, c.fn, (v) => {
       this.#draft.child = { ...this.#draft.child, fn: v as ChildAggregateFn };
     });
-    pick('Of:', 'dc-child-of', [['', 'Choose a measure…'], ...measures.map((m) => [m, m] as const)],
+    this.#pick(box, 'Of:', 'dc-child-of', [['', 'Choose a measure…'], ...measures.map((m) => [m, m] as const)],
       c.of, (v) => {
         this.#draft.child = { ...this.#draft.child, of: v };
       });
     const hint = el(doc, 'p', 'dc-child-hint', box);
     hint.textContent = 'On each group row: this function over its child groups\' figures — '
       + 'a region shows the smallest of its desks\' totals. At the deepest group, over its rows.';
+  }
+
+  /** The grain form (snapshot.ts Grain): the measure, and whose -- the parent group's or the grand total's. */
+  #paintGrain(box: HTMLElement): void {
+    const doc = this.#doc;
+    box.replaceChildren();
+    const g = this.#draft.grain;
+    const measures = this.#groupMeasures();
+    this.#pick(box, 'Of:', 'dc-grain-of', [['', 'Choose a measure…'], ...measures.map((m) => [m, m] as const)],
+      g.of, (v) => {
+        this.#draft.grain = { ...this.#draft.grain, of: v };
+      });
+    this.#pick(box, 'As:', 'dc-grain-at', GRAIN_PLACES, g.at, (v) => {
+      this.#draft.grain = { ...this.#draft.grain, at: v as GrainAt };
+    });
+    const hint = el(doc, 'p', 'dc-grain-hint', box);
+    hint.textContent = 'On each group row: the measure as its parent group has it — the same aggregate over the '
+      + 'parent\'s rows, so an average is the parent\'s average — or as the grand total has it. Divide by it for an '
+      + 'exact share.';
   }
 
   /** The window form: function, column, partition, order, frame. */
@@ -1124,7 +1173,7 @@ export class ColumnEditor {
         o.direction, (v) => setAt({ direction: v as 'asc' | 'desc' }));
       const remove = el(doc, 'button', 'dc-button dc-win-order-remove', line) as HTMLButtonElement;
       remove.type = 'button';
-      remove.textContent = '×';
+      remove.append(chromeIcon(doc, 'close'));
       remove.setAttribute('aria-label', `Remove ${o.column} from the order`);
       remove.addEventListener('click', () => {
         this.#draft.window = {
@@ -1257,41 +1306,6 @@ function freshName(s: CubeSnapshot): string {
   let n = s.columns.length + s.derived.length + (s.groupDerived ?? []).length + 1;
   while (nameProblem(s, 'row', `col_${n}`) !== null) n += 1;
   return `col_${n}`;
-}
-
-/**
- * An existing calculated column as a draft, and its lambda to print into it
- * (the draft's text waits for the compiler's print), or undefined if it has gone.
- */
-function findColumn(s: CubeSnapshot, name: string): { readonly draft: Draft; readonly lambda?: Lambda } | undefined {
-  const row = s.derived.find((d) => d.name === name);
-  if (row) {
-    return {
-      draft: {
-        name,
-        // A column saved before kinds were declared behaves as its type.
-        level: row.kind ?? defaultKind(row.type),
-        mode: row.window ? 'window' : 'expression',
-        expression: '',
-        unnest: row.unnest === true,
-        window: row.window ?? NEW_WINDOW,
-        child: NEW_CHILD,
-      },
-      ...(row.lambda ? { lambda: row.lambda } : {}),
-    };
-  }
-  const group = (s.groupDerived ?? []).find((d) => d.name === name);
-  return group
-    ? {
-      draft: {
-        name, level: 'group',
-        mode: group.childAggregate ? 'children' : group.window ? 'window' : 'expression',
-        expression: '', unnest: false, window: group.window ?? NEW_WINDOW,
-        child: group.childAggregate ?? NEW_CHILD,
-      },
-      ...(group.lambda ? { lambda: group.lambda } : {}),
-    }
-    : undefined;
 }
 
 /**

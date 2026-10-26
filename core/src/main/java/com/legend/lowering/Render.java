@@ -343,7 +343,7 @@ public final class Render {
     }
 
     /** A cell's JSON token by its Pure type: a Float's text (Pure's, or Java's on the engine's wire), its own scale
-     *  for a Decimal (on both: the value is Pure's, register S97), a date kind's text as a JSON string (a StrictDate's
+     *  for a Decimal (on both: the value is Pure's, register S104), a date kind's text as a JSON string (a StrictDate's
      *  day, a DateTime's {@link #dateTimeText} or the engine's nine digits, a text-carried value's own text; the one
      *  owner, 2026-10-18), the database's token otherwise; null as {@code null}. */
     static SqlExpr jsonCell(SqlExpr c, @com.legend.base.Nullable Type t, SqlType slot,

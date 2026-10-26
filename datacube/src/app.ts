@@ -19,7 +19,8 @@ import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { hostOf, receiptLabel, receiptLines } from '../../engine-client/src/receipt.ts';
 import type { WarehouseEngine } from '../../engine-client/src/warehouse.ts';
 import { sessionExpired } from '../../engine-client/src/warehouse-session.ts';
-import { isQueryFailure, type QueryRunner } from './runner.ts';
+import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
+import { isQueryFailure, type QueryLens, type QueryRunner } from './runner.ts';
 import {
   CubeController,
   type CubeControllerOptions,
@@ -29,36 +30,36 @@ import {
 import {
   applyToSnapshot,
   columnConfig,
-  mergeColumnOrder,
   fromSnapshot,
   labelFor,
   toColumnAppearance,
   renderFormats,
-  DEFAULT_CONFIGURATION,
   DEFAULT_MAX_ROWS,
-  renameColumnConfig,
-  withColumn,
-  withConfiguration,
-  withSettings,
   type CubeConfiguration,
-  type Patch,
 } from './config.ts';
 import type { Dimension } from './dimensions.ts';
-import { availableDimensions, useDimension } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
 import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
-import { drillLambda, levelLambda } from './query.ts';
+import { classLambda, columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda, pivotValuesLambda, pivotValuesOf, tooManyValues, unpinnedValuesLambda } from './query.ts';
+import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
+import { DATE_RANGE_LABELS, DATE_RANGES } from './date-ranges.ts';
+import { valueList } from './ui/value-list.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import { CubeRefusal, isPivotTotalColumn, withoutConditions, type QuerySnapshot } from './snapshot.ts';
+import { CubeRefusal, SECOND_COLUMN, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
+import { columnKind, headerSorts, isMeasureLeaf, summaryOf, type GridDraft } from './grid-edits.ts';
+import { applyGridCommands, draftCommands, type GridCommand } from './grid-commands.ts';
 import {
-  clickSort, clickTreeSort, columnKind, firstSortDirection, headerSorts, setGrouping, setPivot, type GridDraft,
-} from './grid-edits.ts';
+  gridGesture, gridGestureGiven, type GestureArgs, type GestureGrid, type GridGestureArgs, type GridGestureName,
+} from './grid-gestures.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
 import type { HostSnap, SnapTarget } from './cube.ts';
-import { exportFileName, toCsv, toEml } from './export.ts';
+import { exportFileName, toClipboard, toEml } from './export.ts';
+// a flow's Output: small, over what the page has at start -- fetched lazily, it was a chunk of its own that split the
+// page's startup files (test/bundle-budget.test.ts, the flow mode review of 2026-10-26)
+import { outputCsv } from './flow-output.ts';
 import {
   ALERT_WINDOW,
   CODE_CHECK_WINDOW,
@@ -72,34 +73,55 @@ import {
 import { pivotLabel, type PivotColumn } from './query.ts';
 import type { ExportPage } from './export-model.ts';
 import {
-  columnFormats, heatmapColour, heatmapSetting, measureHeatmaps, renderExport, type ExportedFile, type ExportKind, type Heatmap,
+  cellDecoration, columnFormats, conditionalSetting, heatmapColour, heatmapSetting, measureConditionals, measureHeatmaps, renderExport,
+  type Conditional, type ExportedFile, type ExportKind, type Heatmap,
 } from './export-render.ts';
 import { cubeScopeOf, newCubeScope } from './ui/scope.ts';
-import type { CubePage, ChartSource, SpawnedGrid, SpawnOptions } from './page/cube-page.ts';
-import { PAGE_CUBE, pageToJson, startingViews, writePage, type ChartView, type PageDocument, type PageViews } from './page-document.ts';
-import { FormatterCache, type ColumnFormat } from './format.ts';
+import type { CubePage, ChartSource, PageEdit, SpawnedGrid, SpawnOptions } from './page/cube-page.ts';
+import type { PageCommand, PageDraft } from './page-commands.ts';
+import type { PageState } from './page-state.ts';
+import {
+  PAGE_CUBE, cubesHeld, gridCopyOf, pageFile, startingViews, writePage, writePageOf, type ChartView, type GridCopy, type PageDocument, type PageViews,
+} from './page-document.ts';
+import { FormatterCache, headlineFormat, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
 import {
   TREE_COLUMN,
+  buildColumnModel,
   type LeafColumn,
 } from './grid/columns.ts';
+import { conditionWords, datesKept } from './page-filters.ts';
+import { shortcutsTable } from './ui/shortcuts.ts';
 import { shownColumns } from './shown-columns.ts';
-import { writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
+import { handedOn } from './box-columns.ts';
+import { freshConfiguration, gridCapped, newGridTree, writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
+import { pureFrom, pureInput, pureShown } from './pure-box.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
+import { treeHeaderText } from './treeview.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import type { JsonColumnReader } from './ui/json-fields.ts';
 import {
-  renameColumnReferences,
   rowColumns,
   type ColumnKind,
   type CubeSnapshot,
   type DerivedColumn,
   type FilterNode,
   type FilterValue,
+  type RelatedPath,
 } from './snapshot.ts';
 import type { HeatmapSpec } from './style.ts';
+import { measuresOf, relatedName, relatedOffers, type ClassOf, type RelatedOffer } from './class-tree.ts';
+import type { ModelMeasure } from './model-measures.ts';
 import { TreeState, parsePathKey, pathKey, type TreeRow } from './tree.ts';
 import { CubeStateOwner, type ChangeOptions, type CubeState, type OwnerEvent, type Outcome } from './cube-state.ts';
+
+/** What a grid says while its page converges on its keeper's (hold): every way of changing it is refused with this --
+ *  a command, an undo or redo, Properties applied, a snap or going live (the D19 audit's third round's 1; its fourth
+ *  round's 4: the hold covered #apply alone). */
+const CATCHING_UP = 'the page is catching up with its keeper: a moment';
+
+/** What of the cube's state a host reads: never a way to change it (that is a command's: CubeApp.edit). */
+export type CubeStateView = Pick<CubeStateOwner, 'busy' | 'historyDepth'>;
 import { ColumnEditor, type ColumnEditorStart, type ColumnPreview } from './ui/column-editor.ts';
 import {
   booleanSetting,
@@ -110,33 +132,44 @@ import {
 } from './settings.ts';
 import { SETTINGS_WINDOW, buildSettingsPanel } from './ui/settings-panel.ts';
 import { buildDocumentation, isDocKey, type DocKey } from './ui/docs.ts';
-import { binColumns, grainColumn, showAsColumns, SHOW_AS_LABELS } from './calc-presets.ts';
-import { columnRef } from './calc.ts';
-import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
+import { binColumns, GRID_SHOW_AS_LABELS } from './calc-presets.ts';
+import { presetCommands, type GridPreset } from './grid-presets.ts';
+import { columnRef, nameProblem } from './calc.ts';
+import { CubeEditor, draftFor, type CubeDraft, type EditorTab } from './ui/editor.ts';
+import { AGGREGATES } from './ui/panel-column.ts';
+import type { StepEditor } from './flow-boxes.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
 import {
-  applyMenuAction,
   buildMenu,
   calcStageOf,
+  createItems,
+  menuGesture,
+  menuItems,
   columnLabel,
   emailItems,
   exportItems,
+  type ConditionalFacts,
   type MenuGroup,
   type MenuItem,
 } from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
-import { makeWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
+import { chromeIcon, paintState, stateButton, toolIcon, type ToolIcon } from './ui/tile-icons.ts';
+import { longPressMenus } from './ui/long-press.ts';
+import { makeWindow, raiseWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
+import { isTextEntry } from './focus.ts';
 import {
   PivotPanel,
   currentHeaderDrag,
-  type Zone,
   type ZoneLayout,
 } from './ui/pivot-panel.ts';
 import {
   ColumnsToolPanel,
   type ColumnsPanelChild,
 } from './ui/columns-panel.ts';
-import { isVariant } from '../../engine-client/src/types.ts';
+import { familyOf, isFractional, isTemporal, isTimeOfDay, isVariant } from '../../engine-client/src/types.ts';
+import type { TextTool } from './text-tools.ts';
+import type { Profile } from './profile.ts';
+import { lazily } from './lazily.ts';
 
 
 /** Rows sampled to infer what a JSON column holds. */
@@ -208,6 +241,19 @@ export interface CubeAppBaseOptions {
    * colour, a width) that runs no query. What "changed since saved" listens to.
    */
   readonly onChange?: () => void;
+  /**
+   * Each grid command the cube kept (grid-commands.ts: what a header click, a drag in the zones, a menu entry, Column
+   * Properties or the column editor's Add built -- the commands Python's calls build for the same edits), in order, as
+   * its change committed: a presentation change's at once (it is laid over the change in flight too), a change in
+   * flight's when it lands. One refused or cancelled -- or carried by a change refused or cancelled -- is never told.
+   */
+  readonly onCommand?: (command: GridCommand) => void;
+  /**
+   * Each edit of the board around the cube -- its charts, their layout -- as the page commands it is
+   * (page-commands.ts), applied to the board's state before it is drawn (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P13):
+   * the same state and commands as a page of its own's.
+   */
+  readonly onPageCommand?: (command: PageCommand) => void;
   /** The groups to open on (a saved cube's), instead of the configuration's expand level. */
   readonly tree?: TreeState;
   /** Called whenever the snap state changes, for a plane badge. */
@@ -234,18 +280,39 @@ export interface CubeAppBaseOptions {
   readonly hostMenu?: () => readonly MenuItem[];
   readonly onHostMenu?: (item: MenuItem) => void;
   /**
+   * The host's Join ▸ for the right-click on `column` (the user, 2026-10-23): a quick join to each grid sharing a column,
+   * the other ways, the window -- each entry the host's, given back through `onHostMenu`. Absent, or empty: no Join ▸.
+   */
+  readonly joinMenu?: (column: string | undefined) => readonly MenuItem[];
+  /**
    * Where the cube's rows come from, as a saved cube names it (a file by its fingerprint).
    * Given, the cube can write itself down (`cubeDocument`, Export > Cube File); absent, it
    * cannot -- a cube over a model waits for the model home.
    */
   readonly cubeSource?: CubeSource;
+  /** A grid over a class: its class and the model's class tree -- the header menu's Add Related Column offers one hop of
+   *  it (class-tree.ts relatedOffers). */
+  readonly classTree?: ClassOf;
   /**
    * Where the cube's windows (dialogs) float, and what they are kept inside: a page of several
    * cubes gives its whole area, so a dialog opened from a small tile is not squeezed into the
    * tile (plan F6, blocker #4). It must be positioned (relative or absolute). Default: the cube.
    */
   readonly windowHost?: HTMLElement;
-  /** A cube in a tile (a page's grid, a chart's editing grid): no title bar of its own; its columns panel folded. */
+  /**
+   * Where its windows that SET it dock -- Properties, the Filter window, a calculated column's editor -- one at a time,
+   * filling it, rather than floating over `windowHost`: a flow's settings pane (docs/DATACUBE_FLOW_MODE_2026_10_24.md
+   * §3.4). Every other window floats as before.
+   */
+  readonly dock?: HTMLElement;
+  /** A flow's box's New Box After (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9): a gesture of its menu made in a new box
+   *  after it -- never on it -- by its page, named `label`. */
+  readonly onStepAfter?: (gesture: { readonly name: string; readonly args: GestureArgs }, label: string) => void;
+  /** A flow's Pure box set by its window (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12; pure-box.ts): its rows `pure`'s
+   *  function of its input's, or (null) its input's as they are -- its page's to apply (setPure), the box then shown again
+   *  over its rows as they are. Whether the page took it. */
+  readonly onSetPure?: (pure: Lambda | null) => boolean;
+  /** A cube in a tile (a page's grid): no title bar of its own; its columns panel folded. */
   readonly compact?: boolean;
   /** Its columns panel folded away at the start (default: when compact); open, a grid opened alone on its page. */
   readonly foldPanel?: boolean;
@@ -257,6 +324,10 @@ export interface CubeAppBaseOptions {
    */
   readonly onChart?: () => void;
   readonly onNewGrid?: () => void;
+  /** A grid on a page: its Create ▸ Text Box goes to the page, as `onNewGrid` does. */
+  readonly onText?: () => void;
+  /** A grid on a page: its Create ▸ Timeseries goes to the page, as `onNewGrid` does. */
+  readonly onTimeseries?: () => void;
   /**
    * ANOTHER SOURCE, for New ▸ Source…: the host asks the person which (its source picker) and
    * answers what reads it, or undefined when they chose nothing. Absent: no New ▸ Source….
@@ -266,6 +337,12 @@ export interface CubeAppBaseOptions {
   readonly onBlankPage?: () => void;
   /** A grid on a page: its New ▸ Data Source… goes to the page, as `onNewGrid` does. */
   readonly onNewSource?: (make: (host: HTMLElement, options: SpawnOptions) => SpawnedGrid) => void;
+  /**
+   * A grid on a page whose host picks sources itself (DataCube's app: PageApp.addSource): its Create ▸ Data Source…
+   * asks the host, which adds the grid beside this one -- in place of `openSource`, which answers a source for the cube
+   * to place.
+   */
+  readonly onOpenSource?: () => void;
   /** A grid on a page of its own: its menu's Remove from Page, the page taking its tile off. */
   readonly onRemove?: () => void;
   /** A grid on a page of its own: the page around it for its export (its charts, this grid as the table). */
@@ -348,7 +425,8 @@ export interface HeldCopy {
   readonly label: string;
   /** When they were copied into the tab. */
   readonly takenAt: Date;
-  readonly rowCount: number;
+  /** How many rows were copied: a file's; a join of copies has its own to say, and none here. */
+  readonly rowCount?: number;
 }
 
 /**
@@ -362,15 +440,6 @@ export type CubeAppOptions = CubeAppBaseOptions & CubeAppQuerySource;
 
 /** DataCube's --ag-row-height. Kept beside the CSS token in theme.css. */
 const DATACUBE_ROW_HEIGHT = 20;
-
-/** Room for the cell's own padding and its border. */
-const AUTO_SIZE_PAD = 8;
-/** Narrow enough to be honest, wide enough to still be grabbable. */
-const AUTO_SIZE_MIN = 48;
-/** One long free-text column must not push the rest off screen. */
-const AUTO_SIZE_MAX = 480;
-/** Upstream's DEFAULT_COLUMN_MIN_WIDTH: what Minimize shrinks to. */
-const MINIMIZED_WIDTH = 50;
 
 /**
  * What the result is and what it cost, in one line.
@@ -386,6 +455,13 @@ function timingText(view: CubeView, cols: number): string {
 }
 
 /**
+ * Views landed in this document, every cube's in one count: a status bar's readout says which it shows (`data-view`),
+ * so a script waiting for the next sees it change -- across a cube built in the place of another, whose own count would
+ * start again where the last one's did.
+ */
+let viewsLanded = 0;
+
+/**
  * What a cube tells whoever listens (`CubeApp#on`): a page, a pinned chart and the host can all
  * listen at once, where the options' callbacks had room for one (plan F6, blocker #5).
  */
@@ -398,12 +474,18 @@ export interface CubeEvents {
   readonly status: readonly [text: string, kind: 'ok' | 'warn' | 'error'];
   /** The snap state changed. */
   readonly plane: readonly [];
+  /** Its rows moved by its own act -- its toggle, a snap asked of it -- not by following another editor's: its page
+   *  tells it, as its snap or live command. Told before `plane`. */
+  readonly moved: readonly [];
 }
 
-/** The z-index windows start from, above the cube's own layers. */
-const WINDOW_Z_BASE = 20;
-/** The top of each window host's stack of windows (`CubeApp#raise`). */
-const windowStack = new WeakMap<HTMLElement, number>();
+/** The text tools' windows, by the tool each sets (text-tools.ts). */
+const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
+/** The windows that set a cube -- Properties, the Filter window, a calculated column's editor -- which dock where a host
+ *  docks them (CubeAppOptions.dock); every other window floats. */
+const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation' || key === 'Date Filter' || key === 'Test'
+  || key === 'Custom Filter' || key === 'Binning' || key === 'Generate Rows' || key === 'Pure' || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize' || key === 'Find Replace'
+  || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
  * Which cube on a document a keystroke from OUTSIDE every cube belongs to: the one last
@@ -425,7 +507,7 @@ function refusal(out: Outcome): string | null {
  */
 let pageModule: Promise<typeof import('./page/cube-page.ts')> | undefined;
 function loadPage(): Promise<typeof import('./page/cube-page.ts')> {
-  pageModule ??= import('./page/cube-page.ts');
+  pageModule ??= lazily(() => import('./page/cube-page.ts'));
   return pageModule;
 }
 
@@ -433,6 +515,20 @@ export class CubeApp {
   readonly #doc: Document;
   readonly #options: CubeAppOptions;
   readonly #controller: CubeController;
+  /** The page's filters on it (setLens), and in words: said in its status bar. */
+  #lens: QueryLens | undefined;
+  #lensSaid: string | undefined;
+  /** What its status bar says beside its rows until it is put away (`note`): what a quick join did, say. */
+  #note: string | undefined;
+  /** Whether its Create ▸ offers Data Source…: its host answers a source, or adds one beside it. */
+  get #canOpenSource(): boolean {
+    return this.#options.openSource !== undefined || this.#options.onOpenSource !== undefined;
+  }
+
+  /** The host's entries of the last right-click (its Join ▸): given back through `onHostMenu` when picked. */
+  #cellHost: readonly MenuItem[] = [];
+  /** The grids it spawned (Copy of Grid, a chart's Show Grid on a cube alone's board): given its lens whenever it is given one. */
+  readonly #spawnedGrids = new Set<CubeApp>();
   readonly #grid: DataGrid;
   readonly #pivots: PivotPanel;
   /** The same zones again, as a list in the sidebar. */
@@ -457,6 +553,8 @@ export class CubeApp {
     number,
     Heatmap
   >();
+  /** Conditional formats (conditional.ts) and their columns' figures, by leaf index; measured with the heatmaps. */
+  readonly #conditionals = new Map<number, Conditional>();
   readonly #columnsPanel: ColumnsToolPanel;
   readonly #els: {
     toolbar: HTMLElement;
@@ -504,13 +602,39 @@ export class CubeApp {
    * takes nothing away.
    */
   #zonePeek = false;
-  /** The board of the grid and its charts (page/cube-page.ts), once a chart is open; until then the grid sits alone. */
-  #page: { readonly page: CubePage; readonly host: HTMLElement } | null = null;
-  /** The grid's part of its tile's header (`tileHead`). */
+  /**
+   * The board of the grid and its charts (page/cube-page.ts), once a chart is open; until then the grid sits alone. Its
+   * page's state (page-state.ts, as a page of its own keeps its), the rules it is edited by (fetched with the board),
+   * and whether the board is being put at that state (what it changes then is no change of its own).
+   */
+  #page: {
+    readonly page: CubePage; readonly host: HTMLElement; readonly state: PageState;
+    readonly rules: Pick<typeof import('./page/cube-page.ts'), 'applyToState' | 'idsOf'>; syncing: boolean;
+  } | null = null;
+  /** Every id the board has held, kept when it goes (its last chart gone): a board made again gives none of them out
+   *  again (the S3 audit's 3). */
+  #boardHeld: readonly string[] = [];
+  /** The grid's part of its tile's header (`tileHead`): its zones' way back, while they are folded. */
   readonly #tileHeadEl: HTMLElement;
+  /** Its state left of its tile's title (`tileState`): Live or Snapped, a click its snap menu. */
+  readonly #tileStateEl: HTMLButtonElement;
+  /** A move of its plane under way (`#movePlane`): its state's controls wait. */
+  #planeMoving = false;
+  /** What it reads and where its rows are, in words, at the start of its status bar's readout while it is in a tile. */
+  readonly #statusSourceEl: HTMLElement;
   /** Where the grid lives when there is no board. */
   #middle: HTMLElement | null = null;
   #newColumns = 0;
+  /** The grid commands being applied, while the owner takes their change (#applyCommands): whether an event of the
+   *  owner's took them, and whether the committed state could (a presentation change laid over it: T1). */
+  #applying: { readonly commands: readonly GridCommand[]; taken: boolean; onCommitted: boolean } | null = null;
+  /** Grid commands in the change in flight, not yet in a committed state: told when it commits, dropped when it is
+   *  refused or cancelled (#followCommands). */
+  #untold: GridCommand[] = [];
+  /** The change last refused, until another starts: its commands, applied again to the grid as it is then when the
+   *  person signs in again, and told as they land (G13; the S1 audit's 8, 9) -- or, an undo or a redo part of it, which
+   *  no command says, `moved`: run again as it was asked for (the owner's retryRefused). */
+  #refused: { readonly commands: readonly GridCommand[]; readonly moved: boolean } | null = null;
   /** Alerts are many and untitled, so each gets its own window key. */
   #alerts = 0;
   /**
@@ -521,6 +645,8 @@ export class CubeApp {
    * holds that nothing outside cube-state.ts assigns cube state.
    */
   readonly #owner: CubeStateOwner;
+  /** How many converges of its page hold the grid (hold/release). */
+  #held = 0;
   /** What the title bar was last built from (`#paintState`). */
   #chrome = '';
   /** Stops the owner's events reaching this app: see `dispose`. */
@@ -531,13 +657,17 @@ export class CubeApp {
   #filters: FilterEditor | null = null;
   /** Drill-throughs, latest wins: an earlier one answering late is dropped (P2-131). */
   #drills = 0;
+  /** The grid of the rows behind a cell (the drill-through window's), let go when the window shows another. */
+  #drillGrid: DataGrid | null = null;
   #selection: CellRange | null = null;
   /** Where selection statistics are written, inside the status bar. */
   #statsSlot: HTMLElement | null = null;
-  /** Repaints the plane toggle, which is now the only plane badge. */
+  /** The view its status bar's readout last said, and its number among the views landed (`viewsLanded`): its
+   *  `data-view`, which a script waits on. */
+  #readoutView: CubeView | null = null;
+  #readoutViewNumber = 0;
+  /** Repaints the plane toggle of a grid alone (its title bar's); a grid in a tile says its plane in `#tileStateEl`. */
   #paintSnap: (() => void) | null = null;
-  /** Switch plane as the button does (a retry after signing in again); null with no toggle. */
-  #planeToggle: (() => void) | null = null;
   /** The Receipts window's body while it is open (`#paintReceipts`). */
   #receiptsBody: HTMLElement | null = null;
   /** Ad Hoc Analysis mode while it is on; the cube's own grid is hidden then. */
@@ -569,8 +699,7 @@ export class CubeApp {
     this.#owner = new CubeStateOwner({
       snapshot,
       configuration,
-      tree: options.tree ?? TreeState.empty(configuration.showRootAggregation)
-        .withExpandTo(configuration.initialExpandToLevel ?? 0),
+      tree: options.tree ?? newGridTree(configuration),
     }, (state) => this.#controller.run(state), {
       historyLimit: numericSetting(this.#settings, 'dataCube.editor.maxHistoryStackSize'),
       abort: () => this.#controller.cancel(),
@@ -580,6 +709,17 @@ export class CubeApp {
     root.classList.add('dc-app');
     this.#tileHeadEl = this.#doc.createElement('span');
     this.#tileHeadEl.className = 'dc-tile-cube';
+    this.#tileStateEl = stateButton(this.#doc);
+    this.#statusSourceEl = this.#doc.createElement('div');
+    this.#statusSourceEl.className = 'dc-status-source';
+    this.#tileStateEl.addEventListener('click', () => {
+      const plane = this.#plane();
+      if (!plane.toggles || this.#planeMoving) return;
+      // a snapped grid goes live or takes a fresh copy; a live one snaps
+      this.#toggleMenu(this.#tileStateEl, () => [{ label: '', items: plane.snapped
+        ? [{ id: 'plane.live' as const, label: 'Go Live' }, { id: 'plane.snap' as const, label: 'Snap Again' }]
+        : [{ id: 'plane.snap' as const, label: 'Snap' }] }]);
+    });
     // a grid in a page's tile: the page has the title bar
     root.classList.toggle('dc-compact', this.#options.compact === true);
     this.#controlsHidden = this.#options.controlsHidden === true;
@@ -617,7 +757,9 @@ export class CubeApp {
     zoneBar.append(this.#zoneFold());
     const middle = this.#div(root, 'dc-app-middle');
     this.#middle = middle;
-    middle.append(this.#els.grid);
+    // what runs, as a thin bar along the grid's top edge while it runs (the user, 2026-10-25): it was a bordered box in
+    // the status bar, there and empty when nothing ran
+    middle.append(this.#progress, this.#els.grid);
     const side = this.#doc.createElement('div');
     side.className = 'dc-app-side';
     middle.append(side);
@@ -626,23 +768,16 @@ export class CubeApp {
     this.#columnsPanel = new ColumnsToolPanel(side, {
       ...((this.#options.foldPanel ?? this.#options.compact) ? { collapsed: true } : {}),
       labelFor: (c) => labelFor(this.#config, c),
-      onPick: (c) => this.#onZoneChange('rows', [...this.#snapshot.rows, c]),
-      onVisibility: (c, visible) => this.#patchColumn(c, { hidden: !visible }),
+      // a column picked: last of the row groups, as the menu's Add Vertical Pivot adds it
+      onPick: (c) => void this.#gesture('pivot.addVertical', { column: c }, 'row groups'),
+      onVisibility: (c, visible) => void this.#gesture('column.show', { column: c, visible }, `column ${c}`),
       // REORDERING WHERE THE LIST IS, and the same merge the grid's
       // own header drag goes through: the panel reports the columns
       // it lists, which is not all of them either.
-      onReorder: (order) => {
-        void this.applyConfiguration({
-          columnOrder: mergeColumnOrder(this.#columnOrder(), order),
-        });
-      },
+      onReorder: (order) => void this.#gesture('columns.reorder', { order }, 'reorder columns'),
       // Dragged out of a zone and back to the list: off that axis.
-      onRemoveFromZone: (zone, column) => {
-        const next = (zone === 'rows'
-          ? this.#snapshot.rows
-          : this.#snapshot.pivotOn).filter((c) => c !== column);
-        this.#onZoneChange(zone, next);
-      },
+      onRemoveFromZone: (zone, column) => void this.#gesture(zone === 'rows' ? 'pivot.removeVertical' : 'pivot.removeHorizontal',
+        { column }, zone === 'rows' ? 'row groups' : 'column pivots'),
     });
 
     // THE SAME ZONES, DOWN THE SIDEBAR.
@@ -709,6 +844,7 @@ export class CubeApp {
       formats: this.#formats,
       appearance: this.#config.appearance,
       columnAppearance: toColumnAppearance(this.#config),
+      isMeasure: (leaf) => isMeasureLeaf({ snapshot: this.#shown, config: this.#config }, leaf),
       canGroup: (c) => this.#isDimension(c),
       onReorder: (order, added) => {
         // A COLUMN DRAGGED OUT OF THE PANEL INTO THE GRID IS A
@@ -720,30 +856,29 @@ export class CubeApp {
         // grouped, pivoted and hidden column out of the order -- and
         // the panel, which sorts by it, threw them to the end of the
         // list. One drag and the grouped columns jumped. One change:
-        // the unhide and the order together.
-        void this.#configure((c) => withSettings(
-          added !== undefined ? withColumn(c, added, { hidden: false }) : c,
-          { columnOrder: mergeColumnOrder(this.#columnOrder(), order) },
-        ), 'reorder columns');
+        // the unhide and the order together (grid-gestures.ts).
+        void this.#gesture('columns.reorder', { order, ...(added !== undefined ? { added } : {}) }, 'reorder columns');
       },
       cellBackground: (leaf, row, value) => this.#heatFor(leaf, row, value),
+      cellDecoration: (leaf, row, value) => cellDecoration(this.#conditionals, this.#treeRows, leaf, row, value),
       rowMeta: (abs) => this.#rowMeta(abs),
       // SET, never toggled: the grid says which way the person asked, and
       // asking for what already is changes nothing (P2-127).
       onToggleExpand: (key, expanded) => {
-        void this.#change((s) => ({ ...s, tree: s.tree.setOpen(parsePathKey(key), expanded) }),
-          { label: expanded ? 'expand' : 'collapse' });
+        void this.#gesture('tree.open', { path: parsePathKey(key), open: expanded }, expanded ? 'expand' : 'collapse');
       },
       onSelectionChange: (range) => this.#onSelectionChange(range),
       onActivateCell: (row, column) => {
         void this.#drillThrough(row, column);
       },
+      onDoubleClickCell: (row, column) => this.#onDoubleClickCell(row, column),
       onHeaderSort: (column, chained) => this.#sortByHeader(column, chained),
       // A dragged edge is a width like Auto-size's -- resizable again,
       // unlike an explicit Fixed one.
-      onResizeColumn: (column, width) => this.#patchColumn(column, { width }),
+      onResizeColumn: (column, width) => void this.#gesture('column.resize', { column, width }, `column ${column}`),
       headerTitle: (path, leaf) => this.#headerTitle(path, leaf),
       treeTitle: (_row, label) => (label === '' ? '' : `Group Value = ${label}`),
+      treeHeader: () => this.#treeHeader(),
       ...(options.writeClipboard
         ? { writeClipboard: options.writeClipboard }
         : {}),
@@ -773,6 +908,8 @@ export class CubeApp {
     this.#listenForKeys();
 
     this.#wireContextMenu();
+    // on a touch screen a long press is the right-click (an iPad fires none of its own): once for the document
+    longPressMenus(this.#doc);
     this.#buildToolbar();
     this.#applyChrome();
     // A DRAG BRINGS THE ZONES BACK. Both listeners are on the app's
@@ -807,12 +944,22 @@ export class CubeApp {
     this.#adoptHostStatus();
   }
 
-  get controller(): CubeController {
-    return this.#controller;
+  /** The cube's state as it is read from outside: whether a change is running, how deep its history is. It is changed
+   *  only by command (edit). */
+  get state(): CubeStateView {
+    // what it reads alone, never the owner itself (whose change() a caller could reach: the S1 audit's 13)
+    const owner = this.#owner;
+    return { get busy() { return owner.busy; }, get historyDepth() { return owner.historyDepth; } };
   }
-  /** The cube's state and its history: read it, or change it through `change`. */
-  get state(): CubeStateOwner {
-    return this.#owner;
+
+  /** The cube run again as it is (its rows read again: a frame served anew), no change and no step. */
+  async refresh(): Promise<void> {
+    await this.#owner.refresh();
+  }
+
+  /** A query as the compiler prints it (the debug window's): reads, changes nothing. */
+  printQuery(query: Lambda, style: PrintStyle): Promise<string> {
+    return this.#controller.print(query, style);
   }
   get configuration(): CubeConfiguration {
     return this.#config;
@@ -870,15 +1017,58 @@ export class CubeApp {
     await this.#owner.refresh();
   }
 
+  /** Where its rows come from, as it is saved (a class: a dashboard's tile, which the page's filters reach). */
+  get cubeSource(): CubeSource | undefined {
+    return this.#options.cubeSource;
+  }
+
   /**
-   * Change the cube: `update` derives the next state from the current one.
-   * Presentation (a colour, a width) commits at once and runs no query; a
-   * change to the query is one transaction -- it commits as the engine
-   * returned it, or is refused and everything repaints from what was on
-   * screen, the refusal said where the user reads it. Never throws.
+   * EVERY QUERY THIS GRID RUNS REWRITTEN BY ITS HOST (runner.ts QueryLens: a dashboard's page filters on its class,
+   * docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2) -- never its own state, so its undo, its saved document and its
+   * copies are the grid's alone. `run`: the grid runs again with it now, as a refresh (not a step of its own history);
+   * else its next query has it (a grid made, before it opens).
    */
-  change(update: (state: CubeState) => CubeState, options?: ChangeOptions): Promise<Outcome> {
-    return this.#change(update, options);
+  async setLens(lens: QueryLens | undefined, run: boolean, said?: string): Promise<void> {
+    this.#controller.setLens(lens);
+    this.#lens = lens;
+    // what filters it, said in its status bar beside its own filter: a page's filter is not the grid's own
+    this.#lensSaid = lens ? said : undefined;
+    // a grid it spawned (a copy, a chart's own) reads as it does, the page's filters changing with it
+    for (const grid of [...this.#spawnedGrids]) {
+      if (grid.#disposed) this.#spawnedGrids.delete(grid);
+      else void grid.setLens(lens, run, said);
+    }
+    if (run) await this.#owner.refresh();
+  }
+
+  /**
+   * EDITS BY COMMAND (grid-commands.ts), as the screen's own controls make them: one change, a step of the grid's history,
+   * told to its host (onCommand). The refusal, in the commands' words or the planner's, or null. What a host or a test
+   * edits the grid by: no change reaches its state but by a command (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md, G11).
+   */
+  /**
+   * The grid HELD while its page's channel converges on its keeper's page (live-converge.ts, with PageApp.hold): a
+   * person's edit meanwhile is refused, said -- the grid is being put back and replayed -- rather than laid over a state
+   * that is neither the keeper's nor kept and written as the person's (the D19 audit's third round, 1). The converge's
+   * own moves (applyGridCommands) pass. Held and released in pairs.
+   */
+  hold(): void {
+    this.#held += 1;
+  }
+
+  release(): void {
+    this.#held = Math.max(0, this.#held - 1);
+  }
+
+  get held(): boolean {
+    return this.#held > 0;
+  }
+
+  edit(commands: readonly GridCommand[], label: string, options: { readonly again?: boolean } = {}): Promise<string | null> {
+    // `again`: a pending edit made again after a converge put the grid back (live-converge.ts): told, as any edit, but
+    // no new step of the history -- its step is in it already (the D19 audit's second round, 3: recorded twice, an undo
+    // went forward)
+    return this.#apply(commands, label, options.again === true ? false : undefined);
   }
 
   // -- the cube's state, read ----------------------------------------------
@@ -893,6 +1083,9 @@ export class CubeApp {
   }
 
   /** The view on screen, and its rows. */
+  /** The headers on screen, as #paintView painted them: what a header click sorts by (header-sort.ts). */
+  #headers: readonly LeafColumn[] = [];
+
   get #view(): CubeView | null {
     return this.#owner.view;
   }
@@ -917,35 +1110,140 @@ export class CubeApp {
     return this.#owner.change(update, options);
   }
 
-  /** A change of the configuration alone. */
-  #configure(update: (config: CubeConfiguration) => CubeConfiguration, label: string): Promise<Outcome> {
-    return this.#change((s) => ({ ...s, configuration: update(s.configuration) }), { label });
-  }
-
-  /** A change of the snapshot alone. */
-  #query(update: (snapshot: CubeSnapshot) => CubeSnapshot, label: string): Promise<Outcome> {
-    return this.#change((s) => ({ ...s, snapshot: update(s.snapshot) }), { label });
+  /**
+   * GRID COMMANDS APPLIED (grid-commands.ts: the one function the screen's edits and Python's calls are applied by --
+   * docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md), as one change of the cube as it is when the change lands. The
+   * screen's controls offer only what its rules allow; a command they refuse is said, in their words, and changes
+   * nothing. A host is told each command the cube kept (onCommand). The refusal, its words or the planner's, or null.
+   */
+  async #apply(commands: readonly GridCommand[], label: string, record?: boolean): Promise<string | null> {
+    if (this.#held > 0) {
+      const why = CATCHING_UP;
+      this.#status(why, 'warn');
+      return why;
+    }
+    const { refused, outcome } = await this.#applyCommands(commands, label, 'mine', record);
+    return refused ?? refusal(outcome);
   }
 
   /**
-   * A grid edit (grid-edits.ts, the one way a grid's grouping, pivot and sorts are set) on the cube as it is when the
-   * change lands. The screen's controls offer only what its rules allow; an edit they refuse is said, in their words,
-   * and changes nothing.
+   * ANOTHER EDITOR'S GRID COMMANDS (Python's, on a page it serves: docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md), applied
+   * as the screen's own edits are: one change, named `label`. The refusal, in its words or the planner's, or null.
    */
-  #edit(edit: (draft: GridDraft) => GridDraft, label: string): Promise<Outcome> {
-    let refused: string | undefined;
-    const out = this.#change((s) => {
-      try {
-        const d = edit({ snapshot: s.snapshot, config: s.configuration });
-        return { ...s, snapshot: d.snapshot, configuration: d.config };
-      } catch (e) {
-        if (!(e instanceof CubeRefusal)) throw e;
-        refused = e.message;
-        return s;
-      }
-    }, { label });
-    if (refused !== undefined) this.#status(refused, 'warn');
-    return out;
+  async applyGridCommands(commands: readonly GridCommand[], label: string, own = false, keepHistory = false): Promise<string | null> {
+    const { refused, outcome } = await this.#applyCommands(commands, label, own ? 'said' : 'theirs');
+    const why = refused ?? refusal(outcome);
+    // another editor's change is no step of this grid's own history, which starts again from it (an undo past it would
+    // take it back unseen); `own`: what a page step of the person's own said already (removeTile's rule taking a
+    // chart's selection off) -- told nothing, a step of the grid's history all the same, recorded, so an undo past it
+    // lands where it was (the S7 confirmation audit's G2-2; its third round's 1: unrecorded, an undo put the selection
+    // back and took the edit before it away); `keepHistory`: its keeper's put-back of this grid for a converge's hash
+    // check (live-converge.ts), no other editor having touched it, its pending edits made again after -- no step, and
+    // the history stays (W13: it starts again only when another editor edits this grid)
+    // ... and a change that changed nothing restarts nothing (the fourth round's 6: this screen's own chart removal,
+    // replayed, took a condition already off and wiped the grid's history for it)
+    if (why === null && !own && !keepHistory && outcome.kind !== 'nothing') this.#owner.clearHistory();
+    return why;
+  }
+
+  /** #apply's change, and how it ended: a refusal of the commands in their words, or the change's outcome. `by`: the
+   *  screen's own edit -- a step of its
+   *  history, its commands told -- or another editor's (Python's: applyGridCommands), which is neither: its commands
+   *  are that editor's own already, never told back to it (T4) -- or (`said`) the person's own that a page step of
+   *  theirs told already: a step of its history, told nothing. */
+  async #applyCommands(commands: readonly GridCommand[], label: string,
+    by: 'mine' | 'theirs' | 'said' = 'mine', record: boolean = by !== 'theirs'): Promise<{ refused: string | null; outcome: Outcome }> {
+    let refused: string | null = null;
+    // judged on the state the person sees (the change in flight's, else the committed one): a presentation change is
+    // laid over the committed state too, and one that state cannot take (a setting of the column the change in flight
+    // adds) is no refusal -- it waits for that change, told after it (T1)
+    const applying = { commands: by === 'mine' ? commands : [], taken: false, onCommitted: true };
+    this.#applying = applying;
+    const seen = this.#owner.current;
+    let out: Promise<Outcome>;
+    try {
+      out = this.#change((s) => {
+        try {
+          const d = applyGridCommands({ snapshot: s.snapshot, config: s.configuration, tree: s.tree }, commands);
+          return { snapshot: d.snapshot, configuration: d.config, tree: d.tree };
+        } catch (e) {
+          if (!(e instanceof CubeRefusal)) throw e;
+          if (s === seen) refused = e.message;
+          else if (s === this.#owner.committed) applying.onCommitted = false;
+          return s;
+        }
+      }, { label, record });
+    } finally {
+      this.#applying = null;
+    }
+    if (refused !== null) {
+      this.#status(refused, 'warn');
+      return { refused, outcome: await out };
+    }
+    // no event took them: they changed nothing -- told now, or after the change in flight they were laid on
+    // (another editor's never: applying.commands is empty for them -- the S1 audit's 3)
+    if (!applying.taken) {
+      if (this.#owner.busy) this.#untold.push(...applying.commands);
+      else this.#tell(applying.commands);
+    }
+    return { refused, outcome: await out };
+  }
+
+  /**
+   * THE COMMANDS A HOST IS TOLD, AS THE CUBE KEEPS THEM (onCommand): the commands of each transition of the committed
+   * state, in the order it took them (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md T1-T4). The ones being applied join the
+   * change in flight (pending) or are kept at once (a presentation change laid over the committed state; a deferred
+   * one, committed with what was in flight). A presentation change laid over a change in flight too is told again after
+   * that change's commands when it commits -- the committed state then takes them in that order -- and one the
+   * committed state could not take is told only then. A change in flight's commands are told when it commits; a
+   * transition an undo or a redo is part of (a change made on top of one too) is told as the commands between the
+   * committed state before and the one landed (the owner's `edits`: grid-between.ts, through the cube's rules), which
+   * say the move and the change on top alike (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W3). Refused, they are kept for
+   * the change run again (signed in again); cancelled, dropped.
+   */
+  #followCommands(event: OwnerEvent): void {
+    const applying = this.#applying;
+    if (applying) applying.taken = event.kind === 'pending' || event.kind === 'presentation' || event.kind === 'deferred';
+    switch (event.kind) {
+      case 'pending':
+        this.#refused = null;
+        if (applying) this.#untold.push(...applying.commands);
+        return;
+      case 'presentation':
+        // an undo or a redo of a presentation change (a width, a format): told as the commands between, as a move that
+        // queries is when it commits (W3); what was kept to tell again after a change it laid over is in them, or undone
+        // with it (the S7 confirmation audit's G2-1)
+        if (event.moved) {
+          this.#untold = [];
+          this.#tell(event.edits ?? []);
+          return;
+        }
+        if (!applying) return;
+        if (applying.onCommitted) this.#tell(applying.commands);
+        if (this.#owner.busy) this.#untold.push(...applying.commands);
+        return;
+      case 'deferred':
+        this.#tell([...this.#untold, ...(applying?.commands ?? [])]);
+        this.#untold = [];
+        return;
+      case 'committed':
+        // a move's transition: the commands between say it whole, a change made on top of it too (its own were put in
+        // #untold at pending, and are in the landed state the commands reach)
+        this.#tell(event.moved ? event.edits ?? [] : this.#untold);
+        this.#untold = [];
+        return;
+      case 'refused':
+        this.#refused = { commands: this.#untold, moved: event.moved };
+        this.#untold = [];
+        return;
+      case 'cancelled':
+        this.#untold = [];
+        return;
+    }
+  }
+
+  #tell(commands: readonly GridCommand[]): void {
+    for (const command of commands) this.#options.onCommand?.(command);
   }
 
   /**
@@ -958,6 +1256,7 @@ export class CubeApp {
    * (P2-102, P2-108).
    */
   #onState(event: OwnerEvent): void {
+    this.#followCommands(event);
     this.#setBusy(this.#owner.busy);
     this.#paintState();
     // the Filters window follows the filter the cube HAS
@@ -971,6 +1270,7 @@ export class CubeApp {
         return;
       case 'presentation':
         if (this.#view) this.#paintView(this.#view);
+        this.#keepBoard();
         this.#emit('change');
         return;
       case 'refused':
@@ -1053,22 +1353,6 @@ export class CubeApp {
   #refreshFormats(): void {
     for (const key of Object.keys(this.#formats)) delete this.#formats[key];
     Object.assign(this.#formats, columnFormats(this.#config, this.#snapshot, this.#shown, this.#view ?? undefined));
-  }
-
-  /**
-   * The order of EVERY column, not just the ones on screen.
-   *
-   * The configured order where there is one, and the cube's declared
-   * order behind it, so a column the order predates still has a
-   * place rather than being treated as unlisted.
-   */
-  #columnOrder(): string[] {
-    const declared = this.#snapshot.columns.map((c) => c.name);
-    const configured = this.#config.columnOrder ?? [];
-    return [
-      ...configured.filter((n) => declared.includes(n)),
-      ...declared.filter((n) => !configured.includes(n)),
-    ];
   }
 
   #refreshToolPanel(): void {
@@ -1180,6 +1464,9 @@ export class CubeApp {
     // Open charts follow the cube: a new filter or calculated column redraws them.
     this.#page?.page.refresh();
     this.#page?.page.reconcile(this.#snapshot.filter);
+    // the board's state as the grid now leaves it: its cube, a chart following it, a selection its filter lost (the S3
+    // audit's 1)
+    this.#keepBoard();
     this.#paintView(view);
     this.#paintReceipts();
     this.#reportSchemaChanges(view);
@@ -1196,6 +1483,7 @@ export class CubeApp {
    */
   #paintView(view: CubeView): void {
     const model = shownColumns(view, this.#config);
+    this.#headers = model.leaves;
     // Refreshed AFTER the view lands, because the pivot's leaf names
     // are only known once the engine has answered.
     this.#refreshFormats();
@@ -1211,7 +1499,7 @@ export class CubeApp {
     this.#renderStatusBar(view, model.leaves.length);
     // The snapshot's row count is in the toggle's tooltip, and a
     // fresh snap changes it.
-    this.#paintSnap?.();
+    this.#paintPlane();
 
     const base = timingText(view, model.leaves.length);
     if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
@@ -1228,90 +1516,187 @@ export class CubeApp {
   }
 
   /**
-   * Their status bar: a 20px strip, right-aligned, carrying the row
-   * count in a monospaced face and the truncation warning in orange.
+   * Its status bar, a 20px strip: what you can do and what the grid shows at the left, what is true of it at the right
+   * (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §5). The left: the grid's tools as icons --
+   * Properties, Filter, Add Column, Join -- then its rows or groups, then the selection's figures. The right: a chip
+   * only where there is something to say -- where its rows come from, a filter or a top N in force, the page's filter,
+   * a note, a cut result -- then what answered it (ⓘ) and the host's word.
    *
-   * Monospaced because the number changes as you expand the tree,
-   * and a proportional figure jitters its neighbours every time it
-   * does. The separators are theirs too -- a 1px by 12px neutral
-   * rule between groups rather than padding alone.
+   * Tabular figures (app.css): the count changes as the tree expands, and a proportional figure jitters its
+   * neighbours every time it does.
    */
   #renderStatusBar(view: CubeView, cols: number): void {
     // Ad Hoc owns the bar while it is on (`#renderAdHocStatus`)
     if (this.#adhoc) return;
     const doc = this.#doc;
-
-// WHAT YOU CAN DO ON THE LEFT, WHAT IS TRUE ON THE RIGHT.
-    //
-    // DataCube's own bar is `justify-between` with two link buttons
-    // at the left -- a settings icon and an underlined "Properties",
-    // then a filter icon and an underlined "Filter" -- and its
-    // readouts at the right. Ours had one link and every figure
-    // crowded after it.
-    //
-    // Both editors were reachable only through the grid's
-    // right-click menu, two levels down, and a person looking for
-    // them did not find them.
     const { left, right } = this.#statusFrame();
 
-    const properties = doc.createElement('button');
-    properties.type = 'button';
-    properties.className = 'dc-status-link dc-status-properties';
-    properties.textContent = '\u2699 Properties';
-    properties.title = 'The cube\u2019s settings (Ctrl+E)';
-    properties.addEventListener('click', () => this.openEditor());
-    left.append(properties);
+    // THE GRID'S TOOLS, as icons: both editors were reachable only through the right-click, two levels down, and a
+    // person looking for them did not find them; then they were underlined links, the one place the app looked like a
+    // 2005 web page. What it says is of the view shown, as its readout is -- not of a change still running (the
+    // 2026-10-25 audit: Top 10 beside the last query's rows, its x acting on what was not shown yet)
+    const filtered = view.snapshot.filter !== undefined;
+    const tools = doc.createElement('div');
+    tools.className = 'dc-status-tools';
+    tools.append(
+      this.#tool('properties', 'dc-status-properties', 'Properties', 'The grid’s properties (Ctrl+E)', () => this.openEditor()),
+      // a filter in force is state, not decoration: the funnel says so, and so does its chip
+      this.#tool('filter', `dc-status-filter${filtered ? ' dc-on' : ''}`, 'Filter',
+        filtered ? 'Filter: one is in force; click to edit it' : 'Filter the grid', () => this.openFilters()),
+      this.#tool('addColumn', 'dc-status-add-column', 'Add Column', 'Add a calculated column', () => this.openColumnEditor({})),
+    );
+    if (this.#options.joinMenu) tools.append(this.#joinTool());
+    left.append(tools, this.#statusSeparator());
 
-    // The filter SAYS whether one is in force. A cube showing a
-    // subset with nothing on screen to indicate it is how someone
-    // reads a filtered total as the whole book.
-    const filtered = this.#snapshot.filter !== undefined;
-    const filter = doc.createElement('button');
-    filter.type = 'button';
-    filter.className = filtered
-      ? 'dc-status-link dc-status-filter dc-on'
-      : 'dc-status-link dc-status-filter';
-    filter.textContent = filtered ? '⧨ Filter (on)' : '⧨ Filter';
-    filter.title = filtered
-      ? 'A filter is in force. Click to edit it.'
-      : 'Filter the cube';
-    filter.addEventListener('click', () => this.openFilters());
-    left.append(filter);
-
-    // THE RESULT, AND WHAT IT COST, in the one bar that is already
-    // about the result.
-    //
-    // This said "Rows: 29" while the same figure -- plus the column
-    // count and the elapsed time -- went to the host through
-    // `onStatus` and was rendered ABOVE the grid, in the strip that
-    // should say what you are looking at. Two readouts of one fact,
-    // the fuller one in the wrong place. The cube states it here
-    // itself, so a host gets a timing readout without wiring one,
-    // and `onStatus` still fires for hosts that want their own.
-    const rows = this.#readout(right, timingText(view, cols));
-    rows.title = 'Rows and columns in the result, and how long the '
-      + 'query took.';
-    this.#receiptChip(right, view);
-
-    if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
-      right.append(this.#statusSeparator());
-      const warn = doc.createElement('div');
-      warn.className = 'dc-status-warning';
-      const cap = (this.#config.maxRows ?? DEFAULT_MAX_ROWS).toLocaleString(UI_LOCALE);
-      // a flat cube says how many there are in all (cube.ts `totalRows`): the first 1,000 of 48,213
-      warn.textContent = view.totalRows !== undefined
-        ? `⚠ Showing the first ${cap} of ${view.totalRows.toLocaleString(UI_LOCALE)} rows (row limit)`
-        : `⚠ Results truncated to fit within row limit (${cap})`;
-      right.append(warn);
+    // WHAT THE LAST QUERY RETURNED, and what it cost: its own figures, nothing summed or guessed (the user, 2026-10-25:
+    // "just show stats/num rows of the last query"); for a script, the rows on screen and which view this is
+    const rows = this.#readout(left, timingText(view, cols));
+    rows.title = 'What the last query returned -- its rows and columns -- and how long it took';
+    rows.dataset['rows'] = String(view.rows.rowCount);
+    if (this.#readoutView !== view) {
+      this.#readoutView = view;
+      viewsLanded += 1;
+      this.#readoutViewNumber = viewsLanded;
     }
-
+    rows.dataset['view'] = String(this.#readoutViewNumber);
     const stats = doc.createElement('div');
     stats.className = 'dc-status-stats';
-    right.append(this.#statusSeparator(), stats);
+    left.append(stats);
     this.#statsSlot = stats;
     this.#renderSelectionStats();
 
-    this.#statusTail(right);
+    // WHAT IS TRUE OF IT, each only while it is: where its rows come from (a grid in a tile -- its header shows its
+    // title and its state's icon alone), then what narrows them
+    if (this.#inTile) right.append(this.#statusSourceEl);
+    if (filtered) {
+      right.append(this.#chip('dc-status-filtered', 'Filtered', 'A filter is in force: click to edit it', () => this.openFilters()));
+    }
+    const top = view.snapshot.topN;
+    if (top !== undefined) {
+      const word = `${top.bottom ? 'Bottom' : 'Top'} ${top.n}`;
+      const by = labelFor(this.#config, top.by);
+      right.append(this.#chip('dc-status-topn', `${word} by ${by}`,
+        `Only the ${top.n} ${top.bottom ? 'smallest' : 'largest'} by ${by}`,
+        undefined, { label: `Clear ${word}`, act: () => void this.#gesture('filter.topNOff', {}, `clear ${word}`) }));
+    }
+    // the page's filters on it (a dashboard's: setLens), in words -- each tile says what filters it
+    if (this.#lensSaid !== undefined) {
+      right.append(this.#chip('dc-status-page-filter', `Page: ${this.#lensSaid}`,
+        'The page’s filters on this grid’s class: set and taken off in the page’s filter bar'));
+    }
+    if (this.#note !== undefined) {
+      const note = doc.createElement('div');
+      note.className = 'dc-status-note';
+      note.setAttribute('role', 'status');
+      const said = doc.createElement('span');
+      said.className = 'dc-status-note-text';
+      said.textContent = this.#note;
+      said.title = this.#note;
+      const away = doc.createElement('button');
+      away.type = 'button';
+      away.className = 'dc-status-note-close';
+      away.append(chromeIcon(doc, 'close'));
+      away.setAttribute('aria-label', 'Put the note away');
+      away.addEventListener('click', () => this.note(undefined));
+      note.append(said, away);
+      right.append(note);
+    }
+    if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
+      const warn = doc.createElement('div');
+      warn.className = 'dc-status-chip dc-status-warning';
+      const cap = (this.#config.maxRows ?? DEFAULT_MAX_ROWS).toLocaleString(UI_LOCALE);
+      // a flat cube says how many there are in all (cube.ts `totalRows`): the first 1,000 of 48,213
+      warn.textContent = view.totalRows !== undefined
+        ? `⚠ Showing the first ${cap} of ${view.totalRows.toLocaleString(UI_LOCALE)} rows`
+        : `⚠ Truncated at ${cap} rows`;
+      warn.title = `The row limit (${cap}, in Properties) cut the result: what is not shown is in no total either`;
+      right.append(warn);
+    }
+    this.#receiptChip(right, view);
+    // the host's word, last (what runs is a bar on the grid's top edge: `#progress`)
+    this.#adoptHostStatus();
+  }
+
+  /** One of the status bar's tools: its icon, its name (for a screen reader and a test), what it does on hover. */
+  #tool(icon: ToolIcon, className: string, label: string, tip: string, act: () => void): HTMLButtonElement {
+    const button = this.#doc.createElement('button');
+    button.type = 'button';
+    button.className = `dc-status-tool ${className}`;
+    const said = this.#doc.createElement('span');
+    said.className = 'dc-status-tool-word';
+    said.textContent = label;
+    button.append(toolIcon(this.#doc, icon), said);
+    button.title = tip;
+    button.addEventListener('click', () => {
+      if (button.getAttribute('aria-disabled') !== 'true') act();
+    });
+    return button;
+  }
+
+  /**
+   * Join, its host's (`joinMenu`): its right-click's Join ▸ on no column -- Join…, Join a Data Source… -- opened under
+   * it. Greyed, with the host's reason, where nothing can be joined: asked as the pointer or the focus reaches it,
+   * never at a paint -- the host builds its page's document to answer, and keeps what each entry asks until one is
+   * picked, which an open menu's entries need kept.
+   */
+  #joinTool(): HTMLButtonElement {
+    const tip = 'Join another table to this grid’s rows';
+    const ask = (): readonly MenuItem[] | null => {
+      const items = this.#options.joinMenu?.(undefined) ?? [];
+      // its answer to a pick is the host's (#onHostAction), as a right-click's Join ▸ is
+      this.#cellHost = items;
+      const why = items.every((i) => i.disabled === true)
+        ? items.find((i) => i.hint !== undefined)?.hint ?? 'Nothing on this page can be joined to it'
+        : undefined;
+      if (why === undefined) {
+        button.removeAttribute('aria-disabled');
+        button.title = tip;
+      } else {
+        button.setAttribute('aria-disabled', 'true');
+        button.title = `Join: ${why}`;
+      }
+      return why === undefined ? items : null;
+    };
+    const button = this.#tool('join', 'dc-status-join', 'Join', tip, () => {
+      const items = ask();
+      if (items !== null) this.#toggleMenu(button, () => [{ label: '', items: [...items] }]);
+    });
+    button.setAttribute('aria-haspopup', 'menu');
+    const peek = (): void => {
+      if (!this.#menu.open) ask();
+    };
+    button.addEventListener('pointerenter', peek);
+    button.addEventListener('focus', peek);
+    return button;
+  }
+
+  /**
+   * A chip at the right of the status bar: something true of the grid, in a word or two, the rest on hover. `act`: a
+   * click does it (the filter's opens the filter); `close`: a × that takes it away.
+   */
+  #chip(className: string, text: string, tip: string, act?: () => void,
+    close?: { readonly label: string; readonly act: () => void }): HTMLElement {
+    const doc = this.#doc;
+    let chip: HTMLElement = doc.createElement('span');
+    if (act) {
+      const button = doc.createElement('button');
+      button.type = 'button';
+      button.addEventListener('click', act);
+      chip = button;
+    }
+    chip.className = `dc-status-chip ${className}`;
+    chip.textContent = text;
+    chip.title = tip;
+    if (!close) return chip;
+    const away = doc.createElement('button');
+    away.type = 'button';
+    away.className = 'dc-status-chip-close';
+    away.append(chromeIcon(doc, 'close'));
+    away.setAttribute('aria-label', close.label);
+    away.title = close.label;
+    away.addEventListener('click', close.act);
+    chip.append(away);
+    return chip;
   }
 
   /**
@@ -1326,11 +1711,16 @@ export class CubeApp {
     chip.type = 'button';
     chip.className = `dc-status-receipt dc-receipt-${main.copy ? 'copy' : main.plane}`;
     const more = view.receipts.length > 1 ? ` (+${view.receipts.length - 1})` : '';
-    chip.textContent = `${receiptLabel(main)}${more}`;
+    // AN ⓘ, its words on hover (the user, 2026-10-25): "this tab (+1)" meant nothing to a person who had not read the
+    // receipts' design; its words stay its name, for a screen reader and a test
+    const said = this.#doc.createElement('span');
+    said.className = 'dc-status-tool-word';
+    said.textContent = `${receiptLabel(main)}${more}`;
+    chip.append(toolIcon(this.#doc, 'info'), said);
     chip.title = `${receiptLines(main).join('\n')}\n\nClick for every query's receipt`
       + (main.check ? ', and to check it with the server.' : '.');
     chip.addEventListener('click', () => this.openReceipts());
-    right.append(this.#statusSeparator(), chip);
+    right.append(chip);
   }
 
   /** Every receipt behind the view on screen, each checkable with its server where it can be. */
@@ -1414,23 +1804,13 @@ export class CubeApp {
     return { left, right };
   }
 
-  /** The row and column readout, at the start of the right side. */
-  #readout(right: HTMLElement, text: string): HTMLElement {
+  /** What the last query returned, after its tools (`timingText`). */
+  #readout(left: HTMLElement, text: string): HTMLElement {
     const rows = this.#doc.createElement('div');
     rows.className = 'dc-status-rows dc-status-timing';
     rows.textContent = text;
-    right.append(rows);
+    left.append(rows);
     return rows;
-  }
-
-  /**
-   * The end of every status bar: upstream's task progress (a bar while anything runs, what is
-   * running in its tooltip; the same element every rebuild, so a task that outlives a view
-   * keeps showing), then the host's own readout.
-   */
-  #statusTail(right: HTMLElement): void {
-    right.append(this.#statusSeparator(), this.#progress);
-    this.#adoptHostStatus();
   }
 
   /**
@@ -1439,9 +1819,9 @@ export class CubeApp {
    * it (P2-287), and the counts were the hidden cube's (P2-290).
    */
   #renderAdHocStatus(rows: number, cols: number, stale: boolean): void {
-    const { right } = this.#statusFrame();
-    this.#readout(right, `${rows.toLocaleString(UI_LOCALE)} rows \u00d7 ${cols} cols${stale ? ' (not refreshed)' : ''}`);
-    this.#statusTail(right);
+    const { left } = this.#statusFrame();
+    this.#readout(left, `${rows.toLocaleString(UI_LOCALE)} rows \u00d7 ${cols} cols${stale ? ' (not refreshed)' : ''}`);
+    this.#adoptHostStatus();
   }
 
   /**
@@ -1552,6 +1932,17 @@ export class CubeApp {
   }
 
   /**
+   * A NOTE on its status bar, beside its rows, until it is put away (its ×) or another replaces it: what a quick join
+   * did, what opening it left out (app/join-flow.ts) -- said where the grid is, not in a window that may be closed.
+   * Undefined: none.
+   */
+  note(text: string | undefined): void {
+    this.#note = text;
+    const view = this.#view;
+    if (view) this.#renderStatusBar(view, view.columns.leaves.length);
+  }
+
+  /**
    * The host's readout asked for again, without a render: a page whose first grid changed moves its readout there
    * (and the grid it left drops its slot).
    */
@@ -1570,8 +1961,7 @@ export class CubeApp {
     readonly showTitleBar?: boolean;
   }): void {
     // Presentation: no query, one undo step, painted by `#onState`.
-    void this.#configure((c) => ({ ...c, ...patch }),
-      patch.showTitleBar !== undefined ? 'title bar' : 'drag zones');
+    void this.#gesture('view.chrome', patch, patch.showTitleBar !== undefined ? 'title bar' : 'drag zones');
   }
 
   /**
@@ -1697,6 +2087,10 @@ export class CubeApp {
     for (const [leaf, heat] of measureHeatmaps(view, this.#treeRows, (name) => this.#heatmapFor(name))) {
       this.#heatmaps.set(leaf, heat);
     }
+    this.#conditionals.clear();
+    for (const [leaf, c] of measureConditionals(view, this.#treeRows, (name) => conditionalSetting(this.#config, view, name))) {
+      this.#conditionals.set(leaf, c);
+    }
   }
 
   /**
@@ -1712,6 +2106,15 @@ export class CubeApp {
     return heatmapSetting(this.#config, this.#view ?? undefined, leafName);
   }
 
+  /** What the menu's Conditional Formatting ▸ says of a leaf: its data bars, its icons, how many rules. */
+  #conditionalFacts(leafName: string): ConditionalFacts {
+    const c = conditionalSetting(this.#config, this.#view ?? undefined, leafName);
+    return {
+      dataBar: c?.dataBar !== undefined, rules: c?.rules?.length ?? 0, scale: this.#heatmapFor(leafName) !== undefined,
+      ...(c?.iconSet ? { iconSet: c.iconSet.set } : {}),
+    };
+  }
+
   /**
    * The measure a pivot column spreads (or totals), from the view's
    * plan -- never read out of the column's name. Undefined for any
@@ -1725,57 +2128,26 @@ export class CubeApp {
 
   /** A drag in the zones: the whole new layout, one change (P2-103). */
   #onLayout(layout: ZoneLayout): void {
-    void this.#edit((d) => setPivot(setGrouping(d, layout.rows), layout.columns), 'move in the zones');
-  }
-
-  #onZoneChange(zone: Zone, columns: readonly string[]): void {
-    void this.#edit((d) => (zone === 'rows' ? setGrouping(d, columns) : setPivot(d, columns)),
-      zone === 'rows' ? 'row groups' : 'column pivots');
-  }
-
-  /**
-   * Take the editor's two lists, as one transaction: if the planner
-   * refuses, the cube is put back whole and the refusal is RETURNED to the
-   * editor, which keeps the form open and shows it there -- the error the
-   * user sees is the planner's own rather than a paraphrase.
-   */
-  async #setCalc(
-    row: readonly DerivedColumn[],
-    group: readonly DerivedColumn[],
-    rename?: { readonly from: string; readonly to: string },
-  ): Promise<string | null> {
-    const out = await this.#change((s) => {
-      const next: CubeSnapshot = { ...s.snapshot, derived: [...row], groupDerived: [...group] };
-      // A RENAME carries through: grouped, pivoted, sorted or filtered
-      // by the old name, and its settings (format, width, display name)
-      // follow it. Before, the rename left those naming a column that
-      // no longer existed, and the planner refused it.
-      return rename
-        ? {
-            ...s,
-            snapshot: renameColumnReferences(next, rename.from, rename.to),
-            configuration: renameColumnConfig(s.configuration, rename.from, rename.to),
-          }
-        : { ...s, snapshot: next };
-    }, { label: 'calculated columns' });
-    return refusal(out);
+    void this.#gesture('zones.set', { rows: layout.rows, columns: layout.columns }, 'move in the zones');
   }
 
   /**
    * A preset's calculated columns added to the cube (the grid's Extended Columns menu), in one step: `make` builds them
    * under the name it is given -- the one the person asked for, the last column -- and names any it reads after it. A
-   * name the cube already has gets a number, so a preset never replaces a column.
+   * name the cube already has gets a number, so a preset never replaces a column. Each is added by the command the
+   * column editor's Add builds (grid-commands.ts calculate), in order, so one may read the one before it.
    */
-  async #addPreset(stage: 'row' | 'group', name: string, label: string, make: (name: string) => DerivedColumn[]): Promise<void> {
-    const s = this.#snapshot;
-    const taken = new Set([...rowColumns(s).map((c) => c.name), ...(s.groupDerived ?? []).map((d) => d.name)]);
-    const fits = (n: string): boolean => make(n).every((d) => !taken.has(d.name));
-    let free = name;
-    for (let i = 2; !fits(free); i += 1) free = `${name}_${i}`;
-    const added = make(free);
-    const refused = stage === 'row'
-      ? await this.#setCalc([...s.derived, ...added], [...(s.groupDerived ?? [])])
-      : await this.#setCalc([...s.derived], [...(s.groupDerived ?? []), ...added]);
+  /** A preset's columns added in one step, by the one rule Python's grid.grain and grid.show_as ask (grid-presets.ts). */
+  async #addPreset(preset: GridPreset, label: string): Promise<void> {
+    let commands: GridCommand[];
+    try {
+      commands = presetCommands(this.#snapshot, preset);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(`Could not add ${label}: ${e.message}`, 'error');
+      return;
+    }
+    const refused = await this.#apply(commands, 'calculated columns');
     if (refused) this.#status(`Could not add ${label}: ${refused}`, 'error');
   }
 
@@ -1797,6 +2169,7 @@ export class CubeApp {
       // region, and the desk beneath it filters desk. Their menu
       // resolves it the same way, from the node's level.
       let value: FilterValue | null | undefined;
+      let raw: unknown;
       let columnType: string | undefined;
       const cell = el.closest<HTMLElement>('.dc-cell');
       const row = cell?.closest<HTMLElement>('.dc-row');
@@ -1815,19 +2188,21 @@ export class CubeApp {
           // total's path is empty and offers no value filter.
           const path = meta?.path ?? [];
           column = this.#shown.rows[path.length - 1];
-          value = path.length > 0 ? (path[path.length - 1] ?? null) : undefined;
+          raw = path.length > 0 ? (path[path.length - 1] ?? null) : undefined;
         } else if (column !== undefined) {
           const leaf = this.#view.columns.leaves.find(
             (l) => l.name === column,
           );
-          const raw =
-            leaf === undefined
-              ? null
-              : (this.#view.rows.columns[leaf.index]?.values[abs] ?? null);
-          // a big integer as its digits: a filter value is saved as JSON, which has no
-          // bigint; `literal` spells the digits by the column's type
-          value = (typeof raw === 'bigint' ? raw.toString() : raw) as FilterValue | null;
+          raw = leaf === undefined ? null : (this.#view.rows.columns[leaf.index]?.values[abs] ?? null);
         }
+        if (column !== undefined) {
+          columnType = rowColumns(this.#shown).find(
+            (c) => c.name === column,
+          )?.type;
+        }
+        // the cell's or the key's value as a filter takes it, by the value list's one rule (value-filter.ts
+        // cellFilterValue): a big integer as its digits, a JSON cell's text as a document (`fromJson`)
+        if (raw !== undefined) value = cellFilterValue(raw, columnType);
         // A PIVOT'S OWN COLUMN -- a cell or a Total -- exists only after
         // the pivot, and every filter runs before it: a value filter on
         // one could only be refused (P2-134). Its row keys and its pivot
@@ -1836,14 +2211,6 @@ export class CubeApp {
           && (isPivotTotalColumn(column) || this.#pivotMeasureOf(column) !== undefined)) {
           value = undefined;
         }
-        if (column !== undefined) {
-          columnType = rowColumns(this.#shown).find(
-            (c) => c.name === column,
-          )?.type;
-        }
-        // a JSON cell or key is its JSON text; as a filter value it is a document
-        // (`fromJson`), as query.ts reads a JSON group key
-        if (isVariant(columnType) && typeof value === 'string') value = { json: value };
         // A group-stage calculated column exists only AFTER the
         // groupBy, and every filter runs before it -- so a value
         // filter on one could only ever be refused.
@@ -1874,17 +2241,34 @@ export class CubeApp {
         && column !== TREE_COLUMN
         ? facts.pivotBase ?? column
         : undefined;
+      // the host's Join ▸ on the column clicked, and its Create ▸ entries: theirs to answer (#onHostAction)
+      const join = this.#options.joinMenu?.(column !== TREE_COLUMN ? column : undefined) ?? [];
+      this.#cellHost = join;
+      const related = this.#relatedOffers();
+      const measures = this.#modelMeasures();
       const groups = buildMenu({
         snapshot: this.#shown,
+        ...(this.#options.onStepAfter ? { stepAfter: true } : {}),
+        ...(join.length > 0 && !this.#adhoc ? { join } : {}),
+        create: this.#hostItems('create'),
+        canOpenSource: this.#canOpenSource,
         ...(propertiesColumn !== undefined ? { propertiesColumn } : {}),
         ...(column !== undefined ? { column } : {}),
         isRowDimension: column
           ? this.#shown.rows.includes(column)
           : false,
         hasSelection: this.#selection !== null,
-        hasExpanded: this.#owner.current.tree.openPaths.length > 0,
+        // Edit ▸ Undo and Redo: the grid's own history (Ad Hoc's right-click is its own)
+        ...(this.#owner.canUndo ? { canUndo: true } : {}),
+        ...(this.#owner.canRedo ? { canRedo: true } : {}),
+        // Tile ▸, on a page: Move to Sheet (disabled while the page is locked) and Remove from Page
+        ...(this.#options.onMoveToSheet ? { sheets: this.#options.sheets?.().locked ? 'locked' as const : this.#sheetItems() } : {}),
+        ...(this.#options.onRemove ? { canRemove: true } : {}),
+        // a group open by hand, or by the level its settings open it to: Collapse All closes both (the S7 audit's G-5)
+        hasExpanded: this.#owner.current.tree.opensAny(this.#shown.rows.length),
         hasHeatmap:
           column !== undefined && this.#heatmapFor(column) !== undefined,
+        ...(column !== undefined ? { conditional: this.#conditionalFacts(column) } : {}),
         ...(this.#config.pivotStatisticColumnName !== undefined
           ? { totalLabel: this.#config.pivotStatisticColumnName }
           : {}),
@@ -1902,6 +2286,11 @@ export class CubeApp {
           ? { extendable: true }
           : {}),
         ...(column !== undefined ? calcStageOf(this.#shown, column) : {}),
+        ...(column !== undefined && this.#shown.derived.some((d) => d.name === column && d.related !== undefined) ? { relatedColumn: true } : {}),
+        ...(column !== undefined && this.#shown.derived.some((d) => d.name === column && d.groups !== undefined) ? { groupsColumn: true } : {}),
+        ...(column !== undefined && rowColumns(this.#shown).some((c) => c.name === column) ? { groupable: true } : {}),
+        ...(related.length > 0 ? { related } : {}),
+        ...(measures.length > 0 ? { modelMeasures: measures.map((m) => ({ name: m.name, path: m.path, ...(m.doc !== undefined ? { doc: m.doc } : {}) })) } : {}),
         ...facts,
         ...(value !== undefined ? { value } : {}),
         ...(columnType !== undefined ? { columnType } : {}),
@@ -1914,6 +2303,57 @@ export class CubeApp {
     });
   }
 
+  /** The related columns one hop from the grid's class it has not yet (class-tree.ts relatedOffers): the header menu's
+   *  Add Related Column ▸. None on a grid over anything but a class whose tree its opener read. */
+  #relatedOffers(): RelatedOffer[] {
+    const of = this.#options.classTree;
+    if (of === undefined) return [];
+    const has = new Set(this.#shown.derived.flatMap((d) => (d.related ? [relatedName(d.related)] : [])));
+    return relatedOffers(of.tree, of.class)
+      .map((o) => ({ ...o, columns: o.columns.filter((c) => !has.has(relatedName(c))) }))
+      .filter((o) => o.columns.length > 0);
+  }
+
+  /** The model's measures of the grid's class (class-tree.ts measuresOf) it has not yet: Add Model Measure ▸. */
+  #modelMeasures(): ModelMeasure[] {
+    const of = this.#options.classTree;
+    if (of?.measures === undefined) return [];
+    const has = new Set([...this.#snapshot.derived, ...(this.#snapshot.groupDerived ?? [])].map((d) => d.name));
+    return measuresOf(of.measures, () => of.supertypes ?? [], of.class).filter((m) => !has.has(m.name));
+  }
+
+  /** A MODEL MEASURE ADDED (Add Model Measure ▸; model-measure-commands.ts, fetched with the first): the steps a person
+   *  would make. */
+  async #addModelMeasure(path: string): Promise<void> {
+    const of = this.#options.classTree;
+    const measure = of?.measures?.find((m) => m.path === path);
+    if (of === undefined || measure === undefined) return;
+    const { modelMeasureCommands } = await lazily(() => import('./model-measure-commands.ts'));
+    let commands: GridCommand[];
+    try {
+      commands = modelMeasureCommands(this.#snapshot, of.tree, of.class, of.measures ?? [], measure);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(`Could not add ${measure.name}: ${e.message}`, 'error');
+      return;
+    }
+    const refused = await this.#apply(commands, `measure ${measure.name}`);
+    if (refused) this.#status(`Could not add ${measure.name}: ${refused}`, 'error');
+  }
+
+  /**
+   * A RELATED COLUMN ADDED (Add Related Column ▸; snapshot.ts RelatedPath), as the column editor's Add adds a column (the
+   * `column.calculate` gesture): named after its path (`customer_region`), else that with `_2`, `_3`… where the grid has
+   * a column of it; a measure when it aggregates, else a dimension -- a related class's value is what a grid groups by.
+   */
+  async #addRelated(related: RelatedPath): Promise<void> {
+    const base = relatedName(related);
+    let name = base;
+    for (let i = 2; nameProblem(this.#snapshot, 'row', name) !== null; i += 1) name = `${base}_${i}`;
+    await this.#gesture('column.calculate',
+      { level: 'row', column: { name, related, kind: related.aggregate !== undefined ? 'measure' : 'dimension' } }, `related column ${name}`);
+  }
+
   #onMenuAction(item: MenuItem): void {
     if (this.#onHostAction(item)) return;
     // Move to Sheet: onto a sheet the page has, by its id (a new one is `sheet.toNew`, below)
@@ -1921,84 +2361,56 @@ export class CubeApp {
       this.#options.onMoveToSheet?.(item.id.slice('sheet.to.'.length));
       return;
     }
-    // The query actions go through applyMenuAction, which returns the
-    // SAME snapshot when nothing changed; the rest are layout,
-    // clipboard and export, which never touch the query.
-    let query: boolean;
-    try {
-      query = applyMenuAction(this.#snapshot, item, this.#config) !== this.#snapshot;
-    } catch (e) {
-      // the menu offers only what grid-edits.ts allows; a refusal is said, never thrown away
-      if (!(e instanceof CubeRefusal)) throw e;
-      this.#status(e.message, 'warn');
+    // A grid's gesture the menu names (menuGesture: the entry's id the gesture's name, the one Python's grid.gesture
+    // takes), made with what the entry carries of what it takes -- the column under it, an operator and its value;
+    // none when it would change nothing. The rest are the screen's own (a column measured, a window opened),
+    // layout, clipboard and export. The menu offers only what grid-edits.ts allows; a refusal is said, never thrown
+    // away (#gesture).
+    const gesture = menuGesture(item);
+    // New Box After (FL9): the gesture the page's, made in a box of its own after this one
+    if (gesture !== null && item.after === true) {
+      this.#options.onStepAfter?.(gesture, item.label);
       return;
     }
-    if (query) {
-      void this.#edit((d) => ({ ...d, snapshot: applyMenuAction(d.snapshot, item, d.config) }),
-        item.label ?? item.id ?? 'menu');
+    if (gesture !== null) {
+      void this.#gestureGiven(gesture.name, gesture.args, item.label);
       return;
     }
     const column = item.column;
     switch (item.id) {
-      case 'tree.collapseAll':
-        void this.#change((s) => ({ ...s, tree: s.tree.collapseAll() }), { label: 'collapse all' });
-        return;
       case 'column.autoSize':
         if (column) this.#autoSize([column]);
         return;
       case 'column.autoSizeAll':
         this.#autoSize(null);
         return;
-      case 'column.hide':
-        if (column) this.#patchColumn(column, { hidden: true });
-        return;
-      case 'column.pinLeft':
-        if (column) this.#patchColumn(column, { pinned: 'left' });
-        return;
-      case 'column.pinRight':
-        if (column) this.#patchColumn(column, { pinned: 'right' });
-        return;
-      case 'column.unpin':
-        if (column) this.#patchColumn(column, { pinned: undefined });
-        return;
-      case 'pivot.measuresFirst':
-        void this.applyConfiguration({
-          pivotMeasuresFirst: this.#config.pivotMeasuresFirst ? undefined : true,
-        });
-        return;
-      case 'column.unpinAll':
-        void this.#configure((c) => Object.keys(c.columns)
-          .reduce((next, name) => withColumn(next, name, { pinned: undefined }), c), 'unpin all');
-        return;
       case 'copy.selection':
-        this.#copy(this.#selectionCsv());
+        this.#copy(this.#selectionText());
         return;
       case 'copy.column':
-        if (column) this.#copy(this.#columnCsv(column));
+        if (column) this.#copy(this.#columnText(column));
         return;
       case 'view.properties':
         this.openEditor(item.column);
+        return;
+      case 'view.shortcuts':
+        this.showShortcuts();
+        return;
+      // its tile's state menu: live again, or a copy snapped (afresh, when one is held)
+      case 'plane.live':
+        void this.#movePlane('live');
+        return;
+      case 'plane.snap':
+        void this.#movePlane('snap');
         return;
       case 'view.controls':
         this.setControlsHidden(!this.#controlsHidden);
         return;
       case 'copy.rows':
-        this.#copy(this.#rowsCsv());
-        return;
-      case 'column.minimize':
-        if (column) this.#minimize([column]);
-        return;
-      case 'column.minimizeAll':
-        this.#minimize(null);
+        this.#copy(this.#rowsText());
         return;
       case 'grid.sizeToFit':
         this.#sizeToFit();
-        return;
-      case 'pivot.exclude':
-        if (column) this.#patchColumn(column, { excludedFromPivot: true });
-        return;
-      case 'pivot.include':
-        if (column) this.#patchColumn(column, { excludedFromPivot: false });
         return;
       // Upstream's Extended Columns entries. EXTEND seeds the new
       // column with a reference to the one clicked and inherits its
@@ -2019,10 +2431,7 @@ export class CubeApp {
         return;
       // the chart's presets in the grid (calc-presets.ts): ordinary calculated columns, added in one step
       case 'calc.grain':
-        if (column && item.grain) {
-          const grain = item.grain;
-          void this.#addPreset('row', `${column}_${grain}`, `${column} by ${grain}`, (n) => [grainColumn(column, grain, n)]);
-        }
+        if (column && item.grain) void this.#addPreset({ kind: 'grain', column, grain: item.grain }, `${column} by ${item.grain}`);
         return;
       case 'calc.bins':
         // the width is the person's: the editor opens on the preset's expression (calc-presets.ts, printed by the
@@ -2037,27 +2446,26 @@ export class CubeApp {
           }
         }
         return;
+      case 'calc.related':
+        if (item.related) void this.#addRelated(item.related);
+        return;
+      case 'calc.groupValues':
+        if (column) void this.openGroupValues(column);
+        return;
+      case 'calc.editGroups':
+        if (column) void this.openGroupValues(column, column);
+        return;
+      case 'calc.modelMeasure':
+        if (item.measure) void this.#addModelMeasure(item.measure);
+        return;
       case 'calc.showAs':
         if (column && item.showAs) {
-          // along the grid's own groupings, in order: said, not left to the level's sort -- which may be this very
-          // column, were the grid sorted by it
-          const show = { kind: item.showAs };
-          const along = [...this.#snapshot.rows];
-          void this.#addPreset('group', `${column}_${item.showAs}`, `${column} as ${SHOW_AS_LABELS[item.showAs].toLowerCase()}`,
-            (n) => showAsColumns(show, column, along, [], n));
+          void this.#addPreset({ kind: 'showAs', column, showAs: item.showAs },
+            `${column} as ${GRID_SHOW_AS_LABELS[item.showAs].toLowerCase()}`);
         }
         return;
       case 'calc.edit':
         if (column) this.openColumnEditor({ edit: column });
-        return;
-      case 'calc.delete':
-        if (column) this.#deleteCalc(column);
-        return;
-      case 'heatmap.add':
-        if (column) this.#setHeatmap(column, true);
-        return;
-      case 'heatmap.remove':
-        if (column) this.#setHeatmap(column, false);
         return;
       case 'export.html':
         this.#confirmExport(() => this.#export('html'));
@@ -2095,6 +2503,12 @@ export class CubeApp {
       case 'chart.plot':
         void this.openChart();
         return;
+      case 'text.new':
+        void this.newText();
+        return;
+      case 'timeseries.new':
+        void this.newTimeseries();
+        return;
       case 'source.new':
         void this.newSource();
         return;
@@ -2125,6 +2539,9 @@ export class CubeApp {
       case 'filter.column':
         this.openFilters();
         return;
+      case 'filter.valueList':
+        if (column) void this.openValueList(column);
+        return;
       default:
         return;
     }
@@ -2149,41 +2566,15 @@ export class CubeApp {
    * cube these size the columns they can name and leave the rest.
    */
   #autoSize(columns: readonly string[] | null): void {
-    const measured = this.#grid.measureColumns(columns ?? undefined);
-    let config = this.#config;
-    let changed = 0;
-    const widths: [string, number][] = [];
-    for (const [name, content] of Object.entries(measured)) {
-      const width = Math.min(AUTO_SIZE_MAX,
-        Math.max(AUTO_SIZE_MIN, content + AUTO_SIZE_PAD));
-      const next = withColumn(config, name, { width });
-      if (next !== config) changed += 1;
-      config = next;
-      widths.push([name, width]);
-    }
-    if (changed === 0) {
+    // the content's widths are the screen's to measure; the widths they size the columns to, the gesture's
+    // (grid-gestures.ts columns.autoSize, its floor and ceiling)
+    const commands = this.#gestured((g) => gridGesture('columns.autoSize', g, { widths: this.#grid.measureColumns(columns ?? undefined) }));
+    if (typeof commands === 'string') return;
+    if (commands.length === 0) {
       this.#status('nothing to resize', 'warn');
       return;
     }
-    void this.#configure((c) => widths.reduce((next, [name, width]) => withColumn(next, name, { width }), c),
-      'auto-size');
-  }
-
-  /**
-   * Turn a heatmap on or off for a column.
-   *
-   * Set on the MEASURE rather than the leaf, so it reaches every
-   * `2021__|__notional` the pivot produced -- a heatmap applied to
-   * one pivoted leaf and not its siblings is worse than none. A pivot
-   * TOTAL is a column of its own (the user, 2026-10-18): its heatmap is
-   * its own, and its measure's leaves it alone (export-render.ts
-   * heatmapSetting).
-   */
-  #setHeatmap(leafName: string, on: boolean): void {
-    const measure = isPivotTotalColumn(leafName) ? leafName : this.#pivotMeasureOf(leafName) ?? leafName;
-    this.#patchColumn(measure, {
-      heatmap: on ? { from: '#ffffff', to: '#ff8a65' } : undefined,
-    });
+    void this.#apply(commands, 'auto-size');
   }
 
   /**
@@ -2192,13 +2583,11 @@ export class CubeApp {
    * The tree column orders the groups, and turns their order (clickTreeSort). A pivot total sorts as any column.
    */
   #sortByHeader(column: string, chained: boolean): void {
-    if (column === TREE_COLUMN) {
-      void this.#edit((d) => clickTreeSort(d, chained), 'sort the groups');
-      return;
-    }
-    const type = this.#view?.columns.leaves.find((l) => l.name === column)?.type;
-    void this.#edit((d) => clickSort(d, column, firstSortDirection(type), chained),
-      `sort ${columnLabel(column, this.#config.pivotStatisticColumnName)}`);
+    // the click's command by the one rule Python's grid.toggle_sort asks too (grid-gestures.ts header.sort,
+    // header-sort.ts headerSortCommand): its first direction the type the compiler gave the header, which only the view
+    // has -- the headers as painted, not as a change still running would lay them out (the S7 audit's fourth round's 4)
+    void this.#gesture('header.sort', { column, chained },
+      column === TREE_COLUMN ? 'sort the groups' : `sort ${columnLabel(column, this.#config.pivotStatisticColumnName)}`);
   }
 
   /**
@@ -2233,26 +2622,51 @@ export class CubeApp {
     return `[ ${path.map((v, i) => `${keys[i] ?? '?'} = ${v}`).join(', ')} ]`;
   }
 
-  #patchColumn(
-    column: string,
-    patch: Parameters<typeof withColumn>[2],
-  ): void {
-    void this.#configure((c) => withColumn(c, column, patch), `column ${column}`);
+  /** The grid as its gestures read it (grid-gestures.ts): its state, its dimensions, the headers it paints and its
+   *  pivot's columns. */
+  #gestureGrid(): GestureGrid {
+    return {
+      snapshot: this.#snapshot, config: this.#config, dimensions: this.#dimensions(),
+      view: { headers: this.#headers, pivot: this.#view?.pivot?.columns ?? [] },
+    };
   }
 
-  /**
-   * Change the configuration and re-run, as one step.
-   *
-   * The single funnel for presentation changes, so every one of them
-   * lands on the undo stack. Config used to be assigned in four
-   * places, each followed by its own refresh, which is how half of
-   * them ended up outside the history.
-   */
-  async applyConfiguration(
-    patch: Patch<CubeConfiguration>,
-  ): Promise<void> {
-    // the one rule a host's patch is applied by: Python's Grid.configure too (headless gridEdit)
-    await this.#configure((c) => withConfiguration(c, patch), 'settings');
+  /** A gesture's commands (grid-gestures.ts: the one rule Python's grid.gesture asks too) on the grid as it is -- none
+   *  when it would change nothing -- or, refused, its words, said. `make`: the gesture, a control's (gridGesture, its
+   *  arguments typed) or a menu entry's (gridGestureGiven). */
+  #gestured(make: (grid: GestureGrid) => GridCommand[]): GridCommand[] | string {
+    try {
+      return make(this.#gestureGrid());
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(e.message, 'warn');
+      return e.message;
+    }
+  }
+
+  /** A control's gesture made: its commands applied as one step named `label` (#apply), none when it changes nothing.
+   *  The refusal, the gesture's words or the commands', or null. */
+  async #gesture<N extends GridGestureName>(name: N, args: GridGestureArgs[N], label: string): Promise<string | null> {
+    return this.#applyMade(this.#gestured((g) => gridGesture(name, g, args)), label);
+  }
+
+  /** A gesture made on this grid as its menu's entry makes it, named `label` (a flow's New Box After, FL9: the box made
+   *  after another, its one step this). The refusal, or null. */
+  gesture(name: string, args: GestureArgs, label: string): Promise<string | null> {
+    return this.#gestureGiven(name, args, label);
+  }
+
+  /** A menu entry's gesture (ui/menu.ts menuGesture: named by the entry's id, given what the entry carries), made as a
+   *  control's is, its arguments checked as they come. */
+  async #gestureGiven(name: string, args: GestureArgs, label: string): Promise<string | null> {
+    return this.#applyMade(this.#gestured((g) => gridGestureGiven(name, g, args)), label);
+  }
+
+  /** Commands a gesture made applied as one step (#apply, called before this returns, so a host is told them in the
+   *  order made), none when they change nothing; a refusal, said already, handed back. */
+  #applyMade(made: GridCommand[] | string, label: string): Promise<string | null> {
+    if (typeof made === 'string') return Promise.resolve(made);
+    return made.length === 0 ? Promise.resolve(null) : this.#apply(made, label);
   }
 
   // -- selection -------------------------------------------------------
@@ -2293,25 +2707,27 @@ export class CubeApp {
           (s.blank > 0 ? ` · ${s.blank} blank` : '');
   }
 
-  #selectionCsv(): string {
+  // The menu's copies are the clipboard's text, as Ctrl+C's are (the grid's copySelection): tab-separated with no
+  // byte-order mark, so a paste fills a spreadsheet's columns -- not a CSV file's text, which lands in one column.
+  #selectionText(): string {
     const table = this.#view?.rows;
     if (!table || !this.#selection) return '';
-    return toCsv(selectionTable(table, this.#grid.columns?.leaves ?? [], this.#selection));
+    return toClipboard(selectionTable(table, this.#grid.columns?.leaves ?? [], this.#selection, this.#treeHeader()));
   }
 
-  #columnCsv(column: string): string {
+  /** The tree column's heading in a copy, as an export heads it: the shown grid's groups, by their labels. */
+  #treeHeader(): string {
+    return treeHeaderText((this.#view?.snapshot.rows ?? []).map((name) => labelFor(this.#config, name)));
+  }
+
+  /** One column, every row, headed as a selection's copy is (its label; the tree, what it groups by). */
+  #columnText(column: string): string {
     const view = this.#view;
-    if (!view) return '';
-    const leaf = view.columns.leaves.find((l) => l.name === column);
-    if (!leaf) return '';
-    const src = view.rows.columns[leaf.index];
-    if (!src) return '';
-    return toCsv({
-      columns: [src],
-      rowCount: view.rows.rowCount,
-      epoch: view.rows.epoch,
-      elapsedMs: 0,
-    });
+    if (!view || view.rows.rowCount === 0) return '';
+    const col = view.columns.leaves.findIndex((l) => l.name === column);
+    if (col < 0) return '';
+    return toClipboard(selectionTable(view.rows, view.columns.leaves,
+      { anchor: { row: 0, col }, focus: { row: view.rows.rowCount - 1, col } }, this.#treeHeader()));
   }
 
   /**
@@ -2319,22 +2735,14 @@ export class CubeApp {
    * Rows as Plain Text". Through the column model, so hidden columns
    * and the tree's machinery stay out.
    */
-  #rowsCsv(): string {
+  #rowsText(): string {
     const view = this.#view;
     const sel = this.#selection;
     if (!view || !sel) return '';
-    const top = Math.min(sel.anchor.row, sel.focus.row);
-    const bottom = Math.max(sel.anchor.row, sel.focus.row);
-    const columns = view.columns.leaves.flatMap((l) => {
-      const c = view.rows.columns[l.index];
-      return c ? [{ ...c, values: c.values.slice(top, bottom + 1) }] : [];
-    });
-    return toCsv({
-      columns,
-      rowCount: bottom - top + 1,
-      epoch: view.rows.epoch,
-      elapsedMs: 0,
-    });
+    const last = view.columns.leaves.length - 1;
+    if (last < 0) return '';
+    return toClipboard(selectionTable(view.rows, view.columns.leaves,
+      { anchor: { row: sel.anchor.row, col: 0 }, focus: { row: sel.focus.row, col: last } }, this.#treeHeader()));
   }
 
   /**
@@ -2368,40 +2776,12 @@ export class CubeApp {
   }
 
   /**
-   * Resize > Minimize: a column to its own minimum width, or upstream's
-   * DEFAULT_COLUMN_MIN_WIDTH (50). `null` minimizes every shown column.
-   * A column whose width is FIXED keeps it.
-   */
-  #minimize(columns: readonly string[] | null): void {
-    const names = columns
-      ?? (this.#view?.columns.leaves ?? [])
-        .map((l) => l.name)
-        .filter((n) => n !== TREE_COLUMN);
-    void this.#configure((config) => names.reduce((next, name) => {
-      const c = columnConfig(next, name);
-      return c.widthMode === 'fixed' ? next : withColumn(next, name, { width: c.minWidth ?? MINIMIZED_WIDTH });
-    }, config), 'minimize');
-  }
-
-  /**
-   * Resize > Size Grid to Fit Screen: every shown column scaled by the
-   * same factor so together they fill the grid's width -- ag-Grid's
-   * `sizeColumnsToFit`, which is what upstream calls. A fixed width
-   * keeps its size and the rest share what is left.
+   * Resize > Size Grid to Fit Screen: the widths as drawn and the grid's own are the screen's to measure; how they are
+   * scaled to fill it, the gesture's (grid-gestures.ts columns.sizeToFit).
    */
   #sizeToFit(): void {
-    const widths = this.#grid.renderedWidths();
-    const viewport = this.#grid.viewportWidth;
-    const fixed = Object.keys(widths)
-      .filter((n) => columnConfig(this.#config, n).widthMode === 'fixed');
-    const flexible = Object.keys(widths).filter((n) => !fixed.includes(n));
-    const taken = fixed.reduce((sum, n) => sum + (widths[n] ?? 0), 0);
-    const current = flexible.reduce((sum, n) => sum + (widths[n] ?? 0), 0);
-    if (viewport <= 0 || current <= 0 || flexible.length === 0) return;
-    const factor = Math.max(0, viewport - taken) / current;
-    void this.#configure((config) => flexible.reduce((next, name) => withColumn(next, name, {
-      width: Math.max(MINIMIZED_WIDTH, Math.floor((widths[name] ?? 0) * factor)),
-    }), config), 'size to fit');
+    void this.#gesture('columns.sizeToFit', { widths: this.#grid.renderedWidths(), viewport: this.#grid.viewportWidth },
+      'size to fit');
   }
 
   #copy(text: string): void {
@@ -2410,7 +2790,128 @@ export class CubeApp {
     this.#status('copied', 'ok');
   }
 
+  /**
+   * THE VALUE LIST of `column` (Filter ▸ Filter Values..., Excel's autofilter): its values with how many rows each has,
+   * under the grid's other filters -- the database's answer (query.ts columnValuesLambda) -- each ticked when the
+   * filter keeps it now (the same question, the column's own conditions kept). OK keeps the ticked ones in place of
+   * the column's own conditions: the 'filter.values' gesture, Python's grid.filter_values.
+   */
+  async openValueList(column: string): Promise<void> {
+    const view = this.#view;
+    if (!view) return;
+    const s = view.snapshot;
+    const type = rowColumns(s).find((c) => c.name === column)?.type;
+    let offered: ResultTable;
+    let kept: ResultTable;
+    try {
+      [{ rows: offered }, { rows: kept }] = await Promise.all([
+        this.#controller.runQuery(columnValuesLambda(s, column), s),
+        this.#controller.runQuery(columnValuesLambda(s, column, true), s),
+      ]);
+    } catch (error: unknown) {
+      if (!this.#disposed) this.#reportFailure(error);
+      return;
+    }
+    if (this.#disposed) return;
+    const valuesOf = (t: ResultTable): (FilterValue | null)[] =>
+      (t.columns.find((c) => c.name === column)?.values ?? []).slice(0, MAX_FILTER_VALUES)
+        .map((v) => cellFilterValue(v, type));
+    const counts = offered.columns.find((c) => c.name === VALUE_COUNT_COLUMN)?.values ?? [];
+    const keyOf = (v: FilterValue | null): string => JSON.stringify(v);
+    const ticked = new Set(valuesOf(kept).map(keyOf));
+    const format = this.#formats[column];
+    const values = valuesOf(offered).map((value, i) => ({
+      value,
+      label: value === null ? '(Blank)' : this.#formatters.format(offered.columns.find((c) => c.name === column)?.values[i] ?? null, format, type),
+      rows: Number(counts[i] ?? 0).toLocaleString(UI_LOCALE),
+    }));
+    const named = labelFor(this.#config, column);
+    this.#showOverlay('Filter Values', (host, close) => {
+      host.replaceChildren(valueList(this.#doc, {
+        values,
+        ticked: (v) => ticked.has(keyOf(v)),
+        cut: offered.rowCount > MAX_FILTER_VALUES,
+        onOk: (keep) => {
+          close();
+          void this.#gestureGiven('filter.values', { column, values: keep }, `filter ${named}`);
+        },
+        onCancel: close,
+      }));
+    }, { replace: true });
+  }
+
+  /**
+   * THE GROUP VALUES WINDOW of `column` (Extended Columns ▸ Group Values of X..., Tableau's groups): its values as the
+   * Filter Values window lists them, ticked and named into groups; OK makes the column (`column.calculate`) or, editing
+   * the groups column `editing`, remakes it (`column.editCalculated`). Refused, the gesture's words are said in the
+   * window, which stays open. The window is a chunk of its own, fetched with the first one opened.
+   */
+  async openGroupValues(column: string, editing?: string): Promise<void> {
+    const view = this.#view;
+    if (!view) return;
+    const s = view.snapshot;
+    const was = editing !== undefined ? s.derived.find((d) => d.name === editing)?.groups : undefined;
+    const of = was?.of ?? column;
+    const type = rowColumns(s).find((c) => c.name === of)?.type;
+    let offered: ResultTable;
+    try {
+      ({ rows: offered } = await this.#controller.runQuery(columnValuesLambda(s, of), s));
+    } catch (error: unknown) {
+      if (!this.#disposed) this.#reportFailure(error);
+      return;
+    }
+    if (this.#disposed) return;
+    const raw = (offered.columns.find((c) => c.name === of)?.values ?? []).slice(0, MAX_FILTER_VALUES);
+    const values = raw.map((v) => {
+      const value = cellFilterValue(v, type);
+      return { value, label: value === null ? '(Blank)' : this.#formatters.format(v, this.#formats[of], type), rows: '' };
+    });
+    // the window a chunk of its own, fetched with the first one opened
+    const { groupValues } = await lazily(() => import('./ui/group-values.ts'));
+    if (this.#disposed) return;
+    let suggested = `${of}_group`;
+    for (let i = 2; editing === undefined && nameProblem(this.#snapshot, 'row', suggested) !== null; i += 1) suggested = `${of}_group_${i}`;
+    this.#showOverlay(editing !== undefined ? 'Edit Groups' : 'Group Values', (host, close) => {
+      host.replaceChildren(groupValues(this.#doc, {
+        column: of, values, ...(was ? { groups: was } : {}), name: editing ?? suggested,
+        // the gesture judges it (the command's rules); refused, the words are said in the window, which stays open
+        onOk: async (name, groups) => {
+          const made: DerivedColumn = { name, groups, kind: 'dimension' };
+          const refused = editing !== undefined
+            ? await this.#gesture('column.editCalculated', { name: editing, level: 'row', column: made }, `groups ${name}`)
+            : await this.#gesture('column.calculate', { level: 'row', column: made }, `groups ${name}`);
+          if (refused === null) close();
+          return refused;
+        },
+        onCancel: close,
+      }));
+    }, { replace: true });
+  }
+
+  /** The keyboard shortcuts, in a window of their own (Edit ▸ Keyboard Shortcuts..., the ? key). */
+  showShortcuts(): void {
+    this.#showOverlay('Keyboard Shortcuts', (host) => {
+      host.replaceChildren(shortcutsTable(this.#doc));
+    }, { replace: true });
+  }
+
   // -- drill-through ----------------------------------------------------
+
+  /**
+   * A double-click, as an Excel pivot takes one: on a group's label it opens or closes the group; on a value it shows
+   * the rows behind it (the drill-through Enter gives).
+   */
+  #onDoubleClickCell(row: number, column: number): void {
+    const leaf = this.#view?.columns.leaves[column];
+    if (leaf?.name === TREE_COLUMN) {
+      const meta = this.#treeRows[row];
+      if (meta?.isGroup) {
+        void this.#gesture('tree.open', { path: meta.path, open: !meta.expanded }, meta.expanded ? 'collapse' : 'expand');
+      }
+      return;
+    }
+    void this.#drillThrough(row, column);
+  }
 
   /**
    * The rows behind one aggregate.
@@ -2451,11 +2952,39 @@ export class CubeApp {
     // LATEST WINS: two drills in quick succession answered in either
     // order, and whichever answered last took the window (P2-131).
     if (drill !== this.#drills || this.#disposed) return;
+    const limit = DEFAULT_DRILL_LIMIT;
+    const where = drillConditions(view.snapshot, { path: meta.path, ...(pivotPath ? { pivotPath } : {}) })
+      .map((c) => conditionWords(c)).join(' and ');
+    const count = table.rowCount >= limit ? `The first ${limit.toLocaleString(UI_LOCALE)} rows`
+      : `${table.rowCount.toLocaleString(UI_LOCALE)} ${table.rowCount === 1 ? 'row' : 'rows'}`;
+    const label = (name: string): string => labelFor(this.#config, name);
     this.#showOverlay('Drill-through', (host) => {
-      const pre = this.#doc.createElement('pre');
-      pre.className = 'dc-drill';
-      pre.textContent = toCsv(table);
-      host.append(pre);
+      this.#drillGrid?.destroy();
+      const bar = this.#doc.createElement('div');
+      bar.className = 'dc-drill-bar';
+      const caption = this.#doc.createElement('span');
+      caption.className = 'dc-drill-caption';
+      caption.textContent = where === '' ? count : `${count} where ${where}`;
+      const copy = this.#doc.createElement('button');
+      copy.type = 'button';
+      copy.className = 'dc-button';
+      copy.textContent = 'Copy';
+      copy.addEventListener('click', () =>
+        this.#copy(toClipboard({ ...table, columns: table.columns.map((c) => ({ ...c, name: label(c.name) })) })));
+      bar.append(caption, copy);
+      // The rows in a grid of their own, formatted as this cube formats its columns and headed by their labels.
+      const rows = this.#doc.createElement('div');
+      rows.className = 'dc-drill';
+      host.replaceChildren(bar, rows);
+      const grid = new DataGrid(rows, this.#formatters, {
+        formats: this.#formats,
+        ...(this.#options.writeClipboard ? { writeClipboard: this.#options.writeClipboard } : {}),
+      });
+      grid.setColumns(buildColumnModel(table, [], [], {
+        displayNames: Object.fromEntries(table.columns.map((c) => [c.name, label(c.name)])),
+      }));
+      grid.setRows(table, 0, table.rowCount);
+      this.#drillGrid = grid;
     }, { replace: true });
   }
 
@@ -2471,6 +3000,26 @@ export class CubeApp {
       return;
     }
     (await this.#ensurePage())?.openChart(restore);
+    // a saved chart put back is no edit: the board's state keeps it as it is
+    if (restore) this.#pageChanged();
+  }
+
+  /** Create ▸ Text Box: a text tile on the page, beside this grid (page/cube-page.ts `addText`). */
+  async newText(): Promise<void> {
+    if (this.#options.onText) {
+      this.#options.onText();
+      return;
+    }
+    (await this.#ensurePage())?.addText();
+  }
+
+  /** Create ▸ Timeseries: a timeseries tile of this grid on the page, under it (page/cube-page.ts `addTimeseries`). */
+  async newTimeseries(): Promise<void> {
+    if (this.#options.onTimeseries) {
+      this.#options.onTimeseries();
+      return;
+    }
+    (await this.#ensurePage())?.addTimeseries();
   }
 
   /** Another grid on the page, starting as this one is (page/cube-page.ts `addGrid`). */
@@ -2487,6 +3036,10 @@ export class CubeApp {
    * cube's board, or the page this grid is on.
    */
   async newSource(): Promise<void> {
+    if (this.#options.onOpenSource) {
+      this.#options.onOpenSource();
+      return;
+    }
     const source = await this.#options.openSource?.();
     if (source === undefined) return;
     const make = this.#gridOver(source);
@@ -2509,13 +3062,14 @@ export class CubeApp {
       sourceLabel: source.label,
       // a new source starts as its rows, up to the row limit (the user, 2026-10-01: "showing the max
       // rows configured (1000 default)"); Properties changes it
-      configuration: source.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: source.label, maxRows: DEFAULT_MAX_ROWS },
+      configuration: source.configuration ?? freshConfiguration(source.label, gridCapped((this.#page?.page.grids.size ?? 1) + 1)),
       windowHost: this.#options.windowHost ?? this.#els.root,
       compact: true,
       // its drop zones are this grid's: Column Labels too, where this one shows it
       ...(this.#options.showColumnZone !== undefined ? { showColumnZone: this.#options.showColumnZone } : {}),
       ...(this.#options.openSource ? { openSource: this.#options.openSource } : {}),
       ...(spawned.onChart ? { onChart: spawned.onChart } : {}),
+      ...(spawned.onTimeseries ? { onTimeseries: spawned.onTimeseries } : {}),
       ...(spawned.onNewGrid ? { onNewGrid: spawned.onNewGrid } : {}),
       ...(spawned.onNewSource ? { onNewSource: spawned.onNewSource } : {}),
       ...(spawned.onRemove ? { onRemove: spawned.onRemove } : {}),
@@ -2536,7 +3090,7 @@ export class CubeApp {
    */
   async #ensurePage(): Promise<CubePage | undefined> {
     if (this.#page) return this.#page.page;
-    const { CubePage } = await loadPage();
+    const { CubePage, PageState: State, applyToState, idsOf, takenIds } = await loadPage();
     // made meanwhile by another call (read afresh: the await may have let one in), or the cube gone while it came
     const made = this.#pageNow();
     if (made) return made;
@@ -2555,18 +3109,27 @@ export class CubeApp {
     body.append(...parts);
     const page = new CubePage({
       host,
-      grid: { element: body, source: this.chartSource(), head: this.#tileHeadEl },
+      // a chart's options float where this cube's windows do
+      windowHost: this.#options.windowHost ?? root,
+      grid: { element: body, source: this.chartSource(), head: this.#tileHeadEl, state: this.#tileStateEl,
+        ...(this.tileAbout() !== undefined ? { about: this.tileAbout()! } : {}) },
       onChange: () => this.#pageChanged(),
+      // its edits applied to its page's state by the page commands' one rule, told, the board put at what they make (P13)
+      onPageEdit: (edit) => this.#pageEdit(edit),
+      taken: () => (this.#page ? takenIds(this.#page.state.draft) : []),
       onEmpty: () => {
-        // back where they were, the board gone: the title bar carries the source and pill again
+        // back where they were, the board gone: the title bar carries the source and pill again -- the ids it held kept
         for (const el of parts) root.insertBefore(el, host);
+        if (this.#page) this.#boardHeld = this.#page.state.draft.held;
         page.dispose();
         host.remove();
         this.#page = null;
         this.#renderChrome();
       },
     });
-    this.#page = { page, host };
+    const seen = this.#boardSeen(page, idsOf);
+    this.#page = { page, host, state: new State({ ...seen, held: [...new Set([...seen.held, ...this.#boardHeld])] }),
+      rules: { applyToState, idsOf }, syncing: false };
     // on the board: the grid's source and pill move into its tile's header
     this.#renderChrome();
     return page;
@@ -2581,7 +3144,8 @@ export class CubeApp {
       get configuration() { return app.#config; },
       run: async (query, snapshot, signal) =>
         (await this.#controller.runQuery(query, snapshot, undefined, signal)).rows,
-      format: (value, column, type) => this.#formatters.format(value, this.#formats[column], type),
+      format: (value, column, type, headline) =>
+        this.#formatters.format(value, headline ? headlineFormat(this.#formats[column], type, value) : this.#formats[column], type),
       unit: (column) => {
         const f = this.#formats[column];
         return f ? `${f.kind}|${f.currency ?? ''}|${f.unit ?? ''}` : undefined;
@@ -2606,14 +3170,29 @@ export class CubeApp {
           levels: view.snapshot.rows,
         } : null;
       },
+      // a chart's mark on this grid's filter (grid-gestures.ts chart.refilter)
       refilter: (old, add, label) => {
-        void this.#query((s) => {
-          const kept = withoutConditions(s.filter, old) ?? undefined;
-          const children = [...(kept === undefined ? [] : kept.kind === 'and' ? kept.children : [kept]), ...add];
-          const { filter: _drop, ...rest } = s;
-          return children.length === 0 ? rest
-            : { ...rest, filter: children.length === 1 ? children[0]! : { kind: 'and', children } };
-        }, label);
+        void this.#gesture('chart.refilter', { remove: old, add }, label);
+      },
+      // a chart's selection off this grid as a page step took it off (the page's unselected): another editor's step,
+      // followed as its change is -- never told back, no step of its own history; the person's own, a step of this
+      // grid's, told after any of its own still running (the S7 confirmation audit's G2-2, B2-3)
+      unselected: (old, theirs) => {
+        const off = this.#gestured((g) => gridGesture('chart.refilter', g, { remove: old, add: [] }));
+        if (typeof off === 'string') return;
+        // the person's own step while the click that put the selection there is still to be told (its refilter in
+        // flight): told after it, as the grid's own, so a host takes them in the order made (the S7 confirmation
+        // audit's B2-3) -- only then: told otherwise, a condition put there by hand too would come off twice (its
+        // third round's 3)
+        const unsaid = this.#untold.some((c) => c.kind === 'refilter' && c.add.some((a) => old.some((o) => sameValue(a, o))));
+        if (!theirs && unsaid) {
+          void this.#apply(off, 'Chart Removed');
+          return;
+        }
+        // else what the page step said already (removeTile's, followGrid's rule): told nothing more -- a second
+        // removal would take a condition put on the grid by hand off too (the S1 audit's 5) -- a step of this grid's
+        // history when the step is the person's own (G2-2), none when another editor's (P-1)
+        void this.applyGridCommands(off, 'Chart Removed', !theirs);
       },
       spawn: (host, snapshot, spawned) => {
         const o = this.#options;
@@ -2621,7 +3200,7 @@ export class CubeApp {
         const source: CubeAppQuerySource = o.runner
           ? { runner: o.runner }
           : { engine: o.engine, planner: o.planner, ...(o.live ? { live: o.live } : {}) };
-        return new CubeApp(host, snapshot, {
+        const grid = new CubeApp(host, snapshot, {
           ...source,
           ...(o.snapTarget ? { snapTarget: o.snapTarget } : {}),
           ...(o.hostSnap ? { hostSnap: o.hostSnap } : {}),
@@ -2631,7 +3210,7 @@ export class CubeApp {
           ...(o.heldCopy ? { heldCopy: o.heldCopy } : {}),
           ...(o.cubeSource ? { cubeSource: o.cubeSource } : {}),
           ...(o.sourceLabel !== undefined ? { sourceLabel: o.sourceLabel } : {}),
-          // its own Column Properties when it is given them (Open in Grid: the chart's values), else this cube's
+          // its own Column Properties when it is given them (Show Grid: a chart's values), else this cube's
           configuration: spawned?.configuration ?? this.#config,
           // its windows float where this cube's do, not inside the small tile
           windowHost: o.windowHost ?? this.#els.root,
@@ -2640,29 +3219,86 @@ export class CubeApp {
           ...(o.showColumnZone !== undefined ? { showColumnZone: o.showColumnZone } : {}),
           ...(o.openSource ? { openSource: o.openSource } : {}),
           ...(spawned?.onChart ? { onChart: spawned.onChart } : {}),
+          ...(spawned?.onTimeseries ? { onTimeseries: spawned.onTimeseries } : {}),
           ...(spawned?.onNewGrid ? { onNewGrid: spawned.onNewGrid } : {}),
           ...(spawned?.onNewSource ? { onNewSource: spawned.onNewSource } : {}),
           ...(spawned?.onRemove ? { onRemove: spawned.onRemove } : {}),
           ...(spawned?.exportPage ? { exportPage: spawned.exportPage } : {}),
           ...(spawned?.onSettingsChanged ? { onSettingsChanged: spawned.onSettingsChanged } : {}),
         });
+        // it reads its rows as this grid does: the page's filters on this grid's class too (a chart's own grid), now
+        // and as they change
+        if (this.#lens) void grid.setLens(this.#lens, false, this.#lensSaid);
+        this.#spawnedGrids.add(grid);
+        return grid;
       },
     };
   }
 
   /** The views and their layout changed: "changed since saved" re-reads the page. */
   #pageChanged(): void {
+    this.#keepBoard();
     this.#emit('change');
+  }
+
+  /** The board's page as its state holds it: what its owners change (the grid's own edits, a chart following it) kept --
+   *  not while the board is put at the state. */
+  #keepBoard(): void {
+    const held = this.#page;
+    if (held && !held.syncing) held.state.keep(this.#boardSeen(held.page, held.rules.idsOf));
+  }
+
+  /** The board's page as it is on screen: the cube's own grid over this cube (when it can say its source), each grid
+   *  added to it and each query a detached chart reads under its own id, with its cube (when it can say its source),
+   *  the charts, the layout. */
+  #boardSeen(page: CubePage, idsOf: (page: PageDocument) => string[]): PageDraft {
+    const cube = this.cubeDocument('');
+    const views = page.views((grid) => (grid === 'grid' ? PAGE_CUBE : grid));
+    const others = [...cubesHeld(views.views)].filter((id) => id !== PAGE_CUBE).flatMap((id) => {
+      const doc = page.documentOf(id);
+      return doc ? [{ id, cube: doc }] : [];
+    });
+    const seen = writePageOf({ name: '', cubes: [...(cube ? [{ id: PAGE_CUBE, cube }] : []), ...others], views });
+    return { page: seen, held: idsOf(seen) };
+  }
+
+  /**
+   * AN EDIT OF THE BOARD (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P13): its commands applied to the board's page by the
+   * one rule (page-commands.ts applyToState: a page of its own's too) -- refused in their words, nothing changed --
+   * told to the host, and the board put at the page they make. True when applied.
+   */
+  #pageEdit(edit: PageEdit): boolean {
+    const held = this.#page;
+    if (!held) return false;
+    const from = held.state.draft.page;
+    let applied: PageCommand[];
+    try {
+      applied = held.rules.applyToState(held.state, edit.commands, edit.label, edit.step !== false);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(e.message, 'warn');
+      return false;
+    }
+    for (const command of applied) this.#options.onPageCommand?.(command);
+    const to = held.state.draft.page;
+    held.syncing = true;
+    try {
+      held.page.sync({ views: to.views, sheets: to.sheets, cubes: to.cubes }, { views: from.views, sheets: from.sheets }, () => undefined);
+    } finally {
+      held.syncing = false;
+    }
+    this.#emit('change');
+    return true;
   }
 
   /**
    * What the cube shows around itself, as a saved page keeps it: the grid, each chart (its
-   * title, spec, and the mark it filters to) and the layout. A cube with no charts is a page
-   * of its grid alone, the whole board.
+   * title, spec, and the mark it filters to), each text tile, each timeseries tile and the layout. A cube with no
+   * charts, text tiles or timeseries is a page of its grid alone, the whole board.
    */
   pageViews(): PageViews {
     const page = this.#page?.page;
-    if (!page || page.charts === 0) return startingViews({ id: 'grid', cube: PAGE_CUBE });
+    if (!page || page.charts + page.texts + page.timeseries === 0) return startingViews({ id: 'grid', cube: PAGE_CUBE });
     return page.views();
   }
 
@@ -2692,10 +3328,12 @@ export class CubeApp {
     return this.#page?.page.editing ?? true;
   }
 
-  /** Put a saved page's views back around the cube: its charts, their titles, its layout. */
+  /** Put a saved page's views back around the cube: its charts and text tiles, their titles, its layout. */
   async restoreViews(page: PageViews): Promise<void> {
-    if (!page.views.some((v) => v.kind === 'chart')) return;
+    if (!page.views.some((v) => v.kind !== 'grid')) return;
     (await this.#ensurePage())?.restore(page);
+    // a saved page put back is no edit: the board's state keeps it as it is
+    this.#pageChanged();
   }
 
 
@@ -2714,7 +3352,9 @@ export class CubeApp {
     const page = this.#exportPage();
     return renderExport(kind, {
       view, model, config: this.#config, formats: this.#formats, formatters: this.#formatters,
-      cellBackground: (leaf, row, value) => this.#heatFor(leaf, row, value), ...(page ? { page } : {}), at: new Date(),
+      cellBackground: (leaf, row, value) => this.#heatFor(leaf, row, value),
+      cellDecoration: (leaf, row, value) => cellDecoration(this.#conditionals, this.#treeRows, leaf, row, value),
+      ...(page ? { page } : {}), at: new Date(),
     });
   }
 
@@ -2786,7 +3426,7 @@ export class CubeApp {
   /** The board as an export carries it: each tile where it is, each chart as its picture; none without charts. */
   #exportPage(): ExportPage | undefined {
     const page = this.#page?.page;
-    if (page) return page.charts > 0 ? page.exportPage() : undefined;
+    if (page) return page.charts + page.texts + page.timeseries > 0 ? page.exportPage() : undefined;
     // a grid on a page of its own: the page's, this grid its table
     return this.#options.exportPage?.();
   }
@@ -2825,13 +3465,76 @@ export class CubeApp {
       return;
     }
     const title = this.#config.reportTitle ?? 'cube';
-    // the same one thing Save writes: the page, its cube inside
+    // the same one thing Save writes: the page, its cube inside -- as a page file, by its one rule (page-document.ts
+    // pageFile: Export ▸ Page File's and Python's save(path)'s; the S7 audit's G-4), or refused in its words
     const page = this.pageDocument(title);
     if (!page) {
       this.#status('this cube does not know its source, so it cannot be written down', 'warn');
       return;
     }
-    download(`${exportFileName(title, new Date())}.json`, 'application/json', pageToJson(page));
+    const made = pageFile(page);
+    if ('refused' in made) {
+      this.#status(made.refused, 'warn');
+      return;
+    }
+    download(`${exportFileName(title, new Date())}.json`, 'application/json', made.file);
+  }
+
+  // -- where its rows are: Snap as page state (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8) ---------------
+
+  /**
+   * The copy it reads, as its page writes it down (page-document.ts gridCopyOf); undefined: it reads its rows live. As
+   * of its last move that held -- a snap is the page's once its re-run has answered (and been told: 'moved'), not
+   * while it runs, so the page never writes a copy no command says.
+   */
+  get copy(): GridCopy | undefined {
+    return this.#settledCopy;
+  }
+
+  /** Where its rows are as its page writes it (`copy`): set each time a move settles. */
+  #settledCopy: GridCopy | undefined = undefined;
+
+  /** The move settled: `copy` says where its rows now are. */
+  #settlePlane(): void {
+    const state = this.#controller.snaps.state;
+    if (state.mode !== 'snapped') {
+      this.#settledCopy = undefined;
+      return;
+    }
+    const { table, rowCount, takenAt, label, pulledBy } = state.snap;
+    this.#settledCopy = gridCopyOf({ table, rowCount, takenAt, label, ...(pulledBy ? { pulledBy } : {}) });
+  }
+
+  /**
+   * THE PAGE'S SNAP COMMAND FROM ITS OTHER EDITOR (Python's grid.snap()): the copy its host made read from now on -- the
+   * grid run again over it, its plane saying so, as the screen's Snap leaves it. That editor lets the copy go. Refused in
+   * words, the grid as it was.
+   */
+  async followSnap(copy: GridCopy): Promise<void> {
+    await this.#controller.follow({
+      table: copy.table, label: copy.label, takenAt: new Date(copy.takenAt), rowCount: copy.rowCount,
+      ...(copy.pulledBy ? { pulledBy: copy.pulledBy } : {}),
+    }, this.#owner.committed.snapshot.source.query);
+    await this.#planeMoved();
+  }
+
+  /** The page's live command from its other editor: its live rows again (that editor let its copy go). */
+  async followLive(): Promise<void> {
+    this.#controller.forget();
+    await this.#planeMoved();
+  }
+
+  /** Its page is going (its tab closed): a copy its host keeps for it asked to be let go, not waited on (§18.8). */
+  leaving(): void {
+    this.#controller.leaving();
+  }
+
+  /** The plane moved by its page: the grid run again where its rows now are, its toggle saying so, its page told. */
+  async #planeMoved(): Promise<void> {
+    await this.#owner.refresh();
+    this.#settlePlane();
+    this.#paintPlane();
+    this.#emit('plane');
   }
 
   // -- the saved cube -------------------------------------------------------
@@ -2946,6 +3649,8 @@ export class CubeApp {
     });
     this.#adhoc = mode;
     this.#els.root.classList.add('dc-adhoc-on');
+    // what runs, along Ad Hoc's top edge while it is on: the grid's own is hidden with it (the 2026-10-25 audit)
+    host.prepend(this.#progress);
     middle.hidden = true;
     this.#els.zoneBar.hidden = true;
     await mode.refresh();
@@ -2963,6 +3668,7 @@ export class CubeApp {
       if (key.startsWith('Member Selection: ') || key === 'Ad Hoc Options') this.#closeWindow(key);
     }
     this.#els.root.classList.remove('dc-adhoc-on');
+    (this.#els.grid.parentElement as HTMLElement).prepend(this.#progress);
     (this.#els.grid.parentElement as HTMLElement).hidden = false;
     this.#applyChrome();
     // the cube's own status bar back
@@ -2977,9 +3683,12 @@ export class CubeApp {
 
   // -- dimensions ----------------------------------------------------------
 
-  useDimension(dimension: Dimension): void {
+  /** A named dimension used (the Dimensions tab's Group Rows by): the grid grouped by its first level (grid-gestures.ts
+   *  view.dimension, which refuses in words a dimension the grid lacks or whose columns it lacks), by the command the
+   *  Rows zone builds. */
+  #useDimension(name: string): void {
     if (this.#cubeOnly()) return;
-    void this.#query((s) => useDimension(s, dimension), `dimension ${dimension.name}`);
+    void this.#gesture('view.dimension', { name, move: 'use' }, `dimension ${name}`);
   }
 
   // -- the dialogs ----------------------------------------------------------
@@ -3011,12 +3720,13 @@ export class CubeApp {
       : undefined;
   }
 
-  openEditor(column?: string): void {
+  openEditor(column?: string, tab?: EditorTab): void {
     if (this.#cubeOnly()) return;
     const open = this.#editor;
     if (open && this.#open.has('Properties')) {
       this.#showOverlay('Properties', () => {});
       if (column !== undefined) open.focusColumn(column);
+      else if (tab !== undefined) open.setTab(tab);
       return;
     }
     this.#showOverlay('Properties', (host, close) => {
@@ -3026,13 +3736,662 @@ export class CubeApp {
         {
           onApply: (draft, base) => this.#applyDraft(draft, base),
           onClose: close,
+          // the Dimensions tab's own: once the draft is applied, the rows grouped by a dimension, or Ad Hoc Analysis
+          onUseDimension: (name) => this.#useDimension(name),
+          onAdHoc: () => void this.enterAdHoc(),
           ...(column !== undefined ? { initialColumn: column } : {}),
+          ...(tab !== undefined ? { initialTab: tab } : {}),
         },
       );
     }, {
       // the rail of sections, and Column Properties' columns beside its form
       size: { width: 980, height: 660, minWidth: 640, minHeight: 400 },
     });
+  }
+
+  /**
+   * THE WINDOW THAT SETS A FLOW'S STEP (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.4, flow-boxes.ts TOOL_EDITORS): the
+   * Filter window, a new calculated column's editor, or Properties at the section the step is -- each the grid's own,
+   * docked where its host docks them.
+   */
+  openStep(editor: StepEditor): void {
+    switch (editor.window) {
+      case 'filters':
+        this.openFilters();
+        return;
+      case 'column':
+        this.openColumnEditor(editor.start ?? {});
+        return;
+      case 'properties':
+        this.openEditor(undefined, editor.tab);
+        return;
+      case 'sample':
+        void this.#openSample();
+        return;
+      case 'datetime':
+        void this.#openDate();
+        return;
+      case 'text':
+        void this.#openTextTool(editor.kind);
+        return;
+      case 'unique':
+        void this.#openUnique();
+        return;
+      case 'impute':
+        void this.#openImpute();
+        return;
+      case 'dateFilter':
+        void this.#openDateFilter();
+        return;
+      case 'customFilter':
+        void this.#openCustomFilter();
+        return;
+      case 'binning':
+        void this.#openBinning();
+        return;
+      case 'generateRows':
+        void this.#openGenerateRows();
+        return;
+      case 'pure':
+        void this.#openPure();
+        return;
+      case 'test':
+        void this.#openTest();
+        return;
+      case 'jsonParse':
+        this.#openJsonParse();
+        return;
+      case 'multiField':
+        void this.#openMultiField();
+        return;
+      case 'transpose':
+        void this.#openTranspose();
+        return;
+      case 'select':
+        void this.#openSelect();
+        return;
+      case 'summarize':
+        void this.#openSummarize();
+        return;
+      case 'findReplace':
+        void this.#openFindReplace();
+        return;
+      case 'countRecords':
+        void this.#countRecords();
+        return;
+      // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
+      case 'join':
+        return;
+    }
+  }
+
+  /** A FLOW'S SAMPLE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): its first or last rows (its Top N, or of each group),
+   *  all but its first, or one of every N, in the order of a column -- row-sample.ts sampleCommands, the rule Python's
+   *  grid.sample asks -- in a window of its own (ui/sample-form.ts). Both fetched with the first. */
+  async #openSample(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ sampleForm }, { rowSampleOf, sampleCommands }] = await Promise.all([
+      lazily(() => import('./ui/sample-form.ts')), lazily(() => import('./row-sample.ts')),
+    ]);
+    const asked = async (commands: () => GridCommand[]): Promise<string | null> => {
+      try {
+        return await this.#apply(commands(), 'Sample');
+      } catch (e) {
+        if (e instanceof CubeRefusal) return e.message;
+        throw e;
+      }
+    };
+    const s = this.#snapshot;
+    // where it starts: its row sample, else its Top N said as one (its smallest first: bottom)
+    const top = s.topN;
+    const now = rowSampleOf(s) ?? (top === undefined ? undefined
+      : { kind: top.bottom === true ? 'first' as const : 'last' as const, n: top.n, by: top.by, groups: [] });
+    this.#showOverlay('Sample', (host, close) => sampleForm(host, {
+      columns: rowColumns(s).filter((c) => !(rowSampleOf(s)?.columns ?? []).includes(c.name)).map((c) => c.name),
+      now,
+      apply: (sample) => asked(() => sampleCommands(this.#snapshot, sample)),
+      clear: () => asked(() => sampleCommands(this.#snapshot, null)),
+      close,
+    }));
+  }
+
+  /** A FLOW'S DATETIME (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): a date column taken to its period -- the grid's own
+   *  By Day/Week/... preset (grid-presets.ts), in a window of its own (ui/date-form.ts, fetched with the first). */
+  async #openDate(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ dateForm }, { dateToolCommands }] = await Promise.all([
+      lazily(() => import('./ui/date-form.ts')), lazily(() => import('./date-tools.ts')),
+    ]);
+    const asked = async (commands: () => GridCommand[]): Promise<string | null> => {
+      try {
+        return await this.#apply(commands(), 'Date Period');
+      } catch (e) {
+        if (e instanceof CubeRefusal) return e.message;
+        throw e;
+      }
+    };
+    this.#showOverlay('Date Period', (host, close) => dateForm(host, {
+      columns: rowColumns(this.#snapshot).filter((c) => isTemporal(c.type)).map((c) => c.name),
+      texts: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'text').map((c) => c.name),
+      apply: (column, grain) => asked(() => presetCommands(this.#snapshot, { kind: 'grain', column, grain })),
+      applyTool: (tool) => asked(() => dateToolCommands(tool)),
+      close,
+    }));
+  }
+
+  /**
+   * THE GRID'S PROFILE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M5, a flow's box's: profile.ts): each column of its rows at
+   * their finest level -- the rows the box after it reads (query.ts classLambda), the columns it shows -- its values and its different values
+   * counted, its smallest and largest, by the database: its columns typed first (none of its rows), then one row of
+   * aggregates. Refused in words for a pivoted grid, whose columns are its values.
+   */
+  async profile(): Promise<Profile> {
+    const s = this.#snapshot;
+    if (s.pivotOn.length > 0) throw new CubeRefusal('a pivoted grid\'s columns are its values: take its pivot off to profile it');
+    const { CORRELATED, columnsLambda, correlationLambda, correlationsOf, profileLambda, profileOf } = await lazily(() => import('./profile.ts'));
+    const rows = classLambda(s).body[0]!;
+    const typed = await this.#controller.runQuery(columnsLambda(rows), s);
+    // the columns it hands on: what the box after it reads (box-columns.ts), each said by the name it hands it on by
+    const on = handedOn(typed.rows.columns.map((c) => c.name), s, this.#config as unknown as Record<string, unknown>);
+    const columns = on.map((c) => ({ name: c.name, type: typed.rows.columns.find((t) => t.name === c.name)!.type }));
+    const answer = await this.#controller.runQuery(profileLambda(rows, columns), s);
+    const profile = profileOf(answer.rows, columns);
+    // its measures, how they move together (Alteryx's Pearson Correlation): a second row of aggregates -- an id's or a
+    // year's correlation, a dimension's, says nothing
+    const kinds = new Map(rowColumns(s).map((c) => [c.name, c.kind] as const));
+    const numbers = columns.map((c, i) => ({ c, as: on[i]!.as }))
+      .filter(({ c }) => familyOf(c.type) === 'numeric' && kinds.get(c.name) === 'measure').slice(0, CORRELATED);
+    const correlations = numbers.length < 2 || profile.rows < 2 ? undefined : correlationsOf(
+      (await this.#controller.runQuery(correlationLambda(rows, numbers.map(({ c }) => c.name)), s)).rows, numbers.map(({ as }) => as));
+    return { ...profile, columns: profile.columns.map((c, i) => ({ ...c, name: on[i]!.as })), ...(correlations !== undefined ? { correlations } : {}) };
+  }
+
+  /**
+   * THE QUERY THE GRID RAN LAST (a flow's box's Code, docs/DATACUBE_FLOW_MODE_2026_10_24.md M5 and FL12: each box's Pure
+   * shown), as the "Generated Pure & SQL" window shows it: the query this product built, as the compiler prints it, and
+   * the SQL the planner made of it and the database ran -- read, nothing run. Refused in words before its rows are read.
+   */
+  async code(): Promise<{ readonly pure: string; readonly sql: string }> {
+    const view = this.#view;
+    if (!view) throw new CubeRefusal('its rows are not read yet: its query is the one they are read by');
+    return { pure: await this.printQuery(view.query, 'PRETTY'), sql: view.sql };
+  }
+
+  /** Text onto the clipboard, by its host's (a flow's box's Code copied); refused in words where its host has none. */
+  async copyText(text: string): Promise<void> {
+    const write = this.#options.writeClipboard;
+    if (!write) throw new Error('this page has no clipboard to copy to');
+    await write(text);
+  }
+
+  /**
+   * THE GRID'S ROWS WRITTEN TO A FILE (a flow's Output, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every row, in its sorts'
+   * order, the columns it hands on -- the rows the box after it reads -- streamed from the database a chunk at a time,
+   * written as CSV by the one writer Python's flow.run writes by too (flow-output.ts outputCsv), the file handed to the
+   * person as `name`. Refused in words for a pivoted grid, or a page with no way to hand a file over.
+   */
+  async writeOutput(name: string): Promise<void> {
+    const download = this.#options.download;
+    if (!download) throw new Error('this page has no way to hand a file over');
+    download(name, 'text/csv', await outputCsv(this.#snapshot, this.#config as unknown as Record<string, unknown>, this.#controller));
+  }
+
+  /**
+   * A CROSS TAB'S LOAD VALUES (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2): the values its rows hold now, asked of the
+   * database as its pivot asks them (query.ts pivotValuesLambda, its pins taken off), pinned -- its columns fixed, so the
+   * box after it reads them (the gesture pivot.pin, Python's grid.load_pivot_values); `pin` false, its values its rows'
+   * again. The refusal, in words, or null.
+   */
+  async pinPivotValues(pin: boolean): Promise<string | null> {
+    if (!pin) return this.#gesture('pivot.pin', { values: null }, 'Unfix Columns');
+    const { pivotValues: _pinned, ...s } = this.#snapshot;
+    let query: Lambda | null;
+    let answered: ResultTable;
+    try {
+      query = pivotValuesLambda(s);
+      if (query === null) return 'it pivots on no column: it has no values to load';
+      ({ rows: answered } = await this.#controller.runQuery(query, s));
+    } catch (e) {
+      if (e instanceof CubeRefusal) return e.message;
+      throw e;
+    }
+    const { values, more } = pivotValuesOf(s, answered);
+    if (more) return tooManyValues(s.pivotOn[0]!);
+    return this.#gesture('pivot.pin', { values }, 'Load Values');
+  }
+
+  /**
+   * A FLOW'S CUSTOM FILTER (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12, Alteryx's Filter, its Custom filter): the rows a
+   * condition written in Pure is true for -- parsed by the compiler, typed before it is set (a condition is a Boolean),
+   * its column and its filter (custom-filter.ts, the rule Python's grid.custom_filter asks) -- in a window of its own
+   * (ui/custom-filter-form.ts), the condition it has printed as the compiler prints it. Both fetched with the first.
+   */
+  async #openCustomFilter(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ customFilterForm }, { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterOf, customFilterProbe, customFilterText }] = await Promise.all([
+      lazily(() => import('./ui/custom-filter-form.ts')), lazily(() => import('./custom-filter.ts')),
+    ]);
+    const had = customFilterOf(this.#snapshot);
+    let start = '';
+    if (had !== undefined) {
+      // its condition as the compiler prints it, the lambda's braces off -- never opened blank on a condition it has (OK
+      // would set another: the review of 2026-10-26), the compiler's words said instead
+      let printed: string;
+      try {
+        printed = (await this.#controller.print(had.lambda)).trim();
+      } catch (e) {
+        this.#status(`its condition could not be printed: ${e instanceof Error ? e.message : String(e)}`, 'warn');
+        return;
+      }
+      start = printed.startsWith('{') && printed.endsWith('}') ? printed.slice(1, -1).trim() : printed;
+    }
+    this.#showOverlay('Custom Filter', (host, close) => customFilterForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => c.name).filter((c) => c !== CUSTOM_FILTER_COLUMN),
+      condition: start,
+      apply: async (text) => {
+        let lambda: Lambda;
+        let type: string | undefined;
+        try {
+          lambda = await this.#check(this.#controller.parse(customFilterText(text)));
+          const probed = await this.#check(this.#controller.typed(customFilterProbe(this.#snapshot, lambda)));
+          type = probed.derived.find((d) => d.name === CUSTOM_FILTER_COLUMN)?.type;
+        } catch (e) {
+          // the compiler's refusal, in its words
+          return e instanceof Error ? e.message : String(e);
+        }
+        try {
+          return await this.#apply(customFilterCommands(this.#snapshot, lambda, type), 'Custom Filter');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /**
+   * A FLOW'S PURE BOX (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12; pure-box.ts): its rows a function of its input's,
+   * written in Pure over `$input` -- in a window of its own (ui/pure-form.ts), its function as the compiler prints it --
+   * parsed and its rows typed as a relation by the compiler before its page sets it (setPure, the rule Python's grid.pure
+   * asks), its input's relation read back off its rows. Refused in words on a grid over no other grid's rows. The form
+   * fetched with the first.
+   */
+  async #openPure(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const source = this.#options.cubeSource;
+    const set = this.#options.onSetPure;
+    if (source?._type !== 'rows' || set === undefined) {
+      this.#status("a Pure box reads another box's rows: add it after a box of the flow", 'warn');
+      return;
+    }
+    const { pureForm } = await lazily(() => import('./ui/pure-form.ts'));
+    const had = source.pure;
+    // its input's rows: its own, or -- a Pure box already -- what stands where its function reads its input
+    const input = pureInput(source, this.#snapshot.source.query);
+    // its function as the compiler prints it -- never opened blank on a function it has (OK would set another: the
+    // review of 2026-10-26), the compiler's words said instead -- and its input's columns, or why there are none
+    let start = '';
+    if (had !== undefined) {
+      try {
+        start = pureShown(await this.#controller.print(had));
+      } catch (e) {
+        this.#status(`its Pure could not be printed: ${e instanceof Error ? e.message : String(e)}`, 'warn');
+        return;
+      }
+    }
+    let columns: readonly string[] = [];
+    let note: string | undefined;
+    try {
+      columns = had === undefined ? rowColumns(this.#snapshot).map((c) => c.name)
+        : (await this.#controller.relationColumns(input)).map((c) => c.name);
+    } catch (e) {
+      note = `its input's columns could not be typed: ${e instanceof Error ? e.message : String(e)}`;
+    }
+    const told = (pure: Lambda | null): string | null => (set(pure) ? null : 'the page refused it');
+    this.#showOverlay('Pure', (host, close) => pureForm(host, {
+      columns,
+      ...(note !== undefined ? { note } : {}),
+      pure: start,
+      apply: async (text) => {
+        try {
+          // parsed, judged and its rows typed as a relation (pure-box.ts pureFrom): the compiler's words, or DataCube's
+          return told(await this.#check(pureFrom(text, input, {
+            parse: (t) => this.#controller.parse(t), columns: (r) => this.#controller.relationColumns(r),
+          })));
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          // the compiler's refusal, in its words
+          return e instanceof Error ? e.message : String(e);
+        }
+      },
+      ...(had !== undefined ? { remove: async () => told(null) } : {}),
+      close,
+    }));
+  }
+
+  /** A CROSS TAB'S VALUES ITS COLUMNS LACK (FL3): the values its rows hold now that its pinned values do not list, asked
+   *  of the database (query.ts unpinnedValuesLambda), each as the screen reads a cell -- none when it pins nothing. */
+  async lackingPivotValues(): Promise<readonly (FilterValue | null)[]> {
+    const s = this.#snapshot;
+    const query = unpinnedValuesLambda(s);
+    if (query === null) return [];
+    const { rows: answered } = await this.#controller.runQuery(query, s);
+    return pivotValuesOf(s, answered).values;
+  }
+
+  /** A FLOW'S JSON PARSE (Alteryx's): a JSON column's fields made columns of their own -- the column editor opened on its
+   *  fields (ui/json-fields.ts: each a calculated column the compiler checks), its box's first JSON column's; refused in
+   *  words when it has none. */
+  #openJsonParse(): void {
+    const json = rowColumns(this.#snapshot).find((c) => isVariant(c.type));
+    if (json === undefined) {
+      this.#status('its input has no JSON column: a JSON Parse reads the fields of one', 'warn');
+      return;
+    }
+    this.openColumnEditor({ json: json.name, level: 'dimension' });
+  }
+
+  /** A FLOW'S TEST (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL8, Alteryx's Test): its checks of its input's rows -- no
+   *  empty value, no value repeated, a number within bounds -- each counted by the database as the rows failing it
+   *  (checks.ts, the rule Python's grid.test asks), in a window of its own (ui/test-form.ts). Both fetched with the first. */
+  async #openTest(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ testForm }, { checkCommands, checksOf, testColumns }] = await Promise.all([
+      lazily(() => import('./ui/test-form.ts')), lazily(() => import('./checks.ts')),
+    ]);
+    const s = this.#snapshot;
+    const checks = checksOf(s);
+    // the columns it reads: its own (a test set again) left out
+    const own = new Set(checks === undefined ? [] : testColumns(checks));
+    const columns = rowColumns(s).filter((c) => !own.has(c.name));
+    this.#showOverlay('Test', (host, close) => testForm(host, {
+      columns: columns.map((c) => ({ name: c.name, number: familyOf(c.type) === 'numeric' })),
+      checks: checks ?? [],
+      apply: async (next) => {
+        try {
+          return await this.#apply(checkCommands(this.#snapshot, next), 'Test');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S DATE FILTER (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's): a date column's rows in a range -- one
+   *  relative to when the query runs (the header menu's Date Range: date-ranges.ts) or the days between two -- in a window
+   *  of its own (ui/date-filter-form.ts), fetched with the first: the grid's own gesture (filter.dates, the rule Python's
+   *  grid.date_filter asks), its filter those dates alone. */
+  async #openDateFilter(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const { dateFilterForm } = await lazily(() => import('./ui/date-filter-form.ts'));
+    const kept = datesKept(this.#snapshot.filter);
+    this.#showOverlay('Date Filter', (host, close) => dateFilterForm(host, {
+      // a time of day has no days to keep (date-ranges.ts refuses it): never offered
+      columns: rowColumns(this.#snapshot).filter((c) => isTemporal(c.type) && !isTimeOfDay(c.type)).map((c) => c.name),
+      ranges: DATE_RANGES.map((range) => ({ range, label: DATE_RANGE_LABELS[range] })),
+      ...(kept !== undefined ? { kept } : {}),
+      apply: (k) => this.#gesture('filter.dates', 'range' in k ? { column: k.column, range: k.range } : { column: k.column, from: k.from, to: k.to },
+        'Date Filter'),
+      close,
+    }));
+  }
+
+  /** A FLOW'S IMPUTATION (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): number columns' empties filled -- a value, or the
+   *  column's average, smallest or largest across every row, by the database (impute.ts, the rule Python's grid.impute
+   *  asks) -- in a window of its own (ui/impute-form.ts). Both fetched with the first. */
+  async #openImpute(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ imputeForm }, { imputeCommands }] = await Promise.all([
+      lazily(() => import('./ui/impute-form.ts')), lazily(() => import('./impute.ts')),
+    ]);
+    this.#showOverlay('Imputation', (host, close) => imputeForm(host, {
+      columns: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'numeric').map((c) => c.name),
+      apply: async (imputation) => {
+        try {
+          return await this.#apply(imputeCommands(this.#snapshot, imputation), 'Imputation');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S BINNING (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's Multi-Field Binning): number columns each put
+   *  into bins of equal width over its range -- the grid's own bins preset, the database placing each value
+   *  (binning.ts, the rule Python's grid.binning asks) -- in a window of its own (ui/binning-form.ts). Both fetched with
+   *  the first. */
+  async #openBinning(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ binningForm }, { binningCommands }] = await Promise.all([
+      lazily(() => import('./ui/binning-form.ts')), lazily(() => import('./binning.ts')),
+    ]);
+    this.#showOverlay('Binning', (host, close) => binningForm(host, {
+      columns: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'numeric').map((c) => c.name),
+      apply: async (binning) => {
+        try {
+          return await this.#apply(binningCommands(this.#snapshot, binning), 'Binning');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S GENERATE ROWS (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's): each row repeated for each number from
+   *  one to another, or each day between two dates -- an exploded column the database fills (generate-rows.ts, the rule
+   *  Python's grid.generate_rows asks) -- in a window of its own (ui/generate-rows-form.ts). Both fetched with the first. */
+  async #openGenerateRows(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ generateRowsForm }, { generateRowsCommands }] = await Promise.all([
+      lazily(() => import('./ui/generate-rows-form.ts')), lazily(() => import('./generate-rows.ts')),
+    ]);
+    const columns = rowColumns(this.#snapshot);
+    this.#showOverlay('Generate Rows', (host, close) => generateRowsForm(host, {
+      wholes: columns.filter((c) => familyOf(c.type) === 'numeric' && !isFractional(c.type)).map((c) => c.name),
+      dates: columns.filter((c) => isTemporal(c.type) && !isTimeOfDay(c.type)).map((c) => c.name),
+      apply: async (g) => {
+        try {
+          return await this.#apply(generateRowsCommands(this.#snapshot, g), 'Generate Rows');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S SELECT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1, Alteryx's): each column kept or left out, renamed and
+   *  retyped -- hidden, given a display name, which a flow's box hands on as the relation's rename, or made another type
+   *  by a calculated column of its conversion (select-columns.ts, the rule
+   *  Python's grid.select asks) -- in a window of its own (ui/select-form.ts). Both fetched with the first. */
+  async #openSelect(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ selectForm }, { selectCommands, selectionOf }] = await Promise.all([
+      lazily(() => import('./ui/select-form.ts')), lazily(() => import('./select-columns.ts')),
+    ]);
+    this.#showOverlay('Select', (host, close) => selectForm(host, {
+      columns: selectionOf(this.#snapshot, this.#config as unknown as Record<string, unknown>),
+      apply: async (selection) => {
+        try {
+          return await this.#apply(selectCommands(this.#snapshot, selection), 'Select');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S SUMMARIZE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1, Alteryx's): each column grouped by, aggregated or
+   *  left out -- the grid's row groups, its columns' kinds and Aggregations, the rest hidden (summarize.ts, the rule
+   *  Python's grid.summarize asks) -- in a window of its own (ui/summarize-form.ts). Both fetched with the first. */
+  async #openSummarize(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ summarizeForm }, { summarizeCommands }] = await Promise.all([
+      lazily(() => import('./ui/summarize-form.ts')), lazily(() => import('./summarize.ts')),
+    ]);
+    this.#showOverlay('Summarize', (host, close) => summarizeForm(host, {
+      columns: summaryOf(this.#snapshot, this.#config as unknown as Record<string, unknown>),
+      label: (fn) => AGGREGATES.find((a) => a.value === fn)!.label,
+      second: (fn) => SECOND_COLUMN[fn],
+      apply: async (summary) => {
+        try {
+          return await this.#apply(summarizeCommands(this.#snapshot, summary), 'Summarize');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S COUNT RECORDS (docs/DATACUBE_FLOW_MODE_2026_10_24.md M4, Alteryx's): its rows counted, one step, no window
+   *  -- a column of one value grouped by, a 1 for each row summed, the rest hidden (count-records.ts, the rule Python's
+   *  grid.count_records asks). Fetched with the first; refused, said on its status bar. */
+  async #countRecords(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const { countRecordsCommands } = await lazily(() => import('./count-records.ts'));
+    let refused: string | null;
+    try {
+      refused = await this.#apply(countRecordsCommands(this.#snapshot), 'Count Records');
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      refused = e.message;
+    }
+    if (refused !== null) this.note(`Count Records: ${refused}`);
+  }
+
+  /** A FLOW'S FIND REPLACE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2, Alteryx's): a Join box's column replaced by the
+   *  column of theirs its Join found for it -- in place, theirs hidden (find-replace.ts, the rule Python's
+   *  page.find_replace asks) -- in a window of its own (ui/find-replace-form.ts), starting at its own, else at its
+   *  Join's key and the last of theirs. Both fetched with the first. */
+  async #openFindReplace(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ findReplaceForm }, { findReplaceCommands, findReplaceOf }] = await Promise.all([
+      lazily(() => import('./ui/find-replace-form.ts')), lazily(() => import('./find-replace.ts')),
+    ]);
+    const now = this.#snapshot.derived.map(findReplaceOf).find((r) => r !== undefined);
+    const source = this.#options.cubeSource;
+    const how = source?._type === 'join' ? source.how : undefined;
+    const key = how !== undefined && how.form !== 'append' && 'rows' in how.on ? how.on.rows[0]?.left : undefined;
+    const made = new Set(this.#snapshot.derived.filter((d) => findReplaceOf(d) !== undefined).map((d) => d.name));
+    this.#showOverlay('Find Replace', (host, close) => findReplaceForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => c.name).filter((c) => !made.has(c)),
+      ...(now !== undefined ? { start: now } : key !== undefined ? { start: { column: key } } : {}),
+      apply: async (t) => {
+        try {
+          return await this.#apply(findReplaceCommands(this.#snapshot, t), 'Find Replace');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S TRANSPOSE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M4): columns made rows -- a Name and a Value for each, its
+   *  keys beside them (transpose.ts, the rule Python's grid.transpose asks) -- in a window of its own
+   *  (ui/transpose-form.ts). Both fetched with the first. */
+  async #openTranspose(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ transposeForm }, { transposeCommands }] = await Promise.all([
+      lazily(() => import('./ui/transpose-form.ts')), lazily(() => import('./transpose.ts')),
+    ]);
+    this.#showOverlay('Transpose', (host, close) => transposeForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => ({ name: c.name, numeric: familyOf(c.type) === 'numeric' })),
+      apply: async (transpose) => {
+        try {
+          return await this.#apply(transposeCommands(this.#snapshot, transpose), 'Transpose');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S MULTI-FIELD FORMULA (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): one expression over several columns, each
+   *  one's value `$v` -- parsed by the compiler, a calculated column each (multi-field-columns.ts, the rule Python's
+   *  grid.multi_field asks) -- in a window of its own (ui/multi-field-form.ts). Both fetched with the first. */
+  async #openMultiField(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ multiFieldForm }, { multiFieldCommands, multiFieldText }] = await Promise.all([
+      lazily(() => import('./ui/multi-field-form.ts')), lazily(() => import('./multi-field-columns.ts')),
+    ]);
+    const family = (type: string | undefined): 'text' | 'numeric' | 'temporal' | 'other' => {
+      const f = familyOf(type);
+      return f === 'text' || f === 'numeric' ? f : isTemporal(type) ? 'temporal' : 'other';
+    };
+    this.#showOverlay('Multi-Field Formula', (host, close) => multiFieldForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => ({ name: c.name, family: family(c.type) })),
+      apply: async (columns, expression, suffix, inPlace) => {
+        let lambda: Lambda;
+        try {
+          lambda = await this.#check(this.#controller.parse(multiFieldText(expression)));
+        } catch (e) {
+          // the parser's refusal, as the column editor says it
+          return e instanceof Error ? e.message : String(e);
+        }
+        try {
+          return await this.#apply(multiFieldCommands(this.#snapshot, { columns, lambda, suffix, ...(inPlace ? { inPlace } : {}) }), 'Multi-Field Formula');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S UNIQUE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): a row of each key, its first in an order -- a row
+   *  number per key, a filter keeping the first, the number hidden (unique.ts, the rule Python's grid.unique asks) -- in
+   *  a window of its own (ui/unique-form.ts); its duplicates are its filter's False port. Both fetched with the first. */
+  async #openUnique(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ uniqueForm }, { uniqueCommands }] = await Promise.all([
+      lazily(() => import('./ui/unique-form.ts')), lazily(() => import('./unique.ts')),
+    ]);
+    this.#showOverlay('Unique', (host, close) => uniqueForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => c.name),
+      apply: async (unique) => {
+        try {
+          return await this.#apply(uniqueCommands(this.#snapshot, unique), 'Unique');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S TEXT TOOL (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): Text To Columns, RegEx or Data Cleansing -- the
+   *  calculated columns text-tools.ts makes, added in one step, each as the column editor's Add adds one -- in a window
+   *  of its own (ui/text-tool-form.ts, fetched with the first). */
+  async #openTextTool(kind: TextTool['kind']): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ textToolForm }, { textToolCommands }] = await Promise.all([
+      lazily(() => import('./ui/text-tool-form.ts')), lazily(() => import('./text-tool-columns.ts')),
+    ]);
+    const label = TEXT_TOOL_WINDOWS[kind];
+    this.#showOverlay(label, (host, close) => textToolForm(host, {
+      kind,
+      columns: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'text').map((c) => c.name),
+      apply: (tool) => this.#apply(textToolCommands(tool), label),
+      close,
+    }));
   }
 
   /**
@@ -3045,6 +4404,16 @@ export class CubeApp {
   openColumnEditor(start: ColumnEditorStart): void {
     if (this.#cubeOnly()) return;
     const editing = 'edit' in start ? start.edit : undefined;
+    // a related column is the class tree's (Add Related Column), never a formula: its editor would open on none
+    if (editing !== undefined && this.#snapshot.derived.some((d) => d.name === editing && d.related !== undefined)) {
+      this.#status(`${editing} is a related column: delete it and add another from Add Related Column`, 'warn');
+      return;
+    }
+    // a groups column is its groups', edited in their window, never a formula
+    if (editing !== undefined && this.#snapshot.derived.some((d) => d.name === editing && d.groups !== undefined)) {
+      void this.openGroupValues(editing, editing);
+      return;
+    }
     const key = editing !== undefined
       ? `column:${editing}`
       : `column:new:${(this.#newColumns += 1)}`;
@@ -3057,7 +4426,11 @@ export class CubeApp {
         print: (query) => this.#controller.print(query),
         compile: (candidate, signal) => this.#check(this.#controller.compile(
           { snapshot: candidate, tree: this.#owner.current.tree }, this.#view, signal)),
-        apply: (row, group, rename) => this.#setCalc(row, group, rename),
+        // a new column added, an edited one replaced or taken out (grid-gestures.ts): the commands Python's calculate,
+        // edit_calculated and remove_calculated build
+        add: (level, column) => this.#gesture('column.calculate', { level, column }, 'calculated columns'),
+        edit: (name, level, column) => this.#gesture('column.editCalculated', { name, level, column }, 'calculated columns'),
+        remove: (name) => this.#gesture('calc.delete', { column: name }, 'calculated columns'),
         readJson: (column) => this.#jsonReader(column),
         // the rail's choice: another calculated column, in this window's place
         openOther: (next) => {
@@ -3155,14 +4528,6 @@ export class CubeApp {
     };
   }
 
-  /** Take one calculated column out, whichever stage it is in. */
-  #deleteCalc(name: string): void {
-    void this.#setCalc(
-      this.#snapshot.derived.filter((d) => d.name !== name),
-      (this.#snapshot.groupDerived ?? []).filter((d) => d.name !== name),
-    );
-  }
-
   openFilters(): void {
     if (this.#cubeOnly()) return;
     this.#showOverlay('Filters', (host, close) => {
@@ -3213,7 +4578,8 @@ export class CubeApp {
       this.#status(message, 'error');
       return message;
     }
-    return refusal(await this.#query(withFilter, 'filter'));
+    // the window's filter, whole, by the command Python's filter builds (grid-gestures.ts filter.set)
+    return this.#gesture('filter.set', { filter: filter ?? null }, 'filter');
   }
 
   async #applyDraft(edited: CubeDraft, base: CubeDraft): Promise<boolean> {
@@ -3222,27 +4588,21 @@ export class CubeApp {
     // a calculated column added -- and applying a draft taken before
     // them wholesale would silently put the cube back. So the editor's
     // edits (the difference between its draft and what it opened on)
-    // land on the cube as it is NOW.
+    // land on the cube as it is NOW: as the grid commands they are
+    // (grid-commands.ts draftCommands), the ones Python's calls build.
+    let commands: GridCommand[];
+    try {
+      commands = draftCommands(asGridDraft(base), asGridDraft(edited));
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(e.message, 'warn');
+      return false;
+    }
+    // "Show root aggregation" and "Initially expand to level" reach the TREE in the same transaction as the rest of
+    // the draft (P2-169), by configure's own rule (grid-commands.ts treed: G3), as a host's configure does
     const merge = (s: CubeState): CubeState => {
-      const draft = mergeDraft(
-        { snapshot: s.snapshot, config: s.configuration, dimensions: edited.dimensions },
-        base,
-        edited,
-      );
-      // "Show root aggregation" is a SETTING in their General Properties,
-      // and it decides whether the level-0 query is issued at all;
-      // "Initially expand to level" decides which groups open as they
-      // load (upstream's isServerSideGroupOpenByDefault). Both reach the
-      // TREE in the same transaction as the rest of the draft: they used
-      // to be a refresh of their own before the draft's, which lost the
-      // draft's rows, pivots and sorts on a refusal (P2-169).
-      return {
-        snapshot: draft.snapshot,
-        configuration: draft.config,
-        tree: s.tree
-          .withTotals(draft.config.showRootAggregation)
-          .withExpandTo(draft.config.initialExpandToLevel ?? 0),
-      };
+      const d = applyGridCommands({ snapshot: s.snapshot, config: s.configuration, tree: s.tree }, commands);
+      return { snapshot: d.snapshot, configuration: d.config, tree: d.tree };
     };
     // COMPILED FIRST, as upstream's editor does: the whole query the
     // draft makes, planned and not run. A refusal applies nothing,
@@ -3250,7 +4610,15 @@ export class CubeApp {
     // editor open on the draft. A plane that cannot compile without
     // running falls to the transaction's own refusal, never to a guess.
     const endValidate = this.#startTask('Validating query...');
-    const target = merge(this.#owner.current);
+    let target: CubeState;
+    try {
+      target = merge(this.#owner.current);
+    } catch (e) {
+      endValidate();
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(e.message, 'warn');
+      return false;
+    }
     let checked: Awaited<ReturnType<CubeController['compile']>>;
     try {
       checked = await this.#check(this.#controller.compile({
@@ -3275,10 +4643,14 @@ export class CubeApp {
     }
     // ONE TRANSACTION: it lands whole, or is refused and everything --
     // snapshot, configuration, tree, chrome -- repaints from what was on
-    // screen. The draft is merged again onto the cube as it is when it is
+    // screen. The commands apply again to the cube as it is when they are
     // sent, not as it was before the compile.
-    const out = await this.#change(merge, { label: 'Properties' });
-    return out.kind === 'applied' || out.kind === 'nothing';
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return false;
+    }
+    const { refused, outcome } = await this.#applyCommands(commands, 'Properties');
+    return refused === null && (outcome.kind === 'applied' || outcome.kind === 'nothing');
   }
 
   /**
@@ -3331,8 +4703,15 @@ export class CubeApp {
         this.#closeWindow('Sign in');
         this.#status(`signed in again as ${expired.principal}`, 'ok');
         // what failed runs again: the view (going live, or the refused change) and every chart
-        if (this.#controller.snaps.isSnapped) this.#planeToggle?.();
-        else void this.#owner.retryRefused();
+        if (this.#controller.snaps.isSnapped && this.#plane().toggles) void this.#movePlane('live');
+        else {
+          // the refused change run again: its commands on the grid as it is now (what was made since kept), told as they
+          // land; one an undo was part of, as it was asked for -- no command says the undo (G13; the S1 audit's 8, 9)
+          const refused = this.#refused;
+          this.#refused = null;
+          if (refused !== null && !refused.moved && refused.commands.length > 0) void this.#apply(refused.commands, 'retried');
+          else void this.#owner.retryRefused();
+        }
         this.#page?.page.refresh();
       },
     };
@@ -3470,13 +4849,18 @@ export class CubeApp {
       this.#raise(open);
       return open;
     }
+    // a window that sets the cube, docked where its host says (a flow's settings pane): one there at a time
+    const dock = this.#options.dock !== undefined && DOCKED(key) ? this.#options.dock : undefined;
+    if (dock !== undefined) {
+      for (const [other, w] of [...this.#open]) if (other !== key && w.parentElement === dock) this.#closeWindow(other);
+    }
     const win = open ?? this.#doc.createElement('div');
     if (!open) {
       win.className = 'dc-app-overlay';
       win.dataset['window'] = key;
       // still this cube's, wherever it floats: its drags land here, its keys are this cube's
       win.dataset['dcCube'] = this.#els.root.dataset['dcCube'] ?? '';
-      const host = this.#options.windowHost ?? this.#els.root;
+      const host = dock ?? this.#options.windowHost ?? this.#els.root;
       // outside the cube it does not inherit the cube's type and colours, so it carries them
       if (host !== this.#els.root) win.classList.add('dc-app-floating');
       host.append(win);
@@ -3511,11 +4895,16 @@ export class CubeApp {
     const shut = this.#doc.createElement('button');
     shut.type = 'button';
     shut.className = 'dc-overlay-close';
-    shut.textContent = '\u00d7';
+    shut.append(chromeIcon(this.#doc, 'close'));
     shut.setAttribute('aria-label', `Close ${title}`);
     shut.addEventListener('click', close);
     head.append(h, shut);
     build(this.#div(win, 'dc-overlay-body'), close);
+    if (dock !== undefined) {
+      // docked: it fills its pane, which places it -- no drag, no size of its own, nothing to raise
+      win.classList.add('dc-docked');
+      return win;
+    }
 
     // Dragged by the header, resized from any edge, and REMEMBERED BY
     // TITLE: reopening Properties finds it where it was left, while
@@ -3535,12 +4924,9 @@ export class CubeApp {
 
   /** Put a window above every other. */
   #raise(win: HTMLElement): void {
-    // one stack per place windows float: several cubes sharing a `windowHost` share it too,
-    // so the window touched last is on top whichever cube opened it
-    const host = this.#options.windowHost ?? this.#els.root;
-    const top = (windowStack.get(host) ?? WINDOW_Z_BASE) + 1;
-    windowStack.set(host, top);
-    win.style.zIndex = String(top);
+    // one stack per place windows float (ui/window.ts raiseWindow): several cubes sharing a `windowHost` share it,
+    // and so do the page's charts' options, so the window touched last is on top whoever opened it
+    raiseWindow(win, this.#options.windowHost ?? this.#els.root);
   }
 
   /** Close one window, by its title. */
@@ -3652,7 +5038,7 @@ export class CubeApp {
     burger.className = 'dc-titlebar-menu';
     burger.setAttribute('aria-label', 'Menu');
     burger.setAttribute('aria-haspopup', 'menu');
-    burger.textContent = '\u2261';
+    burger.append(chromeIcon(doc, 'menu'));
     burger.addEventListener('click', () => {
       // A second press on the hamburger SHUTS it: the outside-press dismissal would close the
       // menu and the click that follows reopen it, so the button would appear to do nothing.
@@ -3700,62 +5086,111 @@ export class CubeApp {
     // no local store (the engine) is live with no snap on offer. Either
     // way it still states the plane, and a click does nothing -- a Live
     // that only answers with a refusal, or a Snap of a copy, was a lie.
+    const paint = (): void => {
+      const plane = this.#plane();
+      snap.textContent = plane.word;
+      snap.title = plane.tip;
+      snap.classList.toggle('dc-on', plane.snapped);
+      snap.classList.toggle('dc-fixed', !plane.toggles);
+      if (plane.toggles) snap.removeAttribute('aria-disabled');
+      else snap.setAttribute('aria-disabled', 'true');
+      snap.disabled = this.#planeMoving;
+    };
+    this.#paintSnap = paint;
+    if (this.#plane().toggles) {
+      snap.addEventListener('click', () => void this.#movePlane(this.#controller.snaps.isSnapped ? 'live' : 'snap'));
+    }
+    paint();
+    host.append(snap);
+    return host;
+  }
+
+  /**
+   * WHERE ITS ROWS ARE, as its pill and its tile's state say it: Snapped or Live, whether the person can move it, and the
+   * whole truth on hover -- WHEN a snap was frozen and HOW MANY rows it holds (rule 1 of snap mode: what you are looking
+   * at is never inferable).
+   *
+   * It moves only where both planes exist: a live source elsewhere (a warehouse, a remote file) and a store in this tab
+   * to snap into. Rows already held in the tab are a snap from the start; a plane with no local store (the engine) is
+   * live with no snap on offer -- a Live that only answers with a refusal, or a Snap of a copy, was a lie.
+   */
+  #plane(): { readonly snapped: boolean; readonly toggles: boolean; readonly word: string; readonly tip: string } {
     const held = this.#options.heldCopy;
     // the page's own store, or its host's (Python's page: hostSnap)
     const canSnap = (this.#options.runner === undefined && this.#options.snapTarget !== undefined)
       || (this.#options.runner !== undefined && this.#options.hostSnap !== undefined);
-    if (held !== undefined || !canSnap) {
-      snap.textContent = held !== undefined ? 'Snapped' : 'Live';
-      snap.classList.toggle('dc-on', held !== undefined);
-      snap.classList.add('dc-fixed');
-      snap.setAttribute('aria-disabled', 'true');
-      snap.title = held !== undefined
-        ? `${held.label} — copied into this tab at ${held.takenAt.toLocaleTimeString(UI_LOCALE)}, ` +
-          `${held.rowCount.toLocaleString(UI_LOCALE)} rows. Nothing can change it while you work.`
-        : describePlane({ mode: 'live' }, { remote: false, toggles: false }).title;
-      host.append(snap);
-      this.#paintSnap = null;
-    } else {
-      const paint = (): void => {
-        const state = this.#controller.snaps.state;
-        snap.classList.toggle('dc-on', state.mode === 'snapped');
-        // Where the data is, when Live is a warehouse: the plane is a place (the wording every app shares)
-        const host = this.#options.runner !== undefined && this.#options.hostSnap !== undefined;
-        const remote = host || (this.#options.runner === undefined && this.#options.live !== undefined);
-        const described = describePlane(state, { remote, toggles: true,
-          ...(host ? { store: this.#options.hostSnap!.store } : {}) });
-        snap.textContent = described.text;
-        snap.title = described.title;
-      };
-      this.#paintSnap = paint;
-      this.#planeToggle = () => snap.click();
-      snap.addEventListener('click', () => {
-        snap.disabled = true;
-        const done = (): void => {
-          snap.disabled = false;
-          paint();
-          this.#emit('plane');
-        };
-        // The PLANE changes, the cube's state does not: freeze (or release)
-        // what is on screen, then the owner re-runs it -- not an undo step.
-        // The new plane holds only once it has ANSWERED: a refused re-run puts
-        // the old plane back, so the badge never names a plane the rows are
-        // not from (a dead warehouse left a dropped snap's rows under "Live").
-        const rerun = () => this.#owner.refresh();
-        // the copy into the tab comes before the re-run, which is when the owner turns busy: counted from the click
-        const work = this.#check(this.#controller.snaps.isSnapped
-          ? this.#controller.goLive(rerun)
-          : this.#controller.snapAndRun(this.#owner.committed.snapshot, rerun));
-        work.then(done, (e: unknown) => {
-          this.#status(e instanceof Error ? e.message : String(e), 'error');
-          done();
-        });
-      });
-      paint();
-      host.append(snap);
+    if (held !== undefined) {
+      return { snapped: true, toggles: false, word: 'Snapped', tip: `${held.label} — copied into this tab at ${held.takenAt.toLocaleTimeString(UI_LOCALE)}`
+        + `${held.rowCount !== undefined ? `, ${held.rowCount.toLocaleString(UI_LOCALE)} rows` : ''}. Nothing can change it while you work.` };
     }
-    return host;
+    if (!canSnap) return { snapped: false, toggles: false, word: 'Live', tip: describePlane({ mode: 'live' }, { remote: false, toggles: false }).title };
+    const state = this.#controller.snaps.state;
+    // Where the data is, when Live is a warehouse: the plane is a place (the wording every app shares)
+    const host = this.#options.runner !== undefined && this.#options.hostSnap !== undefined;
+    const remote = host || (this.#options.runner === undefined && this.#options.live !== undefined);
+    const described = describePlane(state, { remote, toggles: true, ...(host ? { store: this.#options.hostSnap!.store } : {}) });
+    return { snapped: state.mode === 'snapped', toggles: true, word: described.text, tip: described.title };
   }
+
+  /**
+   * THE PLANE MOVED BY THE PERSON: live again, or a copy snapped -- afresh, when one is held (Snap Again). Held while the
+   * page converges; the new plane holds only once it has ANSWERED: a refused re-run puts the old plane back, so the state
+   * never names a plane the rows are not from (a dead warehouse left a dropped snap's rows under "Live"). The PLANE
+   * changes, the cube's state does not: freeze (or release) what is on screen, then the owner re-runs it -- not an undo
+   * step.
+   */
+  async #movePlane(to: 'live' | 'snap'): Promise<void> {
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return;
+    }
+    if (this.#planeMoving || !this.#plane().toggles) return;
+    if (to === 'live' && !this.#controller.snaps.isSnapped) return;
+    this.#planeMoving = true;
+    this.#paintPlane();
+    // moved (its page tells it), or refused (nothing moved)
+    const done = (moved: boolean): void => {
+      this.#planeMoving = false;
+      this.#settlePlane();
+      this.#paintPlane();
+      if (moved) this.#emit('moved');
+      this.#emit('plane');
+    };
+    const rerun = () => this.#owner.refresh();
+    // the copy into the tab comes before the re-run, which is when the owner turns busy: counted from the click
+    await this.#check(to === 'live'
+      ? this.#controller.goLive(rerun)
+      : this.#controller.snapAndRun(this.#owner.committed.snapshot, rerun)).then(() => done(true), (e: unknown) => {
+      this.#status(e instanceof Error ? e.message : String(e), 'error');
+      done(false);
+    });
+  }
+
+  /** Its plane said again: a grid alone's pill, and its tile's state. */
+  #paintPlane(): void {
+    this.#paintSnap?.();
+    this.#paintTileState();
+  }
+
+  /**
+   * ITS STATE LEFT OF ITS TILE'S TITLE (ui/tile-icons.ts; the user, 2026-10-25): Live quiet, Snapped accented, what it
+   * reads and when it was frozen on hover; a click, where its plane can move, opens its menu (Snap; or Go Live, Snap
+   * Again).
+   */
+  #paintTileState(): void {
+    const plane = this.#plane();
+    const source = this.#sourceName();
+    const tip = plane.snapped ? plane.tip.replace(/ Click to go live\.$/, ' Click to go live, or to snap again.')
+      : `${source !== undefined ? `Reads ${source}. ` : ''}${plane.tip}`;
+    paintState(this.#tileStateEl, plane.snapped ? 'snapped' : 'live', plane.word, tip, { menu: plane.toggles, off: !plane.toggles });
+    this.#tileStateEl.disabled = this.#planeMoving;
+    // and in its status bar, in words
+    const reads = this.#statusSourceEl;
+    reads.dataset['state'] = plane.snapped ? 'snapped' : 'live';
+    reads.textContent = source !== undefined ? `${source} \u00b7 ${plane.word}` : plane.word;
+    reads.title = plane.tip;
+  }
+
 
   /** What this grid reads, as a person names it: a file, a table, a copy in this tab. */
   #sourceName(): string | undefined {
@@ -3793,29 +5228,29 @@ export class CubeApp {
     return this.#tileHeadEl;
   }
 
+  /** Its state, for the left of its tile's title (or a lone grid's sheet tab): Live or Snapped. */
+  tileState(): HTMLElement {
+    return this.#tileStateEl;
+  }
+
+  /** What it reads, as its tile's title says on hover: "Reads trades.csv". */
+  tileAbout(): string | undefined {
+    const source = this.#sourceName();
+    return source !== undefined ? `Reads ${source}` : undefined;
+  }
+
   #paintTileHead(): void {
     const head = this.#tileHeadEl;
     head.replaceChildren();
+    this.#paintTileState();
     if (!this.#inTile) return;
-    const source = this.#sourceName();
-    if (source !== undefined) head.append(this.#sourceTag(source));
-    head.append(this.#snapPill(), this.#gridMenuButton());
-    // the zones' way back LAST: in a page's bar, a lone grid's header ends the strip, above the zone bar's own fold
+    // a grid alone become a tile (a second grid on its page): its status bar says its source from now, not at its next view
+    const readout = this.#els.stats.querySelector('.dc-status-readout');
+    if (readout && !this.#statusSourceEl.isConnected) readout.prepend(this.#statusSourceEl);
+    // its source is its title's hover and its status bar's words, its plane its state left of its title (the user,
+    // 2026-10-25); no menu button of its own (2026-10-23): its right-click has all a grid's menu had. The zones' way back:
+    // in a page's bar, a lone grid's header ends the strip, above the zone bar's own fold
     if (!this.#config.showDragZones) head.append(this.#zonesBack());
-  }
-
-  /** The grid's own menu button, in its tile's header (`#gridMenu`); a second press shuts the menu, as the bar's does. */
-  #gridMenuButton(): HTMLElement {
-    const button = this.#doc.createElement('button');
-    button.type = 'button';
-    button.className = 'dc-tile-button dc-tile-menu';
-    button.textContent = '\u2261';
-    button.title = 'This grid\'s menu';
-    button.setAttribute('aria-label', 'Grid menu');
-    button.setAttribute('aria-haspopup', 'menu');
-    button.setAttribute('aria-expanded', 'false');
-    button.addEventListener('click', () => this.#toggleMenu(button, () => this.#gridMenu()));
-    return button;
   }
 
   /**
@@ -3839,11 +5274,11 @@ export class CubeApp {
   /**
    * The hamburger's menu, built as it opens (Undo knows whether there is anything to undo):
    * Data...; Undo and Redo; the cube as a file (Save, Save As, Open, Share, Export, Email); View
-   * and Insert a level down; Settings. Where the planner runs is the status bar's readout. A host's entries go where their `section` says, File unless
-   * named; an empty group or submenu is not shown.
+   * and Insert a level down, the app's Settings… last in View, a line apart. Where the planner runs is the status bar's
+   * readout. A host's entries go where their `section` says, File unless named; an empty group or submenu is not shown.
    */
   /** A host's entries for one place (`MenuItem.section`, the file group unless named). */
-  #hostItems(section: 'file' | 'view' | 'data' | 'plane'): MenuItem[] {
+  #hostItems(section: 'file' | 'view' | 'data' | 'create' | 'plane'): MenuItem[] {
     return (this.#options.hostMenu?.() ?? []).filter((i) => (i.section ?? 'file') === section);
   }
 
@@ -3851,17 +5286,15 @@ export class CubeApp {
     const host = (section: 'file' | 'view' | 'data'): MenuItem[] => this.#hostItems(section);
     // The cube's own entries are not offered while Ad Hoc is on: they changed the hidden cube
     // and nothing visible (P2-289).
-    const cubeOnly = this.#adhoc ? { disabled: true } : {};
+    const adhoc = this.#adhoc !== null;
     const submenu = (label: string, items: MenuItem[]): MenuItem[] =>
       (items.length > 0 ? [{ label, submenu: items }] : []);
     const groups: MenuGroup[] = [
-      // NEW, first (the user, 2026-10-01): a data source -- through the host's picker -- a
-      // visualization or a copy of this grid, all beside what is there; or a blank page, apart,
-      // which replaces everything
-      { label: '', items: submenu('New', [
-        ...(this.#options.openSource ? [{ id: 'source.new' as const, label: 'Data Source\u2026', ...cubeOnly }] : []),
-        { id: 'chart.plot', label: 'Visualization', ...cubeOnly },
-        { id: 'grid.new', label: 'Copy of Grid', ...cubeOnly },
+      // CREATE, first (the user, 2026-10-01; "Create", not "New", 2026-10-23): a data source -- through the host's
+      // picker -- a copy of this grid or a chart of it, all beside what is there, and the host's (a class...); or a
+      // blank page, apart, which replaces everything
+      { label: '', items: submenu('Create', [
+        ...createItems({ source: this.#canOpenSource, host: this.#hostItems('create'), disabled: adhoc }),
         ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'Blank Page', separated: true }] : []),
       ]) },
       // THE PAGE'S LAYOUT, while there is a page of tiles: its layouts, and locking it so nothing moves by accident
@@ -3869,42 +5302,17 @@ export class CubeApp {
         { id: 'page.arrange' as const, label: 'Arrange\u2026', ...(this.#page.page.editing ? {} : { disabled: true }) },
         { id: 'page.undoLayout' as const, label: 'Undo Layout', ...(this.#page.page.canUndoLayout ? {} : { disabled: true }) },
         { id: 'page.redoLayout' as const, label: 'Redo Layout', ...(this.#page.page.canRedoLayout ? {} : { disabled: true }) },
-        { id: 'page.editLayout' as const, label: 'Edit Layout', checked: this.#page.page.editing },
+        // a switch says what it will do, and flips (the menus, docs/DATACUBE_UI_REVIEW_2026_10_24.md)
+        { id: 'page.editLayout' as const, label: this.#page.page.editing ? 'Done Editing Layout' : 'Edit Layout' },
       ] }] : []),
       { label: '', items: host('data') },
       { label: '', items: this.#undoItems() },
       { label: '', items: [...host('file'), ...this.#outputItems()] },
-      { label: '', items: [...submenu('View', [...this.#viewItems(), ...host('view')])] },
-      { label: '', items: [{ id: 'view.settings', label: 'Settings...' }] },
+      // HOW IT IS SHOWN, and the app's Settings… -- this browser's, not this grid's Properties (the user, 2026-10-25:
+      // under View, as the page's ≡ has them)
+      { label: '', items: submenu('View', [...this.#viewItems(), ...host('view'), { id: 'view.settings', label: 'Settings…', separated: true }]) },
     ];
     return groups.filter((g) => g.items.length > 0);
-  }
-
-  /**
-   * A GRID'S OWN MENU, under the menu button in its tile's header on a page (the design's §3.1: each grid's header
-   * carries only that grid's things, the same for the first grid and the fifth): a chart or a copy of it, its Undo,
-   * its Export and Email, its Properties, Ad Hoc and Dimensions.
-   */
-  #gridMenu(): MenuGroup[] {
-    const cubeOnly = this.#adhoc ? { disabled: true } : {};
-    return [
-      { label: '', items: [{ label: 'New', submenu: [
-        { id: 'chart.plot', label: 'Visualization', ...cubeOnly },
-        { id: 'grid.new', label: 'Copy of Grid', ...cubeOnly },
-      ] }] },
-      // a host's entries on this grid's rows (Create a Class…): a group only when there are some -- each group is
-      // drawn with its separator
-      ...(this.#hostItems('data').length > 0 ? [{ label: '', items: this.#hostItems('data') }] : []),
-      { label: '', items: this.#undoItems() },
-      { label: '', items: this.#outputItems() },
-      { label: '', items: this.#viewItems() },
-      // on a page of its own: onto another sheet (its charts stay where they are, following it), and taken off it, as
-      // its tile's x does (and as the one way when it is alone in the bar)
-      // locked: offered disabled, with nothing under it
-      ...(this.#options.onMoveToSheet ? [{ label: '', items: [{ label: 'Move to Sheet',
-        ...(this.#options.sheets?.().locked ? { disabled: true } : { submenu: this.#sheetItems() }) }] }] : []),
-      ...(this.#options.onRemove ? [{ label: '', items: [{ id: 'grid.remove' as const, label: 'Remove from Page' }] }] : []),
-    ];
   }
 
   /** Move to Sheet's entries: each other sheet, then a new one. */
@@ -3922,9 +5330,9 @@ export class CubeApp {
       // WHAT UNDO ACTS ON: Ad Hoc's session while it is on, never the hidden cube's history
       // (P2-284). Disabled rather than hidden when there is nothing to go back to: a shortcut
       // that silently does nothing cannot be told from one that is broken.
-      { id: 'view.undo', label: 'Undo',
+      { id: 'view.undo', label: 'Undo', shortcut: 'Ctrl+Z',
         ...((this.#adhoc ? this.#adhoc.session.canUndo : this.#owner.canUndo) ? {} : { disabled: true }) },
-      { id: 'view.redo', label: 'Redo',
+      { id: 'view.redo', label: 'Redo', shortcut: 'Ctrl+Shift+Z',
         ...((this.#adhoc ? this.#adhoc.session.canRedo : this.#owner.canRedo) ? {} : { disabled: true }) },
     ];
   }
@@ -3938,19 +5346,14 @@ export class CubeApp {
     ];
   }
 
-  /** Properties, Ad Hoc Analysis, and the named hierarchies (Dimensions) when there are any. */
+  /**
+   * Properties. Ad Hoc Analysis and a named dimension's grouping are started from its Dimensions tab, not a menu (the
+   * user, 2026-10-23); Ad Hoc is left by its own bar's Exit, or its right-click's.
+   */
   #viewItems(): MenuItem[] {
     // The cube's own entries are not offered while Ad Hoc is on: they changed the hidden cube
     // and nothing visible (P2-289).
-    const cubeOnly = this.#adhoc ? { disabled: true } : {};
-    const dimensions = availableDimensions(this.#snapshot, this.#dimensions())
-      .map((d): MenuItem => ({ id: 'view.dimension', label: d.name, column: d.name, ...cubeOnly }));
-    return [
-      { id: 'view.properties', label: 'Properties...', ...cubeOnly },
-      // the other way to work the cube: checked while it is on; choosing it again leaves
-      { id: 'view.adhoc', label: 'Ad Hoc Analysis', ...(this.#adhoc ? { checked: true } : {}) },
-      ...(dimensions.length > 0 ? [{ label: 'Dimensions', submenu: dimensions }] : []),
-    ];
+    return [{ id: 'view.properties', label: 'Properties…', shortcut: 'Ctrl+E', ...(this.#adhoc ? { disabled: true } : {}) }];
   }
 
   /**
@@ -3963,6 +5366,13 @@ export class CubeApp {
     this.#els.root.addEventListener('pointerdown', this.#onTouch, true);
     this.#els.root.addEventListener('focusin', this.#onTouch, true);
     this.#onDocKey = (event: KeyboardEvent): void => {
+      // ? shows the keyboard shortcuts, as a spreadsheet's and a web app's does -- never while typing one
+      if (event.key === '?' && !event.ctrlKey && !event.metaKey && !event.altKey
+        && this.#ownsKey(event.target) && !isTextEntry(event.target)) {
+        event.preventDefault();
+        this.showShortcuts();
+        return;
+      }
       if (!(event.ctrlKey || event.metaKey)) return;
       if (!this.#ownsKey(event.target)) return;
       const key = event.key.toLowerCase();
@@ -4025,7 +5435,7 @@ export class CubeApp {
   #ownsKey(target: EventTarget | null): boolean {
     const node = target && typeof (target as Node).nodeType === 'number' ? target as Node : null;
     if (!node) return lastTouched.get(this.#doc) === this;
-    // inside ANOTHER cube -- one on this cube's own board (a chart's editing grid) included
+    // inside ANOTHER cube -- one on this cube's own board (a grid added beside it) included
     const scope = cubeScopeOf(node);
     if (scope !== null && scope !== this.#els.root.dataset['dcCube']) return false;
     if (this.#els.root.contains(node)) return true;
@@ -4046,6 +5456,10 @@ export class CubeApp {
    * throws: an engine outage is a refusal, said, not an unhandled promise.
    */
   async #undo(): Promise<void> {
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return;
+    }
     if (this.#adhoc) {
       await this.#adhoc.undo();
       return;
@@ -4054,6 +5468,10 @@ export class CubeApp {
   }
 
   async #redo(): Promise<void> {
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return;
+    }
     if (this.#adhoc) {
       await this.#adhoc.redo();
       return;
@@ -4079,22 +5497,14 @@ export class CubeApp {
       case 'view.settings':
         this.openSettings();
         return true;
-      case 'view.adhoc':
-        if (this.#adhoc) this.exitAdHoc();
-        else void this.enterAdHoc();
-        return true;
-      case 'view.dimension': {
-        const found = this.#dimensions().find((d) => d.name === item.column);
-        if (found) this.useDimension(found);
-        return true;
-      }
       default: {
         // ANYTHING THE CUBE DOES NOT KNOW belongs to whoever put it
         // there. Without this a host could add an entry to the menu
         // and watch it do nothing, which is the dead-button fault
         // `menu-ids.test.ts` exists to prevent -- one layer up.
         const host = this.#options.onHostMenu;
-        const mine = this.#options.hostMenu?.() ?? [];
+        // the host's entries, a submenu's too (Create ▸, Model ▸), and those of the last right-click (its Join ▸)
+        const mine = menuItems([{ label: '', items: [...(this.#options.hostMenu?.() ?? []), ...this.#cellHost] }]);
         if (host && item.id !== undefined
           && mine.some((m) => m.id === item.id)) {
           host(item);
@@ -4107,78 +5517,16 @@ export class CubeApp {
 
 }
 
-/**
- * Whether the event landed in something the user types into.
- *
- * contenteditable counts: it is a text field that simply is not an
- * input element, and a check that only looked at tag names would
- * hand the cube's undo to someone mid-word.
- */
-function isTextEntry(target: EventTarget | null): boolean {
-  if (!target || typeof (target as Element).closest !== 'function') {
-    return false;
-  }
-  const el = target as HTMLElement;
-  const tag = el.tagName;
-  return (
-    tag === 'INPUT'
-    || tag === 'TEXTAREA'
-    || tag === 'SELECT'
-    || el.isContentEditable === true
-    || el.closest('[contenteditable="true"]') !== null
-  );
-}
 
 /** The selection statistics' numbers where their columns share no format. */
 const STATS_FORMAT: ColumnFormat = { kind: 'number', maximumFractionDigits: 2 };
 
 /**
- * A three-way merge of an editor's draft: what changed between `base`
- * and `edited`, laid over `current`.
- *
- * The editor owns three things in the snapshot -- the row and column
- * pivots and the sorts -- and the whole configuration. Each is taken
- * from the edit only where the edit differs from its base, key by
- * key down through the configuration's objects, so two windows that
- * touched different settings both keep what they did.
+ * An editor's draft as a grid draft: its Dimensions tab's hierarchies on its configuration, where Apply keeps them (a
+ * configure command's `dimensions`, when the tab changed them: untouched, the host's stay in charge).
  */
-export function mergeDraft(current: CubeDraft, base: CubeDraft, edited: CubeDraft):
-CubeDraft {
-  const same = (a: unknown, b: unknown): boolean =>
-    JSON.stringify(a) === JSON.stringify(b);
-  const plain = (v: unknown): v is Record<string, unknown> =>
-    typeof v === 'object' && v !== null && !Array.isArray(v);
-  const merge = (now: unknown, was: unknown, next: unknown): unknown => {
-    if (same(was, next)) return now;
-    if (!plain(now) || !plain(was) || !plain(next)) return next;
-    const out: Record<string, unknown> = { ...now };
-    for (const key of new Set([...Object.keys(was), ...Object.keys(next)])) {
-      const merged = merge(now[key], was[key], next[key]);
-      if (merged === undefined) delete out[key];
-      else out[key] = merged;
-    }
-    return out;
-  };
-  const snapshot: CubeSnapshot = {
-    ...current.snapshot,
-    rows: merge(current.snapshot.rows, base.snapshot.rows,
-      edited.snapshot.rows) as CubeSnapshot['rows'],
-    pivotOn: merge(current.snapshot.pivotOn, base.snapshot.pivotOn,
-      edited.snapshot.pivotOn) as CubeSnapshot['pivotOn'],
-    sorts: merge(current.snapshot.sorts, base.snapshot.sorts,
-      edited.snapshot.sorts) as CubeSnapshot['sorts'],
-  };
-  // The Dimensions tab's edit is KEPT, on the configuration: it went
-  // nowhere before, so a hierarchy defined there was gone on Apply.
-  const merged = merge(current.config, base.config, edited.config) as CubeConfiguration;
-  const config: CubeConfiguration = same(base.dimensions, edited.dimensions)
-    ? merged
-    : { ...merged, dimensions: edited.dimensions };
-  return {
-    snapshot: applyToSnapshot(snapshot, config),
-    config,
-    dimensions: edited.dimensions,
-  };
+export function asGridDraft(d: CubeDraft): GridDraft {
+  return { snapshot: d.snapshot, config: { ...d.config, dimensions: [...d.dimensions] } };
 }
 
 
@@ -4198,5 +5546,6 @@ function readsOf(d: DerivedColumn): string[] {
     d.window.order.forEach((o) => add(o.column));
   }
   if (d.childAggregate) add(d.childAggregate.of);
+  if (d.grain) add(d.grain.of);
   return out;
 }
