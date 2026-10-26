@@ -534,6 +534,10 @@ describe('a Generate Rows (generate-rows.ts): each row repeated by an exploded r
     refused(() => generateRowsCommands(typed, { kind: 'numbers', name: 'region', from: 1, to: 3 }), /'region' is already a column/);
     refused(() => generateRowsCommands(typed, { kind: 'numbers', name: 'N', from: { column: 'region' }, to: 3 }), /'region' is String: a bound is a whole number/);
     refused(() => generateRowsCommands(typed, { kind: 'days', name: 'd', from: 'region', to: date! }), /the days are between two date columns/);
+    // a moment's days would run past the last (the correctness audit's 12, 2026-10-26): its day taken first
+    const timed: CubeSnapshot = { ...typed, columns: [...typed.columns, { name: 'closed', type: 'DateTime' }] };
+    refused(() => generateRowsCommands(timed, { kind: 'days', name: 'd', from: date!, to: 'closed' }),
+      /'closed' is a date and a time: the days are between two days -- take it to its day first/);
     refused(() => generateRowsCommands(typed, { kind: 'numbers', name: 'N', from: 0, to: 1_000_000 }), /more than 100,000 rows of each/);
     assert.deepEqual(readGenerateRows({ kind: 'generateRows', name: 'N', from: 1, to: { column: 'n' }, step: 2 }),
       { kind: 'numbers', name: 'N', from: 1, to: { column: 'n' }, step: 2 });

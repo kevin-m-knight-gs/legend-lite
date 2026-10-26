@@ -10,7 +10,7 @@
 // PURE: no DOM, no planner.
 
 import { collection, enumValue, fn, lambda, lit, plus, property, toJson, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import { familyOf, isFractional, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
+import { familyOf, hasTimeOfDay, isFractional, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn } from './snapshot.ts';
 
@@ -97,6 +97,9 @@ export function generateRowsCommands(given: CubeSnapshot, g: GenerateRows): Grid
     for (const c of [g.from, g.to]) {
       const type = has(c);
       if (!isTemporal(type) || isTimeOfDay(type)) throw new CubeRefusal(`'${c}' is ${type ?? 'not typed yet'}: the days are between two date columns`);
+      // a moment's days counted from its time of day would run a day past the last (23:00 to 01:00 the next day: two
+      // days, the second after it -- the correctness audit's 12, 2026-10-26): its date taken first
+      if (hasTimeOfDay(type)) throw new CubeRefusal(`'${c}' is a date and a time: the days are between two days -- take it to its day first (a DateTime box, by Day)`);
     }
     const helper = dayName(name);
     if (types.has(helper)) throw new CubeRefusal(`'${helper}' is already a column`);
