@@ -22,7 +22,7 @@ import {
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
 import type { FileSource } from '../src/cube-document.ts';
 import { catalogColumns } from '../src/upload.ts';
-import { from } from '../../pure-protocol/src/index.ts';
+import { col as column, fn as call, from, lambda, lit, minus } from '../../pure-protocol/src/index.ts';
 
 // -- the prices: two instruments over 40 weekdays from 2024-01-01, and a third trading on fewer days --
 
@@ -379,11 +379,16 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close((await line(spec({ A: 'rsi(close[AAA], 6)' }))).values, want, 'rsi', 1e-7);
   });
 
-  it('prices from returns compound them back', async () => {
+  // the second audit's S5: initial at the first date -- gs-quant's product over the returns to date, as pandas' prod
+  // takes it, skips an empty one (the first, with no date before it)
+  it('prices from returns compound them back, from initial at the first date', async () => {
     const r = simple(AAA);
     let level = 1;
-    const want = r.map((v) => (v === null ? null : (level *= 1 + v)));
+    const want = r.map((v) => (v === null ? level : (level *= 1 + v)));
+    assert.equal(want[0], 1);
     close((await line(spec({ A: 'prices(returns(close[AAA]))' }))).values, want, 'prices', 1e-7);
+    close((await line(spec({ A: 'prices(returns(close[AAA]), 100)' }))).values, want.map((v) => v * 100), 'from 100', 1e-7);
+    close((await line(spec({ A: 'prices(diff(close[AAA]), 10, absolute)' }))).values, AAA.map((v) => 10 + v - AAA[0]!), 'absolute', 1e-7);
   });
 
   it('math: log, sqrt, abs, power, a floor and a cap', async () => {
@@ -561,6 +566,13 @@ describe('the review\'s findings on the numbers, each pinned', () => {
     const weekly = spec({ A: 'volatility(close[AAA], 3)' }, { grain: 'week' });
     const w = await run(seriesQuery(inputs, weekly, weekly.series[0]!));
     assert.ok(!w.columns.some((c) => c.name === TS_PER_YEAR));
+    // the second audit's S4: a combination of a daily part and one of no frequency is annualized by none -- its values
+    // none, and said so -- not by its first part's 252
+    const both = spec({ A: 'volatility(close[AAA], 5) - volatility(close[CCC], 3)' });
+    const c = await run(seriesQuery(inputs, both, both.series[0]!));
+    assert.deepEqual([...new Set(values(c, TS_PER_YEAR))], [null], 'one part no frequency: the whole none');
+    const daily2 = spec({ A: 'volatility(close[AAA], 5) - volatility(close[BBB], 5)' });
+    assert.deepEqual([...new Set(values(await run(seriesQuery(inputs, daily2, daily2.series[0]!)), TS_PER_YEAR))], [252]);
   });
 
   it('Q3: monthly rows with no frequency are annualized by 12', async () => {
@@ -591,6 +603,41 @@ describe('the review\'s findings on the numbers, each pinned', () => {
       /is split by symbol, but reads one symbol's rows alone/);
   });
 
+  // the second audit's S2: split by a column that is not the instrument's, an operand naming one instrument
+  // (close[CCC]) is one line every line divides by -- split by CCC's own group, every other group's line went
+  it('S2: split by another column, an operand of one instrument is one line every line reads', async () => {
+    const grouped: TsInputs = new Map([['px', { ...input, snapshot: { ...input.snapshot,
+      derived: [{ name: 'grp', type: 'String', lambda: lambda(['x'], call('toLower', call('toOne', column('x', 'symbol')))) }] } }]]);
+    const ts = spec({ A: 'close / close[CCC]' }, {}, 'grp');
+    const q = seriesQuery(grouped, ts, ts.series[0]!);
+    const t = await run(q);
+    const groups = values(t, TS_SPLIT).map(String);
+    assert.deepEqual([...new Set(groups)].sort(), ['aaa', 'bbb', 'ccc'], 'every group a line');
+    const of = (g: string): Line => values(t, TS_VALUE).map(num).filter((_, i) => groups[i] === g).reverse();
+    const cIdx = DAYS.map((_, i) => i).filter((i) => i % 3 === 0);
+    close(of('aaa'), cIdx.map((i) => AAA[i]! / CCC[i]!), 'aaa / CCC', 1e-9);
+    close(of('bbb'), cIdx.map((i) => BBB[i]! / CCC[i]!), 'bbb / CCC', 1e-9);
+  });
+
+  // the second audit's S1: a level below zero (a grid's column of yields, or of spreads, gone negative) compared from
+  // its start rises as a rise -- its change over its start's size, the statistics' rule -- and has no figures of its
+  // returns, never a sign turned or a part above zero taken for the whole
+  it('S1: a level below zero: compared as a rise where it rises, and no volatility, drawdown, growth or Sharpe ratio', async () => {
+    const below: TsInputs = new Map([['px', { ...input, snapshot: { ...input.snapshot,
+      derived: [{ name: 'spread', type: 'Float', lambda: lambda(['x'], minus(call('toOne', column('x', 'close')), lit.integer(200))) }] } }]]);
+    const ts = spec({ A: 'spread[AAA]' }, { view: { compare: 'percent' } });
+    const q = seriesQuery(below, ts, ts.series[0]!);
+    assert.equal(q.level, true, 'a column is a level');
+    const got = values(await run(q), TS_VALUE).map(num).reverse();
+    const spread = AAA.map((v) => v - 200);
+    close(got, spread.map((v) => (v - spread[0]!) / Math.abs(spread[0]!)), 'its change over its start\'s size', 1e-9);
+    const st = await run(statsQuery(below, ts, ts.series[0]!));
+    for (const stat of ['vol', 'mdd', 'cagr', 'sharpe'] as const) assert.equal(values(st, statName(stat))[0], null, stat);
+    // above zero, as it was: x / x0, gs-quant's
+    const up = spec({ A: 'close[AAA]' }, { view: { compare: 'rebase' } });
+    close(values(await run(seriesQuery(inputs, up, up.series[0]!)), TS_VALUE).map(num).reverse(), AAA.map((v) => (v / AAA[0]!) * 100), 'rebased', 1e-9);
+  });
+
   // Q6: a month dated at its start, valued at its end: a range from mid-month lost that month
   it('Q6: at a monthly frequency, an anchor mid-month starts at that month, whose value is of its last day', async () => {
     const months = [...new Set(DAYS.map((d) => d.slice(0, 7)))];
@@ -600,6 +647,25 @@ describe('the review\'s findings on the numbers, each pinned', () => {
     close(l.values, months.map((m) => (lastOf(m) / lastOf(months[0]!)) * 100), 'January the base', 1e-9);
     const st = await run(statsQuery(inputs, ts, ts.series[0]!, { from: '2024-01-15' }));
     assert.equal(Number(values(st, statName('count'))[0]), months.length, 'January among the dates shown');
+  });
+
+  // the second audit's S3: a range starting just after a period's last observation -- 1Y from a Sunday, YTD from the
+  // 1st -- is a change from that last observation, the value as of its start, not from the first period after it
+  it('S3: an anchor between observations reads the value as of it: the last before, at any frequency', async () => {
+    const months = [...new Set(DAYS.map((d) => d.slice(0, 7)))];
+    const lastOf = (m: string): number => AAA[DAYS.map((d) => d.slice(0, 7)).lastIndexOf(m)]!;
+    const monthly = spec({ A: 'rebase(close[AAA])' }, { grain: 'month' });
+    // February's first day: January's month-end the base, so February's point carries February's move
+    const l = await line(monthly, 'A', { from: '2024-02-01' });
+    close(l.values, months.map((m) => (lastOf(m) / lastOf('2024-01')) * 100), 'January the base', 1e-9);
+    // daily, from a Saturday: the Friday before it the base
+    const saturday = '2024-01-13';
+    const friday = DAYS.filter((d) => d < saturday).length - 1;
+    const daily = await line(spec({ A: 'percent_change(close[AAA])' }), 'A', { from: saturday });
+    close(daily.values, AAA.map((v) => v / AAA[friday]! - 1), 'the Friday before the base', 1e-9);
+    // an anchor before the first date: the first date the base
+    const early = await line(spec({ A: 'rebase(close[AAA])' }), 'A', { from: '2023-06-01' });
+    close(early.values, AAA.map((v) => (v / AAA[0]!) * 100), 'its first date the base', 1e-9);
   });
 
   // Q7: which of several rows a period's value was, said only for the first source of no split and no match
@@ -615,9 +681,9 @@ describe('the review\'s findings on the numbers, each pinned', () => {
   // Q8: prices of a return of -100% or less: the product, not the log's sum that skipped it
   it('Q8: prices of returns compounds every factor: a -100% return zero from there, one below it turning the sign', async () => {
     const zero = await line(spec({ A: 'prices(returns(close[AAA]) * 0 - 1, 10)' }));
-    close(zero.values, AAA.map((_, i) => (i === 0 ? null : 0)), 'a total loss', 1e-12);
+    close(zero.values, AAA.map((_, i) => (i === 0 ? 10 : 0)), 'a total loss', 1e-12);
     const sign = await line(spec({ A: 'prices(returns(close[AAA]) * 0 - 2, 10)' }));
-    close(sign.values, AAA.map((_, i) => (i === 0 ? null : 10 * (-1) ** i)), 'each factor -1', 1e-9);
+    close(sign.values, AAA.map((_, i) => 10 * (-1) ** i), 'each factor -1', 1e-9);
   });
 
   // Q9: a candle series' least and most read off its closes

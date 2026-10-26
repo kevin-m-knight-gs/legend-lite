@@ -522,8 +522,12 @@ const CHART_BUDGET = 303_500;
  *  5.7%, as the review's G8 asked). Measured 33,858.
  *  34,500 -> 35,000 (2026-10-26, the second audit's fixes (a level shifted by a number no level: timeseries-expr.ts
  *  levelOf) and a timeseries frozen: the filter each source keeps read by every query (timeseries-query.ts, filterRead),
- *  the viewer's setState). Measured 34,547. */
-const TIMESERIES_BUDGET = 35_000;
+ *  the viewer's setState). Measured 34,547.
+ *  35,000 -> 35,500 (2026-10-26, the second audit's numbers: a range's start the value as of it (S3), an operand of one
+ *  instrument unsplit (S2), prices from initial (S5), a combination's periods a year (S4), compare over its start's size
+ *  and no returns' figures at or below zero (S1); and its silent gaps said -- a split line of no frequency, a level at or
+ *  below zero off a log axis, the statistics' blanks (P-2)). Measured 35,157. */
+const TIMESERIES_BUDGET = 35_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

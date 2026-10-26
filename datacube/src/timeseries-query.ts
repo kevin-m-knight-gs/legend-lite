@@ -13,8 +13,9 @@
 //   3. the dates every column the series reads has (gs-quant's `intersect`), the split's first MAX_SPLIT_LINES values
 //   4. each function of the expression, innermost first: its columns over the dates, every window partitioned by the
 //      split and ordered by the period; a rolling figure drawn once its window is full (gs-quant's ramp)
-//   5. an index or a change from the start reads the value at the FIRST DATE SHOWN -- the anchor the viewer passes
-//      (where its zoom starts), found by the database: the first period at or after it that has a value
+//   5. an index or a change from the start reads the value AS OF THE FIRST DATE SHOWN -- the anchor the viewer passes
+//      (where its zoom starts), found by the database: the latest period at or before it that has a value, else the
+//      first after it
 //   6. the period, the split and the value(s), latest first, at most TS_POINT_LIMIT
 //
 // Every series reads ALL its history (step 5's anchor aside): the window shown is the viewer's, zoomed and panned over
@@ -234,7 +235,7 @@ class Writer {
    *  periods a year it was annualized by (none: no frequency the dates' spacing is). */
   readonly rows: string[];
   readonly years: string[];
-  #inView: string | undefined;
+  #asOf: string | undefined;
   #perYear: string | undefined;
 
   constructor(rel: Relation, o: {
@@ -318,20 +319,27 @@ class Writer {
   }
 
   /**
-   * THE VALUE AT THE FIRST DATE SHOWN, beside every row: the first period whose value is of a date at or after the
-   * anchor (the viewer's left edge; none, the first period) where `column` has a value -- the least such period, the
-   * database's -- and the value there, each a window over the whole partition. A week or a month is compared by the
-   * date its value is of, its last observation (the review's Q6: a period dated at its start lost the one holding it).
+   * THE VALUE AS OF THE FIRST DATE SHOWN, beside every row: of the periods where `column` has a value, the latest whose
+   * value is of a date at or before the anchor (the viewer's left edge) -- a year's change from the last close before
+   * it, a YTD from the year before's last -- or, the series starting after the anchor (or no anchor), its first; the
+   * period the database's, and the value there, each a window over the whole partition. A week or a month is compared
+   * by the date its value is of, its last observation (the review's Q6; the second audit's S3: a range starting just
+   * after a month's last observation lost that month's move).
    */
   anchored(column: string): string {
     const anchor = this.shared.anchor;
-    if (this.#inView === undefined) {
-      this.#inView = anchor === undefined ? '' : this.row('inview',
-        fn('greaterThanEqual', one(this.at), dateLiteral(anchor, this.shared.periodType!)));
+    const has = fn('isNotEmpty', col(column));
+    const first = this.window('anchor_first', 'min', Writer.read(this.row('anchor_any', when(has, col(PERIOD), none()))), 'all');
+    if (anchor === undefined) return this.#valueAt(column, first);
+    if (this.#asOf === undefined) {
+      this.#asOf = this.row('asof', fn('lessThanEqual', one(this.at), dateLiteral(anchor, this.shared.periodType!)));
     }
-    const shown = this.#inView === '' ? fn('isNotEmpty', col(column)) : and(one(this.#inView), fn('isNotEmpty', col(column)));
-    const mark = this.row('anchor_at', when(shown, col(PERIOD), none()));
-    const at = this.window('anchor_period', 'min', Writer.read(mark), 'all');
+    const before = this.window('anchor_before', 'max', Writer.read(this.row('anchor_asof', when(and(one(this.#asOf), has), col(PERIOD), none()))), 'all');
+    return this.#valueAt(column, this.row('anchor_period', when(fn('isEmpty', col(before)), col(first), col(before))));
+  }
+
+  /** `column`'s value at the period `at` names, beside every row of the partition. */
+  #valueAt(column: string, at: string): string {
     const value = this.row('anchor_mark', when(fn('equal', col(PERIOD), col(at)), col(column), none()));
     return this.window('anchor', 'max', Writer.read(value), 'all');
   }
@@ -442,7 +450,9 @@ function candled(e: TsExpr): TsExpr {
 /** Whether a column's matches pick one value of the split's column (`close[SPY]`, the split by symbol): one line, joined
  *  by every line of the split, not a line of its own (the review's Q5: matched inside each line, every other line went). */
 function matchesSplit(b: Base, src: TsSource, split: string): boolean {
-  return b.where.some((m) => (m.column ?? src.key) === split);
+  // or its instrument: `close / close[SPY]` split by sector -- SPY's one line divides every sector's (the second audit's
+  // S2: split by SPY's own sector, every other sector's line went)
+  return b.where.some((m) => { const c = m.column ?? src.key; return c === split || (src.key !== undefined && c === src.key); });
 }
 
 /**
@@ -614,18 +624,24 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     case 'prices': {
       const initial = float(n('initial'));
       const type = word('type');
-      // a level of none where its return is none (gs-quant's product leaves it NaN there), every other from the start
-      const at = (v: ValueSpecification): string => w.row('px', when(fn('isEmpty', col(a)), none(), v));
-      if (type === 'absolute') return done(at(op('plus', initial, one(w.window('cum', 'plus', R(a), 'running')))));
-      if (type === 'log') return done(at(op('times', initial, fn('exp', one(w.window('cum', 'plus', R(a), 'running'))))));
+      // initial at the first date, and every other from there: gs-quant's product (and sum) over the returns to date
+      // skips an empty one, as pandas' prod does -- a return of none (the first, which has no date before it) leaves the
+      // level where it was (the second audit's S5: the first date was none)
+      const summed = (c: string): ValueSpecification => {
+        const total = w.window('cum', 'plus', R(c), 'running');
+        return when(fn('isEmpty', col(total)), float(0), one(total));
+      };
+      const at = (v: ValueSpecification): string => w.row('px', v);
+      if (type === 'absolute') return done(at(op('plus', initial, summed(a))));
+      if (type === 'log') return done(at(op('times', initial, fn('exp', summed(a)))));
       // initial times the product of (1 + r), gs-quant's: a factor of 0 (a return of -100%) zero from there on, each
       // factor below 0 turning the sign -- the magnitude the sum of the logs of the others (the review's Q8)
       const g = w.row('g', op('plus', lit.integer(1), one(a)));
       const zeros = w.window('zeros', 'count', R(w.row('z', when(fn('equal', one(g), lit.integer(0)), lit.integer(1), none()))), 'running');
       const negatives = w.window('negs', 'count', R(w.row('neg', when(fn('lessThan', one(g), lit.integer(0)), lit.integer(1), none()))), 'running');
-      const logs = w.window('cum', 'plus', R(w.row('lg', when(fn('equal', one(g), lit.integer(0)), none(), fn('log', fn('abs', one(g)))))), 'running');
+      const logs = summed(w.row('lg', when(fn('equal', one(g), lit.integer(0)), none(), fn('log', fn('abs', one(g))))));
       return done(at(when(fn('greaterThan', one(zeros), lit.integer(0)), float(0),
-        op('times', op('times', initial, fn('pow', float(-1), one(negatives))), fn('exp', one(logs))))));
+        op('times', op('times', initial, fn('pow', float(-1), one(negatives))), fn('exp', logs)))));
     }
     case 'diff':
       return done(w.row('diff', op('minus', one(a), one(w.lag(a, n('obs'))))));
@@ -827,13 +843,15 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
     built = { value: v.close, open: v.open, high: v.high, low: v.low };
   } else {
     let value = v.column;
-    // compare: every LEVEL from one start -- a return, a difference, a deviation drawn as it is (the review's Q2)
+    // compare: every LEVEL from one start -- a return, a difference, a deviation drawn as it is (the review's Q2) --
+    // its change over its start's size, as the statistics' % change is: a start below zero rising is a rise (the
+    // second audit's S1: a yield of -1 rising to -0.5 was a fall of 50%); of a start above zero, x / x0 as gs-quant's
     const how = ts.view?.compare;
     if (how !== undefined && level) {
       const base = w.anchored(value);
-      value = how === 'rebase'
-        ? w.row('cmp', when(fn('equal', one(base), lit.integer(0)), none(), op('times', fn('divide', one(value), one(base)), lit.integer(100))))
-        : w.row('cmp', when(fn('equal', one(base), lit.integer(0)), none(), op('minus', fn('divide', one(value), one(base)), lit.integer(1))));
+      const change = w.row('cmp_chg', when(fn('equal', one(base), lit.integer(0)), none(),
+        fn('divide', op('minus', one(value), one(base)), fn('abs', one(base)))));
+      value = how === 'rebase' ? w.row('cmp', op('times', op('plus', lit.integer(1), one(change)), lit.integer(100))) : change;
       unit = how === 'rebase' ? 'index' : 'ratio';
     }
     built = { value };
@@ -841,9 +859,13 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
   // the most rows any of its columns took one of, at a period: more than one, and the drawing says so
   const rows = w.rows.length === 0 ? undefined : w.rows.length === 1 ? w.rows[0]!
     : w.row('rows', w.rows.slice(1).reduce<ValueSpecification>((most, c) => when(fn('greaterThan', one(c), most), one(c), most), one(w.rows[0]!)));
+  // the periods a year it was annualized by: of a combination, none when any part's is none (the second audit's S4: a
+  // part of no frequency, every value none, and the first part's 252 said nothing was wrong)
+  const perYear = w.years.length <= 1 ? w.years[0]
+    : w.row('per_year_all', when(or(...w.years.map((c) => fn('isEmpty', col(c)))), none(), one(w.years[0]!)));
   return {
     rel: w.rel, period: PERIOD, ord: ORD, at: w.at, periodType: sh.periodType!, ...built, ...(split !== undefined ? { split } : {}),
-    unit, level, ...(rows !== undefined ? { rows } : {}), ...(w.years.length > 0 ? { perYear: w.years[0]! } : {}), sources: read, writer: w,
+    unit, level, ...(rows !== undefined ? { rows } : {}), ...(perYear !== undefined ? { perYear } : {}), sources: read, writer: w,
   };
 }
 
@@ -973,7 +995,7 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
       agg('__ts_stat_rmean', row(col(rSimple)), y('average')),
       agg('__ts_stat_rsd', row(col(rSimple)), y('stdDevSample')),
     ] : []),
-    ...(dd !== undefined ? [agg(S('mdd'), row(col(dd)), y('min'))] : []),
+    ...(dd !== undefined ? [agg('__ts_stat_mdd_all', row(col(dd)), y('min'))] : []),
     ...(yearly !== undefined ? [agg(TS_STAT_PER_YEAR, row(col(yearly)), y('max'))] : []),
   ];
   const keys = b.split !== undefined ? [b.split] : [w.part];
@@ -988,13 +1010,17 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
   if (level) {
     const days = fn('dateDiff', one(S('from')), one(S('to')), enumValue(DURATION, 'DAYS'));
     const perYear = fn('sqrt', yearly !== undefined ? one(TS_STAT_PER_YEAR) : w.perYear());
+    // a level's figures of its returns, its drawdown and its growth, over a window it is above zero in throughout:
+    // gone to zero or below (a yield), none of them -- never one of the part above zero, never a sign turned (the
+    // second audit's S1), and the viewer says why (its statistics' blanks)
+    const above = (x: ValueSpecification): ValueSpecification => when(fn('lessThanEqual', one(S('low')), lit.integer(0)), none(), x);
     derived.push(
-      derive(S('vol'), row(op('times', op('times', one('__ts_stat_logsd'), perYear), lit.integer(100)))),
-      derive(S('cagr'), row(when(or(fn('lessThanEqual', days, lit.integer(0)), fn('lessThanEqual', first, lit.integer(0)),
-        fn('lessThanEqual', last, lit.integer(0))), none(),
-      op('minus', fn('pow', fn('divide', last, first), fn('divide', float(365.25), days)), lit.integer(1))))),
-      derive(S('sharpe'), row(when(fn('equal', one('__ts_stat_rsd'), lit.integer(0)), none(),
-        op('times', fn('divide', one('__ts_stat_rmean'), one('__ts_stat_rsd')), perYear)))),
+      derive(S('vol'), row(above(op('times', op('times', one('__ts_stat_logsd'), perYear), lit.integer(100))))),
+      derive(S('mdd'), row(above(one('__ts_stat_mdd_all')))),
+      derive(S('cagr'), row(when(or(fn('lessThanEqual', days, lit.integer(0)), fn('lessThanEqual', one(S('low')), lit.integer(0))), none(),
+        op('minus', fn('pow', fn('divide', last, first), fn('divide', float(365.25), days)), lit.integer(1))))),
+      derive(S('sharpe'), row(above(when(fn('equal', one('__ts_stat_rsd'), lit.integer(0)), none(),
+        op('times', fn('divide', one('__ts_stat_rmean'), one('__ts_stat_rsd')), perYear))))),
     );
   }
   rel = rel.extend(derived);

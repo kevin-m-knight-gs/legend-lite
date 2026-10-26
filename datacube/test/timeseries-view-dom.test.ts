@@ -11,7 +11,7 @@ import { JSDOM } from 'jsdom';
 import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
-import { toJson } from '../../pure-protocol/src/index.ts';
+import { col, fn, lambda, lit, minus, toJson } from '../../pure-protocol/src/index.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { EChartsOption } from 'echarts';
 import { marketsCsv } from '../src/samples.ts';
@@ -282,6 +282,27 @@ describe('a refusal said where it lands, never shown as something missing', () =
       assert.equal(none.root.querySelector('.dc-ts-error')?.textContent, 'Write the series it applies to first, or build one from a column.');
     } finally {
       none.view.dispose();
+    }
+  });
+
+  // the second audit's P-2b and S1: a level's statistics blank -- a "—" that said nothing -- said why, line by line
+  it("a level's blank statistics said why: at or below zero over the dates shown", async () => {
+    const below: TsGrid = { ...grid, snapshot: { ...grid.snapshot,
+      derived: [{ name: 'gap', type: 'Float', lambda: lambda(['x'], minus(fn('toOne', col('x', 'close')), lit.integer(1_000_000))) }] } };
+    const { root, view } = viewer({ sources: SPEC.sources, series: [{ id: 'A', expr: parseExpr('gap[SPX]'), name: 'Gap' }], view: { stats: true } }, undefined, below);
+    try {
+      await until(() => root.querySelector('.dc-ts-stats-blanks') !== null, 'why its figures are blank');
+      assert.match(root.querySelector('.dc-ts-stats-blanks')!.textContent!, /^Gap is at or below zero over these dates: it has no volatility, drawdown, growth or Sharpe ratio/);
+    } finally {
+      view.dispose();
+    }
+    // above zero, nothing to say
+    const plain = viewer(SPEC);
+    try {
+      await until(() => statRows(plain.root).length === 2, 'its statistics');
+      assert.equal(plain.root.querySelector('.dc-ts-stats-blanks'), null);
+    } finally {
+      plain.view.dispose();
     }
   });
 });

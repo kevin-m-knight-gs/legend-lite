@@ -12,7 +12,7 @@ import type { ResultTable } from '../../engine-client/src/result.ts';
 import { LIGHT_THEME } from '../src/chart-option.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { timeseriesCsv, timeseriesOption, tsLines, valueText, type TsResult } from '../src/timeseries-option.ts';
-import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
+import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
 import type { TsUnit } from '../src/timeseries-expr.ts';
 
@@ -121,6 +121,30 @@ describe('the drawing', () => {
     const drawn = answered('A', 'ratio', { [TS_DATE]: DAYS, [TS_VALUE]: [0.01, -0.02, null] });
     assert.deepEqual(types(draw(returns, [drawn]).option), ['value']);
     assert.ok(tsLines(returns, [drawn], LIGHT_THEME).notes.some((n) => /no level .* not on a log scale/.test(n)));
+  });
+
+  // the second audit's S1: a level that goes to zero or below (a yield gone negative) on a log pane -- its points left
+  // off a log axis without a word -- keeps its axis straight, said
+  it('a level at or below zero on a log pane: its axis straight, and said', () => {
+    const ts = spec([S('A', 'yield[2Y]')], { panes: [{ log: true }] });
+    const drawn = answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [0.1, -0.2, 0.5] });
+    const types = (o: Record<string, unknown>): string[] => (o['yAxis'] as { type: string }[]).map((y) => y.type);
+    assert.deepEqual(types(draw(ts, [drawn]).option), ['value']);
+    assert.ok(tsLines(ts, [drawn], LIGHT_THEME).notes.some((n) => /values at or below zero, which a log scale cannot draw/.test(n)));
+    const above = answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [0.1, 0.2, 0.5] });
+    assert.deepEqual(types(draw(ts, [above]).option), ['log']);
+  });
+
+  // the second audit's P-2a: a split series' periods a year are each line's own -- one line of no frequency drawn empty
+  // and said, by name, though the others were annualized
+  it("a split's line of no frequency to annualize by: said by its name", () => {
+    const ts = spec([S('A', 'volatility(close, 3)', { split: 'symbol' })]);
+    const { notes } = tsLines(ts, [answered('A', 'percent', {
+      [TS_DATE]: ['2024-01-04', '2024-01-04', '2024-01-03', '2024-01-03'], [TS_VALUE]: [20, null, 21, null],
+      [TS_SPLIT]: ['AAA', 'CCC', 'AAA', 'CCC'], [TS_PER_YEAR]: [252, null, 252, null],
+    }, { split: 'symbol' })], LIGHT_THEME);
+    assert.ok(notes.some((n) => /^CCC\b.*no frequency it can be annualized by/.test(n)), notes.join(' | '));
+    assert.ok(!notes.some((n) => /^AAA\b/.test(n)));
   });
 
   it('an RSI\'s axis shows its bounds whole', () => {

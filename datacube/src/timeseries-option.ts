@@ -28,6 +28,13 @@ export interface TsResult {
   readonly table: ResultTable;
 }
 
+/** Whether every figure a line draws is above zero -- a log axis's to draw -- by comparing them (its candles' lows and
+ *  its band's lower edge too). */
+function aboveZero(l: TsLine): boolean {
+  const above = (v: number | null): boolean => v === null || v > 0;
+  return l.points.every(([, v]) => above(v)) && (l.lower ?? []).every(above) && (l.candles?.low ?? []).every(above);
+}
+
 /** One drawn line: a series, or one value of a split series. */
 export interface TsLine {
   /** `A`, or `A` and its split value: what the legend and a hover know it by. */
@@ -121,11 +128,10 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
       notes.push(`${seriesName(s)}: several rows share a date's latest time, and one was taken -- match one (a column's [...])`
         + `${key !== undefined && s.split === undefined ? ` or split it by ${key}` : ''}, so each date has one.`);
     }
-    // annualized with no frequency: by what the database inferred from its dates, or by nothing (the review's Q3)
+    // annualized with no frequency: by what the database inferred from its dates, or by nothing (the review's Q3) --
+    // line by line, a split's inferred from each line's own dates (the second audit's P-2a)
     const perYear = column(t, TS_PER_YEAR);
-    if (perYear && perYear.length > 0 && perYear.every((n) => n === null)) {
-      notes.push(`${seriesName(s)}: its dates are no frequency it can be annualized by (daily, weekly, monthly, quarterly, yearly): choose the tile's frequency.`);
-    }
+    const unannualized: string[] = [];
     // a log scale draws levels alone: a line that may be zero or below keeps its axis straight (the review's G3)
     if (ts.panes?.[s.pane ?? 0]?.log === true && !r.query.level) {
       notes.push(`${seriesName(s)} is no level (it may be zero or below), so its axis is not on a log scale.`);
@@ -158,6 +164,7 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
       const hi = take(upper);
       const wd = take(width);
       const candle = r.query.candles && opens && highs && lows ? { open: take(opens)!, high: take(highs)!, low: take(lows)! } : undefined;
+      if (perYear && g.at.length > 0 && g.at.every((i) => perYear[i] === null)) unannualized.push(splitName(s, g.split));
       lines.push({
         key: g.split === undefined ? s.id : `${s.id}\u0000${String(g.split)}`,
         series: s,
@@ -177,6 +184,17 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
         ...(formatColumn !== undefined && r.query.sources[0] !== undefined ? { formatSource: r.query.sources[0] } : {}),
         ...(bounds !== undefined ? { bounds } : {}),
       });
+    }
+    if (unannualized.length > 0) {
+      notes.push(`${unannualized.join(', ')}: ${unannualized.length === 1 ? 'its' : 'their'} dates are no frequency it can be annualized by (daily, weekly, monthly, quarterly, yearly): choose the tile's frequency.`);
+    }
+    // a level at or below zero on a log pane: a log scale cannot draw it, so its axis stays straight (the second
+    // audit's S1: a yield gone negative, its points left off a log axis without a word)
+    if (ts.panes?.[s.pane ?? 0]?.log === true && r.query.level) {
+      const below = lines.filter((l) => l.series.id === s.id && !aboveZero(l)).map((l) => l.name);
+      if (below.length > 0) {
+        notes.push(`${below.join(', ')} ${below.length === 1 ? 'has' : 'have'} values at or below zero, which a log scale cannot draw, so ${below.length === 1 ? 'its' : 'their'} axis is not on a log scale.`);
+      }
     }
   }
   if (lines.length > theme.series.length) notes.push(`${lines.length} lines: past the palette's ${theme.series.length} colours they repeat, dashed.`);
@@ -320,7 +338,7 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
       yAxes.push({
         // a log pane's axes of levels alone: a return, a difference, a z-score may be zero or below, which a log axis drops
         // without a word (the review's G3) -- that axis straight, and the drawing says why (tsLines)
-        type: p.log && on.length > 0 && on.every((l) => l.level) ? 'log' : 'value',
+        type: p.log && on.length > 0 && on.every((l) => l.level && aboveZero(l)) ? 'log' : 'value',
         gridIndex: gi,
         position: side,
         scale: bounded === undefined,

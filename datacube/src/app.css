@@ -4702,6 +4702,7 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 /* the statistics under the chart, a third of the tile at most: the chart keeps the room */
 .dc-ts-stats { flex: 0 1 auto; max-height: 33%; min-height: 0; overflow: auto; border-top: 1px solid var(--dc-line-faint); padding: 0 var(--dc-pad-2) var(--dc-pad-1); }
 .dc-ts-stats-head { padding: var(--dc-pad-1) 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-ts-stats-blanks { padding: var(--dc-pad-1) 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
 .dc-ts-table { border-collapse: collapse; font-size: var(--dc-text-sm-size); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dc-ts-table th {
   position: sticky; top: 0; background: var(--dc-chart-surface); text-align: right; font-weight: 600;

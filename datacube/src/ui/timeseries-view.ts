@@ -32,7 +32,7 @@ import {
 } from '../timeseries-edit.ts';
 import {
   boundsQuery, keyValuesQuery, rangeStartName, readsAnchor, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_LATEST,
-  TS_SPLIT, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
+  TS_SPLIT, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
 import {
   describeTimeseries, dateLabel, timeseriesCsv, timeseriesOption, toNumber, tsLines, valueText, type TsFormat, type TsLine,
@@ -800,7 +800,40 @@ export class TimeseriesView {
       table.append(tr);
     }
     const window = this.#window();
-    this.#stats.replaceChildren(el(doc, 'div', 'dc-ts-stats-head', `Over ${window.from ?? 'the first date'} to ${window.to ?? 'the latest'}: every figure the database's`), table);
+    const blanks = this.#statBlanks();
+    this.#stats.replaceChildren(el(doc, 'div', 'dc-ts-stats-head', `Over ${window.from ?? 'the first date'} to ${window.to ?? 'the latest'}: every figure the database's`), table,
+      ...(blanks.length > 0 ? [el(doc, 'div', 'dc-ts-stats-blanks', blanks.join(' '))] : []));
+  }
+
+  /**
+   * WHY A LEVEL'S FIGURES ARE BLANK, line by line (the second audit's P-2b and S1: a "—" said nothing): no volatility or
+   * Sharpe ratio where its dates are no frequency to annualize by; none of its returns' figures where it is at or below
+   * zero over the dates shown -- each read off the database's answer, compared, never computed.
+   */
+  #statBlanks(): string[] {
+    const out: string[] = [];
+    for (const l of this.#lines.filter((x) => x.level && !x.band && !x.series.hidden && !this.#statsFailed.has(x.series.id))) {
+      const low = toNumber(this.#statValue(l, 'low') as Scalar);
+      if (low !== null && low <= 0) {
+        out.push(`${l.name} is at or below zero over these dates: it has no volatility, drawdown, growth or Sharpe ratio.`);
+        continue;
+      }
+      if (this.#perYear(l) === null) {
+        out.push(`${l.name}: its dates are no frequency to annualize its volatility and Sharpe ratio by: choose the tile's frequency.`);
+      }
+    }
+    return out;
+  }
+
+  /** The periods a year a line's statistics were annualized by, as the database inferred them; undefined when the tile
+   *  has a frequency (nothing inferred). */
+  #perYear(l: TsLine): number | null | undefined {
+    const t = this.#statRows.get(l.series.id);
+    const col = t?.columns.find((c) => c.name === TS_STAT_PER_YEAR);
+    if (!t || !col) return undefined;
+    const splits = t.columns.find((c) => c.name === TS_SPLIT)?.values;
+    const at = l.split === undefined ? 0 : splits ? splits.findIndex((v) => v === l.split) : -1;
+    return at < 0 ? undefined : toNumber(col.values[at] as Scalar);
   }
 
   // -- editing -------------------------------------------------------------------------------------------------------
