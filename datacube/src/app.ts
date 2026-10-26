@@ -168,7 +168,7 @@ import {
 } from './ui/columns-panel.ts';
 import { familyOf, isFractional, isTemporal, isTimeOfDay, isVariant } from '../../engine-client/src/types.ts';
 import type { TextTool } from './text-tools.ts';
-import type { Profile } from './profile.ts';
+import type { Profile, TopValue } from './profile.ts';
 import { lazily } from './lazily.ts';
 
 
@@ -3903,7 +3903,24 @@ export class CubeApp {
       .filter(({ c }) => familyOf(c.type) === 'numeric' && kinds.get(c.name) === 'measure').slice(0, CORRELATED);
     const correlations = numbers.length < 2 || profile.rows < 2 ? undefined : correlationsOf(
       (await this.#controller.runQuery(correlationLambda(rows, numbers.map(({ c }) => c.name)), s)).rows, numbers.map(({ as }) => as));
-    return { ...profile, columns: profile.columns.map((c, i) => ({ ...c, name: on[i]!.as })), ...(correlations !== undefined ? { correlations } : {}) };
+    return {
+      ...profile,
+      // each said by the name it is handed on by, its own kept where that differs: its top values are asked by it
+      columns: profile.columns.map((c, i) => ({ ...c, name: on[i]!.as, ...(on[i]!.as !== c.name ? { column: c.name } : {}) })),
+      ...(correlations !== undefined ? { correlations } : {}),
+    };
+  }
+
+  /**
+   * A COLUMN'S MOST FREQUENT VALUES among the grid's rows at their finest level (a profile's column opened: profile.ts
+   * topValuesLambda), each value's rows counted by the database. `column` is its name among those rows. Refused in words
+   * for a pivoted grid, as its profile is.
+   */
+  async topValues(column: string): Promise<readonly TopValue[]> {
+    const s = this.#snapshot;
+    if (s.pivotOn.length > 0) throw new CubeRefusal('a pivoted grid\'s columns are its values: take its pivot off to profile it');
+    const { topValuesLambda, topValuesOf } = await lazily(() => import('./profile.ts'));
+    return topValuesOf((await this.#controller.runQuery(topValuesLambda(classLambda(s).body[0]!, column), s)).rows, column);
   }
 
   /**

@@ -5357,6 +5357,16 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 }
 .dc-flow-profile-table td { padding: 5px 14px 5px 0; border-bottom: 1px solid var(--tw-neutral-100); white-space: nowrap; }
 .dc-flow-profile-name { font-weight: 600; }
+.dc-flow-profile-open { border: 0; padding: 0; background: none; font: inherit; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.dc-flow-profile-open::before { content: '▸'; color: var(--dc-muted); font-size: 10px; }
+.dc-flow-profile-open[aria-expanded="true"]::before { content: '▾'; }
+.dc-flow-profile-open:hover, .dc-flow-profile-open:focus-visible { color: var(--dc-active); }
+.dc-flow-profile-table tr.dc-flow-profile-top > td { padding: 4px 14px 8px 16px; background: var(--tw-neutral-50); white-space: normal; }
+.dc-flow-top-list { display: grid; grid-template-columns: minmax(80px, max-content) 72px max-content; gap: 3px 10px; align-items: center; }
+.dc-flow-top-line { display: contents; }
+.dc-flow-top-value { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-top-count { text-align: right; color: var(--dc-muted-strong); }
+.dc-flow-top-more { margin-top: 4px; color: var(--dc-muted); font-size: 11px; }
 .dc-flow-profile-type { color: var(--dc-muted); }
 .dc-flow-profile-num { text-align: right; }
 .dc-flow-profile-value { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }

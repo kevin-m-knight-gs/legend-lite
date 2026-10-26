@@ -4521,6 +4521,7 @@ TEST_IMPORTS = {
         "src/page-ids.ts",
         "src/plan.ts",
         "src/planner.ts",
+        "src/profile.ts",
         "src/pure-box.ts",
         "src/query.ts",
         "src/remote.ts",

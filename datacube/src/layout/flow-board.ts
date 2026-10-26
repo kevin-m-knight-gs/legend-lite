@@ -16,7 +16,7 @@ import { EMPTY_FLOW, placeAfter, removeBox, type Flow, type Frame, type Output }
 import { isLive, joinInputs, type CubeDocument, type CubeInput, type InputPort, type InputSide } from '../cube-document.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
-import type { Profile } from '../profile.ts';
+import type { Profile, TopValue } from '../profile.ts';
 import { lazily } from '../lazily.ts';
 import type { FilterValue } from '../snapshot.ts';
 
@@ -91,6 +91,9 @@ export interface FlowBoardOptions {
   readonly onCopy?: (ids: readonly string[], cut: boolean) => void;
   /** The shown box's Profile (its results pane's): its columns summarised, asked of the database (profile.ts). */
   readonly profileOf?: (id: string) => Promise<Profile>;
+  /** A column of the shown box's Profile opened: its most frequent values, asked of the database (`column`: its name
+   *  among the box's rows). */
+  readonly topValuesOf?: (id: string, column: string) => Promise<readonly TopValue[]>;
   /** The first row box `id`'s grid shows now, a column's value at a time (each undefined when it has no row) --
    *  undefined while it has no grid (not shown) or no view yet: a Test box's counts, read as its rows land (checks.ts). */
   readonly firstRowOf?: (id: string) => ((column: string) => unknown) | undefined;

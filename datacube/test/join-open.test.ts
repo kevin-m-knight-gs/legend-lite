@@ -5,7 +5,7 @@
 // answered, and what cannot be joined here refused in words.
 
 import assert from 'node:assert/strict';
-import { after, before, describe, it } from 'node:test';
+import { after, afterEach, before, describe, it } from 'node:test';
 import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
@@ -17,6 +17,7 @@ import {
   type RowsSource, type SavedQuery,
 } from '../src/cube-document.ts';
 import { TOTAL_ROWS_COLUMN } from '../src/query.ts';
+import { topValuesLambda, topValuesOf } from '../src/profile.ts';
 import { catalogColumns } from '../src/upload.ts';
 import { CubeRefusal, type CubeSnapshot } from '../src/snapshot.ts';
 import { plannerFor } from './catalog-builder.ts';
@@ -104,8 +105,13 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     await engine.run('INSERT INTO priced VALUES (7, 12.50)', 0);
   });
 
+  // each test's planners let go as it ends: a planner is a WebAssembly instance, and kept to the file's end they filled
+  // the test's heap (2026-10-26, two tests added)
+  afterEach(() => {
+    for (const p of planners.splice(0)) p.dispose();
+  });
+
   after(async () => {
-    for (const p of planners) p.dispose();
     models?.dispose();
     await engine?.close();
   });
@@ -142,6 +148,17 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     assert.throws(() => readJoinHow({ ...once, on: { rows: [] } }), /takes a key/);
     assert.throws(() => readJoinHow({ ...LEFT_ON_CUST, once: false }), /once is true or left out/);
     assert.deepEqual(readJoinHow(JSON.parse(JSON.stringify(once))), once);
+  });
+
+  it("a Profile's column opened: its most frequent values counted by the database, the most first, of as many the smallest, an empty last", async () => {
+    const opened = await openJoin(join(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), LEFT_ON_CUST), opening(['trades', 'customers']));
+    const p = plannerFor(opened.model, opened.runtime);
+    planners.push(p);
+    const asked = async (n?: number) => topValuesOf(await engine.run((await p.plan(topValuesLambda(opened.relation, 'region', n))).sql, 0) as never, 'region')
+      .map((t) => ({ ...t, count: Number(t.count) }));
+    // trades 1 and 2 EMEA, trade 3 AMER and APAC (customer 20 twice), trades 4 and 5 none: 2, 2 (empty, after), 1, 1
+    assert.deepEqual(await asked(), [{ value: 'EMEA', count: 2 }, { value: null, count: 2 }, { value: 'AMER', count: 1 }, { value: 'APAC', count: 1 }]);
+    assert.deepEqual((await asked(2)).map((t) => t.value), ['EMEA', null]);
   });
 
   it('answers the dialog\'s questions: my rows, those with a match, the rows after it, their keys that repeat', async () => {

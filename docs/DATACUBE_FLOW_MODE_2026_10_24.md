@@ -296,7 +296,7 @@ How to read the status column:
 
 | Tool | Status | How |
 |---|---|---|
-| Field Summary, Basic Data Profile | Built (2026-10-25) | **Profile** (§17.6): per column, the count, empties, distinct values, smallest and largest, one row of aggregates the database computes; top values later |
+| Field Summary, Basic Data Profile | Built (2026-10-25) | **Profile** (§17.6): per column, the count, empties, distinct values, smallest and largest, one row of aggregates the database computes; a column opened, its ten most frequent values (2026-10-26): grouped by it and counted by the database, the most first, of as many the smallest, an empty a value too -- asked when opened, kept until the box's rows change (`profile.ts topValuesLambda`) |
 | Frequency Table, Histogram, Scatterplot | Built | Charts on a box's grid: bars over bins, scatter, box plot |
 | Pearson Correlation | Built (2026-10-25) | In every box's Profile, under its columns: each pair of its measures' `corr`, a matrix asked of the database as one row of aggregates |
 | Charts, Table, Layout, Render, Email | Built | Charts, KPIs, pages, exports and the email draft |
@@ -384,7 +384,7 @@ Every milestone ends usable: something a person does from start to finish, saved
 
 ### M5. Understand the data
 
-- Profile on any box or port: the count, empties, distinct values and top values (§17.6).
+- Profile on any box or port: the count, empties, distinct values and top values (§17.6). *Top values built (2026-10-26).*
 - Record counts on lines after a run (FL7); results-pane gestures that add a box (FL9); a box's Pure and SQL shown;
   charts on any box.
 

@@ -23,7 +23,7 @@ import { PAGE_GESTURES, takeOffCommands, tidyCommands } from '../src/page-gestur
 import { applyPlanned, pageBetween } from '../src/page-between.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode } from '../src/snapshot.ts';
 import { readUnique, uniqueCommands, uniqueOf } from '../src/unique.ts';
-import { correlationLambda, correlationsOf, profileLambda, profileOf } from '../src/profile.ts';
+import { correlationLambda, correlationsOf, profileLambda, profileOf, TOP_VALUES, topValuesLambda, topValuesOf } from '../src/profile.ts';
 import { imputeCommands, imputedOf, readImputation } from '../src/impute.ts';
 import { dateToolCommands, dateToolOf, readDateTool } from '../src/date-tools.ts';
 import { multiFieldOf } from '../src/multi-field.ts';
@@ -1269,6 +1269,22 @@ describe("a box's Profile (profile.ts): one row of aggregates asked of the datab
     // no row, or a count of none: no answer of its question, never read as 0 (AGENTS.md invariant 4)
     assert.throws(() => profileOf({ rowCount: 0, epoch: 0, elapsedMs: 0, columns: [] } as never, columns), /the profile's answer is one row, not 0/);
     assert.throws(() => profileOf({ ...(table as object), columns: [col('__profile_rows__', null)] } as never, columns), /has no count __profile_rows__/);
+  });
+
+  it("asks a column's most frequent values -- grouped by it, counted, the most first, of as many the smallest -- and reads them back", () => {
+    const text = toJson(topValuesLambda(property(variable('r'), 'rows'), 'region'));
+    assert.match(text, /"function":"groupBy"/);
+    assert.match(text, /"function":"count"/);
+    assert.match(text, /"function":"descending".*"__top_count__".*"function":"ascending".*"region"/s);
+    assert.match(text, new RegExp(`"function":"limit".*"value":${TOP_VALUES}\\b`, 's'));
+    assert.match(toJson(topValuesLambda(property(variable('r'), 'rows'), 'region', 3)), /"function":"limit".*"value":3\b/s);
+    const table = { rowCount: 2, epoch: 0, elapsedMs: 0, columns: [
+      { name: 'region', type: 'String', values: ['EMEA', null] }, { name: '__top_count__', type: 'Integer', values: [2, 1] },
+    ] } as never;
+    assert.deepEqual(topValuesOf(table, 'region'), [{ value: 'EMEA', count: 2 }, { value: null, count: 1 }]);
+    // a count of none, or a column missing: no answer of its question (AGENTS.md invariant 4)
+    assert.throws(() => topValuesOf({ ...(table as object), columns: [{ name: 'region', values: ['x'] }, { name: '__top_count__', values: [null] }] } as never, 'region'), /no count for its row 1/);
+    assert.throws(() => topValuesOf(table, 'desk'), /has no column desk/);
   });
 
   it("asks each pair of number columns' correlation, each with itself, and reads them back a matrix: empty where none", () => {

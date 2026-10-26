@@ -867,8 +867,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  374,500 -> 385,000 -> 386,000 -- the grid-only page's note of the same date, and the timeseries tile's styles).
  *  Measured 421,003.
  *  421,500 -> 424,000 (2026-10-26, the flow mode review's fixes -- the grid-only page's note of the same date). Measured
- *  423,483. */
-const WIDGET_BUDGET = 424_000;
+ *  423,483.
+ *  424,000 -> 425,000 (2026-10-26, the flow mode's roadmap: C13, a join's one of theirs per key -- the engine page's note
+ *  of the same date -- and a Profile's top values, its column opened (layout/flow-canvas.ts #drawProfile, profile.ts
+ *  topValuesLambda): one module, everything in it). Measured 424,104. */
+const WIDGET_BUDGET = 425_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

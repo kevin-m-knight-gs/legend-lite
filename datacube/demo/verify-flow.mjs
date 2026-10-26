@@ -1494,6 +1494,19 @@ try {
   check(names.includes('notional') && names.includes('pnl') && corr.notional[names.indexOf('notional')] === '1'
     && names.every((n, i) => corr[n][i] === '1' || corr[n][i] === '')
     && names.every((n) => corr[n].every((r) => r === '' || (Number(r) >= -1 && Number(r) <= 1))), `its correlations: ${JSON.stringify(corr)}`);
+  // a column opened: its most frequent values, counted by the database (profile.ts topValuesLambda) -- region's three,
+  // the most first, their counts its 5,000 rows; closed again
+  const regionOpen = page.locator('.dc-flow-profile-table tr[data-column="region"] .dc-flow-profile-open');
+  await regionOpen.click();
+  await page.locator('.dc-flow-top-list .dc-flow-top-line').first().waitFor({ timeout: 60_000 });
+  const tops = await page.locator('.dc-flow-top-line').evaluateAll((lines) => lines.map((l) => [
+    l.querySelector('.dc-flow-top-value')?.textContent, Number((l.querySelector('.dc-flow-top-count')?.textContent ?? '').replace(/\D/g, '')),
+  ]));
+  check(tops.length === 3 && tops.reduce((sum, [, n]) => sum + n, 0) === 5000 && tops.every(([, n], i) => i === 0 || n <= tops[i - 1][1])
+    && await regionOpen.getAttribute('aria-expanded') === 'true', `region's top values: ${JSON.stringify(tops)}`);
+  await page.screenshot({ path: outPath('flow-profile-top-values.png') });
+  await regionOpen.click();
+  check(await page.locator('.dc-flow-top-list').count() === 0, 'closed again');
   await page.screenshot({ path: outPath('flow-profile.png') });
   await page.locator('.dc-flow-corr').scrollIntoViewIfNeeded();
   await page.screenshot({ path: outPath('flow-correlations.png') });

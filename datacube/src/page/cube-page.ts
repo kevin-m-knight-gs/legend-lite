@@ -37,7 +37,7 @@ import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import { FlowBoard, runStoppers, type FlowPoint, type LineEnd } from '../layout/flow-board.ts';
 import { liveGrids, relinked } from '../live-inputs.ts';
-import type { Profile } from '../profile.ts';
+import type { Profile, TopValue } from '../profile.ts';
 import { CONTAINER_FRAME, EMPTY_FLOW, flowTiles, type Frame } from '../layout/flow.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
 import type { GestureArgs } from '../grid-gestures.ts';
@@ -203,6 +203,8 @@ export interface SpawnedGrid {
   } | null;
   /** Its rows' profile (a flow's box's Profile: profile.ts), asked of the database when it is shown. */
   profile?(): Promise<Profile>;
+  /** A column's most frequent values among its rows (a profile's column opened), `column` its name among them. */
+  topValues?(column: string): Promise<readonly TopValue[]>;
   /** Its rows -- every one, the columns it shows -- written to a CSV file named `name` (a flow's Output). */
   writeOutput?(name: string): Promise<void>;
   /** The query it ran last, as the compiler prints it, and its SQL (a flow's box's Code). */
@@ -742,6 +744,10 @@ export class CubePage {
       profileOf: (tile) => {
         const grid = this.#grids.get(tile)?.added?.cube;
         return grid?.profile === undefined ? Promise.reject(new Error(`${tile} is not shown`)) : grid.profile();
+      },
+      topValuesOf: (tile, column) => {
+        const grid = this.#grids.get(tile)?.added?.cube;
+        return grid?.topValues === undefined ? Promise.reject(new Error(`${tile} is not shown`)) : grid.topValues(column);
       },
       firstRowOf: (tile) => {
         const v = this.#grids.get(tile)?.added?.cube.view;

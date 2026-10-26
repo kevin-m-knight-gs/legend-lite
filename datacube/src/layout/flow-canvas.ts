@@ -32,7 +32,8 @@ import { rowSampleOf } from '../row-sample.ts';
 import { checksOf, failingChecks, failingWords } from '../checks.ts';
 import { lackingWords } from '../cross-tab.ts';
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
-import type { Profile } from '../profile.ts';
+import type { Profile, TopValue } from '../profile.ts';
+import { familyOf } from '../../../engine-client/src/types.ts';
 import { handedOn } from '../box-columns.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { MenuView } from '../ui/menu-view.ts';
@@ -226,7 +227,10 @@ export class FlowCanvas {
   #charted: { readonly key: string; readonly chart: FlowChart } | undefined;
   readonly #chartView: HTMLElement;
   /** The profile asked for, by the box and what its rows are made of (its chain): its answer, or why there is none. */
-  #profiled: { readonly key: string; readonly answer?: Profile; readonly refused?: string } | undefined;
+  #profiled: { readonly key: string; readonly id: string; readonly answer?: Profile; readonly refused?: string } | undefined;
+  /** The profile's columns opened, each its most frequent values once asked (or why not), for the profile drawn (its
+   *  key): asked again only when what the box's rows are made of changes. */
+  #tops = new Map<string, { readonly answer?: readonly TopValue[]; readonly refused?: string }>();
   readonly #profileView: HTMLElement;
   readonly #body: HTMLElement;
   readonly #empty: HTMLElement;
@@ -2316,11 +2320,12 @@ export class FlowCanvas {
     const view = this.#profileView;
     const doc = this.#doc;
     if (this.#profiled?.key !== key) {
-      this.#profiled = { key };
+      this.#profiled = { key, id };
+      this.#tops = new Map();
       view.replaceChildren(Object.assign(doc.createElement('div'), { className: 'dc-flow-profile-wait', textContent: 'Profiling its columns…' }));
       void this.#board.options.profileOf?.(id).then(
-        (answer) => { if (this.#profiled?.key === key) this.#profiled = { key, answer }; },
-        (e: unknown) => { if (this.#profiled?.key === key) this.#profiled = { key, refused: e instanceof Error ? e.message : String(e) }; },
+        (answer) => { if (this.#profiled?.key === key) this.#profiled = { key, id, answer }; },
+        (e: unknown) => { if (this.#profiled?.key === key) this.#profiled = { key, id, refused: e instanceof Error ? e.message : String(e) }; },
       ).then(() => {
         if (this.#profiled?.key === key && this.#mode === 'profile' && this.#board.shown === id) this.#drawProfile(view, this.#profiled);
       });
@@ -2331,7 +2336,7 @@ export class FlowCanvas {
     if (view.dataset['drawn'] !== key && (p.answer !== undefined || p.refused !== undefined)) this.#drawProfile(view, p);
   }
 
-  #drawProfile(view: HTMLElement, p: { readonly key: string; readonly answer?: Profile; readonly refused?: string }): void {
+  #drawProfile(view: HTMLElement, p: { readonly key: string; readonly id: string; readonly answer?: Profile; readonly refused?: string }): void {
     const doc = this.#doc;
     const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent: Element, text?: string): HTMLElementTagNameMap[K] => {
       const e = doc.createElement(tag);
@@ -2354,10 +2359,65 @@ export class FlowCanvas {
     const head = el('tr', '', el('thead', '', table));
     for (const h of ['Column', 'Type', 'Filled', 'Distinct', 'Smallest', 'Largest']) el('th', '', head, h);
     const body = el('tbody', '', table);
+    const topsOf = this.#board.options.topValuesOf;
     for (const c of columns) {
       const tr = el('tr', '', body);
       tr.dataset['column'] = c.name;
-      el('td', 'dc-flow-profile-name', tr, c.name);
+      const name = el('td', 'dc-flow-profile-name', tr);
+      // its most frequent values, asked when it is opened (profile.ts topValuesLambda): a value that groups and sorts --
+      // not JSON's (a variant), nor bytes
+      const family = familyOf(c.type);
+      if (topsOf !== undefined && (family === 'numeric' || family === 'text' || family === 'temporal' || family === 'boolean')) {
+        const open = el('button', 'dc-flow-profile-open', name, c.name);
+        open.type = 'button';
+        open.title = `Its most frequent values: how many rows have each`;
+        const top = doc.createElement('tr');
+        top.className = 'dc-flow-profile-top';
+        const cell = el('td', '', top);
+        cell.colSpan = 6;
+        const shown = (): void => {
+          const state = this.#tops.get(c.name);
+          open.setAttribute('aria-expanded', String(state !== undefined));
+          if (state === undefined) { top.remove(); return; }
+          tr.after(top);
+          cell.replaceChildren();
+          if (state.refused !== undefined) { el('div', 'dc-flow-profile-refused', cell, `No values: ${state.refused}`); return; }
+          if (state.answer === undefined) { el('div', 'dc-flow-profile-wait', cell, 'Counting its values…'); return; }
+          const list = el('div', 'dc-flow-top-list', cell);
+          list.setAttribute('aria-label', `${c.name}'s most frequent values`);
+          for (const t of state.answer) {
+            const line = el('div', 'dc-flow-top-line', list);
+            el('span', 'dc-flow-top-value', line, t.value === null ? '(empty)' : said(t.value));
+            const bar = el('span', 'dc-flow-profile-bar', line);
+            el('span', 'dc-flow-profile-fill', bar).style.width = `${rows === 0 ? 0 : Math.round((100 * t.count) / rows)}%`;
+            el('span', 'dc-flow-top-count', line, n(t.count));
+          }
+          const besides = c.distinct - state.answer.filter((t) => t.value !== null).length;
+          if (besides > 0) el('div', 'dc-flow-top-more', cell, `and ${n(besides)} other ${besides === 1 ? 'value' : 'values'}`);
+        };
+        open.addEventListener('click', () => {
+          if (this.#tops.has(c.name)) {
+            this.#tops.delete(c.name);
+            shown();
+            return;
+          }
+          const key = p.key;
+          this.#tops.set(c.name, {});
+          shown();
+          void topsOf(p.id, c.column ?? c.name).then(
+            (answer) => ({ answer }), (e: unknown) => ({ refused: e instanceof Error ? e.message : String(e) }),
+          ).then((state) => {
+            // still the profile drawn, the column still open
+            if (this.#profiled?.key !== key || !this.#tops.has(c.name)) return;
+            this.#tops.set(c.name, state);
+            shown();
+          });
+        });
+        // drawn again (the pane shown again): what was opened stays open, as it was answered
+        shown();
+      } else {
+        name.textContent = c.name;
+      }
       el('td', 'dc-flow-profile-type', tr, c.type);
       // its share filled and its empties the database's (profile.ts), a percent as its reader writes one
       const filled = el('td', 'dc-flow-profile-filled', tr);
