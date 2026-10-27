@@ -843,9 +843,28 @@ dated budget notes; every figure still the database's.
   equal to the table's. The trading model leaves out the corpus's eleven `###Data` seeds for it (two contend for one
   table). Measured: the model held and its Data filled in 10.4 s, a first query then planned in 5.2 s (the same text
   compiled again by the planner that plans it), a query after in 15 ms -- with a library call's hold, three compiles of
-  about 4 MB, some 15 s, before a page draws. The Deephaven line's two core fixes for this (a model held once by its
-  text, `HeldModels.withText`; the mapping sets by id, `ModelBuilder.legacySetsWithId`: "the most of its compile") are
-  on its branch, not yet on main: D3's wait.
+  about 4 MB, some 15 s, before a page draws.
+  D5 (2026-10-27): a quote's instrument's sector and exchange projected beside it (`$x.instrument.sector.name`,
+  `$x.instrument.exchange.name`), and each series over them held to the instruments they name on the sample's table:
+  `close[sector="Energy"]` is XOM's close, a sector's volume summed its instruments' added, a split by ticker within a
+  sector a line per instrument of it, a split by exchange a line per listing venue.
+  D3 (2026-10-27): the site serves a markets project (`BUILD.bazel :markets_project`, config.json `projects[]`
+  demo:markets:0.0.0: the trading model and the markets Data), and an example page over it ("Markets on the trading
+  model", `examples/markets-classes.ts`): two grids, each a saved query of the project (`MarketQuote.all()->project(...)`
+  with the reference data, `Trade.all()->project(...)` with its side as its enumeration's name), and three sheets -- by
+  sector, by listing venue, the bank's trades against the close in one tile over both grids. The Open window offers it
+  where the page compiles against that project. Opening it was slow for a reason of its own: a saved query is typed by
+  two `lambdaRelationType` requests, each carrying the model's text, and the module compiled the text again for each
+  (5-6 s apiece), then once more for the project's database. The Deephaven line's two core fixes, ported unchanged
+  (`HeldModels.withText`: a pure/v1 request whose model text the host holds answered over the held model;
+  `ModelBuilder.legacySetsWithId`), with the planner's typing holding its model before it asks, the project's database
+  said over the held model (`Boundary.projectData`) after the query is typed, and a project's elements read once: the
+  first saved query opened in 7.8 s on a cold module (13.5 s before), the second in 2.6 s (12.9 s). In the browser
+  (verify-charts) the example's first sheet drew 11.9 s after the click, 30.7 s before; the markets example over the
+  sample's table, 2.4 s. What remains: the model held (about 4.5 s), its elements read (2 s, once a project), and a
+  tile's first library call, which holds the model again with the library after it (3.7 s) -- the planner's `#over`
+  compiling the model and the library as one text. Holding the library over a held model is a core question (a model
+  context extended by a few functions); the D4 and Python steps do not wait on it.
 - **Not built, and why:** X-13 seasonal adjustment and `smooth_outliers` (iterative procedures no query states; gs-quant's
   own seasonal adjustment is the decomposition above); PowerPoint (a document writer of its own in the bundle; the page
   already exports HTML and PDF); alerts (a scheduler and a channel outside a page); `repeat`, `date_range`,
