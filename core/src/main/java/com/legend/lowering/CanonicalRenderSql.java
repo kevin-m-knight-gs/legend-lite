@@ -127,11 +127,15 @@ public final class CanonicalRenderSql {
                     instanceKeys,
             boolean literalChannel, boolean nameValued,
             @com.legend.base.Nullable String enumFrame) {
+        Type t = rootInfo.type();
+        if (!plan.outputs().isEmpty() && plan.outputs().get(0).type() instanceof SqlType.Tagged tg
+                && plan.outputs().size() == 1 + tg.slots().size()) {
+            return taggedCanon(plan, tg, t, rootInfo, canonicalOrder);
+        }
         if (plan.outputs().size() != 1) {
             return CanonWrap.decline(plan, "non-scalar plan shape: "
                     + plan.outputs().size() + " columns");
         }
-        Type t = rootInfo.type();
         com.legend.sql.OutputCol valueCol = plan.outputs().get(0);
         SqlExpr valueRef = SqlExpr.Column.of(null, valueCol);
         List<Type> candidates;
@@ -446,11 +450,15 @@ public final class CanonicalRenderSql {
             plan = Fold.conformValueEgress(ps,
                     LiteralSpelling.ValueLane.GRID_FETCH);
         }
+        // the rows' order as a column (SideOrdinal), carried after the row canon: a judge reading the side through
+        // other selects numbers its rows by it (2026-10-20, channel B's reduce and pivot tests on MariaDB and Trino)
+        int width = schema.columns().size();
+        plan = SideOrdinal.withOrdinal(plan);
         // leg 3.1b: every cell's canon is ALSO projected on its own
         // (__cell<i>) so the database-mode cell-pool verdict reads cells
         // without splitting the row canon (no string_split on any dialect)
         List<SqlExpr> cellCanons = new java.util.ArrayList<>();
-        for (int i = 0; i < plan.outputs().size(); i++) {
+        for (int i = 0; i < width; i++) {
             com.legend.sql.OutputCol col = plan.outputs().get(i);
             Type kind = schema.columns().get(i).type();
             // the engine's boundary rule (dataTypeTransformer; the same rule
@@ -530,11 +538,12 @@ public final class CanonicalRenderSql {
         // each cell twice (2026-09-23, columnValueDifferenceTest).
         List<com.legend.sql.SqlSelect.Projection> inner = new java.util.ArrayList<>();
         List<com.legend.sql.OutputCol> innerOuts = new java.util.ArrayList<>();
-        for (com.legend.sql.OutputCol col : plan.outputs()) {
+        for (com.legend.sql.OutputCol col : plan.outputs().subList(0, width)) {
             inner.add(new com.legend.sql.SqlSelect.Projection(
                     SqlExpr.Column.of(null, col), col.name(), col));
             innerOuts.add(col);
         }
+        com.legend.sql.OutputCol ordOut = plan.outputs().get(width);
         for (int i = 0; i < cellCanons.size(); i++) {
             com.legend.sql.OutputCol out = new com.legend.sql.OutputCol(CELL_CANON + i,
                     SqlType.Scalar.VARCHAR, true);
@@ -542,11 +551,16 @@ public final class CanonicalRenderSql {
                     cellCanons.get(i), CELL_CANON + i, out));
             innerOuts.add(out);
         }
-        com.legend.sql.SqlSelect cells = new com.legend.sql.SqlSelect(inner,
+        List<com.legend.sql.SqlSelect.Projection> innerWithOrd = new java.util.ArrayList<>(inner);
+        innerWithOrd.add(new com.legend.sql.SqlSelect.Projection(SqlExpr.Column.of(null, ordOut), ordOut.name(),
+                ordOut));
+        List<com.legend.sql.OutputCol> innerOutsWithOrd = new java.util.ArrayList<>(innerOuts);
+        innerOutsWithOrd.add(ordOut);
+        com.legend.sql.SqlSelect cells = new com.legend.sql.SqlSelect(innerWithOrd,
                 false,
                 new com.legend.sql.SqlSource.Subselect(plan, "side", null),
                 null, List.of(), null, null, List.of(), null, null,
-                List.copyOf(innerOuts));
+                List.copyOf(innerOutsWithOrd));
         List<com.legend.sql.SqlSelect.Projection> projections =
                 new java.util.ArrayList<>();
         for (com.legend.sql.OutputCol col : innerOuts) {
@@ -569,6 +583,8 @@ public final class CanonicalRenderSql {
                 ROW_CANON,
                 new com.legend.sql.OutputCol(ROW_CANON,
                         SqlType.Scalar.VARCHAR, true)));
+        projections.add(new com.legend.sql.SqlSelect.Projection(
+                SqlExpr.Column.of("cells", innerOutsWithOrd, ordOut.name()), ordOut.name(), ordOut));
         return new TdsWrap(new com.legend.sql.SqlSelect(projections,
                 false,
                 new com.legend.sql.SqlSource.Subselect(cells, "cells", null),
@@ -612,8 +628,24 @@ public final class CanonicalRenderSql {
                         new SqlExpr.StringLit("_type"),
                         new SqlExpr.StringLit(fqn),
                         new SqlExpr.StringLit("_id"),
-                        new SqlExpr.StructGet(v, idField))));
+                        trackedId(v))));
     }
+
+    /** An object's identity where it is read (compared, printed): an object whose evaluations the product does not
+     *  track carries none (docs/OBJECT_IDENTITY_2026_10_20.md §4, {@code Lowerer.objectId}), and reading it raises by
+     *  name rather than answer by a shared or absent id. */
+    static SqlExpr trackedId(SqlExpr object) {
+        return tracked(new SqlExpr.StructGet(object, com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID));
+    }
+
+    private static SqlExpr tracked(SqlExpr id) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, id),
+                SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(UNTRACKED)))), id);
+    }
+
+    static final String UNTRACKED = "an object's identity is read where the product does not track it: an object read"
+            + " from a store, built in a fold's reducer, or named by a lambda body's let and read inside a nested lambda"
+            + " (docs/OBJECT_IDENTITY_2026_10_20.md §4)";
 
     /** F13c — instance equality's ONE canon (the in-SQL eq/equal arm's
      * entry): keyed classes render their key tree ({@code instanceCanon},
@@ -642,6 +674,11 @@ public final class CanonicalRenderSql {
      * Null = unclaimed shape (to-many key, unknown field, unclaimable
      * leaf kind) — the caller declines, counted.
      */
+    /** A key collection's element, {@code __e}, typed as the collection's element. */
+    private static SqlExpr element(SqlType type) {
+        return SqlExpr.Column.of(null, "__e", type, true, com.legend.sql.OutputCol.Origin.DERIVED);
+    }
+
     static @com.legend.base.Nullable SqlExpr instanceCanon(SqlExpr v,
             com.legend.compiler.element.EqualityKeys keys, SqlType layout) {
         // the BARE-ARRAY carrier (List<T>): the SQL value IS the one
@@ -650,15 +687,15 @@ public final class CanonicalRenderSql {
         if (layout instanceof SqlType.Array at
                 && keys.keys().size() == 1 && keys.keys().get(0).many()) {
             var k = keys.keys().get(0);
-            SqlExpr leaf = taggedLeaf(SqlExpr.Column.derived(null, "__e"),
+            // the element typed as the list's (a dialect carrying a struct as JSON reads its fields by their types)
+            SqlExpr leaf = taggedLeaf(element(at.element()),
                     at.element(), k.nested());
             if (leaf == null) {
                 return null;
             }
-            SqlExpr arr = SqlExpr.Call.of(SqlFn.COALESCE,
-                    SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, v,
-                            new SqlExpr.Lambda(List.of("__e"), leaf)),
-                    emptyArray());
+            SqlExpr leaves = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, v,
+                    new SqlExpr.Lambda(List.of("__e"), leaf));
+            SqlExpr arr = SqlExpr.Call.of(SqlFn.COALESCE, leaves, emptyLike(leaves));
             return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                     SqlExpr.Call.of(SqlFn.IS_NULL, v),
                     new SqlExpr.NullLit())),
@@ -697,17 +734,16 @@ public final class CanonicalRenderSql {
                 SqlType elem = ft instanceof SqlType.Array at
                         ? at.element() : null;
                 SqlExpr leaf = elem == null ? null
-                        : taggedLeaf(SqlExpr.Column.derived(null, "__e"),
+                        : taggedLeaf(element(elem),
                                 elem, k.nested());
                 if (leaf == null) {
                     return null;
                 }
                 // NULL and empty are both the EMPTY key collection
                 // (engine: empty equals empty) — normalize to []
-                c = SqlExpr.Call.of(SqlFn.COALESCE,
-                        SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, field,
-                                new SqlExpr.Lambda(List.of("__e"), leaf)),
-                        emptyArray());
+                SqlExpr leaves = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, field,
+                        new SqlExpr.Lambda(List.of("__e"), leaf));
+                c = SqlExpr.Call.of(SqlFn.COALESCE, leaves, emptyLike(leaves));
             } else if (ft == null) {
                 return null;
             } else {
@@ -804,9 +840,15 @@ public final class CanonicalRenderSql {
                 SqlExpr.Call.of(SqlFn.IS_NULL, field), new SqlExpr.NullLit())), lit);
     }
 
-    /** The EMPTY key collection (NULL and empty both normalize to it). */
-    private static SqlExpr emptyArray() {
+    /** The EMPTY key collection (NULL and empty both normalize to it; InstanceEquality's collections of canons too). */
+    static SqlExpr emptyArray() {
         return new SqlExpr.ArrayLit(List.of());
+    }
+
+    /** The empty list of {@code list}'s type (a dialect that types every list literal reads it), else untyped. */
+    private static SqlExpr emptyLike(SqlExpr list) {
+        return list.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array
+                ? new SqlExpr.Cast(emptyArray(), t.type()) : emptyArray();
     }
 
     static boolean hasCanonField(SqlType.Struct st) {
@@ -923,7 +965,7 @@ public final class CanonicalRenderSql {
                 SqlType.Scalar.VARCHAR);
         SqlExpr identity = new SqlExpr.JsonObject(List.of(
                 new SqlExpr.StringLit("_type"), type,
-                new SqlExpr.StringLit("_id"), id));
+                new SqlExpr.StringLit("_id"), tracked(id)));
         return new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v),
                         new SqlExpr.NullLit()),
@@ -953,6 +995,43 @@ public final class CanonicalRenderSql {
      * F10 v1 compares Any-involving pairs in it.) */
     static @com.legend.base.Nullable SqlExpr literalCanon(SqlExpr v, Type kind) {
         return LiteralSpelling.literal(v, kind);
+    }
+
+    /**
+     * The canon of a tagged root (a mixed selection's winner, docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): the
+     * literal spelling of the slot the tag names, each slot by its own kind -- the one candidate is the literal
+     * channel, as a LITERAL-carried root's is. The root's columns (the tag and its slots) ride through.
+     */
+    private static CanonWrap taggedCanon(com.legend.sql.SqlQuery plan, SqlType.Tagged tg, Type t,
+            com.legend.compiler.element.type.ExprType rootInfo, boolean canonicalOrder) {
+        com.legend.sql.OutputCol tagCol = plan.outputs().get(0);
+        SqlExpr tag = SqlExpr.Column.of(null, tagCol);
+        List<SqlExpr.Case.When> whens = new java.util.ArrayList<>();
+        for (int i = 0; i < tg.slots().size(); i++) {
+            SqlType.Tagged.Slot slot = tg.slots().get(i);
+            SqlExpr ref = SqlExpr.Column.of(null, SqlType.Tagged.slotColumn(tagCol.name(), i), slot.type(), true,
+                    com.legend.sql.OutputCol.Origin.DERIVED);
+            whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
+                    Objects.requireNonNull(literalCanon(ref, MixedEncoding.kindType(slot.kind())))));
+        }
+        SqlExpr canon = new SqlExpr.Case(whens, null);
+        List<com.legend.sql.SqlSelect.Projection> projections = new java.util.ArrayList<>();
+        List<com.legend.sql.OutputCol> outputs = new java.util.ArrayList<>();
+        for (com.legend.sql.OutputCol c : plan.outputs()) {
+            projections.add(new com.legend.sql.SqlSelect.Projection(SqlExpr.Column.of(null, c), c.name(), c));
+            outputs.add(c);
+        }
+        com.legend.sql.OutputCol canonCol = new com.legend.sql.OutputCol("__canon0", SqlType.Scalar.VARCHAR, true);
+        projections.add(new com.legend.sql.SqlSelect.Projection(canon, "__canon0", canonCol));
+        outputs.add(canonCol);
+        return new CanonWrap(new com.legend.sql.SqlSelect(projections, false,
+                new com.legend.sql.SqlSource.Subselect(plan, "side", null), null, List.of(), null, null,
+                canonicalOrder ? List.of(new com.legend.sql.SqlSelect.SortKey(canon, true, null, null)) : List.of(),
+                null, null, outputs),
+                List.of(t),
+                rootInfo.multiplicity().requireBounded("canon side").upper() == null
+                        || rootInfo.multiplicity().requireBounded("canon side").upper() > 1,
+                0, null);
     }
 
     /** F10 v1 — the unclaimable-tree sentinel: an Any cell holding a

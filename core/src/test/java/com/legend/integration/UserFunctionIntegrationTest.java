@@ -1511,7 +1511,7 @@ class UserFunctionIntegrationTest {
         }
     }
 
-    // ==================== Functions generic over relations (docs/SEMANTICS_REGISTER.md S104) ====================
+    // ==================== Functions generic over relations (docs/SEMANTICS_REGISTER.md S112) ====================
 
     /**
      * The user, 2026-10-26: a library of timeseries functions written in Pure over ANY table -- its columns, its sort

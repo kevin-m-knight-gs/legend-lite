@@ -127,6 +127,7 @@ public final class EmbeddedPostgres {
                         java.nio.file.StandardOpenOption.APPEND);
                 try {
                     pg.startServer(cluster);
+                    pg.createPgcrypto();
                     return pg;
                 } catch (IllegalStateException e) {
                     String log = Files.exists(data.resolve("postgres.log"))
@@ -206,6 +207,23 @@ public final class EmbeddedPostgres {
 
     private String tool(String name) {
         return bin.resolve(WINDOWS ? name + ".exe" : name).toString();
+    }
+
+    /** pgcrypto, the install's own contrib extension, in the template every later database copies and in the default
+     *  one: SHA-1 is its digest() (no Postgres has a core sha1), as on the engine's test databases (2026-10-20, the
+     *  parity phase). Through a client connection once the server is up (2026-10-26): single-user mode
+     *  ({@code postgres --single}) refuses an administrator on Windows, where CI runs as one, while pg_ctl starts the
+     *  server under a restricted token. The driver is the caller's: every test that starts this server connects. */
+    private void createPgcrypto() {
+        for (String database : List.of("template1", "postgres")) {
+            try (java.sql.Connection c = java.sql.DriverManager.getConnection(jdbcUrl(database));
+                 java.sql.Statement st = c.createStatement()) {
+                st.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto");
+            } catch (java.sql.SQLException e) {
+                stop();
+                throw new IllegalStateException("CREATE EXTENSION pgcrypto on " + database + " failed: " + e.getMessage(), e);
+            }
+        }
     }
 
     /** Runs one of the server's tools to completion; a failure says what it printed (and the server's log). */

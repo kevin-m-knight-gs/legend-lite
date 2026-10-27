@@ -819,9 +819,13 @@ public final class Compiler {
         if (relationalRootForm) {
             body = com.legend.resolver.RelationalRootForm.apply(body, ctx);
         }
+        // D91: equal() over keyed instances is the key relation on every lane
+        // every object carries its identity and its class (docs/OBJECT_IDENTITY_2026_10_20.md §3.1)
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent(), ctx.implementations());
+                t -> com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
+                f -> ctx.findClass(f).isPresent(), ctx.implementations())
+                .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
+                .withObjectIdentity(new com.legend.lowering.ObjectSites()::idOf);
         if (!temporalRoot) {
             lw = lw.withEngineExistsJoinForm();
         }
@@ -861,7 +865,7 @@ public final class Compiler {
             }
             for (com.legend.compiler.element.TypedFunction tf : overloads) {
                 // a function generic over relations is typed at each call, over that call's tables
-                // (RelationGenerics, docs/SEMANTICS_REGISTER.md S104): its body has no check of its own
+                // (RelationGenerics, docs/SEMANTICS_REGISTER.md S112): its body has no check of its own
                 if (tf.body().isEmpty() || bootIds.contains(tf.id())
                         || com.legend.compiler.spec.RelationGenerics.of(tf)) {
                     continue;

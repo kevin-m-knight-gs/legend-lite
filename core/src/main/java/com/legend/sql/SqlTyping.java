@@ -36,6 +36,21 @@ public final class SqlTyping {
         return new TypeFact.Typed(t);
     }
 
+    /** A tagged value's type ({@link SqlExpr.Tagged}): the distinct (kind, slot) pairs of its candidates in order of
+     *  first appearance, nullable where any candidate's value is. */
+    public static TypeFact taggedType(List<SqlExpr.Tagged.Candidate> candidates) {
+        List<SqlType.Tagged.Slot> slots = new java.util.ArrayList<>();
+        boolean nullable = false;
+        for (SqlExpr.Tagged.Candidate c : candidates) {
+            SqlType.Tagged.Slot slot = new SqlType.Tagged.Slot(c.kind(), c.slot());
+            if (!slots.contains(slot)) {
+                slots.add(slot);
+            }
+            nullable |= mayBeNull(c.value());
+        }
+        return new TypeFact.Typed(new SqlType.Tagged(slots), nullable);
+    }
+
     /** NUMERIC CHARTER Rule 1: the decimal a finite Float value {@code v} is written as -- its plain digits, a point
      *  always present ({@code 1.5}, {@code 100000000000000.0}, {@code 0.0000010}) -- so the database types it a DECIMAL
      *  of those digits; or null at an extreme magnitude (at least 1e15, or below 1e-6 and not zero), which is written
@@ -372,7 +387,7 @@ public final class SqlTyping {
                     REVERSE_STRING, UC_FIRST, LC_FIRST, SPLIT_PART, PURE_SPLIT_PART,
                     REGEXP_EXTRACT, REGEXP_REPLACE, CHR, ENCODE_BASE64,
                     DECODE_BASE64, MD5, SHA1, SHA256, GUID, DAYNAME,
-                    MONTHNAME, STRFTIME, TYPEOF, BOOL_TO_TEXT, FLOAT_CANON, FORMAT,
+                    MONTHNAME, STRFTIME, TYPEOF, BOOL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, FLOAT_PRINT_ENGINE, FORMAT,
                     JSON_TYPE, JSON_PRETTY, CURRENT_USER_FN, REPEAT_STR -> T_VARCHAR;
             case LENGTH, STRPOS, ASCII_CODE, LEVENSHTEIN, LIST_LENGTH,
                     LIST_POSITION, EXTRACT, DATE_DIFF, EPOCH_SECONDS,
@@ -444,13 +459,24 @@ public final class SqlTyping {
             // written from the 1.5.0 JDBC probe, the executing backend.)
             // The NULL value propagates; H2's DATE delivery rides the
             // TIMESTAMP<-DATE subsumption arm at the wire.
-            case DATE_TRUNC_DAY, DATE_TRUNC -> {
+            case DATE_TRUNC -> {
                 if (a.isEmpty()) {
                     yield UNKNOWN;
                 }
                 yield a.stream().anyMatch(
                         x -> x.type() instanceof TypeFact.Bottom)
                         ? BOTTOM : T_TIMESTAMP;
+            }
+            // the day's date (datePart; the day comparisons): a DATE, as DuckDb renders it (CAST(x AS DATE)) and
+            // the legacy route reads it; a value root's TDS text prints it date-only (the MongoDB line's burn-down,
+            // 2026-10-17: typed TIMESTAMP, it printed a midnight)
+            case DATE_TRUNC_DAY -> {
+                if (a.isEmpty()) {
+                    yield UNKNOWN;
+                }
+                yield a.stream().anyMatch(
+                        x -> x.type() instanceof TypeFact.Bottom)
+                        ? BOTTOM : T_DATE;
             }
             case TO_VARIANT, JSON_MERGE_PATCH, VARIANT_GET -> T_JSON;
             case VARIANT_ELEMENTS ->
@@ -536,8 +562,9 @@ public final class SqlTyping {
                 yield typed(new SqlType.Struct(fs));
             }
             case LIST_TRANSFORM -> {
+                // one parameter, the element; or two, the element and its 1-based position
                 if (a.size() != 2 || !(a.get(1) instanceof SqlExpr.Lambda lam)
-                        || lam.params().size() != 1) {
+                        || lam.params().size() > 2) {
                     yield UNKNOWN;
                 }
                 if (!(a.get(0).type() instanceof TypeFact.Typed lt)

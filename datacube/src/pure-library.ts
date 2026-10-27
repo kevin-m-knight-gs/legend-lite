@@ -2,7 +2,7 @@
 // function -- doesn't have to be built in -- can be datacube pure scripts"): gs-quant's timeseries functions written in
 // Pure over ANY table, which a timeseries tile's queries call by name -- `->datacube::ts::mean(~symbol, [~day->ascending()],
 // ~close, 22, ~mean)` -- and which a person may call in a query of their own. legend-lite expands each call into its
-// body over the call's own columns (docs/SEMANTICS_REGISTER.md S104: legend-engine refuses a user function with type
+// body over the call's own columns (docs/SEMANTICS_REGISTER.md S112: legend-engine refuses a user function with type
 // parameters, so a planner of legend-engine's refuses these in its own words). The database computes every figure.
 //
 // The library is DataCube's, never the platform's: a model takes it only where a query calls it (withLibraryFor), so a

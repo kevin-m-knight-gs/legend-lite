@@ -253,7 +253,7 @@ class OwnCorpusConformanceTest {
                 // wrong-arity cases' subject -- legend-pure's arity rule, which only lite's dialect (generics, a
                 // declared extension) can reach; the engine's grammar has no class type parameters
                 // 7 -> 8 (the same day, the independent audit): its `Class a::B<T> extends T`, the crash it guards
-                // 8 -> 9 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S104, the user's "Still A"): functions
+                // 8 -> 9 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S112, the user's "Still A"): functions
                 // generic over relations, which only lite's dialect admits (legend-engine refuses a user function's
                 // type parameters) -- UserFunctionIntegrationTest$RelationGeneric's recursion witness (test::loop<T>);
                 // its columns-by-name library reads ⊆, so it is a signatures row (below)
@@ -269,7 +269,7 @@ class OwnCorpusConformanceTest {
                 Map.entry("LITE-DESIGN-mapping-as-function", 21),
                 Map.entry("LITE-DESIGN-sqlite-backend", 2),
                 Map.entry("PURE-DIALECT-diagram", 1),
-                // 16 -> 17 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S104): UserFunctionIntegrationTest
+                // 16 -> 17 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S112): UserFunctionIntegrationTest
                 // $RelationGeneric's columns-by-name library (test::mean<T,X,Z,V,O>, ColSpec<X⊆T>: DataCube's
                 // datacube::ts form), a function generic over relations
                 Map.entry("PURE-DIALECT-signatures", 17),

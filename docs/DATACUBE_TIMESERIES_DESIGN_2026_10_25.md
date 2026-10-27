@@ -384,7 +384,7 @@ Until now each function's query was written by TypeScript (`timeseries-query.ts`
 every figure, but a function was a recipe in DataCube's code, never a Pure function a person could read or call. Pure
 can take columns as parameters -- the relation natives are generic (`extend<T,Z>`, `select<T,Z>`, `ColSpec<Z⊆T>`) --
 but legend-engine refuses type parameters in a user function. The user chose to let legend-lite take them for a
-function over relations (`docs/SEMANTICS_REGISTER.md` S104): each call is expanded into the function's body before it
+function over relations (`docs/SEMANTICS_REGISTER.md` S112): each call is expanded into the function's body before it
 is typed, over the call's own tables, as a `NormalizeRequiredFunction` call is (`compiler/spec/RelationGenerics`).
 
 The library is `pure-library.ts DATACUBE_LIBRARY`, a `###Pure` section of functions in `datacube::ts`, each over any

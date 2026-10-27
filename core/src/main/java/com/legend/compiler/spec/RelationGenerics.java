@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * A USER FUNCTION GENERIC OVER RELATIONS (the user, 2026-10-26: a library of timeseries functions written in Pure over
- * any table -- docs/SEMANTICS_REGISTER.md S104): one whose signature reads a type parameter inside a relation or a column
+ * any table -- docs/SEMANTICS_REGISTER.md S112): one whose signature reads a type parameter inside a relation or a column
  * specification -- {@code Relation<T>}, {@code Relation<T+R>}, {@code ColSpec<X⊆T>}, {@code SortInfo<Z⊆T>},
  * {@code _Window<T>}, an {@code AggColSpec} over {@code T}'s rows. legend-engine refuses type parameters in a user
  * function ("Type and/or multiplicity parameters are not authorized in Legend Engine"); legend-lite admits these and

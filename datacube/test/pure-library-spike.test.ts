@@ -1,6 +1,6 @@
 // THE PURE LIBRARY SPIKE (the user, 2026-10-27: "try to implement all the chart functions and see if everything holds",
 // before the drop-columns primitive): one function of each family of the timeseries tile's functions, written as a Pure
-// function generic over any table (docs/SEMANTICS_REGISTER.md S104), run over the same prices as
+// function generic over any table (docs/SEMANTICS_REGISTER.md S112), run over the same prices as
 // timeseries-queries.test.ts and held to the numbers today's writer (timeseries-query.ts) gives for the same expression.
 // What it finds is docs/PURE_LIBRARY_SPIKE_2026_10_27.md: which families a Pure function says as they are, and what
 // each of the others needs. Working columns a function cannot drop yet are left in its answer (ts_*), as written.

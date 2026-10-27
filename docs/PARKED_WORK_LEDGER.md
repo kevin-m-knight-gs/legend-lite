@@ -593,40 +593,6 @@ it: a faster route for the rest changes it, and the row closes.
 
 ---
 
-## PARK-24 — lite's answers differ from Pure's values in four measured places (the output layer)
-
-**Recorded** 2026-10-10 by the Plan Gen / Exec Split session, with the user's ruling the same day: an answer is Pure's
-value — its kind, its digits, a decimal's scale — everywhere; its text follows the API served (`pure/v1`:
-legend-engine's JSON conventions, the 2026-09-27 ruling; lite's own outputs: Pure's own text). **Restated the same
-day:** the first statement measured Pure through legend-engine's server, which runs Pure COMPILED (a Float a `double`);
-the reference is Pure INTERPRETED (the numeric charter's, and PCT's), where a Float keeps its digits. Two of the four
-first gaps — Float arithmetic in decimal (`3 * 1.1` = `3.3`) and a Decimal literal's scale (`2.50D` = `2.50`) — are what
-interpreted Pure answers, so they are not gaps. Evidence: `docs/execution-plan-boundary-2026-10-05/probes/engine-reference/`
-(`pure-interpreted-results.txt` from `PureEval.java`; `results.txt`, legend-engine's execute and compiled Pure).
-
-**What happens today** — today's path and a plan alike (a plan reproduces today's path), against interpreted Pure:
-1. A whole Float prints without its `.0`: `$r.ID * 1.5` answers `3` where Pure and the engine answer `3.0`. (On
-   Postgres a plan's Number-typed column answered `3.0` and today's `let` path's Float column `3`: `PlanCases`' decimal
-   Number case compares its value in a filter until this is fixed.)
-2. A Float at an extreme magnitude prints in exponent form in lite's own outputs: `1.5E15`, `2.5E-7`, where Pure prints
-   `1500000000000000.0`, `0.00000025` (on `pure/v1`, legend-engine's JSON writes `1.5E15` too).
-3. A decimal result loses its scale: `$r.ID * 2.50D` answers `2.5`, `5`, `7.5` where Pure's are `2.50`, `5.00`, `7.50`.
-4. A DateTime prints `2024-01-02T10:30:00`, where Pure prints `2024-01-02T10:30:00+0000` and the engine's execute
-   `2024-01-02T10:30:00.000000000+0000`.
-
-**The fix.** `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md`: one text owner per kind, per API, both paths at once; each
-deliberate difference from legend-engine (its compiled Float arithmetic, `3.3000000000000003`; its 16-place decimal
-arithmetic, `cast(x as Decimal(32,16))`) a row of `docs/SEMANTICS_REGISTER.md`.
-
-**Acceptance.** The design's output matrix as a test: each answer Pure's value, in the API's text; `PlanCases`' decimal
-Number case projects its value again.
-
-**When.** Next, after step 3 lands (the user's order, 2026-10-10).
-
-**Anchor.** Pinned at the first statement's gap 1: `plainFloat(` in `AnsiSqlRenderer.java`, the Float literal written
-bare — which the restatement keeps (Rule 1 is interpreted Pure's). The anchor moves with the design's first code
-commit, to the whole Float's text (`floatPrint`).
-
 ## PARK-25 — the shared element namespace misses services, data, connections, runtimes and clean-sheet mappings
 
 **Recorded** 2026-10-11 by the Bazel program session, from the DataCube line's report: a model holding two mappings of
@@ -936,3 +902,25 @@ store's references) or refused at compile by name ("a merge Operation mapping is
 
 **Anchor.** The skip: `return null;    // parse-and-skip, as above` in `MappingFromProtocol.java`.
 
+
+## PARK-40 — the WebAssembly modules are patched after TeaVM writes them
+
+**Parked** 2026-10-26 by the plan path branch, at its merge of main, when the planner module stopped loading.
+**What happens today.** TeaVM 0.15.0's binary renderer writes an active data segment's offset as an UNSIGNED LEB128
+integer (`WasmBinaryRenderer.renderInitializer`, `writeLEB`); the specification reads `i32.const`'s operand as SIGNED.
+The two encodings agree while the last byte's bit 6 is clear, so no module was wrong until the planner's string pool
+crossed 1 MiB at the merge (segment 1 at 1,056,011 bytes: `8b ba 40`, which a reader takes as -1,041,141) and every
+host refused the module ("data segment 1 is out of bounds": 77 targets of `//gates:local`, DataCube's 60 among them).
+`tools/teavm`'s `WasmDataOffsets` re-encodes every data segment offset after TeaVM writes the module (idempotent;
+everything but the data section copied unchanged; an offset expression that is not one `i32.const` refused by opcode),
+and `TeaVmCompile` runs it over every module. **What TeaVM does:** 0.16.0 writes the offset signed (`writeSignedLEB`).
+**The cost while parked:** a post-pass over every module TeaVM writes, and a reason the compiler's output is not
+TeaVM's alone. **Acceptance:** `MODULE.bazel`'s `maven_teavm` at 0.16.0 (its lock file re-pinned;
+`third_party/teavm_classlib`'s copied classes re-based on that release, or dropped where it carries their fixes),
+`WasmDataOffsets`, its test and its call deleted, and `//wasm:zone_test`, `//wasm:round_trip_test`,
+`//wasm:differential_test` and `//wasm:conformance_test` green. **Who / When:** the follow-up "bump TeaVM to 0.16.0",
+next after the merge lands.
+
+**Anchor.** `tools/teavm`'s `WasmDataOffsetsTest.teaVmIsStillTheReleaseWhoseOffsetsAreUnsigned_park40` holds
+`MODULE.bazel` at `org.teavm:teavm-core:0.15.0`: the bump turns it red, and the fixer, the test and this row leave
+together (`//tools/teavm:data_offsets_test`).

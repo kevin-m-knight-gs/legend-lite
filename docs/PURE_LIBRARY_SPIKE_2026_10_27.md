@@ -3,7 +3,7 @@
 The user, 2026-10-27: "Should we try to implement all the chart functions and see if everything holds? Then do the
 without/except function?" -- and, of the order proposed: "Start it". Before building the primitive that drops a
 function's working columns, one function of each family of the timeseries tile's functions was written as a Pure
-function generic over any table (docs/SEMANTICS_REGISTER.md S104) and held to the numbers today's writer
+function generic over any table (docs/SEMANTICS_REGISTER.md S112) and held to the numbers today's writer
 (`datacube/src/timeseries-query.ts`) gives for the same expression, over the prices of `timeseries-queries.test.ts`, on
 DuckDB, through lite's planner. The test is `datacube/test/pure-library-spike.test.ts` (`//datacube:pure_library_spike_test`).
 
