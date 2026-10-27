@@ -1301,9 +1301,6 @@ final class ArchitectureTest {
                 "com.legend.exec.PrimitiveCensus.TALLY",
                 // and its per-test sets under primitives=per-test (the same day): bounded by tests x vocabulary
                 "com.legend.exec.PrimitiveCensus.TESTS",
-                // serializer registry: written once at static init; the
-                // ConcurrentHashMap spelling is for safe publication
-                "com.legend.server.serial.SerializerRegistry.SERIALIZERS",
                 // a SESSION's established test-data setups (2026-09-16): the
                 // engine loads a LocalH2 connection's data when it opens the
                 // connection, once; this keys that fact on the session itself

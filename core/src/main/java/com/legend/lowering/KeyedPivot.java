@@ -45,8 +45,9 @@ public final class KeyedPivot {
     private KeyedPivot() {
     }
 
-    /** What the body answers: typed rows, or a text format's cells. */
-    public enum Out { ROWS, TDS_TEXT, CSV, JSON }
+    /** What the body answers: typed rows, or Pure's TDS text's cells (the PCT's, until it reads typed rows: the
+     *  result boundary program's phase 4). */
+    public enum Out { ROWS, TDS_TEXT }
 
     /** The probe plan's statements and outputs: {@code keys} (one row per key: its text, then each per-key output's
      *  name), {@code body} (the fixed columns, then the per-key ones), {@code outputs} in the body's order. */
@@ -124,7 +125,7 @@ public final class KeyedPivot {
      * (its static columns, and the pivot's aggregates' templates as its dynamic ones), answered as {@code out}.
      */
     public static Parts of(SqlQuery lowered, SqlSource.Pivot pivot, Type.RelationType schema, Out out,
-            boolean quoteStrings, LiteralSpelling.Layouts layouts, WireRender.Spelling spelling) {
+            boolean quoteStrings, LiteralSpelling.Layouts layouts) {
         if (pivot.on().size() != 1) {
             throw new IllegalStateException("a dynamic pivot on " + pivot.on().size() + " columns: the lowering keys a"
                     + " pivot on one column (a composite key its columns' text joined)");
@@ -168,7 +169,7 @@ public final class KeyedPivot {
             Type.Column typed = fixedTyped.get(i);
             SqlExpr ref = SqlExpr.Column.of("_pct0", oc);
             projections.add(out == Out.ROWS ? new SqlSelect.Projection(ref, oc.name(), oc)
-                    : new SqlSelect.Projection(cell(out, ref, typed, oc.type(), quoteStrings, layouts, spelling),
+                    : new SqlSelect.Projection(cell(out, ref, typed, oc.type(), quoteStrings, layouts),
                             "_pct_c" + i, new OutputCol("_pct_c" + i, SqlType.Scalar.VARCHAR, false)));
             outputs.add(new Fixed(typed, fixedName(out, typed)));
         }
@@ -179,7 +180,7 @@ public final class KeyedPivot {
             SqlExpr ref = SqlExpr.Column.of("_pct0", stem, slot, true, OutputCol.Origin.PER_KEY);
             projections.add(out == Out.ROWS
                     ? new SqlSelect.Projection(ref, stem, new OutputCol(stem, slot, true, OutputCol.Origin.PER_KEY))
-                    : new SqlSelect.Projection(cell(out, ref, templates.get(i), slot, quoteStrings, layouts, spelling),
+                    : new SqlSelect.Projection(cell(out, ref, templates.get(i), slot, quoteStrings, layouts),
                             stem, new OutputCol(stem, SqlType.Scalar.VARCHAR, false, OutputCol.Origin.PER_KEY)));
             outputs.add(new PerKey(templates.get(i), slot, 1 + i));
         }
@@ -247,8 +248,6 @@ public final class KeyedPivot {
                         new SqlExpr.StringLit(tail + "\\'':" + Render.tdsTypeName(template.type())
                                 + (template.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
                                         && b.lower() == 0 ? "[0..1]" : "[1]")));
-                case CSV -> Render.escapeCsv(Render.generatedName(text, tail));
-                case JSON -> Render.jsonToken(Render.generatedName(text, tail));
             };
             String alias = "_pct_n" + i;
             ps.add(new SqlSelect.Projection(name, alias, new OutputCol(alias, SqlType.Scalar.VARCHAR, false)));
@@ -274,14 +273,12 @@ public final class KeyedPivot {
         return t;
     }
 
-    /** A column's cell in the output's text, as that output's wire writes one. */
+    /** A column's cell: the typed cell itself, or its TDS text. */
     private static SqlExpr cell(Out out, SqlExpr ref, Type.Column typed, SqlType slot, boolean quoteStrings,
-            LiteralSpelling.Layouts layouts, WireRender.Spelling spelling) {
+            LiteralSpelling.Layouts layouts) {
         return switch (out) {
             case ROWS -> ref;
             case TDS_TEXT -> Render.tdsTextCell(ref, typed, slot, quoteStrings, layouts);
-            case CSV -> Render.cell(ref, typed, slot, false);
-            case JSON -> Render.jsonCell(ref, typed.type(), slot, spelling);
         };
     }
 
@@ -290,8 +287,6 @@ public final class KeyedPivot {
         return switch (out) {
             case ROWS -> typed.name();
             case TDS_TEXT -> Render.tdsHeader(List.of(typed));
-            case CSV -> Render.csvName(Type.RelationType.presentPivotName(typed.name()));
-            case JSON -> Render.jsonName(Type.RelationType.presentPivotName(typed.name()));
         };
     }
 }

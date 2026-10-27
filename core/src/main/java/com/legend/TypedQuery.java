@@ -194,13 +194,13 @@ public final class TypedQuery {
         return plan(runtime, true);
     }
 
-    /** The text a caller asks a plan for: CSV, JSON, or JSON whose rows stream as the database answers them (a
-     *  relation's rows, a graph fetch's objects; a value's text is whole). */
-    /** The form a plan's text takes: CSV, JSON (the whole result), one JSON object per row, or Pure's TDS text
-     *  (TDS_TEXT: a header of {@code name:Type[multiplicity]} and a row per line in Pure's print forms -- the form
-     *  legend-pure's {@code stringToTDS} reads, so the PCT harness's; a value's is the one-column relation
-     *  {@code value}; 2026-10-17). */
-    public enum Output { CSV, JSON, STREAMED_JSON, TDS_TEXT }
+    /** The one text a plan still asks its database to write: Pure's TDS text (a header of
+     *  {@code name:Type[multiplicity]} and a row per line in Pure's print forms -- the form legend-pure's
+     *  {@code stringToTDS} reads, so the PCT harness's; a value's is the one-column relation {@code value};
+     *  2026-10-17), until the PCT reads typed rows (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of
+     *  2026-10-27, phase 4). Every other answer is typed rows ({@link #executionPlan(String)}), spelled by a writer at
+     *  the edge: the CSV and JSON outputs the database wrote went with phase 3. */
+    public enum Output { TDS_TEXT }
 
     /** The query's TYPED execution plan for {@code runtime} (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md §5, step 1):
      *  every statement final for its target, its answer typed rows read by the plan's column facts (a relation's rows,
@@ -238,22 +238,6 @@ public final class TypedQuery {
             Output output, java.util.Set<com.legend.platform.Feature> features,
             @com.legend.base.Nullable String serverVersion) {
         return PlanMaker.plan(this, runtime, output, features, serverVersion);
-    }
-
-    /**
-     * The SQL whose one value is the whole relation as the JSON wire ({@code [row, ...]}, each row the database's own
-     * {@code json_object}), in the runtime's dialect: what legend-lite's server runs for execute's rows
-     * ({@code Execution.executeWire}), for a host that runs it on its own database (the tab: its DuckDB;
-     * docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1). The database renders every value; nothing here does. The dialect is
-     * the runtime's own, not a connection's {@code forServer(version)} as the server's is: only H2's answers differently
-     * by its server's version, and a host runs DuckDB.
-     */
-    public String wireSql(@com.legend.base.Nullable String runtime) {
-        Compiler.LoweredQuery l = lower(runtime, false);
-        // the engine's API, hosted: the engine's text (WireRender.Spelling.ENGINE), as the server's execute answers
-        return Compiler.dialectOf(ctx, runtime).render(com.legend.lowering.WireRender.wrap(l.plan(),
-                com.legend.lowering.WireRender.schema(l.root().info()), com.legend.lowering.WireRender.Format.JSON,
-                com.legend.lowering.WireRender.Spelling.ENGINE));
     }
 
     private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {

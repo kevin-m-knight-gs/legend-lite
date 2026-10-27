@@ -230,10 +230,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
                 throw new IllegalArgumentException("a keys probe answers the key's text and each per-key output's name:"
                         + " " + keyFields.size() + " fields for " + perKeyOutputs + " per-key outputs");
             }
-            if (format == Format.JSON_PER_ROW) {
-                throw new IllegalArgumentException("a keyed text is written row by row in every format: its JSON is"
-                        + " JSON, the runner writing the brackets either way");
-            }
         }
 
         /** One output column of the body; {@code field}, the name the body's statement writes its cells under (a
@@ -273,14 +269,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         public enum Snapshot { TRANSACTION, REPEATABLE_READ, SERIALIZABLE, NONE }
     }
 
-    /** How the database writes a {@link TextResult}. */
+    /** How the database writes a {@link TextResult}: the one text a plan still asks for, until the PCT reads typed
+     *  rows (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27, phase 4; the CSV, JSON and
+     *  per-row JSON texts went with its phase 3). */
     public enum Format {
-        /** the whole result as one CSV text */
-        CSV,
-        /** the whole result as one JSON text */
-        JSON,
-        /** one JSON object per row; the runner writes the array's brackets and commas */
-        JSON_PER_ROW,
         /** the whole result as Pure's TDS text: a header of {@code name:Type[multiplicity]}, each row on its own
          *  line, cells in Pure's print forms (the form legend-pure's {@code stringToTDS} reads; 2026-10-17) */
         TDS_TEXT

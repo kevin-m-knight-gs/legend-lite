@@ -1,20 +1,10 @@
 package com.legend.server;
 
 /**
- * Serialization format for {@link QueryService#execute(String, String, String,
- * java.sql.Connection, java.io.OutputStream, OutputFormat)} output.
- *
- * <p>Describes how rows are formatted on the wire — NOT whether they are
- * materialized or streamed. The choice of snapshot vs streaming is made by
- * calling {@code execute(..., out, fmt)} vs {@code stream(..., out)}.
- *
- * <p>Each constant carries two pieces of metadata:
- * <ul>
- *   <li>{@link #id()} — stable string identifier used by
- *       {@link com.legend.server.serial.SerializerRegistry} for dispatch.</li>
- *   <li>{@link #contentType()} — the MIME type servers should send with
- *       responses of this format.</li>
- * </ul>
+ * The text {@link QueryService#execute(String, String, String, java.sql.Connection, java.io.OutputStream,
+ * OutputFormat)} writes a query's typed rows in: lite's CSV ({@link com.legend.result.CsvWriter}) or its JSON rows
+ * ({@link com.legend.result.JsonRowsWriter}), each written batch by batch as the rows arrive. Each constant carries its
+ * stable identifier ({@link #id()}) and the MIME type a server sends with it ({@link #contentType()}).
  */
 public enum OutputFormat {
     JSON("json", "application/json"),

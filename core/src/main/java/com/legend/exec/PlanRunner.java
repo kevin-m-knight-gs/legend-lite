@@ -204,12 +204,12 @@ public final class PlanRunner {
         send(text.sql(), checked, sessions, (st, statement, bound) -> writeText(text, st, statement, bound, out));
     }
 
-    /** {@code text}'s statement, sent on {@code st} with {@code values} bound, its text written to {@code out}: a whole
-     *  text's one row; or one JSON object per row, the array's brackets and commas the runner's. */
+    /** {@code text}'s statement, sent on {@code st} with {@code values} bound, its one row's text written to
+     *  {@code out}. */
     private static void writeText(ExecutionPlan.TextResult text, Statements st, String statement,
             List<PlanParameters.Checked> values, Writer out) throws IOException {
         switch (text.format()) {
-            case CSV, JSON, TDS_TEXT -> {
+            case TDS_TEXT -> {
                 boolean[] written = {false};
                 st.query(statement, text.sql().slots(), values, row -> {
                     if (!written[0]) {
@@ -220,20 +220,6 @@ public final class PlanRunner {
                 if (!written[0]) {
                     throw new IllegalStateException("the plan's statement wrote no text: no row");
                 }
-            }
-            case JSON_PER_ROW -> {
-                // one JSON object per row: the array's brackets and commas are the runner's
-                out.write('[');
-                boolean[] first = {true};
-                st.query(statement, text.sql().slots(), values, row -> {
-                    if (!first[0]) {
-                        out.write(',');
-                    }
-                    first[0] = false;
-                    out.write(row != null ? row : "null");
-                    out.flush();
-                });
-                out.write(']');
             }
         }
         out.flush();
@@ -270,14 +256,12 @@ public final class PlanRunner {
         }
     }
 
-    /** A keyed plan's text: the database writes every cell and every key's name; the runner writes the format's
-     *  punctuation around them (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §5, F1): a TDS text's header line and its
-     *  rows on lines of their own; a CSV's header and rows each ended by CRLF; a JSON array of one object per row. */
+    /** A keyed plan's TDS text: the database writes every cell and every key's name; the runner writes the text's
+     *  punctuation around them (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §5, F1): the header line, and each row on a
+     *  line of its own. */
     private static final class TextSink implements KeyedSink {
         private final ExecutionPlan.Format format;
         private final Writer out;
-        private final List<String> names = new java.util.ArrayList<>();
-        private boolean first = true;
 
         TextSink(ExecutionPlan.Keyed keyed, Writer out) {
             this.format = java.util.Objects.requireNonNull(keyed.format());
@@ -286,12 +270,8 @@ public final class PlanRunner {
 
         @Override
         public void columns(List<ExecutionPlan.Column> columns, List<String> names) throws IOException {
-            this.names.addAll(names);
             switch (format) {
                 case TDS_TEXT -> out.write(String.join(",", names));
-                case CSV -> out.write(String.join(",", names) + "\r\n");
-                case JSON -> out.write('[');
-                case JSON_PER_ROW -> throw new IllegalStateException("a keyed text's JSON is JSON");
             }
         }
 
@@ -307,24 +287,11 @@ public final class PlanRunner {
             }
             switch (format) {
                 case TDS_TEXT -> out.write("\n" + String.join(",", texts));
-                case CSV -> out.write(String.join(",", texts) + "\r\n");
-                case JSON -> {
-                    StringBuilder object = new StringBuilder(first ? "{" : ",{");
-                    for (int i = 0; i < texts.size(); i++) {
-                        object.append(i == 0 ? "" : ",").append(names.get(i)).append(':').append(texts.get(i));
-                    }
-                    out.write(object.append('}').toString());
-                }
-                case JSON_PER_ROW -> throw new IllegalStateException("a keyed text's JSON is JSON");
             }
-            first = false;
         }
 
         @Override
-        public void end() throws IOException {
-            if (format == ExecutionPlan.Format.JSON) {
-                out.write(']');
-            }
+        public void end() {
         }
     }
 

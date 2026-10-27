@@ -14,8 +14,8 @@ import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.exec.Row;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.lowering.TypedRows;
 import com.legend.lowering.VerdictSql;
-import com.legend.lowering.WireRender;
 import com.legend.plan.PlanColumns;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlQuery;
@@ -68,7 +68,7 @@ final class JudgePlans {
      *  and the runner parsed each row back). A typed-rows statement answers the plan's columns in their order, and
      *  that is checked here where the statement's outputs are known: a column out of its output's place is a
      *  planner defect, refused by name. A sort key that is no output is carried as a hidden column
-     *  ({@link WireRender#typedRows}: H2's FULL OUTER JOIN emulation addresses its sort key among the outputs). */
+     *  ({@link TypedRows#statement}: H2's FULL OUTER JOIN emulation addresses its sort key among the outputs). */
     static ExecutionPlan.TdsResult rowsPlan(SqlQuery statement, Type.RelationType schema,
             StatementExecutor.ExecEnv env) {
         List<ExecutionPlan.Column> columns = PlanColumns.of(schema, statement);
@@ -84,7 +84,7 @@ final class JudgePlans {
             }
         }
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION, columns,
-                PlanMaker.sql(WireRender.typedRows(statement), env.dialect(), target(env)));
+                PlanMaker.sql(TypedRows.statement(statement), env.dialect(), target(env)));
     }
 
     /** {@code plan} with the definitions of the frames it references at its head -- the verdict batch's, in
@@ -105,17 +105,6 @@ final class JudgePlans {
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
-    }
-
-    /** {@code node}'s text, run on a session of {@code on}. */
-    static String text(ExecutionPlan.TextResult node, PlanSessions.Source on) {
-        java.io.StringWriter out = new java.io.StringWriter();
-        try {
-            PlanRunner.run(new ExecutionPlan(List.of(), node), Map.of(), on, out);
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-        return out.toString();
     }
 
     /** The database judge's statements as plans ({@link com.legend.exec.VerdictBatch.Runner}): a verdict statement's
@@ -156,7 +145,7 @@ final class JudgePlans {
             return java.util.Objects.requireNonNull(pv.answered(), "a side neither planned nor answered");
         }
         Type.RelationType sideSchema = Type.relationSchema(side.shapeInfo().type());
-        if (sideSchema != null && WireRender.dynamicPivotUnnamed(side.plan(), sideSchema)) {
+        if (sideSchema != null && TypedRows.dynamicPivotUnnamed(side.plan(), sideSchema)) {
             return java.util.Objects.requireNonNull(StatementExecutor.evalValue(value, letPrefix, specs, env, null,
                     identity, hook), "a dynamic pivot side without a result");
         }
@@ -198,11 +187,36 @@ final class JudgePlans {
     private static ExecutionResult sideResult0(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
         ExprType info = w.shapeInfo();
         return switch (w.shape()) {
-            case GRAPH -> new ExecutionResult.Graph(text(PlanMaker.text(ExecutionPlan.Format.JSON,
-                    PlanMaker.objects(info), withFrames(w.plan(), env), env.dialect(), target(env)),
-                    PlanSessions.given(w.connection())), info.type());
+            case GRAPH -> new ExecutionResult.Graph(objects(w, env), info.type());
             case TABULAR -> tabular(w, env);
             case SCALAR, COLLECTION -> values(w, env);
+        };
+    }
+
+    /** A graph fetch side's objects: its statement's one cell, the objects' JSON array as the database built it (the
+     *  side's graph root), read as a typed value of one text column -- the plan asks the database for no output text
+     *  (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27). */
+    private static String objects(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
+        SqlQuery plan = withFrames(w.plan(), env);
+        List<OutputCol> outs = plan.outputs();
+        if (outs.size() != 1) {
+            throw new IllegalStateException("a graph fetch side's statement answers " + outs.size() + " columns "
+                    + outs.stream().map(OutputCol::name).toList() + ": its objects' array is one cell");
+        }
+        ExecutionPlan.TdsResult node = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
+                List.of(new ExecutionPlan.Column(outs.get(0).name(), "String", new ExecutionPlan.Multiplicity(0, 1),
+                        com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null)),
+                PlanMaker.sql(plan, env.dialect(), target(env)));
+        PlanRunner.Rows rows = run(node, PlanSessions.given(w.connection()));
+        if (rows.rows().size() != 1) {
+            throw new IllegalStateException("a graph fetch side's statement answered " + rows.rows().size()
+                    + " rows: its objects' array is one row");
+        }
+        return switch (rows.rows().get(0).get(0)) {
+            case null -> "";
+            case String objects -> objects;
+            case Object other -> throw new IllegalStateException("a graph fetch side's objects' array is no text: "
+                    + other.getClass().getSimpleName());
         };
     }
 
@@ -279,7 +293,7 @@ final class JudgePlans {
     private static ExecutionResult values(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
         ExprType info = w.shapeInfo();
         Type type = info.type();
-        PlanRunner.Rows rows = valueLane(run(rowsPlan(withFrames(w.plan(), env), WireRender.schema(info), env),
+        PlanRunner.Rows rows = valueLane(run(rowsPlan(withFrames(w.plan(), env), TypedRows.schema(info), env),
                 PlanSessions.given(w.connection())));
         long lower = info.multiplicity().requireBounded("result shape").lower();
         boolean tdsNullRoot = type.equals(new Type.ClassType(PlatformTypes.TDS_NULL_FQN));

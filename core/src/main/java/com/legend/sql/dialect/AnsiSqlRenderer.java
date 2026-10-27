@@ -142,9 +142,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return false;
     }
 
-    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_PRINT} and
-     *  {@link com.legend.sql.SqlFn#FLOAT_PRINT_ENGINE} itself; else they are expanded before every other pass
-     *  ({@link FloatPrintText.Expansion}) to the portable spellings over the double's text. */
+    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_PRINT} itself; else it is expanded before every
+     *  other pass ({@link FloatPrintText.Expansion}) to the portable spelling over the double's text. */
     protected boolean spellsFloatPrint() {
         return false;
     }
@@ -1069,9 +1068,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.expr(FloatCanonText.of(a.get(0)), parentPrec);
     }
 
-    /** A Float's print form ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_PRINT} or
-     *  {@link com.legend.sql.SqlFn#FLOAT_PRINT_ENGINE} call): the portable decomposition over the double's text (a
-     *  dialect whose double text is long spells it once, its own way). */
+    /** A Float's print form ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_PRINT} call): the portable decomposition
+     *  over the double's text (a dialect whose double text is long spells it once, its own way). */
     protected final SqlWriter floatPrintByText(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         return writer.expr(FloatPrintText.of(c.fn(), c.args().get(0)), parentPrec);
     }

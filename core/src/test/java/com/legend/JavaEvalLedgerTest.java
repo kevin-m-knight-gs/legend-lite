@@ -969,7 +969,9 @@ class JavaEvalLedgerTest {
     // decision rule's permitted classes. (E4.e's fold/at interpreter
     // residue DIED with HostEval's Phase-1 eviction — grids are typed
     // relations now; its stale ledger row was deleted 2026-08-19.)
-    // E5 wire rows LANDED (2026-08-17): the product wire is
+    // (2026-10-27, the result boundary program's phase 3: the wires below are
+    // deleted -- a result is its typed rows, spelled by a writer at the edge,
+    // com.legend.result.) E5 wire rows LANDED (2026-08-17): the product wire was
     // PLAN-RENDERED (Compiler.executeWire → WireRender → Render
     // csvWire/jsonWire — the DB composes the bytes through the ONE
     // RFC-4180 owner and its own json_object policy). ResultJson is

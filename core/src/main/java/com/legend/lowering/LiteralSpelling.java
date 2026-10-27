@@ -723,27 +723,6 @@ public final class LiteralSpelling {
     }
 
     // ==================================================================
-    // legend-engine's text (pure/v1 execute: docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4, decision 2; step 5)
-    // ==================================================================
-
-    /** legend-engine's text of a DateTime on {@code pure/v1} execute (measured, 4.145.0): nine fraction digits and
-     *  {@code +0000}, whatever the value's precision. */
-    public static SqlExpr dateTimeTextEngine(SqlExpr x) {
-        return SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.JSON_DATETIME));
-    }
-
-    /**
-     * legend-engine's text of a Float on {@code pure/v1} execute: Java's {@code Double.toString} layout over the
-     * database's own shortest digits (the engine's serializer prints the double its driver read). One call,
-     * {@link SqlFn#FLOAT_PRINT_ENGINE}, which each dialect spells (2026-10-22: the portable spelling,
-     * dialect/FloatPrintText, reads the value's text over a thousand times through the pieces it pastes -- Snowflake's
-     * served statement for {@code 1.5 + 2.25} was 6 MB).
-     */
-    public static SqlExpr floatPrintJava(SqlExpr x) {
-        return SqlExpr.Call.of(SqlFn.FLOAT_PRINT_ENGINE, x);
-    }
-
-    // ==================================================================
     // Pure's literal grammar for a whole value: the text carrier
     // (docs/PLAN_PATH_PROGRAM_2026_10_17.md §4, step 3, 2026-10-18)
     // ==================================================================

@@ -3,7 +3,6 @@
 
 package com.legend.integration;
 
-import com.legend.TypedQuery;
 import com.legend.error.NotImplementedException;
 import com.legend.exec.PlanSessions;
 import com.legend.executionplan.ExecutionPlan;
@@ -50,10 +49,10 @@ class WritePlansH2Test {
                 """;
         var ctx = com.legend.Compiler.compileModel(model);
         ExecutionPlan delete = com.legend.Compiler.query(ctx, "|#>{w::DB.T}#->delete(r|$r.ID == 1)")
-                .executionPlan("w::RT", TypedQuery.Output.JSON);
+                .executionPlan("w::RT");
         ExecutionPlan read = com.legend.Compiler.query(ctx, "|#>{w::DB.T}#->select(~[NAME])->sort(~NAME->ascending())")
-                .executionPlan("w::RT", TypedQuery.Output.JSON);
-        ExecutionPlan count = com.legend.Compiler.query(ctx, "|1").executionPlan("w::RT", TypedQuery.Output.JSON);
+                .executionPlan("w::RT");
+        ExecutionPlan count = com.legend.Compiler.query(ctx, "|1").executionPlan("w::RT");
         String before = WritePlansTest.run(read, PlanSessions.shared(), Map.of());
         assertTrue(before.contains("\"a\"") && before.contains("\"b\""), before);
         // the delete's count, on a database of the run's own, set up as the shared one is

@@ -1,7 +1,6 @@
 package com.legend.integration;
 
 import com.legend.testbackend.TestBackends;
-import com.legend.server.serial.SerializerRegistry;
 import com.legend.server.OutputFormat;
 import com.legend.server.QueryService;
 import com.legend.json.Json;
@@ -370,9 +369,10 @@ class StreamingIntegrationTest {
     //   STREAMING (stream):  SELECT json_object(...) FROM ...
     //                        → N JDBC rows, one json_object each.
     //
-    // PlanExecutor.streamGraph reads rows from the STREAMING SQL and writes
-    // each row's JSON verbatim with ',' separators inside '[' ... ']'. No
-    // StringBuilder, no Java-side concat — bytes pass through.
+    // Since 2026-10-27 (the result boundary program's phase 3) a graph fetch's
+    // typed plan answers the STREAMING SQL's objects, one per row, and the
+    // JSON rows writer passes each object's JSON on with ',' separators inside
+    // '[' ... ']', batch by batch.
 
     @Test
     @DisplayName("stream graphFetch: produces valid JSON matching the materialized path")
@@ -404,7 +404,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("stream graphFetch: emits many small writes (proves byte-passthrough, not materialized) [MUTATION-VERIFIED]")
     void testStreamGraphFetchMultipleWrites() throws Exception {
-        // streamGraph writes per-row JSON with a flush after each row. For
+        // the writer writes per-batch JSON with a flush after each batch (one row each here). For
         // 100 rows, the underlying OutputStream should see ~100 writes. A
         // materialized fallback (toJsonArray() then one write()) produces 1.
         String query = """
@@ -553,32 +553,5 @@ class StreamingIntegrationTest {
         // Round-trip: the decoded name must equal the inserted value exactly.
         Json.Obj row = (Json.Obj) arr.items().get(0);
         assertEquals("tab\there\t\"quote\\bk\nline\u0001ctl", row.getString("name"));
-    }
-
-    // ==================== Registry ====================
-
-    @Test
-    @DisplayName("SerializerRegistry: Returns correct serializers")
-    void testSerializerRegistry() {
-        assertTrue(SerializerRegistry.isSupported("json"), "JSON should be supported");
-        assertTrue(SerializerRegistry.isSupported("csv"), "CSV should be supported");
-        assertFalse(SerializerRegistry.isSupported("avro"), "Avro should not be supported yet");
-
-        assertEquals("application/json", SerializerRegistry.get("json").contentType());
-        assertEquals("text/csv", SerializerRegistry.get("csv").contentType());
-
-        assertTrue(SerializerRegistry.get("json").supportsStreaming(), "JSON should support streaming");
-        assertTrue(SerializerRegistry.get("csv").supportsStreaming(), "CSV should support streaming");
-    }
-
-    @Test
-    @DisplayName("SerializerRegistry: Throws on unknown format")
-    void testSerializerRegistryUnknownFormat() {
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> SerializerRegistry.get("unknown_format"));
-
-        assertTrue(ex.getMessage().contains("Unknown serialization format"), "Should have helpful error message");
-        assertTrue(ex.getMessage().contains("json"), "Should list available formats");
     }
 }

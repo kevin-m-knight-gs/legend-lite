@@ -164,24 +164,17 @@ class CypherWritePlansTest {
         return rows;
     }
 
-    /** The statement's rows by its plan, run on {@code session} (its transaction joined): the JSON the database
-     *  writes, each row's cells as text in the relation's order. */
+    /** The statement's rows by its plan, run on {@code session} (its transaction joined): its typed rows, each row's
+     *  cells as text in the relation's order (as {@link #executed} spells the execution's). */
     private static List<String> planned(Connection session, String model, String cypher) throws Exception {
         ExecutionPlan plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), island(cypher))
-                .executionPlan(CypherGraph.RUNTIME, TypedQuery.Output.JSON);
+                .executionPlan(CypherGraph.RUNTIME);
         assertTrue(plan.root() instanceof ExecutionPlan.Sequence, cypher);
-        StringWriter out = new StringWriter();
-        PlanRunner.run(plan, Map.of(), PlanSessions.given(session), out);
         List<String> rows = new ArrayList<>();
-        for (Json.Node row : ((Json.Arr) Json.parse(out.toString())).items()) {
+        for (List<Object> row : PlanRunner.rows(plan, Map.of(), PlanSessions.given(session)).rows()) {
             List<String> cells = new ArrayList<>();
-            for (Json.Node cell : ((Json.Obj) row).fields().values()) {
-                cells.add(switch (cell) {
-                    case Json.Null n -> "null";
-                    case Json.Str s -> s.value();
-                    case Json.Num n -> n.isInteger() ? String.valueOf(n.longValue()) : String.valueOf(n.doubleValue());
-                    default -> Json.toCompact(cell);
-                });
+            for (Object value : row) {
+                cells.add(String.valueOf(value));
             }
             rows.add(String.join("|", cells));
         }

@@ -175,8 +175,8 @@ public final class Snowflake extends AnsiSqlRenderer {
         return true;
     }
 
-    /** {@inheritDoc} Spelled here ({@link #floatPrint}, {@link #floatPrintEngine}): the portable spellings read this
-     *  dialect's long double text some nine times (Pure's print form) and over a thousand (legend-engine's text). */
+    /** {@inheritDoc} Spelled here ({@link #floatPrint}): the portable spelling reads this dialect's long double text
+     *  some nine times (Pure's print form). */
     @Override
     protected boolean spellsFloatPrint() {
         return true;
@@ -1373,8 +1373,6 @@ public final class Snowflake extends AnsiSqlRenderer {
             // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
             // it, which is exact, as the portable spelling read it
             case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);
-            case FLOAT_PRINT_ENGINE -> isDouble(a.get(0)) ? floatPrintEngine(writer, a.get(0))
-                    : floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1855,21 +1853,6 @@ public final class Snowflake extends AnsiSqlRenderer {
                     + fixed + ") ELSE " + d.sign() + " || LEFT(" + d.digits() + ", 1) || IFF(LENGTH(" + d.digits()
                     + ") > 1, '.' || SUBSTR(" + d.digits() + ", 2), '') || 'e' || TO_VARCHAR(" + d.exponent() + ") END";
         }));
-    }
-
-    /**
-     * legend-engine's text of a Float ({@link SqlFn#FLOAT_PRINT_ENGINE}), spelled here from {@link #floatText}'s digits,
-     * the value read once: Java's {@code Double.toString} layout, plain where the exponent is from -3 to 6 with at least
-     * one fraction digit, else one digit, a point, the rest (or {@code 0}) and {@code E} with the exponent. The portable
-     * spelling took {@link #floatText}'s text apart over a thousand times (Snowflake's served statement for
-     * {@code 1.5 + 2.25} was 6 MB, measured 2026-10-22).
-     */
-    private SqlWriter floatPrintEngine(SqlWriter writer, SqlExpr v) {
-        return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN "
-                + javaNonFinite(d.value()) + " WHEN " + d.value() + " = 0 THEN '0.0' WHEN " + d.exponent()
-                + " BETWEEN -3 AND 6 THEN " + d.sign() + " || " + d.unfolded() + " ELSE " + d.sign() + " || LEFT("
-                + d.digits() + ", 1) || '.' || IFF(LENGTH(" + d.digits() + ") > 1, SUBSTR(" + d.digits() + ", 2), '0')"
-                + " || 'E' || TO_VARCHAR(" + d.exponent() + ") END"));
     }
 
     /** Java's name of the non-finite double {@code x}: Snowflake's NaN equals itself and exceeds every number. */

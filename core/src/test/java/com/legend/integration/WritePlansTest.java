@@ -56,14 +56,14 @@ class WritePlansTest {
         var ctx = com.legend.Compiler.compileModel(MODEL.formatted(TestBackends.platform().connectionBody()));
         ExecutionPlan plan = com.legend.Compiler.query(ctx, "{age: Integer[1] |let s = #>{w::DB.SRC}#->filter(r|$r.AGE"
                 + " > $age)->meta::legend::lite::stage(); $s->write(#>{w::DB.T}#); $s->select(~[ID]);}")
-                .executionPlan("w::RT", TypedQuery.Output.JSON);
+                .executionPlan("w::RT");
         List<ExecutionPlan.Node> steps = ((ExecutionPlan.Sequence) plan.root()).steps();
         // the staged table created, the write, the answer, the staged table dropped
         assertEquals(4, steps.size(), steps.toString());
         assertTrue(steps.get(0) instanceof ExecutionPlan.Update u && u.sql().statement().contains("legend_stage_s")
                 && u.sql().slots().size() == 1, steps.get(0).toString());
         assertTrue(steps.get(1) instanceof ExecutionPlan.Update u && u.count() == null, steps.get(1).toString());
-        assertTrue(steps.get(2) instanceof ExecutionPlan.TextResult, steps.get(2).toString());
+        assertTrue(steps.get(2) instanceof ExecutionPlan.TdsResult, steps.get(2).toString());
         assertTrue(steps.get(3) instanceof ExecutionPlan.Update u && u.sql().statement().contains("legend_stage_s"),
                 steps.get(3).toString());
         // the plan reads back from its JSON (the typed SQL tree is not written yet: PlanJson)
@@ -129,7 +129,7 @@ class WritePlansTest {
             assertThrows(Exception.class, () -> run(c, "SELECT * FROM legend_stage_s"), name);
             // the plan read back from its JSON runs alike
             ExecutionPlan plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), write)
-                    .executionPlan("w::RT", TypedQuery.Output.JSON);
+                    .executionPlan("w::RT");
             run(c, "DELETE FROM T");
             assertEquals(answer(PlanJson.read(PlanJson.write(plan)), c, Map.of("age", 15L)),
                     count(model, c, "|2"), name);
@@ -148,7 +148,7 @@ class WritePlansTest {
     /** The plan's answer to {@code query} with {@code values}, run on the caller's session {@code c}. */
     private static String answer(String model, Connection c, String query, Map<String, ?> values) throws Exception {
         ExecutionPlan plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query)
-                .executionPlan("w::RT", TypedQuery.Output.JSON);
+                .executionPlan("w::RT");
         return answer(plan, c, values);
     }
 
@@ -159,7 +159,7 @@ class WritePlansTest {
     static String run(ExecutionPlan plan, PlanSessions.Source sessions, Map<String, ?> values)
             throws Exception {
         StringWriter out = new StringWriter();
-        PlanRunner.run(plan, values, sessions, out);
+        PlanRunner.stream(plan, values, sessions, new com.legend.result.JsonRowsWriter(out, plan.answerShape()));
         return out.toString();
     }
 

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend;
 
-import com.legend.executionplan.ExecutionPlan;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testcases.PlanCases;
 import org.junit.jupiter.api.Test;
@@ -19,8 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * THE OUTPUT MATRIX (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §5 step 1; the plan path program's step 2,
  * docs/PLAN_PATH_PROGRAM_2026_10_17.md): for each kind of value -- a whole, a fractional and an extreme Float, a Float
  * after arithmetic, a Decimal literal and after arithmetic, a DateTime with no, three and nine fraction digits, a
- * StrictDate, each as a value root and as a column -- and each of lite's own outputs on the plan path (CSV, the JSON
- * wire, a stream of JSON rows, Pure's TDS text) on DuckDB and H2 (OutputMatrixH2Test), the text lite writes beside interpreted Pure's
+ * StrictDate, each as a value root and as a column -- and each of lite's own outputs on the plan path (its CSV and its
+ * JSON rows, written at the edge from typed rows since 2026-10-27; Pure's TDS text) on DuckDB and H2
+ * (OutputMatrixH2Test), the text lite writes beside interpreted Pure's
  * (the reference: {@code docs/execution-plan-boundary-2026-10-05/probes/engine-reference/pure-interpreted-results.txt},
  * PureEval.java, 2026-10-10). Every cell is judged: a cell equal to Pure's text passes; a cell that differs is
  * either PINNED here with the text it writes today -- a deviation named, shrink-only, each later landing of the
@@ -77,8 +77,7 @@ class OutputMatrixTest {
                     "2024-01-02T10:30:00.123456789+0000"),
             new Kind("date", "|%2024-01-02", "|" + T + "%2024-01-02)->select(~[v])", "2024-01-02"));
 
-    private static final List<TypedQuery.Output> OUTPUTS = List.of(TypedQuery.Output.CSV, TypedQuery.Output.JSON,
-            TypedQuery.Output.STREAMED_JSON, TypedQuery.Output.TDS_TEXT);
+    private static final List<PlanCases.Written> OUTPUTS = List.of(PlanCases.Written.values());
 
     /**
      * Today's deviations from Pure's text, by {@code kind/form/output/database}, each the text lite writes.
@@ -111,18 +110,20 @@ class OutputMatrixTest {
             for (Kind kind : KINDS) {
                 for (String form : List.of("value", "column")) {
                     String query = form.equals("value") ? kind.value() : kind.column();
-                    for (TypedQuery.Output output : OUTPUTS) {
+                    for (PlanCases.Written output : OUTPUTS) {
                         String key = kind.name() + "/" + form + "/" + output + "/" + type;
                         String cell;
                         try (Connection c = backend.open()) {
-                            ExecutionPlan plan = Compiler.query(ctx, query).executionPlan("s::RT", output);
-                            cell = cellOf(PlanCases.run(plan, c), output);
+                            TypedQuery q = Compiler.query(ctx, query);
+                            cell = cellOf(output == PlanCases.Written.TDS_TEXT
+                                    ? PlanCases.run(q.executionPlan("s::RT", TypedQuery.Output.TDS_TEXT), c)
+                                    : PlanCases.write(q.executionPlan("s::RT"), c, Map.of(), output::writer), output);
                         } catch (RuntimeException e) {
                             cell = "ERROR " + e.getClass().getSimpleName() + ": " + firstLine(e.getMessage());
                         }
                         String pinned = pins.remove(key);
                         String verdict;
-                        String reference = output == TypedQuery.Output.TDS_TEXT && form.equals("column")
+                        String reference = output == PlanCases.Written.TDS_TEXT && form.equals("column")
                                 ? kind.tds() : kind.pure();
                         if (cell.equals(reference)) {
                             verdict = pinned == null ? "pure" : "PIN STALE";
@@ -152,13 +153,13 @@ class OutputMatrixTest {
     }
 
     /** The one cell of a one-row, one-column answer in {@code output}'s text, as the value's own text. */
-    private static String cellOf(String text, TypedQuery.Output output) {
+    private static String cellOf(String text, PlanCases.Written output) {
         return switch (output) {
             case CSV, TDS_TEXT -> {
                 String[] lines = text.split("\n");
                 yield lines.length > 1 ? lines[1].trim() : "<no row: " + text.replace("\n", "\\n") + ">";
             }
-            case JSON, STREAMED_JSON -> {
+            case JSON -> {
                 java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"(?:v|value)\":(\"(?:[^\"\\\\]|\\\\.)*\"|[^,}\\]]*)")
                         .matcher(text);
                 if (!m.find()) {

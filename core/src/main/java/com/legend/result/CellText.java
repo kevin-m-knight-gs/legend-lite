@@ -19,9 +19,9 @@ import java.util.Map;
  * serialization, never computation: it chooses digits for a value it holds whole (a Float's shortest digits, a
  * Decimal's own scale, a DateTime's fraction), converts no kind, shifts no zone and defaults no null. Two vocabularies:
  * Pure's print forms ({@link #pure}), lite's own outputs' and interpreted Pure's; and legend-engine's JSON tokens
- * ({@link #engine}), its {@code pure/v1} execute's. What the database spelled for these until now
- * ({@code lowering.Render}'s wires, {@code LiteralSpelling}'s Float and DateTime text, each dialect's
- * {@code FLOAT_PRINT_ENGINE}) is the same rule, written where it belongs.
+ * ({@link #engine}), its {@code pure/v1} execute's. What the database spelled for these until the result boundary
+ * program's phase 3 (the lowering's CSV and JSON wires, legend-engine's Float and DateTime text in SQL) is the same
+ * rule, written where it belongs; those spellings are deleted.
  */
 public final class CellText {
 

@@ -101,7 +101,7 @@ class StoreWritesExecutionTest {
                 assertTrue(String.valueOf(e.getMessage()).contains(refused.get(1)), refused.get(0) + ": "
                         + e.getMessage());
                 Exception p = assertThrows(Exception.class, () -> com.legend.Compiler.query(ctx, refused.get(0))
-                        .executionPlan("w::RT", com.legend.TypedQuery.Output.JSON), refused.get(0));
+                        .executionPlan("w::RT"), refused.get(0));
                 assertTrue(String.valueOf(p.getMessage()).contains(refused.get(1)), refused.get(0) + ": "
                         + p.getMessage());
                 assertEquals(List.of("9|z|90"), rows(c), refused.get(0));
