@@ -1014,6 +1014,37 @@ function datacube::ts::union<T,X,Y,O>(t: Relation<T>[1], first: ColSpec<X⊆T>[1
 {
   $t->extend(~o:x|if($x->read($first)->isNotEmpty(), |$x->read($first), |$x->read($second)))->rename(~o, $out)
 }
+
+// The trend of a seasonal series (gs-quant's trend, statsmodels' classical decomposition): a centred moving average over
+// a cycle of cycle periods, half its reach either side (cycle / 2, its floor: a window's frame, a literal) -- of an
+// odd cycle the mean of the values either side, of an even one its two ends weighed a half -- none under two whole
+// cycles, or where the window is short of them (the line's ends).
+function datacube::ts::trend<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], cycle: Integer[1], half: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line, [$date->ascending()], rows(0 - $half, $half)), ~[n:{p,f,r|$r->read($value)}:y|$y->count(), sm:{p,f,r|$r->read($value)}:y|$y->plus()])
+    ->extend(over($line, [$date->ascending()]), ~lg:{p,f,r|$p->lag($r, $half)->read($value)})
+    ->extend(over($line, [$date->ascending()]), ~ld:{p,f,r|$p->lead($r, $half)->read($value)})
+    ->extend(over($line, [$date->ascending()]), ~rn:{p,f,r|$p->rowNumber($r)})
+    ->extend(over($line), ~rs:{p,f,r|$r.rn}:y|$y->count())
+    ->extend(~o:x|if(($x.rs->toOne() < (2 * $cycle)) || ($x.n->toOne() < if(($cycle - (2 * $half)) == 1, |$cycle, |$cycle + 1)), |[],
+      |if(($cycle - (2 * $half)) == 1, |$x.sm->toOne() / $cycle, |($x.sm->toOne() - (0.5 * ($x.lg->toOne() + $x.ld->toOne()))) / $cycle)))
+    ->without(~[n, sm, lg, ld, rn, rs])->rename(~o, $out)
+}
+
+// The series less its season (gs-quant's seasonally_adjusted, statsmodels' classical decomposition): each value less
+// (over, 'multiplicative') its place in the cycle's mean of the detrended values (place, a column: each row's number in
+// the cycle's calendar), those means centred on their own mean -- none where the trend (trend's) is none.
+function datacube::ts::seasonallyAdjusted<T,L,D,V,P,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], place: ColSpec<P⊆T>[1], cycle: Integer[1], half: Integer[1], method: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::trend($line, $date, $value, $cycle, $half, ~tr)
+    ->extend(~dt:x|if($method == 'multiplicative', |if($x.tr->toOne() == 0, |[], |$x->read($value)->toOne() / $x.tr->toOne()), |$x->read($value)->toOne() - $x.tr->toOne()))
+    ->extend(~[l:x|$x->read($line), ps:x|$x->read($place)->toOne() - (floor($x->read($place)->toOne() / $cycle) * $cycle)])
+    ->extend(over(~[l, ps]), ~[pm:{p,f,r|$r.dt}:y|$y->average(), pr:{p,f,r|1}:y|$y->count()])
+    ->extend(over(~l), ~al:{p,f,r|$r.pm->toOne() / $r.pr->toOne()}:y|$y->plus())
+    ->extend(~ss:x|if($method == 'multiplicative', |$x.pm->toOne() / ($x.al->toOne() / $cycle), |$x.pm->toOne() - ($x.al->toOne() / $cycle)))
+    ->extend(~o:x|if($x.tr->isEmpty(), |[], |if($method == 'multiplicative', |$x->read($value)->toOne() / $x.ss->toOne(), |$x->read($value)->toOne() - $x.ss->toOne())))
+    ->without(~[tr, dt, l, ps, pm, pr, al, ss])->rename(~o, $out)
+}
 `;
 
 /** Whether a query calls a function of the library. */

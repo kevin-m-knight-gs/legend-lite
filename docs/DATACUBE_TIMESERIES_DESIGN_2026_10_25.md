@@ -416,7 +416,9 @@ dates, then joined: the tile's align), over the window's pairs (`correlation`, `
 hedge ratio a beta of levels --, `alpha`, `residual`, `trackingError`, `informationRatio`, `upCapture`,
 `downCapture`, `leadLag`), `prices`, `dickeyFuller` and `halfLife`, the excess returns over a rate or a cash index
 (`excessReturns`, `excessReturnsOver`), and the combinations of aligned columns (`compare`, `ifThen`, `union`; a
-number a column of it) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
+number a column of it), and the classical decomposition (`trend`, its cycle and half of it -- a window's reach, a
+literal -- the caller's; `seasonallyAdjusted`, each row's place in the cycle a column, the tile's calendar) --
+`->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
 'simple', ~ret_2)->datacube::ts::volatility(over(~line, [~period->ascending()], rows(-21, 0)), ~ret_2, 22, ~per_year_3,
 ~vol_4)`. A calendar period's statistic is `windowPeriod`'s (on every date, however few values) and its ramp
 `rampPeriod`'s (none before the first date of a column, that period on), `overPeriod` the two over one column; so a

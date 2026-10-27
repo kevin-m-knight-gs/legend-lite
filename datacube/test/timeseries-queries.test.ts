@@ -1122,6 +1122,11 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
     }
     await assert.rejects(line(spec({ A: 'trend(close[AAA])' })), /give the tile a frequency/);
     await assert.rejects(line(spec({ A: 'trend(close[AAA], additive, week)' }, { grain: 'week' })), /a week is no cycle of weeks/);
+    // the library's (2026-10-27): trend and seasonallyAdjusted, by name
+    for (const [text, f] of [['trend(close[AAA], additive, month)', 'trend'], ['seasonally_adjusted(close[AAA], additive, month)', 'seasonallyAdjusted']] as const) {
+      const ts = spec({ A: text }, { grain: 'week' });
+      assert.ok(functionsCalled(seriesQuery(inputs, ts, ts.series[0]!).query).has(`datacube::ts::${f}`), `${text} calls ${f}`);
+    }
   });
 });
 

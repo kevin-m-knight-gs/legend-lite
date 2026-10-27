@@ -530,14 +530,7 @@ class Writer {
     return name;
   }
 
-  /** An aggregate over the `k` rows either side of each (a centred window: a classical decomposition's moving average). */
-  around(what: string, reduce: string, read: ValueSpecification, k: number): string {
-    const name = this.fresh(what);
-    const over = fn('over', { _type: 'classInstance', type: 'colSpecArray', value: { colSpecs: [{ name: this.part }] } },
-      collection([asc(PERIOD)]), fn('rows', lit.integer(-k), lit.integer(k)));
-    this.rel = this.rel.extend([agg(name, lambda(['p', 'w', 'r'], read), lambda(['y'], fn(reduce, variable('y'))))], over);
-    return name;
-  }
+
 
   /**
    * THE PRODUCT of `g`'s values over a frame, an empty one skipped (pandas' prod): 0 where one is 0, its sign from the
@@ -1858,38 +1851,20 @@ function decomposed(sh: Shared, w: Writer, a: string, what: 'trend' | 'seasonall
   const p = grain === undefined ? undefined : CYCLES[grain]?.[freq];
   if (grain === undefined) throw new CubeRefusal(`${what} counts its cycle in the tile's periods: give the tile a frequency (Monthly)`);
   if (p === undefined) throw new CubeRefusal(`${what}: a ${freq} is no cycle of ${grain === 'day' ? 'days' : `${grain}s`} -- choose a longer one, or another frequency`);
-  const R = Writer.read;
+  // the library's (pure-library.ts trend, seasonallyAdjusted): a cycle of p periods, k its reach either side (a
+  // window's frame, a literal)
   const k = Math.floor(p / 2);
-  const odd = p % 2 === 1;
-  const n = w.around('dc_n', 'count', R(a), k);
-  const sum = w.around('dc_s', 'plus', R(a), k);
-  // two whole cycles or none: under them gs-quant refuses (statsmodels cannot centre a season; the Phase 1 review's 4)
-  const rn = w.rowNumber();
-  const rows = w.window('dc_rows', 'count', R(rn), 'all');
-  const centred = odd ? fn('divide', one(sum), lit.integer(p))
-    : fn('divide', op('minus', one(sum), op('times', float(0.5), op('plus', one(w.lag(a, k)), one(w.lead(a, k))))), lit.integer(p));
-  const trend = w.row('dc_trend', when(or(fn('lessThan', one(rows), lit.integer(2 * p)), fn('lessThan', one(n), lit.integer(odd ? p : p + 1))), none(), centred));
-  if (what === 'trend') return trend;
-  const multiplicative = method === 'multiplicative';
-  const detrended = w.row('dc_d', multiplicative ? when(fn('equal', one(trend), lit.integer(0)), none(), fn('divide', one(a), one(trend)))
-    : op('minus', one(a), one(trend)));
+  if (what === 'trend') return w.libraryOfLine('trend', 'dc_trend', a, [lit.integer(p), lit.integer(k)]);
   // its place in the cycle: the calendar's at a frequency of months, quarters or weeks -- a missing one never moving the
   // places after it, as gs-quant's calendar filled first keeps them (the Phase 1 review's 4) -- its row's at days, a
   // cycle of business days
   const index = grain === 'month' ? op('plus', op('times', fn('year', one(PERIOD)), lit.integer(12)), op('minus', fn('monthNumber', one(PERIOD)), lit.integer(1)))
     : grain === 'quarter' ? op('plus', op('times', fn('year', one(PERIOD)), lit.integer(4)), op('minus', fn('quarterNumber', one(PERIOD)), lit.integer(1)))
       : grain === 'week' ? fn('floor', fn('divide', fn('dateDiff', literalNode('1970-01-05', 'StrictDate'), one(PERIOD), enumValue(DURATION, 'DAYS')), lit.integer(7)))
-        : op('minus', one(rn), lit.integer(1));
+        : op('minus', one(w.rowNumber()), lit.integer(1));
   const place = w.row('dc_i', index);
-  const at = w.row('dc_pos', op('minus', one(place), op('times', fn('floor', fn('divide', one(place), lit.integer(p))), lit.integer(p))));
-  const placeMean = w.window('dc_pm', 'average', R(detrended), 'all', at);
-  const placeRows = w.window('dc_pr', 'count', R(rn), 'all', at);
-  // the places' mean: each row's share of its place's mean, summed over the line, over p
-  const overall = w.window('dc_all', 'plus', R(w.row('dc_share', fn('divide', one(placeMean), one(placeRows)))), 'all');
-  const mean = fn('divide', one(overall), lit.integer(p));
-  const season = w.row('dc_season', multiplicative ? fn('divide', one(placeMean), mean) : op('minus', one(placeMean), mean));
-  return w.row('dc_sa', when(fn('isEmpty', col(trend)), none(),
-    multiplicative ? fn('divide', one(a), one(season)) : op('minus', one(a), one(season))));
+  return w.libraryOfLine('seasonallyAdjusted', 'dc_sa', a,
+    [colSpec(place), lit.integer(p), lit.integer(k), lit.string(method === 'multiplicative' ? 'multiplicative' : 'additive')]);
 }
 
 /** A base's aggregate over a period's rows (`ord`: the row's number in time, which `last` and `first` order by). */
