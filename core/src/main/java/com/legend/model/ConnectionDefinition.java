@@ -77,6 +77,10 @@ public record ConnectionDefinition(
         // not in legend-engine's DatabaseType (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13; as SQLite before
         // them): the open databases the user asked for, each a dialect of its own
         MariaDB,
-        MySQL
+        MySQL,
+        // 2026-10-16 (docs/MONGODB_PLAN_2026_10_16.md, D4): lite's own, as SQLite, MariaDB and MySQL are -- the
+        // database a MongoDBConnection (legend-engine's non-relational store connection) declares, never
+        // writable in a RelationalDatabaseConnection (the grammar's lite types do not list it)
+        MongoDB
     }
 }

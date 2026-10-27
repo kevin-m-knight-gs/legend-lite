@@ -61,6 +61,23 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         return strftimeText(fl);
     }
 
+    /** The empty collection: the NULL value, bare or typed as its element's array (the lowering types an empty list
+     *  by its element since ca99ed29, 2026-10-21; the corpus's sqlstring::testGreatestLeast then refused here, its text
+     *  {@code greatest(null)} the engine's, 2026-10-22). */
+    private static boolean emptyCollection(SqlExpr e) {
+        return e instanceof SqlExpr.NullLit
+                || e instanceof SqlExpr.Cast c && c.value() instanceof SqlExpr.NullLit
+                        && c.target() instanceof com.legend.sql.SqlType.Array;
+    }
+
+    /** legend-engine has no tagged values: a mixed selection's text is the plain selection over its comparables
+     *  ({@link SqlExpr.Tagged#comparable}: the list extreme over the elements, which {@link #listCall} writes as the
+     *  engine's variadic {@code greatest(a, b, c)} / {@code least(a, b, c)}). */
+    @Override
+    protected SqlWriter tagged(SqlWriter writer, SqlExpr.Tagged t, int parentPrec) {
+        return expr(writer, t.comparable(), parentPrec);
+    }
+
     @Override
     protected SqlWriter listCall(SqlWriter writer, com.legend.sql.SqlFn fn,
             java.util.List<SqlExpr> args) {
@@ -74,7 +91,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         }
         if ((fn == com.legend.sql.SqlFn.LIST_MAX
                 || fn == com.legend.sql.SqlFn.LIST_MIN)
-                && args.get(0) instanceof SqlExpr.NullLit) {
+                && emptyCollection(args.get(0))) {
             // the EMPTY collection ([]->cast(@String)) — engine emits
             // greatest(null)
             return variadicExtreme(writer, fn == com.legend.sql.SqlFn.LIST_MAX,
@@ -2060,6 +2077,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,

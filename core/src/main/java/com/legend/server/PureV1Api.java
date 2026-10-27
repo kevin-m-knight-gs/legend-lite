@@ -56,7 +56,9 @@ import java.util.function.Supplier;
  * <p>The model travels as {@code PureModelContextText}; any other model context is refused
  * in upstream's error shape until the PMCD reader exists (recorded). Recorded differences
  * from legend-engine, each named in the parity test: lite's type names (no precise
- * primitives), and a plan's {@code resultColumns} carry no physical type.
+ * primitives). A plan's {@code resultColumns} carry the store's declared type where a column reads one through,
+ * as the engine's do (the plan's own fact, docs/PLAN_PATH_PROGRAM_2026_10_17.md §3; the recorded difference
+ * closed 2026-10-17).
  */
 public final class PureV1Api {
 
@@ -436,7 +438,15 @@ public final class PureV1Api {
     public static Answer jsonAnswer(String plan, String wire) {
         return answer(500, "COMPILATION", () -> {
             // jsonPlan's own answer, handed back: read by kind, never cast (the tab's WebAssembly has no ClassCastException)
-            Json.Obj planned = Json.parseObject(plan);
+            Json.Obj planned;
+            try {
+                planned = Json.parseObject(plan);
+            } catch (IllegalArgumentException e) {
+                // the refusal names what it was reading and shows its head: a host's answer text that does not parse
+                // is otherwise a line and a column with no text to look at (2026-10-26, the arm and Windows lanes)
+                throw new IllegalArgumentException("the plan half's answer does not parse (" + e.getMessage()
+                        + "); it begins: " + head(plan), e);
+            }
             if (!(planned.has("builder") && planned.get("builder") instanceof Json.Obj builder)) {
                 throw new IllegalArgumentException("the plan answers no builder: it is not jsonPlan's");
             }
@@ -566,13 +576,24 @@ public final class PureV1Api {
     }
 
     /** {@link #tdsResult}'s writer, over the builder's and the activities' JSON and the columns' names. */
+    /** The first 200 characters of {@code text}, for a refusal that shows what it read. */
+    private static String head(String text) {
+        return text.length() <= 200 ? text : text.substring(0, 200) + "...";
+    }
+
     private static String tdsText(String builder, String activities, List<String> names, String wireRows) {
         StringBuilder out = new StringBuilder();
         out.append("{\"builder\": ").append(builder)
                 .append(", \"activities\": ").append(activities)
                 .append(", \"result\" : {\"columns\" : ").append(Json.toCompact(names))
                 .append(", \"rows\" : [");
-        Json.Node wire = wireRows.isEmpty() ? new Json.Arr(List.of()) : Json.parse(wireRows);
+        Json.Node wire;
+        try {
+            wire = wireRows.isEmpty() ? new Json.Arr(List.of()) : Json.parse(wireRows);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("the database's JSON wire does not parse (" + e.getMessage()
+                    + "); it begins: " + head(wireRows), e);
+        }
         // the database's rows, read by kind (a host's database answering otherwise is refused, never cast)
         if (!(wire instanceof Json.Arr rows)) {
             throw new IllegalArgumentException("the database's rows are not the JSON wire's array");
@@ -638,17 +659,22 @@ public final class PureV1Api {
     static Map<String, Object> executionPlan(QueryPlan plan, Map<String, Object> connection) {
         List<Map<String, Object>> tdsColumns = new ArrayList<>();
         List<Map<String, Object>> resultColumns = new ArrayList<>();
-        for (var c : UpstreamRelationType.columns(plan.rootType())) {
+        List<com.legend.compiler.element.type.Type.Column> typed = UpstreamRelationType.columns(plan.rootType());
+        for (int i = 0; i < typed.size(); i++) {
+            var c = typed.get(i);
             Map<String, Object> col = new LinkedHashMap<>();
             col.put("enumMapping", Map.of());
             col.put("name", c.name());
+            // the builder's relational type is the engine's spelling of the PURE type (measured, 4.145.0: a
+            // VARCHAR(32) store column's is VARCHAR(1024)); the physical type rides resultColumns below
             col.put("relationalType", UpstreamRelationType.relationalSpelling(c.type()));
             col.put("type", UpstreamRelationType.tdsTypePath(c.type()));
             tdsColumns.add(col);
             Map<String, Object> rc = new LinkedHashMap<>();
-            // the engine spells a PASS-THROUGH column's physical type here, a computed
-            // one's as "" -- lite's typer has no physical provenance (recorded)
-            rc.put("dataType", "");
+            // the engine spells a PASS-THROUGH column's physical type here, a computed one's as "": the plan's
+            // store fact (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3), by provenance over the lowered query
+            String store = i < plan.columns().size() ? plan.columns().get(i).store() : null;
+            rc.put("dataType", store == null ? "" : store);
             rc.put("label", "\"" + c.name() + "\"");
             resultColumns.add(rc);
         }

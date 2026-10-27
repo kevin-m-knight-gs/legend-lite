@@ -18,10 +18,10 @@ public sealed interface SqlExpr
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.CheckedOne,
                 SqlExpr.CheckedDefects, SqlExpr.CheckedChildValue,
                 SqlExpr.InSubquery, SqlExpr.Quantified,
-                SqlExpr.CompactList,
+                SqlExpr.CompactList, SqlExpr.Tagged,
                 SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
-                SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group,
+                SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlExpr.KeyCell,
                 SqlExpr.RowOrder, SqlExpr.ReduceCollection, SqlExpr.Membership,
                 SqlExpr.TempTableInSplice, SqlExpr.StoredRead,
                 SqlAgg.Reducer {
@@ -72,6 +72,7 @@ public sealed interface SqlExpr
             case JsonKindLit ignored -> List.of();
             case TypeNameLit ignored -> List.of();
             case PlanParam ignored -> List.of();
+            case KeyCell ignored -> List.of();
             case TempTableInSplice ignored -> List.of();
             case Group g -> List.of(g.inner());
             case ArrayLit a -> a.elements();
@@ -99,6 +100,15 @@ public sealed interface SqlExpr
             case CheckedChildValue cv -> List.of(cv.envelope());
             case CheckedOne co -> List.of(co.list());   // flags ride
             case CompactList cl -> List.of(cl.list());
+            case Tagged t -> {
+                java.util.List<SqlExpr> out = new java.util.ArrayList<>();
+                out.add(t.tag());
+                out.add(t.comparable());
+                for (Tagged.Candidate c : t.candidates()) {
+                    out.add(c.value());
+                }
+                yield out;
+            }
             case DeferredTdsString ignored -> List.of();
             case WindowCall w -> {
                 java.util.List<SqlExpr> out = new java.util.ArrayList<>();
@@ -169,6 +179,7 @@ public sealed interface SqlExpr
             case JsonKindLit ignored -> this;
             case TypeNameLit ignored -> this;
             case PlanParam ignored -> this;
+            case KeyCell ignored -> this;
             case TempTableInSplice ignored -> this;
             case Exists ignored -> this;
             case ScalarSubquery ignored -> this;
@@ -179,9 +190,17 @@ public sealed interface SqlExpr
             case CheckedOne co2 -> new CheckedOne(cs.get(0),
                     co2.scalarCarrier(), co2.atLeastOnly());
             case CompactList ignored -> new CompactList(cs.get(0));
+            case Tagged t -> {
+                java.util.List<Tagged.Candidate> candidates = new java.util.ArrayList<>();
+                for (int i = 0; i < t.candidates().size(); i++) {
+                    Tagged.Candidate c = t.candidates().get(i);
+                    candidates.add(new Tagged.Candidate(c.kind(), c.slot(), cs.get(2 + i)));
+                }
+                yield new Tagged(cs.get(0), cs.get(1), candidates);
+            }
             case DeferredTdsString ignored -> this;
             case Group ignored -> new Group(cs.get(0));
-            case ArrayLit ignored -> new ArrayLit(cs);
+            case ArrayLit a -> new ArrayLit(cs, a.type());
             case OrderedListAgg ignored ->
                     new OrderedListAgg(cs.get(0), cs.get(1));
             case StructLit s -> {
@@ -192,7 +211,7 @@ public sealed interface SqlExpr
                 }
                 yield new StructLit(fs);
             }
-            case StructGet g -> new StructGet(cs.get(0), g.field());
+            case StructGet g -> new StructGet(cs.get(0), g.field(), g.type());
             case Call c -> new Call(c.fn(), cs);
             case Case old -> {
                 java.util.List<Case.When> ws = new java.util.ArrayList<>();
@@ -606,6 +625,20 @@ public sealed interface SqlExpr
         }
     }
 
+    /** A key's cell, where a statement is written once per key of its plan's keys probe (a dynamic pivot's, on every
+     *  database: the plan path program's probe plan, 2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9): the
+     *  probe row's {@code cell} (0: the key's text, as the database writes it) of the key a repetition is of, a value
+     *  the statement binds. It is written only inside a per-key region (a run of {@link OutputCol.Origin#PER_KEY}
+     *  projections), which the runner repeats once per key; anywhere else it is refused by name. */
+    record KeyCell(int cell, TypeFact type) implements SqlExpr {
+        public KeyCell {
+            if (cell < 0) {
+                throw new IllegalArgumentException("a key's cell " + cell);
+            }
+            java.util.Objects.requireNonNull(type, "type");
+        }
+    }
+
     /** A query's parameter, where it is used: in a statement that executes, a value the statement binds (a dialect
      * writes it as a placeholder, typed by {@code type}: what a literal of the parameter's declared type carries,
      * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2); in the legacy engine-text printer, the
@@ -748,9 +781,10 @@ public sealed interface SqlExpr
     record ArrayLit(List<SqlExpr> elements, TypeFact type)
             implements SqlExpr {
         public ArrayLit {
-            // the elements' common type; an EMPTY literal keeps the type it is given (what it stands in for: the
-            // empty side of a one-element concatenation, 2026-10-17), since its elements say nothing
-            type = elements.isEmpty() && type instanceof TypeFact.Typed ? type : SqlTyping.arrayLitType(elements);
+            // the type its elements prove; where they prove none (an empty list -- the empty side of a one-element
+            // concatenation, 2026-10-17 -- or untyped elements), the type it is given
+            TypeFact proven = SqlTyping.arrayLitType(elements);
+            type = proven instanceof TypeFact.Unknown && type != null ? type : proven;
         }
 
         public ArrayLit(List<SqlExpr> elements) {
@@ -810,7 +844,10 @@ public sealed interface SqlExpr
             return new StructGet(source, field);
         }
         public StructGet {
-            type = SqlTyping.structGetType(source, field);
+            // the type its source's struct proves; where it proves none (a lambda parameter of an unknown struct), the
+            // builder's: the type of the column the field read replaces
+            TypeFact proven = SqlTyping.structGetType(source, field);
+            type = proven instanceof TypeFact.Unknown && type != null ? type : proven;
         }
 
         public StructGet(SqlExpr source, String field) {
@@ -1011,6 +1048,45 @@ public sealed interface SqlExpr
 
         public CompactList(SqlExpr list) {
             this(list, SqlTyping.UNKNOWN);
+        }
+    }
+
+    /**
+     * A value whose Pure kind the database decides among statically-kinded candidates: a mixed Number's or Date's
+     * {@code max}, {@code min}, {@code greatest}, {@code least} or {@code mode}
+     * (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a, 2026-10-23). {@code tag} is the 1-based position of the winning
+     * candidate; {@code comparable} the winner on the channel the candidates were compared on (a DOUBLE, a
+     * TIMESTAMP); each candidate its Pure kind, the SQL slot that holds it exactly and its value. No dialect renders
+     * it: a query's root projects the tag and one column per slot ({@link SqlType.Tagged}; the Lowerer's egress), and
+     * a rule consuming it reads the channel it needs -- a comparison the comparable, a print each candidate's own
+     * text. Its type is the tagged type of its distinct slots, nullable where any candidate is.
+     */
+    record Tagged(SqlExpr tag, SqlExpr comparable, List<Candidate> candidates, TypeFact type) implements SqlExpr {
+        public Tagged {
+            candidates = List.copyOf(candidates);
+            if (candidates.isEmpty()) {
+                throw new IllegalArgumentException("a tagged value chooses among candidates; none were given");
+            }
+            type = SqlTyping.taggedType(candidates);
+        }
+
+        public Tagged(SqlExpr tag, SqlExpr comparable, List<Candidate> candidates) {
+            this(tag, comparable, candidates, SqlTyping.UNKNOWN);
+        }
+
+        /** One candidate: its Pure kind, the SQL slot holding it exactly, its value (typed as the slot). */
+        public record Candidate(String kind, SqlType slot, SqlExpr value) {
+        }
+
+        /** The distinct slots, in order of first appearance: the tagged type's. */
+        public List<SqlType.Tagged.Slot> slots() {
+            return ((SqlType.Tagged) ((TypeFact.Typed) type).type()).slots();
+        }
+
+        /** The slot index of candidate {@code i}. */
+        public int slotOf(int i) {
+            Candidate c = candidates.get(i);
+            return slots().indexOf(new SqlType.Tagged.Slot(c.kind(), c.slot()));
         }
     }
 
