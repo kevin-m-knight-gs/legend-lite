@@ -174,7 +174,12 @@ with the compiler's plan/execution split**, in this order:
    every `###Data` section too (eleven service tests' seeds; two contend for one table, so a page filling a project's
    database from the Data it carries was refused), as its own header says it leaves the test data out; the trader
    pages, which seed nothing, are unchanged by it. Core asks of the library's (S112-S114) were this line's own, landed
-   with it.
+   with it. **Ported from the Deephaven line (2026-10-27), unchanged:** `f6022ba0` (a pure/v1 request whose model the
+   tab holds answered over the held model: `HeldModels.withText`, `HeldStore.withKeyOr`, `PureV1Api.Models`,
+   `ModelInput.with`, `Boundary`'s `HELD`) and `66bc9ca2` (`ModelBuilder.legacySetsWithId`, `UnionSynthesis`) -- a saved
+   query of the 4.1 MB markets project took two relation-type compiles of 5-6 s each to open. Whichever line lands
+   first, the other's merge takes the same text; a change to either is told to the other. This line's own addition
+   beside them: `Boundary.projectData` reads a held model by its text too (`MODELS.withText`).
    **Step 1 landed 2026-10-10 (fe7961b7b; run 38090412797; GATES "Compile once, plan many").** **Step 2's first
    landing, Create a Class…, landed 2026-10-11 (0cee56761; run 38109599876; GATES "Create a Class…")** -- no file
    touched beyond the announced list. **Step 2's second landing, Create an Association… and Create a Data Space…,

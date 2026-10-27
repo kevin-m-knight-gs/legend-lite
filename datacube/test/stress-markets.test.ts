@@ -238,22 +238,31 @@ describe('the example page over the classes, opened the page\'s way', () => {
   /** Each grid opened: its planner (its project's model, its mapping) and its rows as a tile reads them. */
   const opened = new Map<string, { planner: LitePlanner; snapshot: CubeSnapshot }>();
   const planners: LitePlanner[] = [];
+  /** The page's own module, cold: a planner of its own (each module holds its own models), its grids another on it. */
+  let page: LitePlanner;
 
   before(async () => {
-    const reading = { parse: (text: string) => corpus.parse(text), elements: (text: string) => corpus.modelElements(text) };
+    page = plannerFor('', 'local::RT');
+    planners.push(page);
+    const reading = { parse: (text: string) => page.parse(text), elements: (text: string) => page.modelElements(text) };
     for (const g of SAVED_GRIDS) {
       const t0 = performance.now();
       const q = savedQuerySource(g).query;
       let planner: LitePlanner | undefined;
       const { source } = await savedQueryOpened(q, PROJECT, reading, (runtime, how) => {
         // the page's planner of a source's own model: another on the page's module (demo/planners.ts `another`)
-        planner = corpus.withModel(PROJECT, runtime, how);
+        planner = page.withModel(PROJECT, runtime, how);
         planners.push(planner);
         return planner;
       });
       const columns = await sourceColumns(planner!, source);
       opened.set(g.id, { planner: planner!, snapshot: snapshotOf(source, columns.map((c) => ({ name: c.name, type: c.type }))) });
       measured[`${g.id} opened as a saved query (ms)`] = performance.now() - t0;
+      // then its project's database, as the page asks for it (app/sources.ts openedRecord): the model held by now
+      const t1 = performance.now();
+      const statements = await page.projectData(PROJECT, projectEngine.databaseType);
+      measured[`${g.id}'s project database said (ms)`] = performance.now() - t1;
+      assert.equal(statements.name, (await corpus.projectData(PROJECT, projectEngine.databaseType)).name, 'the one project database');
     }
   });
 

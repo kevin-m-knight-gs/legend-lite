@@ -523,6 +523,12 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     const hit = useCache ? this.#types.get(json) : undefined;
     if (hit !== undefined) return hit;
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
+    // the model held first, its compile kept for every question and plan after: the boundary answers a pure/v1 request
+    // whose model text it holds over the held model, compiled no more (HeldModels.withText; a saved query of the 4 MB
+    // trading model was typed by two requests of 5-6 s each, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11). A
+    // model that does not compile is held by no one, and the request below says why in its own words.
+    await this.#handle().catch(() => undefined);
+    if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     // the lambda's JSON spliced in as toJson wrote it, so its numbers keep their digits
     const body = `{"model":${JSON.stringify({ _type: 'text', code: this.#options.model })},"lambda":${json}}`;
     const answer = await this.#pureV1('/api/pure/v1/compilation/lambdaRelationType', '', body, query);
