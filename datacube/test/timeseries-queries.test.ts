@@ -460,6 +460,8 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ['exponential_volatility(close[AAA], 0.9)', 'exponentialVolatility'], ['exponential_spread_volatility(close[AAA], 0.9)', 'exponentialSpreadVolatility'],
       ['macd(close[AAA], 12, 26, 9)', 'macd'], ['rsi(close[AAA], 14)', 'rsi'], ['smoothed_moving_average(close[AAA], 5)', 'smoothedMean'],
       ['obv(close[AAA], volume[AAA])', 'obv'], ['vwap(close[AAA], volume[AAA], 10)', 'vwap'],
+      ['vwap(close[AAA], volume[AAA], 2w)', 'vwapPeriod'], ['volatility(close[AAA], 1m)', 'volatilityPeriod'],
+      ['max_drawdown(close[AAA], 2w)', 'maxDrawdownPeriod'], ['sharpe_ratio(close[AAA], 1m)', 'sharpeRatioPeriod'],
     ];
     for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`datacube::ts::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
   });
@@ -704,6 +706,16 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
       const vals = r.slice(Math.max(0, i - 9), i + 1).filter((v) => v !== null) as number[];
       return vals.length < 10 ? null : (avg(vals) / sd(vals)) * Math.sqrt(252);
     }), 'sharpe 10', 1e-7);
+  });
+
+  // a figure whose ramp counts from the first date of the series it reads, not of the column it is over (the library's
+  // rampPeriod, 2026-10-27): a maximum drawdown over 2w from the first price two weeks on
+  it('max drawdown over 2w: each date\'s deepest fall within two weeks back, each from its own two weeks\' peak; from the first date two weeks on', async () => {
+    const start = onBy(DAYS[0]!, 2, 'w');
+    const back2 = (d: string): number[] => DAYS.map((_, j) => j).filter((j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d);
+    const dd = DAYS.map((d, i) => AAA[i]! / Math.max(...back2(d).map((j) => AAA[j]!)) - 1);
+    close((await line(spec({ A: 'max_drawdown(close[AAA], 2w)' }))).values,
+      DAYS.map((d) => (d < start ? null : Math.min(...back2(d).map((j) => dd[j]!)))), 'max drawdown 2w', 1e-9);
   });
 
   it('returns over 1w: each date against the value as of a week before, its last at or before', async () => {
@@ -1700,6 +1712,11 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     close((await packLine('vwap(close[P], volume[P], 10)')).values,
       pv.map((_, i) => (i < 9 ? null : vwap(pv.slice(i - 9, i + 1)))), 'VWAP 10', 1e-12);
     close((await packLine('vwap(close[P], volume[P], 0)')).values, pv.map((_, i) => vwap(pv.slice(0, i + 1))), 'VWAP to date', 1e-12);
+    // over a calendar period (the library's vwapPeriod): the dates after two weeks back, to this one, from the first
+    // price two weeks on
+    const start = onBy(PACK_DAYS[0]!, 2, 'w');
+    close((await packLine('vwap(close[P], volume[P], 2w)')).values, PACK_DAYS.map((d) => (d < start ? null
+      : vwap(pv.filter((_, j) => PACK_DAYS[j]! > backBy(d, 2, 'w') && PACK_DAYS[j]! <= d)))), 'VWAP 2w', 1e-12);
   });
 
   /** P's simple returns and Q's, each on its own dates, on Q's (the dates both have); Q's `k` back (or on, below 0). */

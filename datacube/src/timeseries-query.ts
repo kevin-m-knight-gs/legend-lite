@@ -1352,10 +1352,8 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
       if (typeof size === 'number') {
         return { w, v: { column: w.libraryOfRow('vwap', 'vwap', [w.windowOf(frame as 'running' | number), colSpec(px), colSpec(sums[0]!), colSpec(vol), lit.integer(size)]) } };
       }
-      // over a calendar period: its ramp from the first price's date (the writer's, as a volatility's over one)
-      const traded = w.window('pv_s', 'plus', R(sums[0]!), frame);
-      const volume = w.window('v_s', 'plus', R(vol), frame);
-      return { w, v: { column: w.ramped(w.ratio('vwap', one(traded), volume), px, size, frame) } };
+      // over a calendar period: its ramp from the first price's date
+      return { w, v: { column: w.libraryOfLine('vwapPeriod', 'vwap', px, [colSpec(sums[0]!), colSpec(vol), lit.integer(size.n), enumValue(DURATION, size.unit)]) } };
     }
     case 'tracking_error':
     case 'information_ratio':
@@ -1630,14 +1628,13 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     case 'volatility': {
       const r = w.returns(a, 1, word('type'));
       const size = span('w');
-      // over a count of periods: the library's (pure-library.ts volatility), of the returns above
-      if (typeof size === 'number' && size >= 1) {
-        return done(w.library('volatility', 'vol', r, size, [lit.integer(Math.max(size, 2)), colSpec(w.perYearColumn())]));
+      // over a count of periods (0: from the start): the library's (pure-library.ts volatility), of the returns above
+      if (typeof size === 'number') {
+        return done(w.library('volatility', 'vol', r, Writer.frame(size) as 'running' | number, [lit.integer(Math.max(size, 2)), colSpec(w.perYearColumn())]));
       }
       // over a calendar period, from the first price's date that period on: gs-quant's returns keep the first price's
       // date (its return none), which its ramp counts from (the E9 review's nit: from the first return's, a date late)
-      const sd = w.std(r, span('w'), a);
-      return done(w.row('vol', op('times', op('times', one(sd), w.annual()), lit.integer(100))));
+      return done(w.libraryOfLine('volatilityPeriod', 'vol', a, [colSpec(r), lit.integer(size.n), enumValue(DURATION, size.unit), colSpec(w.perYearColumn())]));
     }
     case 'drawdown': {
       const size = span('w');
@@ -1647,11 +1644,8 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     case 'max_drawdown': {
       const size = span('w');
       if (typeof size === 'number') return done(w.library('maxDrawdown', 'mdd', a, Writer.frame(size) as 'running' | number, [lit.integer(size)]));
-      // over a calendar period: its ramp from the first date the series has, which a period's statistic (from its own
-      // first value's date) is not -- the writer's, until the library has a ramp of its own
-      const peak = w.window('peak', 'max', R(a), Writer.frame(size));
-      const dd = w.row('dd', when(fn('equal', one(peak), lit.integer(0)), none(), op('minus', fn('divide', one(a), one(peak)), lit.integer(1))));
-      return done(w.ramped(w.window('mdd', 'min', R(dd), Writer.frame(size)), a, size));
+      // over a calendar period: its ramp from the first date the series has, not its drawdowns' (a period later)
+      return done(w.libraryOfPeriod('maxDrawdownPeriod', 'mdd', a, size));
     }
     case 'sharpe_ratio': {
       const size = span('w');
@@ -1661,11 +1655,8 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
         return done(w.library('sharpeRatio', 'sharpe', r, Writer.frame(size) as 'running' | number,
           [lit.integer(Math.max(size, 2)), colSpec(w.perYearColumn())]));
       }
-      // over a calendar period: its ramp from the first price's date (the writer's, as max_drawdown's)
-      const mean = w.window('mean', 'average', R(r), Writer.frame(size));
-      const sd = w.std(r, size, a);
-      return done(w.ramped(w.row('sharpe', when(fn('equal', one(sd), lit.integer(0)), none(),
-        op('times', fn('divide', one(mean), one(sd)), w.annual()))), a, size, Writer.frame(size)));
+      // over a calendar period: its ramp from the first price's date, not its returns'
+      return done(w.libraryOfLine('sharpeRatioPeriod', 'sharpe', a, [colSpec(r), lit.integer(size.n), enumValue(DURATION, size.unit), colSpec(w.perYearColumn())]));
     }
     case 'bollinger_bands': {
       // the library's: over a count of periods (its ramp the window's and two), or a calendar period

@@ -71,9 +71,9 @@ function datacube::ts::var<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: 
 
 // A statistic of the values a calendar period back from each date of the line, (date - n unit, date] (gs-quant's
 // rolling_offset) -- 'mean', 'sum', 'min', 'max', 'range', 'std' or 'var', a word compared when the call is expanded:
-// the line joined to itself on those dates, the statistic per date, joined back; none before the line's first value's
-// date that period on (gs-quant's apply_ramp of a DateOffset).
-function datacube::ts::overPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+// the line joined to itself on those dates, the statistic per date, joined back; on every date, however few values its
+// period holds.
+function datacube::ts::windowPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   let base = $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), v:r|$r->read($value)]);
   let windows = $base->select(~[l, d])->extend(~lo:x|$x.d->toOne()->adjust(0 - $n, $unit))
@@ -81,10 +81,27 @@ function datacube::ts::overPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L�
     ->groupBy(~[l, d], ~s:x|$x.wv:y|if($stat == 'mean', |$y->average(), |if($stat == 'sum', |$y->sum(), |if($stat == 'min', |$y->min(), |if($stat == 'max', |$y->max(), |if($stat == 'range', |$y->max()->toOne() - $y->min()->toOne(), |if($stat == 'std', |$y->stdDevSample(), |$y->varianceSample())))))))
     ->rename(~l, ~gl)->rename(~d, ~gd);
   $base->join($windows, meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a.l == $b.gl) && ($a.d == $b.gd)})
-    ->extend(over(~l, [~d->ascending()], rows(unbounded(), unbounded())), ~fd:{p,f,r|if($r.v->isNotEmpty(), |$r.d, |[])}:y|$y->min())
-    ->extend(~o:x|if($x.d->toOne() < $x.fd->toOne()->adjust($n, $unit), |[], |$x.s))
-    ->without(~[l, d, v, gl, gd, s, fd])
-    ->rename(~o, $out);
+    ->without(~[l, d, v, gl, gd])
+    ->rename(~s, $out);
+}
+
+// A column none before a calendar period on from the first date another column has a value (gs-quant's apply_ramp of a
+// DateOffset, x.loc[x.index[0] + r:], its start the first date of the series read -- a price's, where the column is of
+// its returns).
+function datacube::ts::rampPeriod<T,L,D,S,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], since: ColSpec<S⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line), ~fd:{p,f,r|if($r->read($since)->isNotEmpty(), |$r->read($date), |[])}:y|$y->min())
+    ->extend(~o:x|if($x->read($date)->toOne() < $x.fd->toOne()->adjust($n, $unit), |[], |$x->read($value)))
+    ->without(~fd)->rename(~o, $out)
+}
+
+// A statistic of a calendar period back of each date (windowPeriod's), none before the line's first value's date that
+// period on (gs-quant's rolling_offset and apply_ramp of a DateOffset).
+function datacube::ts::overPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::windowPeriod($line, $date, $value, $n, $unit, $stat, ~ws)
+    ->datacube::ts::rampPeriod($line, $date, $value, ~ws, $n, $unit, $out)
+    ->without(~ws)
 }
 
 // The value obs rows back (gs-quant's lag of a count): x[-obs], none before the line's obs-th row.
@@ -585,6 +602,49 @@ function datacube::ts::vwap<T,P,X,V,O>(t: Relation<T>[1], win: _Window<T>[1], pr
   $t->extend($win, ~[pv:{p,f,r|$r->read($traded)}:y|$y->plus(), vs:{p,f,r|$r->read($volume)}:y|$y->plus(), n:{p,f,r|$r->read($price)}:y|$y->count()])
     ->extend(~o:x|if(($x.n->toOne() < $ramp) || ($x.vs->toOne() == 0), |[], |$x.pv->toOne() / $x.vs->toOne()))
     ->without(~[pv, vs, n])->rename(~o, $out)
+}
+
+// The annualized volatility of a column of returns over a calendar period back of each date, in percent (windowPeriod's
+// sample deviation, times the square root of the periods a year, times 100): none before the first date of the series
+// read (price) that period on -- gs-quant's returns keep the first price's date, which its ramp counts from.
+function datacube::ts::volatilityPeriod<T,L,D,P,R,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], price: ColSpec<P⊆T>[1], returns: ColSpec<R⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], perYear: ColSpec<Y⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::windowPeriod($line, $date, $returns, $n, $unit, 'std', ~sd)
+    ->extend(~v:x|($x.sd->toOne() * sqrt($x->read($perYear)->toOne())) * 100)
+    ->datacube::ts::rampPeriod($line, $date, $price, ~v, $n, $unit, $out)
+    ->without(~[sd, v])
+}
+
+// The deepest drawdown within a calendar period back of each date, each against that period's peak (windowPeriod's max,
+// then its min): none before the line's first value's date that period on.
+function datacube::ts::maxDrawdownPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::windowPeriod($line, $date, $value, $n, $unit, 'max', ~pk)
+    ->extend(~dd:x|if($x.pk->toOne() == 0, |[], |$x->read($value)->toOne() / $x.pk->toOne() - 1))
+    ->datacube::ts::windowPeriod($line, $date, ~dd, $n, $unit, 'min', ~md)
+    ->datacube::ts::rampPeriod($line, $date, $value, ~md, $n, $unit, $out)
+    ->without(~[pk, dd, md])
+}
+
+// The annualized Sharpe ratio of a column of returns over a calendar period back of each date: their mean over their
+// sample deviation, times the square root of the periods a year -- none where the deviation is 0, or before the first
+// date of the series read (price) that period on.
+function datacube::ts::sharpeRatioPeriod<T,L,D,P,R,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], price: ColSpec<P⊆T>[1], returns: ColSpec<R⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], perYear: ColSpec<Y⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::windowPeriod($line, $date, $returns, $n, $unit, 'mean', ~m)->datacube::ts::windowPeriod($line, $date, $returns, $n, $unit, 'std', ~s)
+    ->extend(~v:x|if($x.s->toOne() == 0, |[], |($x.m->toOne() / $x.s->toOne()) * sqrt($x->read($perYear)->toOne())))
+    ->datacube::ts::rampPeriod($line, $date, $price, ~v, $n, $unit, $out)
+    ->without(~[m, s, v])
+}
+
+// The volume-weighted average price over a calendar period back of each date: Σ price × volume (traded) over Σ volume
+// (windowPeriod's sums), none where the volume is 0, or before the first price's date that period on.
+function datacube::ts::vwapPeriod<T,L,D,P,X,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], price: ColSpec<P⊆T>[1], traded: ColSpec<X⊆T>[1], volume: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::windowPeriod($line, $date, $traded, $n, $unit, 'sum', ~pv)->datacube::ts::windowPeriod($line, $date, $volume, $n, $unit, 'sum', ~vs)
+    ->extend(~v:x|if($x.vs->toOne() == 0, |[], |$x.pv->toOne() / $x.vs->toOne()))
+    ->datacube::ts::rampPeriod($line, $date, $price, ~v, $n, $unit, $out)
+    ->without(~[pv, vs, v])
 }
 `;
 
