@@ -13,7 +13,7 @@ import { LIGHT_THEME } from '../src/chart-option.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { curveColumns, TS_SPLIT as SPLIT } from '../src/timeseries-query.ts';
 import { curveNotes, curveOption } from '../src/timeseries-views.ts';
-import { marksUnplaced, tickText, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, tsHeading, tsLines, tsMarks, tsPictureHeight, valueText, type TsResult } from '../src/timeseries-option.ts';
+import { drawingsUnplaced, marksUnplaced, tickText, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, tsHeading, tsLines, tsMarks, tsPictureHeight, valueText, type TsResult } from '../src/timeseries-option.ts';
 import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_SPLIT, TS_TEXT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
 import { TS_MARK_LIMIT, TS_POINT_LIMIT, type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
@@ -396,5 +396,44 @@ describe('the drawing', () => {
     const compared: TimeseriesSpec = { ...right, view: { compare: 'rebase' } };
     assert.deepEqual(marksUnplaced(compared, lines, [fills]), ['Fills are drawn at their price, the lines from one start (Compare): left out.']);
     assert.ok(!(timeseriesOption(compared, lines, { theme: LIGHT_THEME, marks: [fills] }) as { series: { id: string }[] }).series.some((x) => x.id === 'marks:0'));
+  });
+
+  // a person's own drawings (Phase 5): a line from its point to its point, a note at its point, in its pane, on the
+  // axis of the pane's first line; while drawing, every pane drawing a line carries the series a click is read in
+  it('drawings: a line and a note in their pane on its line\'s axis; while drawing, a series per pane, no pan, the first end shown', () => {
+    type Drawn = { series: { id: string; xAxisIndex: number; yAxisIndex: number; markLine: { data: { coord: unknown[]; label?: { formatter: string } }[][] };
+      markPoint: { data: { coord: unknown[]; value?: string; symbol?: string }[] } }[]; dataZoom: { type: string; moveOnMouseMove?: boolean }[] };
+    const ts = spec([S('A', 'close'), S('B', 'rsi($A, 2)', { pane: 1, axis: 'right' })], {
+      annotations: [
+        { kind: 'line', from: { date: '2024-01-02', value: 1 }, to: { date: '2024-01-04', value: 3 }, label: 'Trend' },
+        { kind: 'note', at: { date: '2024-01-03', value: 60 }, text: 'Overbought', pane: 1 },
+      ],
+    });
+    const lines = tsLines(ts, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }),
+      answered('B', 'number', { [TS_DATE]: DAYS, [TS_VALUE]: [70, 60, 50] }, { level: false })], LIGHT_THEME).lines;
+    const option = timeseriesOption(ts, lines, { theme: LIGHT_THEME, height: 600 }) as unknown as Drawn;
+    const main = option.series.find((x) => x.id === 'drawings:0')!;
+    assert.deepEqual(main.markLine.data.map(([a, b]) => [a!.coord, b!.coord]), [[['2024-01-02', 1], ['2024-01-04', 3]]]);
+    assert.equal(main.markLine.data[0]![0]!.label!.formatter, 'Trend');
+    assert.deepEqual(main.markPoint.data, [], 'the note is in pane 2');
+    const second = option.series.find((x) => x.id === 'drawings:1')!;
+    assert.deepEqual(second.markPoint.data.map((d) => [d.coord, d.value]), [[['2024-01-03', 60], 'Overbought']]);
+    assert.deepEqual([second.xAxisIndex, second.yAxisIndex], [1, option.series.find((x) => x.id === 'B')!.yAxisIndex], 'on its line\'s axis, the right');
+    assert.equal(option.dataZoom.find((z) => z.type === 'inside')!.moveOnMouseMove, true);
+    // while drawing: a series in every pane drawing a line (none drawn there yet), no pan, a line's first end shown
+    const bare = spec([S('A', 'close'), S('B', 'rsi($A, 2)', { pane: 1 })]);
+    const drawing = timeseriesOption(bare, lines, { theme: LIGHT_THEME, height: 600, drawing: true, drawFrom: { pane: 1, at: { date: '2024-01-02', value: 55 } } }) as unknown as Drawn;
+    assert.deepEqual(drawing.series.filter((x) => x.id.startsWith('drawings:')).map((x) => x.id), ['drawings:0', 'drawings:1']);
+    assert.deepEqual(drawing.series.find((x) => x.id === 'drawings:1')!.markPoint.data.map((d) => [d.coord, d.symbol]), [[['2024-01-02', 55], 'circle']]);
+    assert.equal(drawing.dataZoom.find((z) => z.type === 'inside')!.moveOnMouseMove, false, 'a click is a point, not a pan');
+    assert.ok(!(timeseriesOption(bare, lines, { theme: LIGHT_THEME }) as unknown as Drawn).series.some((x) => x.id.startsWith('drawings:')), 'none drawn, none');
+    // under a compare the values are the lines' from one start: left out, and said; in a pane that draws no line, said
+    const compared: TimeseriesSpec = { ...ts, view: { compare: 'rebase' } };
+    assert.ok(!(timeseriesOption(compared, lines, { theme: LIGHT_THEME }) as unknown as Drawn).series.some((x) => x.id.startsWith('drawings:')));
+    assert.deepEqual(drawingsUnplaced(compared, lines), ['The drawings are on the values as they were drawn, the lines now from one start (Compare): left out.']);
+    assert.deepEqual(drawingsUnplaced(ts, lines), []);
+    const lost: TimeseriesSpec = { ...ts, annotations: [{ kind: 'note', at: { date: '2024-01-03', value: 1 }, text: 'Here', pane: 2 }] };
+    assert.deepEqual(drawingsUnplaced(lost, lines), ['The note "Here" is in pane 3, which draws no line.']);
+    assert.ok(!(timeseriesOption(lost, lines, { theme: LIGHT_THEME }) as unknown as Drawn).series.some((x) => x.id.startsWith('drawings:')));
   });
 });

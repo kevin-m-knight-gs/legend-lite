@@ -1,6 +1,6 @@
 // THE FILE THAT DRAWS A TIMESERIES TILE with ECharts (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5): what it shows
 // comes from timeseries-option.ts; this mounts it, keeps it sized to its box, and hands the viewer back what a person
-// did on it -- the dates a zoom or a pan shows, a date double-clicked.
+// did on it -- the dates a zoom or a pan shows, a date double-clicked, a span dragged, a point clicked.
 //
 // Its own chunk, fetched with the first timeseries tile -- over the charts' own ECharts, which it is handed (`init`:
 // chart-render.ts canvasChart, fetched beside it): chart-render.ts registers every chart and component a timeseries draws
@@ -12,6 +12,8 @@ import type { EChartsOption } from 'echarts';
 import type { ECharts } from 'echarts/core';
 import type { ChartPicture } from './chart-render.ts';
 import { isoOf } from './timeseries-option.ts';
+
+const HALF_DAY = 43_200_000;
 
 /** A timeseries mounted in an element. */
 export interface MountedTimeseries {
@@ -25,6 +27,8 @@ export interface MountedTimeseries {
   highlight(key: string | null): void;
   /** Measuring (Phase 5): a drag across the chart is a span measured, told by `onSpan`, never a pan. */
   measure(on: boolean): void;
+  /** Drawing (Phase 5): a click in a pane is a point put there, told by `onPoint`, never a pan. */
+  draw(on: boolean): void;
   /** The drawing's own height in pixels: what its panes are laid out in. */
   height(): number;
   picture(ratio?: number): ChartPicture | null;
@@ -56,11 +60,14 @@ export function mountTimeseries(el: HTMLElement, on: {
   readonly onResize?: () => void;
   /** While measuring: a drag across the chart, its two ends' dates in order -- `done` once it is let go. */
   readonly onSpan?: (from: string, to: string, done: boolean) => void;
+  /** While drawing: a click in a pane, its date and its value on the axis the pane's drawings are drawn on. */
+  readonly onPoint?: (pane: number, date: string, value: number) => void;
 }, init: (el: HTMLElement) => ECharts, svg?: (el: HTMLElement) => Promise<ECharts>): MountedTimeseries {
   const chart = init(el);
   let shown = false;
   let lastKey: string | null = null;
   let measuring = false;
+  let drawing = false;
   let dragFrom: { readonly t: number; readonly x: number } | undefined;
   /** The date under a pixel of the chart, in its first grid's time, or none outside the grids. */
   const timeAt = (e: { offsetX: number; offsetY: number }): number | undefined => {
@@ -88,6 +95,19 @@ export function mountTimeseries(el: HTMLElement, on: {
     // a click, no drag, measures nothing
     if (t !== undefined && Math.abs(e.offsetX - dragFrom.x) > 3) spanned(t, true);
     dragFrom = undefined;
+  });
+  // a click while drawing: the pane under it -- its drawings' series (timeseries-option.ts `drawings:<pane>`, drawn in
+  // every pane while drawing) -- and the point in that series' own axes, so a point is drawn back where it was put
+  chart.getZr().on('click', (e: { offsetX: number; offsetY: number }) => {
+    if (!drawing || !on.onPoint) return;
+    const px = [e.offsetX, e.offsetY];
+    const ids = ((chart.getOption() as { series?: { id?: string }[] }).series ?? []).map((x) => x.id).filter((id): id is string => id?.startsWith('drawings:') === true);
+    const id = ids.find((x) => chart.containPixel({ seriesId: x }, px));
+    if (id === undefined) return;
+    const at = chart.convertFromPixel({ seriesId: id }, px) as unknown as number[] | undefined;
+    const [t, v] = [at?.[0], at?.[1]];
+    // the day nearest the click: a day's values are drawn at its start
+    if (typeof t === 'number' && Number.isFinite(t) && typeof v === 'number' && Number.isFinite(v)) on.onPoint(Number(id.slice('drawings:'.length)), isoOf(t + HALF_DAY), v);
   });
   const window = (): { from?: string; to?: string } => {
     const zoom = (chart.getOption() as { dataZoom?: { startValue?: number | string; endValue?: number | string }[] }).dataZoom?.[0];
@@ -133,6 +153,9 @@ export function mountTimeseries(el: HTMLElement, on: {
     measure(next) {
       measuring = next;
       dragFrom = undefined;
+    },
+    draw(next) {
+      drawing = next;
     },
     height() {
       return chart.getHeight();

@@ -1112,6 +1112,24 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, "plots 'side', which is not a number"):
             tile.shade('side')
 
+    def test_a_timeseries_takes_a_persons_drawings_by_the_screens_rule(self):
+        # Phase 5's drawings (the screen's Draw): a line from a point to a point, a note pinned at one -- annotations of
+        # the tile's one rule, read by its one reader (timeseries-spec.ts tsProblem), refused in its words
+        page = ll.Page('Drawings')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]})
+        tile = page.timeseries({'px': page.grid(prices, name='prices')}, ['close[S]'])
+        line = {'kind': 'line', 'from': {'date': '2024-01-01', 'value': 100.0}, 'to': {'date': '2024-01-06', 'value': 104.5}, 'label': 'Trend'}
+        note = {'kind': 'note', 'at': {'date': '2024-01-04', 'value': 103.0}, 'text': 'Earnings'}
+        tile.annotate(line).annotate(note)
+        self.assertEqual(tile.spec['annotations'], [line, note])
+        with self.assertRaisesRegex(ValueError, 'annotation 3 says nothing: a note has its text'):
+            tile.annotate({'kind': 'note', 'at': {'date': '2024-01-04', 'value': 103.0}, 'text': ' '})
+        with self.assertRaisesRegex(ValueError, "annotation 3's to is not a point: a date"):
+            tile.annotate({'kind': 'line', 'from': {'date': '2024-01-01', 'value': 1}, 'to': {'date': 'later', 'value': 2}})
+        tile.unannotate(0)
+        self.assertEqual(tile.spec['annotations'], [note])
+
     def test_a_timeseries_marks_a_grids_rows_each_the_databases_as_the_screen_marks_them(self):
         # marks from a grid's rows (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6's D4: the trades; Phase
         # 5's events from a grid): each trade at its price on its day, its quantity beside it, by the screen's one rule

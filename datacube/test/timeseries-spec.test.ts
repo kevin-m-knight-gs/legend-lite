@@ -285,7 +285,10 @@ describe('the saved spec\'s reader', () => {
     panes: [{ height: 3, log: true, invert: true, min: 50, max: 400 }],
     annotations: [{ kind: 'level', value: 100, label: 'par' }, { kind: 'event', date: '2024-03-20', label: 'FOMC' }, { kind: 'period', from: '2020-02-19', to: '2020-04-07' },
       { kind: 'marks', source: 'px', where: [{ value: 'AAPL' }, { column: 'side', value: 'BUY' }], at: 'price', text: 'quantity', shape: 'up', pane: 0, label: 'Bought', color: 2 },
-      { kind: 'marks', source: 'px', text: 'headline', label: 'Earnings' }],
+      { kind: 'marks', source: 'px', text: 'headline', label: 'Earnings' },
+      // a person's own drawings (Phase 5): a line from a point to a point, a note pinned at one
+      { kind: 'line', from: { date: '2024-01-02', value: 180.5 }, to: { date: '2024-06-28', value: 210 }, pane: 0, label: 'Trend', color: 1 },
+      { kind: 'note', at: { date: '2024-03-20', value: 175 }, text: 'Bought here', pane: 0 }],
     view: { compare: 'rebase', legend: true, lastValues: true, navigator: true, stats: false, crosshair: true, subtitle: 'Since 2020', note: 'Source: the exchange' },
   };
   const with_ = (change: Record<string, unknown>): unknown => ({ ...JSON.parse(JSON.stringify(OK)), ...change });
@@ -327,6 +330,16 @@ describe('the saved spec\'s reader', () => {
       [with_({ annotations: [{ kind: 'marks', source: 'px', pane: 1 }] }), /drawn in a pane at a value: it names no column to draw them at/],
       [with_({ annotations: [{ kind: 'marks', source: 'px', where: [{ column: 'side' }] }] }), /annotation 1's match 1 is not a value/],
       [with_({ annotations: [{ kind: 'marks', source: 'px', size: 3 }] }), /no "size" in annotation 1 \(a marks\)/],
+      // a person's drawings (Phase 5): each point a date and a value, a note its text, a pane of the tile's
+      [with_({ annotations: [{ kind: 'line', from: { date: '2024-01-02', value: 1 }, to: { date: 'June', value: 2 } }] }), /annotation 1's to is not a point: a date \(2024-01-31\) and a value/],
+      [with_({ annotations: [{ kind: 'line', from: { date: '2024-01-02', value: 1 } }] }), /annotation 1's to is not a point/],
+      [with_({ annotations: [{ kind: 'note', at: { date: '2024-01-02', value: null }, text: 'x' }] }), /annotation 1's at is not a point/],
+      [with_({ annotations: [{ kind: 'note', at: { date: '2024-01-02', value: 1, pane: 1 }, text: 'x' }] }), /annotation 1's at is not a point/],
+      [with_({ annotations: [{ kind: 'note', at: { date: '2024-01-02', value: 1 }, text: '  ' }] }), /annotation 1 says nothing: a note has its text/],
+      [with_({ annotations: [{ kind: 'note', at: { date: '2024-01-02', value: 1 }, text: 'x', label: 'y' }] }), /no "label" in annotation 1 \(a note\)/],
+      [with_({ annotations: [{ kind: 'line', from: { date: '2024-01-02', value: 1 }, to: { date: '2024-01-03', value: 2 }, pane: 9 }] }), /annotation 1's pane is not one of 0 to/],
+      [with_({ annotations: [{ kind: 'line', from: { date: '2024-01-02', value: 1 }, to: { date: '2024-01-03', value: 2 }, color: -1 }] }), /annotation 1's colour -1 is not a slot of the palette/],
+      [with_({ annotations: [{ kind: 'arrow' }] }), /annotation 1 is not a level, an event, a period, marks, a line or a note/],
       [with_({ view: { compare: 'log' } }), /compare "log"/],
       // the next phases' 2: a pane upside down, its ends by hand; a subtitle and a note in words
       [with_({ panes: [{ invert: 'yes' }] }), /pane 0's invert is not true or false/],

@@ -118,7 +118,18 @@ export type TsAnnotation =
   | { readonly kind: 'level'; readonly value: number; readonly pane?: number; readonly label?: string }
   | { readonly kind: 'event'; readonly date: string; readonly label?: string }
   | { readonly kind: 'period'; readonly from: string; readonly to: string; readonly label?: string }
-  | TsMarks;
+  | TsMarks
+  /** A person's own drawing (Phase 5, TradingView's): a straight line from one point to another in a pane, each point a
+   *  date and a value as the pane draws it -- a trend line by hand; no figure of the database's. */
+  | { readonly kind: 'line'; readonly from: TsPoint; readonly to: TsPoint; readonly pane?: number; readonly label?: string; readonly color?: number }
+  /** A note pinned at a point of a pane: its date and its value as the pane draws it, its text. */
+  | { readonly kind: 'note'; readonly at: TsPoint; readonly text: string; readonly pane?: number };
+
+/** A point of a pane, as a person put it there: a day (or a date-time) and a value. */
+export interface TsPoint {
+  readonly date: string;
+  readonly value: number;
+}
 
 /** How a mark is drawn: a triangle up (a buy) or down (a sell), or a dot. */
 export type TsMarkShape = 'up' | 'down' | 'dot';
@@ -570,6 +581,8 @@ const ANNOTATION_KEYS: { readonly [K in TsAnnotationKind]: Readonly<Record<strin
   event: { kind: true, date: true, label: true },
   period: { kind: true, from: true, to: true, label: true },
   marks: { kind: true, source: true, where: true, at: true, text: true, shape: true, pane: true, label: true, color: true } satisfies Record<keyof TsMarks, true>,
+  line: { kind: true, from: true, to: true, pane: true, label: true, color: true },
+  note: { kind: true, at: true, text: true, pane: true },
 };
 const GRAINS: readonly TimeGrain[] = ['day', 'week', 'month', 'quarter', 'year'];
 const STYLE_KINDS: readonly TsStyleKind[] = ['line', 'area', 'bars', 'step', 'dots'];
@@ -801,7 +814,7 @@ export function tsProblem(ts: unknown): string | null {
     if (!Array.isArray(annotations)) return 'its timeseries\' annotations are not a list';
     for (const [i, a] of annotations.entries()) {
       const what = `annotation ${i + 1}`;
-      if (!isRecord(a) || !Object.hasOwn(ANNOTATION_KEYS, a['kind'] as string)) return `${what} is not a level, an event, a period or marks`;
+      if (!isRecord(a) || !Object.hasOwn(ANNOTATION_KEYS, a['kind'] as string)) return `${what} is not a level, an event, a period, marks, a line or a note`;
       const aExtra = unknownKey(a, ANNOTATION_KEYS[a['kind'] as TsAnnotationKind], `${what} (a ${a['kind']})`);
       if (aExtra) return aExtra;
       if (a['label'] !== undefined && typeof a['label'] !== 'string') return `${what}'s label is not text`;
@@ -815,6 +828,22 @@ export function tsProblem(ts: unknown): string | null {
       if (a['kind'] === 'marks') {
         const marked = marksProblem(a, what, aliases);
         if (marked) return marked;
+      }
+      if (a['kind'] === 'line' || a['kind'] === 'note') {
+        for (const end of a['kind'] === 'line' ? ['from', 'to'] as const : ['at'] as const) {
+          const p = a[end];
+          if (!isRecord(p) || !isDate(p['date']) || typeof p['value'] !== 'number' || !Number.isFinite(p['value'])
+            || Object.keys(p).some((k) => k !== 'date' && k !== 'value')) {
+            return `${what}'s ${end} is not a point: a date (2024-01-31) and a value`;
+          }
+        }
+        if (a['kind'] === 'note' && (typeof a['text'] !== 'string' || a['text'].trim() === '')) return `${what} says nothing: a note has its text`;
+        if (a['pane'] !== undefined && !(Number.isInteger(a['pane']) && (a['pane'] as number) >= 0 && (a['pane'] as number) < MAX_PANES)) {
+          return `${what}'s pane is not one of 0 to ${MAX_PANES - 1}`;
+        }
+        if (a['color'] !== undefined && !(Number.isInteger(a['color']) && (a['color'] as number) >= 0)) {
+          return `${what}'s colour ${JSON.stringify(a['color'])} is not a slot of the palette (0, 1, ...)`;
+        }
       }
       if (a['kind'] === 'period') {
         if (!isDate(a['from']) || !isDate(a['to'])) return `${what} needs a from and a to, each a date (2024-01-31)`;

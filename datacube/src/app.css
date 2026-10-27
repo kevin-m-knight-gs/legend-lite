@@ -5720,3 +5720,4 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-ts-functions { display: grid; grid-template-columns: max-content 1fr; gap: 2px 8px; margin: var(--dc-pad-1) 0; font-size: var(--dc-text-sm-size); }
 .dc-ts-functions dt { font-family: var(--dc-font-mono); white-space: nowrap; }
 .dc-ts-functions dd { margin: 0; color: var(--dc-muted-strong); }
+.dc-ts-draw .dc-ts-row { align-items: center; }

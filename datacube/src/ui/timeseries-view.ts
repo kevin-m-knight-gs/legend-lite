@@ -23,7 +23,7 @@ import type { RunOutcome } from '../runner.ts';
 import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import {
   marksName, MAX_HIST_BINS, MAX_PANES, MAX_SEASON_YEARS, MIN_HIST_BINS, TS_CURVE_DATES, TS_HIST_BINS, TS_RANGES, TS_SEASON_YEARS, viewSetting,
-  type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsMarks, type TsMarkShape, type TsMode, type TsRangeWord, type TsSeries, type TsSource,
+  type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsMarks, type TsMarkShape, type TsMode, type TsPoint, type TsRangeWord, type TsSeries, type TsSource,
   type TsState, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
@@ -40,7 +40,7 @@ import {
   TS_SPLIT, TS_STAT_LEVEL_LOW, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
 import {
-  describeTimeseries, dateLabel, marksUnplaced, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, toNumber, tsHeading, tsLines,
+  describeTimeseries, dateLabel, drawingsUnplaced, marksUnplaced, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, toNumber, tsHeading, tsLines,
   tsMarks, tsPictureHeight, valueText, type TsFormat, type TsLine, type TsMarked, type TsResult,
 } from '../timeseries-option.ts';
 import type { MountedTimeseries } from '../timeseries-render.ts';
@@ -175,6 +175,8 @@ export interface MountOn {
   readonly onResize?: () => void;
   /** While measuring: a drag across the chart, its ends in order, `done` once let go (timeseries-render.ts). */
   readonly onSpan?: (from: string, to: string, done: boolean) => void;
+  /** While drawing: a click in a pane, its date and its value on the pane's axis (timeseries-render.ts). */
+  readonly onPoint?: (pane: number, date: string, value: number) => void;
 }
 
 /** What a spec's queries depend on: when it changes, the database is asked again; else the drawing alone changes. */
@@ -436,6 +438,13 @@ export class TimeseriesView {
   #spanFailed = new Map<string, string>();
   #spanGen = 0;
   #measureBox!: HTMLElement;
+  /** DRAWING (Phase 5, TradingView's): a click in a pane is a point put there -- a line's two ends, or a note's place --
+   *  told to the tile as an annotation (`annotate`), Python's annotate by the one rule. A line's first end, until its
+   *  second; a note's place, until its text. */
+  #drawing: 'line' | 'note' | null = null;
+  #drawFrom: { readonly pane: number; readonly at: TsPoint } | undefined;
+  #noteAt: { readonly pane: number; readonly at: TsPoint } | undefined;
+  #drawBox!: HTMLElement;
   #lines: TsLine[] = [];
   /** Every question asked of the database, by its ask (timeseries-query.ts askKey): what the Query window shows. A
    *  round's asks of another tile, or of other dates, are not what is drawn: each kept with the tile it was asked of. */
@@ -553,6 +562,8 @@ export class TimeseriesView {
     }
     this.#spec = spec;
     this.#paintBar();
+    // what drawing asks for, as the tile is now (a compare put on, a view chosen)
+    if (this.#drawing !== null) this.#paintDraw();
     if (queryKey(spec) !== this.#asked) void this.#fetch();
     else {
       // the drawing alone changed (a line's style, its pane, hidden; an annotation; the legend): drawn from the rows it
@@ -980,6 +991,7 @@ export class TimeseriesView {
         },
         onResize: () => void this.#draw(),
         onSpan: (from, to, done) => this.#spanned(from, to, done),
+        onPoint: (pane, date, value) => this.#pointed(pane, date, value),
       };
       let make = this.#host.mount;
       if (make === undefined) {
@@ -1028,7 +1040,7 @@ export class TimeseriesView {
       marked.push(read.marked);
       notes.push(...read.notes);
     }
-    notes.push(...marksUnplaced(spec, lines, marked));
+    notes.push(...marksUnplaced(spec, lines, marked), ...drawingsUnplaced(spec, lines));
     this.#lines = lines;
     this.#marked = marked;
     this.#notes = notes;
@@ -1069,12 +1081,14 @@ export class TimeseriesView {
     const option = timeseriesOption(spec, lines, {
       theme, formatOf: (l) => this.#formatOf(l), formatOfMarks: (m) => this.#formatOfMarks(m), view: this.#window(), height, marks: marked,
       ...(this.#measuring ? { measuring: true } : {}), ...(this.#span !== undefined ? { span: this.#span } : {}),
+      ...(this.#drawing !== null ? { drawing: true } : {}), ...(this.#drawFrom !== undefined ? { drawFrom: this.#drawFrom } : {}),
     });
     chart.show(option, describeTimeseries(spec, lines));
   }
 
-  /** Measuring on or off: a drag is a span measured, not a pan; off, the span and its figures put away. */
+  /** Measuring on or off: a drag is a span measured, not a pan; off, the span and its figures put away. Drawing, off. */
   #measure(on: boolean): void {
+    if (on && this.#drawing !== null) this.#draws(null);
     this.#measuring = on;
     this.#chart?.measure(on);
     if (!on) {
@@ -1180,6 +1194,89 @@ export class TimeseriesView {
     this.#measureBox.replaceChildren(head, ...rows, actions);
   }
 
+  /** Drawing a line or a note, or neither: a click is a point put in a pane, not a pan; off, a point half made put away.
+   *  Measuring, off. */
+  #draws(kind: 'line' | 'note' | null): void {
+    if (kind !== null && this.#measuring) this.#measure(false);
+    this.#drawing = kind;
+    this.#drawFrom = undefined;
+    this.#noteAt = undefined;
+    this.#chart?.draw(kind !== null);
+    this.#paintDraw();
+    this.#paintBar();
+    void this.#draw();
+  }
+
+  /** A point clicked while drawing: a line's first end, then its second -- the line told -- or a note's place, its text
+   *  asked beside it. Its value as the pane draws it, to six figures (a hand's, not the database's). */
+  #pointed(pane: number, date: string, value: number): void {
+    if (this.#drawing === null || this.#spec.view?.mode !== undefined) return;
+    const at: TsPoint = { date, value: Number(value.toPrecision(6)) };
+    const where = pane === 0 ? {} : { pane };
+    if (this.#drawing === 'note') {
+      this.#noteAt = { pane, at };
+      this.#paintDraw();
+      return;
+    }
+    const from = this.#drawFrom;
+    // a line's ends in one pane: a second click in another starts the line there
+    if (from === undefined || from.pane !== pane) {
+      this.#drawFrom = { pane, at };
+      this.#paintDraw();
+      void this.#draw();
+      return;
+    }
+    this.#drawFrom = undefined;
+    this.#paintDraw();
+    // the same point twice is no line
+    if (from.at.date === at.date && from.at.value === at.value) {
+      void this.#draw();
+      return;
+    }
+    const [a, b] = from.at.date <= at.date ? [from.at, at] : [at, from.at];
+    if (!this.#edit({ kind: 'annotate', annotation: { kind: 'line', from: a, to: b, ...where } })) void this.#draw();
+  }
+
+  /** What drawing asks for, under the bar: which kind, and what a click does next; a note's text once its place is put. */
+  #paintDraw(): void {
+    const doc = this.#doc;
+    const kind = this.#drawing;
+    this.#drawBox.hidden = kind === null;
+    if (kind === null) {
+      this.#drawBox.replaceChildren();
+      return;
+    }
+    const choose = select(doc, [['line', 'A line'], ['note', 'A note']], kind, (v) => this.#draws(v as 'line' | 'note'), 'Draw');
+    const said = this.#spec.view?.mode !== undefined ? `A ${this.#spec.view.mode} draws no drawings: drawn along time alone.`
+      : this.#spec.view?.compare !== undefined ? 'Drawings are put on the lines\' own values: Compare off to draw.'
+        : kind === 'line' ? (this.#drawFrom === undefined ? 'Click where the line starts.' : `From ${this.#drawFrom.at.date}: click where it ends.`)
+          : this.#noteAt === undefined ? 'Click where the note goes.' : `At ${this.#noteAt.at.date}:`;
+    const parts: HTMLElement[] = [choose, el(doc, 'span', 'dc-ts-hint', said)];
+    const noteAt = this.#noteAt;
+    if (kind === 'note' && noteAt !== undefined) {
+      const text = el(doc, 'input', 'dc-input', undefined, { placeholder: 'Note', 'aria-label': 'Note' });
+      const put = (): void => {
+        const words = text.value.trim();
+        if (words === '') return;
+        this.#noteAt = undefined;
+        this.#paintDraw();
+        this.#edit({ kind: 'annotate', annotation: { kind: 'note', at: noteAt.at, text: words, ...(noteAt.pane === 0 ? {} : { pane: noteAt.pane }) } });
+      };
+      text.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') put();
+      });
+      parts.push(text, button(doc, 'Add', 'Pin the note there', put), button(doc, 'Cancel', 'Put no note there', () => {
+        this.#noteAt = undefined;
+        this.#paintDraw();
+      }));
+      queueMicrotask(() => text.focus());
+    }
+    parts.push(button(doc, 'Done', 'Stop drawing', () => this.#draws(null)));
+    const row = el(doc, 'div', 'dc-ts-row');
+    row.append(...parts);
+    this.#drawBox.replaceChildren(row);
+  }
+
   #zoomed(from: string | undefined, to: string | undefined): void {
     this.#zoom = { ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) };
     this.#paintRanges();
@@ -1200,9 +1297,11 @@ export class TimeseriesView {
     this.#stats = el(doc, 'div', 'dc-ts-stats');
     this.#measureBox = el(doc, 'div', 'dc-ts-measure', undefined, { role: 'status', 'aria-label': 'Measured' });
     this.#measureBox.hidden = true;
+    this.#drawBox = el(doc, 'div', 'dc-ts-measure dc-ts-draw', undefined, { role: 'group', 'aria-label': 'Drawing' });
+    this.#drawBox.hidden = true;
     const body = el(doc, 'div', 'dc-ts-body');
     body.append(this.#canvas);
-    this.#root.append(this.#bar, this.#legend, this.#banner, this.#measureBox, body, this.#stats);
+    this.#root.append(this.#bar, this.#legend, this.#banner, this.#measureBox, this.#drawBox, body, this.#stats);
     this.#paintBar();
   }
 
@@ -1229,7 +1328,9 @@ export class TimeseriesView {
     const query = button(doc, 'Query', 'Each series\' query as the compiler prints it, and its SQL', () => void this.#showQueries());
     const measure = button(doc, 'Measure', 'Drag across the chart: each line\'s change, its % and the days between, the database\'s', () => this.#measure(!this.#measuring));
     measure.setAttribute('aria-pressed', String(this.#measuring));
-    this.#bar.replaceChildren(this.#ranges, el(doc, 'span', 'dc-ts-gap'), grain, compare, mode, log, stats, measure, add, swap, settings, query, csv, png, svg);
+    const draw = button(doc, 'Draw', 'Click the chart: a line from one point to another, or a note pinned at one', () => this.#draws(this.#drawing === null ? 'line' : null));
+    draw.setAttribute('aria-pressed', String(this.#drawing !== null));
+    this.#bar.replaceChildren(this.#ranges, el(doc, 'span', 'dc-ts-gap'), grain, compare, mode, log, stats, measure, draw, add, swap, settings, query, csv, png, svg);
   }
 
   #paintRanges(): void {
@@ -2702,10 +2803,13 @@ export class TimeseriesView {
     parts.push(el(doc, 'div', 'dc-ts-heading', 'Annotations'));
     for (const [i, a] of (spec.annotations ?? []).entries()) {
       const row = el(doc, 'div', 'dc-ts-row');
+      const point = (p: TsPoint): string => `${p.date} at ${p.value.toLocaleString(UI_LOCALE)}`;
       const said = a.kind === 'level' ? `Level ${a.value}` : a.kind === 'event' ? `Event ${a.date}` : a.kind === 'period' ? `Period ${a.from} – ${a.to}`
-        : `Marks: ${a.source}'s rows${(a.where ?? []).length > 0 ? ` [${matchesText(a.where!)}]` : ''}${a.at !== undefined ? ` at ${a.at}` : ', a line each'}`;
-      const pane = (a.kind === 'level' || a.kind === 'marks') && a.pane ? ` (pane ${a.pane + 1})` : '';
-      row.append(el(doc, 'span', undefined, `${said}${pane}${a.label ? `: ${a.label}` : ''}`), closeMark(button(doc, '×', 'Take it off', () => {
+        : a.kind === 'line' ? `Line ${point(a.from)} → ${point(a.to)}` : a.kind === 'note' ? `Note ${point(a.at)}: ${a.text}`
+          : `Marks: ${a.source}'s rows${(a.where ?? []).length > 0 ? ` [${matchesText(a.where!)}]` : ''}${a.at !== undefined ? ` at ${a.at}` : ', a line each'}`;
+      const pane = (a.kind === 'level' || a.kind === 'marks' || a.kind === 'line' || a.kind === 'note') && a.pane ? ` (pane ${a.pane + 1})` : '';
+      const label = a.kind !== 'note' && a.label ? `: ${a.label}` : '';
+      row.append(el(doc, 'span', undefined, `${said}${pane}${label}`), closeMark(button(doc, '×', 'Take it off', () => {
         if (this.#edit({ kind: 'unannotate', index: i })) this.#editSettings();
       }, 'dc-ts-close')));
       parts.push(row);
@@ -2734,7 +2838,7 @@ export class TimeseriesView {
       if (!made) return;
       if (this.#edit({ kind: 'annotate', annotation: made })) this.#editSettings();
     }));
-    parts.push(addRow, el(doc, 'div', 'dc-ts-hint', 'Double-click the chart to put an event at that date.'));
+    parts.push(addRow, el(doc, 'div', 'dc-ts-hint', 'Double-click the chart to put an event at that date; Draw puts a line or a note on it.'));
     parts.push(...this.#marksFields(used), ...this.#shadeFields());
     this.#open('Settings', ...parts);
     this.#settings = true;

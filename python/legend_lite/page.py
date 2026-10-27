@@ -1829,7 +1829,11 @@ class Timeseries(Tile):
         'date': ..., 'label': ...}``, ``{'kind': 'period', 'from': ..., 'to': ..., 'label': ...}`` or marks from a grid's
         rows -- ``{'kind': 'marks', 'source': 'tr', 'where': [{'value': 'AAPL'}, {'column': 'side', 'value': 'BUY'}],
         'at': 'price', 'text': 'quantity', 'shape': 'up', 'label': 'Bought'}``, each row its source's matches pick at its
-        date, on its ``at`` column's value (absent: a line at its date) -- Settings' Add. Its marks: ``marks``."""
+        date, on its ``at`` column's value (absent: a line at its date) -- Settings' Add. Its marks: ``marks``. And a
+        person's own drawings, as the screen's Draw puts them: a line from a point to a point -- ``{'kind': 'line',
+        'from': {'date': '2024-01-02', 'value': 180}, 'to': {'date': '2024-06-28', 'value': 210}, 'pane': 0, 'label':
+        'Trend', 'color': 1}`` -- or a note pinned at one, ``{'kind': 'note', 'at': {...}, 'text': 'Bought here'}``, each
+        point a date and a value as its pane draws it (no figure of the database's; left out under a compare)."""
         return self._edit({'kind': 'annotate', 'annotation': dict(annotation)})
 
     def unannotate(self, index: int) -> Timeseries:

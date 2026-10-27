@@ -120,6 +120,46 @@ describe('the renderer that mounts a timeseries (timeseries-render.ts)', () => {
     }
   });
 
+  // Phase 5's drawings: a click while drawing read in the axes of the pane under it -- its date and its value -- and
+  // nothing told while not drawing; the line and the note drawn where their points are
+  it('while drawing, a click is the point under it in its pane\'s axes; its drawings drawn there', () => {
+    const el = { setAttribute: () => {}, ownerDocument: { defaultView: undefined } } as unknown as HTMLElement;
+    const points: [number, string, number][] = [];
+    let chart: echarts.ECharts | undefined;
+    const mounted = mountTimeseries(el, { onZoom: () => {}, onPoint: (pane, date, value) => points.push([pane, date, value]) }, () => {
+      chart = echarts.init(null, null, { renderer: 'svg', ssr: true, width: 720, height: 480 });
+      return chart;
+    });
+    try {
+      const ts = spec([S('A', 'close'), S('B', 'rsi($A, 2)', { pane: 1 })], {
+        annotations: [{ kind: 'line', from: { date: '2024-01-02', value: 100 }, to: { date: '2024-01-08', value: 105 }, label: 'Trend' },
+          { kind: 'note', at: { date: '2024-01-04', value: 60 }, text: 'Overbought', pane: 1 }],
+      });
+      const results = [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [105, 104, 102, 101, 100] }),
+        answered('B', 'number', { [TS_DATE]: DAYS, [TS_VALUE]: [80, 75, 60, 40, 20] }, { level: false })];
+      const option = timeseriesOption(ts, tsLines(ts, results, LIGHT_THEME).lines, { theme: LIGHT_THEME, view: {}, height: 480, drawing: true });
+      mounted.show({ ...option, animation: false } as EChartsOption, 'Close');
+      const svg = rendered({ ...option, animation: false } as EChartsOption).svg;
+      assert.ok(svg.includes('Trend') && svg.includes('Overbought'), 'the line\'s label and the note drawn');
+      const click = (pane: number, date: string, value: number): void => {
+        const [x, y] = chart!.convertToPixel({ seriesId: `drawings:${pane}` }, [date, value]) as unknown as number[];
+        chart!.getZr().trigger('click', { offsetX: x, offsetY: y });
+      };
+      click(1, '2024-01-05', 50);
+      assert.equal(points.length, 0, 'not drawing: a click is nothing');
+      mounted.draw(true);
+      click(1, '2024-01-05', 50);
+      click(0, '2024-01-03', 101.5);
+      assert.deepEqual(points.map(([p, d]) => [p, d]), [[1, '2024-01-05'], [0, '2024-01-03']], 'each in its pane, its day');
+      assert.ok(Math.abs(points[0]![2] - 50) < 0.5 && Math.abs(points[1]![2] - 101.5) < 0.05, `its value: ${points.map((p) => p[2])}`);
+      // a click outside every pane is nothing
+      chart!.getZr().trigger('click', { offsetX: 2, offsetY: 2 });
+      assert.equal(points.length, 2);
+    } finally {
+      mounted.dispose();
+    }
+  });
+
   // the Phase 2 review's 11: no test ran a picture's export through ECharts' SVG painter
   it('a picture made as SVG off the screen, by the SVG painter: its heading and its lines\' names in it', async () => {
     const { JSDOM } = await import('jsdom');

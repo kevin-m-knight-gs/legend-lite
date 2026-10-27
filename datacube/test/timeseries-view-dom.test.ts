@@ -81,7 +81,7 @@ interface Exported { option: EChartsOption; kind: 'png' | 'svg'; width: number; 
 
 function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over: TsGrid = grid): {
   view: TimeseriesView; root: HTMLElement; windows: HTMLElement; drawn: EChartsOption[]; told: TimeseriesSpec[]; zooms: unknown[];
-  exported: Exported[]; mounted: { on?: MountOn; measuring: boolean };
+  exported: Exported[]; mounted: { on?: MountOn; measuring: boolean; drawing: boolean };
 } {
   const g: TsGrid = refused === undefined ? over : {
     ...over,
@@ -95,11 +95,12 @@ function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over
   const told: TimeseriesSpec[] = [];
   const zooms: unknown[] = [];
   const exported: Exported[] = [];
-  const mounted: { on?: MountOn; measuring: boolean } = { measuring: false };
+  const mounted: { on?: MountOn; measuring: boolean; drawing: boolean } = { measuring: false, drawing: false };
   const mount = (_el: HTMLElement, on: MountOn): MountedTimeseries => {
     mounted.on = on;
     return {
       measure: (measuring) => { mounted.measuring = measuring; },
+      draw: (drawing) => { mounted.drawing = drawing; },
       show: (option) => { drawn.push(option); },
       zoomTo: (from, to) => { zooms.push({ from, to }); },
       zoomed: () => ({}),
@@ -380,6 +381,53 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
       barButton(root, 'Measure').click();
       assert.equal(box().hidden, true);
       assert.equal(mounted.measuring, false);
+    } finally {
+      view.dispose();
+    }
+  });
+
+  // Phase 5's drawings (TradingView's): a click in a pane is a point -- a line's two ends, a note's place and its text --
+  // each told as an annotation by the tile's one rule (Python's annotate), listed in Settings to take off
+  it('Draw: two clicks a line, a click and its text a note, each an annotation; Settings lists them; Measure ends it', async () => {
+    const { root, windows, drawn, told, view, mounted } = viewer(SPEC);
+    const box = (): HTMLElement => root.querySelector('.dc-ts-draw') as HTMLElement;
+    const ids = (): string[] => (drawn.at(-1)!.series as { id: string }[]).map((x) => x.id);
+    try {
+      await until(() => drawn.length > 0 && mounted.on !== undefined, 'the chart');
+      barButton(root, 'Draw').click();
+      assert.equal(mounted.drawing, true, 'a click is a point now, not a pan');
+      assert.equal(barButton(root, 'Draw').getAttribute('aria-pressed'), 'true');
+      assert.match(box().textContent ?? '', /Click where the line starts/);
+      await until(() => ids().includes('drawings:0'), 'the panes ready for a click');
+      const spx = of('SPX');
+      // its ends in either order: the line from the earlier
+      mounted.on!.onPoint!(0, spx.days[40]!, 3300);
+      assert.match(box().textContent ?? '', new RegExp(`From ${spx.days[40]}: click where it ends`));
+      assert.equal(told.length, 0, 'one end is no line yet');
+      mounted.on!.onPoint!(0, spx.days[10]!, 3123.456789);
+      assert.deepEqual(told.at(-1)!.annotations, [{ kind: 'line', from: { date: spx.days[10]!, value: 3123.46 }, to: { date: spx.days[40]!, value: 3300 } }],
+        'from its earlier end to its later, each value to six figures');
+      // a note: its place, then its text
+      const Event = root.ownerDocument.defaultView!.Event;
+      const kind = box().querySelector<HTMLSelectElement>('[aria-label="Draw"]')!;
+      kind.value = 'note';
+      kind.dispatchEvent(new Event('change'));
+      assert.match(box().textContent ?? '', /Click where the note goes/);
+      mounted.on!.onPoint!(0, spx.days[20]!, 3200);
+      const text = box().querySelector<HTMLInputElement>('[aria-label="Note"]')!;
+      text.value = 'Earnings beat';
+      [...box().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Add')!.click();
+      assert.deepEqual(told.at(-1)!.annotations!.at(-1), { kind: 'note', at: { date: spx.days[20]!, value: 3200 }, text: 'Earnings beat' });
+      await until(() => ((drawn.at(-1)!.series as { id: string; markPoint?: { data: { value?: string }[] } }[]).find((x) => x.id === 'drawings:0')?.markPoint?.data ?? [])
+        .some((d) => d.value === 'Earnings beat'), 'the note drawn');
+      // Settings lists them, to take off
+      barButton(root, 'Settings').click();
+      const listed = windows.querySelector('.dc-ts-window')!.textContent ?? '';
+      assert.ok(listed.includes(`Line ${spx.days[10]} at 3,123.46 → ${spx.days[40]} at 3,300`), listed);
+      assert.ok(listed.includes(`Note ${spx.days[20]} at 3,200: Earnings beat`), listed);
+      // measuring ends drawing
+      barButton(root, 'Measure').click();
+      assert.deepEqual([mounted.drawing, mounted.measuring, box().hidden], [false, true, true]);
     } finally {
       view.dispose();
     }
@@ -1221,7 +1269,7 @@ describe('asking the database what is shown, once', () => {
       title: () => 'Markets',
       codeOf: () => ({ title: 'Markets', sheet: 'sheet-1', grids: { prices: { tile: 'prices', title: 'Prices' }, prices2: { tile: 'prices2', title: 'Prices again' } } }),
       mount: () => ({
-        show: () => {}, zoomTo: () => {}, zoomed: () => ({}), highlight: () => {}, measure: () => {}, height: () => 480, picture: () => null,
+        show: () => {}, zoomTo: () => {}, zoomed: () => ({}), highlight: () => {}, measure: () => {}, draw: () => {}, height: () => 480, picture: () => null,
         exportUrl: () => Promise.reject(new Error('no picture here')), dispose: () => {},
       }),
     }, spec);

@@ -445,8 +445,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  411,500 -> 413,400 (2026-10-26, the user: "try as pure function ... can be datacube pure scripts" -- DataCube's Pure
  *  library (pure-library.ts: datacube::ts::mean, the returns, volatility), its text with the planner, which takes it
  *  after the model of a query that calls it (lite-planner.ts #over): a person's own query may call it too; no startup
- *  file added). Measured 412,861. */
-const BUDGET = 413_400;
+ *  file added). Measured 412,861.
+ *  413,400 -> 414,000 (2026-10-27, Phase 5's drawings, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: the spec's
+ *  reader of a person's own line and note -- each point a date and a value (timeseries-spec.ts TsPoint) -- which a saved
+ *  page is read by as it opens; no startup file added). Measured 413,496. */
+const BUDGET = 414_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -627,8 +630,9 @@ const BUDGET = 413_400;
  *  itself (timeseries-expr.ts exprSource), which a saved page's reader carries; the code itself is a chunk of the Query
  *  window's). Measured 399,611.
  *  399,900 -> 401,500 (2026-10-26, DataCube's Pure library with the planner -- the grid-only page's note of the same
- *  date). Measured 400,965. */
-const ENGINE_BUDGET = 401_500;
+ *  date). Measured 400,965.
+ *  401,500 -> 402,100 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date). Measured 401,506. */
+const ENGINE_BUDGET = 402_100;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -741,8 +745,12 @@ const CHART_BUDGET = 303_500;
  *  89,000 -> 91,500 (2026-10-27, Phase 6's D4, the user: "be able to plot trades" -- marks from a grid's rows, an
  *  annotation of their own: their query (timeseries-query.ts marksQuery, the `marks` ask), their reader and drawing
  *  (timeseries-option.ts tsMarks, the scatter of triangles, a line at a date), the viewer asking them beside the bounds
- *  and Settings adding them (ui/timeseries-view.ts #marksFields) -- the headroom ~2%). Measured 89,600. */
-const TIMESERIES_BUDGET = 91_500;
+ *  and Settings adding them (ui/timeseries-view.ts #marksFields) -- the headroom ~2%). Measured 89,600.
+ *  91,500 -> 95,000 (2026-10-27, Phase 5: the measure (a span's figures, ui/timeseries-view.ts #paintMeasure), shade
+ *  from a column (#shadeFields), and a person's drawings -- the Draw mode, its box, a line's two clicks and a note's text
+ *  (#draws, #pointed, #paintDraw), their drawing per pane (timeseries-option.ts `drawings:`), the renderer's click read
+ *  in a pane's axes (timeseries-render.ts) -- the headroom ~2%). Measured 93,025. */
+const TIMESERIES_BUDGET = 95_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -961,8 +969,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  427,100 -> 427,400 (2026-10-26, the user: "show all the pure queries used to create a timeseries chart" -- the Query
  *  window's styles for each question, app.css .dc-ts-ask). Measured 427,157.
  *  427,400 -> 429,200 (2026-10-26, DataCube's Pure library with the planner -- the grid-only page's note of the same
- *  date). Measured 428,652. */
-const WIDGET_BUDGET = 429_200;
+ *  date). Measured 428,652.
+ *  429,200 -> 429,900 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date -- and the drawing
+ *  box's style, app.css .dc-ts-draw). Measured 429,265. */
+const WIDGET_BUDGET = 429_900;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

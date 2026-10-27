@@ -15,7 +15,7 @@ import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { escapeHtml, periodText, type ChartTheme } from './chart-option.ts';
 import {
-  marksCut, marksName, MAX_PANES, TS_MARK_LIMIT, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsExpr, type TsMarks, type TsSeries,
+  marksCut, marksName, MAX_PANES, TS_MARK_LIMIT, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsAnnotation, type TsExpr, type TsMarks, type TsPoint, type TsSeries,
 } from './timeseries-spec.ts';
 import { boundsOf, exprText, inlined, seriesName, sourcesOf, splitName, type TsUnit } from './timeseries-expr.ts';
 import {
@@ -153,6 +153,17 @@ export function marksUnplaced(ts: TimeseriesSpec, lines: readonly TsLine[], mark
   return marked.flatMap((m) => m.marks.at === undefined ? []
     : ts.view?.compare !== undefined ? [`${m.name} are drawn at their ${m.marks.at}, the lines from one start (Compare): left out.`]
       : !panes.has(m.marks.pane ?? 0) ? [`${m.name} are drawn in pane ${(m.marks.pane ?? 0) + 1}, which draws no line.`] : []);
+}
+
+/** A person's drawings the tile leaves out, in words: every one under a compare (drawn on the values as they were, the
+ *  lines now from one start), and one in a pane that draws no line. */
+export function drawingsUnplaced(ts: TimeseriesSpec, lines: readonly TsLine[]): string[] {
+  const drawings = (ts.annotations ?? []).filter((a) => a.kind === 'line' || a.kind === 'note');
+  if (drawings.length === 0) return [];
+  if (ts.view?.compare !== undefined) return [`The drawings are on the values as they were drawn, the lines now from one start (Compare): left out.`];
+  const panes = new Set(panesOf(ts, lines).filter((p) => lines.some((l) => !l.series.hidden && !l.shades && (l.series.pane ?? 0) === p.index)).map((p) => p.index));
+  return drawings.flatMap((a) => panes.has(a.pane ?? 0) ? []
+    : [`${a.kind === 'line' ? `The line${a.label ? ` ${a.label}` : ''}` : `The note "${a.text}"`} is in pane ${(a.pane ?? 0) + 1}, which draws no line.`]);
 }
 
 /**
@@ -360,6 +371,10 @@ export interface TsDrawContext {
   /** Measuring (Phase 5): a drag is a span measured, so the chart does not pan; the span measured, shaded. */
   readonly measuring?: boolean;
   readonly span?: { readonly from: string; readonly to: string };
+  /** Drawing (Phase 5): a click is a point put in a pane, so the chart does not pan, and each pane carries its drawings'
+   *  series (timeseries-render.ts reads a click's point in its axes); a line's first end, put, shown until its second. */
+  readonly drawing?: boolean;
+  readonly drawFrom?: { readonly pane: number; readonly at: TsPoint };
 }
 
 /** A heading's line as it is drawn: one line (a note told with line breaks drawn over the panes below it -- the Phase 2
@@ -577,9 +592,10 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   // the annotations: a level on its pane, an event and a period across every pane -- hosted by an empty line per pane,
   // so they stand whatever lines are shown
   panes.forEach((p, gi) => {
-    const levels = (ts.annotations ?? []).filter((a) => a.kind === 'level' && (a.pane ?? 0) === p.index);
-    const events = (ts.annotations ?? []).filter((a) => a.kind === 'event');
-    const periods = (ts.annotations ?? []).filter((a) => a.kind === 'period');
+    type Of<K extends TsAnnotation['kind']> = Extract<TsAnnotation, { readonly kind: K }>;
+    const levels = (ts.annotations ?? []).filter((a): a is Of<'level'> => a.kind === 'level' && (a.pane ?? 0) === p.index);
+    const events = (ts.annotations ?? []).filter((a): a is Of<'event'> => a.kind === 'event');
+    const periods = (ts.annotations ?? []).filter((a): a is Of<'period'> => a.kind === 'period');
     if (levels.length + events.length + periods.length === 0) return;
     const label = (text: string | undefined, show: boolean): Record<string, unknown> => ({
       show: show && text !== undefined && text !== '', formatter: text ?? '', color: theme.inkSecondary, fontSize: 10, fontFamily: theme.font,
@@ -597,18 +613,15 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
         silent: true,
         animation: false,
         data: [
-          ...levels.map((a) => ({ yAxis: (a as { value: number }).value, label: { ...label(a.label, true), position: 'insideEndTop' }, lineStyle: { color: theme.muted, type: 'dashed', width: 1 } })),
-          ...events.map((a) => ({ xAxis: (a as { date: string }).date, label: { ...label(a.label, gi === 0), position: 'insideEndTop', rotate: 0 }, lineStyle: { color: theme.muted, type: 'solid', width: 1 } })),
+          ...levels.map((a) => ({ yAxis: a.value, label: { ...label(a.label, true), position: 'insideEndTop' }, lineStyle: { color: theme.muted, type: 'dashed', width: 1 } })),
+          ...events.map((a) => ({ xAxis: a.date, label: { ...label(a.label, gi === 0), position: 'insideEndTop', rotate: 0 }, lineStyle: { color: theme.muted, type: 'solid', width: 1 } })),
         ],
       },
       markArea: {
         silent: true,
         itemStyle: { color: theme.grid, opacity: 0.45 },
         label: { ...label(undefined, false) },
-        data: periods.map((a) => {
-          const pr = a as { from: string; to: string; label?: string };
-          return [{ xAxis: pr.from, label: { ...label(pr.label, gi === 0), position: 'insideTop' } }, { xAxis: pr.to }];
-        }),
+        data: periods.map((a) => [{ xAxis: a.from, label: { ...label(a.label, gi === 0), position: 'insideTop' } }, { xAxis: a.to }]),
       },
     });
   });
@@ -660,6 +673,53 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
       });
     }
   }
+  // a person's own drawings: each line from its point to its point, each note at its point, in its pane, on its pane's
+  // first line's axis -- the values as the pane draws them; none under a compare, whose values are the lines' from one
+  // start, nor in a pane that draws no line (said: drawingsUnplaced). While drawing, every such pane has the series, so a
+  // click is read in its axes.
+  panes.forEach((p, gi) => {
+    if (ts.view?.compare !== undefined) return;
+    const mine = (ts.annotations ?? []).filter((a) => (a.kind === 'line' || a.kind === 'note') && (a.pane ?? 0) === p.index);
+    const from = ctx.drawFrom?.pane === p.index ? ctx.drawFrom.at : undefined;
+    if (mine.length === 0 && ctx.drawing !== true) return;
+    const axis = placed.find((x) => x.grid === gi)?.yAxis;
+    if (axis === undefined) return;
+    const colorOf = (slot: number | undefined): string => (slot === undefined ? theme.ink : theme.series[slot % theme.series.length]!);
+    series.push({
+      id: `drawings:${p.index}`,
+      type: 'line',
+      xAxisIndex: gi,
+      yAxisIndex: axis,
+      data: [],
+      silent: true,
+      tooltip: { show: false },
+      markLine: {
+        symbol: 'none',
+        silent: true,
+        animation: false,
+        data: mine.flatMap((a) => (a.kind !== 'line' ? [] : [[
+          { coord: [a.from.date, a.from.value], lineStyle: { color: colorOf(a.color), width: 1.5, type: 'solid' },
+            label: { show: a.label !== undefined, formatter: a.label ?? '', position: 'end', color: theme.inkSecondary, fontSize: 10, fontFamily: theme.font } },
+          { coord: [a.to.date, a.to.value] },
+        ]])),
+      },
+      markPoint: {
+        silent: true,
+        animation: false,
+        symbol: 'pin',
+        symbolSize: 26,
+        itemStyle: { color: theme.inkSecondary },
+        data: [
+          ...mine.flatMap((a) => (a.kind !== 'note' ? [] : [{
+            coord: [a.at.date, a.at.value], value: a.text,
+            label: { show: true, formatter: a.text, position: 'right', color: theme.ink, fontSize: 11, fontFamily: theme.font },
+          }])),
+          // a line's first end, until its second is put
+          ...(from === undefined ? [] : [{ coord: [from.date, from.value], symbol: 'circle', symbolSize: 8, itemStyle: { color: theme.ink }, label: { show: false } }]),
+        ],
+      },
+    });
+  });
   // the span a person measures, shaded across every pane
   if (ctx.span !== undefined) {
     const span = ctx.span;
@@ -701,7 +761,7 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   const view = ctx.view ?? {};
   const zoomAt = { ...(view.from !== undefined ? { startValue: view.from } : {}), ...(view.to !== undefined ? { endValue: view.to } : {}) };
   const dataZoom: Record<string, unknown>[] = [
-    { type: 'inside', xAxisIndex: allX, filterMode: 'filter', zoomOnMouseWheel: true, moveOnMouseMove: ctx.measuring !== true, ...zoomAt },
+    { type: 'inside', xAxisIndex: allX, filterMode: 'filter', zoomOnMouseWheel: true, moveOnMouseMove: ctx.measuring !== true && ctx.drawing !== true, ...zoomAt },
   ];
   if (navigator) {
     dataZoom.push({
