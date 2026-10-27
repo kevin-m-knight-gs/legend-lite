@@ -3808,6 +3808,9 @@ class Flows(Paged):
             page.set_parameter('min', 'many')
         with self.assertRaisesRegex(ValueError, "what DataCube's own expressions call"):
             page.parameter('x', 'Integer', 1)
+        # a type no parameter has: refused in DataCube's words, never read as a column's type
+        with self.assertRaisesRegex(ValueError, 'rate is a String, Integer, Float, Decimal, Boolean, StrictDate, DateTime, not "Money"'):
+            page.parameter('rate', 'Money', 1)
         with self.assertRaisesRegex(ValueError, "'nope' is not a parameter"):
             page.set_parameter('nope', 1)
         page.remove_parameter('min')

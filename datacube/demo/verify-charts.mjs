@@ -230,6 +230,9 @@ try {
     // a window beside its chart, not over it, wholly on the screen (the user, 2026-10-25: "near the chart but not
     // covering, and not half off the screen")
     await form.waitFor();
+    // its sections are painted once the form's own chunk is in (ui/chart-panel.ts #paintForm, a lazy import): the window
+    // is on the page before them, so what is read of them below waits for them (CI read none, 2026-10-27, PR #79)
+    await form.locator('.dc-section-title').first().waitFor();
     const placed = await page.evaluate((chart) => {
       const win = document.querySelector('.dc-chart-options').getBoundingClientRect();
       const at = document.querySelector(`[data-tile="${chart}"] .dc-chart-tile`).getBoundingClientRect();

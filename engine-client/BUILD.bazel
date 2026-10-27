@@ -271,6 +271,7 @@ test_suite(
         ":arrow_ipc_test",
         ":model_data_test",
         ":node_duckdb_test",
+        ":plan_runner_test",
         ":snap_test",
         ":update_generated_test",
         ":warehouse_corpus_test",

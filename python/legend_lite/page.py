@@ -51,7 +51,7 @@ from ._extra import require_datacube
 require_datacube()
 
 from . import _commands, _json
-from ._types import is_boolean, is_decimal, is_float, is_integer, is_number
+from ._types import UnknownType, is_boolean, is_decimal, is_float, is_integer, is_number
 from .keeper import Refused, Settled
 
 _KEEP: Any = object()
@@ -66,8 +66,14 @@ _RUN_HISTORY = 20
 
 def _parameter_value(type: str, value: Any) -> Any:
     """A parameter's value as the page keeps it: a Decimal's as its digits' text, its scale kept, as the parameters bar
-    keeps what is typed (ui/page-parameter-bar.ts) -- never a float's nearest; any other as JSON says it."""
-    if type == 'Decimal' and isinstance(value, (Decimal, numbers.Number)) and not isinstance(value, bool):
+    keeps what is typed (ui/page-parameter-bar.ts) -- never a float's nearest; any other as JSON says it. A type no
+    parameter has is DataCube's to refuse, in its words (page-parameters.ts parameterProblem): its value is handed on as
+    given, never converted by a guess."""
+    try:
+        decimal = is_decimal(type)
+    except UnknownType:
+        return _plain(value)
+    if decimal and isinstance(value, (Decimal, numbers.Number)) and not isinstance(value, bool):
         return str(value)
     return _plain(value)
 
@@ -3059,7 +3065,7 @@ class Page:
     @property
     def parameters(self) -> dict[str, Any]:
         """Its parameters' values, by name, in the page's order."""
-        return {p['name']: Decimal(p['value']) if p['type'] == 'Decimal' and isinstance(p['value'], str) else copy.deepcopy(p['value'])
+        return {p['name']: Decimal(p['value']) if is_decimal(p['type']) and isinstance(p['value'], str) else copy.deepcopy(p['value'])
                 for p in self._doc.get('parameters', [])}
 
     def remove_parameter(self, name: str) -> None:
