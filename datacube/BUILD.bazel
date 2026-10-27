@@ -243,6 +243,8 @@ _EXTRA_ENV = {
 # DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
 _DUCKDB_USERS = [
     "timeseries-queries",
+    # the Pure library spike: one function of each family against today's writer (2026-10-27)
+    "pure-library-spike",
     "timeseries-view-dom",
     # chart queries planned and run (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2)
     "chart-queries",
@@ -347,6 +349,7 @@ _EXTRA_DATA = {
 # own WASM module, loaded by test/catalog-builder.ts
 _WASM_TESTS = [
     "timeseries-queries",
+    "pure-library-spike",
     "timeseries-view-dom",
     "calc-fix",
     "chart-queries",
@@ -631,6 +634,8 @@ _HEADLESS_LEFT_OUT = {
     # a timeseries tile's queries against gs-quant's figures, their rows read in as chart-queries' are (2026-10-25, the
     # timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md; dated by the review's A9)
     "timeseries-queries": "a picked File, read as the page's stream",
+    # the Pure library spike's prices read in as timeseries-queries' are (2026-10-27)
+    "pure-library-spike": "a picked File, read as the page's stream",
     # the lane's own stand-ins and web layer, held to Node's built-ins: they need the Node they compare against
     "headless-assert": "node:assert/strict, its reference",
     "headless-test-runner": "node:test's own run, its reference",
