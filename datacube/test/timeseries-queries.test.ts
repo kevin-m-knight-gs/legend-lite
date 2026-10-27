@@ -2052,6 +2052,38 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
   });
 });
 
+// the review's N7 (docs/TIMESERIES_REVIEW_2026_10_25.md §9): a period was dated at its last row though that row's value
+// was none -- its value an earlier day's, its date the month's last
+describe('a period of a column dated at its last row with a value', () => {
+  // each month's last weekday without a close, its volume there
+  const lastOfMonth = DAYS.map((d, i) => DAYS[i + 1]?.slice(0, 7) !== d.slice(0, 7));
+  let gaps: TsInputs;
+  let gapPlanner: LitePlanner;
+  before(async () => {
+    const csv = ['symbol,day,close,volume', ...DAYS.map((d, i) => `G,${d},${lastOfMonth[i] ? '' : AAA[i]},${VOL[i]}`)].join('\n');
+    const r = await ingestFile(engine, files, new File([csv], 'gaps.csv'), writer, { table: 'gaps' });
+    gapPlanner = plannerFor(r.model, r.runtime);
+    gaps = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r.source } }, filter: undefined }]]);
+  });
+  const gapLine = async (text: string, grain: TimeseriesSpec['grain']): Promise<{ dates: string[]; values: Line }> => {
+    const ts = spec({ A: text }, grain === undefined ? {} : { grain });
+    const t = await engine.execute(await gapPlanner.plan(seriesQuery(gaps, ts, ts.series[0]!).query), 0);
+    return { dates: values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse(), values: values(t, TS_VALUE).map(num).reverse() };
+  };
+
+  it('a month whose last row has no value: dated at the day its value is of', async () => {
+    const months = [...new Set(DAYS.map((d) => d.slice(0, 7)))];
+    const withValue = DAYS.map((_, i) => i).filter((i) => !lastOfMonth[i]);
+    const lastWith = months.map((m) => withValue.filter((i) => DAYS[i]!.startsWith(m)).at(-1)!);
+    const l = await gapLine('close[G]', 'month');
+    assert.deepEqual(l.dates, lastWith.map((i) => DAYS[i]), 'each month at its last close\'s day');
+    close(l.values, lastWith.map((i) => AAA[i]!), 'its last close');
+    // a sum of the volume, which every day has, dated at the month's last day still
+    const v = await gapLine('volume[G].sum', 'month');
+    assert.deepEqual(v.dates, months.map((m) => DAYS.filter((d) => d.startsWith(m)).at(-1)!), 'the volume\'s last day');
+  });
+});
+
 // a date-time source at a frequency (the library review, 2026-10-27): a period's days are counted from its last
 // observation's time, never from its date -- an accrual over 23 hours is 23/24 of a day, a week from the first tick is
 // a week of hours
@@ -2108,6 +2140,23 @@ describe('a date-time source at a daily frequency: a period\'s days its last obs
       if (rebalanced.has(i)) units = [0.6 * out[i]! / SC[i]!, 0.4 * out[i]! / BC[i]!];
     }
     close(await tickLine('basket(close[S], 0.6, close[B], 0.4, rebalance=weekly)'), out, 'weekly basket', 1e-9);
+  });
+});
+
+// the review's Q12 (docs/TIMESERIES_REVIEW_2026_10_25.md §9): a cut at a count of rows kept some of a split's lines at
+// its oldest date and not others
+describe('a series cut at its most points keeps whole dates', () => {
+  it('every line at each date it keeps, the date it crossed at too', async () => {
+    const ts = spec({ A: 'close' }, {}, 'symbol');
+    const datesOf = (t: ResultTable): string[] => values(t, TS_DATE).map((d) => String(d).slice(0, 10));
+    const perDate = (t: ResultTable): Map<string, number> => datesOf(t).reduce((m, d) => m.set(d, (m.get(d) ?? 0) + 1), new Map<string, number>());
+    const all = perDate(await run(seriesQuery(inputs, ts, ts.series[0]!, {}, {}, null)));
+    const cut = await run(seriesQuery(inputs, ts, ts.series[0]!, {}, {}, 7));
+    for (const [d, n] of perDate(cut)) assert.equal(n, all.get(d), `${d}: every line it has`);
+    // the latest three dates (3, 2 and 2 rows) are 7; the fourth, the one it crossed at, kept beside them
+    const kept = [...new Set(datesOf(cut))];
+    assert.deepEqual(kept, [...all.keys()].slice(0, 4));
+    assert.equal(datesOf(cut).filter((d) => d !== kept.at(-1)).length, 7, 'the dates after the one it crossed at');
   });
 });
 

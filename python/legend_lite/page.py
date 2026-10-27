@@ -1879,7 +1879,6 @@ class Timeseries(Tile):
         """A series' frame (``frame``) as ``asked``, and its answer's words."""
         import pandas as pd
         engine = self._page._session.headless()
-        series = asked['series']
         rows, said = self._rows(asked)
         # what its rows say a reader should know -- several rows a date, no frequency to annualize by -- said as the
         # screen says them, by its rule (headless timeseriesNotes; the second audit's P-3: the frame dropped them)
@@ -1908,20 +1907,17 @@ class Timeseries(Tile):
             out = rows.pivot(index=named['date'], columns=named['split'], values=named['value'])
             out.columns.name = said['split']
         else:
-            out = rows.set_index(named['date'])[[named['value']]].rename(columns={named['value']: said['name'] or series})
+            out = rows.set_index(named['date'])[[named['value']]].rename(columns={named['value']: said['name'] or said['series']})
         out.index.name = 'date'
         return out.sort_index(), said
 
     def _asked(self, series: str | None, start: str | None, end: str | None, anchor: str | None = None) -> dict[str, Any]:
-        """What is asked of series ``series`` (None: its first) over the dates ``start`` to ``end``; ``anchor``, the first
-        date shown where every date is kept (an index's base)."""
-        spec = self._view['spec']
-        if series is None:
-            if not spec['series']:
-                raise ValueError(f'{self!r} plots no series')
-            series = spec['series'][0]['id']
+        """What is asked of series ``series`` (None: its first, by DataCube's rule -- headless seriesOf -- which its answer
+        names: the review's §9 A, a first chosen here had been Python's own rule) over the dates ``start`` to ``end``;
+        ``anchor``, the first date shown where every date is kept (an index's base)."""
         window = {k: v for k, v in (('from', start), ('to', end)) if v is not None}
-        return {'page': self._page._doc, 'tile': self._id, 'series': series, 'window': window, **({'anchor': anchor} if anchor is not None else {})}
+        return {'page': self._page._doc, 'tile': self._id, **({'series': series} if series is not None else {}), 'window': window,
+                **({'anchor': anchor} if anchor is not None else {})}
 
     def _query(self, asked: dict[str, Any]) -> tuple[Any, Mapping[str, Any], dict[str, Any]]:
         """One of the tile's queries, its base and its answer's words: asked of DataCube headless (timeseriesQuery: a

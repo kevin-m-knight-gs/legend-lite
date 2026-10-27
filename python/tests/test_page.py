@@ -856,6 +856,8 @@ class Document(Paged):
         tile.options(view=None, grain=None)
         a = tile.frame('A')
         self.assertEqual(list(a.columns), ['A'])
+        # none named: the tile's first, by DataCube's rule (headless seriesOf), its answer naming it (the review's §9 A)
+        self.assertTrue(tile.frame().equals(a), 'its first series, A')
         self.assertEqual([d.strftime('%Y-%m-%d') for d in a.index], ['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05'])
         self.assertEqual(list(a['A']), [100.0, 101.0, 99.5, 102.0])
         both = tile.frame('C')
@@ -1090,8 +1092,9 @@ class Document(Paged):
         tile.options(view={'mode': 'histogram'})
         kinds = [(q['kind'], q.get('series')) for q in tile.queries()]
         self.assertEqual(kinds[3], ('histogram', 'A'))
-        # a series' points as the screen draws them, as query() reads them, but for the drawing's limit
-        self.assertIn('limit', asked[1]['pure'])
+        # a series' points as the screen draws them, as query() reads them, but for the drawing's limit: whole dates, the
+        # date it crosses at kept too (timeseries-query.ts seriesQuery, the review's Q12)
+        self.assertIn('ts_cut_first <= 100001', asked[1]['pure'])
 
     def test_a_timeseries_writes_the_code_that_builds_it_and_the_python_builds_it_again(self):
         # the user, 2026-10-26: "an option that shows how exactly to build that chart programmatically from TS and python"

@@ -812,7 +812,7 @@ function periodTyped(sh: Shared, type: string, alias: string): void {
 
 /**
  * A COLUMN'S OWN PART (steps 1 and 2): its source's rows -- the grid's filter as the tile reads it, the column's matches,
- * a date on every row -- each row's period at the tile's frequency, grouped by it (and by the split, a column of the
+ * a date and a value on every row -- each row's period at the tile's frequency, grouped by it (and by the split, a column of the
  * source the series reads first, unless it matches one value of it), the column taken by its period's aggregate, the
  * periods it has a value in alone (the review's Q1). A `last` or `first` counts the rows tied at the latest (earliest)
  * time, so the drawing says when one was taken of several (the review's Q7).
@@ -825,7 +825,9 @@ function columnPart(sh: Shared, n: Extract<TsExpr, { kind: 'column' }>): Node {
   const s = input.snapshot;
   const typeOf = (c: string): string | undefined => typeIn(s, c);
   const dateType = typeOf(src.date);
-  const conditions: ValueSpecification[] = [fn('isNotEmpty', col(src.date))];
+  // its rows with a date and a value: a period dated at its last row with one, the date its value is of (the review's
+  // N7: a month whose last row had none was dated at it, its value an earlier day's)
+  const conditions: ValueSpecification[] = [fn('isNotEmpty', col(src.date)), fn('isNotEmpty', col(b.column))];
   const filter = filterRead(src, input.filter);
   if (filter) conditions.push(filterNode(filter, 'x', typeOf));
   const match = matched(s, src.key, b.where);
@@ -1915,13 +1917,13 @@ export function seriesSources(ts: TimeseriesSpec, series: TsSeries): string[] {
 
 /**
  * A SERIES' QUERY: its periods (and split values), latest first, each with its value -- or a band's lower and upper
- * -- at most TS_POINT_LIMIT of them. `view.from`: the first date shown, an index's base (readsAnchor). `clip`: the dates
+ * -- at most `limit` of them (TS_POINT_LIMIT, the drawing's), whole dates, and the date the cut crossed at. `view.from`: the first date shown, an index's base (readsAnchor). `clip`: the dates
  * its answer keeps (a host reading a window: Python's Timeseries.frame) -- kept by the database after every value is
  * computed over every date, so a window's first values have their history (a 63-day volatility its 63 days); absent,
  * every date (the viewer's, which zooms over them).
  */
 export function seriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, view: TsWindow = {}, clip: TsWindow = {},
-  limit: number | null = TS_POINT_LIMIT + 1): TsQuery {
+  limit: number | null = TS_POINT_LIMIT): TsQuery {
   const b = seriesRelation(inputs, ts, series, view.from);
   const out: ColSpec[] = [
     derive(TS_DATE, row(col(b.at))),
@@ -1940,8 +1942,19 @@ export function seriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeri
   if (clip.from !== undefined) within.push(fn('greaterThanEqual', one(b.at), dateLiteral(clip.from, b.periodType)));
   if (clip.to !== undefined) within.push(fn('lessThanEqual', one(b.at), dateLiteral(`${clip.to}${isDay(b.periodType) ? '' : 'T23:59:59'}`, b.periodType)));
   if (within.length > 0) rel = rel.filter(row(and(...within)));
-  rel = rel.select(out.map((c) => c.name)).sort([desc(TS_DATE)]);
-  if (limit !== null) rel = rel.limit(limit);
+  rel = rel.select(out.map((c) => c.name));
+  if (limit !== null) {
+    // A CUT KEEPS WHOLE DATES (the review's Q12: a cut at a count of rows kept some of a split's lines at its oldest date
+    // and not others): each date's rows kept while the rows of the dates after it are at most `limit` -- the date it
+    // crosses at kept too, so a reader knows there are more and draws the dates after it alone -- the database's
+    const rn = `${WINDOW_ALL_PREFIX}ts_cut_rn`;
+    const first = `${WINDOW_ALL_PREFIX}ts_cut_first`;
+    rel = rel.extend([derive(rn, lambda(['p', 'w', 'r'], fn('rowNumber', variable('p'), variable('r'))))], fn('over', collection([desc(TS_DATE)])))
+      .extend([agg(first, lambda(['p', 'w', 'r'], Writer.read(rn)), lambda(['y'], fn('min', variable('y'))))], fn('over', colSpecs([TS_DATE])))
+      .filter(row(fn('lessThanEqual', col(first), lit.integer(limit + 1))))
+      .select(out.map((c) => c.name));
+  }
+  rel = rel.sort([desc(TS_DATE)]);
   return {
     series: series.id,
     query: rel.lambda(),

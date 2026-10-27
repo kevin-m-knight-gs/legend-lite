@@ -15,7 +15,8 @@ import { curveColumns, TS_SPLIT as SPLIT } from '../src/timeseries-query.ts';
 import { curveNotes, curveOption } from '../src/timeseries-views.ts';
 import { tickText, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, tsHeading, tsLines, tsPictureHeight, valueText, type TsResult } from '../src/timeseries-option.ts';
 import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
-import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
+import { TS_POINT_LIMIT, type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
+import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { TsUnit } from '../src/timeseries-expr.ts';
 
 const DAYS = ['2024-01-04', '2024-01-03', '2024-01-02'];
@@ -62,6 +63,21 @@ describe('the lines, from what the database answered', () => {
       answered('B', 'same', { [TS_DATE]: ['2024-01-02'], [TS_VALUE]: [100], [TS_SPLIT]: ['SPX'] }, { split: 'symbol' }),
     ], LIGHT_THEME);
     assert.deepEqual(lines.map((l) => l.name), ['Yield 2Y', 'Yield 10Y', 'SPX']);
+  });
+
+  // the review's Q12: a cut keeps whole dates, the date it crossed at last (timeseries-query.ts seriesQuery) -- that
+  // date left out of the drawing, so every line ends at the same date
+  it('a split series over the point limit: the date the cut crossed at left out, every line from the same date', () => {
+    const ts = spec([S('A', 'close', { split: 'symbol' })]);
+    // two lines a date, the limit's dates whole, and one more date of them (the crossed): latest first
+    const n = TS_POINT_LIMIT / 2 + 1;
+    const day = (i: number): string => new Date(Date.UTC(2000, 0, 1) + (n - i) * 86_400_000).toISOString().slice(0, 10);
+    const dates = Array.from({ length: n }, (_, i) => [day(i), day(i)]).flat();
+    const { lines, notes } = tsLines(ts, [answered('A', 'same', {
+      [TS_DATE]: dates, [TS_VALUE]: dates.map((_, i) => i), [TS_SPLIT]: dates.map((_, i) => (i % 2 === 0 ? 'X' : 'Y')),
+    }, { split: 'symbol' })], LIGHT_THEME);
+    assert.deepEqual(lines.map((l) => [l.points.length, l.points[0]![0]]), [[n - 1, day(n - 2)], [n - 1, day(n - 2)]], 'both from the same date');
+    assert.deepEqual(notes, [`close: its latest dates, ${TS_POINT_LIMIT.toLocaleString(UI_LOCALE)} points (it has more).`]);
   });
 
   it('a band: its edges and its width, point by point', () => {

@@ -811,7 +811,7 @@ dated budget notes; every figure still the database's.
   instruments, their sectors, and trades on them -- beside the corpus's seed, which stays as it is (its five quotes are
   an oracle's: a quote with no time, one of an instrument that is not there). D2: core plans and runs a library call
   over a projected class through the stress mapping, on DuckDB, and the cost of planning through a mapping is measured
-  (`//python:engine_test` is near its limit in a cloud container). D3: the stress model a sample project a page opens,
+  (measured 2026-10-27 over today's tables: `//python:engine_test` ran its 320 tests in 310 s in a cloud container, the timeseries' about 16 s of it, the library's planning a part of those; main's CI ran it in about 137 s -- the keeper's convergence test the longest, 36 s here). D3: the stress model a sample project a page opens,
   the tile over a class-source grid, the samples, the gallery and the tests from classes; a table stays a source a person
   may use, no longer the one shown. D4: trades as buy and sell marks on the price line, from `Trade.all()->project(...)`
   -- Phase 5's events from a grid, made concrete. D5: lines split and filtered by reference data through the

@@ -125,7 +125,14 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
     const splits = column(t, TS_SPLIT);
     const runFrom = column(t, TS_FROM);
     const runTo = column(t, TS_TO);
-    if (t.rowCount > TS_POINT_LIMIT) notes.push(`${seriesName(s)}: its latest ${TS_POINT_LIMIT.toLocaleString(UI_LOCALE)} points (it has more).`);
+    // the rows came latest first (the query's order, so a cut keeps the latest), whole dates, the date a cut crossed at
+    // last (timeseries-query.ts seriesQuery: the review's Q12) -- that date left out, every line ending at the same date
+    let count = t.rowCount;
+    if (count > TS_POINT_LIMIT) {
+      const crossed = String(dates[count - 1]);
+      while (count > 0 && String(dates[count - 1]) === crossed) count--;
+      notes.push(`${seriesName(s)}: its latest dates, ${count.toLocaleString(UI_LOCALE)} points (it has more).`);
+    }
     // what its rows say a reader should know -- several rows a date, no frequency to annualize by -- by the rule
     // Python's frame says them by too (timeseries-query.ts seriesNotes)
     notes.push(...seriesNotes(ts, s, t, r.query.sources[0]));
@@ -133,9 +140,8 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
     if (ts.panes?.[s.pane ?? 0]?.log === true && !r.query.level) {
       notes.push(`${seriesName(s)} is no level (it may be zero or below), so its axis is not on a log scale.`);
     }
-    // the rows came latest first (the query's order, so a cut keeps the latest): each line's, oldest first
+    // each line's, oldest first
     const groups = new Map<string, { split: Scalar | undefined; at: number[] }>();
-    const count = Math.min(t.rowCount, TS_POINT_LIMIT);
     for (let i = count - 1; i >= 0; i--) {
       const split = splits ? splits[i] ?? null : undefined;
       const k = split === undefined ? '' : JSON.stringify(split);

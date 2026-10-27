@@ -455,3 +455,42 @@ in what the words claimed, and in what was refused. Each fix pinned by a test th
 
 Not changed: the tests' gaps the review named beyond these (a capture's benchmark exactly 0, stochastic's flat window,
 a date-time source's weekly basket and yield) are boundaries the queries state in words; they are left as they are.
+
+## 16. §9's follow-ups, closed (2026-10-27)
+
+Each of §9's rows, fixed and pinned by a test that failed first, or decided and said why.
+
+- N7, a period dated at its last row though that row's value was none: a column's periods are of its rows with a
+  value (`columnPart`), so a month whose last row has none is dated at the day its value is of. Pinned:
+  `timeseries-queries` ("a period of a column dated at its last row with a value").
+- Q12, the point limit cut a split's lines unevenly: a cut keeps whole dates -- each date's rows while the rows of the
+  dates after it are at most the limit, the date it crosses at kept too -- the database's (`seriesQuery`), and the
+  drawing leaves that date out, every line ending at the same date (`tsLines`). Pinned: `timeseries-queries` ("a series
+  cut at its most points keeps whole dates"), `timeseries-option` ("a split series over the point limit").
+- A, Python's `frame()` chose its first series by a rule of its own: none asked, DataCube's headless `seriesOf` takes
+  the tile's first and its answer names it (`series`); Python asks no series and reads the name back. Pinned:
+  `test_page` (`tile.frame()` is `tile.frame('A')`).
+- A, a source told as `{'grid': g}` read with no alias: checked, holding -- its alias is DataCube's (headless
+  `timeseriesMade`'s `aliasFor`, the rule the screen's Create ▸ Timeseries names a source by, `timeseries-edit.ts`).
+- G9's rest: the dangling doc comment in `chart-render.ts` is `ChartPicture`'s again; the cube-page-shell G4 test
+  holds that the tile says the same over the kept cube as over its grid (it had read only that it did not say "not on
+  the page"); its date stays a column of no date type, as the stub planner draws nothing (the drawing is the chart-tiles
+  A-B1 test's).
+- Decided, kept:
+  - P6, `frame()` pivots and sorts in pandas: the shape of rows the database computed, no figure.
+  - P7, a date-time range start cut to its day: the range buttons name days (1M, YTD); a Decimal read as a double for
+    the legend, the statistics and the CSV: what JavaScript holds, its digits beyond a double's said by no figure
+    (the database computes each, in its own type).
+  - P8, a split's lines kept at 20 by the database's own text order (deterministic, said in the views' note: "The
+    first 20 lines by their text") and drawn in a person's reading order (2Y before 10Y): which lines is the database's,
+    their order on screen the drawing's.
+  - A cube alone (not a page) saves no grid it added: the cube alone's save, said in A-B1's commit.
+  - A tile on a sheet not shown exports no picture: an export draws what its sheet shows, as a chart on it does.
+- Registered, not built: the tab's snapped-copy branch of a combination (`tabSources`, a grid's copy read as
+  `{_type: 'copy'}`) is run only by the browser harness without a snapped grid; its shared path (`join-open.ts`) is
+  tested. A step in `demo/verify-charts.mjs` that snaps a grid of a combination would run it.
+- `//datacube:verify_app_test`: run as an unprivileged user (its embedded Postgres refuses root), green.
+- The planning cost of the library (the roadmap's C), measured: `//python:engine_test`'s 320 tests ran in 310 s in a
+  cloud container (unittest's durations), the timeseries tests about 16 s of it and the keeper's convergence test the
+  longest (36 s); main's CI ran the lane's test in about 137 s (run 40502527150), under its 300 s. Sending a query
+  only the functions it calls would compile a model again for each set where today it compiles once a model: not done.

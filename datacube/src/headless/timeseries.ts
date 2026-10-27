@@ -194,7 +194,8 @@ export function timeseriesEdit(page: string, tile: string, given: string): strin
 export interface SeriesAsked {
   readonly page: unknown;
   readonly tile: string;
-  readonly series: string;
+  /** The series asked; absent, the tile's first (seriesOf), its id said in the answer. */
+  readonly series?: string;
   /** The first date it is read from (an index's base, compare's), and the last; absent, every date. */
   readonly window?: TsWindow;
   /** The first date shown, where the dates kept are every one (`window` absent): an index's base, compare's, as the
@@ -459,7 +460,8 @@ const ANSWER = `"columns":${JSON.stringify({ date: TS_DATE, value: TS_VALUE, spl
 /** A series' query as a host reads it: its unit, whether a band or candles, its split and its name, beside the query. */
 export function answerOf(q: TsQuery, series: TsSeries): string {
   return `${ANSWER},"unit":${JSON.stringify(q.unit)},"band":${JSON.stringify(q.band)},"candles":${JSON.stringify(q.candles === true)},`
-    + `"shade":${JSON.stringify(q.shade === true)},"split":${JSON.stringify(q.split ?? null)},"name":${JSON.stringify(series.name ?? null)}`;
+    + `"shade":${JSON.stringify(q.shade === true)},"split":${JSON.stringify(q.split ?? null)},"name":${JSON.stringify(series.name ?? null)},`
+    + `"series":${JSON.stringify(series.id)}`;
 }
 
 /**
@@ -488,7 +490,7 @@ export function timeseriesLineNames(page: string, tile: string, series: string, 
  */
 export function timeseriesNotes(asked: string): string {
   try {
-    const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series: string; readonly columns: Readonly<Record<string, unknown>> };
+    const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series?: string; readonly columns: Readonly<Record<string, unknown>> };
     const { ts, series } = seriesOf(readPage(a.page, { empty: true }), a.tile, a.series);
     const columns = [[TS_SPLIT, a.columns['split']], [TS_ROWS, a.columns['rows']], [TS_PER_YEAR, a.columns['perYear']]] as const;
     const told = columns.flatMap(([name, values]) => {
@@ -516,10 +518,17 @@ export function libraryOf(said: string): string {
 }
 
 /** A timeseries tile's series of a page, by their ids, or a refusal naming what is not there. */
-export function seriesOf(page: PageDocument, tile: string, id: string): { readonly ts: TimeseriesSpec; readonly series: TsSeries } {
+export function seriesOf(page: PageDocument, tile: string, id: string | undefined): { readonly ts: TimeseriesSpec; readonly series: TsSeries } {
   const view = page.views.find((v) => v.id === tile);
   if (!view || view.kind !== 'timeseries') throw new Problem(`'${tile}' is no timeseries tile of the page`);
   const ts = view.spec;
+  // none asked: the tile's first -- DataCube's rule, which a host names in its answer (`series`), never a host's own
+  // (the review's §9 A: Python's frame() chose it by a rule of its own)
+  if (id === undefined) {
+    const first = ts.series[0];
+    if (first === undefined) throw new Problem(`${tile} plots no series`);
+    return { ts, series: first };
+  }
   const series = ts.series.find((x) => x.id === id);
   if (!series) throw new Problem(`${tile} has no series ${id} (it has ${ts.series.map((x) => x.id).join(', ')})`);
   return { ts, series };
