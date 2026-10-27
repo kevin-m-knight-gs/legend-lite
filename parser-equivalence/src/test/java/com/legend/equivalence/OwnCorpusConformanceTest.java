@@ -275,7 +275,10 @@ class OwnCorpusConformanceTest {
                 // 17 -> 18 (2026-10-27, REVIEWED, docs/SEMANTICS_REGISTER.md S113): RelationGeneric's
                 // dropsItsWorkingColumns (test::fromMean<T,X,V,O>, ColSpec<X⊆T>), a generic function that drops the
                 // working column it made with without
-                Map.entry("PURE-DIALECT-signatures", 18),
+                // 18 -> 19 (2026-10-27, REVIEWED, S112's hygiene, the user's "yes take all your suggestions"):
+                // RelationGeneric's aDeclaredColumnKeepsItsName (test::counted<T>, Relation<T+(n:Integer)>), a declared
+                // literal column leaving under its own name
+                Map.entry("PURE-DIALECT-signatures", 19),
                 Map.entry("PURE-DIALECT-xstore-tolerance", 1),
                 Map.entry("TEST-MACHINERY-fixture", 1)));
         // F3.7: EXACT accounting, both directions (the FixtureCorpusParity

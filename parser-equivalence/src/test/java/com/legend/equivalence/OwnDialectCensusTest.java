@@ -138,8 +138,9 @@ class OwnDialectCensusTest {
                     // 6 -> 8 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S112): functions generic over
                     // relations, the extension this host declares (OwnCorpusConformanceTest's generics 8 -> 9 and
                     // signatures 16 -> 17); 8 -> 9 (2026-10-27, REVIEWED, S113): test::fromMean, a generic function
-                    // dropping its working column with without (signatures 17 -> 18)
-                    java.util.Map.entry("UserFunctionIntegrationTest.java", 9),
+                    // dropping its working column with without (signatures 17 -> 18); 9 -> 10 (2026-10-27, REVIEWED,
+                    // S112's hygiene): test::counted, a declared literal column kept by name (signatures 18 -> 19)
+                    java.util.Map.entry("UserFunctionIntegrationTest.java", 10),
                     // D4 variance pins: the contravariance spec REQUIRES
                     // function-typed parameter signatures
                     // (Function<{Number[1]->String[1]}>) — pure-dialect
