@@ -64,12 +64,22 @@ library function over another's answer, and static words.
 ## What stays DataCube's
 
 The tile's shaping, not gs-quant's functions: a source's periods at the tile's frequency (a week's last observation),
-its split into lines, the view's anchor and window, a candle's period bucketing, and which queries a tile asks
-(`tileAsks`). Each could become a library function later; none is a gs-quant function.
+its split into lines, the view's anchor and window, a candle's period bucketing, which queries a tile asks
+(`tileAsks`), the align of several series (each on its own dates, then joined by the tile's `align`) and the compare
+view's rebase.
+
+Every function of the tile's catalog was converted (2026-10-27, ten families, each held to today's numbers by
+`timeseries-queries.test.ts` and checked to call the library by name), but these, each with why:
+
+- `append` and `prepend`: the dates they keep are the align's -- which side has a row on each date -- not a figure.
+- Over a calendar period: a pair's statistics (correlation, beta, covariance, a regression's, the benchmark-relative
+  ones), a product, a vol swap's volatility, and Dickey-Fuller and a half-life -- none is a statistic word of
+  `windowPeriod`'s (each reads two columns, or a product's signs and logs), so each stays the writer's own self-join
+  until `windowPeriod` takes them. Over a count of periods each is the library's.
 
 ## The next step
 
-1, 2 and 3 are built (`without`, hygiene and the return check, 2026-10-27: the catalog regenerated against the
+The conversion is done (2026-10-27, above). 1, 2 and 3 are built (`without`, hygiene and the return check, 2026-10-27: the catalog regenerated against the
 legend-engine 4.145.0 and legend-pure 5.99.0 trees, now in the session). 4 and 6 are decided (the user, 2026-10-27:
 "yes take all your suggestions"): many series as a long table keyed by the series, a window as a value with a ramp,
 gs-quant's calendar windows exact (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.6). Next: convert every function,

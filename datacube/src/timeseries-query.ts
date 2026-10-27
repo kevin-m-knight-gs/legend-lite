@@ -271,6 +271,9 @@ const isTenor = (f: Frame): f is TsTenor => typeof f === 'object';
 const atLeast = (s: Span, k: number): Span => (typeof s === 'number' ? Math.max(s, k) : s);
 /** `adjust(<date>, -n, <unit>)`: a calendar period before a date, the database's date arithmetic. */
 const back = (date: ValueSpecification, t: TsTenor): ValueSpecification => fn('adjust', date, lit.integer(-t.n), enumValue(DURATION, t.unit));
+/** `~[a, b]`: column specs of names, as one argument. */
+const colSpecs = (names: readonly string[]): ValueSpecification =>
+  ({ _type: 'classInstance', type: 'colSpecArray', value: { colSpecs: names.map((name) => ({ name })) } }) as ValueSpecification;
 
 /** A frame's read (`$r.c`, `rowMapper($r.a, $r.b)`) as a row of a self-join reads it: each `$r.c` the joined row's column
  *  `c` is under (`$x.<names[c]>`). */
@@ -392,6 +395,30 @@ class Writer {
     const outs = whats.map((what) => this.fresh(what));
     this.rel = this.rel.call(`${LIBRARY_PACKAGE}::${name}`, ...args, ...outs.map((o) => colSpec(o)));
     return outs;
+  }
+
+  /**
+   * THE MEMBERS AS ROWS (the library's long table, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.7: a row a member and
+   * date): of each of `columns` (a member's values, on this writer's rows), its line, its date, its number, its value and
+   * its weight -- the members' rows concatenated.
+   */
+  members(columns: readonly string[], weights: readonly number[]): { readonly rel: Relation; readonly member: string; readonly value: string; readonly weight: string } {
+    const member = this.fresh('mb_m');
+    const value = this.fresh('mb_v');
+    const weight = this.fresh('mb_w');
+    const rel = columns.map((c, i) => this.rel.select([this.part, this.at, c]).rename(c, value)
+      .extend([derive(member, row(lit.integer(i))), derive(weight, row(float(weights[i]!)))]))
+      .reduce((all, one_) => all.concatenate(one_));
+    return { rel, member, value, weight };
+  }
+
+  /** A relation of a row a line and date (a figure of the members', the library's), joined to this writer's by them. */
+  joinByDate(other: Relation): void {
+    const gp = this.fresh('jd_part');
+    const ga = this.fresh('jd_at');
+    this.rel = this.rel.join(other.rename(this.part, gp).rename(this.at, ga), 'LEFT', lambda(['l', 'r'], and(
+      fn('equal', property(variable('l'), this.part), property(variable('r'), gp)),
+      fn('equal', property(variable('l'), this.at), property(variable('r'), ga)))));
   }
 
   /** The window the library's functions take: the line, its periods in order, a frame (#over's). */
@@ -547,12 +574,7 @@ class Writer {
       op('times', fn('pow', float(-1), one(negatives)), fn('exp', logs))));
   }
 
-  /** A column's value at its line's first period with one (or its last), beside every row: windows over the line. */
-  edgeValue(column: string, edge: 'first' | 'last'): string {
-    const R = Writer.read;
-    const at = this.window(`${edge}_p`, edge === 'first' ? 'min' : 'max', R(this.row('ep', when(fn('isNotEmpty', col(column)), col(PERIOD), none()))), 'all');
-    return this.window(`${edge}_v`, 'max', R(this.row('ev', when(fn('equal', col(PERIOD), col(at)), col(column), none()))), 'all');
-  }
+
 
   /**
    * A COLUMN AS OF A CALENDAR PERIOD BACK (gs-quant's lag by a tenor, as of): of its line's periods where it has a
@@ -1270,15 +1292,16 @@ function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | un
       return { w, v: { column: w.libraryOfLine('excessReturnsOver', 'er', columnOfValue(x.v), [colSpec(columnOfValue(b.v))]) } };
     }
     case 'weighted_sum': {
-      // each series and its weight, on the dates all have: their weighted sum over the weights' (gs-quant's intersect)
+      // each series and its weight, on the dates all have: their weighted sum over the weights' (gs-quant's intersect) --
+      // the library's (pure-library.ts weightedSum), over the members as rows (the design note's §5.7)
       const series = e.args.filter((_, i) => i % 2 === 0).map((_, i) => seriesArg(sh, e, i * 2));
       const weights = e.args.filter((_, i) => i % 2 === 1).map((x) => (x as Extract<TsExpr, { kind: 'number' }>).value);
       const w = joined(sh, series);
-      // their sum the database's too (the file's rule: nothing here computes a value -- the Phase 1 review's 8)
-      const total = weights.map((x) => float(x)).reduce((t, x) => op('plus', t, x));
-      const sum = series.map((p, i) => op('times', float(weights[i]!), one(columnOfValue(p.v))))
-        .reduce((t, x) => op('plus', t, x));
-      return { w, v: { column: w.row('wsum', fn('divide', sum, total)) } };
+      const long = w.members(series.map((p) => columnOfValue(p.v)), weights);
+      const out = w.fresh('wsum');
+      w.joinByDate(long.rel.call(`${LIBRARY_PACKAGE}::weightedSum`, colSpecs([w.part, w.at]), colSpec(long.value), colSpec(long.weight),
+        lit.integer(series.length), colSpec(out)));
+      return { w, v: { column: out } };
     }
     default:
       return undefined;
@@ -1401,28 +1424,21 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
       const x = seriesArg(sh, e, 0);
       const px = columnOfValue(x.v);
       const told = e.args[1]!;
-      let w: Writer;
-      let g: string;
       if (told.kind === 'number') {
         // a yield a year, accrued day by day: each period's price over the one before, and the yield over the days since
-        w = x.w;
-        const days = w.seconds ? fn('divide', op('minus', one(ORD), one(w.lag(ORD, 1))), lit.integer(86400)) : op('minus', one(ORD), one(w.lag(ORD, 1)));
-        g = w.row('trg', op('plus', fn('divide', one(px), one(w.lag(px, 1))), op('times', float(told.value), fn('divide', days, lit.integer(365)))));
-      } else {
-        // dividends on their dates: (price + the dividends since the price before) / the price before, on the price's
-        // dates -- a dividend of a date the price has none of paid at its next: their running total over every date
-        // either has, then the dates of a price alone, kept by a filter reading that total (a filter of a plain column
-        // folds under its select's windows, Fold.filterSlot; one reading a window is the database's QUALIFY, after them)
-        const d = seriesArg(sh, e, 1);
-        const dv = columnOfValue(d.v);
-        const al = aligned(sh, [{ w: x.w, values: [px] }, { w: d.w, values: [dv] }], 'nan');
-        w = al.w;
-        const paid = w.window('tr_paid', 'plus', R(w.row('tr_dv', when(fn('isEmpty', col(dv)), float(0), col(dv)))), 'running');
-        w.rel = w.rel.filter(row(and(fn('isNotEmpty', col(paid)), fn('isNotEmpty', col(px)))));
-        g = w.row('trg', fn('divide', op('plus', one(px), op('minus', one(paid), one(w.lag(paid, 1)))), one(w.lag(px, 1))));
+        // -- the library's (pure-library.ts totalReturn), a period's days its dates' difference
+        const w = x.w;
+        return { w, v: { column: w.libraryOfLine('totalReturn', 'tr', px,
+          [float(told.value), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'), lit.integer(w.seconds ? 86400 : 1)]) } };
       }
-      // its first value, then each period's growth compounded (the first's none: none before it)
-      return { w, v: { column: w.row('tr', when(fn('isEmpty', col(px)), none(), op('times', one(w.edgeValue(px, 'first')), one(w.product(g, 'running'))))) } };
+      // dividends on their dates: (price + the dividends since the price before) / the price before, on the price's
+      // dates -- a dividend of a date the price has none of paid at its next: every date either has (the align's), then
+      // the library's (totalReturnOf), which keeps the price's
+      const d = seriesArg(sh, e, 1);
+      const dv = columnOfValue(d.v);
+      const al = aligned(sh, [{ w: x.w, values: [px] }, { w: d.w, values: [dv] }], 'nan');
+      const w = al.w;
+      return { w, v: { column: w.libraryOfLine('totalReturnOf', 'tr', px, [colSpec(dv)]) } };
     }
     case 'basket':
       return basket(sh, e);
@@ -1437,47 +1453,25 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
  * period: its own (daily); the weeks, or the months, from the first date (a rebalance the first date on or after each,
  * gs-quant's `min(cal[cal >= date])`; a month's day kept, or its last where it has none, as relativedelta's). Within a
  * period, 1 + Σ w (price / its price at the period's first date - 1); into it, the period before's growth to its first
- * date; the basket 100 times those growths compounded, times its growth within -- every figure the database's.
+ * date; the basket 100 times those growths compounded, times its growth within -- every figure the database's, the
+ * library's (pure-library.ts basket) over the members as rows.
  */
 function basket(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   const series = e.args.filter((_, i) => i % 2 === 0).map((_, i) => seriesArg(sh, e, i * 2));
   const weights = e.args.filter((_, i) => i % 2 === 1).map((x) => (x as Extract<TsExpr, { kind: 'number' }>).value);
-  const w = joined(sh, series);
-  const R = Writer.read;
-  const prices = series.map((p) => columnOfValue(p.v));
   const rebalance = paramOf(e, 'rebalance') as string;
-  const at = one(w.at);
-  const at0 = one(w.edgeValue(w.at, 'first'));
-  let period: ValueSpecification;
-  if (rebalance === 'daily') period = col(ORD);
-  else if (rebalance === 'weekly') {
-    const ord0 = one(w.edgeValue(ORD, 'first'));
-    const days = w.seconds ? fn('divide', op('minus', one(ORD), ord0), lit.integer(86400)) : op('minus', one(ORD), ord0);
-    period = fn('floor', fn('divide', days, lit.integer(7)));
-  } else if (rebalance === 'monthly') {
-    // the months from the first date's, less one where the date is before its month's rebalance: the first date that
-    // many months on, the database's (its day kept, or its month's last where it has none -- relativedelta's)
-    const months = one(w.row('bk_m', op('plus', op('times', op('minus', fn('year', at), fn('year', at0)), lit.integer(12)),
-      op('minus', fn('monthNumber', at), fn('monthNumber', at0)))));
-    const due = fn('adjust', at0, months, enumValue(DURATION, 'MONTHS'));
-    period = op('minus', months, when(fn('lessThan', at, due), lit.integer(1), lit.integer(0)));
-  } else {
+  if (rebalance !== 'daily' && rebalance !== 'weekly' && rebalance !== 'monthly') {
     throw new CubeRefusal(`a basket rebalances daily, weekly or monthly, not ${JSON.stringify(rebalance)}`);
   }
-  const k = w.row('bk_k', period);
-  const first = w.window('bk_f', 'min', R(ORD), 'all', k);
-  const atFirst = fn('equal', one(ORD), one(first));
-  const bases = prices.map((c) => w.window('bk_b', 'max', R(w.row('bk_bv', when(atFirst, col(c), none()))), 'all', k));
-  const growth = (over: readonly string[]): ValueSpecification =>
-    op('plus', lit.integer(1), weights.map((x, i) => op('times', float(x), op('minus', fn('divide', one(prices[i]!), one(over[i]!)), lit.integer(1)))).reduce((t, x) => op('plus', t, x)));
-  const within = w.row('bk_in', growth(bases));
-  // into a period, at its first date: each price over the period before's base (the row before carries it)
-  const before = bases.map((b) => w.lag(b, 1));
-  const into = w.row('bk_g', when(and(atFirst, fn('isNotEmpty', col(before[0]!))), growth(before), none()));
-  // none from a price of none on, as gs-quant's NaN carries through its units (the Phase 4 review's 8: taken as flat)
-  const gaps = w.window('bk_gaps', 'count', R(w.row('bk_gap', when(or(...prices.map((c) => fn('isEmpty', col(c)))), lit.integer(1), none()))), 'running');
-  return { w, v: { column: w.row('basket', when(fn('greaterThan', one(gaps), lit.integer(0)), none(),
-    op('times', float(100), op('times', one(w.product(into, 'running')), one(within))))) } };
+  // the library's (pure-library.ts basket), over the members as rows: a date's days its difference in DAYS, or in
+  // SECONDS over 86400 of a date-time
+  const w = joined(sh, series);
+  const long = w.members(series.map((p) => columnOfValue(p.v)), weights);
+  const out = w.fresh('basket');
+  w.joinByDate(long.rel.call(`${LIBRARY_PACKAGE}::basket`, colSpec(w.part), colSpec(w.at), colSpec(long.member), colSpec(long.value),
+    colSpec(long.weight), lit.integer(series.length), lit.string(rebalance), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'),
+    lit.integer(w.seconds ? 86400 : 1), colSpec(out)));
+  return { w, v: { column: out } };
 }
 
 /** A cycle in the observations of a tile's frequency (a classical decomposition's period): undefined, none whole. */

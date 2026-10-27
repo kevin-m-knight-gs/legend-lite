@@ -1045,6 +1045,77 @@ function datacube::ts::seasonallyAdjusted<T,L,D,V,P,O>(t: Relation<T>[1], line: 
     ->extend(~o:x|if($x.tr->isEmpty(), |[], |if($method == 'multiplicative', |$x->read($value)->toOne() / $x.ss->toOne(), |$x->read($value)->toOne() - $x.ss->toOne())))
     ->without(~[tr, dt, l, ps, pm, pr, al, ss])->rename(~o, $out)
 }
+
+// The total return of a price with a yield a year accrued day by day (gs-quant's total_return of a number): its first
+// value, then each period's growth compounded -- its price over the one before, plus the yield over the days since
+// (its dates' difference in unit, over perDay of them a day: DAYS and 1; SECONDS and 86400) over 365; none where the
+// price is none.
+function datacube::ts::totalReturn<T,L,D,P,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], price: ColSpec<P⊆T>[1], yield: Number[1], unit: meta::pure::functions::date::DurationUnit[1], perDay: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line, [$date->ascending()]), ~g:{p,f,r|($r->read($price)->toOne() / $p->lag($r)->read($price)->toOne()) + ($yield * ((dateDiff($p->lag($r)->read($date)->toOne(), $r->read($date)->toOne(), $unit) / $perDay) / 365))})
+    ->datacube::ts::windowProduct(over($line, [$date->ascending()], rows(unbounded(), 0)), ~g, ~pr)
+    ->datacube::ts::first($line, $date, $price, ~f0)
+    ->extend(~o:x|if($x->read($price)->isEmpty(), |[], |$x.f0->toOne() * $x.pr->toOne()))
+    ->without(~[g, pr, f0])->rename(~o, $out)
+}
+
+// The total return of a price with its dividends reinvested on their dates (gs-quant's total_return of a series; the
+// two aligned by the caller, each on its own dates: a price of none on a dividend's date alone): (price + the dividends
+// since the price before) / the price before, on the price's dates -- a dividend of a date the price has none of paid
+// at its next -- compounded from its first value; the rows of a dividend alone dropped.
+function datacube::ts::totalReturnOf<T,L,D,P,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], price: ColSpec<P⊆T>[1], dividend: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~dv:x|if($x->read($dividend)->isEmpty(), |0.0, |$x->read($dividend)->toOne()))
+    ->extend(over($line, [$date->ascending()], rows(unbounded(), 0)), ~pd:{p,f,r|$r.dv}:y|$y->plus())
+    ->filter(x|$x.pd->isNotEmpty() && $x->read($price)->isNotEmpty())
+    ->extend(over($line, [$date->ascending()]), ~g:{p,f,r|($r->read($price)->toOne() + ($r.pd->toOne() - $p->lag($r).pd->toOne())) / $p->lag($r)->read($price)->toOne()})
+    ->datacube::ts::windowProduct(over($line, [$date->ascending()], rows(unbounded(), 0)), ~g, ~pr)
+    ->datacube::ts::first($line, $date, $price, ~f0)
+    ->extend(~o:x|if($x->read($price)->isEmpty(), |[], |$x.f0->toOne() * $x.pr->toOne()))
+    ->without(~[dv, pd, g, pr, f0])->rename(~o, $out)
+}
+
+// -- many series as a long table: a row a member and date (kdb+'s, panel pandas', Polars' model), its value and weight
+// beside it --
+
+// The weighted sum of the members at each date (gs-quant's weighted_sum): Σ weight × value over Σ weight, on the dates
+// all members (members of them) have a value -- one row for each of the keys (by: the line and the date).
+function datacube::ts::weightedSum<T,Z,V,W,O>(t: Relation<T>[1], by: ColSpecArray<Z⊆T>[1], value: ColSpec<V⊆T>[1], weight: ColSpec<W⊆T>[1], members: Integer[1], out: ColSpec<O>[1]): Relation<Z+O>[1]
+{
+  $t->filter(x|$x->read($value)->isNotEmpty())
+    ->groupBy($by, ~[s:x|$x->read($weight)->toOne() * $x->read($value)->toOne():y|$y->plus(), ws:x|$x->read($weight):y|$y->plus(), n:x|$x->read($value):y|$y->count()])
+    ->filter(x|$x.n == $members)
+    ->extend(~o:x|$x.s->toOne() / $x.ws->toOne())
+    ->without(~[s, ws, n])->rename(~o, $out)
+}
+
+// A basket of members held in weights from 100 (gs-quant's backtesting basket_series, its costs none): units fixed
+// between rebalances, set at each to the basket's then in its weights. Each date's rebalance period its own ('daily'),
+// or the weeks or the months ('weekly', 'monthly') from the line's first date -- a rebalance the first date on or after
+// each, a month's day kept or its last where it has none -- a date's days its difference in unit over perDay (DAYS and
+// 1; SECONDS and 86400). Within a period, 1 + Σ weight × (price / its price at the period's first date − 1); into it, the
+// period before's growth to its first date; the basket 100 times those compounded, times its growth within -- none from
+// a date some member's price is none on. One row a line and date.
+function datacube::ts::basket<T,L,D,M,P,W,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], member: ColSpec<M⊆T>[1], price: ColSpec<P⊆T>[1], weight: ColSpec<W⊆T>[1], members: Integer[1], rebalance: String[1], unit: meta::pure::functions::date::DurationUnit[1], perDay: Integer[1], out: ColSpec<O>[1]): Relation<L+D+O>[1]
+{
+  $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), m:r|$r->read($member), px:r|$r->read($price), wt:r|$r->read($weight)])
+    ->extend(over(~l), ~d0:{p,f,r|$r.d}:y|$y->min())
+    ->extend(~mo:x|((($x.d->toOne()->year() - $x.d0->toOne()->year()) * 12) + ($x.d->toOne()->monthNumber() - $x.d0->toOne()->monthNumber())))
+    ->extend(~k:x|if($rebalance == 'daily', |dateDiff($x.d0->toOne(), $x.d->toOne(), $unit),
+      |if($rebalance == 'weekly', |floor((dateDiff($x.d0->toOne(), $x.d->toOne(), $unit) / $perDay) / 7),
+        |$x.mo->toOne() - if($x.d->toOne() < $x.d0->toOne()->adjust($x.mo->toOne(), meta::pure::functions::date::DurationUnit.MONTHS), |1, |0))))
+    ->extend(over(~[l, k]), ~fd:{p,f,r|$r.d}:y|$y->min())
+    ->extend(over(~[l, m, k]), ~bs:{p,f,r|if($r.d == $r.fd, |$r.px, |[])}:y|$y->max())
+    ->extend(over(~[l, m], [~d->ascending()]), ~bf:{p,f,r|$p->lag($r).bs})
+    ->groupBy(~[l, d], ~[wi:x|$x.wt->toOne() * (($x.px->toOne() / $x.bs->toOne()) - 1):y|$y->plus(),
+      wo:x|$x.wt->toOne() * (($x.px->toOne() / $x.bf->toOne()) - 1):y|$y->plus(),
+      af:x|if($x.d == $x.fd, |1, |0):y|$y->max(), nb:x|$x.bf:y|$y->count(), n:x|$x.px:y|$y->count()])
+    ->extend(~gi:x|if(($x.af->toOne() == 1) && ($x.nb->toOne() > 0), |1 + $x.wo->toOne(), |[]))
+    ->datacube::ts::windowProduct(over(~l, [~d->ascending()], rows(unbounded(), 0)), ~gi, ~pr)
+    ->extend(over(~l, [~d->ascending()], rows(unbounded(), 0)), ~gp:{p,f,r|if($r.n->toOne() < $members, |1, |[])}:y|$y->count())
+    ->extend(~o:x|if($x.gp->toOne() > 0, |[], |100.0 * ($x.pr->toOne() * (1 + $x.wi->toOne()))))
+    ->select(~[l, d, o])->rename(~l, $line)->rename(~d, $date)->rename(~o, $out)
+}
 `;
 
 /** Whether a query calls a function of the library. */

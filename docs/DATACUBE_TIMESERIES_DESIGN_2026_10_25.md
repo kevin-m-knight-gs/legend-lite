@@ -417,15 +417,17 @@ hedge ratio a beta of levels --, `alpha`, `residual`, `trackingError`, `informat
 `downCapture`, `leadLag`), `prices`, `dickeyFuller` and `halfLife`, the excess returns over a rate or a cash index
 (`excessReturns`, `excessReturnsOver`), and the combinations of aligned columns (`compare`, `ifThen`, `union`; a
 number a column of it), and the classical decomposition (`trend`, its cycle and half of it -- a window's reach, a
-literal -- the caller's; `seasonallyAdjusted`, each row's place in the cycle a column, the tile's calendar) --
-`->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
+literal -- the caller's; `seasonallyAdjusted`, each row's place in the cycle a column, the tile's calendar), the total return with a yield or dividends (`totalReturn`, `totalReturnOf`), and the members of
+a weighted sum or a basket as rows -- a row a member and date, its value and weight beside it (`weightedSum`, `basket`;
+§5.7's long table: the writer concatenates its aligned members into one) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
 'simple', ~ret_2)->datacube::ts::volatility(over(~line, [~period->ascending()], rows(-21, 0)), ~ret_2, 22, ~per_year_3,
 ~vol_4)`. A calendar period's statistic is `windowPeriod`'s (on every date, however few values) and its ramp
 `rampPeriod`'s (none before the first date of a column, that period on), `overPeriod` the two over one column; so a
 volatility, a maximum drawdown, a Sharpe ratio and a VWAP over a calendar period (`volatilityPeriod`,
 `maxDrawdownPeriod`, `sharpeRatioPeriod`, `vwapPeriod`) ramp from the first date of the series they read (a price's),
-not of the column a statistic is over (its returns' or its drawdowns', a period later). Every other function is written
-as before until its family is converted. A model takes the library only where a query
+not of the column a statistic is over (its returns' or its drawdowns', a period later). Every function of the catalog is
+the library's but `append` and `prepend` (their dates the align's) and a few over a calendar period that no statistic
+word of `windowPeriod`'s says (docs/PURE_LIBRARY_SPIKE_2026_10_27.md, "What stays DataCube's"). A model takes the library only where a query
 calls it: the planner plans such a query over its model with the library after it (`lite-planner.ts` and
 `planner.ts #over`, a planner of its own over that model), every other query over its model as it is, byte for byte.
 A host that plans and runs is sent the library BESIDE the model (`planRequest`'s `library`), never inside it: Python's

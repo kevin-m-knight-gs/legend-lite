@@ -474,6 +474,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ['prices(returns(close[AAA]), 100)', 'prices'], ['if(close[AAA] > 2 * close[BBB], close[AAA], 0)', 'ifThen'],
       ['compare(close[AAA], 2 * close[BBB])', 'compare'], ['union(close[CCC], close[AAA])', 'union'],
       ['excess_returns(close[AAA], 0.05)', 'excessReturns'], ['excess_returns(close[AAA], close[BBB])', 'excessReturnsOver'],
+      ['weighted_sum(close[AAA], 0.6, close[BBB], 0.4)', 'weightedSum'],
     ];
     for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`datacube::ts::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
   });
@@ -1706,6 +1707,8 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
       ['information_ratio(close[P], close[Q], 10)', 'informationRatio'], ['up_capture(close[P], close[Q], 10)', 'upCapture'],
       ['down_capture(close[P], close[Q], 10)', 'downCapture'], ['lead_lag(close[P], close[Q], 1, 10)', 'leadLag'],
       ['dickey_fuller(close[P], 30)', 'dickeyFuller'], ['half_life(close[P], 30)', 'halfLife'],
+      ['total_return(close[P], 0.03)', 'totalReturn'], ['total_return(close[P], dividend[P])', 'totalReturnOf'],
+      ['basket(close[P], 0.6, close[Q], 0.4, rebalance=monthly)', 'basket'],
     ];
     for (const [expr, f] of want) assert.ok(calls(expr).has(`datacube::ts::${f}`), `${expr} calls ${f}`);
   });
