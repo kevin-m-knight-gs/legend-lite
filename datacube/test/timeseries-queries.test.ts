@@ -438,7 +438,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     assert.equal(planner.planRequest(plain.query).library, undefined);
   });
 
-  it('the levels and lags, the multi-step windows, the self-joins, the exponentials, the technicals, the row maths and the functions along the line call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
+  it('the levels and lags, the multi-step windows, the self-joins, the exponentials, the technicals, the row maths, the functions along the line and the pairs call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
     const calls = (expr: string, anchor?: string): ReadonlySet<string> => {
       const ts = spec({ A: expr });
       return functionsCalled(seriesQuery(inputs, ts, ts.series[0]!, anchor === undefined ? {} : { from: anchor }, {}).query);
@@ -468,6 +468,9 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ['geometrically_aggregate(returns(close[AAA]))', 'geometricallyAggregate'], ['smooth_spikes(returns(close[AAA]), 0.1)', 'smoothSpikes'],
       ['vol_swap_volatility(close[AAA], 10)', 'volSwapVolatility'], ['consecutive(returns(close[AAA]))', 'consecutive'], ['count(close[AAA])', 'count'],
       ['day(close[AAA])', 'day'], ['month(close[AAA])', 'month'], ['year(close[AAA])', 'year'], ['quarter(close[AAA])', 'quarter'], ['weekday(close[AAA])', 'weekday'],
+      ['correlation(close[AAA], close[BBB], 8)', 'correlation'], ['r_squared(close[AAA], close[BBB], 8)', 'rSquared'],
+      ['cov(close[AAA], close[BBB], 8)', 'covariance'], ['beta(close[AAA], close[BBB], 8)', 'beta'], ['hedge_ratio(close[AAA], close[BBB], 8)', 'beta'],
+      ['alpha(close[AAA], close[BBB], 8)', 'alpha'], ['residual(close[AAA], close[BBB], 8)', 'residual'],
     ];
     for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`datacube::ts::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
   });
@@ -1686,12 +1689,14 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     close(l.upper!, atr.map((a, i) => (a === null || i < 19 ? null : mid[i]! + 2 * a)), 'upper', 1e-9);
   });
 
-  it('the technicals of a high, a low and a close call the library by name', () => {
+  it('the technicals of a high, a low and a close, and the statistics against a benchmark, call the library by name', () => {
     const calls = (text: string): ReadonlySet<string> => functionsCalled(seriesQuery(pack, spec({ A: text }), spec({ A: text }).series[0]!).query);
     const want: readonly [string, string][] = [
       ['atr(high[P], low[P], close[P], 14)', 'atr'], ['stochastic(high[P], low[P], close[P], 14)', 'stochastic'],
       ['keltner_channels(high[P], low[P], close[P], 20, 10, 2)', 'keltnerChannels'], ['donchian_channels(high[P], low[P], 20)', 'donchianChannels'],
-      ['donchian_channels(high[P], low[P], 2w)', 'donchianChannelsPeriod'],
+      ['donchian_channels(high[P], low[P], 2w)', 'donchianChannelsPeriod'], ['tracking_error(close[P], close[Q], 10)', 'trackingError'],
+      ['information_ratio(close[P], close[Q], 10)', 'informationRatio'], ['up_capture(close[P], close[Q], 10)', 'upCapture'],
+      ['down_capture(close[P], close[Q], 10)', 'downCapture'], ['lead_lag(close[P], close[Q], 1, 10)', 'leadLag'],
     ];
     for (const [expr, f] of want) assert.ok(calls(expr).has(`datacube::ts::${f}`), `${expr} calls ${f}`);
   });

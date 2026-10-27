@@ -819,6 +819,115 @@ function datacube::ts::weekday<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1]
 {
   $t->extend(~o:x|$x->read($date)->toOne()->dayOfWeekNumber(meta::pure::functions::date::DayOfWeek.Monday) - 1)->rename(~o, $out)
 }
+
+// -- two columns of one table (a pair's, aligned by the caller: each series on its own dates, then joined), over the
+// window's pairs, the dates both have a value; none until the window holds ramp pairs --
+
+// The correlation of the pairs (gs-quant's correlation, of the returns its caller reads).
+function datacube::ts::correlation<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[pa:r|if($r->read($second)->isEmpty(), |[], |$r->read($first)), pb:r|if($r->read($first)->isEmpty(), |[], |$r->read($second))])
+    ->extend($win, ~[c:{p,f,r|rowMapper($r.pa, $r.pb)}:y|$y->corr(), n:{p,f,r|$r.pa}:y|$y->count()])
+    ->extend(~o:x|if($x.n->toOne() < $ramp, |[], |$x.c))
+    ->without(~[pa, pb, c, n])->rename(~o, $out)
+}
+
+// The correlation of the pairs squared (gs-quant's r_squared of a regression of the first on the second).
+function datacube::ts::rSquared<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::correlation($win, $first, $second, $ramp, ~c)
+    ->extend(~o:x|$x.c->toOne() * $x.c->toOne())
+    ->without(~c)->rename(~o, $out)
+}
+
+// The sample covariance of the pairs (gs-quant's cov, of the series as they are).
+function datacube::ts::covariance<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[pa:r|if($r->read($second)->isEmpty(), |[], |$r->read($first)), pb:r|if($r->read($first)->isEmpty(), |[], |$r->read($second))])
+    ->extend($win, ~[cv:{p,f,r|rowMapper($r.pa, $r.pb)}:y|$y->covarSample(), n:{p,f,r|$r.pa}:y|$y->count()])
+    ->extend(~o:x|if($x.n->toOne() < $ramp, |[], |$x.cv))
+    ->without(~[pa, pb, cv, n])->rename(~o, $out)
+}
+
+// The slope of the first on the second over the pairs, least squares (gs-quant's beta of returns, its hedge_ratio of
+// levels): their covariance over the second's variance, none where that is 0.
+function datacube::ts::beta<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[pa:r|if($r->read($second)->isEmpty(), |[], |$r->read($first)), pb:r|if($r->read($first)->isEmpty(), |[], |$r->read($second))])
+    ->extend($win, ~[cv:{p,f,r|rowMapper($r.pa, $r.pb)}:y|$y->covarSample(), vb:{p,f,r|$r.pb}:y|$y->varianceSample(), n:{p,f,r|$r.pa}:y|$y->count()])
+    ->extend(~o:x|if(($x.n->toOne() < $ramp) || ($x.vb->toOne() == 0), |[], |$x.cv->toOne() / $x.vb->toOne()))
+    ->without(~[pa, pb, cv, vb, n])->rename(~o, $out)
+}
+
+// The intercept of the first on the second over the pairs, annualized (gs-quant's alpha): the first's mean less the
+// slope times the second's, times the periods a year (a column).
+function datacube::ts::alpha<T,X,Y,Z,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], perYear: ColSpec<Z⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[pa:r|if($r->read($second)->isEmpty(), |[], |$r->read($first)), pb:r|if($r->read($first)->isEmpty(), |[], |$r->read($second))])
+    ->extend($win, ~[cv:{p,f,r|rowMapper($r.pa, $r.pb)}:y|$y->covarSample(), vb:{p,f,r|$r.pb}:y|$y->varianceSample(), ma:{p,f,r|$r.pa}:y|$y->average(), mb:{p,f,r|$r.pb}:y|$y->average(), n:{p,f,r|$r.pa}:y|$y->count()])
+    ->extend(~o:x|if(($x.n->toOne() < $ramp) || ($x.vb->toOne() == 0), |[], |($x.ma->toOne() - (($x.cv->toOne() / $x.vb->toOne()) * $x.mb->toOne())) * $x->read($perYear)->toOne()))
+    ->without(~[pa, pb, cv, vb, ma, mb, n])->rename(~o, $out)
+}
+
+// The residual of the first on the second (gs-quant's residual of a regression of levels): the first less its fit,
+// the intercept plus the slope times the second, each over the window's pairs.
+function datacube::ts::residual<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[pa:r|if($r->read($second)->isEmpty(), |[], |$r->read($first)), pb:r|if($r->read($first)->isEmpty(), |[], |$r->read($second))])
+    ->extend($win, ~[cv:{p,f,r|rowMapper($r.pa, $r.pb)}:y|$y->covarSample(), vb:{p,f,r|$r.pb}:y|$y->varianceSample(), ma:{p,f,r|$r.pa}:y|$y->average(), mb:{p,f,r|$r.pb}:y|$y->average(), n:{p,f,r|$r.pa}:y|$y->count()])
+    ->extend(~o:x|if(($x.n->toOne() < $ramp) || ($x.vb->toOne() == 0), |[],
+      |$x->read($first)->toOne() - (($x.ma->toOne() - (($x.cv->toOne() / $x.vb->toOne()) * $x.mb->toOne())) + (($x.cv->toOne() / $x.vb->toOne()) * $x->read($second)->toOne()))))
+    ->without(~[pa, pb, cv, vb, ma, mb, n])->rename(~o, $out)
+}
+
+// The annualized tracking error of the first's returns against the second's, in percent: the sample deviation of their
+// difference over the window, times the square root of the periods a year (a column), times 100 -- none until the
+// window holds ramp differences.
+function datacube::ts::trackingError<T,X,Y,Z,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], perYear: ColSpec<Z⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~ac:x|$x->read($first)->toOne() - $x->read($second)->toOne())
+    ->extend($win, ~[sd:{p,f,r|$r.ac}:y|$y->stdDevSample(), n:{p,f,r|$r.ac}:y|$y->count()])
+    ->extend(~o:x|if($x.n->toOne() < $ramp, |[], |($x.sd->toOne() * sqrt($x->read($perYear)->toOne())) * 100))
+    ->without(~[ac, sd, n])->rename(~o, $out)
+}
+
+// The information ratio of the first's returns against the second's: the mean of their difference over its sample
+// deviation over the window, annualized -- none where the deviation is 0, or until the window holds ramp differences.
+function datacube::ts::informationRatio<T,X,Y,Z,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], perYear: ColSpec<Z⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~ac:x|$x->read($first)->toOne() - $x->read($second)->toOne())
+    ->extend($win, ~[m:{p,f,r|$r.ac}:y|$y->average(), sd:{p,f,r|$r.ac}:y|$y->stdDevSample(), n:{p,f,r|$r.ac}:y|$y->count()])
+    ->extend(~o:x|if(($x.n->toOne() < $ramp) || ($x.sd->toOne() == 0), |[], |($x.m->toOne() / $x.sd->toOne()) * sqrt($x->read($perYear)->toOne())))
+    ->without(~[ac, m, sd, n])->rename(~o, $out)
+}
+
+// The up capture of the first's returns against the second's: the first's mean return on the periods the second rose,
+// over the second's mean then, over the window -- none where that is 0, or until the window holds ramp of the first's.
+function datacube::ts::upCapture<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[ca:x|if($x->read($second)->toOne() > 0, |$x->read($first), |[]), cb:x|if($x->read($second)->toOne() > 0, |$x->read($second), |[])])
+    ->extend($win, ~[ma:{p,f,r|$r.ca}:y|$y->average(), mb:{p,f,r|$r.cb}:y|$y->average(), n:{p,f,r|$r->read($first)}:y|$y->count()])
+    ->extend(~o:x|if(($x.n->toOne() < $ramp) || ($x.mb->toOne() == 0), |[], |$x.ma->toOne() / $x.mb->toOne()))
+    ->without(~[ca, cb, ma, mb, n])->rename(~o, $out)
+}
+
+// The down capture of the first's returns against the second's: as upCapture, on the periods the second fell.
+function datacube::ts::downCapture<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[ca:x|if($x->read($second)->toOne() < 0, |$x->read($first), |[]), cb:x|if($x->read($second)->toOne() < 0, |$x->read($second), |[])])
+    ->extend($win, ~[ma:{p,f,r|$r.ca}:y|$y->average(), mb:{p,f,r|$r.cb}:y|$y->average(), n:{p,f,r|$r->read($first)}:y|$y->count()])
+    ->extend(~o:x|if(($x.n->toOne() < $ramp) || ($x.mb->toOne() == 0), |[], |$x.ma->toOne() / $x.mb->toOne()))
+    ->without(~[ca, cb, ma, mb, n])->rename(~o, $out)
+}
+
+// The correlation of the first's returns with the second's lagged (or led) on its own dates (gs-quant's lead-lag
+// study, the caller's lag): over the window, none until it holds ramp of the first's.
+function datacube::ts::leadLag<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend($win, ~[c:{p,f,r|rowMapper($r->read($first), $r->read($second))}:y|$y->corr(), n:{p,f,r|$r->read($first)}:y|$y->count()])
+    ->extend(~o:x|if($x.n->toOne() < $ramp, |[], |$x.c))
+    ->without(~[c, n])->rename(~o, $out)
+}
 `;
 
 /** Whether a query calls a function of the library. */

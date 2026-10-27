@@ -411,7 +411,10 @@ among them), and the technicals over a row's fixed roles (`trueRange`, `atr`, `s
 `donchianChannels` and its `...Period` form, `obv`, `vwap`), the row maths (`log`, `exp`, `sqrt`, `abs`, `power`,
 `floor`, `ceil`, `not`, `filterValues`) and the functions along the line (`windowProduct` and `product`,
 `geometricallyAggregate`, `smoothSpikes`, `volSwapVolatility`, `consecutive`, `count`, and the date's parts `day`,
-`month`, `year`, `quarter`, `weekday`) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
+`month`, `year`, `quarter`, `weekday`), and two columns of one table, aligned by the caller (each series on its own
+dates, then joined: the tile's align), over the window's pairs (`correlation`, `rSquared`, `covariance`, `beta` -- a
+hedge ratio a beta of levels --, `alpha`, `residual`, `trackingError`, `informationRatio`, `upCapture`,
+`downCapture`, `leadLag`) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
 'simple', ~ret_2)->datacube::ts::volatility(over(~line, [~period->ascending()], rows(-21, 0)), ~ret_2, 22, ~per_year_3,
 ~vol_4)`. A calendar period's statistic is `windowPeriod`'s (on every date, however few values) and its ramp
 `rampPeriod`'s (none before the first date of a column, that period on), `overPeriod` the two over one column; so a

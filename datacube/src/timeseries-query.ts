@@ -227,6 +227,16 @@ const AT = '__ts_at';
 /** The return types (gs-quant's), each a word the library's returns compares (pure-library.ts). */
 const RETURN_TYPES: ReadonlySet<string> = new Set(['simple', 'log', 'absolute']);
 
+/** Each pairwise statistic's function of the library (pure-library.ts): a hedge ratio a beta of levels. */
+const PAIRWISE: Readonly<Record<string, string>> = {
+  correlation: 'correlation', r_squared: 'rSquared', cov: 'covariance', beta: 'beta', hedge_ratio: 'beta', alpha: 'alpha', residual: 'residual',
+};
+
+/** Each benchmark-relative statistic's function of the library (pure-library.ts). */
+const BENCHMARKED: Readonly<Record<string, string>> = {
+  tracking_error: 'trackingError', information_ratio: 'informationRatio', up_capture: 'upCapture', down_capture: 'downCapture',
+};
+
 /** gs-quant's filter_ operators, each a word the library's filterValues compares (pure-library.ts). */
 const FILTER_OPERATORS: ReadonlySet<string> = new Set(['less_than', 'greater_than', 'l_equals', 'g_equals', 'equals', 'not_equals', 'empty']);
 
@@ -1366,6 +1376,12 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
       const { w, a, b } = returnsOf();
       const size = spanOf(e, 'w');
       const frame = Writer.frame(size);
+      // over a count of periods: the library's (pure-library.ts), a deviation's ramp two at least, a capture's the window's
+      if (typeof frame !== 'object') {
+        const capture = e.fn === 'up_capture' || e.fn === 'down_capture';
+        return { w, v: { column: w.libraryOfRow(BENCHMARKED[e.fn]!, e.fn, [w.windowOf(frame), colSpec(a), colSpec(b),
+          lit.integer(capture ? (size as number) : Math.max(size as number, 2)), ...(capture ? [] : [colSpec(w.perYearColumn())])]) } };
+      }
       if (e.fn === 'up_capture' || e.fn === 'down_capture') {
         // the first's mean return on the periods the benchmark rose (fell) over the benchmark's mean then
         const then = (c: string): string => w.row('cap', when(fn(e.fn === 'up_capture' ? 'greaterThan' : 'lessThan', one(b), lit.integer(0)), col(c), none()));
@@ -1383,6 +1399,9 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
       const { w, a, b } = returnsOf(n('lag'));
       const size = spanOf(e, 'w');
       const frame = Writer.frame(size);
+      if (typeof frame !== 'object') {
+        return { w, v: { column: w.libraryOfRow('leadLag', 'corr', [w.windowOf(frame), colSpec(a), colSpec(b), lit.integer(Math.max(size as number, 2))]) } };
+      }
       return { w, v: { column: w.ramped(w.window('corr', 'corr', fn('rowMapper', R(a), R(b)), frame), a, atLeast(size, 2), frame) } };
     }
     case 'total_return': {
@@ -1495,6 +1514,13 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     const w = joined(sh, [{ w: a.w, v: { column: ra } }, { w: b.w, v: { column: rb } }]);
     const size = span('w');
     const frame = Writer.frame(size);
+    // over a count of periods: the library's (pure-library.ts), each over the window's pairs, its ramp two at least
+    if (typeof frame !== 'object') {
+      const of = PAIRWISE[e.fn]!;
+      const args = [w.windowOf(frame), colSpec(ra), colSpec(rb), lit.integer(Math.max(size as number, 2)),
+        ...(e.fn === 'alpha' ? [colSpec(w.perYearColumn())] : [])];
+      return { w, v: { column: w.libraryOfRow(of, e.fn, args) } };
+    }
     // each side on the window's pairs, the dates both have a value (a lag's, a ramped mean's, a first return's leading
     // empties): a mean, a variance and the ramp of the same sample as the covariance's (the E9 review's 1: an intercept
     // of two samples, its sign wrong)
