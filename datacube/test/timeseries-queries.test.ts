@@ -631,6 +631,24 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
     close(l.values, DAYS.map((d) => (d < start ? null : avg(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d)))), 'mean 2w', 1e-9);
   });
 
+  // the conversion to DataCube's Pure library (2026-10-27): every rolled statistic of a calendar period is one library
+  // function's (overPeriod), its statistic a word the call is expanded with -- each held to its definition
+  it('sum, min, max, range, std and var over 2w: the dates after two weeks back, to this one; from the first date two weeks on', async () => {
+    const start = onBy(DAYS[0]!, 2, 'w');
+    const of: Readonly<Record<string, (v: number[]) => number | null>> = {
+      sum: (v) => v.reduce((a, b) => a + b, 0),
+      min: (v) => Math.min(...v),
+      max: (v) => Math.max(...v),
+      range: (v) => Math.max(...v) - Math.min(...v),
+      std: (v) => (v.length < 2 ? null : sd(v)),
+      var: (v) => (v.length < 2 ? null : sd(v) ** 2),
+    };
+    for (const [f, stat] of Object.entries(of)) {
+      const l = await line(spec({ A: `${f}(close[AAA], 2w)` }));
+      close(l.values, DAYS.map((d) => (d < start ? null : stat(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d)))), `${f} 2w`, 1e-9);
+    }
+  });
+
   it('returns over 1w: each date against the value as of a week before, its last at or before', async () => {
     const l = await line(spec({ A: 'returns(close[AAA], 1w)' }));
     const want = DAYS.map((d, i) => {

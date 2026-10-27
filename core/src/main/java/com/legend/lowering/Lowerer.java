@@ -1568,6 +1568,12 @@ public final class Lowerer {
         if (around != null) {
             return around;
         }
+        // A SCALAR OVER SEVERAL REDUCERS, no condition (y|$y->max()->toOne() - $y->min()->toOne(): a range, the DataCube
+        // timeseries library's overPeriod, 2026-10-27) -- each reducer the aggregate it is, the arithmetic around them
+        // the scalar's, as under a condition
+        if (Aggregates.reducerOrNull(call.callee()) == null) {
+            return overReducers(base, a, reduceBody);
+        }
         SqlAgg.Fn fn = Aggregates.reducerFor(call.callee());
         TypedSpec mapBody = aggSelectorBody(a);
         // ORDER-SENSITIVE aggregation (sortBy before joinStrings): the key

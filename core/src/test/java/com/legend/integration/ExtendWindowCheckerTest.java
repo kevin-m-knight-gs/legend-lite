@@ -1705,5 +1705,13 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(java.util.Arrays.asList(60, null), r.rows().stream()
                     .map(row -> row.get(s) == null ? null : ((Number) row.get(s)).intValue()).toList());
         }
+
+        @Test
+        @DisplayName("a scalar over several reducers, no condition: a group's range, its most less its least")
+        void groupedRange() throws SQLException {
+            var r = executeRelation(NUMS + "->groupBy(~p, ~s:x|$x.v:y|$y->max()->toOne() - $y->min()->toOne())->sort(~p->ascending())");
+            int s = colIdx(r, "s");
+            assertEquals(java.util.List.of(20, 100), r.rows().stream().map(row -> ((Number) row.get(s)).intValue()).toList());
+        }
     }
 }
