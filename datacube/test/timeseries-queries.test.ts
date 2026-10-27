@@ -438,7 +438,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     assert.equal(planner.planRequest(plain.query).library, undefined);
   });
 
-  it('the levels and lags, the multi-step windows and the self-joins call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
+  it('the levels and lags, the multi-step windows, the self-joins and the exponentials call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
     const calls = (expr: string, anchor?: string): ReadonlySet<string> => {
       const ts = spec({ A: expr });
       return functionsCalled(seriesQuery(inputs, ts, ts.series[0]!, anchor === undefined ? {} : { from: anchor }, {}).query);
@@ -456,6 +456,9 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ['bollinger_bands(close[AAA], 2w, 2)', 'bollingerBandsPeriod'], ['percentiles(close[AAA], 10)', 'percentiles'],
       ['percentiles(close[AAA], 2w)', 'percentilesPeriod'], ['median(close[AAA], 5)', 'quantile'], ['median(close[AAA], 2w)', 'quantilePeriod'],
       ['percentile(close[AAA], 90, 10)', 'quantile'], ['percentile(close[AAA], 25)', 'quantileOfLine'],
+      ['exponential_moving_average(close[AAA], 0.9)', 'ewma'], ['exponential_std(close[AAA], 0.9)', 'ewmStd'],
+      ['exponential_volatility(close[AAA], 0.9)', 'exponentialVolatility'], ['exponential_spread_volatility(close[AAA], 0.9)', 'exponentialSpreadVolatility'],
+      ['macd(close[AAA], 12, 26, 9)', 'macd'], ['rsi(close[AAA], 14)', 'rsi'], ['smoothed_moving_average(close[AAA], 5)', 'smoothedMean'],
     ];
     for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`datacube::ts::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
   });

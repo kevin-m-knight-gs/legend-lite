@@ -398,6 +398,121 @@ function datacube::ts::quantileOfLine<T,L,V,O>(t: Relation<T>[1], line: ColSpec<
   $base->join($base->groupBy(~[l], ~o:x|$x.v:y|$y->percentile($q, true, true))->rename(~l, ~gl), meta::pure::functions::relation::JoinKind.LEFT, {a,b|$a.l == $b.gl})
     ->without(~[l, v, gl])->rename(~o, $out);
 }
+
+// An exponentially weighted average from the at-th value of the line on (pandas' ewm(alpha = 1 - decay,
+// adjust=False).mean(), gs-quant's exponential_moving_average): seed's value there, then decay·y[-1] + (1 - decay)·x --
+// a recursion no window frame says, written as its closed form, the database's: y_t = (1 - decay)·Σ decay^(t-i)·x'_i,
+// x'_0 = the seed / (1 - decay). Summed in blocks of W values, W the fewest with decay^W under 2^-60 (so decay^-pos,
+// pos < W, stays under 2^60 in a double): within a block a running sum of x'·decay^-pos, times decay^pos; the block
+// before carried in whole -- its total, by windows, read at this block's first value as the value before it -- the
+// blocks before it weighing under 2^-60 of it, below a double's precision. None before the at-th value, or where the
+// value is none.
+function datacube::ts::ewmaFrom<T,L,D,V,S,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], decay: Float[1], at: Integer[1], seed: ColSpec<S⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), v:r|$r->read($value), sv:r|$r->read($seed)])
+    ->extend(over(~l, [~d->ascending()], rows(unbounded(), 0)), ~n:{p,f,r|$r.v}:y|$y->count())
+    ->extend(~k:x|if($x.v->isEmpty() || (($x.n->toOne() - (1 + $at)) < 0), |[], |$x.n->toOne() - (1 + $at)))
+    ->extend(~blk:x|floor($x.k->toOne() / ceiling((-60.0 * log(2.0)) / log($decay))))
+    ->extend(~pos:x|$x.k->toOne() - ($x.blk->toOne() * ceiling((-60.0 * log(2.0)) / log($decay))))
+    ->extend(~u:x|if($x.k->toOne() == 0, |$x.sv->toOne() / (1.0 - $decay), |$x.v->toOne()) * pow($decay, 0 - $x.pos->toOne()))
+    ->extend(over(~[l, blk], [~d->ascending()], rows(unbounded(), 0)), ~s:{p,f,r|$r.u}:y|$y->plus())
+    ->extend(over(~[l, blk], [~d->ascending()], rows(unbounded(), unbounded())), ~tot:{p,f,r|$r.u}:y|$y->plus())
+    ->extend(~has:x|if($x.k->isEmpty(), |0, |1))
+    ->extend(over(~[l, has], [~d->ascending()]), ~bf:{p,f,r|$p->lag($r).tot})
+    ->extend(over(~[l, blk], [~d->ascending()], rows(unbounded(), unbounded())), ~c:{p,f,r|if($r.pos == 0, |$r.bf, |[])}:y|$y->max())
+    ->extend(~o:x|if($x.k->isEmpty(), |[], |if($x.c->isEmpty(), |((1.0 - $decay) * pow($decay, $x.pos->toOne())) * $x.s->toOne(),
+      |(((1.0 - $decay) * pow($decay, $x.pos->toOne())) * $x.s->toOne()) + (pow($decay, $x.pos->toOne() + 1) * (((1.0 - $decay) * pow($decay, ceiling((-60.0 * log(2.0)) / log($decay)) - 1)) * $x.c->toOne())))))
+    ->without(~[l, d, v, sv, n, k, blk, pos, u, s, tot, has, bf, c])->rename(~o, $out)
+}
+
+// An exponentially weighted average from the line's first value (gs-quant's exponential_moving_average, decay its
+// beta).
+function datacube::ts::ewma<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], decay: Float[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::ewmaFrom($line, $date, $value, $decay, 0, $value, $out)
+}
+
+// An exponentially weighted standard deviation (pandas' ewm(alpha = 1 - decay, adjust=False).std(), gs-quant's
+// exponential_std): the weighted mean square less the squared weighted mean, of each value less the line's first (so
+// nothing large is subtracted from itself), over 1 less the sum of the squared weights (pandas' bias correction:
+// decay^2t + (1 - decay)²·(1 - decay^2t) / (1 - decay²) of the t-th value) -- none at the first, whose weights are one.
+function datacube::ts::ewmStd<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], decay: Float[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[l:r|$r->read($line), v:r|$r->read($value)])
+    ->extend(over(~l, [$date->ascending()], rows(unbounded(), 0)), ~n:{p,f,r|$r.v}:y|$y->count())
+    ->extend(~k:x|if($x.v->isEmpty() || (($x.n->toOne() - 1) < 0), |[], |$x.n->toOne() - 1))
+    ->extend(over(~l), ~fst:{p,f,r|if($r.k == 0, |$r.v, |[])}:y|$y->max())
+    ->extend(~dv:x|$x.v->toOne() - $x.fst->toOne())
+    ->extend(~d2:x|$x.dv->toOne() * $x.dv->toOne())
+    ->datacube::ts::ewma($line, $date, ~dv, $decay, ~m1)
+    ->datacube::ts::ewma($line, $date, ~d2, $decay, ~m2)
+    ->extend(~den:x|1.0 - (pow($decay, 2 * $x.k->toOne()) + ((((1.0 - $decay) * (1.0 - $decay)) * (1.0 - pow($decay, 2 * $x.k->toOne()))) / (1.0 - ($decay * $decay)))))
+    ->extend(~var:x|$x.m2->toOne() - ($x.m1->toOne() * $x.m1->toOne()))
+    ->extend(~o:x|if($x.k->isEmpty() || ($x.den->toOne() <= 0), |[], |sqrt(if($x.var->toOne() < 0, |0.0, |$x.var->toOne()) / $x.den->toOne())))
+    ->without(~[l, v, n, k, fst, dv, d2, m1, m2, den, var])->rename(~o, $out)
+}
+
+// Wilder's smoothed average over w (gs-quant's smoothed_moving_average): its first the mean of the w values ending at the
+// w-th after the first (gs-quant's ramp of w), then each (w - 1) parts the one before and one part the value -- an
+// exponential average of decay (w - 1) / w from that mean; of one, each value from the line's second on (w a whole
+// number, 1 or more: the branch is taken when the call is expanded).
+function datacube::ts::smoothedMean<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  if($w == 1,
+    |$t->extend(over($line, [$date->ascending()], rows(unbounded(), 0)), ~n:{p,f,r|$r->read($value)}:y|$y->count())
+      ->extend(~o:x|if($x->read($value)->isEmpty() || (($x.n->toOne() - 2) < 0), |[], |$x->read($value)))
+      ->without(~n)->rename(~o, $out),
+    |$t->extend(over($line, [$date->ascending()], rows(1 - $w, 0)), ~sm:{p,f,r|$r->read($value)}:y|$y->average())
+      ->datacube::ts::ewmaFrom($line, $date, $value, ($w - 1) / $w, $w, ~sm, $out)
+      ->without(~sm))
+}
+
+// An exponential average of span k (a weight 2 / (k + 1) on each new value, the one before (k - 1) / (k + 1)); of a span
+// of 1, each value as it is.
+function datacube::ts::ewmaSpan<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], k: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  if($k == 1, |$t->extend(~o:x|$x->read($value))->rename(~o, $out), |$t->datacube::ts::ewma($line, $date, $value, ($k - 1) / ($k + 1), $out))
+}
+
+// The MACD (gs-quant's macd): the exponential average of span m less that of span n, itself averaged over span s.
+function datacube::ts::macd<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], m: Integer[1], n: Integer[1], s: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::ewmaSpan($line, $date, $value, $m, ~em)->datacube::ts::ewmaSpan($line, $date, $value, $n, ~en)
+    ->extend(~df:x|$x.em->toOne() - $x.en->toOne())
+    ->datacube::ts::ewmaSpan($line, $date, ~df, $s, ~o)
+    ->without(~[em, en, df])->rename(~o, $out)
+}
+
+// The relative strength index over w (gs-quant's relative_strength_index): each change's gain and loss, each Wilder's
+// smoothed average over w (smoothedMean), 100 - 100 / (1 + gains / losses) -- 100 where the losses' average is 0.
+function datacube::ts::rsi<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line, [$date->ascending()]), ~dx:{p,f,r|$r->read($value)->toOne() - $p->lag($r)->read($value)->toOne()})
+    ->extend(~[gn:x|if($x.dx->isEmpty(), |[], |if($x.dx->toOne() > 0, |$x.dx->toOne(), |0.0)), ls:x|if($x.dx->isEmpty(), |[], |if($x.dx->toOne() < 0, |0.0 - $x.dx->toOne(), |0.0))])
+    ->datacube::ts::smoothedMean($line, $date, ~gn, $w, ~up)->datacube::ts::smoothedMean($line, $date, ~ls, $w, ~dn)
+    ->extend(~o:x|if($x.up->isEmpty(), |[], |if($x.dn->toOne() == 0, |100.0, |100.0 - (100.0 / (1 + ($x.up->toOne() / $x.dn->toOne()))))))
+    ->without(~[dx, gn, ls, up, dn])->rename(~o, $out)
+}
+
+// The annualized exponentially weighted volatility of the simple returns, in percent (gs-quant's
+// exponential_volatility: annualize(exponential_std(returns(x), beta)) * 100), the periods a year a column.
+function datacube::ts::exponentialVolatility<T,L,D,V,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], decay: Float[1], perYear: ColSpec<Y⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::returns(over($line, [$date->ascending()]), $value, 1, 'simple', ~rt)
+    ->datacube::ts::ewmStd($line, $date, ~rt, $decay, ~sd)
+    ->extend(~o:x|($x.sd->toOne() * sqrt($x->read($perYear)->toOne())) * 100)
+    ->without(~[rt, sd])->rename(~o, $out)
+}
+
+// The annualized exponentially weighted volatility of the changes, in the series' own units (gs-quant's
+// exponential_spread_volatility: annualize(exponential_std(diff(x, 1), beta))).
+function datacube::ts::exponentialSpreadVolatility<T,L,D,V,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], decay: Float[1], perYear: ColSpec<Y⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::diff(over($line, [$date->ascending()]), $value, 1, ~dx)
+    ->datacube::ts::ewmStd($line, $date, ~dx, $decay, ~sd)
+    ->extend(~o:x|$x.sd->toOne() * sqrt($x->read($perYear)->toOne()))
+    ->without(~[dx, sd])->rename(~o, $out)
+}
 `;
 
 /** Whether a query calls a function of the library. */

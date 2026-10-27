@@ -565,90 +565,28 @@ class Writer {
     return value;
   }
 
-  /** Each value's place among its line's values from the `at`-th on (0 there): the count of them to it, less one, less
-   *  `at`; none where it has none, or before the `at`-th. */
-  #places(x: string, at: number): string {
-    const n = this.window('ewm_n', 'count', Writer.read(x), 'running');
-    const k = op('minus', one(n), lit.integer(1 + at));
-    return this.row('ewm_k', when(or(fn('isEmpty', col(x)), fn('lessThan', k, lit.integer(0))), none(), k));
-  }
-
   /**
    * AN EXPONENTIALLY WEIGHTED AVERAGE, pandas' `ewm(alpha = 1 - decay, adjust=False).mean()` (gs-quant's
-   * exponential_moving_average): y0 = x0, y = decay·y[-1] + (1 - decay)·x -- a recursion, which no window frame says
-   * (a frame's reducer is an aggregate, never a fold), written as its CLOSED FORM, the database's: y_t = (1 - decay)·
-   * Σ decay^(t-i)·x'_i, x'_0 = x0 / (1 - decay) (so the first weighs decay^t). Summed in blocks of W values, W the
-   * fewest with decay^W under 2^-60 (so decay^-pos, pos < W, stays under 2^60 in a double): within a block a running
-   * sum of x'·decay^-pos, times decay^pos; the block before carried in whole, its last value times decay^(pos + 1) (its
-   * block's total, by windows), the blocks before it weighing under 2^-60 of it -- below a double's precision, so the
-   * value is the recursion's to its last bits. `seed`: from the value of `seed.value` at the `seed.at`-th value (a
-   * Wilder average's first, a mean of w), the series' own from there; rows of none have none.
+   * exponential_moving_average): the library's (pure-library.ts ewma, its closed form the database's). `seed`: from the
+   * value of `seed.value` at the `seed.at`-th value (a Wilder average's first, a mean of w), the series' own from there
+   * (ewmaFrom); rows of none have none.
    */
   ewm(x: string, decay: ValueSpecification, seed?: { readonly at: number; readonly value: string }): string {
-    const R = Writer.read;
-    const a = op('minus', float(1), decay);
-    const k = this.#places(x, seed?.at ?? 0);
-    const block = fn('ceiling', fn('divide', op('times', float(-60), fn('log', float(2))), fn('log', decay)));
-    const blk = this.row('ewm_blk', fn('floor', fn('divide', one(k), block)));
-    const pos = this.row('ewm_pos', op('minus', one(k), op('times', one(blk), block)));
-    const start = seed !== undefined ? one(seed.value) : one(x);
-    const xs = this.row('ewm_x', when(fn('equal', one(k), lit.integer(0)), fn('divide', start, a), col(x)));
-    const u = this.row('ewm_u', op('times', one(xs), fn('pow', decay, op('minus', lit.integer(0), one(pos)))));
-    const sum = this.fresh('ewm_s');
-    this.rel = this.rel.extend([agg(sum, lambda(['p', 'w', 'r'], R(u)), lambda(['y'], fn('plus', variable('y'))))], this.#over('running', blk));
-    const inBlock = this.row('ewm_p', op('times', op('times', a, fn('pow', decay, one(pos))), one(sum)));
-    // the block before's last value, beside each of this block's (its whole weight, carried in): (1 - decay)·decay^(W-1)
-    // times its block's total -- each block's a window over it, the block before's read at this block's first value as
-    // the value before it (a lag over the line's values), and spread over the block -- windows, never the query joined
-    // to itself (the E9 review's 6: each average had doubled the query, five nested ones 311k characters)
-    const total = this.window('ewm_t', 'plus', R(u), 'all', blk);
-    const valued = this.row('ewm_has', when(fn('isEmpty', col(k)), lit.integer(0), lit.integer(1)));
-    const before = this.lag(total, 1, valued);
-    const atFirst = this.row('ewm_c0', when(fn('equal', one(pos), lit.integer(0)), col(before), none()));
-    const carried = this.window('ewm_c', 'max', R(atFirst), 'all', blk);
-    const bv = op('times', op('times', a, fn('pow', decay, op('minus', block, lit.integer(1)))), one(carried));
-    return this.row('ewm', when(fn('isEmpty', col(k)), none(), when(fn('isEmpty', col(carried)), col(inBlock),
-      op('plus', one(inBlock), op('times', fn('pow', decay, op('plus', one(pos), lit.integer(1))), bv)))));
+    return seed === undefined ? this.libraryOfLine('ewma', 'ewm', x, [decay])
+      : this.libraryOfLine('ewmaFrom', 'ewm', x, [decay, lit.integer(seed.at), colSpec(seed.value)]);
   }
 
-  /**
-   * AN EXPONENTIALLY WEIGHTED STANDARD DEVIATION, pandas' `ewm(alpha = 1 - decay, adjust=False).std()` (gs-quant's
-   * exponential_std): the weighted mean square less the squared weighted mean (of each value less the line's first, so
-   * nothing large is subtracted from itself), over 1 less the sum of the squared weights (pandas' bias correction:
-   * decay^2t + (1 - decay)²·(1 - decay^2t) / (1 - decay²) of the t-th value) -- none at the first, whose weights are
-   * one.
-   */
+  /** AN EXPONENTIALLY WEIGHTED STANDARD DEVIATION, pandas' `ewm(alpha = 1 - decay, adjust=False).std()` (gs-quant's
+   *  exponential_std): the library's (pure-library.ts ewmStd). */
   ewmStd(x: string, decay: ValueSpecification): string {
-    const k = this.#places(x, 0);
-    const first = this.window('ewm_first', 'max', Writer.read(this.row('ewm_f', when(fn('equal', one(k), lit.integer(0)), col(x), none()))), 'all');
-    const d = this.row('ewm_d', op('minus', one(x), one(first)));
-    const d2 = this.row('ewm_d2', op('times', one(d), one(d)));
-    const m1 = this.ewm(d, decay);
-    const m2 = this.ewm(d2, decay);
-    const a = op('minus', float(1), decay);
-    const twice = fn('pow', decay, op('times', lit.integer(2), one(k)));
-    const squares = op('plus', twice, fn('divide', op('times', op('times', a, a), op('minus', float(1), twice)), op('minus', float(1), op('times', decay, decay))));
-    const denominator = this.row('ewm_den', op('minus', float(1), squares));
-    const variance = this.row('ewm_var', op('minus', one(m2), op('times', one(m1), one(m1))));
-    // a mean square a hair under the squared mean (a constant series, rounded) is a variance of zero
-    return this.row('ewm_std', when(or(fn('isEmpty', col(k)), fn('lessThanEqual', one(denominator), lit.integer(0))), none(),
-      fn('sqrt', fn('divide', when(fn('lessThan', one(variance), lit.integer(0)), float(0), one(variance)), one(denominator)))));
+    return this.libraryOfLine('ewmStd', 'ewm_std', x, [decay]);
   }
 
-  /**
-   * WILDER'S SMOOTHED AVERAGE over w (gs-quant's technicals.smoothed_moving_average): its first the mean of the w values
-   * ending at the w-th after the first (gs-quant's ramp of w), then each (w - 1) parts the one before and one part the
-   * value -- an exponential average of decay (w - 1) / w from that mean.
-   */
+  /** WILDER'S SMOOTHED AVERAGE over w (gs-quant's technicals.smoothed_moving_average): the library's (pure-library.ts
+   *  smoothedMean). */
   smoothed(x: string, w_: number): string {
-    // of one: each value itself, from the first after the first (gs-quant's ramp of 1 drops the first -- the E9 review's
-    // nit: it had been kept)
-    if (w_ <= 1) {
-      const k = this.#places(x, 1);
-      return this.row('smma', when(fn('isEmpty', col(k)), none(), col(x)));
-    }
-    const mean = this.window('smma_seed', 'average', Writer.read(x), w_);
-    return this.ewm(x, fn('divide', lit.integer(w_ - 1), lit.integer(w_)), { at: w_, value: mean });
+    // a w of 1 or under each value from the line's second, as gs-quant's ramp of 1 has it (the E9 review's nit)
+    return this.libraryOfLine('smoothedMean', 'smma', x, [lit.integer(Math.max(w_, 1))]);
   }
 
   /** A column's value on a frame's rows, as a window reads it. */
@@ -1754,18 +1692,10 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
           [colSpec(w.part), colSpec(w.at), colSpec(a), lit.integer(size.n), enumValue(DURATION, size.unit), k]);
       return { w, v: { lower: lower!, upper: upper!, width: width! } };
     }
-    case 'rsi': {
+    case 'rsi':
       // gs-quant's (technicals.relative_strength_index): each change's gain and loss, each Wilder's smoothed average over
-      // w of them (its first the mean of the w changes after the first, as gs-quant's ramp has it)
-      const size = n('w');
-      const d = w.row('d', op('minus', one(a), one(w.lag(a, 1))));
-      const gain = w.row('gain', when(fn('isEmpty', col(d)), none(), when(fn('greaterThan', one(d), lit.integer(0)), one(d), float(0))));
-      const loss = w.row('loss', when(fn('isEmpty', col(d)), none(), when(fn('lessThan', one(d), lit.integer(0)), op('minus', float(0), one(d)), float(0))));
-      const up = w.smoothed(gain, size);
-      const down = w.smoothed(loss, size);
-      return done(w.row('rsi', when(fn('isEmpty', col(up)), none(), when(fn('equal', one(down), lit.integer(0)), float(100),
-        op('minus', float(100), fn('divide', float(100), op('plus', lit.integer(1), fn('divide', one(up), one(down)))))))));
-    }
+      // w of them (its first the mean of the w changes after the first, as gs-quant's ramp has it) -- the library's
+      return done(w.libraryOfLine('rsi', 'rsi', a, [lit.integer(n('w'))]));
     case 'smoothed_moving_average':
       return done(w.smoothed(a, n('w')));
     case 'dickey_fuller':
@@ -1821,23 +1751,15 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       return done(n('beta') === 0 ? a : w.ewm(a, float(n('beta'))));
     case 'exponential_std':
       return done(w.ewmStd(a, float(n('beta'))));
-    case 'exponential_volatility': {
-      // gs-quant's: annualize(exponential_std(returns(x), beta)) * 100
-      const sd = w.ewmStd(w.returns(a, 1, 'simple'), float(n('beta')));
-      return done(w.row('evol', op('times', op('times', one(sd), w.annual()), lit.integer(100))));
-    }
-    case 'exponential_spread_volatility': {
-      // gs-quant's: annualize(exponential_std(diff(x, 1), beta)), in its own units
-      const sd = w.ewmStd(w.row('d', op('minus', one(a), one(w.lag(a, 1)))), float(n('beta')));
-      return done(w.row('esvol', op('times', one(sd), w.annual())));
-    }
-    case 'macd': {
-      // gs-quant's: ewm(span=m) - ewm(span=n), itself ewm(span=s) -- a span k a weight 2 / (k + 1) on each new value,
-      // the one before (k - 1) / (k + 1); a span of 1 none (each value as it is)
-      const span = (k: number, x_: string): string => (k === 1 ? x_ : w.ewm(x_, fn('divide', lit.integer(k - 1), lit.integer(k + 1))));
-      const diff = w.row('macd', op('minus', one(span(n('m'), a)), one(span(n('n'), a))));
-      return done(span(n('s'), diff));
-    }
+    // the exponentials, the library's (pure-library.ts): gs-quant's exponential_volatility (annualize(exponential_std(
+    // returns(x), beta)) * 100), exponential_spread_volatility (of diff(x, 1), in its own units) and macd (ewm(span=m) -
+    // ewm(span=n), itself ewm(span=s); a span of 1 each value as it is)
+    case 'exponential_volatility':
+      return done(w.libraryOfLine('exponentialVolatility', 'evol', a, [float(n('beta')), colSpec(w.perYearColumn())]));
+    case 'exponential_spread_volatility':
+      return done(w.libraryOfLine('exponentialSpreadVolatility', 'esvol', a, [float(n('beta')), colSpec(w.perYearColumn())]));
+    case 'macd':
+      return done(w.libraryOfLine('macd', 'macd', a, [lit.integer(n('m')), lit.integer(n('n')), lit.integer(n('s'))]));
     case 'log':
       return done(w.row('ln', when(fn('lessThanEqual', one(a), lit.integer(0)), none(), fn('log', one(a)))));
     case 'exp':

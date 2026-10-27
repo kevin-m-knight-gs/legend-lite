@@ -76,3 +76,8 @@ gs-quant's calendar windows exact (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md
 each held to today's numbers by `timeseries-queries.test.ts` as the shipped five were, declaring its honest return.
 After that, the charts start from classes of the stress model projected to relations (the user, 2026-10-27;
 docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6), then the library's review.
+
+For that review, found while converting (2026-10-27): an `if` whose branches are relations of different columns is not
+refused by the typer -- it reached DataCube's plan reader as "column ... appears with conflicting types" (a smoothed
+average's `if($w <= 1, ...)`); and the static fold that takes a branch when a call is expanded evaluates `==` but not
+`<` or `<=` over literals, so the library branches on `==` alone (`smoothedMean`, `ewmaSpan`).

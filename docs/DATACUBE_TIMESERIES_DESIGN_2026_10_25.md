@@ -404,7 +404,10 @@ of the first date shown, `valueAt`'s), and the multi-step windows (`zscores`, `w
 `bollingerBandsPeriod` over a calendar one, each nesting `overPeriod`'s statistics, whose output columns are the
 body's own by hygiene), and the self-joins (`percentiles` and `quantile` -- a median its 0.5th -- over the rows back,
 `percentilesPeriod` and `quantilePeriod` over a calendar period, each the line joined to itself on its window, and
-`quantileOfLine`, one aggregate a line) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
+`quantileOfLine`, one aggregate a line), and the exponentials (`ewmaFrom`, the recursion's closed form in blocks,
+the database's; `ewma`, `ewmStd`, Wilder's `smoothedMean`, `ewmaSpan`, `macd`, `rsi`, `exponentialVolatility`,
+`exponentialSpreadVolatility` over it -- every exponential average the tile draws, an ATR's and a Keltner channel's
+among them) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
 'simple', ~ret_2)->datacube::ts::volatility(over(~line, [~period->ascending()], rows(-21, 0)), ~ret_2, 22, ~per_year_3,
 ~vol_4)`. Every other function is written as before until its family is converted; so are a volatility, a
 maximum drawdown and a Sharpe ratio over a calendar period, whose ramp counts from the first date of the series they
