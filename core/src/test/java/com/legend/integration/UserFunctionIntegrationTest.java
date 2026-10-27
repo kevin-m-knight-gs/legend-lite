@@ -1721,6 +1721,24 @@ class UserFunctionIntegrationTest {
             assertEquals(List.of(3, 3, 3), result.rows().stream().map(r -> ((Number) r.get(1)).intValue()).toList());
         }
 
+        @Test
+        @DisplayName("read: a function takes its window whole and reads the column its caller names, nothing renamed")
+        void aWholeWindowAndARead() throws SQLException {
+            String model = modelWith("""
+                    function test::meanOf<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+                    {
+                        $t->extend($win, ~m:{p,f,r|$r->read($value)}:y|if($y->count() < $ramp, |[], |$y->average()))->rename(~m, $out)
+                    }
+                    """);
+            var result = exec(model, "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::meanOf(over(~LAST_NAME, [~FIRST_NAME->ascending()], rows(-1, 0)), ~AGE_VAL, 2, ~m2)"
+                    + "->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "m2"), result.columns().stream().map(c -> c.name()).toList());
+            // Jones: Bob alone; Smith: Jane first (one value), then John with Jane: 29
+            assertEquals(java.util.Arrays.asList(null, null, 29.0), result.rows().stream()
+                    .map(r -> r.get(3) == null ? null : ((Number) r.get(3)).doubleValue()).toList());
+        }
+
         /** fromMean with its drop replaced: the same body, its answer {@code drop}'s. */
         private String fromMeanThat(String drop) {
             return modelWith(FROM_MEAN.replace("->without(~t_m)", drop));

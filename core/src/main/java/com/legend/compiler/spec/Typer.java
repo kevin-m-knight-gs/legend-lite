@@ -797,6 +797,7 @@ final class Typer {
             case RENAME -> RenameChecker.check(this, af, env);
             case SELECT -> SelectChecker.check(this, af, env);
             case WITHOUT -> SelectChecker.without(this, af, env);
+            case READ -> ReadChecker.check(this, af, env);
             case DISTINCT -> DistinctChecker.check(this, af, env);
             case CONCATENATE -> ConcatenateChecker.check(this, af, env);
             case LIMIT, TAKE -> SlicingChecker.limit(this, af, env);

@@ -199,7 +199,10 @@ class NativeCatalogGovernanceTest {
         // of the rest; legend-pure 5.99.0 and legend-engine 4.145.0 drop rows but never columns (rename's T-Z+V is
         // upstream's only column-subtracting signature), and a function generic over any table cannot name the
         // caller's columns to select them
-        assertTrue(Pure.LITE_SURFACE.size() <= 8,
+        // +1 2026-10-27 (the user's "look at legend-pure first but yeah lets def build some primitive like that",
+        // docs/SEMANTICS_REGISTER.md S114): read -- a row's column through a column spec, typed as $r.col; upstream's
+        // ColSpec is a name alone and a column is read only as a reflected Column evaluated on a row (typed Any)
+        assertTrue(Pure.LITE_SURFACE.size() <= 9,
                 "LITE_SURFACE grew: " + Pure.LITE_SURFACE);
     }
 

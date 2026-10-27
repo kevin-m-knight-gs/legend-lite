@@ -44,6 +44,60 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     // 1. Scalar extend — single column expressions
     // ========================================================================
 
+    // ==================== read (lite surface, docs/SEMANTICS_REGISTER.md S114) ====================
+
+    @Nested
+    @DisplayName("read — a row's column through a column spec, as $r.col")
+    class ReadTests {
+
+        private static final String SCORES = """
+                |#TDS
+                id, name, score
+                1, Alice, 95
+                2, Bob, 87
+                #""";
+
+        @Test
+        @DisplayName("a row's column read through ~col is the column")
+        void readIsTheColumn() throws SQLException {
+            var result = executeRelation(SCORES + "->extend(~twice:r|$r->read(~score)->toOne() * 2)->sort(ascending(~id))");
+            assertEquals(190, ((Number) result.rows().get(0).values().get(3)).intValue());
+            assertEquals(174, ((Number) result.rows().get(1).values().get(3)).intValue());
+        }
+
+        @Test
+        @DisplayName("its SQL is the column read's")
+        void theSqlOfTheRead() {
+            String people = "model::Person.all()->project(~[name:p|$p.firstName, age:p|$p.age])";
+            assertEquals(generateSql(people + "->extend(~a2:r|$r.age->toOne() + 1)"),
+                    generateSql(people + "->extend(~a2:r|$r->read(~age)->toOne() + 1)"));
+        }
+
+        @Test
+        @DisplayName("a row a window gives reads the same: the row before's column")
+        void aWindowsRow() throws SQLException {
+            var result = executeRelation(SCORES + "->extend(over([~id->ascending()]), ~before:{p,w,r|$p->lag($r)->read(~score)})"
+                    + "->sort(ascending(~id))");
+            assertNull(result.rows().get(0).values().get(3));
+            assertEquals(95, ((Number) result.rows().get(1).values().get(3)).intValue());
+        }
+
+        @Test
+        @DisplayName("a column the row has not: refused by name")
+        void aColumnItHasNot() {
+            var ex = assertThrows(Exception.class, () -> executeRelation(SCORES + "->extend(~x:r|$r->read(~nope))"));
+            assertTrue(ex.getMessage().contains("nope"), ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("a column spec not written at the call names no column: refused")
+        void aColumnSpecNotWritten() {
+            var ex = assertThrows(Exception.class, () -> executeRelation(
+                    "|let c = ~score; " + SCORES.substring(1) + "->extend(~x:r|$r->read($c));"));
+            assertTrue(ex.getMessage().contains("column spec written at the call"), ex.getMessage());
+        }
+    }
+
     @Nested
     @DisplayName("extend(~col: x | expr)")
     class ScalarExtend {

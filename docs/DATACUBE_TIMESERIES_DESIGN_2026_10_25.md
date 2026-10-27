@@ -430,7 +430,12 @@ today's writer (docs/PURE_LIBRARY_SPIKE_2026_10_27.md): every family says itself
 They are built, each a register row: `meta::legend::lite::without` (S113: a relation less the named columns, typed as
 the select of the rest; upstream has no column drop); hygiene (S112: each expansion renames the columns its body makes
 and its declared return does not name, to names none of the call's tables has); and the declared return held to each
-call (S112: every declared column present and of a conforming type, no other). Every function of the library follows
+call (S112: every declared column present and of a conforming type, no other). A fourth came of the user's question
+whether a function should take its columns as parameters or require a schema its callers rename into (2026-10-27:
+parameters -- a contract's names become reserved words of every caller's table, cost renames at every call, take one
+column a call and collide on their outputs, and cannot be declared, where `ColSpec<V⊆T>` is): `meta::legend::lite::read`
+(S114: `$r->read(~close)` is `$r.close`), so a body reads the column its caller names without renaming it, and takes
+the caller's window whole (a renamed table is not the window's). Every function of the library follows
 these conventions, and every function of the tile's catalog is converted to one (the user, 2026-10-27: "yes convert
 every function"), each held to today's numbers by `timeseries-queries.test.ts`:
 
@@ -454,9 +459,10 @@ every function"), each held to today's numbers by `timeseries-queries.test.ts`:
   benchmark; a true range's high, low and close, which are one row's fields).
 - **Windows: what, over which rows, and when ready, apart** (gs-quant's `Window(w, r)`; pandas' `rolling`,
   `expanding`, `min_periods`). A window statistic takes the window as a value -- `win: _Window<T>[1]`, the line, the
-  order and the frame -- and a ramp, the observations before a figure is given. One `mean` is a count's
-  (`rows(-19, 0)`, ramp 20), the expanding one (`rows(unbounded(), 0)`), the whole line's (`over(~symbol)`) or a
-  centred one (`rows(-2, 2)`). Not frames: an exponential average takes an order and its decay (an α from a span or a
+  order and the frame -- and a ramp, the observations before a figure is given, and reads its column with `read`:
+  `$px->datacube::ts::mean(over(~symbol, ~day->ascending(), rows(-19, 0)), ~close, 20, ~ma20)`. One `mean` is a
+  count's (`rows(-19, 0)`, ramp 20), the expanding one (`rows(unbounded(), 0)`), the whole line's (`over(~symbol)`)
+  or a centred one (`rows(-2, 2)`). Not frames: an exponential average takes an order and its decay (an α from a span or a
   half-life); a lag takes an order and a count, or a calendar period (an as-of join). A function that needs the line or
   the dates themselves (a base over the whole line, a self-join, an as-of lag) takes them as column specs.
 - **Calendar windows exact.** gs-quant's window of a period is `(date − 3m, date]`, open at its start; SQL's

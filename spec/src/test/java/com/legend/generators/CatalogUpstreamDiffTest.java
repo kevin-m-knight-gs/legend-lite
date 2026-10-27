@@ -220,8 +220,10 @@ class CatalogUpstreamDiffTest {
      *  (legend-pure's divide of integers is a Float). 68 on 2026-10-27 (the user's "do the without/except function",
      *  docs/SEMANTICS_REGISTER.md S113): meta::legend::lite::without's two overloads (select's ColSpec and ColSpecArray
      *  shapes), the relation less the named columns, user-facing (Pure.LITE_SURFACE); upstream has no column drop,
-     *  rename's T-Z+V being its only column-subtracting signature. */
-    private static final int NOT_UPSTREAM_MAX = 68;
+     *  rename's T-Z+V being its only column-subtracting signature. 69 on 2026-10-27 (S114): meta::legend::lite::read, a
+     *  row's column through a column spec, typed as the property read; upstream reads a column only as a reflected
+     *  Column evaluated on a row. */
+    private static final int NOT_UPSTREAM_MAX = 69;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 
