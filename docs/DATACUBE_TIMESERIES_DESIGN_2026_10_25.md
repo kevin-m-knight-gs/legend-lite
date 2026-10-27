@@ -407,10 +407,11 @@ body's own by hygiene), and the self-joins (`percentiles` and `quantile` -- a me
 `quantileOfLine`, one aggregate a line), and the exponentials (`ewmaFrom`, the recursion's closed form in blocks,
 the database's; `ewma`, `ewmStd`, Wilder's `smoothedMean`, `ewmaSpan`, `macd`, `rsi`, `exponentialVolatility`,
 `exponentialSpreadVolatility` over it -- every exponential average the tile draws, an ATR's and a Keltner channel's
-among them) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
+among them), and the technicals over a row's fixed roles (`trueRange`, `atr`, `stochastic`, `keltnerChannels`,
+`donchianChannels` and its `...Period` form, `obv`, `vwap`) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
 'simple', ~ret_2)->datacube::ts::volatility(over(~line, [~period->ascending()], rows(-21, 0)), ~ret_2, 22, ~per_year_3,
 ~vol_4)`. Every other function is written as before until its family is converted; so are a volatility, a
-maximum drawdown and a Sharpe ratio over a calendar period, whose ramp counts from the first date of the series they
+maximum drawdown, a Sharpe ratio and a VWAP over a calendar period, whose ramp counts from the first date of the series they
 read (a price's), not of the column a statistic is over (its returns' or its drawdowns', a period later): they wait
 for a library function that ramps one column from another's first date. A model takes the library only where a query
 calls it: the planner plans such a query over its model with the library after it (`lite-planner.ts` and

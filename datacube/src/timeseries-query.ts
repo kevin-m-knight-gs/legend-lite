@@ -1298,14 +1298,6 @@ function spanOf(e: Extract<TsExpr, { kind: 'call' }>, name: string): Span {
 function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | undefined {
   const n = (name: string): number => paramOf(e, name) as number;
   const R = Writer.read;
-  /** Each period's true range: the most of the high less the low, the high less the close before and the close before
-   *  less the low -- the first, its high less its low. */
-  const trueRange = (w: Writer, h: string, l: string, c: string): string => {
-    const pc = w.lag(c, 1);
-    const hl = op('minus', one(h), one(l));
-    return w.row('tr', when(fn('isEmpty', col(pc)), hl,
-      fn('max', fn('max', hl, fn('abs', op('minus', one(h), one(pc)))), fn('abs', op('minus', one(pc), one(l))))));
-  };
   /** Two series' simple returns, each on its own dates, on the dates both have one (a pair's, a benchmark's). */
   const returnsOf = (k = 0): { readonly w: Writer; readonly a: string; readonly b: string } => {
     const x = seriesArg(sh, e, 0);
@@ -1318,49 +1310,38 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
     return { w, a: w.row('pa', when(fn('isEmpty', col(rb)), none(), col(ra))), b: w.row('pb', when(fn('isEmpty', col(ra)), none(), col(rb))) };
   };
   switch (e.fn) {
+    // the technicals, the library's (pure-library.ts): each over a row's high, low and close -- or its close and volume,
+    // its price and volume -- each period's at the tile's frequency (rolled)
     case 'atr':
     case 'stochastic':
     case 'keltner_channels': {
-      // each period's highest high, lowest low and last close, at the tile's frequency (rolled)
       const { w, columns } = rolled(sh, e, roleTaken(e.fn)!);
       const [hi, lo, cl] = columns as [string, string, string];
-      if (e.fn === 'atr') return { w, v: { column: w.smoothed(trueRange(w, hi, lo, cl), n('w')) } };
-      if (e.fn === 'stochastic') {
-        const size = n('w');
-        const hh = w.window('hh', 'max', R(hi), size);
-        const ll = w.window('ll', 'min', R(lo), size);
-        const k = w.row('stoch', when(fn('equal', one(hh), one(ll)), none(),
-          op('times', lit.integer(100), fn('divide', op('minus', one(cl), one(ll)), op('minus', one(hh), one(ll))))));
-        return { w, v: { column: w.ramped(k, cl, size) } };
-      }
-      // the close's exponential average of span w (its weight of the one before (w - 1) / (w + 1), the database's), k
-      // average true ranges either side
-      const span = n('w');
-      const mid = span <= 1 ? cl : w.ewm(cl, fn('divide', lit.integer(span - 1), lit.integer(span + 1)));
-      const atr = w.smoothed(trueRange(w, hi, lo, cl), n('a'));
-      const k = float(n('k'));
-      // drawn once the average holds w closes (the Phase 4 review's 7: an EMA 20 of 11 drawn)
-      const lower = w.ramped(w.row('lower', op('minus', one(mid), op('times', k, one(atr)))), cl, span, 'running');
-      const upper = w.ramped(w.row('upper', op('plus', one(mid), op('times', k, one(atr)))), cl, span, 'running');
-      return { w, v: { lower, upper, width: w.row('width', op('minus', one(upper), one(lower))) } };
+      const roles = [colSpec(w.part), colSpec(w.at), colSpec(hi), colSpec(lo), colSpec(cl)];
+      // a w of 1 or under each value as it is from the line's second (smoothed's)
+      if (e.fn === 'atr') return { w, v: { column: w.libraryOfRow('atr', 'atr', [...roles, lit.integer(Math.max(n('w'), 1))]) } };
+      if (e.fn === 'stochastic') return { w, v: { column: w.libraryOfRow('stochastic', 'stoch', [...roles, lit.integer(n('w'))]) } };
+      // the close's exponential average of span w, k average true ranges over a either side; drawn once the average holds
+      // w closes (the Phase 4 review's 7: an EMA 20 of 11 drawn)
+      const [lower, upper, width] = w.libraryOfMany('keltnerChannels', ['lower', 'upper', 'width'],
+        [...roles, lit.integer(Math.max(n('w'), 1)), lit.integer(Math.max(n('a'), 1)), float(n('k'))]);
+      return { w, v: { lower: lower!, upper: upper!, width: width! } };
     }
     case 'donchian_channels': {
       const { w, columns } = rolled(sh, e, roleTaken(e.fn)!);
       const [hi, lo] = columns as [string, string];
       const size = spanOf(e, 'w');
-      const frame = Writer.frame(size);
-      const upper = w.ramped(w.window('dc_hi', 'max', R(hi), frame), hi, size, frame);
-      const lower = w.ramped(w.window('dc_lo', 'min', R(lo), frame), lo, size, frame);
-      return { w, v: { lower, upper, width: w.row('width', op('minus', one(upper), one(lower))) } };
+      const [lower, upper, width] = typeof size === 'number'
+        ? w.libraryOfMany('donchianChannels', ['lower', 'upper', 'width'], [w.windowOf(Writer.frame(size) as 'running' | number), colSpec(hi), colSpec(lo), lit.integer(size)])
+        : w.libraryOfMany('donchianChannelsPeriod', ['lower', 'upper', 'width'],
+          [colSpec(w.part), colSpec(w.at), colSpec(hi), colSpec(lo), lit.integer(size.n), enumValue(DURATION, size.unit)]);
+      return { w, v: { lower: lower!, upper: upper!, width: width! } };
     }
     case 'obv': {
       // each period's last close and its whole volume
       const { w, columns } = rolled(sh, e, roleTaken(e.fn)!);
       const [cl, vol] = columns as [string, string];
-      const d = w.row('d', op('minus', one(cl), one(w.lag(cl, 1))));
-      const signed = w.row('obv_v', when(fn('isEmpty', col(d)), float(0), when(fn('greaterThan', one(d), lit.integer(0)), one(vol),
-        when(fn('lessThan', one(d), lit.integer(0)), op('minus', float(0), one(vol)), float(0)))));
-      return { w, v: { column: w.window('obv', 'plus', R(signed), 'running') } };
+      return { w, v: { column: w.libraryOfRow('obv', 'obv', [colSpec(w.part), colSpec(w.at), colSpec(cl), colSpec(vol)]) } };
     }
     case 'vwap': {
       // each price times its volume on its own dates, totalled a period (at a frequency, a week's every day's)
@@ -1368,6 +1349,10 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
       const [px, vol] = columns as [string, string];
       const size = spanOf(e, 'w');
       const frame = Writer.frame(size);
+      if (typeof size === 'number') {
+        return { w, v: { column: w.libraryOfRow('vwap', 'vwap', [w.windowOf(frame as 'running' | number), colSpec(px), colSpec(sums[0]!), colSpec(vol), lit.integer(size)]) } };
+      }
+      // over a calendar period: its ramp from the first price's date (the writer's, as a volatility's over one)
       const traded = w.window('pv_s', 'plus', R(sums[0]!), frame);
       const volume = w.window('v_s', 'plus', R(vol), frame);
       return { w, v: { column: w.ramped(w.ratio('vwap', one(traded), volume), px, size, frame) } };

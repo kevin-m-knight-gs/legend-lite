@@ -513,6 +513,79 @@ function datacube::ts::exponentialSpreadVolatility<T,L,D,V,Y,O>(t: Relation<T>[1
     ->extend(~o:x|$x.sd->toOne() * sqrt($x->read($perYear)->toOne()))
     ->without(~[dx, sd])->rename(~o, $out)
 }
+
+// The true range of each period (Wilder's): its high less its low, or, with a close before it, the most of that and the
+// distances of the high and the low from that close.
+function datacube::ts::trueRange<T,L,D,H,N,C,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], high: ColSpec<H⊆T>[1], low: ColSpec<N⊆T>[1], close: ColSpec<C⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line, [$date->ascending()]), ~pc:{p,f,r|$p->lag($r)->read($close)})
+    ->extend(~o:x|if($x.pc->isEmpty(), |$x->read($high)->toOne() - $x->read($low)->toOne(),
+      |max(max($x->read($high)->toOne() - $x->read($low)->toOne(), abs($x->read($high)->toOne() - $x.pc->toOne())), abs($x.pc->toOne() - $x->read($low)->toOne()))))
+    ->without(~pc)->rename(~o, $out)
+}
+
+// The average true range over w (gs-quant's and TA-Lib's atr): Wilder's smoothed average of the true ranges.
+function datacube::ts::atr<T,L,D,H,N,C,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], high: ColSpec<H⊆T>[1], low: ColSpec<N⊆T>[1], close: ColSpec<C⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::trueRange($line, $date, $high, $low, $close, ~tr)->datacube::ts::smoothedMean($line, $date, ~tr, $w, $out)->without(~tr)
+}
+
+// The stochastic oscillator over w (TA-Lib's fast %K): 100 × (close − lowest low) / (highest high − lowest low) of the
+// w periods to each, none where those are equal or until there are w closes.
+function datacube::ts::stochastic<T,L,D,H,N,C,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], high: ColSpec<H⊆T>[1], low: ColSpec<N⊆T>[1], close: ColSpec<C⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line, [$date->ascending()], rows(1 - $w, 0)), ~[hh:{p,f,r|$r->read($high)}:y|$y->max(), ll:{p,f,r|$r->read($low)}:y|$y->min(), n:{p,f,r|$r->read($close)}:y|$y->count()])
+    ->extend(~o:x|if(($x.n->toOne() < $w) || ($x.hh->toOne() == $x.ll->toOne()), |[], |100 * (($x->read($close)->toOne() - $x.ll->toOne()) / ($x.hh->toOne() - $x.ll->toOne()))))
+    ->without(~[hh, ll, n])->rename(~o, $out)
+}
+
+// Keltner channels (gs-quant's): k average true ranges over a (atr) either side of the close's exponential average of
+// span w (ewmaSpan), and their width -- none until the average holds w closes.
+function datacube::ts::keltnerChannels<T,L,D,H,N,C,O1,O2,O3>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], high: ColSpec<H⊆T>[1], low: ColSpec<N⊆T>[1], close: ColSpec<C⊆T>[1], w: Integer[1], a: Integer[1], k: Number[1], lower: ColSpec<O1>[1], upper: ColSpec<O2>[1], width: ColSpec<O3>[1]): Relation<T+O1+O2+O3>[1]
+{
+  $t->datacube::ts::ewmaSpan($line, $date, $close, $w, ~mid)->datacube::ts::atr($line, $date, $high, $low, $close, $a, ~av)
+    ->extend(over($line, [$date->ascending()], rows(unbounded(), 0)), ~n:{p,f,r|$r->read($close)}:y|$y->count())
+    ->extend(~[lo:x|if($x.n->toOne() < $w, |[], |$x.mid->toOne() - ($k * $x.av->toOne())), hi:x|if($x.n->toOne() < $w, |[], |$x.mid->toOne() + ($k * $x.av->toOne()))])
+    ->extend(~wd:x|$x.hi->toOne() - $x.lo->toOne())
+    ->without(~[mid, av, n])->rename(~lo, $lower)->rename(~hi, $upper)->rename(~wd, $width)
+}
+
+// Donchian channels over the window (gs-quant's): the lowest low and the highest high, and their width -- each none until
+// the window holds ramp of its column's values.
+function datacube::ts::donchianChannels<T,H,N,O1,O2,O3>(t: Relation<T>[1], win: _Window<T>[1], high: ColSpec<H⊆T>[1], low: ColSpec<N⊆T>[1], ramp: Integer[1], lower: ColSpec<O1>[1], upper: ColSpec<O2>[1], width: ColSpec<O3>[1]): Relation<T+O1+O2+O3>[1]
+{
+  $t->extend($win, ~[hh:{p,f,r|$r->read($high)}:y|$y->max(), nh:{p,f,r|$r->read($high)}:y|$y->count(), ll:{p,f,r|$r->read($low)}:y|$y->min(), nl:{p,f,r|$r->read($low)}:y|$y->count()])
+    ->extend(~[hi:x|if($x.nh->toOne() < $ramp, |[], |$x.hh), lo:x|if($x.nl->toOne() < $ramp, |[], |$x.ll)])
+    ->extend(~wd:x|$x.hi->toOne() - $x.lo->toOne())
+    ->without(~[hh, nh, ll, nl])->rename(~lo, $lower)->rename(~hi, $upper)->rename(~wd, $width)
+}
+
+// Donchian channels of a calendar period back of each date (overPeriod's max and min): each none before its column's
+// first value's date that period on.
+function datacube::ts::donchianChannelsPeriod<T,L,D,H,N,O1,O2,O3>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], high: ColSpec<H⊆T>[1], low: ColSpec<N⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], lower: ColSpec<O1>[1], upper: ColSpec<O2>[1], width: ColSpec<O3>[1]): Relation<T+O1+O2+O3>[1]
+{
+  $t->datacube::ts::overPeriod($line, $date, $high, $n, $unit, 'max', ~hi)->datacube::ts::overPeriod($line, $date, $low, $n, $unit, 'min', ~lo)
+    ->extend(~wd:x|$x.hi->toOne() - $x.lo->toOne())
+    ->rename(~lo, $lower)->rename(~hi, $upper)->rename(~wd, $width)
+}
+
+// On-balance volume (gs-quant's): from 0, each period's volume added on a rise of the close, taken off on a fall.
+function datacube::ts::obv<T,L,D,C,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], close: ColSpec<C⊆T>[1], volume: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line, [$date->ascending()]), ~dx:{p,f,r|$r->read($close)->toOne() - $p->lag($r)->read($close)->toOne()})
+    ->extend(~sv:x|if($x.dx->isEmpty(), |0.0, |if($x.dx->toOne() > 0, |$x->read($volume)->toOne(), |if($x.dx->toOne() < 0, |0.0 - $x->read($volume)->toOne(), |0.0))))
+    ->extend(over($line, [$date->ascending()], rows(unbounded(), 0)), ~o:{p,f,r|$r.sv}:y|$y->plus())
+    ->without(~[dx, sv])->rename(~o, $out)
+}
+
+// The volume-weighted average price over the window: Σ price × volume (traded, a column: at a frequency, the sum of its
+// periods' days) over Σ volume, none where the volume is 0 or until the window holds ramp prices.
+function datacube::ts::vwap<T,P,X,V,O>(t: Relation<T>[1], win: _Window<T>[1], price: ColSpec<P⊆T>[1], traded: ColSpec<X⊆T>[1], volume: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend($win, ~[pv:{p,f,r|$r->read($traded)}:y|$y->plus(), vs:{p,f,r|$r->read($volume)}:y|$y->plus(), n:{p,f,r|$r->read($price)}:y|$y->count()])
+    ->extend(~o:x|if(($x.n->toOne() < $ramp) || ($x.vs->toOne() == 0), |[], |$x.pv->toOne() / $x.vs->toOne()))
+    ->without(~[pv, vs, n])->rename(~o, $out)
+}
 `;
 
 /** Whether a query calls a function of the library. */

@@ -438,7 +438,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     assert.equal(planner.planRequest(plain.query).library, undefined);
   });
 
-  it('the levels and lags, the multi-step windows, the self-joins and the exponentials call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
+  it('the levels and lags, the multi-step windows, the self-joins, the exponentials and the technicals call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
     const calls = (expr: string, anchor?: string): ReadonlySet<string> => {
       const ts = spec({ A: expr });
       return functionsCalled(seriesQuery(inputs, ts, ts.series[0]!, anchor === undefined ? {} : { from: anchor }, {}).query);
@@ -459,6 +459,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ['exponential_moving_average(close[AAA], 0.9)', 'ewma'], ['exponential_std(close[AAA], 0.9)', 'ewmStd'],
       ['exponential_volatility(close[AAA], 0.9)', 'exponentialVolatility'], ['exponential_spread_volatility(close[AAA], 0.9)', 'exponentialSpreadVolatility'],
       ['macd(close[AAA], 12, 26, 9)', 'macd'], ['rsi(close[AAA], 14)', 'rsi'], ['smoothed_moving_average(close[AAA], 5)', 'smoothedMean'],
+      ['obv(close[AAA], volume[AAA])', 'obv'], ['vwap(close[AAA], volume[AAA], 10)', 'vwap'],
     ];
     for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`datacube::ts::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
   });
@@ -1667,10 +1668,27 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     close(l.upper!, atr.map((a, i) => (a === null || i < 19 ? null : mid[i]! + 2 * a)), 'upper', 1e-9);
   });
 
+  it('the technicals of a high, a low and a close call the library by name', () => {
+    const calls = (text: string): ReadonlySet<string> => functionsCalled(seriesQuery(pack, spec({ A: text }), spec({ A: text }).series[0]!).query);
+    const want: readonly [string, string][] = [
+      ['atr(high[P], low[P], close[P], 14)', 'atr'], ['stochastic(high[P], low[P], close[P], 14)', 'stochastic'],
+      ['keltner_channels(high[P], low[P], close[P], 20, 10, 2)', 'keltnerChannels'], ['donchian_channels(high[P], low[P], 20)', 'donchianChannels'],
+      ['donchian_channels(high[P], low[P], 2w)', 'donchianChannelsPeriod'],
+    ];
+    for (const [expr, f] of want) assert.ok(calls(expr).has(`datacube::ts::${f}`), `${expr} calls ${f}`);
+  });
+
   it('donchian_channels: the lowest low and the highest high of the last w', async () => {
     const l = await packLine('donchian_channels(high[P], low[P], 20)');
     close(l.lower!, rolling(PL, 20, (v) => Math.min(...v)), 'lower', 0);
     close(l.upper!, rolling(PH, 20, (v) => Math.max(...v)), 'upper', 0);
+    // over a calendar period (the library's donchianChannelsPeriod, 2026-10-27): the dates after two weeks back, to this
+    // one, from the first date two weeks on
+    const p = await packLine('donchian_channels(high[P], low[P], 2w)');
+    const start = onBy(PACK_DAYS[0]!, 2, 'w');
+    const within = (xs: number[], d: string): number[] => xs.filter((_, j) => PACK_DAYS[j]! > backBy(d, 2, 'w') && PACK_DAYS[j]! <= d);
+    close(p.lower!, PACK_DAYS.map((d) => (d < start ? null : Math.min(...within(PL, d)))), 'lower 2w', 0);
+    close(p.upper!, PACK_DAYS.map((d) => (d < start ? null : Math.max(...within(PH, d)))), 'upper 2w', 0);
   });
 
   it('obv: each volume added on a rise, taken off on a fall, from 0; vwap: Σ price × volume / Σ volume', async () => {
