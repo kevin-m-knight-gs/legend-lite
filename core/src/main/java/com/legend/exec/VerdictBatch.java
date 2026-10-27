@@ -124,10 +124,14 @@ public final class VerdictBatch {
      * plan (leg 3.4 step 2), defined once per body. */
     private final Map<String, SqlQuery> frames = new LinkedHashMap<>();
 
-    public VerdictBatch(Fusion fusion, Judge judge, Runner runner) {
+    /** The body's execution trace: its fused statement publishes its stamp there. */
+    private final ExecutionTrace trace;
+
+    public VerdictBatch(Fusion fusion, Judge judge, Runner runner, ExecutionTrace trace) {
         this.fusion = fusion;
         this.judge = judge;
         this.runner = runner;
+        this.trace = trace;
     }
 
     /** A statement-root assert begins: its steps accrue until {@link #close}. */
@@ -326,7 +330,8 @@ public final class VerdictBatch {
         SqlQuery b = fusion.fuse(statements, frames);
         List<List<Object>> rows;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
-            rows = runner.rows(b, PlanSessions.given(on), true);
+            // the body's fused statement carries the stamp its frames' activities reserved (ExecutionTrace.reserve)
+            rows = runner.rows(b, PlanSessions.given(on, trace), true);
         }
         if (rows.size() != statements.size()) {
             throw new IllegalStateException("the batch verdict statement returned " + rows.size() + " rows for "

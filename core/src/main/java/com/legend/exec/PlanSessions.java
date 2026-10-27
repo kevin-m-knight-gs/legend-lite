@@ -75,6 +75,28 @@ public final class PlanSessions {
         return target -> borrowed(connection);
     }
 
+    /** A caller's own connection whose queries publish their execution-trace stamp to {@code trace} (the body
+     *  driver's session: an activity row records the comment its statement carried, {@link ExecutionTrace}); as
+     *  {@link #given(Connection)} otherwise. */
+    public static Source given(Connection connection, ExecutionTrace trace) {
+        return target -> new Sessions.Session() {
+            @Override
+            public Connection connection() {
+                return connection;
+            }
+
+            @Override
+            public Statements statements() {
+                return new JdbcStatements(connection, trace);
+            }
+
+            @Override
+            public void close() {
+                // the caller's
+            }
+        };
+    }
+
     /** A caller's own FRESH connection with {@code target}'s setup run on it now (a test's new database): the source
      *  of {@link #given} it, never closed here. */
     public static Source setUp(Connection connection, ExecutionPlan.Target target) {

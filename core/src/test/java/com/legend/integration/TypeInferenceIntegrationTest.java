@@ -641,7 +641,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|[1, 2, 3]->drop(1)",
                                 "test::TestRuntime",
                                 connection);
-                assertEquals(List.of(2, 3), result.asCollection().values());
+                assertEquals(List.of(2L, 3L), result.asCollection().values());
         }
 
         @Test
@@ -651,7 +651,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|[1, 2, 3]->take(2)",
                                 "test::TestRuntime",
                                 connection);
-                assertEquals(List.of(1, 2), result.asCollection().values());
+                assertEquals(List.of(1L, 2L), result.asCollection().values());
         }
 
         @Test
@@ -661,7 +661,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|[1, 2, 3, 4]->slice(1, 3)",
                                 "test::TestRuntime",
                                 connection);
-                assertEquals(List.of(2, 3), result.asCollection().values());
+                assertEquals(List.of(2L, 3L), result.asCollection().values());
         }
 
         @Test
@@ -681,7 +681,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|[1, 2, 3]->concatenate([4, 5])",
                                 "test::TestRuntime",
                                 connection);
-                assertEquals(List.of(1, 2, 3, 4, 5), result.asCollection().values());
+                assertEquals(List.of(1L, 2L, 3L, 4L, 5L), result.asCollection().values());
         }
 
         // ==================== List aggregate functions ====================

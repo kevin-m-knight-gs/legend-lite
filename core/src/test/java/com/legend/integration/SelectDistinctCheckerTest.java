@@ -61,7 +61,7 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
                     #->select(~[id, name])->sort(ascending(~id))""");
             assertNotNull(result);
             assertEquals(2, result.rows().size());
-            assertEquals(1, result.rows().get(0).values().get(0));
+            assertEquals(1L, result.rows().get(0).values().get(0));
             assertEquals("Alice", result.rows().get(0).values().get(1));
         }
 
@@ -144,9 +144,9 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             // 3 unique ages: 28, 30, 45
             assertEquals(3, result.rows().size());
-            assertEquals(28, result.rows().get(0).values().get(0));
-            assertEquals(30, result.rows().get(1).values().get(0));
-            assertEquals(45, result.rows().get(2).values().get(0));
+            assertEquals(28L, result.rows().get(0).values().get(0));
+            assertEquals(30L, result.rows().get(1).values().get(0));
+            assertEquals(45L, result.rows().get(2).values().get(0));
         }
     }
 

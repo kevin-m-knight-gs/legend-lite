@@ -1165,29 +1165,6 @@ public class H2 extends AnsiSqlRenderer {
                 + " H2's TRANSLATE keeps the characters translate removes");
     }
 
-    /** H2 hands JSON values back as {@code byte[]} (UTF-8 text) — the
-     * canonical envelope representation is the STRING (probed 2.1.214;
-     * H2_BACKEND.md §12 step 11's first codec row). */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            com.legend.sql.@com.legend.base.Nullable SqlType type) {
-        // a JSON-carried list's text too (the list-less carrier, §2b): until 2026-10-15 the executor decoded H2's
-        // byte[] there itself
-        if (jdbcValue instanceof byte[] b
-                && (type == com.legend.sql.SqlType.Scalar.JSON || type instanceof com.legend.sql.SqlType.Array)) {
-            return new String(b, java.nio.charset.StandardCharsets.UTF_8);
-        }
-        // LEGACY-mode H2 hands DOUBLE aggregates back as BigDecimal
-        // ('1E+1' for SUM over DOUBLE — probed; DuckDB hands Double):
-        // the DECLARED column type drives the codec, and every float
-        // print/compare downstream expects the double carrier.
-        if (jdbcValue instanceof java.math.BigDecimal bd
-                && type == com.legend.sql.SqlType.Scalar.DOUBLE) {
-            return bd.doubleValue();
-        }
-        return jdbcValue;
-    }
-
     /** Pure's splitPart with the engine's meaning (commons split: the separator is a SET of
      *  characters, adjacent separators collapse, 1-based part, NULL past the end) in plain H2:
      *  the part-th maximal run of non-separator characters, {@code REGEXP_SUBSTR(s, '[^…]+', 1, part)},

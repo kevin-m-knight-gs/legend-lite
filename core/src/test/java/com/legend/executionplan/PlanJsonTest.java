@@ -128,15 +128,17 @@ class PlanJsonTest {
         // 8 since 2026-10-20: the keyed result, per-key regions, a key's cell (the dynamic pivot's probe plan); 9 the
         // same day: the keyed result's cells named as its statements write them (keyFields, an output's field); 12
         // since 2026-10-27: a typed result's shape (a relation's rows, a value's elements, a graph fetch's objects); 13
-        // the same day: a text result is Pure's TDS text alone; 14 the same day: no text result at all
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":14,"), json);
+        // the same day: a text result is Pure's TDS text alone; 14 the same day: no text result at all; 15 the same day:
+        // the effect node (a statement sent for what it does, the body driver's effects on the plan); 16 the same day: a
+        // keyed result's per-key columns placed among its fixed ones
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":16,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v15 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v16 plan"), refused.getMessage());
     }
 
     @Test

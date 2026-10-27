@@ -791,8 +791,8 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
             assertEquals(2, result.rowCount());
             assertEquals(2, result.columns().size());
             var byId = CheckerResults.collect(result, "resultId", "resultCol");
-            assertEquals("MoreGeorge", byId.get(1));
-            assertEquals("MoreDavid", byId.get(4));
+            assertEquals("MoreGeorge", byId.get(1L));
+            assertEquals("MoreDavid", byId.get(4L));
         }
 
         @Test

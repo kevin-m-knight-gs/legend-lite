@@ -294,7 +294,7 @@ final class StatementExecutor {
      * statement as a plan (JudgePlans, step 6). */
     static com.legend.exec.VerdictBatch newVerdictBatch(ExecEnv env) {
         return new com.legend.exec.VerdictBatch(com.legend.lowering.VerdictSql::batch, DatabaseJudge::verdictOf,
-                JudgePlans.runner(env));
+                JudgePlans.runner(env), env.trace());
     }
 
     /** A statement at VALUE position, PREPARED — the compile phases only (helper
@@ -2200,7 +2200,7 @@ final class StatementExecutor {
     private static long sendUpdate(ExecEnv env, String sql) {
         try {
             return com.legend.exec.PlanRunner.update(new com.legend.executionplan.ExecutionPlan.Update(
-                    statementOf(env, sql), null), com.legend.exec.PlanSessions.given(env.connection()));
+                    statementOf(env, sql), null), com.legend.exec.PlanSessions.given(env.connection(), env.trace()));
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
@@ -2211,7 +2211,7 @@ final class StatementExecutor {
     private static boolean sendRaw(ExecEnv env, String sql) {
         try {
             return com.legend.exec.PlanRunner.effect(new com.legend.executionplan.ExecutionPlan.Effect(
-                    statementOf(env, sql)), com.legend.exec.PlanSessions.given(env.connection()));
+                    statementOf(env, sql)), com.legend.exec.PlanSessions.given(env.connection(), env.trace()));
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
@@ -2529,7 +2529,7 @@ final class StatementExecutor {
     }
 
     /** A value statement's result: answered by the prelude where it needs no plan, a literal folded, else its plan
-     *  run by the plan runner on the env's session ({@link JudgePlans#sideResult}: the typed rows shaped as the
+     *  run by the plan runner on the env's session ({@link JudgePlans#statementResult}: the typed rows shaped as the
      *  statement's shape; docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, phase 5 -- the body driver sends nothing
      *  itself). F13c: {@code identityLane} joins the identity lane (assert-condition sides). */
     static ExecutionResult executeTyped(
@@ -2564,7 +2564,7 @@ final class StatementExecutor {
         if (System.getenv("LL_TMP_SQL") != null) {
             System.err.println("[exec-sql] " + renderFor(env, plan));
         }
-        ExecutionResult res = JudgePlans.sideResult(wrapSide(plan, root,
+        ExecutionResult res = JudgePlans.statementResult(wrapSide(plan, root,
                 collectionDeclared ? declaredInfo : null, null, env), env);
         enforceToOneReader(root, res);
         return res;

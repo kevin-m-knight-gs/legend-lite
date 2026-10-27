@@ -200,10 +200,15 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * {@code body} is written once, with per-key regions ({@link Sql#regions}) the runner repeats once per key; its
      * rows' cells are {@code outputs} in order, a per-key output once per key, key by key. Both statements run on one
      * session, inside one {@code snapshot}, so the keys are the body's. The cells are typed by their columns' facts and
-     * answered as typed rows. {@code maxColumns}: the most columns the database
+     * answered as typed rows. {@code perKeyAt}: how many of the fixed columns the answer places before the per-key ones
+     * -- the relation's own column order (Pure's pivot answers its grouping columns, then the per-key ones, then any
+     * column a later step adds), where the body answers every fixed column first and the runner places each cell
+     * (2026-10-27, the result boundary program's phase 5: an extend after a pivot answered before the per-key
+     * columns). {@code maxColumns}: the most columns the database
      * answers, a body asked for more refused by name before it is sent; null where the database has no limit said.
      */
-    public record Keyed(Sql keys, List<String> keyFields, List<Output> outputs, Sql body, Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
+    public record Keyed(Sql keys, List<String> keyFields, List<Output> outputs, int perKeyAt, Sql body,
+            Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
         public Keyed {
             Objects.requireNonNull(keys, "keys");
             keyFields = List.copyOf(keyFields);
@@ -230,6 +235,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             }
             if (!perKey) {
                 throw new IllegalArgumentException("a keyed result with no per-key output");
+            }
+            long fixedOutputs = outputs.stream().filter(o -> o instanceof Fixed).count();
+            if (perKeyAt < 0 || perKeyAt > fixedOutputs) {
+                throw new IllegalArgumentException("the per-key columns placed after " + perKeyAt + " of "
+                        + fixedOutputs + " fixed ones");
             }
             long perKeyOutputs = outputs.stream().filter(o -> o instanceof PerKey).count();
             if (keyFields.size() != perKeyOutputs + 1) {

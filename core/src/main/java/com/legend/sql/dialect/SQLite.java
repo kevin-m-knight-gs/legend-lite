@@ -41,7 +41,7 @@ import java.util.Set;
  *       date-time are their ISO text ({@code 'YYYY-MM-DD'}, {@code 'YYYY-MM-DD HH:MM:SS[.f]'}), and a CAST to a type
  *       name casts by its affinity only ({@code CAST('2024-01-01' AS DATE)} is 2024): every cast is decided here;</li>
  *   <li>there is no exact decimal: a decimal is a REAL, and a root decimal column is its text at its scale
- *       ({@code printf('%.2f', x)}), read back exact ({@link #normalize});</li>
+ *       ({@code printf('%.2f', x)}), read back exact by the typed reader;</li>
  *   <li>a list, a struct, a map and a Variant are JSON text (JSON1): {@code json_array}, {@code json_object}; a list
  *       operation is a correlated subquery over {@code json_each(xs)} (its {@code key} the 0-based position), a fold a
  *       correlated {@code WITH RECURSIVE} (both measured to correlate inside a scalar subquery); a value that leaves
@@ -3057,28 +3057,6 @@ public final class SQLite extends AnsiSqlRenderer {
                     new RenderedStatement.TypeSpelling("TEXT", RenderedStatement.Digits.NONE);
             case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
         };
-    }
-
-    // ==================================================================
-    // Values: what the driver hands back
-    // ==================================================================
-
-    /** A boolean arrives as 1 or 0; a struct or a map as its JSON text, decoded to the platform's map of its fields; a
-     *  root decimal as its text at its scale ({@link #delivered}), read exact. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (type == SqlType.Scalar.BOOLEAN && jdbcValue instanceof Number n) {
-            return n.longValue() != 0;
-        }
-        if (jdbcValue instanceof String s && (type instanceof SqlType.Struct || type instanceof SqlType.Map)
-                && s.startsWith("{")) {
-            return com.legend.sql.Json.parse(s);
-        }
-        if (jdbcValue instanceof String s && type instanceof SqlType.Decimal) {
-            return new java.math.BigDecimal(s);
-        }
-        return jdbcValue;
     }
 
     // ==================================================================

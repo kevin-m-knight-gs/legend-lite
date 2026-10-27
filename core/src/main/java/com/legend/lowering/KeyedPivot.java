@@ -47,7 +47,7 @@ public final class KeyedPivot {
 
     /** The probe plan's statements and outputs: {@code keys} (one row per key: its text, then each per-key output's
      *  name), {@code body} (the fixed columns, then the per-key ones), {@code outputs} in the body's order. */
-    public record Parts(SqlQuery keys, SqlQuery body, List<Output> outputs) {
+    public record Parts(SqlQuery keys, SqlQuery body, List<Output> outputs, int perKeyAt) {
     }
 
     /** One output of the body. */
@@ -177,7 +177,14 @@ public final class KeyedPivot {
         }
         SqlSelect body = SqlSelect.starOf(new SqlSource.Subselect(lift.inner0(), "_pct0", null))
                 .withProjections(projections).withOrderBy(lift.remapped());
-        return new Parts(keys, body, outputs);
+        // the relation's own order: Pure's pivot answers its grouping columns, then the per-key ones, and a column a
+        // later step adds (an extend) comes after them; the body answers its fixed columns first (the runner places
+        // each cell, ExecutionPlan.Keyed#perKeyAt)
+        if (statics.size() > fixedOuts.size()) {
+            throw new IllegalStateException("a dynamic pivot whose " + statics.size() + " grouping columns outnumber the "
+                    + fixedOuts.size() + " fixed columns its relation answers");
+        }
+        return new Parts(keys, body, outputs, statics.size());
     }
 
     /** The pivot as the grouped CASE aggregation: its static columns, grouped, then each aggregate over the rows of

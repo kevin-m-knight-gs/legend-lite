@@ -55,7 +55,7 @@ public class LetCheckerTest extends AbstractDatabaseTest {
         void testLetInteger() throws SQLException {
             var result = executeRelation("|let x = 42; $x;");
             assertEquals(1, result.rows().size(), "Single row");
-            assertEquals(42, result.rows().get(0).values().get(0), "Value is 42");
+            assertEquals(42L, result.rows().get(0).values().get(0), "Value is 42");
         }
 
         @Test
@@ -95,7 +95,7 @@ public class LetCheckerTest extends AbstractDatabaseTest {
         void testLetAddition() throws SQLException {
             var result = executeRelation("|let x = 10 + 32; $x;");
             assertEquals(1, result.rows().size());
-            assertEquals(42, result.rows().get(0).values().get(0));
+            assertEquals(42L, result.rows().get(0).values().get(0));
         }
 
         @Test
@@ -103,7 +103,7 @@ public class LetCheckerTest extends AbstractDatabaseTest {
         void testLetMultiplication() throws SQLException {
             var result = executeRelation("|let x = 6 * 7; $x;");
             assertEquals(1, result.rows().size());
-            assertEquals(42, result.rows().get(0).values().get(0));
+            assertEquals(42L, result.rows().get(0).values().get(0));
         }
 
         @Test
@@ -111,7 +111,7 @@ public class LetCheckerTest extends AbstractDatabaseTest {
         void testLetNestedArith() throws SQLException {
             var result = executeRelation("|let x = (10 + 5) * 2; $x;");
             assertEquals(1, result.rows().size());
-            assertEquals(30, result.rows().get(0).values().get(0));
+            assertEquals(30L, result.rows().get(0).values().get(0));
         }
 
         @Test
@@ -134,7 +134,7 @@ public class LetCheckerTest extends AbstractDatabaseTest {
         void testTwoLets() throws SQLException {
             var result = executeRelation("|let x = 10; let y = $x + 32; $y;");
             assertEquals(1, result.rows().size());
-            assertEquals(42, result.rows().get(0).values().get(0));
+            assertEquals(42L, result.rows().get(0).values().get(0));
         }
 
         @Test
@@ -142,7 +142,7 @@ public class LetCheckerTest extends AbstractDatabaseTest {
         void testThreeLets() throws SQLException {
             var result = executeRelation("|let a = 2; let b = 3; let c = $a * $b + 1; $c;");
             assertEquals(1, result.rows().size());
-            assertEquals(7, result.rows().get(0).values().get(0));
+            assertEquals(7L, result.rows().get(0).values().get(0));
         }
 
         @Test
@@ -174,7 +174,7 @@ public class LetCheckerTest extends AbstractDatabaseTest {
         void testLetWithAbs() throws SQLException {
             var result = executeRelation("|let x = 42->abs(); $x;");
             assertEquals(1, result.rows().size());
-            assertEquals(42, result.rows().get(0).values().get(0));
+            assertEquals(42L, result.rows().get(0).values().get(0));
         }
 
         @Test
@@ -206,9 +206,9 @@ public class LetCheckerTest extends AbstractDatabaseTest {
                     $data->filter(x|$x.id > 1);""");
             assertEquals(2, result.rows().size(), "Bob and Charlie");
             var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.values().get(0));   // by id: order-free (P3-11)
-            assertEquals(2, sorted.get(0).values().get(0));
+            assertEquals(2L, sorted.get(0).values().get(0));
             assertEquals("Bob", sorted.get(0).values().get(1));
-            assertEquals(3, sorted.get(1).values().get(0));
+            assertEquals(3L, sorted.get(1).values().get(0));
             assertEquals("Charlie", sorted.get(1).values().get(1));
         }
 
@@ -236,7 +236,7 @@ public class LetCheckerTest extends AbstractDatabaseTest {
                     model::Person.all()->filter(p|$p.age > $threshold)->project(~[name:p|$p.firstName, age:p|$p.age]);""");
             assertEquals(1, result.rows().size(), "Only Bob (45) > 30");
             assertEquals("Bob", result.rows().get(0).values().get(0));
-            assertEquals(45, result.rows().get(0).values().get(1));
+            assertEquals(45L, result.rows().get(0).values().get(1));
         }
     }
 
@@ -251,8 +251,8 @@ public class LetCheckerTest extends AbstractDatabaseTest {
         void testLetIntegerList() throws SQLException {
             var result = executeRelation("|let xs = [1, 2, 3]; $xs->filter(x|$x > 1);");
             assertEquals(2, result.rows().size());
-            assertEquals(2, result.rows().get(0).values().get(0));
-            assertEquals(3, result.rows().get(1).values().get(0));
+            assertEquals(2L, result.rows().get(0).values().get(0));
+            assertEquals(3L, result.rows().get(1).values().get(0));
         }
 
         @Test

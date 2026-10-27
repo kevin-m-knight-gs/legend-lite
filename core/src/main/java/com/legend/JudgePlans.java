@@ -158,8 +158,21 @@ final class JudgePlans {
     /** A planned side's result: its plan run by the runner, its rows decoded by the plan's types and shaped as the
      *  side's declared shape (the legacy executor's own shaping rules, read from the plan's facts instead of JDBC). */
     static ExecutionResult sideResult(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
+        return result(w, env, true);
+    }
+
+    /** A value statement's result (the body driver's, not a side under assertion): {@link #sideResult}'s, its grid
+     *  in the order its query gives -- the assert boundary's deterministic order is the assertion surface's feature,
+     *  never an ordinary statement's (2026-10-27, the result boundary program's phase 5: a statement's VALUES rows
+     *  have no scan key to order by). */
+    static ExecutionResult statementResult(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
+        return result(w, env, false);
+    }
+
+    private static ExecutionResult result(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env,
+            boolean assertBoundary) {
         ExprType info = w.shapeInfo();
-        ExecutionResult result = sideResult0(w, env);
+        ExecutionResult result = sideResult0(w, env, assertBoundary);
         if (com.legend.diagnostics.Diagnostics.dumpSql()) {
             // the SQL dump's companion: the side's plan columns and the cells the decode gave, with their carriers
             StringBuilder sb = new StringBuilder("[side] " + w.shape() + " " + info.type().typeName() + " slots=");
@@ -177,11 +190,12 @@ final class JudgePlans {
         return result;
     }
 
-    private static ExecutionResult sideResult0(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
+    private static ExecutionResult sideResult0(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env,
+            boolean assertBoundary) {
         ExprType info = w.shapeInfo();
         return switch (w.shape()) {
             case GRAPH -> new ExecutionResult.Graph(objects(w, env), info.type());
-            case TABULAR -> tabular(w, env);
+            case TABULAR -> tabular(w, env, assertBoundary);
             case SCALAR, COLLECTION -> values(w, env);
         };
     }
@@ -200,7 +214,7 @@ final class JudgePlans {
                 List.of(new ExecutionPlan.Column(outs.get(0).name(), "String", new ExecutionPlan.Multiplicity(0, 1),
                         com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null)),
                 PlanMaker.sql(plan, env.dialect(), target(env)));
-        PlanRunner.Rows rows = run(node, PlanSessions.given(w.connection()));
+        PlanRunner.Rows rows = run(node, PlanSessions.given(w.connection(), env.trace()));
         if (rows.rows().size() != 1) {
             throw new IllegalStateException("a graph fetch side's statement answered " + rows.rows().size()
                     + " rows: its objects' array is one row");
@@ -213,7 +227,8 @@ final class JudgePlans {
         };
     }
 
-    private static ExecutionResult tabular(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
+    private static ExecutionResult tabular(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env,
+            boolean assertBoundary) {
         ExprType info = w.shapeInfo();
         SqlQuery plan = w.plan();
         Type.RelationType schema = Type.schemaView(info.type());
@@ -230,7 +245,7 @@ final class JudgePlans {
         if (!lateBound && TypedRows.dynamicPivotUnnamed(plan, schema)) {
             return keyed(plan, schema, info, w, env);
         }
-        if (!lateBound) {
+        if (!lateBound && assertBoundary) {
             // ASSERT-BOUNDARY determinism (user design, 2026-08-29; the rule of the legacy TDS canon wrap this side
             // no longer rides, kept on the plan path): a grid under assertion is deterministically ordered even when
             // the test forgot to sort -- a FEATURE of the assert surface, always on; ScanOrder is the one key owner,
@@ -243,7 +258,7 @@ final class JudgePlans {
         // a row-struct column is typed nesting over a flat physical reality: the prefixed columns the join emitted
         schema = flattenStructColumns(schema);
         // a grid's cells typed from the driver: a temporal cell by the database's own kind (a DATE a day)
-        PlanRunner.Rows rows = run(rowsPlan(plan, schema, env), PlanSessions.given(w.connection()));
+        PlanRunner.Rows rows = run(rowsPlan(plan, schema, env), PlanSessions.given(w.connection(), env.trace()));
         List<Column> columns = new ArrayList<>(schema.columns().size());
         for (Type.Column c : schema.columns()) {
             columns.add(new Column(c.name(), c.type(), c.multiplicity()));
@@ -267,34 +282,24 @@ final class JudgePlans {
         ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), target(env));
         PlanRunner.Rows rows;
         try {
-            rows = PlanRunner.rows(new ExecutionPlan(List.of(), keyed), Map.of(), PlanSessions.given(w.connection()));
+            rows = PlanRunner.rows(new ExecutionPlan(List.of(), keyed), Map.of(), PlanSessions.given(w.connection(), env.trace()));
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
-        List<Type> perKey = new ArrayList<>();
-        int fixed = 0;
-        for (ExecutionPlan.Keyed.Output o : keyed.outputs()) {
-            if (o instanceof ExecutionPlan.Keyed.PerKey p) {
-                perKey.add(schema.dynamicColumns().stream().filter(c -> c.name().equals(p.column().name()))
-                        .findFirst().orElseThrow(() -> new IllegalStateException("a per-key column '"
-                                + p.column().name() + "' with no template in " + schema.dynamicColumns()))
-                        .type());
-            } else {
-                fixed++;
-            }
-        }
+        // each answered column typed by the schema's one pivot rule (Type.RelationType.pivotColumnType): a fixed column
+        // by its name, a per-key one by its aggregate's template, which its generated name ends with
         List<Column> columns = new ArrayList<>(rows.columns().size());
-        for (int i = 0; i < rows.columns().size(); i++) {
-            ExecutionPlan.Column c = rows.columns().get(i);
-            if (i < fixed) {
-                Type.Column sc = schema.columns().stream().filter(x -> x.name().equals(c.name())).findFirst()
-                        .orElseThrow(() -> new IllegalStateException("a fixed column '" + c.name()
-                                + "' outside the schema " + schema.columns()));
-                columns.add(new Column(sc.name(), sc.type(), sc.multiplicity()));
-            } else {
-                columns.add(new Column(Type.RelationType.presentPivotName(c.name()),
-                        perKey.get((i - fixed) % perKey.size())));
+        for (ExecutionPlan.Column c : rows.columns()) {
+            Type t = schema.pivotColumnType(c.name());
+            if (t == null) {
+                throw new IllegalStateException("the keyed side's column '" + c.name() + "' is neither among the"
+                        + " schema's columns " + schema.columns() + " nor a per-key column of its templates "
+                        + schema.dynamicColumns());
             }
+            Type.Column fixed = schema.columns().stream().filter(x -> x.name().equals(c.name())).findFirst()
+                    .orElse(null);
+            columns.add(fixed != null ? new Column(fixed.name(), fixed.type(), fixed.multiplicity())
+                    : new Column(Type.RelationType.presentPivotName(c.name()), t));
         }
         List<Row> out = new ArrayList<>(rows.rows().size());
         for (List<Object> r : rows.rows()) {
@@ -338,7 +343,7 @@ final class JudgePlans {
         ExprType info = w.shapeInfo();
         Type type = info.type();
         PlanRunner.Rows rows = valueLane(run(rowsPlan(withFrames(w.plan(), env), TypedRows.schema(info), env),
-                PlanSessions.given(w.connection())));
+                PlanSessions.given(w.connection(), env.trace())));
         long lower = info.multiplicity().requireBounded("result shape").lower();
         boolean tdsNullRoot = type.equals(new Type.ClassType(PlatformTypes.TDS_NULL_FQN));
         boolean anyRoot = PlatformTypes.isAny(type) || tdsNullRoot;
@@ -353,8 +358,11 @@ final class JudgePlans {
                         + " contract was not enforced upstream");
             }
             Object v = rows.rows().isEmpty() ? null : rows.rows().get(0).get(0);
-            if (v instanceof List<?> l) {
-                // the list wire arriving as one cell under a scalar-shaped root: the collection is the value
+            if (v instanceof List<?> l && !PlatformTypes.isListCarrier(type)) {
+                // the list wire arriving as one cell under a scalar-shaped root: the collection is the value -- unless
+                // the value IS a List (a List<T> instance is one value holding its list, as the legacy executor kept
+                // the decoded list; 2026-10-27, the result boundary program's phase 5: the plan's decode reads every
+                // array as a list, so the declared type decides)
                 return new ExecutionResult.Collection(new ArrayList<>(l), type);
             }
             return new ExecutionResult.Scalar(v, type);

@@ -526,7 +526,9 @@ public class MariaDb extends AnsiSqlRenderer {
         }
         SqlSelect countedRows = new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null,
                 List.of());
-        return s.withFrom(new SqlSource.Subselect(countedRows, alias, null));
+        // a star of the select reads the source as it was, its own columns, never the counts beside them
+        return s.withProjections(starsAsSourceColumns(s, from, alias, product()))
+                .withFrom(new SqlSource.Subselect(countedRows, alias, null));
     }
 
     /** Each MODE under {@code e} to count: a grouped reducer with the select's keys (where {@link #groupedModesCounted}),
@@ -3436,21 +3438,6 @@ public class MariaDb extends AnsiSqlRenderer {
     // ==================================================================
     // Values: what the driver hands back
     // ==================================================================
-
-    /** A boolean arrives as 1 or 0 (a comparison is an integer here); a struct or a map as its JSON text, decoded to
-     *  the platform's map of its fields. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (type == SqlType.Scalar.BOOLEAN && jdbcValue instanceof Number n) {
-            return n.longValue() != 0;
-        }
-        if (jdbcValue instanceof String s && (type instanceof SqlType.Struct || type instanceof SqlType.Map)
-                && s.startsWith("{")) {
-            return com.legend.sql.Json.parse(s);
-        }
-        return jdbcValue;
-    }
 
     // ==================================================================
     // DDL (test fixtures)

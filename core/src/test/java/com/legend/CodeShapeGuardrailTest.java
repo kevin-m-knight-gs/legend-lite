@@ -50,6 +50,10 @@ class CodeShapeGuardrailTest {
      * memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
+            // a parser cursor (2026-10-27, the result boundary program's phase 5: the reader of a database's JSON
+            // with its non-finite tokens moved here from the parity harnesses' test sources): one parse's position,
+            // the instance one parse's and never shared
+            "NonFiniteJson.at",
             // (Lowerer.relationDepth row DELETED 2026-08-24 — the audit
             // found the counter write-only; the allowlist justification
             // was a rationalization, exactly what this guardrail is for)

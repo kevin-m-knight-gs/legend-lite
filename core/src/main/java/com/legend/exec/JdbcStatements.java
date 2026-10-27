@@ -25,18 +25,39 @@ final class JdbcStatements implements Statements {
 
     private final Connection c;
 
-    /** Whether the session's driver re-reads a timestamp cell as {@code java.time}: its database's fact, known once
-     *  {@link #check} has checked the session against the plan's target; null before. */
-    private @com.legend.base.Nullable Boolean javaTime;
+    /** The execution trace a query's stamp is published to (the body driver's, whose activity rows record the comment
+     *  the statement carried); null for a session no trace reads ({@link ExecutionTrace#stampOnly}). */
+    private final @com.legend.base.Nullable ExecutionTrace trace;
+
+    /** The session's driver facts the typed rows are read by (its database's: a timestamp re-read as
+     *  {@code java.time}, a decimal's trailing zeros dropped, a failing statement's result opened with no columns),
+     *  known once {@link #check} has checked the session against the plan's target; null before. */
+    private JdbcDecode.@com.legend.base.Nullable Driver driver;
 
     JdbcStatements(Connection c) {
+        this(c, null);
+    }
+
+    JdbcStatements(Connection c, @com.legend.base.Nullable ExecutionTrace trace) {
         this.c = c;
+        this.trace = trace;
+    }
+
+    /** A query as the database receives it: the engine's execution-trace comment line, then the statement
+     *  ({@link ExecutionTrace}: legend-engine's RelationalExecutor stamps every query it runs, and the activity records
+     *  the comment). The old executor stamped at its one JDBC boundary; the plan runner's is this one (2026-10-27, the
+     *  result boundary program's phase 5: with the old executor deleted no query carried it, and the corpus's
+     *  testSQLComments read an activity comment no statement had). */
+    private String stamped(String statement) {
+        return trace != null ? trace.stamp(statement) : ExecutionTrace.stampOnly(statement);
     }
 
     @Override
     public void check(ExecutionPlan.Target target) {
         Sessions.check(c, target.database().type());
-        javaTime = com.legend.database.Databases.dialect(target.database().type()).refetchesTimestampAsJavaTime();
+        com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(target.database().type());
+        driver = new JdbcDecode.Driver(dialect.refetchesTimestampAsJavaTime(), dialect.dropsDecimalTrailingZeros(),
+                dialect.opensFailedResultsWithoutColumns(), dialect.jsonSpellsNonFiniteNumbers());
         switch (target.servers()) {
             case ExecutionPlan.Servers.Every every -> {
                 // the spelling depends on no version
@@ -82,7 +103,7 @@ final class JdbcStatements implements Statements {
     @Override
     public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
@@ -102,12 +123,22 @@ final class JdbcStatements implements Statements {
     @Override
     public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
+            JdbcDecode.Driver driver = this.driver;
+            if (driver == null) {
+                throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
+                        + " how its driver answers is its database's fact");
+            }
             try (ResultSet rs = st.executeQuery()) {
                 int answered = rs.getMetaData().getColumnCount();
+                if (answered == 0 && driver.failedWithoutColumns()) {
+                    // a failing statement's result opened with no columns: the first read raises its own error (the
+                    // database's message, never the column count's; 2026-10-27, measured on the Trino lane)
+                    rs.next();
+                }
                 int declared = com.legend.result.RowDecode.physicalColumns(columns);
                 if (answered != declared) {
                     throw new IllegalStateException("the statement answers " + answered + " columns, and the plan"
@@ -115,13 +146,8 @@ final class JdbcStatements implements Statements {
                             .toList() + ": a typed-rows statement answers the plan's columns in their order"
                             + (declared == columns.size() ? "" : " (a tagged column's slots beside it)"));
                 }
-                Boolean javaTime = this.javaTime;
-                if (javaTime == null) {
-                    throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
-                            + " the driver's timestamp re-read is its database's fact");
-                }
                 while (rs.next()) {
-                    cells.row(JdbcDecode.row(rs, columns, javaTime));
+                    cells.row(JdbcDecode.row(rs, columns, driver));
                 }
             }
         } catch (SQLException e) {

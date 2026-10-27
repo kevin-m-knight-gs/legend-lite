@@ -452,6 +452,13 @@ default.
 
 ## 9. Status
 
+- **2026-10-27, phase 5's first half green; the audit's plan under way.** Phases 1 to 4 landed on the branch
+  (51688f36 typed results; 12b89c7d the writers; 1b0305f7 and 53cf5b6d the served routes, the database-written wires
+  deleted; b3311cd6 PCT from typed rows, the TDS text path deleted). The user paused phase 5 for an audit; its plan
+  (three stages: make phase 5 green and measure every lane per test; one entry point, the old door deleted; the
+  mixed lists typed and the Arrow writer) runs now. This head: the old executor deleted, the body driver's effects on
+  the plan runner, and every loss the six lanes measured between 7b8c89dc and b3311cd6 fixed (GATES, 2026-10-27).
+  Next: the lanes re-measure this head; the PCT relation's crossing decided by measurement (stage 1, step 3).
 - **2026-10-26, all eight ruled; the landing begins.** The Float rule accepted ("sounds great") after the batch
   ("arrow look good"). Next, in order: the branch on `main` under AGENTS.md's pushing rule (fresh against `main`,
   the local gate on the tip, "local gate: //gates:local green" in the message, `main`'s CI watched, revert on red);

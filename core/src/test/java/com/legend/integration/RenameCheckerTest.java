@@ -67,8 +67,8 @@ public class RenameCheckerTest extends AbstractDatabaseTest {
                     #->rename(~score, ~points)->sort(ascending(~id))""");
             assertNotNull(result);
             assertEquals(2, result.rows().size());
-            assertEquals(95, result.rows().get(0).values().get(2));
-            assertEquals(87, result.rows().get(1).values().get(2));
+            assertEquals(95L, result.rows().get(0).values().get(2));
+            assertEquals(87L, result.rows().get(1).values().get(2));
         }
 
         @Test
@@ -106,9 +106,9 @@ public class RenameCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(2, result.rows().size());
             // Data should be preserved
-            assertEquals(1, result.rows().get(0).values().get(0));
+            assertEquals(1L, result.rows().get(0).values().get(0));
             assertEquals("Alice", result.rows().get(0).values().get(1));
-            assertEquals(95, result.rows().get(0).values().get(2));
+            assertEquals(95L, result.rows().get(0).values().get(2));
         }
 
         @Test
@@ -145,8 +145,8 @@ public class RenameCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(2, result.rows().size());
             // position-preserving rename: userId stays at 0
-            assertEquals(2, result.rows().get(0).values().get(0));
-            assertEquals(3, result.rows().get(1).values().get(0));
+            assertEquals(2L, result.rows().get(0).values().get(0));
+            assertEquals(3L, result.rows().get(1).values().get(0));
         }
 
         @Test

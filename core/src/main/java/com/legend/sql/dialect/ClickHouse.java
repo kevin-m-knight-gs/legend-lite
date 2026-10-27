@@ -2876,39 +2876,6 @@ public final class ClickHouse extends AnsiSqlRenderer {
         };
     }
 
-    // ==================================================================
-    // Values: what the driver hands back
-    // ==================================================================
-
-    /** A Tuple arrives as an Object[] of its fields in order: the platform's map of its fields, by the struct's
-     *  declared names. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        return tupled(jdbcValue, type);
-    }
-
-    /** A Tuple (the driver's Object[]) as the platform's map of the struct's fields, a nested one too (a zip of pairs
-     *  is a pair of pairs), and a list's elements so. */
-    private static @com.legend.base.Nullable Object tupled(@com.legend.base.Nullable Object v,
-            @com.legend.base.Nullable SqlType type) {
-        if (v instanceof Object[] fields && type instanceof SqlType.Struct st && fields.length == st.fields().size()) {
-            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
-            for (int i = 0; i < fields.length; i++) {
-                m.put(st.fields().get(i).name(), tupled(fields[i], st.fields().get(i).type()));
-            }
-            return m;
-        }
-        if (v instanceof List<?> l && type instanceof SqlType.Array at) {
-            List<Object> out = new ArrayList<>(l.size());
-            for (Object e : l) {
-                out.add(tupled(e, at.element()));
-            }
-            return out;
-        }
-        return v;
-    }
-
     /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (a multiIf over JSONType). */
     @Override
     protected String jsonKindName(com.legend.sql.JsonKind kind) {

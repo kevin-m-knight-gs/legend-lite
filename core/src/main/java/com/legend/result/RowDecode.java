@@ -111,7 +111,10 @@ public final class RowDecode {
             case "DECIMAL_TEXT" -> {
                 return decimalText(text(node, c));
             }
-            case "TEMPORAL_TEXT", "DATE", "TIMESTAMP", "TIMESTAMPTZ" -> {
+            case "TEMPORAL_TEXT" -> {
+                return temporalText(text(node, c), c);
+            }
+            case "DATE", "TIMESTAMP", "TIMESTAMPTZ" -> {
                 return PureDateLiteral.parse(text(node, c).trim().replace(' ', 'T'));
             }
             case "TIME" -> {
@@ -320,6 +323,15 @@ public final class RowDecode {
             return n.isInteger() ? Long.toString(n.longValue()) : exactDecimal(n).toPlainString();
         }
         throw refused(node, c);
+    }
+
+    /** A temporal carried as its text ({@code TEMPORAL_TEXT}): a time of day when the column's Pure type is
+     *  {@code StrictTime}, a date otherwise, each at the precision written (a Cypher local time's text read as a date
+     *  failed "expected '-' after year": 2026-10-27, the result boundary program's phase 5, the Cypher TCK's ordered
+     *  local times, which the old executor handed over as text unread). */
+    public static Object temporalText(String text, ExecutionPlan.Column c) {
+        return c.type().equals("StrictTime") ? PureTimeLiteral.parse(text.trim())
+                : PureDateLiteral.parse(text.trim().replace(' ', 'T'));
     }
 
     /** The slot's leading word: {@code DECIMAL} of {@code DECIMAL(10,2)}, {@code ARRAY} of {@code ARRAY<...>}. */

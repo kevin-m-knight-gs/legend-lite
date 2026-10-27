@@ -172,8 +172,8 @@ public final class Trino extends AnsiSqlRenderer {
     }
 
     /** The statement's own ROW columns as their JSON text: the driver hands a ROW as its own class (io.trino.jdbc.Row),
-     *  which the platform reads through no interface (production code reflects on nothing), and JSON text it decodes
-     *  ({@link #normalize}). Each is cast to its declared ROW first, whose named fields are an object's keys (an
+     *  which the platform reads through no interface (production code reflects on nothing), and JSON text the typed
+     *  reader decodes by the column's slot. Each is cast to its declared ROW first, whose named fields are an object's keys (an
      *  anonymous row's, a zip's pair, are empty, measured). */
     private static SqlSelect rowsAsJson(SqlSelect s) {
         java.util.Map<String, SqlType> labels = new java.util.HashMap<>();
@@ -1931,17 +1931,6 @@ public final class Trino extends AnsiSqlRenderer {
     // ==================================================================
     // Values: what the driver hands back
     // ==================================================================
-
-    /** A statement's ROW column arrives as its JSON text ({@link #rowsAsJson}), decoded to the platform's map of its
-     *  fields; a MAP as a java.util.Map. Lists are java.sql.Array, read by the executor. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (jdbcValue instanceof String s && type instanceof SqlType.Struct && s.startsWith("{")) {
-            return com.legend.sql.Json.parse(s);
-        }
-        return jdbcValue;
-    }
 
     /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (its emulation). */
     @Override

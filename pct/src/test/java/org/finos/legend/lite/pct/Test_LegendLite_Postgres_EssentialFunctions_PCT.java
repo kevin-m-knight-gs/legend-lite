@@ -45,7 +45,9 @@ public class Test_LegendLite_Postgres_EssentialFunctions_PCT extends PCTReportCo
             // on the database, which holds no 20 digits; the batch-1 rule that kept a Float computed from literals
             // alone as a DECIMAL (LiteralSpelling.exactFloatConstant) was a special case -- the same expression over a
             // column was a double -- and is removed
-            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "expected: 123456789123456789.99\nactual:   123456789123457000.0"),
+            // 2026-10-27, the result boundary program (typed rows): the double crosses as itself and Pure prints its shortest
+            // digits, no longer Postgres's fifteen-digit text of it (measured on this lane by its own session)
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "expected: 123456789123456789.99\nactual:   123456789123456780.0"),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "expected: 1\nactual:   2"),
             one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "expected: 4\nactual:   5"),
             // Postgres raises differently (its own error, or a different position or wording)
@@ -62,8 +64,11 @@ public class Test_LegendLite_Postgres_EssentialFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "Execution error column mismatch. Actual: 23 where expected: 36"),
             // step 9, 2026-10-19, the plan route: the NaN cell spelled NaN by the text carrier, refused by Pure's
             // parseFloat (the legacy route's Java BigDecimal said "Infinite or NaN"; the DuckDB lane's pin, the same cause)
-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute acos of 2.0\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute asin of 2.0\""),
+            // 2026-10-27, the result boundary program (the PCT reads typed rows, measured on this lane by its own
+            // session): the database's NaN reaches the bridge as a double, refused by name (Pure's Float is a decimal),
+            // no longer parsed from its text
+            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute acos of 2.0\""),
+            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\""),
             // a comparator dedup's CASE: its list branch loses the LITERAL label in the shared carrier pass, its
             // reduction keeps it (Unknown); the fix is a semantic dedup node (CARRIER_REDESIGN tenet #1), not a dialect's
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction_Function_1__Boolean_1_", "UNNEST over Unknown[] reached Postgres: a list of unknown element type"),

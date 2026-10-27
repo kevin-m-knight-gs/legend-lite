@@ -56,9 +56,9 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(3, result.rows().size());
             // Verify order: 1, 2, 3
-            assertEquals(1, result.rows().get(0).values().get(0));
-            assertEquals(2, result.rows().get(1).values().get(0));
-            assertEquals(3, result.rows().get(2).values().get(0));
+            assertEquals(1L, result.rows().get(0).values().get(0));
+            assertEquals(2L, result.rows().get(1).values().get(0));
+            assertEquals(3L, result.rows().get(2).values().get(0));
         }
 
         @Test
@@ -97,9 +97,9 @@ public class SortCheckerTest extends AbstractDatabaseTest {
                     #->sort(descending(~id))""");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
-            assertEquals(3, result.rows().get(0).values().get(0));
-            assertEquals(2, result.rows().get(1).values().get(0));
-            assertEquals(1, result.rows().get(2).values().get(0));
+            assertEquals(3L, result.rows().get(0).values().get(0));
+            assertEquals(2L, result.rows().get(1).values().get(0));
+            assertEquals(1L, result.rows().get(2).values().get(0));
         }
     }
 
@@ -150,10 +150,10 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(7, result.rows().size());
             // First row: id=5, David
-            assertEquals(5, result.rows().get(0).values().get(0));
+            assertEquals(5L, result.rows().get(0).values().get(0));
             assertEquals("David", result.rows().get(0).values().get(1));
             // Last rows: id=1, Neema then Sachin
-            assertEquals(1, result.rows().get(5).values().get(0));
+            assertEquals(1L, result.rows().get(5).values().get(0));
             assertEquals("Neema", result.rows().get(5).values().get(1));
             assertEquals("Sachin", result.rows().get(6).values().get(1));
         }
@@ -174,7 +174,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             assertEquals(3, result.rows().size());
             // Jane(28), John(30), Bob(45)
             var ages = result.rows().stream().map(r -> r.values().get(1)).toList();
-            assertEquals(List.of(28, 30, 45), ages);
+            assertEquals(List.of(28L, 30L, 45L), ages);
         }
 
         @Test
@@ -186,7 +186,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             assertEquals(3, result.rows().size());
             // Bob(45), John(30), Jane(28)
             var ages = result.rows().stream().map(r -> r.values().get(1)).toList();
-            assertEquals(List.of(45, 30, 28), ages);
+            assertEquals(List.of(45L, 30L, 28L), ages);
         }
 
         @Test
@@ -233,7 +233,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             assertEquals(3, result.rows().size());
             // Jane(28), John(30), Bob(45)
             var ages = result.rows().stream().map(r -> r.values().get(1)).toList();
-            assertEquals(List.of(28, 30, 45), ages);
+            assertEquals(List.of(28L, 30L, 45L), ages);
         }
 
         @Test
@@ -249,8 +249,8 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(2, result.rows().size());
             // Should be sorted: 2, 3
-            assertEquals(2, result.rows().get(0).values().get(0));
-            assertEquals(3, result.rows().get(1).values().get(0));
+            assertEquals(2L, result.rows().get(0).values().get(0));
+            assertEquals(3L, result.rows().get(1).values().get(0));
         }
 
 
@@ -265,7 +265,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             assertEquals(3, result.rows().size());
             // Jane(28), John(30), Bob(45) — sorted by projected 'age' alias
             var ages = result.rows().stream().map(r -> r.values().get(1)).toList();
-            assertEquals(List.of(28, 30, 45), ages);
+            assertEquals(List.of(28L, 30L, 45L), ages);
         }
 
         @Test
@@ -279,7 +279,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             assertEquals(3, result.rows().size());
             // Bob(45), John(30), Jane(28)
             var ages = result.rows().stream().map(r -> r.values().get(1)).toList();
-            assertEquals(List.of(45, 30, 28), ages);
+            assertEquals(List.of(45L, 30L, 28L), ages);
         }
 
         @Test
@@ -309,7 +309,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             assertEquals(2, result.rows().size());
             // John(30), Bob(45) — sorted then filtered
             var ages = result.rows().stream().map(r -> r.values().get(1)).toList();
-            assertEquals(List.of(30, 45), ages);
+            assertEquals(List.of(30L, 45L), ages);
         }
 
         @Test
@@ -323,7 +323,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             assertEquals(3, result.rows().size());
             // Bob(45), John(30), Jane(28)
             var ages = result.rows().stream().map(r -> r.values().get(1)).toList();
-            assertEquals(List.of(45, 30, 28), ages);
+            assertEquals(List.of(45L, 30L, 28L), ages);
         }
 
         @Test
@@ -354,8 +354,8 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             // Jones(Bob,45) then Smith(John,30), Smith(Jane,28) — lastName asc, age desc within
             assertEquals("Jones", result.rows().get(0).values().get(0));
             assertEquals("Smith", result.rows().get(1).values().get(0));
-            assertEquals(30, result.rows().get(1).values().get(2));  // John first (age 30 > 28)
-            assertEquals(28, result.rows().get(2).values().get(2));  // Jane second
+            assertEquals(30L, result.rows().get(1).values().get(2));  // John first (age 30 > 28)
+            assertEquals(28L, result.rows().get(2).values().get(2));  // Jane second
         }
 
         @Test
@@ -398,7 +398,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
                     #->sort(ascending(~val))""");
             assertNotNull(result);
             assertEquals(1, result.rows().size());
-            assertEquals(42, result.rows().get(0).values().get(0));
+            assertEquals(42L, result.rows().get(0).values().get(0));
         }
 
         @Test
@@ -413,9 +413,9 @@ public class SortCheckerTest extends AbstractDatabaseTest {
                     #->sort(ascending(~id))""");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
-            assertEquals(1, result.rows().get(0).values().get(0));
-            assertEquals(2, result.rows().get(1).values().get(0));
-            assertEquals(3, result.rows().get(2).values().get(0));
+            assertEquals(1L, result.rows().get(0).values().get(0));
+            assertEquals(2L, result.rows().get(1).values().get(0));
+            assertEquals(3L, result.rows().get(2).values().get(0));
         }
 
         @Test
@@ -468,9 +468,9 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(3, result.rows().size());
             // Sorted ascending by id: 1, 2, 3
-            assertEquals(1, result.rows().get(0).values().get(0));
-            assertEquals(2, result.rows().get(1).values().get(0));
-            assertEquals(3, result.rows().get(2).values().get(0));
+            assertEquals(1L, result.rows().get(0).values().get(0));
+            assertEquals(2L, result.rows().get(1).values().get(0));
+            assertEquals(3L, result.rows().get(2).values().get(0));
         }
 
         @Test

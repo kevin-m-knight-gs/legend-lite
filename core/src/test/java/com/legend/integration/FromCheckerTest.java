@@ -72,11 +72,11 @@ public class FromCheckerTest extends AbstractDatabaseTest {
             assertEquals(3, result.rows().size());
             // Sorted alphabetically: Bob, Jane, John
             assertEquals("Bob", result.rows().get(0).values().get(0));
-            assertEquals(45, result.rows().get(0).values().get(1));
+            assertEquals(45L, result.rows().get(0).values().get(1));
             assertEquals("Jane", result.rows().get(1).values().get(0));
-            assertEquals(28, result.rows().get(1).values().get(1));
+            assertEquals(28L, result.rows().get(1).values().get(1));
             assertEquals("John", result.rows().get(2).values().get(0));
-            assertEquals(30, result.rows().get(2).values().get(1));
+            assertEquals(30L, result.rows().get(2).values().get(1));
         }
     }
 
@@ -96,7 +96,7 @@ public class FromCheckerTest extends AbstractDatabaseTest {
                       ->from(test::TestRuntime)""");
             assertEquals(1, result.rows().size(), "Only Bob (45)");
             assertEquals("Bob", result.rows().get(0).values().get(0));
-            assertEquals(45, result.rows().get(0).values().get(1));
+            assertEquals(45L, result.rows().get(0).values().get(1));
         }
 
         @Test
@@ -131,11 +131,11 @@ public class FromCheckerTest extends AbstractDatabaseTest {
             assertEquals(3, result.rows().size());
             // Sorted by age ascending: Jane(28), John(30), Bob(45)
             assertEquals("Jane", result.rows().get(0).values().get(0));
-            assertEquals(28, result.rows().get(0).values().get(1));
+            assertEquals(28L, result.rows().get(0).values().get(1));
             assertEquals("John", result.rows().get(1).values().get(0));
-            assertEquals(30, result.rows().get(1).values().get(1));
+            assertEquals(30L, result.rows().get(1).values().get(1));
             assertEquals("Bob", result.rows().get(2).values().get(0));
-            assertEquals(45, result.rows().get(2).values().get(1));
+            assertEquals(45L, result.rows().get(2).values().get(1));
         }
     }
 
@@ -179,7 +179,7 @@ public class FromCheckerTest extends AbstractDatabaseTest {
             assertEquals(2, result.columns().size());
             assertEquals("id", result.columns().get(0).name());
             assertEquals("name", result.columns().get(1).name());
-            assertEquals(1, result.rows().get(0).values().get(0));
+            assertEquals(1L, result.rows().get(0).values().get(0));
             assertEquals("Alice", result.rows().get(0).values().get(1));
         }
 
@@ -195,8 +195,8 @@ public class FromCheckerTest extends AbstractDatabaseTest {
                     #->filter(x|$x.val > 15)->from(test::TestRuntime)""");
             assertEquals(2, result.rows().size());
             var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.values().get(1));   // no sort: by value (P3-11)
-            assertEquals(20, sorted.get(0).values().get(1));
-            assertEquals(30, sorted.get(1).values().get(1));
+            assertEquals(20L, sorted.get(0).values().get(1));
+            assertEquals(30L, sorted.get(1).values().get(1));
         }
     }
 

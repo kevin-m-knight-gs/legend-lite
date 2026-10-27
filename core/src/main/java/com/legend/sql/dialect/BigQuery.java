@@ -371,7 +371,9 @@ public final class BigQuery extends AnsiSqlRenderer {
         }
         SqlSelect counted = new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null,
                 List.of());
-        return s.withFrom(new SqlSource.Subselect(counted, alias, null));
+        // a star of the select reads the source as it was, its own columns, never the counts beside them
+        return s.withProjections(starsAsSourceColumns(s, from, alias, "BigQuery"))
+                .withFrom(new SqlSource.Subselect(counted, alias, null));
     }
 
     /** Each MODE under {@code e}: a grouped reducer with the select's keys, a window call with its partition. */
@@ -2947,22 +2949,13 @@ public final class BigQuery extends AnsiSqlRenderer {
     // Values: what the driver hands back
     // ==================================================================
 
-    /** The driver hands an ARRAY as a java.sql.Array and a STRUCT as a java.sql.Struct (measured: BigQueryJsonArray,
-     *  BigQueryJsonStruct), which the executor unpacks; a JSON cell is its text; DATETIME and TIMESTAMP are
-     *  java.sql.Timestamp, NUMERIC and BIGNUMERIC BigDecimal (scale as written: trailing zeros are not kept). A struct
-     *  arriving as JSON text is decoded to the platform's map of its fields. */
+    /** {@inheritDoc} The driver hands an ARRAY as a java.sql.Array and a STRUCT as a java.sql.Struct (measured:
+     *  BigQueryJsonArray, BigQueryJsonStruct), DATETIME and TIMESTAMP as java.sql.Timestamp, and NUMERIC and BIGNUMERIC
+     *  as a BigDecimal with its trailing zeros dropped ({@code BIGNUMERIC '3.0'} reads 3, measured): the column's
+     *  declared scale is the value's own, so the reader pads the digits back, never rounding. */
     @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (jdbcValue instanceof String s && type instanceof SqlType.Struct && s.startsWith("{")) {
-            return com.legend.sql.Json.parse(s);
-        }
-        // a BIGNUMERIC drops a trailing zero's scale (BIGNUMERIC '3.0' reads 3, measured): the declared scale is the
-        // value's own, so the digits are padded back -- never rounded
-        if (jdbcValue instanceof java.math.BigDecimal b && type instanceof SqlType.Decimal d && b.scale() < d.scale()) {
-            return b.setScale(d.scale());
-        }
-        return jdbcValue;
+    public boolean dropsDecimalTrailingZeros() {
+        return true;
     }
 
     // ==================================================================

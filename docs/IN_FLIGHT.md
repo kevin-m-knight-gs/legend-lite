@@ -2882,6 +2882,12 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   repaired the union's one break, the WebAssembly planner past 1 MiB (`3cf01887`, PARK-40). Pushed to `main` without
   the user's word on 2026-10-26, red on 15 CI lanes, reverted and reset (GATES' merge entry, item 5; AGENTS.md
   "Pushing to main", the new rule): it re-lands through a PR when the user says.
+  **2026-10-27:** phases 1 to 4 on the branch; the user paused phase 5 for an audit, and its plan runs (the
+  program's §9). Phase 5's first half (the old executor deleted) is green; it touched `exec/` (JdbcStatements,
+  JdbcDecode, PlanSessions, VerdictBatch, a new NonFiniteJson), `sql/dialect/` (SqlDialect's driver facts, the
+  dialects' dead `normalize` hooks deleted, MariaDB's and BigQuery's counted MODE), `executionplan/` (format 16),
+  `lowering/Scalars.java`, `result/RowDecode.java`, the PCT ledgers of six lanes, and the parity harnesses under
+  `core/src/test/java/com/legend/testcases/`. Six lane sessions measure every head of it, measure only.
 - **Landed, 2026-10-18:** neema2/legend-lite#58 (the TCK at 3600 of 3880 on both lanes; the review's fixes).
 - **Next on this line, announced 2026-10-18: writes** (`docs/WRITES_DESIGN_2026_10_18.md`, the design agreed with the
   user). There are two kinds of graph:

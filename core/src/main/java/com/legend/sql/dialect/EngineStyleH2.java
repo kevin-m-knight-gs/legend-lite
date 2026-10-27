@@ -2401,14 +2401,4 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached the engine text");
     }
 
-    /** {@inheritDoc} A JSON-carried list's text, which H2's driver hands back as its UTF-8 bytes. Until 2026-10-15
-     *  the executor read those bytes for every dialect; the dialect program's Phase 4 moved the reading into
-     *  {@link H2#normalize}, and its audit found that this dialect, which runs on H2 and is not H2's subclass, had
-     *  lost it. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            com.legend.sql.@com.legend.base.Nullable SqlType type) {
-        return jdbcValue instanceof byte[] b && type instanceof com.legend.sql.SqlType.Array
-                ? new String(b, java.nio.charset.StandardCharsets.UTF_8) : jdbcValue;
-    }
 }

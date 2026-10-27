@@ -104,7 +104,9 @@ class JavaEvalLedgerTest {
             // 109 -> 116 (2026-10-17, the MongoDB PCT lane, §11.3 of the same plan): the route by lane -- a lane with
             // no JDBC session runs through the plan (PctPlanRoute, one call); the legacy route is its own method
             // (legacyRoute, the query service on the session PctBackend opens, as before). Nothing evaluated in Java.
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 116),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
+            // 116 -> 94 (2026-10-27, the result boundary program's phase 4: the legacy route and the shadow plan
+            // deleted; the PCT runs the typed plan alone)
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 94),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
             // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
             // colliding with a lite-native name refuses injection loudly;
             // guard growth, anti-compensation
@@ -124,7 +126,11 @@ class JavaEvalLedgerTest {
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 318),
             // +2 (B8): the BigDecimal-under-FLOAT arm — the reference's own
             // Float shape (FloatCoreInstance IS BigDecimal-backed)
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 355),
+            // 355 -> 376 (2026-10-27, the result boundary program's phase 4: a value's elements built as the
+            // reference's own instances from the plan's typed cells, by the query's result type -- the conversions
+            // pct_adapter.pure's text readers (readPureLiteral, quotedCells) did, deleted with them; each cell one
+            // carrier hop, nothing evaluated)
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 376),
             // MetamodelWalk (1307) + MetamodelSteps (196) DELETED (batch 55a,
             // 2026-09-04): the Java port of toPostgresModel and the host
             // metamodel walk are gone — the three tests they still scored
@@ -542,7 +548,9 @@ class JavaEvalLedgerTest {
             // 806 -> 804 (2026-10-19, re-pinned to the measured count after the plan path program's step 6)
             Map.entry("core/src/main/java/com/legend/HostJudge.java", 804),   // 802 -> 806 (2026-09-22, forAll/zip relational: quantifiedVector returns null: the host judge fetches and unrolls by design)
             Map.entry("core/src/main/java/com/legend/DatabaseJudge.java", 595),   // 586 -> 595 (2026-09-22, forAll/zip relational: quantifiedVector: the predicate vector planned and judged in the fused statement)
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1249),   // 1237 -> 1249 (2026-09-22, forAll/zip relational: the vector contract route: a per-element assert is the predicate it means, asked of the arm before the unroll fetches (routing, no evaluation))
+            // 1249 -> 1258 (2026-10-27, the result boundary program's phase 5: Executor.structured moved here, its
+            // one caller, when the old executor was deleted; a JSON text read to its structure, nothing evaluated)
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1258),   // 1237 -> 1249 (2026-09-22, forAll/zip relational: the vector contract route: a per-element assert is the predicate it means, asked of the arm before the unroll fetches (routing, no evaluation))
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -750,7 +758,9 @@ class JavaEvalLedgerTest {
             // path branch (2026-10-26, measured by the ledger's own run at d408e1b8: stripped code lines): main's
             // lowererFor and the named lowerAndPrepare carry the branch's object layouts and declared egress; both
             // sides' lines, nothing evaluated
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2419),
+            // 2419 -> 2316 (2026-10-27, the result boundary program's phase 5: the body driver's effects sent through
+            // the plan runner, its value statements through JudgePlans, the canon rider off the value path)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2316),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1030,8 +1040,8 @@ class JavaEvalLedgerTest {
         // UNNEST at project lowering; probe: ZERO firings on the full
         // sweep). This row pins the deletion: a list cell in a scalar
         // slot is a loud lowering-defect wall now, never a repair.
-        EVICT_NAMES.put("core/src/main/java/com/legend/exec/Executor.java",
-                new Object[]{"two many-valued TDS cells", 0});
+        // (its Executor.java row left 2026-10-27 with the file: the result boundary program's phase 5 deleted the
+        // legacy executor whole, so nothing remains to pin the explosion's deletion in)
         // E3 LANDED (2026-08-17): the frame is a one-Variant-column
         // VALUES relation — each cell an object's RAW JSON TEXT, every
         // property a typed variant extraction IN SQL (get + to-cast +
@@ -1108,9 +1118,13 @@ class JavaEvalLedgerTest {
                     // and unwrap rules, the slot first); nothing computed, nothing compared. RowDecode (step 6)
                     // stays for a document's row and a JSON-carried cell
                     "JdbcDecode.java",
+                    // the JSON a database writes with a bare token for a double that is not finite (2026-10-27,
+                    // the result boundary program's phase 5; SqlDialect.jsonSpellsNonFiniteNumbers): the typed
+                    // reader's parse of such a cell, the token kept to be written back; nothing computed
+                    "NonFiniteJson.java",
                     "Statements.java", "JdbcStatements.java",
                     "DynamicPivot.java",
-                    "ExecutionResult.java", "Executor.java",
+                    "ExecutionResult.java",   // Executor.java left 2026-10-27: deleted (phase 5)
                     // leg 3.4 (2026-09-20): the body's DEFERRED verdict
                     // statements sent as one statement and reported in body
                     // order; the SQL shape is the lowering's, the row's

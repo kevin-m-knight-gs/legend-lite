@@ -221,8 +221,8 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(2, result.rows().size());
             // Takes first 3 (Alice,Bob,Charlie), then filters id>1 → Bob(2), Charlie(3)
-            assertEquals(2, result.rows().get(0).values().get(0));
-            assertEquals(3, result.rows().get(1).values().get(0));
+            assertEquals(2L, result.rows().get(0).values().get(0));
+            assertEquals(3L, result.rows().get(1).values().get(0));
         }
 
         @Test

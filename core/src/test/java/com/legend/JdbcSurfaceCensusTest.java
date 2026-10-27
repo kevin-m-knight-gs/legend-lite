@@ -169,7 +169,7 @@ class JdbcSurfaceCensusTest {
             // D-arc dividend: PureDateLiteral is THE wire temporal
             // carrier, so the comparison layer's java.sql value arms
             // are GONE — sql types never escape the fetch seam.)
-            "core/src/main/java/com/legend/exec/Executor.java",
+            // Executor.java left 2026-10-27: deleted (the result boundary program, phase 5); its sends are plan steps
             // THE SYSTEM DATABASE (user ruling 2026-09-02): the graph's
             // metamodel rows in a database of their own, separate from
             // every user connection — opened once per graph per engine,

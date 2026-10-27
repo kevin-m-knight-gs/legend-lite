@@ -81,7 +81,7 @@ final class ArchitectureTest {
             java.util.Map.entry("plan", "com.legend.plan.QueryPlan"),
             java.util.Map.entry("resolver", "com.legend.resolver.StoreResolver"),
             java.util.Map.entry("setup", "com.legend.setup.CsvSeed"),
-            java.util.Map.entry("exec", "com.legend.exec.Executor"),
+            java.util.Map.entry("exec", "com.legend.exec.PlanRunner"),   // Executor until its deletion, 2026-10-27
             java.util.Map.entry("probe", "com.legend.probe.Shadow"),
             java.util.Map.entry("testdatagen", "com.legend.testdatagen.TestDataGenerationNatives"),
             java.util.Map.entry("execution_plan", "com.legend.executionplan.ExecutionPlan"),
@@ -769,7 +769,7 @@ final class ArchitectureTest {
             java.util.Map.entry("DynamicPivot", 1),
             java.util.Map.entry("Equality", 1),
             java.util.Map.entry("ExecutionResult", 2),
-            java.util.Map.entry("Executor", 7),
+            // Executor (7) left 2026-10-27: deleted, its sends plan steps (the result boundary program, phase 5)
             java.util.Map.entry("GridProbe", 3),
             // 0 -> 1 (2026-10-20, object identity step 2, found at main's merge 2026-10-22, the first run of this guard
             // on the branch): an object's id per evaluation is keyed by the typed tree's Evaluation.Site, a value the
@@ -785,7 +785,10 @@ final class ArchitectureTest {
             // the plan side's fact (Databases.inProcess), read by the session owner; 3 -> 2 (2026-10-22, main's merge):
             // the connector answers it (main's Phase 5), and the plan side's is the dialect's
             java.util.Map.entry("Sessions", 2),
-            java.util.Map.entry("SetupRunner", 3),
+            // 3 -> 4 (2026-10-27, the result boundary program's phase 5): the setup statements' bulk load moved here from
+            // the deleted Executor (its 7 references gone): the dialect writes the one insert a database with no bulk
+            // loader takes, as it did there; a net shrink of exec's reach
+            java.util.Map.entry("SetupRunner", 4),
             java.util.Map.entry("SqlReplayReferee", 1),
             java.util.Map.entry("SystemDatabase", 3),
             // 4 -> 1 (2026-10-18, the plan path program's step 6): the batch sends its statements as plans through
@@ -1107,10 +1110,10 @@ final class ArchitectureTest {
     @Test
     void spellingDecodeIsLabelDriven() {
         noClasses()
-            .that().doNotHaveFullyQualifiedName("com.legend.exec.Executor")
-            // 2026-10-18 (the plan path program's step 6): the runner's typed-row decode has the same arm -- a cell
-            // whose plan column's SLOT is labelled LITERAL parses as its spelling; the label is the plan's own fact
-            .and().doNotHaveFullyQualifiedName("com.legend.result.RowDecode")   // moved from exec 2026-10-27
+            // (Executor's LITERAL arm left with it, 2026-10-27, the result boundary program's phase 5.) 2026-10-18 (the
+            // plan path program's step 6): the runner's typed-row decode has the same arm -- a cell whose plan
+            // column's SLOT is labelled LITERAL parses as its spelling; the label is the plan's own fact
+            .that().doNotHaveFullyQualifiedName("com.legend.result.RowDecode")   // moved from exec 2026-10-27
             // 2026-10-18 (step 6, the typed rows): the plan runner's decode of a driver's cell by the plan column's
             // slot has the same LITERAL arm, over the cell's text; 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12):
             // the MongoDB connector's decode of a document's cell by the same slot label. Registered 2026-10-19 at
@@ -1121,9 +1124,8 @@ final class ArchitectureTest {
             .should().dependOnClassesThat().haveFullyQualifiedName(
                 "com.legend.values.LiteralText")
             .as("SNIFF-STOP: LiteralText.parse is reachable only from the"
-                    + " label-dispatch funnels (Executor.unwrap's LITERAL"
-                    + " arm, RowDecode's LITERAL slot arm) — decode by declared label, never by value"
-                    + " shape")
+                    + " label-dispatch funnels (the LITERAL slot arms of RowDecode, JdbcDecode and MongoDbDecode)"
+                    + " — decode by declared label, never by value shape")
             .check(CORE_PROD_CLASSES);
     }
 

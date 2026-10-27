@@ -122,7 +122,9 @@ class CorrelatedComputedColumnTest {
                 ->extend(~[v:x|$x.m->toOne() + $p.id])->map(x|$x.v)->toOne()])
                 ->select(~[id, top])->sort(ascending(~id))""",
                 SqlIslandCases.RUNTIME, session);
-        assertEquals(List.of(8, 11), result.rows().subList(0, 2).stream().map(r -> r.values().get(1)).toList());
+        // an Integer cell is a long, the plan decode's carrier of Pure's Integer (the legacy executor handed an int; 2026-10-27,
+        // the result boundary program's phase 5, a correction of the old decoder)
+        assertEquals(List.of(8L, 11L), result.rows().subList(0, 2).stream().map(r -> r.values().get(1)).toList());
         assertEquals(null, result.rows().get(2).values().get(1), "no order: SQL's NULL");
     }
 
@@ -141,6 +143,8 @@ class CorrelatedComputedColumnTest {
                 200, 2
                 #->filter(o|$o.person == $p.id)->extend(~[v:o|$p.id * 10 + $o.person])->map(o|$o.v)->toOne()])
                 ->select(~[id, tag])->sort(ascending(~id))""", SqlIslandCases.RUNTIME, session);
-        assertEquals(List.of(11, 22), result.rows().stream().map(r -> r.values().get(1)).toList());
+        // an Integer cell is a long, the plan decode's carrier of Pure's Integer (the legacy executor handed an int; 2026-10-27,
+        // the result boundary program's phase 5, a correction of the old decoder)
+        assertEquals(List.of(11L, 22L), result.rows().stream().map(r -> r.values().get(1)).toList());
     }
 }

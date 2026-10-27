@@ -276,7 +276,7 @@ final class PlanMaker {
             case SERIALIZABLE -> ExecutionPlan.Keyed.Snapshot.SERIALIZABLE;
             case NONE -> ExecutionPlan.Keyed.Snapshot.NONE;
         };
-        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), keyFields, outputs,
+        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), keyFields, outputs, parts.perKeyAt(),
                 sql(parts.body(), dialect, target), snapshot, dialect.resultColumnLimit());
     }
 

@@ -388,10 +388,28 @@ public final class PlanRunner {
                         }
                     }
                 }
+                // the answer in the relation's own order: the first perKeyAt fixed columns, the per-key ones, then the
+                // rest of the fixed ones -- read in the body's order (its fixed columns first), each cell placed
+                int at = keyed.perKeyAt();
+                int[] place = new int[columns];
+                for (int i = 0; i < columns; i++) {
+                    place[i] = i < at ? i : i < fixed ? i + (columns - fixed) : i - (fixed - at);
+                }
+                List<ExecutionPlan.Column> inOrder = new java.util.ArrayList<>(java.util.Collections.nCopies(columns,
+                        (ExecutionPlan.Column) null));
+                for (int i = 0; i < columns; i++) {
+                    inOrder.set(place[i], answered.get(i));
+                }
                 Expanded body = expand(keyed.body(), keys, checked);
-                sink.columns(answered);
+                sink.columns(inOrder);
                 StatementOrigin.sent(body.statement());
-                st.rows(body.statement(), body.slots(), body.values(), read, sink::row);
+                st.rows(body.statement(), body.slots(), body.values(), read, cells -> {
+                    List<Object> placed = new java.util.ArrayList<>(java.util.Collections.nCopies(columns, null));
+                    for (int i = 0; i < columns; i++) {
+                        placed.set(place[i], cells.get(i));
+                    }
+                    sink.row(placed);
+                });
                 sink.end();
             });
         }

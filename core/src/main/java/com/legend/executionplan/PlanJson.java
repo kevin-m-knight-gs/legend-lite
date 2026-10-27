@@ -53,8 +53,9 @@ public final class PlanJson {
      *  no text result at all -- every answer is typed rows (Pure's TDS text went with the program's phase 4: the PCT
      *  reads typed rows), so a keyed result has no format and its fixed outputs no format's name; 15 since 2026-10-27:
      *  the {@code effect} node (a statement sent for what it does -- a raw statement a program wrote, a DDL, a script --
-     *  the body driver's effects on the plan, the program's phase 5). */
-    public static final int VERSION = 15;
+     *  the body driver's effects on the plan, the program's phase 5); 16 the same day: a keyed result says where its
+     *  per-key columns stand among the fixed ones ({@code perKeyAt}: an extend after a pivot answers last). */
+    public static final int VERSION = 16;
 
     private PlanJson() {
     }
@@ -149,6 +150,7 @@ public final class PlanJson {
                     outputs.add(oo);
                 }
                 o.put("outputs", outputs);
+                o.put("perKeyAt", k.perKeyAt());
                 o.put("body", sql(k.body()));
                 o.put("snapshot", k.snapshot().name());
                 o.put("maxColumns", k.maxColumns());
@@ -392,7 +394,8 @@ public final class PlanJson {
                 for (Json.Node n : o.getArr("keyFields").items()) {
                     keyFields.add(((Json.Str) n).value());
                 }
-                yield new ExecutionPlan.Keyed(readSql(o.getObj("keys")), keyFields, outputs, readSql(o.getObj("body")),
+                yield new ExecutionPlan.Keyed(readSql(o.getObj("keys")), keyFields, outputs, o.getInt("perKeyAt"),
+                        readSql(o.getObj("body")),
                         named(ExecutionPlan.Keyed.Snapshot.class, o.getString("snapshot"), "keyed snapshot"),
                         o.getOr("maxColumns", null) == null ? null : o.getInt("maxColumns"));
             }

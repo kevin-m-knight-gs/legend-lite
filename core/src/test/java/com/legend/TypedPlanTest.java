@@ -117,16 +117,16 @@ class TypedPlanTest {
 
     @Test
     void aWriteProgramAnswersItsCount_afterItsChangesCommit() throws Exception {
-        // the store writes are spelled on DuckDB, H2 and Postgres (the writes design's leg 2)
-        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
-            String q = "|#>{s::DB.T}#->filter(r|$r.ID == 1)->write(#>{s::DB.T}#)";
-            ExecutionPlan plan = plan(type, q);
-            if (!(plan.root() instanceof ExecutionPlan.Sequence s)) {
-                throw new AssertionError(type + ": a write program is a sequence, given " + plan.root());
-            }
-            assertTrue(s.steps().get(s.steps().size() - 1) instanceof ExecutionPlan.TdsResult t
-                    && t.shape() == ExecutionPlan.TdsResult.Shape.VALUE, type.name() + ": " + s.steps());
+        // on the platform's database, as WritePlansTest plans its writes (a test names no database: the census's
+        // DialectLeakRatchetTest, 2026-10-27; the writes design's leg 2 spells them on three)
+        DatabaseType type = TestBackends.platform().type();
+        String q = "|#>{s::DB.T}#->filter(r|$r.ID == 1)->write(#>{s::DB.T}#)";
+        ExecutionPlan plan = plan(type, q);
+        if (!(plan.root() instanceof ExecutionPlan.Sequence s)) {
+            throw new AssertionError(type + ": a write program is a sequence, given " + plan.root());
         }
+        assertTrue(s.steps().get(s.steps().size() - 1) instanceof ExecutionPlan.TdsResult t
+                && t.shape() == ExecutionPlan.TdsResult.Shape.VALUE, type.name() + ": " + s.steps());
     }
 
     @Test

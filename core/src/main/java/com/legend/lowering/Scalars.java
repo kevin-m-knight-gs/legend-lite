@@ -304,6 +304,12 @@ final class Scalars {
                 if (chain != null) {
                     return chain;
                 }
+                // an Integer list's product is an Integer: folded exactly, as minus folds (every dialect's
+                // LIST_PRODUCT is a DOUBLE product by its own definition, which put a Float under an Integer root:
+                // the plan's typed decode refused it, 2026-10-27, the result boundary program's phase 5)
+                if (n.info().type() == Type.Primitive.INTEGER) {
+                    return integerProduct(Numerics.numList(args.get(0)));
+                }
                 return emptyAs(SqlFn.LIST_PRODUCT, Numerics.numList(args.get(0)), n, 1);
             });
         }
@@ -3529,6 +3535,21 @@ final class Scalars {
      * NULL, so the unit is coalesced in, spelled in the Pure return kind
      * (rebuild W0.6 push 11, homework 4 H, E8). The group and window forms
      * stay NULL over an all-NULL group: PCT and the engine agree there. */
+    /** An Integer list's product, exact and an Integer: the list folded with TIMES (the lambda's parameters stamped
+     *  as the list's element, so the running product stays in its integer domain), the empty list's product 1
+     *  ({@code times([])} is 1, {@code plus.pure}'s rule). */
+    private static SqlExpr integerProduct(SqlExpr list) {
+        return new SqlExpr.Case(
+                List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.LIST_LENGTH, list), new SqlExpr.IntLit(0)),
+                        new SqlExpr.IntLit(1))),
+                SqlExpr.Call.of(SqlFn.LIST_REDUCE, list,
+                        new SqlExpr.Lambda(List.of("_ta", "_tb"),
+                                SqlExpr.Call.of(SqlFn.TIMES,
+                                        SqlExpr.Column.param("_ta", list),
+                                        SqlExpr.Column.param("_tb", list)))));
+    }
+
     private static SqlExpr emptyAs(SqlFn agg, SqlExpr list, TypedNativeCall n, long unit) {
         if (!(n.info().type() instanceof Type.Primitive p) || !p.isNumeric()) {
             // numeric returns only (E8); the string form of plus has its own path

@@ -150,7 +150,9 @@ class ErrorShapeGuardrailTest {
             // failure of the work (a RuntimeException or an Error) rolls the transaction back and restores
             // autocommit, a failure of either suppressed into it, and is RETHROWN unchanged; never a swallow, never
             // a value. A finally cannot attach the rollback's own failure to the work's (and may not throw).
-            Map.entry("Executor.java", 1),
+            // Executor.java's one (the rollback below) moved to Sessions.java with inTransaction, 2026-10-27 (the result
+            // boundary program's phase 5, the legacy executor deleted): the same catch, rethrown unchanged
+            Map.entry("Sessions.java", 1),
             Map.entry("StaticFold.java", 1),
             // 3 -> 4 (2026-08-28 V7 batch 1): the dual channel's decline
             // tunnel — a production-route probe failure becomes a COUNTED

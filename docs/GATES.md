@@ -14910,3 +14910,78 @@ needed that neither side did alone.
    - The pgcrypto fix's own miss, found by the same run: the warehouse's Postgres live tests start the embedded
      server from a JVM with no JDBC driver ("No suitable driver found"), so the client connection could not open;
      `//testing` now carries the driver at runtime, the client every such JVM needs.
+
+## 2026-10-27 — the result boundary program's phase 5, first half: the old executor's work on the plan runner, and what the lanes found in phases 1 to 4
+
+The paused work-in-progress commit of phase 5 (0fe63b42) made green, after the user paused the program for an audit
+and asked whether any PCT pass was lost. Six warm lane sessions measured channel A and channel B per test at the
+program's start (7b8c89dc) and at phase 4 (b3311cd6), measure only; every loss they found is traced and fixed here,
+and the lanes re-measure this head.
+
+1. **Phase 5, first half.** `exec.Executor` is deleted: its SQL-type table is `WireTypes`, its helpers live with their
+   one caller each (`SetupRunner`, `Sessions`, `SystemDatabase`, `GridProbe`, `SqlTypeCensus`). The body driver's store
+   writes, staged tables, raw statements and scripts are plan nodes run by the plan runner on the body's session
+   (`ExecutionPlan.Effect`, `PlanRunner.update`/`effect`). Its value statements run through `JudgePlans`: an
+   assertion's side ordered by the scan order (`sideResult`), every other statement not (`statementResult`; DuckDB
+   refused the order's `rowid` on a write's statement, `CypherWritePlansTest`). A keyed plan says where its per-key
+   columns stand among its fixed ones (`Keyed.perKeyAt`, plan format 16; `testPivotExtend`'s extend column stood before
+   them). A `List<T>[1]` root keeps its list as one value (`testSliceInList`). An Integer product is an exact integer
+   fold (`Scalars.integerProduct`: 1 for no element; `EmptyListAggregateTest` had a Double under an Integer root). A
+   Pure Integer's carrier is `Long`, the plan decode's: 93 expectations in 15 test files were written to the old
+   executor's `Integer`, corrected (a correction of the old decoder, not a difference). Not yet:
+   `Execution.execute*`/`executeResolved`, `ExecutionResult` and the schema probes' own JDBC (stage 2).
+2. **The old executor's rules the typed reader had not taken over**, each found by a failing test:
+   - the engine's execution-trace comment (`-- "executionTraceID" : "<uuid>"`) rode every query the old executor sent,
+     and an activity row records it. With the executor gone no query carried it: the host judge lost the corpus's
+     `testSQLComments`, and the database judge passed it on a comment its frames had reserved for a statement that
+     never carried one. The plan runner's JDBC boundary stamps every query (`JdbcStatements.stamped`), the body
+     driver's sessions publishing to its trace (`PlanSessions.given(connection, trace)`), its fused verdict statement
+     among them (`VerdictBatch`);
+   - every dialect's `normalize` hook was dead once the executor went. The typed reader reads by the slot every rule
+     they held (a struct or map as JSON text, a boolean as 1 or 0, H2's bytes, ClickHouse's tuples, a scale-0 NUMBER
+     as a Long) but one: BigQuery's driver drops a decimal's trailing zeros, 12 Decimal tests answering `3D` for
+     `3.0D` on its lane. That rule is a driver fact now (`SqlDialect.dropsDecimalTrailingZeros`, padded to the slot's
+     scale by `JdbcDecode`, never rounded), and the hooks are deleted from the eleven dialects;
+   - a driver's `Timestamp` and `Date` keep their era (`JdbcDecode.wallClock` and `day`): `toLocalDateTime` reads the
+     year of the era, and Databricks' `testAdjustByMinutesBigNumber` answered `21458-01-08T20:48:00` for
+     `-21457-01-08T20:48:00` (its driver re-reads no timestamp as java.time; the lane's probe measured the calendar's
+     era and wall clock as the only faithful fields); a date cell is re-read as `java.time.LocalDate` where the driver
+     re-reads (the old executor's rule; `PostgresArmTest`'s 44 BC read as 44 AD without it);
+   - a temporal text slot reads a StrictTime as a time (`RowDecode.temporalText`; the Cypher TCK's ordered local times,
+     91 cases); DuckDB's JSON spells a non-finite double as a bare token, now read by its own grammar
+     (`SqlDialect.jsonSpellsNonFiniteNumbers`, `exec/NonFiniteJson`, moved from the parity harnesses' test sources;
+     12 Cypher cases ordering values of every type);
+   - the parity harnesses read a Variant cell as its JSON text, the typed carrier (the old executor handed them the
+     driver's own `JsonNode` or `PGobject`): `SqlParity.grid`, `CypherValues.ofCell(cell, column)`.
+3. **The lanes, phases 1 to 4 (7b8c89dc against b3311cd6), and the fixes:**
+   - channel B: no test moved on any lane (per-test lines identical: DuckDB, SQLite, MongoDB and H2 here; Postgres,
+     MySQL, MariaDB, ClickHouse, Trino, BigQuery and Databricks by their lanes; Snowflake's report pending);
+   - MariaDB and MySQL, 10 window tests (`mode`, `median`, `percentile` over a window), and BigQuery, 3 window `mode`
+     tests: the counted MODE's and the quantile's helper columns answered through the extend's star, and a typed-rows
+     statement answers its plan's columns alone. A star over the counted source is spelled as the source's own columns
+     (`AnsiSqlRenderer.starsAsSourceColumns`, both dialects);
+   - Trino: a failing statement opens its result with no columns, and the column count spoke before the database's
+     own error; its first read raises it now (`SqlDialect.opensFailedResultsWithoutColumns`, read in `JdbcStatements`);
+   - BigQuery's 12 Decimal tests and Databricks' BC date-time: item 2;
+   - message pins moved, the failures kept: `testArcCosineError` and `testArcSineError` on Postgres, ClickHouse, Trino
+     and Databricks ("the database answered NaN for a Float, which has no NaN in Pure", refused by name; on BigQuery
+     the database raises first and its pins hold), `testBigFloatAbs` on Postgres, BigQuery and Databricks (a double's
+     shortest digits), the same three on Snowflake;
+   - Snowflake's `testAdjustByMinutesBigNumber`, **a pass lost and pinned, an open item**: its driver hands the far-BC
+     `TIMESTAMP_NTZ` back as another instant (the lane's probe: `getTime` -739283178022000, `-21457-01-18T17:39:38Z`
+     where the database holds `-21457-01-08T20:48`; `getString` is that instant's text without its era; every
+     `java.time` getter refused), so no reader of the driver's value answers it. The phase 4 text path passed it
+     because the database spelled the date-time; the pass returns when Snowflake's dialect writes such a column as
+     the database's own text, measured on its lane first.
+4. **The guards, each pin dated:** `JavaEvalLedgerTest` (ValueBridge 355 -> 376 and PctExecuteNative 116 -> 94, phase
+   4, measured now: phase 4's commit did not run the census; StatementExecutor 2419 -> 2316; AssertVerdicts 1249 ->
+   1258, `structured` moved in; `NonFiniteJson.java` registered in exec's funnel); `CodeShapeGuardrailTest`
+   (`NonFiniteJson.at`, a parser cursor); `ArchitectureTest`, `ErrorShapeGuardrailTest`, `JdbcSurfaceCensusTest` (the
+   executor's rows out, `SetupRunner` 3 -> 4); `PlanJsonTest` (format 16). `TypedPlanTest` named two databases (the
+   census's ban): it plans its write on the platform's.
+5. **Measured here on the code of this commit:** the core suites, `guardrails`, `census`, `corpus_differential_test`,
+   `cypher_parity_test`, `cypher_parity_native_test`, `sql_parity_test`, `iq_parity_test`, `mongodb_plan_test`, the
+   stress suites (DuckDB and H2): green; the corpus judges' verdicts and roster checks on DuckDB and H2: green; PCT on
+   DuckDB (5 suites), H2, SQLite (5), MongoDB (5), channel B (5) and the discipline guard: 24 of 24, channel B's
+   per-test lines identical to CI's at 7b8c89dc in all five suites; the eight Postgres targets, unprivileged: 8 of 8.
+   Not run here: the local gate and the cloud lanes (they re-measure this head).

@@ -3183,52 +3183,6 @@ public final class Snowflake extends AnsiSqlRenderer {
     }
 
     // ==================================================================
-    // Values: what the driver hands back
-    // ==================================================================
-
-    /** A struct or a map arrives as JSON text (OBJECT; keys sorted, measured): decoded to the platform's map, a
-     *  struct's fields in its declared order. A list cell is decoded by the executor's JSON carrier (compact and
-     *  strict by the session). */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (jdbcValue instanceof String s && (type instanceof SqlType.Struct || type instanceof SqlType.Map)
-                && s.startsWith("{")) {
-            Object parsed = com.legend.sql.Json.parse(s);
-            return type instanceof SqlType.Struct st ? declaredOrder(parsed, st) : parsed;
-        }
-        // a decimal of scale 0 is a NUMBER(p,0), which the driver hands back as a Long (measured: CAST(8 AS
-        // DECIMAL(38, 0)) reads 8L)
-        if (type instanceof SqlType.Decimal && (jdbcValue instanceof Long || jdbcValue instanceof Integer)) {
-            return java.math.BigDecimal.valueOf(((Number) jdbcValue).longValue());
-        }
-        return jdbcValue;
-    }
-
-    /** A parsed object's fields in the struct's declared order (nested structs too); a field Snowflake dropped is
-     *  null, an undeclared one follows. */
-    private static @com.legend.base.Nullable Object declaredOrder(@com.legend.base.Nullable Object v, SqlType t) {
-        if (t instanceof SqlType.Struct st && v instanceof Map<?, ?> m) {
-            LinkedHashMap<String, Object> out = new LinkedHashMap<>();
-            for (SqlType.Struct.Field f : st.fields()) {
-                out.put(f.name(), declaredOrder(m.get(f.name()), f.type()));
-            }
-            for (Map.Entry<?, ?> e : m.entrySet()) {
-                out.putIfAbsent(String.valueOf(e.getKey()), e.getValue());
-            }
-            return out;
-        }
-        if (t instanceof SqlType.Array a && v instanceof List<?> l) {
-            List<Object> out = new ArrayList<>(l.size());
-            for (Object e : l) {
-                out.add(declaredOrder(e, a.element()));
-            }
-            return out;
-        }
-        return v;
-    }
-
-    // ==================================================================
     // Passes (MOVE TO their own files)
     // ==================================================================
 

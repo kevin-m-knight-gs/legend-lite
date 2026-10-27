@@ -622,11 +622,7 @@ public final class CypherParity {
         // the cells as the database returned them (a list or map is its JSON, read as a value by the judge; the
         // grid's canonical JSON text would lose a float's spelling: 3.0 is a float in Cypher, 3 an integer)
         for (var row : result.rows()) {
-            List<CypherValues.Value> cells = new ArrayList<>();
-            for (Object cell : row.values()) {
-                cells.add(CypherValues.ofCell(cell));
-            }
-            got.add(cells);
+            got.add(CypherValues.ofRow(row.values(), result.columns()));
         }
         boolean ordered;
         boolean bagLists = false;
@@ -673,11 +669,7 @@ public final class CypherParity {
         SqlParity.Grid actual = SqlParity.grid(result);
         List<List<CypherValues.Value>> got = new ArrayList<>();
         for (var row : result.rows()) {
-            List<CypherValues.Value> cells = new ArrayList<>();
-            for (Object cell : row.values()) {
-                cells.add(CypherValues.ofCell(cell));
-            }
-            got.add(cells);
+            got.add(CypherValues.ofRow(row.values(), result.columns()));
         }
         return switch (expect) {
             case CypherTck.ErrorExpected err -> new SqlParity.Outcome(SqlParity.Status.FAIL, "the TCK expects "
@@ -1040,11 +1032,12 @@ public final class CypherParity {
     public static Read readBack(String model, Lane lane, boolean storeIds) throws Exception {
         String use = "USE " + CypherGraph.DATASPACE + " ";
         Map<String, CypherValues.Node> nodes = new LinkedHashMap<>();
-        for (var row : lane.run(model, "#Cypher{" + use + READ_NODES + "}#").rows()) {
-            List<Object> v = row.values();
-            String id = storeId(String.valueOf(v.get(0)), storeIds);
+        com.legend.exec.ExecutionResult nodeRows = lane.run(model, "#Cypher{" + use + READ_NODES + "}#");
+        for (var row : nodeRows.rows()) {
+            List<CypherValues.Value> v = CypherValues.ofRow(row.values(), nodeRows.columns());
+            String id = storeId(String.valueOf(row.values().get(0)), storeIds);
             java.util.TreeSet<String> labels = new java.util.TreeSet<>();
-            for (CypherValues.Value l : ((CypherValues.Lst) CypherValues.ofCell(v.get(1))).items()) {
+            for (CypherValues.Value l : ((CypherValues.Lst) v.get(1)).items()) {
                 labels.add(((CypherValues.Str) l).value());
             }
             if (nodes.put(id, new CypherValues.Node(labels, props(v.get(2)))) != null) {
@@ -1052,11 +1045,13 @@ public final class CypherParity {
             }
         }
         Map<String, Edge> rels = new LinkedHashMap<>();
-        for (var row : lane.run(model, "#Cypher{" + use + READ_RELS + "}#").rows()) {
+        com.legend.exec.ExecutionResult relRows = lane.run(model, "#Cypher{" + use + READ_RELS + "}#");
+        for (var row : relRows.rows()) {
             List<Object> v = row.values();
             String id = storeId(String.valueOf(v.get(0)), storeIds);
             Edge e = new Edge(storeId(String.valueOf(v.get(1)), storeIds), storeId(String.valueOf(v.get(2)), storeIds),
-                    new CypherValues.Rel(String.valueOf(v.get(3)), props(v.get(4))));
+                    new CypherValues.Rel(String.valueOf(v.get(3)), props(CypherValues.ofCell(v.get(4),
+                            relRows.columns().get(4)))));
             Edge first = rels.get(id);
             if (first != null && (!first.start().equals(e.start()) || !first.end().equals(e.end())
                     || !CypherValues.equal(first.rel(), e.rel(), false))) {
@@ -1078,9 +1073,9 @@ public final class CypherParity {
     }
 
     /** A {@code properties(x)} cell as its entries, a null among them dropped (a stored null is no property). */
-    private static Map<String, CypherValues.Value> props(@com.legend.base.Nullable Object cell) {
+    private static Map<String, CypherValues.Value> props(CypherValues.Value cell) {
         Map<String, CypherValues.Value> out = new java.util.TreeMap<>();
-        ((CypherValues.Mp) CypherValues.ofCell(cell)).entries().forEach((k, v) -> {
+        ((CypherValues.Mp) cell).entries().forEach((k, v) -> {
             if (!(v instanceof CypherValues.Null)) {
                 out.put(k, v);
             }
@@ -1238,11 +1233,7 @@ public final class CypherParity {
         }
         List<List<CypherValues.Value>> got = new ArrayList<>();
         for (var row : result.rows()) {
-            List<CypherValues.Value> cells = new ArrayList<>();
-            for (Object cell : row.values()) {
-                cells.add(CypherValues.ofCell(cell));
-            }
-            got.add(cells);
+            got.add(CypherValues.ofRow(row.values(), result.columns()));
         }
         boolean ordered = java.util.Objects.requireNonNull(c.control()).toUpperCase(java.util.Locale.ROOT)
                 .contains("ORDER BY");

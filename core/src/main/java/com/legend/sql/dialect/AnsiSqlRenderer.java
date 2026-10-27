@@ -180,6 +180,32 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 + " as the database holds it: a stored read of it is a pass defect");
     }
 
+    /** {@code s}'s projections with each star over {@code alias} spelled as {@code source}'s own columns (an empty
+     *  projection list is a star), for a dialect that puts helper columns beside a source under its alias: a counted
+     *  MODE's counts, or a quantile's ranks (MariaDB's, MySQL's and BigQuery's). A star there would answer the helpers
+     *  too, and a typed-rows statement answers its plan's columns alone (2026-10-27, the result boundary program:
+     *  measured on the MariaDB, MySQL and BigQuery lanes, the window mode, median and percentile). A star with
+     *  exceptions over that source is refused by name. */
+    protected static List<SqlSelect.Projection> starsAsSourceColumns(SqlSelect s, SqlSource source, String alias,
+            String product) {
+        List<SqlSelect.Projection> spelled = new java.util.ArrayList<>();
+        List<SqlSelect.Projection> projections = s.projections().isEmpty()
+                ? List.of(new SqlSelect.Projection(new SqlExpr.Star(null), null, null)) : s.projections();
+        for (SqlSelect.Projection p : projections) {
+            if (p.expr() instanceof SqlExpr.Star st && (st.table() == null || st.table().equals(alias))) {
+                for (com.legend.sql.OutputCol oc : source.outputs()) {
+                    spelled.add(new SqlSelect.Projection(SqlExpr.Column.of(alias, oc), oc.name(), oc));
+                }
+            } else if (p.expr() instanceof SqlExpr.StarExcept se && (se.table() == null || se.table().equals(alias))) {
+                throw new DialectCapability("a star with exceptions over a source with helper columns beside it"
+                        + " reached " + product);
+            } else {
+                spelled.add(p);
+            }
+        }
+        return spelled;
+    }
+
     /** A type Pure cannot name: a Pure String, read as text on every dialect. */
     protected static boolean readsAsText(com.legend.sql.SqlDdl.ColumnType t) {
         return switch (t) {

@@ -47,14 +47,15 @@ class EmptyListAggregateTest {
 
     @Test
     void timesOfAnEmptyListIsOne() throws Exception {
-        // was null; the product's DOUBLE spelling over an Integer list is DuckDB's, unchanged here
-        assertEquals("1.0", scalar("|[1, 2, 3]->filter(x | $x > 5)->times()"));
+        // was null, then 1.0 (DuckDB's DOUBLE product); an Integer list's product is the Integer 1 (2026-10-27, the
+        // result boundary program's phase 5: the plan's typed decode refused a Float under the Integer root)
+        assertEquals("1", scalar("|[1, 2, 3]->filter(x | $x > 5)->times()"));
     }
 
     @Test
     void nonEmptyListsAreUnchanged() throws Exception {
         assertEquals("5", scalar("|[1, 2, 3]->filter(x | $x > 1)->sum()"));
-        assertEquals("6.0", scalar("|[1, 2, 3]->filter(x | $x > 1)->times()"));
+        assertEquals("6", scalar("|[1, 2, 3]->filter(x | $x > 1)->times()"));   // was 6.0: an Integer's product
         assertEquals("", scalar("|['a', 'b']->filter(x | $x == 'z')->plus()"));
     }
 

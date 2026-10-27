@@ -469,8 +469,12 @@ public final class SqlParity {
         List<List<Object>> rows = new ArrayList<>();
         for (var row : result.rows()) {
             List<Object> cells = new ArrayList<>();
-            for (Object v : row.values()) {
-                cells.add(cell(v));
+            for (int i = 0; i < row.values().size(); i++) {
+                Object v = row.values().get(i);
+                // a Variant's cell is its JSON text, the typed rows' carrier (since the result boundary program's
+                // phase 5, 2026-10-27: the old executor handed the driver's own JSON object, read below)
+                cells.add(v instanceof String json && com.legend.compiler.element.type.PlatformTypes.isVariant(
+                        result.columns().get(i).pureType()) ? JsonValue.ofNonFinite(json) : cell(v));
             }
             rows.add(cells);
         }
@@ -574,9 +578,9 @@ public final class SqlParity {
         }
 
         /** A JSON text that may hold a double that is not finite as a bare token, as DuckDB's JSON writes one
-         *  ({@link NonFiniteJson}). */
+         *  ({@link com.legend.exec.NonFiniteJson}). */
         static JsonValue ofNonFinite(String text) {
-            return new JsonValue(canonical(NonFiniteJson.parse(text)));
+            return new JsonValue(canonical(com.legend.exec.NonFiniteJson.parse(text)));
         }
 
         private static String canonical(Json.Node n) {
@@ -589,7 +593,7 @@ public final class SqlParity {
                 }
                 case Json.Arr a -> "[" + String.join(",", a.items().stream().map(JsonValue::canonical).toList()) + "]";
                 case Json.Str str -> Json.toCompact(str.value());
-                case Json.Num num when num.decimalValue() == null && num.token() == null
+                case Json.Num num when !num.isInteger() && num.decimalValue() == null
                         && !Double.isFinite(num.doubleValue()) -> Double.isNaN(num.doubleValue()) ? "NaN"
                                 : num.doubleValue() > 0 ? "Infinity" : "-Infinity";
                 case Json.Num num -> {
