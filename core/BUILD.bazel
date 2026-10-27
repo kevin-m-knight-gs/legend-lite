@@ -322,7 +322,7 @@ legend_java_library(
 )
 
 # THE JDBC DRIVERS, as their own target. core never compiles against a driver: it
-# speaks java.sql, and names driver classes only as strings (Executor's
+# speaks java.sql, and names driver classes only as strings (a DriverCells provider names its own
 # "org.duckdb.JsonNode"). So a driver is a RUNTIME choice made by whatever runs
 # core — a test, a server, a CLI — not a dependency of the product. A target that
 # executes queries depends on this; one that only plans (a WASM or native planner)

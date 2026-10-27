@@ -6,7 +6,6 @@ package com.legend;
 import com.legend.compiler.element.ModelContext;
 import com.legend.setup.Ddl;
 import com.legend.exec.ExecutionResult;
-import com.legend.exec.Executor;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 
@@ -84,7 +83,7 @@ final class StatementExecutor {
                 || com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo))) {
             com.legend.resolver.StagedRows.refuseLetsTheWritesChange(typedBody, specs);
             ExecEnv tx = env;
-            return com.legend.exec.Executor.inTransaction(connection,
+            return com.legend.exec.Sessions.inTransaction(connection,
                     () -> executeStatements(typedBody, new java.util.ArrayList<>(), specs, tx));
         }
         return executeStatements(typedBody, new java.util.ArrayList<>(), specs, env);
@@ -2123,7 +2122,7 @@ final class StatementExecutor {
                     plan, lowerer.deferredTds(),
                     inner -> com.legend.exec.ColumnProbe.probe(
                             inner, fDialect, fConn),
-                    com.legend.exec.Executor::pureOfSqlType);
+                    com.legend.exec.WireTypes::pureOfSqlType);
         }
         return named ? lowerer.namedColumns(plan) : plan;
     }
@@ -2145,7 +2144,7 @@ final class StatementExecutor {
                 com.legend.lowering.SeedableLets.withSeedableLetPrefix(statements, env.queryLets(), env.ctx()));
         String sql = env.dialect().render(dml);
         record(env, sql, false);
-        long count = com.legend.exec.Executor.executeUpdate(env.connection(), sql);
+        long count = sendUpdate(env, sql);
         return new ExecutionResult.Scalar(count, write.info().type());
     }
 
@@ -2171,7 +2170,7 @@ final class StatementExecutor {
         String sql = planned.dialect().render(com.legend.sql.SqlDml.CreateTempTableAs.staged(table, plan,
                 com.legend.resolver.StagedRows.columns(p.plannedRoot().info())));
         record(planned, sql, false);
-        com.legend.exec.Executor.executeUpdate(planned.connection(), sql);
+        sendUpdate(planned, sql);
         return new ExecutionResult.Scalar(null, p.plannedRoot().info().type());
     }
 
@@ -2191,8 +2190,37 @@ final class StatementExecutor {
             String sql = env.dialect().render(new com.legend.sql.SqlDdl.DropTable(null, t,
                     com.legend.sql.NameQuoting.BARE));
             record(env, sql, false);
-            com.legend.exec.Executor.executeUpdate(env.connection(), sql);
+            sendUpdate(env, sql);
         }
+    }
+
+    /** A change the body sends -- a store write, a staged table made or dropped -- as a plan's update on the body's
+     *  session (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, phase 5: every statement a body sends is a plan's): the
+     *  count of rows the database reports. */
+    private static long sendUpdate(ExecEnv env, String sql) {
+        try {
+            return com.legend.exec.PlanRunner.update(new com.legend.executionplan.ExecutionPlan.Update(
+                    statementOf(env, sql), null), com.legend.exec.PlanSessions.given(env.connection()));
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    /** A statement the body sends for what it does -- a raw statement a program wrote, a DDL, a script -- as a plan's
+     *  effect on the body's session: whether it answered rows (not read). */
+    private static boolean sendRaw(ExecEnv env, String sql) {
+        try {
+            return com.legend.exec.PlanRunner.effect(new com.legend.executionplan.ExecutionPlan.Effect(
+                    statementOf(env, sql)), com.legend.exec.PlanSessions.given(env.connection()));
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    /** {@code sql} as a plan's statement for the body's session: no slot, its target the body's
+     *  ({@link JudgePlans#target}). */
+    private static com.legend.executionplan.ExecutionPlan.Sql statementOf(ExecEnv env, String sql) {
+        return new com.legend.executionplan.ExecutionPlan.Sql(sql, java.util.List.of(), JudgePlans.target(env), null);
     }
 
     /** The Lowerer a statement's body lowers with (lowerAndPrepare's and the store write's): the model's layouts,
@@ -2232,31 +2260,12 @@ final class StatementExecutor {
     static @com.legend.base.Nullable ExecutionResult evalValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        return evalValue(value, letPrefix, specs, env, null, false);
+        return evalValue(value, letPrefix, specs, env, false, null);
     }
 
-    /** V11 rider entry: the canon rides the value query itself — one
-     * execution serves the host referee AND the byte verdict. */
-    static @com.legend.base.Nullable ExecutionResult evalValue(TypedSpec value,
-            java.util.List<TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.exec.@com.legend.base.Nullable CanonRider rider) {
-        return evalValue(value, letPrefix, specs, env, rider, false);
-    }
-
-    /** F13c: {@code identity} asks for the identity lane WITHOUT a
-     * canon rider — assert-CONDITION sides (the value is a boolean; the
-     * in-SQL eq/equal arm needs instance identity to compile the
-     * engine's equality relation). A rider implies identity. */
-    static @com.legend.base.Nullable ExecutionResult evalValue(TypedSpec value,
-            java.util.List<TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
-            boolean identity) {
-        return evalValue(value, letPrefix, specs, env, rider, identity, null);
-    }
-
-    /** V7 batch 2: {@code hook} non-null threads the statement loop's
+    /** F13c: {@code identity} asks for the identity lane -- assert-CONDITION sides (the value is a boolean; the
+     *  in-SQL eq/equal arm needs instance identity to compile the engine's equality relation). V7 batch 2:
+     *  {@code hook} non-null threads the statement loop's
      * result-envelope splice into the verdict side evaluation — the
      * SAME {@code UserCallInliner} hook ordinary statements get, so an
      * assert side reading an execute() frame compiles the spliced
@@ -2264,26 +2273,20 @@ final class StatementExecutor {
     static @com.legend.base.Nullable ExecutionResult evalValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
             boolean identity,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         // the addDriverTablePkForProject option is part of the EXECUTION
         // a LITERAL-ONLY side (a golden text, a seed CSV, a bare number — measured 167 of
         // 168 sides, 2026-09-22) is a compile-time constant: the compiler folds it, nothing
-        // is sent; everything else executes as before (Literals never guesses). A side a
-        // CANON RIDER rides is NOT folded: its canonical text is the database's own render
-        // (V11 — the byte verdict of record), never a second spelling here; the executor's
-        // own literal arm keeps the same rule (`folded != null && rider == null`).
+        // is sent; everything else executes as before (Literals never guesses)
         java.util.List<TypedSpec> inlined = inlinedSide(value, letPrefix, specs, env, hook);
-        ExecutionResult constant = rider == null
-                ? foldedSide(inlined.get(inlined.size() - 1), inlined.subList(0, inlined.size() - 1))
-                : null;
+        ExecutionResult constant = foldedSide(inlined.get(inlined.size() - 1), inlined.subList(0, inlined.size() - 1));
         if (constant != null) {
             return constant;
         }
         try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
-            return executeTyped(stagedSide(inlined, specs, env), env, rider, identity);
+            return executeTyped(stagedSide(inlined, specs, env), env, identity);
         }
     }
 
@@ -2352,21 +2355,9 @@ final class StatementExecutor {
 
     static ExecutionResult executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env) {
-        return executeTyped(body, env, null, false);
+        return executeTyped(body, env, false);
     }
 
-    static ExecutionResult executeTyped(
-            java.util.List<TypedSpec> body, ExecEnv env,
-            com.legend.exec.@com.legend.base.Nullable CanonRider rider) {
-        return executeTyped(body, env, rider, false);
-    }
-
-    /** V11: {@code rider} non-null asks the SQL path to carry the
-     * canonical renders as appended columns (wrapWithCanon); every
-     * non-SQL arm leaves the rider's initial "non-sql-arm" decline in
-     * place — counted at the verdict seam, never silent. F13c:
-     * {@code identityLane} joins the identity lane without a rider
-     * (assert-condition sides). */
     /** The typed-execution PRELUDE (leg 3.1 split): every arm that answers
      * WITHOUT a plan (effects, store navigation, DDL strings, handles, the
      * effectful map) returns {@link Prelude#answered}; otherwise the body,
@@ -2534,23 +2525,17 @@ final class StatementExecutor {
             }
             return Prelude.answered(last);
         }
-        // V11: a canon-riding side SKIPS the literal fold — the fold is
-        // a value-fetch optimization, but a requested canon is computed
-        // BY THE DATABASE, so the side executes (same cost as the
-        // deleted runCanon round trip; the values now come through the
-        // full pipeline too, one road for both). The fold survives as
-        // the LAST-RESORT value source for literals SQL cannot spell
-        // (NUL-bearing strings — DuckDB VARCHAR is NUL-free): the
-        // executePlan tunnel returns it with a counted decline.
         return new Prelude(null, body, root, declaredInfo, env);
     }
 
+    /** A value statement's result: answered by the prelude where it needs no plan, a literal folded, else its plan
+     *  run by the plan runner on the env's session ({@link JudgePlans#sideResult}: the typed rows shaped as the
+     *  statement's shape; docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, phase 5 -- the body driver sends nothing
+     *  itself). F13c: {@code identityLane} joins the identity lane (assert-condition sides). */
     static ExecutionResult executeTyped(
-            java.util.List<TypedSpec> body, ExecEnv env,
-            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
-            boolean identityLane) {
+            java.util.List<TypedSpec> body, ExecEnv env, boolean identityLane) {
         ModelContext ctx = env.ctx();
-        Prelude p = prelude(body, env, rider, identityLane);
+        Prelude p = prelude(body, env, null, identityLane);
         if (p.answered() != null) {
             return p.answered();
         }
@@ -2560,7 +2545,7 @@ final class StatementExecutor {
         TypedSpec root = p.plannedRoot();
         com.legend.compiler.element.type.ExprType declaredInfo = p.declaredInfo();
         com.legend.exec.ExecutionResult folded = LiteralFold.fold(root);
-        if (folded != null && rider == null) {
+        if (folded != null) {
             return folded;
         }
         if (System.getenv("LL_DUMP_RESOLVED") != null) {
@@ -2568,7 +2553,7 @@ final class StatementExecutor {
         }
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         com.legend.sql.SqlQuery plan = lowerAndPrepare(body, env, ctx,
-                dialect, connection, rider != null || identityLane);
+                dialect, connection, identityLane);
         boolean collectionDeclared = declaredInfo != null
                 && declaredInfo.type()
                         instanceof com.legend.compiler.element.type.Type.Primitive
@@ -2579,8 +2564,8 @@ final class StatementExecutor {
         if (System.getenv("LL_TMP_SQL") != null) {
             System.err.println("[exec-sql] " + renderFor(env, plan));
         }
-        ExecutionResult res = executePlan(plan, root,
-                collectionDeclared ? declaredInfo : null, rider, folded, env);
+        ExecutionResult res = JudgePlans.sideResult(wrapSide(plan, root,
+                collectionDeclared ? declaredInfo : null, null, env), env);
         enforceToOneReader(root, res);
         return res;
     }
@@ -2805,7 +2790,8 @@ final class StatementExecutor {
                 collectionDeclared ? p.declaredInfo() : null, penv, stores.isEmpty());
     }
 
-    /** The canon wrap of {@link #executePlan}, alone. */
+    /** A value's plan as a side: its shape and shape type, and, where a canon rider asks (the database judge's
+     *  verdict planning), the plan wrapped with the canon columns the verdict statement composes. */
     private static WrappedSide wrapSide(com.legend.sql.SqlQuery plan,
             TypedSpec root,
             com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo,
@@ -2855,96 +2841,6 @@ final class StatementExecutor {
             }
         }
         return new WrappedSide(plan, shapeInfo, shape, env.connection(), false);
-    }
-
-    private static ExecutionResult executePlan(com.legend.sql.SqlQuery plan,
-            TypedSpec root,
-            com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo,
-            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
-            @com.legend.base.Nullable ExecutionResult folded, ExecEnv env) {
-        com.legend.sql.SqlQuery bare = plan;
-        WrappedSide ws = wrapSide(plan, root, declaredInfo, rider, env);
-        plan = ws.plan();
-        com.legend.compiler.element.type.ExprType shapeInfo = ws.shapeInfo();
-        com.legend.plan.ResultShape shape = ws.shape();
-        com.legend.sql.dialect.SqlDialect dialect = env.dialect();
-        if (rider == null) {
-            return Executor.execute(renderFor(env, plan), plan, shapeInfo,
-                    shape, env.connection(), dialect, null, env.trace());
-        }
-        try {
-            return Executor.execute(renderFor(env, plan), plan, shapeInfo,
-                    shape, env.connection(), dialect, rider, env.trace());
-        } catch (RuntimeException e) {
-            // THE DECLINE TUNNEL, V11 form (DataError included — the
-            // seam made the boundary translation a RuntimeException) (prepCanon/runCanon caught
-            // exactly this class — a caught failure becomes the DESIGNED
-            // decline sentinel, counted, never a rescue): a canon column
-            // must never poison the value fetch. Witness: the
-            // MIXED-ELEMENT IDENTITY carrier (F10) — pure PRINT-FORM
-            // VARCHAR ('7.345D') errors under the candidate casts,
-            // undetectable at wrap time (OutputCol types are
-            // stamp-derived, the V6 circularity). The side re-executes
-            // BARE (pure SELECT — effectful statements never reach the
-            // K-arm) and the canon declines.
-            boolean wasWrapped = rider.wrapped() || rider.tdsWrapped();
-            boolean hadDroppableLiteral = rider.literalIndex() >= 1;
-            rider.rows().clear();
-            if (wasWrapped) {
-                rider.decline("canon-exec: "
-                        + String.valueOf(e.getMessage()).split("\\n")[0]);
-            }
-            // MIDDLE RUNG (F10 v1): a TYPED side whose failure may be
-            // its literal candidate alone (stamp-derived column types
-            // lie about the wire — the BLOB byte carrier under a STRING
-            // stamp) re-wraps WITHOUT the literal channel: the bare
-            // candidates keep byte-deciding instead of demoting to the
-            // host. A second failure falls through to the bare rung.
-            if (wasWrapped && hadDroppableLiteral) {
-                try {
-                    var w2 = com.legend.lowering.CanonicalRenderSql
-                            .wrapWithCanon(bare, shapeInfo,
-                                    rider.canonicalOrder(),
-                                    com.legend.compiler.element.EqualityKeys
-                                            .resolve(env.ctx(),
-                                                    shapeInfo.type()),
-                                    false,
-                                    com.legend.lowering.CanonicalRenderSql.nameValued(
-                                            shapeInfo.type(), env.ctx()::tracksClassifier));
-                    if (w2.declineReason() == null) {
-                        rider.wrap(w2.kinds(), w2.many(), w2.literalIndex());
-                        return Executor.execute(
-                                renderFor(env, w2.plan()), w2.plan(),
-                                shapeInfo, shape, env.connection(), dialect,
-                                rider, env.trace());
-                    }
-                } catch (RuntimeException e15) {
-                    rider.rows().clear();
-                    rider.decline("canon-exec: "
-                            + String.valueOf(e15.getMessage())
-                                    .split("\\n")[0]);
-                }
-            }
-            try {
-                if (!wasWrapped) {
-                    // the canon never rode (wrap already declined) —
-                    // the failure is the side's own
-                    throw e;
-                }
-                return Executor.execute(renderFor(env, bare), bare,
-                        shapeInfo, shape, env.connection(), dialect, null, env.trace());
-            } catch (RuntimeException e2) {
-                // the BARE side itself cannot execute: an unSQLable
-                // literal (NUL-bearing string — DuckDB VARCHAR is
-                // NUL-free). The literal fold answers, canon declines.
-                if (folded != null) {
-                    rider.decline("unsqlable-literal: "
-                            + String.valueOf(e2.getMessage()).split("\\n")[0]);
-                    return folded;
-                }
-                throw e2;
-            }
-        }
     }
 
     /** rows->toOne() READER enforcement (audit 22b F1): the lowering is
@@ -2999,7 +2895,7 @@ final class StatementExecutor {
         boolean query;
         try (var __o = generated ? com.legend.exec.StatementOrigin.enterGenerated(origin)
                 : com.legend.exec.StatementOrigin.enterIfUnmarked(origin)) {
-            query = Executor.executeRaw(env.connection(), executed);
+            query = sendRaw(env, executed);
         }
         if (recorded != null) {
             record(env, recorded, query);
@@ -3016,17 +2912,16 @@ final class StatementExecutor {
         java.util.List<String> texts = entries.stream().map(com.legend.exec.EffectSink.Entry::executed).toList();
         // the dialect's bracket only when this send OWNS the transaction; inside a
         // caller's (the harness's attempt) the statements run bare and the caller unwinds
-        boolean bracketed = Executor.ownsTransaction(env.connection());
+        boolean bracketed = com.legend.exec.Sessions.ownsTransaction(env.connection());
         try {
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
-                Executor.executeScript(env.connection(),
-                        bracketed ? env.dialect().script(texts) : String.join(";\n", texts) + ";");
+                sendRaw(env, bracketed ? env.dialect().script(texts) : String.join(";\n", texts) + ";");
             }
         } catch (com.legend.error.DataError e) {
             String abort = env.dialect().scriptAbort();
             if (bracketed && abort != null) {
                 // the bracket the failure left open: closed before anything else runs
-                Executor.executeRaw(env.connection(), abort);
+                sendRaw(env, abort);
             }
             java.util.OptionalInt failing = env.dialect().failingStatement(String.valueOf(e.getMessage()), texts);
             int applied = failing.isPresent() ? failing.getAsInt() : 0;

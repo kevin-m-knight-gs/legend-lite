@@ -53,9 +53,9 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public void execute(String statement) {
+    public boolean execute(String statement) {
         try (Statement st = c.createStatement()) {
-            st.execute(statement);
+            return st.execute(statement);
         } catch (SQLException e) {
             throw PlanSessions.dataError(e, c);
         }
@@ -76,7 +76,7 @@ final class JdbcStatements implements Statements {
 
     @Override
     public <T> T inTransaction(java.util.function.Supplier<T> work) {
-        return Executor.inTransaction(c, work);
+        return Sessions.inTransaction(c, work);
     }
 
     @Override

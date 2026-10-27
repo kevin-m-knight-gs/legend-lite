@@ -51,15 +51,17 @@ public final class PlanJson {
      *  13 since 2026-10-27: a text result is Pure's TDS text alone (the CSV, JSON and per-row JSON texts the database
      *  wrote are gone: typed rows are every other answer, the result boundary program's phase 3); 14 since 2026-10-27:
      *  no text result at all -- every answer is typed rows (Pure's TDS text went with the program's phase 4: the PCT
-     *  reads typed rows), so a keyed result has no format and its fixed outputs no format's name. */
-    public static final int VERSION = 14;
+     *  reads typed rows), so a keyed result has no format and its fixed outputs no format's name; 15 since 2026-10-27:
+     *  the {@code effect} node (a statement sent for what it does -- a raw statement a program wrote, a DDL, a script --
+     *  the body driver's effects on the plan, the program's phase 5). */
+    public static final int VERSION = 15;
 
     private PlanJson() {
     }
 
     /** The {@code _type} tags of the lite format, one spelling for the writer and the reader: an exhaustive switch over
      *  each family, an unknown tag refused by name ({@link #tag}). */
-    enum NodeTag { sequence, tdsResult, keyed, update, check }
+    enum NodeTag { sequence, tdsResult, keyed, update, check, effect }
 
     enum OutputTag { fixed, perKey }
 
@@ -161,6 +163,10 @@ public final class PlanJson {
             case ExecutionPlan.Check k -> {
                 o.put("_type", NodeTag.check.name());
                 o.put("sql", sql(k.sql()));
+            }
+            case ExecutionPlan.Effect e -> {
+                o.put("_type", NodeTag.effect.name());
+                o.put("sql", sql(e.sql()));
             }
         }
         return o;
@@ -393,6 +399,7 @@ public final class PlanJson {
             case update -> new ExecutionPlan.Update(readSql(o.getObj("sql")), o.has("count") ? o.getString("count")
                     : null);
             case check -> new ExecutionPlan.Check(readSql(o.getObj("sql")));
+            case effect -> new ExecutionPlan.Effect(readSql(o.getObj("sql")));
         };
     }
 

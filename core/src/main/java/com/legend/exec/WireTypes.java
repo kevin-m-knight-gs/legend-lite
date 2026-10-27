@@ -219,4 +219,38 @@ public final class WireTypes {
             default -> null;
         };
     }
+
+    /** The Pure primitive a column the database reports by its SQL type name carries (a pivot-generated column, a
+     *  probed grid's): every known name explicit -- an unrecognized one is a gap in this table, refused by name, never a
+     *  String (audit 15: the silent String default corrupted result typing invisibly). */
+    public static com.legend.compiler.element.type.Type pureOfSqlType(String sqlType) {
+        com.legend.compiler.element.type.Type t = pureOfSqlTypeOrNull(sqlType);
+        if (t == null) {
+            throw new IllegalStateException("no Pure primitive mapped for SQL type '" + sqlType
+                    + "' (a column the database reports) -- add it to WireTypes.pureOfSqlType");
+        }
+        return t;
+    }
+
+    /** {@link #pureOfSqlType}'s lookup: null for an unmapped SQL type (a late-bound grid's column then the trusted
+     *  Any, GridProbe). The parameter suffix strips once ({@code DECIMAL(38,9)} is {@code DECIMAL}); the table is
+     *  exact-match. */
+    public static com.legend.compiler.element.type.@com.legend.base.Nullable Type pureOfSqlTypeOrNull(String sqlType) {
+        String t = sqlType.toUpperCase(java.util.Locale.ROOT);
+        int paren = t.indexOf('(');
+        if (paren > 0) {
+            t = t.substring(0, paren).strip();
+        }
+        return switch (t) {
+            case "TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT" ->
+                    com.legend.compiler.element.type.Type.Primitive.INTEGER;
+            case "FLOAT", "DOUBLE", "REAL" -> com.legend.compiler.element.type.Type.Primitive.FLOAT;
+            case "BOOLEAN" -> com.legend.compiler.element.type.Type.Primitive.BOOLEAN;
+            case "DATE" -> com.legend.compiler.element.type.Type.Primitive.STRICT_DATE;
+            case "TIMESTAMP" -> com.legend.compiler.element.type.Type.Primitive.DATE_TIME;
+            case "DECIMAL", "NUMERIC" -> com.legend.compiler.element.type.Type.Primitive.DECIMAL;
+            case "VARCHAR", "CHAR", "TEXT", "STRING", "BPCHAR" -> com.legend.compiler.element.type.Type.Primitive.STRING;
+            default -> null;
+        };
+    }
 }

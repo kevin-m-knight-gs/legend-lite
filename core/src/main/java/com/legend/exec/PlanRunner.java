@@ -89,7 +89,33 @@ public final class PlanRunner {
                     + " plan's answer is a result");
             case ExecutionPlan.Check check -> throw new IllegalStateException("a plan whose answer is a check: a"
                     + " plan's answer is a result");
+            case ExecutionPlan.Effect effect -> throw new IllegalStateException("a plan whose answer is an effect: a"
+                    + " plan's answer is a result (an effect alone is sent by effect(...))");
         }
+    }
+
+    /**
+     * The body driver's one change (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, phase 5: every statement a body sends
+     * is a plan's): {@code update} -- a store write, a staged table made or dropped -- on a session of
+     * {@code sessions}, checked against its target and given the target's session statements as any session is; the
+     * count of rows the database reports. Its transaction is the caller's (the body's, {@link Sessions#inTransaction}).
+     */
+    public static long update(ExecutionPlan.Update update, PlanSessions.Source sessions) throws IOException {
+        long[] count = {0};
+        send(update.sql(), Map.of(), sessions, (st, statement, values) ->
+                count[0] = st.update(statement, update.sql().slots(), values));
+        return count[0];
+    }
+
+    /** The body driver's one effect: {@code effect} -- a raw statement a program wrote, a DDL, a script, a seed's
+     *  rows -- on a session of {@code sessions} as {@link #update}'s; whether it answered rows (not read). */
+    public static boolean effect(ExecutionPlan.Effect effect, PlanSessions.Source sessions) throws IOException {
+        if (!effect.sql().slots().isEmpty()) {
+            throw new IllegalStateException("an effect binds no slot: its text is the statement");
+        }
+        boolean[] rows = {false};
+        send(effect.sql(), Map.of(), sessions, (st, statement, values) -> rows[0] = st.execute(statement));
+        return rows[0];
     }
 
     /** A typed answer on its way to a sink: the columns once the statement has answered (its first row, or its
@@ -187,6 +213,10 @@ public final class PlanRunner {
                     yield u.sql();
                 }
                 case ExecutionPlan.Check k -> k.sql();
+                case ExecutionPlan.Effect e -> {
+                    changes = true;
+                    yield e.sql();
+                }
                 case ExecutionPlan.TdsResult t -> {
                     results++;
                     yield t.sql();
@@ -253,6 +283,11 @@ public final class PlanRunner {
                     String statement = statement(k.sql(), values);
                     StatementOrigin.sent(statement);
                     st.query(statement, k.sql().slots(), valuesOf(k.sql(), values), row -> { });
+                }
+                case ExecutionPlan.Effect e -> {
+                    String statement = statement(e.sql(), values);
+                    StatementOrigin.sent(statement);
+                    st.execute(statement);
                 }
                 case ExecutionPlan.TdsResult t -> {
                     String statement = statement(t.sql(), values);

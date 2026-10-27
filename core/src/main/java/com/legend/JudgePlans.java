@@ -129,10 +129,8 @@ final class JudgePlans {
      * verdict side, with no canon rider ({@link StatementExecutor#planHostSide}); a side the pipeline answers without
      * a plan (a literal-only side the compiler folds, a host constant) is that answer, nothing sent. {@code identity}:
      * the identity lane (an assert-condition side whose in-SQL equality needs instance identity).
-     *
-     * <p>The one named residue: a side whose plan answers a DYNAMIC PIVOT's columns unnamed keeps the legacy route
-     * -- its columns are named by the database, and a typed-rows plan carries no column it cannot name (step 6; the
-     * typer's templates, step 9). A cast over the pivot names them, and such a side is a plan's result (step 7).
+     * A side whose plan answers a DYNAMIC PIVOT's columns unnamed runs as a keyed plan (its keys read first,
+     * {@link #tabular}); a cast over the pivot names them, and such a side is an ordinary relation (step 7).
      */
     static ExecutionResult evalSide(TypedSpec value, List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env, boolean identity, boolean fold,
@@ -143,11 +141,6 @@ final class JudgePlans {
         StatementExecutor.WrappedSide side = pv.side();
         if (side == null) {
             return java.util.Objects.requireNonNull(pv.answered(), "a side neither planned nor answered");
-        }
-        Type.RelationType sideSchema = Type.relationSchema(side.shapeInfo().type());
-        if (sideSchema != null && TypedRows.dynamicPivotUnnamed(side.plan(), sideSchema)) {
-            return java.util.Objects.requireNonNull(StatementExecutor.evalValue(value, letPrefix, specs, env, null,
-                    identity, hook), "a dynamic pivot side without a result");
         }
         ExecutionResult result = sideResult(side, env);
         // the engine's reader semantics for toOne() over a relation: exactly one row (the legacy executor's check)
@@ -234,6 +227,9 @@ final class JudgePlans {
         if (schema == null) {
             throw new IllegalStateException("TABULAR result without a relation root type: " + info.type().typeName());
         }
+        if (!lateBound && TypedRows.dynamicPivotUnnamed(plan, schema)) {
+            return keyed(plan, schema, info, w, env);
+        }
         if (!lateBound) {
             // ASSERT-BOUNDARY determinism (user design, 2026-08-29; the rule of the legacy TDS canon wrap this side
             // no longer rides, kept on the plan path): a grid under assertion is deterministically ordered even when
@@ -245,12 +241,60 @@ final class JudgePlans {
         }
         plan = withFrames(plan, env);
         // a row-struct column is typed nesting over a flat physical reality: the prefixed columns the join emitted
-        schema = com.legend.exec.Executor.flattenStructColumns(schema);
+        schema = flattenStructColumns(schema);
         // a grid's cells typed from the driver: a temporal cell by the database's own kind (a DATE a day)
         PlanRunner.Rows rows = run(rowsPlan(plan, schema, env), PlanSessions.given(w.connection()));
         List<Column> columns = new ArrayList<>(schema.columns().size());
         for (Type.Column c : schema.columns()) {
             columns.add(new Column(c.name(), c.type(), c.multiplicity()));
+        }
+        List<Row> out = new ArrayList<>(rows.rows().size());
+        for (List<Object> r : rows.rows()) {
+            out.add(new Row(r));
+        }
+        return new ExecutionResult.Tabular(columns, out, info.type());
+    }
+
+    /** A side over a DYNAMIC PIVOT nothing names: its keyed plan ({@link PlanMaker#keyed}, the probe plan the server
+     *  runs), its keys read first and its body written for them; each answered column typed by the schema -- a fixed
+     *  one by its name, a per-key one by its aggregate's template -- and named as the plan names it (a generated
+     *  name presented in its quotes, as the engine labels it). */
+    private static ExecutionResult keyed(SqlQuery plan, Type.RelationType schema, ExprType info,
+            StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
+        SqlQuery framed = withFrames(plan, env);
+        com.legend.sql.SqlSource.Pivot pivot = java.util.Objects.requireNonNull(
+                com.legend.lowering.KeyedPivot.dynamic(framed), "a dynamic pivot side whose plan holds no such pivot");
+        ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), target(env));
+        PlanRunner.Rows rows;
+        try {
+            rows = PlanRunner.rows(new ExecutionPlan(List.of(), keyed), Map.of(), PlanSessions.given(w.connection()));
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        List<Type> perKey = new ArrayList<>();
+        int fixed = 0;
+        for (ExecutionPlan.Keyed.Output o : keyed.outputs()) {
+            if (o instanceof ExecutionPlan.Keyed.PerKey p) {
+                perKey.add(schema.dynamicColumns().stream().filter(c -> c.name().equals(p.column().name()))
+                        .findFirst().orElseThrow(() -> new IllegalStateException("a per-key column '"
+                                + p.column().name() + "' with no template in " + schema.dynamicColumns()))
+                        .type());
+            } else {
+                fixed++;
+            }
+        }
+        List<Column> columns = new ArrayList<>(rows.columns().size());
+        for (int i = 0; i < rows.columns().size(); i++) {
+            ExecutionPlan.Column c = rows.columns().get(i);
+            if (i < fixed) {
+                Type.Column sc = schema.columns().stream().filter(x -> x.name().equals(c.name())).findFirst()
+                        .orElseThrow(() -> new IllegalStateException("a fixed column '" + c.name()
+                                + "' outside the schema " + schema.columns()));
+                columns.add(new Column(sc.name(), sc.type(), sc.multiplicity()));
+            } else {
+                columns.add(new Column(Type.RelationType.presentPivotName(c.name()),
+                        perKey.get((i - fixed) % perKey.size())));
+            }
         }
         List<Row> out = new ArrayList<>(rows.rows().size());
         for (List<Object> r : rows.rows()) {
@@ -342,5 +386,23 @@ final class JudgePlans {
                     + " — NULL cells were dropped past the type's own contract");
         }
         return new ExecutionResult.Collection(values, type);
+    }
+
+    /** A row-struct column (a navigate slot) expanded to its prefixed flat columns, as the join emitted them. */
+    private static Type.RelationType flattenStructColumns(Type.RelationType schema) {
+        if (schema.columns().stream().noneMatch(c -> c.type() instanceof Type.RelationType)) {
+            return schema;
+        }
+        List<Type.Column> flat = new ArrayList<>();
+        for (Type.Column c : schema.columns()) {
+            if (c.type() instanceof Type.RelationType sub) {
+                for (Type.Column sc : sub.columns()) {
+                    flat.add(new Type.Column(c.name() + "_" + sc.name(), sc.type(), sc.multiplicity()));
+                }
+            } else {
+                flat.add(c);
+            }
+        }
+        return new Type.RelationType(flat);
     }
 }

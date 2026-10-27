@@ -907,7 +907,7 @@ final class HostJudge {
         // batch 53): instanceOf is the model's subtype relation
         // (a property-less class such as NullLiteral has nothing
         // else on the wire)
-        if (com.legend.exec.Executor.structured(v) instanceof java.util.Map<?, ?> m
+        if (AssertVerdicts.structured(v) instanceof java.util.Map<?, ?> m
                 && m.get(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)
                         instanceof String wireType) {
             boolean ok = wireType.equals(type)

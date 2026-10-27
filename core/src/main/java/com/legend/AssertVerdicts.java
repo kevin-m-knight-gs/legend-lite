@@ -1565,9 +1565,23 @@ final class AssertVerdicts {
         }
         List<Object> out = new ArrayList<>(vals.size());
         for (Object v : vals) {
-            out.add(com.legend.exec.Executor.structured(v));
+            out.add(structured(v));
         }
         return out;
+    }
+
+    /** A class VALUE riding a JSON slot inside a struct (a polymorphic field: {@code parameters :
+     *  RelationalOperationElement[*]}) arrives as object or array text -- the field's declared kind says it is a
+     *  structure, so it decodes to the map or list the verdict's key restriction reads (WORLD_MAP §4: the value carries
+     *  its class as {@code __type}); any other value as it is. */
+    static @com.legend.base.Nullable Object structured(@com.legend.base.Nullable Object v) {
+        if (v instanceof String s) {
+            String t = s.trim();
+            if (t.startsWith("{") || t.startsWith("[")) {
+                return com.legend.sql.Json.parse(t);
+            }
+        }
+        return v;
     }
 
     /** Declared classes only (no wire evidence in hand). */

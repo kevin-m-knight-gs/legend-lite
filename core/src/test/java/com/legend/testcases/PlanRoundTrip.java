@@ -62,6 +62,7 @@ public final class PlanRoundTrip {
                     withoutTree(k.body()), k.snapshot(), k.maxColumns());
             case ExecutionPlan.Update u -> new ExecutionPlan.Update(withoutTree(u.sql()), u.count());
             case ExecutionPlan.Check c -> new ExecutionPlan.Check(withoutTree(c.sql()));
+            case ExecutionPlan.Effect e -> new ExecutionPlan.Effect(withoutTree(e.sql()));
         };
     }
 
@@ -76,6 +77,7 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Keyed k -> k.keys().statement().length() + k.body().statement().length();
             case ExecutionPlan.Update u -> u.sql().statement().length();
             case ExecutionPlan.Check c -> c.sql().statement().length();
+            case ExecutionPlan.Effect e -> e.sql().statement().length();
         };
     }
 
@@ -94,6 +96,7 @@ public final class PlanRoundTrip {
                 }
             }
             case ExecutionPlan.Check c -> assertRenders(c.sql(), what);
+            case ExecutionPlan.Effect e -> assertRenders(e.sql(), what);
         }
     }
 

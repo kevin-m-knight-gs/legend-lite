@@ -109,7 +109,7 @@ public final class Execution {
         // connection-bearing entry passes through; the dialect states the FACTS, the exec funnel executes
         for (String s : dialect.sessionSetup()) {
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SESSION)) {
-                com.legend.exec.Executor.executeRaw(connection, s);
+                com.legend.exec.SetupRunner.send(connection, s);
             }
         }
         return dialect;

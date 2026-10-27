@@ -107,6 +107,68 @@ public final class Sessions {
         }
     }
 
+    /** Whether the session commits each statement itself, so a transaction is its holder's to open: a caller that
+     *  turned autocommit off (the corpus harness brackets an effect body as one attempt, committed on a pass and
+     *  rolled back on a failure) holds it; a script's bracket must not nest inside, and a failure is the caller's to
+     *  unwind. */
+    public static boolean ownsTransaction(Connection session) {
+        try {
+            return session.getAutoCommit();
+        } catch (SQLException e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        }
+    }
+
+    /**
+     * {@code work} in one transaction of {@code session} (the writes design's L0, §4): when the session commits each
+     * statement itself, autocommit is turned off, the work's statements commit together, and on any failure they roll
+     * back, autocommit restored either way; when the caller turned autocommit off, the transaction is the caller's:
+     * joined, neither committed nor rolled back here (the parity harnesses roll every write case back).
+     */
+    public static <T> T inTransaction(Connection session, java.util.function.Supplier<T> work) {
+        if (!ownsTransaction(session)) {
+            return work.get();
+        }
+        try {
+            session.setAutoCommit(false);
+        } catch (SQLException e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        }
+        T out;
+        try {
+            out = work.get();
+            session.commit();
+        } catch (RuntimeException | Error failure) {
+            unwind(session, failure);
+            throw failure;
+        } catch (SQLException e) {
+            com.legend.error.DataError failure = PlanSessions.dataError(e, session);
+            unwind(session, failure);
+            throw failure;
+        }
+        try {
+            session.setAutoCommit(true);
+        } catch (SQLException e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        }
+        return out;
+    }
+
+    /** The transaction rolled back and autocommit restored after {@code failure}; a failure of either is suppressed
+     *  into it, so the work's own failure is the one reported. */
+    private static void unwind(Connection session, Throwable failure) {
+        try {
+            session.rollback();
+        } catch (SQLException e) {
+            failure.addSuppressed(e);
+        }
+        try {
+            session.setAutoCommit(true);
+        } catch (SQLException e) {
+            failure.addSuppressed(e);
+        }
+    }
+
     /** The server version {@code session} reports ({@code DatabaseMetaData.getDatabaseProductVersion}). */
     public static String version(Connection session) {
         return metadata(session, false);

@@ -40,6 +40,7 @@ class TypedPlanTest {
             case ExecutionPlan.Sequence s -> target(new ExecutionPlan(List.of(), s.steps().get(0)));
             case ExecutionPlan.Update u -> u.sql().target();
             case ExecutionPlan.Check k -> k.sql().target();
+            case ExecutionPlan.Effect e -> e.sql().target();
         };
     }
 

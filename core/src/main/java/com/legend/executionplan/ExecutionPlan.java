@@ -71,6 +71,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
                 yield answers.get(0);
             }
             case Update u -> throw new IllegalStateException("a plan that only changes its database answers no rows");
+            case Effect e -> throw new IllegalStateException("a plan that only sends an effect answers no rows");
             case Check c -> throw new IllegalStateException("a plan that only checks answers no rows");
         };
     }
@@ -104,7 +105,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /** A node of the plan. */
-    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check {
+    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect {
     }
 
     /**
@@ -136,6 +137,18 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      */
     public record Update(Sql sql, @com.legend.base.Nullable String count) implements Node {
         public Update {
+            Objects.requireNonNull(sql, "sql");
+        }
+    }
+
+    /**
+     * A statement sent for what it DOES, its kind the statement's own -- a raw statement a program wrote
+     * ({@code executeInDb}), a DDL, a script of several, a seed's rows -- which may answer rows it does not read: the
+     * body driver's effects (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, phase 5: every statement a body sends is a
+     * plan's). The runner says whether it answered rows.
+     */
+    public record Effect(Sql sql) implements Node {
+        public Effect {
             Objects.requireNonNull(sql, "sql");
         }
     }

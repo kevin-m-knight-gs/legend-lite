@@ -28,7 +28,7 @@ public final class SetupRunner {
                     for (String stmt : com.legend.sql.RawSql.splitStatements(blob.text())) {
                         boolean query;
                         try (var __o = StatementOrigin.enter(StatementOrigin.SEED)) {
-                            query = Executor.executeRaw(connection,
+                            query = send(connection,
                                     new com.legend.setup.CsvSeed.Step.Sql(stmt, blob.writtenFor()).runOn(dialect));
                         }
                         if (recorder != null) {
@@ -40,7 +40,7 @@ public final class SetupRunner {
                 // referee's ledger records the one insert that lands the same rows
                 case Step.Rows rows -> {
                     try (var __o = StatementOrigin.enter(StatementOrigin.SEED)) {
-                        Executor.load(connection, dialect, rows.load());
+                        load(connection, dialect, rows.load());
                     }
                     if (recorder != null) {
                         recorder.recordExecuted(rows.text(dialect), false);
@@ -48,5 +48,35 @@ public final class SetupRunner {
                 }
             }
         }
+    }
+
+    /** One setup statement sent on {@code session} under the origin in force, counted as every statement is
+     *  ({@link StatementOrigin#sent}): whether it answered rows, which are not read. */
+    public static boolean send(java.sql.Connection session, String statement) {
+        StatementOrigin.sent(statement);
+        try (java.sql.Statement st = session.createStatement()) {
+            return st.execute(statement);
+        } catch (java.sql.SQLException e) {
+            throw PlanSessions.dataError(e, session);
+        }
+    }
+
+    /** {@code load}'s rows into their table on {@code session}: by the engine's bulk load where it has one, else as
+     *  the one insert the dialect writes. */
+    static void load(java.sql.Connection session, com.legend.sql.dialect.SqlDialect dialect,
+            com.legend.setup.RowLoad load) {
+        if (load.rows().isEmpty()) {
+            return;
+        }
+        try {
+            BulkLoad bulk = BulkLoads.of(session);
+            if (bulk != null) {
+                BulkLoads.load(bulk, session, load.staged(dialect));
+                return;
+            }
+        } catch (java.sql.SQLException e) {
+            throw PlanSessions.dataError(e, session);
+        }
+        send(session, dialect.render(load.values()));
     }
 }

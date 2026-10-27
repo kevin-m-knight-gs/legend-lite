@@ -88,7 +88,7 @@ class RowLoadH2Test {
                 st.execute(DDL);
             }
             long before = Census.count(Census.Key.BULK_LOADS);
-            Executor.load(c, new com.legend.sql.dialect.H2Modern(), new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("i", "v"), java.util.Set.of(), 2, List.of(List.of("1", "a"))));
+            SetupRunner.load(c, new com.legend.sql.dialect.H2Modern(), new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("i", "v"), java.util.Set.of(), 2, List.of(List.of("1", "a"))));
             assertEquals(before, Census.count(Census.Key.BULK_LOADS));
             assertEquals(List.of("1|a|null|null|null|null|null"), contents(c));
         }

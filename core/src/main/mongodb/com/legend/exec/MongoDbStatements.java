@@ -74,8 +74,9 @@ final class MongoDbStatements implements Statements {
     }
 
     @Override
-    public void execute(String statement) {
+    public boolean execute(String statement) {
         run(command(statement));
+        return false;
     }
 
     /** {@inheritDoc} MongoDB: a keyed plan's two commands share no transaction (the dialect says {@code NONE}: a

@@ -232,7 +232,7 @@ public final class SqlTypeCensus {
                     // the first read, and a statement that succeeds always reports its columns -- no wire, no claim
                     return;
                 }
-                if (Executor.hasPivot(plan)) {
+                if (hasPivot(plan)) {
                     // D2 ADJUDICATED (2026-08-26): a dynamic pivot's
                     // result columns are data-dependent (one per
                     // pivoted VALUE — resolveColumns' own doctrine),
@@ -986,5 +986,21 @@ public final class SqlTypeCensus {
                 .limit(top)
                 .map(en -> en.getValue().sum() + "x " + en.getKey())
                 .toList();
+    }
+
+    /** Whether {@code plan} reads a pivot: its result columns are data-dependent, so a probe shape mismatch there is
+     *  the pivot's contract, not an unknown. */
+    private static boolean hasPivot(com.legend.sql.SqlQuery plan) {
+        return plan instanceof com.legend.sql.SqlSelect s && hasPivot(s.from());
+    }
+
+    private static boolean hasPivot(com.legend.sql.@com.legend.base.Nullable SqlSource src) {
+        return switch (src) {
+            case null -> false;
+            case com.legend.sql.SqlSource.Pivot p -> true;
+            case com.legend.sql.SqlSource.Subselect sub -> hasPivot(sub.inner());
+            case com.legend.sql.SqlSource.Join j -> hasPivot(j.left()) || hasPivot(j.right());
+            default -> false;
+        };
     }
 }

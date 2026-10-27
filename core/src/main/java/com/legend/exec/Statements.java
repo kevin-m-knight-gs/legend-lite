@@ -23,8 +23,9 @@ public interface Statements {
      *  version, of a version they are written for; anything else is refused by name, never run. */
     void check(ExecutionPlan.Target target);
 
-    /** A statement run for its effect: a session statement, a setup statement. */
-    void execute(String statement);
+    /** A statement run for its effect -- a session statement, a setup statement, an effect a body sends
+     *  ({@link ExecutionPlan.Effect}): whether it answered rows, which are not read. */
+    boolean execute(String statement);
 
     /**
      * The plan's statement, each slot bound to its parameter's checked value as the slot says, and each row's one text
@@ -39,7 +40,7 @@ public interface Statements {
     long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
             throws IOException;
 
-    /** {@code work} inside one transaction of this session (a caller's open one joined, {@code Executor.inTransaction}):
+    /** {@code work} inside one transaction of this session (a caller's open one joined, {@link Sessions#inTransaction}):
      *  committed when it returns, rolled back when it throws. */
     <T> T inTransaction(java.util.function.Supplier<T> work);
 
