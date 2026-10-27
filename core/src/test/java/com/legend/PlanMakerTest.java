@@ -80,8 +80,9 @@ class PlanMakerTest {
      *  parameters as it refuses the other outputs' (it binds no array, +8); a Date or DateTime parameter answers in
      *  JSON on SQLite as today now (its four rows removed, -4). 35 -> 26 (2026-10-27, the result boundary program's
      *  phase 3): the streamed JSON output is gone -- every answer streams, written by the writers at the edge -- and
-     *  its nine rows with it (-9). */
-    private static final int MAX_DIFFERENCES = 26;
+     *  its nine rows with it (-9). 26 -> 18 (2026-10-27, the program's phase 4): the TDS text output is gone -- the
+     *  PCT writes Pure's TDS text from typed rows -- and SQLite's eight list-parameter refusals under it with it (-8). */
+    private static final int MAX_DIFFERENCES = 18;
 
     /** The test methods run in this class, so that unreached rows are judged on a whole run only. */
     private static final java.util.concurrent.atomic.AtomicInteger RAN = new java.util.concurrent.atomic.AtomicInteger();
@@ -155,7 +156,7 @@ class PlanMakerTest {
             ExecutionPlan plan = plan(type, GRAPH, Written.JSON);
             var refused = assertThrows(com.legend.error.NotImplementedException.class,
                     () -> new com.legend.result.CsvWriter(new StringWriter(), plan.answerShape()));
-            assertTrue(refused.getMessage().contains("graph results have no CSV wire"), refused.getMessage());
+            assertTrue(refused.getMessage().contains("a graph fetch's objects have no CSV"), refused.getMessage());
         }
     }
 
@@ -170,8 +171,9 @@ class PlanMakerTest {
     /** {@link #aDoubleThatIsNoNumberPrintsAsPurePrintsIt} on {@code type}. */
     static void assertNoNumberPrintsAsPure(DatabaseType type) throws Exception {
         try (Connection c = fresh(type)) {
-            assertEquals("value:Float[1]\nNaN",
-                    PlanCases.run(plan(type, "|2.0->acos()", Written.TDS_TEXT), c), type.name());
+            assertEquals("value\r\nNaN\r\n",
+                    PlanCases.write(plan(type, "|2.0->acos()", Written.CSV), c, java.util.Map.of(), Written.CSV::writer),
+                    type.name());
         }
     }
 
@@ -327,21 +329,10 @@ class PlanMakerTest {
     void aDynamicPivotsPlanReadsItsKeysFirst_everyOutputEveryDatabase() throws Exception {
         String query = TREES + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])"
                 + "->sort(~city->ascending())";
-        assertAnswersAsToday(model(Databases.PLATFORM.name()), Databases.PLATFORM, query, query, java.util.Map.of(),
-                Written.TDS_TEXT);
         String json = "[{\"city\":\"NYC\",\"'2000__|__newCol'\":15,\"'2011__|__newCol'\":5},"
                 + "{\"city\":\"SAN\",\"'2000__|__newCol'\":3,\"'2011__|__newCol'\":2}]";
         for (DatabaseType type : IN_PROCESS) {
             String model = model(type.name());
-            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT",
-                    TypedQuery.Output.TDS_TEXT);
-            assertTrue(plan.root() instanceof ExecutionPlan.Keyed, type + ": a keyed plan");
-            com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, query);
-            try (Connection c = fresh(type)) {
-                String text = PlanCases.run(plan, c);
-                assertTrue(text.startsWith("city:String[") && text.endsWith("]," + "'\\'2000__|__newCol\\'':Integer[1],"
-                        + "'\\'2011__|__newCol\\'':Integer[1]\nNYC,15,5\nSAN,3,2"), type + ": " + text);
-            }
             ExecutionPlan typed = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT");
             assertTrue(typed.root() instanceof ExecutionPlan.Keyed, type + ": a keyed typed plan");
             com.legend.testcases.PlanRoundTrip.assertRoundTrips(typed, query);
@@ -377,8 +368,7 @@ class PlanMakerTest {
         String query = TREES + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])"
                 + "->sort(~city->ascending())";
         for (DatabaseType type : Databases.relational()) {
-            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT",
-                    TypedQuery.Output.TDS_TEXT);
+            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT");
             assertTrue(plan.root() instanceof ExecutionPlan.Keyed, type + ": a keyed plan");
             // every reference to a per-key column carries the runner's per-key name, never the bare stem (Snowflake
             // read the outer select's as a plain column, measured on its lane 2026-10-21)
@@ -397,12 +387,9 @@ class PlanMakerTest {
         String empty = "#TDS\n city, year, treePlanted\n NYC, 2011, 5\n#->filter(r | $r.city == 'none')"
                 + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])";
         for (DatabaseType type : IN_PROCESS) {
-            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(type.name())), empty).executionPlan("s::RT",
-                    TypedQuery.Output.TDS_TEXT);
+            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(type.name())), empty).executionPlan("s::RT");
             try (Connection c = fresh(type)) {
-                String text = PlanCases.run(plan, c);
-                assertTrue(text.startsWith("city:String[") && !text.contains(",") && !text.contains("\n"),
-                        type + ": " + text);
+                assertEquals("city\r\n", csv(plan, c), type.name());
             }
         }
     }
@@ -434,26 +421,18 @@ class PlanMakerTest {
         try (Connection c = fresh(Databases.PLATFORM)) {
             String expression = TREES_PCT + "->pivot(~[year], ~[sum: x | $x.treePlanted->toOne() * $x.coefficient->toOne()"
                     + " : y | $y->plus(), count: x | 1 : y | $y->plus()])->sort(~city->ascending())";
-            String text = PlanCases.run(Compiler.query(ctx, expression).executionPlan("s::RT", TypedQuery.Output.TDS_TEXT), c);
-            assertTrue(text.startsWith("city:String[1],country:String[1],'\\'2000__|__sum\\'':Integer[1],"
-                    + "'\\'2000__|__count\\'':Integer[1],'\\'2011__|__sum\\'':Integer[1],'\\'2011__|__count\\'':Integer[1],"
-                    + "'\\'2012__|__sum\\'':Integer[1],'\\'2012__|__count\\'':Integer[1]\n"), text);
-            assertTrue(text.endsWith("\nLDN,UK,null,null,6000,1,null,null\nNYC,USA,30000,2,5000,1,22800,2"
-                    + "\nSAN,USA,2000,1,2700,2,null,null"), text);
+            assertEquals("city,country,'2000__|__sum','2000__|__count','2011__|__sum','2011__|__count','2012__|__sum',"
+                    + "'2012__|__count'\r\nLDN,UK,,,6000,1,,\r\nNYC,USA,30000,2,5000,1,22800,2\r\nSAN,USA,2000,1,2700,2,,\r\n",
+                    csv(Compiler.query(ctx, expression).executionPlan("s::RT"), c));
 
             String pivot = TREES_4 + "->pivot(~[year], ~[newCol: x | $x.treePlanted : y | $y->plus()])" + CAST_PIVOT;
-            String filtered = PlanCases.run(Compiler.query(ctx, pivot + "->filter(x | $x.city == 'NYC')")
-                    .executionPlan("s::RT", TypedQuery.Output.TDS_TEXT), c);
-            assertEquals("city:String[0..1],country:String[0..1],'\\'2000__|__newCol\\'':Integer[0..1],"
-                    + "'\\'2011__|__newCol\\'':Integer[0..1],'\\'2012__|__newCol\\'':Integer[0..1]\nNYC,USA,15000,5000,15200",
-                    filtered);
-            String sorted = PlanCases.run(Compiler.query(ctx, pivot + "->sort(~city->ascending())")
-                    .executionPlan("s::RT", TypedQuery.Output.TDS_TEXT), c);
-            assertTrue(sorted.endsWith("\nLDN,UK,null,3000,null\nNYC,USA,15000,5000,15200\nSAN,USA,2000,2600,null"), sorted);
-            String grouped = PlanCases.run(Compiler.query(ctx, pivot + "->groupBy(~[country], ~['\\'2011__|__newCol\\'': x |"
-                    + " $x.'\\'2011__|__newCol\\'' : y | $y->plus()])->sort(~country->ascending())")
-                    .executionPlan("s::RT", TypedQuery.Output.TDS_TEXT), c);
-            assertEquals("country:String[0..1],'\\'2011__|__newCol\\'':Integer[1]\nUK,3000\nUSA,7600", grouped);
+            assertEquals("city,country,'2000__|__newCol','2011__|__newCol','2012__|__newCol'\r\nLDN,UK,,3000,\r\n"
+                    + "NYC,USA,15000,5000,15200\r\nSAN,USA,2000,2600,\r\n",
+                    csv(Compiler.query(ctx, pivot + "->sort(~city->ascending())").executionPlan("s::RT"), c));
+            assertEquals("country,'2011__|__newCol'\r\nUK,3000\r\nUSA,7600\r\n",
+                    csv(Compiler.query(ctx, pivot + "->groupBy(~[country], ~['\\'2011__|__newCol\\'': x |"
+                            + " $x.'\\'2011__|__newCol\\'' : y | $y->plus()])->sort(~country->ascending())")
+                            .executionPlan("s::RT"), c));
             ExecutionPlan csv = Compiler.query(ctx, pivot + "->filter(x | $x.city == 'NYC')").executionPlan("s::RT");
             assertEquals("city,country,'2000__|__newCol','2011__|__newCol','2012__|__newCol'\r\nNYC,USA,15000,5000,15200\r\n",
                     PlanCases.write(csv, c, java.util.Map.of(), Written.CSV::writer));
@@ -478,14 +457,13 @@ class PlanMakerTest {
         String expected;
         try (Connection c = fresh(Databases.PLATFORM)) {
             ExecutionPlan dynamic = Compiler.query(Compiler.compileModel(model(Databases.PLATFORM.name())), query)
-                    .executionPlan("s::RT", TypedQuery.Output.TDS_TEXT);
-            assertTrue(((ExecutionPlan.TextResult) dynamic.root()).sql().statement().contains("PIVOT"),
-                    "the platform's dynamic form");
-            expected = PlanCases.run(dynamic, c);
+                    .executionPlan("s::RT");
+            assertTrue(dynamic.answerSql().statement().contains("PIVOT"), "the platform's dynamic form");
+            expected = csv(dynamic, c);
         }
         // the 2000 group (SAN's 2000 trees, NYC's 15000) keeps its row with its named cells null
-        assertEquals("city:String[0..1],country:String[0..1],'\\'2011__|__newCol\\'':Integer[0..1],"
-                + "'\\'2012__|__newCol\\'':Integer[0..1]\nLDN,UK,3000,null\nNYC,USA,5000,15200\nSAN,USA,2600,null", expected);
+        assertEquals("city,country,'2011__|__newCol','2012__|__newCol'\r\nLDN,UK,3000,\r\nNYC,USA,5000,15200\r\n"
+                + "SAN,USA,2600,\r\n", expected);
         // every in-process database without a dynamic PIVOT (its dialect's static emulation; main's merge,
         // 2026-10-22: it named H2)
         int emulated = 0;
@@ -495,14 +473,14 @@ class PlanMakerTest {
             }
             emulated++;
             ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(type.name())), query)
-                    .executionPlan("s::RT", TypedQuery.Output.TDS_TEXT);
+                    .executionPlan("s::RT");
             com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, query);
-            String statement = ((ExecutionPlan.TextResult) plan.root()).sql().statement();
+            String statement = plan.answerSql().statement();
             assertFalse(statement.contains("PIVOT"), type + ": " + statement);
             assertTrue(statement.contains("CASE WHEN") && statement.contains("= 2011") && statement.contains("= 2012"),
                     type + ": " + statement);
             try (Connection c = fresh(type)) {
-                assertEquals(expected, PlanCases.run(plan, c), type.name());
+                assertEquals(expected, csv(plan, c), type.name());
             }
         }
         assertTrue(emulated > 0, "no in-process database emulates the pivot");
@@ -564,8 +542,8 @@ class PlanMakerTest {
         assertTrue(refused.getMessage().contains("is bound only as a whole list"), refused.getMessage());
     }
 
-    /** A value's text — a scalar's, a collection's — is the one-column relation {@code value}, whole in every output
-     *  (no row to stream), as today's paths write it. */
+    /** A value's answer — a scalar's, a collection's — is the one-column relation {@code value} in every output, as
+     *  today's path writes it. */
     @Test
     void aValuesPlanAnswersAsTodaysPaths_everyOutput() throws Exception {
         for (DatabaseType type : IN_PROCESS) {
@@ -585,7 +563,7 @@ class PlanMakerTest {
      *  said so: a computed column has no declared type, a mapped property reads its column's. */
     @Test
     void aColumnCarriesItsThreeTypeFacts() {
-        List<ExecutionPlan.Column> cols = columns(plan(Databases.PLATFORM, RELATION, Written.TDS_TEXT));
+        List<ExecutionPlan.Column> cols = columns(plan(Databases.PLATFORM, RELATION, Written.CSV));
         assertEquals(List.of("ID", "NAME", "PRICE"), cols.stream().map(ExecutionPlan.Column::name).toList(),
                 cols.toString());
         assertEquals(List.of("INTEGER", "VARCHAR(20)", "DECIMAL(10,2)"),
@@ -601,7 +579,7 @@ class PlanMakerTest {
         List<ExecutionPlan.Column> project = columns(plan(Databases.PLATFORM, PROJECT, Written.CSV));
         assertEquals(List.of("VARCHAR(20)", "DECIMAL(10,2)"),
                 project.stream().map(ExecutionPlan.Column::store).toList(), project.toString());
-        List<ExecutionPlan.Column> value = columns(plan(Databases.PLATFORM, "|1 + 2", Written.TDS_TEXT));
+        List<ExecutionPlan.Column> value = columns(plan(Databases.PLATFORM, "|1 + 2", Written.CSV));
         assertEquals(1, value.size(), value.toString());
         assertEquals("value", value.get(0).name(), value.toString());
         assertEquals("Integer", value.get(0).type(), value.toString());
@@ -620,10 +598,8 @@ class PlanMakerTest {
                     "|#>{s::DB.T}#->groupBy(~[NAME], ~[total: r|$r.PRICE : y|$y->sum()])->sort(~NAME->ascending())",
                     "|#>{s::DB.T}#->extend(over(~NAME->ascending()), ~rank: {p, w, r | $p->rank($w, $r)})",
                     "|#>{s::DB.T}#->select(~[ID])->concatenate(#>{s::DB.T}#->select(~[ID]))->sort(~ID->ascending())")) {
-                for (Written output : List.of(Written.TDS_TEXT, Written.CSV)) {
-                    ExecutionPlan plan = plan(type, query, output);
-                    com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, type + " " + output + " " + query);
-                }
+                ExecutionPlan plan = plan(type, query, Written.CSV);
+                com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, type + " " + query);
             }
             com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan(type, GRAPH, Written.JSON),
                     type + " JSON " + GRAPH);
@@ -632,7 +608,6 @@ class PlanMakerTest {
 
     private static List<ExecutionPlan.Column> columns(ExecutionPlan plan) {
         return switch (plan.root()) {
-            case ExecutionPlan.TextResult t -> ((ExecutionPlan.Relation) t.type()).columns();
             case ExecutionPlan.TdsResult t -> t.columns();
             default -> throw new IllegalArgumentException("no columns: " + plan.root());
         };
@@ -657,10 +632,10 @@ class PlanMakerTest {
         java.util.Set<String> forms = new java.util.TreeSet<>();
         for (DatabaseType type : Databases.relational()) {
             com.legend.sql.dialect.SqlDialect dialect = Databases.dialect(type);
-            ExecutionPlan plan = plan(type, CLASSES, Written.TDS_TEXT);
+            ExecutionPlan plan = plan(type, CLASSES, Written.CSV);
             com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, type + " " + CLASSES);
             ExecutionPlan.Target target = target(plan);
-            String sql = ((ExecutionPlan.TextResult) plan.root()).sql().statement();
+            String sql = plan.answerSql().statement();
             if (dialect.inProcess()) {
                 forms.add("setup");
                 assertTrue(target.setup().stream().anyMatch(s -> s instanceof ExecutionPlan.SetupStep.Statement st
@@ -669,7 +644,7 @@ class PlanMakerTest {
                 assertFalse(sql.contains("metamodel_classes"), type + ": " + sql);
                 if (type == Databases.PLATFORM) {
                     try (Connection c = fresh(type)) {
-                        assertEquals("value:Boolean[1]\nfalse", PlanCases.run(plan, c));
+                        assertEquals("value\r\nfalse\r\n", csv(plan, c));
                     }
                 }
                 continue;
@@ -711,13 +686,16 @@ class PlanMakerTest {
     }
 
     static ExecutionPlan plan(DatabaseType type, String query, Written output) {
-        TypedQuery q = Compiler.query(Compiler.compileModel(model(type.name())), query);
-        return output == Written.TDS_TEXT ? q.executionPlan("s::RT", TypedQuery.Output.TDS_TEXT)
-                : q.executionPlan("s::RT");
+        return Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT");
     }
 
     static ExecutionPlan.Target target(ExecutionPlan plan) {
-        return plan.root() instanceof ExecutionPlan.TextResult t ? t.sql().target() : plan.answerSql().target();
+        return plan.answerSql().target();
+    }
+
+    /** {@code plan}'s typed answer on {@code c} (its setup run first), written as lite's CSV. */
+    private static String csv(ExecutionPlan plan, Connection c) throws java.io.IOException {
+        return PlanCases.write(plan, c, java.util.Map.of(), Written.CSV::writer);
     }
 
     private static void assertAnswersAsToday(DatabaseType type, String query, Written output)
@@ -749,9 +727,6 @@ class PlanMakerTest {
             assertEquals(known, escaped("refused: " + refused.getMessage()), key + ": the plan's refusal moved");
             return;
         }
-        if (answers == null) {
-            return;    // a TDS text: judged by its values where it ran (PlanCases.assertTdsTextAnswersAsToday)
-        }
         if (known == null) {
             assertEquals(answers[0], answers[1], what);
             return;
@@ -766,23 +741,17 @@ class PlanMakerTest {
     }
 
     /** Today's path's answer to {@code query} and the plan's to {@code withParameters} with {@code values}, each on a
-     *  fresh database of {@code type}; a plan refused when it is made throws. A TDS text is judged here, by its values
-     *  ({@code PlanCases.assertTdsTextAnswersAsToday}), and answers null. */
+     *  fresh database of {@code type}; a plan refused when it is made throws. */
     private static String[] answers(String model, DatabaseType type,
             String withParameters, String query, java.util.Map<String, Object> values, Written output,
             String what) throws Exception {
         TypedQuery parameterised = Compiler.query(Compiler.compileModel(model), withParameters);
-        ExecutionPlan plan = output == Written.TDS_TEXT ? parameterised.executionPlan("s::RT", TypedQuery.Output.TDS_TEXT)
-                : parameterised.executionPlan("s::RT");
+        ExecutionPlan plan = parameterised.executionPlan("s::RT");
         try (Connection today = fresh(type); Connection planned = fresh(type)) {
             var ctx = Compiler.compileModel(model);
             var dialect = Databases.dialect(type);
             com.legend.exec.SetupRunner.run(com.legend.setup.CsvSeed.declaredSteps("s::RT", ctx, dialect), today,
                     dialect, null);
-            if (output == Written.TDS_TEXT) {
-                PlanCases.assertTdsTextAnswersAsToday(model, query, "s::RT", today, plan, planned, values, what);
-                return null;
-            }
             // today's path: the query with its values as lets, run as the server runs it, on the connection its declared
             // test data was established on
             return new String[] {PlanCases.today(model, query, "s::RT", today, output),

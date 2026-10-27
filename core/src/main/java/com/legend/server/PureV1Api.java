@@ -361,17 +361,28 @@ public final class PureV1Api {
     }
 
     /**
-     * The engine's writer of {@code plan}'s answer onto {@code out}: a relation's TDS result, its envelope made from
-     * the columns the run announces (the builder, the relational activity carrying the statement that answered, the
-     * columns' names as the engine labels them), or a graph fetch's JSON result. A value's answer (a scalar, a
-     * collection) is refused by name: the engine's serialization of one is unprobed.
+     * The engine's writer of {@code plan}'s answer onto {@code out}: a relation's TDS result, its envelope (the
+     * builder, the relational activity carrying the statement that answered, the columns' names as the engine labels
+     * them) made from the plan's own columns NOW, before any statement runs -- so a column the engine has no builder
+     * entry for refuses the answer before a write program changes anything (the phase 3 audit, 2026-10-27) -- or, for
+     * a dynamic pivot, whose columns its keys name, from the columns its run announces; or a graph fetch's JSON
+     * result. A value's answer (a scalar, a collection) is refused by name: the engine's serialization of one is
+     * unprobed.
      */
     public static com.legend.result.ResultSink engineWriter(com.legend.TypedQuery query,
             com.legend.executionplan.ExecutionPlan plan, java.io.Writer out) {
         return switch (plan.answerShape()) {
             case OBJECTS -> com.legend.result.PureV1Writer.objects(out);
-            case RELATION -> com.legend.result.PureV1Writer.relation(out,
-                    columns -> envelope(query.resultType(), plan.answerSql().statement(), columns));
+            case RELATION -> {
+                List<com.legend.executionplan.ExecutionPlan.Column> stated = plan.answerColumns();
+                if (stated == null) {
+                    yield com.legend.result.PureV1Writer.relation(out,
+                            columns -> envelope(query.resultType(), plan.answerSql().statement(), columns));
+                }
+                com.legend.result.PureV1Writer.Envelope made = envelope(query.resultType(),
+                        plan.answerSql().statement(), stated);
+                yield com.legend.result.PureV1Writer.relation(out, columns -> made);
+            }
             case VALUE -> throw unprobed(query);
         };
     }
@@ -394,12 +405,21 @@ public final class PureV1Api {
         List<Map<String, Object>> builderColumns = new ArrayList<>();
         List<String> names = new ArrayList<>();
         for (var c : columns) {
+            // a column's type is the compiler's, under its name as the plan spells it or as a cast presents it (a
+            // pivot's generated name quoted); a column only the data names -- a dynamic pivot's generated one -- has
+            // none, and is typed by its plan type, a primitive; any other column the compiler did not type is refused
             String name = com.legend.result.CellText.presentedName(c.name());
             com.legend.compiler.element.type.Type t = declared.containsKey(c.name()) ? declared.get(c.name())
                     : declared.containsKey(name) ? declared.get(name)
-                    : com.legend.compiler.element.type.Type.Primitive.findByFqn(c.type()).orElseThrow(() ->
-                            new IllegalStateException("column '" + c.name() + "' of type " + c.type()
-                                    + " is none the compiler typed, and no primitive"));
+                    : c.name().contains(com.legend.compiler.element.type.Type.RelationType.PIVOT_SEPARATOR)
+                            ? com.legend.compiler.element.type.Type.Primitive.findByFqn(c.type()).orElseThrow(() ->
+                                    new IllegalStateException("the generated column '" + c.name() + "' of type "
+                                            + c.type() + " is no primitive"))
+                            : null;
+            if (t == null) {
+                throw new IllegalStateException("column '" + c.name() + "' is none the compiler typed: "
+                        + declared.keySet());
+            }
             builderColumns.add(builderColumn(name, t));
             names.add(name);
         }

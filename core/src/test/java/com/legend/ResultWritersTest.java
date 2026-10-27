@@ -133,6 +133,25 @@ class ResultWritersTest {
                 col("v", "meta::pure::metamodel::variant::Variant", "JSON"))));
     }
 
+    /** A structure's values are written by the rules of cells of their own kinds -- a nested date, time or float as
+     *  one at the top is -- in both JSON forms (the phase 3 audit, 2026-10-27: a nested date threw "Cannot coerce to
+     *  JSON node"). */
+    @Test
+    void aStructuresDatesTimesAndFloatsAreWrittenAsCellsOfTheirKinds() {
+        Map<String, Object> person = new LinkedHashMap<>();
+        person.put("when", PureDateLiteral.parse("2024-01-02"));
+        person.put("at", PureDateLiteral.parse("2024-01-02T10:30:00.500"));
+        person.put("tick", com.legend.values.PureTimeLiteral.parse("10:30:00"));
+        person.put("f", 1.0e15);
+        person.put("tags", List.of(PureDateLiteral.parse("2024-01-03")));
+        person.put("__id", "o1");
+        Column c = col("v", "model::Person", "STRUCT<when DATE>");
+        assertEquals("{\"when\":\"2024-01-02\",\"at\":\"2024-01-02T10:30:00.500000000+0000\",\"tick\":\"10:30:00\","
+                + "\"f\":1.0E15,\"tags\":[\"2024-01-03\"]}", Json.toCompact(CellText.engine(person, c)));
+        assertEquals("{\"when\":\"2024-01-02\",\"at\":\"2024-01-02T10:30:00.5+0000\",\"tick\":\"10:30:00\","
+                + "\"f\":1000000000000000.0,\"tags\":[\"2024-01-03\"]}", Json.toCompact(CellText.pureJson(person, c)));
+    }
+
     // ---- the writers ------------------------------------------------------------------------------------------------
 
     private static final List<Column> ROWS = List.of(col("ID", "Integer", "BIGINT"), col("NAME", "String", "VARCHAR"),
@@ -194,6 +213,29 @@ class ResultWritersTest {
         var refused = assertThrows(IllegalArgumentException.class, () -> com.legend.result.HostRows.stream("{}",
                 columns, new CsvWriter(new StringWriter(), Shape.RELATION)));
         assertTrue(refused.getMessage().contains("not a JSON array of rows"), refused.getMessage());
+        // no rows at all is no answer: refused, never an empty result
+        assertThrows(IllegalArgumentException.class, () -> com.legend.result.HostRows.stream("", columns,
+                new CsvWriter(new StringWriter(), Shape.RELATION)));
+    }
+
+    /** What a host hands as text the server's driver reads typed (the phase 3 audit, 2026-10-27): a Variant's JSON
+     *  (its JSON null a value), a structure's nested decimal, a REAL widened to a double -- each read as the server
+     *  reads it. */
+    @Test
+    void aHostsTextIsReadAsTheServerReadsTheValue() throws IOException {
+        List<Column> columns = List.of(col("V", "meta::pure::metamodel::variant::Variant", "JSON"),
+                col("S", "model::Item", "STRUCT<price DECIMAL(10,2), qty BIGINT>"), col("R", "Float", "REAL"));
+        com.legend.result.Collector rows = new com.legend.result.Collector();
+        com.legend.result.HostRows.stream("[{\"V\":\"{\\\"a\\\":1}\",\"S\":\"{\\\"price\\\":\\\"1.50\\\",\\\"qty\\\":2}\","
+                + "\"R\":0.10000000149011612},{\"V\":\"null\",\"S\":null,\"R\":null}]", columns, rows);
+        List<List<Object>> got = rows.collected().rows();
+        assertEquals("{\"a\":1}", got.get(0).get(0));
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("price", new BigDecimal("1.50"));
+        item.put("qty", 2L);
+        assertEquals(item, got.get(0).get(1));
+        assertEquals(0.1, got.get(0).get(2));
+        assertEquals(Arrays.asList("null", null, null), got.get(1));
     }
 
     @Test

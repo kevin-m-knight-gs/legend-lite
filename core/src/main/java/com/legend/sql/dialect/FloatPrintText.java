@@ -49,16 +49,16 @@ final class FloatPrintText {
                 // a double's text is the dialect's long expression; any other value's (a literal, a decimal slot) is
                 // the database's own cast, read in place as before
                 if (!(bind && isDouble(x))) {
-                    return of(c.fn(), x);
+                    return of(x);
                 }
                 // an equal call is the same node, its aliases too: a cell's text read again (a CSV cell's quoting
                 // reads it five times) is then one subtree a common-subexpression binding writes once, as the canon's
-                return spelledCalls.computeIfAbsent(c, k -> bound(k.fn(), x));
+                return spelledCalls.computeIfAbsent(c, k -> bound(x));
             }
             return super.expr(e);
         }
 
-        private SqlExpr bound(SqlFn fn, SqlExpr x) {
+        private SqlExpr bound(SqlExpr x) {
             String inner = "__fp" + fresh[0]++;
             String outer = "__fp" + fresh[0]++;
             com.legend.sql.SqlSelect value = select(List.of(projection(x, "v", SqlType.Scalar.DOUBLE)),
@@ -67,7 +67,7 @@ final class FloatPrintText {
             com.legend.sql.SqlSelect texted = select(List.of(projection(v, "v", SqlType.Scalar.DOUBLE),
                     projection(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR), "t", SqlType.Scalar.VARCHAR)),
                     new com.legend.sql.SqlSource.Subselect(value, inner, null));
-            SqlExpr spelled = ofText(fn, column(outer, "v", SqlType.Scalar.DOUBLE),
+            SqlExpr spelled = ofText(column(outer, "v", SqlType.Scalar.DOUBLE),
                     column(outer, "t", SqlType.Scalar.VARCHAR));
             return new SqlExpr.ScalarSubquery(select(List.of(projection(spelled, "p", SqlType.Scalar.VARCHAR)),
                     new com.legend.sql.SqlSource.Subselect(texted, outer, null)));
@@ -92,18 +92,15 @@ final class FloatPrintText {
         }
     }
 
-    /** {@code fn}'s spelling of the double {@code x}, as SQL over its text. */
-    static SqlExpr of(SqlFn fn, SqlExpr x) {
-        return ofText(fn, x, new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR));
+    /** Pure's print form of the double {@code x}, as SQL over its text. */
+    static SqlExpr of(SqlExpr x) {
+        return ofText(x, new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR));
     }
 
-    /** {@code fn}'s spelling of the double {@code x} whose text is {@code s}: {@code s} read where it is written, the
+    /** Pure's print form of the double {@code x} whose text is {@code s}: {@code s} read where it is written, the
      *  value where it is. A dialect that binds the two once reads them as columns. */
-    static SqlExpr ofText(SqlFn fn, SqlExpr x, SqlExpr s) {
-        if (fn == SqlFn.FLOAT_PRINT) {
-            return print(x, s);
-        }
-        throw new IllegalArgumentException(fn + " is not a Float's print form");
+    static SqlExpr ofText(SqlExpr x, SqlExpr s) {
+        return print(x, s);
     }
 
     /**

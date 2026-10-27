@@ -103,6 +103,7 @@ export function hostRows(raw: RawTable): string {
 function cellToken(v: Scalar): string {
   if (v === null) return 'null';
   if (typeof v === 'bigint') return v.toString();
-  if (typeof v === 'number') return Number.isFinite(v) ? String(v) : JSON.stringify(String(v));
+  // -0 as its own digits (String(-0) is "0"): the server's Double.toString and Python's repr keep the sign
+  if (typeof v === 'number') return Object.is(v, -0) ? '-0.0' : Number.isFinite(v) ? String(v) : JSON.stringify(String(v));
   return JSON.stringify(v);
 }

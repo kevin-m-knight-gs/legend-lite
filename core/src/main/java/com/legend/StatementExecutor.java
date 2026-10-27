@@ -2579,13 +2579,6 @@ final class StatementExecutor {
         if (System.getenv("LL_TMP_SQL") != null) {
             System.err.println("[exec-sql] " + renderFor(env, plan));
         }
-        // E1 (JAVA_EVICTION_PLAN): post-staticize wrap — the plan
-        // emits Pure's TDS text as one Scalar String
-        if (env.options().tdsText()
-                && com.legend.compiler.element.type.Type
-                        .isRelation(root.info().type())) {
-            return executeTdsText(plan, root, env);
-        }
         ExecutionResult res = executePlan(plan, root,
                 collectionDeclared ? declaredInfo : null, rider, folded, env);
         enforceToOneReader(root, res);
@@ -2952,34 +2945,6 @@ final class StatementExecutor {
                 throw e2;
             }
         }
-    }
-
-    /** E1: probe (pivot plans only) → lowering-side wrap → SCALAR
-     * String execution — the TDS text is the plan's projection. */
-    private static ExecutionResult executeTdsText(com.legend.sql.SqlQuery plan,
-            TypedSpec root, ExecEnv env) {
-        com.legend.sql.dialect.SqlDialect dialect = env.dialect();
-        java.sql.Connection connection = env.connection();
-        com.legend.sql.PlanProbe probe =
-                com.legend.lowering.TdsTextWrap.pivots(plan).isEmpty() ? null
-                        : com.legend.exec.ColumnProbe.probe(plan, dialect,
-                                connection);
-        com.legend.sql.SqlQuery rendered =
-                com.legend.lowering.TdsTextWrap.wrap(plan,
-                        com.legend.compiler.element.type.Type
-                                .requireRelationSchema(root.info().type()),
-                        probe, com.legend.exec.Executor::pureOfSqlType, false,
-                        com.legend.lowering.LiteralSpelling.Layouts.of(
-                                t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
-                                env.ctx()::subtree));
-        ExecutionResult text = Executor.execute(renderFor(env, rendered), rendered,
-                com.legend.compiler.element.type.ExprType.one(
-                        com.legend.compiler.element.type.Type.Primitive
-                                .STRING),
-                com.legend.plan.ResultShape.SCALAR, connection, dialect, null);   // the TDS text: no activity reads its trace
-        return new ExecutionResult.TdsText(
-                String.valueOf(((ExecutionResult.Scalar) text).value()),
-                com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
     /** rows->toOne() READER enforcement (audit 22b F1): the lowering is

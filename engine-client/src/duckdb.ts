@@ -193,7 +193,45 @@ function decoderFor(type: unknown): Decode {
   };
   if (/^Timestamp</.test(name)) return nonNull((v, r) => timestampText(toMicros(rawAt(v, r))));
   if (/^Time(32|64)</.test(name)) return nonNull((v, r) => timeText(toMicros(rawAt(v, r))));
+  if (/^(Struct|List|FixedSizeList|Map)</.test(name)) return nonNull((v, r) => nestedJson(v.get(r), type));
   return (v, r) => toScalar(v.get(r));
+}
+
+/**
+ * A nested value (a struct's, a list's, a map's) as JSON text, each leaf by its Arrow STORAGE type exactly as a
+ * top-level cell of that type is read (decoderFor): a decimal its exact text, never the unscaled integer its row view
+ * hands out; a date its day and a timestamp its text, never the epoch milliseconds the row view hands out; a 64-bit
+ * integer its digits. A nested timestamp keeps the milliseconds the row view keeps (its raw storage is the child
+ * vector's). The phase 3 audit, 2026-10-27: a nested decimal crossed mis-scaled and a nested date failed to parse.
+ */
+function nestedJson(value: unknown, type: unknown): string {
+  if (value === null || value === undefined) return 'null';
+  const name = String(type ?? '');
+  const t = type as { children?: readonly { name: string; type: unknown }[]; scale?: unknown; unit?: unknown };
+  if (/^Decimal/.test(name) && typeof t.scale === 'number') {
+    const exact = decimalToScalar(value, t.scale);
+    return typeof exact === 'string' ? JSON.stringify(exact) : String(exact);
+  }
+  if (/^Date(32|64)</.test(name)) return JSON.stringify(dayText(Math.floor(Number(value) / 86_400_000)));
+  if (/^Timestamp</.test(name)) return JSON.stringify(timestampText(BigInt(Math.trunc(Number(value))) * 1000n));
+  const children = t.children ?? [];
+  if (/^Struct</.test(name)) {
+    const row = typeof (value as { toJSON?: unknown }).toJSON === 'function'
+      ? (value as { toJSON(): Record<string, unknown> }).toJSON() : value as Record<string, unknown>;
+    return `{${children.map((f) => `${JSON.stringify(f.name)}:${nestedJson(row[f.name], f.type)}`).join(',')}}`;
+  }
+  if (/^(List|FixedSizeList)</.test(name)) {
+    const element = children[0]?.type;
+    return `[${Array.from(value as Iterable<unknown>, (x) => nestedJson(x, element)).join(',')}]`;
+  }
+  if (/^Map</.test(name)) {
+    const entry = children[0]?.type as { children?: readonly { name: string; type: unknown }[] } | undefined;
+    const valueType = entry?.children?.[1]?.type;
+    const entries = typeof (value as { toJSON?: unknown }).toJSON === 'function'
+      ? (value as { toJSON(): Record<string, unknown> }).toJSON() : value as Record<string, unknown>;
+    return `{${Object.entries(entries).map(([k, x]) => `${JSON.stringify(k)}:${nestedJson(x, valueType)}`).join(',')}}`;
+  }
+  return exactJson(value) ?? JSON.stringify(String(value));
 }
 
 /** An Arrow table's columns and values; the PLAN types them (engine.ts typedByPlan). */

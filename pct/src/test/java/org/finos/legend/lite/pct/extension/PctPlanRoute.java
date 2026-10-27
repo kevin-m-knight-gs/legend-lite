@@ -5,36 +5,39 @@ package org.finos.legend.lite.pct.extension;
 
 import com.legend.Compiler;
 import com.legend.TypedQuery;
-import com.legend.exec.ExecutionResult;
+import com.legend.compiler.element.type.ExprType;
 import com.legend.exec.PlanRunner;
 import com.legend.executionplan.ExecutionPlan;
 
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Channel A through the plan path (docs/MONGODB_PLAN_2026_10_16.md §6, 2026-10-17): the case's expression and its
- * injected model planned by the one compiler to Pure's TDS text ({@link TypedQuery.Output#TDS_TEXT}, under the PCT's
- * feature flags) and run by the plan runner on the session the lane's connector opens. ONE representation crosses:
- * a relation as its TDS text, a value as the one-column relation {@code value}, which the adapter unwraps in Pure by
- * the function's own return type. The lane whose database has no JDBC session ({@link PctBackend#throughThePlan})
- * runs here; the JDBC lanes keep the legacy route until the callers switch (the database owner's step 4).
+ * Channel A on the plan (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27, phase 4): the
+ * case's expression and its injected model planned by the one compiler under the PCT's feature flags, for the server
+ * this lane's sessions are, and run by the plan runner on the sessions the lane gives ({@link PctBackend#planSessions});
+ * its answer is the plan's TYPED rows, which the adapter hands the reference interpreter by the plan's shape -- a
+ * relation as Pure's TDS text written from them ({@link PureTdsText}), a value's elements as the reference's own
+ * instances ({@link ValueBridge}).
  */
 final class PctPlanRoute {
 
     private PctPlanRoute() {
     }
 
-    static ExecutionResult execute(String model, String expression) throws IOException {
+    /** A case's answer: what the plan answers ({@code shape}), its typed rows, and the query's result type, which a
+     *  value's elements are built by. */
+    record Answer(ExecutionPlan.TdsResult.Shape shape, PlanRunner.Rows rows, ExprType resultType) {
+    }
+
+    static Answer execute(String model, String expression) throws IOException {
+        TypedQuery query = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression);
         // the plan for the server this lane's sessions are (H2's dialect spells by the version; step 9, 2026-10-19)
-        ExecutionPlan plan = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression)
-                .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, TypedQuery.Output.TDS_TEXT,
-                        Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING), PctBackend.serverVersion());
-        StringWriter out = new StringWriter();
+        ExecutionPlan plan = query.executionPlan(com.legend.test.StorelessRuntime.RUNTIME,
+                Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING), PctBackend.serverVersion());
         // the plan's own session for an in-process lane, the harness's for a server lane (PctBackend.planSessions)
-        PlanRunner.run(plan, Map.of(), PctBackend.planSessions(), out);
-        return new ExecutionResult.TdsText(out.toString(), com.legend.compiler.element.type.Type.Primitive.STRING);
+        PlanRunner.Rows rows = PlanRunner.rows(plan, Map.of(), PctBackend.planSessions());
+        return new Answer(plan.answerShape(), rows, query.resultType());
     }
 }

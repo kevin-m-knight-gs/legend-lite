@@ -23,7 +23,7 @@ public final class CsvWriter implements ResultSink {
 
     public CsvWriter(Writer out, ExecutionPlan.TdsResult.Shape shape) {
         if (shape == ExecutionPlan.TdsResult.Shape.OBJECTS) {
-            throw new com.legend.error.NotImplementedException("graph results have no CSV wire");
+            throw new com.legend.error.NotImplementedException("a graph fetch's objects have no CSV");
         }
         this.out = out;
     }

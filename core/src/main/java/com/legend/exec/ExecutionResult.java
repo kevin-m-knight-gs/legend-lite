@@ -128,27 +128,6 @@ public sealed interface ExecutionResult {
         }
     }
 
-    /** Pure's TDS text of a relation-rooted query (the {@code tdsText}
-     * execute option): the PLAN emitted the text (TdsTextWrap) and the
-     * adapter hands it over verbatim — an option's result, never an
-     * ordinary scalar. */
-    record TdsText(String text, Type returnType) implements ExecutionResult {
-        public TdsText {
-            Objects.requireNonNull(text, "text");
-            Objects.requireNonNull(returnType, "returnType");
-        }
-
-        @Override
-        public List<Column> columns() {
-            return List.of(new Column("value", returnType));
-        }
-
-        @Override
-        public List<Row> rows() {
-            return List.of(new Row(Collections.singletonList(text)));
-        }
-    }
-
     /** Graph result: the json IS a well-formed JSON array built by the database. */
     record Graph(String json, Type returnType) implements ExecutionResult {
         public Graph {

@@ -1071,7 +1071,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** A Float's print form ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_PRINT} call): the portable decomposition
      *  over the double's text (a dialect whose double text is long spells it once, its own way). */
     protected final SqlWriter floatPrintByText(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
-        return writer.expr(FloatPrintText.of(c.fn(), c.args().get(0)), parentPrec);
+        return writer.expr(FloatPrintText.of(c.args().get(0)), parentPrec);
     }
 
     // ---- idiom extension points (base = capability statement, loud) ----

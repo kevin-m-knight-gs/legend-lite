@@ -16,8 +16,7 @@ package org.finos.legend.lite.pct.extension;
 
 import org.eclipse.collections.api.map.MutableMap;
 import com.legend.compiler.element.type.Type;
-import com.legend.exec.ExecutionResult.Scalar;
-import com.legend.exec.ExecutionResult.Collection;
+import com.legend.compiler.element.type.ExprType;
 
 import org.finos.legend.pure.m3.navigation.Instance;
 import org.finos.legend.pure.m3.navigation.M3Properties;
@@ -54,49 +53,41 @@ final class ValueBridge {
         this.modelRepository = modelRepository;
     }
 
-    /** Graph results ARE JSON text by contract — boxed verbatim. */
-    CoreInstance graphString(String json, ProcessorSupport ps) {
-        return ValueSpecificationBootstrap.newStringLiteral(
-                modelRepository, json, ps);
-    }
-
-    CoreInstance handleScalar(Scalar result, ProcessorSupport ps) {
-        Object value = result.value();
-        if (value == null) {
-            return ValueSpecificationBootstrap.wrapValueSpecification(
-                    org.eclipse.collections.api.factory.Lists.immutable.empty(), true, ps);
+    /** A value's answer: its elements as the plan's typed rows decoded them (a row per element -- a List or a Map is
+     *  one), built as the reference's instances by the query's own result type, its type and its multiplicity: a
+     *  to-one value as itself, a collection's elements wrapped as one (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md,
+     *  phase 4: the bridge reads typed rows, never a text). */
+    CoreInstance values(List<?> cells0, com.legend.executionplan.ExecutionPlan.Column column, ExprType declared,
+            ProcessorSupport ps) {
+        Type type = declared.type();
+        // a date the database holds as a timestamp has the precision its digits show (the fraction's trailing zeros
+        // dropped), as Pure holds it; one carried as its own text keeps the precision it was written at -- the
+        // writers' rule (com.legend.result.CellText.pure)
+        String slot = column.slot() == null ? "" : column.slot();
+        boolean written = slot.startsWith("TEMPORAL_TEXT") || slot.startsWith("LITERAL");
+        List<?> cells = written ? cells0 : cells0.stream().map(ValueBridge::trimmedDates).toList();
+        if (!declared.multiplicity().requireBounded("a PCT value").isMany()) {
+            if (cells.size() > 1) {
+                throw new IllegalStateException("a to-one value (" + declared + ") answered " + cells.size()
+                        + " elements");
+            }
+            Object value = cells.isEmpty() ? null : cells.get(0);
+            if (emptyCell(value)) {
+                return ValueSpecificationBootstrap.wrapValueSpecification(
+                        org.eclipse.collections.api.factory.Lists.immutable.empty(), true, ps);
+            }
+            return ValueSpecificationBootstrap.wrapValueSpecification(toCoreInstance(value, type, ps), true, ps);
         }
-        // B2 (truthfulness burn): the PLATFORM's returnType carries the
-        // full generic shape (Map<K,V> / List<E> with arguments) — Java
-        // builds the typed instances HERE; the pure side only constructs
-        // (newMap) or passes through. No shape decision ever consults
-        // the test's declared type.
-        if (value instanceof java.util.Map<?, ?> map && isMapReturn(result.returnType())) {
-            // (JDBC also hands STRUCT values as java.util.Map — the
-            // PLATFORM type gates, or ^Person(...) results would land here.)
-            return ValueSpecificationBootstrap.wrapValueSpecification(
-                    mapInstance(map, result.returnType(), ps), true, ps);
-        }
-        if (value instanceof java.util.List<?> list && isListReturn(result.returnType())) {
-            return ValueSpecificationBootstrap.wrapValueSpecification(
-                    listInstance(list, result.returnType(), ps), true, ps);
-        }
-        CoreInstance ci = toCoreInstance(value, result.returnType(), ps);
-        return ValueSpecificationBootstrap.wrapValueSpecification(ci, true, ps);
-    }
-
-    CoreInstance handleCollection(Collection result, ProcessorSupport ps) {
-        Type elementType = result.returnType();
         var coreInstances = new ArrayList<CoreInstance>();
-        for (Object value : result.values()) {
+        for (Object value : cells) {
             if (!emptyCell(value)) {
-                coreInstances.add(toCoreInstance(value, elementType, ps));
+                coreInstances.add(toCoreInstance(value, type, ps));
             }
         }
         // CLASS-typed elements (Pair<T,U>): the interpreted cast validates
         // the WRAPPER's genericType — hand it the declared one explicitly
-        if (classFqnOf(elementType) != null && !isMapReturn(elementType)) {
-            CoreInstance gt = genericTypeOf(elementType, ps);
+        if (classFqnOf(type) != null && !isMapReturn(type)) {
+            CoreInstance gt = genericTypeOf(type, ps);
             if (gt != null) {
                 return ValueSpecificationBootstrap.wrapValueSpecification_ResultGenericTypeIsKnown(
                         org.eclipse.collections.impl.factory.Lists.immutable.withAll(coreInstances),
@@ -116,8 +107,14 @@ final class ValueBridge {
      * equality keys, so reconstructed pairs compare and print like natives.
      * Recursive: nested pair structs rebuild through the generic arguments.
      */
-    private CoreInstance structToInstance(java.util.Map<?, ?> struct, Type declared,
+    private CoreInstance structToInstance(java.util.Map<?, ?> struct, Type declared0,
                                           ProcessorSupport ps) {
+        // an object's identity fields (docs/OBJECT_IDENTITY_2026_10_20.md §3.4) are no properties: its id and canon
+        // are dropped, and its class field names the instance's own class where it is not the declared one (a
+        // subclass's instance under its superclass's type)
+        Object own = struct.get(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE);
+        Type declared = own instanceof String c && !c.equals(classFqnOf(declared0)) ? new Type.ClassType(c)
+                : declared0;
         String fqn = classFqnOf(declared);
         CoreInstance classifier = fqn == null ? null : ps.package_getByUserPath(fqn);
         if (classifier == null) {
@@ -136,6 +133,11 @@ final class ValueBridge {
                 continue;   // an absent property, not a value
             }
             String prop = String.valueOf(en.getKey());
+            if (prop.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)
+                    || prop.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)
+                    || prop.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON)) {
+                continue;
+            }
             // NESTED class-typed properties resolve their REAL type from
             // the interpreter metamodel — the declared parent type must
             // not leak onto children (CO_Firm.employees are CO_Person,
@@ -332,6 +334,22 @@ final class ValueBridge {
     }
 
 
+    /** {@code v} with every date in it at the precision its digits show (a timestamp's trailing zero fraction
+     *  dropped). */
+    private static Object trimmedDates(Object v) {
+        return switch (v) {
+            case null -> null;
+            case com.legend.values.PureDateLiteral d -> d.trimmed();
+            case List<?> l -> l.stream().map(ValueBridge::trimmedDates).toList();
+            case Map<?, ?> m -> {
+                Map<Object, Object> out = new java.util.LinkedHashMap<>();
+                m.forEach((k, x) -> out.put(k, trimmedDates(x)));
+                yield out;
+            }
+            default -> v;
+        };
+    }
+
     /** THE channel-scoped empty rule — ONE owner (documented-debts
      * 2026-08-18; the audit counted six scattered unconditional drops
      * that had only been re-commented). A NULL element is a pure EMPTY:
@@ -348,8 +366,15 @@ final class ValueBridge {
     }
 
     private CoreInstance toCoreInstance(Object value, Type type, ProcessorSupport ps) {
-        if (value instanceof java.util.Map<?, ?> struct && classFqnOf(type) != null
-                && !isMapReturn(type)) {
+        // B2 (truthfulness burn): the PLATFORM's type carries the full
+        // generic shape (Map<K,V> / List<E> with arguments) — Java builds
+        // the typed instances HERE; the pure side only passes them through.
+        // (JDBC also hands STRUCT values as java.util.Map — the PLATFORM
+        // type gates, or ^Person(...) results would land here.)
+        if (value instanceof java.util.Map<?, ?> map && isMapReturn(type)) {
+            return mapInstance(map, type, ps);
+        }
+        if (value instanceof java.util.Map<?, ?> struct && classFqnOf(type) != null) {
             return structToInstance(struct, type, ps);
         }
 
@@ -393,6 +418,11 @@ final class ValueBridge {
                     + type + " — no kind re-derivation");
         }
         if (value instanceof Double d) {
+            if (!Double.isFinite(d)) {
+                // legend-pure's Float is a decimal (FloatCoreInstance holds a BigDecimal): it has no NaN or infinity
+                throw new IllegalStateException("the database answered " + d + " for a Float, which has no " + d
+                        + " in Pure");
+            }
             return modelRepository.newFloatCoreInstance(BigDecimal.valueOf(d));
         }
         // Dates — THE wire temporal (D-arc 2026-08-21): PureDateLiteral

@@ -10,7 +10,6 @@ import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
-import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.time.LocalDate;
@@ -149,9 +148,6 @@ class PlanRunnerH2Test {
             PlanRunner.Rows rows = PlanRunner.rows(plan, Map.of("n", 7L), PlanSessions.given(h2));
             assertEquals(List.of(List.of(7L, "a", com.legend.values.PureDateLiteral.parse("2024-01-02"))), rows.rows());
             assertEquals(List.of("N", "S", "D"), rows.columns().stream().map(ExecutionPlan.Column::name).toList());
-            var asText = assertThrows(IllegalArgumentException.class,
-                    () -> PlanRunner.run(plan, Map.of("n", 7L), PlanSessions.given(h2), new StringWriter()));
-            assertTrue(asText.getMessage().contains("run by rows(...)"), asText.getMessage());
         }
     }
 

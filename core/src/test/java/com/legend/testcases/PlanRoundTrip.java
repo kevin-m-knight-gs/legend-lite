@@ -58,9 +58,7 @@ public final class PlanRoundTrip {
         return switch (node) {
             case ExecutionPlan.Sequence s -> new ExecutionPlan.Sequence(s.steps().stream().map(PlanRoundTrip::withoutTrees).toList());
             case ExecutionPlan.TdsResult t -> new ExecutionPlan.TdsResult(t.shape(), t.columns(), withoutTree(t.sql()));
-            case ExecutionPlan.TextResult t -> new ExecutionPlan.TextResult(t.format(), t.type(), withoutTree(t.sql()));
-            case ExecutionPlan.Keyed k -> new ExecutionPlan.Keyed(withoutTree(k.keys()), k.keyFields(), k.format(),
-                    k.outputs(),
+            case ExecutionPlan.Keyed k -> new ExecutionPlan.Keyed(withoutTree(k.keys()), k.keyFields(), k.outputs(),
                     withoutTree(k.body()), k.snapshot(), k.maxColumns());
             case ExecutionPlan.Update u -> new ExecutionPlan.Update(withoutTree(u.sql()), u.count());
             case ExecutionPlan.Check c -> new ExecutionPlan.Check(withoutTree(c.sql()));
@@ -75,7 +73,6 @@ public final class PlanRoundTrip {
         return switch (node) {
             case ExecutionPlan.Sequence s -> s.steps().stream().mapToLong(PlanRoundTrip::statementChars).sum();
             case ExecutionPlan.TdsResult t -> t.sql().statement().length();
-            case ExecutionPlan.TextResult t -> t.sql().statement().length();
             case ExecutionPlan.Keyed k -> k.keys().statement().length() + k.body().statement().length();
             case ExecutionPlan.Update u -> u.sql().statement().length();
             case ExecutionPlan.Check c -> c.sql().statement().length();
@@ -86,7 +83,6 @@ public final class PlanRoundTrip {
         switch (node) {
             case ExecutionPlan.Sequence s -> s.steps().forEach(step -> assertRenders(step, what));
             case ExecutionPlan.TdsResult t -> assertRenders(t.sql(), what);
-            case ExecutionPlan.TextResult t -> assertRenders(t.sql(), what);
             case ExecutionPlan.Keyed k -> {
                 assertRenders(k.keys(), what);
                 assertRenders(k.body(), what);

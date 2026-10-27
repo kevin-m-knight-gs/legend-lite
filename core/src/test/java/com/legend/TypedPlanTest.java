@@ -40,7 +40,6 @@ class TypedPlanTest {
             case ExecutionPlan.Sequence s -> target(new ExecutionPlan(List.of(), s.steps().get(0)));
             case ExecutionPlan.Update u -> u.sql().target();
             case ExecutionPlan.Check k -> k.sql().target();
-            case ExecutionPlan.TextResult t -> throw new AssertionError("a typed plan holds no text: " + t);
         };
     }
 
@@ -106,7 +105,7 @@ class TypedPlanTest {
         String q = "|" + trees + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])"
                 + "->sort(~city->ascending())";
         for (DatabaseType type : PlanMakerTest.IN_PROCESS) {
-            assertTrue(plan(type, q).root() instanceof ExecutionPlan.Keyed k && k.format() == null, type.name());
+            assertTrue(plan(type, q).root() instanceof ExecutionPlan.Keyed, type.name());
             PlanRunner.Rows r = rows(type, q);
             assertEquals("city", r.columns().get(0).name(), type.name());
             assertEquals(3, r.columns().size(), type.name() + ": " + r.columns());

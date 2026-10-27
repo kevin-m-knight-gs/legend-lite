@@ -52,6 +52,6 @@ public final class TypedRows {
 
     /** Does {@code plan} hold a pivot whose columns the database names (no {@code IN} list)? */
     public static boolean hasDynamicPivot(SqlQuery plan) {
-        return TdsTextWrap.pivots(plan).stream().anyMatch(p -> p.in().isEmpty());
+        return KeyedPivot.pivots(plan).stream().anyMatch(p -> p.in().isEmpty());
     }
 }

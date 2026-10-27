@@ -6,10 +6,8 @@ package com.legend.executionplan;
 import com.legend.database.Databases;
 import com.legend.executionplan.ExecutionPlan.Column;
 import com.legend.executionplan.ExecutionPlan.Database;
-import com.legend.executionplan.ExecutionPlan.Format;
 import com.legend.executionplan.ExecutionPlan.Multiplicity;
 import com.legend.executionplan.ExecutionPlan.Parameter;
-import com.legend.executionplan.ExecutionPlan.Relation;
 import com.legend.executionplan.ExecutionPlan.Sequence;
 import com.legend.executionplan.ExecutionPlan.Servers;
 import com.legend.executionplan.ExecutionPlan.SetupStep;
@@ -17,8 +15,6 @@ import com.legend.executionplan.ExecutionPlan.Slot;
 import com.legend.executionplan.ExecutionPlan.Sql;
 import com.legend.executionplan.ExecutionPlan.Target;
 import com.legend.executionplan.ExecutionPlan.TdsResult;
-import com.legend.executionplan.ExecutionPlan.TextResult;
-import com.legend.executionplan.ExecutionPlan.Value;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionSpecification;
@@ -77,11 +73,6 @@ class PlanJsonTest {
                                                 ExecutionPlan.ValueKind.DATE_TIME)))), t, null)),
                         new TdsResult(TdsResult.Shape.OBJECTS, List.of(new Column("value", "model::Person", new Multiplicity(0, null), "VARCHAR", null)),
                                 new Sql("select json_object(...) from T", List.of(), t, null)),
-                        // the PCT's TDS text (until it reads typed rows), of a relation and of a value
-                        new TextResult(Format.TDS_TEXT, new Relation(List.of(new Column("name", "String", new Multiplicity(0, 1), "VARCHAR", "VARCHAR(100)"))),
-                                new Sql("select ... from T", List.of(), t, null)),
-                        new TextResult(Format.TDS_TEXT, new Value("Integer", new Multiplicity(1, 1)),
-                                new Sql("select ... from T", List.of(), t, null)),
                         // a write plan's steps (the writes design's leg 7): a change whose count a later slot binds,
                         // one whose count none reads, and a check
                         new ExecutionPlan.Update(new Sql("update T set ID = ? where ID > 0", List.of(new Slot("id",
@@ -137,15 +128,15 @@ class PlanJsonTest {
         // 8 since 2026-10-20: the keyed result, per-key regions, a key's cell (the dynamic pivot's probe plan); 9 the
         // same day: the keyed result's cells named as its statements write them (keyFields, an output's field); 12
         // since 2026-10-27: a typed result's shape (a relation's rows, a value's elements, a graph fetch's objects); 13
-        // the same day: a text result is Pure's TDS text alone
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":13,"), json);
+        // the same day: a text result is Pure's TDS text alone; 14 the same day: no text result at all
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":14,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v13 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v14 plan"), refused.getMessage());
     }
 
     @Test
@@ -159,22 +150,12 @@ class PlanJsonTest {
 
     @Test
     void anEarlierVersionIsRefused() {
-        for (int version = 1; version <= 12; version++) {
+        for (int version = 1; version <= 13; version++) {
             int v = version;
             var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(
                     "{\"format\":\"legend-lite-plan\",\"version\":" + v + ",\"parameters\":[],\"root\":{}}"));
             assertTrue(refused.getMessage().contains("(format legend-lite-plan, version " + v + ")"),
                     refused.getMessage());
         }
-    }
-
-    @Test
-    void anUnknownFormatOfTextIsRefusedByName() {
-        Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
-        String json = PlanJson.write(new ExecutionPlan(List.of(), new TextResult(Format.TDS_TEXT, new Relation(List.of()),
-                new Sql("select 1", List.of(), t, null)))).replace("\"format\":\"TDS_TEXT\"", "\"format\":\"CSV\"");
-        var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(json));
-        // the database-written CSV of before the result boundary program's phase 3 is no format any more
-        assertTrue(refused.getMessage().contains("unknown text result format 'CSV'"), refused.getMessage());
     }
 }

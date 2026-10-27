@@ -28,7 +28,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
 
     /** The shape of the typed rows this plan answers (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of
      *  2026-10-27): its result's -- a keyed result's is a relation's -- or, for a plan of steps, its one result step's.
-     *  A plan that answers a text, or no rows, is refused by name: a writer has nothing typed to write. */
+     *  A plan that answers no rows is refused by name: a writer has nothing to write. */
     public TdsResult.Shape answerShape() {
         return switch (answer(root)) {
             case TdsResult t -> t.shape();
@@ -47,23 +47,29 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         };
     }
 
+    /** The columns of this plan's typed answer where the plan states them: its result's (or its one result step's);
+     *  null for a keyed result, whose per-key columns its keys name when it runs. */
+    public @com.legend.base.Nullable List<Column> answerColumns() {
+        return switch (answer(root)) {
+            case TdsResult t -> t.columns();
+            case Keyed k -> null;
+            default -> throw new IllegalStateException("not reached: answer() keeps typed results only");
+        };
+    }
+
     private static Node answer(Node n) {
         return switch (n) {
             case TdsResult t -> t;
-            case Keyed k when k.format() == null -> k;
+            case Keyed k -> k;
             case Sequence s -> {
                 List<Node> answers = s.steps().stream()
-                        .filter(x -> x instanceof TdsResult || (x instanceof Keyed k && k.format() == null)).toList();
+                        .filter(x -> x instanceof TdsResult || x instanceof Keyed).toList();
                 if (answers.size() != 1) {
                     throw new IllegalStateException("a plan of steps answers through one result step; this one has "
                             + answers.size());
                 }
                 yield answers.get(0);
             }
-            case Keyed k -> throw new IllegalStateException("a keyed plan written as " + k.format()
-                    + " text answers no typed rows");
-            case TextResult t -> throw new IllegalStateException("a plan written as " + t.format()
-                    + " text answers no typed rows");
             case Update u -> throw new IllegalStateException("a plan that only changes its database answers no rows");
             case Check c -> throw new IllegalStateException("a plan that only checks answers no rows");
         };
@@ -98,7 +104,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /** A node of the plan. */
-    public sealed interface Node permits Sequence, TdsResult, TextResult, Keyed, Update, Check {
+    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check {
     }
 
     /**
@@ -172,16 +178,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         public enum Shape { RELATION, VALUE, OBJECTS }
     }
 
-    /** A result the DATABASE writes as finished text; the runner passes it on (lite's own node — legend-engine builds
-     *  such results in Java). The format is the plan's, fixed when the plan is made: the database writes it. */
-    public record TextResult(Format format, ResultType type, Sql sql) implements Node {
-        public TextResult {
-            Objects.requireNonNull(format, "format");
-            Objects.requireNonNull(type, "type");
-            Objects.requireNonNull(sql, "sql");
-        }
-    }
-
     /**
      * A result whose columns are partly NAMED BY THE DATA: a dynamic pivot's (the plan path program's probe plan,
      * 2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9). {@code keys} runs first and answers one row per key, in the
@@ -190,14 +186,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * written under {@code keyFields} (2026-10-20: a session reading a cell by name reads it so).
      * {@code body} is written once, with per-key regions ({@link Sql#regions}) the runner repeats once per key; its
      * rows' cells are {@code outputs} in order, a per-key output once per key, key by key. Both statements run on one
-     * session, inside one {@code snapshot}, so the keys are the body's. {@code format} null: the cells are typed by their
-     * columns' facts and answered as typed rows; else each cell is the format's text of its value, written by the
-     * database, and the runner writes the format's punctuation (the header from the outputs' names, a row's separators,
-     * the brackets: docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §5, F1). {@code maxColumns}: the most columns the database
+     * session, inside one {@code snapshot}, so the keys are the body's. The cells are typed by their columns' facts and
+     * answered as typed rows. {@code maxColumns}: the most columns the database
      * answers, a body asked for more refused by name before it is sent; null where the database has no limit said.
      */
-    public record Keyed(Sql keys, List<String> keyFields, @com.legend.base.Nullable Format format, List<Output> outputs,
-            Sql body, Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
+    public record Keyed(Sql keys, List<String> keyFields, List<Output> outputs, Sql body, Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
         public Keyed {
             Objects.requireNonNull(keys, "keys");
             keyFields = List.copyOf(keyFields);
@@ -240,12 +233,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             String field();
         }
 
-        /** A column answered once: its facts, and {@code name}, the format's spelling of its name (a TDS header
-         *  entry, a CSV header field, a JSON member's name token; the column's own name for typed rows). */
-        public record Fixed(Column column, String name, String field) implements Output {
+        /** A column answered once: its facts. */
+        public record Fixed(Column column, String field) implements Output {
             public Fixed {
                 Objects.requireNonNull(column, "column");
-                Objects.requireNonNull(name, "name");
                 Objects.requireNonNull(field, "field");
             }
         }
@@ -269,27 +260,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         public enum Snapshot { TRANSACTION, REPEATABLE_READ, SERIALIZABLE, NONE }
     }
 
-    /** How the database writes a {@link TextResult}: the one text a plan still asks for, until the PCT reads typed
-     *  rows (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27, phase 4; the CSV, JSON and
-     *  per-row JSON texts went with its phase 3). */
-    public enum Format {
-        /** the whole result as Pure's TDS text: a header of {@code name:Type[multiplicity]}, each row on its own
-         *  line, cells in Pure's print forms (the form legend-pure's {@code stringToTDS} reads; 2026-10-17) */
-        TDS_TEXT
-    }
-
-    /** What a {@link TextResult} is of: a relation's columns, or a value's type and multiplicity. */
-    public sealed interface ResultType permits Relation, Value {
-    }
-
-    /** A relation, its columns in order (a scalar's or a collection's text is the one-column relation {@code value}). */
-    public record Relation(List<Column> columns) implements ResultType {
-        public Relation {
-            columns = List.copyOf(columns);
-        }
-    }
-
-    /** A column of a relation the database writes as text, with its three type facts
+    /** A column of a plan's typed rows, with its three type facts
      *  (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): {@code type}, its Pure type as the typer names it (a primitive's
      *  name, {@code Decimal(10,2)}, an enumeration's path), and its {@code multiplicity}; {@code slot}, the SQL type
      *  the database answers with (the lowering's typed slot: {@code VARCHAR}, {@code DECIMAL(10,2)},
@@ -311,14 +282,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
          *  tree itself. */
         public static String taggedSlotColumn(String column, int i) {
             return com.legend.sql.SqlType.Tagged.slotColumn(column, i);
-        }
-    }
-
-    /** Values of a class — its instances, a graph fetch's objects — of {@code type} at {@code multiplicity}. */
-    public record Value(String type, Multiplicity multiplicity) implements ResultType {
-        public Value {
-            Objects.requireNonNull(type, "type");
-            Objects.requireNonNull(multiplicity, "multiplicity");
         }
     }
 

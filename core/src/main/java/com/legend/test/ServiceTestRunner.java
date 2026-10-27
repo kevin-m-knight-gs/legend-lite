@@ -474,8 +474,6 @@ public final class ServiceTestRunner implements AutoCloseable {
                 c.values().forEach(v -> vs.add(cell(v)));
                 yield vs;
             }
-            case ExecutionResult.TdsText tt -> throw new Skip(
-                    "a TDS-text result is not rendered by this runner");
         };
     }
 

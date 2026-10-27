@@ -31,7 +31,7 @@ public final class HostRows {
             throws IOException {
         Json.Node parsed;
         try {
-            parsed = Json.parse(rowsJson.isEmpty() ? "[]" : rowsJson);
+            parsed = Json.parse(rowsJson);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("the host's rows do not parse (" + e.getMessage() + "); they begin: "
                     + head(rowsJson), e);
@@ -47,23 +47,43 @@ public final class HostRows {
                 throw new IllegalArgumentException("a host's row is not a JSON object of its columns: " + head(
                         Json.toCompact(row)));
             }
-            batcher.row(RowDecode.cells(structuresRead(r, columns), columns));
+            List<Object> cells = RowDecode.cells(structuresRead(r, columns), columns);
+            for (int i = 0; i < columns.size(); i++) {
+                ExecutionPlan.Column c = columns.get(i);
+                // a Variant handed as its JSON's text is that JSON, a JSON null a value (as the server reads one:
+                // JdbcDecode's JSON arm), never the SQL null its parse would be
+                if (c.type().equals(RowDecode.VARIANT) && r.fields().get(c.name()) instanceof Json.Str text) {
+                    cells.set(i, Json.toCompact(Json.parse(text.value())));
+                }
+            }
+            batcher.row(cells);
         }
         batcher.end();
     }
 
     /** {@code row} with each structured column's cell given as its JSON's text read as that JSON: by the column's slot
-     *  (an array, a struct, a map), never by the text's look. */
+     *  (an array, a struct, a map, JSON), never by the text's look -- a tagged column's slot columns beside it too. A
+     *  Variant's text is read by {@link #stream}. */
     private static Json.Obj structuresRead(Json.Obj row, List<ExecutionPlan.Column> columns) {
         LinkedHashMap<String, Json.Node> out = new LinkedHashMap<>(row.fields());
         for (ExecutionPlan.Column c : columns) {
-            String slot = RowDecode.slotWord(c.slot());
-            if ((slot.equals("ARRAY") || slot.equals("STRUCT") || slot.equals("MAP"))
-                    && out.get(c.name()) instanceof Json.Str text) {
-                out.put(c.name(), Json.parse(text.value()));
+            if (RowDecode.slotWord(c.slot()).equals("TAGGED")) {
+                for (int i = 0; i < RowDecode.physicalColumns(List.of(c)) - 1; i++) {
+                    read(out, RowDecode.taggedSlot(c, i));
+                }
+            } else if (!c.type().equals(RowDecode.VARIANT)) {
+                read(out, c);
             }
         }
         return new Json.Obj(out);
+    }
+
+    private static void read(LinkedHashMap<String, Json.Node> row, ExecutionPlan.Column c) {
+        String slot = RowDecode.slotWord(c.slot());
+        if ((slot.equals("ARRAY") || slot.equals("STRUCT") || slot.equals("MAP") || slot.equals("JSON"))
+                && row.get(c.name()) instanceof Json.Str text) {
+            row.put(c.name(), Json.parse(text.value()));
+        }
     }
 
     private static String head(String text) {

@@ -194,50 +194,21 @@ public final class TypedQuery {
         return plan(runtime, true);
     }
 
-    /** The one text a plan still asks its database to write: Pure's TDS text (a header of
-     *  {@code name:Type[multiplicity]} and a row per line in Pure's print forms -- the form legend-pure's
-     *  {@code stringToTDS} reads, so the PCT harness's; a value's is the one-column relation {@code value};
-     *  2026-10-17), until the PCT reads typed rows (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of
-     *  2026-10-27, phase 4). Every other answer is typed rows ({@link #executionPlan(String)}), spelled by a writer at
-     *  the edge: the CSV and JSON outputs the database wrote went with phase 3. */
-    public enum Output { TDS_TEXT }
-
     /** The query's TYPED execution plan for {@code runtime} (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md §5, step 1):
      *  every statement final for its target, its answer typed rows read by the plan's column facts (a relation's rows,
      *  a value's elements, a graph fetch's objects), no output format in it -- a writer at the edge spells them. */
     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime) {
-        return PlanMaker.plan(this, runtime, null, java.util.Set.of(), null);
+        return PlanMaker.plan(this, runtime, java.util.Set.of(), null);
     }
 
-    /** {@link #executionPlan(String)} under the engine's execution feature flags ({@code features}), for a session
-     *  whose server is {@code serverVersion} (null: the dialect's declared target). */
+    /** {@link #executionPlan(String)} under the engine's execution feature flags ({@code features}: a lowering
+     *  concern, {@code Lowerer.withFeatures}; a flag nothing consumes is refused by name), for a session whose server
+     *  is {@code serverVersion} (the caller's fact, read off its session): where the database's spelling depends on
+     *  the version (H2), the plan is written in that version's dialect and names it as what it is for; null plans for
+     *  the dialect's declared target (2026-10-19, the plan path program's step 9). */
     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
             java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
-        return PlanMaker.plan(this, runtime, null, features, serverVersion);
-    }
-
-    /** The query's execution plan for {@code runtime} (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): the text the
-     *  database writes in the form {@code output} asks for, final for its target, run by a model-free runner. */
-    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
-            Output output) {
-        return PlanMaker.plan(this, runtime, output, java.util.Set.of());
-    }
-
-    /** {@link #executionPlan(String, Output)} under the engine's execution feature flags ({@code features}: a lowering
-     *  concern, {@code Lowerer.withFeatures}; a flag nothing consumes is refused by name). */
-    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
-            Output output, java.util.Set<com.legend.platform.Feature> features) {
-        return PlanMaker.plan(this, runtime, output, features);
-    }
-
-    /** {@link #executionPlan(String, Output, java.util.Set)} for a session whose server is {@code serverVersion}
-     *  (the caller's fact, read off its session): where the database's spelling depends on the version (H2), the
-     *  plan is written in that version's dialect and names it as what it is for; null plans for the dialect's
-     *  declared target (2026-10-19, the plan path program's step 9). */
-    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
-            Output output, java.util.Set<com.legend.platform.Feature> features,
-            @com.legend.base.Nullable String serverVersion) {
-        return PlanMaker.plan(this, runtime, output, features, serverVersion);
+        return PlanMaker.plan(this, runtime, features, serverVersion);
     }
 
     private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {

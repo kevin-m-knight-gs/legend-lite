@@ -19,7 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * docs/PLAN_PATH_PROGRAM_2026_10_17.md): for each kind of value -- a whole, a fractional and an extreme Float, a Float
  * after arithmetic, a Decimal literal and after arithmetic, a DateTime with no, three and nine fraction digits, a
  * StrictDate, each as a value root and as a column -- and each of lite's own outputs on the plan path (its CSV and its
- * JSON rows, written at the edge from typed rows since 2026-10-27; Pure's TDS text) on DuckDB and H2
+ * JSON rows, written at the edge from typed rows since 2026-10-27; Pure's TDS text went with the result boundary
+ * program's phase 4, the PCT writing it from typed rows) on DuckDB and H2
  * (OutputMatrixH2Test), the text lite writes beside interpreted Pure's
  * (the reference: {@code docs/execution-plan-boundary-2026-10-05/probes/engine-reference/pure-interpreted-results.txt},
  * PureEval.java, 2026-10-10). Every cell is judged: a cell equal to Pure's text passes; a cell that differs is
@@ -45,15 +46,9 @@ class OutputMatrixTest {
             Runtime s::RT { mappings: []; connections: [ s::DB: [ c1: s::Conn ] ]; }
             """;
 
-    /** A kind: its name, the expression as a value root, the same value as a column, interpreted Pure's text of the
-     *  value, and a relation cell's text in Pure's TDS text ({@code tds}; the one difference: a DateTime cell's three
-     *  fraction digits at least, legend-engine's {@code testDayOfWeek_Relation} -- {@code LiteralSpelling
-     *  .dateTimeTextTds}, 2026-10-18; a value root's one cell keeps the value's own text, which the reader reads as
-     *  the value). */
-    private record Kind(String name, String value, String column, String pure, String tds) {
-        Kind(String name, String value, String column, String pure) {
-            this(name, value, column, pure, pure);
-        }
+    /** A kind: its name, the expression as a value root, the same value as a column, and interpreted Pure's text of
+     *  the value. */
+    private record Kind(String name, String value, String column, String pure) {
     }
 
     private static final String T = "#>{s::DB.T}#->extend(~v: r|";
@@ -69,7 +64,7 @@ class OutputMatrixTest {
             new Kind("decimal_times_decimal", "|1.50D * 2.50D", "|" + T + "1.50D * 2.50D)->select(~[v])",
                     "3.7500"),
             new Kind("datetime_whole", "|%2024-01-02T10:30:00", "|" + T + "%2024-01-02T10:30:00)->select(~[v])",
-                    "2024-01-02T10:30:00+0000", "2024-01-02T10:30:00.000+0000"),
+                    "2024-01-02T10:30:00+0000"),
             new Kind("datetime_millis", "|%2024-01-02T10:30:00.123",
                     "|" + T + "%2024-01-02T10:30:00.123)->select(~[v])", "2024-01-02T10:30:00.123+0000"),
             new Kind("datetime_nanos", "|%2024-01-02T10:30:00.123456789",
@@ -115,16 +110,14 @@ class OutputMatrixTest {
                         String cell;
                         try (Connection c = backend.open()) {
                             TypedQuery q = Compiler.query(ctx, query);
-                            cell = cellOf(output == PlanCases.Written.TDS_TEXT
-                                    ? PlanCases.run(q.executionPlan("s::RT", TypedQuery.Output.TDS_TEXT), c)
-                                    : PlanCases.write(q.executionPlan("s::RT"), c, Map.of(), output::writer), output);
+                            cell = cellOf(PlanCases.write(q.executionPlan("s::RT"), c, Map.of(), output::writer),
+                                    output);
                         } catch (RuntimeException e) {
                             cell = "ERROR " + e.getClass().getSimpleName() + ": " + firstLine(e.getMessage());
                         }
                         String pinned = pins.remove(key);
                         String verdict;
-                        String reference = output == PlanCases.Written.TDS_TEXT && form.equals("column")
-                                ? kind.tds() : kind.pure();
+                        String reference = kind.pure();
                         if (cell.equals(reference)) {
                             verdict = pinned == null ? "pure" : "PIN STALE";
                             if (pinned != null) {
@@ -155,7 +148,7 @@ class OutputMatrixTest {
     /** The one cell of a one-row, one-column answer in {@code output}'s text, as the value's own text. */
     private static String cellOf(String text, PlanCases.Written output) {
         return switch (output) {
-            case CSV, TDS_TEXT -> {
+            case CSV -> {
                 String[] lines = text.split("\n");
                 yield lines.length > 1 ? lines[1].trim() : "<no row: " + text.replace("\n", "\\n") + ">";
             }

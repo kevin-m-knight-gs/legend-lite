@@ -234,6 +234,8 @@ public final class RowDecode {
         return new BigDecimal(s.endsWith("D") || s.endsWith("d") ? s.substring(0, s.length() - 1) : s);
     }
 
+    private static final String ANY = "meta::pure::metamodel::type::Any";
+
     /** Whether the Pure type {@code type} is a number's: Integer, Float, Decimal (with or without its digits) or
      *  Number. */
     public static boolean numericPure(String type) {
@@ -276,11 +278,15 @@ public final class RowDecode {
     }
 
     private static Object floating(Json.Node node, ExecutionPlan.Column c) {
-        return switch (node) {
+        double d = switch (node) {
             case Json.Num n -> n.doubleValue();
             case Json.Str s -> Double.valueOf(s.value().trim());   // a Float the wire spells as text (NaN, Infinity)
             default -> throw refused(node, c);
         };
+        // a REAL (four bytes) its own shortest digits, as JdbcDecode reads the driver's float: a host that widens it to
+        // a double (DuckDB-WASM's, Python's) hands 0.10000000149011612 for 0.1 (the phase 3 audit, 2026-10-27)
+        return slotWord(c.slot()).equals("REAL") && Double.isFinite(d) ? Double.parseDouble(Float.toString((float) d))
+                : d;
     }
 
     private static BigDecimal decimal(Json.Node node, ExecutionPlan.Column c) {
@@ -413,8 +419,18 @@ public final class RowDecode {
         return out;
     }
 
+    /** A structure's field (or a map's key or value) as a column: it declares no Pure type of its own, so its slot
+     *  is its only fact -- a numeric slot types it as that number (a host hands a nested decimal as its exact text,
+     *  which the field reads as the decimal the server's driver reads; the phase 3 audit, 2026-10-27), any other is
+     *  Any, the carrier's own kind deciding. */
     private static ExecutionPlan.Column any(String name, String slot) {
-        return new ExecutionPlan.Column(name, "meta::pure::metamodel::type::Any", new ExecutionPlan.Multiplicity(0, 1),
+        String type = switch (slotWord(slot)) {
+            case "INTEGER", "BIGINT", "SMALLINT", "TINYINT", "HUGEINT" -> "Integer";
+            case "DOUBLE", "FLOAT", "REAL" -> "Float";
+            case "DECIMAL", "NUMERIC" -> "Decimal";
+            default -> ANY;
+        };
+        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(0, 1),
                 slot, null);
     }
 

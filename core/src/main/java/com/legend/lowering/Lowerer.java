@@ -700,9 +700,8 @@ public final class Lowerer {
                         || nt.type() == SqlType.Scalar.HUGEINT)) {
             // an unrefined NUMBER root labelled by its cell's own numeric slot, the kind the database answers
             // (the engine reads a Number by its result-set type; the judges refine a Number side by the slot): a
-            // Decimal cell is a Decimal to every reader, and the value lane's text spells its D
-            // (Render.tdsTextCell; min([1.0d]) is 1.0D -- the DuckDB PCT lane on the plan route, step 9,
-            // 2026-10-18); until then the Number's DOUBLE, which read the cell as a Float
+            // Decimal cell is a Decimal to every reader (min([1.0d]) is 1.0D -- the DuckDB PCT lane on the plan
+            // route, step 9, 2026-10-18); until then the Number's DOUBLE, which read the cell as a Float
             label = nt.type();
         }
         // COLLECTION roots explode to N rows (the result-shape contract:
@@ -3439,7 +3438,7 @@ public final class Lowerer {
             // Car): type VALUES travel as their PATHS (docs/PLAN_PATH_PROGRAM_2026_10_17.md §9,
             // 2026-10-20; a base primitive's is its name), as do a TDS's
             // column types and an instance's rawType, so equality compares
-            // paths and the text carrier's reader resolves a namesake; a
+            // paths and a reader resolves a namesake; a
             // printer takes the name (Scalars.pureToString)
             case com.legend.compiler.spec.typed.TypedTypeRef tr ->
                     new SqlExpr.StringLit(com.legend.compiler.element.type.PlatformTypes
@@ -3889,7 +3888,7 @@ public final class Lowerer {
      * by name.
      */
     private SqlSelect castOverDynamicPivot(SqlSelect base, Map<String, Type.Column> src, Type.RelationType tgtRow) {
-        List<SqlSource.Pivot> dynamic = TdsTextWrap.pivots(base).stream().filter(p -> p.in().isEmpty()).toList();
+        List<SqlSource.Pivot> dynamic = KeyedPivot.pivots(base).stream().filter(p -> p.in().isEmpty()).toList();
         if (dynamic.size() != 1) {
             throw new NotImplementedException("cast(@Relation<...>) over " + dynamic.size()
                     + " dynamic pivots: the generated columns' pivot is ambiguous");

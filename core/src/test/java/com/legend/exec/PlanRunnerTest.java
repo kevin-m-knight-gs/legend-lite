@@ -12,7 +12,6 @@ import com.legend.model.ConnectionSpecification;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
-import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -171,10 +170,10 @@ class PlanRunnerTest {
         ExecutionPlan given = new ExecutionPlan(List.of(declared("n", "Integer", 1, 1)),
                 counting(inMemory("s::C", Databases.PLATFORM, new ConnectionSpecification.InMemory()), "UNOPENED_T",
                         new ExecutionPlan.Servers.Every()).root());
-        var refused = assertThrows(IllegalArgumentException.class, () -> PlanRunner.run(given, Map.of("n", "1"),
+        var refused = assertThrows(IllegalArgumentException.class, () -> PlanRunner.rows(given, Map.of("n", "1"),
                 target -> {
                     throw new AssertionError("a session was opened");
-                }, new StringWriter()));
+                }));
         assertEquals(invalid("parameter 'n' (Integer[1]): given \"1\" (String): an Integer is a Long"),
                 refused.getMessage());
     }

@@ -3,20 +3,15 @@
 
 package com.legend.executionplan;
 
-import com.legend.executionplan.ExecutionPlan.Format;
 import com.legend.executionplan.ExecutionPlan.Multiplicity;
 import com.legend.executionplan.ExecutionPlan.Node;
 import com.legend.executionplan.ExecutionPlan.Parameter;
-import com.legend.executionplan.ExecutionPlan.Relation;
-import com.legend.executionplan.ExecutionPlan.ResultType;
 import com.legend.executionplan.ExecutionPlan.Sequence;
 import com.legend.executionplan.ExecutionPlan.SetupStep;
 import com.legend.executionplan.ExecutionPlan.Slot;
 import com.legend.executionplan.ExecutionPlan.Sql;
 import com.legend.executionplan.ExecutionPlan.Target;
 import com.legend.executionplan.ExecutionPlan.TdsResult;
-import com.legend.executionplan.ExecutionPlan.TextResult;
-import com.legend.executionplan.ExecutionPlan.Value;
 import com.legend.json.Json;
 import com.legend.model.ConnectionWire;
 
@@ -54,19 +49,19 @@ public final class PlanJson {
      *  format 5); 12 since 2026-10-27: a typed result says what its rows are ({@code shape}: a relation's rows, a value's
      *  elements, a graph fetch's objects; the result boundary program, docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R8);
      *  13 since 2026-10-27: a text result is Pure's TDS text alone (the CSV, JSON and per-row JSON texts the database
-     *  wrote are gone: typed rows are every other answer, the result boundary program's phase 3). */
-    public static final int VERSION = 13;
+     *  wrote are gone: typed rows are every other answer, the result boundary program's phase 3); 14 since 2026-10-27:
+     *  no text result at all -- every answer is typed rows (Pure's TDS text went with the program's phase 4: the PCT
+     *  reads typed rows), so a keyed result has no format and its fixed outputs no format's name. */
+    public static final int VERSION = 14;
 
     private PlanJson() {
     }
 
     /** The {@code _type} tags of the lite format, one spelling for the writer and the reader: an exhaustive switch over
      *  each family, an unknown tag refused by name ({@link #tag}). */
-    enum NodeTag { sequence, tdsResult, textResult, keyed, update, check }
+    enum NodeTag { sequence, tdsResult, keyed, update, check }
 
     enum OutputTag { fixed, perKey }
-
-    enum ResultTypeTag { relation, value }
 
     enum SetupTag { statement, rows }
 
@@ -131,24 +126,16 @@ public final class PlanJson {
                 o.put("columns", columns(t.columns()));
                 o.put("sql", sql(t.sql()));
             }
-            case TextResult x -> {
-                o.put("_type", NodeTag.textResult.name());
-                o.put("format", x.format().name());
-                o.put("type", resultType(x.type()));
-                o.put("sql", sql(x.sql()));
-            }
             case ExecutionPlan.Keyed k -> {
                 o.put("_type", NodeTag.keyed.name());
                 o.put("keys", sql(k.keys()));
                 o.put("keyFields", new ArrayList<Object>(k.keyFields()));
-                o.put("format", k.format() == null ? null : k.format().name());
                 List<Object> outputs = new ArrayList<>();
                 for (ExecutionPlan.Keyed.Output out : k.outputs()) {
                     Map<String, Object> oo = new LinkedHashMap<>();
                     switch (out) {
                         case ExecutionPlan.Keyed.Fixed f -> {
                             oo.put("_type", OutputTag.fixed.name());
-                            oo.put("name", f.name());
                         }
                         case ExecutionPlan.Keyed.PerKey p -> {
                             oo.put("_type", OutputTag.perKey.name());
@@ -206,22 +193,6 @@ public final class PlanJson {
             cols.add(co);
         }
         return cols;
-    }
-
-    private static Map<String, Object> resultType(ResultType type) {
-        Map<String, Object> o = new LinkedHashMap<>();
-        switch (type) {
-            case Relation r -> {
-                o.put("_type", ResultTypeTag.relation.name());
-                o.put("columns", columns(r.columns()));
-            }
-            case Value v -> {
-                o.put("_type", ResultTypeTag.value.name());
-                o.put("type", v.type());
-                o.put("multiplicity", multiplicity(v.multiplicity()));
-            }
-        }
-        return o;
     }
 
     private static Map<String, Object> sql(Sql s) {
@@ -401,16 +372,13 @@ public final class PlanJson {
             }
             case tdsResult -> new TdsResult(named(TdsResult.Shape.class, o.getString("shape"), "typed result shape"),
                     readRelationColumns(o.getArr("columns")), readSql(o.getObj("sql")));
-            case textResult -> new TextResult(named(Format.class, o.getString("format"), "text result format"),
-                    readResultType(o.getObj("type")), readSql(o.getObj("sql")));
             case keyed -> {
                 List<ExecutionPlan.Keyed.Output> outputs = new ArrayList<>();
                 for (Json.Node n : o.getArr("outputs").items()) {
                     Json.Obj oo = (Json.Obj) n;
                     ExecutionPlan.Column column = readRelationColumns(new Json.Arr(List.of(oo.getObj("column")))).get(0);
                     outputs.add(switch (tag(OutputTag.class, oo, "keyed output")) {
-                        case fixed -> new ExecutionPlan.Keyed.Fixed(column, oo.getString("name"),
-                                oo.getString("field"));
+                        case fixed -> new ExecutionPlan.Keyed.Fixed(column, oo.getString("field"));
                         case perKey -> new ExecutionPlan.Keyed.PerKey(column, oo.getInt("name"), oo.getString("field"));
                     });
                 }
@@ -418,10 +386,7 @@ public final class PlanJson {
                 for (Json.Node n : o.getArr("keyFields").items()) {
                     keyFields.add(((Json.Str) n).value());
                 }
-                String format = o.getStringOr("format", null);
-                yield new ExecutionPlan.Keyed(readSql(o.getObj("keys")), keyFields,
-                        format == null ? null : named(Format.class, format, "keyed result format"), outputs,
-                        readSql(o.getObj("body")),
+                yield new ExecutionPlan.Keyed(readSql(o.getObj("keys")), keyFields, outputs, readSql(o.getObj("body")),
                         named(ExecutionPlan.Keyed.Snapshot.class, o.getString("snapshot"), "keyed snapshot"),
                         o.getOr("maxColumns", null) == null ? null : o.getInt("maxColumns"));
             }
@@ -439,13 +404,6 @@ public final class PlanJson {
                     readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null), c.getStringOr("store", null)));
         }
         return cols;
-    }
-
-    private static ResultType readResultType(Json.Obj o) {
-        return switch (tag(ResultTypeTag.class, o, "result type")) {
-            case relation -> new Relation(readRelationColumns(o.getArr("columns")));
-            case value -> new Value(o.getString("type"), readMultiplicity(o.getObj("multiplicity")));
-        };
     }
 
     private static ExecutionPlan.Binding readBinding(Json.Obj o) {

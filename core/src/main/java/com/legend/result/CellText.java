@@ -156,9 +156,37 @@ public final class CellText {
             case String s -> isJsonCarried(c) ? Json.parse(s) : Json.str(s);
             case PureDateLiteral d -> Json.str(dateOnly(d, c.type(), c) ? day(d) : d.toEngineJson());
             case PureTimeLiteral t -> Json.str(t.toEngineString());
-            case Map<?, ?> m -> Json.of(declared(m));
-            case List<?> l -> Json.of(declared(l));
+            case Map<?, ?> m -> structure(declared(m), false, c);
+            case List<?> l -> structure(declared(l), false, c);
             default -> throw refused(cell, c, "legend-engine's JSON token");
+        };
+    }
+
+    /** A structure's JSON (an object's declared properties, a List's elements, a Pair's, a Map's entries), each value
+     *  by the rules of a cell of its own kind -- a float, a date, a time spelled as one is, never as the JSON library
+     *  would spell a Java value: legend-engine's tokens, or Pure's where {@code pure}. A nested value has no column of
+     *  its own, so a date is its day where it has no time of day, else a timestamp's text. */
+    private static Json.Node structure(@com.legend.base.Nullable Object v, boolean pure, ExecutionPlan.Column c) {
+        return switch (v) {
+            case null -> Json.nil();
+            case Map<?, ?> m -> {
+                java.util.LinkedHashMap<String, Json.Node> fields = new java.util.LinkedHashMap<>();
+                m.forEach((k, x) -> fields.put(String.valueOf(k), structure(x, pure, c)));
+                yield new Json.Obj(fields);
+            }
+            case List<?> l -> new Json.Arr(l.stream().map(x -> structure(x, pure, c)).toList());
+            case Long n -> Json.num(n);
+            case Integer n -> Json.num(n);
+            case BigInteger b -> token(b.toString(), new BigDecimal(b));
+            case Double d -> !pure ? engineFloat(d)
+                    : Double.isFinite(d) ? token(pureFloat(d), BigDecimal.valueOf(d)) : Json.str(pureFloat(d));
+            case BigDecimal d -> token(d.toPlainString(), d);
+            case Boolean b -> Json.bool(b);
+            case String s -> Json.str(s);
+            case PureDateLiteral d -> Json.str(!d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? d.toEngineString()
+                    : pure ? d.trimmed().toEngineString() + "+0000" : d.toEngineJson());
+            case PureTimeLiteral t -> Json.str(t.toEngineString());
+            default -> throw refused(v, c, pure ? "Pure's JSON token" : "legend-engine's JSON token");
         };
     }
 
@@ -172,6 +200,8 @@ public final class CellText {
             case Double d -> Double.isFinite(d) ? token(pureFloat(d), BigDecimal.valueOf(d)) : Json.str(pureFloat(d));
             case BigDecimal d -> token(isFloat(c) ? pureFloat(d) : d.toPlainString(), d);
             case PureDateLiteral d -> Json.str(pureDate(d, c.type(), c));
+            case Map<?, ?> m -> structure(declared(m), true, c);
+            case List<?> l -> structure(declared(l), true, c);
             default -> engine(cell, c);
         };
     }

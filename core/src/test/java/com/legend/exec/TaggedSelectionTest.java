@@ -9,7 +9,6 @@ import com.legend.database.Databases;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.plan.QueryPlan;
 import com.legend.testbackend.TestBackends;
-import com.legend.testcases.PlanCases;
 import com.legend.testcases.PlanRoundTrip;
 import com.legend.values.PureDateLiteral;
 import org.junit.jupiter.api.Test;
@@ -54,10 +53,12 @@ class TaggedSelectionTest {
         return JdbcDecodeCases.row(c, Databases.PLATFORM, plan.sql(), plan.columns()).get(0);
     }
 
-    private static String tdsText(Connection c, String q) throws Exception {
-        ExecutionPlan plan = query(q).executionPlan("s::RT", TypedQuery.Output.TDS_TEXT);
+    /** {@code q}'s one typed cell through its plan, run on {@code c}. */
+    private static Object planned(Connection c, String q) throws Exception {
+        ExecutionPlan plan = query(q).executionPlan("s::RT");
         PlanRoundTrip.assertRoundTrips(plan, q);
-        return PlanCases.run(plan, c);
+        return PlanRunner.rows(plan, java.util.Map.of(), PlanSessions.setUp(c, plan.answerSql().target())).rows()
+                .get(0).get(0);
     }
 
     @Test
@@ -118,18 +119,18 @@ class TaggedSelectionTest {
     }
 
     @Test
-    void theTextOutputsPrintTheWinnerAsItsKind() throws Exception {
+    void thePlansTypedRowsAnswerTheWinnerAsItsKind() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            assertEquals("value:Number[1]\n3.0D", tdsText(c, "|[1, 2.5, 3.0D]->max()"));
-            assertEquals("value:Number[1]\n2.5", tdsText(c, "|[1, 2.5]->max()"));
-            assertEquals("value:Number[1]\n3", tdsText(c, "|[1, 2.5, 3]->max()"));
-            // a String value's TDS text is quoted whole, as the reader reads a value
-            assertEquals("value:String[1]\n'3'", tdsText(c, "|[1, 2.5, 3]->max()->toString()"));
-            assertEquals("value:String[1]\n'2.5'", tdsText(c, "|[1, 2.5]->max()->toString()"));
-            assertEquals("value:String[1]\n'3.0D'", tdsText(c, "|[1, 2.5, 3.0D]->max()->toString()"));
+            assertEquals(new java.math.BigDecimal("3.0"), planned(c, "|[1, 2.5, 3.0D]->max()"));
+            assertEquals(2.5, planned(c, "|[1, 2.5]->max()"));
+            assertEquals(3L, planned(c, "|[1, 2.5, 3]->max()"));
+            // its text is its kind's
+            assertEquals("3", planned(c, "|[1, 2.5, 3]->max()->toString()"));
+            assertEquals("2.5", planned(c, "|[1, 2.5]->max()->toString()"));
+            assertEquals("3.0D", planned(c, "|[1, 2.5, 3.0D]->max()->toString()"));
             // compared on its comparable channel
-            assertEquals("value:Boolean[1]\ntrue", tdsText(c, "|[1, 2.5]->max() < 3"));
-            assertEquals("value:Boolean[1]\ntrue", tdsText(c, "|[1, 2.5]->max() == 2.5"));
+            assertEquals(true, planned(c, "|[1, 2.5]->max() < 3"));
+            assertEquals(true, planned(c, "|[1, 2.5]->max() == 2.5"));
         }
     }
 }
