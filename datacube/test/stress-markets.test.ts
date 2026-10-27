@@ -18,7 +18,7 @@ import { marketsCsv } from '../src/samples.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { STRESS_MARKET_COLUMNS, STRESS_MARKET_TABLES, stressMarketsData } from '../src/stress-markets.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
-import { seriesQuery, TS_DATE, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
+import { seriesQuery, TS_DATE, TS_SPLIT, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
@@ -36,6 +36,7 @@ let files: DuckDbFiles;
 let corpus: LitePlanner;
 let table: LitePlanner;
 let classes: TsInputs;
+let referenced: TsInputs;
 let rows: TsInputs;
 /** How long the trading model took to be held, and its first query to plan: what a page waits for. */
 const measured: Record<string, number> = {};
@@ -48,6 +49,17 @@ const QUOTES = projectObjects(fn('getAll', element('marketdata::MarketQuote')), 
   derive('ticker', lambda(['x'], path('instrument', 'ticker'))),
   derive('quoteTime', lambda(['x'], path('quoteTime'))),
   derive('closePrice', lambda(['x'], path('closePrice'))),
+]).node;
+
+/** A quote a day with its instrument's reference data, through the associations: its sector's name and its listing's
+ *  exchange's (cross::Instrument_Sector, cross::Instrument_Exchange), and the day's volume. */
+const REFERENCED = projectObjects(fn('getAll', element('marketdata::MarketQuote')), [
+  derive('ticker', lambda(['x'], path('instrument', 'ticker'))),
+  derive('sector', lambda(['x'], path('instrument', 'sector', 'name'))),
+  derive('exchange', lambda(['x'], path('instrument', 'exchange', 'name'))),
+  derive('quoteTime', lambda(['x'], path('quoteTime'))),
+  derive('closePrice', lambda(['x'], path('closePrice'))),
+  derive('volume', lambda(['x'], path('volume'))),
 ]).node;
 
 const snapshotOf = (query: ValueSpecification, columns: CubeSnapshot['columns']): CubeSnapshot => ({
@@ -71,6 +83,10 @@ before(async () => {
   classes = new Map([['px', { snapshot: snapshotOf(QUOTES, [
     { name: 'ticker', type: 'String' }, { name: 'quoteTime', type: 'DateTime' }, { name: 'closePrice', type: 'Float' },
   ]), filter: undefined }]]);
+  referenced = new Map([['px', { snapshot: snapshotOf(REFERENCED, [
+    { name: 'ticker', type: 'String' }, { name: 'sector', type: 'String' }, { name: 'exchange', type: 'String' },
+    { name: 'quoteTime', type: 'DateTime' }, { name: 'closePrice', type: 'Float' }, { name: 'volume', type: 'Float' },
+  ]), filter: undefined }]]);
   rows = new Map([['px', { snapshot: snapshotOf(flat.source, [
     { name: 'symbol', type: 'String' }, { name: 'asset_class', type: 'String' }, { name: 'date', type: 'StrictDate' },
     { name: 'open', type: 'Float' }, { name: 'high', type: 'Float' }, { name: 'low', type: 'Float' },
@@ -92,25 +108,52 @@ after(async () => {
   await projectEngine?.close();
 });
 
-/** A tile of one series over the class (`classes`) or the table (`rows`), daily. */
-const spec = (text: string, over: 'classes' | 'rows'): TimeseriesSpec => ({
-  sources: [over === 'classes'
-    ? { alias: 'px', cube: 'quotes', date: 'quoteTime', key: 'ticker' }
-    : { alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }],
-  series: [{ id: 'A', expr: parseExpr(over === 'classes' ? text.replaceAll('close[', 'closePrice[') : text) }],
+type Over = 'classes' | 'referenced' | 'rows';
+type Line = { dates: string[]; values: (number | null)[] };
+
+/** A tile of one series over the class (`classes`, `referenced`: with its reference data) or the table (`rows`),
+ *  daily, a line per value of `split` when it is given. */
+const spec = (text: string, over: Over, split?: string): TimeseriesSpec => ({
+  sources: [over === 'rows'
+    ? { alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }
+    : { alias: 'px', cube: 'quotes', date: 'quoteTime', key: 'ticker' }],
+  series: [{ id: 'A', expr: parseExpr(over === 'rows' ? text : text.replaceAll('close[', 'closePrice[')), ...(split !== undefined ? { split } : {}) }],
   grain: 'day',
 });
 
-async function line(text: string, over: 'classes' | 'rows'): Promise<{ dates: string[]; values: (number | null)[] }> {
-  const ts = spec(text, over);
-  const planner = over === 'classes' ? corpus : table;
-  const q = seriesQuery(over === 'classes' ? classes : rows, ts, ts.series[0]!);
-  const t = await (over === 'classes' ? projectEngine : engine).execute(await planner.plan(q.query), 0);
+/** The series' lines, each by its split's value ('' when it has none), earliest first, as the database answers them. */
+async function lines(text: string, over: Over, split?: string): Promise<Map<string, Line>> {
+  const ts = spec(text, over, split);
+  const planner = over === 'rows' ? table : corpus;
+  const q = seriesQuery(over === 'rows' ? rows : over === 'classes' ? classes : referenced, ts, ts.series[0]!);
+  const t = await (over === 'rows' ? engine : projectEngine).execute(await planner.plan(q.query), 0);
   const col = (name: string): unknown[] => t.columns.find((c) => c.name === name)!.values as unknown[];
-  return {
-    dates: col(TS_DATE).map((d) => String(d).slice(0, 10)).reverse(),
-    values: col(TS_VALUE).map((v) => (v === null ? null : Number(v))).reverse(),
-  };
+  const dates = col(TS_DATE);
+  const values = col(TS_VALUE);
+  const keys = split !== undefined ? col(TS_SPLIT).map(String) : dates.map(() => '');
+  const out = new Map<string, Line>();
+  dates.forEach((d, i) => {
+    const l = out.get(keys[i]!) ?? { dates: [], values: [] };
+    out.set(keys[i]!, l);
+    l.dates.unshift(String(d).slice(0, 10));
+    l.values.unshift(values[i] === null ? null : Number(values[i]));
+  });
+  return out;
+}
+
+async function line(text: string, over: Over): Promise<Line> {
+  return (await lines(text, over)).get('')!;
+}
+
+/** Two lines the same: the same dates, each value within a part in 10⁹ (a sum's order is the database's). */
+function same(over: Line, flat: Line, what: string): void {
+  assert.ok(flat.values.filter((v) => v !== null).length > 100, `${what}: the sample has the figures`);
+  assert.deepEqual(over.dates, flat.dates, `${what}: the same dates`);
+  over.values.forEach((v, i) => {
+    const w = flat.values[i]!;
+    if (v === null || w === null) assert.equal(v, w, `${what} ${over.dates[i]}: ${v} where ${w}`);
+    else assert.ok(Math.abs(v - w) <= 1e-9 * Math.max(1, Math.abs(w)), `${what} ${over.dates[i]}: ${v}, not ${w}`);
+  });
 }
 
 describe('the trading model\'s tables, as its store declares them', () => {
@@ -131,13 +174,33 @@ describe('a timeseries over MarketQuote through stress::AllMapping is the timese
     'returns(close[NVDA], 5)', 'beta(close[JPM], close[SPX], 2m)']) {
     it(text, async () => {
       const [over, flat] = await Promise.all([line(text, 'classes'), line(text, 'rows')]);
-      assert.ok(flat.values.filter((v) => v !== null).length > 100, 'the sample has the figures');
-      assert.deepEqual(over.dates, flat.dates, 'the same dates');
-      over.values.forEach((v, i) => {
-        const w = flat.values[i]!;
-        if (v === null || w === null) assert.equal(v, w, `${over.dates[i]}: ${v} where ${w}`);
-        else assert.ok(Math.abs(v - w) <= 1e-9 * Math.max(1, Math.abs(w)), `${over.dates[i]}: ${v}, not ${w}`);
-      });
+      same(over, flat, text);
     });
   }
+});
+
+// D5: the reference data a quote reaches through its instrument -- its sector, its exchange -- as a series' matches and
+// its split; the flat table has neither, so each is held to the instruments it names, added or one by one.
+describe('a series matched and split by the reference data the associations reach', () => {
+  it('close[sector="Energy"] is XOM\'s close: the one instrument of its sector', async () => {
+    same(await line('close[sector="Energy"]', 'referenced'), await line('close[XOM]', 'rows'), 'Energy');
+  });
+
+  it('a sector\'s volume summed is its instruments\' volumes added', async () => {
+    same(await line('volume[sector="Information Technology"].sum', 'referenced'),
+      await line('volume[AAPL].sum + volume[MSFT].sum + volume[NVDA].sum', 'rows'), 'IT volume');
+  });
+
+  it('split by ticker within a sector: a line per instrument of it, each its own returns', async () => {
+    const over = await lines('returns(close[sector="Information Technology"], 1)', 'referenced', 'ticker');
+    assert.deepEqual([...over.keys()].sort(), ['AAPL', 'MSFT', 'NVDA'], 'the sector\'s instruments');
+    for (const t of over.keys()) same(over.get(t)!, await line(`returns(close[${t}], 1)`, 'rows'), t);
+  });
+
+  it('split by exchange: a line per listing venue, each the volume of the instruments listed there', async () => {
+    const over = await lines('volume.sum', 'referenced', 'exchange');
+    assert.deepEqual([...over.keys()].sort(), ['Cboe Options Exchange', 'NYSE Arca', 'Nasdaq', 'New York Stock Exchange', 'Off exchange'], 'the exchanges listing them');
+    same(over.get('New York Stock Exchange')!, await line('volume[JPM].sum + volume[XOM].sum', 'rows'), 'NYSE');
+    same(over.get('Nasdaq')!, await line('volume[NDX].sum + volume[AAPL].sum + volume[MSFT].sum + volume[NVDA].sum + volume[TLT].sum', 'rows'), 'Nasdaq');
+  });
 });
