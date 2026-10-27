@@ -83,7 +83,7 @@ final class JudgePlans {
                 }
             }
         }
-        return new ExecutionPlan.TdsResult(columns,
+        return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION, columns,
                 PlanMaker.sql(WireRender.typedRows(statement), env.dialect(), target(env)));
     }
 

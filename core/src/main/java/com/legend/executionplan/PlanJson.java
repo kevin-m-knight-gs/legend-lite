@@ -51,8 +51,9 @@ public final class PlanJson {
      *  reading a cell by name, MongoDB's, reads it so); 10 since 2026-10-23: the tagged type (a mixed selection's
      *  winner as a tag and typed slots, docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a); 11 since 2026-10-26: main's write plans
      *  merged in (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7: the {@code update} and {@code check} nodes, main's own
-     *  format 5). */
-    public static final int VERSION = 11;
+     *  format 5); 12 since 2026-10-27: a typed result says what its rows are ({@code shape}: a relation's rows, a value's
+     *  elements, a graph fetch's objects; the result boundary program, docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R8). */
+    public static final int VERSION = 12;
 
     private PlanJson() {
     }
@@ -124,6 +125,7 @@ public final class PlanJson {
             }
             case TdsResult t -> {
                 o.put("_type", NodeTag.tdsResult.name());
+                o.put("shape", t.shape().name());
                 o.put("columns", columns(t.columns()));
                 o.put("sql", sql(t.sql()));
             }
@@ -381,7 +383,8 @@ public final class PlanJson {
                 }
                 yield new Sequence(steps);
             }
-            case tdsResult -> new TdsResult(readRelationColumns(o.getArr("columns")), readSql(o.getObj("sql")));
+            case tdsResult -> new TdsResult(named(TdsResult.Shape.class, o.getString("shape"), "typed result shape"),
+                    readRelationColumns(o.getArr("columns")), readSql(o.getObj("sql")));
             case textResult -> new TextResult(named(Format.class, o.getString("format"), "text result format"),
                     readResultType(o.getObj("type")), readSql(o.getObj("sql")));
             case keyed -> {

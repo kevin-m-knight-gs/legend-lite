@@ -53,6 +53,8 @@
 # 2026-10-21, the protocol program's leg 8, last step (docs/PROTOCOL_PROGRAM_2026_10_05.md): `door` (door/ModelFromText:
 # a text's records made the compiler's model); `parser` no longer reaches `model` (it builds records only); builtin,
 # planner and ide reach `door` (their texts' parses).
+# 2026-10-27 (the result boundary program, docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R8): `result`, a plan's typed result
+# as a stream of batches and the writers at the edge; exec reaches it (PlanRunner.stream hands each batch to a sink).
 # 2026-10-20 (the writes design's leg 7, docs/WRITES_DESIGN_2026_10_18.md §8; the plan program's step 4, the callers
 # switching to plans, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): driver reaches `execution_plan` -- Execution runs
 # a program that writes from its plan (executeUpstream: the plan made, run by PlanRunner, its answer's SQL reported).
@@ -80,10 +82,11 @@ lowering	base builtin compiler compiler_element_type error model platform protoc
 plan	base builtin compiler compiler_element_type error execution_plan lineage model sql
 resolver	base builtin compiler compiler_element_type error lowering model plan platform sql values
 setup	base cache compiler execution_plan model protocol sql sql_dialect
-exec	base cache compiler compiler_element_type database diagnostics error execution_plan json lowering model plan platform setup sql sql_dialect values
+exec	base cache compiler compiler_element_type database diagnostics error execution_plan json lowering model plan platform result setup sql sql_dialect values
 probe	base builtin lowering model platform
 testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver setup sql sql_dialect values
 execution_plan	base json model sql
+result	base execution_plan
 planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
 pure_v1	base compiler compiler_element_type database error json parser plan planner protocol sql_dialect
 driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan lineage lowering model normalizer parser plan planner platform protocol resolver setup sql sql_dialect testdatagen validation values

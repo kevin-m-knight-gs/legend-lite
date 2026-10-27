@@ -144,6 +144,7 @@ class PlanRunnerH2Test {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(inMemory("s::H2",
                     H2, new ConnectionSpecification.LocalH2(null))), H2_SERVERS, List.of(), List.of());
             ExecutionPlan plan = new ExecutionPlan(List.of(declared("n", "Integer", 1, 1)), new ExecutionPlan.TdsResult(
+                    ExecutionPlan.TdsResult.Shape.RELATION,
                     List.of(new ExecutionPlan.Column("N", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null),
                             new ExecutionPlan.Column("S", "String", new ExecutionPlan.Multiplicity(0, 1), "VARCHAR", null),
                             new ExecutionPlan.Column("D", "StrictDate", new ExecutionPlan.Multiplicity(1, 1), "DATE", null)),

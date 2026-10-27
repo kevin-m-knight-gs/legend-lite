@@ -108,11 +108,25 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * step 7 the statement wrote each row as one JSON object the runner parsed back; a document's row still reads
      * that way, {@code exec.RowDecode}.)
      */
-    public record TdsResult(List<Column> columns, Sql sql) implements Node {
+    public record TdsResult(Shape shape, List<Column> columns, Sql sql) implements Node {
         public TdsResult {
+            Objects.requireNonNull(shape, "shape");
             columns = List.copyOf(columns);
             Objects.requireNonNull(sql, "sql");
+            if (shape != Shape.RELATION && columns.size() != 1) {
+                throw new IllegalArgumentException("a " + shape + " answer is one column, given "
+                        + columns.stream().map(Column::name).toList());
+            }
         }
+
+        /**
+         * What the rows ARE (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md §2: the plan describes types, never an output
+         * format): a relation's rows; a value's elements, one per row in the one column {@code value}, whose type and
+         * multiplicity are the value's; or a graph fetch's objects, one per row in the one column whose type is their
+         * class and whose multiplicity is the fetch's, each cell the object's JSON text as the database built it (a
+         * class instance's typed encoding, R6). A writer reads the shape to choose its layout; nothing else does.
+         */
+        public enum Shape { RELATION, VALUE, OBJECTS }
     }
 
     /** A result the DATABASE writes as finished text; the runner passes it on (lite's own node — legend-engine builds

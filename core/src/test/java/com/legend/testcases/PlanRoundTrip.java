@@ -57,7 +57,7 @@ public final class PlanRoundTrip {
     private static ExecutionPlan.Node withoutTrees(ExecutionPlan.Node node) {
         return switch (node) {
             case ExecutionPlan.Sequence s -> new ExecutionPlan.Sequence(s.steps().stream().map(PlanRoundTrip::withoutTrees).toList());
-            case ExecutionPlan.TdsResult t -> new ExecutionPlan.TdsResult(t.columns(), withoutTree(t.sql()));
+            case ExecutionPlan.TdsResult t -> new ExecutionPlan.TdsResult(t.shape(), t.columns(), withoutTree(t.sql()));
             case ExecutionPlan.TextResult t -> new ExecutionPlan.TextResult(t.format(), t.type(), withoutTree(t.sql()));
             case ExecutionPlan.Keyed k -> new ExecutionPlan.Keyed(withoutTree(k.keys()), k.keyFields(), k.format(),
                     k.outputs(),

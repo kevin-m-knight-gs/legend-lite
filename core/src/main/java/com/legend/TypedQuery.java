@@ -202,6 +202,20 @@ public final class TypedQuery {
      *  {@code value}; 2026-10-17). */
     public enum Output { CSV, JSON, STREAMED_JSON, TDS_TEXT }
 
+    /** The query's TYPED execution plan for {@code runtime} (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md §5, step 1):
+     *  every statement final for its target, its answer typed rows read by the plan's column facts (a relation's rows,
+     *  a value's elements, a graph fetch's objects), no output format in it -- a writer at the edge spells them. */
+    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime) {
+        return PlanMaker.plan(this, runtime, null, java.util.Set.of(), null);
+    }
+
+    /** {@link #executionPlan(String)} under the engine's execution feature flags ({@code features}), for a session
+     *  whose server is {@code serverVersion} (null: the dialect's declared target). */
+    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
+            java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
+        return PlanMaker.plan(this, runtime, null, features, serverVersion);
+    }
+
     /** The query's execution plan for {@code runtime} (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): the text the
      *  database writes in the form {@code output} asks for, final for its target, run by a model-free runner. */
     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,

@@ -388,7 +388,11 @@ public final class SQLite extends AnsiSqlRenderer {
             return e;
         }
         if (label instanceof SqlType.Decimal d) {
-            return SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e);
+            // printf reads a NULL as 0 and writes '0.00' (measured 2026-10-11 for the Float text, and 2026-10-27 here:
+            // a NULL decimal cell read back as 0.00 on the typed plan): a NULL stays NULL
+            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, e),
+                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE))),
+                    SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e));
         }
         if (label == SqlType.Scalar.DOUBLE) {
             return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE);

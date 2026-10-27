@@ -100,6 +100,12 @@ class CodeShapeGuardrailTest {
             // array's comma before every row but the first -- the Json.awaitingFieldValue shape, scoped to one
             // result write (PlanRunner.TextSink)
             "PlanRunner.first",
+            // a typed result streamed to its sink (2026-10-27, the result boundary program's R8): the batch being
+            // filled (its row count, built once), the batcher's open batch, the collector's end, and the runner's
+            // columns-sent cursor -- each scoped to one result's stream, the Json.awaitingFieldValue shape
+            "Batch.size", "Batch.built", "Batcher.builder", "Batcher.started", "Batcher.ended",
+            "Collector.columns", "Collector.ended", "PlanRunner.started", "PlanRunner.streamed",
+            "PlanRunner.columns",
             // parser cursors + scope state
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
             "Lexer.ends", "Lexer.count",

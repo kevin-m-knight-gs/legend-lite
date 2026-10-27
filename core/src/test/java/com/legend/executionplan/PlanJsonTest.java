@@ -49,7 +49,7 @@ class PlanJsonTest {
                         new Parameter("ids", "Integer", new Multiplicity(0, null), List.of()),
                         new Parameter("status", "model::Status", new Multiplicity(1, 1), List.of("ACTIVE", "CLOSED"))),
                 new Sequence(List.of(
-                        new TdsResult(List.of(new Column("name", "String", new Multiplicity(1, 1), "VARCHAR", "VARCHAR(100)")),
+                        new TdsResult(TdsResult.Shape.RELATION, List.of(new Column("name", "String", new Multiplicity(1, 1), "VARCHAR", "VARCHAR(100)")),
                                 new Sql("select NAME as \"name\" from T where NAME = ? and ID = ANY(?)",
                                         List.of(new Slot("name", new ExecutionPlan.Binding.One("VARCHAR", null)),
                                                 new Slot("ids", new ExecutionPlan.Binding.Array("INTEGER"))), t, null)),
@@ -99,7 +99,7 @@ class PlanJsonTest {
                         new SetupStep.Rows("legend_row_load", "create temporary table legend_row_load(c0 VARCHAR, c1 VARCHAR)",
                                 "insert into T(ID, NAME) select c0, c1 from legend_row_load", "drop table legend_row_load",
                                 List.of(List.of("1", "O'Brien"), Arrays.asList("2", null)))));
-        ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(List.of(), new Sql("select 1", List.of(), t, null)));
+        ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)));
         ExecutionPlan back = PlanJson.read(PlanJson.write(plan));
         assertEquals(plan, back);
         SetupStep.Rows rows = (SetupStep.Rows) ((TdsResult) back.root()).sql().target().setup().get(1);
@@ -131,25 +131,26 @@ class PlanJsonTest {
     @Test
     void theTypedTreeIsNotWrittenYet() {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
-        String json = PlanJson.write(new ExecutionPlan(List.of(), new TdsResult(List.of(),
+        String json = PlanJson.write(new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                 new Sql("select 1", List.of(), t, null))));
         // 8 since 2026-10-20: the keyed result, per-key regions, a key's cell (the dynamic pivot's probe plan); 9 the
-        // same day: the keyed result's cells named as its statements write them (keyFields, an output's field)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":11,"), json);
+        // same day: the keyed result's cells named as its statements write them (keyFields, an output's field); 12
+        // since 2026-10-27: a typed result's shape (a relation's rows, a value's elements, a graph fetch's objects)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":12,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v11 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v12 plan"), refused.getMessage());
     }
 
     @Test
     void aParameterWithoutItsEnumValuesIsRefused_neverReadAsNone() {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
         String json = PlanJson.write(new ExecutionPlan(List.of(new Parameter("s", "model::Status",
-                new Multiplicity(1, 1), List.of("A"))), new TdsResult(List.of(), new Sql("select 1", List.of(), t, null))))
+                new Multiplicity(1, 1), List.of("A"))), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null))))
                 .replace(",\"enumValues\":[\"A\"]", "");
         assertThrows(RuntimeException.class, () -> PlanJson.read(json));
     }
