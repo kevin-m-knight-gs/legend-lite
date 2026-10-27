@@ -15023,3 +15023,13 @@ relation type where it has one, else the builder's; a String's `toCSVString`, `T
 4. **Measured here:** the text crossing (default) on DuckDB (5 suites) and channel B's relation suite, unchanged; the
    server's tests, `guardrails`, `census`, `pct_discipline`: green. The ledger pins for the measurement's own lines
    (ValueBridge 376 -> 428, PctExecuteNative 94 -> 99) are dated and leave with the switch.
+5. **The engine writer's midnight rule removed, the same day** (S1.4's first item, by legend-engine's source): its
+   `ValueTransformer` writes a `java.sql.Timestamp` cell always in full and only a `java.sql.Date` as its day, so
+   `CellText.engine` writes a date as its day by what the database answered (a day without a time, a StrictDate, a
+   DATE slot), never by its time of day (`engineDay`); Pure's print form keeps its midnight day (`dateOnly`).
+   `ResultWritersTest` pins both. The engine crossing on DuckDB then loses only the 31 Variant relations (and the one
+   moved message, also a Variant): standard identical to the text crossing. The Variant's builder spelling stays
+   refused, as PARK-34 says, until a running legend-engine is probed; its source reads `SEMISTRUCTURED`
+   (`pureTypeToDataTypeMap`, Variant -> SemiStructured; `alloyTypeToString`, SemiStructured -> 'SEMISTRUCTURED').
+   Measured: `core_tests_root`, `core_tests_server`, `core_tests_integration`, `guardrails`, `census`,
+   `//datacube:python_execute_test`, PCT DuckDB standard and relation on both crossings: green, as stated.

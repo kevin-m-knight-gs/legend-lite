@@ -65,6 +65,19 @@ class ResultWritersTest {
         assertEquals("123456789123456780.0", CellText.pure(123456789123456789.99, f));
     }
 
+    /** legend-engine writes a database timestamp in full and only a database date as its day (its ValueTransformer), so
+     *  a Date at midnight in a TIMESTAMP column is a date-time like its others; Pure's print form writes that midnight
+     *  as its day. */
+    @Test
+    void theEngineWritesATimestampInFull_evenAtMidnight_PureItsDay() {
+        Column date = col("d", "Date", "TIMESTAMP");
+        PureDateLiteral midnight = PureDateLiteral.fromDatabaseTimestamp(java.time.LocalDateTime.of(2026, 1, 7, 0, 0));
+        assertEquals("\"2026-01-07T00:00:00.000000000+0000\"", Json.toCompact(CellText.engine(midnight, date)));
+        assertEquals("2026-01-07", CellText.pure(midnight, date));
+        assertEquals("\"2026-01-07\"", Json.toCompact(CellText.engine(PureDateLiteral.parse("2026-01-07"),
+                col("s", "StrictDate", "DATE"))));
+    }
+
     @Test
     void aDecimalKeepsItsScale_anIntegerPastALongItsDigits() {
         assertEquals("1.50", CellText.pure(new BigDecimal("1.50"), col("d", "Decimal", "DECIMAL(10,2)")));

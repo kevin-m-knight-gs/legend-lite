@@ -154,7 +154,7 @@ public final class CellText {
             case BigDecimal d -> isFloat(c) ? engineFloat(d.doubleValue()) : token(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
             case String s -> isJsonCarried(c) ? Json.parse(s) : Json.str(s);
-            case PureDateLiteral d -> Json.str(dateOnly(d, c.type(), c) ? day(d) : d.toEngineJson());
+            case PureDateLiteral d -> Json.str(engineDay(d, c) ? day(d) : d.toEngineJson());
             case PureTimeLiteral t -> Json.str(t.toEngineString());
             case Map<?, ?> m -> structure(declared(m), false, c);
             case List<?> l -> structure(declared(l), false, c);
@@ -281,6 +281,17 @@ public final class CellText {
             return true;
         }
         return type.equals("Date") && midnight(d);
+    }
+
+    /** Whether legend-engine writes a date as its day: by what the database answered, never by the time of day --
+     *  its serializer writes a {@code java.sql.Timestamp} in full and only a {@code java.sql.Date} as its day
+     *  ({@code ValueTransformer}, legend-engine's relational execution), so a day without a time, a StrictDate's, a
+     *  DATE slot's. A Date at midnight in a TIMESTAMP column is a date-time like the column's others (2026-10-27, the
+     *  result boundary program: found by the PCT read as the engine's adapter reads it, which a column of both
+     *  spellings failed, testExtendMaxDate; the day at midnight is Pure's print form, {@link #dateOnly}). */
+    private static boolean engineDay(PureDateLiteral d, ExecutionPlan.Column c) {
+        return !d.precision().atLeast(PureDateLiteral.Precision.HOUR) || c.type().equals("StrictDate")
+                || slotWord(c.slot()).equals("DATE");
     }
 
     private static boolean midnight(PureDateLiteral d) {
