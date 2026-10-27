@@ -223,11 +223,28 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
     ['src/ui/pure-form.ts', 'the Pure box window\'s steps and its example'],
   ]);
 
+  /**
+   * DataCube's Pure library (src/pure-library-text.ts DATACUBE_LIBRARY; the user, 2026-10-26: "can be datacube pure scripts"):
+   * a ###Pure section of functions the planner takes beside a model where a query calls one, never a query -- the lines
+   * of its template alone, so a query built as text elsewhere in the file is still one. Added 2026-10-27: its functions
+   * compare words ($stat == 'mean'), which this rule read as Pure built in a string.
+   */
+  const LIBRARY = 'src/pure-library-text.ts';
+  const libraryLines = (): ReadonlySet<number> => {
+    const lines = SOURCES.read(LIBRARY).split('\n');
+    const from = lines.findIndex((l) => l.startsWith('export const DATACUBE_LIBRARY = `'));
+    const to = lines.findIndex((l, i) => i > from && l.startsWith('`;'));
+    assert.ok(from >= 0 && to > from, 'the library is one template');
+    return new Set(lines.map((_, i) => i).filter((i) => i > from && i < to));
+  };
+
   it('builds no Pure text outside what a person types', () => {
     const hits: string[] = [];
+    const library = libraryLines();
     for (const f of FILES.filter((x) => !x.includes('generated'))) {
       SOURCES.read(f).split('\n').forEach((line, i) => {
         if (isComment(line) || !PURE_SYNTAX.test(line)) return;
+        if (f === LIBRARY && library.has(i)) return;
         const allowed = FOR_A_PERSON.get(f);
         if (allowed === undefined) hits.push(`${f}:${i + 1}: ${line.trim()}`);
       });

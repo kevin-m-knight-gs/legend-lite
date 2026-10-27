@@ -408,11 +408,19 @@ final class Overloads {
      * return as the call resolved it): a declared table's every column is in the body's answer, of a type that
      * conforms (the kernel's relation unify), and the answer has no column the declaration does not name -- a
      * working column left in it is refused, naming the function (2026-10-27, docs/PURE_LIBRARY_SPIKE_2026_10_27.md
-     * GAP 3). A declaration that is not a resolved table ({@code Relation<Any>}) names no columns, and holds none.
+     * GAP 3), as is a body that answers no table at all. A declaration that is not a resolved table
+     * ({@code Relation<Any>}) names no columns, and holds none.
      */
     private void holdToDeclared(TypedFunction chosen, ExprType declared, TypedSpec typed) {
         Type.RelationType want = Type.relationSchema(declared.type());
         Type.RelationType got = Type.schemaView(typed.info().type());
+        // a declared table whose body answers none (a number, a row) is refused, never typed as the body (the library
+        // review, 2026-10-27: it was silently let through)
+        if (got == null && declared.type() instanceof Type.GenericType g
+                && com.legend.compiler.element.type.PlatformTypes.RELATION_CARRIERS.contains(g.rawFqn())) {
+            throw new TypeInferenceException("the body of " + chosen.qualifiedName() + " answers "
+                    + typed.info().type().typeName() + " where its declared " + declared.type().typeName() + " is a table");
+        }
         if (want == null || got == null) {
             return;
         }

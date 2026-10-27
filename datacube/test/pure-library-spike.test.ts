@@ -19,7 +19,7 @@ import { type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { seriesQuery, TS_DATE, TS_LOWER, TS_UPPER, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
 import { lambda } from '../../pure-protocol/src/index.ts';
-import { DATACUBE_LIBRARY } from '../src/pure-library.ts';
+import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
 
 // -- the prices of timeseries-queries.test.ts: two instruments over 40 weekdays from 2024-01-01, and a third on fewer --
 

@@ -732,8 +732,13 @@ const CHART_BUDGET = 303_500;
  *  headroom ~2%). Measured 72,007.
  *  73,500 -> 75,300 (2026-10-26, the user: "try as pure function ... can be datacube pure scripts" -- a tile's mean,
  *  returns and volatility written as calls of DataCube's Pure library (timeseries-query.ts Writer.library), and the Query
- *  window's Library tab showing it (ui/timeseries-view.ts #libraryPanel) -- the headroom ~2%). Measured 73,797. */
-const TIMESERIES_BUDGET = 75_300;
+ *  window's Library tab showing it (ui/timeseries-view.ts #libraryPanel) -- the headroom ~2%). Measured 73,797.
+ *  75,300 -> 89,000 (2026-10-27, the library review: DataCube's Pure library, 128 functions, every function of the
+ *  catalog, is a chunk of its own, src/pure-library-text.ts, fetched with the first query that calls it -- a tile's
+ *  every query does -- so it is counted here, and checked off every page's startup, where it had been the planner's):
+ *  measured 87,233, the library's text 16,264 of it, the tile's own code 70,969 (the calendar forms' writing gone into
+ *  the library); the headroom ~2%. */
+const TIMESERIES_BUDGET = 89_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -1002,7 +1007,11 @@ describe('the page loads ECharts only when a chart draws', () => {
       fetched.add(f);
       for (const s of PAGE.get(f)?.statics ?? []) visit(s);
     };
-    chunksOf().filter((f) => holds(f, 'src/ui/timeseries-view.ts') || holds(f, 'src/timeseries-render.ts')).forEach(visit);
+    // and DataCube's Pure library (pure-library-text.ts), a chunk of its own fetched with the first query that calls it --
+    // a tile's every query does -- never at startup (the library review, 2026-10-27)
+    for (const f of at) assert.ok(!holds(f, 'src/pure-library-text.ts'), `${f} carries the Pure library's text`);
+    chunksOf().filter((f) => holds(f, 'src/ui/timeseries-view.ts') || holds(f, 'src/timeseries-render.ts')
+      || holds(f, 'src/pure-library-text.ts')).forEach(visit);
     for (const f of fetched) assert.ok(!holds(f, 'echarts') || chart.has(f), `${f}: ECharts a first chart does not fetch`);
     // ECharts' SVG painter a chunk of its own, fetched with a picture's export as SVG alone (chart-render.ts svgChart)
     for (const f of [...at, ...chart, ...fetched]) assert.ok(!isSvgPainter(f), `${f} carries the SVG painter`);
@@ -1070,6 +1079,8 @@ describe('the page loads ECharts only when a chart draws', () => {
     const outputs = outputsOf(engine);
     const files = startup(engine, outputs);
     for (const f of files) assert.ok(!holds(f, 'echarts', outputs), `${f} carries ECharts`);
+    // the Pure library's text a chunk of its own, fetched with the first query that calls it (2026-10-27)
+    for (const f of files) assert.ok(!holds(f, 'src/pure-library-text.ts', outputs), `${f} carries the Pure library's text`);
     const size = files.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= ENGINE_BUDGET,
       `the engine page's script is ${size.toLocaleString()} bytes gzipped, over its budget of ${ENGINE_BUDGET.toLocaleString()}`);

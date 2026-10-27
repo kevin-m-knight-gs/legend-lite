@@ -1761,6 +1761,19 @@ class UserFunctionIntegrationTest {
             assertEquals(List.of(0.0, -1.0, 1.0), result.rows().stream().map(r -> ((Number) r.get(4)).doubleValue()).toList());
         }
 
+        @Test
+        @DisplayName("a declared return is held to each call: a body that answers no table is refused by name")
+        void aBodyOfNoTableIsRefused() {
+            String model = modelWith("""
+                    function test::notATable<T>(t: Relation<T>[1]): Relation<T>[1]
+                    {
+                        1
+                    }
+                    """);
+            var ex = assertThrows(Exception.class, () -> exec(model, "|" + PEOPLE + "->select(~[FIRST_NAME])->test::notATable()"));
+            assertTrue(ex.getMessage().contains("test::notATable") && ex.getMessage().contains("is a table"), ex.getMessage());
+        }
+
         /** fromMean with its drop replaced: the same body, its answer {@code drop}'s. */
         private String fromMeanThat(String drop) {
             return modelWith(FROM_MEAN.replace("->without(~t_m)", drop));

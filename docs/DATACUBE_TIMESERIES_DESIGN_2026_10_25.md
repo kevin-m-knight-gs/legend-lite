@@ -425,9 +425,12 @@ a weighted sum or a basket as rows -- a row a member and date, its value and wei
 `rampPeriod`'s (none before the first date of a column, that period on), `overPeriod` the two over one column; so a
 volatility, a maximum drawdown, a Sharpe ratio and a VWAP over a calendar period (`volatilityPeriod`,
 `maxDrawdownPeriod`, `sharpeRatioPeriod`, `vwapPeriod`) ramp from the first date of the series they read (a price's),
-not of the column a statistic is over (its returns' or its drawdowns', a period later). Every function of the catalog is
-the library's but `append` and `prepend` (their dates the align's) and a few over a calendar period that no statistic
-word of `windowPeriod`'s says (docs/PURE_LIBRARY_SPIKE_2026_10_27.md, "What stays DataCube's"). A model takes the library only where a query
+not of the column a statistic is over (its returns' or its drawdowns', a period later). Two columns over a calendar
+period are `pairPeriod`'s (a correlation or a covariance of the pairs whose dates are in it; `slopePeriod` over it),
+and each pair function, benchmark-relative statistic, lead-lag, product, vol swap, Dickey-Fuller and half-life has
+its `...Period` form; `append` and `prepend` splice series aligned by the caller (`union`'s way). Every function of the
+catalog is the library's (docs/PURE_LIBRARY_SPIKE_2026_10_27.md, "What stays DataCube's": the tile's shaping alone
+stays). A model takes the library only where a query
 calls it: the planner plans such a query over its model with the library after it (`lite-planner.ts` and
 `planner.ts #over`, a planner of its own over that model), every other query over its model as it is, byte for byte.
 A host that plans and runs is sent the library BESIDE the model (`planRequest`'s `library`), never inside it: Python's

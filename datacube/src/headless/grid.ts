@@ -15,7 +15,8 @@ import { askedOf, askedSources, boundsOf, Problem, seriesOf } from './timeseries
 import { snapRefusal } from '../../../engine-client/src/snap.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
-import { callsLibrary, DATACUBE_LIBRARY } from '../pure-library.ts';
+import { callsLibrary } from '../pure-library.ts';
+import { DATACUBE_LIBRARY } from '../pure-library-text.ts';
 import { nameProblem } from '../calc.ts';
 import { chartFrom, chartGrid, chartProblems, followCube, followRefusal, readChart, showGridWay } from '../chart-spec.ts';
 import { draftColumn, draftStage, existingDraft, newDraft, type ColumnDraft } from '../column-draft.ts';

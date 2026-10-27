@@ -257,7 +257,10 @@ class OwnCorpusConformanceTest {
                 // generic over relations, which only lite's dialect admits (legend-engine refuses a user function's
                 // type parameters) -- UserFunctionIntegrationTest$RelationGeneric's recursion witness (test::loop<T>);
                 // its columns-by-name library reads ⊆, so it is a signatures row (below)
-                Map.entry("PURE-DIALECT-generics", 9),
+                // 9 -> 10 (2026-10-27, REVIEWED, S112's return check, the A4 review's 3): test::notATable<T>, a
+                // function declared to answer a table whose body answers a number, refused by name
+                // (UserFunctionIntegrationTest.aBodyOfNoTableIsRefused)
+                Map.entry("PURE-DIALECT-generics", 10),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),

@@ -2856,7 +2856,7 @@ public final class Lowerer {
                 args.add(resolveOrThrow(base, p.property()));
                 trailingIntArgs(call, args);
                 return new SqlExpr.WindowCall(new SqlAgg.ValueFn(fn.sqlName(), args),
-                        over.partitionBy(), over.orderBy(), over.frame());
+                        over.partitionBy(), over.orderBy(), fn.readsFrame() ? over.frame() : null);
             }
             // reduce(rel, w, row, map, agg): the WINDOWED map+reduce — the
             // agg-col machinery arriving as a native call (real reduce.pure).
@@ -2919,8 +2919,9 @@ public final class Lowerer {
                 }
                 List<SqlExpr> args = new ArrayList<>();
                 trailingIntArgs(call, args);
+                // a ranking reads the partition, never a frame (WindowFn.readsFrame)
                 return new SqlExpr.WindowCall(new SqlAgg.RankingFn(fn.sqlName(), args),
-                        over.partitionBy(), over.orderBy(), over.frame());
+                        over.partitionBy(), over.orderBy(), null);
             }
             case TypedNativeCall call -> {
                 List<SqlExpr> args = call.args().stream()

@@ -142,8 +142,10 @@ class OwnDialectCensusTest {
                     // S112's hygiene): test::counted, a declared literal column kept by name (signatures 18 -> 19);
                     // 10 -> 11 (2026-10-27, REVIEWED, S114): test::meanOf, its window whole and its column read;
                     // 11 -> 12 (2026-10-27, REVIEWED, S112's hygiene of a nested call): test::offItsMean over
-                    // test::meanOf, the nested call's output column the body's own (signatures 20 -> 21)
-                    java.util.Map.entry("UserFunctionIntegrationTest.java", 12),
+                    // test::meanOf, the nested call's output column the body's own (signatures 20 -> 21); 12 -> 13
+                    // (2026-10-27, REVIEWED, S112's return check, the A4 review's 3): test::notATable, a body of no
+                    // table refused (generics 9 -> 10)
+                    java.util.Map.entry("UserFunctionIntegrationTest.java", 13),
                     // D4 variance pins: the contravariance spec REQUIRES
                     // function-typed parameter signatures
                     // (Function<{Number[1]->String[1]}>) — pure-dialect

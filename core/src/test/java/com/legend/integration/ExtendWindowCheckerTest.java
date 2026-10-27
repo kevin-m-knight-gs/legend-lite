@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.sql.SQLException;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -1695,6 +1696,26 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             // the first of each partition has no row before (none), the second of p 0 follows a 10 (none)
             assertEquals(java.util.Arrays.asList(null, null, 1.5, null, 2.0), r.rows().stream()
                     .map(row -> row.get(g) == null ? null : ((Number) row.get(g)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("a lag and a rank in a framed window: the partition's, the frame never written for them (SAP IQ and H2 refuse one)")
+        void aLagReadsThePartitionNotTheFrame() throws SQLException {
+            String q = NUMS + "->extend(over(~p, [~o->ascending()], rows(0, 0)), ~[x:{p,w,r|$p->lag($r).v}, k:{p,w,r|$p->rowNumber($r)}])"
+                    + "->extend(over(~p, [~o->ascending()], rows(0, 0)), ~s:{p,w,r|$r.v}:y|$y->sum())"
+                    + "->sort([~p->ascending(), ~o->ascending()])";
+            String sql = generateSql(q);
+            assertTrue(sql.matches("(?s).*LAG\\([^)]*\\) OVER \\([^)]*\\).*") && !sql.matches("(?s).*LAG\\([^)]*\\) OVER \\([^)]*ROWS[^)]*\\).*"), sql);
+            assertTrue(sql.contains("ROWS BETWEEN"), "the sum keeps its frame: " + sql);
+            var r = executeRelation(q);
+            int x = colIdx(r, "x");
+            int k = colIdx(r, "k");
+            int sm = colIdx(r, "s");
+            // the row before in the partition, whatever the frame (which holds the row alone)
+            assertEquals(java.util.Arrays.asList(null, 10, 20, null, 100), r.rows().stream()
+                    .map(row -> row.get(x) == null ? null : ((Number) row.get(x)).intValue()).toList());
+            assertEquals(List.of(1, 2, 3, 1, 2), r.rows().stream().map(row -> ((Number) row.get(k)).intValue()).toList());
+            assertEquals(List.of(10, 20, 30, 100, 200), r.rows().stream().map(row -> ((Number) row.get(sm)).intValue()).toList());
         }
 
         @Test

@@ -4,7 +4,8 @@
 // headless gridChart). The page command that adds or sets it is Python's generated builder's, applied by pageApply.
 
 import { fromJson, toJson, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
-import { callsLibrary, DATACUBE_LIBRARY } from '../pure-library.ts';
+import { callsLibrary } from '../pure-library.ts';
+import { DATACUBE_LIBRARY } from '../pure-library-text.ts';
 import { readPage, type PageDocument } from '../page-document.ts';
 import { gridTitle } from '../page-ids.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot } from '../snapshot.ts';

@@ -5,7 +5,6 @@ package com.legend.compiler.spec;
 import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
-import com.legend.platform.CoreFn;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.ColSpec;
@@ -31,7 +30,7 @@ import java.util.regex.Pattern;
  * <p>Each expansion renames, before the call's arguments are substituted in, every column name the body MAKES -- a
  * column spec of {@code extend} after its source, {@code rename}'s new name, {@code groupBy}'s aggregates,
  * {@code aggregate}'s and {@code project}'s columns, and the column a call of another function generic over relations
- * writes (a column-spec parameter whose column its declared return adds: {@code out} of
+ * writes (a column-spec parameter, or an array of them, whose columns its declared return adds: {@code out} of
  * {@code Relation<T+O>}'s {@code out: ColSpec<O>}, 2026-10-27) -- that its declared return does not name literally, at every
  * place the body writes it (its column specs and its row reads, {@code $r.name}), to a name of its own that no column
  * of the call's tables and no column the call names has. A name the body reads but never makes is the caller's, and
@@ -121,7 +120,8 @@ final class ColumnHygiene {
     /** The names the body's making positions write. */
     private void collectMade(ValueSpecification v, Set<String> made) {
         if (v instanceof AppliedFunction af) {
-            var form = CoreFn.of(af.function());
+            // the form the call resolved to, never its spelling (a user's generic function named extend is no extend)
+            var form = com.legend.compiler.ResolvedNames.form(af);
             List<ValueSpecification> ps = af.parameters();
             if (form.isPresent()) {
                 switch (form.get()) {
@@ -200,10 +200,12 @@ final class ColumnHygiene {
         }
     }
 
-    /** The column variable of a {@code ColSpec<O>} parameter ({@code O}); null for any other. */
+    /** The column variable of a {@code ColSpec<O>} or {@code ColSpecArray<O>} parameter ({@code O}); null for any
+     *  other. */
     private static @com.legend.base.Nullable String columnVariable(Type t) {
-        return t instanceof Type.GenericType g && PlatformTypes.COL_SPEC.equals(g.rawFqn()) && g.arguments().size() == 1
-                && g.arguments().get(0) instanceof Type.TypeVar v ? v.name() : null;
+        return t instanceof Type.GenericType g
+                && (PlatformTypes.COL_SPEC.equals(g.rawFqn()) || PlatformTypes.COL_SPEC_ARRAY.equals(g.rawFqn()))
+                && g.arguments().size() == 1 && g.arguments().get(0) instanceof Type.TypeVar v ? v.name() : null;
     }
 
     /** The names a column spec or an array of them writes. */

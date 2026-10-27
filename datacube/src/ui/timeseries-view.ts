@@ -46,7 +46,7 @@ import {
 import type { MountedTimeseries } from '../timeseries-render.ts';
 import { curveNotes, curveOption, describeView, histogramOption, scatterOption, seasonalityOption, TS_MONTH_NAMES, type TsViewContext } from '../timeseries-views.ts';
 import { lazily } from '../lazily.ts';
-import { DATACUBE_LIBRARY, LIBRARY_PACKAGE } from '../pure-library.ts';
+import { LIBRARY_PACKAGE, loadLibrary } from '../pure-library.ts';
 import type { TsCodeLanguage, TsCodeOf } from '../timeseries-code.ts';
 import { chromeIcon, closeMark } from './tile-icons.ts';
 import { isTextEntry } from '../focus.ts';
@@ -1277,17 +1277,28 @@ export class TimeseriesView {
 
   /** DATACUBE'S PURE LIBRARY (pure-library.ts; the user, 2026-10-26): the functions its queries call by name
    *  (`datacube::ts::mean`, ...), as the planner reads them after the model of a query that calls them, copied with a
-   *  click. */
+   *  click. Its text is a chunk of its own (pure-library-text.ts), read as the planner reads it. */
   #libraryPanel(): HTMLElement {
     const doc = this.#doc;
     const panel = el(doc, 'div', 'dc-ts-code-panel');
+    const program = el(doc, 'pre', 'dc-ts-code dc-ts-program', 'Reading…');
+    let text: string | undefined;
     const copies = el(doc, 'div', 'dc-ts-row');
-    copies.append(button(doc, 'Copy Library', 'The library\'s Pure', () => void this.#copy(DATACUBE_LIBRARY, 'The library\'s Pure copied.')));
+    copies.append(button(doc, 'Copy Library', 'The library\'s Pure', () => {
+      if (text === undefined) this.#say([`The library is not read: ${program.textContent ?? ''}`], true);
+      else void this.#copy(text, 'The library\'s Pure copied.');
+    }));
     panel.append(
       el(doc, 'div', 'dc-ts-hint', `The functions these queries call by name (${LIBRARY_PACKAGE}::mean, ::volatility, ...): DataCube's own, written `
         + 'in Pure over any table, which legend-lite reads after the model of a query that calls them and expands into it. '
         + 'A query of your own may call them too.'),
-      copies, el(doc, 'pre', 'dc-ts-code dc-ts-program', DATACUBE_LIBRARY));
+      copies, program);
+    void loadLibrary().then((library) => {
+      text = library;
+      program.textContent = library;
+    }).catch((e: unknown) => {
+      program.textContent = `Not read: ${e instanceof Error ? e.message : String(e)}`;
+    });
     return panel;
   }
 

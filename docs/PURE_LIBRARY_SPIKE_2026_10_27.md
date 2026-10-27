@@ -69,13 +69,14 @@ its split into lines, the view's anchor and window, a candle's period bucketing,
 view's rebase.
 
 Every function of the tile's catalog was converted (2026-10-27, ten families, each held to today's numbers by
-`timeseries-queries.test.ts` and checked to call the library by name), but these, each with why:
-
-- `append` and `prepend`: the dates they keep are the align's -- which side has a row on each date -- not a figure.
-- Over a calendar period: a pair's statistics (correlation, beta, covariance, a regression's, the benchmark-relative
-  ones), a product, a vol swap's volatility, and Dickey-Fuller and a half-life -- none is a statistic word of
-  `windowPeriod`'s (each reads two columns, or a product's signs and logs), so each stays the writer's own self-join
-  until `windowPeriod` takes them. Over a count of periods each is the library's.
+`timeseries-queries.test.ts` and checked to call the library by name). The last of them moved the same day (the user:
+"is moving the rest of the charts / functions the right thing?" -- yes): over a calendar period, a pair's statistics,
+the benchmark-relative ones and a lead-lag (`pairPeriod`, `windowPeriod`'s of two columns: a correlation or a
+covariance of the pairs whose dates are in the period; `slopePeriod` over it), a product (`windowPeriod` counts too:
+the zeros, the negatives, the logs' sum), a vol swap's volatility, and Dickey-Fuller and a half-life, each a
+`...Period` function held to a definition written out in the test; and `append` and `prepend`, one-table functions of
+series aligned by the caller, as `union` is (the align says which side has a row on each date; the function keeps the
+splice's rows).
 
 ## The next step
 

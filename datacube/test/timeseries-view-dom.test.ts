@@ -19,7 +19,7 @@ import type { CubeSnapshot } from '../src/snapshot.ts';
 import type { MountedTimeseries } from '../src/timeseries-render.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { tileCode } from '../src/timeseries-code.ts';
-import { DATACUBE_LIBRARY } from '../src/pure-library.ts';
+import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { ingestFile } from '../src/upload.ts';
 import { TimeseriesView, type TsGrid, type TsTogether } from '../src/ui/timeseries-view.ts';
@@ -571,6 +571,8 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       tabs[1]!.click();
       assert.deepEqual(panels.map((p) => p.hidden), [true, false, true, true]);
       const program = (i: number): string => panels[i]!.querySelector('.dc-ts-program')!.textContent!;
+      // its text a chunk of its own (pure-library-text.ts), read as the planner reads it
+      await until(() => program(1) !== 'Reading…', 'the library read');
       assert.equal(program(1), DATACUBE_LIBRARY);
       assert.match(program(1), /function datacube::ts::volatility</);
       windowButton(windows, 'Copy Library').click();

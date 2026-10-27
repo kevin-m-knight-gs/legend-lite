@@ -52,10 +52,6 @@ import type { Scalar } from '../../engine-client/src/result.ts';
 // a value axis's breaks, and the canvas the page draws on
 echarts.use([AxisBreak, CanvasRenderer]);
 
-/**
- * A chart as a picture, for an export of the page: the live chart's own pixels at `ratio`
- * times its size, on white (a PNG for a page or a workbook, a JPEG a PDF embeds as it is).
- */
 /** A canvas chart in `el` over the charts' ECharts, as every chart is drawn: a timeseries tile's (timeseries-render.ts),
  *  which registers nothing of its own -- one build of ECharts, fetched with whichever draws first. */
 export function canvasChart(el: HTMLElement): echarts.ECharts {
@@ -70,6 +66,10 @@ export async function svgChart(el: HTMLElement): Promise<echarts.ECharts> {
   return echarts.init(el, null, { renderer: 'svg' });
 }
 
+/**
+ * A chart as a picture, for an export of the page: the live chart's own pixels at `ratio`
+ * times its size, on white (a PNG for a page or a workbook, a JPEG a PDF embeds as it is).
+ */
 export interface ChartPicture {
   /** The chart's size on screen, in CSS pixels. */
   readonly width: number;

@@ -377,7 +377,17 @@ class Writer {
   /** A function of the library over a calendar period back of each date of its line: `libraryOfLine`'s, the period
    *  its n and its unit. */
   libraryOfPeriod(name: string, what: string, value: string, t: TsTenor, args: readonly ValueSpecification[] = []): string {
-    return this.libraryOfLine(name, what, value, [lit.integer(t.n), enumValue(DURATION, t.unit), ...args]);
+    return this.libraryOfLine(name, what, value, [...Writer.period(t), ...args]);
+  }
+
+  /** Its line and its dates, as the library's functions over a line take them: `~<line>, ~<date>`. */
+  lineAndDate(): ValueSpecification[] {
+    return [colSpec(this.part), colSpec(this.at)];
+  }
+
+  /** A calendar period as the library's period functions take it: its n and its unit. */
+  static period(t: TsTenor): ValueSpecification[] {
+    return [lit.integer(t.n), enumValue(DURATION, t.unit)];
   }
 
   /** A function of the library of each row alone: `->datacube::ts::<name>(<args>, ~<out>)`. */
@@ -399,14 +409,14 @@ class Writer {
 
   /**
    * THE MEMBERS AS ROWS (the library's long table, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.7: a row a member and
-   * date): of each of `columns` (a member's values, on this writer's rows), its line, its date, its number, its value and
-   * its weight -- the members' rows concatenated.
+   * date): of each of `columns` (a member's values, on this writer's rows), its line, its date, its time (ORD), its
+   * number, its value and its weight -- the members' rows concatenated.
    */
   members(columns: readonly string[], weights: readonly number[]): { readonly rel: Relation; readonly member: string; readonly value: string; readonly weight: string } {
     const member = this.fresh('mb_m');
     const value = this.fresh('mb_v');
     const weight = this.fresh('mb_w');
-    const rel = columns.map((c, i) => this.rel.select([this.part, this.at, c]).rename(c, value)
+    const rel = columns.map((c, i) => this.rel.select([this.part, this.at, ORD, c]).rename(c, value)
       .extend([derive(member, row(lit.integer(i))), derive(weight, row(float(weights[i]!)))]))
       .reduce((all, one_) => all.concatenate(one_));
     return { rel, member, value, weight };
@@ -556,25 +566,6 @@ class Writer {
     this.rel = this.rel.extend([derive(name, lambda(['p', 'w', 'r'], fn('rowNumber', variable('p'), variable('r'))))], this.#over(null));
     return name;
   }
-
-
-
-  /**
-   * THE PRODUCT of `g`'s values over a frame, an empty one skipped (pandas' prod): 0 where one is 0, its sign from the
-   * count of those below 0, its magnitude e to the sum of the logs of the others -- the database's (the review's Q8).
-   */
-  product(g: string, frame: Frame): string {
-    if (!isTenor(frame)) return this.library('windowProduct', 'prod', g, frame, []);
-    const R = Writer.read;
-    const zeros = this.window('zeros', 'count', R(this.row('z', when(fn('equal', one(g), lit.integer(0)), lit.integer(1), none()))), frame);
-    const negatives = this.window('negs', 'count', R(this.row('neg', when(fn('lessThan', one(g), lit.integer(0)), lit.integer(1), none()))), frame);
-    const sum = this.window('lgs', 'plus', R(this.row('lg', when(fn('equal', one(g), lit.integer(0)), none(), fn('log', fn('abs', one(g)))))), frame);
-    const logs = when(fn('isEmpty', col(sum)), float(0), one(sum));
-    return this.row('prod', when(fn('greaterThan', one(zeros), lit.integer(0)), float(0),
-      op('times', fn('pow', float(-1), one(negatives)), fn('exp', logs))));
-  }
-
-
 
   /**
    * A COLUMN AS OF A CALENDAR PERIOD BACK (gs-quant's lag by a tenor, as of): of its line's periods where it has a
@@ -1259,19 +1250,8 @@ function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | un
       const w = al.w;
       const [hx, hy] = al.has as [string, string];
       if (e.fn === 'union') return { w, v: { column: w.libraryOfRow('union', 'union', [colSpec(a), colSpec(b)]) } };
-      // a splice's dates are the align's (which side has a row on each), DataCube's
-      const R = Writer.read;
-      const periodOf_ = (has: string): string => w.row('sp_p', when(fn('isNotEmpty', col(has)), col(PERIOD), none()));
-      if (e.fn === 'append') {
-        const last = w.window('x_last', 'max', R(periodOf_(hx)), 'all');
-        w.rel = w.rel.filter(row(or(fn('isNotEmpty', col(hx)),
-          and(fn('isNotEmpty', col(hy)), or(fn('isEmpty', col(last)), fn('greaterThan', col(PERIOD), col(last)))))));
-        return { w, v: { column: w.row('append', when(fn('isNotEmpty', col(hx)), col(a), col(b))) } };
-      }
-      const first = w.window('y_first', 'min', R(periodOf_(hy)), 'all');
-      w.rel = w.rel.filter(row(or(fn('isNotEmpty', col(hy)),
-        and(fn('isNotEmpty', col(hx)), or(fn('isEmpty', col(first)), fn('lessThan', col(PERIOD), col(first)))))));
-      return { w, v: { column: w.row('prepend', when(fn('isNotEmpty', col(hy)), col(b), col(a))) } };
+      // a splice of the align's rows (which side has one on each date), the library's (pure-library.ts append, prepend)
+      return { w, v: { column: w.libraryOfRow(e.fn, e.fn, [...w.lineAndDate(), colSpec(a), colSpec(b), colSpec(hx), colSpec(hy)]) } };
     }
     case 'excess_returns': {
       const x = seriesArg(sh, e, 0);
@@ -1279,11 +1259,11 @@ function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | un
       if (rate.kind === 'number') {
         // over a rate: x less the rate accrued on it day by day, actual/360 -- gs-quant's er_j = er_j-1 + x_j - x_j-1 (1 +
         // rate f_j), summed: x_j - rate * the sum of x_k-1 f_k to date
-        // the library's (pure-library.ts excessReturns): a period's days its dates' difference, in seconds over 86400 of a
-        // date-time's
+        // the library's (pure-library.ts excessReturns): a period's days its last observation's time's difference (ORD),
+        // in seconds over 86400 of a date-time's -- never its date's (the library review, 2026-10-27)
         const w = x.w;
         return { w, v: { column: w.libraryOfLine('excessReturns', 'er', columnOfValue(x.v),
-          [float(rate.value), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'), lit.integer(w.seconds ? 86400 : 1)]) } };
+          [colSpec(ORD), lit.integer(w.seconds ? 86400 : 1), float(rate.value)]) } };
       }
       // over a cash index: on the dates both have, x's first value times the product of (1 + x's return - y's) -- the
       // library's (excessReturnsOver)
@@ -1327,7 +1307,6 @@ function spanOf(e: Extract<TsExpr, { kind: 'call' }>, name: string): Span {
  */
 function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | undefined {
   const n = (name: string): number => paramOf(e, name) as number;
-  const R = Writer.read;
   /** Two series' simple returns, each on its own dates, on the dates both have one (a pair's, a benchmark's). */
   const returnsOf = (k = 0): { readonly w: Writer; readonly a: string; readonly b: string } => {
     const x = seriesArg(sh, e, 0);
@@ -1392,24 +1371,15 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
       const { w, a, b } = returnsOf();
       const size = spanOf(e, 'w');
       const frame = Writer.frame(size);
-      // over a count of periods: the library's (pure-library.ts), a deviation's ramp two at least, a capture's the window's
+      // the library's (pure-library.ts): of a count of periods, a deviation's ramp two at least, a capture's the window's;
+      // of a calendar period, from the first return's date that period on
+      const capture = e.fn === 'up_capture' || e.fn === 'down_capture';
+      const perYear = capture ? [] : [colSpec(w.perYearColumn())];
       if (typeof frame !== 'object') {
-        const capture = e.fn === 'up_capture' || e.fn === 'down_capture';
         return { w, v: { column: w.libraryOfRow(BENCHMARKED[e.fn]!, e.fn, [w.windowOf(frame), colSpec(a), colSpec(b),
-          lit.integer(capture ? (size as number) : Math.max(size as number, 2)), ...(capture ? [] : [colSpec(w.perYearColumn())])]) } };
+          lit.integer(capture ? (size as number) : Math.max(size as number, 2)), ...perYear]) } };
       }
-      if (e.fn === 'up_capture' || e.fn === 'down_capture') {
-        // the first's mean return on the periods the benchmark rose (fell) over the benchmark's mean then
-        const then = (c: string): string => w.row('cap', when(fn(e.fn === 'up_capture' ? 'greaterThan' : 'lessThan', one(b), lit.integer(0)), col(c), none()));
-        const ma = w.window('cap_a', 'average', R(then(a)), frame);
-        const mb = w.window('cap_b', 'average', R(then(b)), frame);
-        return { w, v: { column: w.ramped(w.ratio('capture', one(ma), mb), a, size, frame) } };
-      }
-      const active = w.row('act', op('minus', one(a), one(b)));
-      const sd = w.std(active, size);
-      if (e.fn === 'tracking_error') return { w, v: { column: w.row('te', op('times', op('times', one(sd), w.annual()), lit.integer(100))) } };
-      const mean = w.window('act_m', 'average', R(active), frame);
-      return { w, v: { column: w.row('ir', when(fn('equal', one(sd), lit.integer(0)), none(), op('times', fn('divide', one(mean), one(sd)), w.annual()))) } };
+      return { w, v: { column: w.libraryOfRow(`${BENCHMARKED[e.fn]!}Period`, e.fn, [...w.lineAndDate(), colSpec(a), colSpec(b), ...Writer.period(frame), ...perYear]) } };
     }
     case 'lead_lag': {
       const { w, a, b } = returnsOf(n('lag'));
@@ -1418,7 +1388,7 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
       if (typeof frame !== 'object') {
         return { w, v: { column: w.libraryOfRow('leadLag', 'corr', [w.windowOf(frame), colSpec(a), colSpec(b), lit.integer(Math.max(size as number, 2))]) } };
       }
-      return { w, v: { column: w.ramped(w.window('corr', 'corr', fn('rowMapper', R(a), R(b)), frame), a, atLeast(size, 2), frame) } };
+      return { w, v: { column: w.libraryOfRow('leadLagPeriod', 'corr', [...w.lineAndDate(), colSpec(a), colSpec(b), ...Writer.period(frame)]) } };
     }
     case 'total_return': {
       const x = seriesArg(sh, e, 0);
@@ -1426,10 +1396,10 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
       const told = e.args[1]!;
       if (told.kind === 'number') {
         // a yield a year, accrued day by day: each period's price over the one before, and the yield over the days since
-        // -- the library's (pure-library.ts totalReturn), a period's days its dates' difference
+        // -- the library's (pure-library.ts totalReturn), a period's days its last observation's time's difference (ORD)
         const w = x.w;
         return { w, v: { column: w.libraryOfLine('totalReturn', 'tr', px,
-          [float(told.value), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'), lit.integer(w.seconds ? 86400 : 1)]) } };
+          [colSpec(ORD), lit.integer(w.seconds ? 86400 : 1), float(told.value)]) } };
       }
       // dividends on their dates: (price + the dividends since the price before) / the price before, on the price's
       // dates -- a dividend of a date the price has none of paid at its next: every date either has (the align's), then
@@ -1463,14 +1433,14 @@ function basket(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   if (rebalance !== 'daily' && rebalance !== 'weekly' && rebalance !== 'monthly') {
     throw new CubeRefusal(`a basket rebalances daily, weekly or monthly, not ${JSON.stringify(rebalance)}`);
   }
-  // the library's (pure-library.ts basket), over the members as rows: a date's days its difference in DAYS, or in
-  // SECONDS over 86400 of a date-time
+  // the library's (pure-library.ts basket), over the members as rows: a week's days counted by its last observation's
+  // time (ORD), in seconds over 86400 of a date-time's
   const w = joined(sh, series);
   const long = w.members(series.map((p) => columnOfValue(p.v)), weights);
   const out = w.fresh('basket');
-  w.joinByDate(long.rel.call(`${LIBRARY_PACKAGE}::basket`, colSpec(w.part), colSpec(w.at), colSpec(long.member), colSpec(long.value),
-    colSpec(long.weight), lit.integer(series.length), lit.string(rebalance), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'),
-    lit.integer(w.seconds ? 86400 : 1), colSpec(out)));
+  w.joinByDate(long.rel.call(`${LIBRARY_PACKAGE}::basket`, colSpec(w.part), colSpec(w.at), colSpec(ORD), colSpec(long.member),
+    colSpec(long.value), colSpec(long.weight), lit.integer(series.length), lit.string(rebalance), lit.integer(w.seconds ? 86400 : 1),
+    colSpec(out)));
   return { w, v: { column: out } };
 }
 
@@ -1487,7 +1457,6 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   // a window or a lag: a whole number of observations, or a calendar period (the spec's reader holds it to one)
   const span = (name: string): Span => spanOf(e, name);
   const word = (name: string): string => paramOf(e, name) as string;
-  const R = Writer.read;
   // the pairs and the candle: each series on its own dates, then joined
   if (e.fn === 'correlation' || e.fn === 'beta' || e.fn === 'cov' || e.fn === 'alpha' || e.fn === 'r_squared'
     || e.fn === 'hedge_ratio' || e.fn === 'residual') {
@@ -1501,42 +1470,14 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     const w = joined(sh, [{ w: a.w, v: { column: ra } }, { w: b.w, v: { column: rb } }]);
     const size = span('w');
     const frame = Writer.frame(size);
-    // over a count of periods: the library's (pure-library.ts), each over the window's pairs, its ramp two at least
+    const of = PAIRWISE[e.fn]!;
+    const perYear = e.fn === 'alpha' ? [colSpec(w.perYearColumn())] : [];
+    // the library's (pure-library.ts), each over the window's pairs: of a count of periods, its ramp two at least; of a
+    // calendar period, from the first pair's date that period on
     if (typeof frame !== 'object') {
-      const of = PAIRWISE[e.fn]!;
-      const args = [w.windowOf(frame), colSpec(ra), colSpec(rb), lit.integer(Math.max(size as number, 2)),
-        ...(e.fn === 'alpha' ? [colSpec(w.perYearColumn())] : [])];
-      return { w, v: { column: w.libraryOfRow(of, e.fn, args) } };
+      return { w, v: { column: w.libraryOfRow(of, e.fn, [w.windowOf(frame), colSpec(ra), colSpec(rb), lit.integer(Math.max(size as number, 2)), ...perYear]) } };
     }
-    // each side on the window's pairs, the dates both have a value (a lag's, a ramped mean's, a first return's leading
-    // empties): a mean, a variance and the ramp of the same sample as the covariance's (the E9 review's 1: an intercept
-    // of two samples, its sign wrong)
-    const pa = w.row('pa', when(fn('isEmpty', col(rb)), none(), col(ra)));
-    const pb = w.row('pb', when(fn('isEmpty', col(ra)), none(), col(rb)));
-    const pair = fn('rowMapper', R(pa), R(pb));
-    let v: string;
-    if (e.fn === 'correlation') v = w.window('corr', 'corr', pair, frame);
-    else if (e.fn === 'r_squared') {
-      const corr = w.window('corr', 'corr', pair, frame);
-      v = w.row('r2', op('times', one(corr), one(corr)));
-    } else if (e.fn === 'cov') v = w.window('cov', 'covarSample', pair, frame);
-    else {
-      // the slope of the first on the second over the window (least squares): their covariance over its variance
-      const cov = w.window('cov', 'covarSample', pair, frame);
-      const variance = w.window('var', 'varianceSample', R(pb), frame);
-      const slope = w.ratio(e.fn === 'beta' ? 'beta' : 'slope', one(cov), variance);
-      if (e.fn === 'beta' || e.fn === 'hedge_ratio') v = slope;
-      else {
-        // its intercept, the first's mean less the slope times the second's, over the same window's pairs
-        const ma = w.window('mean', 'average', R(pa), frame);
-        const mb = w.window('mean', 'average', R(pb), frame);
-        const intercept = op('minus', one(ma), op('times', one(slope), one(mb)));
-        v = e.fn === 'alpha'
-          ? w.row('alpha', op('times', intercept, w.perYear()))
-          : w.row('resid', op('minus', one(ra), op('plus', intercept, op('times', one(slope), one(rb)))));
-      }
-    }
-    return { w, v: { column: w.ramped(v, pa, atLeast(size, 2), frame) } };
+    return { w, v: { column: w.libraryOfRow(`${of}Period`, e.fn, [...w.lineAndDate(), colSpec(ra), colSpec(rb), ...Writer.period(frame), ...perYear]) } };
   }
   if (e.fn === 'ohlc') return candle(sh, e);
   const special = otherCalls(sh, e) ?? analystCalls(sh, e);
@@ -1686,29 +1627,11 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       // w differences (w + 1 values): a fit of a constant and a slope over under 3 has no deviation left to judge it by
       if (typeof size === 'number' && size > 0 && size < 3) throw new CubeRefusal(`${e.fn} over ${size} differences has no deviation left: w is 0 (every one to date) or at least 3`);
       const frame = Writer.frame(size);
-      // over a count of periods: the library's (pure-library.ts dickeyFuller, halfLife), its ramp three at least
-      if (typeof frame !== 'object') {
-        return done(w.library(e.fn === 'half_life' ? 'halfLife' : 'dickeyFuller', e.fn, a, frame, [lit.integer(Math.max(size as number, 3))]));
-      }
-      const xl = w.lag(a, 1);
-      const dx = w.row('df_dx', op('minus', one(a), one(xl)));
-      const pl = w.row('df_l', when(fn('isEmpty', col(dx)), none(), col(xl)));
-      const pd = w.row('df_d', when(fn('isEmpty', col(xl)), none(), col(dx)));
-      const vl = w.window('df_vl', 'varianceSample', R(pl), frame);
-      const b = w.ratio('df_b', one(w.window('df_c', 'covarSample', fn('rowMapper', R(pd), R(pl)), frame)), vl);
-      if (e.fn === 'half_life') {
-        // none where it does not revert (b at or above 0), or overshoots past its mean (b at or below -1)
-        const hl = w.row('hl', when(or(fn('isEmpty', col(b)), fn('greaterThanEqual', one(b), lit.integer(0)), fn('lessThanEqual', one(b), lit.integer(-1))), none(),
-          fn('divide', op('minus', float(0), fn('log', float(2))), fn('log', op('plus', lit.integer(1), one(b))))));
-        return done(w.ramped(hl, pl, atLeast(size, 3), frame));
-      }
-      // b's standard error: √((var Δx − b² var x[-1]) / ((n − 2) var x[-1])), none of a perfect fit
-      const vd = w.window('df_vd', 'varianceSample', R(pd), frame);
-      const count = w.window('df_n', 'count', R(pl), frame);
-      const resid = w.row('df_r', op('minus', one(vd), op('times', op('times', one(b), one(b)), one(vl))));
-      const se = w.row('df_se', when(or(fn('isEmpty', col(b)), fn('lessThan', one(count), lit.integer(3)), fn('lessThanEqual', one(resid), lit.integer(0))), none(),
-        fn('sqrt', fn('divide', one(resid), op('times', op('minus', one(count), lit.integer(2)), one(vl))))));
-      return done(w.ramped(w.ratio('df_t', one(b), se), pl, atLeast(size, 3), frame));
+      // the library's (pure-library.ts dickeyFuller, halfLife): of a count of periods, its ramp three at least; of a calendar
+      // period, from the first pair's date that period on
+      const of = e.fn === 'half_life' ? 'halfLife' : 'dickeyFuller';
+      if (typeof frame !== 'object') return done(w.library(of, e.fn, a, frame, [lit.integer(Math.max(size as number, 3))]));
+      return done(w.libraryOfPeriod(`${of}Period`, e.fn, a, frame));
     }
     // the self-joins, the library's (pure-library.ts): each row's window its line joined to itself on the rows (or the
     // dates of a calendar period) back
@@ -1768,10 +1691,9 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     case 'product': {
       const size = span('w');
       const frame = Writer.frame(size);
+      // the library's (pure-library.ts product, productPeriod)
       if (typeof frame !== 'object') return done(w.library('product', 'prod_v', a, frame, [lit.integer(size as number)]));
-      // over a calendar period: the writer's, a period's own product (no statistic word of windowPeriod's)
-      const p = w.product(a, frame);
-      return done(w.row('prod_v', when(fn('isEmpty', col(a)), none(), col(w.ramped(p, a, size, frame)))));
+      return done(w.libraryOfPeriod('productPeriod', 'prod_v', a, frame));
     }
     case 'geometrically_aggregate':
       return done(w.libraryOfLine('geometricallyAggregate', 'geo', a, []));
@@ -1783,11 +1705,9 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       // gs-quant's: the root mean square of log returns (a mean of zero) over the window, times the root of 252, in percent
       const size = span('w');
       const frame = Writer.frame(size);
+      // the library's (pure-library.ts volSwapVolatility, volSwapVolatilityPeriod)
       if (typeof frame !== 'object') return done(w.library('volSwapVolatility', 'vs', a, frame, [lit.integer(size as number)]));
-      const r = w.returns(a, 1, 'log');
-      const ms = w.window('ms', 'average', R(w.row('r2', op('times', one(r), one(r)))), frame);
-      const vol = w.row('vs', op('times', op('times', fn('sqrt', one(ms)), fn('sqrt', lit.integer(252))), lit.integer(100)));
-      return done(w.ramped(vol, a, size, frame));
+      return done(w.libraryOfPeriod('volSwapVolatilityPeriod', 'vs', a, frame));
     }
     case 'consecutive':
       // a run of values above 0 (below), counted to each date; 0 where it breaks -- each break begins a group

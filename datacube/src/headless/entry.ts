@@ -5,7 +5,7 @@
 import './install-web.ts';
 import './install-url.ts';
 
-import { DATACUBE_LIBRARY } from '../pure-library.ts';
+import { DATACUBE_LIBRARY } from '../pure-library-text.ts';
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {

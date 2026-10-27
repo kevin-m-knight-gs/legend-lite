@@ -27,7 +27,7 @@ import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
 import type { FileSource } from '../src/cube-document.ts';
 import { catalogColumns } from '../src/upload.ts';
 import { asc, col as column, collection, colSpec, fn as call, from, functionsCalled, lambda, lit, minus, Relation, toJson } from '../../pure-protocol/src/index.ts';
-import { DATACUBE_LIBRARY } from '../src/pure-library.ts';
+import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
 
 // -- the prices: two instruments over 40 weekdays from 2024-01-01, and a third trading on fewer days --
 
@@ -429,13 +429,13 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     for (const f of ['datacube::ts::returns', 'datacube::ts::volatility', 'datacube::ts::mean']) assert.ok(called.has(f), `the query calls ${f}`);
     // what a host that plans and runs is sent (Python's engine): the model as it is, and the library beside it
     const model = planner.source().model;
-    const asked = planner.planRequest(of.query);
+    const asked = await planner.planRequest(of.query);
     assert.equal(asked.model, model);
     assert.equal(asked.library, DATACUBE_LIBRARY);
     const plain = seriesQuery(inputs, spec({ A: 'close[AAA]' }), spec({ A: 'close[AAA]' }).series[0]!, {}, {});
     assert.ok(![...functionsCalled(plain.query)].some((f) => f.startsWith('datacube::')), 'a level calls no library function');
-    assert.equal(planner.planRequest(plain.query).model, model);
-    assert.equal(planner.planRequest(plain.query).library, undefined);
+    assert.equal((await planner.planRequest(plain.query)).model, model);
+    assert.equal((await planner.planRequest(plain.query)).library, undefined);
   });
 
   it('the levels and lags, the multi-step windows, the self-joins, the exponentials, the technicals, the row maths, the functions along the line, the pairs and the combinations call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
@@ -475,6 +475,13 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ['compare(close[AAA], 2 * close[BBB])', 'compare'], ['union(close[CCC], close[AAA])', 'union'],
       ['excess_returns(close[AAA], 0.05)', 'excessReturns'], ['excess_returns(close[AAA], close[BBB])', 'excessReturnsOver'],
       ['weighted_sum(close[AAA], 0.6, close[BBB], 0.4)', 'weightedSum'],
+      // the last moved (2026-10-27): a calendar period's pairs, product and vol swap, and a splice
+      ['correlation(close[AAA], close[BBB], 3w)', 'correlationPeriod'], ['r_squared(close[AAA], close[BBB], 3w)', 'rSquaredPeriod'],
+      ['cov(close[AAA], close[BBB], 3w)', 'covariancePeriod'], ['beta(close[AAA], close[BBB], 3w)', 'betaPeriod'],
+      ['hedge_ratio(close[AAA], close[BBB], 3w)', 'betaPeriod'], ['alpha(close[AAA], close[BBB], 3w)', 'alphaPeriod'],
+      ['residual(close[AAA], close[BBB], 3w)', 'residualPeriod'], ['product(close[AAA] / 100, 2w)', 'productPeriod'],
+      ['vol_swap_volatility(close[AAA], 1m)', 'volSwapVolatilityPeriod'], ['append(close[CCC], close[AAA])', 'append'],
+      ['prepend(close[CCC], close[AAA])', 'prepend'],
     ];
     for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`datacube::ts::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
   });
@@ -779,6 +786,53 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
       const b = js.map((j) => rb[j]!);
       return cov(a, b) / (sd(a) * sd(b));
     }), 'correlation 3w', 1e-9);
+  });
+
+  // the library's calendar forms of the pairs (pure-library.ts pairPeriod, 2026-10-27): each over the pairs whose dates
+  // are within three weeks back, from the first pair's date that period on
+  it('the pairs over 3w: R², covariance, beta, alpha and residual, over the dates both have', async () => {
+    const ra = simple(AAA);
+    const rb = simple(BBB);
+    const slope = (p: number[], q: number[]): number => cov(p, q) / sd(q) ** 2;
+    const over = (xs: Line, ys: Line, f: (p: number[], q: number[]) => number): Line => {
+      const start = onBy(DAYS[xs.findIndex((v, i) => v !== null && ys[i] !== null)]!, 3, 'w');
+      return DAYS.map((d) => {
+        if (d < start) return null;
+        const js = DAYS.map((_, j) => j).filter((j) => xs[j] !== null && ys[j] !== null && DAYS[j]! > backBy(d, 3, 'w') && DAYS[j]! <= d);
+        return f(js.map((j) => xs[j]!), js.map((j) => ys[j]!));
+      });
+    };
+    close((await line(spec({ A: 'r_squared(close[AAA], close[BBB], 3w)' }))).values,
+      over(ra, rb, (p, q) => (cov(p, q) / (sd(p) * sd(q))) ** 2), 'R² 3w', 1e-9);
+    close((await line(spec({ A: 'cov(close[AAA], close[BBB], 3w)' }))).values, over(AAA, BBB, cov), 'cov 3w', 1e-9);
+    close((await line(spec({ A: 'beta(close[AAA], close[BBB], 3w)' }))).values, over(ra, rb, slope), 'beta 3w', 1e-9);
+    close((await line(spec({ A: 'alpha(close[AAA], close[BBB], 3w)' }))).values,
+      over(ra, rb, (p, q) => (avg(p) - slope(p, q) * avg(q)) * 252), 'alpha 3w', 1e-9);
+    close((await line(spec({ A: 'residual(close[AAA], close[BBB], 3w)' }))).values,
+      over(AAA, BBB, (p, q) => p.at(-1)! - (avg(p) - slope(p, q) * avg(q)) - slope(p, q) * q.at(-1)!), 'residual 3w', 1e-9);
+    // a second series that starts later: its pairs, and its ramp from the first pair's date
+    const lb = simple(lagged(BBB, 3));
+    close((await line(spec({ A: 'beta(close[AAA], lag(close[BBB], 3), 3w)' }))).values, over(ra, lb, slope), 'beta on a lag 3w', 1e-9);
+  });
+
+  // the library's calendar forms of a product and a vol swap (pure-library.ts productPeriod, volSwapVolatilityPeriod)
+  it('a product over 2w and a vol swap over 1m, from the first value\'s date that period on', async () => {
+    const start2w = onBy(DAYS[0]!, 2, 'w');
+    close((await line(spec({ A: 'product(close[AAA] / 100, 2w)' }))).values, DAYS.map((d) => (d < start2w ? null
+      : AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d).reduce((a, v) => a * (v / 100), 1))), 'product 2w', 1e-9);
+    // a value of 0 (AAA's 23rd is 105.8) and values below it: a product of 0 where the period holds it, else a sign by
+    // its negatives
+    const signed = (await line(spec({ A: 'product(close[AAA] - 105.8, 2w)' }))).values;
+    close(signed, DAYS.map((d) => (d < start2w ? null
+      : AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d).reduce((a, v) => a * (v - 105.8), 1))), 'product of signs 2w', 1e-9);
+    assert.ok(signed.some((v) => v === 0) && signed.some((v) => v !== null && v < 0) && signed.some((v) => v !== null && v > 0), 'zeros and both signs');
+    const lr = AAA.map((v, i) => (i === 0 ? null : Math.log(v / AAA[i - 1]!)));
+    const start1m = onBy(DAYS[0]!, 1, 'm');
+    close((await line(spec({ A: 'vol_swap_volatility(close[AAA], 1m)' }))).values, DAYS.map((d) => {
+      if (d < start1m) return null;
+      const w = lr.filter((v, j) => v !== null && DAYS[j]! > backBy(d, 1, 'm') && DAYS[j]! <= d) as number[];
+      return Math.sqrt(w.reduce((a, b) => a + b * b, 0) / w.length) * Math.sqrt(252) * 100;
+    }), 'vol swap 1m', 1e-9);
   });
 
   it('nested: a z-score over three weeks of a volatility over two, planned and run', async () => {
@@ -1709,6 +1763,11 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
       ['dickey_fuller(close[P], 30)', 'dickeyFuller'], ['half_life(close[P], 30)', 'halfLife'],
       ['total_return(close[P], 0.03)', 'totalReturn'], ['total_return(close[P], dividend[P])', 'totalReturnOf'],
       ['basket(close[P], 0.6, close[Q], 0.4, rebalance=monthly)', 'basket'],
+      // the last moved (2026-10-27): over a calendar period
+      ['tracking_error(close[P], close[Q], 1m)', 'trackingErrorPeriod'], ['information_ratio(close[P], close[Q], 1m)', 'informationRatioPeriod'],
+      ['up_capture(close[P], close[Q], 1m)', 'upCapturePeriod'], ['down_capture(close[P], close[Q], 1m)', 'downCapturePeriod'],
+      ['lead_lag(close[P], close[Q], 1, 1m)', 'leadLagPeriod'], ['dickey_fuller(close[P], 2m)', 'dickeyFullerPeriod'],
+      ['half_life(close[P], 2m)', 'halfLifePeriod'],
     ];
     for (const [expr, f] of want) assert.ok(calls(expr).has(`datacube::ts::${f}`), `${expr} calls ${f}`);
   });
@@ -1784,6 +1843,36 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
       const l = await packLine(`lead_lag(close[P], close[Q], ${k}, 10)`);
       assert.deepEqual(l.dates, Q_DAYS);
       close(l.values, windowed(a, b, 10, correlation), `lag ${k}`, 1e-9);
+    }
+  });
+
+  // the library's calendar forms (pure-library.ts trackingErrorPeriod, informationRatioPeriod, upCapturePeriod,
+  // downCapturePeriod, leadLagPeriod; 2026-10-27): each over the dates within a month back, from the first return's
+  // date that period on
+  it('tracking error, information ratio, the captures and lead_lag over 1m', async () => {
+    const over = (xs: Line, ys: Line, f: (p: number[], q: number[]) => number | null): Line => {
+      const start = onBy(Q_DAYS[xs.findIndex((v) => v !== null)]!, 1, 'm');
+      return Q_DAYS.map((d) => {
+        if (d < start) return null;
+        const js = Q_DAYS.map((_, j) => j).filter((j) => xs[j] !== null && ys[j] !== null && Q_DAYS[j]! > backBy(d, 1, 'm') && Q_DAYS[j]! <= d);
+        return f(js.map((j) => xs[j]!), js.map((j) => ys[j]!));
+      });
+    };
+    const { a, b } = pairsOn();
+    const active = zip(a, b, (p, q) => p - q);
+    close((await packLine('tracking_error(close[P], close[Q], 1m)', { grain: 'day' })).values,
+      over(active, active, (p) => sd(p) * Math.sqrt(252) * 100), 'TE 1m', 1e-9);
+    close((await packLine('information_ratio(close[P], close[Q], 1m)', { grain: 'day' })).values,
+      over(active, active, (p) => (avg(p) / sd(p)) * Math.sqrt(252)), 'IR 1m', 1e-9);
+    for (const [f, up] of [['up_capture', true], ['down_capture', false]] as const) {
+      close((await packLine(`${f}(close[P], close[Q], 1m)`)).values, over(a, b, (p, q) => {
+        const on = q.map((_, i) => i).filter((i) => (up ? q[i]! > 0 : q[i]! < 0));
+        return on.length === 0 ? null : avg(on.map((i) => p[i]!)) / avg(on.map((i) => q[i]!));
+      }), `${f} 1m`, 1e-9);
+    }
+    for (const k of [0, 2]) {
+      const { a: la, b: lb } = pairsOn(k);
+      close((await packLine(`lead_lag(close[P], close[Q], ${k}, 1m)`)).values, over(la, lb, correlation), `lead_lag ${k} 1m`, 1e-9);
     }
   });
 
@@ -1884,6 +1973,27 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     close((await packLine('dickey_fuller(close[P])')).values, PC.map((_, i) => (i < 3 ? null : ols(PC.slice(0, i + 1)).t)), 'DF to date', 1e-9);
   });
 
+  // the library's calendar forms (pure-library.ts dickeyFullerPeriod, halfLifePeriod, 2026-10-27): the pairs (Δx, x[-1])
+  // whose dates are within two months back, from the first pair's date that period on
+  it('dickey_fuller and half_life over 2m: the pairs of the dates two months back', async () => {
+    const start = onBy(PACK_DAYS[1]!, 2, 'm');
+    const within = (d: string): number[] => PC.filter((_, j) => j >= 1 && PACK_DAYS[j]! > backBy(d, 2, 'm') && PACK_DAYS[j]! <= d);
+    // the window's pairs: each date's x and the x before it, the first of them the value before the period's first
+    const fit = (i: number): { b: number; t: number } => {
+      const d = PACK_DAYS[i]!;
+      const first = PACK_DAYS.findIndex((x) => x > backBy(d, 2, 'm'));
+      return ols(PC.slice(Math.max(first - 1, 0), i + 1));
+    };
+    assert.ok(within(PACK_DAYS.at(-1)!).length > 3, 'the period holds pairs');
+    close((await packLine('dickey_fuller(close[P], 2m)')).values, PACK_DAYS.map((d, i) => (d < start ? null : fit(i).t)), 'DF over 2m', 1e-9);
+    const hl = await packLine('half_life(close[P], 2m)');
+    close(hl.values, PACK_DAYS.map((d, i) => {
+      if (d < start) return null;
+      const { b } = fit(i);
+      return b >= 0 || b <= -1 ? null : -Math.log(2) / Math.log(1 + b);
+    }), 'half-life over 2m', 1e-9);
+  });
+
   // the Phase 4 review's 1: at a frequency, each period's highest high, lowest low, last close and whole volume (a
   // week's last high and last day's volume had been read), and a VWAP of each day's price times its volume
   it('at a weekly frequency, each week a bar: its highest high, lowest low, last close and whole volume', async () => {
@@ -1939,6 +2049,65 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     // a weighted sum divides by its weights' sum, a basket by nothing
     assert.throws(() => parseExpr('weighted_sum(close[P], 1, close[Q], -1)'), /weights sum to 0/);
     assert.doesNotThrow(() => parseExpr('basket(close[P], 1, close[Q], -1)'));
+  });
+});
+
+// a date-time source at a frequency (the library review, 2026-10-27): a period's days are counted from its last
+// observation's time, never from its date -- an accrual over 23 hours is 23/24 of a day, a week from the first tick is
+// a week of hours
+describe('a date-time source at a daily frequency: a period\'s days its last observation\'s time', () => {
+  const DAYS_T: string[] = [];
+  for (let d = new Date(Date.UTC(2024, 0, 1)); DAYS_T.length < 12; d = new Date(d.getTime() + 86_400_000)) {
+    if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) DAYS_T.push(d.toISOString().slice(0, 10));
+  }
+  // each day's last tick at 16:00, 15:00 or 14:00 -- the second Monday's at 14:00, under a week from the first's 16:00
+  const LAST_HOUR = DAYS_T.map((_, i) => 16 - (i % 3));
+  const SC = DAYS_T.map((_, i) => round(100 + i + 0.5 * Math.sin(i)));
+  const BC = DAYS_T.map((_, i) => round(50 + 0.3 * i * Math.cos(i)));
+  const T = DAYS_T.map((d, i) => Date.parse(`${d}T${String(LAST_HOUR[i]).padStart(2, '0')}:00:00Z`) / 1000);
+  let ticks: TsInputs;
+  let tickPlanner: LitePlanner;
+  before(async () => {
+    const csv = ['symbol,day,close', ...DAYS_T.flatMap((d, i) => [
+      `S,${d} 10:00:00,${SC[i]! - 1}`, `S,${d} ${String(LAST_HOUR[i]).padStart(2, '0')}:00:00,${SC[i]}`,
+      `B,${d} 10:00:00,${BC[i]! + 1}`, `B,${d} ${String(LAST_HOUR[i]).padStart(2, '0')}:00:00,${BC[i]}`,
+    ])].join('\n');
+    const r = await ingestFile(engine, files, new File([csv], 'ticks.csv'), writer, { table: 'ticks' });
+    tickPlanner = plannerFor(r.model, r.runtime);
+    ticks = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r.source }, columns: [
+      { name: 'symbol', type: 'String' }, { name: 'day', type: 'DateTime' }, { name: 'close', type: 'Float' },
+    ] }, filter: undefined }]]);
+  });
+  const tickLine = async (text: string): Promise<Line> => {
+    const ts = spec({ A: text }, { grain: 'day' });
+    const q = seriesQuery(ticks, ts, ts.series[0]!);
+    return values(await engine.execute(await tickPlanner.plan(q.query), 0), TS_VALUE).map(num).reverse();
+  };
+  const days = (i: number): number => (T[i]! - T[i - 1]!) / 86_400;
+
+  it('excess returns over a rate and a total return with a yield accrue the hours between the last ticks', async () => {
+    let accrued = 0;
+    close(await tickLine('excess_returns(close[S], 0.05)'), SC.map((x, i) => {
+      if (i > 0) accrued += SC[i - 1]! * (days(i) / 360);
+      return x - 0.05 * accrued;
+    }), 'excess returns', 1e-9);
+    let tr = SC[0]!;
+    close(await tickLine('total_return(close[S], 0.03)'), SC.map((x, i) => (i === 0 ? tr : (tr *= x / SC[i - 1]! + 0.03 * (days(i) / 365)))),
+      'total return', 1e-9);
+  });
+
+  it('a weekly basket rebalances a week of hours from the first tick: not the Mondays, at 14:00 and 15:00, but the Tuesdays', async () => {
+    const week = DAYS_T.map((_, i) => Math.floor((T[i]! - T[0]!) / 86_400 / 7));
+    const rebalanced = new Set(DAYS_T.map((_, i) => i).filter((i) => i > 0 && week[i] !== week[i - 1]));
+    // the Mondays' last ticks (14:00, 15:00) under a whole week from the first's 16:00: each week turns on its Tuesday
+    assert.deepEqual([...rebalanced].map((i) => DAYS_T[i]), ['2024-01-09', '2024-01-16'], 'two rebalances, the Tuesdays');
+    const out = [100];
+    let units = [0.6 * 100 / SC[0]!, 0.4 * 100 / BC[0]!];
+    for (let i = 1; i < DAYS_T.length; i++) {
+      out.push(out[i - 1]! + units[0]! * (SC[i]! - SC[i - 1]!) + units[1]! * (BC[i]! - BC[i - 1]!));
+      if (rebalanced.has(i)) units = [0.6 * out[i]! / SC[i]!, 0.4 * out[i]! / BC[i]!];
+    }
+    close(await tickLine('basket(close[S], 0.6, close[B], 0.4, rebalance=weekly)'), out, 'weekly basket', 1e-9);
   });
 });
 

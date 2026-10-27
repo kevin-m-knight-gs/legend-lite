@@ -223,10 +223,13 @@ final class StaticFold {
     private com.legend.compiler.element.@com.legend.base.Nullable TypedFunction bodiedCallee(AppliedFunction af) {
         List<com.legend.compiler.element.TypedFunction> bodied = new ArrayList<>();
         for (var f : typer.functionCandidates(af)) {
+            if (f.parameters().size() != af.parameters().size()) {
+                continue;
+            }
             if (RelationGenerics.of(f)) {
                 return null;
             }
-            if (f.body().isPresent() && f.parameters().size() == af.parameters().size()) {
+            if (f.body().isPresent()) {
                 bodied.add(f);
             }
         }
