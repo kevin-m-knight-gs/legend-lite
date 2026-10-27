@@ -280,7 +280,10 @@ class OwnCorpusConformanceTest {
                 // literal column leaving under its own name
                 // 19 -> 20 (2026-10-27, REVIEWED, S114): RelationGeneric's aWholeWindowAndARead (test::meanOf<T,V,O>,
                 // ColSpec<V⊆T>, its window whole and its column read with read)
-                Map.entry("PURE-DIALECT-signatures", 20),
+                // 20 -> 21 (2026-10-27, REVIEWED, S112's hygiene of a nested call): RelationGeneric's
+                // aNestedCallsColumnIsTheBodys (test::offItsMean<T,L,V,O> over test::meanOf), the column a body has
+                // another generic function write for it renamed as the body's own
+                Map.entry("PURE-DIALECT-signatures", 21),
                 Map.entry("PURE-DIALECT-xstore-tolerance", 1),
                 Map.entry("TEST-MACHINERY-fixture", 1)));
         // F3.7: EXACT accounting, both directions (the FixtureCorpusParity

@@ -214,10 +214,18 @@ final class StaticFold {
     /** THE callee a call may be inlined as: the one bodied candidate of the
      * call's arity — among the call's OWN candidates (the resolver's, or the
      * bare-name rule's), never a bare re-lookup — and not already on the
-     * fold's stack (a recursive program never terminates statically). */
+     * fold's stack (a recursive program never terminates statically). A
+     * function generic over relations is never one: it is expanded at its
+     * call by its own path (Overloads#inlineNormalized, docs/SEMANTICS_REGISTER.md
+     * S112), which renames its working columns and holds its declared return,
+     * and folds its body there (2026-10-27: a library function's call nested
+     * in another's body was inlined here, unrenamed, and met a caller's column). */
     private com.legend.compiler.element.@com.legend.base.Nullable TypedFunction bodiedCallee(AppliedFunction af) {
         List<com.legend.compiler.element.TypedFunction> bodied = new ArrayList<>();
         for (var f : typer.functionCandidates(af)) {
+            if (RelationGenerics.of(f)) {
+                return null;
+            }
             if (f.body().isPresent() && f.parameters().size() == af.parameters().size()) {
                 bodied.add(f);
             }
