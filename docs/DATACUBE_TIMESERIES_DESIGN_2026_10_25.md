@@ -837,6 +837,15 @@ dated budget notes; every figure still the database's.
   WebAssembly planner in node): the model held and a first query planned in 5.8 s, a query after it in 7 ms -- and a
   query calling the library holds the model AGAIN with the library after it (the planner's `#over`), 5.4 s more: a page
   over the trading model with a timeseries holds it twice, which D3 makes once.
+  The rows as a page carries them (2026-10-27): the markets sample's tables as the project's own Data
+  (`stressMarketsData`, 1.87 MB of CSV in one relational Data element), made by the store's own declaration and filled
+  by the planner's `projectData` (C5) -- each column the store's type, never a reader's guess -- the same series again
+  equal to the table's. The trading model leaves out the corpus's eleven `###Data` seeds for it (two contend for one
+  table). Measured: the model held and its Data filled in 10.4 s, a first query then planned in 5.2 s (the same text
+  compiled again by the planner that plans it), a query after in 15 ms -- with a library call's hold, three compiles of
+  about 4 MB, some 15 s, before a page draws. The Deephaven line's two core fixes for this (a model held once by its
+  text, `HeldModels.withText`; the mapping sets by id, `ModelBuilder.legacySetsWithId`: "the most of its compile") are
+  on its branch, not yet on main: D3's wait.
 - **Not built, and why:** X-13 seasonal adjustment and `smooth_outliers` (iterative procedures no query states; gs-quant's
   own seasonal adjustment is the decomposition above); PowerPoint (a document writer of its own in the bundle; the page
   already exports HTML and PDF); alerts (a scheduler and a channel outside a page); `repeat`, `date_range`,

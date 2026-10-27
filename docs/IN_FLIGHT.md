@@ -170,7 +170,11 @@ with the compiler's plan/execution split**, in this order:
    and its rule in `scripts/corpus/BUILD.bazel`, **taken as they are from the Deephaven line**
    (`claude/deephaven-3-browser`, `d38144cc`: the one trading model, DH34), and `core/BUILD.bazel`'s export of
    `StressExclusions.java` to it -- whichever line lands first, the other takes the same file; a change to either is
-   that line's, told to the other. Core asks of the library's (S112-S114) were this line's own, landed with it.
+   that line's, told to the other. **Told (2026-10-27):** this line's one change to `trading_model.py` -- it leaves out
+   every `###Data` section too (eleven service tests' seeds; two contend for one table, so a page filling a project's
+   database from the Data it carries was refused), as its own header says it leaves the test data out; the trader
+   pages, which seed nothing, are unchanged by it. Core asks of the library's (S112-S114) were this line's own, landed
+   with it.
    **Step 1 landed 2026-10-10 (fe7961b7b; run 38090412797; GATES "Compile once, plan many").** **Step 2's first
    landing, Create a Class…, landed 2026-10-11 (0cee56761; run 38109599876; GATES "Create a Class…")** -- no file
    touched beyond the announced list. **Step 2's second landing, Create an Association… and Create a Data Space…,

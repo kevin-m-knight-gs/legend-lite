@@ -167,3 +167,24 @@ export function stressMarketCsvs(rows = 13_050, seed = 20261058): Readonly<Recor
     TRADE: csv('TRADE', trades(bars, seed + 1)),
   };
 }
+
+/** The Data element the markets sample's tables are, as a project carries its rows (query/demo/models/trading-data.pure's
+ *  way): its path. */
+export const STRESS_MARKETS_DATA = 'stress::markets::MarketsData';
+
+/**
+ * THE MARKETS SAMPLE'S TABLES AS A PROJECT'S DATA (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5): one relational Data
+ * element of the store's tables, each its CSV -- what a page fills a database of the project's own from, every table
+ * made by the store's own declaration (the planner's projectData), so each column has the store's type.
+ */
+export function stressMarketsData(rows = 13_050, seed = 20261058): string {
+  const csvs = stressMarketCsvs(rows, seed);
+  // each line a Pure string, its quote escaped, the text's own line break written as the escape it is
+  const quoted = (line: string): string => `'${line.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}\\n'`;
+  const tables = STRESS_MARKET_TABLES.map((t) => {
+    const lines = csvs[t].trimEnd().split('\n');
+    return `    default.${t}:\n${lines.map((l) => `      ${quoted(l)}`).join('+\n')};`;
+  });
+  return `###Data\n// The markets sample's days as the trading model's tables (datacube/src/stress-markets.ts): written, never edited.\n`
+    + `Data ${STRESS_MARKETS_DATA}\n{\n  Relational\n  #{\n${tables.join('\n')}\n  }#\n}\n`;
+}

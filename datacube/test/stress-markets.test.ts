@@ -16,7 +16,7 @@ import { derive, element, fn, lambda, lit, projectObjects, property, variable, t
 import type { LitePlanner } from '../src/lite-planner.ts';
 import { marketsCsv } from '../src/samples.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
-import { STRESS_MARKET_COLUMNS, STRESS_MARKET_TABLES, stressMarketCsvs } from '../src/stress-markets.ts';
+import { STRESS_MARKET_COLUMNS, STRESS_MARKET_TABLES, stressMarketsData } from '../src/stress-markets.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { seriesQuery, TS_DATE, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
@@ -26,7 +26,12 @@ import { plannerFor } from './catalog-builder.ts';
 const MODEL = readFileSync(runfileFromEnv('TRADING_MODEL'), 'utf8');
 const writer = plannerFor('', 'local::RT');
 
+/** The model a page holds: the trading model and the markets sample's rows as its Data (a project's own). */
+const PROJECT = `${MODEL}\n${stressMarketsData()}`;
+
+/** The table's database (the markets sample read as one file) and the project's own (its Data's), each its own. */
 let engine: DuckDbEngine;
+let projectEngine: DuckDbEngine;
 let files: DuckDbFiles;
 let corpus: LitePlanner;
 let table: LitePlanner;
@@ -53,13 +58,16 @@ before(async () => {
   const db = await openDatabase();
   engine = new DuckDbEngine(db.connection);
   files = db.files;
-  // the trading model's tables, each under its store's own name, and the sample's one table beside them
-  const csvs = stressMarketCsvs();
-  for (const t of STRESS_MARKET_TABLES) await ingestFile(engine, files, new File([csvs[t]], `${t}.csv`), writer, { table: t });
   const flat = await ingestFile(engine, files, new File([marketsCsv()], 'prices.csv'), writer, { table: 'prices' });
   table = plannerFor(flat.model, flat.runtime);
+  // the project's rows, its Data element's, in a database of its own as a page makes it (C5, project-data.ts): each
+  // table made by the store's declaration
   let t0 = performance.now();
-  corpus = plannerFor(MODEL, 'stress::RT');
+  corpus = plannerFor(PROJECT, 'stress::RT');
+  projectEngine = new DuckDbEngine((await openDatabase()).connection);
+  const project = await corpus.projectData(PROJECT, projectEngine.databaseType);
+  for (const sql of [...project.open, ...project.use, ...project.fill]) await projectEngine.run(sql, 0);
+  measured['the model held and its Data filled (ms)'] = performance.now() - t0;
   classes = new Map([['px', { snapshot: snapshotOf(QUOTES, [
     { name: 'ticker', type: 'String' }, { name: 'quoteTime', type: 'DateTime' }, { name: 'closePrice', type: 'Float' },
   ]), filter: undefined }]]);
@@ -68,8 +76,9 @@ before(async () => {
     { name: 'open', type: 'Float' }, { name: 'high', type: 'Float' }, { name: 'low', type: 'Float' },
     { name: 'close', type: 'Float' }, { name: 'volume', type: 'Integer' },
   ]), filter: undefined }]]);
+  t0 = performance.now();
   await corpus.plan(lambda([], fn('limit', QUOTES, lit.integer(1))));
-  measured['the model held and a first query planned (ms)'] = performance.now() - t0;
+  measured['a first query planned (ms)'] = performance.now() - t0;
   t0 = performance.now();
   await corpus.plan(lambda([], fn('limit', QUOTES, lit.integer(2))));
   measured['a query planned after (ms)'] = performance.now() - t0;
@@ -77,8 +86,10 @@ before(async () => {
 
 after(async () => {
   // the planning cost of a page over the trading model, said where the run is read
-  console.log(`trading model: ${(MODEL.length / 1e6).toFixed(2)} MB; ${Object.entries(measured).map(([k, v]) => `${k} ${v.toFixed(0)}`).join('; ')}`);
+  console.log(`trading model: ${(MODEL.length / 1e6).toFixed(2)} MB, its Data ${((PROJECT.length - MODEL.length) / 1e6).toFixed(2)} MB; `
+    + Object.entries(measured).map(([k, v]) => `${k} ${v.toFixed(0)}`).join('; '));
   await engine?.close();
+  await projectEngine?.close();
 });
 
 /** A tile of one series over the class (`classes`) or the table (`rows`), daily. */
@@ -94,7 +105,7 @@ async function line(text: string, over: 'classes' | 'rows'): Promise<{ dates: st
   const ts = spec(text, over);
   const planner = over === 'classes' ? corpus : table;
   const q = seriesQuery(over === 'classes' ? classes : rows, ts, ts.series[0]!);
-  const t = await engine.execute(await planner.plan(q.query), 0);
+  const t = await (over === 'classes' ? projectEngine : engine).execute(await planner.plan(q.query), 0);
   const col = (name: string): unknown[] => t.columns.find((c) => c.name === name)!.values as unknown[];
   return {
     dates: col(TS_DATE).map((d) => String(d).slice(0, 10)).reverse(),
