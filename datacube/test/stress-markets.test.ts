@@ -3,19 +3,26 @@
 // markets sample's days in the stress corpus's own tables (stress-markets.ts), read through its classes by
 // stress::AllMapping -- `marketdata::MarketQuote.all()->project(~[ticker: x|$x.instrument.ticker, ...])` -- and each
 // series of a tile over them held to the same series over the sample's one table: the class is a source as a table
-// is, every figure the database's. The one trading model is the Deephaven line's text (//scripts/corpus:trading_model).
+// is, every figure the database's. The model is the markets project as the site serves it (BUILD.bazel
+// :markets_project, config.json `projects[]`): the one trading model, the Deephaven line's text
+// (//scripts/corpus:trading_model), and the sample's days as its Data; the example page over it
+// (examples/markets-classes.ts) opened the page's way, every series of it run.
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { derive, element, fn, lambda, lit, projectObjects, property, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { MARKETS_PROJECT, marketsClassesPage, SAVED_GRIDS, savedQuerySource, savedQueryTree } from '../src/examples/markets-classes.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
+import { savedQueryOpened } from '../src/saved-queries.ts';
 import { marketsCsv } from '../src/samples.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
+import { sourceColumns } from '../src/source-columns.ts';
 import { STRESS_MARKET_COLUMNS, STRESS_MARKET_TABLES, stressMarketsData } from '../src/stress-markets.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { seriesQuery, TS_DATE, TS_SPLIT, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
@@ -23,11 +30,18 @@ import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
 
-const MODEL = readFileSync(runfileFromEnv('TRADING_MODEL'), 'utf8');
+/** The markets project as config.json lists it: its model files, each as the site serves it. */
+const CONFIGURED = (JSON.parse(readFileSync(runfileFromEnv('DEMO_CONFIG'), 'utf8')) as {
+  projects: { groupId: string; artifactId: string; versionId: string; models: string[] }[];
+}).projects.find((p) => p.groupId === MARKETS_PROJECT.groupId && p.artifactId === MARKETS_PROJECT.artifactId && p.versionId === MARKETS_PROJECT.versionId);
+const SERVED = runfileFromEnv('MARKETS_PROJECT');
+const served = (url: string): string => readFileSync(join(SERVED, url.slice('./projects/markets/'.length)), 'utf8');
+const MODEL = served('./projects/markets/trading-model.pure');
 const writer = plannerFor('', 'local::RT');
 
-/** The model a page holds: the trading model and the markets sample's rows as its Data (a project's own). */
-const PROJECT = `${MODEL}\n${stressMarketsData()}`;
+/** The model a page holds: the project's files joined as the page joins them (app/sources.ts openedRecord) -- the
+ *  trading model and the markets sample's rows as its Data. */
+const PROJECT = (CONFIGURED?.models ?? []).map(served).join('\n');
 
 /** The table's database (the markets sample read as one file) and the project's own (its Data's), each its own. */
 let engine: DuckDbEngine;
@@ -40,6 +54,8 @@ let referenced: TsInputs;
 let rows: TsInputs;
 /** How long the trading model took to be held, and its first query to plan: what a page waits for. */
 const measured: Record<string, number> = {};
+/** How many lines each split series of the example page drew, by its tile and its id. */
+const drawn = new Map<string, number>();
 
 /** `$x.a.b...`: a path of properties from the row. */
 const path = (...names: string[]): ValueSpecification => names.reduce<ValueSpecification>((v, n) => property(v, n), variable('x'));
@@ -156,6 +172,16 @@ function same(over: Line, flat: Line, what: string): void {
   });
 }
 
+describe('the markets project, as config.json lists it and the site serves it', () => {
+  it('its files the trading model and its Data, in that order, each served', () => {
+    assert.ok(CONFIGURED, 'config.json lists the markets project');
+    assert.deepEqual(CONFIGURED.models, ['./projects/markets/trading-model.pure', './projects/markets/markets-data.pure']);
+    assert.deepEqual(readdirSync(SERVED).sort(), ['markets-data.pure', 'trading-model.pure'], 'the site serves those two');
+    assert.equal(served('./projects/markets/markets-data.pure'), stressMarketsData(), 'its Data the generator\'s');
+    assert.equal(PROJECT, `${MODEL}\n${stressMarketsData()}`);
+  });
+});
+
 describe('the trading model\'s tables, as its store declares them', () => {
   it('each table the generator writes has the store\'s columns, in its order', () => {
     // the corpus's one store: its tables after its name (a linked project's store may name a table so too)
@@ -202,5 +228,72 @@ describe('a series matched and split by the reference data the associations reac
     assert.deepEqual([...over.keys()].sort(), ['Cboe Options Exchange', 'NYSE Arca', 'Nasdaq', 'New York Stock Exchange', 'Off exchange'], 'the exchanges listing them');
     same(over.get('New York Stock Exchange')!, await line('volume[JPM].sum + volume[XOM].sum', 'rows'), 'NYSE');
     same(over.get('Nasdaq')!, await line('volume[NDX].sum + volume[AAPL].sum + volume[MSFT].sum + volume[NVDA].sum + volume[TLT].sum', 'rows'), 'Nasdaq');
+  });
+});
+
+// D3: the example page's grids opened as the page opens a saved query (app/sources.ts openedRecord: the project's
+// model, saved-queries.ts savedQueryOpened -- its context, its enumerations as names), and every series of its tiles
+// planned by the grid's planner and run on the project's own database.
+describe('the example page over the classes, opened the page\'s way', () => {
+  /** Each grid opened: its planner (its project's model, its mapping) and its rows as a tile reads them. */
+  const opened = new Map<string, { planner: LitePlanner; snapshot: CubeSnapshot }>();
+  const planners: LitePlanner[] = [];
+
+  before(async () => {
+    const reading = { parse: (text: string) => corpus.parse(text), elements: (text: string) => corpus.modelElements(text) };
+    for (const g of SAVED_GRIDS) {
+      const t0 = performance.now();
+      const q = savedQuerySource(g).query;
+      let planner: LitePlanner | undefined;
+      const { source } = await savedQueryOpened(q, PROJECT, reading, (runtime, how) => {
+        // the page's planner of a source's own model: another on the page's module (demo/planners.ts `another`)
+        planner = corpus.withModel(PROJECT, runtime, how);
+        planners.push(planner);
+        return planner;
+      });
+      const columns = await sourceColumns(planner!, source);
+      opened.set(g.id, { planner: planner!, snapshot: snapshotOf(source, columns.map((c) => ({ name: c.name, type: c.type }))) });
+      measured[`${g.id} opened as a saved query (ms)`] = performance.now() - t0;
+    }
+  });
+
+  after(() => {
+    for (const p of planners) p.dispose();
+  });
+
+  it('each grid\'s saved query is its text\'s tree, and answers the columns the page writes down', async () => {
+    for (const g of SAVED_GRIDS) {
+      const parsed = await corpus.parse(savedQuerySource(g).query.content);
+      assert.deepEqual(parsed.body[0], savedQueryTree(g), `${g.id}: its text parsed is the cube's query`);
+      assert.deepEqual(opened.get(g.id)!.snapshot.columns.map((c) => `${c.name}:${c.type}`),
+        g.columns.map((c) => `${c.name}:${c.type}`), `${g.id}: the columns its source records`);
+    }
+  });
+
+  for (const v of marketsClassesPage().views) {
+    if (v.kind !== 'timeseries') continue;
+    it(`${v.title}: every series answers from the project's rows`, async () => {
+      const inputs: TsInputs = new Map(v.spec.sources.map((src) => [src.alias, { snapshot: opened.get(src.cube)!.snapshot, filter: undefined }] as const));
+      const planner = opened.get(v.spec.sources[0]!.cube)!.planner;
+      for (const series of v.spec.series) {
+        const q = seriesQuery(inputs, v.spec, series);
+        const t0 = performance.now();
+        const plan = await planner.plan(q.query);
+        measured[`${v.id} ${series.id} planned (ms)`] = performance.now() - t0;
+        const t = await projectEngine.execute(plan, 0);
+        const values = t.columns.find((c) => c.name === TS_VALUE)!.values as unknown[];
+        const lines = series.split !== undefined ? new Set(t.columns.find((c) => c.name === TS_SPLIT)!.values as unknown[]).size : 1;
+        assert.ok(values.filter((x) => x !== null).length >= 20 * lines, `${series.id} (${series.name}): ${values.length} rows, ${lines} lines`);
+        drawn.set(`${v.id} ${series.id}`, lines);
+      }
+    });
+  }
+
+  it('the trades tile reads both grids, and its notional by sector a line per sector the bank trades in', async () => {
+    const v = marketsClassesPage().views.find((x) => x.id === 'trades-vs-close')!;
+    assert.ok(v.kind === 'timeseries' && v.spec.sources.length === 2);
+    assert.equal(drawn.get('trades-vs-close E'), 5, 'Technology, Financials, Energy, Commodities, Rates');
+    assert.equal(drawn.get('venues A'), 5, 'every listing venue');
+    assert.equal(drawn.get('sectors A'), 3, 'the three technology names');
   });
 });

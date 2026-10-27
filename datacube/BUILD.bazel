@@ -202,9 +202,13 @@ _NEXT_LINK_FILE = "src/share/link-%s.ts" % _NEXT_LINK_VERSION
 
 _EXTRA_ENV = {
     "warehouse-session-http": {"SQLAPI_PAGE": "$(rlocationpath //warehouse:sqlapi_page_dir)"},
-    # the one trading model as one text (the stress corpus's classes, store and mappings): the timeseries over its
-    # classes (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6)
-    "stress-markets": {"TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)"},
+    # the markets project as the site serves it (:markets_project, config.json `projects[]`): the one trading model and
+    # the markets sample's days as its Data -- the timeseries over its classes (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md
+    # §11, Phase 6)
+    "stress-markets": {
+        "DEMO_CONFIG": "$(rlocationpath demo/config.json)",
+        "MARKETS_PROJECT": "$(rlocationpath :markets_project)",
+    },
     "bundle-budget": {
         "BUNDLE": "$(rlocationpath :demo/bundle.js)",
         "ENGINE_BUNDLE": "$(rlocationpath :demo/bundle-engine.js)",
@@ -281,7 +285,10 @@ _BINDING_TESTS = ["warehouse-session-http"]
 
 _EXTRA_DATA = {
     "warehouse-session-http": ["//warehouse:sqlapi_page_dir"],
-    "stress-markets": ["//scripts/corpus:trading_model"],
+    "stress-markets": [
+        "demo/config.json",
+        ":markets_project",
+    ],
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
     "bundle-budget": [
         ":bundle_bundle",
@@ -1657,6 +1664,39 @@ copy_to_directory(
     root_paths = ["query/demo/models"],
 )
 
+# The markets project (config.json `projects[]`, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6): the one
+# trading model (the Deephaven line's, //scripts/corpus:trading_model) and the markets sample's days in its tables as the
+# project's Data (tools/markets-data/emit.ts), which a page fills its project's database from (C5).
+js_binary(
+    name = "emit_markets_data",
+    data = [":src"],
+    entry_point = "tools/markets-data/emit.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "markets_data",
+    srcs = ["tools/markets-data/emit.ts"],
+    stdout = "generated/markets-data.pure",
+    tool = ":emit_markets_data",
+)
+
+copy_to_directory(
+    name = "markets_project",
+    srcs = [
+        ":markets_data",
+        "//scripts/corpus:trading_model",
+    ],
+    out = "demo/projects/markets",
+    root_paths = [
+        "datacube/generated",
+        "scripts/corpus",
+    ],
+)
+
 # The trading rows' other two copies, for the test that holds them equal to the project's Data (saved-queries): the
 # warehouse's fixture and the H2 connection's setup, copied as :projects is (a test's data is its own package's).
 copy_to_directory(
@@ -1682,6 +1722,7 @@ filegroup(
         "demo/*.pure",
         "src/**/*.css",
     ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [
+        ":markets_project",
         ":planner_worker",
         ":projects",
         ":vendor",

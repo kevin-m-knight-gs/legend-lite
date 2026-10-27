@@ -15,6 +15,7 @@ import { COUNTRY_COLUMNS, countriesCsv, MACRO_COLUMNS, macroCsv, MARKET_COLUMNS,
 import { COUNTRY_SPECS, prepJoinsPage } from '../src/examples/prep-joins.ts';
 import { MACRO_SPECS, MARKET_SPECS, RATE_SPECS, marketsPage } from '../src/examples/markets.ts';
 import { timeseriesGalleryPage } from '../src/examples/timeseries-gallery.ts';
+import { MARKETS_PROJECT, marketsClassesPage, SAVED_GRIDS } from '../src/examples/markets-classes.ts';
 import { timeseriesProblems, TS_FUNCTIONS } from '../src/timeseries-expr.ts';
 import type { TimeseriesSpec, TsExpr } from '../src/timeseries-spec.ts';
 import { frozenInput, openCube } from '../src/cube-document.ts';
@@ -49,7 +50,7 @@ describe('the macro sample', () => {
 
 describe('the example pages', () => {
   it('each is a page of charts, the join example, a timeseries example or the flow example', () => {
-    assert.deepEqual(EXAMPLE_PAGES.filter((e) => !CHART_PAGES.includes(e)).map((e) => e.id), ['prep-joins', 'markets', 'timeseries-gallery', 'prep-flow']);
+    assert.deepEqual(EXAMPLE_PAGES.filter((e) => !CHART_PAGES.includes(e)).map((e) => e.id), ['prep-joins', 'markets', 'timeseries-gallery', 'markets-classes', 'prep-flow']);
   });
 
   // a flow to open, rather than one to build first (docs/DATACUBE_FLOW_MODE_2026_10_24.md)
@@ -239,6 +240,34 @@ describe('the example pages', () => {
       const source = page.cubes.find((c) => c.id === id)!.cube.source;
       assert.ok(source._type === 'file' && source.sample?.id === sample, `${id} is the ${sample} sample`);
     }
+  });
+
+  // the user, 2026-10-27: the charts from the trading model's classes (test/stress-markets.test.ts opens each grid the
+  // page's way and runs every series of it)
+  it('the markets example over the classes: each grid a saved query of the markets project, each tile drawable over them', () => {
+    const page = readPage(pageToJson(marketsClassesPage()));
+    assert.deepEqual(EXAMPLE_PAGES.find((e) => e.id === 'markets-classes')?.project, MARKETS_PROJECT, 'offered where the project is');
+    assert.deepEqual(EXAMPLE_PAGES.filter((e) => e.project !== undefined).map((e) => e.id), ['markets-classes'], 'every other example over the samples');
+    assert.deepEqual(page.sheets.map((s) => s.name), ['By sector', 'By venue', 'Trades']);
+    const placed = page.sheets.flatMap((s) => layoutTiles(s.layout));
+    assert.deepEqual([...placed].sort(), page.views.map((v) => v.id).sort(), 'every view once, on one sheet');
+    for (const g of SAVED_GRIDS) {
+      const source = page.cubes.find((c) => c.id === g.id)!.cube.source;
+      assert.ok(source._type === 'savedQuery', `${g.id} is a saved query`);
+      const { groupId, artifactId, versionId } = source.query;
+      assert.deepEqual({ groupId, artifactId, versionId }, MARKETS_PROJECT, `${g.id}: the markets project's`);
+      assert.match(source.query.content, new RegExp(`^\\|${g.className}\\.all\\(\\)->project\\(`), `${g.id}: a class projected`);
+    }
+    const columns = new Map(SAVED_GRIDS.map((g) => [g.id, g.columns.map((c) => ({ name: c.name, type: c.type }))] as const));
+    const all = page.views.flatMap((v) => (v.kind === 'timeseries' ? [v] : []));
+    assert.equal(all.length, 3);
+    for (const v of all) {
+      const byAlias = new Map(v.spec.sources.map((s) => [s.alias, columns.get(s.cube as 'quotes' | 'trades')!] as const));
+      assert.deepEqual(timeseriesProblems(v.spec, byAlias), [], v.title ?? v.id);
+    }
+    // a line split by a column the associations reach, and the trades read beside the prices
+    assert.ok(all.some((v) => v.spec.series.some((x) => x.split === 'exchange')), 'a line per listing venue');
+    assert.ok(all.some((v) => v.spec.sources.length === 2), 'the trades beside the quotes');
   });
 
   // the user, 2026-10-23: join prep was on the site, but no page showed it

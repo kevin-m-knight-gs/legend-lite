@@ -15,6 +15,16 @@
         "./projects/trading/runtime-duckdb.pure",
         "./projects/trading/trading-data.pure"
       ]
+    },
+    {
+      "groupId": "demo",
+      "artifactId": "markets",
+      "versionId": "0.0.0",
+      "title": "Markets on the trading model",
+      "models": [
+        "./projects/markets/trading-model.pure",
+        "./projects/markets/markets-data.pure"
+      ]
     }
   ],
   "depot": {
