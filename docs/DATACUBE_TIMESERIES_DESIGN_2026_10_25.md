@@ -820,11 +820,14 @@ dated budget notes; every figure still the database's.
   on past them, in its line's colour on its axis; refused under a compare (a line's own values; none asked, the drawing
   says so); taken off with its series. Settings' Project adds one; Python's `Timeseries.project` adds one and
   `Timeseries.projections()` reads them -- held to numpy's `polyfit` there and to the fit written out in
-  `timeseries-queries.test.ts`. Events from a grid are Phase 6's D4 below.
-  Left: the replay (the window's end stepped through time: the screen's alone, Python's by nature a loop over
-  `frame(end=...)`), and a period brushed to filter the page's other grids (what a tile's selection means for a grid it
-  does not draw -- its own source's filter, or every grid sharing its date column -- is a decision of the page's, not
-  the tile's; asked before it is built).
+  `timeseries-queries.test.ts`; **the replay** -- a Replay button stepping the zoom's end through the dates the lines
+  show, from a quarter in to the last (about 60 steps, a tenth of a second each; Stop leaves it where it is): the chart's
+  zoom alone, each step its lines as they stood that day, the figures of the dates shown asked once it settles -- the
+  screen's alone, Python's by nature a loop over `frame(end=...)`. Events from a grid are Phase 6's D4 below.
+  Left: a period brushed to filter the page's other grids. A tile reads its grids through their filters, so a span
+  brushed onto its own source's filter would cut the tile itself; what a tile's selection means for the grids of the
+  page (its sources' filters with the tile reading past its own, a page filter on the date of a class's grids, or every
+  grid sharing its date column) is a decision of the page's, not the tile's -- asked before it is built.
 - **Phase 6, charts from a model** (the user, 2026-10-27: "start all the charts from Class models projected to Relation
   instead of starting with Relation tables -- we should use the same Stress data model ... this also will give us richer
   joins to reference data and be able to plot trades"). A tile's grid reads a class of the stress model

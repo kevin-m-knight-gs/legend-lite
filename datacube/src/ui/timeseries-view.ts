@@ -127,6 +127,9 @@ function answered<R extends TsResult>(r: R): R {
 /** How long a grid's view waits before the tile asks again: a burst of views (a grid expanding row by row) asks once, as
  *  a chart's (ui/chart-panel.ts debounceMs). */
 const REFRESH_DEBOUNCE_MS = 150;
+/** A replay's steps from a quarter into the dates shown to the last, and the time between them: about six seconds. */
+const REPLAY_STEPS = 60;
+const REPLAY_TICK_MS = 100;
 
 /** What the viewer is given by the page it is on. */
 export interface TimeseriesHost {
@@ -455,6 +458,10 @@ export class TimeseriesView {
   #drawFrom: { readonly pane: number; readonly at: TsPoint } | undefined;
   #noteAt: { readonly pane: number; readonly at: TsPoint } | undefined;
   #drawBox!: HTMLElement;
+  /** REPLAY (Phase 5, TradingView's bar replay): the window's end stepped through the dates shown, a quarter in to the
+   *  last -- the chart's zoom alone, each step its lines as they stood that day; the figures of the dates shown asked
+   *  once it stops (the zoom's own settling). The screen's alone: Python's by nature a loop over frame(end=...). */
+  #replayTimer: ReturnType<typeof setInterval> | undefined;
   #lines: TsLine[] = [];
   /** Every question asked of the database, by its ask (timeseries-query.ts askKey): what the Query window shows. A
    *  round's asks of another tile, or of other dates, are not what is drawn: each kept with the tile it was asked of. */
@@ -536,6 +543,7 @@ export class TimeseriesView {
 
   dispose(): void {
     this.#disposed = true;
+    this.#stopReplay();
     this.#close();
     clearTimeout(this.#zoomTimer);
     clearTimeout(this.#refreshTimer);
@@ -1317,6 +1325,39 @@ export class TimeseriesView {
     this.#drawBox.replaceChildren(row);
   }
 
+  /** The replay started, or stopped where it is: from a quarter into the dates the lines show to their last, a step a
+   *  tick. Under two dates shown, nothing to replay, said. */
+  #replay(): void {
+    if (this.#replayTimer !== undefined) {
+      this.#stopReplay();
+      return;
+    }
+    const w = this.#window();
+    const dates = [...new Set(this.#lines.filter((l) => !l.series.hidden && !l.shades).flatMap((l) => l.points.map(([d]) => d)))]
+      .filter((d) => (w.from === undefined || d >= w.from) && (w.to === undefined || d <= w.to)).sort();
+    if (dates.length < 2) {
+      this.#say(['Nothing to replay: the lines show fewer than two dates.'], true);
+      return;
+    }
+    const from = dates[0]!;
+    let at = Math.floor(dates.length / 4);
+    const step = Math.max(1, Math.ceil((dates.length - 1 - at) / REPLAY_STEPS));
+    this.#chart?.zoomTo(from, dates[at]);
+    this.#replayTimer = setInterval(() => {
+      at = Math.min(dates.length - 1, at + step);
+      this.#chart?.zoomTo(from, dates[at]);
+      if (at === dates.length - 1) this.#stopReplay();
+    }, REPLAY_TICK_MS);
+    this.#paintBar();
+  }
+
+  #stopReplay(): void {
+    if (this.#replayTimer === undefined) return;
+    clearInterval(this.#replayTimer);
+    this.#replayTimer = undefined;
+    if (!this.#disposed) this.#paintBar();
+  }
+
   #zoomed(from: string | undefined, to: string | undefined): void {
     this.#zoom = { ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) };
     this.#paintRanges();
@@ -1368,9 +1409,12 @@ export class TimeseriesView {
     const query = button(doc, 'Query', 'Each series\' query as the compiler prints it, and its SQL', () => void this.#showQueries());
     const measure = button(doc, 'Measure', 'Drag across the chart: each line\'s change, its % and the days between, the database\'s', () => this.#measure(!this.#measuring));
     measure.setAttribute('aria-pressed', String(this.#measuring));
+    const replay = button(doc, this.#replayTimer === undefined ? 'Replay' : 'Stop', this.#replayTimer === undefined
+      ? 'Step the chart through its dates, each day as the lines stood then' : 'Stop the replay where it is', () => this.#replay());
+    replay.setAttribute('aria-pressed', String(this.#replayTimer !== undefined));
     const draw = button(doc, 'Draw', 'Click the chart: a line from one point to another, or a note pinned at one', () => this.#draws(this.#drawing === null ? 'line' : null));
     draw.setAttribute('aria-pressed', String(this.#drawing !== null));
-    this.#bar.replaceChildren(this.#ranges, el(doc, 'span', 'dc-ts-gap'), grain, compare, mode, log, stats, measure, draw, add, swap, settings, query, csv, png, svg);
+    this.#bar.replaceChildren(this.#ranges, el(doc, 'span', 'dc-ts-gap'), grain, compare, mode, log, stats, measure, draw, replay, add, swap, settings, query, csv, png, svg);
   }
 
   #paintRanges(): void {
@@ -1395,6 +1439,7 @@ export class TimeseriesView {
   }
 
   #setRange(word: TsRangeWord): void {
+    this.#stopReplay();
     const tried = this.#untried();
     this.#zoom = null;
     const spec = editTimeseries(this.#spec, { kind: 'range', range: { last: word } });

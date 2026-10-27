@@ -749,8 +749,12 @@ const CHART_BUDGET = 303_500;
  *  91,500 -> 95,000 (2026-10-27, Phase 5: the measure (a span's figures, ui/timeseries-view.ts #paintMeasure), shade
  *  from a column (#shadeFields), and a person's drawings -- the Draw mode, its box, a line's two clicks and a note's text
  *  (#draws, #pointed, #paintDraw), their drawing per pane (timeseries-option.ts `drawings:`), the renderer's click read
- *  in a pane's axes (timeseries-render.ts) -- the headroom ~2%). Measured 93,025. */
-const TIMESERIES_BUDGET = 95_000;
+ *  in a pane's axes (timeseries-render.ts) -- the headroom ~2%). Measured 93,025.
+ *  95,000 -> 97,000 (2026-10-27, Phase 5: a trend projected -- its query (timeseries-query.ts projectionQuery, the
+ *  `projection` ask), its reading and dashed drawing (timeseries-option.ts tsProjected), the viewer asking it beside the
+ *  series and Settings' Project (ui/timeseries-view.ts #projectionFields) -- and the replay (#replay) -- the headroom
+ *  ~2%). Measured 95,068. */
+const TIMESERIES_BUDGET = 97_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

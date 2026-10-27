@@ -433,6 +433,31 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
     }
   });
 
+  // Phase 5's replay (TradingView's): the window's end stepped through the dates shown, the chart's zoom alone; stopped
+  // where it is, and done at the last date
+  it('Replay: the zoom\'s end stepped forward through the dates shown from a quarter in, stopped where it is', async () => {
+    const { root, drawn, zooms, view, mounted } = viewer(SPEC);
+    try {
+      await until(() => drawn.length > 0 && mounted.on !== undefined, 'the chart');
+      const n = zooms.length;
+      barButton(root, 'Replay').click();
+      assert.equal(barButton(root, 'Stop').getAttribute('aria-pressed'), 'true');
+      await until(() => zooms.length >= n + 4, 'a few steps');
+      barButton(root, 'Stop').click();
+      const steps = zooms.slice(n) as { from: string; to: string }[];
+      const spx = of('SPX');
+      assert.equal(steps[0]!.from, spx.days[0], 'from the first date shown');
+      assert.equal(steps[0]!.to, spx.days[Math.floor(spx.days.length / 4)], 'a quarter in');
+      assert.ok(steps.every((z, i) => i === 0 || z.to > steps[i - 1]!.to), `each step later: ${steps.map((z) => z.to).join(', ')}`);
+      const stopped = zooms.length;
+      await new Promise((r) => setTimeout(r, 250));
+      assert.equal(zooms.length, stopped, 'stopped: no more steps');
+      assert.ok(barButton(root, 'Replay'), 'Replay again');
+    } finally {
+      view.dispose();
+    }
+  });
+
   // the Phase 6 review's 1: marks added once the tile is drawn were never asked (the fetch's key left the annotations
   // out), and an annotation taken off before them broke every drawing after (the answers kept by their place)
   it('marks added after it is drawn are asked and drawn; an annotation before them taken off, drawn still', async () => {
