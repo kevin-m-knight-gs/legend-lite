@@ -159,7 +159,10 @@ final class JdbcDecode {
             }
             // a JSON cell: its text, read by the Pure type as a document's cell is
             case "JSON" -> {
-                return RowDecode.cell(Json.parse(jsonText(v, c)), c);
+                Json.Node node = Json.parse(jsonText(v, c));
+                // a Variant's cell is its JSON text, a JSON null included: the SQL cell is not NULL, so the null is
+                // the Variant's value (toJSON of it is 'null'), never an absent one
+                return type.equals(RowDecode.VARIANT) ? Json.toCompact(node) : RowDecode.cell(node, c);
             }
             case "ARRAY" -> {
                 return array(v, c);

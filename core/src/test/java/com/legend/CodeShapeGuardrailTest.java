@@ -106,6 +106,11 @@ class CodeShapeGuardrailTest {
             "Batch.size", "Batch.built", "Batcher.builder", "Batcher.started", "Batcher.ended",
             "Collector.columns", "Collector.ended", "PlanRunner.started", "PlanRunner.streamed",
             "PlanRunner.columns",
+            // the writers at the edge (2026-10-27, the result boundary program's phase 2): each sink's columns as the
+            // stream announced them, and the cursor of what it has written (the first row's comma, the row count, a
+            // graph fetch's first object) -- scoped to one result's stream, as the batcher's
+            "CsvWriter.columns", "JsonRowsWriter.columns", "JsonRowsWriter.first", "PureV1Writer.columns",
+            "PureV1Writer.order", "PureV1Writer.rows",
             // parser cursors + scope state
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
             "Lexer.ends", "Lexer.count",

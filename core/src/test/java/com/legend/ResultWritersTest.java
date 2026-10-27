@@ -1,0 +1,204 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend;
+
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.executionplan.ExecutionPlan.Column;
+import com.legend.executionplan.ExecutionPlan.Multiplicity;
+import com.legend.executionplan.ExecutionPlan.TdsResult.Shape;
+import com.legend.json.Json;
+import com.legend.result.Batcher;
+import com.legend.result.CellText;
+import com.legend.result.CsvWriter;
+import com.legend.result.JsonRowsWriter;
+import com.legend.result.PureV1Writer;
+import com.legend.result.ResultSink;
+import com.legend.values.PureDateLiteral;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.io.StringWriter;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/** The writers at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, phase 2 of the end state recorded 2026-10-27):
+ *  each typed cell's text by the column's facts alone, in Pure's print forms and in legend-engine's tokens. */
+class ResultWritersTest {
+
+    private static final Multiplicity ONE = new Multiplicity(1, 1);
+
+    private static Column col(String name, String type, String slot) {
+        return new Column(name, type, ONE, slot, null);
+    }
+
+    private static String write(ResultSink sink, StringWriter out, List<Column> columns, List<List<?>> rows)
+            throws IOException {
+        Batcher b = new Batcher(columns, sink, 2);
+        b.start();
+        for (List<?> r : rows) {
+            b.row(r);
+        }
+        b.end();
+        return out.toString();
+    }
+
+    // ---- Pure's text ------------------------------------------------------------------------------------------------
+
+    @Test
+    void aFloatPrintsItsShortestDigitsWithAPoint_neverAnExponent() {
+        Column f = col("f", "Float", "DOUBLE");
+        assertEquals("1500000000000000.0", CellText.pure(1.5e15, f));
+        assertEquals("0.00000025", CellText.pure(2.5e-7, f));
+        assertEquals("0.0", CellText.pure(-0.0, f));
+        assertEquals("2.0", CellText.pure(new BigDecimal("2.000"), f));
+        // the double nearest 123456789123456789.99 prints its shortest digits (Pure's print of the double, the numeric
+        // charter's measurement), not its binary expansion
+        assertEquals("123456789123456780.0", CellText.pure(123456789123456789.99, f));
+    }
+
+    @Test
+    void aDecimalKeepsItsScale_anIntegerPastALongItsDigits() {
+        assertEquals("1.50", CellText.pure(new BigDecimal("1.50"), col("d", "Decimal", "DECIMAL(10,2)")));
+        assertEquals("18446744073709551614",
+                CellText.pure(new BigInteger("18446744073709551614"), col("i", "Integer", "HUGEINT")));
+    }
+
+    @Test
+    void aDateTimePrintsAtItsPrecisionWithItsZone_aStrictDateItsDay() {
+        assertEquals("2024-01-02T10:30:00.5+0000", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30:00.500"),
+                col("t", "DateTime", "TIMESTAMP")));
+        assertEquals("2024-01-02", CellText.pure(PureDateLiteral.parse("2024-01-02"), col("d", "StrictDate", "DATE")));
+        // a value carried as its own text keeps the precision it was written at
+        assertEquals("2024-01-02T10:30+0000", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30"),
+                col("t", "DateTime", "TEMPORAL_TEXT")));
+    }
+
+    @Test
+    void structuresPrintAsThePreludeSays() {
+        assertEquals("[2, 3]", CellText.pure(List.of(2L, 3L), col("v", "List<Integer>", "ARRAY<BIGINT>")));
+        Map<String, Object> pair = new LinkedHashMap<>();
+        pair.put("first", 1L);
+        pair.put("second", "a");
+        assertEquals("<1, a>", CellText.pure(pair, col("v", "Pair<Integer, String>", "STRUCT<first BIGINT>")));
+        Map<String, Object> outer = new LinkedHashMap<>();
+        outer.put("first", pair);
+        outer.put("second", 4L);
+        assertEquals("<<1, a>, 4>",
+                CellText.pure(outer, col("v", "Pair<Pair<Integer, String>, Integer>", "STRUCT<first STRUCT>")));
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("key1", 0L);
+        map.put("key2", 1L);
+        assertEquals("{key1=0, key2=1}", CellText.pure(map, col("v", "Map<String, Integer>", "MAP<VARCHAR,BIGINT>")));
+        Map<String, Object> person = new LinkedHashMap<>();
+        person.put("name", "Ann");
+        person.put("__id", "o1");
+        person.put("__type", "model::Person");
+        assertEquals("@_o1", CellText.pure(person, col("v", "model::Person", "STRUCT<name VARCHAR>")));
+    }
+
+    @Test
+    void aStructureOfNoKnownPrintIsRefused() {
+        var refused = assertThrows(IllegalArgumentException.class,
+                () -> CellText.pure(Map.of("name", "Ann"), col("v", "model::Person", "STRUCT<name VARCHAR>")));
+        assertTrue(refused.getMessage().contains("Pure's text"), refused.getMessage());
+    }
+
+    // ---- legend-engine's tokens -------------------------------------------------------------------------------------
+
+    @Test
+    void engineTokens() {
+        assertEquals("1.0E15", Json.toCompact(CellText.engine(1.0e15, col("f", "Float", "DOUBLE"))));
+        assertEquals("\"NaN\"", Json.toCompact(CellText.engine(Double.NaN, col("f", "Float", "DOUBLE"))));
+        assertEquals("1.50", Json.toCompact(CellText.engine(new BigDecimal("1.50"), col("d", "Decimal", "DECIMAL"))));
+        // a whole number past a long is written by its digits, never wrapped
+        assertEquals("18446744073709551614", Json.toCompact(
+                CellText.engine(new BigInteger("18446744073709551614"), col("i", "Integer", "HUGEINT"))));
+        assertEquals("\"2024-01-02T10:30:00.500000000+0000\"", Json.toCompact(CellText.engine(
+                PureDateLiteral.parse("2024-01-02T10:30:00.5"), col("t", "DateTime", "TIMESTAMP"))));
+        Map<String, Object> person = new LinkedHashMap<>();
+        person.put("name", "Ann");
+        person.put("__id", "o1");
+        assertEquals("{\"name\":\"Ann\"}", Json.toCompact(CellText.engine(person, col("v", "model::Person", "JSON"))));
+        // a Variant's JSON null is a value, written as JSON's null
+        assertEquals("null", Json.toCompact(CellText.engine("null",
+                col("v", "meta::pure::metamodel::variant::Variant", "JSON"))));
+    }
+
+    // ---- the writers ------------------------------------------------------------------------------------------------
+
+    private static final List<Column> ROWS = List.of(col("ID", "Integer", "BIGINT"), col("NAME", "String", "VARCHAR"),
+            col("F", "Float", "DOUBLE"));
+
+    private static final List<List<?>> DATA = List.of(List.of(1L, "a,b", 2.0), Arrays.asList(2L, null, 0.5),
+            List.of(3L, "say \"hi\"", 1e15));
+
+    @Test
+    void theCsvIsRfc4180_aNullEmpty_everyLineEndedByCrlf() throws IOException {
+        StringWriter out = new StringWriter();
+        assertEquals("ID,NAME,F\r\n1,\"a,b\",2.0\r\n2,,0.5\r\n3,\"say \"\"hi\"\"\",1000000000000000.0\r\n",
+                write(new CsvWriter(out, Shape.RELATION), out, ROWS, DATA));
+    }
+
+    @Test
+    void aCsvOfNoRowIsItsHeader_aPivotsGeneratedNameQuoted() throws IOException {
+        StringWriter out = new StringWriter();
+        assertEquals("'a__|__b',x\r\n", write(new CsvWriter(out, Shape.RELATION), out,
+                List.of(col("a__|__b", "Integer", "BIGINT"), col("x", "String", "VARCHAR")), List.of()));
+    }
+
+    @Test
+    void aGraphFetchHasNoCsv() {
+        assertThrows(com.legend.error.NotImplementedException.class,
+                () -> new CsvWriter(new StringWriter(), Shape.OBJECTS));
+    }
+
+    @Test
+    void theJsonRowsArePureTokens() throws IOException {
+        StringWriter out = new StringWriter();
+        assertEquals("[{\"ID\":1,\"NAME\":\"a,b\",\"F\":2.0},{\"ID\":2,\"NAME\":null,\"F\":0.5},"
+                        + "{\"ID\":3,\"NAME\":\"say \\\"hi\\\"\",\"F\":1000000000000000.0}]",
+                write(new JsonRowsWriter(out, Shape.RELATION), out, ROWS, DATA));
+    }
+
+    @Test
+    void thePureV1RelationIsTheEnginesTdsLayout_inTheEnginesColumnOrder() throws IOException {
+        StringWriter out = new StringWriter();
+        String json = write(new PureV1Writer(out, Shape.RELATION, "{\"_type\":\"tdsBuilder\"}", "[]",
+                List.of("F", "ID", "NAME")), out, ROWS, DATA);
+        assertEquals("{\"builder\": {\"_type\":\"tdsBuilder\"}, \"activities\": [], \"result\" : {\"columns\" : "
+                + "[\"F\",\"ID\",\"NAME\"], \"rows\" : [{\"values\": [2.0,1,\"a,b\"]},{\"values\": [0.5,2,null]},"
+                + "{\"values\": [1.0E15,3,\"say \\\"hi\\\"\"]}]}}", json);
+        Json.parse(json);
+    }
+
+    @Test
+    void thePureV1ObjectsAreBareWhenOne_anArrayWhenMany() throws IOException {
+        List<Column> obj = List.of(col("value", "model::Person", "JSON"));
+        StringWriter one = new StringWriter();
+        assertEquals("{\"builder\":{\"_type\":\"json\"},\"values\":{\"name\":\"Ann\"}}",
+                write(PureV1Writer.objects(one), one, obj, List.of(List.of("{\"name\": \"Ann\"}"))));
+        StringWriter many = new StringWriter();
+        assertEquals("{\"builder\":{\"_type\":\"json\"},\"values\":[{\"name\":\"Ann\"},{\"name\":\"Bo\"},{\"name\":\"Cy\"}]}",
+                write(PureV1Writer.objects(many), many, obj, List.of(List.of("{\"name\":\"Ann\"}"),
+                        List.of("{\"name\":\"Bo\"}"), List.of("{\"name\":\"Cy\"}"))));
+        StringWriter none = new StringWriter();
+        assertEquals("{\"builder\":{\"_type\":\"json\"},\"values\":[]}",
+                write(PureV1Writer.objects(none), none, obj, List.of()));
+    }
+
+    @Test
+    void aValuesPureV1AnswerIsRefusedByName() {
+        var refused = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> new PureV1Writer(new StringWriter(), ExecutionPlan.TdsResult.Shape.VALUE, "", "", List.of()));
+        assertTrue(refused.getMessage().contains("unprobed"), refused.getMessage());
+    }
+}
