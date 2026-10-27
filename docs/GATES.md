@@ -14985,3 +14985,41 @@ and the lanes re-measure this head.
    DuckDB (5 suites), H2, SQLite (5), MongoDB (5), channel B (5) and the discipline guard: 24 of 24, channel B's
    per-test lines identical to CI's at 7b8c89dc in all five suites; the eight Postgres targets, unprivileged: 8 of 8.
    Not run here: the local gate and the cloud lanes (they re-measure this head).
+
+## 2026-10-27 — the result boundary program's stage 1, step 3: a PCT relation's crossing measured against legend-engine's own adapter
+
+How a relation crosses into the reference interpreter decides what the PCT judges. legend-engine's own relational
+PCT adapter (`pct_relational.pure`) executes the plan, reads the engine's JSON answer (`parseJSON`, then `fromJSON`
+into its `RelationalTDSResult`, a JSON null replaced by `TDSNull`), and writes the TDS text in Pure with
+`getTDSResultFromProtocol` (`core_relational`'s `execution_relational_execute.pure`: the header from the function's
+relation type where it has one, else the builder's; a String's `toCSVString`, `TDSNull`'s `'null'`, any other value's
+`toString`), then `stringToTDS`. Lite's adapter, since phase 4, writes that text in Java from the typed cells
+(`PureTdsText`).
+
+1. **The engine's way, built beside the text crossing behind a switch** (`LEGENDLITE_PCT_RELATION=engine`, off by
+   default; the loser is deleted with it): the plan streams through the server's own engine writer
+   (`PureV1Api.engineWriter`, the `pure/v1/execute` answer) into the adapter; Java reads each value as json-simple and
+   the engine's `JsonParser` type it (an integral number an Integer, any other number a Float of its double, a null
+   `TDSNull`; a Variant's object or array its compact JSON text); the adapter's Pure replays `getTDSResultFromProtocol`
+   line for line (`engineTDS`, `engineName`) and reads the text with `stringToTDS`. A typed TestTDS built in Java was
+   tried first and set aside: it is not the reference's crossing, its reader holds a date at the millisecond, and its
+   classes sit in two jars the upstream pool does not list (a `release.MODULE.bazel` and lock change).
+2. **Measured on DuckDB (5 suites) against the ledgers, which hold the text crossing exactly:** essential, grammar and
+   unclassified identical; relation 43 lost and 1 message moved, standard 2 lost. Every loss is the PRODUCTION engine
+   writer's, which the text crossing never exercised:
+   - 10 dynamic pivots: the server's envelope looked a generated column's primitive up by its short name (`Integer`)
+     in a table keyed by path, so `pure/v1/execute` refused every dynamic pivot. **Fixed here**
+     (`PureV1Api.envelope`); the 10 pass through the engine crossing;
+   - 31 relations with a Variant column: the server's builder refuses a Variant's relational spelling as unprobed,
+     by design ("probe legend-engine, do not guess"): a probe of legend-engine's answer is the item;
+   - 4 `Date` columns (`testExtendMaxDate`, `testExtendMinDate`, two lead-adjust compositions): the engine writer
+     spells a `Date` cell at midnight as its day beside full date-times in one TIMESTAMP column, and the TDS reader's
+     CSV parser then refuses the column as text. legend-engine's own serializer (`ValueTransformer`) writes a
+     `java.sql.Timestamp` always in full and only a `java.sql.Date` as its day, so the midnight rule in
+     `CellText.engine` is not the engine's; the engine's DuckDB manifest pins none of the four. It is S1.4's
+     (the writers carriage only), to be confirmed against legend-engine's answer before it changes.
+3. **The decision waits on S1.4:** the engine crossing replaces `PureTdsText` once the Variant spelling is probed and
+   the midnight rule is gone; then the lanes measure it, and the text crossing and the switch are deleted.
+4. **Measured here:** the text crossing (default) on DuckDB (5 suites) and channel B's relation suite, unchanged; the
+   server's tests, `guardrails`, `census`, `pct_discipline`: green. The ledger pins for the measurement's own lines
+   (ValueBridge 376 -> 428, PctExecuteNative 94 -> 99) are dated and leave with the switch.

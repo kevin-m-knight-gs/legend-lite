@@ -514,7 +514,10 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
               // results arrive as REAL typed instances Java built from
               // the platform's own generic returnType — B2)
               let single = $result->toOne();
-              if($single->instanceOf(TDSResult),
+              if($single->instanceOf(EngineTDSResult),
+                | // a relation as legend-engine's adapter reads the engine's JSON answer (engineTDS)
+                  engineTDS($single->cast(@EngineTDSResult), $f->functionReturnType())->cast(@X)->toMultiplicity(@[o]),
+                | if($single->instanceOf(TDSResult),
                 | // A relation crosses as Pure's TDS text, written by the adapter's Java from the plan's typed rows
                   // (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, phase 4): the reference holds a relation as its
                   // text, so stringToTDS reads it whole -- the platform's own column names, types and
@@ -528,7 +531,42 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
                   // adapter's LAST declared-type read is gone; every
                   // scalar passes through untouched.
                   $single->cast(@X)->toMultiplicity(@[o]);
-              );
+              ));
           );
     );
+}
+
+// legend-engine's getTDSResultFromProtocol (core_relational, protocols/pure/vX_X_X/invocations/execution_relational_execute
+// .pure), its steps as written there: the header from the function's relation type where it has one (a pivot's columns
+// lose their types in the plan), else from the builder; each cell a String's toCSVString, TDSNull's 'null', any other
+// value's toString; then stringToTDS.
+function <<access.private>> meta::legend::lite::pct::engineTDS(r:EngineTDSResult[1], funcReturnType:GenericType[1]):Any[1]
+{
+  let columns = if ($funcReturnType.typeArguments->at(0).rawType->toOne()->instanceOf(RelationType),
+                    | $funcReturnType.typeArguments->at(0).rawType->cast(@RelationType<Any>).columns->map(x |
+                        let multiplicity = $x->functionReturnMultiplicity();
+                        engineName($x.name) + ':'+$x->functionReturnType()->printGenericType(true)+'['+if ($multiplicity == ZeroMany,|PureOne, |$multiplicity)->printMultiplicity()+']';
+                      ),
+                    | $r.columns->map(c | $c.type->map(t |
+                        if($t == 'meta::pure::precisePrimitives::Varchar', |'String', |$t);
+                      )->map(t | engineName($c.name) + ':' + $t)));
+
+  let tdsString = $columns->joinStrings(',') + '\n' +
+                                $r.rows->map(x|
+                                  range($x.values->size())->map(z |
+                                      $x.values->at($z)->match([
+                                        s: String[1] | $s->meta::pure::functions::relation::toCSVString(),
+                                        a: Any[1] | if($a == meta::pure::tds::TDSNull, |'null', |$a->toString())
+                                      ]);
+                                  )->makeString(',')
+                                )->joinStrings('\n');
+
+  $tdsString->stringToTDS();
+}
+
+// legend-engine's manageName: a column's name as its representation
+function <<access.private>> meta::legend::lite::pct::engineName(_name:String[0..1]):String[1]
+{
+    let name = $_name->toOne()->trim();
+    $name->meta::pure::functions::string::toRepresentation();
 }

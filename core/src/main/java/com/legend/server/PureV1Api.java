@@ -412,7 +412,11 @@ public final class PureV1Api {
             com.legend.compiler.element.type.Type t = declared.containsKey(c.name()) ? declared.get(c.name())
                     : declared.containsKey(name) ? declared.get(name)
                     : c.name().contains(com.legend.compiler.element.type.Type.RelationType.PIVOT_SEPARATOR)
-                            ? com.legend.compiler.element.type.Type.Primitive.findByFqn(c.type()).orElseThrow(() ->
+                            // (the plan names a primitive by its short name, the table by its path: every dynamic
+                            // pivot's engine answer was refused until 2026-10-27, found by the PCT read as the engine's
+                            // adapter reads it, the result boundary program's stage 1, step 3)
+                            ? com.legend.compiler.element.type.Type.Primitive.findByFqn(
+                                    "meta::pure::metamodel::type::" + c.type()).orElseThrow(() ->
                                     new IllegalStateException("the generated column '" + c.name() + "' of type "
                                             + c.type() + " is no primitive"))
                             : null;

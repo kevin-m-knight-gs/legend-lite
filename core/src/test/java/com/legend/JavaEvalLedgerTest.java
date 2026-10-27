@@ -105,8 +105,10 @@ class JavaEvalLedgerTest {
             // no JDBC session runs through the plan (PctPlanRoute, one call); the legacy route is its own method
             // (legacyRoute, the query service on the session PctBackend opens, as before). Nothing evaluated in Java.
             // 116 -> 94 (2026-10-27, the result boundary program's phase 4: the legacy route and the shadow plan
-            // deleted; the PCT runs the typed plan alone)
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 94),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
+            // deleted; the PCT runs the typed plan alone); 94 -> 99 the same day (stage 1, step 3: the relation's
+            // crossing measured both ways, Pure's TDS text and the engine's JSON read by its own adapter's steps; the
+            // loser's lines leave with the switch)
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 99),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
             // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
             // colliding with a lite-native name refuses injection loudly;
             // guard growth, anti-compensation
@@ -130,7 +132,10 @@ class JavaEvalLedgerTest {
             // reference's own instances from the plan's typed cells, by the query's result type -- the conversions
             // pct_adapter.pure's text readers (readPureLiteral, quotedCells) did, deleted with them; each cell one
             // carrier hop, nothing evaluated)
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 376),
+            // 376 -> 428 the same day (stage 1, step 3: the engine's JSON answer read as legend-engine's PCT adapter reads
+            // it, json-simple's typing of each value, beside the TDS text crossing it is measured against; one of the
+            // two is deleted with the switch)
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 428),
             // MetamodelWalk (1307) + MetamodelSteps (196) DELETED (batch 55a,
             // 2026-09-04): the Java port of toPostgresModel and the host
             // metamodel walk are gone — the three tests they still scored

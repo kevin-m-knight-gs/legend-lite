@@ -551,6 +551,73 @@ final class ValueBridge {
      * Variant cells still travel as quoted JSON text. */
 
 
+    /**
+     * A relation's answer, the engine's JSON the server writes ({@code PureV1Writer}), read as legend-engine's own PCT
+     * adapter reads it (pct_relational.pure: parseJSON, then fromJSON into its RelationalTDSResult with
+     * nullReplacementInArray=TDSNull): the TDS builder's columns, each row's values as json-simple types them -- an
+     * integral number an Integer, any other number a Float of its double (json-simple reads a Double, and the engine's
+     * JsonParser makes the Float from its text), a string a String, a boolean a Boolean, a JSON null TDSNull. A Variant's
+     * object or array (json-simple's JSONObject or JSONArray) crosses as its compact JSON text, which toCSVString quotes.
+     * The adapter's Pure writes the TDS text with getTDSResultFromProtocol's steps (pct_adapter.pure, engineTDS).
+     */
+    CoreInstance engineTDS(String engineJson, ProcessorSupport ps) {
+        com.legend.json.Json.Obj answer = com.legend.json.Json.parseObject(engineJson);
+        CoreInstance result = modelRepository.newCoreInstance("EngineTDSResult",
+                pctClass("meta::legend::lite::pct::EngineTDSResult", ps), null);
+        CoreInstance columnClass = pctClass("meta::legend::lite::pct::EngineTDSColumn", ps);
+        CoreInstance rowClass = pctClass("meta::legend::lite::pct::EngineTDSRow", ps);
+        com.legend.json.Json.Obj builder = (com.legend.json.Json.Obj) answer.get("builder");
+        for (com.legend.json.Json.Node c : ((com.legend.json.Json.Arr) builder.get("columns")).items()) {
+            com.legend.json.Json.Obj column = (com.legend.json.Json.Obj) c;
+            CoreInstance col = modelRepository.newCoreInstance("EngineTDSColumn", columnClass, null);
+            Instance.addValueToProperty(col, "name", modelRepository.newStringCoreInstance(
+                    ((com.legend.json.Json.Str) column.get("name")).value()), ps);
+            if (column.get("type") instanceof com.legend.json.Json.Str type) {
+                Instance.addValueToProperty(col, "type", modelRepository.newStringCoreInstance(type.value()), ps);
+            }
+            Instance.addValueToProperty(result, "columns", col, ps);
+        }
+        com.legend.json.Json.Obj data = (com.legend.json.Json.Obj) answer.get("result");
+        CoreInstance tdsNull = pctClass("meta::pure::tds::TDSNull", ps);
+        for (com.legend.json.Json.Node r : ((com.legend.json.Json.Arr) data.get("rows")).items()) {
+            CoreInstance row = modelRepository.newCoreInstance("EngineTDSRow", rowClass, null);
+            for (com.legend.json.Json.Node v : ((com.legend.json.Json.Arr) ((com.legend.json.Json.Obj) r).get("values"))
+                    .items()) {
+                Instance.addValueToProperty(row, "values", engineValue(v, tdsNull), ps);
+            }
+            Instance.addValueToProperty(result, "rows", row, ps);
+        }
+        return ValueSpecificationBootstrap.wrapValueSpecification(result, true, ps);
+    }
+
+    /** One JSON value of the engine's row as json-simple and the engine's JsonParser make it. */
+    private CoreInstance engineValue(com.legend.json.Json.Node v, CoreInstance tdsNull) {
+        return switch (v) {
+            case com.legend.json.Json.Str s -> modelRepository.newStringCoreInstance(s.value());
+            case com.legend.json.Json.Bool b -> modelRepository.newBooleanCoreInstance(b.value());
+            case com.legend.json.Json.Null n -> tdsNull;
+            case com.legend.json.Json.Num n -> {
+                String token = n.token() != null ? n.token() : com.legend.json.Json.toCompact(n);
+                // json-simple's lexer: a number with a fraction or an exponent is a Double, any other a Long (one past
+                // a long its parse refuses, as json-simple's does)
+                yield token.contains(".") || token.contains("e") || token.contains("E")
+                        ? modelRepository.newCoreInstance(Double.toString(Double.parseDouble(token)),
+                                modelRepository.getTopLevel("Float"), null)
+                        : modelRepository.newIntegerCoreInstance(Long.parseLong(token));
+            }
+            case com.legend.json.Json.Obj o -> modelRepository.newStringCoreInstance(com.legend.json.Json.toCompact(o));
+            case com.legend.json.Json.Arr a -> modelRepository.newStringCoreInstance(com.legend.json.Json.toCompact(a));
+        };
+    }
+
+    private static CoreInstance pctClass(String path, ProcessorSupport ps) {
+        CoreInstance c = ps.package_getByUserPath(path);
+        if (c == null) {
+            throw new IllegalStateException(path + " is not in the PCT's Pure model");
+        }
+        return c;
+    }
+
     CoreInstance createTDSResult(String tdsString, ProcessorSupport ps) {
         CoreInstance tdsResultClass = ps.package_getByUserPath("meta::legend::lite::pct::TDSResult");
         if (tdsResultClass == null) {

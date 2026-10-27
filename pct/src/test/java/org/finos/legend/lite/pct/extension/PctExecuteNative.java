@@ -153,6 +153,11 @@ public class PctExecuteNative extends NativeFunction {
             PctCaseRecorder.recordShape(pureExpression, answer);   // the shape census: -Dlegend.diagnostics=pct-shapes
             return switch (answer.shape()) {
                 case RELATION -> {
+                    String engineJson = answer.engineJson();
+                    if (engineJson != null) {
+                        System.out.println("[LegendLite PCT] engine JSON: " + engineJson);
+                        yield bridge.engineTDS(engineJson, processorSupport);
+                    }
                     String tds = PureTdsText.of(answer.rows().columns(), answer.rows().rows());
                     System.out.println("[LegendLite PCT] TDS: " + tds.replace("\n", "\\n"));
                     yield bridge.createTDSResult(tds, processorSupport);
