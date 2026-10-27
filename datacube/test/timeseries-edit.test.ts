@@ -91,6 +91,11 @@ describe('a timeseries tile changed by its one rule', () => {
     const marked = editTimeseries(SPEC, { kind: 'annotate', annotation: { kind: 'level', value: 70, pane: 1 } });
     assert.equal(editTimeseries(marked, { kind: 'unannotate', index: 0 }).annotations, undefined);
     refused(() => editTimeseries(marked, { kind: 'unannotate', index: 3 }), /there is no annotation 4/);
+    // a 0/1 column shaded in one step (Phase 5; FRED's recession bars): a condition series of it, named after it
+    const shaded = editTimeseries(SPEC, { kind: 'shade', column: 'rec', source: 'rates', where: [{ value: '10Y' }] });
+    assert.deepEqual(shaded.series.at(-1), { id: 'D', expr: parseExpr('rates:rec[10Y] != 0'), name: 'rec' });
+    assert.deepEqual(editTimeseries(SPEC, { kind: 'shade', column: 'rec', name: 'Recessions' }).series.at(-1), { id: 'D', expr: parseExpr('rec != 0'), name: 'Recessions' });
+    refused(() => editTimeseries(SPEC, { kind: 'shade', column: 'rec', source: 'fx' }), /reads no source fx/);
     const slots = editTimeseries({ ...SPEC, view: { stats: true } }, { kind: 'slots', slots: { view: { compare: 'percent' }, grain: 'month', range: null } });
     assert.deepEqual([slots.view, slots.grain, slots.range], [{ compare: 'percent' }, 'month', undefined]);
   });

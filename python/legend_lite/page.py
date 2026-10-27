@@ -2340,6 +2340,17 @@ class Timeseries(Tile):
         (``swap(10, 20)``); the spaces round a name are not of it. Refused where no series reads it."""
         return self._edit({'kind': 'swap', 'from': str(instrument), 'to': str(to), **({'alias': source} if source is not None else {})})
 
+    def shade(self, column: str, *, source: str | None = None, where: Sequence[Mapping[str, Any]] | None = None,
+              name: str | None = None) -> Timeseries:
+        """A 0/1 column shaded where it is not 0, in one step (FRED's recession bars): a condition series of it -- of source
+        ``source`` (None: the first), its rows ``where`` picks (``[{'value': 'US'}]``, ``[{'column': 'region', 'value':
+        'EU'}]``) -- named ``name`` (None: the column), shaded across every pane where it holds, its runs the database's:
+        the screen's Settings' Shade, by the tile's one rule (timeseries-edit.ts). Refused, in its words, on a column that
+        is no number."""
+        return self._edit({'kind': 'shade', 'column': column, **({'source': source} if source is not None else {}),
+                           **({'where': [dict(m) for m in where]} if where is not None else {}),
+                           **({'name': name} if name is not None else {})})
+
     def _edit(self, change: dict[str, Any]) -> Timeseries:
         """``change`` (a timeseries-edit.ts TsChange) made by the tile's one rule, headless, and told as setTimeseries."""
         _ = self._view

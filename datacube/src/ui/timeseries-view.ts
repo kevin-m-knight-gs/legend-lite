@@ -2735,7 +2735,7 @@ export class TimeseriesView {
       if (this.#edit({ kind: 'annotate', annotation: made })) this.#editSettings();
     }));
     parts.push(addRow, el(doc, 'div', 'dc-ts-hint', 'Double-click the chart to put an event at that date.'));
-    parts.push(...this.#marksFields(used));
+    parts.push(...this.#marksFields(used), ...this.#shadeFields());
     this.#open('Settings', ...parts);
     this.#settings = true;
   }
@@ -2789,6 +2789,43 @@ export class TimeseriesView {
     rows.append(source, matches, at, shape, pane, text, label, add);
     return [el(doc, 'div', 'dc-ts-field-label', 'Marks from a grid\'s rows'), rows,
       el(doc, 'div', 'dc-ts-hint', 'Each row the grid has that the rows match, at its date: drawn at a column\'s value (a trade at its price), or a line at its date.')];
+  }
+
+  /** Shade from a column in one step (Phase 5; FRED's recession bars): a 0/1 column of a source, its rows matched as a
+   *  column's brackets are typed, shaded where it is not 0 -- a condition series, by the tile's one rule (`shade`). */
+  #shadeFields(): HTMLElement[] {
+    const doc = this.#doc;
+    const spec = this.#spec;
+    const columns = this.#columns(spec);
+    const source = select(doc, spec.sources.map((s) => [s.alias, s.alias] as const), spec.sources[0]!.alias, () => paint(), 'Shade source');
+    const column = el(doc, 'select', 'dc-input dc-ts-small', undefined, { 'aria-label': 'Shade column' });
+    const matches = el(doc, 'input', 'dc-input', undefined, { placeholder: 'Rows: US', 'aria-label': 'Rows shaded' });
+    const name = el(doc, 'input', 'dc-input', undefined, { placeholder: 'Name', 'aria-label': 'Shade name' });
+    const paint = (): void => {
+      const date = spec.sources.find((s) => s.alias === source.value)?.date;
+      column.replaceChildren(...(columns.get(source.value) ?? []).filter((c) => isNumeric(c.type) && c.name !== date).map((c) => {
+        const o = doc.createElement('option');
+        o.value = c.name;
+        o.textContent = c.name;
+        return o;
+      }));
+    };
+    paint();
+    const add = button(doc, 'Shade', 'Shade every period where the column is not 0', () => {
+      if (column.value === '') return;
+      let where: ReturnType<typeof parseMatches>;
+      try {
+        where = parseMatches(matches.value);
+      } catch (e) {
+        this.#say([e instanceof Error ? e.message : String(e)], true);
+        return;
+      }
+      const words = name.value.trim();
+      if (this.#edit({ kind: 'shade', column: column.value, source: source.value, ...(where.length > 0 ? { where } : {}), ...(words ? { name: words } : {}) })) this.#editSettings();
+    });
+    const row = el(doc, 'div', 'dc-ts-row');
+    row.append(source, column, matches, name, add);
+    return [el(doc, 'div', 'dc-ts-field-label', 'Shade where a column is not 0'), row];
   }
 
   /** A view's own fields in Settings: the series it reads (a scatter's x and y), a seasonality's years, a histogram's

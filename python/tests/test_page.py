@@ -1096,6 +1096,22 @@ class Document(Paged):
         # date it crosses at kept too (timeseries-query.ts seriesQuery, the review's Q12)
         self.assertIn('ts_cut_first <= 100001', asked[1]['pure'])
 
+    def test_a_timeseries_shades_a_column_where_it_is_not_zero_in_one_step(self):
+        # Phase 5's shade from a column (FRED's recession bars): a condition series of it, by the tile's one rule
+        # (timeseries-edit.ts shade), its periods the database's -- 1 where the column is not 0
+        page = ll.Page('Shade')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 99.0, 103.0, 104.0, 102.0],
+                               'rec': [0, 1, 1, 0, 1, 0], 'side': ['a'] * 6})
+        tile = page.timeseries({'px': page.grid(prices, name='prices')}, ['close[S]'])
+        tile.shade('rec', where=[{'value': 'S'}], name='Recessions')
+        added = tile.spec['series'][-1]
+        self.assertEqual((added['id'], added['name']), ('B', 'Recessions'))
+        frame = tile.frame('B')
+        self.assertEqual([int(v) for v in frame['Recessions']], [0, 1, 1, 0, 1, 0], 'where it is not 0, each date')
+        with self.assertRaisesRegex(ValueError, "plots 'side', which is not a number"):
+            tile.shade('side')
+
     def test_a_timeseries_marks_a_grids_rows_each_the_databases_as_the_screen_marks_them(self):
         # marks from a grid's rows (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6's D4: the trades; Phase
         # 5's events from a grid): each trade at its price on its day, its quantity beside it, by the screen's one rule

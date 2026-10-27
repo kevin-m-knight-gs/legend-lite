@@ -10,7 +10,7 @@ import {
   aliasFor, firstPlot, inlined, nextSeriesId, NO_SERIES, refsOf, sourceOf, sourcesOf, timeseriesProblems, TsInlineError, type TsColumn,
 } from './timeseries-expr.ts';
 import {
-  ALIAS, MAX_PANES, readTimeseries, tsStateOf, type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsPane, type TsRange,
+  ALIAS, MAX_PANES, readTimeseries, tsStateOf, type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsMatch, type TsPane, type TsRange,
   type TsSeries, type TsSource, type TsState, type TsView,
 } from './timeseries-spec.ts';
 import type { FilterNode } from './snapshot.ts';
@@ -69,6 +69,9 @@ export type TsChange =
    *  alone when told; a name saying it says the other. */
   | { readonly kind: 'swap'; readonly from: string; readonly to: string; readonly alias?: string }
   | { readonly kind: 'annotate'; readonly annotation: TsAnnotation }
+  /** A 0/1 column shaded where it is not 0, in one step (Phase 5; FRED's recession bars): a condition series of it
+   *  (`rec[US] != 0`) of source `source` (absent, the first), named after it unless told. */
+  | { readonly kind: 'shade'; readonly column: string; readonly source?: string; readonly where?: readonly TsMatch[]; readonly name?: string }
   /** An annotation taken off, by its place. */
   | { readonly kind: 'unannotate'; readonly index: number }
   /** A source's alias renamed (every expression naming it following), its date or its instrument column told. */
@@ -302,6 +305,17 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
       }
       const id = told.id ?? nextSeriesId(spec.series);
       return { ...spec, series: [...spec.series, { ...told, id } as TsSeries] };
+    }
+    case 'shade': {
+      if (typeof change.column !== 'string' || change.column === '') throw new TsEditRefusal('a column is shaded by its name');
+      if (change.source !== undefined && !spec.sources.some((x) => x.alias === change.source)) throw new TsEditRefusal(`the tile reads no source ${change.source}`);
+      // where it is not 0, read as a condition is -- shaded across every pane, its runs the database's
+      const column: TsExpr = {
+        kind: 'column', ...(change.source !== undefined && change.source !== spec.sources[0]?.alias ? { source: change.source } : {}), column: change.column,
+        ...(change.where !== undefined && change.where.length > 0 ? { where: change.where } : {}),
+      };
+      const expr: TsExpr = { kind: 'binary', op: '!=', left: column, right: { kind: 'number', value: 0 } };
+      return { ...spec, series: [...spec.series, { id: nextSeriesId(spec.series), expr, name: change.name ?? change.column }] };
     }
     case 'unplot': {
       seriesNamed(spec, change.id);

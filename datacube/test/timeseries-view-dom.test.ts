@@ -813,6 +813,36 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
     }
   });
 
+  // marks from a grid's rows and a column shaded, each added in Settings by the tile's one rule (Phase 5, Phase 6's D4)
+  it('Settings: marks of the grid\'s rows added at a column, and a column shaded where it is not 0', async () => {
+    const { root, windows, told, view } = viewer(SPEC);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      barButton(root, 'Settings').click();
+      const win = (): HTMLElement => windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+      const Event = win().ownerDocument.defaultView!.Event;
+      const field = <T extends HTMLElement>(label: string): T => win().querySelector<T>(`[aria-label="${label}"]`)!;
+      const set = (label: string, value: string): void => {
+        const f = field<HTMLInputElement | HTMLSelectElement>(label);
+        f.value = value;
+        f.dispatchEvent(new Event('change'));
+      };
+      set('Rows marked', 'SPX');
+      set('Drawn at', 'close');
+      set('Shape', 'down');
+      set('Says', 'volume');
+      set('Marks label', 'SPX closes');
+      [...win().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Add' && b.title === 'Mark the rows over the series')!.click();
+      assert.deepEqual(told.at(-1)!.annotations, [{ kind: 'marks', source: 'px', where: [{ value: 'SPX' }], at: 'close', shape: 'down', text: 'volume', label: 'SPX closes' }]);
+      set('Shade column', 'volume');
+      set('Rows shaded', 'NDX');
+      [...win().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Shade')!.click();
+      assert.deepEqual(told.at(-1)!.series.at(-1), { id: 'C', expr: parseExpr('volume[NDX] != 0'), name: 'volume' });
+    } finally {
+      view.dispose();
+    }
+  });
+
   it('Settings: a subtitle drawn under the chart\'s top, a pane turned upside down, its ends set', async () => {
     const { root, windows, told, drawn, view } = viewer(SPEC);
     try {
