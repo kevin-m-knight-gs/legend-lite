@@ -202,6 +202,9 @@ _NEXT_LINK_FILE = "src/share/link-%s.ts" % _NEXT_LINK_VERSION
 
 _EXTRA_ENV = {
     "warehouse-session-http": {"SQLAPI_PAGE": "$(rlocationpath //warehouse:sqlapi_page_dir)"},
+    # the one trading model as one text (the stress corpus's classes, store and mappings): the timeseries over its
+    # classes (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6)
+    "stress-markets": {"TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)"},
     "bundle-budget": {
         "BUNDLE": "$(rlocationpath :demo/bundle.js)",
         "ENGINE_BUNDLE": "$(rlocationpath :demo/bundle-engine.js)",
@@ -243,6 +246,8 @@ _EXTRA_ENV = {
 # DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
 _DUCKDB_USERS = [
     "timeseries-queries",
+    # the timeseries over the trading model's classes, its rows the markets sample's (2026-10-27, Phase 6)
+    "stress-markets",
     # the Pure library spike: one function of each family against today's writer (2026-10-27)
     "pure-library-spike",
     "timeseries-view-dom",
@@ -276,6 +281,7 @@ _BINDING_TESTS = ["warehouse-session-http"]
 
 _EXTRA_DATA = {
     "warehouse-session-http": ["//warehouse:sqlapi_page_dir"],
+    "stress-markets": ["//scripts/corpus:trading_model"],
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
     "bundle-budget": [
         ":bundle_bundle",
@@ -349,6 +355,7 @@ _EXTRA_DATA = {
 # own WASM module, loaded by test/catalog-builder.ts
 _WASM_TESTS = [
     "timeseries-queries",
+    "stress-markets",
     "pure-library-spike",
     "timeseries-view-dom",
     "calc-fix",

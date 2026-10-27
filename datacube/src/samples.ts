@@ -315,20 +315,32 @@ const INSTRUMENTS = [
 /** The markets sample's columns, in order. */
 export const MARKET_COLUMNS = ['symbol', 'asset_class', 'date', 'open', 'high', 'low', 'close', 'volume'] as const;
 
+/** One instrument's day of the markets sample: its prices as written (two places, four for a currency) and its whole
+ *  volume. */
+export interface MarketBar {
+  readonly symbol: string;
+  readonly asset: string;
+  readonly day: string;
+  readonly open: string;
+  readonly high: string;
+  readonly low: string;
+  readonly close: string;
+  readonly volume: number;
+}
+
 /**
- * DAILY PRICES for a timeseries tile (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): five years of business days of
- * ten instruments -- indices, equities, gold, a bond fund, a currency -- each an open, a high, a low, a close and a
- * volume, moved by one market and its own noise (so they correlate as a market does), through a crash in the spring of
- * 2020 and a bear market in 2022. Prices have two places (four for a currency; a DOUBLE to DuckDB: a Float), the volume
- * is whole (an Integer), the date a date (a StrictDate). `rows`: the rows asked for, divided among the instruments, its
- * days counted back from the last.
+ * THE MARKETS SAMPLE'S DAYS (marketsCsv's, and the trading model's tables', stress-markets.ts): five years of business
+ * days of ten instruments -- indices, equities, gold, a bond fund, a currency -- each an open, a high, a low, a close and
+ * a volume, moved by one market and its own noise (so they correlate as a market does), through a crash in the spring
+ * of 2020 and a bear market in 2022; day by day, each day's instruments in order. `rows`: the rows asked for, divided
+ * among the instruments, its days counted back from the last.
  */
-export function marketsCsv(rows = 13_050, seed = 20261058): string {
+export function marketBars(rows = 13_050, seed = 20261058): MarketBar[] {
   const rand = rng(seed);
   const all = businessDays('2020-01-02', '2024-12-31');
   const days = all.slice(Math.max(0, all.length - Math.max(1, Math.ceil(rows / INSTRUMENTS.length))));
   const close: number[] = INSTRUMENTS.map((x) => x.start);
-  const out: string[] = [MARKET_COLUMNS.join(',')];
+  const out: MarketBar[] = [];
   for (const day of days) {
     // the market's day: a crash (Feb-Mar 2020), its rebound, a bear market (2022), and calm otherwise
     const regime = day >= '2020-02-20' && day <= '2020-03-23' ? { mu: -0.012, sigma: 2.8 }
@@ -345,9 +357,21 @@ export function marketsCsv(rows = 13_050, seed = 20261058): string {
       close[i] = next;
       const places = x.asset === 'FX' ? 4 : 2;
       const volume = x.volume === 0 ? 0 : Math.round(x.volume * (0.7 + 0.3 * Math.abs(shock)) * (0.85 + rand() * 0.3));
-      out.push([x.symbol, x.asset, day, open.toFixed(places), high.toFixed(places), low.toFixed(places), next.toFixed(places), String(volume)]
-        .map(csvCell).join(','));
+      out.push({ symbol: x.symbol, asset: x.asset, day, open: open.toFixed(places), high: high.toFixed(places), low: low.toFixed(places), close: next.toFixed(places), volume });
     });
+  }
+  return out;
+}
+
+/**
+ * DAILY PRICES for a timeseries tile (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): the markets sample's days
+ * (marketBars) as one table -- a row an instrument and day. Prices have two places (four for a currency; a DOUBLE to
+ * DuckDB: a Float), the volume is whole (an Integer), the date a date (a StrictDate).
+ */
+export function marketsCsv(rows = 13_050, seed = 20261058): string {
+  const out: string[] = [MARKET_COLUMNS.join(',')];
+  for (const b of marketBars(rows, seed)) {
+    out.push([b.symbol, b.asset, b.day, b.open, b.high, b.low, b.close, String(b.volume)].map(csvCell).join(','));
   }
   return `${out.join('\n')}\n`;
 }

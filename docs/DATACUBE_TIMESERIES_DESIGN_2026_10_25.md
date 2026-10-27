@@ -817,6 +817,26 @@ dated budget notes; every figure still the database's.
   -- Phase 5's events from a grid, made concrete. D5: lines split and filtered by reference data through the
   associations. D6: Python's side by the one rule. After the library's conversion (each function held to today's
   numbers over today's tables first), before the library's review, which covers both.
+- **Phase 6's plan, as built (2026-10-27).** The Deephaven line decided the same (its DH34, the user, 2026-10-25: "one
+  trading model for everything"): the stress corpus's classes through `stress::AllMapping`, what a screen needs and the
+  corpus lacks added to the corpus, never beside it. So the charts take its pieces rather than a second model:
+  (a) **the one trading model as one text**, `//scripts/corpus:trading_model` (the Deephaven line's generator, taken as
+  it is: the linked projects and the stress files without legend-lite's exclusions, the services or the test data --
+  2.27 MB, held by the WebAssembly planner in 4.4 s, a class query then planned in 5 ms, its measure); (b) **a history
+  of the corpus's own tables for charting** -- EXCHANGE, SECTOR, INSTRUMENT, MARKET_QUOTE (a quote a day: its open,
+  high, low and close, its volume, its time the close) and TRADE (the bank's buys and sells on them) -- written by one
+  deterministic generator for the tab's DuckDB and the tests, under the store's own table names, beside the corpus's
+  seed; (c) **core first**: a library call over a projected class planned through the mapping and run on DuckDB, held
+  to the same figures over the same rows as a table, and the planning cost measured; then the tile over a class grid
+  (D3), the trades as marks (D4), lines by reference data (D5), Python (D6).
+  Built (2026-10-27): (a) and (b) (`stress-markets.ts stressMarketCsvs`: the markets sample's days, `samples.ts
+  marketBars`, written into EXCHANGE, SECTOR, CURRENCY, INSTRUMENT, MARKET_QUOTE and TRADE, every column the store
+  declares in its order -- held to the store's text by `stress-markets.test.ts`); (c) a level, a volatility, a
+  correlation, returns and a calendar beta over `MarketQuote.all()->project(~[ticker: x|$x.instrument.ticker, ...])`
+  through `stress::AllMapping` equal to the same series over the sample's one table, date for date. Measured there (the
+  WebAssembly planner in node): the model held and a first query planned in 5.8 s, a query after it in 7 ms -- and a
+  query calling the library holds the model AGAIN with the library after it (the planner's `#over`), 5.4 s more: a page
+  over the trading model with a timeseries holds it twice, which D3 makes once.
 - **Not built, and why:** X-13 seasonal adjustment and `smooth_outliers` (iterative procedures no query states; gs-quant's
   own seasonal adjustment is the decomposition above); PowerPoint (a document writer of its own in the bundle; the page
   already exports HTML and PDF); alerts (a scheduler and a channel outside a page); `repeat`, `date_range`,
