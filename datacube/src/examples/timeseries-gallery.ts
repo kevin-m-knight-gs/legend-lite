@@ -676,8 +676,37 @@ const VIEWS: GallerySheet = {
   ]],
 };
 
-/** Every sheet of functions, in the catalog's order of families, then the ways to view and the other views. */
-export const TIMESERIES_GALLERY: readonly GallerySheet[] = [RETURNS, LEVEL, ROLLING, RISK, RELATIONSHIPS, TECHNICALS, MATH, DATES, WAYS, VIEWS];
+/** On the chart itself (Phase 5, 2026-10-27): a trend projected -- the database's line over a series' last quarter and
+ *  its last year, each on past its last date -- and a person's own: a note pinned at the 2022 low, a line drawn from it,
+ *  the bear market's period. The measure, the Draw button and the replay are the tile's own, on every tile. */
+const ON_CHART: GallerySheet = {
+  name: 'On the chart',
+  rows: [[
+    tile('projected', 'A trend projected: the S&P 500\'s least-squares line over its last quarter and its last year, each drawn on', {
+      sources: ON_PRICES,
+      series: [s('A', 'close[SPX]', { name: 'S&P 500' })],
+      range: { last: '2y' },
+      annotations: [
+        { kind: 'projection', series: 'A', window: 63, ahead: '3m', label: 'Last quarter\'s trend' },
+        { kind: 'projection', series: 'A', window: 252, ahead: '6m', label: 'Last year\'s trend' },
+      ],
+    }),
+    tile('drawn', 'Drawn by hand: the 2022 low pinned, a line from it to the end of 2024, the bear market shaded', {
+      sources: ON_PRICES,
+      series: [s('A', 'close[SPX]', { name: 'S&P 500' })],
+      range: { from: '2021-06-01', to: '2024-12-31' },
+      annotations: [
+        { kind: 'period', from: '2022-01-03', to: '2022-10-12', label: 'Bear market' },
+        { kind: 'note', at: { date: '2022-10-11', value: 4621.77 }, text: 'The 2022 low' },
+        { kind: 'line', from: { date: '2022-10-11', value: 4621.77 }, to: { date: '2024-12-31', value: 6467.59 }, label: 'From the low', color: 2 },
+      ],
+    }),
+  ]],
+};
+
+/** Every sheet of functions, in the catalog's order of families, then the ways to view, the other views and what is
+ *  put on the chart itself. */
+export const TIMESERIES_GALLERY: readonly GallerySheet[] = [RETURNS, LEVEL, ROLLING, RISK, RELATIONSHIPS, TECHNICALS, MATH, DATES, WAYS, VIEWS, ON_CHART];
 
 /** A sheet's rows as bands that fit its window: each row an equal share of the height, its tiles of the width. */
 function bandsOf(rows: GallerySheet['rows']): Band[] {

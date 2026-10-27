@@ -202,7 +202,7 @@ describe('the example pages', () => {
   it('the timeseries gallery: a sheet per family, each using every function of its family, the ways to view, the data', async () => {
     const page = readPage(pageToJson(await timeseriesGalleryPage()));
     const families = [...new Set(TS_FUNCTIONS.map((f) => f.family))];
-    assert.deepEqual(page.sheets.map((s) => s.name), [...families, 'Ways to view', 'Other views', 'The data']);
+    assert.deepEqual(page.sheets.map((s) => s.name), [...families, 'Ways to view', 'Other views', 'On the chart', 'The data']);
     const placed = page.sheets.flatMap((s) => layoutTiles(s.layout));
     assert.deepEqual([...placed].sort(), page.views.map((v) => v.id).sort(), 'every view once, on one sheet');
     assert.deepEqual(page.sheets.map((s) => s.layout.kind === 'bands' && s.layout.fit), page.sheets.map(() => true), 'every sheet fits its window');
@@ -234,6 +234,8 @@ describe('the example pages', () => {
     assert.ok(ways.some((ts) => ts.sources.length === 2), 'two grids');
     // the other views: each mode once
     assert.deepEqual(specsOn('Other views').map((ts) => ts.view?.mode), ['scatter', 'seasonality', 'histogram', 'curve']);
+    // on the chart (Phase 5): a projection, and a person's own line and note
+    assert.deepEqual([...new Set(specsOn('On the chart').flatMap((ts) => (ts.annotations ?? []).map((a) => a.kind)))].sort(), ['line', 'note', 'period', 'projection']);
     // the data sheet: the grids the tiles read, each its sample rebuilt on opening -- the monthly one the Dates sheet's
     assert.deepEqual(layoutTiles(page.sheets.at(-1)!.layout), ['prices', 'rates', 'macro']);
     for (const [id, sample] of [['prices', 'markets'], ['rates', 'rates'], ['macro', 'macro']] as const) {

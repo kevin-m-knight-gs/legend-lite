@@ -2707,8 +2707,9 @@ describe('a series combining two grids, planned over one model of their tables (
 /** The gallery's series: every function at least once, and the ways to view (2026-10-26: 92, the regression tile's four;
  *  102, the exponential averages', volatilities' and MACD's ten; 106, the percentiles' four; 109, a condition's three;
  *  113, the Dates sheet's alignment and interpolate, four; 144, gs-quant's remaining functions, 31; 149, the other
- *  views' sheet, five: the next phases' 3; 171, an analyst's packs, 22: the next phases' 4). */
-const GALLERY_SERIES = 171;
+ *  views' sheet, five: the next phases' 3; 171, an analyst's packs, 22: the next phases' 4; 173, the On the chart
+ *  sheet's two: Phase 5). */
+const GALLERY_SERIES = 173;
 
 describe('the timeseries examples: every series of every tile, on its own samples', () => {
   const pages = [
@@ -2785,6 +2786,15 @@ describe('the timeseries examples: every series of every tile, on its own sample
             : mode === 'histogram' ? histogramQuery(inputsOf, ts, one) : curveQuery(inputsOf, ts, one);
           const t = await local.execute(await plannerOf.plan(q.query), 0);
           assert.ok(t.rowCount > 3, `${view.id}'s ${mode}: ${t.rowCount} rows`);
+        }
+        // each trend projected (Phase 5): its query too, its one row a fit
+        for (const [i, a] of (ts.annotations ?? []).entries()) {
+          if (a.kind !== 'projection') continue;
+          const one = ts.series.find((x) => x.id === a.series)!;
+          const alias = seriesSources(ts, one)[0]!;
+          const g = grids.get(cubeOf(alias))!;
+          const t = await local.execute(await g.planner.plan(projectionQuery(new Map([[alias, g.input]]), ts, a).query), 0);
+          assert.ok(t.rowCount === 1 && values(t, TS_PJ_SLOPE)[0] !== null, `${view.id}'s projection ${i + 1}`);
         }
         // and every level's calendar of returns (each tile's Calendar tab)
         for (const id of viewSeries(ts).calendar.slice(0, 1)) {
