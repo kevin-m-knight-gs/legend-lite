@@ -1826,7 +1826,10 @@ class Timeseries(Tile):
 
     def annotate(self, annotation: Mapping[str, Any]) -> Timeseries:
         """An annotation more: ``{'kind': 'level', 'value': 70, 'pane': 1, 'label': 'overbought'}``, ``{'kind': 'event',
-        'date': ..., 'label': ...}`` or ``{'kind': 'period', 'from': ..., 'to': ..., 'label': ...}`` -- Settings' Add."""
+        'date': ..., 'label': ...}``, ``{'kind': 'period', 'from': ..., 'to': ..., 'label': ...}`` or marks from a grid's
+        rows -- ``{'kind': 'marks', 'source': 'tr', 'where': [{'value': 'AAPL'}, {'column': 'side', 'value': 'BUY'}],
+        'at': 'price', 'text': 'quantity', 'shape': 'up', 'label': 'Bought'}``, each row its source's matches pick at its
+        date, on its ``at`` column's value (absent: a line at its date) -- Settings' Add. Its marks: ``marks``."""
         return self._edit({'kind': 'annotate', 'annotation': dict(annotation)})
 
     def unannotate(self, index: int) -> Timeseries:
@@ -2006,11 +2009,13 @@ class Timeseries(Tile):
             told: dict[str, Any] = {'page': page._doc, 'tile': self._id}
             if ask['kind'] == 'bounds':
                 told.update({'table': 'bounds', 'source': ask['source']})
+            elif ask['kind'] == 'marks':
+                told.update({'table': 'marks', 'marks': ask['marks']})
             else:
                 told.update({'series': ask['series'], 'window': window, 'drawn': True,
                              **({'table': ask['kind']} if ask['kind'] != 'series' else {}),
                              **({'with': ask['with']} if 'with' in ask else {})})
-            row = {k: ask[k] for k in ('what', 'serves', 'kind', 'series', 'with', 'source') if k in ask}
+            row = {k: ask[k] for k in ('what', 'serves', 'kind', 'series', 'with', 'source', 'marks') if k in ask}
             try:
                 row.update(self._planned(told))
             except ValueError as e:
@@ -2148,6 +2153,27 @@ class Timeseries(Tile):
                 out.append({'line': self._line(said, split, series=series),
                             **{k: (None if pd.isna(r[named[k]]) else r[named[k]]) for k in ('rank', 'peak', 'trough', 'recovered', 'depth', 'decline', 'recovery')}})
         return pd.DataFrame(out)
+
+    def marks(self) -> Any:
+        """Every mark the tile draws from a grid's rows -- its ``marks`` annotations: a trade at its price, an earnings
+        day -- each row the database's, as its screen marks them (timeseries-query.ts marksQuery: the grid's filter as the
+        tile reads it, the marks' matches, each at its date as a line's points are): a pandas DataFrame, a row per mark,
+        each set latest first -- its marks' ``name``, its ``date``, its ``value`` (where they are drawn at one) and its
+        ``text`` (where they say one). Past the most a set draws, its latest, said as the screen says it."""
+        import pandas as pd
+        out = []
+        for i, a in enumerate(self._view['spec'].get('annotations', [])):
+            if a.get('kind') != 'marks':
+                continue
+            rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'table': 'marks', 'marks': i})
+            named = said['columns']
+            if len(rows) > said['limit']:
+                rows = rows.head(said['limit'])
+                warnings.warn(said['cut'], stacklevel=2)
+            for _, r in rows.iterrows():
+                read = lambda k: None if named[k] is None or pd.isna(r[named[k]]) else r[named[k]]
+                out.append({'name': said['name'], 'date': pd.Timestamp(r[named['date']]), 'value': read('value'), 'text': read('text')})
+        return pd.DataFrame(out, columns=['name', 'date', 'value', 'text'])
 
     def correlations(self, *, start: str | None = None, end: str | None = None) -> Any:
         """Each pair of lines' correlation over the dates ``start`` to ``end``, each the database's -- the screen's

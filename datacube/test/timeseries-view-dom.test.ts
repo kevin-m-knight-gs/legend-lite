@@ -316,6 +316,34 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
     }
   });
 
+  // marks from a grid's rows (Phase 6's D4: the trades; Phase 5's events from a grid): asked with the chart, each row the
+  // database's, drawn over the lines; refused, said; asked as the Query window lists it
+  it('marks from the grid\'s rows: each SPX row a triangle at its close, oldest first; refused, said; listed with the queries', async () => {
+    const spec: TimeseriesSpec = {
+      ...SPEC, annotations: [{ kind: 'marks', source: 'px', where: [{ value: 'SPX' }], at: 'close', text: 'volume', shape: 'up', label: 'Closes' }],
+    };
+    const { root, windows, drawn, view } = viewer(spec);
+    try {
+      await until(() => drawn.some((o) => (o.series as { id: string }[]).some((x) => x.id === 'marks:0')), 'its marks');
+      const marks = (drawn.at(-1)!.series as { id: string; type: string; data: [string, number, string][] }[]).find((x) => x.id === 'marks:0')!;
+      const spx = of('SPX');
+      assert.equal(marks.type, 'scatter');
+      assert.deepEqual(marks.data.map(([d, v]) => [d.slice(0, 10), v]), spx.days.map((d, i) => [d, spx.closes[i]]), 'each SPX row at its close, oldest first');
+      barButton(root, 'Query').click();
+      const said = [...windows.querySelectorAll('.dc-ts-window .dc-ts-ask summary span:first-child')].map((x) => x.textContent ?? '');
+      assert.ok(said.includes('4. Marks "Closes": source px\'s rows at their close'), said.join(' | '));
+    } finally {
+      view.dispose();
+    }
+    const refused = viewer(spec, (q) => q.includes('__ts_text'));
+    try {
+      await until(() => /Closes were refused: the warehouse is down/.test(refused.root.querySelector('.dc-ts-banner')?.textContent ?? ''), 'its refusal');
+      assert.ok(refused.root.querySelector('.dc-ts-banner')!.classList.contains('dc-ts-bad'));
+    } finally {
+      refused.view.dispose();
+    }
+  });
+
   it('a range told as the page\'s spec, the zoom moved to it; a line hidden is drawn again from the rows it has', async () => {
     const { root, drawn, told, zooms, view } = viewer(SPEC);
     try {

@@ -1142,6 +1142,21 @@ export function exprText(e: TsExpr, outer = 0): string {
   return written(e, outer, false);
 }
 
+/** Matches as a person types them inside a column's brackets (`AAPL, side="BUY"`): what reads back as them. */
+export function matchesText(where: readonly TsMatch[]): string {
+  return where.map((m) => (m.column !== undefined ? `${m.column}=${valueText(m.value)}` : valueText(m.value))).join(', ');
+}
+
+/** Matches typed as inside a column's brackets (`AAPL, side="BUY"`), read as a column's are; none for no text. */
+export function parseMatches(text: string): TsMatch[] {
+  if (text.trim() === '') return [];
+  const e = parseExpr(`x[${text}]`);
+  if (e.kind !== 'column' || e.column !== 'x' || e.fn !== undefined || e.source !== undefined) {
+    throw new TsSyntaxError(`"${text}" is not a list of matches (AAPL, side="BUY")`, 0);
+  }
+  return [...(e.where ?? [])];
+}
+
 /**
  * AN EXPRESSION'S TEXT THAT READS BACK AS ITSELF (the code that builds a tile, timeseries-code.ts): as exprText writes
  * it, but each parameter as it was told -- one told by its place while every one before it is told, else by its name
@@ -1159,8 +1174,8 @@ function written(e: TsExpr, outer: number, exact: boolean): string {
     case 'ref':
       return `$${e.series}`;
     case 'column': {
-      const where = (e.where ?? []).map((m) => (m.column !== undefined ? `${m.column}=${valueText(m.value)}` : valueText(m.value)));
-      return `${e.source !== undefined ? `${e.source}:` : ''}${columnText(e.column)}${where.length > 0 ? `[${where.join(', ')}]` : ''}${e.fn !== undefined ? `.${e.fn}` : ''}`;
+      const where = e.where ?? [];
+      return `${e.source !== undefined ? `${e.source}:` : ''}${columnText(e.column)}${where.length > 0 ? `[${matchesText(where)}]` : ''}${e.fn !== undefined ? `.${e.fn}` : ''}`;
     }
     case 'binary': {
       const mine = PRECEDENCE[e.op];
@@ -1323,6 +1338,21 @@ export function timeseriesProblems(ts: TimeseriesSpec, columns: ReadonlyMap<stri
       }
     };
     walk(whole, true);
+  }
+  // marks from a grid's rows: each column they read one of their source's, the one they are drawn at a number
+  for (const [i, a] of (ts.annotations ?? []).entries()) {
+    if (a.kind !== 'marks') continue;
+    const name = `Marks ${a.label !== undefined ? `"${a.label}"` : i + 1}`;
+    const typeOf = types.get(a.source);
+    const src = ts.sources.find((x) => x.alias === a.source);
+    if (!typeOf || !src) continue;
+    for (const c of [a.at, a.text, ...(a.where ?? []).map((m) => m.column ?? src.key)]) {
+      if (c !== undefined && !typeOf.has(c)) out.push(`${name} read '${c}', which source ${a.source} has not.`);
+    }
+    if (a.at !== undefined && typeOf.has(a.at) && !isNumeric(typeOf.get(a.at))) out.push(`${name} are drawn at '${a.at}', which is not a number.`);
+    if (src.key === undefined && (a.where ?? []).some((m) => m.column === undefined)) {
+      out.push(`${name} match a value with no column ([AAPL]): choose source ${src.alias}'s instrument column (Key).`);
+    }
   }
   return [...new Set(out)];
 }

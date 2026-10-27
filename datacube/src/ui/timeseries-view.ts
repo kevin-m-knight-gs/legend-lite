@@ -22,26 +22,26 @@ import type { ChartPicture } from '../chart-render.ts';
 import type { RunOutcome } from '../runner.ts';
 import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import {
-  MAX_HIST_BINS, MAX_PANES, MAX_SEASON_YEARS, MIN_HIST_BINS, TS_CURVE_DATES, TS_HIST_BINS, TS_RANGES, TS_SEASON_YEARS, viewSetting,
-  type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsMode, type TsRangeWord, type TsSeries, type TsSource,
+  marksName, MAX_HIST_BINS, MAX_PANES, MAX_SEASON_YEARS, MIN_HIST_BINS, TS_CURVE_DATES, TS_HIST_BINS, TS_RANGES, TS_SEASON_YEARS, viewSetting,
+  type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsMarkShape, type TsMode, type TsRangeWord, type TsSeries, type TsSource,
   type TsState, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
-  candleOf, columnRef, exprText, firstValue, functionNamed, inlined, nextSeriesId, parseExpr, seriesName,
+  candleOf, columnRef, exprText, firstValue, functionNamed, inlined, matchesText, nextSeriesId, parseExpr, parseMatches, seriesName,
   sourcesOf, timeseriesProblems, TsSyntaxError, type TsColumn, TS_FUNCTIONS, type TsFamily, type TsParam,
 } from '../timeseries-expr.ts';
 import {
   editTimeseries, firstTimeseries as firstOf, instrumentsOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
 } from '../timeseries-edit.ts';
 import {
-  askKey, askQuery, askSources, boundsQuery, keyValuesQuery, rangeWindow, readsAnchor, statBlanks, statName, tableSeries, tileAsks,
+  askKey, askQuery, askSources, boundsQuery, keyValuesQuery, marksOf, marksQuery, rangeWindow, readsAnchor, statBlanks, statName, tableSeries, tileAsks,
   viewChoices, viewSeries, TS_DATE, TS_SERVES_WORDS, type TsAsk, type TsAskOf,
   TS_CAL_LOW, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN, TS_CORR, TS_CORR_A, TS_CORR_B, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
   TS_SPLIT, TS_STAT_LEVEL_LOW, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
 import {
-  describeTimeseries, dateLabel, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, toNumber, tsHeading, tsLines, tsPictureHeight,
-  valueText, type TsFormat, type TsLine, type TsResult,
+  describeTimeseries, dateLabel, marksUnplaced, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, toNumber, tsHeading, tsLines,
+  tsMarks, tsPictureHeight, valueText, type TsFormat, type TsLine, type TsMarked, type TsResult,
 } from '../timeseries-option.ts';
 import type { MountedTimeseries } from '../timeseries-render.ts';
 import { curveNotes, curveOption, describeView, histogramOption, scatterOption, seasonalityOption, TS_MONTH_NAMES, type TsViewContext } from '../timeseries-views.ts';
@@ -415,6 +415,12 @@ export class TimeseriesView {
   #statsAsked = false;
   #bounds = new Map<string, ResultTable>();
   #boundsFailed = new Map<string, string>();
+  /** What each marks from a grid's rows (TsMarks) answered, by their place among the annotations, and what was
+   *  refused of them: said in the banner, never drawn as no marks. */
+  #marks = new Map<number, ResultTable>();
+  #marksFailed = new Map<number, string>();
+  /** The marks drawn last, as the lines are: what a picture draws. */
+  #marked: TsMarked[] = [];
   #lines: TsLine[] = [];
   /** Every question asked of the database, by its ask (timeseries-query.ts askKey): what the Query window shows. A
    *  round's asks of another tile, or of other dates, are not what is drawn: each kept with the tile it was asked of. */
@@ -663,6 +669,25 @@ export class TimeseriesView {
     const problems = timeseriesProblems(spec, this.#columns(spec));
     this.#problems = problems;
     const signal = new AbortController().signal;
+    // the marks from grids' rows: each its one grid's, as a source's bounds are, asked beside them (no window reads them)
+    const marks = new Map<number, ResultTable>();
+    const marksFailed = new Map<number, string>();
+    const marksAsked = Promise.all((spec.annotations ?? []).map(async (a, i) => {
+      if (a.kind !== 'marks') return;
+      const own = this.#input(a.source);
+      if (!own) {
+        marksFailed.set(i, `source ${a.source}'s grid is not on the page`);
+        return;
+      }
+      try {
+        const query = marksQuery(new Map([[a.source, own.input]]), spec, a);
+        const { rows, sql } = await own.grid.run(query, own.grid.snapshot, signal);
+        marks.set(i, rows);
+        this.#ran.set(askKey({ kind: 'marks', marks: i, source: a.source }), { spec, window: {}, query, sql });
+      } catch (e) {
+        marksFailed.set(i, e instanceof Error ? e.message : String(e));
+      }
+    }));
     // the bounds of each source on the page (its range buttons' starts, the database's)
     const bounds = new Map<string, ResultTable>();
     const boundsFailed = new Map<string, string>();
@@ -679,9 +704,12 @@ export class TimeseriesView {
         boundsFailed.set(s.alias, e instanceof Error ? e.message : String(e));
       }
     }));
+    await marksAsked;
     if (gen !== this.#gen || this.#disposed) return;
     this.#bounds = bounds;
     this.#boundsFailed = boundsFailed;
+    this.#marks = marks;
+    this.#marksFailed = marksFailed;
     const window = this.#window();
     const blocked = (s: TsSeries): string | undefined => this.#blocked(s);
     const results = new Map<string, TsResult>();
@@ -966,7 +994,15 @@ export class TimeseriesView {
     const spec = this.#spec;
     const theme = themeOf(this.#root);
     const { lines, notes } = tsLines(spec, [...this.#results.values()], theme);
+    const marked: TsMarked[] = [];
+    for (const [i, table] of this.#marks) {
+      const read = tsMarks(spec, i, table, theme);
+      marked.push(read.marked);
+      notes.push(...read.notes);
+    }
+    notes.push(...marksUnplaced(spec, lines, marked));
     this.#lines = lines;
+    this.#marked = marked;
     this.#notes = notes;
     this.#paintLegend();
     this.#paintBanner();
@@ -1003,7 +1039,7 @@ export class TimeseriesView {
       return;
     }
     const option = timeseriesOption(spec, lines, {
-      theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height,
+      theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height, marks: marked,
     });
     chart.show(option, describeTimeseries(spec, lines));
   }
@@ -1119,7 +1155,7 @@ export class TimeseriesView {
     let option: EChartsOption;
     try {
       option = viewing ? this.#viewOption(tall, title)!.option : timeseriesOption(this.#spec, this.#lines, {
-        theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height: tall, title, picture: true,
+        theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height: tall, title, picture: true, marks: this.#marked,
       });
     } catch (e) {
       this.#say([`The picture could not be made: ${e instanceof Error ? e.message : String(e)}`], true);
@@ -1328,6 +1364,12 @@ export class TimeseriesView {
   /** An ask's query written as a round would write it, without running it: over its grid's input, or several grids'
    *  relations opened together (`opened`, put away by the caller). */
   async #queryOf(spec: TimeseriesSpec, ask: TsAsk, window: TsWindow, opened: Opened): Promise<Lambda> {
+    if (ask.kind === 'marks') {
+      const marks = marksOf(spec, ask.marks);
+      const own = this.#input(marks.source);
+      if (own === undefined) throw new Error(`source ${marks.source}'s grid is not on the page`);
+      return marksQuery(new Map([[marks.source, own.input]]), spec, marks);
+    }
     if (ask.kind === 'bounds') {
       const src = spec.sources.find((x) => x.alias === ask.source);
       const own = src === undefined ? undefined : this.#input(src.alias);
@@ -1349,6 +1391,8 @@ export class TimeseriesView {
     switch (ask.kind) {
       case 'bounds':
         return this.#boundsFailed.get(ask.source!);
+      case 'marks':
+        return this.#marksFailed.get(ask.marks!);
       case 'series':
         return this.#failed.get(ask.series!);
       case 'statistics':
@@ -1439,7 +1483,7 @@ export class TimeseriesView {
   }
 
   #paintBanner(): void {
-    const problems = [...this.#problems, ...this.#rangeProblems(), ...this.#statsProblems(), ...this.#viewProblems()];
+    const problems = [...this.#problems, ...this.#rangeProblems(), ...this.#statsProblems(), ...this.#viewProblems(), ...this.#marksProblems()];
     const viewing = this.#spec.view?.mode !== undefined && this.#viewLanded === viewKey(this.#spec, this.#window());
     const said = [...problems, ...this.#notes, ...(viewing ? this.#viewSaid : [])];
     this.#banner.hidden = said.length === 0;
@@ -1453,6 +1497,14 @@ export class TimeseriesView {
     if (!r || !('last' in r) || r.last === 'max' || this.#zoom || this.#boundsFailed.size === 0) return [];
     const refused = [...this.#boundsFailed].map(([alias, why]) => `${alias}'s dates were refused (${why})`).join('; ');
     return [`The ${r.last} range is not known: ${refused}. Shown from ${this.#window().from ?? 'the first date'}.`];
+  }
+
+  /** Each marks the database refused, by their name. */
+  #marksProblems(): string[] {
+    return [...this.#marksFailed].flatMap(([i, why]) => {
+      const a = this.#spec.annotations?.[i];
+      return a?.kind === 'marks' ? [`${marksName(a, i)} were refused: ${why}`] : [];
+    });
   }
 
   /** The view's refusal, said (never drawn as nothing): its mode's, in its words. */
@@ -2510,8 +2562,10 @@ export class TimeseriesView {
     parts.push(el(doc, 'div', 'dc-ts-heading', 'Annotations'));
     for (const [i, a] of (spec.annotations ?? []).entries()) {
       const row = el(doc, 'div', 'dc-ts-row');
-      const said = a.kind === 'level' ? `Level ${a.value}` : a.kind === 'event' ? `Event ${a.date}` : `Period ${a.from} – ${a.to}`;
-      row.append(el(doc, 'span', undefined, `${said}${a.kind === 'level' && a.pane ? ` (pane ${a.pane + 1})` : ''}${a.label ? `: ${a.label}` : ''}`), closeMark(button(doc, '×', 'Take it off', () => {
+      const said = a.kind === 'level' ? `Level ${a.value}` : a.kind === 'event' ? `Event ${a.date}` : a.kind === 'period' ? `Period ${a.from} – ${a.to}`
+        : `Marks: ${a.source}'s rows${(a.where ?? []).length > 0 ? ` [${matchesText(a.where!)}]` : ''}${a.at !== undefined ? ` at ${a.at}` : ', a line each'}`;
+      const pane = (a.kind === 'level' || a.kind === 'marks') && a.pane ? ` (pane ${a.pane + 1})` : '';
+      row.append(el(doc, 'span', undefined, `${said}${pane}${a.label ? `: ${a.label}` : ''}`), closeMark(button(doc, '×', 'Take it off', () => {
         if (this.#edit({ kind: 'unannotate', index: i })) this.#editSettings();
       }, 'dc-ts-close')));
       parts.push(row);
@@ -2541,8 +2595,60 @@ export class TimeseriesView {
       if (this.#edit({ kind: 'annotate', annotation: made })) this.#editSettings();
     }));
     parts.push(addRow, el(doc, 'div', 'dc-ts-hint', 'Double-click the chart to put an event at that date.'));
+    parts.push(...this.#marksFields(used));
     this.#open('Settings', ...parts);
     this.#settings = true;
+  }
+
+  /** Marks from a grid's rows in Settings (TsMarks): the source, the rows it marks (matches typed as a column's), the
+   *  column each is drawn at (or a line at its date), what each says, its shape, its pane and its label -- added by the
+   *  tile's one rule, refused in its words. */
+  #marksFields(used: readonly number[]): HTMLElement[] {
+    const doc = this.#doc;
+    const spec = this.#spec;
+    const columns = this.#columns(spec);
+    const source = select(doc, spec.sources.map((s) => [s.alias, s.alias] as const), spec.sources.at(-1)!.alias, () => paint(), 'Marks source');
+    const matches = el(doc, 'input', 'dc-input', undefined, { placeholder: 'Rows: AAPL, side="BUY"', 'aria-label': 'Rows marked' });
+    const at = el(doc, 'select', 'dc-input dc-ts-small', undefined, { 'aria-label': 'Drawn at' });
+    const text = el(doc, 'select', 'dc-input dc-ts-small', undefined, { 'aria-label': 'Says' });
+    const shape = select(doc, [['up', '▲ up'], ['down', '▼ down'], ['dot', '● dot']], 'up', () => undefined, 'Shape');
+    const pane = select(doc, used.map((p) => [String(p), p === 0 ? 'Main pane' : `Pane ${p + 1}`] as const), '0', () => undefined, 'Marks pane');
+    const label = el(doc, 'input', 'dc-input', undefined, { placeholder: 'Label', 'aria-label': 'Marks label' });
+    const options = (to: HTMLSelectElement, none: string, names: readonly string[]): void => {
+      to.replaceChildren(...[['', none] as const, ...names.map((n) => [n, n] as const)].map(([v, t]) => {
+        const o = doc.createElement('option');
+        o.value = v;
+        o.textContent = t;
+        return o;
+      }));
+    };
+    const paint = (): void => {
+      const cols = columns.get(source.value) ?? [];
+      const date = spec.sources.find((s) => s.alias === source.value)?.date;
+      options(at, 'A line at its date', cols.filter((c) => isNumeric(c.type) && c.name !== date).map((c) => c.name));
+      options(text, 'Says nothing', cols.filter((c) => c.name !== date).map((c) => c.name));
+    };
+    paint();
+    const add = button(doc, 'Add', 'Mark the rows over the series', () => {
+      let where: ReturnType<typeof parseMatches>;
+      try {
+        where = parseMatches(matches.value);
+      } catch (e) {
+        this.#say([e instanceof Error ? e.message : String(e)], true);
+        return;
+      }
+      const words = label.value.trim();
+      const made: TsAnnotation = {
+        kind: 'marks', source: source.value, ...(where.length > 0 ? { where } : {}),
+        ...(at.value !== '' ? { at: at.value, shape: shape.value as TsMarkShape, ...(pane.value !== '0' ? { pane: Number(pane.value) } : {}) } : {}),
+        ...(text.value !== '' ? { text: text.value } : {}), ...(words ? { label: words } : {}),
+      };
+      if (this.#edit({ kind: 'annotate', annotation: made })) this.#editSettings();
+    });
+    const rows = el(doc, 'div', 'dc-ts-row');
+    rows.append(source, matches, at, shape, pane, text, label, add);
+    return [el(doc, 'div', 'dc-ts-field-label', 'Marks from a grid\'s rows'), rows,
+      el(doc, 'div', 'dc-ts-hint', 'Each row the grid has that the rows match, at its date: drawn at a column\'s value (a trade at its price), or a line at its date.')];
   }
 
   /** A view's own fields in Settings: the series it reads (a scatter's x and y), a seasonality's years, a histogram's

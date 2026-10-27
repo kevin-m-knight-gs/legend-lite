@@ -737,8 +737,12 @@ const CHART_BUDGET = 303_500;
  *  catalog, is a chunk of its own, src/pure-library-text.ts, fetched with the first query that calls it -- a tile's
  *  every query does -- so it is counted here, and checked off every page's startup, where it had been the planner's):
  *  measured 87,233, the library's text 16,264 of it, the tile's own code 70,969 (the calendar forms' writing gone into
- *  the library); the headroom ~2%. */
-const TIMESERIES_BUDGET = 89_000;
+ *  the library); the headroom ~2%.
+ *  89,000 -> 91,500 (2026-10-27, Phase 6's D4, the user: "be able to plot trades" -- marks from a grid's rows, an
+ *  annotation of their own: their query (timeseries-query.ts marksQuery, the `marks` ask), their reader and drawing
+ *  (timeseries-option.ts tsMarks, the scatter of triangles, a line at a date), the viewer asking them beside the bounds
+ *  and Settings adding them (ui/timeseries-view.ts #marksFields) -- the headroom ~2%). Measured 89,600. */
+const TIMESERIES_BUDGET = 91_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

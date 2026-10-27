@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { tsProblem, type TimeseriesSpec, type TsExpr } from '../src/timeseries-spec.ts';
+import { tsProblem, type TimeseriesSpec, type TsAnnotation, type TsExpr } from '../src/timeseries-spec.ts';
 import {
   aliasFor, candleOf, columnsOf, defaultTimeseries, exprSource, exprText, functionNamed, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
   levelOf, timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS,
@@ -283,7 +283,9 @@ describe('the saved spec\'s reader', () => {
     series: [{ id: 'A', expr: parseExpr('rebase(close[AAPL])'), name: 'Apple', style: { kind: 'line', color: 2, width: 2, dash: 'dashed' }, pane: 0, axis: 'left' }],
     range: { last: '5y' },
     panes: [{ height: 3, log: true, invert: true, min: 50, max: 400 }],
-    annotations: [{ kind: 'level', value: 100, label: 'par' }, { kind: 'event', date: '2024-03-20', label: 'FOMC' }, { kind: 'period', from: '2020-02-19', to: '2020-04-07' }],
+    annotations: [{ kind: 'level', value: 100, label: 'par' }, { kind: 'event', date: '2024-03-20', label: 'FOMC' }, { kind: 'period', from: '2020-02-19', to: '2020-04-07' },
+      { kind: 'marks', source: 'px', where: [{ value: 'AAPL' }, { column: 'side', value: 'BUY' }], at: 'price', text: 'quantity', shape: 'up', pane: 0, label: 'Bought', color: 2 },
+      { kind: 'marks', source: 'px', text: 'headline', label: 'Earnings' }],
     view: { compare: 'rebase', legend: true, lastValues: true, navigator: true, stats: false, crosshair: true, subtitle: 'Since 2020', note: 'Source: the exchange' },
   };
   const with_ = (change: Record<string, unknown>): unknown => ({ ...JSON.parse(JSON.stringify(OK)), ...change });
@@ -318,6 +320,13 @@ describe('the saved spec\'s reader', () => {
       [with_({ range: { from: '2024-02-01', to: '2024-01-01' } }), /ends before it starts/],
       [with_({ range: { last: '1y', from: '2024-01-01' } }), /not both/],
       [with_({ annotations: [{ kind: 'event', date: 'March' }] }), /is not a date/],
+      // marks from a grid's rows (Phase 6's D4): of a source of the tile, each column a word, a shape it draws
+      [with_({ annotations: [{ kind: 'marks', source: 'tr' }] }), /annotation 1's source "tr" is none of the tile's \(px\)/],
+      [with_({ annotations: [{ kind: 'marks', source: 'px', at: '' }] }), /annotation 1's at is not a column/],
+      [with_({ annotations: [{ kind: 'marks', source: 'px', at: 'price', shape: 'star' }] }), /shape "star" is not one of up, down, dot/],
+      [with_({ annotations: [{ kind: 'marks', source: 'px', pane: 1 }] }), /drawn in a pane at a value: it names no column to draw them at/],
+      [with_({ annotations: [{ kind: 'marks', source: 'px', where: [{ column: 'side' }] }] }), /annotation 1's match 1 is not a value/],
+      [with_({ annotations: [{ kind: 'marks', source: 'px', size: 3 }] }), /no "size" in annotation 1 \(a marks\)/],
       [with_({ view: { compare: 'log' } }), /compare "log"/],
       // the next phases' 2: a pane upside down, its ends by hand; a subtitle and a note in words
       [with_({ panes: [{ invert: 'yes' }] }), /pane 0's invert is not true or false/],
@@ -385,6 +394,18 @@ describe('a timeseries against its sources\' columns', () => {
     has(split, /split by 'symbol': a series reads only series split as it is/);
     const wrongSplit: TimeseriesSpec = { ...TS({}), series: [{ id: 'A', expr: parseExpr('rates:yield'), split: 'symbol' }] };
     has(wrongSplit, /which source rates -- the one it reads first -- has not/);
+  });
+
+  // marks from a grid's rows (Phase 6's D4): each column they read their source's, the one they are drawn at a number
+  it('says what stops marks from a grid\'s rows', () => {
+    const marked = (marks: Record<string, unknown>, sources?: TimeseriesSpec['sources']): TimeseriesSpec =>
+      ({ ...TS({ A: 'px:close' }), ...(sources ? { sources } : {}), annotations: [{ kind: 'marks', source: 'px', ...marks } as TsAnnotation] });
+    assert.deepEqual(problems(marked({ where: [{ value: 'AAPL' }, { column: 'sector', value: 'IT' }], at: 'close', text: 'volume', label: 'Trades' })), []);
+    assert.deepEqual(problems(marked({ at: 'price', label: 'Trades' })), ["Marks \"Trades\" read 'price', which source px has not."]);
+    assert.deepEqual(problems(marked({ at: 'sector' })), ["Marks 1 are drawn at 'sector', which is not a number."]);
+    assert.deepEqual(problems(marked({ where: [{ column: 'side', value: 'BUY' }] })), ["Marks 1 read 'side', which source px has not."]);
+    assert.deepEqual(problems(marked({ where: [{ value: 'AAPL' }] }, [{ alias: 'px', cube: 'g1', date: 'day' }])),
+      ["Marks 1 match a value with no column ([AAPL]): choose source px's instrument column (Key)."]);
   });
 });
 

@@ -1096,6 +1096,32 @@ class Document(Paged):
         # date it crosses at kept too (timeseries-query.ts seriesQuery, the review's Q12)
         self.assertIn('ts_cut_first <= 100001', asked[1]['pure'])
 
+    def test_a_timeseries_marks_a_grids_rows_each_the_databases_as_the_screen_marks_them(self):
+        # marks from a grid's rows (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6's D4: the trades; Phase
+        # 5's events from a grid): each trade at its price on its day, its quantity beside it, by the screen's one rule
+        # (timeseries-query.ts marksQuery), listed with the tile's queries
+        page = ll.Page('Marks')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]})
+        trades = pd.DataFrame({'symbol': ['S', 'S', 'S', 'T'], 'day': [days[1], days[3], days[4], days[2]], 'side': ['BUY', 'SELL', 'BUY', 'BUY'],
+                               'price': [100.5, 103.2, 103.9, 50.0], 'quantity': [100.0, 300.0, 200.0, 10.0]})
+        px, tr = page.grid(prices, name='prices'), page.grid(trades, name='trades')
+        tile = page.timeseries({'px': px, 'tr': {'grid': tr, 'date': 'day', 'key': 'symbol'}}, ['px:close[S]'])
+        tile.annotate({'kind': 'marks', 'source': 'tr', 'where': [{'value': 'S'}, {'column': 'side', 'value': 'BUY'}],
+                       'at': 'price', 'text': 'quantity', 'shape': 'up', 'label': 'Bought'})
+        marks = tile.marks()
+        self.assertEqual(list(marks.columns), ['name', 'date', 'value', 'text'])
+        self.assertEqual([(r.name, r.date.date(), r.value, float(r.text)) for r in marks.itertuples()],
+                         [('Bought', days[4], 103.9, 200.0), ('Bought', days[1], 100.5, 100.0)], "each S buy, latest first")
+        asked = tile.queries()
+        mark = next(q for q in asked if q['kind'] == 'marks')
+        self.assertEqual((mark['what'], mark['marks'], mark['source']), ('Marks "Bought": source tr\'s rows at their price', 0, 'tr'))
+        self.assertIn("'BUY'", mark['pure'])
+        self.assertIn('SELECT', mark['sql'].upper())
+        # refused by the tile's one rule, in its words: a source it has not
+        with self.assertRaisesRegex(ValueError, "source \"fx\" is none of the tile's"):
+            tile.annotate({'kind': 'marks', 'source': 'fx'})
+
     def test_a_timeseries_writes_the_code_that_builds_it_and_the_python_builds_it_again(self):
         # the user, 2026-10-26: "an option that shows how exactly to build that chart programmatically from TS and python"
         # -- the screen's Code, by its one rule (headless timeseriesCode: timeseries-code.ts tileCode); the Python run

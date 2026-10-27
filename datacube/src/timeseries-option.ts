@@ -15,11 +15,11 @@ import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { escapeHtml, periodText, type ChartTheme } from './chart-option.ts';
 import {
-  MAX_PANES, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsExpr, type TsSeries,
+  marksCut, marksName, MAX_PANES, TS_MARK_LIMIT, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsExpr, type TsMarks, type TsSeries,
 } from './timeseries-spec.ts';
 import { boundsOf, exprText, inlined, seriesName, splitName, type TsUnit } from './timeseries-expr.ts';
 import {
-  TS_DATE, TS_FROM, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_SPLIT, TS_TO, TS_UPPER, TS_VALUE, TS_WIDTH, seriesNotes, type TsQuery,
+  TS_DATE, TS_FROM, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_SPLIT, TS_TEXT, TS_TO, TS_UPPER, TS_VALUE, TS_WIDTH, seriesNotes, type TsQuery,
 } from './timeseries-query.ts';
 
 /** A series' query and what the database answered. */
@@ -98,6 +98,60 @@ function firstColumn(e: TsExpr): string | undefined {
 }
 
 const DASHES = ['solid', 'dashed', 'dotted'] as const;
+
+/** Marks from a grid's rows as drawn (TsMarks): each at its date, its value where it is drawn at one, its text. */
+export interface TsMarked {
+  readonly marks: TsMarks;
+  /** Their place among the tile's annotations. */
+  readonly at: number;
+  /** Their name: their label, else their place. */
+  readonly name: string;
+  readonly color: string;
+  /** Oldest first, as the database answered them. */
+  readonly points: readonly { readonly date: string; readonly value: number | null; readonly text: string | null }[];
+}
+
+/** Marks' colour: their slot of the palette; else a buy's green, a sell's red (slots 2 and 7), a dot the fourth. */
+function marksColor(marks: TsMarks, theme: ChartTheme): string {
+  const slot = marks.color ?? (marks.shape === 'up' ? 2 : marks.shape === 'down' ? 7 : 3);
+  return theme.series[slot % theme.series.length]!;
+}
+
+/**
+ * MARKS from what their query answered (timeseries-query.ts marksQuery): oldest first; past TS_MARK_LIMIT the query
+ * answers one more, which is left out and said -- the latest kept. A value read as a line's are; a text as written.
+ */
+export function tsMarks(ts: TimeseriesSpec, at: number, table: ResultTable, theme: ChartTheme): { marked: TsMarked; notes: string[] } {
+  const marks = ts.annotations?.[at];
+  if (marks?.kind !== 'marks') throw new Error(`the tile has no marks at ${at}`);
+  const dates = column(table, TS_DATE);
+  if (dates === undefined) throw new Error(`marks ${at + 1}'s answer has no ${TS_DATE}`);
+  const values = column(table, TS_VALUE);
+  if (marks.at !== undefined && values === undefined) throw new Error(`marks ${at + 1}'s answer has no ${TS_VALUE}`);
+  const texts = column(table, TS_TEXT);
+  const name = marksName(marks, at);
+  const notes: string[] = [];
+  let count = table.rowCount;
+  if (count > TS_MARK_LIMIT) {
+    count = TS_MARK_LIMIT;
+    notes.push(marksCut(marks, at));
+  }
+  const points: TsMarked['points'][number][] = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const date = dateText(dates[i]);
+    if (date === null) continue;
+    const t = texts?.[i];
+    points.push({ date, value: values === undefined ? null : toNumber(values[i]), text: t === null || t === undefined ? null : String(t) });
+  }
+  return { marked: { marks, at, name, color: marksColor(marks, theme), points }, notes };
+}
+
+/** What the drawing leaves out of marks, in words: marks drawn at a value in a pane that draws no line. */
+export function marksUnplaced(ts: TimeseriesSpec, lines: readonly TsLine[], marked: readonly TsMarked[]): string[] {
+  const panes = new Set(panesOf(ts, lines).map((p) => p.index));
+  return marked.filter((m) => m.marks.at !== undefined && !panes.has(m.marks.pane ?? 0))
+    .map((m) => `${m.name} are drawn in pane ${(m.marks.pane ?? 0) + 1}, which draws no line.`);
+}
 
 /**
  * THE LINES, from what each series' query answered: a line per series -- per split value, of a split series -- its
@@ -297,6 +351,8 @@ export interface TsDrawContext {
   /** A picture (its export): its lines' legend drawn in it -- on the screen, the tile's own chips -- and no navigator
    *  (the Phase 2 review's 4: a picture said no line's name, and drew the navigator). */
   readonly picture?: boolean;
+  /** The marks from grids' rows the database answered (tsMarks), drawn over the lines. */
+  readonly marks?: readonly TsMarked[];
 }
 
 /** A heading's line as it is drawn: one line (a note told with line breaks drawn over the panes below it -- the Phase 2
@@ -549,6 +605,50 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
       },
     });
   });
+  // marks from a grid's rows: at a value, a triangle up (a buy), down (a sell) or a dot in their pane; at a date alone, a
+  // line across every pane -- each its row's, the database's
+  for (const m of ctx.marks ?? []) {
+    if (m.marks.at !== undefined) {
+      const gi = panes.findIndex((p) => p.index === (m.marks.pane ?? 0));
+      if (gi < 0) continue;
+      series.push({
+        id: `marks:${m.at}`,
+        name: m.name,
+        type: 'scatter',
+        xAxisIndex: gi,
+        yAxisIndex: axisOf.get(`${gi}|left`)!,
+        symbol: m.marks.shape === 'dot' || m.marks.shape === undefined ? 'circle' : 'triangle',
+        symbolRotate: m.marks.shape === 'down' ? 180 : 0,
+        symbolSize: m.marks.shape === 'dot' || m.marks.shape === undefined ? 7 : 10,
+        itemStyle: { color: m.color, borderColor: theme.surface, borderWidth: 1 },
+        data: m.points.map((pt) => [pt.date, pt.value, pt.text]),
+        z: 4,
+      });
+    } else {
+      panes.forEach((_, gi) => {
+        series.push({
+          id: gi === 0 ? `marks:${m.at}` : `marks:${m.at}:${gi}`,
+          name: m.name,
+          type: 'line',
+          xAxisIndex: gi,
+          yAxisIndex: axisOf.get(`${gi}|left`)!,
+          data: [],
+          silent: true,
+          tooltip: { show: false },
+          markLine: {
+            symbol: 'none',
+            silent: true,
+            animation: false,
+            data: m.points.map((pt) => ({
+              xAxis: pt.date,
+              label: { show: gi === 0 && pt.text !== null, formatter: pt.text ?? '', position: 'insideEndTop', color: theme.inkSecondary, fontSize: 10, fontFamily: theme.font },
+              lineStyle: { color: m.color, type: 'dotted', width: 1 },
+            })),
+          },
+        });
+      });
+    }
+  }
   // each condition's periods where it holds, shaded in its colour across every pane -- the database's runs; its legend
   // chip shows and hides it, as a line's
   for (const l of shaded) {
@@ -630,6 +730,16 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
         const seen = new Set<string>();
         for (const it of items) {
           const id = it.seriesId ?? '';
+          const mark = /^marks:(\d+)$/.exec(id);
+          if (mark !== null && Array.isArray(it.value)) {
+            // a mark: its name, its value and what its row says
+            const m = (ctx.marks ?? []).find((x) => x.at === Number(mark[1]));
+            const [, v, text] = it.value as Scalar[];
+            if (m) {
+              rows.push(`<div style="display:flex;gap:12px;justify-content:space-between"><span><span style="display:inline-block;width:8px;height:8px;background:${m.color};margin-right:6px"></span>${escapeHtml(m.name)}${text === null || text === undefined ? '' : ` ${escapeHtml(String(text))}`}</span><b style="font-variant-numeric:tabular-nums">${escapeHtml(toNumber(v)?.toLocaleString(UI_LOCALE) ?? '—')}</b></div>`);
+            }
+            continue;
+          }
           const key = id.replace(/:(lower|upper)$/, '');
           const l = lines.find((x) => x.key === key);
           if (!l || seen.has(id)) continue;

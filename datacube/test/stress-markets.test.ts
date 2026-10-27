@@ -23,10 +23,10 @@ import { savedQueryOpened } from '../src/saved-queries.ts';
 import { marketsCsv } from '../src/samples.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { sourceColumns } from '../src/source-columns.ts';
-import { STRESS_MARKET_COLUMNS, STRESS_MARKET_TABLES, stressMarketsData } from '../src/stress-markets.ts';
+import { STRESS_MARKET_COLUMNS, STRESS_MARKET_TABLES, stressMarketCsvs, stressMarketsData } from '../src/stress-markets.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
-import { seriesQuery, TS_DATE, TS_SPLIT, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
-import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
+import { marksQuery, seriesQuery, TS_DATE, TS_SPLIT, TS_TEXT, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
+import type { TimeseriesSpec, TsAnnotation } from '../src/timeseries-spec.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
 
@@ -301,8 +301,31 @@ describe('the example page over the classes, opened the page\'s way', () => {
   it('the trades tile reads both grids, and its notional by sector a line per sector the bank trades in', async () => {
     const v = marketsClassesPage().views.find((x) => x.id === 'trades-vs-close')!;
     assert.ok(v.kind === 'timeseries' && v.spec.sources.length === 2);
-    assert.equal(drawn.get('trades-vs-close E'), 5, 'Technology, Financials, Energy, Commodities, Rates');
+    assert.equal(drawn.get('trades-vs-close D'), 5, 'Technology, Financials, Energy, Commodities, Rates');
     assert.equal(drawn.get('venues A'), 5, 'every listing venue');
     assert.equal(drawn.get('sectors A'), 3, 'the three technology names');
+  });
+
+  // D4: the trades as marks from the trades grid's rows (TsMarks) -- each the TRADE table's row, through the mapping
+  it('the trades as marks: each Apple buy and sell at its price on its day, its quantity beside it, as TRADE holds it', async () => {
+    const v = marketsClassesPage().views.find((x) => x.id === 'trades-vs-close')!;
+    assert.ok(v.kind === 'timeseries');
+    const [header, ...lines] = stressMarketCsvs().TRADE.trim().split('\n');
+    const at = (name: string): number => header!.split(',').indexOf(name);
+    const rows = lines.map((l) => l.split(','));
+    const trades = opened.get('trades')!;
+    for (const [i, side, code] of [[0, 'BUY', 'B'], [1, 'SELL', 'S']] as const) {
+      const marks: TsAnnotation = v.spec.annotations![i]!;
+      if (marks.kind !== 'marks') throw new Error(`annotation ${i} is no marks`);
+      assert.equal(marks.label, side === 'BUY' ? 'Bought' : 'Sold');
+      const q = marksQuery(new Map([['tr', { snapshot: trades.snapshot, filter: undefined }]]), v.spec, marks);
+      const t = await projectEngine.execute(await trades.planner.plan(q), 0);
+      const col = (name: string): unknown[] => t.columns.find((c) => c.name === name)!.values as unknown[];
+      const want = rows.filter((r) => r[at('INSTRUMENT_ID')] === 'INS-AAPL' && r[at('SIDE')] === code)
+        .map((r) => [r[at('TRADE_DATE')]!, Number(r[at('PRICE')]), Number(r[at('QUANTITY')])] as const)
+        .sort((a, b) => b[0].localeCompare(a[0]));
+      assert.ok(want.length > 20, `${side}: the sample's Apple trades`);
+      assert.deepEqual(col(TS_DATE).map((d, k) => [String(d).slice(0, 10), Number(col(TS_VALUE)[k]), Number(col(TS_TEXT)[k])]), want, `${side}: each a TRADE row, latest first`);
+    }
   });
 });

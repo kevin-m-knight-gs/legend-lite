@@ -145,18 +145,22 @@ export function marketsClassesPage(): PageDocument {
       range: { last: '3y' },
       panes: [{ height: 2 }, { height: 1 }],
     }),
-    // the trades: each at its price on its day, against the close; bought and sold by day; a sector's flow
+    // the trades: each a mark at its price on its day against the close -- a buy up, a sell down, its quantity beside it
+    // (marks from the trades grid's rows); bought and sold by day; a sector's flow
     tile('trades-vs-close', 'Apple: the bank\'s trades against the close (two grids, one tile)', {
       sources: [QUOTES, TRADES],
       series: [
         s('A', 'px:close[AAPL]', { name: 'Apple close' }),
-        s('B', 'tr:price[AAPL].average', { name: 'Apple trades', style: { kind: 'dots' } }),
-        s('C', 'tr:quantity[AAPL, side="BUY"].sum', { name: 'Bought', pane: 1, style: { kind: 'bars' } }),
-        s('D', 'tr:quantity[AAPL, side="SELL"].sum', { name: 'Sold', pane: 1, style: { kind: 'bars' } }),
-        s('E', 'tr:notional.sum', { name: 'Notional by sector', split: 'sector', pane: 2, style: { kind: 'bars' } }),
+        s('B', 'tr:quantity[AAPL, side="BUY"].sum', { name: 'Bought', pane: 1, style: { kind: 'bars' } }),
+        s('C', 'tr:quantity[AAPL, side="SELL"].sum', { name: 'Sold', pane: 1, style: { kind: 'bars' } }),
+        s('D', 'tr:notional.sum', { name: 'Notional by sector', split: 'sector', pane: 2, style: { kind: 'bars' } }),
       ],
       range: { last: '1y' },
       panes: [{ height: 3 }, { height: 1 }, { height: 1 }],
+      annotations: [
+        { kind: 'marks', source: 'tr', where: [{ value: 'AAPL' }, { column: 'side', value: 'BUY' }], at: 'price', text: 'quantity', shape: 'up', label: 'Bought' },
+        { kind: 'marks', source: 'tr', where: [{ value: 'AAPL' }, { column: 'side', value: 'SELL' }], at: 'price', text: 'quantity', shape: 'down', label: 'Sold' },
+      ],
     }),
   ];
   const band = (height: number, node: Node): Band => ({ height, node });

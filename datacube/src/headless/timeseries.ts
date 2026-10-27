@@ -10,20 +10,20 @@ import { readPage, type PageDocument } from '../page-document.ts';
 import { gridTitle } from '../page-ids.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot } from '../snapshot.ts';
 import {
-  askQuery, boundsQuery, curveColumns, curveOrder, rangeWindow, readsAnchor, seriesNotes, seriesQuery, seriesSources, statBlanks, statName,
+  askQuery, boundsQuery, curveColumns, curveOrder, marksOf, marksQuery, rangeWindow, readsAnchor, seriesNotes, seriesQuery, seriesSources, statBlanks, statName,
   tableSeries, tileAsks, viewSeries,
   TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN, TS_HIST_COUNT, TS_HIST_HIGH, TS_HIST_LOW, TS_HIST_MEAN, TS_HIST_MID, TS_HIST_N,
   TS_HIST_NORMAL, TS_HIST_P5, TS_HIST_SD, TS_SC_CORR, TS_SC_INTERCEPT, TS_SC_N, TS_SC_R2, TS_SC_SLOPE, TS_SC_X, TS_SC_Y, TS_SEA_HIGH,
   TS_SEA_LATEST, TS_SEA_LOW, TS_SEA_MEAN, TS_SEA_PLACE, TS_SEA_YEAR,
   TS_CORR, TS_CORR_A, TS_CORR_B, TS_CORR_N, TS_DATE, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED,
   TS_DD_RECOVERY, TS_DD_TROUGH, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_LEVEL_LOW,
-  TS_STAT_PER_YEAR, TS_STATS, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsTable, type TsWindow,
+  TS_STAT_PER_YEAR, TS_STATS, TS_TEXT, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsTable, type TsWindow,
 } from '../timeseries-query.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { HostTables } from './host-tables.ts';
 import { eachRelation } from '../join-open.ts';
 import { sourcesOnHost, sourcesOpenedOn } from './join.ts';
-import { TS_CURVE_DATES, tsProblem, type TimeseriesSpec, type TsExpr, type TsSeries, type TsSource, type TsView } from '../timeseries-spec.ts';
+import { marksCut, marksName, TS_CURVE_DATES, TS_MARK_LIMIT, tsProblem, type TimeseriesSpec, type TsExpr, type TsSeries, type TsSource, type TsView } from '../timeseries-spec.ts';
 import {
   aliasFor, nextSeriesId, parseExpr, seriesName, sourceOf, splitName, TsSyntaxError, type TsColumn
 } from '../timeseries-expr.ts';
@@ -329,6 +329,26 @@ export function boundsOf(ts: TimeseriesSpec, alias: string, input: TsInput): str
   return `"query":${toJson(boundsQuery(input, src))},"table":"bounds"`;
 }
 
+/** What a host asks of marks from a grid's rows (timeseriesQuery): the marks at their place among the tile's
+ *  annotations (TsMarks), of their one source's grid. */
+export interface MarksAsked {
+  readonly page: unknown;
+  readonly tile: string;
+  readonly table: 'marks';
+  readonly marks: number;
+  readonly host: HostTables;
+  readonly copies?: Readonly<Record<string, unknown>>;
+}
+
+/** Marks as a host reads them: their query over their source's grid as the tile reads it (timeseries-query.ts
+ *  marksQuery), their answer's columns named, latest first, and their name. */
+export function marksAsked(ts: TimeseriesSpec, at: number | undefined, input: TsInput): string {
+  const marks = marksOf(ts, at);
+  const columns = { date: TS_DATE, value: marks.at !== undefined ? TS_VALUE : null, text: marks.text !== undefined ? TS_TEXT : null };
+  return `"query":${toJson(marksQuery(new Map([[marks.source, input]]), ts, marks))},"table":"marks","columns":${JSON.stringify(columns)},`
+    + `"name":${JSON.stringify(marksName(marks, at!))},"limit":${TS_MARK_LIMIT},"cut":${JSON.stringify(marksCut(marks, at!))}`;
+}
+
 /** A timeseries tile of a page, or a refusal naming what is not. */
 function tileOf(page: PageDocument, tile: string): TimeseriesSpec {
   const view = page.views.find((v) => v.id === tile);
@@ -547,8 +567,15 @@ export function seriesOf(page: PageDocument, tile: string, id: string | undefine
  */
 export async function timeseriesQuery(spec: string): Promise<string> {
   try {
-    const asked = fromJson(spec) as unknown as SeriesAsked | BoundsAsked;
+    const asked = fromJson(spec) as unknown as SeriesAsked | BoundsAsked | MarksAsked;
     const page = readPage(asked.page, { empty: true });
+    // marks from a grid's rows: of their one grid, read as that grid is, as a source's bounds are
+    if (asked.table === 'marks') {
+      const marks = marksOf(tileOf(page, asked.tile), asked.marks);
+      const src = tileOf(page, asked.tile).sources.find((x) => x.alias === marks.source)!;
+      if (!page.cubes.some((c) => c.id === src.cube)) throw new Problem(`source ${src.alias}'s grid is not on the page (it was removed)`);
+      return JSON.stringify({ grid: src.cube });
+    }
     // a source's bounds: of its one grid, read as that grid is (headless grid.ts gridTimeseries)
     if (asked.table === 'bounds') {
       const src = tileOf(page, asked.tile).sources.find((x) => x.alias === asked.source);

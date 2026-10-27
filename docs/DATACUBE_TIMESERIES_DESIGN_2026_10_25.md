@@ -797,7 +797,8 @@ dated budget notes; every figure still the database's.
   daily, weekly and monthly (a 31st's month its last day, a rebalance on a date one series lacks taken at the next);
   Python's to pandas in `test_page.py`; every one on its family's gallery sheet.
 - **Phase 5, on the chart itself.** A measure dragged between two dates (the change, the % and the days -- a statistics
-  query over that span, the database's); drawn lines and notes; events marked from a grid's rows (earnings, meetings);
+  query over that span, the database's); drawn lines and notes; events marked from a grid's rows (earnings, meetings:
+  built with Phase 6's D4 as marks from a grid's rows, below);
   shading from a 0/1 column in one step (recession bars); a replay stepping the window's end through time; a period
   brushed on the chart filtering the page's other grids; a trend's projection forward.
 - **Phase 6, charts from a model** (the user, 2026-10-27: "start all the charts from Class models projected to Relation
@@ -865,6 +866,18 @@ dated budget notes; every figure still the database's.
   tile's first library call, which holds the model again with the library after it (3.7 s) -- the planner's `#over`
   compiling the model and the library as one text. Holding the library over a held model is a core question (a model
   context extended by a few functions); the D4 and Python steps do not wait on it.
+  D4 (2026-10-27), Phase 5's events from a grid with it: **marks from a grid's rows**, an annotation of its own
+  (`TsMarks`: `{kind: 'marks', source, where?, at?, text?, shape?, pane?, label?, color?}`) -- each row of a source's
+  grid (its filter as the tile reads it) that its matches pick, at its date as a series' points are (a date-time its day
+  under a frequency), on its `at` column's value in its pane (a trade at its price: a triangle up for a buy, down for a
+  sell, a dot), else a line at its date across every pane (an earnings day), its `text` column beside it. Its rows are the
+  database's (`marksQuery`: filtered, matched, latest first, at most `TS_MARK_LIMIT` = 2,000 and one more, so a cut is
+  said -- `marksCut`, the one sentence the banner and Python's warning say); a refusal is said in the banner, never drawn
+  as no marks; marks in a pane that draws no line are said (`marksUnplaced`). It is a question the tile asks like any
+  other (`tileAsks`' `marks`, listed in the Query window and by Python's `queries`), added in Settings (the source, the
+  rows matched as a column's brackets are typed, the column drawn at, what each says, its shape, pane and label) or by
+  Python's `annotate`, its rows read by Python's `Timeseries.marks()`. The example's trades tile draws the bank's Apple
+  trades so, each held to its TRADE row through the mapping (`stress-markets.test.ts`).
 - **Not built, and why:** X-13 seasonal adjustment and `smooth_outliers` (iterative procedures no query states; gs-quant's
   own seasonal adjustment is the decomposition above); PowerPoint (a document writer of its own in the bundle; the page
   already exports HTML and PDF); alerts (a scheduler and a channel outside a page); `repeat`, `date_range`,

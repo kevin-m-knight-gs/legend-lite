@@ -20,6 +20,7 @@
 import type { TimeGrain } from './chart-spec.ts';
 import { readFilterNode } from './grid-commands.ts';
 import type { FilterNode } from './snapshot.ts';
+import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 
 // ------------------------------------------------------------------ the spec
 
@@ -111,11 +112,43 @@ export interface TsPane {
   readonly max?: number;
 }
 
-/** What is drawn over the series: a level, an event's date, a shaded period -- each with a label. */
+/** What is drawn over the series: a level, an event's date, a shaded period -- each with a label -- or marks from a
+ *  grid's rows (TsMarks). */
 export type TsAnnotation =
   | { readonly kind: 'level'; readonly value: number; readonly pane?: number; readonly label?: string }
   | { readonly kind: 'event'; readonly date: string; readonly label?: string }
-  | { readonly kind: 'period'; readonly from: string; readonly to: string; readonly label?: string };
+  | { readonly kind: 'period'; readonly from: string; readonly to: string; readonly label?: string }
+  | TsMarks;
+
+/** How a mark is drawn: a triangle up (a buy) or down (a sell), or a dot. */
+export type TsMarkShape = 'up' | 'down' | 'dot';
+export const TS_MARK_SHAPES: readonly TsMarkShape[] = ['up', 'down', 'dot'];
+
+/**
+ * MARKS FROM A GRID'S ROWS (Phase 5's events from a grid; Phase 6's trades, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md
+ * §11): each row of a source's grid -- its filter as the tile reads it -- that its matches pick, at its date (a date-time
+ * its day under a frequency, as a series' points are): on its `at` column's value in its pane (a trade at its price),
+ * else a line across the panes at its date (an earnings day). Its `text` column is said beside each (a trade's
+ * quantity); `label` names them all (Bought); `shape` and `color` draw them. The rows are the database's, latest first,
+ * at most TS_MARK_LIMIT.
+ */
+export interface TsMarks {
+  readonly kind: 'marks';
+  /** The alias of the source whose rows they are. */
+  readonly source: string;
+  /** The rows marked: those these match (`[AAPL, side="BUY"]`); absent, every row. */
+  readonly where?: readonly TsMatch[];
+  /** The number column each is drawn at; absent, a line at its date across every pane. */
+  readonly at?: string;
+  /** The column said beside each. */
+  readonly text?: string;
+  readonly shape?: TsMarkShape;
+  /** The pane its marks are drawn in, where they are drawn at a value. */
+  readonly pane?: number;
+  readonly label?: string;
+  /** A slot of the palette, as a series' colour. */
+  readonly color?: number;
+}
 
 export type TsAnnotationKind = TsAnnotation['kind'];
 
@@ -265,6 +298,16 @@ export const MAX_SPLIT_LINES = 20;
 export const MAX_PANES = 4;
 /** The most points a series' query asks for: past it, the latest ones (a cut is said). */
 export const TS_POINT_LIMIT = 100_000;
+/** The most rows marks from a grid draw (TsMarks): past it, the latest ones (a cut is said). */
+export const TS_MARK_LIMIT = 2_000;
+
+/** Marks' name (TsMarks): their label, else their place among the tile's annotations. */
+export const marksName = (marks: TsMarks, at: number): string => marks.label ?? `Marks ${at + 1}`;
+
+/** What is said of marks whose rows are past TS_MARK_LIMIT: the latest are drawn -- the one sentence the screen's banner
+ *  and Python's warning say. */
+export const marksCut = (marks: TsMarks, at: number): string =>
+  `${marksName(marks, at)}: the latest ${TS_MARK_LIMIT.toLocaleString(UI_LOCALE)} (there are more).`;
 
 /** The range buttons, in their order, and how each is labelled. */
 export const TS_RANGES: readonly { readonly word: TsRangeWord; readonly label: string }[] = [
@@ -457,6 +500,42 @@ export function manyProblem(fn: TsFunctionName, args: readonly unknown[]): strin
 /** The values a column may take of each period. */
 export const AGGREGATES: readonly TsAggregate[] = ['last', 'first', 'average', 'sum', 'min', 'max'];
 
+/** What stops a list of matches (`[AAPL, side="BUY"]`) from being read, in words, or null. */
+function matchesProblem(where: unknown, what: string): string | null {
+  if (where === undefined) return null;
+  if (!Array.isArray(where)) return `${what}'s matches are not a list`;
+  for (const [i, m] of where.entries()) {
+    if (!isRecord(m) || !['string', 'number', 'boolean'].includes(typeof m['value'])
+      || (m['column'] !== undefined && typeof m['column'] !== 'string')) {
+      return `${what}'s match ${i + 1} is not a value (and a column)`;
+    }
+    const mExtra = unknownKey(m, MATCH_KEYS, `${what}'s match ${i + 1}`);
+    if (mExtra) return mExtra;
+  }
+  return null;
+}
+
+/** What stops marks from a grid's rows (TsMarks) from being read, in words, or null: its source one of the tile's. */
+function marksProblem(a: Readonly<Record<string, unknown>>, what: string, aliases: ReadonlySet<string>): string | null {
+  if (typeof a['source'] !== 'string' || !aliases.has(a['source'])) {
+    return `${what}'s source ${JSON.stringify(a['source'] ?? null)} is none of the tile's (${[...aliases].join(', ')})`;
+  }
+  for (const c of ['at', 'text'] as const) {
+    if (a[c] !== undefined && (typeof a[c] !== 'string' || a[c] === '')) return `${what}'s ${c} is not a column`;
+  }
+  if (a['shape'] !== undefined && !TS_MARK_SHAPES.includes(a['shape'] as TsMarkShape)) {
+    return `${what}'s shape ${JSON.stringify(a['shape'])} is not one of ${TS_MARK_SHAPES.join(', ')}`;
+  }
+  if (a['pane'] !== undefined && !(Number.isInteger(a['pane']) && (a['pane'] as number) >= 0 && (a['pane'] as number) < MAX_PANES)) {
+    return `${what}'s pane is not one of 0 to ${MAX_PANES - 1}`;
+  }
+  if (a['pane'] !== undefined && a['at'] === undefined) return `${what} is drawn in a pane at a value: it names no column to draw them at`;
+  if (a['color'] !== undefined && !(Number.isInteger(a['color']) && (a['color'] as number) >= 0)) {
+    return `${what}'s colour ${JSON.stringify(a['color'])} is not a slot of the palette (0, 1, ...)`;
+  }
+  return matchesProblem(a['where'], what);
+}
+
 /** An alias as a source may be called: a word, a letter first. */
 export const ALIAS = /^[A-Za-z][A-Za-z0-9_]*$/;
 
@@ -490,6 +569,7 @@ const ANNOTATION_KEYS: { readonly [K in TsAnnotationKind]: Readonly<Record<strin
   level: { kind: true, value: true, pane: true, label: true },
   event: { kind: true, date: true, label: true },
   period: { kind: true, from: true, to: true, label: true },
+  marks: { kind: true, source: true, where: true, at: true, text: true, shape: true, pane: true, label: true, color: true } satisfies Record<keyof TsMarks, true>,
 };
 const GRAINS: readonly TimeGrain[] = ['day', 'week', 'month', 'quarter', 'year'];
 const STYLE_KINDS: readonly TsStyleKind[] = ['line', 'area', 'bars', 'step', 'dots'];
@@ -517,19 +597,7 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
       if (e['fn'] !== undefined && !AGGREGATES.includes(e['fn'] as TsAggregate)) {
         return `${what}'s period value ${JSON.stringify(e['fn'])} is not one of ${AGGREGATES.join(', ')}`;
       }
-      const where = e['where'];
-      if (where !== undefined) {
-        if (!Array.isArray(where)) return `${what}'s matches are not a list`;
-        for (const [i, m] of where.entries()) {
-          if (!isRecord(m) || !['string', 'number', 'boolean'].includes(typeof m['value'])
-            || (m['column'] !== undefined && typeof m['column'] !== 'string')) {
-            return `${what}'s match ${i + 1} is not a value (and a column)`;
-          }
-          const mExtra = unknownKey(m, MATCH_KEYS, `${what}'s match ${i + 1}`);
-          if (mExtra) return mExtra;
-        }
-      }
-      return null;
+      return matchesProblem(e['where'], what);
     }
     case 'ref':
       return typeof e['series'] === 'string' && e['series'] !== '' ? null : `${what} names no series`;
@@ -733,7 +801,7 @@ export function tsProblem(ts: unknown): string | null {
     if (!Array.isArray(annotations)) return 'its timeseries\' annotations are not a list';
     for (const [i, a] of annotations.entries()) {
       const what = `annotation ${i + 1}`;
-      if (!isRecord(a) || !Object.hasOwn(ANNOTATION_KEYS, a['kind'] as string)) return `${what} is not a level, an event or a period`;
+      if (!isRecord(a) || !Object.hasOwn(ANNOTATION_KEYS, a['kind'] as string)) return `${what} is not a level, an event, a period or marks`;
       const aExtra = unknownKey(a, ANNOTATION_KEYS[a['kind'] as TsAnnotationKind], `${what} (a ${a['kind']})`);
       if (aExtra) return aExtra;
       if (a['label'] !== undefined && typeof a['label'] !== 'string') return `${what}'s label is not text`;
@@ -744,6 +812,10 @@ export function tsProblem(ts: unknown): string | null {
         }
       }
       if (a['kind'] === 'event' && !isDate(a['date'])) return `${what}'s date ${JSON.stringify(a['date'] ?? null)} is not a date (2024-01-31)`;
+      if (a['kind'] === 'marks') {
+        const marked = marksProblem(a, what, aliases);
+        if (marked) return marked;
+      }
       if (a['kind'] === 'period') {
         if (!isDate(a['from']) || !isDate(a['to'])) return `${what} needs a from and a to, each a date (2024-01-31)`;
         if (a['from'] > a['to']) return `${what} ends before it starts`;

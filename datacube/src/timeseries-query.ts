@@ -34,7 +34,7 @@ import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { isDay, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import {
   filterRead,
-  MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, tenorOf, TS_POINT_LIMIT, TS_RANGES, type TimeseriesSpec, type TsAggregate,
+  MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, tenorOf, TS_MARK_LIMIT, TS_POINT_LIMIT, TS_RANGES, type TimeseriesSpec, type TsAggregate, type TsMarks,
   type TsAlign, type TsExpr, type TsMatch, type TsOperator, type TsRange, type TsRangeWord, type TsSeries, type TsSource, type TsTenor,
   isConditionOp, TS_CURVE_DATES, TS_HIST_BINS, TS_SEASON_YEARS, TS_SIGNATURES, type TsFunctionName,
 } from './timeseries-spec.ts';
@@ -53,6 +53,8 @@ export const TS_OPEN = '__ts_open';
 export const TS_HIGH = '__ts_high';
 export const TS_LOW = '__ts_low';
 export const TS_SPLIT = '__ts_split';
+/** What a mark says beside it (TsMarks.text): its row's column, as the database answers it. */
+export const TS_TEXT = '__ts_text';
 /** A condition's run each date where it holds is in: its first date and its last (none where it does not hold). */
 export const TS_FROM = '__ts_from';
 export const TS_TO = '__ts_to';
@@ -2000,6 +2002,32 @@ export function boundsQuery(input: TsInput, src: TsSource): Lambda {
 }
 
 /**
+ * MARKS FROM A GRID'S ROWS (TsMarks; Phase 5's events from a grid, Phase 6's trades): each row of its source -- the
+ * grid's filter as the tile reads it -- that its matches pick, with a date (and a value where it is drawn at one), at
+ * its date as a series' points are (a date-time its day under a frequency: periodOf's `at`), its value and its text the
+ * row's own columns: latest first, at most `limit` and one more, so a reader knows when there are more -- the database's.
+ */
+export function marksQuery(inputs: TsInputs, ts: TimeseriesSpec, marks: TsMarks, limit: number = TS_MARK_LIMIT): Lambda {
+  const { src, input } = sourceNamed(ts, inputs, marks.source);
+  const s = input.snapshot;
+  const typeOf = (c: string): string | undefined => typeIn(s, c);
+  const conditions: ValueSpecification[] = [fn('isNotEmpty', col(src.date))];
+  if (marks.at !== undefined) conditions.push(fn('isNotEmpty', col(marks.at)));
+  const filter = filterRead(src, input.filter);
+  if (filter) conditions.push(filterNode(filter, 'x', typeOf));
+  const match = matched(s, src.key, marks.where ?? []);
+  if (match) conditions.push(match);
+  const { at } = periodOf(ts.grain, src.date, typeOf(src.date));
+  const out: ColSpec[] = [
+    derive(TS_DATE, row(at)),
+    ...(marks.at !== undefined ? [derive(TS_VALUE, row(col(marks.at)))] : []),
+    ...(marks.text !== undefined ? [derive(TS_TEXT, row(col(marks.text)))] : []),
+  ];
+  return sourceWithDerived(s).filter(row(and(...conditions))).extend(out).select(out.map((c) => c.name))
+    .sort([desc(TS_DATE)]).limit(limit + 1).lambda();
+}
+
+/**
  * WHY A LEVEL'S FIGURES ARE BLANK (the second audit's P-2b and S1: a "—" said nothing), from its statistics' own answer --
  * its least over the dates shown (`low`, before compare took it from its start), its periods a year (`perYear`) and its
  * growth (`cagr`): at or below zero, none of its returns' figures; no frequency, no volatility or Sharpe ratio; under a
@@ -2680,20 +2708,29 @@ export const TS_SERVES_WORDS: Readonly<Record<TsServes, string>> = {
  * (`what`), and where its answer is shown (`serves`).
  */
 export interface TsAsk {
-  readonly kind: 'bounds' | 'series' | TsTable;
+  readonly kind: 'bounds' | 'series' | 'marks' | TsTable;
   readonly series?: string;
   readonly with?: string;
   readonly source?: string;
+  /** Marks': their place among the tile's annotations. */
+  readonly marks?: number;
   readonly what: string;
   readonly serves: TsServes;
 }
 
 /** What an ask is of: what its query is built from, without its words. */
-export type TsAskOf = Pick<TsAsk, 'kind' | 'series' | 'with' | 'source'>;
+export type TsAskOf = Pick<TsAsk, 'kind' | 'series' | 'with' | 'source' | 'marks'>;
 
 /** An ask's key: what it is of, the same for every round that asks it. */
 export const askKey = (a: TsAskOf): string =>
-  JSON.stringify([a.kind, a.series ?? null, a.with ?? null, a.source ?? null]);
+  JSON.stringify([a.kind, a.series ?? null, a.with ?? null, a.source ?? null, ...(a.marks !== undefined ? [a.marks] : [])]);
+
+/** The marks an ask is of, by their place among the tile's annotations, or a refusal naming it. */
+export function marksOf(ts: TimeseriesSpec, at: number | undefined): TsMarks {
+  const a = at === undefined ? undefined : ts.annotations?.[at];
+  if (a?.kind !== 'marks') throw new CubeRefusal(`the tile has no marks at ${JSON.stringify(at ?? null)}`);
+  return a;
+}
 
 /**
  * EVERY QUESTION A TILE ASKS THE DATABASE -- the one rule the screen's Query window and Python's Timeseries.queries
@@ -2717,6 +2754,10 @@ export function tileAsks(ts: TimeseriesSpec): TsAsk[] {
     ...ts.series.map((s): TsAsk => ({
       kind: 'series', series: s.id, serves: 'chart', what: `Series ${named(s.id)}: its points${s.hidden === true ? ' (hidden)' : ''}`,
     })),
+    ...(ts.annotations ?? []).flatMap((a, i): TsAsk[] => (a.kind !== 'marks' ? [] : [{
+      kind: 'marks', marks: i, source: a.source, serves: 'chart',
+      what: `Marks ${a.label !== undefined ? `"${a.label}"` : i + 1}: source ${a.source}'s rows${a.at !== undefined ? ` at their ${a.at}` : ''}`,
+    }])),
   ];
   const mode = ts.view?.mode;
   if (mode === 'scatter' && views.scatter !== undefined) {
@@ -2742,6 +2783,7 @@ export function tileAsks(ts: TimeseriesSpec): TsAsk[] {
 /** The sources an ask reads, by alias: its series', and its pair's too. */
 export function askSources(ts: TimeseriesSpec, ask: TsAskOf): string[] {
   if (ask.kind === 'bounds') return [ask.source!];
+  if (ask.kind === 'marks') return [marksOf(ts, ask.marks).source];
   const of = (id: string | undefined): TsSeries[] => {
     if (id === undefined) return [];
     const s = ts.series.find((x) => x.id === id);
@@ -2765,10 +2807,10 @@ export function askQuery(inputs: TsInputs, ts: TimeseriesSpec, ask: TsAskOf, win
     if (!s) throw new Error(`the tile has no series ${JSON.stringify(id ?? null)}`);
     return s;
   };
+  if (ask.kind === 'bounds') throw new Error('a source\'s bounds are boundsQuery\'s, of its one grid');
+  if (ask.kind === 'marks') throw new Error('marks are marksQuery\'s, of their one grid');
   const s = named(ask.series);
   switch (ask.kind) {
-    case 'bounds':
-      throw new Error('a source\'s bounds are boundsQuery\'s, of its one grid');
     case 'series':
       return seriesQuery(inputs, ts, s, readsAnchor(ts, s) && window.from ? { from: window.from } : {});
     case 'statistics':

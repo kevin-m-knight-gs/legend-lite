@@ -13,9 +13,9 @@ import { LIGHT_THEME } from '../src/chart-option.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { curveColumns, TS_SPLIT as SPLIT } from '../src/timeseries-query.ts';
 import { curveNotes, curveOption } from '../src/timeseries-views.ts';
-import { tickText, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, tsHeading, tsLines, tsPictureHeight, valueText, type TsResult } from '../src/timeseries-option.ts';
-import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
-import { TS_POINT_LIMIT, type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
+import { marksUnplaced, tickText, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, tsHeading, tsLines, tsMarks, tsPictureHeight, valueText, type TsResult } from '../src/timeseries-option.ts';
+import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_SPLIT, TS_TEXT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
+import { TS_MARK_LIMIT, TS_POINT_LIMIT, type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { TsUnit } from '../src/timeseries-expr.ts';
 
@@ -342,5 +342,42 @@ describe('the drawing', () => {
     ]);
     const text = JSON.stringify(option['series']);
     for (const words of ['"zero"', '"CPI"', '"Q"']) assert.ok(text.includes(words), `${words} is drawn`);
+  });
+
+  // marks from a grid's rows (Phase 6's D4): what their query answered, latest first, drawn oldest first
+  it('marks at a value: a triangle each in its pane, up or down, its row\'s text beside it; at a date alone, a line', () => {
+    const ts = spec([S('A', 'close'), S('B', 'zscores($A)', { pane: 1 })], {
+      annotations: [
+        { kind: 'marks', source: 'px', at: 'price', text: 'quantity', shape: 'down', label: 'Sold' },
+        { kind: 'marks', source: 'px', text: 'headline', label: 'Earnings' },
+      ],
+    });
+    const table = (columns: Record<string, readonly (string | number | null)[]>): ResultTable => ({
+      columns: Object.keys(columns).map((name) => ({ name, type: name === TS_DATE ? 'StrictDate' : name === TS_TEXT ? 'String' : 'Float', values: [...columns[name]!] })),
+      rowCount: Object.values(columns)[0]!.length, epoch: 0, elapsedMs: 0,
+    });
+    const sold = tsMarks(ts, 0, table({ [TS_DATE]: ['2024-01-04', '2024-01-02'], [TS_VALUE]: [2.5, 1.5], [TS_TEXT]: ['300', '100'] }), LIGHT_THEME);
+    assert.deepEqual(sold.marked.points, [{ date: '2024-01-02', value: 1.5, text: '100' }, { date: '2024-01-04', value: 2.5, text: '300' }], 'oldest first');
+    assert.equal(sold.marked.color, LIGHT_THEME.series[7], 'a sell red');
+    const earnings = tsMarks(ts, 1, table({ [TS_DATE]: ['2024-01-03'], [TS_TEXT]: ['Q4'] }), LIGHT_THEME).marked;
+    const { lines } = tsLines(ts, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }), answered('B', 'number', { [TS_DATE]: DAYS, [TS_VALUE]: [1, 0, -1] })], LIGHT_THEME);
+    const option = timeseriesOption(ts, lines, { theme: LIGHT_THEME, height: 600, marks: [sold.marked, earnings] }) as Record<string, unknown>;
+    const series = option['series'] as { id: string; type: string; symbol?: string; symbolRotate?: number; xAxisIndex: number; data: unknown[]; markLine?: { data: { xAxis: string }[] } }[];
+    const marks = series.find((x) => x.id === 'marks:0')!;
+    assert.deepEqual([marks.type, marks.symbol, marks.symbolRotate, marks.xAxisIndex], ['scatter', 'triangle', 180, 0], 'a triangle down in the main pane');
+    assert.deepEqual(marks.data, [['2024-01-02', 1.5, '100'], ['2024-01-04', 2.5, '300']]);
+    const lined = series.filter((x) => x.id.startsWith('marks:1'));
+    assert.deepEqual(lined.map((x) => [x.xAxisIndex, x.markLine!.data.map((d) => d.xAxis)]), [[0, ['2024-01-03']], [1, ['2024-01-03']]], 'a line at its date across every pane');
+    // past the most a set draws: its latest, said
+    const many = Array.from({ length: TS_MARK_LIMIT + 1 }, (_, i) => `2024-01-${String(1 + (i % 28)).padStart(2, '0')}`);
+    const cut = tsMarks(ts, 0, table({ [TS_DATE]: many, [TS_VALUE]: many.map(() => 1), [TS_TEXT]: many.map(() => 'x') }), LIGHT_THEME);
+    assert.equal(cut.marked.points.length, TS_MARK_LIMIT);
+    assert.deepEqual(cut.notes, [`Sold: the latest ${TS_MARK_LIMIT.toLocaleString(UI_LOCALE)} (there are more).`]);
+    // marks in a pane that draws no line are said, never drawn elsewhere
+    const lost = spec([S('A', 'close')], { annotations: [{ kind: 'marks', source: 'px', at: 'price', pane: 2, label: 'Fills' }] });
+    const fills = tsMarks(lost, 0, table({ [TS_DATE]: ['2024-01-02'], [TS_VALUE]: [1] }), LIGHT_THEME).marked;
+    const one = tsLines(lost, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] })], LIGHT_THEME).lines;
+    assert.deepEqual(marksUnplaced(lost, one, [fills]), ['Fills are drawn in pane 3, which draws no line.']);
+    assert.ok(!(timeseriesOption(lost, one, { theme: LIGHT_THEME, marks: [fills] }) as { series: { id: string }[] }).series.some((x) => x.id === 'marks:0'));
   });
 });
