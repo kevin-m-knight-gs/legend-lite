@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.compiler.spec;
 
+import com.legend.compiler.element.TypedFunction;
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.platform.CoreFn;
 import com.legend.protocol.spec.AppliedFunction;
@@ -16,6 +18,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -27,7 +30,9 @@ import java.util.regex.Pattern;
  *
  * <p>Each expansion renames, before the call's arguments are substituted in, every column name the body MAKES -- a
  * column spec of {@code extend} after its source, {@code rename}'s new name, {@code groupBy}'s aggregates,
- * {@code aggregate}'s and {@code project}'s columns -- that its declared return does not name literally, at every
+ * {@code aggregate}'s and {@code project}'s columns, and the column a call of another function generic over relations
+ * writes (a column-spec parameter whose column its declared return adds: {@code out} of
+ * {@code Relation<T+O>}'s {@code out: ColSpec<O>}, 2026-10-27) -- that its declared return does not name literally, at every
  * place the body writes it (its column specs and its row reads, {@code $r.name}), to a name of its own that no column
  * of the call's tables and no column the call names has. A name the body reads but never makes is the caller's, and
  * stays. Only a declared table return is hygienic: a function declared {@code Relation<Any>} says nothing of what
@@ -36,6 +41,14 @@ import java.util.regex.Pattern;
 final class ColumnHygiene {
 
     private int fresh;
+
+    /** The functions a call may be (Overloads' candidates of its name): what says which of its arguments a call of a
+     *  function generic over relations writes. */
+    private final Function<AppliedFunction, List<TypedFunction>> callees;
+
+    ColumnHygiene(Function<AppliedFunction, List<TypedFunction>> callees) {
+        this.callees = callees;
+    }
 
     /** An expansion's renamed body and the names it renamed (fresh to written), for its messages. */
     record Renamed(ValueSpecification body, Map<String, String> written) {
@@ -106,7 +119,7 @@ final class ColumnHygiene {
     }
 
     /** The names the body's making positions write. */
-    private static void collectMade(ValueSpecification v, Set<String> made) {
+    private void collectMade(ValueSpecification v, Set<String> made) {
         if (v instanceof AppliedFunction af) {
             var form = CoreFn.of(af.function());
             List<ValueSpecification> ps = af.parameters();
@@ -126,11 +139,71 @@ final class ColumnHygiene {
                     default -> {
                     }
                 }
+            } else {
+                writtenArguments(af).forEach(i -> names(ps.get(i), made));
             }
         }
         for (ValueSpecification c : v.children()) {
             collectMade(c, made);
         }
+    }
+
+    /**
+     * The arguments a call of a function generic over relations writes as columns: each column-spec parameter whose
+     * column the declared return adds ({@code out: ColSpec<O>} of {@code Relation<T+O>}) -- in every candidate of the
+     * call's arity, so a call that may be a function reading that argument renames nothing there. None for any other
+     * call.
+     */
+    private Set<Integer> writtenArguments(AppliedFunction af) {
+        int arity = af.parameters().size();
+        Set<Integer> out = null;
+        for (TypedFunction f : callees.apply(af)) {
+            if (f.parameters().size() != arity) {
+                continue;
+            }
+            Set<Integer> here = new LinkedHashSet<>();
+            if (RelationGenerics.of(f)) {
+                Set<String> added = addedColumns(f.returnType());
+                for (int i = 0; i < arity; i++) {
+                    String col = columnVariable(f.parameters().get(i).type());
+                    if (col != null && added.contains(col)) {
+                        here.add(i);
+                    }
+                }
+            }
+            if (out == null) {
+                out = here;
+            } else {
+                out.retainAll(here);
+            }
+        }
+        return out == null ? Set.of() : out;
+    }
+
+    /** The type variables a declared table return adds to its source ({@code O1}, {@code O2} of
+     *  {@code Relation<T+O1+O2>}); none for any other return. */
+    private static Set<String> addedColumns(Type declared) {
+        Set<String> out = new LinkedHashSet<>();
+        if (declared instanceof Type.GenericType g
+                && PlatformTypes.RELATION_CARRIERS.contains(g.rawFqn()) && g.arguments().size() == 1) {
+            added(g.arguments().get(0), out);
+        }
+        return out;
+    }
+
+    private static void added(Type schema, Set<String> out) {
+        if (schema instanceof Type.SchemaAlgebra sa && sa.op() == Type.Op.UNION) {
+            added(sa.left(), out);
+            if (sa.right() instanceof Type.TypeVar v) {
+                out.add(v.name());
+            }
+        }
+    }
+
+    /** The column variable of a {@code ColSpec<O>} parameter ({@code O}); null for any other. */
+    private static @com.legend.base.Nullable String columnVariable(Type t) {
+        return t instanceof Type.GenericType g && PlatformTypes.COL_SPEC.equals(g.rawFqn()) && g.arguments().size() == 1
+                && g.arguments().get(0) instanceof Type.TypeVar v ? v.name() : null;
     }
 
     /** The names a column spec or an array of them writes. */

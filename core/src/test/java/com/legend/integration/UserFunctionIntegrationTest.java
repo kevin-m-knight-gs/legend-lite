@@ -1739,6 +1739,28 @@ class UserFunctionIntegrationTest {
                     .map(r -> r.get(3) == null ? null : ((Number) r.get(3)).doubleValue()).toList());
         }
 
+        @Test
+        @DisplayName("hygiene: the column a body has another generic function write for its own use is the body's own")
+        void aNestedCallsColumnIsTheBodys() throws SQLException {
+            String model = modelWith("""
+                    function test::meanOf<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+                    {
+                        $t->extend($win, ~m:{p,f,r|$r->read($value)}:y|if($y->count() < $ramp, |[], |$y->average()))->rename(~m, $out)
+                    }
+                    function test::offItsMean<T,L,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+                    {
+                        $t->test::meanOf(over($line), $value, 1, ~m)->extend(~g:x|$x->read($value)->toOne() - $x.m->toOne())->without(~m)->rename(~g, $out)
+                    }
+                    """);
+            // the caller's table has an m of its own, which the body's m (meanOf's out) must not meet
+            var result = exec(model, "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])->extend(~m:x|'mine')"
+                    + "->test::offItsMean(~LAST_NAME, ~AGE_VAL, ~gap)->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "m", "gap"), result.columns().stream().map(c -> c.name()).toList());
+            assertEquals(List.of("mine", "mine", "mine"), result.rows().stream().map(r -> String.valueOf(r.get(3))).toList());
+            // Jones: Bob alone; Smith: Jane 28 and John 30 about their 29
+            assertEquals(List.of(0.0, -1.0, 1.0), result.rows().stream().map(r -> ((Number) r.get(4)).doubleValue()).toList());
+        }
+
         /** fromMean with its drop replaced: the same body, its answer {@code drop}'s. */
         private String fromMeanThat(String drop) {
             return modelWith(FROM_MEAN.replace("->without(~t_m)", drop));

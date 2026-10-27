@@ -438,7 +438,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     assert.equal(planner.planRequest(plain.query).library, undefined);
   });
 
-  it('the levels and lags call the library by name: a count or a calendar period back, a base the line\'s first or as of the first date shown', () => {
+  it('the levels and lags and the multi-step windows call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
     const calls = (expr: string, anchor?: string): ReadonlySet<string> => {
       const ts = spec({ A: expr });
       return functionsCalled(seriesQuery(inputs, ts, ts.series[0]!, anchor === undefined ? {} : { from: anchor }, {}).query);
@@ -450,6 +450,10 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ['index(close[AAA], 100)', 'indexFrom', '2024-01-15'], ['change(close[AAA])', 'change'],
       ['change(close[AAA])', 'changeFrom', '2024-01-15'], ['percent_change(close[AAA])', 'percentChange'],
       ['percent_change(close[AAA])', 'percentChangeFrom', '2024-01-15'],
+      ['zscores(close[AAA], 10)', 'zscores'], ['zscores(close[AAA], 2w)', 'zscoresPeriod'], ['winsorize(close[AAA], 2)', 'winsorize'],
+      ['drawdown(close[AAA], 5)', 'drawdown'], ['drawdown(close[AAA], 2w)', 'drawdownPeriod'], ['max_drawdown(close[AAA], 5)', 'maxDrawdown'],
+      ['sharpe_ratio(close[AAA], 10)', 'sharpeRatio'], ['bollinger_bands(close[AAA], 5, 2)', 'bollingerBands'],
+      ['bollinger_bands(close[AAA], 2w, 2)', 'bollingerBandsPeriod'],
     ];
     for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`datacube::ts::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
   });
@@ -663,6 +667,37 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
       const l = await line(spec({ A: `${f}(close[AAA], 2w)` }));
       close(l.values, DAYS.map((d) => (d < start ? null : stat(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d)))), `${f} 2w`, 1e-9);
     }
+  });
+
+  // the multi-step functions over a calendar period, the library's (2026-10-27): each of overPeriod's statistics nested
+  // in it, from the first date two weeks on -- each held to its definition
+  it('z-scores, a drawdown and Bollinger bands over 2w: of the dates after two weeks back, to this one; from the first date two weeks on', async () => {
+    const start = onBy(DAYS[0]!, 2, 'w');
+    const within = (d: string): number[] => AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d);
+    close((await line(spec({ A: 'zscores(close[AAA], 2w)' }))).values, DAYS.map((d, i) => {
+      const v = within(d);
+      return d < start || v.length < 2 || sd(v) === 0 ? null : (AAA[i]! - avg(v)) / sd(v);
+    }), 'zscores 2w', 1e-7);
+    close((await line(spec({ A: 'drawdown(close[AAA], 2w)' }))).values,
+      DAYS.map((d, i) => (d < start ? null : AAA[i]! / Math.max(...within(d)) - 1)), 'drawdown 2w', 1e-9);
+    const b = await line(spec({ A: 'bollinger_bands(close[AAA], 2w, 2)' }));
+    const band = (k: number): Line => DAYS.map((d) => {
+      const v = within(d);
+      return d < start || v.length < 2 ? null : avg(v) + k * sd(v);
+    });
+    close(b.lower!, band(-2), 'lower 2w', 1e-7);
+    close(b.upper!, band(2), 'upper 2w', 1e-7);
+  });
+
+  it('winsorize and a Sharpe ratio over a count: within the limit of every value\'s mean; the mean return over its deviation, annualized', async () => {
+    const m = avg(AAA);
+    const s = sd(AAA);
+    close((await line(spec({ A: 'winsorize(close[AAA], 1)' }))).values, AAA.map((v) => Math.min(Math.max(v, m - s), m + s)), 'winsorize', 1e-9);
+    const r = simple(AAA);
+    close((await line(spec({ A: 'sharpe_ratio(close[AAA], 10)' }))).values, DAYS.map((_, i) => {
+      const vals = r.slice(Math.max(0, i - 9), i + 1).filter((v) => v !== null) as number[];
+      return vals.length < 10 ? null : (avg(vals) / sd(vals)) * Math.sqrt(252);
+    }), 'sharpe 10', 1e-7);
   });
 
   it('returns over 1w: each date against the value as of a week before, its last at or before', async () => {

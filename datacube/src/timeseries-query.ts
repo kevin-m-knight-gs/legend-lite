@@ -370,9 +370,20 @@ class Writer {
   }
 
   #libraryCall(name: string, what: string, args: readonly ValueSpecification[]): string {
-    const out = this.fresh(what);
-    this.rel = this.rel.call(`${LIBRARY_PACKAGE}::${name}`, ...args, colSpec(out));
-    return out;
+    return this.libraryOfMany(name, [what], args)[0]!;
+  }
+
+  /** A function of the library writing several columns (a band's lower, upper and width), `args` before them: their
+   *  names, in its order. */
+  libraryOfMany(name: string, whats: readonly string[], args: readonly ValueSpecification[]): string[] {
+    const outs = whats.map((what) => this.fresh(what));
+    this.rel = this.rel.call(`${LIBRARY_PACKAGE}::${name}`, ...args, ...outs.map((o) => colSpec(o)));
+    return outs;
+  }
+
+  /** The window the library's functions take: the line, its periods in order, a frame (#over's). */
+  windowOf(frame: 'running' | 'all' | number | null): AppliedFunction {
+    return this.#over(frame);
   }
 
   /**
@@ -1731,22 +1742,15 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       const size = span('w');
       return done(w.libraryRolled(e.fn, a, size, typeof size === 'number' ? Math.max(size, 2) : 0));
     }
+    // the multi-step windows, the library's (pure-library.ts): over a count of periods (0: every observation, or from
+    // the start) with its ramp, or over a calendar period where the library has the function
     case 'zscores': {
       const size = span('w');
-      const frame = size === 0 ? 'all' : size;
-      const mean = w.window('mean', 'average', R(a), frame);
-      const sd = w.window('std', 'stdDevSample', R(a), frame);
-      const z = w.ratio('z', op('minus', one(a), one(mean)), sd);
-      return done(size === 0 ? z : w.ramped(z, a, size));
+      if (typeof size !== 'number') return done(w.libraryOfPeriod('zscoresPeriod', 'z', a, size));
+      return done(w.library('zscores', 'z', a, size === 0 ? 'all' : size, [lit.integer(size)]));
     }
-    case 'winsorize': {
-      const limit = float(n('limit'));
-      const mean = w.window('mean', 'average', R(a), 'all');
-      const sd = w.window('std', 'stdDevSample', R(a), 'all');
-      const hi = w.row('hi', op('plus', one(mean), op('times', limit, one(sd))));
-      const lo = w.row('lo', op('minus', one(mean), op('times', limit, one(sd))));
-      return done(w.row('wins', when(fn('greaterThan', one(a), one(hi)), col(hi), when(fn('lessThan', one(a), one(lo)), col(lo), col(a)))));
-    }
+    case 'winsorize':
+      return done(w.library('winsorize', 'wins', a, 'all', [float(n('limit'))]));
     case 'volatility': {
       const r = w.returns(a, 1, word('type'));
       const size = span('w');
@@ -1761,12 +1765,14 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     }
     case 'drawdown': {
       const size = span('w');
-      const peak = w.window('peak', 'max', R(a), Writer.frame(size));
-      const dd = w.row('dd', when(fn('equal', one(peak), lit.integer(0)), none(), op('minus', fn('divide', one(a), one(peak)), lit.integer(1))));
-      return done(size === 0 ? dd : w.ramped(dd, a, size));
+      if (typeof size !== 'number') return done(w.libraryOfPeriod('drawdownPeriod', 'dd', a, size));
+      return done(w.library('drawdown', 'dd', a, Writer.frame(size) as 'running' | number, [lit.integer(size)]));
     }
     case 'max_drawdown': {
       const size = span('w');
+      if (typeof size === 'number') return done(w.library('maxDrawdown', 'mdd', a, Writer.frame(size) as 'running' | number, [lit.integer(size)]));
+      // over a calendar period: its ramp from the first date the series has, which a period's statistic (from its own
+      // first value's date) is not -- the writer's, until the library has a ramp of its own
       const peak = w.window('peak', 'max', R(a), Writer.frame(size));
       const dd = w.row('dd', when(fn('equal', one(peak), lit.integer(0)), none(), op('minus', fn('divide', one(a), one(peak)), lit.integer(1))));
       return done(w.ramped(w.window('mdd', 'min', R(dd), Writer.frame(size)), a, size));
@@ -1774,19 +1780,26 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     case 'sharpe_ratio': {
       const size = span('w');
       const r = w.simple(a);
+      // over a count of periods: the library's, its ramp the deviation's (two at least) and the window's
+      if (typeof size === 'number') {
+        return done(w.library('sharpeRatio', 'sharpe', r, Writer.frame(size) as 'running' | number,
+          [lit.integer(Math.max(size, 2)), colSpec(w.perYearColumn())]));
+      }
+      // over a calendar period: its ramp from the first price's date (the writer's, as max_drawdown's)
       const mean = w.window('mean', 'average', R(r), Writer.frame(size));
       const sd = w.std(r, size, a);
       return done(w.ramped(w.row('sharpe', when(fn('equal', one(sd), lit.integer(0)), none(),
-        op('times', fn('divide', one(mean), one(sd)), w.annual()))), typeof size === 'number' ? r : a, size, Writer.frame(size)));
+        op('times', fn('divide', one(mean), one(sd)), w.annual()))), a, size, Writer.frame(size)));
     }
     case 'bollinger_bands': {
+      // the library's: over a count of periods (its ramp the window's and two), or a calendar period
       const size = span('w');
       const k = float(n('k'));
-      const mean = w.ramped(w.window('mean', 'average', R(a), Writer.frame(size)), a, size, Writer.frame(size));
-      const sd = w.std(a, size);
-      const lower = w.row('lower', op('minus', one(mean), op('times', k, one(sd))));
-      const upper = w.row('upper', op('plus', one(mean), op('times', k, one(sd))));
-      return { w, v: { lower, upper, width: w.row('width', op('minus', one(upper), one(lower))) } };
+      const [lower, upper, width] = typeof size === 'number'
+        ? w.libraryOfMany('bollingerBands', ['lower', 'upper', 'width'], [w.windowOf(Writer.frame(size) as 'running' | number), colSpec(a), lit.integer(size), k])
+        : w.libraryOfMany('bollingerBandsPeriod', ['lower', 'upper', 'width'],
+          [colSpec(w.part), colSpec(w.at), colSpec(a), lit.integer(size.n), enumValue(DURATION, size.unit), k]);
+      return { w, v: { lower: lower!, upper: upper!, width: width! } };
     }
     case 'rsi': {
       // gs-quant's (technicals.relative_strength_index): each change's gain and loss, each Wilder's smoothed average over

@@ -399,9 +399,15 @@ to today's numbers (§5.7): the rolled statistics (`mean`, `sum`, `min`, `max`, 
 of periods with its ramp, and `overPeriod` over a calendar one), the returns (`returns` and `returnsPeriod`, a type
 word as gs-quant's), `volatility`, and the levels and lags (`lag`, `lagPeriod`, `diff`, `diffPeriod`, `annualize`,
 `first`, `last`, and `index`, `change` and `percentChange` of the line's first value, or their `...From` of its value as
-of the first date shown, `valueAt`'s) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
+of the first date shown, `valueAt`'s), and the multi-step windows (`zscores`, `winsorize`, `drawdown`, `maxDrawdown`,
+`sharpeRatio` and `bollingerBands` over a count of periods; `zscoresPeriod`, `drawdownPeriod` and
+`bollingerBandsPeriod` over a calendar one, each nesting `overPeriod`'s statistics, whose output columns are the
+body's own by hygiene) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
 'simple', ~ret_2)->datacube::ts::volatility(over(~line, [~period->ascending()], rows(-21, 0)), ~ret_2, 22, ~per_year_3,
-~vol_4)`. Every other function is written as before until its family is converted. A model takes the library only where a query
+~vol_4)`. Every other function is written as before until its family is converted; so are a volatility, a
+maximum drawdown and a Sharpe ratio over a calendar period, whose ramp counts from the first date of the series they
+read (a price's), not of the column a statistic is over (its returns' or its drawdowns', a period later): they wait
+for a library function that ramps one column from another's first date. A model takes the library only where a query
 calls it: the planner plans such a query over its model with the library after it (`lite-planner.ts` and
 `planner.ts #over`, a planner of its own over that model), every other query over its model as it is, byte for byte.
 A host that plans and runs is sent the library BESIDE the model (`planRequest`'s `library`), never inside it: Python's

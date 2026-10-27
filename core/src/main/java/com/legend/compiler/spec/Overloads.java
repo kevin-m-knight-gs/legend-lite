@@ -521,7 +521,7 @@ final class Overloads {
     private final AlphaRename alpha = new AlphaRename();
 
     /** Fresh working-column names for expanded generic bodies (one counter per typer). */
-    private final ColumnHygiene columns = new ColumnHygiene();
+    private final ColumnHygiene columns = new ColumnHygiene(this::functionCandidates);
 
     /** α-hygiene for a body about to be spliced under caller scope (the
      * UserCallInliner rule at source level) — shared with StaticFold's
