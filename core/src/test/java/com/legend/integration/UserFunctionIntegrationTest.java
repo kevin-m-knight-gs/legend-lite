@@ -1658,5 +1658,26 @@ class UserFunctionIntegrationTest {
             assertEquals(java.util.Arrays.asList(null, null, 29.0), result.rows().stream()
                     .map(r -> r.get(4) == null ? null : ((Number) r.get(4)).doubleValue()).toList());
         }
+
+        @Test
+        @DisplayName("a body drops the columns it made (without): the answer is the call's table and its own column")
+        void dropsItsWorkingColumns() throws SQLException {
+            String model = modelWith("""
+                    function test::fromMean<T,X,V,O>(r: Relation<T>[1], part: ColSpec<X⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+                    {
+                        $r->rename($value, ~t_v)
+                          ->extend(over($part), ~t_m:{p,w,r|$r.t_v}:y|$y->average())
+                          ->extend(~t_o:x|$x.t_v->toOne() - $x.t_m->toOne())
+                          ->without(~t_m)
+                          ->rename(~t_v, $value)
+                          ->rename(~t_o, $out)
+                    }
+                    """);
+            var result = exec(model, "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::fromMean(~LAST_NAME, ~AGE_VAL, ~gap)->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "gap"), result.columns().stream().map(c -> c.name()).toList());
+            // Smith: Jane 28 and John 30 about 29; Jones: Bob 45 alone
+            assertEquals(List.of(0.0, -1.0, 1.0), result.rows().stream().map(r -> ((Number) r.get(3)).doubleValue()).toList());
+        }
     }
 }

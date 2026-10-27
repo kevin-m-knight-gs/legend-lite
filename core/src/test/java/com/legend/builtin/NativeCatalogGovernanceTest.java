@@ -194,7 +194,12 @@ class NativeCatalogGovernanceTest {
         // merge, the store writes beside upstream's write -- legend-pure has no DML over a relation accessor and
         // legend-engine's only write through a mapping is mutation::save (an H2/MemSQL upsert of one object); each
         // is the database's statement over a store table, user-facing by design (the design's D2)
-        assertTrue(Pure.LITE_SURFACE.size() <= 7,
+        // +1 2026-10-27 (the user's "do the without/except function", docs/PURE_LIBRARY_SPIKE_2026_10_27.md GAP 1,
+        // docs/SEMANTICS_REGISTER.md S113): without -- the relation less the named columns (T-Z), typed as the select
+        // of the rest; legend-pure 5.99.0 and legend-engine 4.145.0 drop rows but never columns (rename's T-Z+V is
+        // upstream's only column-subtracting signature), and a function generic over any table cannot name the
+        // caller's columns to select them
+        assertTrue(Pure.LITE_SURFACE.size() <= 8,
                 "LITE_SURFACE grew: " + Pure.LITE_SURFACE);
     }
 

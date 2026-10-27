@@ -217,8 +217,11 @@ class CatalogUpstreamDiffTest {
      *  mapping, which the store resolver writes as L1's statements; ours alone. 66 on 2026-10-22 (merging main into the
      *  Cypher writes branch): main's meta::legend::lite::quotient (57 on 2026-10-18 on main, merging the IQ island's
      *  landing 5), an integer quotient cut toward zero, the database's own integer division -- upstream has none
-     *  (legend-pure's divide of integers is a Float). */
-    private static final int NOT_UPSTREAM_MAX = 66;
+     *  (legend-pure's divide of integers is a Float). 68 on 2026-10-27 (the user's "do the without/except function",
+     *  docs/SEMANTICS_REGISTER.md S113): meta::legend::lite::without's two overloads (select's ColSpec and ColSpecArray
+     *  shapes), the relation less the named columns, user-facing (Pure.LITE_SURFACE); upstream has no column drop,
+     *  rename's T-Z+V being its only column-subtracting signature. */
+    private static final int NOT_UPSTREAM_MAX = 68;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

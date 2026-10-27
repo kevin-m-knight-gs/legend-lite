@@ -51,11 +51,12 @@ const CSV = [
  *  column(s) it reads and the column(s) it writes. */
 const SPIKE = `###Pure
 // multi-step windows: a mean and a deviation over the window, then a row's figure of them (zscores)
-function spike::zscores<T,L,A,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<A⊆T>[1], value: ColSpec<V⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<Any>[1]
+function spike::zscores<T,L,A,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<A⊆T>[1], value: ColSpec<V⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->rename($line, ~ts_l)->rename($date, ~ts_d)->rename($value, ~ts_v)
     ->extend(over(~ts_l, [~ts_d->ascending()], rows(1 - $w, 0)), ~[ts_m:{p,f,r|$r.ts_v}:y|$y->average(), ts_s:{p,f,r|$r.ts_v}:y|$y->stdDevSample(), ts_n:{p,f,r|$r.ts_v}:y|$y->count()])
     ->extend(~ts_o:x|if(($x.ts_n->toOne() < $w) || ($x.ts_s->toOne() == 0), |[], |($x.ts_v->toOne() - $x.ts_m->toOne()) / $x.ts_s->toOne()))
+    ->without(~[ts_m, ts_s, ts_n])
     ->rename(~ts_l, $line)->rename(~ts_d, $date)->rename(~ts_v, $value)->rename(~ts_o, $out)
 }
 
@@ -340,14 +341,19 @@ describe('the Pure library spike: one function of each family, held to today\'s 
 // -- the gaps: what the families above need that Pure's relations, or lite, do not give yet --
 
 describe('the Pure library spike: the gaps, as they are today', () => {
-  it('GAP 1: a function\'s working columns are left in its answer (no column can be dropped by what it is not)', async () => {
+  it('GAP 1, closed by without: a function drops its working columns, its answer the table\'s and its own', async () => {
     const t = await engine.execute(await spiked.planText(`|${source}->spike::zscores(~symbol, ~day, ~close, 10, ~z)`), 0);
-    assert.deepEqual(t.columns.map((c) => c.name), ['symbol', 'day', 'close', 'volume', 'ts_m', 'ts_s', 'ts_n', 'z']);
+    assert.deepEqual(t.columns.map((c) => c.name), ['symbol', 'day', 'close', 'volume', 'z']);
   });
 
-  it('GAP 2: a function nested in its own argument collides on its own working names', async () => {
-    await assert.rejects(spiked.planText(`|${source}->spike::zscores(~symbol, ~day, ~close, 10, ~z)->spike::zscores(~symbol, ~day, ~z, 5, ~zz)`),
-      (e: Error) => /ts_m/.test(e.message), 'the second call\'s ts_m is already a column');
+  it('a function over its own answer: the first call\'s working columns are gone, so the second makes them again', async () => {
+    const t = await engine.execute(await spiked.planText(`|${source}->spike::zscores(~symbol, ~day, ~close, 10, ~z)->spike::zscores(~symbol, ~day, ~z, 5, ~zz)`), 0);
+    assert.deepEqual(t.columns.map((c) => c.name), ['symbol', 'day', 'close', 'volume', 'z', 'zz']);
+  });
+
+  it('GAP 2: a caller\'s column of a working name collides with the function\'s own', async () => {
+    await assert.rejects(spiked.planText(`|${source}->extend(~ts_m:x|1)->spike::zscores(~symbol, ~day, ~close, 10, ~z)`),
+      (e: Error) => /ts_m/.test(e.message), 'the caller\'s ts_m is already a column when the body makes its own');
   });
 
   it('GAP 3: a declared return type is not held to the body (Relation<T+O> leaks a column)', async () => {

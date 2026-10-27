@@ -796,6 +796,7 @@ final class Typer {
             case EMPTY_LAST -> SortChecker.nullOrder(this, af, env, TypedSortInfo.NullOrder.LAST);
             case RENAME -> RenameChecker.check(this, af, env);
             case SELECT -> SelectChecker.check(this, af, env);
+            case WITHOUT -> SelectChecker.without(this, af, env);
             case DISTINCT -> DistinctChecker.check(this, af, env);
             case CONCATENATE -> ConcatenateChecker.check(this, af, env);
             case LIMIT, TAKE -> SlicingChecker.limit(this, af, env);
