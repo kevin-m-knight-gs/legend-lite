@@ -421,11 +421,13 @@ public final class Boundary {
      * {@code com.legend.setup.ProjectData}): where {@code model}'s Data rows live on a host, named by what it holds
      * (the model's Databases and Data rows). {@code {"name", "open", "use", "fill", "close"}}, each but the name the
      * statements in order: make it, point a connection of its own at it, make and fill every table a relational Data
-     * element fills (on that connection), drop it. A database without the operations is refused by name.
+     * element fills (on that connection), drop it. A database without the operations is refused by name. A model this
+     * host holds is read as held, compiled no more (HeldModels.withText: a project's model, typed and planned by the
+     * page's planner, is 4 MB of the trading model and its Data, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11).
      */
     public static String projectData(String model, String databaseType) {
-        com.legend.setup.ProjectData p = com.legend.setup.ProjectData.of(com.legend.Compiler.compileModel(model),
-                dialectOf(databaseType));
+        com.legend.setup.ProjectData p = MODELS.withText(model,
+                ctx -> com.legend.setup.ProjectData.of(ctx, dialectOf(databaseType)));
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
         out.put("name", p.name());
         out.put("open", p.open());
