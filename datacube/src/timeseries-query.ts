@@ -227,6 +227,9 @@ const AT = '__ts_at';
 /** The return types (gs-quant's), each a word the library's returns compares (pure-library.ts). */
 const RETURN_TYPES: ReadonlySet<string> = new Set(['simple', 'log', 'absolute']);
 
+/** gs-quant's filter_ operators, each a word the library's filterValues compares (pure-library.ts). */
+const FILTER_OPERATORS: ReadonlySet<string> = new Set(['less_than', 'greater_than', 'l_equals', 'g_equals', 'equals', 'not_equals', 'empty']);
+
 /**
  * What every part of one series' query shares: the tile, the frequency its periods are of (the tile's; none inside a
  * candle at a frequency, whose series are read on their sources' own dates), the source it reads first (its split's),
@@ -348,7 +351,7 @@ class Writer {
    * `->datacube::ts::<name>(over(~<line>, [~period->ascending()], <frame>), ~<value>, <args>, ~<out>)` -- the window the
    * writer's own would be (#over) -- its figure the column it writes.
    */
-  library(name: string, what: string, value: string, frame: 'running' | 'all' | number | null, args: readonly ValueSpecification[]): string {
+  library(name: string, what: string, value: string, frame: 'running' | 'all' | 'rest' | number | null, args: readonly ValueSpecification[]): string {
     return this.#libraryCall(name, what, [this.#over(frame), colSpec(value), ...args]);
   }
 
@@ -531,6 +534,7 @@ class Writer {
    * count of those below 0, its magnitude e to the sum of the logs of the others -- the database's (the review's Q8).
    */
   product(g: string, frame: Frame): string {
+    if (!isTenor(frame)) return this.library('windowProduct', 'prod', g, frame, []);
     const R = Writer.read;
     const zeros = this.window('zeros', 'count', R(this.row('z', when(fn('equal', one(g), lit.integer(0)), lit.integer(1), none()))), frame);
     const negatives = this.window('negs', 'count', R(this.row('neg', when(fn('lessThan', one(g), lit.integer(0)), lit.integer(1), none()))), frame);
@@ -1736,89 +1740,54 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       return done(w.libraryOfLine('exponentialSpreadVolatility', 'esvol', a, [float(n('beta')), colSpec(w.perYearColumn())]));
     case 'macd':
       return done(w.libraryOfLine('macd', 'macd', a, [lit.integer(n('m')), lit.integer(n('n')), lit.integer(n('s'))]));
+    // the row maths and the functions along the line, the library's (pure-library.ts)
     case 'log':
-      return done(w.row('ln', when(fn('lessThanEqual', one(a), lit.integer(0)), none(), fn('log', one(a)))));
     case 'exp':
-      return done(w.row('exp', fn('exp', one(a))));
     case 'sqrt':
-      return done(w.row('sqrt', when(fn('lessThan', one(a), lit.integer(0)), none(), fn('sqrt', one(a)))));
     case 'abs':
-      return done(w.row('abs', fn('abs', one(a))));
-    case 'power':
-      return done(w.row('pow', fn('pow', one(a), float(n('y')))));
-    case 'floor': {
-      const v = float(n('value'));
-      return done(w.row('floor', when(fn('lessThan', one(a), v), v, one(a))));
-    }
-    case 'ceil': {
-      const v = float(n('value'));
-      return done(w.row('ceil', when(fn('greaterThan', one(a), v), v, one(a))));
-    }
-    // gs-quant's remaining functions of one series (the next phases' 1, 2026-10-26)
     case 'not':
-      return done(w.row('not', when(fn('isEmpty', col(a)), none(), when(fn('equal', one(a), lit.integer(0)), lit.integer(1), lit.integer(0)))));
+      return done(w.libraryOfRow(e.fn, e.fn, [colSpec(a)]));
+    case 'power':
+      return done(w.libraryOfRow('power', 'pow', [colSpec(a), float(n('y'))]));
+    case 'floor':
+    case 'ceil':
+      return done(w.libraryOfRow(e.fn, e.fn, [colSpec(a), float(n('value'))]));
     case 'filter': {
       // gs-quant's filter_: the values the operator matches removed (empty: the dates of none) -- the rows dropped,
       // after every figure before it is computed over them all (a filter of a window's figure is the database's
       // QUALIFY), so a figure after it reads the dates left
-      const v = float(n('value'));
-      const matches: Readonly<Record<string, (x: ValueSpecification) => ValueSpecification>> = {
-        less_than: (x) => fn('lessThan', x, v), greater_than: (x) => fn('greaterThan', x, v), l_equals: (x) => fn('lessThanEqual', x, v),
-        g_equals: (x) => fn('greaterThanEqual', x, v), equals: (x) => fn('equal', x, v), not_equals: (x) => fn('not', fn('equal', x, v)),
-      };
       const how = word('operator');
-      // a comparison with none never holds, so none is kept -- but by not_equals, where it does (NaN != v): the values
-      // equal to it alone kept (the Phase 1 review's 6)
-      const kept = how === 'empty' ? fn('isNotEmpty', col(a))
-        : how === 'not_equals' ? fn('equal', one(a), v)
-          : or(fn('isEmpty', col(a)), fn('not', matches[how]!(one(a))));
-      w.rel = w.rel.filter(row(kept));
+      if (!FILTER_OPERATORS.has(how)) throw new CubeRefusal(`there is no ${JSON.stringify(how)} filter (${[...FILTER_OPERATORS].join(', ')})`);
+      w.rel = w.rel.call(`${LIBRARY_PACKAGE}::filterValues`, colSpec(a), lit.string(how), float(n('value')));
       return done(a);
     }
     case 'product': {
       const size = span('w');
       const frame = Writer.frame(size);
+      if (typeof frame !== 'object') return done(w.library('product', 'prod_v', a, frame, [lit.integer(size as number)]));
+      // over a calendar period: the writer's, a period's own product (no statistic word of windowPeriod's)
       const p = w.product(a, frame);
-      return done(w.row('prod_v', when(fn('isEmpty', col(a)), none(), col(size === 0 ? p : w.ramped(p, a, size, frame)))));
+      return done(w.row('prod_v', when(fn('isEmpty', col(a)), none(), col(w.ramped(p, a, size, frame)))));
     }
-    case 'geometrically_aggregate': {
-      const g = w.row('ga', op('plus', lit.integer(1), one(a)));
-      return done(w.row('geo', when(fn('isEmpty', col(a)), none(), op('minus', one(w.product(g, 'running')), lit.integer(1)))));
-    }
-    case 'smooth_spikes': {
+    case 'geometrically_aggregate':
+      return done(w.libraryOfLine('geometricallyAggregate', 'geo', a, []));
+    case 'smooth_spikes':
       // gs-quant's: a value beyond both neighbours (by 1 + threshold times, or threshold beyond) their mean -- beside none
       // no spike (a comparison with NaN never holds: kept, the Phase 1 review's 6); its first and last rows dropped (none)
-      const t = n('threshold');
-      const prev = w.lag(a, 1);
-      const next = w.lead(a, 1);
-      const [x, p, q] = [one(a), one(prev), one(next)];
-      const by = word('type') === 'absolute' ? float(t) : op('plus', lit.integer(1), float(t));
-      const beyond = word('type') === 'absolute'
-        ? (big: ValueSpecification, small: ValueSpecification): ValueSpecification => fn('greaterThan', big, op('plus', small, by))
-        : (big: ValueSpecification, small: ValueSpecification): ValueSpecification => fn('greaterThan', big, op('times', small, by));
-      const spike = and(fn('isNotEmpty', col(prev)), fn('isNotEmpty', col(next)), fn('isNotEmpty', col(a)),
-        or(and(beyond(x, p), beyond(x, q)), and(beyond(p, x), beyond(q, x))));
-      const rn = w.rowNumber();
-      const rows = w.window('sm_n', 'count', R(rn), 'all');
-      return done(w.row('smooth', when(or(fn('equal', one(rn), lit.integer(1)), fn('equal', one(rn), one(rows))), none(),
-        when(spike, fn('divide', op('plus', p, q), lit.integer(2)), x))));
-    }
+      return done(w.libraryOfLine('smoothSpikes', 'smooth', a, [float(n('threshold')), lit.string(word('type') === 'absolute' ? 'absolute' : 'relative')]));
     case 'vol_swap_volatility': {
       // gs-quant's: the root mean square of log returns (a mean of zero) over the window, times the root of 252, in percent
       const size = span('w');
       const frame = Writer.frame(size);
+      if (typeof frame !== 'object') return done(w.library('volSwapVolatility', 'vs', a, frame, [lit.integer(size as number)]));
       const r = w.returns(a, 1, 'log');
       const ms = w.window('ms', 'average', R(w.row('r2', op('times', one(r), one(r)))), frame);
       const vol = w.row('vs', op('times', op('times', fn('sqrt', one(ms)), fn('sqrt', lit.integer(252))), lit.integer(100)));
-      return done(size === 0 ? vol : w.ramped(vol, a, size, frame));
+      return done(w.ramped(vol, a, size, frame));
     }
-    case 'consecutive': {
+    case 'consecutive':
       // a run of values above 0 (below), counted to each date; 0 where it breaks -- each break begins a group
-      const holds = word('direction') === 'negative' ? fn('lessThan', one(a), lit.integer(0)) : fn('greaterThan', one(a), lit.integer(0));
-      const yes = w.row('cs_yes', when(and(fn('isNotEmpty', col(a)), holds), lit.integer(1), lit.integer(0)));
-      const group = w.window('cs_grp', 'plus', R(w.row('cs_no', op('minus', lit.integer(1), one(yes)))), 'running');
-      return done(w.window('cs', 'plus', R(yes), 'running', group));
-    }
+      return done(w.libraryOfLine('consecutive', 'cs', a, [lit.string(word('direction') === 'negative' ? 'negative' : 'positive')]));
     case 'trend':
     case 'seasonally_adjusted':
       return done(decomposed(sh, w, a, e.fn, word('method'), word('freq')));
@@ -1827,20 +1796,14 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       // on every date it has, those of none too (gs-quant's fills its index: the Phase 1 review's 6): the library's
       return done(w.libraryOfLine(e.fn, e.fn, a, []));
     case 'count':
-      return done(w.window('count', 'count', R(a), 'running'));
+      return done(w.libraryOfLine('count', 'count', a, []));
     case 'day':
     case 'month':
     case 'year':
     case 'quarter':
-    case 'weekday': {
-      const part: Readonly<Record<string, ValueSpecification>> = {
-        day: fn('dayOfMonth', one(w.at)), month: fn('monthNumber', one(w.at)), year: fn('year', one(w.at)), quarter: fn('quarterNumber', one(w.at)),
-        // pandas' 0 for a Monday: the database's day of a week begun on Monday, less one
-        weekday: op('minus', fn('dayOfWeekNumber', one(w.at), enumValue('meta::pure::functions::date::DayOfWeek', 'Monday')), lit.integer(1)),
-      };
-      // of every date it has, those of none too (gs-quant's: of its index)
-      return done(w.row(e.fn, part[e.fn]!));
-    }
+    case 'weekday':
+      // of every date it has, those of none too (gs-quant's: of its index); pandas' 0 for a Monday
+      return done(w.libraryOfRow(e.fn, e.fn, [colSpec(w.at)]));
     case 'if':
     case 'compare':
     case 'union':

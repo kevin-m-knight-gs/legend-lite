@@ -438,7 +438,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     assert.equal(planner.planRequest(plain.query).library, undefined);
   });
 
-  it('the levels and lags, the multi-step windows, the self-joins, the exponentials and the technicals call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
+  it('the levels and lags, the multi-step windows, the self-joins, the exponentials, the technicals, the row maths and the functions along the line call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
     const calls = (expr: string, anchor?: string): ReadonlySet<string> => {
       const ts = spec({ A: expr });
       return functionsCalled(seriesQuery(inputs, ts, ts.series[0]!, anchor === undefined ? {} : { from: anchor }, {}).query);
@@ -462,6 +462,12 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ['obv(close[AAA], volume[AAA])', 'obv'], ['vwap(close[AAA], volume[AAA], 10)', 'vwap'],
       ['vwap(close[AAA], volume[AAA], 2w)', 'vwapPeriod'], ['volatility(close[AAA], 1m)', 'volatilityPeriod'],
       ['max_drawdown(close[AAA], 2w)', 'maxDrawdownPeriod'], ['sharpe_ratio(close[AAA], 1m)', 'sharpeRatioPeriod'],
+      ['log(close[AAA])', 'log'], ['exp(close[AAA] / 100)', 'exp'], ['sqrt(close[AAA])', 'sqrt'], ['abs(close[AAA] - 105)', 'abs'],
+      ['power(close[AAA], 2)', 'power'], ['floor(close[AAA], 104)', 'floor'], ['ceil(close[AAA], 104)', 'ceil'], ['not(close[AAA] > 101)', 'not'],
+      ['filter(close[AAA], greater_than, 102)', 'filterValues'], ['product(close[AAA] / 100, 5)', 'product'],
+      ['geometrically_aggregate(returns(close[AAA]))', 'geometricallyAggregate'], ['smooth_spikes(returns(close[AAA]), 0.1)', 'smoothSpikes'],
+      ['vol_swap_volatility(close[AAA], 10)', 'volSwapVolatility'], ['consecutive(returns(close[AAA]))', 'consecutive'], ['count(close[AAA])', 'count'],
+      ['day(close[AAA])', 'day'], ['month(close[AAA])', 'month'], ['year(close[AAA])', 'year'], ['quarter(close[AAA])', 'quarter'], ['weekday(close[AAA])', 'weekday'],
     ];
     for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`datacube::ts::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
   });

@@ -646,6 +646,179 @@ function datacube::ts::vwapPeriod<T,L,D,P,X,V,O>(t: Relation<T>[1], line: ColSpe
     ->datacube::ts::rampPeriod($line, $date, $price, ~v, $n, $unit, $out)
     ->without(~[pv, vs, v])
 }
+
+// -- row maths (gs-quant's algebra): each value's own figure, none where it is none --
+
+// The natural log, none at 0 or below.
+function datacube::ts::log<T,V,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|if($x->read($value)->toOne() <= 0, |[], |log($x->read($value)->toOne())))->rename(~o, $out)
+}
+
+// e to the value.
+function datacube::ts::exp<T,V,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|exp($x->read($value)->toOne()))->rename(~o, $out)
+}
+
+// The square root, none below 0.
+function datacube::ts::sqrt<T,V,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|if($x->read($value)->toOne() < 0, |[], |sqrt($x->read($value)->toOne())))->rename(~o, $out)
+}
+
+// The absolute value.
+function datacube::ts::abs<T,V,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|abs($x->read($value)->toOne()))->rename(~o, $out)
+}
+
+// The value to the power y.
+function datacube::ts::power<T,V,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], y: Number[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|pow($x->read($value)->toOne(), $y))->rename(~o, $out)
+}
+
+// The value, no lower than a floor (gs-quant's floor).
+function datacube::ts::floor<T,V,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], least: Number[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|if($x->read($value)->toOne() < $least, |$least, |$x->read($value)->toOne()))->rename(~o, $out)
+}
+
+// The value, no higher than a cap (gs-quant's ceil).
+function datacube::ts::ceil<T,V,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], most: Number[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|if($x->read($value)->toOne() > $most, |$most, |$x->read($value)->toOne()))->rename(~o, $out)
+}
+
+// 1 where the value is 0, else 0 (gs-quant's not_): none where it is none.
+function datacube::ts::not<T,V,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|if($x->read($value)->isEmpty(), |[], |if($x->read($value)->toOne() == 0, |1, |0)))->rename(~o, $out)
+}
+
+// The rows whose value the operator matches removed (gs-quant's filter_): 'less_than', 'greater_than', 'l_equals',
+// 'g_equals', 'equals', 'not_equals' a number, or 'empty' -- a word compared when the call is expanded. A comparison with
+// none never holds, so none is kept, but by not_equals, where it does (NaN != v): the values equal to it alone kept.
+function datacube::ts::filterValues<T,V>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], operator: String[1], than: Number[1]): Relation<T>[1]
+{
+  $t->filter(x|if($operator == 'empty', |$x->read($value)->isNotEmpty(),
+    |if($operator == 'not_equals', |$x->read($value)->toOne() == $than,
+      |$x->read($value)->isEmpty() || !(if($operator == 'less_than', |$x->read($value)->toOne() < $than,
+        |if($operator == 'greater_than', |$x->read($value)->toOne() > $than,
+          |if($operator == 'l_equals', |$x->read($value)->toOne() <= $than,
+            |if($operator == 'g_equals', |$x->read($value)->toOne() >= $than, |$x->read($value)->toOne() == $than))))))))
+}
+
+// -- along the line --
+
+// The product of the window's values, an empty one passed over (pandas' prod): 0 where one is 0, its sign from the
+// count of those below 0, its magnitude e to the sum of the logs of the others -- the database's.
+function datacube::ts::windowProduct<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend($win, ~[zs:{p,f,r|if($r->read($value)->toOne() == 0, |1, |[])}:y|$y->count(), ng:{p,f,r|if($r->read($value)->toOne() < 0, |1, |[])}:y|$y->count(),
+      lg:{p,f,r|if($r->read($value)->toOne() == 0, |[], |log(abs($r->read($value)->toOne())))}:y|$y->plus()])
+    ->extend(~o:x|if($x.zs->toOne() > 0, |0.0, |pow(-1.0, $x.ng->toOne()) * exp(if($x.lg->isEmpty(), |0.0, |$x.lg->toOne()))))
+    ->without(~[zs, ng, lg])->rename(~o, $out)
+}
+
+// The product of the window's values (gs-quant's product): none where the value is none, or until the window holds ramp
+// of them.
+function datacube::ts::product<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::windowProduct($win, $value, ~pr)
+    ->extend($win, ~n:{p,f,r|$r->read($value)}:y|$y->count())
+    ->extend(~o:x|if($x->read($value)->isEmpty() || ($x.n->toOne() < $ramp), |[], |$x.pr))
+    ->without(~[pr, n])->rename(~o, $out)
+}
+
+// The compounded return to each date (gs-quant's geometrically_aggregate): the product of (1 + x) from the line's first,
+// less 1; none where the value is none.
+function datacube::ts::geometricallyAggregate<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~g:x|1 + $x->read($value)->toOne())
+    ->datacube::ts::windowProduct(over($line, [$date->ascending()], rows(unbounded(), 0)), ~g, ~pr)
+    ->extend(~o:x|if($x->read($value)->isEmpty(), |[], |$x.pr->toOne() - 1))
+    ->without(~[g, pr])->rename(~o, $out)
+}
+
+// A value beyond both neighbours (by 1 + threshold times, 'relative', or threshold beyond, 'absolute') their mean
+// (gs-quant's smooth_spikes): beside none no spike (a comparison with NaN never holds, kept); the line's first and last
+// rows none.
+function datacube::ts::smoothSpikes<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], threshold: Number[1], type: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line, [$date->ascending()]), ~pv:{p,f,r|$p->lag($r)->read($value)})
+    ->extend(over($line, [$date->ascending()]), ~nx:{p,f,r|$p->lead($r)->read($value)})
+    ->extend(over($line, [$date->ascending()]), ~rn:{p,f,r|$p->rowNumber($r)})
+    ->extend(over($line), ~rs:{p,f,r|$r.rn}:y|$y->count())
+    ->extend(~sp:x|$x.pv->isNotEmpty() && $x.nx->isNotEmpty() && $x->read($value)->isNotEmpty()
+      && (if($type == 'absolute',
+          |(($x->read($value)->toOne() > ($x.pv->toOne() + $threshold)) && ($x->read($value)->toOne() > ($x.nx->toOne() + $threshold)))
+            || (($x.pv->toOne() > ($x->read($value)->toOne() + $threshold)) && ($x.nx->toOne() > ($x->read($value)->toOne() + $threshold))),
+          |(($x->read($value)->toOne() > ($x.pv->toOne() * (1 + $threshold))) && ($x->read($value)->toOne() > ($x.nx->toOne() * (1 + $threshold))))
+            || (($x.pv->toOne() > ($x->read($value)->toOne() * (1 + $threshold))) && ($x.nx->toOne() > ($x->read($value)->toOne() * (1 + $threshold)))))))
+    ->extend(~o:x|if(($x.rn->toOne() == 1) || ($x.rn->toOne() == $x.rs->toOne()), |[], |if($x.sp->toOne(), |($x.pv->toOne() + $x.nx->toOne()) / 2, |$x->read($value))))
+    ->without(~[pv, nx, rn, rs, sp])->rename(~o, $out)
+}
+
+// The variance swap's volatility over the window (gs-quant's vol_swap_volatility): the root mean square of the log
+// returns (a mean of zero), times the root of 252, in percent -- none until the window holds ramp prices.
+function datacube::ts::volSwapVolatility<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::returns($win, $value, 1, 'log', ~lr)
+    ->extend(~r2:x|$x.lr->toOne() * $x.lr->toOne())
+    ->extend($win, ~[ms:{p,f,r|$r.r2}:y|$y->average(), n:{p,f,r|$r->read($value)}:y|$y->count()])
+    ->extend(~o:x|if($x.n->toOne() < $ramp, |[], |(sqrt($x.ms->toOne()) * sqrt(252)) * 100))
+    ->without(~[lr, r2, ms, n])->rename(~o, $out)
+}
+
+// The run of values above 0 ('positive') or below ('negative') to each date, counted (gs-quant's consecutive): 0 where
+// it breaks, each break beginning a run.
+function datacube::ts::consecutive<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], direction: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[l:x|$x->read($line), ys:x|if($x->read($value)->isNotEmpty() && (if($direction == 'negative', |$x->read($value)->toOne() < 0, |$x->read($value)->toOne() > 0)), |1, |0)])
+    ->extend(over(~l, [$date->ascending()], rows(unbounded(), 0)), ~gp:{p,f,r|1 - $r.ys}:y|$y->plus())
+    ->extend(over(~[l, gp], [$date->ascending()], rows(unbounded(), 0)), ~o:{p,f,r|$r.ys}:y|$y->plus())
+    ->without(~[l, ys, gp])->rename(~o, $out)
+}
+
+// The count of the line's values to each date (gs-quant's count).
+function datacube::ts::count<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line, [$date->ascending()], rows(unbounded(), 0)), ~o:{p,f,r|$r->read($value)}:y|$y->count())->rename(~o, $out)
+}
+
+// -- the date's parts (gs-quant's datetime): of every date, those of none too --
+
+// The day of the month.
+function datacube::ts::day<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|$x->read($date)->toOne()->dayOfMonth())->rename(~o, $out)
+}
+
+// The month's number, 1 January's.
+function datacube::ts::month<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|$x->read($date)->toOne()->monthNumber())->rename(~o, $out)
+}
+
+// The year.
+function datacube::ts::year<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|$x->read($date)->toOne()->year())->rename(~o, $out)
+}
+
+// The quarter's number.
+function datacube::ts::quarter<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|$x->read($date)->toOne()->quarterNumber())->rename(~o, $out)
+}
+
+// The day of the week, pandas' 0 for a Monday.
+function datacube::ts::weekday<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|$x->read($date)->toOne()->dayOfWeekNumber(meta::pure::functions::date::DayOfWeek.Monday) - 1)->rename(~o, $out)
+}
 `;
 
 /** Whether a query calls a function of the library. */

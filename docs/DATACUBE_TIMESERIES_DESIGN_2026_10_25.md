@@ -408,7 +408,10 @@ body's own by hygiene), and the self-joins (`percentiles` and `quantile` -- a me
 the database's; `ewma`, `ewmStd`, Wilder's `smoothedMean`, `ewmaSpan`, `macd`, `rsi`, `exponentialVolatility`,
 `exponentialSpreadVolatility` over it -- every exponential average the tile draws, an ATR's and a Keltner channel's
 among them), and the technicals over a row's fixed roles (`trueRange`, `atr`, `stochastic`, `keltnerChannels`,
-`donchianChannels` and its `...Period` form, `obv`, `vwap`) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
+`donchianChannels` and its `...Period` form, `obv`, `vwap`), the row maths (`log`, `exp`, `sqrt`, `abs`, `power`,
+`floor`, `ceil`, `not`, `filterValues`) and the functions along the line (`windowProduct` and `product`,
+`geometricallyAggregate`, `smoothSpikes`, `volSwapVolatility`, `consecutive`, `count`, and the date's parts `day`,
+`month`, `year`, `quarter`, `weekday`) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
 'simple', ~ret_2)->datacube::ts::volatility(over(~line, [~period->ascending()], rows(-21, 0)), ~ret_2, 22, ~per_year_3,
 ~vol_4)`. A calendar period's statistic is `windowPeriod`'s (on every date, however few values) and its ramp
 `rampPeriod`'s (none before the first date of a column, that period on), `overPeriod` the two over one column; so a
