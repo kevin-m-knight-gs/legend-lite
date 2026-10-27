@@ -224,8 +224,8 @@ const PERIOD = '__ts_p0';
 const ORD = '__ts_ord';
 const AT = '__ts_at';
 
-/** Each return type's function of DataCube's Pure library (pure-library.ts). */
-const RETURNS_OF: ReadonlyMap<string, string> = new Map([['simple', 'simpleReturns'], ['log', 'logReturns'], ['absolute', 'absoluteReturns']]);
+/** The return types (gs-quant's), each a word the library's returns compares (pure-library.ts). */
+const RETURN_TYPES: ReadonlySet<string> = new Set(['simple', 'log', 'absolute']);
 
 /**
  * What every part of one series' query shares: the tile, the frequency its periods are of (the tile's; none inside a
@@ -349,8 +349,29 @@ class Writer {
    * writer's own would be (#over) -- its figure the column it writes.
    */
   library(name: string, what: string, value: string, frame: 'running' | 'all' | number | null, args: readonly ValueSpecification[]): string {
+    return this.#libraryCall(name, what, [this.#over(frame), colSpec(value), ...args]);
+  }
+
+  /** A function of the library over its line and its dates -- `->datacube::ts::<name>(~<line>, ~<date>, ~<value>,
+   *  <args>, ~<out>)`: a base over the whole line, an as-of join -- the date each period's value is of. */
+  libraryOfLine(name: string, what: string, value: string, args: readonly ValueSpecification[]): string {
+    return this.#libraryCall(name, what, [colSpec(this.part), colSpec(this.at), colSpec(value), ...args]);
+  }
+
+  /** A function of the library over a calendar period back of each date of its line: `libraryOfLine`'s, the period
+   *  its n and its unit. */
+  libraryOfPeriod(name: string, what: string, value: string, t: TsTenor, args: readonly ValueSpecification[] = []): string {
+    return this.libraryOfLine(name, what, value, [lit.integer(t.n), enumValue(DURATION, t.unit), ...args]);
+  }
+
+  /** A function of the library of each row alone: `->datacube::ts::<name>(<args>, ~<out>)`. */
+  libraryOfRow(name: string, what: string, args: readonly ValueSpecification[]): string {
+    return this.#libraryCall(name, what, args);
+  }
+
+  #libraryCall(name: string, what: string, args: readonly ValueSpecification[]): string {
     const out = this.fresh(what);
-    this.rel = this.rel.call(`${LIBRARY_PACKAGE}::${name}`, this.#over(frame), colSpec(value), ...args, colSpec(out));
+    this.rel = this.rel.call(`${LIBRARY_PACKAGE}::${name}`, ...args, colSpec(out));
     return out;
   }
 
@@ -360,10 +381,23 @@ class Writer {
    * rolling_offset and apply_ramp).
    */
   libraryPeriod(stat: string, what: string, value: string, t: TsTenor): string {
-    const out = this.fresh(what);
-    this.rel = this.rel.call(`${LIBRARY_PACKAGE}::overPeriod`, colSpec(this.part), colSpec(this.at), colSpec(value),
-      lit.integer(t.n), enumValue(DURATION, t.unit), lit.string(stat), colSpec(out));
-    return out;
+    return this.libraryOfPeriod('overPeriod', what, value, t, [lit.string(stat)]);
+  }
+
+  /** A column `n` periods back, or a calendar period back as of that date (gs-quant's lag): the library's. */
+  libraryLag(value: string, n: Span): string {
+    return typeof n === 'number' ? this.library('lag', 'lag', value, null, [lit.integer(n)]) : this.libraryOfPeriod('lagPeriod', 'lag', value, n);
+  }
+
+  /**
+   * A BASE OVER THE WHOLE LINE, the library's -- `index`, `change` or `percentChange` of the line's first value, or,
+   * with the first date the view shows (the tile's anchor), its `...From` of the value as of it (`valueAt`) -- `args`
+   * after the date.
+   */
+  libraryBased(name: 'index' | 'change' | 'percentChange', what: string, value: string, args: readonly ValueSpecification[] = []): string {
+    const anchor = this.shared.anchor;
+    if (anchor === undefined) return this.libraryOfLine(name, what, value, args);
+    return this.libraryOfLine(`${name}From`, what, value, [dateLiteral(anchor, this.shared.periodType!), ...args]);
   }
 
   /** A rolled statistic of `value` over `w` periods (0: from the start) or a calendar period, the library's: drawn once
@@ -709,26 +743,12 @@ class Writer {
     return this.window('anchor', 'max', Writer.read(value), 'all');
   }
 
-  /** Returns over `obs` periods (or a calendar period back, as of its date), of a type (gs-quant's econometrics.returns):
-   *  over a count of periods, the library's (pure-library.ts simpleReturns, logReturns, absoluteReturns). */
+  /** Returns over `obs` periods, or a calendar period back as of its date, of a type (gs-quant's econometrics.returns):
+   *  the library's (pure-library.ts returns, returnsPeriod). */
   returns(a: string, obs: Span, type: string): string {
-    if (typeof obs === 'number') {
-      const fn_ = RETURNS_OF.get(type);
-      if (fn_ === undefined) throw new CubeRefusal(`there is no ${JSON.stringify(type)} return (simple, log or absolute)`);
-      return this.library(fn_, 'ret', a, null, [lit.integer(obs)]);
-    }
-    const p = this.lag(a, obs);
-    switch (type) {
-      case 'log':
-        return this.row('ret', when(or(fn('lessThanEqual', one(a), lit.integer(0)), fn('lessThanEqual', one(p), lit.integer(0))), none(),
-          op('minus', fn('log', one(a)), fn('log', one(p)))));
-      case 'absolute':
-        return this.row('ret', op('minus', one(a), one(p)));
-      case 'simple':
-        return this.row('ret', when(fn('equal', one(p), lit.integer(0)), none(), op('minus', fn('divide', one(a), one(p)), lit.integer(1))));
-      default:
-        throw new CubeRefusal(`there is no ${JSON.stringify(type)} return (simple, log or absolute)`);
-    }
+    if (!RETURN_TYPES.has(type)) throw new CubeRefusal(`there is no ${JSON.stringify(type)} return (simple, log or absolute)`);
+    return typeof obs === 'number' ? this.library('returns', 'ret', a, null, [lit.integer(obs), lit.string(type)])
+      : this.libraryOfPeriod('returnsPeriod', 'ret', a, obs, [lit.string(type)]);
   }
 
   /**
@@ -1679,24 +1699,23 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       const g = w.row('g', op('plus', lit.integer(1), one(a)));
       return done(at(op('times', initial, one(w.product(g, 'running')))));
     }
-    case 'diff':
-      return done(w.row('diff', op('minus', one(a), one(w.lag(a, span('obs'))))));
+    // the levels and lags, the library's (pure-library.ts): a lag or a change over a count of periods or a calendar
+    // period back, a base over the whole line (its first value, or the value as of the first date shown)
+    case 'diff': {
+      const obs = span('obs');
+      return done(typeof obs === 'number' ? w.library('diff', 'diff', a, null, [lit.integer(obs)]) : w.libraryOfPeriod('diffPeriod', 'diff', a, obs));
+    }
     case 'lag':
-      return done(w.lag(a, span('obs')));
+      return done(w.libraryLag(a, span('obs')));
     case 'annualize':
-      return done(w.row('ann', op('times', one(a), w.annual())));
+      return done(w.libraryOfRow('annualize', 'ann', [colSpec(a), colSpec(w.perYearColumn())]));
     case 'index':
-    case 'rebase': {
-      const base = w.anchored(a);
-      const scale = float(n(e.fn === 'index' ? 'initial' : 'base'));
-      return done(w.row('idx', when(fn('equal', one(base), lit.integer(0)), none(), op('times', fn('divide', one(a), one(base)), scale))));
-    }
+    case 'rebase':
+      return done(w.libraryBased('index', 'idx', a, [float(n(e.fn === 'index' ? 'initial' : 'base'))]));
     case 'change':
-      return done(w.row('chg', op('minus', one(a), one(w.anchored(a)))));
-    case 'percent_change': {
-      const base = w.anchored(a);
-      return done(w.row('pchg', when(fn('equal', one(base), lit.integer(0)), none(), op('minus', fn('divide', one(a), one(base)), lit.integer(1)))));
-    }
+      return done(w.libraryBased('change', 'chg', a));
+    case 'percent_change':
+      return done(w.libraryBased('percentChange', 'pchg', a));
     // the rolled statistics, the library's (pure-library.ts): over a count of periods (0 from the start) with a ramp
     // of that count, or over a calendar period
     case 'mean':
@@ -1947,8 +1966,8 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       return done(decomposed(sh, w, a, e.fn, word('method'), word('freq')));
     case 'first':
     case 'last':
-      // on every date it has, those of none too (gs-quant's fills its index: the Phase 1 review's 6)
-      return done(w.edgeValue(a, e.fn));
+      // on every date it has, those of none too (gs-quant's fills its index: the Phase 1 review's 6): the library's
+      return done(w.libraryOfLine(e.fn, e.fn, a, []));
     case 'count':
       return done(w.window('count', 'count', R(a), 'running'));
     case 'day':

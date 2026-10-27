@@ -388,22 +388,20 @@ function over relations (`docs/SEMANTICS_REGISTER.md` S112): each call is expand
 is typed, over the call's own tables, as a `NormalizeRequiredFunction` call is (`compiler/spec/RelationGenerics`).
 
 The library is `pure-library.ts DATACUBE_LIBRARY`, a `###Pure` section of functions in `datacube::ts`, each over any
-table: its line (a column it has a line per value of), its order (its dates), the column it reads, its parameters, and
-the column it writes. A function renames the column it reads to a name of its own and its figure back to the call's
-(Pure has no read of a column by a parameter), so the column it reads is neither the line nor the order. The first
-functions: `mean` (of the last w, none until there are w), `simpleReturns`, `logReturns`, `absoluteReturns` (over obs
-back), and `volatility` (of a column of returns: their sample deviation over the last w, times the root of a per-year
-column, times 100; none until there are w and two). Each was one step -- one window column -- because Pure's relations
-could not drop a column: a function of two steps (a return, then its deviation) would have left its first step's column
-in the caller's table. So gs-quant's `volatility(x, w)` is two calls, `returns` then `volatility`. Since 2026-10-27 a
-function hides its steps: `without` drops its working columns, each call renames them so a caller's never meet them, and
-its declared return is held to each call (§5.7).
+table, in the conventions of §5.7: the table, a window (its line, its order and its frame) or the line and the dates
+themselves, the column it reads (by `read`, never renamed), its parameters, and the column it writes. Its first
+functions (2026-10-26) were one step each -- Pure's relations could not drop a column, so a function of two steps would
+have left its first step's column in the caller's table; since 2026-10-27 a function hides its steps: `without` drops its
+working columns, each call renames them so a caller's never meet them, and its declared return is held to each call.
 
-The tile's queries call it by name: `mean` over a count of periods, the returns over a count of observations (every
-function that reads returns: volatility, the Sharpe ratio, a beta's), and `volatility` over a count of periods
-(`Writer.library`): `->datacube::ts::simpleReturns(~line, [~period->ascending()], ~close, 1, ~ret_2)
-->datacube::ts::volatility(~line, [~period->ascending()], ~ret_2, 22, ~per_year_3, ~vol_4)`. A calendar window (`3m`),
-`w=0` (from the start) and every other function are written as before. A model takes the library only where a query
+The tile's queries call it by name (`Writer.library` and its kin), one family at a time as each is converted and held
+to today's numbers (§5.7): the rolled statistics (`mean`, `sum`, `min`, `max`, `range`, `std`, `var`, each over a count
+of periods with its ramp, and `overPeriod` over a calendar one), the returns (`returns` and `returnsPeriod`, a type
+word as gs-quant's), `volatility`, and the levels and lags (`lag`, `lagPeriod`, `diff`, `diffPeriod`, `annualize`,
+`first`, `last`, and `index`, `change` and `percentChange` of the line's first value, or their `...From` of its value as
+of the first date shown, `valueAt`'s) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
+'simple', ~ret_2)->datacube::ts::volatility(over(~line, [~period->ascending()], rows(-21, 0)), ~ret_2, 22, ~per_year_3,
+~vol_4)`. Every other function is written as before until its family is converted. A model takes the library only where a query
 calls it: the planner plans such a query over its model with the library after it (`lite-planner.ts` and
 `planner.ts #over`, a planner of its own over that model), every other query over its model as it is, byte for byte.
 A host that plans and runs is sent the library BESIDE the model (`planRequest`'s `library`), never inside it: Python's
@@ -773,6 +771,23 @@ dated budget notes; every figure still the database's.
   query over that span, the database's); drawn lines and notes; events marked from a grid's rows (earnings, meetings);
   shading from a 0/1 column in one step (recession bars); a replay stepping the window's end through time; a period
   brushed on the chart filtering the page's other grids; a trend's projection forward.
+- **Phase 6, charts from a model** (the user, 2026-10-27: "start all the charts from Class models projected to Relation
+  instead of starting with Relation tables -- we should use the same Stress data model ... this also will give us richer
+  joins to reference data and be able to plot trades"). A tile's grid reads a class of the stress model
+  (`core/src/test/resources/stress`) -- `MarketQuote.all()->project(~[symbol: x|$x.instrument.ticker, ...])`, the grid's
+  class source (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.1) -- so its joins are the model's associations: an
+  instrument's sector, exchange and currency to split and filter lines by, a quote's trades through its instrument. The
+  library does not change (each function takes any relation, §5.7); what is new is the data and the source.
+  D1: a charting dataset of the stress model's own tables -- years of daily quotes of about ten instruments, those
+  instruments, their sectors, and trades on them -- beside the corpus's seed, which stays as it is (its five quotes are
+  an oracle's: a quote with no time, one of an instrument that is not there). D2: core plans and runs a library call
+  over a projected class through the stress mapping, on DuckDB, and the cost of planning through a mapping is measured
+  (`//python:engine_test` is near its limit in a cloud container). D3: the stress model a sample project a page opens,
+  the tile over a class-source grid, the samples, the gallery and the tests from classes; a table stays a source a person
+  may use, no longer the one shown. D4: trades as buy and sell marks on the price line, from `Trade.all()->project(...)`
+  -- Phase 5's events from a grid, made concrete. D5: lines split and filtered by reference data through the
+  associations. D6: Python's side by the one rule. After the library's conversion (each function held to today's
+  numbers over today's tables first), before the library's review, which covers both.
 - **Not built, and why:** X-13 seasonal adjustment and `smooth_outliers` (iterative procedures no query states; gs-quant's
   own seasonal adjustment is the decomposition above); PowerPoint (a document writer of its own in the bundle; the page
   already exports HTML and PDF); alerts (a scheduler and a channel outside a page); `repeat`, `date_range`,

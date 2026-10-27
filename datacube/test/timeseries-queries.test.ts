@@ -426,7 +426,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const ts = spec({ A: 'volatility(close[AAA], 10) + mean(close[AAA], 5)' });
     const of = seriesQuery(inputs, ts, ts.series[0]!, {}, {});
     const called = functionsCalled(of.query);
-    for (const f of ['datacube::ts::simpleReturns', 'datacube::ts::volatility', 'datacube::ts::mean']) assert.ok(called.has(f), `the query calls ${f}`);
+    for (const f of ['datacube::ts::returns', 'datacube::ts::volatility', 'datacube::ts::mean']) assert.ok(called.has(f), `the query calls ${f}`);
     // what a host that plans and runs is sent (Python's engine): the model as it is, and the library beside it
     const model = planner.source().model;
     const asked = planner.planRequest(of.query);
@@ -436,6 +436,22 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     assert.ok(![...functionsCalled(plain.query)].some((f) => f.startsWith('datacube::')), 'a level calls no library function');
     assert.equal(planner.planRequest(plain.query).model, model);
     assert.equal(planner.planRequest(plain.query).library, undefined);
+  });
+
+  it('the levels and lags call the library by name: a count or a calendar period back, a base the line\'s first or as of the first date shown', () => {
+    const calls = (expr: string, anchor?: string): ReadonlySet<string> => {
+      const ts = spec({ A: expr });
+      return functionsCalled(seriesQuery(inputs, ts, ts.series[0]!, anchor === undefined ? {} : { from: anchor }, {}).query);
+    };
+    const want: readonly [string, string, string?][] = [
+      ['diff(close[AAA], 2)', 'diff'], ['diff(close[AAA], 1m)', 'diffPeriod'], ['lag(close[AAA], 3)', 'lag'],
+      ['lag(close[AAA], 1m)', 'lagPeriod'], ['returns(close[AAA], 1w)', 'returnsPeriod'], ['annualize(close[AAA])', 'annualize'],
+      ['first(close[AAA])', 'first'], ['last(close[AAA])', 'last'], ['index(close[AAA], 100)', 'index'],
+      ['index(close[AAA], 100)', 'indexFrom', '2024-01-15'], ['change(close[AAA])', 'change'],
+      ['change(close[AAA])', 'changeFrom', '2024-01-15'], ['percent_change(close[AAA])', 'percentChange'],
+      ['percent_change(close[AAA])', 'percentChangeFrom', '2024-01-15'],
+    ];
+    for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`datacube::ts::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
   });
 
   it('a person\'s own query calls the library over the table: its mean as the tile\'s', async () => {

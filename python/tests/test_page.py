@@ -1085,7 +1085,7 @@ class Document(Paged):
         self.assertIn("'S'", asked[1]['pure'])
         # a return is a call of DataCube's Pure library (datacube/src/pure-library.ts), planned over the model with it
         # after
-        self.assertIn('datacube::ts::simpleReturns', asked[2]['pure'])
+        self.assertIn('datacube::ts::returns', asked[2]['pure'])
         # a view's question with them, as the screen asks it: after the series', before the panel's
         tile.options(view={'mode': 'histogram'})
         kinds = [(q['kind'], q.get('series')) for q in tile.queries()]

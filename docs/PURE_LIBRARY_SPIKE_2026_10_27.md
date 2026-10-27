@@ -74,3 +74,5 @@ legend-engine 4.145.0 and legend-pure 5.99.0 trees, now in the session). 4 and 6
 "yes take all your suggestions"): many series as a long table keyed by the series, a window as a value with a ramp,
 gs-quant's calendar windows exact (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.6). Next: convert every function,
 each held to today's numbers by `timeseries-queries.test.ts` as the shipped five were, declaring its honest return.
+After that, the charts start from classes of the stress model projected to relations (the user, 2026-10-27;
+docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6), then the library's review.

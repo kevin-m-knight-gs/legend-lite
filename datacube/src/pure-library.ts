@@ -15,11 +15,10 @@ import { functionsCalled, type ValueSpecification } from '../../pure-protocol/sr
 export const LIBRARY_PACKAGE = 'datacube::ts';
 
 /**
- * The library, as Pure text: a `###Pure` section a model takes after its own. Each function takes the table, its LINE
- * (the column the table has a line per value of: a symbol), its ORDER (its dates, ascending), the column it reads and
- * the column it writes, every other column carried as it is. A function reads its column under a name of its own
- * (`ts_value`) and writes its figure under another (`ts_out`), each renamed back to the call's: so the column it reads
- * is neither the line nor the order, and the table has neither name.
+ * The library, as Pure text: a `###Pure` section a model takes after its own. Each function takes the table, a window
+ * of it (its LINE -- the column the table has a line per value of: a symbol --, its ORDER, its frame) or the line and
+ * the dates themselves, the column it reads (by `read`: the caller's own), its parameters and the column it writes;
+ * every other column carried as it is, its working columns its own (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.7).
  */
 export const DATACUBE_LIBRARY = `###Pure
 // DataCube's timeseries functions (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.6, §5.7): gs-quant's, over any
@@ -88,22 +87,148 @@ function datacube::ts::overPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L�
     ->rename(~o, $out);
 }
 
-// The simple returns over obs rows back: x / x[-obs] - 1, none where x[-obs] is 0 or there is none.
-function datacube::ts::simpleReturns<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], obs: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+// The value obs rows back (gs-quant's lag of a count): x[-obs], none before the line's obs-th row.
+function datacube::ts::lag<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], obs: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->extend($win, ~m:{p,f,r|if($p->lag($r, $obs)->read($value)->toOne() == 0, |[], |$r->read($value)->toOne() / $p->lag($r, $obs)->read($value)->toOne() - 1)})->rename(~m, $out)
+  $t->extend($win, ~m:{p,f,r|$p->lag($r, $obs)->read($value)})->rename(~m, $out)
 }
 
-// The log returns over obs rows back: log(x) - log(x[-obs]), none where either is 0 or below.
-function datacube::ts::logReturns<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], obs: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+// The value as of a calendar period back from each date of the line (gs-quant's lag of a period, as of): of its dates
+// with a value, the latest at or before (date - n unit) -- an as-of join; none before the line's first that far back.
+function datacube::ts::lagPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->extend($win, ~m:{p,f,r|if(($r->read($value)->toOne() <= 0) || ($p->lag($r, $obs)->read($value)->toOne() <= 0), |[], |log($r->read($value)->toOne()) - log($p->lag($r, $obs)->read($value)->toOne()))})->rename(~m, $out)
+  let base = $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), v:r|$r->read($value)]);
+  $base->extend(~at:x|$x.d->toOne()->adjust(0 - $n, $unit))
+    ->asOfJoin($base->filter(x|$x.v->isNotEmpty())->select(~[l, d, v])->rename(~l, ~bl)->rename(~d, ~bd)->rename(~v, ~o), {a,b|$a.at >= $b.bd}, {a,b|$a.l == $b.bl})
+    ->without(~[l, d, v, at, bl, bd])
+    ->rename(~o, $out);
 }
 
-// The absolute returns over obs rows back: x - x[-obs].
-function datacube::ts::absoluteReturns<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], obs: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+// The change over obs rows back (gs-quant's diff): x - x[-obs].
+function datacube::ts::diff<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], obs: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->extend($win, ~m:{p,f,r|$r->read($value)->toOne() - $p->lag($r, $obs)->read($value)->toOne()})->rename(~m, $out)
+}
+
+// The change over a calendar period back (gs-quant's diff of a period): x less its value as of (date - n unit).
+function datacube::ts::diffPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::lagPeriod($line, $date, $value, $n, $unit, $out)
+    ->extend(~m:r|$r->read($value)->toOne() - $r->read($out)->toOne())
+    ->without($out)->rename(~m, $out)
+}
+
+// The returns over obs rows back (gs-quant's returns), of a type -- 'simple', 'log' or 'absolute', a word compared when
+// the call is expanded: x / x[-obs] - 1, none where x[-obs] is 0 or there is none; log(x) - log(x[-obs]), none where
+// either is 0 or below; x - x[-obs].
+function datacube::ts::returns<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], obs: Integer[1], type: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend($win, ~m:{p,f,r|if($type == 'log',
+      |if(($r->read($value)->toOne() <= 0) || ($p->lag($r, $obs)->read($value)->toOne() <= 0), |[], |log($r->read($value)->toOne()) - log($p->lag($r, $obs)->read($value)->toOne())),
+      |if($type == 'absolute',
+        |$r->read($value)->toOne() - $p->lag($r, $obs)->read($value)->toOne(),
+        |if($p->lag($r, $obs)->read($value)->toOne() == 0, |[], |$r->read($value)->toOne() / $p->lag($r, $obs)->read($value)->toOne() - 1)))})
+    ->rename(~m, $out)
+}
+
+// The returns over a calendar period back (gs-quant's returns of a period), of a type as returns': each date against
+// its value as of (date - n unit).
+function datacube::ts::returnsPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], type: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::lagPeriod($line, $date, $value, $n, $unit, $out)
+    ->extend(~m:r|if($type == 'log',
+      |if(($r->read($value)->toOne() <= 0) || ($r->read($out)->toOne() <= 0), |[], |log($r->read($value)->toOne()) - log($r->read($out)->toOne())),
+      |if($type == 'absolute',
+        |$r->read($value)->toOne() - $r->read($out)->toOne(),
+        |if($r->read($out)->toOne() == 0, |[], |$r->read($value)->toOne() / $r->read($out)->toOne() - 1))))
+    ->without($out)->rename(~m, $out)
+}
+
+// The value annualized (gs-quant's annualize): times the square root of the periods a year (a column, the same down a
+// line; none where it is none).
+function datacube::ts::annualize<T,V,Y,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], perYear: ColSpec<Y⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~m:r|$r->read($value)->toOne() * sqrt($r->read($perYear)->toOne()))->rename(~m, $out)
+}
+
+// The line's first value beside each of its rows (gs-quant's first, on every date): of its dates with a value, the
+// first's.
+function datacube::ts::first<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), v:r|$r->read($value)])
+    ->extend(over(~l), ~at:{p,f,r|if($r.v->isNotEmpty(), |$r.d, |[])}:y|$y->min())
+    ->extend(over(~l), ~o:{p,f,r|if($r.d == $r.at, |$r.v, |[])}:y|$y->max())
+    ->without(~[l, d, v, at])->rename(~o, $out)
+}
+
+// The line's last value beside each of its rows (gs-quant's last, on every date): of its dates with a value, the
+// last's.
+function datacube::ts::last<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), v:r|$r->read($value)])
+    ->extend(over(~l), ~at:{p,f,r|if($r.v->isNotEmpty(), |$r.d, |[])}:y|$y->max())
+    ->extend(over(~l), ~o:{p,f,r|if($r.d == $r.at, |$r.v, |[])}:y|$y->max())
+    ->without(~[l, d, v, at])->rename(~o, $out)
+}
+
+// The line's value as of a date beside each of its rows: of its dates with a value, the latest at or before from -- or,
+// none at or before it, the first (a base the first date a view shows sets).
+function datacube::ts::valueAt<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], from: Date[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), v:r|$r->read($value)])
+    ->extend(over(~l), ~fst:{p,f,r|if($r.v->isNotEmpty(), |$r.d, |[])}:y|$y->min())
+    ->extend(over(~l), ~bef:{p,f,r|if($r.v->isNotEmpty() && ($r.d->toOne() <= $from), |$r.d, |[])}:y|$y->max())
+    ->extend(~at:x|if($x.bef->isEmpty(), |$x.fst, |$x.bef))
+    ->extend(over(~l), ~o:{p,f,r|if($r.d == $r.at, |$r.v, |[])}:y|$y->max())
+    ->without(~[l, d, v, fst, bef, at])->rename(~o, $out)
+}
+
+// The value as a multiple of the line's first, times initial (gs-quant's index): none where the first is 0.
+function datacube::ts::index<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], initial: Number[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::first($line, $date, $value, $out)
+    ->extend(~m:r|if($r->read($out)->toOne() == 0, |[], |$r->read($value)->toOne() / $r->read($out)->toOne() * $initial))
+    ->without($out)->rename(~m, $out)
+}
+
+// The value as a multiple of the line's as of a date (valueAt's), times initial: none where that is 0.
+function datacube::ts::indexFrom<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], from: Date[1], initial: Number[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::valueAt($line, $date, $value, $from, $out)
+    ->extend(~m:r|if($r->read($out)->toOne() == 0, |[], |$r->read($value)->toOne() / $r->read($out)->toOne() * $initial))
+    ->without($out)->rename(~m, $out)
+}
+
+// The value less the line's first (gs-quant's change).
+function datacube::ts::change<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::first($line, $date, $value, $out)
+    ->extend(~m:r|$r->read($value)->toOne() - $r->read($out)->toOne())
+    ->without($out)->rename(~m, $out)
+}
+
+// The value less the line's as of a date (valueAt's).
+function datacube::ts::changeFrom<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], from: Date[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::valueAt($line, $date, $value, $from, $out)
+    ->extend(~m:r|$r->read($value)->toOne() - $r->read($out)->toOne())
+    ->without($out)->rename(~m, $out)
+}
+
+// The value over the line's first, less 1: none where the first is 0.
+function datacube::ts::percentChange<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::first($line, $date, $value, $out)
+    ->extend(~m:r|if($r->read($out)->toOne() == 0, |[], |$r->read($value)->toOne() / $r->read($out)->toOne() - 1))
+    ->without($out)->rename(~m, $out)
+}
+
+// The value over the line's as of a date (valueAt's), less 1: none where that is 0.
+function datacube::ts::percentChangeFrom<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], from: Date[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::valueAt($line, $date, $value, $from, $out)
+    ->extend(~m:r|if($r->read($out)->toOne() == 0, |[], |$r->read($value)->toOne() / $r->read($out)->toOne() - 1))
+    ->without($out)->rename(~m, $out)
 }
 
 // The annualized volatility of a column of returns, in percent (gs-quant's volatility, its returns the caller's: one of
