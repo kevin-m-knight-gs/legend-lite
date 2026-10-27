@@ -13,8 +13,11 @@ import { LIGHT_THEME } from '../src/chart-option.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { curveColumns, TS_SPLIT as SPLIT } from '../src/timeseries-query.ts';
 import { curveNotes, curveOption } from '../src/timeseries-views.ts';
-import { drawingsUnplaced, marksUnplaced, tickText, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, tsHeading, tsLines, tsMarks, tsPictureHeight, valueText, type TsResult } from '../src/timeseries-option.ts';
-import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_SPLIT, TS_TEXT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
+import { drawingsUnplaced, marksUnplaced, projectionsUnplaced, tickText, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, tsHeading, tsLines, tsMarks, tsPictureHeight, tsProjected, valueText, type TsResult } from '../src/timeseries-option.ts';
+import {
+  TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_PJ_END, TS_PJ_END_VALUE, TS_PJ_FROM, TS_PJ_FROM_VALUE, TS_PJ_LAST, TS_PJ_LAST_VALUE, TS_PJ_N,
+  TS_PJ_SLOPE, TS_SPLIT, TS_TEXT, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery,
+} from '../src/timeseries-query.ts';
 import { TS_MARK_LIMIT, TS_POINT_LIMIT, type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { TsUnit } from '../src/timeseries-expr.ts';
@@ -396,6 +399,37 @@ describe('the drawing', () => {
     const compared: TimeseriesSpec = { ...right, view: { compare: 'rebase' } };
     assert.deepEqual(marksUnplaced(compared, lines, [fills]), ['Fills are drawn at their price, the lines from one start (Compare): left out.']);
     assert.ok(!(timeseriesOption(compared, lines, { theme: LIGHT_THEME, marks: [fills] }) as { series: { id: string }[] }).series.some((x) => x.id === 'marks:0'));
+  });
+
+  // a trend projected (Phase 5): the database's one row read as three points, drawn dashed through its line's
+  // observations and on past them, in its line's colour on its axis; under a compare, left out and said
+  it('a projection: its three points the database\'s, dashed on its line\'s axis in its colour; refused rows said', () => {
+    const ts = spec([S('A', 'close'), S('B', 'close', { axis: 'right', hidden: true })], {
+      annotations: [{ kind: 'projection', series: 'A', window: 3, label: 'Trend' }, { kind: 'projection', series: 'B' }],
+    });
+    const table = (row: Record<string, string | number | null>): ResultTable => ({
+      columns: Object.entries(row).map(([name, v]) => ({ name, type: typeof v === 'string' ? 'StrictDate' : 'Float', values: [v] })), rowCount: 1, epoch: 0, elapsedMs: 0,
+    });
+    const answer = table({ [TS_PJ_FROM]: '2024-01-02', [TS_PJ_FROM_VALUE]: 1, [TS_PJ_LAST]: '2024-01-04', [TS_PJ_LAST_VALUE]: 3, [TS_PJ_END]: '2024-04-04', [TS_PJ_END_VALUE]: 94, [TS_PJ_SLOPE]: 1, [TS_PJ_N]: 3 });
+    const read = tsProjected(ts, 0, answer);
+    assert.deepEqual(read.notes, []);
+    assert.deepEqual([read.projected!.name, read.projected!.from, read.projected!.last, read.projected!.end, read.projected!.slope, read.projected!.n],
+      ['Trend', { date: '2024-01-02', value: 1 }, { date: '2024-01-04', value: 3 }, { date: '2024-04-04', value: 94 }, 1, 3]);
+    const lines = tsLines(ts, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }), answered('B', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] })], LIGHT_THEME).lines;
+    type Drawn = { series: { id: string; yAxisIndex: number; data: unknown[]; lineStyle?: { color: string; type: string } }[] };
+    const option = timeseriesOption(ts, lines, { theme: LIGHT_THEME, projections: [read.projected!] }) as unknown as Drawn;
+    const drawn = option.series.find((x) => x.id === 'projection:0')!;
+    assert.deepEqual(drawn.data, [['2024-01-02', 1], ['2024-01-04', 3], ['2024-04-04', 94]]);
+    const a = option.series.find((x) => x.id === 'A')!;
+    assert.deepEqual([drawn.yAxisIndex, drawn.lineStyle!.type, drawn.lineStyle!.color], [a.yAxisIndex, 'dashed', lines.find((l) => l.series.id === 'A')!.color]);
+    // of a hidden series: said, not drawn; under a compare, every one
+    assert.deepEqual(projectionsUnplaced(ts, lines), ['Projection 2: series B is not drawn.']);
+    const compared: TimeseriesSpec = { ...ts, view: { compare: 'rebase' } };
+    assert.deepEqual(projectionsUnplaced(compared, lines), ['The projections are of the lines\' own values, the lines now from one start (Compare): left out.']);
+    assert.ok(!(timeseriesOption(compared, lines, { theme: LIGHT_THEME, projections: [read.projected!] }) as unknown as Drawn).series.some((x) => x.id.startsWith('projection:')));
+    // no fit (its figures none): said
+    const none = table({ [TS_PJ_FROM]: '2024-01-02', [TS_PJ_FROM_VALUE]: null, [TS_PJ_LAST]: '2024-01-02', [TS_PJ_LAST_VALUE]: null, [TS_PJ_END]: '2024-04-02', [TS_PJ_END_VALUE]: null, [TS_PJ_SLOPE]: null, [TS_PJ_N]: 1 });
+    assert.deepEqual(tsProjected(ts, 0, none), { notes: ['Trend: series A has under two observations of different times to fit a line over.'] });
   });
 
   // a person's own drawings (Phase 5): a line from its point to its point, a note at its point, in its pane, on the

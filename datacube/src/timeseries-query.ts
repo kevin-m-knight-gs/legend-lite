@@ -34,7 +34,8 @@ import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { isDay, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import {
   filterRead,
-  MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, tenorOf, TS_MARK_LIMIT, TS_POINT_LIMIT, TS_RANGES, type TimeseriesSpec, type TsAggregate, type TsMarks,
+  MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, tenorOf, TS_MARK_LIMIT, TS_POINT_LIMIT, TS_PROJECTION_AHEAD, TS_PROJECTION_WINDOW, TS_RANGES,
+  type TimeseriesSpec, type TsAggregate, type TsMarks, type TsProjection,
   type TsAlign, type TsExpr, type TsMatch, type TsOperator, type TsRange, type TsRangeWord, type TsSeries, type TsSource, type TsTenor,
   isConditionOp, TS_CURVE_DATES, TS_HIST_BINS, TS_SEASON_YEARS, TS_SIGNATURES, type TsFunctionName,
 } from './timeseries-spec.ts';
@@ -2348,6 +2349,70 @@ export function scatterQuery(inputs: TsInputs, ts: TimeseriesSpec, x: TsSeries, 
   return { series: y.id, query: rel.lambda(), unit: Y.unit, band: false, level: false, counted: false, sources: [...new Set([...X.sources, ...Y.sources])] };
 }
 
+/** The columns a projection answers with, one row: the fit at the first of the observations it is fit over and at the
+ *  last (their dates), the projection's date `ahead` past the last and the fit there, the line's slope a day, and how
+ *  many observations it is fit over. */
+export const TS_PJ_FROM = '__ts_pj_from';
+export const TS_PJ_FROM_VALUE = '__ts_pj_from_v';
+export const TS_PJ_LAST = '__ts_pj_last';
+export const TS_PJ_LAST_VALUE = '__ts_pj_last_v';
+export const TS_PJ_END = '__ts_pj_end';
+export const TS_PJ_END_VALUE = '__ts_pj_end_v';
+export const TS_PJ_SLOPE = '__ts_pj_slope';
+export const TS_PJ_N = '__ts_pj_n';
+
+/**
+ * A TREND PROJECTED (TsProjection; Phase 5): a series' line by ordinary least squares over its last `window`
+ * observations -- its value on its time (each date's number of days, or of seconds for date-times), the slope their
+ * sample covariance over time's variance, the intercept through their means -- and its fit at the first of them, at
+ * the last, and at the date `ahead` past the last (`adjust`): the database's, every figure and every date. Of the line
+ * as it is drawn along time; under a compare its values are from the first date shown, so it is refused, as the drawing
+ * leaves it out. None of the fit under two observations of different times.
+ */
+export function projectionQuery(inputs: TsInputs, ts: TimeseriesSpec, p: TsProjection): TsQuery {
+  const s = ts.series.find((x) => x.id === p.series);
+  if (!s) throw new CubeRefusal(`a projection of series ${p.series}, which the tile has not`);
+  if (ts.view?.compare !== undefined) throw new CubeRefusal('a projection is of a line\'s own values: under Compare its lines are from one start -- Compare off to project it');
+  const ahead = tenorOf(p.ahead ?? TS_PROJECTION_AHEAD);
+  if (ahead === undefined) throw new CubeRefusal(`a projection's ahead ${JSON.stringify(p.ahead)} is not a calendar period (3m)`);
+  const b = viewLine(inputs, ts, s, 'projection', { n: 0 });
+  const w = b.writer;
+  const R = Writer.read;
+  w.rel = w.rel.filter(row(fn('isNotEmpty', col(b.value))));
+  // its last `window` observations: those with at most that many from them to the last
+  const rest = w.window('pj_rest', 'count', R(b.value), 'rest');
+  w.rel = w.rel.filter(row(fn('lessThanEqual', one(rest), lit.integer(p.window ?? TS_PROJECTION_WINDOW))));
+  const n = w.window('pj_n', 'count', R(b.ord), 'all');
+  const cov = w.window('pj_cov', 'covarSample', fn('rowMapper', R(b.value), R(b.ord)), 'all');
+  const varX = w.window('pj_vx', 'varianceSample', R(b.ord), 'all');
+  const mx = w.window('pj_mx', 'average', R(b.ord), 'all');
+  const my = w.window('pj_my', 'average', R(b.value), 'all');
+  const lo = w.window('pj_lo', 'min', R(b.ord), 'all');
+  const first = w.window('pj_first', 'min', R(b.at), 'all');
+  const flat = or(fn('lessThan', one(n), lit.integer(2)), fn('isEmpty', col(varX)), fn('equal', one(varX), lit.integer(0)));
+  const slope = w.row('pj_slope', when(flat, none(), fn('divide', one(cov), one(varX))));
+  const intercept = w.row('pj_icpt', when(fn('isEmpty', col(slope)), none(), op('minus', one(my), op('times', one(slope), one(mx)))));
+  // the last observation's row: its date, and the date `ahead` past it, its time the last's and the days (or seconds)
+  // between
+  w.rel = w.rel.filter(row(fn('equal', one(rest), lit.integer(1))));
+  const end = w.row('pj_end', fn('adjust', one(b.at), lit.integer(ahead.n), enumValue(DURATION, ahead.unit)));
+  const xEnd = w.row('pj_xe', op('plus', one(b.ord), fn('dateDiff', one(b.at), one(end), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'))));
+  const fit = (x: ValueSpecification): ValueSpecification => when(fn('isEmpty', col(slope)), none(), op('plus', one(intercept), op('times', one(slope), x)));
+  const out: ColSpec[] = [
+    derive(TS_PJ_FROM, row(col(first))),
+    derive(TS_PJ_FROM_VALUE, row(fit(one(lo)))),
+    derive(TS_PJ_LAST, row(col(b.at))),
+    derive(TS_PJ_LAST_VALUE, row(fit(one(b.ord)))),
+    derive(TS_PJ_END, row(col(end))),
+    derive(TS_PJ_END_VALUE, row(fit(one(xEnd)))),
+    // a day's slope: a date-time's time counts seconds
+    derive(TS_PJ_SLOPE, row(w.seconds ? when(fn('isEmpty', col(slope)), none(), op('times', one(slope), lit.integer(86400))) : col(slope))),
+    derive(TS_PJ_N, row(col(n))),
+  ];
+  const rel = w.rel.extend(out).select(out.map((c) => c.name));
+  return { series: s.id, query: rel.lambda(), unit: b.unit, band: false, level: b.level, counted: false, sources: b.sources };
+}
+
 /** The columns a seasonality answers with, a row per date of its last years: the date's year, its place in the year (a
  *  day of the year, a week, a month or a quarter by the tile's frequency), its value; and, at its place, the least, the
  *  most and the mean of the years before the latest -- with the latest year itself. */
@@ -2711,27 +2776,37 @@ export const TS_SERVES_WORDS: Readonly<Record<TsServes, string>> = {
  * (`what`), and where its answer is shown (`serves`).
  */
 export interface TsAsk {
-  readonly kind: 'bounds' | 'series' | 'marks' | TsTable;
+  readonly kind: 'bounds' | 'series' | 'marks' | 'projection' | TsTable;
   readonly series?: string;
   readonly with?: string;
   readonly source?: string;
   /** Marks': their place among the tile's annotations. */
   readonly marks?: number;
+  /** A projection's: its place among the tile's annotations. */
+  readonly projection?: number;
   readonly what: string;
   readonly serves: TsServes;
 }
 
 /** What an ask is of: what its query is built from, without its words. */
-export type TsAskOf = Pick<TsAsk, 'kind' | 'series' | 'with' | 'source' | 'marks'>;
+export type TsAskOf = Pick<TsAsk, 'kind' | 'series' | 'with' | 'source' | 'marks' | 'projection'>;
 
 /** An ask's key: what it is of, the same for every round that asks it. */
 export const askKey = (a: TsAskOf): string =>
-  JSON.stringify([a.kind, a.series ?? null, a.with ?? null, a.source ?? null, ...(a.marks !== undefined ? [a.marks] : [])]);
+  JSON.stringify([a.kind, a.series ?? null, a.with ?? null, a.source ?? null, ...(a.marks !== undefined ? [a.marks] : []),
+    ...(a.projection !== undefined ? [a.projection] : [])]);
 
 /** The marks an ask is of, by their place among the tile's annotations, or a refusal naming it. */
 export function marksOf(ts: TimeseriesSpec, at: number | undefined): TsMarks {
   const a = at === undefined ? undefined : ts.annotations?.[at];
   if (a?.kind !== 'marks') throw new CubeRefusal(`the tile has no marks at ${JSON.stringify(at ?? null)}`);
+  return a;
+}
+
+/** The projection an ask is of, by its place among the tile's annotations, or a refusal naming it. */
+export function projectionOf(ts: TimeseriesSpec, at: number | undefined): TsProjection {
+  const a = at === undefined ? undefined : ts.annotations?.[at];
+  if (a?.kind !== 'projection') throw new CubeRefusal(`the tile has no projection at ${JSON.stringify(at ?? null)}`);
   return a;
 }
 
@@ -2761,6 +2836,11 @@ export function tileAsks(ts: TimeseriesSpec): TsAsk[] {
       kind: 'marks', marks: i, source: a.source, serves: 'chart',
       what: `Marks ${a.label !== undefined ? `"${a.label}"` : i + 1}: source ${a.source}'s rows${a.at !== undefined ? ` at their ${a.at}` : ''}`,
     }])),
+    // a projection of a line's own values: none under a compare (projectionQuery's refusal; the drawing says so)
+    ...(ts.view?.compare !== undefined ? [] : (ts.annotations ?? []).flatMap((a, i): TsAsk[] => (a.kind !== 'projection' ? [] : [{
+      kind: 'projection', projection: i, series: a.series, serves: 'chart',
+      what: `Projection ${a.label !== undefined ? `"${a.label}"` : i + 1}: series ${named(a.series)}'s trend over its last ${a.window ?? TS_PROJECTION_WINDOW} observations, ${a.ahead ?? TS_PROJECTION_AHEAD} on`,
+    }]))),
   ];
   const mode = ts.view?.mode;
   if (mode === 'scatter' && views.scatter !== undefined) {
@@ -2832,6 +2912,8 @@ export function askQuery(inputs: TsInputs, ts: TimeseriesSpec, ask: TsAskOf, win
       return curveQuery(inputs, ts, s);
     case 'calendar':
       return calendarQuery(inputs, ts, s);
+    case 'projection':
+      return projectionQuery(inputs, ts, projectionOf(ts, ask.projection));
   }
 }
 

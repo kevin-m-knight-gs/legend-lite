@@ -1450,7 +1450,7 @@ export async function gridOutput(spec: GridSpec): Promise<string> {
 export async function gridTimeseries(spec: GridSpec, asked: string): Promise<string> {
   try {
     return await using(spec, async ({ planner, lens, state }) => {
-      const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series?: string; readonly window?: TsWindow; readonly table?: TsTable | 'bounds' | 'marks'; readonly with?: string; readonly source?: string; readonly marks?: number; readonly anchor?: string; readonly years?: number; readonly bins?: number; readonly dates?: readonly string[] };
+      const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series?: string; readonly window?: TsWindow; readonly table?: TsTable | 'bounds' | 'marks' | 'projection'; readonly with?: string; readonly source?: string; readonly marks?: number; readonly projection?: number; readonly anchor?: string; readonly years?: number; readonly bins?: number; readonly dates?: readonly string[] };
       const compose = async (said: Record<string, unknown>): Promise<string> => {
         const query = fromJson(JSON.stringify(said['query'])) as Lambda;
         const text = await planner.compose(planner.sent(lens ? lens(query) : query), 'STANDARD');

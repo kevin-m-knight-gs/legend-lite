@@ -323,7 +323,10 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
       if (readers.length > 0) {
         throw new TsEditRefusal(`series ${readers.join(', ')} ${readers.length === 1 ? 'reads' : 'read'} $${change.id}: take ${readers.length === 1 ? 'it' : 'them'} off first, or write ${readers.length === 1 ? 'it' : 'them'} without $${change.id}`);
       }
-      const left = { ...spec, series: spec.series.filter((s) => s.id !== change.id) };
+      const plotted = { ...spec, series: spec.series.filter((s) => s.id !== change.id) };
+      // its projections taken off with it (Phase 5): a projection is of its one series
+      const kept = spec.annotations?.filter((a) => !(a.kind === 'projection' && a.series === change.id));
+      const left = kept === undefined || kept.length === spec.annotations!.length ? plotted : slot(plotted, 'annotations', kept.length > 0 ? kept : null);
       // a view that read it reads the tile's first it can draw instead (the next phases' 3): its `of` without it
       const of = spec.view?.of?.filter((id) => id !== change.id);
       if (of === undefined || of.length === spec.view?.of?.length) return left;

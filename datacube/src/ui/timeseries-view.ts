@@ -22,8 +22,8 @@ import type { ChartPicture } from '../chart-render.ts';
 import type { RunOutcome } from '../runner.ts';
 import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import {
-  marksName, MAX_HIST_BINS, MAX_PANES, MAX_SEASON_YEARS, MIN_HIST_BINS, TS_CURVE_DATES, TS_HIST_BINS, TS_RANGES, TS_SEASON_YEARS, viewSetting,
-  type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsMarks, type TsMarkShape, type TsMode, type TsPoint, type TsRangeWord, type TsSeries, type TsSource,
+  marksName, MAX_HIST_BINS, projectionName, TS_PROJECTION_AHEAD, TS_PROJECTION_WINDOW, MIN_PROJECTION_WINDOW, MAX_PANES, MAX_SEASON_YEARS, MIN_HIST_BINS, TS_CURVE_DATES, TS_HIST_BINS, TS_RANGES, TS_SEASON_YEARS, viewSetting,
+  type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsMarks, type TsMarkShape, type TsMode, type TsPoint, type TsProjection, type TsRangeWord, type TsSeries, type TsSource,
   type TsState, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
@@ -34,14 +34,14 @@ import {
   editTimeseries, firstTimeseries as firstOf, instrumentsOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
 } from '../timeseries-edit.ts';
 import {
-  askKey, askQuery, askSources, boundsQuery, keyValuesQuery, marksOf, marksQuery, rangeWindow, readsAnchor, statBlanks, statName, tableSeries, tileAsks,
+  askKey, askQuery, askSources, boundsQuery, keyValuesQuery, marksOf, marksQuery, projectionOf, rangeWindow, readsAnchor, statBlanks, statName, tableSeries, tileAsks,
   viewChoices, viewSeries, TS_DATE, TS_SERVES_WORDS, type TsAsk, type TsAskOf,
   TS_CAL_LOW, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN, TS_CORR, TS_CORR_A, TS_CORR_B, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
   TS_SPLIT, TS_STAT_LEVEL_LOW, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
 import {
-  describeTimeseries, dateLabel, drawingsUnplaced, marksUnplaced, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, toNumber, tsHeading, tsLines,
-  tsMarks, tsPictureHeight, valueText, type TsFormat, type TsLine, type TsMarked, type TsResult,
+  describeTimeseries, dateLabel, drawingsUnplaced, marksUnplaced, projectionsUnplaced, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, toNumber, tsHeading, tsLines,
+  tsMarks, tsPictureHeight, tsProjected, valueText, type TsFormat, type TsLine, type TsMarked, type TsProjected, type TsResult,
 } from '../timeseries-option.ts';
 import type { MountedTimeseries } from '../timeseries-render.ts';
 import { curveNotes, curveOption, describeView, histogramOption, scatterOption, seasonalityOption, TS_MONTH_NAMES, type TsViewContext } from '../timeseries-views.ts';
@@ -186,8 +186,13 @@ function queryKey(ts: TimeseriesSpec): string {
     series: ts.series.map((s) => ({ id: s.id, expr: s.expr, split: s.split ?? null })),
     // marks from grids' rows are asked too (the Phase 6 review's 1: marks added once drawn were never asked)
     marks: (ts.annotations ?? []).filter((a) => a.kind === 'marks').map(marksKey),
+    // and each trend projected (Phase 5)
+    projections: (ts.annotations ?? []).filter((a) => a.kind === 'projection').map(projectionKey),
   });
 }
+
+/** A projection's answer kept by what it is, as marks' are. */
+const projectionKey = (p: TsProjection): string => JSON.stringify(p);
 
 /** Marks' answers kept by what they are, never by their place: an annotation before them taken off leaves them theirs. */
 const marksKey = (marks: TsMarks): string => JSON.stringify(marks);
@@ -430,6 +435,11 @@ export class TimeseriesView {
   #marksFailed = new Map<string, string>();
   /** The marks drawn last, as the lines are: what a picture draws. */
   #marked: TsMarked[] = [];
+  /** What each trend projected (TsProjection) answered, by what it is (projectionKey), and what was refused of it. */
+  #projections = new Map<string, ResultTable>();
+  #projectionsFailed = new Map<string, string>();
+  /** The projections drawn last: what a picture draws. */
+  #projected: TsProjected[] = [];
   /** MEASURING (Phase 5, TradingView's ruler): a drag across the chart is a span, each line's statistics over it the
    *  database's (statsQuery, Python's statistics(start, end) by the one rule) -- its change, its %, its days. */
   #measuring = false;
@@ -740,6 +750,23 @@ export class TimeseriesView {
     const blocked = (s: TsSeries): string | undefined => this.#blocked(s);
     const results = new Map<string, TsResult>();
     const failed = new Map<string, string>();
+    // each trend projected, asked beside the series (tileAsks: none under a compare, which the drawing says)
+    const projections = new Map<string, ResultTable>();
+    const projectionsFailed = new Map<string, string>();
+    const projectionsAsked = spec.view?.compare !== undefined ? Promise.resolve() : Promise.all((spec.annotations ?? []).map(async (a, i) => {
+      if (a.kind !== 'projection') return;
+      const s = spec.series.find((x) => x.id === a.series);
+      const why = s === undefined ? `the tile has no series ${a.series}` : blocked(s);
+      if (why !== undefined) {
+        projectionsFailed.set(projectionKey(a), why);
+        return;
+      }
+      try {
+        projections.set(projectionKey(a), (await this.#runAsk(spec, { kind: 'projection', projection: i, series: a.series }, window, signal, opened)).table);
+      } catch (e) {
+        projectionsFailed.set(projectionKey(a), e instanceof Error ? e.message : String(e));
+      }
+    }));
     await Promise.all(spec.series.map(async (s) => {
       const why = blocked(s);
       if (why !== undefined) {
@@ -753,9 +780,12 @@ export class TimeseriesView {
         failed.set(s.id, e instanceof Error ? e.message : String(e));
       }
     }));
+    await projectionsAsked;
     if (gen !== this.#gen || this.#disposed) return;
     this.#results = results;
     this.#failed = failed;
+    this.#projections = projections;
+    this.#projectionsFailed = projectionsFailed;
     // the rows moved: the calendar asked again when its tab is shown
     this.#calendar = undefined;
     this.#calendarGen++;
@@ -1040,9 +1070,18 @@ export class TimeseriesView {
       marked.push(read.marked);
       notes.push(...read.notes);
     }
-    notes.push(...marksUnplaced(spec, lines, marked), ...drawingsUnplaced(spec, lines));
+    const projected: TsProjected[] = [];
+    for (const [i, a] of (spec.annotations ?? []).entries()) {
+      const table = a.kind === 'projection' ? this.#projections.get(projectionKey(a)) : undefined;
+      if (table === undefined) continue;
+      const read = tsProjected(spec, i, table);
+      if (read.projected) projected.push(read.projected);
+      notes.push(...read.notes);
+    }
+    notes.push(...marksUnplaced(spec, lines, marked), ...drawingsUnplaced(spec, lines), ...projectionsUnplaced(spec, lines));
     this.#lines = lines;
     this.#marked = marked;
+    this.#projected = projected;
     this.#notes = notes;
     this.#paintLegend();
     this.#paintBanner();
@@ -1080,6 +1119,7 @@ export class TimeseriesView {
     }
     const option = timeseriesOption(spec, lines, {
       theme, formatOf: (l) => this.#formatOf(l), formatOfMarks: (m) => this.#formatOfMarks(m), view: this.#window(), height, marks: marked,
+      projections: this.#projected,
       ...(this.#measuring ? { measuring: true } : {}), ...(this.#span !== undefined ? { span: this.#span } : {}),
       ...(this.#drawing !== null ? { drawing: true } : {}), ...(this.#drawFrom !== undefined ? { drawFrom: this.#drawFrom } : {}),
     });
@@ -1634,6 +1674,8 @@ export class TimeseriesView {
         return this.#boundsFailed.get(ask.source!);
       case 'marks':
         return this.#marksFailed.get(marksKey(marksOf(this.#spec, ask.marks)));
+      case 'projection':
+        return this.#projectionsFailed.get(projectionKey(projectionOf(this.#spec, ask.projection)));
       case 'series':
         return this.#failed.get(ask.series!);
       case 'statistics':
@@ -1724,7 +1766,7 @@ export class TimeseriesView {
   }
 
   #paintBanner(): void {
-    const problems = [...this.#problems, ...this.#rangeProblems(), ...this.#statsProblems(), ...this.#viewProblems(), ...this.#marksProblems()];
+    const problems = [...this.#problems, ...this.#rangeProblems(), ...this.#statsProblems(), ...this.#viewProblems(), ...this.#marksProblems(), ...this.#projectionProblems()];
     const viewing = this.#spec.view?.mode !== undefined && this.#viewLanded === viewKey(this.#spec, this.#window());
     const said = [...problems, ...this.#notes, ...(viewing ? this.#viewSaid : [])];
     this.#banner.hidden = said.length === 0;
@@ -1745,6 +1787,14 @@ export class TimeseriesView {
     return (this.#spec.annotations ?? []).flatMap((a, i) => {
       const why = a.kind === 'marks' ? this.#marksFailed.get(marksKey(a)) : undefined;
       return a.kind === 'marks' && why !== undefined ? [`${marksName(a, i)} were refused: ${why}`] : [];
+    });
+  }
+
+  /** Each trend projected the database refused, in its words. */
+  #projectionProblems(): string[] {
+    return (this.#spec.annotations ?? []).flatMap((a, i) => {
+      const why = a.kind === 'projection' ? this.#projectionsFailed.get(projectionKey(a)) : undefined;
+      return a.kind === 'projection' && why !== undefined ? [`${projectionName(a, i)} was refused: ${why}`] : [];
     });
   }
 
@@ -2806,6 +2856,7 @@ export class TimeseriesView {
       const point = (p: TsPoint): string => `${p.date} at ${p.value.toLocaleString(UI_LOCALE)}`;
       const said = a.kind === 'level' ? `Level ${a.value}` : a.kind === 'event' ? `Event ${a.date}` : a.kind === 'period' ? `Period ${a.from} – ${a.to}`
         : a.kind === 'line' ? `Line ${point(a.from)} → ${point(a.to)}` : a.kind === 'note' ? `Note ${point(a.at)}: ${a.text}`
+          : a.kind === 'projection' ? `Projection of ${a.series}: its last ${a.window ?? TS_PROJECTION_WINDOW} observations, ${a.ahead ?? TS_PROJECTION_AHEAD} on`
           : `Marks: ${a.source}'s rows${(a.where ?? []).length > 0 ? ` [${matchesText(a.where!)}]` : ''}${a.at !== undefined ? ` at ${a.at}` : ', a line each'}`;
       const pane = (a.kind === 'level' || a.kind === 'marks' || a.kind === 'line' || a.kind === 'note') && a.pane ? ` (pane ${a.pane + 1})` : '';
       const label = a.kind !== 'note' && a.label ? `: ${a.label}` : '';
@@ -2839,7 +2890,7 @@ export class TimeseriesView {
       if (this.#edit({ kind: 'annotate', annotation: made })) this.#editSettings();
     }));
     parts.push(addRow, el(doc, 'div', 'dc-ts-hint', 'Double-click the chart to put an event at that date; Draw puts a line or a note on it.'));
-    parts.push(...this.#marksFields(used), ...this.#shadeFields());
+    parts.push(...this.#marksFields(used), ...this.#shadeFields(), ...this.#projectionFields());
     this.#open('Settings', ...parts);
     this.#settings = true;
   }
@@ -2930,6 +2981,33 @@ export class TimeseriesView {
     const row = el(doc, 'div', 'dc-ts-row');
     row.append(source, column, matches, name, add);
     return [el(doc, 'div', 'dc-ts-field-label', 'Shade where a column is not 0'), row];
+  }
+
+  /** A trend projected (Phase 5): a series of the tile, the observations its line is fit over, how far past its last
+   *  date it is drawn on -- the fit the database's (projectionQuery), told by the tile's one rule (`annotate`). */
+  #projectionFields(): HTMLElement[] {
+    const doc = this.#doc;
+    const spec = this.#spec;
+    const which = select(doc, spec.series.map((x) => [x.id, `${x.id}: ${seriesName(x)}`] as const), spec.series[0]!.id, () => undefined, 'Projected series');
+    const window = el(doc, 'input', 'dc-input dc-ts-small', undefined, {
+      type: 'number', min: String(MIN_PROJECTION_WINDOW), step: '1', value: String(TS_PROJECTION_WINDOW), 'aria-label': 'Observations fit',
+    });
+    const ahead = el(doc, 'input', 'dc-input dc-ts-small', undefined, { value: TS_PROJECTION_AHEAD, 'aria-label': 'Projected ahead' });
+    const name = el(doc, 'input', 'dc-input', undefined, { placeholder: 'Label', 'aria-label': 'Projection label' });
+    const add = button(doc, 'Project', 'Draw the line fit over its last observations, and on past its last date', () => {
+      const n = Number(window.value);
+      const words = name.value.trim();
+      const made: TsProjection = {
+        kind: 'projection', series: which.value,
+        ...(n !== TS_PROJECTION_WINDOW ? { window: n } : {}),
+        ...(ahead.value.trim() !== TS_PROJECTION_AHEAD ? { ahead: ahead.value.trim() } : {}),
+        ...(words ? { label: words } : {}),
+      };
+      if (this.#edit({ kind: 'annotate', annotation: made })) this.#editSettings();
+    });
+    const row = el(doc, 'div', 'dc-ts-row');
+    row.append(which, window, ahead, name, add);
+    return [el(doc, 'div', 'dc-ts-field-label', 'Project a trend: the line fit over its last observations, drawn on'), row];
   }
 
   /** A view's own fields in Settings: the series it reads (a scatter's x and y), a seasonality's years, a histogram's

@@ -13,13 +13,14 @@ import type { CubeSnapshot } from '../src/snapshot.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
-import { type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
+import { type TimeseriesSpec, type TsProjection, type TsSeries } from '../src/timeseries-spec.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import {
   boundsQuery, correlationsQuery, drawdownsQuery, keyValuesQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN,
   TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
   TS_CORR, TS_CORR_A, TS_CORR_B, TS_CORR_N, TS_FROM, TS_TO, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_PER_YEAR, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
-  calendarQuery, curveOrder, curveQuery, histogramQuery, scatterQuery, seasonalityQuery, viewSeries, TS_CAL_LOW, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN,
+  calendarQuery, curveOrder, curveQuery, histogramQuery, projectionQuery, scatterQuery, seasonalityQuery, viewSeries,
+  TS_PJ_END, TS_PJ_END_VALUE, TS_PJ_FROM, TS_PJ_FROM_VALUE, TS_PJ_LAST, TS_PJ_LAST_VALUE, TS_PJ_N, TS_PJ_SLOPE, TS_CAL_LOW, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN,
   askKey, askQuery, askSources, tileAsks, curveColumns, TS_HIST_COUNT, TS_HIST_HIGH, TS_HIST_LOW, TS_HIST_N, TS_HIST_NORMAL, TS_HIST_P5, TS_SC_CORR, TS_SC_FIT_HIGH, TS_SC_FIT_LOW,
   TS_SC_INTERCEPT, TS_SC_N, TS_SC_R2, TS_SC_SLOPE, TS_SC_X, TS_SC_Y, TS_SEA_HIGH, TS_SEA_LATEST, TS_SEA_LOW, TS_SEA_MEAN, TS_SEA_PLACE, TS_SEA_YEAR,
 } from '../src/timeseries-query.ts';
@@ -1534,6 +1535,39 @@ describe('a tile\'s views: a scatter, a histogram, a curve -- every figure the d
     // a split series is no point a date
     const split = spec({ A: 'close' }, {}, 'symbol');
     assert.throws(() => scatterQuery(inputs, split, split.series[0]!, split.series[0]!), /a scatter is of one line/);
+  });
+
+  // Phase 5's trend projected: the line by least squares over its last observations, on their day numbers, its fit at
+  // the first and the last of them and at the date `ahead` past the last -- every figure and date the database's
+  it('a projection: the least-squares line over the last w observations, at their ends and `ahead` past the last', async () => {
+    const ts: TimeseriesSpec = { ...spec({ A: 'close[AAA]' }), annotations: [{ kind: 'projection', series: 'A', window: 10, ahead: '20d' }] };
+    const p = ts.annotations![0] as TsProjection;
+    const t = await run(projectionQuery(inputs, ts, p));
+    assert.equal(t.rowCount, 1, 'one row: the fit');
+    const day = (d: string): number => Date.parse(`${d}T00:00:00Z`) / 86_400_000;
+    const xs = DAYS.slice(-10).map(day);
+    const ys = AAA.slice(-10);
+    const slope = cov(xs, ys) / (sd(xs) ** 2);
+    const intercept = avg(ys) - slope * avg(xs);
+    const fit = (x: number): number => intercept + slope * x;
+    const first = (name: string): unknown => values(t, name)[0];
+    const at = (name: string): string => String(first(name)).slice(0, 10);
+    assert.deepEqual([at(TS_PJ_FROM), at(TS_PJ_LAST)], [DAYS.at(-10)!, DAYS.at(-1)!], 'from the first of its last 10 to the last');
+    const end = new Date((day(DAYS.at(-1)!) + 20) * 86_400_000).toISOString().slice(0, 10);
+    assert.equal(at(TS_PJ_END), end, '20 days past the last, by the database\'s adjust');
+    assert.ok(Math.abs(num(first(TS_PJ_SLOPE))! - slope) < 1e-9, `slope ${first(TS_PJ_SLOPE)}, not ${slope}`);
+    for (const [name, x] of [[TS_PJ_FROM_VALUE, xs[0]!], [TS_PJ_LAST_VALUE, xs.at(-1)!], [TS_PJ_END_VALUE, xs.at(-1)! + 20]] as const) {
+      assert.ok(Math.abs(num(first(name))! - fit(x)) < 1e-6, `${name} ${first(name)}, not ${fit(x)}`);
+    }
+    assert.equal(num(first(TS_PJ_N)), 10);
+    // its ask, by the tile's one rule: listed, and refused under a compare (a line's own values), as the drawing leaves it
+    assert.deepEqual(tileAsks(ts).filter((a) => a.kind === 'projection').map((a) => [a.series, a.projection]), [['A', 0]]);
+    const compared: TimeseriesSpec = { ...ts, view: { compare: 'rebase' } };
+    assert.deepEqual(tileAsks(compared).filter((a) => a.kind === 'projection'), []);
+    assert.throws(() => projectionQuery(inputs, compared, p), /a projection is of a line's own values: under Compare/);
+    // a split series is no one line
+    const split: TimeseriesSpec = { ...spec({ A: 'close' }, {}, 'symbol'), annotations: [p] };
+    assert.throws(() => projectionQuery(inputs, split, p), /a projection is of one line/);
   });
 
   it('a histogram: bins of one width from the least to the most, each counted, its normal and the 5th percentile', async () => {

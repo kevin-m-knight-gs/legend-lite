@@ -2018,8 +2018,9 @@ class Timeseries(Tile):
             else:
                 told.update({'series': ask['series'], 'window': window, 'drawn': True,
                              **({'table': ask['kind']} if ask['kind'] != 'series' else {}),
-                             **({'with': ask['with']} if 'with' in ask else {})})
-            row = {k: ask[k] for k in ('what', 'serves', 'kind', 'series', 'with', 'source', 'marks') if k in ask}
+                             **({'with': ask['with']} if 'with' in ask else {}),
+                             **({'projection': ask['projection']} if 'projection' in ask else {})})
+            row = {k: ask[k] for k in ('what', 'serves', 'kind', 'series', 'with', 'source', 'marks', 'projection') if k in ask}
             try:
                 row.update(self._planned(told))
             except ValueError as e:
@@ -2178,6 +2179,41 @@ class Timeseries(Tile):
                 read = lambda k: None if named[k] is None or pd.isna(r[named[k]]) else r[named[k]]
                 out.append({'name': said['name'], 'date': pd.Timestamp(r[named['date']]), 'value': read('value'), 'text': read('text')})
         return pd.DataFrame(out, columns=['name', 'date', 'value', 'text'])
+
+    def projections(self) -> Any:
+        """Every trend the tile projects -- its ``projection`` annotations -- each the database's, as its screen draws it
+        (timeseries-query.ts projectionQuery: the series' line by least squares over its last ``window`` observations, on
+        its time, and the fit at the first of them, at the last and at the date ``ahead`` past it): a pandas DataFrame, a
+        row per projection -- its ``name``, its ``series``, the dates ``start``, ``last`` and ``end`` and the fit at each
+        (``start_value``, ``last_value``, ``end_value``), its ``slope`` a day, and ``n``, the observations it is fit over;
+        each figure none where it has no fit (under two observations of different times). Under a compare, refused in
+        DataCube's words, as the screen leaves them out."""
+        import pandas as pd
+        out = []
+        for i, a in enumerate(self._view['spec'].get('annotations', [])):
+            if a.get('kind') != 'projection':
+                continue
+            rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': a['series'], 'table': 'projection', 'projection': i})
+            named = said['columns']
+            for _, r in rows.iterrows():
+                read = lambda k: None if pd.isna(r[named[k]]) else r[named[k]]
+                day = lambda k: None if pd.isna(r[named[k]]) else pd.Timestamp(r[named[k]])
+                out.append({'name': said['name'], 'series': a['series'], 'start': day('from'), 'start_value': read('fromValue'), 'last': day('last'),
+                            'last_value': read('lastValue'), 'end': day('end'), 'end_value': read('endValue'), 'slope': read('slope'), 'n': read('n')})
+        return pd.DataFrame(out, columns=['name', 'series', 'start', 'start_value', 'last', 'last_value', 'end', 'end_value', 'slope', 'n'])
+
+    def project(self, series: str, *, window: int | None = None, ahead: str | None = None, label: str | None = None) -> Timeseries:
+        """Series ``series``' trend projected, as Settings' Project adds it (an ``annotate`` of the tile's one rule): its
+        line fit over its last ``window`` observations (absent, 63) and drawn ``ahead`` past its last date (a calendar
+        period, ``3m``; absent, 3m) -- every figure the database's (``projections``)."""
+        told: dict[str, Any] = {'kind': 'projection', 'series': series}
+        if window is not None:
+            told['window'] = window
+        if ahead is not None:
+            told['ahead'] = ahead
+        if label is not None:
+            told['label'] = label
+        return self.annotate(told)
 
     def correlations(self, *, start: str | None = None, end: str | None = None) -> Any:
         """Each pair of lines' correlation over the dates ``start`` to ``end``, each the database's -- the screen's

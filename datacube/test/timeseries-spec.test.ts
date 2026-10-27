@@ -288,7 +288,9 @@ describe('the saved spec\'s reader', () => {
       { kind: 'marks', source: 'px', text: 'headline', label: 'Earnings' },
       // a person's own drawings (Phase 5): a line from a point to a point, a note pinned at one
       { kind: 'line', from: { date: '2024-01-02', value: 180.5 }, to: { date: '2024-06-28', value: 210 }, pane: 0, label: 'Trend', color: 1 },
-      { kind: 'note', at: { date: '2024-03-20', value: 175 }, text: 'Bought here', pane: 0 }],
+      { kind: 'note', at: { date: '2024-03-20', value: 175 }, text: 'Bought here', pane: 0 },
+      // a trend projected (Phase 5): of a series of the tile, its window and how far ahead
+      { kind: 'projection', series: 'A', window: 126, ahead: '6m', label: 'Trend' }],
     view: { compare: 'rebase', legend: true, lastValues: true, navigator: true, stats: false, crosshair: true, subtitle: 'Since 2020', note: 'Source: the exchange' },
   };
   const with_ = (change: Record<string, unknown>): unknown => ({ ...JSON.parse(JSON.stringify(OK)), ...change });
@@ -339,7 +341,11 @@ describe('the saved spec\'s reader', () => {
       [with_({ annotations: [{ kind: 'note', at: { date: '2024-01-02', value: 1 }, text: 'x', label: 'y' }] }), /no "label" in annotation 1 \(a note\)/],
       [with_({ annotations: [{ kind: 'line', from: { date: '2024-01-02', value: 1 }, to: { date: '2024-01-03', value: 2 }, pane: 9 }] }), /annotation 1's pane is not one of 0 to/],
       [with_({ annotations: [{ kind: 'line', from: { date: '2024-01-02', value: 1 }, to: { date: '2024-01-03', value: 2 }, color: -1 }] }), /annotation 1's colour -1 is not a slot of the palette/],
-      [with_({ annotations: [{ kind: 'arrow' }] }), /annotation 1 is not a level, an event, a period, marks, a line or a note/],
+      [with_({ annotations: [{ kind: 'arrow' }] }), /annotation 1 is not a level, an event, a period, marks, a line, a note or a projection/],
+      [with_({ annotations: [{ kind: 'projection', series: 'Z' }] }), /annotation 1 projects "Z", which is none of the tile's series/],
+      [with_({ annotations: [{ kind: 'projection', series: 'A', window: 2 }] }), /annotation 1's window 2 is not a whole number of observations from 3/],
+      [with_({ annotations: [{ kind: 'projection', series: 'A', ahead: '3q' }] }), /annotation 1's ahead "3q" is not a calendar period/],
+      [with_({ annotations: [{ kind: 'projection', series: 'A', pane: 1 }] }), /no "pane" in annotation 1 \(a projection\)/],
       [with_({ view: { compare: 'log' } }), /compare "log"/],
       // the next phases' 2: a pane upside down, its ends by hand; a subtitle and a note in words
       [with_({ panes: [{ invert: 'yes' }] }), /pane 0's invert is not true or false/],

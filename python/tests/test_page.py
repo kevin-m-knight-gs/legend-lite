@@ -1112,6 +1112,39 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, "plots 'side', which is not a number"):
             tile.shade('side')
 
+    def test_a_timeseries_projects_a_trend_each_figure_the_databases_as_the_screen_draws_it(self):
+        # Phase 5's trend projected: the series' least-squares line over its last observations on their day numbers,
+        # and its fit at the first, the last and `ahead` past it, by the screen's one rule (projectionQuery)
+        import numpy as np
+        page = ll.Page('Projection')
+        days = pd.date_range('2024-01-01', periods=8, freq='D').date
+        close = [100.0, 101.0, 99.0, 103.0, 104.0, 102.0, 106.0, 107.5]
+        prices = pd.DataFrame({'symbol': ['S'] * 8, 'day': list(days), 'close': close})
+        tile = page.timeseries({'px': page.grid(prices, name='prices')}, ['close[S]'])
+        tile.project('A', window=5, ahead='10d', label='Trend')
+        self.assertEqual(tile.spec['annotations'], [{'kind': 'projection', 'series': 'A', 'window': 5, 'ahead': '10d', 'label': 'Trend'}])
+        got = tile.projections()
+        self.assertEqual(list(got.columns), ['name', 'series', 'start', 'start_value', 'last', 'last_value', 'end', 'end_value', 'slope', 'n'])
+        r = got.iloc[0]
+        x = np.array([pd.Timestamp(d).toordinal() for d in days[-5:]], dtype=float)
+        slope, intercept = np.polyfit(x, np.array(close[-5:]), 1)
+        self.assertEqual((r['name'], r['series'], int(r['n'])), ('Trend', 'A', 5))
+        self.assertEqual([r['start'].date(), r['last'].date(), r['end'].date()], [days[-5], days[-1], days[-1] + pd.Timedelta(days=10)])
+        self.assertAlmostEqual(r['slope'], slope, places=9)
+        for at, want in (('start_value', x[0]), ('last_value', x[-1]), ('end_value', x[-1] + 10)):
+            self.assertAlmostEqual(r[at], intercept + slope * want, places=6, msg=at)
+        # listed with the tile's every query, its place told
+        asked = [q for q in tile.queries() if q['kind'] == 'projection']
+        self.assertEqual([(q['series'], q['projection']) for q in asked], [('A', 0)])
+        self.assertIn('SELECT', asked[0]['sql'].upper())
+        # refused by the tile's reader, in its words: a series it has not
+        with self.assertRaisesRegex(ValueError, 'annotation 2 projects "Z", which is none of the tile\'s series'):
+            tile.project('Z')
+        # under a compare, in DataCube's words, as the screen leaves it out
+        tile.options(view={'compare': 'rebase'})
+        with self.assertRaisesRegex(ValueError, "a projection is of a line's own values"):
+            tile.projections()
+
     def test_a_timeseries_takes_a_persons_drawings_by_the_screens_rule(self):
         # Phase 5's drawings (the screen's Draw): a line from a point to a point, a note pinned at one -- annotations of
         # the tile's one rule, read by its one reader (timeseries-spec.ts tsProblem), refused in its words

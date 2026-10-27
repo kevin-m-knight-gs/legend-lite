@@ -10,11 +10,12 @@ import { readPage, type PageDocument } from '../page-document.ts';
 import { gridTitle } from '../page-ids.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot } from '../snapshot.ts';
 import {
-  askQuery, boundsQuery, curveColumns, curveOrder, marksOf, marksQuery, rangeWindow, readsAnchor, seriesNotes, seriesQuery, seriesSources, statBlanks, statName,
+  askQuery, boundsQuery, curveColumns, curveOrder, marksOf, marksQuery, projectionOf, rangeWindow, readsAnchor, seriesNotes, seriesQuery, seriesSources, statBlanks, statName,
   tableSeries, tileAsks, viewSeries,
   TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN, TS_HIST_COUNT, TS_HIST_HIGH, TS_HIST_LOW, TS_HIST_MEAN, TS_HIST_MID, TS_HIST_N,
   TS_HIST_NORMAL, TS_HIST_P5, TS_HIST_SD, TS_SC_CORR, TS_SC_INTERCEPT, TS_SC_N, TS_SC_R2, TS_SC_SLOPE, TS_SC_X, TS_SC_Y, TS_SEA_HIGH,
   TS_SEA_LATEST, TS_SEA_LOW, TS_SEA_MEAN, TS_SEA_PLACE, TS_SEA_YEAR,
+  TS_PJ_END, TS_PJ_END_VALUE, TS_PJ_FROM, TS_PJ_FROM_VALUE, TS_PJ_LAST, TS_PJ_LAST_VALUE, TS_PJ_N, TS_PJ_SLOPE,
   TS_CORR, TS_CORR_A, TS_CORR_B, TS_CORR_N, TS_DATE, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED,
   TS_DD_RECOVERY, TS_DD_TROUGH, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_LEVEL_LOW,
   TS_STAT_PER_YEAR, TS_STATS, TS_TEXT, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsTable, type TsWindow,
@@ -23,7 +24,7 @@ import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { HostTables } from './host-tables.ts';
 import { eachRelation } from '../join-open.ts';
 import { sourcesOnHost, sourcesOpenedOn } from './join.ts';
-import { marksCut, marksName, TS_CURVE_DATES, TS_MARK_LIMIT, tsProblem, type TimeseriesSpec, type TsExpr, type TsSeries, type TsSource, type TsView } from '../timeseries-spec.ts';
+import { marksCut, marksName, projectionName, TS_CURVE_DATES, TS_MARK_LIMIT, tsProblem, type TimeseriesSpec, type TsExpr, type TsSeries, type TsSource, type TsView } from '../timeseries-spec.ts';
 import {
   aliasFor, nextSeriesId, parseExpr, seriesName, sourceOf, splitName, TsSyntaxError, type TsColumn
 } from '../timeseries-expr.ts';
@@ -207,8 +208,10 @@ export interface SeriesAsked {
   /** Absent, the series' points; else one of its tables over the window (the statistics panel's tabs) -- of
    *  correlations, the series' lines with `with`'s -- or one of its views (the next phases' 3): a scatter of the series
    *  across and `with`'s up, a seasonality, a histogram, a curve, the calendar. */
-  readonly table?: TsTable;
+  readonly table?: TsTable | 'projection';
   readonly with?: string;
+  /** A projection's (`table` projection): its place among the tile's annotations (TsProjection), of the series. */
+  readonly projection?: number;
   /** A view's own settings told for this ask (a seasonality's years, a histogram's bins, a curve's dates); absent, the
    *  tile's view's, else its defaults -- judged by the tile's reader. */
   readonly years?: number;
@@ -225,7 +228,7 @@ export interface SeriesAsked {
  * over the window (the screen's own: statsQuery, drawdownsQuery, correlationsQuery), and its answer's words -- the names
  * of the columns it answers with, by role.
  */
-export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window' | 'anchor' | 'years' | 'bins' | 'dates' | 'drawn'>, inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries): string {
+export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'projection' | 'window' | 'anchor' | 'years' | 'bins' | 'dates' | 'drawn'>, inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries): string {
   const window = asked.window ?? {};
   const withOf = (what: string): TsSeries => {
     const other = asked.with === undefined ? undefined : ts.series.find((x) => x.id === asked.with);
@@ -305,9 +308,21 @@ export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window' | '
       const columns = { split: TS_SPLIT, year: TS_CAL_YEAR, month: TS_CAL_MONTH, return: TS_CAL_RETURN, yearReturn: TS_CAL_YEAR_RETURN };
       return `"query":${toJson(q.query)},"table":"calendar","columns":${JSON.stringify(columns)},"split":${JSON.stringify(q.split ?? null)},"name":${named(series)}`;
     }
+    // a trend projected (Phase 5): the screen's own query (askQuery's projectionQuery), its one row's columns by role
+    case 'projection': {
+      const p = projectionOf(ts, asked.projection);
+      if (p.series !== series.id) throw new Problem(`${projectionName(p, asked.projection!)} projects series ${p.series}, not ${series.id}`);
+      const q = askQuery(inputs, ts, { kind: 'projection', series: series.id, projection: asked.projection! }, window);
+      const columns = {
+        from: TS_PJ_FROM, fromValue: TS_PJ_FROM_VALUE, last: TS_PJ_LAST, lastValue: TS_PJ_LAST_VALUE, end: TS_PJ_END, endValue: TS_PJ_END_VALUE,
+        slope: TS_PJ_SLOPE, n: TS_PJ_N,
+      };
+      return `"query":${toJson(q.query)},"table":"projection","columns":${JSON.stringify(columns)},"unit":${JSON.stringify(q.unit)},`
+        + `"name":${JSON.stringify(projectionName(p, asked.projection!))}`;
+    }
     default:
       // a host's JSON: a word the tile has no table of, refused by name
-      throw new Problem(`a timeseries has no table ${JSON.stringify(asked.table)} (statistics, drawdowns, correlations, scatter, seasonality, histogram, curve, calendar)`);
+      throw new Problem(`a timeseries has no table ${JSON.stringify(asked.table)} (statistics, drawdowns, correlations, scatter, seasonality, histogram, curve, calendar, projection)`);
   }
 }
 

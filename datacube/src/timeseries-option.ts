@@ -15,11 +15,11 @@ import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { escapeHtml, periodText, type ChartTheme } from './chart-option.ts';
 import {
-  marksCut, marksName, MAX_PANES, TS_MARK_LIMIT, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsAnnotation, type TsExpr, type TsMarks, type TsPoint, type TsSeries,
+  marksCut, marksName, MAX_PANES, projectionName, TS_MARK_LIMIT, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsAnnotation, type TsExpr, type TsMarks, type TsPoint, type TsProjection, type TsSeries,
 } from './timeseries-spec.ts';
 import { boundsOf, exprText, inlined, seriesName, sourcesOf, splitName, type TsUnit } from './timeseries-expr.ts';
 import {
-  TS_DATE, TS_FROM, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_SPLIT, TS_TEXT, TS_TO, TS_UPPER, TS_VALUE, TS_WIDTH, seriesNotes, type TsQuery,
+  TS_DATE, TS_FROM, TS_HIGH, TS_LOW, TS_PJ_END, TS_PJ_END_VALUE, TS_PJ_FROM, TS_PJ_FROM_VALUE, TS_PJ_LAST, TS_PJ_LAST_VALUE, TS_PJ_N, TS_PJ_SLOPE, TS_LOWER, TS_OPEN, TS_SPLIT, TS_TEXT, TS_TO, TS_UPPER, TS_VALUE, TS_WIDTH, seriesNotes, type TsQuery,
 } from './timeseries-query.ts';
 
 /** A series' query and what the database answered. */
@@ -153,6 +153,58 @@ export function marksUnplaced(ts: TimeseriesSpec, lines: readonly TsLine[], mark
   return marked.flatMap((m) => m.marks.at === undefined ? []
     : ts.view?.compare !== undefined ? [`${m.name} are drawn at their ${m.marks.at}, the lines from one start (Compare): left out.`]
       : !panes.has(m.marks.pane ?? 0) ? [`${m.name} are drawn in pane ${(m.marks.pane ?? 0) + 1}, which draws no line.`] : []);
+}
+
+/** A trend projected, as the database answered it (projectionQuery): the fit at the first and the last of the
+ *  observations it is fit over, and at the date it is projected to; its slope a day; how many it is fit over. */
+export interface TsProjected {
+  readonly projection: TsProjection;
+  /** Its place among the tile's annotations. */
+  readonly at: number;
+  readonly name: string;
+  readonly from: TsPoint;
+  readonly last: TsPoint;
+  readonly end: TsPoint;
+  readonly slope: number;
+  readonly n: number;
+}
+
+/** A projection's answer read: its one row's dates and values, the database's -- none where it has no fit (under two
+ *  observations of different times), said. */
+export function tsProjected(ts: TimeseriesSpec, at: number, table: ResultTable): { projected?: TsProjected; notes: string[] } {
+  const projection = ts.annotations?.[at];
+  if (projection?.kind !== 'projection') throw new Error(`the tile has no projection at ${at}`);
+  const name = projectionName(projection, at);
+  const read = (c: string): Scalar | undefined => {
+    const values = column(table, c);
+    if (values === undefined) throw new Error(`${name}'s answer has no ${c}`);
+    return values[0];
+  };
+  if (table.rowCount === 0) return { notes: [`${name}: series ${projection.series} has no values to fit.`] };
+  const point = (d: string, v: string): TsPoint | undefined => {
+    const date = dateText(read(d));
+    const value = toNumber(read(v));
+    return date === null || value === null ? undefined : { date, value };
+  };
+  const from = point(TS_PJ_FROM, TS_PJ_FROM_VALUE);
+  const last = point(TS_PJ_LAST, TS_PJ_LAST_VALUE);
+  const end = point(TS_PJ_END, TS_PJ_END_VALUE);
+  const slope = toNumber(read(TS_PJ_SLOPE));
+  const n = toNumber(read(TS_PJ_N)) ?? 0;
+  if (from === undefined || last === undefined || end === undefined || slope === null) {
+    return { notes: [`${name}: series ${projection.series} has under two observations of different times to fit a line over.`] };
+  }
+  return { projected: { projection, at, name, from, last, end, slope, n }, notes: [] };
+}
+
+/** What the drawing leaves out of projections, in words: every one under a compare (a line's own values; none asked),
+ *  and one of a series not drawn (hidden, or none of its lines answered). */
+export function projectionsUnplaced(ts: TimeseriesSpec, lines: readonly TsLine[]): string[] {
+  const projections = (ts.annotations ?? []).flatMap((a, i) => (a.kind === 'projection' ? [{ a, i }] : []));
+  if (projections.length === 0) return [];
+  if (ts.view?.compare !== undefined) return ['The projections are of the lines\' own values, the lines now from one start (Compare): left out.'];
+  return projections.flatMap(({ a, i }) => (lines.some((l) => l.series.id === a.series && !l.series.hidden && !l.shades) ? []
+    : [`${projectionName(a, i)}: series ${a.series} is not drawn.`]));
 }
 
 /** A person's drawings the tile leaves out, in words: every one under a compare (drawn on the values as they were, the
@@ -371,6 +423,8 @@ export interface TsDrawContext {
   /** Measuring (Phase 5): a drag is a span measured, so the chart does not pan; the span measured, shaded. */
   readonly measuring?: boolean;
   readonly span?: { readonly from: string; readonly to: string };
+  /** The trends projected the database answered (tsProjected), drawn through their lines. */
+  readonly projections?: readonly TsProjected[];
   /** Drawing (Phase 5): a click is a point put in a pane, so the chart does not pan, and each pane carries its drawings'
    *  series (timeseries-render.ts reads a click's point in its axes); a line's first end, put, shown until its second. */
   readonly drawing?: boolean;
@@ -720,6 +774,27 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
       },
     });
   });
+  // each trend projected: through the observations it is fit over and on past its line's last date, dashed, in its
+  // line's colour, on its line's axis -- every point the database's; none under a compare (said: projectionsUnplaced)
+  for (const pj of ts.view?.compare !== undefined ? [] : ctx.projections ?? []) {
+    const own = placed.find((x) => x.line.series.id === pj.projection.series);
+    if (own === undefined) continue;
+    series.push({
+      id: `projection:${pj.at}`,
+      name: pj.name,
+      type: 'line',
+      xAxisIndex: own.grid,
+      yAxisIndex: own.yAxis,
+      data: [[pj.from.date, pj.from.value], [pj.last.date, pj.last.value], [pj.end.date, pj.end.value]],
+      symbol: 'none',
+      silent: true,
+      animation: false,
+      lineStyle: { color: own.line.color, width: 1.5, type: 'dashed' },
+      tooltip: { show: false },
+      endLabel: { show: true, formatter: pj.name, color: theme.inkSecondary, fontSize: 10, fontFamily: theme.font },
+      z: 3,
+    });
+  }
   // the span a person measures, shaded across every pane
   if (ctx.span !== undefined) {
     const span = ctx.span;

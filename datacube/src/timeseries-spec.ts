@@ -123,7 +123,30 @@ export type TsAnnotation =
    *  date and a value as the pane draws it -- a trend line by hand; no figure of the database's. */
   | { readonly kind: 'line'; readonly from: TsPoint; readonly to: TsPoint; readonly pane?: number; readonly label?: string; readonly color?: number }
   /** A note pinned at a point of a pane: its date and its value as the pane draws it, its text. */
-  | { readonly kind: 'note'; readonly at: TsPoint; readonly text: string; readonly pane?: number };
+  | { readonly kind: 'note'; readonly at: TsPoint; readonly text: string; readonly pane?: number }
+  | TsProjection;
+
+/**
+ * A TREND PROJECTED (Phase 5): a series' least-squares line over its last `window` observations, drawn through them and
+ * on `ahead` past its last date -- the fit and the projection the database's (timeseries-query.ts projectionQuery), in
+ * the series' pane on its axis, in its colour, dashed. Of one line: a series of no split, band, candles or condition.
+ */
+export interface TsProjection {
+  readonly kind: 'projection';
+  /** The id of the series it projects. */
+  readonly series: string;
+  /** How many of its last observations the line is fit over (TS_PROJECTION_WINDOW). */
+  readonly window?: number;
+  /** How far past its last date it is projected: a calendar period, `3m` (TS_PROJECTION_AHEAD). */
+  readonly ahead?: string;
+  readonly label?: string;
+}
+
+/** A projection's own: fit over the last quarter's observations, projected a quarter on. */
+export const TS_PROJECTION_WINDOW = 63;
+export const TS_PROJECTION_AHEAD = '3m';
+/** The fewest observations a line is fit over: two make a line, three a fit. */
+export const MIN_PROJECTION_WINDOW = 3;
 
 /** A point of a pane, as a person put it there: a day (or a date-time) and a value. */
 export interface TsPoint {
@@ -314,6 +337,9 @@ export const TS_MARK_LIMIT = 2_000;
 
 /** Marks' name (TsMarks): their label, else their place among the tile's annotations. */
 export const marksName = (marks: TsMarks, at: number): string => marks.label ?? `Marks ${at + 1}`;
+
+/** A projection's name: its label, else its place among the tile's annotations. */
+export const projectionName = (p: TsProjection, at: number): string => p.label ?? `Projection ${at + 1}`;
 
 /** What is said of marks whose rows are past TS_MARK_LIMIT: the latest are drawn -- the one sentence the screen's banner
  *  and Python's warning say. */
@@ -583,6 +609,7 @@ const ANNOTATION_KEYS: { readonly [K in TsAnnotationKind]: Readonly<Record<strin
   marks: { kind: true, source: true, where: true, at: true, text: true, shape: true, pane: true, label: true, color: true } satisfies Record<keyof TsMarks, true>,
   line: { kind: true, from: true, to: true, pane: true, label: true, color: true },
   note: { kind: true, at: true, text: true, pane: true },
+  projection: { kind: true, series: true, window: true, ahead: true, label: true } satisfies Record<keyof TsProjection, true>,
 };
 const GRAINS: readonly TimeGrain[] = ['day', 'week', 'month', 'quarter', 'year'];
 const STYLE_KINDS: readonly TsStyleKind[] = ['line', 'area', 'bars', 'step', 'dots'];
@@ -814,7 +841,7 @@ export function tsProblem(ts: unknown): string | null {
     if (!Array.isArray(annotations)) return 'its timeseries\' annotations are not a list';
     for (const [i, a] of annotations.entries()) {
       const what = `annotation ${i + 1}`;
-      if (!isRecord(a) || !Object.hasOwn(ANNOTATION_KEYS, a['kind'] as string)) return `${what} is not a level, an event, a period, marks, a line or a note`;
+      if (!isRecord(a) || !Object.hasOwn(ANNOTATION_KEYS, a['kind'] as string)) return `${what} is not a level, an event, a period, marks, a line, a note or a projection`;
       const aExtra = unknownKey(a, ANNOTATION_KEYS[a['kind'] as TsAnnotationKind], `${what} (a ${a['kind']})`);
       if (aExtra) return aExtra;
       if (a['label'] !== undefined && typeof a['label'] !== 'string') return `${what}'s label is not text`;
@@ -843,6 +870,16 @@ export function tsProblem(ts: unknown): string | null {
         }
         if (a['color'] !== undefined && !(Number.isInteger(a['color']) && (a['color'] as number) >= 0)) {
           return `${what}'s colour ${JSON.stringify(a['color'])} is not a slot of the palette (0, 1, ...)`;
+        }
+      }
+      if (a['kind'] === 'projection') {
+        const ids = Array.isArray(ts['series']) ? (ts['series'] as unknown[]).map((x) => (isRecord(x) ? x['id'] : undefined)) : [];
+        if (typeof a['series'] !== 'string' || !ids.includes(a['series'])) return `${what} projects ${JSON.stringify(a['series'] ?? null)}, which is none of the tile's series`;
+        if (a['window'] !== undefined && !(Number.isInteger(a['window']) && (a['window'] as number) >= MIN_PROJECTION_WINDOW && (a['window'] as number) <= TS_POINT_LIMIT)) {
+          return `${what}'s window ${JSON.stringify(a['window'])} is not a whole number of observations from ${MIN_PROJECTION_WINDOW} to ${TS_POINT_LIMIT}`;
+        }
+        if (a['ahead'] !== undefined && tenorOf(a['ahead'] as string) === undefined) {
+          return `${what}'s ahead ${JSON.stringify(a['ahead'])} is not a calendar period (3m, 1y, 20d, 2w)`;
         }
       }
       if (a['kind'] === 'period') {

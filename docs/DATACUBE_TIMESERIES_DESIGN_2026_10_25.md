@@ -801,6 +801,30 @@ dated budget notes; every figure still the database's.
   built with Phase 6's D4 as marks from a grid's rows, below);
   shading from a 0/1 column in one step (recession bars); a replay stepping the window's end through time; a period
   brushed on the chart filtering the page's other grids; a trend's projection forward.
+  Built so far (2026-10-27), each by the tile's one rule, the screen's and Python's alike:
+  the **measure** -- a Measure button; a drag across the chart is a span (no pan while measuring), each line's first and
+  last value, change, % and days over it asked of the database by the statistics' own query over those dates
+  (`statsQuery`, a stat `days` added: `dateDiff` of the span's ends), Python's `statistics(start, end)` the same rule;
+  **shade from a column** -- the change `shade` (a condition series `<column>[where] != 0`, named after the column, its
+  periods the database's as every condition's are), added in Settings or by Python's `Timeseries.shade`;
+  **drawings and notes** -- two annotation kinds, `line` (`{from, to, pane?, label?, color?}`) and `note` (`{at, text,
+  pane?}`), each point a date and a value as its pane draws it (a person's own: no figure of the database's), drawn per
+  pane on its first line's axis, left out under a compare and in a pane that draws no line (each said); the screen's
+  Draw button (while drawing every pane carries its drawings' series, and the renderer reads a click in its axes: the
+  pane under it, the nearest day, the value; two clicks a line, one and its text a note), Python's `annotate`;
+  **a trend projected** -- an annotation `projection` (`{series, window?, ahead?, label?}`, 63 observations and `3m` by
+  default): the series' line by ordinary least squares over its last `window` observations on their time (each date's
+  day number; a date-time's seconds), the slope their sample covariance over time's variance, and its fit at the first
+  of them, at the last and at the date `ahead` past the last (`adjust`) -- one row, every figure and date the
+  database's (`projectionQuery`, an ask of its own, `projection`); drawn dashed through its line's last observations and
+  on past them, in its line's colour on its axis; refused under a compare (a line's own values; none asked, the drawing
+  says so); taken off with its series. Settings' Project adds one; Python's `Timeseries.project` adds one and
+  `Timeseries.projections()` reads them -- held to numpy's `polyfit` there and to the fit written out in
+  `timeseries-queries.test.ts`. Events from a grid are Phase 6's D4 below.
+  Left: the replay (the window's end stepped through time: the screen's alone, Python's by nature a loop over
+  `frame(end=...)`), and a period brushed to filter the page's other grids (what a tile's selection means for a grid it
+  does not draw -- its own source's filter, or every grid sharing its date column -- is a decision of the page's, not
+  the tile's; asked before it is built).
 - **Phase 6, charts from a model** (the user, 2026-10-27: "start all the charts from Class models projected to Relation
   instead of starting with Relation tables -- we should use the same Stress data model ... this also will give us richer
   joins to reference data and be able to plot trades"). A tile's grid reads a class of the stress model

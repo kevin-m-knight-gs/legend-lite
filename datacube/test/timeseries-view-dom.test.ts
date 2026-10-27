@@ -891,6 +891,41 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
     }
   });
 
+  // a trend projected (Phase 5), added in Settings by the tile's one rule: asked of the database beside the series,
+  // drawn through the S&P's last closes and on past them -- its figures the database's
+  it('Settings: a projection of a series added, asked and drawn on past its last date; Settings lists it', async () => {
+    const { root, windows, told, drawn, view } = viewer(SPEC);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      barButton(root, 'Settings').click();
+      const win = (): HTMLElement => windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+      const Event = win().ownerDocument.defaultView!.Event;
+      const set = (label: string, value: string): void => {
+        const f = win().querySelector<HTMLInputElement | HTMLSelectElement>(`[aria-label="${label}"]`)!;
+        f.value = value;
+        f.dispatchEvent(new Event('change'));
+      };
+      set('Projected series', 'A');
+      set('Observations fit', '20');
+      set('Projected ahead', '1m');
+      set('Projection label', 'Trend');
+      [...win().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Project')!.click();
+      assert.deepEqual(told.at(-1)!.annotations, [{ kind: 'projection', series: 'A', window: 20, ahead: '1m', label: 'Trend' }]);
+      type Drawn = { id: string; data: [string, number][] };
+      const projected = (): Drawn | undefined => (drawn.at(-1)!.series as Drawn[]).find((x) => x.id === 'projection:0');
+      await until(() => projected() !== undefined, 'the projection drawn');
+      const spx = of('SPX');
+      const [from, last, end] = projected()!.data;
+      assert.deepEqual([from![0], last![0]], [spx.days.at(-20)!, spx.days.at(-1)!], 'through its last 20 closes');
+      assert.ok(end![0] > last![0] && end![0].slice(0, 7) !== last![0].slice(0, 7), `a month on: ${end![0]}`);
+      // the line through them: its fit at the last close near it, the database's
+      assert.ok(Math.abs(last![1] - spx.closes.at(-1)!) < spx.closes.at(-1)! * 0.1, `${last![1]} near ${spx.closes.at(-1)}`);
+      assert.ok(win().textContent!.includes('Projection of A: its last 20 observations, 1m on'), 'Settings lists it');
+    } finally {
+      view.dispose();
+    }
+  });
+
   it('Settings: a subtitle drawn under the chart\'s top, a pane turned upside down, its ends set', async () => {
     const { root, windows, told, drawn, view } = viewer(SPEC);
     try {
