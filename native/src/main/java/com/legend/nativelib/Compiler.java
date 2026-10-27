@@ -310,13 +310,13 @@ public final class Compiler {
         return answer(a);
     }
 
-    /** That plan's answer from the one value the host's database wrote ({@code Boundary.executeJsonAnswer}; C2). */
+    /** That plan's answer from the rows the host's database answered ({@code Boundary.executeJsonAnswer}; C2). */
     @CEntryPoint(name = "lite_execute_json_answer")
-    static CCharPointer executeJsonAnswer(IsolateThread thread, CCharPointer plan, CCharPointer wire) {
+    static CCharPointer executeJsonAnswer(IsolateThread thread, CCharPointer plan, CCharPointer rows) {
         String a;
         try {
-            String p = text(plan), w = text(wire);
-            a = Folded.http(() -> Boundary.executeJsonAnswer(p, w));
+            String p = text(plan), r = text(rows);
+            a = Folded.http(() -> Boundary.executeJsonAnswer(p, r));
         } catch (Throwable failure) {
             a = Folded.failure(failure);
         }

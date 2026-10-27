@@ -719,8 +719,11 @@ final class ArchitectureTest {
      */
     @Test
     void theRunnerIsModelFree() {
-        // RowDecode (2026-10-18, the plan path program's step 6): the runner's typed-row decode, by the plan's columns
-        String runner = "com\\.legend\\.exec\\.(PlanRunner|PlanParameters|PlanSessions|RowDecode|BulkLoads?)(\\$.*)?";
+        // RowDecode (2026-10-18, the plan path program's step 6): the runner's typed-row decode, by the plan's columns;
+        // since 2026-10-27 (the result boundary program's phase 3) in the plan side's result package, where a host's
+        // rows are decoded by the same rule, and held model-free there too
+        String runner = "com\\.legend\\.(exec\\.(PlanRunner|PlanParameters|PlanSessions|BulkLoads?)|result\\.RowDecode)"
+                + "(\\$.*)?";
         noClasses()
             .that().haveNameMatching(runner)
             .should().dependOnClassesThat(com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage(
@@ -1107,7 +1110,7 @@ final class ArchitectureTest {
             .that().doNotHaveFullyQualifiedName("com.legend.exec.Executor")
             // 2026-10-18 (the plan path program's step 6): the runner's typed-row decode has the same arm -- a cell
             // whose plan column's SLOT is labelled LITERAL parses as its spelling; the label is the plan's own fact
-            .and().doNotHaveFullyQualifiedName("com.legend.exec.RowDecode")
+            .and().doNotHaveFullyQualifiedName("com.legend.result.RowDecode")   // moved from exec 2026-10-27
             // 2026-10-18 (step 6, the typed rows): the plan runner's decode of a driver's cell by the plan column's
             // slot has the same LITERAL arm, over the cell's text; 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12):
             // the MongoDB connector's decode of a document's cell by the same slot label. Registered 2026-10-19 at

@@ -187,7 +187,7 @@ final class SeamBenchmark {
             n[0]++;
             chars[0] += row == null ? 0 : row.length();
             if (decode) {
-                List<Object> cells = RowDecode.cells(row, PLAN_COLUMNS);
+                List<Object> cells = com.legend.result.RowDecode.cells(row, PLAN_COLUMNS);
                 if (cells.size() != PLAN_COLUMNS.size()) {
                     throw new IllegalStateException("decode");
                 }

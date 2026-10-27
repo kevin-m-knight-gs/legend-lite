@@ -108,7 +108,7 @@ final class JdbcStatements implements Statements {
             }
             try (ResultSet rs = st.executeQuery()) {
                 int answered = rs.getMetaData().getColumnCount();
-                int declared = RowDecode.physicalColumns(columns);
+                int declared = com.legend.result.RowDecode.physicalColumns(columns);
                 if (answered != declared) {
                     throw new IllegalStateException("the statement answers " + answered + " columns, and the plan"
                             + " declares " + declared + " " + columns.stream().map(ExecutionPlan.Column::name)

@@ -177,6 +177,20 @@ public final class PlanJson {
         return o;
     }
 
+    /** {@code columns} with their three type facts, as a JSON array's text: a result's columns handed to a host that
+     *  runs its statement, and read back with its rows ({@link #readColumns}). */
+    public static String writeColumns(List<ExecutionPlan.Column> columns) {
+        return Json.toCompact(columns(columns));
+    }
+
+    /** {@link #writeColumns}'s text read back. */
+    public static List<ExecutionPlan.Column> readColumns(String json) {
+        if (!(Json.parse(json) instanceof Json.Arr columns)) {
+            throw new IllegalArgumentException("a plan's columns are a JSON array: " + json);
+        }
+        return readRelationColumns(columns);
+    }
+
     /** The columns with their three type facts (format 5's relation columns; a tabular result's since format 6). */
     private static List<Object> columns(List<ExecutionPlan.Column> columns) {
         List<Object> cols = new ArrayList<>();

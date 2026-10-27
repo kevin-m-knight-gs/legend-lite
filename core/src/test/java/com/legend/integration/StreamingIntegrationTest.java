@@ -252,9 +252,11 @@ class StreamingIntegrationTest {
     // buffered before a single final write. Two techniques:
     //
     //   1. CountingOutputStream records every write() call. QueryService.stream
-    //      wraps in OutputStreamWriter (8KB buffer) and calls flush() after
-    //      each row, so the OutputStream sees ~100 write calls for a 100-row
-    //      query under streaming; a materialized impl produces ~1.
+    //      wraps in OutputStreamWriter (8KB buffer) and the writer flushes after
+    //      each batch of rows (2026-10-27: the result boundary program's batches;
+    //      these tests ask for batches of one row), so the OutputStream sees ~100
+    //      write calls for a 100-row query under streaming; a materialized impl
+    //      produces ~1.
     //
     //   2. A recording connection counts ResultSet.next(), and every write
     //      notes how many rows had been fetched: streaming writes at many
@@ -319,7 +321,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])";
 
         CountingOutputStream cos = new CountingOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, cos);
+        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, cos, 1);
 
         int writes = cos.writeCallCount.get();
         String result = cos.asString();
@@ -412,7 +414,7 @@ class StreamingIntegrationTest {
                 """;
 
         CountingOutputStream cos = new CountingOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, cos);
+        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, cos, 1);
 
         int writes = cos.writeCallCount.get();
         String result = cos.asString();
@@ -459,7 +461,7 @@ class StreamingIntegrationTest {
             @Override public void flush() {}
             @Override public void close() {}
         };
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", countingRows(connection, fetched), out);
+        queryService.stream(PURE_MODEL, query, "test::TestRuntime", countingRows(connection, fetched), out, 1);
         assertTrue(buffer.size() > 0, "Should have produced some output");
         assertTrue(fetched.get() >= 100, "the recording connection saw " + fetched.get() + " rows fetched, not the"
                 + " 100 the query reads: the stream bypassed it, and this test proves nothing");

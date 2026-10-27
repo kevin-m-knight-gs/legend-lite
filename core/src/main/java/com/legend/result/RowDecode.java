@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.exec;
+package com.legend.result;
 
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
@@ -34,7 +34,7 @@ public final class RowDecode {
     }
 
     /** The variant class's path (the plan's type vocabulary names a class by its path; no model here). */
-    static final String VARIANT = "meta::pure::metamodel::variant::Variant";
+    public static final String VARIANT = "meta::pure::metamodel::variant::Variant";
 
     /** One row's cells, in {@code columns}' order: each column read from the object's field of its name, or, when no
      *  field is named after any column and the counts agree, by position (a value root's one column, which the wire
@@ -45,6 +45,11 @@ public final class RowDecode {
             throw new IllegalStateException("the statement wrote a row that is no JSON object: "
                     + excerpt(rowJson));
         }
+        return cells(row, columns);
+    }
+
+    /** {@link #cells(String, List)} of a row already read as a JSON object. */
+    public static List<Object> cells(Json.Obj row, List<ExecutionPlan.Column> columns) {
         boolean anyByName = columns.stream().anyMatch(c -> row.fields().containsKey(c.name()));
         boolean positional = !anyByName && row.fields().size() == columns.size();
         List<Json.Node> byPosition = positional ? new ArrayList<>(row.fields().values()) : List.of();
@@ -85,7 +90,7 @@ public final class RowDecode {
      *  engine's test store declares {@code interactionTable.ID INT} over a column its DDL creates VARCHAR, and the
      *  String-typed {@code Interaction.id} reads {@code '7'}; measured on the corpus, 2026-10-18); a numeric Pure type
      *  parses the token's digits, for a wire that quotes its numbers. */
-    static @com.legend.base.Nullable Object cell(Json.Node node, ExecutionPlan.Column c) {
+    public static @com.legend.base.Nullable Object cell(Json.Node node, ExecutionPlan.Column c) {
         if (node instanceof Json.Null) {
             return null;
         }
@@ -225,13 +230,13 @@ public final class RowDecode {
     }
 
     /** The value-lane's decimal text ({@code DECIMAL_TEXT}: the canonical D-suffixed spelling) as its exact decimal. */
-    static BigDecimal decimalText(String s) {
+    public static BigDecimal decimalText(String s) {
         return new BigDecimal(s.endsWith("D") || s.endsWith("d") ? s.substring(0, s.length() - 1) : s);
     }
 
     /** Whether the Pure type {@code type} is a number's: Integer, Float, Decimal (with or without its digits) or
      *  Number. */
-    static boolean numericPure(String type) {
+    public static boolean numericPure(String type) {
         return type.equals("Integer") || type.equals("Float") || type.equals("Decimal") || type.startsWith("Decimal(")
                 || type.equals("Number");
     }
@@ -312,7 +317,7 @@ public final class RowDecode {
     }
 
     /** The slot's leading word: {@code DECIMAL} of {@code DECIMAL(10,2)}, {@code ARRAY} of {@code ARRAY<...>}. */
-    static String slotWord(@com.legend.base.Nullable String slot) {
+    public static String slotWord(@com.legend.base.Nullable String slot) {
         if (slot == null) {
             return "";
         }
@@ -332,12 +337,12 @@ public final class RowDecode {
     // ------------------------------------------------------------------
 
     /** The element column of a list column: the column's name and type, the element slot of {@code ARRAY<...>}. */
-    static ExecutionPlan.Column element(ExecutionPlan.Column c) {
+    public static ExecutionPlan.Column element(ExecutionPlan.Column c) {
         return new ExecutionPlan.Column(c.name(), c.type(), c.multiplicity(), inside(c, "ARRAY"), null);
     }
 
     /** The key and value columns of a map column ({@code MAP<key,value>}): each its slot, its type Any. */
-    static ExecutionPlan.Column[] mapSlots(ExecutionPlan.Column c) {
+    public static ExecutionPlan.Column[] mapSlots(ExecutionPlan.Column c) {
         List<String> parts = topLevel(inside(c, "MAP"));
         if (parts.size() != 2) {
             throw new IllegalStateException("column '" + c.name() + "': its slot " + c.slot() + " is no MAP<key,value>");
@@ -348,7 +353,7 @@ public final class RowDecode {
     /** A tagged slot's value as its kind presents it: a DateTime at the written precision the kind carries
      *  ({@code DateTime} the second, {@code DateTime(n)} n subsecond digits: {@link PureDateLiteral#presentedAt}),
      *  every other kind as read. */
-    static @com.legend.base.Nullable Object presented(@com.legend.base.Nullable Object v, ExecutionPlan.Column slot) {
+    public static @com.legend.base.Nullable Object presented(@com.legend.base.Nullable Object v, ExecutionPlan.Column slot) {
         String kind = slot.type();
         if (!(v instanceof PureDateLiteral d) || !kind.startsWith("DateTime")) {
             return v;
@@ -359,13 +364,13 @@ public final class RowDecode {
     }
 
     /** A tagged column's own cell, the tag: an integer, the slot index. */
-    static ExecutionPlan.Column tagOf(ExecutionPlan.Column c) {
+    public static ExecutionPlan.Column tagOf(ExecutionPlan.Column c) {
         return new ExecutionPlan.Column(c.name(), "Integer", c.multiplicity(), "INTEGER", null);
     }
 
     /** The result columns a statement answers for the plan's {@code columns}: each its own, plus a tagged column's
      *  slot columns beside it (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a). */
-    static int physicalColumns(List<ExecutionPlan.Column> columns) {
+    public static int physicalColumns(List<ExecutionPlan.Column> columns) {
         int n = 0;
         for (ExecutionPlan.Column c : columns) {
             n += slotWord(c.slot()).equals("TAGGED") ? 1 + topLevel(inside(c, "TAGGED")).size() : 1;
@@ -376,7 +381,7 @@ public final class RowDecode {
     /** Slot {@code index} of a tagged column ({@code TAGGED<kind slot, ...>}, docs/RESULTS_AND_RENDERERS_2026_10_22.md
      *  §5a) as a column: the physical column {@link ExecutionPlan.Column#taggedSlotColumn} names, typed as the
      *  slot's kind, in the slot's SQL type. */
-    static ExecutionPlan.Column taggedSlot(ExecutionPlan.Column c, int index) {
+    public static ExecutionPlan.Column taggedSlot(ExecutionPlan.Column c, int index) {
         List<String> parts = topLevel(inside(c, "TAGGED"));
         if (index < 0 || index >= parts.size()) {
             throw new IllegalStateException("column '" + c.name() + "': its tag " + index + " names no slot of "
@@ -394,7 +399,7 @@ public final class RowDecode {
 
     /** The fields of a struct column ({@code STRUCT<name slot, ...>}) as columns: each its name and its slot, its
      *  type Any (a field declares no Pure type; the slot, then the carrier's own kind, decides). */
-    static List<ExecutionPlan.Column> fields(ExecutionPlan.Column c) {
+    public static List<ExecutionPlan.Column> fields(ExecutionPlan.Column c) {
         List<ExecutionPlan.Column> out = new ArrayList<>();
         for (String part : topLevel(inside(c, "STRUCT"))) {
             String f = part.trim();

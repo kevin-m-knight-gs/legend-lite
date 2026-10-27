@@ -172,12 +172,28 @@ class ResultWritersTest {
     @Test
     void thePureV1RelationIsTheEnginesTdsLayout_inTheEnginesColumnOrder() throws IOException {
         StringWriter out = new StringWriter();
-        String json = write(new PureV1Writer(out, Shape.RELATION, "{\"_type\":\"tdsBuilder\"}", "[]",
-                List.of("F", "ID", "NAME")), out, ROWS, DATA);
+        String json = write(PureV1Writer.relation(out, columns -> new PureV1Writer.Envelope(
+                "{\"_type\":\"tdsBuilder\"}", "[]", List.of("F", "ID", "NAME"))), out, ROWS, DATA);
         assertEquals("{\"builder\": {\"_type\":\"tdsBuilder\"}, \"activities\": [], \"result\" : {\"columns\" : "
                 + "[\"F\",\"ID\",\"NAME\"], \"rows\" : [{\"values\": [2.0,1,\"a,b\"]},{\"values\": [0.5,2,null]},"
                 + "{\"values\": [1.0E15,3,\"say \\\"hi\\\"\"]}]}}", json);
         Json.parse(json);
+    }
+
+    /** A host's rows (the tab's, Python's) decode by the plan's columns, a structure handed over as its JSON's text
+     *  read as JSON by its slot, and write as the server's rows do. */
+    @Test
+    void aHostsRowsDecodeByThePlansColumns() throws IOException {
+        List<Column> columns = List.of(col("ID", "Integer", "BIGINT"), col("NAME", "String", "VARCHAR"),
+                col("PRICE", "Decimal", "DECIMAL(10,2)"), col("TAGS", "List<String>", "ARRAY<VARCHAR>"));
+        StringWriter out = new StringWriter();
+        com.legend.result.HostRows.stream("[{\"ID\":18446744073709551614,\"NAME\":\"[a]\",\"PRICE\":\"1.50\","
+                + "\"TAGS\":\"[\\\"x\\\",\\\"y\\\"]\"},{\"ID\":2,\"NAME\":null,\"PRICE\":null,\"TAGS\":[]}]",
+                columns, new CsvWriter(out, Shape.RELATION));
+        assertEquals("ID,NAME,PRICE,TAGS\r\n18446744073709551614,[a],1.50,\"[x, y]\"\r\n2,,,[]\r\n", out.toString());
+        var refused = assertThrows(IllegalArgumentException.class, () -> com.legend.result.HostRows.stream("{}",
+                columns, new CsvWriter(new StringWriter(), Shape.RELATION)));
+        assertTrue(refused.getMessage().contains("not a JSON array of rows"), refused.getMessage());
     }
 
     @Test
@@ -193,12 +209,5 @@ class ResultWritersTest {
         StringWriter none = new StringWriter();
         assertEquals("{\"builder\":{\"_type\":\"json\"},\"values\":[]}",
                 write(PureV1Writer.objects(none), none, obj, List.of()));
-    }
-
-    @Test
-    void aValuesPureV1AnswerIsRefusedByName() {
-        var refused = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> new PureV1Writer(new StringWriter(), ExecutionPlan.TdsResult.Shape.VALUE, "", "", List.of()));
-        assertTrue(refused.getMessage().contains("unprobed"), refused.getMessage());
     }
 }

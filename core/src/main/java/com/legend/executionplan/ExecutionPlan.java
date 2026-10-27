@@ -26,6 +26,49 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         Objects.requireNonNull(root, "root");
     }
 
+    /** The shape of the typed rows this plan answers (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of
+     *  2026-10-27): its result's -- a keyed result's is a relation's -- or, for a plan of steps, its one result step's.
+     *  A plan that answers a text, or no rows, is refused by name: a writer has nothing typed to write. */
+    public TdsResult.Shape answerShape() {
+        return switch (answer(root)) {
+            case TdsResult t -> t.shape();
+            case Keyed k -> TdsResult.Shape.RELATION;
+            default -> throw new IllegalStateException("not reached: answer() keeps typed results only");
+        };
+    }
+
+    /** The statement whose rows are this plan's typed answer: its result's, a keyed result's body, or a plan of
+     *  steps' one result step's ({@link #answerShape}'s rule). */
+    public Sql answerSql() {
+        return switch (answer(root)) {
+            case TdsResult t -> t.sql();
+            case Keyed k -> k.body();
+            default -> throw new IllegalStateException("not reached: answer() keeps typed results only");
+        };
+    }
+
+    private static Node answer(Node n) {
+        return switch (n) {
+            case TdsResult t -> t;
+            case Keyed k when k.format() == null -> k;
+            case Sequence s -> {
+                List<Node> answers = s.steps().stream()
+                        .filter(x -> x instanceof TdsResult || (x instanceof Keyed k && k.format() == null)).toList();
+                if (answers.size() != 1) {
+                    throw new IllegalStateException("a plan of steps answers through one result step; this one has "
+                            + answers.size());
+                }
+                yield answers.get(0);
+            }
+            case Keyed k -> throw new IllegalStateException("a keyed plan written as " + k.format()
+                    + " text answers no typed rows");
+            case TextResult t -> throw new IllegalStateException("a plan written as " + t.format()
+                    + " text answers no typed rows");
+            case Update u -> throw new IllegalStateException("a plan that only changes its database answers no rows");
+            case Check c -> throw new IllegalStateException("a plan that only checks answers no rows");
+        };
+    }
+
     /** A declared parameter: what a caller's value is checked against (legend-engine's
      *  {@code function-parameters-validation} facts — type name, multiplicity, an enum's values — and no model).
      *  An enum value travels as its NAME: the statement translates it to what the database stores, at each place it is
@@ -106,7 +149,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * their order. The session reads each row's cells from its driver by the plan's columns -- the slot first, the
      * Pure type where the slot is none -- and the runner holds the plan's facts, no model and no dialect. (Until
      * step 7 the statement wrote each row as one JSON object the runner parsed back; a document's row still reads
-     * that way, {@code exec.RowDecode}.)
+     * that way, {@code result.RowDecode}.)
      */
     public record TdsResult(Shape shape, List<Column> columns, Sql sql) implements Node {
         public TdsResult {

@@ -24,7 +24,7 @@ import java.util.List;
 /**
  * THE DOCUMENT DECODE (the plan path program's step 7, docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3 and §7,
  * 2026-10-18): a typed row's cells read from a MongoDB document by the plan's columns -- each field by its column's
- * name, each value by the slot first and the Pure type then, the rules of {@link RowDecode} and {@link JdbcDecode}
+ * name, each value by the slot first and the Pure type then, the rules of {@link com.legend.result.RowDecode} and {@link JdbcDecode}
  * over BSON's own kinds: an int32 or an int64 an integral, a double a double, a decimal128 an exact decimal, a date
  * a date-time in UTC (a day under a DATE slot), a string a text (the column's own text under a numeric slot unless
  * the Pure type is numeric), a boolean a boolean, a document or an array its JSON read as a document's cell. Nothing
@@ -58,12 +58,12 @@ final class MongoDbDecode {
             return null;
         }
         String type = c.type();
-        switch (RowDecode.slotWord(c.slot())) {
+        switch (com.legend.result.RowDecode.slotWord(c.slot())) {
             case "LITERAL" -> {
                 return LiteralText.parse(text(v, c));
             }
             case "DECIMAL_TEXT" -> {
-                return RowDecode.decimalText(text(v, c));
+                return com.legend.result.RowDecode.decimalText(text(v, c));
             }
             case "TEMPORAL_TEXT" -> {
                 return PureDateLiteral.parse(text(v, c).trim().replace(' ', 'T'));
@@ -81,13 +81,13 @@ final class MongoDbDecode {
                 return PureTimeLiteral.parse(text(v, c).trim());
             }
             case "INTEGER", "BIGINT", "SMALLINT", "TINYINT", "HUGEINT" -> {
-                return v.isString() && !RowDecode.numericPure(type) ? v.asString().getValue() : integral(v, c);
+                return v.isString() && !com.legend.result.RowDecode.numericPure(type) ? v.asString().getValue() : integral(v, c);
             }
             case "DOUBLE", "FLOAT", "REAL" -> {
-                return v.isString() && !RowDecode.numericPure(type) ? v.asString().getValue() : floating(v, c);
+                return v.isString() && !com.legend.result.RowDecode.numericPure(type) ? v.asString().getValue() : floating(v, c);
             }
             case "DECIMAL", "NUMERIC" -> {
-                return v.isString() && !RowDecode.numericPure(type) ? v.asString().getValue() : decimal(v, c);
+                return v.isString() && !com.legend.result.RowDecode.numericPure(type) ? v.asString().getValue() : decimal(v, c);
             }
             case "BOOLEAN" -> {
                 if (v.isBoolean()) {
@@ -99,7 +99,7 @@ final class MongoDbDecode {
                 return text(v, c);
             }
             case "JSON", "ARRAY", "STRUCT", "MAP" -> {
-                return RowDecode.cell(json(v), c);
+                return com.legend.result.RowDecode.cell(json(v), c);
             }
             default -> {
                 // no slot: the Pure type decides
@@ -143,7 +143,7 @@ final class MongoDbDecode {
             return PureTimeLiteral.parse(text(v, c).trim());
         }
         // a class instance, an enumeration's value, Any: the document's own kind, read as a document's cell
-        return RowDecode.cell(json(v), c);
+        return com.legend.result.RowDecode.cell(json(v), c);
     }
 
     /** A BSON date under a timestamp: nine digits, as a database timestamp is read everywhere

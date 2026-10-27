@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PureV1ApiTest {
 
     /** A runner for a route that must not run anything. */
-    private static final PureV1Api.Runner NO_RUN = (model, lambda, runtime, rows) -> {
+    private static final PureV1Api.Runner NO_RUN = (query, runtime, sinkOf) -> {
         throw new AssertionError("nothing is run here");
     };
 
@@ -384,10 +384,11 @@ class PureV1ApiTest {
 
     /**
      * E8 for a host that runs the SQL on its own database ({@code jsonPlan} then {@code jsonAnswer}, the tab's:
-     * docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): the plan's {@code run} SQL is the JSON wire the server's database
-     * writes, and its one value arranged by {@code jsonAnswer} is the server's own answer text, byte for byte (the trace
-     * id each answer's own) -- the database renders every value, Java arranges them, on both. A graph fetch's plan runs
-     * its own SQL, which the Arrow half refuses.
+     * docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1; typed rows since 2026-10-27, the result boundary program's phase 3):
+     * the plan's {@code run} is the typed statement the server runs, and the host's rows, handed back as it read them,
+     * are decoded by the plan's result columns and written by the server's own writer: the server's answer text, byte
+     * for byte (the trace id each answer's own). A graph fetch's plan runs its own statement, which the Arrow half
+     * refuses.
      */
     @Test
     void e8_jsonPlanThenJsonAnswer_isTheServersAnswerText_andAGraphFetchIsPlanned() throws Exception {
@@ -397,16 +398,18 @@ class PureV1ApiTest {
         PureV1Api.Answer a = PureV1Api.jsonPlan(request, List.of(model));
         assertEquals(200, a.status(), a.json());
         Json.Obj plan = Json.parseObject(a.json());
-        assertEquals(List.of("sql", "run", "builder", "activities", "columns"), new ArrayList<>(plan.fields().keySet()));
+        assertEquals(List.of("sql", "run", "shape", "resultColumns", "builder", "activities", "columns"),
+                new ArrayList<>(plan.fields().keySet()));
+        assertEquals("RELATION", plan.getString("shape"));
         Json.Obj activity = (Json.Obj) plan.getArr("activities").items().get(0);
         assertEquals(plan.getString("sql"), activity.getString("sql"));
-        // the run SQL on the same database the server's runner reads: its one value, arranged, is the server's text
+        // the run statement on the same database the server's runner reads: its rows, as a host's driver reads them,
+        // written by the server's writer, are the server's text
         List<String> setup = sqlNode(Json.parseObject(resource("upstream-api/e9-groupby-sort.json")))
                 .getObj("connection").getObj("datasourceSpecification")
                 .getStringArray("testDataSetupSqls");
-        List<List<Object>> wire = rows(setup, plan.getString("run"));
-        assertEquals(1, wire.size(), String.valueOf(wire));
-        PureV1Api.Answer answered = PureV1Api.jsonAnswer(a.json(), String.valueOf(wire.get(0).get(0)));
+        String hostRows = hostRows(setup, plan.getString("run"));
+        PureV1Api.Answer answered = PureV1Api.jsonAnswer(a.json(), hostRows);
         assertEquals(200, answered.status(), answered.json());
         java.util.function.UnaryOperator<String> traced = t -> t.replaceAll("executionTraceID\\\\\" : \\\\\"[0-9a-f-]{36}", "ID");
         assertEquals(traced.apply(execute(request).json()), traced.apply(answered.json()));
@@ -432,12 +435,17 @@ class PureV1ApiTest {
                 + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading));
         assertEquals(200, graph.status(), graph.json());
         Json.Obj graphPlan = Json.parseObject(graph.json());
-        assertEquals(List.of("sql", "run", "builder"), new ArrayList<>(graphPlan.fields().keySet()));
+        assertEquals(List.of("sql", "run", "shape", "resultColumns", "builder"),
+                new ArrayList<>(graphPlan.fields().keySet()));
+        assertEquals("OBJECTS", graphPlan.getString("shape"));
         assertEquals("{\"_type\":\"json\"}", Json.toCompact(graphPlan.getObj("builder")));
         assertEquals(graphPlan.getString("sql"), graphPlan.getString("run"));
-        // one object is written bare, as execute writes it
+        // one object is written bare, as execute writes it: the host's row holds the object's JSON, as its database
+        // built it
+        String objects = ((Json.Obj) graphPlan.getArr("resultColumns").items().get(0)).getString("name");
         assertEquals("{\"builder\":{\"_type\":\"json\"},\"values\":{\"tradeId\":1}}",
-                PureV1Api.jsonAnswer(graph.json(), "[{\"tradeId\":1}]").json());
+                PureV1Api.jsonAnswer(graph.json(), Json.toCompact(List.of(Map.of(objects, "{\"tradeId\":1}"))))
+                        .json());
     }
 
     /** route: each path answers as its endpoint does; any other is 404 in the engine's shape; execute runs through the runner. */
@@ -462,7 +470,7 @@ class PureV1ApiTest {
 
         String[] ran = new String[1];
         PureV1Api.Answer refused = PureV1Api.route("/api/pure/v1/execution/execute", null,
-                "{\"function\":" + lambda + ",\"model\":" + textModel() + "}", (m, l, runtime, rows) -> {
+                "{\"function\":" + lambda + ",\"model\":" + textModel() + "}", (q, runtime, sinkOf) -> {
                     ran[0] = runtime;
                     throw new IllegalArgumentException("not here");
                 });
@@ -758,6 +766,41 @@ class PureV1ApiTest {
             return out;
         }
         return n;
+    }
+
+    /** {@code sql}'s rows on the referee's database over {@code setup}, as a host hands them back to the plan half
+     *  ({@code PureV1Api.jsonAnswer}): a JSON array of objects, each cell as the driver read it -- an integer's
+     *  digits, a double's shortest digits, a decimal and a date as their text, a text, a boolean, null. */
+    private static String hostRows(List<String> setup, String sql) throws SQLException {
+        try (Connection c = com.legend.testbackend.TestBackends.referee().open();
+                Statement st = c.createStatement()) {
+            for (String s : setup) {
+                st.execute(s);
+            }
+            StringBuilder out = new StringBuilder("[");
+            try (ResultSet rs = st.executeQuery(sql)) {
+                var md = rs.getMetaData();
+                while (rs.next()) {
+                    out.append(out.length() == 1 ? "{" : ",{");
+                    for (int i = 1; i <= md.getColumnCount(); i++) {
+                        Object v = rs.getObject(i);
+                        String token = switch (v) {
+                            case null -> "null";
+                            case java.math.BigDecimal d -> Json.toCompact(d.toPlainString());
+                            case Double d -> Double.toString(d);
+                            case Float f -> Float.toString(f);
+                            case Number n -> n.toString();
+                            case Boolean b -> b.toString();
+                            default -> Json.toCompact(v.toString());
+                        };
+                        out.append(i == 1 ? "" : ",").append(Json.toCompact(md.getColumnLabel(i))).append(':')
+                                .append(token);
+                    }
+                    out.append('}');
+                }
+            }
+            return out.append(']').toString();
+        }
     }
 
     private static List<List<Object>> rows(List<String> setup, String sql) throws SQLException {

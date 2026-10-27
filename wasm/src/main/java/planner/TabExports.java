@@ -30,10 +30,11 @@ public final class TabExports {
         return Folded.http(() -> Boundary.executeJsonPlan(body, modelsJson));
     }
 
-    /** {@link Boundary#executeJsonAnswer}: the answer, the rows the tab's database wrote arranged as the server's (C1). */
+    /** {@link Boundary#executeJsonAnswer}: the answer, the rows the tab's database answered written as the server's
+     *  (C1). */
     @JSExport
-    public static String executeJsonAnswerOrError(String plan, String wire) {
-        return Folded.http(() -> Boundary.executeJsonAnswer(plan, wire));
+    public static String executeJsonAnswerOrError(String plan, String rows) {
+        return Folded.http(() -> Boundary.executeJsonAnswer(plan, rows));
     }
 
     // ---- planning and typing

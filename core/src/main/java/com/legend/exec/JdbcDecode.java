@@ -28,7 +28,7 @@ import java.util.Map;
  * THE DRIVER DECODE (the plan path program's step 7, docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3 and §4,
  * 2026-10-18): a typed row's cell read from a JDBC driver's value by the plan's column -- the SLOT first (its kind
  * is the carrier's), the Pure type where the slot is none or the cell is a structure's, the driver's own kind where
- * both are silent. The twin of {@link RowDecode}, which reads the same cells off a JSON object (a document's row):
+ * both are silent. The twin of {@link com.legend.result.RowDecode}, which reads the same cells off a JSON object (a document's row):
  * the rules are the same, the carrier differs -- here the driver's Java object, there a JSON token. Each conversion
  * is one hop from the driver's object to the one carrier the host adjudication layer reads (a date kind
  * {@link PureDateLiteral}, a time {@link PureTimeLiteral}, a Decimal its exact {@link BigDecimal}, an Integer a
@@ -58,17 +58,17 @@ final class JdbcDecode {
         List<Object> out = new ArrayList<>(columns.size());
         for (int i = 0; i < columns.size(); i++) {
             ExecutionPlan.Column c = columns.get(i);
-            if (RowDecode.slotWord(c.slot()).equals("TAGGED")) {
+            if (com.legend.result.RowDecode.slotWord(c.slot()).equals("TAGGED")) {
                 // a tagged column (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its cell is the tag, the slot
                 // index, read as the integer it is; the value stands in that slot's column beside it, read with
                 // the slot's own type
-                Object tag = cell(rs, i + 1, RowDecode.tagOf(c), javaTime);
+                Object tag = cell(rs, i + 1, com.legend.result.RowDecode.tagOf(c), javaTime);
                 if (tag == null) {
                     out.add(null);
                     continue;
                 }
-                ExecutionPlan.Column slot = RowDecode.taggedSlot(c, ((Number) tag).intValue());
-                out.add(RowDecode.presented(cell(rs, rs.findColumn(slot.name()), slot, javaTime), slot));
+                ExecutionPlan.Column slot = com.legend.result.RowDecode.taggedSlot(c, ((Number) tag).intValue());
+                out.add(com.legend.result.RowDecode.presented(cell(rs, rs.findColumn(slot.name()), slot, javaTime), slot));
                 continue;
             }
             out.add(cell(rs, i + 1, c, javaTime));
@@ -80,7 +80,7 @@ final class JdbcDecode {
     static @com.legend.base.Nullable Object cell(ResultSet rs, int i, ExecutionPlan.Column c, boolean javaTime)
             throws SQLException {
         Object v;
-        switch (RowDecode.slotWord(c.slot())) {
+        switch (com.legend.result.RowDecode.slotWord(c.slot())) {
             // the texts: a label whose text carries its own kind, and a text slot (a number the database holds
             // under a text slot keeps its digits, as its JSON token did)
             case "LITERAL", "DECIMAL_TEXT", "TEMPORAL_TEXT", "VARCHAR", "CHAR", "TEXT" -> v = rs.getString(i);
@@ -120,7 +120,7 @@ final class JdbcDecode {
             return null;
         }
         String type = c.type();
-        switch (RowDecode.slotWord(c.slot())) {
+        switch (com.legend.result.RowDecode.slotWord(c.slot())) {
             // the slot labels that ARE the decode instruction: a literal-spelled cell carries its own kind; a
             // text-carried temporal or decimal parses
             case "LITERAL" -> {
@@ -129,7 +129,7 @@ final class JdbcDecode {
             case "TAGGED" -> throw new IllegalStateException("column '" + c.name() + "': a tagged cell is read with"
                     + " its row (its slot columns stand beside it), never alone");
             case "DECIMAL_TEXT" -> {
-                return RowDecode.decimalText(text(v, c));
+                return com.legend.result.RowDecode.decimalText(text(v, c));
             }
             case "TEMPORAL_TEXT" -> {
                 return PureDateLiteral.parse(text(v, c).trim().replace(' ', 'T'));
@@ -143,13 +143,13 @@ final class JdbcDecode {
                 return time(v, c);
             }
             case "INTEGER", "BIGINT", "SMALLINT", "TINYINT", "HUGEINT" -> {
-                return v instanceof String s && !RowDecode.numericPure(type) ? s : integral(v, c);
+                return v instanceof String s && !com.legend.result.RowDecode.numericPure(type) ? s : integral(v, c);
             }
             case "DOUBLE", "FLOAT", "REAL" -> {
-                return v instanceof String s && !RowDecode.numericPure(type) ? s : floating(v, c);
+                return v instanceof String s && !com.legend.result.RowDecode.numericPure(type) ? s : floating(v, c);
             }
             case "DECIMAL", "NUMERIC" -> {
-                return v instanceof String s && !RowDecode.numericPure(type) ? s : decimal(v, c);
+                return v instanceof String s && !com.legend.result.RowDecode.numericPure(type) ? s : decimal(v, c);
             }
             case "BOOLEAN" -> {
                 return bool(v, c);
@@ -162,7 +162,7 @@ final class JdbcDecode {
                 Json.Node node = Json.parse(jsonText(v, c));
                 // a Variant's cell is its JSON text, a JSON null included: the SQL cell is not NULL, so the null is
                 // the Variant's value (toJSON of it is 'null'), never an absent one
-                return type.equals(RowDecode.VARIANT) ? Json.toCompact(node) : RowDecode.cell(node, c);
+                return type.equals(com.legend.result.RowDecode.VARIANT) ? Json.toCompact(node) : com.legend.result.RowDecode.cell(node, c);
             }
             case "ARRAY" -> {
                 return array(v, c);
@@ -293,7 +293,7 @@ final class JdbcDecode {
     }
 
     private static Object array(Object v, ExecutionPlan.Column c) throws SQLException {
-        ExecutionPlan.Column element = RowDecode.element(c);
+        ExecutionPlan.Column element = com.legend.result.RowDecode.element(c);
         // a driver's Array, or a list inside ClickHouse's Tuple, which its driver hands as a java.util.List (channel
         // B's testHeadComplex and testFirstComplex, 2026-10-20)
         Object[] items = v instanceof java.sql.Array a ? (Object[]) a.getArray()
@@ -311,7 +311,7 @@ final class JdbcDecode {
             if (node instanceof Json.Arr arr) {
                 List<Object> out = new ArrayList<>(arr.items().size());
                 for (Json.Node item : arr.items()) {
-                    out.add(RowDecode.cell(item, element));
+                    out.add(com.legend.result.RowDecode.cell(item, element));
                 }
                 return out;
             }
@@ -320,7 +320,7 @@ final class JdbcDecode {
     }
 
     private static @com.legend.base.Nullable Object struct(Object v, ExecutionPlan.Column c) throws SQLException {
-        List<ExecutionPlan.Column> fields = RowDecode.fields(c);
+        List<ExecutionPlan.Column> fields = com.legend.result.RowDecode.fields(c);
         Map<String, Object> out = new LinkedHashMap<>();
         // a struct's attributes in order: a driver's Struct, or ClickHouse's Tuple, which its driver hands as the
         // Object[] of its fields (the legacy executor's ClickHouse.normalize; channel B's find, head and zip tests,
@@ -345,7 +345,7 @@ final class JdbcDecode {
         if (node instanceof Json.Obj o) {
             for (ExecutionPlan.Column f : fields) {
                 Json.Node fv = o.fields().get(f.name());
-                out.put(f.name(), fv == null ? null : RowDecode.cell(fv, f));
+                out.put(f.name(), fv == null ? null : com.legend.result.RowDecode.cell(fv, f));
             }
             return out;
         }
@@ -353,7 +353,7 @@ final class JdbcDecode {
     }
 
     private static @com.legend.base.Nullable Object map(Object v, ExecutionPlan.Column c) throws SQLException {
-        ExecutionPlan.Column[] kv = RowDecode.mapSlots(c);
+        ExecutionPlan.Column[] kv = com.legend.result.RowDecode.mapSlots(c);
         ExecutionPlan.Column key = kv[0];
         ExecutionPlan.Column value = kv[1];
         Map<Object, Object> out = new LinkedHashMap<>();
@@ -374,7 +374,7 @@ final class JdbcDecode {
                 }
                 Json.Node node = Json.parse(jsonText(entry, c));
                 if (node instanceof Json.Obj o && o.fields().containsKey("key") && o.fields().containsKey("value")) {
-                    out.put(RowDecode.cell(o.fields().get("key"), key), RowDecode.cell(o.fields().get("value"), value));
+                    out.put(com.legend.result.RowDecode.cell(o.fields().get("key"), key), com.legend.result.RowDecode.cell(o.fields().get("value"), value));
                     continue;
                 }
                 throw new IllegalStateException("column '" + c.name() + "': a map cell's entry is neither a"
@@ -392,7 +392,7 @@ final class JdbcDecode {
             return null;
         }
         if (node instanceof Json.Obj) {
-            return RowDecode.cell(node, c);
+            return com.legend.result.RowDecode.cell(node, c);
         }
         throw refused(v, c);
     }
@@ -401,7 +401,7 @@ final class JdbcDecode {
      *  kind (a structure's JSON text parsed as a document's cell is). */
     private static @com.legend.base.Nullable Object byPureType(Object v, ExecutionPlan.Column c) throws SQLException {
         String type = c.type();
-        if (type.equals(RowDecode.VARIANT)) {
+        if (type.equals(com.legend.result.RowDecode.VARIANT)) {
             // a variant keeps its JSON text
             return jsonText(v, c);
         }
@@ -445,9 +445,9 @@ final class JdbcDecode {
         return switch (v) {
             case String s -> {
                 String t = s.trim();
-                yield t.startsWith("{") || t.startsWith("[") ? RowDecode.cell(Json.parse(t), c) : s;
+                yield t.startsWith("{") || t.startsWith("[") ? com.legend.result.RowDecode.cell(Json.parse(t), c) : s;
             }
-            case byte[] b -> RowDecode.cell(Json.parse(new String(b, StandardCharsets.UTF_8)), c);
+            case byte[] b -> com.legend.result.RowDecode.cell(Json.parse(new String(b, StandardCharsets.UTF_8)), c);
             case Boolean b -> b;
             case Long l -> l;
             case Integer n -> (long) n;
@@ -475,7 +475,7 @@ final class JdbcDecode {
                 if (json == null) {
                     throw refused(v, c);
                 }
-                yield RowDecode.cell(Json.parse(json), c);
+                yield com.legend.result.RowDecode.cell(Json.parse(json), c);
             }
         };
     }

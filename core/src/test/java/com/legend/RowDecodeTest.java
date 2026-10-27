@@ -1,6 +1,6 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
-package com.legend.exec;
+package com.legend;
 
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.executionplan.ExecutionPlan.Column;
@@ -32,7 +32,7 @@ class RowDecodeTest {
     }
 
     private static Object one(String type, String slot, String token) {
-        return RowDecode.cells("{\"v\":" + token + "}", List.of(col("v", type, slot))).get(0);
+        return com.legend.result.RowDecode.cells("{\"v\":" + token + "}", List.of(col("v", type, slot))).get(0);
     }
 
     @Test
@@ -114,20 +114,20 @@ class RowDecodeTest {
         assertTrue(refused.getMessage().contains("declared Boolean"), refused.getMessage());
         assertTrue(refused.getMessage().contains("\"yes\""), refused.getMessage());
         var missing = assertThrows(IllegalStateException.class,
-                () -> RowDecode.cells("{\"w\":1}", List.of(col("v", "Integer", "INTEGER"), col("x", "Integer", null))));
+                () -> com.legend.result.RowDecode.cells("{\"w\":1}", List.of(col("v", "Integer", "INTEGER"), col("x", "Integer", null))));
         assertTrue(missing.getMessage().contains("no field for the plan's column 'v'"), missing.getMessage());
         var noObject = assertThrows(IllegalStateException.class,
-                () -> RowDecode.cells("[1]", List.of(col("v", "Integer", "INTEGER"))));
+                () -> com.legend.result.RowDecode.cells("[1]", List.of(col("v", "Integer", "INTEGER"))));
         assertTrue(noObject.getMessage().contains("no JSON object"), noObject.getMessage());
     }
 
     @Test
     void columnsAreReadByName_orByPositionWhenNoNameMatches() {
         List<Column> cols = List.of(col("b", "Integer", "INTEGER"), col("a", "String", "VARCHAR"));
-        assertEquals(List.of(2L, "x"), RowDecode.cells("{\"a\":\"x\",\"b\":2}", cols));
+        assertEquals(List.of(2L, "x"), com.legend.result.RowDecode.cells("{\"a\":\"x\",\"b\":2}", cols));
         // a value root's one column is named `value` by the plan and after its output by the wire
-        assertEquals(List.of(2L), RowDecode.cells("{\"_v\":2}", List.of(col("value", "Integer", "INTEGER"))));
+        assertEquals(List.of(2L), com.legend.result.RowDecode.cells("{\"_v\":2}", List.of(col("value", "Integer", "INTEGER"))));
         ExecutionPlan.Column optional = new Column("v", "Integer", new Multiplicity(0, 1), "INTEGER", null);
-        assertEquals(java.util.Collections.singletonList(null), RowDecode.cells("{\"v\":null}", List.of(optional)));
+        assertEquals(java.util.Collections.singletonList(null), com.legend.result.RowDecode.cells("{\"v\":null}", List.of(optional)));
     }
 }

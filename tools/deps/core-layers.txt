@@ -88,9 +88,9 @@ testdatagen	base builtin compiler compiler_element_type error exec lineage model
 execution_plan	base json model sql
 result	base error execution_plan json values
 planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
-pure_v1	base compiler compiler_element_type database error json parser plan planner protocol sql_dialect
-driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan lineage lowering model normalizer parser plan planner platform protocol resolver setup sql sql_dialect testdatagen validation values
+pure_v1	base compiler compiler_element_type database error execution_plan json parser plan planner protocol result sql_dialect
+driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect testdatagen validation values
 ide	base door lexer model parser
 test	base compiler driver error exec model planner protocol sql values
 saved_queries	base json
-server_lib	base cache compiler compiler_element_type database driver error exec json lowering model parser plan planner protocol pure_v1 saved_queries setup sql_dialect
+server_lib	base cache compiler compiler_element_type database driver error exec execution_plan json lowering model parser plan planner protocol pure_v1 result saved_queries setup sql_dialect

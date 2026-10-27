@@ -1108,8 +1108,8 @@ public final class Executor {
         com.legend.sql.SqlType slot = tg.slots().get(index).type();
         int j = rs.findColumn(com.legend.sql.SqlType.Tagged.slotColumn(rs.getMetaData().getColumnLabel(i), index));
         Object v = unwrap(fetch(rs, j, slot, dialect), slot, dialect);
-        // a DateTime presented at the written precision its kind carries (RowDecode.presented, the plan route's)
-        return RowDecode.presented(v, new com.legend.executionplan.ExecutionPlan.Column("slot",
+        // a DateTime presented at the written precision its kind carries (com.legend.result.RowDecode.presented, the plan route's)
+        return com.legend.result.RowDecode.presented(v, new com.legend.executionplan.ExecutionPlan.Column("slot",
                 tg.slots().get(index).kind(), new com.legend.executionplan.ExecutionPlan.Multiplicity(0, 1),
                 null, null));
     }

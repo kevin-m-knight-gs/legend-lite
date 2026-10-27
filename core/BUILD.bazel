@@ -246,7 +246,7 @@ legend_java_library(
         "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
         ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner",
         ":platform",
-        ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
+        ":protocol", ":resolver", ":result", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
 )
 legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])
@@ -268,7 +268,7 @@ legend_java_library(
         "src/main/java/com/legend/server/ModelInput.java",
         "src/main/java/com/legend/server/PureV1Api.java",
     ],
-    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":parser", ":plan", ":planner", ":protocol", ":sql_dialect"],
+    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql_dialect"],
 )
 legend_java_library(
     name = "server_lib",
@@ -283,7 +283,7 @@ legend_java_library(
             "src/main/java/com/legend/server/PureV1Api.java",
         ],
     ),
-    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":driver", ":error", ":exec", ":lowering", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":saved_queries", ":setup", ":sql_dialect"],
+    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":driver", ":error", ":exec", ":execution_plan", ":lowering", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":result", ":saved_queries", ":setup", ":sql_dialect"],
 )
 
 _CORE_TARGETS = [
@@ -373,6 +373,7 @@ legend_java_library(
         ":exec",
         ":execution_plan",
         ":model",
+        ":result",
         ":values",
         "@bson//jar",
         "@mongodb_driver_core//jar",

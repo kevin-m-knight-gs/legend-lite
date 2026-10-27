@@ -1078,9 +1078,8 @@ class JavaEvalLedgerTest {
      * surface and registers consciously. Exact in both directions. */
     private static final java.util.Set<String> EXEC_CLASSES =
             java.util.Set.of(
-                    // 2026-10-18 (the plan path program's step 6, typed rows): a JSON row's cells read by the
-                    // plan's columns, each by its three type facts; decode only, nothing evaluated
-                    "RowDecode.java",
+                    // RowDecode.java (2026-10-18) left the register 2026-10-27 (the result boundary program's
+                    // phase 3): moved to the plan side's result package, where a host's rows decode by it too
                     // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution
                     // plan boundary step 2's opening piece (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
                     // §9): CsvSeed.java, Ddl.java and RowLoad.java left the register (no JDBC, no

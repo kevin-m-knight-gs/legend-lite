@@ -47,7 +47,7 @@ export type RequestBody =
   // an ExecuteInput's plan half (its body) over the only models the host runs (a JSON array of their texts); then that
   // plan's answer from the one value the host's database wrote running it (C1)
   | { readonly kind: 'executePlan'; readonly body: string; readonly models: string }
-  | { readonly kind: 'executeAnswer'; readonly plan: string; readonly wire: string }
+  | { readonly kind: 'executeAnswer'; readonly plan: string; readonly rows: string }
   // a model's test data as the statements the server seeds DuckDB with, and each table's names as they spell it
   | { readonly kind: 'testData'; readonly model: string; readonly database: string; readonly tables: string }
   // what a session of a database runs before it is queried, so that it answers as the planner's SQL expects

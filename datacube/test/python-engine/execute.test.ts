@@ -1,8 +1,8 @@
 // THE TAB'S EXECUTE, ONE IMPLEMENTATION (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): an execute answered in the tab --
 // legend-lite's planner (WebAssembly) reading, binding and planning it with the Java the server and Python answer it
-// with (PureV1Api.jsonPlan), DuckDB-WASM writing its rows as the server's database writes them (the JSON wire), and
-// the server's own writers arranging them (PureV1Api.jsonAnswer; engine-client's BrowserEngine) -- against the same
-// execute answered by Python's engine over the same frame, its DuckDB writing the rows and the same writers arranging
+// with (PureV1Api.jsonPlan: the typed statement), DuckDB-WASM answering its rows, handed back as its decoder read them,
+// and the server's own writer spelling them (PureV1Api.jsonAnswer; engine-client's BrowserEngine) -- against the same
+// execute answered by Python's engine over the same frame, its DuckDB answering the rows and the same writer spelling
 // them: the answer's TEXT, byte for byte (each trace id its own), a whole Float, a Decimal, a DateTime and a value of
 // the session's zone (`now()->hour()`) among its columns. The tab's DuckDB starts in a zone that is not UTC (as a
 // browser in Kathmandu would: +05:45), so a tab whose session was not set up as the server's answers otherwise.

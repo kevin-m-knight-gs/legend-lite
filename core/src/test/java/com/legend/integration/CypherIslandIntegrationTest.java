@@ -496,8 +496,8 @@ class CypherIslandIntegrationTest {
         // the outputs it shows, and refused the hidden one: the independent review, 2026-10-18)
         java.io.StringWriter streamed = new java.io.StringWriter();
         try {
-            com.legend.Execution.executeStreaming(MODEL, "#Cypher{MATCH (p:Person) RETURN p.name AS name"
-                    + " ORDER BY p.age}#", "test::RT", session, streamed);
+            streamed.write(com.legend.testcases.PlanCases.today(MODEL, "#Cypher{MATCH (p:Person) RETURN p.name AS name"
+                    + " ORDER BY p.age}#", "test::RT", session, com.legend.testcases.PlanCases.Written.JSON));
         } catch (java.io.IOException e) {
             throw new AssertionError(e);
         }

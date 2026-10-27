@@ -227,6 +227,44 @@ public final class PlanCases {
         return out.toString();
     }
 
+    /** How a plan's answer is written in these tests: lite's CSV and JSON rows over its typed rows
+     *  (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27), or the TDS text plan the PCT reads
+     *  until its phase 4. */
+    public enum Written {
+        CSV, JSON, TDS_TEXT;
+
+        /** This form's writer of an answer of {@code shape} onto {@code out}. */
+        public com.legend.result.ResultSink writer(java.io.Writer out, ExecutionPlan.TdsResult.Shape shape) {
+            return switch (this) {
+                case CSV -> new com.legend.result.CsvWriter(out, shape);
+                case JSON -> new com.legend.result.JsonRowsWriter(out, shape);
+                case TDS_TEXT -> throw new IllegalStateException("the TDS text is a plan's own text, no writer's");
+            };
+        }
+    }
+
+    /** Today's path's answer to {@code query} on {@code c}, as the server runs a query (the result boundary program's
+     *  {@code Execution.run}, the session as the caller set it up), written in {@code written}. */
+    public static String today(String model, String query, String runtime, Connection c, Written written)
+            throws java.io.IOException {
+        java.io.StringWriter out = new java.io.StringWriter();
+        com.legend.Execution.run(model, query, runtime, com.legend.exec.Sessions.given(c),
+                com.legend.exec.PlanSessions.given(c), p -> written.writer(out, p.answerShape()));
+        return out.toString();
+    }
+
+    /** {@code plan}'s TYPED answer run by the runner on {@code c} with {@code values}, the target's setup run on
+     *  {@code c} first, and written by the writer {@code writerOf} makes for the answer's shape (lite's CSV, its JSON
+     *  rows: docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27). */
+    public static String write(ExecutionPlan plan, Connection c, java.util.Map<String, ?> values,
+            java.util.function.BiFunction<java.io.Writer, ExecutionPlan.TdsResult.Shape, com.legend.result.ResultSink>
+                    writerOf) throws java.io.IOException {
+        java.io.StringWriter out = new java.io.StringWriter();
+        com.legend.exec.PlanRunner.stream(plan, values,
+                com.legend.exec.PlanSessions.setUp(c, plan.answerSql().target()), writerOf.apply(out, plan.answerShape()));
+        return out.toString();
+    }
+
     /**
      * Today's path for {@code TypedQuery.Output.TDS_TEXT} (2026-10-17): the legacy route under
      * {@code ExecuteOptions.TDS_TEXT} answers a relation as its TDS text and a value as the value itself, so a

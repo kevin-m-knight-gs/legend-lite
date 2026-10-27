@@ -48,7 +48,7 @@ public final class Boundary {
      */
     public static com.legend.server.PureV1Api.Answer pureV1(String path, String rawQuery, String body) {
         return com.legend.server.PureV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body,
-                (model, lambda, runtime, rows) -> {
+                (query, runtime, sinkOf) -> {
                     throw new IllegalArgumentException("this engine answers execute in upstream's Arrow format: "
                             + "ask with ?serializationFormat=ARROW_IPC");
                 });
@@ -64,9 +64,10 @@ public final class Boundary {
     }
 
     /**
-     * Execute's plan half in the engine's JSON (PureV1Api.jsonPlan): everything the answer holds but its rows -- the
-     * SQL, the TDS builder, the activities, the result's columns, or a graph fetch's JSON builder -- for a host whose
-     * executor runs the SQL and types the rows (the tab; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1).
+     * Execute's plan half in the engine's JSON (PureV1Api.jsonPlan): the statement to run, the answer's shape and its
+     * result columns with their type facts, and everything the answer holds but its rows -- the TDS builder, the
+     * activities, the columns' names, or a graph fetch's JSON builder -- for a host whose database runs the statement
+     * (the tab; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1).
      * {@code modelsJson}: the only models the host runs, a JSON array of their texts.
      */
     public static com.legend.server.PureV1Api.Answer executeJsonPlan(String body, String modelsJson) {
@@ -74,11 +75,13 @@ public final class Boundary {
     }
 
     /**
-     * Execute's answer for a host that ran {@link #executeJsonPlan}'s {@code run} SQL (PureV1Api.jsonAnswer): that
-     * plan's answer and the one value its database wrote, arranged by the writers legend-lite's server answers with.
+     * Execute's answer for a host that ran {@link #executeJsonPlan}'s {@code run} statement (PureV1Api.jsonAnswer):
+     * that plan's answer and the host's rows (a JSON array of objects, each a column's name and its cell as the
+     * host's driver read it), decoded by the plan's columns and written by the writer legend-lite's server answers
+     * with.
      */
-    public static com.legend.server.PureV1Api.Answer executeJsonAnswer(String plan, String wire) {
-        return com.legend.server.PureV1Api.jsonAnswer(plan, wire);
+    public static com.legend.server.PureV1Api.Answer executeJsonAnswer(String plan, String rows) {
+        return com.legend.server.PureV1Api.jsonAnswer(plan, rows);
     }
 
     /** The models a host runs, from their JSON array of texts. */

@@ -96,12 +96,14 @@ class CypherWritePlansTest {
             String detach = "MATCH (n:N {name: 'b'}) DETACH DELETE n";
             StringWriter answer = new StringWriter();
             List<String> after = inTransaction(session, () -> {
-                com.legend.plan.QueryPlan ran = com.legend.Execution.executeUpstream(model,
-                        com.legend.Compiler.parseQuery(island(detach)),
-                        CypherGraph.RUNTIME, (target, ctx) -> {
+                com.legend.TypedQuery typed = com.legend.Compiler.query(com.legend.Compiler.compileModel(model),
+                        com.legend.Compiler.parseQuery(island(detach)));
+                com.legend.executionplan.ExecutionPlan ran = com.legend.Execution.run(typed, CypherGraph.RUNTIME,
+                        (target, ctx) -> {
                             throw new AssertionError("a program that writes opens no query session");
-                        }, PlanSessions.given(session), answer);
-                assertEquals(com.legend.plan.ResultShape.TABULAR, ran.shape(), detach);
+                        }, PlanSessions.given(session), com.legend.Execution.Establish.DECLARED_SETUP,
+                        plan -> new com.legend.result.JsonRowsWriter(answer, plan.answerShape()));
+                assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION, ran.answerShape(), detach);
                 return graph(session, model);
             });
             assertEquals(List.of(), ((Json.Arr) Json.parse(answer.toString())).items(), answer.toString());
