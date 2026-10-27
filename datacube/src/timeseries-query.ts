@@ -1213,10 +1213,10 @@ function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | un
         // the flags are the first part: their dates alone
         w.rel = w.rel.filter(row(fn('isNotEmpty', col(al.has[0]!))));
       }
+      // the library's (pure-library.ts ifThen), a number a column of it
       const f = columnOfValue(flags.v);
-      const branch = (n: Node): ValueSpecification => ('constant' in n ? n.constant : col(columnOfValue(n.v)));
-      return { w, v: { column: w.row('if', when(fn('isEmpty', col(f)), none(),
-        when(fn('not', fn('equal', one(f), lit.integer(0))), branch(x), branch(y)))) } };
+      const branch = (n: Node): string => ('constant' in n ? w.row('if_k', n.constant) : columnOfValue(n.v));
+      return { w, v: { column: w.libraryOfRow('ifThen', 'if', [colSpec(f), colSpec(branch(x)), colSpec(branch(y))]) } };
     }
     case 'compare': {
       const [x, y] = written() as [Node, Node];
@@ -1225,9 +1225,10 @@ function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | un
       }
       const parts = partsOf([x, y]);
       const w = parts.length === 1 ? parts[0]!.w : joined(sh, parts, sh.ts.align);
-      // gs-quant's (x > y) * 1 + (x < y) * -1: beside none, neither holds -- 0 (the Phase 1 review's 6)
-      return { w, v: { column: w.row('cmp',
-        when(fn('greaterThan', asOperand(x), asOperand(y)), lit.integer(1), when(fn('lessThan', asOperand(x), asOperand(y)), lit.integer(-1), lit.integer(0)))) } };
+      // gs-quant's (x > y) * 1 + (x < y) * -1: beside none, neither holds -- 0 (the Phase 1 review's 6); the library's
+      // (pure-library.ts compare), a number a column of it
+      const side = (n: Node): string => ('constant' in n ? w.row('cmp_k', n.constant) : columnOfValue(n.v));
+      return { w, v: { column: w.libraryOfRow('compare', 'cmp', [colSpec(side(x)), colSpec(side(y))]) } };
     }
     case 'union':
     case 'append':
@@ -1242,7 +1243,8 @@ function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | un
       const al = aligned(sh, [{ w: x.w, values: [a] }, { w: y.w, values: [b] }], 'nan');
       const w = al.w;
       const [hx, hy] = al.has as [string, string];
-      if (e.fn === 'union') return { w, v: { column: w.row('union', when(fn('isNotEmpty', col(a)), col(a), col(b))) } };
+      if (e.fn === 'union') return { w, v: { column: w.libraryOfRow('union', 'union', [colSpec(a), colSpec(b)]) } };
+      // a splice's dates are the align's (which side has a row on each), DataCube's
       const R = Writer.read;
       const periodOf_ = (has: string): string => w.row('sp_p', when(fn('isNotEmpty', col(has)), col(PERIOD), none()));
       if (e.fn === 'append') {
@@ -1262,19 +1264,17 @@ function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | un
       if (rate.kind === 'number') {
         // over a rate: x less the rate accrued on it day by day, actual/360 -- gs-quant's er_j = er_j-1 + x_j - x_j-1 (1 +
         // rate f_j), summed: x_j - rate * the sum of x_k-1 f_k to date
+        // the library's (pure-library.ts excessReturns): a period's days its dates' difference, in seconds over 86400 of a
+        // date-time's
         const w = x.w;
-        const a = columnOfValue(x.v);
-        const days = w.seconds ? fn('divide', op('minus', one(ORD), one(w.lag(ORD, 1))), lit.integer(86400)) : op('minus', one(ORD), one(w.lag(ORD, 1)));
-        const accrued = w.row('accr', op('times', one(w.lag(a, 1)), fn('divide', days, lit.integer(360))));
-        const total = w.window('accrued', 'plus', Writer.read(accrued), 'running');
-        return { w, v: { column: w.row('er', op('minus', one(a), op('times', float(rate.value), when(fn('isEmpty', col(total)), float(0), one(total))))) } };
+        return { w, v: { column: w.libraryOfLine('excessReturns', 'er', columnOfValue(x.v),
+          [float(rate.value), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'), lit.integer(w.seconds ? 86400 : 1)]) } };
       }
-      // over a cash index: on the dates both have, x's first value times the product of (1 + x's return - y's)
+      // over a cash index: on the dates both have, x's first value times the product of (1 + x's return - y's) -- the
+      // library's (excessReturnsOver)
       const b = seriesArg(sh, e, 1);
       const w = joined(sh, [x, b]);
-      const a = columnOfValue(x.v);
-      const g = w.row('erg', op('minus', op('plus', lit.integer(1), one(w.simple(a))), one(w.simple(columnOfValue(b.v)))));
-      return { w, v: { column: w.row('er', when(fn('isEmpty', col(a)), none(), op('times', one(w.edgeValue(a, 'first')), one(w.product(g, 'running'))))) } };
+      return { w, v: { column: w.libraryOfLine('excessReturnsOver', 'er', columnOfValue(x.v), [colSpec(columnOfValue(b.v))]) } };
     }
     case 'weighted_sum': {
       // each series and its weight, on the dates all have: their weighted sum over the weights' (gs-quant's intersect)
@@ -1596,24 +1596,11 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   switch (e.fn) {
     case 'returns':
       return done(w.returns(a, span('obs'), word('type')));
-    case 'prices': {
-      const initial = float(n('initial'));
-      const type = word('type');
+    case 'prices':
       // initial at the first date, and every other from there: gs-quant's product (and sum) over the returns to date
       // skips an empty one, as pandas' prod does -- a return of none (the first, which has no date before it) leaves the
-      // level where it was (the second audit's S5: the first date was none)
-      const summed = (c: string): ValueSpecification => {
-        const total = w.window('cum', 'plus', R(c), 'running');
-        return when(fn('isEmpty', col(total)), float(0), one(total));
-      };
-      const at = (v: ValueSpecification): string => w.row('px', v);
-      if (type === 'absolute') return done(at(op('plus', initial, summed(a))));
-      if (type === 'log') return done(at(op('times', initial, fn('exp', summed(a)))));
-      // initial times the product of (1 + r), gs-quant's: a factor of 0 (a return of -100%) zero from there on, each
-      // factor below 0 turning the sign -- the magnitude the sum of the logs of the others (the review's Q8)
-      const g = w.row('g', op('plus', lit.integer(1), one(a)));
-      return done(at(op('times', initial, one(w.product(g, 'running')))));
-    }
+      // level where it was (the second audit's S5); the library's (pure-library.ts prices)
+      return done(w.libraryOfLine('prices', 'px', a, [float(n('initial')), lit.string(word('type'))]));
     // the levels and lags, the library's (pure-library.ts): a lag or a change over a count of periods or a calendar
     // period back, a base over the whole line (its first value, or the value as of the first date shown)
     case 'diff': {
@@ -1712,6 +1699,10 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       // w differences (w + 1 values): a fit of a constant and a slope over under 3 has no deviation left to judge it by
       if (typeof size === 'number' && size > 0 && size < 3) throw new CubeRefusal(`${e.fn} over ${size} differences has no deviation left: w is 0 (every one to date) or at least 3`);
       const frame = Writer.frame(size);
+      // over a count of periods: the library's (pure-library.ts dickeyFuller, halfLife), its ramp three at least
+      if (typeof frame !== 'object') {
+        return done(w.library(e.fn === 'half_life' ? 'halfLife' : 'dickeyFuller', e.fn, a, frame, [lit.integer(Math.max(size as number, 3))]));
+      }
       const xl = w.lag(a, 1);
       const dx = w.row('df_dx', op('minus', one(a), one(xl)));
       const pl = w.row('df_l', when(fn('isEmpty', col(dx)), none(), col(xl)));

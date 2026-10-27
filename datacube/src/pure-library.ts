@@ -928,6 +928,92 @@ function datacube::ts::leadLag<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], f
     ->extend(~o:x|if($x.n->toOne() < $ramp, |[], |$x.c))
     ->without(~[c, n])->rename(~o, $out)
 }
+
+// Prices from returns (gs-quant's prices): initial at the first date, and each after it its returns to date compounded
+// -- 'simple' (the product of 1 + r), 'log' (e to their sum) or 'absolute' (their sum added), a word compared when the
+// call is expanded; a return of none (the first) leaves the level where it was.
+function datacube::ts::prices<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], initial: Number[1], type: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line, [$date->ascending()], rows(unbounded(), 0)), ~sm:{p,f,r|$r->read($value)}:y|$y->plus())
+    ->extend(~g:x|1 + $x->read($value)->toOne())
+    ->datacube::ts::windowProduct(over($line, [$date->ascending()], rows(unbounded(), 0)), ~g, ~pr)
+    ->extend(~o:x|if($type == 'absolute', |$initial + if($x.sm->isEmpty(), |0.0, |$x.sm->toOne()),
+      |if($type == 'log', |$initial * exp(if($x.sm->isEmpty(), |0.0, |$x.sm->toOne())), |$initial * $x.pr->toOne())))
+    ->without(~[sm, g, pr])->rename(~o, $out)
+}
+
+// Dickey and Fuller's t-statistic over the window (statsmodels' adfuller of no lags, a constant): Δx = a + b·x[-1] by
+// least squares, b their covariance over x[-1]'s variance, over its standard error √((var Δx − b² var x[-1]) / ((n − 2)
+// var x[-1])) -- none of a perfect fit, or until the window holds ramp of them.
+function datacube::ts::dickeyFuller<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend($win, ~xl:{p,f,r|$p->lag($r)->read($value)})
+    ->extend(~dx:x|$x->read($value)->toOne() - $x.xl->toOne())
+    ->extend(~[pl:x|if($x.dx->isEmpty(), |[], |$x.xl), pd:x|if($x.xl->isEmpty(), |[], |$x.dx)])
+    ->extend($win, ~[vl:{p,f,r|$r.pl}:y|$y->varianceSample(), cv:{p,f,r|rowMapper($r.pd, $r.pl)}:y|$y->covarSample(), vd:{p,f,r|$r.pd}:y|$y->varianceSample(), n:{p,f,r|$r.pl}:y|$y->count()])
+    ->extend(~b:x|if($x.vl->toOne() == 0, |[], |$x.cv->toOne() / $x.vl->toOne()))
+    ->extend(~rs:x|$x.vd->toOne() - (($x.b->toOne() * $x.b->toOne()) * $x.vl->toOne()))
+    ->extend(~se:x|if($x.b->isEmpty() || ($x.n->toOne() < 3) || ($x.rs->toOne() <= 0), |[], |sqrt($x.rs->toOne() / (($x.n->toOne() - 2) * $x.vl->toOne()))))
+    ->extend(~o:x|if(($x.n->toOne() < $ramp) || ($x.se->toOne() == 0), |[], |$x.b->toOne() / $x.se->toOne()))
+    ->without(~[xl, dx, pl, pd, vl, cv, vd, n, b, rs, se])->rename(~o, $out)
+}
+
+// The half-life of a reversion to the mean over the window: −ln 2 / ln(1 + b), b of Δx = a + b·x[-1] -- none where it
+// does not revert (b at or above 0), overshoots past its mean (b at or below -1), or until the window holds ramp of them.
+function datacube::ts::halfLife<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend($win, ~xl:{p,f,r|$p->lag($r)->read($value)})
+    ->extend(~dx:x|$x->read($value)->toOne() - $x.xl->toOne())
+    ->extend(~[pl:x|if($x.dx->isEmpty(), |[], |$x.xl), pd:x|if($x.xl->isEmpty(), |[], |$x.dx)])
+    ->extend($win, ~[vl:{p,f,r|$r.pl}:y|$y->varianceSample(), cv:{p,f,r|rowMapper($r.pd, $r.pl)}:y|$y->covarSample(), n:{p,f,r|$r.pl}:y|$y->count()])
+    ->extend(~b:x|if($x.vl->toOne() == 0, |[], |$x.cv->toOne() / $x.vl->toOne()))
+    ->extend(~o:x|if(($x.n->toOne() < $ramp) || $x.b->isEmpty() || ($x.b->toOne() >= 0) || ($x.b->toOne() <= -1), |[], |(0.0 - log(2.0)) / log(1 + $x.b->toOne())))
+    ->without(~[xl, dx, pl, pd, vl, cv, n, b])->rename(~o, $out)
+}
+
+// The excess returns over a rate (gs-quant's excess_returns of a number): x less the rate accrued on it period by
+// period, actual/360 -- er_j = er_j-1 + x_j - x_j-1 (1 + rate f_j), summed: x_j - rate × Σ x_k-1 f_k to date, f a
+// period's days over 360: its dates' difference in unit, over perDay of them a day (DAYS and 1; SECONDS and 86400).
+function datacube::ts::excessReturns<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], rate: Number[1], unit: meta::pure::functions::date::DurationUnit[1], perDay: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line, [$date->ascending()]), ~ac:{p,f,r|$p->lag($r)->read($value)->toOne() * ((dateDiff($p->lag($r)->read($date)->toOne(), $r->read($date)->toOne(), $unit) / $perDay) / 360)})
+    ->extend(over($line, [$date->ascending()], rows(unbounded(), 0)), ~tot:{p,f,r|$r.ac}:y|$y->plus())
+    ->extend(~o:x|$x->read($value)->toOne() - ($rate * if($x.tot->isEmpty(), |0.0, |$x.tot->toOne())))
+    ->without(~[ac, tot])->rename(~o, $out)
+}
+
+// The excess returns over a cash index (gs-quant's excess_returns of a series): on the dates both have, x's first value
+// times the product of (1 + x's return − the index's) to date; none where x is none.
+function datacube::ts::excessReturnsOver<T,L,D,V,C,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], cash: ColSpec<C⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::returns(over($line, [$date->ascending()]), $value, 1, 'simple', ~rx)
+    ->datacube::ts::returns(over($line, [$date->ascending()]), $cash, 1, 'simple', ~ry)
+    ->extend(~g:x|(1 + $x.rx->toOne()) - $x.ry->toOne())
+    ->datacube::ts::windowProduct(over($line, [$date->ascending()], rows(unbounded(), 0)), ~g, ~pr)
+    ->datacube::ts::first($line, $date, $value, ~f0)
+    ->extend(~o:x|if($x->read($value)->isEmpty(), |[], |$x.f0->toOne() * $x.pr->toOne()))
+    ->without(~[rx, ry, g, pr, f0])->rename(~o, $out)
+}
+
+// Which of two columns is greater (gs-quant's compare, of series aligned by the caller): 1, -1, or 0 where they are
+// equal or either is none ((x > y) - (x < y)).
+function datacube::ts::compare<T,X,Y,O>(t: Relation<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|if($x->read($first)->toOne() > $x->read($second)->toOne(), |1, |if($x->read($first)->toOne() < $x->read($second)->toOne(), |-1, |0)))->rename(~o, $out)
+}
+
+// A branch by a column of flags (gs-quant's if_): yes where the flag is not 0, no where it is -- none where the flag is
+// none.
+function datacube::ts::ifThen<T,F,X,Y,O>(t: Relation<T>[1], flags: ColSpec<F⊆T>[1], yes: ColSpec<X⊆T>[1], no: ColSpec<Y⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|if($x->read($flags)->isEmpty(), |[], |if(!($x->read($flags)->toOne() == 0), |$x->read($yes), |$x->read($no))))->rename(~o, $out)
+}
+
+// The first column where it has a value, else the second (gs-quant's union, of series aligned by the caller).
+function datacube::ts::union<T,X,Y,O>(t: Relation<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:x|if($x->read($first)->isNotEmpty(), |$x->read($first), |$x->read($second)))->rename(~o, $out)
+}
 `;
 
 /** Whether a query calls a function of the library. */

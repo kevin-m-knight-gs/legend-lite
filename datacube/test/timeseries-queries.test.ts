@@ -438,7 +438,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     assert.equal(planner.planRequest(plain.query).library, undefined);
   });
 
-  it('the levels and lags, the multi-step windows, the self-joins, the exponentials, the technicals, the row maths, the functions along the line and the pairs call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
+  it('the levels and lags, the multi-step windows, the self-joins, the exponentials, the technicals, the row maths, the functions along the line, the pairs and the combinations call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
     const calls = (expr: string, anchor?: string): ReadonlySet<string> => {
       const ts = spec({ A: expr });
       return functionsCalled(seriesQuery(inputs, ts, ts.series[0]!, anchor === undefined ? {} : { from: anchor }, {}).query);
@@ -471,6 +471,9 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ['correlation(close[AAA], close[BBB], 8)', 'correlation'], ['r_squared(close[AAA], close[BBB], 8)', 'rSquared'],
       ['cov(close[AAA], close[BBB], 8)', 'covariance'], ['beta(close[AAA], close[BBB], 8)', 'beta'], ['hedge_ratio(close[AAA], close[BBB], 8)', 'beta'],
       ['alpha(close[AAA], close[BBB], 8)', 'alpha'], ['residual(close[AAA], close[BBB], 8)', 'residual'],
+      ['prices(returns(close[AAA]), 100)', 'prices'], ['if(close[AAA] > 2 * close[BBB], close[AAA], 0)', 'ifThen'],
+      ['compare(close[AAA], 2 * close[BBB])', 'compare'], ['union(close[CCC], close[AAA])', 'union'],
+      ['excess_returns(close[AAA], 0.05)', 'excessReturns'], ['excess_returns(close[AAA], close[BBB])', 'excessReturnsOver'],
     ];
     for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`datacube::ts::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
   });
@@ -1697,6 +1700,7 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
       ['donchian_channels(high[P], low[P], 2w)', 'donchianChannelsPeriod'], ['tracking_error(close[P], close[Q], 10)', 'trackingError'],
       ['information_ratio(close[P], close[Q], 10)', 'informationRatio'], ['up_capture(close[P], close[Q], 10)', 'upCapture'],
       ['down_capture(close[P], close[Q], 10)', 'downCapture'], ['lead_lag(close[P], close[Q], 1, 10)', 'leadLag'],
+      ['dickey_fuller(close[P], 30)', 'dickeyFuller'], ['half_life(close[P], 30)', 'halfLife'],
     ];
     for (const [expr, f] of want) assert.ok(calls(expr).has(`datacube::ts::${f}`), `${expr} calls ${f}`);
   });

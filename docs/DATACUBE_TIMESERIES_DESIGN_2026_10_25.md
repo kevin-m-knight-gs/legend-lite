@@ -414,7 +414,9 @@ among them), and the technicals over a row's fixed roles (`trueRange`, `atr`, `s
 `month`, `year`, `quarter`, `weekday`), and two columns of one table, aligned by the caller (each series on its own
 dates, then joined: the tile's align), over the window's pairs (`correlation`, `rSquared`, `covariance`, `beta` -- a
 hedge ratio a beta of levels --, `alpha`, `residual`, `trackingError`, `informationRatio`, `upCapture`,
-`downCapture`, `leadLag`) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
+`downCapture`, `leadLag`), `prices`, `dickeyFuller` and `halfLife`, the excess returns over a rate or a cash index
+(`excessReturns`, `excessReturnsOver`), and the combinations of aligned columns (`compare`, `ifThen`, `union`; a
+number a column of it) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
 'simple', ~ret_2)->datacube::ts::volatility(over(~line, [~period->ascending()], rows(-21, 0)), ~ret_2, 22, ~per_year_3,
 ~vol_4)`. A calendar period's statistic is `windowPeriod`'s (on every date, however few values) and its ramp
 `rampPeriod`'s (none before the first date of a column, that period on), `overPeriod` the two over one column; so a
