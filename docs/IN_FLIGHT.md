@@ -164,6 +164,13 @@ with the compiler's plan/execution split**, in this order:
    icon sets, rules), Excel's number format codes and date patterns (`datacube/src/format-code.ts`) and a column's
    values grouped by hand (`ValueGroups`); P4's text tiles (`datacube/src/page-text.ts`, a `text` page view) -- the doc's §4
    rows say which.
+   **The timeseries line (2026-10-27, branch `claude/timeseries-viewer-datacube-tsm0nb`, not pushed while its roadmap
+   runs: the user):** DataCube's timeseries tile and its Pure library, now over the stress corpus's classes
+   (`docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md` §11, Phase 6). Beyond `datacube/`: `scripts/corpus/trading_model.py`
+   and its rule in `scripts/corpus/BUILD.bazel`, **taken as they are from the Deephaven line**
+   (`claude/deephaven-3-browser`, `d38144cc`: the one trading model, DH34), and `core/BUILD.bazel`'s export of
+   `StressExclusions.java` to it -- whichever line lands first, the other takes the same file; a change to either is
+   that line's, told to the other. Core asks of the library's (S112-S114) were this line's own, landed with it.
    **Step 1 landed 2026-10-10 (fe7961b7b; run 38090412797; GATES "Compile once, plan many").** **Step 2's first
    landing, Create a Class…, landed 2026-10-11 (0cee56761; run 38109599876; GATES "Create a Class…")** -- no file
    touched beyond the announced list. **Step 2's second landing, Create an Association… and Create a Data Space…,
