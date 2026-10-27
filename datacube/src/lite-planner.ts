@@ -217,18 +217,30 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   /** Release the worker. The grid owns one planner for its lifetime,
    *  so this is for tests and for a host that tears a cube down. */
   dispose(): void {
+    const released = this.#letGoAll();
+    if (this.#borrowed) return;
+    const worker = this.#t.worker;
+    if (worker === undefined) {
+      this.#t.pending.clear();
+      return;
+    }
+    // a host's worker (Python's) keeps the models it holds in the host, not in itself: each let go before the worker is
+    // ended (the Phase 6 review's 3: a typer's hold of a 4 MB model outlived it); a browser's takes its own with it
+    void released.finally(() => {
+      if (this.#t.worker !== worker) return;
+      worker.terminate();
+      this.#t.worker = undefined;
+      this.#t.generation += 1;
+      this.#t.pending.clear();
+    });
+  }
+
+  /** Everything this planner holds let go -- its plans and types, its model, the planner over its library -- the
+   *  release of each model asked: answered once every one is. */
+  #letGoAll(): Promise<void> {
     this.#cache.clear();
     this.#types.clear();
-    this.#letGo();
-    this.#dropLibrary();
-    if (this.#borrowed) return;
-    if (this.#t.worker) {
-      this.#t.worker.terminate();
-      this.#t.worker = undefined;
-      // the models it held go with it
-      this.#t.generation += 1;
-    }
-    this.#t.pending.clear();
+    return Promise.all([this.#letGo(), this.#dropLibrary()]).then(() => undefined);
   }
 
   /**
@@ -385,11 +397,11 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   /** Let go of this planner's model, if it holds one under the module there now. */
-  #letGo(): void {
+  #letGo(): Promise<void> {
     const held = this.#held;
     this.#held = undefined;
-    if (held === undefined || held.generation !== this.#t.generation) return;
-    void held.handle.then((handle) => {
+    if (held === undefined || held.generation !== this.#t.generation) return Promise.resolve();
+    return held.handle.then((handle) => {
       // a module or worker since replaced, or none running now, holds nothing to let go: never start one to do it
       if (held.generation !== this.#t.generation) return undefined;
       if (this.#useWorker()) {
@@ -469,10 +481,11 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   /** The planner over the library let go, once made. */
-  #dropLibrary(): void {
+  #dropLibrary(): Promise<void> {
     const library = this.#library;
     this.#library = undefined;
-    void library?.then((over) => over.dispose(), () => undefined);
+    // the planner over the library borrows this one's module: its model let go on it, as this one's is
+    return library === undefined ? Promise.resolve() : library.then((over) => over.#letGoAll(), () => undefined);
   }
 
   /** E9's twin: a query (a protocol tree) planned -- its SQL and the compiler's result type. */
@@ -705,8 +718,8 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    * ~600ms of boot.
    */
   useModel(model: string, runtime: string, how: ModelOptions = {}): void {
-    if (model !== this.#options.model) this.#letGo();
-    this.#dropLibrary();
+    if (model !== this.#options.model) void this.#letGo();
+    void this.#dropLibrary();
     this.#options = { ...readsOf(this.#options), model, runtime, ...readsHow(how) };
     this.#cache.clear();
     this.#types.clear();

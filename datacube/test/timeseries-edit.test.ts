@@ -61,6 +61,10 @@ describe('a timeseries tile changed by its one rule', () => {
     assert.equal(renamed.sources[1]!.alias, 'curve');
     assert.deepEqual(renamed.series[2]!.expr, parseExpr('curve:yield[10Y]'));
     assert.deepEqual(renamed.series[0]!.expr, SPEC.series[0]!.expr, 'a column of no alias is the first source\'s still');
+    // the Phase 6 review's 4: marks from a source's rows follow it renamed (they were refused, naming the old alias)
+    const marked: TimeseriesSpec = { ...SPEC, annotations: [{ kind: 'marks', source: 'rates', at: 'yield', label: 'Auctions' }, { kind: 'level', value: 0 }] };
+    assert.deepEqual(editTimeseries(marked, { kind: 'source', alias: 'rates', rename: 'curve' }).annotations,
+      [{ kind: 'marks', source: 'curve', at: 'yield', label: 'Auctions' }, { kind: 'level', value: 0 }]);
     refused(() => editTimeseries(SPEC, { kind: 'source', alias: 'rates', rename: 'px' }), /source px is the tile's already/);
     refused(() => editTimeseries(SPEC, { kind: 'source', alias: 'rates', rename: '2y' }), /is no alias/);
     const noKey = editTimeseries(SPEC, { kind: 'source', alias: 'px', key: null, date: 'when' });
@@ -122,6 +126,14 @@ describe('a timeseries tile changed by its one rule', () => {
     // a series that read it named again, the word alone; one that read it not kept as it was
     assert.deepEqual(swapped.series.map((x) => x.name), ['RUT close', undefined, 'RUT spread', 'SPXW 10Y']);
     assert.deepEqual(editTimeseries(spec, { kind: 'swap', from: '10Y', to: '2Y', alias: 'rates' }).series[3]!.expr, parseExpr('rates:yield[2Y]'));
+    // marks of the instrument's rows follow it too (the Phase 6 review: RUT's close with SPX's trades on it); a match on
+    // another column, and another source's marks, kept
+    const marked: TimeseriesSpec = { ...spec, annotations: [
+      { kind: 'marks', source: 'px', where: [{ value: 'SPX' }, { column: 'side', value: 'SPX' }], at: 'close', label: 'SPX trades' },
+      { kind: 'marks', source: 'rates', where: [{ value: 'SPX' }] }] };
+    assert.deepEqual(editTimeseries(marked, { kind: 'swap', from: 'SPX', to: 'RUT', alias: 'px' }).annotations, [
+      { kind: 'marks', source: 'px', where: [{ value: 'RUT' }, { column: 'side', value: 'SPX' }], at: 'close', label: 'RUT trades' },
+      { kind: 'marks', source: 'rates', where: [{ value: 'SPX' }] }]);
     refused(() => editTimeseries(spec, { kind: 'swap', from: 'SPX', to: 'RUT', alias: 'rates' }), /no series reads SPX of rates/);
     refused(() => editTimeseries(spec, { kind: 'swap', from: 'DAX', to: 'RUT' }), /no series reads DAX/);
     refused(() => editTimeseries(spec, { kind: 'swap', from: 'SPX', to: ' ' }), /name it/);

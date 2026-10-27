@@ -17,7 +17,7 @@ import { escapeHtml, periodText, type ChartTheme } from './chart-option.ts';
 import {
   marksCut, marksName, MAX_PANES, TS_MARK_LIMIT, TS_POINT_LIMIT, viewSetting, type TimeseriesSpec, type TsExpr, type TsMarks, type TsSeries,
 } from './timeseries-spec.ts';
-import { boundsOf, exprText, inlined, seriesName, splitName, type TsUnit } from './timeseries-expr.ts';
+import { boundsOf, exprText, inlined, seriesName, sourcesOf, splitName, type TsUnit } from './timeseries-expr.ts';
 import {
   TS_DATE, TS_FROM, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_SPLIT, TS_TEXT, TS_TO, TS_UPPER, TS_VALUE, TS_WIDTH, seriesNotes, type TsQuery,
 } from './timeseries-query.ts';
@@ -146,11 +146,13 @@ export function tsMarks(ts: TimeseriesSpec, at: number, table: ResultTable, them
   return { marked: { marks, at, name, color: marksColor(marks, theme), points }, notes };
 }
 
-/** What the drawing leaves out of marks, in words: marks drawn at a value in a pane that draws no line. */
+/** What the drawing leaves out of marks, in words: marks drawn at a value among lines compare draws from one start
+ *  (their values are their rows', no line's), or in a pane that draws no line. */
 export function marksUnplaced(ts: TimeseriesSpec, lines: readonly TsLine[], marked: readonly TsMarked[]): string[] {
   const panes = new Set(panesOf(ts, lines).map((p) => p.index));
-  return marked.filter((m) => m.marks.at !== undefined && !panes.has(m.marks.pane ?? 0))
-    .map((m) => `${m.name} are drawn in pane ${(m.marks.pane ?? 0) + 1}, which draws no line.`);
+  return marked.flatMap((m) => m.marks.at === undefined ? []
+    : ts.view?.compare !== undefined ? [`${m.name} are drawn at their ${m.marks.at}, the lines from one start (Compare): left out.`]
+      : !panes.has(m.marks.pane ?? 0) ? [`${m.name} are drawn in pane ${(m.marks.pane ?? 0) + 1}, which draws no line.`] : []);
 }
 
 /**
@@ -353,6 +355,8 @@ export interface TsDrawContext {
   readonly picture?: boolean;
   /** The marks from grids' rows the database answered (tsMarks), drawn over the lines. */
   readonly marks?: readonly TsMarked[];
+  /** How marks' values are written: as their source's grid writes the column they are drawn at. */
+  readonly formatOfMarks?: (marks: TsMarks) => TsFormat | undefined;
   /** Measuring (Phase 5): a drag is a span measured, so the chart does not pan; the span measured, shaded. */
   readonly measuring?: boolean;
   readonly span?: { readonly from: string; readonly to: string };
@@ -612,14 +616,18 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   // line across every pane -- each its row's, the database's
   for (const m of ctx.marks ?? []) {
     if (m.marks.at !== undefined) {
+      // at their rows' values: none among lines compare draws from one start (said: marksUnplaced)
       const gi = panes.findIndex((p) => p.index === (m.marks.pane ?? 0));
-      if (gi < 0) continue;
+      if (gi < 0 || ts.view?.compare !== undefined) continue;
+      // on the axis of their pane's line of their source, else its first line's (the Phase 6 review's 2)
+      const here = placed.filter((p) => p.grid === gi);
+      const own = here.find((p) => sourcesOf(ts, inlined(p.line.series.expr, ts.series)).includes(m.marks.source)) ?? here[0];
       series.push({
         id: `marks:${m.at}`,
         name: m.name,
         type: 'scatter',
         xAxisIndex: gi,
-        yAxisIndex: axisOf.get(`${gi}|left`)!,
+        yAxisIndex: own?.yAxis ?? axisOf.get(`${gi}|left`)!,
         symbol: m.marks.shape === 'dot' || m.marks.shape === undefined ? 'circle' : 'triangle',
         symbolRotate: m.marks.shape === 'down' ? 180 : 0,
         symbolSize: m.marks.shape === 'dot' || m.marks.shape === undefined ? 7 : 10,
@@ -717,7 +725,10 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   const legend = picture ? {
     top: TOP + heading, left: 12, selectedMode: false, itemWidth: 14, itemHeight: 8, icon: 'roundRect',
     textStyle: { color: theme.ink, fontSize: 11, fontFamily: theme.font },
-    data: [...new Map([...shown, ...shaded].map((l) => [l.name, { name: l.name, itemStyle: { color: l.color } }] as const)).values()],
+    data: [...new Map([...shown, ...shaded].map((l) => [l.name, { name: l.name, itemStyle: { color: l.color } }] as const)).values(),
+      // and the marks drawn, each set its triangle or its line (the Phase 6 review: a picture's marks were nameless)
+      ...(ctx.marks ?? []).filter((m) => series.some((x) => x['id'] === `marks:${m.at}`))
+        .map((m) => ({ name: m.name, itemStyle: { color: m.color }, icon: m.marks.at === undefined ? 'rect' : m.marks.shape === 'dot' || m.marks.shape === undefined ? 'circle' : 'triangle' }))],
   } : undefined;
   return {
     backgroundColor: 'transparent',
@@ -755,7 +766,11 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
             const m = (ctx.marks ?? []).find((x) => x.at === Number(mark[1]));
             const [, v, text] = it.value as Scalar[];
             if (m) {
-              rows.push(`<div style="display:flex;gap:12px;justify-content:space-between"><span><span style="display:inline-block;width:8px;height:8px;background:${m.color};margin-right:6px"></span>${escapeHtml(m.name)}${text === null || text === undefined ? '' : ` ${escapeHtml(String(text))}`}</span><b style="font-variant-numeric:tabular-nums">${escapeHtml(toNumber(v)?.toLocaleString(UI_LOCALE) ?? '—')}</b></div>`);
+              // its value as its grid writes the column it is drawn at
+              const n = toNumber(v);
+              const f = ctx.formatOfMarks?.(m.marks);
+              const said = n === null ? '—' : f !== undefined ? f(n) : n.toLocaleString(UI_LOCALE);
+              rows.push(`<div style="display:flex;gap:12px;justify-content:space-between"><span><span style="display:inline-block;width:8px;height:8px;background:${m.color};margin-right:6px"></span>${escapeHtml(m.name)}${text === null || text === undefined ? '' : ` ${escapeHtml(String(text))}`}</span><b style="font-variant-numeric:tabular-nums">${escapeHtml(said)}</b></div>`);
             }
             continue;
           }

@@ -155,6 +155,8 @@ export function marketsClassesPage(): PageDocument {
         s('C', 'tr:quantity[AAPL, side="SELL"].sum', { name: 'Sold', pane: 1, style: { kind: 'bars' } }),
         s('D', 'tr:notional.sum', { name: 'Notional by sector', split: 'sector', pane: 2, style: { kind: 'bars' } }),
       ],
+      // by day: the quotes' times (their close) and the trades' days on one axis
+      grain: 'day',
       range: { last: '1y' },
       panes: [{ height: 3 }, { height: 1 }, { height: 1 }],
       annotations: [

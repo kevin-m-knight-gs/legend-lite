@@ -23,7 +23,7 @@ import type { RunOutcome } from '../runner.ts';
 import { rowColumns, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import {
   marksName, MAX_HIST_BINS, MAX_PANES, MAX_SEASON_YEARS, MIN_HIST_BINS, TS_CURVE_DATES, TS_HIST_BINS, TS_RANGES, TS_SEASON_YEARS, viewSetting,
-  type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsMarkShape, type TsMode, type TsRangeWord, type TsSeries, type TsSource,
+  type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsMarks, type TsMarkShape, type TsMode, type TsRangeWord, type TsSeries, type TsSource,
   type TsState, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
@@ -182,8 +182,13 @@ function queryKey(ts: TimeseriesSpec): string {
   return JSON.stringify({
     sources: ts.sources, grain: ts.grain ?? null, align: ts.align ?? null, compare: ts.view?.compare ?? null,
     series: ts.series.map((s) => ({ id: s.id, expr: s.expr, split: s.split ?? null })),
+    // marks from grids' rows are asked too (the Phase 6 review's 1: marks added once drawn were never asked)
+    marks: (ts.annotations ?? []).filter((a) => a.kind === 'marks').map(marksKey),
   });
 }
+
+/** Marks' answers kept by what they are, never by their place: an annotation before them taken off leaves them theirs. */
+const marksKey = (marks: TsMarks): string => JSON.stringify(marks);
 
 /** What a tile's view asks (the next phases' 3): its mode, its series, its settings -- and the dates shown, for the views
  *  of them (a scatter's, a histogram's). When it changes, the view is asked again; '' along time (no view to ask). */
@@ -417,10 +422,10 @@ export class TimeseriesView {
   #statsAsked = false;
   #bounds = new Map<string, ResultTable>();
   #boundsFailed = new Map<string, string>();
-  /** What each marks from a grid's rows (TsMarks) answered, by their place among the annotations, and what was
-   *  refused of them: said in the banner, never drawn as no marks. */
-  #marks = new Map<number, ResultTable>();
-  #marksFailed = new Map<number, string>();
+  /** What each marks from a grid's rows (TsMarks) answered, by what they are (marksKey), and what was refused of them:
+   *  said in the banner, never drawn as no marks. */
+  #marks = new Map<string, ResultTable>();
+  #marksFailed = new Map<string, string>();
   /** The marks drawn last, as the lines are: what a picture draws. */
   #marked: TsMarked[] = [];
   /** MEASURING (Phase 5, TradingView's ruler): a drag across the chart is a span, each line's statistics over it the
@@ -680,22 +685,22 @@ export class TimeseriesView {
     this.#problems = problems;
     const signal = new AbortController().signal;
     // the marks from grids' rows: each its one grid's, as a source's bounds are, asked beside them (no window reads them)
-    const marks = new Map<number, ResultTable>();
-    const marksFailed = new Map<number, string>();
+    const marks = new Map<string, ResultTable>();
+    const marksFailed = new Map<string, string>();
     const marksAsked = Promise.all((spec.annotations ?? []).map(async (a, i) => {
       if (a.kind !== 'marks') return;
       const own = this.#input(a.source);
       if (!own) {
-        marksFailed.set(i, `source ${a.source}'s grid is not on the page`);
+        marksFailed.set(marksKey(a), `source ${a.source}'s grid is not on the page`);
         return;
       }
       try {
         const query = marksQuery(new Map([[a.source, own.input]]), spec, a);
         const { rows, sql } = await own.grid.run(query, own.grid.snapshot, signal);
-        marks.set(i, rows);
+        marks.set(marksKey(a), rows);
         this.#ran.set(askKey({ kind: 'marks', marks: i, source: a.source }), { spec, window: {}, query, sql });
       } catch (e) {
-        marksFailed.set(i, e instanceof Error ? e.message : String(e));
+        marksFailed.set(marksKey(a), e instanceof Error ? e.message : String(e));
       }
     }));
     // the bounds of each source on the page (its range buttons' starts, the database's)
@@ -990,6 +995,16 @@ export class TimeseriesView {
     return this.#mounting;
   }
 
+  /** Marks' values in their grid's format: their source's grid's formatter for the column they are drawn at. */
+  #formatOfMarks(marks: TsMarks): TsFormat | undefined {
+    const column = marks.at;
+    const src = this.#spec.sources.find((s) => s.alias === marks.source);
+    const grid = src ? this.#host.grid(src.cube) : undefined;
+    if (column === undefined || !grid) return undefined;
+    const type = rowColumns(grid.snapshot).find((c) => c.name === column)?.type;
+    return (v) => grid.format(v, column, type);
+  }
+
   /** A line's values in its grid's format: its source's grid's formatter for its column. */
   #formatOf(line: TsLine): TsFormat | undefined {
     if (line.formatColumn === undefined || line.formatSource === undefined) return undefined;
@@ -1006,7 +1021,9 @@ export class TimeseriesView {
     const theme = themeOf(this.#root);
     const { lines, notes } = tsLines(spec, [...this.#results.values()], theme);
     const marked: TsMarked[] = [];
-    for (const [i, table] of this.#marks) {
+    for (const [i, a] of (spec.annotations ?? []).entries()) {
+      const table = a.kind === 'marks' ? this.#marks.get(marksKey(a)) : undefined;
+      if (table === undefined) continue;
       const read = tsMarks(spec, i, table, theme);
       marked.push(read.marked);
       notes.push(...read.notes);
@@ -1050,7 +1067,7 @@ export class TimeseriesView {
       return;
     }
     const option = timeseriesOption(spec, lines, {
-      theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height, marks: marked,
+      theme, formatOf: (l) => this.#formatOf(l), formatOfMarks: (m) => this.#formatOfMarks(m), view: this.#window(), height, marks: marked,
       ...(this.#measuring ? { measuring: true } : {}), ...(this.#span !== undefined ? { span: this.#span } : {}),
     });
     chart.show(option, describeTimeseries(spec, lines));
@@ -1278,7 +1295,7 @@ export class TimeseriesView {
     let option: EChartsOption;
     try {
       option = viewing ? this.#viewOption(tall, title)!.option : timeseriesOption(this.#spec, this.#lines, {
-        theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height: tall, title, picture: true, marks: this.#marked,
+        theme, formatOf: (l) => this.#formatOf(l), formatOfMarks: (m) => this.#formatOfMarks(m), view: this.#window(), height: tall, title, picture: true, marks: this.#marked,
       });
     } catch (e) {
       this.#say([`The picture could not be made: ${e instanceof Error ? e.message : String(e)}`], true);
@@ -1515,7 +1532,7 @@ export class TimeseriesView {
       case 'bounds':
         return this.#boundsFailed.get(ask.source!);
       case 'marks':
-        return this.#marksFailed.get(ask.marks!);
+        return this.#marksFailed.get(marksKey(marksOf(this.#spec, ask.marks)));
       case 'series':
         return this.#failed.get(ask.series!);
       case 'statistics':
@@ -1624,9 +1641,9 @@ export class TimeseriesView {
 
   /** Each marks the database refused, by their name. */
   #marksProblems(): string[] {
-    return [...this.#marksFailed].flatMap(([i, why]) => {
-      const a = this.#spec.annotations?.[i];
-      return a?.kind === 'marks' ? [`${marksName(a, i)} were refused: ${why}`] : [];
+    return (this.#spec.annotations ?? []).flatMap((a, i) => {
+      const why = a.kind === 'marks' ? this.#marksFailed.get(marksKey(a)) : undefined;
+      return a.kind === 'marks' && why !== undefined ? [`${marksName(a, i)} were refused: ${why}`] : [];
     });
   }
 

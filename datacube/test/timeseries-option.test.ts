@@ -380,4 +380,21 @@ describe('the drawing', () => {
     assert.deepEqual(marksUnplaced(lost, one, [fills]), ['Fills are drawn in pane 3, which draws no line.']);
     assert.ok(!(timeseriesOption(lost, one, { theme: LIGHT_THEME, marks: [fills] }) as { series: { id: string }[] }).series.some((x) => x.id === 'marks:0'));
   });
+
+  // the Phase 6 review's 2: marks at a value on the left axis whatever the line was drawn on, and drawn among lines
+  // compare had rebased to 100
+  it('marks at a value on the axis of the line of their source in their pane; under compare, left out and said', () => {
+    const table = (columns: Record<string, readonly (string | number | null)[]>): ResultTable => ({
+      columns: Object.keys(columns).map((name) => ({ name, type: name === TS_DATE ? 'StrictDate' : 'Float', values: [...columns[name]!] })),
+      rowCount: Object.values(columns)[0]!.length, epoch: 0, elapsedMs: 0,
+    });
+    const right = spec([S('A', 'close', { axis: 'right' })], { annotations: [{ kind: 'marks', source: 'px', at: 'price', label: 'Fills' }] });
+    const fills = tsMarks(right, 0, table({ [TS_DATE]: ['2024-01-02'], [TS_VALUE]: [1] }), LIGHT_THEME).marked;
+    const lines = tsLines(right, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] })], LIGHT_THEME).lines;
+    const option = timeseriesOption(right, lines, { theme: LIGHT_THEME, marks: [fills] }) as { series: { id: string; yAxisIndex: number }[] };
+    assert.equal(option.series.find((x) => x.id === 'marks:0')!.yAxisIndex, option.series.find((x) => x.id === 'A')!.yAxisIndex, 'on its line\'s axis');
+    const compared: TimeseriesSpec = { ...right, view: { compare: 'rebase' } };
+    assert.deepEqual(marksUnplaced(compared, lines, [fills]), ['Fills are drawn at their price, the lines from one start (Compare): left out.']);
+    assert.ok(!(timeseriesOption(compared, lines, { theme: LIGHT_THEME, marks: [fills] }) as { series: { id: string }[] }).series.some((x) => x.id === 'marks:0'));
+  });
 });

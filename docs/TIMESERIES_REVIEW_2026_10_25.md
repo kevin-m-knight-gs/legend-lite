@@ -494,3 +494,30 @@ Each of §9's rows, fixed and pinned by a test that failed first, or decided and
   cloud container (unittest's durations), the timeseries tests about 16 s of it and the keeper's convergence test the
   longest (36 s); main's CI ran the lane's test in about 137 s (run 40502527150), under its 300 s. Sending a query
   only the functions it calls would compile a model again for each set where today it compiles once a model: not done.
+
+## 17. Phase 6's review (2026-10-27)
+
+An independent review of Phase 6 (the charts from the trading model's classes, `61aa0a64^..0fed599e`: the markets
+project, the class example, the ported held-model answer, marks from a grid's rows, Python over the example), each
+finding confirmed by a scratch test over the commits' own tree. Each fixed with a test that failed first:
+
+- **1 (blocking) marks added once a tile was drawn were never asked; an annotation before them taken off broke every
+  drawing after.** The fetch's key left the annotations out, and the answers were kept by their place. The key holds
+  the marks now, each answer kept by what the marks are (`marksKey`): `timeseries-view-dom.test.ts` adds marks to a drawn
+  tile, takes a level before them off, then the marks.
+- **2 marks at a value on the pane's left axis whatever their line was drawn on, and among lines compare rebased.** On
+  the axis of their pane's line of their source (else its first line's); under compare left out and said
+  (`marksUnplaced`: "... are drawn at their price, the lines from one start (Compare): left out."): `timeseries-option.test.ts`.
+- **3 a typer's hold outlived it on Python's host.** `dispose` ended its own worker before the release was sent, and a
+  host's worker keeps its models in the host: each model it holds -- its own, its library planner's -- is let go first
+  now, then the worker ended (`lite-planner.ts #letGoAll`): `lite-planner.test.ts` sees `release` before `terminate`.
+  Its smaller note, a model that does not compile compiled twice before it is refused (the hold, then the request's
+  own words), is kept: the refusal's words are the request's.
+- **4 a source renamed refused its marks.** Marks follow their source renamed; and Swap moves their match on the
+  instrument column with the series (the review's nit: the other instrument's close with the first's trades on it),
+  their label saying it as a name does: `timeseries-edit.test.ts`.
+- Nits fixed: the example's trades tile by day (its quotes' times at the close, its trades' days, on one axis); marks
+  past the cut chosen in an order of every column answered; a mark's value written as its grid writes the column it is
+  drawn at; a picture's legend names the marks drawn, each by its own shape.
+- Kept: marks are asked while a view (a scatter, a histogram) is shown -- one query of a grid's rows, drawn again when
+  the view goes, as the bounds are.

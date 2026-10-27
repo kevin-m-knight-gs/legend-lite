@@ -393,6 +393,8 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
     readonly exports = fakeExports((_m) => ok('SELECT 1'), undefined, { holds: [], releases: [] });
     readonly holds: string[] = [];
     readonly releases: number[] = [];
+    /** What it was told, in order: each release, and its end. */
+    readonly told: string[] = [];
     terminated = false;
     onmessage: ((e: { data: unknown }) => void) | null = null;
     onerror: ((e: { message: string }) => void) | null = null;
@@ -402,13 +404,14 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
     postMessage(msg: Record<string, unknown>): void {
       const x = this.exports;
       const answer = msg['kind'] === 'hold' ? (this.holds.push(msg['model'] as string), x.holdModelOrError(msg['model'] as string))
-        : msg['kind'] === 'release' ? (this.releases.push(msg['handle'] as number), x.releaseModelOrError(msg['handle'] as number))
+        : msg['kind'] === 'release' ? (this.releases.push(msg['handle'] as number), this.told.push('release'), x.releaseModelOrError(msg['handle'] as number))
         : msg['kind'] === 'plan' ? x.planHeldOrError(msg['handle'] as number, msg['query'] as string, msg['runtime'] as string)
         : 'ERR\nfake\nnot in this fake';
       queueMicrotask(() => this.onmessage?.({ data: { id: msg['id'], ok: true, answer } }));
     }
     terminate(): void {
       this.terminated = true;
+      this.told.push('terminate');
     }
     die(): void {
       this.onerror?.({ message: 'gone' });
@@ -455,7 +458,19 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
     assert.equal(FakeWorker.made.length, 1);
     assert.deepEqual(FakeWorker.made[0]!.holds, ['m'], 'its model held on the host\'s worker');
     p.dispose();
+    await new Promise((done) => setTimeout(done, 0));
     assert.equal(FakeWorker.made[0]!.terminated, true, 'and let go with the planner');
+  });
+
+  // the Phase 6 review's 3: a host's worker (Python's) keeps the models it holds in the host, not in itself -- a typer's
+  // hold of a 4 MB model outlived it, the release never sent once the worker was ended
+  it('dispose lets its model go on a host\'s worker before it ends the worker', async () => {
+    FakeWorker.made = [];
+    const p = new LitePlanner({ model: 'm', runtime: 'r', worker: () => new FakeWorker() as unknown as PlannerWorker, cache: false });
+    await p.planText('a');
+    p.dispose();
+    await new Promise((done) => setTimeout(done, 0));
+    assert.deepEqual(FakeWorker.made[0]!.told, ['release', 'terminate'], 'its model let go, then the worker ended');
   });
 });
 

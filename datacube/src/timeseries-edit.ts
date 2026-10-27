@@ -270,7 +270,20 @@ function swapped(spec: TimeseriesSpec, fromTold: string, toTold: string, alias: 
     return { ...s, ...(expr !== undefined ? { expr } : {}), ...(s.name !== undefined ? { name: s.name.replace(said, () => to) } : {}) };
   });
   if (swaps === 0) throw new TsEditRefusal(`no series reads ${from}${alias !== undefined ? ` of ${alias}` : ''}`);
-  return { ...spec, series };
+  // and the marks of its rows, as a column's matches on the instrument column (the Phase 6 review: the other's close,
+  // the first's trades on it), their label saying it as a name does
+  const annotations = spec.annotations?.map((a) => {
+    if (a.kind !== 'marks' || (alias !== undefined && a.source !== alias) || a.where === undefined) return a;
+    const key = spec.sources.find((x) => x.alias === a.source)?.key;
+    let moved = false;
+    const where = a.where.map((m) => {
+      if (!(m.column === undefined || m.column === key) || String(m.value) !== from) return m;
+      moved = true;
+      return { ...m, value: typeof m.value === 'number' ? Number(to) : to };
+    });
+    return moved ? { ...a, where, ...(a.label !== undefined ? { label: a.label.replace(said, () => to) } : {}) } : a;
+  });
+  return { ...spec, series, ...(annotations !== undefined ? { annotations } : {}) };
 }
 
 /**
@@ -356,10 +369,11 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
         ...(change.key !== undefined ? { key: change.key } : {}),
       }) as unknown as TsSource;
       const sources = spec.sources.map((s) => (s.alias === change.alias ? made : s));
-      // an alias renamed: every expression that names it follows
-      const series = to !== undefined && to !== change.alias
-        ? spec.series.map((s) => ({ ...s, expr: renameSource(s.expr, change.alias, to) })) : spec.series;
-      return { ...spec, sources, series };
+      // an alias renamed: every expression that names it follows, and every marks of its rows (the Phase 6 review's 4)
+      if (to === undefined || to === change.alias) return { ...spec, sources };
+      const series = spec.series.map((s) => ({ ...s, expr: renameSource(s.expr, change.alias, to) }));
+      const annotations = spec.annotations?.map((a) => (a.kind === 'marks' && a.source === change.alias ? { ...a, source: to } : a));
+      return { ...spec, sources, series, ...(annotations !== undefined ? { annotations } : {}) };
     }
     case 'read': {
       const g = change.grid;

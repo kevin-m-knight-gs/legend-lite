@@ -2023,8 +2023,11 @@ export function marksQuery(inputs: TsInputs, ts: TimeseriesSpec, marks: TsMarks,
     ...(marks.at !== undefined ? [derive(TS_VALUE, row(col(marks.at)))] : []),
     ...(marks.text !== undefined ? [derive(TS_TEXT, row(col(marks.text)))] : []),
   ];
+  // latest first, ties in an order of every column answered: the same rows past the cut whatever the database's own
+  // order (the Phase 6 review: same-day rows under a frequency)
+  const order = [desc(TS_DATE), ...(marks.at !== undefined ? [desc(TS_VALUE)] : []), ...(marks.text !== undefined ? [asc(TS_TEXT)] : [])];
   return sourceWithDerived(s).filter(row(and(...conditions))).extend(out).select(out.map((c) => c.name))
-    .sort([desc(TS_DATE)]).limit(limit + 1).lambda();
+    .sort(order).limit(limit + 1).lambda();
 }
 
 /**

@@ -385,6 +385,27 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
     }
   });
 
+  // the Phase 6 review's 1: marks added once the tile is drawn were never asked (the fetch's key left the annotations
+  // out), and an annotation taken off before them broke every drawing after (the answers kept by their place)
+  it('marks added after it is drawn are asked and drawn; an annotation before them taken off, drawn still', async () => {
+    const { drawn, view } = viewer(SPEC);
+    const marks = { kind: 'marks', source: 'px', where: [{ value: 'SPX' }], at: 'close', shape: 'up', label: 'Closes' } as const;
+    const ids = (): string[] => (drawn.at(-1)!.series as { id: string }[]).map((x) => x.id);
+    try {
+      await until(() => drawn.length > 0, 'the chart');
+      view.update({ ...SPEC, annotations: [{ kind: 'level', value: 3000 }, marks] });
+      await until(() => ids().includes('marks:1'), 'the marks added');
+      const n = drawn.length;
+      view.update({ ...SPEC, annotations: [marks] });
+      await until(() => drawn.length > n && ids().includes('marks:0'), 'the marks, now the first annotation');
+      assert.ok(!ids().includes('marks:1'));
+      view.update({ ...SPEC, annotations: [] });
+      await until(() => !ids().some((id) => id.startsWith('marks:')), 'the marks taken off');
+    } finally {
+      view.dispose();
+    }
+  });
+
   it('a range told as the page\'s spec, the zoom moved to it; a line hidden is drawn again from the rows it has', async () => {
     const { root, drawn, told, zooms, view } = viewer(SPEC);
     try {
