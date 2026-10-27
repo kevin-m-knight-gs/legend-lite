@@ -356,9 +356,9 @@ describe('the Pure library spike: the gaps, as they are today', () => {
       (e: Error) => /ts_m/.test(e.message), 'the caller\'s ts_m is already a column when the body makes its own');
   });
 
-  it('GAP 3: a declared return type is not held to the body (Relation<T+O> leaks a column)', async () => {
-    const t = await engine.execute(await spiked.planText(`|${source}->spike::leaks(~symbol, ~day, ~close, ~o)`), 0);
-    assert.ok(t.columns.some((c) => c.name === 'ts_a'), 'the leaked column is in the answer, the declaration unchecked');
+  it('GAP 3, closed: a declared return is held to each call, so a body leaking a column is refused by name', async () => {
+    await assert.rejects(spiked.planText(`|${source}->spike::leaks(~symbol, ~day, ~close, ~o)`),
+      (e: Error) => /spike::leaks/.test(e.message) && /\[ts_a\] not declared/.test(e.message), 'the leak is named');
   });
 
   it('a word told as a parameter folds: one function of a type keeps one branch, the SQL the other\'s none', async () => {

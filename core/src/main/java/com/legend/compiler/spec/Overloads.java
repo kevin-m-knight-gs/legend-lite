@@ -123,7 +123,7 @@ final class Overloads {
         // yet, so the call keeps its signature typing (the engine types
         // a closure body by signatures too; it pastes nothing)
         if (requiresNormalization(a.chosen()) && storedLambdas.isEmpty()) {
-            return inlineNormalized(af, a.chosen(), env);
+            return inlineNormalized(af, a.chosen(), a.out(), env);
         }
         TypedSpec shadow = derivedShadow(af, a, env);
         if (shadow != null) {
@@ -330,7 +330,7 @@ final class Overloads {
      *  function anywhere on the stack", which refused a call nested in another's argument as recursion). */
     private static final int MAX_NESTED_EXPANSIONS = 16;
 
-    private TypedSpec inlineNormalized(AppliedFunction af, TypedFunction chosen, Env env) {
+    private TypedSpec inlineNormalized(AppliedFunction af, TypedFunction chosen, ExprType declared, Env env) {
         com.legend.model.FunctionId key = chosen.id();
         if (java.util.Collections.frequency(normalizing, key) >= MAX_NESTED_EXPANSIONS) {
             throw new TypeInferenceException("recursive NormalizeRequired function '"
@@ -357,10 +357,47 @@ final class Overloads {
                 alpha.apply(folded.body().get(0)), subst);
         normalizing.push(key);
         try {
-            return synth(new StaticFold(t, env).fold(body), env);
+            TypedSpec typed = synth(new StaticFold(t, env).fold(body), env);
+            if (RelationGenerics.of(chosen)) {
+                holdToDeclared(chosen, declared, typed);
+            }
+            return typed;
         } finally {
             normalizing.pop();
         }
+    }
+
+    /**
+     * A function generic over relations (docs/SEMANTICS_REGISTER.md S112) is typed by its body at each call, so its
+     * declared return is held to that body here, under the call's own bindings ({@code declared}, the signature's
+     * return as the call resolved it): a declared table's every column is in the body's answer, of a type that
+     * conforms (the kernel's relation unify), and the answer has no column the declaration does not name -- a
+     * working column left in it is refused, naming the function (2026-10-27, docs/PURE_LIBRARY_SPIKE_2026_10_27.md
+     * GAP 3). A declaration that is not a resolved table ({@code Relation<Any>}) names no columns, and holds none.
+     */
+    private void holdToDeclared(TypedFunction chosen, ExprType declared, TypedSpec typed) {
+        Type.RelationType want = Type.relationSchema(declared.type());
+        Type.RelationType got = Type.schemaView(typed.info().type());
+        if (want == null || got == null) {
+            return;
+        }
+        String said = "the body of " + chosen.qualifiedName() + " answers " + columnNames(got)
+                + " where its declared " + declared.type().typeName() + " has " + columnNames(want);
+        try {
+            kernel.unify(want, got, new Bindings());
+        } catch (TypeInferenceException e) {
+            throw new TypeInferenceException(said + ": " + e.getMessage(), e);
+        }
+        List<String> extra = got.columns().stream().map(Type.Column::name)
+                .filter(n -> want.columns().stream().noneMatch(c -> InferenceKernel.sameColumn(c.name(), n)))
+                .toList();
+        if (!extra.isEmpty()) {
+            throw new TypeInferenceException(said + ": " + extra + " not declared");
+        }
+    }
+
+    private static List<String> columnNames(Type.RelationType r) {
+        return r.columns().stream().map(Type.Column::name).toList();
     }
 
     /** A helper CALL returning a function value over the schema-erasing TDS

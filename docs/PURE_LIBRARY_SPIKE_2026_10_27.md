@@ -45,8 +45,10 @@ the writer's size (the exponential average: 5,682 characters, the writer's 6,733
    (`extend(~ts_m:...)` before `zscores`: refused, naming `ts_m`, which the caller never wrote to the function). The
    expansion already renames a body's lambda binders fresh; it could rename the columns a body makes and then drops or
    renames away the same way (a decision for the user: rename them, or refuse in the function's words).
-3. **The declared return type** (GAP 3, pinned). An expanded function's declared return (`Relation<T+O>`) is not held
-   to its body, which leaks a column unnoticed. With 1, it can be: each call's expansion checked against it.
+3. **The declared return type** (GAP 3, **closed 2026-10-27**). An expanded function's declared return
+   (`Relation<T+O>`) was not held to its body, which leaked a column unnoticed. Now each call's typed body is held to
+   it under the call's bindings (`Overloads#holdToDeclared`, register S112): every declared column present and of a
+   conforming type, and no other; `spike::leaks` is refused, naming its `ts_a`. `Relation<Any>` holds nothing.
 4. **Many series** (weighted_sum, basket). No Pure function iterates over a list of columns; a function generic over N
    series is not one function. The natural Pure shape is a long table -- a row per member and date, its weight beside
    it -- which a basket groups by the date; or a function of fixed arity. A design choice for the conversion.
@@ -66,7 +68,7 @@ its split into lines, the view's anchor and window, a candle's period bucketing,
 
 ## The next step
 
-1 is built (`without`, 2026-10-27: the catalog regenerated against the legend-engine 4.145.0 and legend-pure 5.99.0
-trees, now in the session). Next: 2 and 3 (hygiene, the return check), each with its register row and tests; decide 4
-and 6; then convert every function, each held to today's numbers by `timeseries-queries.test.ts` as the shipped five
-were.
+1 and 3 are built (`without` and the return check, 2026-10-27: the catalog regenerated against the legend-engine
+4.145.0 and legend-pure 5.99.0 trees, now in the session). Next: 2 (hygiene, once the user picks rename or refuse);
+decide 4 and 6; then convert every function, each held to today's numbers by `timeseries-queries.test.ts` as the
+shipped five were, declaring its honest return.
