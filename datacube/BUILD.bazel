@@ -1682,6 +1682,27 @@ js_run_binary(
     srcs = ["tools/markets-data/emit.ts"],
     stdout = "generated/markets-data.pure",
     tool = ":emit_markets_data",
+    # and Python's test of the example over it (python/tests/test_markets.py)
+    visibility = ["//python:__pkg__"],
+)
+
+# The example over the project as a saved page (tools/markets-data/page.ts), for Python's test of it
+js_binary(
+    name = "emit_markets_page",
+    data = [":src"],
+    entry_point = "tools/markets-data/page.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "markets_page",
+    srcs = ["tools/markets-data/page.ts"],
+    stdout = "generated/markets-classes.page.json",
+    tool = ":emit_markets_page",
+    visibility = ["//python:__pkg__"],
 )
 
 copy_to_directory(

@@ -406,6 +406,39 @@ py_test(
     ],
 )
 
+# THE MARKETS EXAMPLE OVER THE TRADING MODEL'S CLASSES on Python (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11,
+# Phase 6's D6): the screen's example page loaded over the markets project as this host's depot gives it, its tiles'
+# frames and marks read by the one rule -- a test of its own, the 4 MB model compiled once for it, never in engine_test.
+py_test(
+    name = "markets_test",
+    size = "medium",
+    srcs = [
+        "tests/main.py",
+        "tests/test_markets.py",
+    ],
+    args = ["test_markets"],
+    data = [
+        ":wheel_duckdb",
+        "//datacube:headless_bundle",
+        "//datacube:markets_data",
+        "//datacube:markets_page",
+        "//native:compiler",
+        "//scripts/corpus:trading_model",
+    ],
+    env = _ENV | _HEADLESS_ENV | {
+        "LEGEND_LITE_MARKETS_DATA": "$(rlocationpath //datacube:markets_data)",
+        "LEGEND_LITE_MARKETS_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
+        "LEGEND_LITE_MARKETS_PAGE": "$(rlocationpath //datacube:markets_page)",
+    },
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":legend_lite",
+        "@pypi//pandas",
+        "@rules_python//python/runfiles",
+    ],
+)
+
 # TRY IT: an interactive Python with legend_lite ready (repl.py): the repository's Python and pinned packages, the
 # compiler's native library and DataCube's built site, by their runfiles paths -- `bazel run //python:repl`, then
 # `cube = ll.show(trades)`. Where the library builds.

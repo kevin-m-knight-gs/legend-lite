@@ -246,7 +246,7 @@ run_binary(
         "PYTHONUTF8": "1",
     },
     tool = ":trading_model_tool",
-    visibility = ["//core:__pkg__", "//datacube:__pkg__"],
+    visibility = ["//core:__pkg__", "//datacube:__pkg__", "//python:__pkg__"],
 )
 
 # THE CORPUS RATCHETS (Bazel workplan P2-04): each `--gate` of the corpus's own measures as a test, over the

@@ -878,6 +878,13 @@ dated budget notes; every figure still the database's.
   rows matched as a column's brackets are typed, the column drawn at, what each says, its shape, pane and label) or by
   Python's `annotate`, its rows read by Python's `Timeseries.marks()`. The example's trades tile draws the bank's Apple
   trades so, each held to its TRADE row through the mapping (`stress-markets.test.ts`).
+  D6 (2026-10-27), Python by the one rule: the example page, written by the screen's own builder (`BUILD.bazel
+  :markets_page`), loaded by Python over the markets project as its host's depot gives it (`//python:markets_test`, in
+  the warehouse lane beside `engine_test`, the 4 MB model compiled once for it): each grid a saved query read through
+  the mapping, its rows the project's Data (13,040 quotes: ten instruments on the sample's 1,304 business days; each
+  instrument's sector and exchange through the associations; the trades' side by its enumeration's name); a line per
+  instrument of a sector, every day of each; Apple's close as the quotes' grid holds it; the trades as marks
+  (`Timeseries.marks()`), each a row of the trades grid; the marks among the tile's `queries()`. Phase 6 is built.
 - **Not built, and why:** X-13 seasonal adjustment and `smooth_outliers` (iterative procedures no query states; gs-quant's
   own seasonal adjustment is the decomposition above); PowerPoint (a document writer of its own in the bundle; the page
   already exports HTML and PDF); alerts (a scheduler and a channel outside a page); `repeat`, `date_range`,
