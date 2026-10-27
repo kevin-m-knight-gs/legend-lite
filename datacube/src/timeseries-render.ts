@@ -23,6 +23,8 @@ export interface MountedTimeseries {
   zoomed(): { readonly from?: string; readonly to?: string };
   /** One line brought forward (its key), or none. */
   highlight(key: string | null): void;
+  /** Measuring (Phase 5): a drag across the chart is a span measured, told by `onSpan`, never a pan. */
+  measure(on: boolean): void;
   /** The drawing's own height in pixels: what its panes are laid out in. */
   height(): number;
   picture(ratio?: number): ChartPicture | null;
@@ -52,10 +54,41 @@ export function mountTimeseries(el: HTMLElement, on: {
   readonly onZoom: (from: string | undefined, to: string | undefined) => void;
   readonly onDate?: (date: string) => void;
   readonly onResize?: () => void;
+  /** While measuring: a drag across the chart, its two ends' dates in order -- `done` once it is let go. */
+  readonly onSpan?: (from: string, to: string, done: boolean) => void;
 }, init: (el: HTMLElement) => ECharts, svg?: (el: HTMLElement) => Promise<ECharts>): MountedTimeseries {
   const chart = init(el);
   let shown = false;
   let lastKey: string | null = null;
+  let measuring = false;
+  let dragFrom: { readonly t: number; readonly x: number } | undefined;
+  /** The date under a pixel of the chart, in its first grid's time, or none outside the grids. */
+  const timeAt = (e: { offsetX: number; offsetY: number }): number | undefined => {
+    const at = chart.convertFromPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY]) as unknown as number[] | undefined;
+    const t = at?.[0];
+    return typeof t === 'number' && Number.isFinite(t) ? t : undefined;
+  };
+  const spanned = (t: number, done: boolean): void => {
+    const [a, b] = dragFrom!.t <= t ? [dragFrom!.t, t] : [t, dragFrom!.t];
+    on.onSpan?.(isoOf(a), isoOf(b), done);
+  };
+  chart.getZr().on('mousedown', (e: { offsetX: number; offsetY: number }) => {
+    if (!measuring || !chart.containPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY])) return;
+    const t = timeAt(e);
+    dragFrom = t === undefined ? undefined : { t, x: e.offsetX };
+  });
+  chart.getZr().on('mousemove', (e: { offsetX: number; offsetY: number }) => {
+    if (!measuring || dragFrom === undefined) return;
+    const t = timeAt(e);
+    if (t !== undefined && Math.abs(e.offsetX - dragFrom.x) > 3) spanned(t, false);
+  });
+  chart.getZr().on('mouseup', (e: { offsetX: number; offsetY: number }) => {
+    if (!measuring || dragFrom === undefined) return;
+    const t = timeAt(e);
+    // a click, no drag, measures nothing
+    if (t !== undefined && Math.abs(e.offsetX - dragFrom.x) > 3) spanned(t, true);
+    dragFrom = undefined;
+  });
   const window = (): { from?: string; to?: string } => {
     const zoom = (chart.getOption() as { dataZoom?: { startValue?: number | string; endValue?: number | string }[] }).dataZoom?.[0];
     const at = (v: number | string | undefined): string | undefined => (typeof v === 'number' ? isoOf(v) : typeof v === 'string' ? v.slice(0, 10) : undefined);
@@ -96,6 +129,10 @@ export function mountTimeseries(el: HTMLElement, on: {
       if (lastKey !== null) chart.dispatchAction({ type: 'downplay', seriesId: lastKey });
       lastKey = key;
       if (key !== null) chart.dispatchAction({ type: 'highlight', seriesId: key });
+    },
+    measure(next) {
+      measuring = next;
+      dragFrom = undefined;
     },
     height() {
       return chart.getHeight();

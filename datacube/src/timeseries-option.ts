@@ -353,6 +353,9 @@ export interface TsDrawContext {
   readonly picture?: boolean;
   /** The marks from grids' rows the database answered (tsMarks), drawn over the lines. */
   readonly marks?: readonly TsMarked[];
+  /** Measuring (Phase 5): a drag is a span measured, so the chart does not pan; the span measured, shaded. */
+  readonly measuring?: boolean;
+  readonly span?: { readonly from: string; readonly to: string };
 }
 
 /** A heading's line as it is drawn: one line (a note told with line breaks drawn over the panes below it -- the Phase 2
@@ -649,6 +652,22 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
       });
     }
   }
+  // the span a person measures, shaded across every pane
+  if (ctx.span !== undefined) {
+    const span = ctx.span;
+    panes.forEach((_, gi) => {
+      series.push({
+        id: gi === 0 ? 'measure' : `measure:${gi}`,
+        type: 'line',
+        xAxisIndex: gi,
+        yAxisIndex: axisOf.get(`${gi}|left`)!,
+        data: [],
+        silent: true,
+        tooltip: { show: false },
+        markArea: { silent: true, itemStyle: { color: theme.series[0], opacity: 0.1 }, data: [[{ xAxis: span.from }, { xAxis: span.to }]] },
+      });
+    });
+  }
   // each condition's periods where it holds, shaded in its colour across every pane -- the database's runs; its legend
   // chip shows and hides it, as a line's
   for (const l of shaded) {
@@ -674,7 +693,7 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   const view = ctx.view ?? {};
   const zoomAt = { ...(view.from !== undefined ? { startValue: view.from } : {}), ...(view.to !== undefined ? { endValue: view.to } : {}) };
   const dataZoom: Record<string, unknown>[] = [
-    { type: 'inside', xAxisIndex: allX, filterMode: 'filter', zoomOnMouseWheel: true, moveOnMouseMove: true, ...zoomAt },
+    { type: 'inside', xAxisIndex: allX, filterMode: 'filter', zoomOnMouseWheel: true, moveOnMouseMove: ctx.measuring !== true, ...zoomAt },
   ];
   if (navigator) {
     dataZoom.push({

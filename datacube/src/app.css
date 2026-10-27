@@ -5625,6 +5625,15 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 }
 .dc-ts-banner.dc-ts-bad { border-left-color: var(--tw-red-500); color: var(--tw-red-600); }
 
+/* a span measured on the chart (Phase 5): each line's change over it, the database's */
+.dc-ts-measure {
+  margin: var(--dc-pad-1) var(--dc-pad-2) 0; padding: 2px var(--dc-pad-2); border-left: 3px solid var(--tw-blue-600, #2563eb);
+  background: var(--dc-fill-faint); font-size: var(--dc-text-sm-size); display: flex; flex-direction: column; gap: 2px;
+}
+.dc-ts-measure-head { font-weight: 600; font-variant-numeric: tabular-nums; }
+.dc-ts-measure-row { display: flex; gap: var(--dc-pad-2); font-variant-numeric: tabular-nums; }
+.dc-ts-measure-name { min-width: 8em; color: var(--dc-muted-strong); }
+
 .dc-ts-body { position: relative; flex: 1 1 auto; min-height: 160px; display: flex; }
 .dc-ts-chart { flex: 1 1 auto; min-width: 0; min-height: 0; }
 .dc-ts-chart[aria-busy='true'] { opacity: 0.6; transition: opacity 0.2s 0.2s; }

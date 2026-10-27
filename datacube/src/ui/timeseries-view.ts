@@ -173,6 +173,8 @@ export interface MountOn {
   readonly onZoom: (from: string | undefined, to: string | undefined) => void;
   readonly onDate?: (date: string) => void;
   readonly onResize?: () => void;
+  /** While measuring: a drag across the chart, its ends in order, `done` once let go (timeseries-render.ts). */
+  readonly onSpan?: (from: string, to: string, done: boolean) => void;
 }
 
 /** What a spec's queries depend on: when it changes, the database is asked again; else the drawing alone changes. */
@@ -421,6 +423,14 @@ export class TimeseriesView {
   #marksFailed = new Map<number, string>();
   /** The marks drawn last, as the lines are: what a picture draws. */
   #marked: TsMarked[] = [];
+  /** MEASURING (Phase 5, TradingView's ruler): a drag across the chart is a span, each line's statistics over it the
+   *  database's (statsQuery, Python's statistics(start, end) by the one rule) -- its change, its %, its days. */
+  #measuring = false;
+  #span: TsWindow & { readonly from: string; readonly to: string } | undefined;
+  #spanRows = new Map<string, ResultTable>();
+  #spanFailed = new Map<string, string>();
+  #spanGen = 0;
+  #measureBox!: HTMLElement;
   #lines: TsLine[] = [];
   /** Every question asked of the database, by its ask (timeseries-query.ts askKey): what the Query window shows. A
    *  round's asks of another tile, or of other dates, are not what is drawn: each kept with the tile it was asked of. */
@@ -964,6 +974,7 @@ export class TimeseriesView {
           if (this.#spec.view?.mode === undefined) this.#eventAt(date);
         },
         onResize: () => void this.#draw(),
+        onSpan: (from, to, done) => this.#spanned(from, to, done),
       };
       let make = this.#host.mount;
       if (make === undefined) {
@@ -1040,8 +1051,116 @@ export class TimeseriesView {
     }
     const option = timeseriesOption(spec, lines, {
       theme, formatOf: (l) => this.#formatOf(l), view: this.#window(), height, marks: marked,
+      ...(this.#measuring ? { measuring: true } : {}), ...(this.#span !== undefined ? { span: this.#span } : {}),
     });
     chart.show(option, describeTimeseries(spec, lines));
+  }
+
+  /** Measuring on or off: a drag is a span measured, not a pan; off, the span and its figures put away. */
+  #measure(on: boolean): void {
+    this.#measuring = on;
+    this.#chart?.measure(on);
+    if (!on) {
+      this.#span = undefined;
+      this.#spanGen++;
+      this.#paintMeasure();
+    }
+    this.#paintBar();
+    void this.#draw();
+  }
+
+  /** A span dragged: shown as it is dragged, and once let go each line's statistics over it asked of the database. */
+  #spanned(from: string, to: string, done: boolean): void {
+    if (!this.#measuring) return;
+    this.#span = { from, to };
+    if (!done) {
+      this.#paintMeasure(true);
+      return;
+    }
+    void this.#draw();
+    void this.#measured(from, to);
+  }
+
+  /** Each line's statistics over the span -- statsQuery, by the rule the statistics panel reads its window by -- the
+   *  last span's answers alone. */
+  async #measured(from: string, to: string): Promise<void> {
+    const gen = ++this.#spanGen;
+    const spec = this.#spec;
+    const span: TsWindow = { from, to };
+    const opened: Opened = new Map();
+    const rows = new Map<string, ResultTable>();
+    const failed = new Map<string, string>();
+    this.#paintMeasure(true);
+    try {
+      await Promise.all(tableSeries(spec).statistics.map(async (id) => {
+        const s = spec.series.find((x) => x.id === id)!;
+        try {
+          const ran = await this.#runOn(askSources(spec, { kind: 'statistics', series: id }), (inputs) => askQuery(inputs, spec, { kind: 'statistics', series: id }, span),
+            new AbortController().signal, opened);
+          rows.set(s.id, ran.table);
+        } catch (e) {
+          failed.set(s.id, e instanceof Error ? e.message : String(e));
+        }
+      }));
+    } finally {
+      putAway(opened);
+    }
+    if (gen !== this.#spanGen || this.#disposed) return;
+    this.#spanRows = rows;
+    this.#spanFailed = failed;
+    this.#paintMeasure();
+  }
+
+  /** The span's figures under the bar: each line's first and last value, its change and %, its days and observations,
+   *  each the database's, in its line's format; asking, said; refused, said in its words. */
+  #paintMeasure(asking = false): void {
+    const doc = this.#doc;
+    const span = this.#span;
+    this.#measureBox.hidden = span === undefined;
+    if (span === undefined) {
+      this.#measureBox.replaceChildren();
+      return;
+    }
+    const head = el(doc, 'div', 'dc-ts-measure-head', `${span.from} → ${span.to}`);
+    const rows: HTMLElement[] = [];
+    if (asking) {
+      rows.push(el(doc, 'div', 'dc-ts-hint', 'Measuring…'));
+    } else {
+      for (const l of this.#lines.filter((x) => !x.series.hidden && this.#spanRows.has(x.series.id))) {
+        const at = (stat: TsStat): number | null => {
+          const v = this.#statValue(l, stat, this.#spanRows);
+          return typeof v === 'string' && /^\d{4}-/.test(v) ? null : toNumber(v as Scalar);
+        };
+        const f = this.#formatOf(l);
+        const first = at('first');
+        const last = at('last');
+        const change = at('change');
+        const pct = at('pct');
+        const days = at('days');
+        const count = at('count');
+        const text = first === null || last === null ? 'no values in this span'
+          : `${valueText(l, first, f)} → ${valueText(l, last, f)} · ${change === null ? '—' : `${change >= 0 ? '+' : ''}${valueText(l, change, f)}`}`
+            + `${pct === null ? '' : ` (${pct >= 0 ? '+' : ''}${(pct * 100).toLocaleString(UI_LOCALE, { maximumFractionDigits: 2 })}%)`}`
+            + ` · ${days === null ? '—' : days.toLocaleString(UI_LOCALE)} days, ${count === null ? '—' : count.toLocaleString(UI_LOCALE)} obs`;
+        const row = el(doc, 'div', 'dc-ts-measure-row');
+        row.append(el(doc, 'span', 'dc-ts-measure-name', l.name), el(doc, 'span', undefined, text));
+        rows.push(row);
+      }
+      for (const [id, why] of this.#spanFailed) rows.push(el(doc, 'div', 'dc-ts-hint dc-ts-bad', `Series ${id} was not measured: ${why}`));
+    }
+    const actions = el(doc, 'div', 'dc-ts-row');
+    actions.append(
+      button(doc, 'Zoom to it', 'Show these dates alone', () => {
+        this.#chart?.zoomTo(span.from, span.to);
+        this.#zoomed(span.from, span.to);
+      }),
+      button(doc, 'Clear', 'Measure another span', () => {
+        this.#span = undefined;
+        this.#spanGen++;
+        this.#paintMeasure();
+        void this.#draw();
+      }));
+    this.#measureBox.replaceChildren(head, ...rows, actions);
   }
 
   #zoomed(from: string | undefined, to: string | undefined): void {
@@ -1062,9 +1181,11 @@ export class TimeseriesView {
     this.#banner = el(doc, 'div', 'dc-ts-banner', undefined, { role: 'status' });
     this.#canvas = el(doc, 'div', 'dc-ts-chart', undefined, { role: 'img' });
     this.#stats = el(doc, 'div', 'dc-ts-stats');
+    this.#measureBox = el(doc, 'div', 'dc-ts-measure', undefined, { role: 'status', 'aria-label': 'Measured' });
+    this.#measureBox.hidden = true;
     const body = el(doc, 'div', 'dc-ts-body');
     body.append(this.#canvas);
-    this.#root.append(this.#bar, this.#legend, this.#banner, body, this.#stats);
+    this.#root.append(this.#bar, this.#legend, this.#banner, this.#measureBox, body, this.#stats);
     this.#paintBar();
   }
 
@@ -1089,7 +1210,9 @@ export class TimeseriesView {
     const svg = button(doc, 'SVG', 'Download the chart as SVG, its title, subtitle and note above it: a picture for a page or a deck', () => void this.#export('svg'));
     const swap = button(doc, 'Swap', 'One instrument for another in every series that reads it', () => this.#swap());
     const query = button(doc, 'Query', 'Each series\' query as the compiler prints it, and its SQL', () => void this.#showQueries());
-    this.#bar.replaceChildren(this.#ranges, el(doc, 'span', 'dc-ts-gap'), grain, compare, mode, log, stats, add, swap, settings, query, csv, png, svg);
+    const measure = button(doc, 'Measure', 'Drag across the chart: each line\'s change, its % and the days between, the database\'s', () => this.#measure(!this.#measuring));
+    measure.setAttribute('aria-pressed', String(this.#measuring));
+    this.#bar.replaceChildren(this.#ranges, el(doc, 'span', 'dc-ts-gap'), grain, compare, mode, log, stats, measure, add, swap, settings, query, csv, png, svg);
   }
 
   #paintRanges(): void {
@@ -1547,8 +1670,8 @@ export class TimeseriesView {
     return typeof v === 'string' && /^\d{4}-/.test(v) ? null : toNumber(v as Scalar);
   }
 
-  #statValue(line: TsLine, stat: TsStat): Scalar | undefined {
-    const t = this.#statRows.get(line.series.id);
+  #statValue(line: TsLine, stat: TsStat, rows: ReadonlyMap<string, ResultTable> = this.#statRows): Scalar | undefined {
+    const t = rows.get(line.series.id);
     if (!t) return undefined;
     const col = t.columns.find((c) => c.name === statName(stat));
     if (!col) return undefined;

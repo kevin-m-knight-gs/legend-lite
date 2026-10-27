@@ -2192,6 +2192,8 @@ describe('a series\' statistics over the dates shown', () => {
     assert.equal(Number(v('count')), 30);
     assert.equal(String(v('from')).slice(0, 10), DAYS[5]);
     assert.equal(String(v('to')).slice(0, 10), DAYS[34]);
+    // the calendar days between them (Phase 5's measure): the database's date arithmetic, held to the calendar's
+    assert.equal(Number(v('days')), (Date.parse(DAYS[34]!) - Date.parse(DAYS[5]!)) / 86_400_000);
     close([num(v('first')), num(v('last'))], [shown[0]!, shown[29]!], 'ends');
     close([num(v('change'))], [shown[29]! - shown[0]!], 'change', 1e-9);
     close([num(v('pct'))], [shown[29]! / shown[0]! - 1], 'pct', 1e-9);

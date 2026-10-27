@@ -22,7 +22,7 @@ import { tileCode } from '../src/timeseries-code.ts';
 import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { ingestFile } from '../src/upload.ts';
-import { TimeseriesView, type TsGrid, type TsTogether } from '../src/ui/timeseries-view.ts';
+import { TimeseriesView, type MountOn, type TsGrid, type TsTogether } from '../src/ui/timeseries-view.ts';
 import { MARKET_SPECS } from '../src/examples/markets.ts';
 import { plannerFor } from './catalog-builder.ts';
 
@@ -81,7 +81,7 @@ interface Exported { option: EChartsOption; kind: 'png' | 'svg'; width: number; 
 
 function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over: TsGrid = grid): {
   view: TimeseriesView; root: HTMLElement; windows: HTMLElement; drawn: EChartsOption[]; told: TimeseriesSpec[]; zooms: unknown[];
-  exported: Exported[];
+  exported: Exported[]; mounted: { on?: MountOn; measuring: boolean };
 } {
   const g: TsGrid = refused === undefined ? over : {
     ...over,
@@ -95,16 +95,21 @@ function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over
   const told: TimeseriesSpec[] = [];
   const zooms: unknown[] = [];
   const exported: Exported[] = [];
-  const mount = (): MountedTimeseries => ({
-    show: (option) => { drawn.push(option); },
-    zoomTo: (from, to) => { zooms.push({ from, to }); },
-    zoomed: () => ({}),
-    highlight: () => {},
-    height: () => 480,
-    picture: () => null,
-    exportUrl: async (option, kind, width, height, background) => { exported.push({ option, kind, width, height, background }); return `data:image/${kind};base64,AA==`; },
-    dispose: () => {},
-  });
+  const mounted: { on?: MountOn; measuring: boolean } = { measuring: false };
+  const mount = (_el: HTMLElement, on: MountOn): MountedTimeseries => {
+    mounted.on = on;
+    return {
+      measure: (measuring) => { mounted.measuring = measuring; },
+      show: (option) => { drawn.push(option); },
+      zoomTo: (from, to) => { zooms.push({ from, to }); },
+      zoomed: () => ({}),
+      highlight: () => {},
+      height: () => 480,
+      picture: () => null,
+      exportUrl: async (option, kind, width, height, background) => { exported.push({ option, kind, width, height, background }); return `data:image/${kind};base64,AA==`; },
+      dispose: () => {},
+    };
+  };
   const view = new TimeseriesView(root, {
     grid: (cube) => (cube === 'prices' ? g : undefined),
     heldFilter: (cube) => (cube === 'prices' ? { filter: g.filter } : undefined),
@@ -116,7 +121,7 @@ function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over
     codeOf: () => ({ title: 'Markets', sheet: 'sheet-1', grids: { prices: { tile: 'prices', title: 'Prices' } } }),
     mount,
   }, spec);
-  return { view, root, windows, drawn, told, zooms, exported };
+  return { view, root, windows, drawn, told, zooms, exported, mounted };
 }
 
 /** Until `done` holds, the viewer's queries answered meanwhile (bounded). */
@@ -341,6 +346,42 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
       assert.ok(refused.root.querySelector('.dc-ts-banner')!.classList.contains('dc-ts-bad'));
     } finally {
       refused.view.dispose();
+    }
+  });
+
+  // Phase 5's measure (TradingView's ruler): a drag across the chart is a span, each line's statistics over it the
+  // database's -- statsQuery over those dates, the rule Python's statistics(start, end) reads
+  it('Measure: a span dragged, each line\'s first and last value, its change and %, its days and observations over it', async () => {
+    const { root, drawn, view, mounted } = viewer(SPEC);
+    try {
+      await until(() => drawn.length > 0 && mounted.on !== undefined, 'the chart');
+      barButton(root, 'Measure').click();
+      assert.equal(mounted.measuring, true, 'a drag is a measure now, not a pan');
+      assert.equal(barButton(root, 'Measure').getAttribute('aria-pressed'), 'true');
+      const spx = of('SPX');
+      const [from, to] = [spx.days[30]!, spx.days[90]!];
+      mounted.on!.onSpan!(from, to, false);
+      mounted.on!.onSpan!(from, to, true);
+      const box = (): HTMLElement => root.querySelector('.dc-ts-measure') as HTMLElement;
+      await until(() => box().querySelectorAll('.dc-ts-measure-row').length >= 1, 'the span measured');
+      const said = [...box().querySelectorAll('.dc-ts-measure-row')].map((r) => r.textContent ?? '');
+      // the S&P's: its closes on those days, the change between, the calendar days, the observations
+      const [a, b] = [spx.closes[30]!, spx.closes[90]!];
+      const days = (Date.parse(to) - Date.parse(from)) / 86_400_000;
+      const sp = said.find((t) => t.startsWith('S&P 500'))!;
+      assert.match(sp, new RegExp(`${days} days, 61 obs$`), sp);
+      assert.ok(sp.includes(`(${b - a >= 0 ? '+' : ''}${(((b - a) / Math.abs(a)) * 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}%)`), sp);
+      assert.equal(box().querySelector('.dc-ts-measure-head')!.textContent, `${from} → ${to}`);
+      // the span shaded on the chart, and no pan while measuring
+      const option = drawn.at(-1)! as { series: { id: string; markArea?: { data: { xAxis: string }[][] } }[]; dataZoom: { type: string; moveOnMouseMove?: boolean }[] };
+      assert.deepEqual(option.series.find((x) => x.id === 'measure')!.markArea!.data[0]!.map((e) => e.xAxis), [from, to]);
+      assert.equal(option.dataZoom.find((z) => z.type === 'inside')!.moveOnMouseMove, false);
+      // off again: the span put away
+      barButton(root, 'Measure').click();
+      assert.equal(box().hidden, true);
+      assert.equal(mounted.measuring, false);
+    } finally {
+      view.dispose();
     }
   });
 
@@ -1129,7 +1170,7 @@ describe('asking the database what is shown, once', () => {
       title: () => 'Markets',
       codeOf: () => ({ title: 'Markets', sheet: 'sheet-1', grids: { prices: { tile: 'prices', title: 'Prices' }, prices2: { tile: 'prices2', title: 'Prices again' } } }),
       mount: () => ({
-        show: () => {}, zoomTo: () => {}, zoomed: () => ({}), highlight: () => {}, height: () => 480, picture: () => null,
+        show: () => {}, zoomTo: () => {}, zoomed: () => ({}), highlight: () => {}, measure: () => {}, height: () => 480, picture: () => null,
         exportUrl: () => Promise.reject(new Error('no picture here')), dispose: () => {},
       }),
     }, spec);

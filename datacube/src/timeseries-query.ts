@@ -71,7 +71,7 @@ export const rangeStartName = (w: TsRangeWord): string => `__ts_from_${w}`;
 
 /** The statistics a series' statistics query answers with, by line, in the table's order. */
 export const TS_STATS = [
-  'count', 'from', 'to', 'first', 'last', 'change', 'pct', 'low', 'lowAt', 'high', 'highAt', 'mean', 'std', 'vol', 'mdd',
+  'count', 'from', 'to', 'days', 'first', 'last', 'change', 'pct', 'low', 'lowAt', 'high', 'highAt', 'mean', 'std', 'vol', 'mdd',
   'cagr', 'sharpe',
   // a level's figures of its returns' risk (the expert statistics, 2026-10-26)
   'sortino', 'calmar', 'skew', 'kurtosis', 'hit', 'best', 'worst', 'var', 'es',
@@ -2926,6 +2926,8 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
   const first = one(S('first'));
   const last = one(S('last'));
   const derived: ColSpec[] = [
+    // the calendar days from its first date shown to its last: a span measured on the chart (Phase 5), the database's
+    derive(S('days'), row(fn('dateDiff', one(S('from')), one(S('to')), enumValue(DURATION, 'DAYS')))),
     derive(S('change'), row(op('minus', last, first))),
     // the change over its start's size: a start below zero rising is a rise (the review's Q11)
     derive(S('pct'), row(when(fn('equal', first, lit.integer(0)), none(), fn('divide', op('minus', last, first), fn('abs', first))))),
