@@ -677,8 +677,8 @@ const VIEWS: GallerySheet = {
 };
 
 /** On the chart itself (Phase 5, 2026-10-27): a trend projected -- the database's line over a series' last quarter and
- *  its last year, each on past its last date -- and a person's own: a note pinned at the 2022 low, a line drawn from it,
- *  the bear market's period. The measure, the Draw button and the replay are the tile's own, on every tile. */
+ *  its last year, each on past its last date -- and a person's own: a note pinned at the low after the bear market (the
+ *  sample's close that day), a line drawn from it, the bear market's period. The measure, the Draw button and the replay are the tile's own, on every tile. */
 const ON_CHART: GallerySheet = {
   name: 'On the chart',
   rows: [[
@@ -691,14 +691,14 @@ const ON_CHART: GallerySheet = {
         { kind: 'projection', series: 'A', window: 252, ahead: '6m', label: 'Last year\'s trend' },
       ],
     }),
-    tile('drawn', 'Drawn by hand: the 2022 low pinned, a line from it to the end of 2024, the bear market shaded', {
+    tile('drawn', 'Drawn by hand: the low after the bear market pinned, a line from it to the end of 2024, the bear market shaded', {
       sources: ON_PRICES,
       series: [s('A', 'close[SPX]', { name: 'S&P 500' })],
       range: { from: '2021-06-01', to: '2024-12-31' },
       annotations: [
         { kind: 'period', from: '2022-01-03', to: '2022-10-12', label: 'Bear market' },
-        { kind: 'note', at: { date: '2022-10-11', value: 4621.77 }, text: 'The 2022 low' },
-        { kind: 'line', from: { date: '2022-10-11', value: 4621.77 }, to: { date: '2024-12-31', value: 6467.59 }, label: 'From the low', color: 2 },
+        { kind: 'note', at: { date: '2023-03-16', value: 4190.96 }, text: 'The low' },
+        { kind: 'line', from: { date: '2023-03-16', value: 4190.96 }, to: { date: '2024-12-31', value: 6467.59 }, label: 'From the low', color: 2 },
       ],
     }),
   ]],

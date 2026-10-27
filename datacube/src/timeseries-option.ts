@@ -752,8 +752,9 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
         silent: true,
         animation: false,
         data: mine.flatMap((a) => (a.kind !== 'line' ? [] : [[
+          // its label along its middle: at its end it would sit on the last value's badge
           { coord: [a.from.date, a.from.value], lineStyle: { color: colorOf(a.color), width: 1.5, type: 'solid' },
-            label: { show: a.label !== undefined, formatter: a.label ?? '', position: 'end', color: theme.inkSecondary, fontSize: 10, fontFamily: theme.font } },
+            label: { show: a.label !== undefined, formatter: a.label ?? '', position: 'middle', color: theme.inkSecondary, fontSize: 10, fontFamily: theme.font } },
           { coord: [a.to.date, a.to.value] },
         ]])),
       },
@@ -791,7 +792,8 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
       animation: false,
       lineStyle: { color: own.line.color, width: 1.5, type: 'dashed' },
       tooltip: { show: false },
-      endLabel: { show: true, formatter: pj.name, color: theme.inkSecondary, fontSize: 10, fontFamily: theme.font },
+      // its name over its end, inside the pane: past it, the pane's edge cuts it
+      endLabel: { show: true, formatter: pj.name, align: 'right', verticalAlign: 'bottom', offset: [0, -6], color: theme.inkSecondary, fontSize: 10, fontFamily: theme.font },
       z: 3,
     });
   }
