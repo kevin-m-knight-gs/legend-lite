@@ -14985,6 +14985,12 @@ and the lanes re-measure this head.
    DuckDB (5 suites), H2, SQLite (5), MongoDB (5), channel B (5) and the discipline guard: 24 of 24, channel B's
    per-test lines identical to CI's at 7b8c89dc in all five suites; the eight Postgres targets, unprivileged: 8 of 8.
    Not run here: the local gate and the cloud lanes (they re-measure this head).
+6. **The lanes on f883d42b against 7b8c89dc** (six warm sessions, measure only, every suite of both channels):
+   channel A exact on every suite of Postgres, SQLite, MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery, Databricks and
+   Snowflake (Snowflake's pinned far-BC loss matched its predicted text); channel B identical per test on every lane,
+   but one gain: MySQL's `testMedian_Numbers_Relation_Window` (an ERROR at BASE, the same helper columns through the
+   star). Databricks' 14 channel B messages differ only by the restored trace line (its error positions one line
+   down). Wall times at or below BASE on every lane (BigQuery within noise; Snowflake's standard 321 s -> 261 s).
 
 ## 2026-10-27 — the result boundary program's stage 1, step 3: a PCT relation's crossing measured against legend-engine's own adapter
 
