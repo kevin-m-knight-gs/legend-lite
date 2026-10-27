@@ -343,14 +343,34 @@ class Writer {
   }
 
   /**
-   * A FUNCTION OF DATACUBE'S PURE LIBRARY over its line (pure-library.ts: the user, 2026-10-26, gs-quant's functions as
-   * Pure): `->datacube::ts::<name>(~<line>, [~period->ascending()], ~<value>, <args>, ~<out>)`, its figure the column
-   * it writes.
+   * A FUNCTION OF DATACUBE'S PURE LIBRARY over a window of its line (pure-library.ts: the user, 2026-10-26, gs-quant's
+   * functions as Pure; the conventions of docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.7):
+   * `->datacube::ts::<name>(over(~<line>, [~period->ascending()], <frame>), ~<value>, <args>, ~<out>)` -- the window the
+   * writer's own would be (#over) -- its figure the column it writes.
    */
-  library(name: string, what: string, value: string, args: readonly ValueSpecification[]): string {
+  library(name: string, what: string, value: string, frame: 'running' | 'all' | number | null, args: readonly ValueSpecification[]): string {
     const out = this.fresh(what);
-    this.rel = this.rel.call(`${LIBRARY_PACKAGE}::${name}`, colSpec(this.part), collection([asc(PERIOD)]), colSpec(value), ...args, colSpec(out));
+    this.rel = this.rel.call(`${LIBRARY_PACKAGE}::${name}`, this.#over(frame), colSpec(value), ...args, colSpec(out));
     return out;
+  }
+
+  /**
+   * A STATISTIC OF A CALENDAR PERIOD, the library's (`datacube::ts::overPeriod`): `stat` of `value` over (date - n unit,
+   * date] of each date of its line, none before the line's first value's date that period on (gs-quant's
+   * rolling_offset and apply_ramp).
+   */
+  libraryPeriod(stat: string, what: string, value: string, t: TsTenor): string {
+    const out = this.fresh(what);
+    this.rel = this.rel.call(`${LIBRARY_PACKAGE}::overPeriod`, colSpec(this.part), colSpec(this.at), colSpec(value),
+      lit.integer(t.n), enumValue(DURATION, t.unit), lit.string(stat), colSpec(out));
+    return out;
+  }
+
+  /** A rolled statistic of `value` over `w` periods (0: from the start) or a calendar period, the library's: drawn once
+   *  its window holds `ramp` values (a calendar period's, from its line's first value's date that period on). */
+  libraryRolled(stat: string, value: string, w: Span, ramp: number): string {
+    return typeof w === 'number' ? this.library(stat, stat, value, Writer.frame(w) as 'running' | number, [lit.integer(ramp)])
+      : this.libraryPeriod(stat, stat, value, w);
   }
 
   /** `->extend(~[name: x|body])`. */
@@ -695,7 +715,7 @@ class Writer {
     if (typeof obs === 'number') {
       const fn_ = RETURNS_OF.get(type);
       if (fn_ === undefined) throw new CubeRefusal(`there is no ${JSON.stringify(type)} return (simple, log or absolute)`);
-      return this.library(fn_, 'ret', a, [lit.integer(obs)]);
+      return this.library(fn_, 'ret', a, null, [lit.integer(obs)]);
     }
     const p = this.lag(a, obs);
     switch (type) {
@@ -1677,27 +1697,20 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       const base = w.anchored(a);
       return done(w.row('pchg', when(fn('equal', one(base), lit.integer(0)), none(), op('minus', fn('divide', one(a), one(base)), lit.integer(1)))));
     }
+    // the rolled statistics, the library's (pure-library.ts): over a count of periods (0 from the start) with a ramp
+    // of that count, or over a calendar period
     case 'mean':
     case 'sum':
     case 'min':
-    case 'max': {
-      const size = span('w');
-      // the mean of a count of periods: the library's (pure-library.ts mean)
-      if (e.fn === 'mean' && typeof size === 'number' && size >= 1) return done(w.library('mean', 'mean', a, [lit.integer(size)]));
-      const reduce = e.fn === 'mean' ? 'average' : e.fn === 'sum' ? 'plus' : e.fn;
-      return done(w.ramped(w.window(e.fn, reduce, R(a), Writer.frame(size)), a, size, Writer.frame(size)));
-    }
+    case 'max':
     case 'range': {
       const size = span('w');
-      const hi = w.window('max', 'max', R(a), Writer.frame(size));
-      const lo = w.window('min', 'min', R(a), Writer.frame(size));
-      return done(w.ramped(w.row('rng', op('minus', one(hi), one(lo))), a, size, Writer.frame(size)));
+      return done(w.libraryRolled(e.fn, a, size, typeof size === 'number' ? size : 0));
     }
     case 'std':
-      return done(w.std(a, span('w')));
     case 'var': {
       const size = span('w');
-      return done(w.ramped(w.window('var', 'varianceSample', R(a), Writer.frame(size)), a, atLeast(size, 2), Writer.frame(size)));
+      return done(w.libraryRolled(e.fn, a, size, typeof size === 'number' ? Math.max(size, 2) : 0));
     }
     case 'zscores': {
       const size = span('w');
@@ -1720,7 +1733,7 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       const size = span('w');
       // over a count of periods: the library's (pure-library.ts volatility), of the returns above
       if (typeof size === 'number' && size >= 1) {
-        return done(w.library('volatility', 'vol', r, [lit.integer(size), colSpec(w.perYearColumn())]));
+        return done(w.library('volatility', 'vol', r, size, [lit.integer(Math.max(size, 2)), colSpec(w.perYearColumn())]));
       }
       // over a calendar period, from the first price's date that period on: gs-quant's returns keep the first price's
       // date (its return none), which its ramp counts from (the E9 review's nit: from the first return's, a date late)

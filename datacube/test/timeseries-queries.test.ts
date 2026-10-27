@@ -442,7 +442,8 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const source = input.snapshot.source.query;
     const query = lambda([], new Relation(source)
       .filter(lambda(['x'], call('equal', column('x', 'symbol'), lit.string('AAA'))))
-      .call('datacube::ts::mean', colSpec('symbol'), collection([asc('day')]), colSpec('close'), lit.integer(5), colSpec('m'))
+      .call('datacube::ts::mean', call('over', colSpec('symbol'), collection([asc('day')]), call('rows', lit.integer(-4), lit.integer(0))),
+        colSpec('close'), lit.integer(5), colSpec('m'))
       .sort([call('descending', colSpec('day'))])
       .node);
     const t = await engine.execute(await planner.plan(query), 0);
