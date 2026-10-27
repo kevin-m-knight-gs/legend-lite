@@ -26,7 +26,8 @@ import {
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
 import type { FileSource } from '../src/cube-document.ts';
 import { catalogColumns } from '../src/upload.ts';
-import { col as column, fn as call, from, lambda, lit, minus, toJson } from '../../pure-protocol/src/index.ts';
+import { asc, col as column, collection, colSpec, fn as call, from, functionsCalled, lambda, lit, minus, Relation, toJson } from '../../pure-protocol/src/index.ts';
+import { DATACUBE_LIBRARY } from '../src/pure-library.ts';
 
 // -- the prices: two instruments over 40 weekdays from 2024-01-01, and a third trading on fewer days --
 
@@ -417,6 +418,35 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const lr = zip(AAA, lagged(AAA, 1), (v, p) => Math.log(v / p));
     const logWant = lr.map((_, i) => (i < 10 ? null : sd(lr.slice(i - 9, i + 1) as number[]) * Math.sqrt(252) * 100));
     close((await line(spec({ A: 'volatility(close[AAA], 10, log)' }))).values, logWant, 'log vol', 1e-7);
+  });
+
+  // the user, 2026-10-26 (pure-library.ts): the tile's mean, returns and volatility are calls of DataCube's Pure library,
+  // planned over the model with the library after it -- and a query that calls none over the model as it is
+  it('mean, returns and volatility call DataCube\'s Pure library by name, which a plan request carries beside its model; a query calling none carries none', async () => {
+    const ts = spec({ A: 'volatility(close[AAA], 10) + mean(close[AAA], 5)' });
+    const of = seriesQuery(inputs, ts, ts.series[0]!, {}, {});
+    const called = functionsCalled(of.query);
+    for (const f of ['datacube::ts::simpleReturns', 'datacube::ts::volatility', 'datacube::ts::mean']) assert.ok(called.has(f), `the query calls ${f}`);
+    // what a host that plans and runs is sent (Python's engine): the model as it is, and the library beside it
+    const model = planner.source().model;
+    const asked = planner.planRequest(of.query);
+    assert.equal(asked.model, model);
+    assert.equal(asked.library, DATACUBE_LIBRARY);
+    const plain = seriesQuery(inputs, spec({ A: 'close[AAA]' }), spec({ A: 'close[AAA]' }).series[0]!, {}, {});
+    assert.ok(![...functionsCalled(plain.query)].some((f) => f.startsWith('datacube::')), 'a level calls no library function');
+    assert.equal(planner.planRequest(plain.query).model, model);
+    assert.equal(planner.planRequest(plain.query).library, undefined);
+  });
+
+  it('a person\'s own query calls the library over the table: its mean as the tile\'s', async () => {
+    const source = input.snapshot.source.query;
+    const query = lambda([], new Relation(source)
+      .filter(lambda(['x'], call('equal', column('x', 'symbol'), lit.string('AAA'))))
+      .call('datacube::ts::mean', colSpec('symbol'), collection([asc('day')]), colSpec('close'), lit.integer(5), colSpec('m'))
+      .sort([call('descending', colSpec('day'))])
+      .node);
+    const t = await engine.execute(await planner.plan(query), 0);
+    close(values(t, 'm').map(num).reverse(), rolling(AAA, 5, avg), 'the library\'s mean');
   });
 
   // the second audit's N8: its monthly form compared two nones (40 weekdays are two months); a frequency's own periods a

@@ -1366,15 +1366,29 @@ def _cube_spec(session: Any, cube: Mapping[str, Any], frames: Any, engine: Any,
     return {'cube': text, **said}
 
 
+def _with_library(base: Mapping[str, Any], said: Mapping[str, Any]) -> Mapping[str, Any]:
+    """A query's base with DataCube's Pure library beside its model, where DataCube says the query calls it
+    (headless ``library``: datacube/src/pure-library.ts, ``datacube::ts::mean`` and the rest), which the engine plans
+    it over after the model -- else the base as it is."""
+    library = said.get('library')
+    return base if library is None else {**base, 'library': library}
+
+
+def _plan_request(tree: Any, base: Mapping[str, Any]) -> dict[str, Any]:
+    """A query's plan request, as the engine's plan and plan-and-run take it: the query, its base's model and runtime,
+    and what its base says beside them (a project's own rows, DataCube's Pure library)."""
+    return {'lambda': _json.dumps(tree), 'model': base['model'], 'runtime': base['runtime'],
+            **({'project': True} if base.get('project') is True else {}),
+            **({'library': base['library']} if isinstance(base.get('library'), str) else {})}
+
+
 def _engine_rows(session: Any, tree: Any, base: Mapping[str, Any], over: Any) -> Any:
     """A query's rows planned and run by the session's engine where they are (its plan-and-run: the frames' database as
     the read ``over`` sees them, D15; a warehouse; a saved query's project's own, as its ``base`` from DataCube says:
     F28), as Arrow typed by the plan -- every grid's rows, by one plan-and-run (D16). Refused in the planner's or the
     database's words."""
     from . import compiler
-    asked = {'lambda': _json.dumps(tree), 'model': base['model'], 'runtime': base['runtime'],
-             **({'project': True} if base.get('project') is True else {})}
-    status, kind, body = session.engine().answer_over('/plan-and-run.json', json.dumps(asked), over)
+    status, kind, body = session.engine().answer_over('/plan-and-run.json', json.dumps(_plan_request(tree, base)), over)
     if status == 200 and not kind.startswith('application/json'):
         import pyarrow.ipc
         return pyarrow.ipc.open_stream(body).read_all()
@@ -1923,7 +1937,7 @@ class Timeseries(Tile):
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
         if 'grid' not in said:
-            return said['query'], said, said
+            return said['query'], _with_library(said, said), said
         # a series of one grid, read as the grid is: over its base as every read of it is (its copy, snapped; a class's
         # mapping; the page's filters on it) -- headless gridTimeseries, the tab's path through the grid's runner (the
         # review's P1: read live over the grid's leaves, beside its every other read)
@@ -1932,7 +1946,7 @@ class Timeseries(Tile):
         said = _json.loads(engine.call('gridTimeseries', spec, _json.dumps(asked)))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
-        return compiler.parse(said['query']), spec, said
+        return compiler.parse(said['query']), _with_library(spec, said), said
 
     def _rows(self, asked: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
         """The rows of one of the tile's queries (``_query``) as a pandas DataFrame, and its answer's words: planned and
@@ -1959,9 +1973,7 @@ class Timeseries(Tile):
         session = self._page._session
         with session.frames.reading():
             tree, base, _said = self._query(asked)
-            told = {'lambda': _json.dumps(tree), 'model': base['model'], 'runtime': base['runtime'],
-                    **({'project': True} if base.get('project') is True else {})}
-            answer = session.engine().answer('POST', '/plan.json', '', json.dumps(told))
+            answer = session.engine().answer('POST', '/plan.json', '', json.dumps(_plan_request(tree, base)))
         said = json.loads(answer.body)
         if not (isinstance(said, dict) and isinstance(said.get('plan'), str)):
             raise ValueError(answer.body.decode('utf-8', errors='replace'))

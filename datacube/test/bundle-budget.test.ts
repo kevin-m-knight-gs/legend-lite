@@ -441,8 +441,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  410,800 -> 411,500 (2026-10-26, the timeseries' next phases' 2 and 3, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md
  *  §11: the spec's reader of a pane upside down and its ends, a subtitle and a note, and a tile's view -- its mode, its
  *  series, a seasonality's years, a histogram's bins, a curve's dates (timeseries-spec.ts TsView) -- which a saved page
- *  is read by as it opens; no startup file added). Measured 410,869. */
-const BUDGET = 411_500;
+ *  is read by as it opens; no startup file added). Measured 410,869.
+ *  411,500 -> 413,400 (2026-10-26, the user: "try as pure function ... can be datacube pure scripts" -- DataCube's Pure
+ *  library (pure-library.ts: datacube::ts::mean, the returns, volatility), its text with the planner, which takes it
+ *  after the model of a query that calls it (lite-planner.ts #over): a person's own query may call it too; no startup
+ *  file added). Measured 412,861. */
+const BUDGET = 413_400;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -621,8 +625,10 @@ const BUDGET = 411_500;
  *  399,600 -> 399,900 (2026-10-26, the user: "how exactly to build that chart programmatically from TS and python" --
  *  the spec reader's expression text writes a basket's parameters by name, and writes an expression to read back as
  *  itself (timeseries-expr.ts exprSource), which a saved page's reader carries; the code itself is a chunk of the Query
- *  window's). Measured 399,611. */
-const ENGINE_BUDGET = 399_900;
+ *  window's). Measured 399,611.
+ *  399,900 -> 401,500 (2026-10-26, DataCube's Pure library with the planner -- the grid-only page's note of the same
+ *  date). Measured 400,965. */
+const ENGINE_BUDGET = 401_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -723,8 +729,11 @@ const CHART_BUDGET = 303_500;
  *  72,000 -> 73,500 (2026-10-26, the user: "show all the pure queries used to create a timeseries chart" -- every
  *  question a tile asks by one rule, each written by one function (timeseries-query.ts tileAsks, askQuery), and the
  *  Query window listing them all, each as it was sent with its SQL (ui/timeseries-view.ts #showQueries, #runAsk) -- the
- *  headroom ~2%). Measured 72,007. */
-const TIMESERIES_BUDGET = 73_500;
+ *  headroom ~2%). Measured 72,007.
+ *  73,500 -> 75,300 (2026-10-26, the user: "try as pure function ... can be datacube pure scripts" -- a tile's mean,
+ *  returns and volatility written as calls of DataCube's Pure library (timeseries-query.ts Writer.library), and the Query
+ *  window's Library tab showing it (ui/timeseries-view.ts #libraryPanel) -- the headroom ~2%). Measured 73,797. */
+const TIMESERIES_BUDGET = 75_300;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -941,8 +950,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  426,400 -> 427,100 (2026-10-26, the timeseries' next phases' 2 and 3 -- the grid-only page's note of the same date).
  *  Measured 426,627.
  *  427,100 -> 427,400 (2026-10-26, the user: "show all the pure queries used to create a timeseries chart" -- the Query
- *  window's styles for each question, app.css .dc-ts-ask). Measured 427,157. */
-const WIDGET_BUDGET = 427_400;
+ *  window's styles for each question, app.css .dc-ts-ask). Measured 427,157.
+ *  427,400 -> 429,200 (2026-10-26, DataCube's Pure library with the planner -- the grid-only page's note of the same
+ *  date). Measured 428,652. */
+const WIDGET_BUDGET = 429_200;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

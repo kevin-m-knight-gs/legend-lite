@@ -46,6 +46,7 @@ import {
 import type { MountedTimeseries } from '../timeseries-render.ts';
 import { curveNotes, curveOption, describeView, histogramOption, scatterOption, seasonalityOption, TS_MONTH_NAMES, type TsViewContext } from '../timeseries-views.ts';
 import { lazily } from '../lazily.ts';
+import { DATACUBE_LIBRARY, LIBRARY_PACKAGE } from '../pure-library.ts';
 import type { TsCodeLanguage, TsCodeOf } from '../timeseries-code.ts';
 import { chromeIcon, closeMark } from './tile-icons.ts';
 import { isTextEntry } from '../focus.ts';
@@ -1258,6 +1259,7 @@ export class TimeseriesView {
     // programmatically from TS and python"): in each language, by the one rule Python's Timeseries.code reads
     const languages = Object.keys(CODE_WORDS) as TsCodeLanguage[];
     const panels: [string, string, HTMLElement][] = [['Queries', 'Every query it asks the database', queries],
+      ['Library', 'The Pure functions its queries call by name: DataCube\'s library', this.#libraryPanel()],
       ...languages.map((language): [string, string, HTMLElement] => [CODE_WORDS[language].label, CODE_WORDS[language].title, this.#codePanel(spec, language)])];
     const tabs = el(doc, 'div', 'dc-ts-stats-tabs', undefined, { role: 'tablist' });
     const pick = (i: number): void => {
@@ -1271,6 +1273,22 @@ export class TimeseriesView {
     });
     pick(0);
     this.#open('Queries', tabs, ...panels.map(([, , panel]) => panel));
+  }
+
+  /** DATACUBE'S PURE LIBRARY (pure-library.ts; the user, 2026-10-26): the functions its queries call by name
+   *  (`datacube::ts::mean`, ...), as the planner reads them after the model of a query that calls them, copied with a
+   *  click. */
+  #libraryPanel(): HTMLElement {
+    const doc = this.#doc;
+    const panel = el(doc, 'div', 'dc-ts-code-panel');
+    const copies = el(doc, 'div', 'dc-ts-row');
+    copies.append(button(doc, 'Copy Library', 'The library\'s Pure', () => void this.#copy(DATACUBE_LIBRARY, 'The library\'s Pure copied.')));
+    panel.append(
+      el(doc, 'div', 'dc-ts-hint', `The functions these queries call by name (${LIBRARY_PACKAGE}::mean, ::volatility, ...): DataCube's own, written `
+        + 'in Pure over any table, which legend-lite reads after the model of a query that calls them and expands into it. '
+        + 'A query of your own may call them too.'),
+      copies, el(doc, 'pre', 'dc-ts-code dc-ts-program', DATACUBE_LIBRARY));
+    return panel;
   }
 
   /** The tile as the program that builds it in `language` (timeseries-code.ts tileCode, a chunk of its own fetched with

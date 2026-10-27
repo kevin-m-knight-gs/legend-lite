@@ -19,6 +19,7 @@ import type { CubeSnapshot } from '../src/snapshot.ts';
 import type { MountedTimeseries } from '../src/timeseries-render.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { tileCode } from '../src/timeseries-code.ts';
+import { DATACUBE_LIBRARY } from '../src/pure-library.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { ingestFile } from '../src/upload.ts';
 import { TimeseriesView, type TsGrid, type TsTogether } from '../src/ui/timeseries-view.ts';
@@ -556,32 +557,41 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
   });
 
   // the user, 2026-10-26: "an option that shows how exactly to build that chart programmatically from TS and python"
-  it('Query: the tile as the code that builds it, in Python and in TypeScript, each copied', async () => {
+  it('Query: the tile as the code that builds it, in Python and in TypeScript, each copied -- and the library its queries call', async () => {
     const { root, windows, view } = viewer(SPEC);
     const written = clipboardOf(root);
     try {
       await until(() => statRows(root).length === 2, 'its statistics');
       barButton(root, 'Query').click();
       const tabs = [...windows.querySelectorAll<HTMLButtonElement>('.dc-ts-window [role=tab]')];
-      assert.deepEqual(tabs.map((t) => t.textContent), ['Queries', 'Python', 'TypeScript']);
+      assert.deepEqual(tabs.map((t) => t.textContent), ['Queries', 'Library', 'Python', 'TypeScript']);
       const panels = [...windows.querySelectorAll<HTMLElement>('.dc-ts-window .dc-ts-code-panel')];
-      assert.deepEqual(panels.map((p) => p.hidden), [false, true, true], 'the queries first');
+      assert.deepEqual(panels.map((p) => p.hidden), [false, true, true, true], 'the queries first');
+      // the user, 2026-10-26 (pure-library.ts): the Pure functions its queries call by name, as the planner reads them
       tabs[1]!.click();
-      assert.deepEqual(panels.map((p) => p.hidden), [true, false, true]);
-      assert.deepEqual(tabs.map((t) => t.getAttribute('aria-selected')), ['false', 'true', 'false']);
+      assert.deepEqual(panels.map((p) => p.hidden), [true, false, true, true]);
+      const program = (i: number): string => panels[i]!.querySelector('.dc-ts-program')!.textContent!;
+      assert.equal(program(1), DATACUBE_LIBRARY);
+      assert.match(program(1), /function datacube::ts::volatility</);
+      windowButton(windows, 'Copy Library').click();
+      await until(() => written.length === 1, 'the library copied');
+      assert.equal(written[0], DATACUBE_LIBRARY);
+      written.length = 0;
+      tabs[2]!.click();
+      assert.deepEqual(panels.map((p) => p.hidden), [true, true, false, true]);
+      assert.deepEqual(tabs.map((t) => t.getAttribute('aria-selected')), ['false', 'false', 'true', 'false']);
       // by the one rule Python's tile.code() reads (timeseries-code.ts tileCode), over where the page says the tile is
       const of = { title: 'Markets', sheet: 'sheet-1', grids: { prices: { tile: 'prices', title: 'Prices' } } };
-      const program = (i: number): string => panels[i]!.querySelector('.dc-ts-program')!.textContent!;
-      await until(() => program(1) !== 'Writing…' && program(2) !== 'Writing…', 'its programs written');
-      const python = program(1);
+      await until(() => program(2) !== 'Writing…' && program(3) !== 'Writing…', 'its programs written');
+      const python = program(2);
       assert.equal(python, tileCode(SPEC, of, 'python'));
       assert.match(python, /tile = sheet\.timeseries\(/);
       assert.match(python, /\{'expr': 'close\[SPX\]', 'name': 'S&P 500'\}/);
       windowButton(windows, 'Copy Python').click();
       await until(() => written.length === 1, 'its Python copied');
       assert.equal(written[0], python);
-      tabs[2]!.click();
-      const typescript = program(2);
+      tabs[3]!.click();
+      const typescript = program(3);
       assert.equal(typescript, tileCode(SPEC, of, 'typescript'));
       assert.match(typescript, /kind: 'addTimeseries', sheet: 'sheet-1'/);
       windowButton(windows, 'Copy TypeScript').click();

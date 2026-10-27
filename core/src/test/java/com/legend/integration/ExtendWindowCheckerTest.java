@@ -1669,4 +1669,41 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
     }
+
+    @Nested
+    @DisplayName("A condition over reducers: a figure given once its window holds enough values")
+    class ConditionOverReducers {
+
+        @Test
+        @DisplayName("windowed: CASE over the frame's count and its average, each windowed")
+        void windowed() throws SQLException {
+            var r = executeRelation(NUMS + "->extend(over(~p, [~o->ascending()], rows(-1, 0)),"
+                    + " ~m:{p,w,r|$r.v}:y|if($y->count() < 2, |[], |$y->average()))->sort([~p->ascending(), ~o->ascending()])");
+            int m = colIdx(r, "m");
+            // each partition's first row has one value in its frame: none
+            assertEquals(java.util.Arrays.asList(null, 15.0, 25.0, null, 150.0), r.rows().stream()
+                    .map(row -> row.get(m) == null ? null : ((Number) row.get(m)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("a window column's if with an empty arm: none, beside a number (the CASE's NULL, never an empty array)")
+        void emptyArmInAWindowColumn() throws SQLException {
+            var r = executeRelation(NUMS + "->extend(over(~p, [~o->ascending()]),"
+                    + " ~g:{p,w,r|if($p->lag($r).v->toOne() == 10, |[], |$r.v->toOne() / $p->lag($r).v->toOne())})"
+                    + "->sort([~p->ascending(), ~o->ascending()])");
+            int g = colIdx(r, "g");
+            // the first of each partition has no row before (none), the second of p 0 follows a 10 (none)
+            assertEquals(java.util.Arrays.asList(null, null, 1.5, null, 2.0), r.rows().stream()
+                    .map(row -> row.get(g) == null ? null : ((Number) row.get(g)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("grouped: CASE over the group's count and its sum")
+        void grouped() throws SQLException {
+            var r = executeRelation(NUMS + "->groupBy(~p, ~s:x|$x.v:y|if($y->count() < 3, |[], |$y->sum()))->sort(~p->ascending())");
+            int s = colIdx(r, "s");
+            assertEquals(java.util.Arrays.asList(60, null), r.rows().stream()
+                    .map(row -> row.get(s) == null ? null : ((Number) row.get(s)).intValue()).toList());
+        }
+    }
 }

@@ -116,6 +116,9 @@ relation-function surface depends on it).
 | 20 | rcorpus/RelationalCorpusRunner#6 | `meta::pure::tds::extensions::firstNotNull<T>` — a REAL engine-checkout helper the corpus harness registers |
 
 - **DECISION:** DECIDED: **KEEP** (2026-08-11, confirmed) — was proposed: **KEEP**.
+- 2026-10-26 (the user, docs/SEMANTICS_REGISTER.md S104): +2, `integration/UserFunctionIntegrationTest$RelationGeneric`'s
+  functions generic over relations (`test::loop<T>`, `test::mean<T,X,Z,V,O>`), which lite expands at each call; the pin
+  in `OwnCorpusConformanceTest` is 10.
 
 ## 3. DIALECT-milestoning-range — 1 row
 

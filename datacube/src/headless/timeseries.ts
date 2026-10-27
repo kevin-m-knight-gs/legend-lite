@@ -3,7 +3,8 @@
 // the whole read by the tile's one reader -- so Python's page.timeseries keeps no rule of its own (the charts' rule:
 // headless gridChart). The page command that adds or sets it is Python's generated builder's, applied by pageApply.
 
-import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
+import { fromJson, toJson, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { callsLibrary, DATACUBE_LIBRARY } from '../pure-library.ts';
 import { readPage, type PageDocument } from '../page-document.ts';
 import { gridTitle } from '../page-ids.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot } from '../snapshot.ts';
@@ -504,6 +505,15 @@ export function timeseriesNotes(asked: string): string {
   }
 }
 
+/**
+ * WHAT A QUERY'S MODEL TAKES (pure-library.ts): `askedOf`'s answer (`"query":...`) calling DataCube's Pure library,
+ * `,"library":<its text>` -- which its host plans it over after the model (Python's Timeseries._query) -- else nothing.
+ */
+export function libraryOf(said: string): string {
+  const { query } = fromJson(`{${said}}`) as unknown as { readonly query: ValueSpecification };
+  return callsLibrary(query) ? `,"library":${JSON.stringify(DATACUBE_LIBRARY)}` : '';
+}
+
 /** A timeseries tile's series of a page, by their ids, or a refusal naming what is not there. */
 export function seriesOf(page: PageDocument, tile: string, id: string): { readonly ts: TimeseriesSpec; readonly series: TsSeries } {
   const view = page.views.find((v) => v.id === tile);
@@ -522,7 +532,8 @@ export function seriesOf(page: PageDocument, tile: string, id: string): { readon
  * the rows are (Python's Timeseries.frame: the database's every figure, as the screen's). JSON: `{model, runtime,
  * query, columns, unit, band, candles, split, name}` -- the query a lambda as the protocol writes it, `columns` the names
  * of its answer's (timeseries-query.ts: `date`, `value`, a split's `split`, a band's `lower` and `upper`, a candle's
- * `open`, `high` and `low`, its close the value), its rows latest first -- or `{problems}`, in DataCube's words.
+ * `open`, `high` and `low`, its close the value), its rows latest first; `library` beside them where the query calls
+ * DataCube's Pure library (libraryOf), planned over after the model -- or `{problems}`, in DataCube's words.
  */
 export async function timeseriesQuery(spec: string): Promise<string> {
   try {
@@ -564,7 +575,8 @@ export async function timeseriesQuery(spec: string): Promise<string> {
       const snapshot: CubeSnapshot = { ...query, source: { query: relation }, epoch: 0 };
       return [alias, { snapshot, filter: query.filter }] as const;
     }));
-    return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},${askedOf(asked, inputs, ts, series)}}`;
+    const said = askedOf(asked, inputs, ts, series);
+    return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},${said}${libraryOf(said)}}`;
   } catch (e) {
     if (e instanceof Problem || e instanceof CubeRefusal) return JSON.stringify({ problems: [e.message] });
     throw e;

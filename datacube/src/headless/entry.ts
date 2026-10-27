@@ -5,6 +5,7 @@
 import './install-web.ts';
 import './install-url.ts';
 
+import { DATACUBE_LIBRARY } from '../pure-library.ts';
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
@@ -159,6 +160,11 @@ export { timeseriesAsks };
 /** A timeseries tile as the code that builds it, in Python or TypeScript, by the rule its screen's Code shows it by
  *  (timeseries-code.ts tileCode): Python's Timeseries.code. */
 export { timeseriesCode };
+/** DataCube's Pure library (pure-library.ts), as its text: the one library Python's engine plans a request over after
+ *  the model it admits (engine.py _with_library). */
+export function pureLibrary(): string {
+  return DATACUBE_LIBRARY;
+}
 /** The series each of a timeseries tile's tables reads, by the rule its screen's tabs read (timeseries-query.ts
  *  tableSeries): Python's Timeseries.statistics, drawdowns and correlations, each asked of timeseriesQuery with its
  *  `table`. */

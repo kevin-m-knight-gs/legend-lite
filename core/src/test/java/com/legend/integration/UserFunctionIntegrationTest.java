@@ -1624,5 +1624,39 @@ class UserFunctionIntegrationTest {
         void compilesWhole() {
             assertEquals(List.of(), com.legend.Compiler.compileErrors(modelWith(LIBRARY)));
         }
+
+        /** A function of a COLUMN by its name (the DataCube library's form, datacube::ts::*): the column read and the
+         *  column written are the call's, renamed to the body's own names and back. */
+        private static final String NAMED = """
+                function test::mean<T,X,Z,V,O>(rel: Relation<T>[1], part: ColSpec<X⊆T>[1], order: SortInfo<Z⊆T>[*], value: ColSpec<V⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<Any>[1]
+                {
+                    $rel->rename($value, ~ts_v)
+                        ->extend(over($part, $order, rows(1 - $w, 0)), ~ts_o:{p,f,r|$r.ts_v}:y|if($y->count() < $w, |[], |$y->average()))
+                        ->rename(~ts_v, $value)
+                        ->rename(~ts_o, $out)
+                }
+                """;
+
+        @Test
+        @DisplayName("a column read and a column written by name: the call's own, through the body's")
+        void columnsByName() throws SQLException {
+            var result = exec(modelWith(NAMED), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::mean(~LAST_NAME, [~FIRST_NAME->ascending()], ~AGE_VAL, 2, ~avg)->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "avg"), result.columns().stream().map(c -> c.name()).toList());
+            // Smith: Jane alone in her window (none), John with Jane (29); Jones: Bob alone
+            assertEquals(java.util.Arrays.asList(null, null, 29.0), result.rows().stream()
+                    .map(r -> r.get(3) == null ? null : ((Number) r.get(3)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("a call by name nested in its own: the mean of a mean, each its own columns")
+        void columnsByNameNested() throws SQLException {
+            var result = exec(modelWith(NAMED), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::mean(~LAST_NAME, [~FIRST_NAME->ascending()], ~AGE_VAL, 1, ~a)"
+                    + "->test::mean(~LAST_NAME, [~FIRST_NAME->ascending()], ~a, 2, ~b)->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "a", "b"), result.columns().stream().map(c -> c.name()).toList());
+            assertEquals(java.util.Arrays.asList(null, null, 29.0), result.rows().stream()
+                    .map(r -> r.get(4) == null ? null : ((Number) r.get(4)).doubleValue()).toList());
+        }
     }
 }

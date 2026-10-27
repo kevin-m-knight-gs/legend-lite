@@ -22,9 +22,10 @@
 // what came back, so a rolling figure at the window's left edge has its history, as a person expects it to.
 
 import {
-  agg, and, asc, collection, derive, desc, enumValue, fn, lambda, lit, or, property, variable,
+  agg, and, asc, collection, colSpec, derive, desc, enumValue, fn, lambda, lit, or, property, variable,
   type AppliedFunction, type ColSpec, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
+import { LIBRARY_PACKAGE } from './pure-library.ts';
 import { filterNode, literalNode, sourceWithDerived } from './query.ts';
 import { columnType, CubeRefusal, type CubeSnapshot, type FilterNode } from './snapshot.ts';
 import { WINDOW_ALL_PREFIX } from './grid/columns.ts';
@@ -223,6 +224,9 @@ const PERIOD = '__ts_p0';
 const ORD = '__ts_ord';
 const AT = '__ts_at';
 
+/** Each return type's function of DataCube's Pure library (pure-library.ts). */
+const RETURNS_OF: ReadonlyMap<string, string> = new Map([['simple', 'simpleReturns'], ['log', 'logReturns'], ['absolute', 'absoluteReturns']]);
+
 /**
  * What every part of one series' query shares: the tile, the frequency its periods are of (the tile's; none inside a
  * candle at a frequency, whose series are read on their sources' own dates), the source it reads first (its split's),
@@ -314,6 +318,8 @@ class Writer {
   readonly years: string[];
   #asOf: string | undefined;
   #perYear: string | undefined;
+  /** The tile's frequency's periods a year as a column (perYearColumn). */
+  #perYearOfGrain: string | undefined;
 
   constructor(rel: Relation, o: {
     part: string; split: boolean; at: string; seconds: boolean; rows: readonly string[]; years: readonly string[];
@@ -334,6 +340,17 @@ class Writer {
 
   fresh(what: string): string {
     return freshName(this.shared, what);
+  }
+
+  /**
+   * A FUNCTION OF DATACUBE'S PURE LIBRARY over its line (pure-library.ts: the user, 2026-10-26, gs-quant's functions as
+   * Pure): `->datacube::ts::<name>(~<line>, [~period->ascending()], ~<value>, <args>, ~<out>)`, its figure the column
+   * it writes.
+   */
+  library(name: string, what: string, value: string, args: readonly ValueSpecification[]): string {
+    const out = this.fresh(what);
+    this.rel = this.rel.call(`${LIBRARY_PACKAGE}::${name}`, colSpec(this.part), collection([asc(PERIOD)]), colSpec(value), ...args, colSpec(out));
+    return out;
   }
 
   /** `->extend(~[name: x|body])`. */
@@ -672,8 +689,14 @@ class Writer {
     return this.window('anchor', 'max', Writer.read(value), 'all');
   }
 
-  /** Returns over `obs` periods (or a calendar period back, as of its date), of a type (gs-quant's econometrics.returns). */
+  /** Returns over `obs` periods (or a calendar period back, as of its date), of a type (gs-quant's econometrics.returns):
+   *  over a count of periods, the library's (pure-library.ts simpleReturns, logReturns, absoluteReturns). */
   returns(a: string, obs: Span, type: string): string {
+    if (typeof obs === 'number') {
+      const fn_ = RETURNS_OF.get(type);
+      if (fn_ === undefined) throw new CubeRefusal(`there is no ${JSON.stringify(type)} return (simple, log or absolute)`);
+      return this.library(fn_, 'ret', a, [lit.integer(obs)]);
+    }
     const p = this.lag(a, obs);
     switch (type) {
       case 'log':
@@ -713,6 +736,18 @@ class Writer {
       this.years.push(this.#perYear);
     }
     return one(this.#perYear);
+  }
+
+  /** The periods a year as a column (perYear's: the tile's frequency's, else the one its dates infer): what the
+   *  library's functions read. */
+  perYearColumn(): string {
+    const grain = this.shared.grain;
+    if (grain === undefined) {
+      this.perYear();
+      return this.#perYear!;
+    }
+    this.#perYearOfGrain ??= this.row('per_year', lit.integer(PERIODS_PER_YEAR[grain]));
+    return this.#perYearOfGrain;
   }
 
   /** The square root of the periods in a year, as the database takes it. */
@@ -1647,6 +1682,8 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     case 'min':
     case 'max': {
       const size = span('w');
+      // the mean of a count of periods: the library's (pure-library.ts mean)
+      if (e.fn === 'mean' && typeof size === 'number' && size >= 1) return done(w.library('mean', 'mean', a, [lit.integer(size)]));
       const reduce = e.fn === 'mean' ? 'average' : e.fn === 'sum' ? 'plus' : e.fn;
       return done(w.ramped(w.window(e.fn, reduce, R(a), Writer.frame(size)), a, size, Writer.frame(size)));
     }
@@ -1680,6 +1717,11 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     }
     case 'volatility': {
       const r = w.returns(a, 1, word('type'));
+      const size = span('w');
+      // over a count of periods: the library's (pure-library.ts volatility), of the returns above
+      if (typeof size === 'number' && size >= 1) {
+        return done(w.library('volatility', 'vol', r, [lit.integer(size), colSpec(w.perYearColumn())]));
+      }
       // over a calendar period, from the first price's date that period on: gs-quant's returns keep the first price's
       // date (its return none), which its ramp counts from (the E9 review's nit: from the first return's, a date late)
       const sd = w.std(r, span('w'), a);

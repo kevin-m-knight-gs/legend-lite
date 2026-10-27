@@ -378,6 +378,51 @@ command adds (on its sheet, titled as it is) and its questions to the tile's; `t
 holds the tile it makes to the tile's spec, title and sheet; `timeseries-view-dom.test.ts` the window's tabs, each
 program and its copy.
 
+### 5.6 DataCube's Pure library (the user, 2026-10-26: "try as pure function -- doesn't have to be built in -- can be datacube pure scripts")
+
+Until now each function's query was written by TypeScript (`timeseries-query.ts`'s `Writer`): the database computed
+every figure, but a function was a recipe in DataCube's code, never a Pure function a person could read or call. Pure
+can take columns as parameters -- the relation natives are generic (`extend<T,Z>`, `select<T,Z>`, `ColSpec<Z⊆T>`) --
+but legend-engine refuses type parameters in a user function. The user chose to let legend-lite take them for a
+function over relations (`docs/SEMANTICS_REGISTER.md` S104): each call is expanded into the function's body before it
+is typed, over the call's own tables, as a `NormalizeRequiredFunction` call is (`compiler/spec/RelationGenerics`).
+
+The library is `pure-library.ts DATACUBE_LIBRARY`, a `###Pure` section of functions in `datacube::ts`, each over any
+table: its line (a column it has a line per value of), its order (its dates), the column it reads, its parameters, and
+the column it writes. A function renames the column it reads to a name of its own and its figure back to the call's
+(Pure has no read of a column by a parameter), so the column it reads is neither the line nor the order. The first
+functions: `mean` (of the last w, none until there are w), `simpleReturns`, `logReturns`, `absoluteReturns` (over obs
+back), and `volatility` (of a column of returns: their sample deviation over the last w, times the root of a per-year
+column, times 100; none until there are w and two). Each is one step -- one window column -- because Pure's relations
+cannot drop a column: a function of two steps (a return, then its deviation) would leave its first step's column in the
+caller's table, and a call nested in another of itself would collide. So gs-quant's `volatility(x, w)` is two calls,
+`returns` then `volatility`, as gs-quant itself computes it. A lite native that drops columns would let one function
+hide its steps; it is not built (`Pure.java` is generated from the reference archives, which this session cannot fetch).
+
+The tile's queries call it by name: `mean` over a count of periods, the returns over a count of observations (every
+function that reads returns: volatility, the Sharpe ratio, a beta's), and `volatility` over a count of periods
+(`Writer.library`): `->datacube::ts::simpleReturns(~line, [~period->ascending()], ~close, 1, ~ret_2)
+->datacube::ts::volatility(~line, [~period->ascending()], ~ret_2, 22, ~per_year_3, ~vol_4)`. A calendar window (`3m`),
+`w=0` (from the start) and every other function are written as before. A model takes the library only where a query
+calls it: the planner plans such a query over its model with the library after it (`lite-planner.ts` and
+`planner.ts #over`, a planner of its own over that model), every other query over its model as it is, byte for byte.
+A host that plans and runs is sent the library BESIDE the model (`planRequest`'s `library`), never inside it: Python's
+engine admits a model by its own rules (a frame's, a warehouse table's, a project's, or one reading only the tables it
+serves -- which it reads through the protocol's grammar, and the protocol has no type parameters), then plans over that
+model with the library after it, taking only DataCube's own library, by its text (headless `pureLibrary`; engine.py
+`_library_refused`, `_plan_with`), which declares no table. Python's frames, statistics and queries send it so: headless
+`timeseriesQuery` and `gridTimeseries` say `library` beside a query that calls it, and `Timeseries._query` carries it
+to the plan request. On a legend-engine server the library's functions are refused in the engine's own words. The Query window's **Library** tab shows it; a query of
+a person's own may call it (`timeseries-queries.test.ts` "a person's own query calls the library").
+
+Two lowerings it needed (core): a window aggregate's reduce may be a condition over several reducers
+(`y|if($y->count() < $w, |[], |$y->average())`: `Lowerer.overReducers`, one CASE whose reducers are windowed one by
+one), and an `if`'s empty arm in a window column is NULL, never an empty array (DuckDB refused the CASE). Pinned: the
+numbers of `timeseries-queries.test.ts` (mean, simple and log volatility, weekly volatility, every function reading
+returns) held to gs-quant's as before; "mean, returns and volatility call DataCube's Pure library by name" (and a query
+calling none planned over its model as it is); `ExtendWindowCheckerTest$ConditionOverReducers` (windowed, grouped, an
+empty arm); `UserFunctionIntegrationTest$RelationGeneric` (columns by name, a mean of a mean).
+
 ## 6. The viewer
 
 ```

@@ -253,7 +253,11 @@ class OwnCorpusConformanceTest {
                 // wrong-arity cases' subject -- legend-pure's arity rule, which only lite's dialect (generics, a
                 // declared extension) can reach; the engine's grammar has no class type parameters
                 // 7 -> 8 (the same day, the independent audit): its `Class a::B<T> extends T`, the crash it guards
-                Map.entry("PURE-DIALECT-generics", 8),
+                // 8 -> 10 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S104, the user's "Still A"): functions
+                // generic over relations, which only lite's dialect admits (legend-engine refuses a user function's
+                // type parameters) -- UserFunctionIntegrationTest$RelationGeneric's recursion witness (test::loop<T>)
+                // and its columns-by-name library (test::mean<T,X,Z,V,O>, DataCube's datacube::ts form)
+                Map.entry("PURE-DIALECT-generics", 10),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),

@@ -15,6 +15,7 @@ import { askedOf, askedSources, boundsOf, Problem, seriesOf } from './timeseries
 import { snapRefusal } from '../../../engine-client/src/snap.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { callsLibrary, DATACUBE_LIBRARY } from '../pure-library.ts';
 import { nameProblem } from '../calc.ts';
 import { chartFrom, chartGrid, chartProblems, followCube, followRefusal, readChart, showGridWay } from '../chart-spec.ts';
 import { draftColumn, draftStage, existingDraft, newDraft, type ColumnDraft } from '../column-draft.ts';
@@ -1442,7 +1443,8 @@ export async function gridOutput(spec: GridSpec): Promise<string> {
  * Its query written over the grid as the grid is (timeseries-query.ts seriesQuery, every point of the window: the
  * drawing's limit is the drawing's), through the page's filters, composed as it is sent to be planned, as gridRelation
  * is -- what the tab's viewer reads through the grid's own runner. JSON: `{query, columns, unit, band, candles, split,
- * name}`, the query Pure text, or `{problems}`, in DataCube's words.
+ * name, library?}`, the query Pure text (`library`: DataCube's Pure library, which a query calling it is planned over after
+ * the grid's model), or `{problems}`, in DataCube's words.
  */
 export async function gridTimeseries(spec: GridSpec, asked: string): Promise<string> {
   try {
@@ -1451,7 +1453,8 @@ export async function gridTimeseries(spec: GridSpec, asked: string): Promise<str
       const compose = async (said: Record<string, unknown>): Promise<string> => {
         const query = fromJson(JSON.stringify(said['query'])) as Lambda;
         const text = await planner.compose(planner.sent(lens ? lens(query) : query), 'STANDARD');
-        return JSON.stringify({ ...said, query: text });
+        // a query calling DataCube's Pure library: its text, which the host plans it over after the grid's model
+        return JSON.stringify({ ...said, query: text, ...(callsLibrary(query) ? { library: DATACUBE_LIBRARY } : {}) });
       };
       // a source's bounds, over the grid as it is read (headless timeseries.ts timeseriesWindow reads the tile's range from them)
       if (a.table === 'bounds') {
