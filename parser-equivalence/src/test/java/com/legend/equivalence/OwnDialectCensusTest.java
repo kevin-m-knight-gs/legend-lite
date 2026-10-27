@@ -136,7 +136,8 @@ class OwnDialectCensusTest {
                     java.util.Map.entry("TypeCheckerTest.java", 1),
                     java.util.Map.entry("UserCallInlinerTest.java", 1),
                     // 6 -> 8 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S104): functions generic over
-                    // relations, the extension this host declares (OwnCorpusConformanceTest's generics 8 -> 10)
+                    // relations, the extension this host declares (OwnCorpusConformanceTest's generics 8 -> 9 and
+                    // signatures 16 -> 17)
                     java.util.Map.entry("UserFunctionIntegrationTest.java", 8),
                     // D4 variance pins: the contravariance spec REQUIRES
                     // function-typed parameter signatures

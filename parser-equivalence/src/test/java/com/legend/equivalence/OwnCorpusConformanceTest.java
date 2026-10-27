@@ -253,11 +253,11 @@ class OwnCorpusConformanceTest {
                 // wrong-arity cases' subject -- legend-pure's arity rule, which only lite's dialect (generics, a
                 // declared extension) can reach; the engine's grammar has no class type parameters
                 // 7 -> 8 (the same day, the independent audit): its `Class a::B<T> extends T`, the crash it guards
-                // 8 -> 10 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S104, the user's "Still A"): functions
+                // 8 -> 9 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S104, the user's "Still A"): functions
                 // generic over relations, which only lite's dialect admits (legend-engine refuses a user function's
-                // type parameters) -- UserFunctionIntegrationTest$RelationGeneric's recursion witness (test::loop<T>)
-                // and its columns-by-name library (test::mean<T,X,Z,V,O>, DataCube's datacube::ts form)
-                Map.entry("PURE-DIALECT-generics", 10),
+                // type parameters) -- UserFunctionIntegrationTest$RelationGeneric's recursion witness (test::loop<T>);
+                // its columns-by-name library reads ⊆, so it is a signatures row (below)
+                Map.entry("PURE-DIALECT-generics", 9),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),
@@ -269,7 +269,10 @@ class OwnCorpusConformanceTest {
                 Map.entry("LITE-DESIGN-mapping-as-function", 21),
                 Map.entry("LITE-DESIGN-sqlite-backend", 2),
                 Map.entry("PURE-DIALECT-diagram", 1),
-                Map.entry("PURE-DIALECT-signatures", 16),
+                // 16 -> 17 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S104): UserFunctionIntegrationTest
+                // $RelationGeneric's columns-by-name library (test::mean<T,X,Z,V,O>, ColSpec<X⊆T>: DataCube's
+                // datacube::ts form), a function generic over relations
+                Map.entry("PURE-DIALECT-signatures", 17),
                 Map.entry("PURE-DIALECT-xstore-tolerance", 1),
                 Map.entry("TEST-MACHINERY-fixture", 1)));
         // F3.7: EXACT accounting, both directions (the FixtureCorpusParity
