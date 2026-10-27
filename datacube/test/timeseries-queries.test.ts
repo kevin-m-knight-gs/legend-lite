@@ -438,7 +438,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     assert.equal(planner.planRequest(plain.query).library, undefined);
   });
 
-  it('the levels and lags and the multi-step windows call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
+  it('the levels and lags, the multi-step windows and the self-joins call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
     const calls = (expr: string, anchor?: string): ReadonlySet<string> => {
       const ts = spec({ A: expr });
       return functionsCalled(seriesQuery(inputs, ts, ts.series[0]!, anchor === undefined ? {} : { from: anchor }, {}).query);
@@ -453,7 +453,9 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ['zscores(close[AAA], 10)', 'zscores'], ['zscores(close[AAA], 2w)', 'zscoresPeriod'], ['winsorize(close[AAA], 2)', 'winsorize'],
       ['drawdown(close[AAA], 5)', 'drawdown'], ['drawdown(close[AAA], 2w)', 'drawdownPeriod'], ['max_drawdown(close[AAA], 5)', 'maxDrawdown'],
       ['sharpe_ratio(close[AAA], 10)', 'sharpeRatio'], ['bollinger_bands(close[AAA], 5, 2)', 'bollingerBands'],
-      ['bollinger_bands(close[AAA], 2w, 2)', 'bollingerBandsPeriod'],
+      ['bollinger_bands(close[AAA], 2w, 2)', 'bollingerBandsPeriod'], ['percentiles(close[AAA], 10)', 'percentiles'],
+      ['percentiles(close[AAA], 2w)', 'percentilesPeriod'], ['median(close[AAA], 5)', 'quantile'], ['median(close[AAA], 2w)', 'quantilePeriod'],
+      ['percentile(close[AAA], 90, 10)', 'quantile'], ['percentile(close[AAA], 25)', 'quantileOfLine'],
     ];
     for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`datacube::ts::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
   });
@@ -1203,9 +1205,17 @@ describe('a window by its rows: percentile ranks, medians and percentiles', () =
     close((await line(spec({ A: 'median(close[AAA], 4)' }))).values, AAA.map((_, i) => (i < 3 ? null : quantile(AAA.slice(i - 3, i + 1), 0.5))), 'median of 4: the two middle ones\' mean', 1e-12);
     close((await line(spec({ A: 'percentile(close[AAA], 90, 10)' }))).values, AAA.map((_, i) => (i < 9 ? null : quantile(AAA.slice(i - 9, i + 1), 0.9))), '90th of 10', 1e-12);
     close((await line(spec({ A: 'percentile(close[AAA], 25)' }))).values, AAA.map(() => quantile(AAA, 0.25)), 'the 25th of every one', 1e-12);
-    // of every value: one aggregate a line joined back, never each row joined to every other (the E9 review's 5)
-    const joins = (text: string): number => (toJson(seriesQuery(inputs, spec({ A: text }), spec({ A: text }).series[0]!).query).match(/"function":"join"/g) ?? []).length;
-    assert.equal(joins('percentile(close[AAA], 25)') - joins('close[AAA]'), 1, 'one join: the line\'s figure');
+    // of every value: one aggregate a line joined back (the library's quantileOfLine), never each row joined to every
+    // other (the E9 review's 5)
+    const calls = (text: string): ReadonlySet<string> => functionsCalled(seriesQuery(inputs, spec({ A: text }), spec({ A: text }).series[0]!).query);
+    assert.ok(calls('percentile(close[AAA], 25)').has('datacube::ts::quantileOfLine'), 'one aggregate a line');
+    assert.ok(!calls('percentile(close[AAA], 25)').has('datacube::ts::quantile'), 'no self-join');
+    const body = DATACUBE_LIBRARY.slice(DATACUBE_LIBRARY.indexOf('function datacube::ts::quantileOfLine'));
+    assert.equal((body.slice(0, body.indexOf('\n}\n')).match(/->join\(/g) ?? []).length, 1, 'one join: the line\'s figure');
+    // over a calendar period: the values after two weeks back, to this one, from the first date two weeks on
+    const start = onBy(DAYS[0]!, 2, 'w');
+    close((await line(spec({ A: 'median(close[AAA], 2w)' }))).values, DAYS.map((d) => (d < start ? null
+      : quantile(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d), 0.5))), 'median over 2w', 1e-12);
   });
 });
 

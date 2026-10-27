@@ -489,53 +489,6 @@ class Writer {
     return name;
   }
 
-  /**
-   * A FIGURE OF EACH PERIOD'S WINDOW BY ITS ROWS (a self-join, the database's: what a window frame's aggregate cannot
-   * say -- the period's own value against each of its window's, a percentile any database takes): each period of the
-   * line joined to every period of its window -- the last w (0 every one to it), or a calendar period's dates (a figure
-   * of every one is ofLine's: one aggregate a line) -- `figures` aggregated per period, each reading the window's value and the period's own, and
-   * joined back by the period. Their names, in order.
-   */
-  ofWindow(x: string, frame: 'running' | number | TsTenor,
-    figures: (own: ValueSpecification, other: ValueSpecification) => readonly { readonly what: string; readonly read: ValueSpecification; readonly reduce: Lambda }[]): string[] {
-    const rn = this.fresh('wj_rn');
-    this.rel = this.rel.extend([derive(rn, lambda(['p', 'w', 'r'], fn('rowNumber', variable('p'), variable('r'))))], this.#over(null));
-    const from = this.fresh('wj_from');
-    const rp = this.fresh('wj_rp');
-    const ra = this.fresh('wj_ra');
-    const rr = this.fresh('wj_rr');
-    const rx = this.fresh('wj_rx');
-    let left = this.rel.select([this.part, PERIOD, this.at, rn, ...(x !== this.at ? [x] : [])]);
-    if (isTenor(frame)) left = left.extend([derive(from, row(back(one(this.at), frame)))]);
-    const right = this.rel.select([this.part, this.at, rn, ...(x !== this.at ? [x] : [])])
-      .rename(this.part, rp).rename(this.at, ra).rename(rn, rr).rename(x, rx);
-    const L = (c: string): ValueSpecification => property(variable('l'), c);
-    const Rr = (c: string): ValueSpecification => property(variable('r'), c);
-    const inWindow: ValueSpecification[] = [fn('equal', L(this.part), Rr(rp))];
-    if (isTenor(frame)) inWindow.push(fn('greaterThan', Rr(ra), L(from)), fn('lessThanEqual', Rr(ra), L(this.at)));
-    else if (frame === 'running') inWindow.push(fn('lessThanEqual', Rr(rr), L(rn)));
-    else inWindow.push(fn('greaterThan', Rr(rr), op('minus', L(rn), lit.integer(frame))), fn('lessThanEqual', Rr(rr), L(rn)));
-    const made = figures(col(x), col(rx)).map((f) => ({ ...f, name: this.fresh(f.what) }));
-    const gp = this.fresh('wj_gp');
-    const gper = this.fresh('wj_gper');
-    const grouped = left.join(right, 'INNER', lambda(['l', 'r'], and(...inWindow)))
-      .groupBy([this.part, PERIOD], made.map((f) => agg(f.name, row(f.read), f.reduce)))
-      .rename(this.part, gp).rename(PERIOD, gper);
-    this.rel = this.rel.join(grouped, 'LEFT', lambda(['l', 'r'], and(
-      fn('equal', L(this.part), Rr(gp)), fn('equal', L(PERIOD), Rr(gper)))));
-    return made.map((f) => f.name);
-  }
-
-  /** A FIGURE OF ITS LINE'S EVERY VALUE, beside each of its rows: the line's values aggregated, grouped by its line, and
-   *  joined back by it -- one aggregate a line. */
-  ofLine(x: string, what: string, reduce: Lambda): string {
-    const name = this.fresh(what);
-    const gp = this.fresh('ol_gp');
-    const grouped = this.rel.groupBy([this.part], [agg(name, row(col(x)), reduce)]).rename(this.part, gp);
-    this.rel = this.rel.join(grouped, 'LEFT', lambda(['l', 'r'], fn('equal', property(variable('l'), this.part), property(variable('r'), gp))));
-    return name;
-  }
-
   /** A column `n` periods back: `$p->lag($r, n).<column>` -- or a calendar period back, as of that date (#valueBack);
    *  `by`: among the line's rows of the same value of that column. */
   lag(column: string, n: Span, by?: string): string {
@@ -1843,19 +1796,14 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
         fn('sqrt', fn('divide', one(resid), op('times', op('minus', one(count), lit.integer(2)), one(vl))))));
       return done(w.ramped(w.ratio('df_t', one(b), se), pl, atLeast(size, 3), frame));
     }
+    // the self-joins, the library's (pure-library.ts): each row's window its line joined to itself on the rows (or the
+    // dates of a calendar period) back
     case 'percentiles': {
       // scipy's percentileofscore(window, value, kind='mean'), gs-quant's: the share of the window below the value, those
       // equal to it counted half, in percent
       const size = span('w');
-      const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
-      const [below, upTo, count] = w.ofWindow(a, Writer.frame(size), (own, other) => [
-        { what: 'pr_lt', read: when(fn('lessThan', other, own), lit.integer(1), none()), reduce: y('count') },
-        { what: 'pr_le', read: when(fn('lessThanEqual', other, own), lit.integer(1), none()), reduce: y('count') },
-        { what: 'pr_n', read: other, reduce: y('count') },
-      ]);
-      const rank = w.row('pr', when(or(fn('isEmpty', col(a)), fn('equal', one(count!), lit.integer(0))), none(),
-        op('times', fn('divide', op('plus', one(below!), one(upTo!)), op('times', lit.integer(2), one(count!))), lit.integer(100))));
-      return done(size === 0 ? rank : w.ramped(rank, a, size, Writer.frame(size)));
+      return done(typeof size === 'number' ? w.libraryOfLine('percentiles', 'pr', a, [lit.integer(size)])
+        : w.libraryOfPeriod('percentilesPeriod', 'pr', a, size));
     }
     case 'median':
     case 'percentile': {
@@ -1863,12 +1811,11 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       const size = span('w');
       // the planner takes the fraction as a literal alone (an aggregate's argument): gs-quant's n of 100 spelled as one
       const q = float(e.fn === 'median' ? 0.5 : n('n') / 100);
-      const reduce = lambda(['y'], fn('percentile', variable('y'), q, lit.boolean(true), lit.boolean(true)));
       // of every value (percentile's w 0): one aggregate a line, never each row joined to every other (the E9 review's 5:
       // 4,000 rows took 4.5 s)
-      if (e.fn === 'percentile' && size === 0) return done(w.ofLine(a, 'pct', reduce));
-      const [v] = w.ofWindow(a, Writer.frame(size), (_own, other) => [{ what: 'pct', read: other, reduce }]);
-      return done(size === 0 ? v! : w.ramped(v!, a, size, Writer.frame(size)));
+      if (e.fn === 'percentile' && size === 0) return done(w.libraryOfRow('quantileOfLine', 'pct', [colSpec(w.part), colSpec(a), q]));
+      return done(typeof size === 'number' ? w.libraryOfLine('quantile', 'pct', a, [lit.integer(size), q])
+        : w.libraryOfPeriod('quantilePeriod', 'pct', a, size, [q]));
     }
     case 'exponential_moving_average':
       return done(n('beta') === 0 ? a : w.ewm(a, float(n('beta'))));
