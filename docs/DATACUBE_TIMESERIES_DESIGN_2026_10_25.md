@@ -393,11 +393,11 @@ the column it writes. A function renames the column it reads to a name of its ow
 (Pure has no read of a column by a parameter), so the column it reads is neither the line nor the order. The first
 functions: `mean` (of the last w, none until there are w), `simpleReturns`, `logReturns`, `absoluteReturns` (over obs
 back), and `volatility` (of a column of returns: their sample deviation over the last w, times the root of a per-year
-column, times 100; none until there are w and two). Each is one step -- one window column -- because Pure's relations
-cannot drop a column: a function of two steps (a return, then its deviation) would leave its first step's column in the
-caller's table, and a call nested in another of itself would collide. So gs-quant's `volatility(x, w)` is two calls,
-`returns` then `volatility`, as gs-quant itself computes it. A lite native that drops columns would let one function
-hide its steps; it is not built (`Pure.java` is generated from the reference archives, which this session cannot fetch).
+column, times 100; none until there are w and two). Each was one step -- one window column -- because Pure's relations
+could not drop a column: a function of two steps (a return, then its deviation) would have left its first step's column
+in the caller's table. So gs-quant's `volatility(x, w)` is two calls, `returns` then `volatility`. Since 2026-10-27 a
+function hides its steps: `without` drops its working columns, each call renames them so a caller's never meet them, and
+its declared return is held to each call (§5.7).
 
 The tile's queries call it by name: `mean` over a count of periods, the returns over a count of observations (every
 function that reads returns: volatility, the Sharpe ratio, a beta's), and `volatility` over a count of periods
@@ -422,6 +422,50 @@ numbers of `timeseries-queries.test.ts` (mean, simple and log volatility, weekly
 returns) held to gs-quant's as before; "mean, returns and volatility call DataCube's Pure library by name" (and a query
 calling none planned over its model as it is); `ExtendWindowCheckerTest$ConditionOverReducers` (windowed, grouped, an
 empty arm); `UserFunctionIntegrationTest$RelationGeneric` (columns by name, a mean of a mean).
+
+### 5.7 The library's conventions (the user, 2026-10-27: "yes take all your suggestions")
+
+A spike wrote one function of each family of the tile's functions as a Pure function over any table and held it to
+today's writer (docs/PURE_LIBRARY_SPIKE_2026_10_27.md): every family says itself so, and three primitives were missing.
+They are built, each a register row: `meta::legend::lite::without` (S113: a relation less the named columns, typed as
+the select of the rest; upstream has no column drop); hygiene (S112: each expansion renames the columns its body makes
+and its declared return does not name, to names none of the call's tables has); and the declared return held to each
+call (S112: every declared column present and of a conforming type, no other). Every function of the library follows
+these conventions, and every function of the tile's catalog is converted to one (the user, 2026-10-27: "yes convert
+every function"), each held to today's numbers by `timeseries-queries.test.ts`:
+
+- **Over any table, its return declared.** A function is generic over the table it reads (`Relation<T>`), names the
+  columns it reads and writes by parameters (`ColSpec<V⊆T>`, `ColSpec<O>`), and declares its honest return
+  (`Relation<T+O>`, `Relation<T+O1+O2>` for several outputs, the group's columns for a figure of each line). Its
+  working columns are its own (hygiene) and gone before it returns (`without`).
+- **Many series: a long table keyed by the series** (kdb+'s, panel pandas', Polars' and SQL's model). A series is a
+  value of a key column, never a column: one row per series and date, an observation's fields (open, high, low, close,
+  volume) its columns. Three kinds of function follow, by what they partition or group by:
+  - *per series, over time* -- partitioned by the key: one call serves one series or a thousand
+    (`$px->datacube::ts::zscores(over(~symbol, ~day->ascending(), rows(-19, 0)), ~close, 20, ~z)`);
+  - *across series, at each date* -- grouped or partitioned by the date: a basket (the prices joined to a table of
+    weights, `basket | symbol | weight`, then summed per basket and date; rebalanced, the weights in force as-of
+    joined), `weighted_sum` (each series concatenated as rows tagged with a member key, then the same), a rank or a
+    z-score across the members (`over(~day)` where a series' is `over(~symbol)`);
+  - *pairwise* -- a self-join on the date: a beta or a correlation of every member against a benchmark in one call (a
+    key and the benchmark's value), a correlation matrix as `s1 | s2 | corr` (the members joined with themselves on the
+    date, `s1 < s2`, grouped by the pair).
+  No function takes a list of columns. A fixed number of series only where the roles are fixed (a series and its
+  benchmark; a true range's high, low and close, which are one row's fields).
+- **Windows: what, over which rows, and when ready, apart** (gs-quant's `Window(w, r)`; pandas' `rolling`,
+  `expanding`, `min_periods`). A window statistic takes the window as a value -- `win: _Window<T>[1]`, the line, the
+  order and the frame -- and a ramp, the observations before a figure is given. One `mean` is a count's
+  (`rows(-19, 0)`, ramp 20), the expanding one (`rows(unbounded(), 0)`), the whole line's (`over(~symbol)`) or a
+  centred one (`rows(-2, 2)`). Not frames: an exponential average takes an order and its decay (an α from a span or a
+  half-life); a lag takes an order and a count, or a calendar period (an as-of join). A function that needs the line or
+  the dates themselves (a base over the whole line, a self-join, an as-of lag) takes them as column specs.
+- **Calendar windows exact.** gs-quant's window of a period is `(date − 3m, date]`, open at its start; SQL's
+  `RANGE BETWEEN INTERVAL 3 MONTH PRECEDING AND CURRENT ROW`, which lite lowers, is closed at it. They differ only where
+  a row falls exactly a period back, and the library keeps gs-quant's: a calendar statistic is its own function (the
+  line joined to itself on the dates in the period, the spike's `meanOver`), never the SQL frame.
+- **The tile writes calls.** `timeseries-query.ts`'s writer turns a tile's expression into the library's calls
+  (`mean(x, 20)` the count's window with ramp 20, `mean(x, 0)` the expanding one, `mean(x, 3m)` the calendar
+  function), and the planners and hosts carry the library as they do today (§5.6).
 
 ## 6. The viewer
 

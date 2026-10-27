@@ -1682,6 +1682,45 @@ class UserFunctionIntegrationTest {
             assertEquals(List.of(0.0, -1.0, 1.0), result.rows().stream().map(r -> ((Number) r.get(3)).doubleValue()).toList());
         }
 
+        @Test
+        @DisplayName("hygiene: a caller's columns named as the body's working ones are the caller's, untouched")
+        void callerColumnsOfWorkingNames() throws SQLException {
+            var result = exec(modelWith(FROM_MEAN), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->extend(~[t_m:x|7, t_v:x|'mine'])->test::fromMean(~LAST_NAME, ~AGE_VAL, ~gap)"
+                    + "->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "t_m", "t_v", "gap"),
+                    result.columns().stream().map(c -> c.name()).toList());
+            assertEquals(List.of(7, 7, 7), result.rows().stream().map(r -> ((Number) r.get(3)).intValue()).toList());
+            assertEquals(List.of("mine", "mine", "mine"), result.rows().stream().map(r -> String.valueOf(r.get(4))).toList());
+            assertEquals(List.of(0.0, -1.0, 1.0), result.rows().stream().map(r -> ((Number) r.get(5)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("hygiene: a function over its own answer, each expansion's working columns its own")
+        void overItsOwnAnswer() throws SQLException {
+            var result = exec(modelWith(FROM_MEAN), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::fromMean(~LAST_NAME, ~AGE_VAL, ~gap)->test::fromMean(~LAST_NAME, ~gap, ~gap2)"
+                    + "->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "gap", "gap2"),
+                    result.columns().stream().map(c -> c.name()).toList());
+            // each line's gaps average 0, so the second gap is the first
+            assertEquals(List.of(0.0, -1.0, 1.0), result.rows().stream().map(r -> ((Number) r.get(4)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("hygiene: a column the declared return names leaves under its own name")
+        void aDeclaredColumnKeepsItsName() throws SQLException {
+            String model = modelWith("""
+                    function test::counted<T>(r: Relation<T>[1]): Relation<T+(n:Integer)>[1]
+                    {
+                        $r->extend(~[n:x|1, t_w:x|2])->without(~t_w)
+                    }
+                    """);
+            var result = exec(model, "|" + PEOPLE + "->select(~[FIRST_NAME])->extend(~t_w:x|3)->test::counted()");
+            assertEquals(List.of("FIRST_NAME", "t_w", "n"), result.columns().stream().map(c -> c.name()).toList());
+            assertEquals(List.of(3, 3, 3), result.rows().stream().map(r -> ((Number) r.get(1)).intValue()).toList());
+        }
+
         /** fromMean with its drop replaced: the same body, its answer {@code drop}'s. */
         private String fromMeanThat(String drop) {
             return modelWith(FROM_MEAN.replace("->without(~t_m)", drop));

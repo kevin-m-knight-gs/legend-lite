@@ -40,11 +40,12 @@ the writer's size (the exponential average: 5,682 characters, the writer's 6,733
    schema algebra `rename` already declares; upstream has no column drop) is typed at each call as the `select` of
    every other column -- an explicit column list in SQL, every dialect's, no new SQL record. `spike::zscores` now drops
    its three and declares `Relation<T+O>`, and a `zscores` over its own answer runs.
-2. **Hygienic working names** (GAP 2, pinned). With `without`, a function over its own answer no longer collides
-   (the first call's working columns are gone); what still collides is a caller's column of a working name
-   (`extend(~ts_m:...)` before `zscores`: refused, naming `ts_m`, which the caller never wrote to the function). The
-   expansion already renames a body's lambda binders fresh; it could rename the columns a body makes and then drops or
-   renames away the same way (a decision for the user: rename them, or refuse in the function's words).
+2. **Hygienic working names** (GAP 2, **closed 2026-10-27**, the user's choice: rename). With `without`, a function
+   over its own answer no longer collided; a caller's column of a working name did (`extend(~ts_m:...)` before
+   `zscores`: refused, naming `ts_m`, which the caller never wrote). Now each expansion renames the columns its body
+   makes and its declared return does not name, to names none of the call's tables has, as it renames the body's
+   lambda binders (`ColumnHygiene`, register S112); messages say the names the body wrote. `zscores` beside a caller's
+   `ts_m` runs, the caller's column untouched.
 3. **The declared return type** (GAP 3, **closed 2026-10-27**). An expanded function's declared return
    (`Relation<T+O>`) was not held to its body, which leaked a column unnoticed. Now each call's typed body is held to
    it under the call's bindings (`Overloads#holdToDeclared`, register S112): every declared column present and of a
@@ -68,7 +69,8 @@ its split into lines, the view's anchor and window, a candle's period bucketing,
 
 ## The next step
 
-1 and 3 are built (`without` and the return check, 2026-10-27: the catalog regenerated against the legend-engine
-4.145.0 and legend-pure 5.99.0 trees, now in the session). Next: 2 (hygiene, once the user picks rename or refuse);
-decide 4 and 6; then convert every function, each held to today's numbers by `timeseries-queries.test.ts` as the
-shipped five were, declaring its honest return.
+1, 2 and 3 are built (`without`, hygiene and the return check, 2026-10-27: the catalog regenerated against the
+legend-engine 4.145.0 and legend-pure 5.99.0 trees, now in the session). 4 and 6 are decided (the user, 2026-10-27:
+"yes take all your suggestions"): many series as a long table keyed by the series, a window as a value with a ramp,
+gs-quant's calendar windows exact (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.6). Next: convert every function,
+each held to today's numbers by `timeseries-queries.test.ts` as the shipped five were, declaring its honest return.

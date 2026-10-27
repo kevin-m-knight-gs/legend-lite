@@ -351,9 +351,12 @@ describe('the Pure library spike: the gaps, as they are today', () => {
     assert.deepEqual(t.columns.map((c) => c.name), ['symbol', 'day', 'close', 'volume', 'z', 'zz']);
   });
 
-  it('GAP 2: a caller\'s column of a working name collides with the function\'s own', async () => {
-    await assert.rejects(spiked.planText(`|${source}->extend(~ts_m:x|1)->spike::zscores(~symbol, ~day, ~close, 10, ~z)`),
-      (e: Error) => /ts_m/.test(e.message), 'the caller\'s ts_m is already a column when the body makes its own');
+  it('GAP 2, closed: a caller\'s column of a working name is the caller\'s, the function\'s own renamed at the call', async () => {
+    const t = await engine.execute(await spiked.planText(`|${source}->extend(~ts_m:x|1)->spike::zscores(~symbol, ~day, ~close, 10, ~z)`), 0);
+    assert.deepEqual(t.columns.map((c) => c.name), ['symbol', 'day', 'close', 'volume', 'ts_m', 'z']);
+    assert.ok(column(t, 'ts_m').every((v) => num(v) === 1), 'the caller\'s ts_m untouched');
+    same(await spikeLine('$prices->extend(~ts_m:x|1)->spike::zscores(~symbol, ~day, ~close, 10, ~z)', 'z'),
+      await today('zscores(close[AAA], 10)'), 'zscores beside a caller\'s ts_m');
   });
 
   it('GAP 3, closed: a declared return is held to each call, so a body leaking a column is refused by name', async () => {

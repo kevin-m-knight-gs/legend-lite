@@ -123,7 +123,7 @@ final class Overloads {
         // yet, so the call keeps its signature typing (the engine types
         // a closure body by signatures too; it pastes nothing)
         if (requiresNormalization(a.chosen()) && storedLambdas.isEmpty()) {
-            return inlineNormalized(af, a.chosen(), a.out(), env);
+            return inlineNormalized(af, a, env);
         }
         TypedSpec shadow = derivedShadow(af, a, env);
         if (shadow != null) {
@@ -330,7 +330,8 @@ final class Overloads {
      *  function anywhere on the stack", which refused a call nested in another's argument as recursion). */
     private static final int MAX_NESTED_EXPANSIONS = 16;
 
-    private TypedSpec inlineNormalized(AppliedFunction af, TypedFunction chosen, ExprType declared, Env env) {
+    private TypedSpec inlineNormalized(AppliedFunction af, Application a, Env env) {
+        TypedFunction chosen = a.chosen();
         com.legend.model.FunctionId key = chosen.id();
         if (java.util.Collections.frequency(normalizing, key) >= MAX_NESTED_EXPANSIONS) {
             throw new TypeInferenceException("recursive NormalizeRequired function '"
@@ -353,17 +354,51 @@ final class Overloads {
         // lambda binders rename to fresh _nr<N> — a caller variable spelled
         // like a body binder (corpus: `let r = execute(...)` vs the body's
         // `filter(r:TDSRow[1]|…)`) must never be captured by the splice.
-        ValueSpecification body = SourceSubst.substitute(
-                alpha.apply(folded.body().get(0)), subst);
+        // and a function generic over relations renames the columns its body makes for its own use, before the
+        // call's arguments are in it (ColumnHygiene; the user, 2026-10-27)
+        ValueSpecification own = alpha.apply(folded.body().get(0));
+        boolean generic = RelationGenerics.of(chosen);
+        ColumnHygiene.Renamed hygienic = generic
+                ? columns.apply(own, chosen.returnType(), takenColumns(af, a))
+                : new ColumnHygiene.Renamed(own, java.util.Map.of());
+        ValueSpecification body = SourceSubst.substitute(hygienic.body(), subst);
         normalizing.push(key);
         try {
             TypedSpec typed = synth(new StaticFold(t, env).fold(body), env);
-            if (RelationGenerics.of(chosen)) {
-                holdToDeclared(chosen, declared, typed);
+            if (generic) {
+                holdToDeclared(chosen, a.out(), typed);
             }
             return typed;
+        } catch (TypeInferenceException e) {
+            String said = e.getMessage();
+            if (hygienic.written().isEmpty() || said == null) {
+                throw e;
+            }
+            throw new TypeInferenceException(hygienic.restore(said), e);
         } finally {
             normalizing.pop();
+        }
+    }
+
+    /** Every column name a call's tables have and its arguments name: what an expansion's fresh names avoid. */
+    private static java.util.Set<String> takenColumns(AppliedFunction af, Application a) {
+        java.util.Set<String> taken = new java.util.HashSet<>();
+        for (TypedSpec arg : a.args()) {
+            Type.RelationType r = Type.schemaView(arg.info().type());
+            if (r != null) {
+                r.columns().forEach(c -> taken.add(c.name()));
+            }
+        }
+        af.parameters().forEach(p -> columnNamesIn(p, taken));
+        return taken;
+    }
+
+    private static void columnNamesIn(ValueSpecification v, java.util.Set<String> into) {
+        if (v instanceof com.legend.protocol.spec.ColSpec cs) {
+            into.add(cs.name());
+        }
+        for (ValueSpecification c : v.children()) {
+            columnNamesIn(c, into);
         }
     }
 
@@ -484,6 +519,9 @@ final class Overloads {
 
     /** Fresh binder names for inlined bodies (one counter per typer). */
     private final AlphaRename alpha = new AlphaRename();
+
+    /** Fresh working-column names for expanded generic bodies (one counter per typer). */
+    private final ColumnHygiene columns = new ColumnHygiene();
 
     /** α-hygiene for a body about to be spliced under caller scope (the
      * UserCallInliner rule at source level) — shared with StaticFold's
