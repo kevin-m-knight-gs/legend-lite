@@ -272,7 +272,10 @@ class OwnCorpusConformanceTest {
                 // 16 -> 17 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S112): UserFunctionIntegrationTest
                 // $RelationGeneric's columns-by-name library (test::mean<T,X,Z,V,O>, ColSpec<X⊆T>: DataCube's
                 // datacube::ts form), a function generic over relations
-                Map.entry("PURE-DIALECT-signatures", 17),
+                // 17 -> 18 (2026-10-27, REVIEWED, docs/SEMANTICS_REGISTER.md S113): RelationGeneric's
+                // dropsItsWorkingColumns (test::fromMean<T,X,V,O>, ColSpec<X⊆T>), a generic function that drops the
+                // working column it made with without
+                Map.entry("PURE-DIALECT-signatures", 18),
                 Map.entry("PURE-DIALECT-xstore-tolerance", 1),
                 Map.entry("TEST-MACHINERY-fixture", 1)));
         // F3.7: EXACT accounting, both directions (the FixtureCorpusParity

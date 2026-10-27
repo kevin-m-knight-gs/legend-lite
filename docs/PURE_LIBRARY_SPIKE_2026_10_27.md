@@ -34,13 +34,17 @@ the writer's size (the exponential average: 5,682 characters, the writer's 6,733
 
 ## What is missing
 
-1. **Dropping a function's working columns** (GAP 1, pinned). `select`/`project` keep columns by name, and a function
-   generic over the table cannot name the caller's: so every multi-step function's answer carries its `ts_*` columns.
-   The primitive: `without(~[a, b]): Relation<T-Z>` (the schema algebra `rename` already declares), typed at each call
-   into the `select` of every other column -- an explicit column list in SQL, every dialect's, no new SQL record.
-2. **Hygienic working names** (GAP 2, pinned). A function nested in its own argument collides on its own working
-   names (`zscores(zscores(x))`: `ts_m` twice), and a caller's column of such a name would too. The expansion already
-   renames a body's lambda binders fresh; it should rename the columns a body makes and drops the same way.
+1. **Dropping a function's working columns** (GAP 1, **closed 2026-10-27** by `without`, register S113).
+   `select`/`project` keep columns by name, and a function generic over the table cannot name the caller's: so every
+   multi-step function's answer carried its `ts_*` columns. `meta::legend::lite::without(~[a, b]): Relation<T-Z>` (the
+   schema algebra `rename` already declares; upstream has no column drop) is typed at each call as the `select` of
+   every other column -- an explicit column list in SQL, every dialect's, no new SQL record. `spike::zscores` now drops
+   its three and declares `Relation<T+O>`, and a `zscores` over its own answer runs.
+2. **Hygienic working names** (GAP 2, pinned). With `without`, a function over its own answer no longer collides
+   (the first call's working columns are gone); what still collides is a caller's column of a working name
+   (`extend(~ts_m:...)` before `zscores`: refused, naming `ts_m`, which the caller never wrote to the function). The
+   expansion already renames a body's lambda binders fresh; it could rename the columns a body makes and then drops or
+   renames away the same way (a decision for the user: rename them, or refuse in the function's words).
 3. **The declared return type** (GAP 3, pinned). An expanded function's declared return (`Relation<T+O>`) is not held
    to its body, which leaks a column unnoticed. With 1, it can be: each call's expansion checked against it.
 4. **Many series** (weighted_sum, basket). No Pure function iterates over a list of columns; a function generic over N
@@ -62,6 +66,7 @@ its split into lines, the view's anchor and window, a candle's period bucketing,
 
 ## The next step
 
-Build 1-3 together (the drop, hygiene, the return check), each with its register row and tests; decide 4 and 6; then
-convert every function, each held to today's numbers by `timeseries-queries.test.ts` as the shipped five were. Building
-1 regenerates the native catalog (`Pure.java`), which needs the legend-engine and legend-pure source archives.
+1 is built (`without`, 2026-10-27: the catalog regenerated against the legend-engine 4.145.0 and legend-pure 5.99.0
+trees, now in the session). Next: 2 and 3 (hygiene, the return check), each with its register row and tests; decide 4
+and 6; then convert every function, each held to today's numbers by `timeseries-queries.test.ts` as the shipped five
+were.
