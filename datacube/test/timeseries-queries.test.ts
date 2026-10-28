@@ -1443,6 +1443,13 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     const r = await sea({ ...ts, view: { compare: 'rebase' } }, 1);
     const firstOf = (y: string): number => lastOf(months.find((m) => m.startsWith(y))!);
     close(values(r, TS_VALUE).map(num), months.map((m) => (lastOf(m) / firstOf(m.slice(0, 4))) * 100), 'each year from its start', 1e-9);
+    // compare percent: each year its first's x / x0 - 1 (gs-quant's percent_change); the range's span its most less its least
+    const p = await sea({ ...ts, view: { compare: 'percent' } }, 1);
+    close(values(p, TS_VALUE).map(num), months.map((m) => lastOf(m) / firstOf(m.slice(0, 4)) - 1), 'each year from its start, % change', 1e-12);
+    close(values(p, TS_SEA_SPAN).map(num), values(p, TS_SEA_HIGH).map((h, i) => {
+      const l = num(values(p, TS_SEA_LOW)[i]);
+      return h === null || l === null ? null : num(h)! - l;
+    }), 'the span', 1e-12);
   });
 
   // the Phase 3 review's 2: a daily seasonality placed each date by its day of the year -- weekends and holidays apart
@@ -1497,6 +1504,14 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     same(await ask('->datacube::ts::projection(~symbol, ~day, ~t, ~close, 60, 3, meta::pure::functions::date::DurationUnit.MONTHS, 1, ~d0, ~v0, ~d1, ~v1, ~d2, ~v2, ~sl, ~k)'),
       await tile(projectionQuery(long, ts, { kind: 'projection', series: A.id, window: 60, ahead: '3m' })),
       [['d0', TS_PJ_FROM], ['v0', TS_PJ_FROM_VALUE], ['d1', TS_PJ_LAST], ['v1', TS_PJ_LAST_VALUE], ['d2', TS_PJ_END], ['v2', TS_PJ_END_VALUE], ['sl', TS_PJ_SLOPE], ['k', TS_PJ_N]], 1e-9);
+    // a flag it does not know is refused by name, never read as another (AGENTS invariant 4; the second review's 2)
+    await assert.rejects(ask(`->datacube::ts::seasonality(~symbol, ~day, ~t, ~close, 'Day', 'none', 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)`),
+      /the grain of a seasonality is day, week, month or quarter, not Day/);
+    await assert.rejects(ask(`->datacube::ts::seasonality(~symbol, ~day, ~t, ~close, 'day', 'rebased', 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)`),
+      /the compare of a seasonality is none, rebase or percent, not rebased/);
+    await assert.rejects(ask(`->datacube::ts::periodIndex(~day, 'months', ~i)`), /the grain of a period index is week, month or quarter, not months/);
+    await assert.rejects(ask('->datacube::ts::projection(~symbol, ~day, ~t, ~close, 60, 3, meta::pure::functions::date::DurationUnit.MONTHS, 24, ~d0, ~v0, ~d1, ~v1, ~d2, ~v2, ~sl, ~k)'),
+      /the time of a projection counts days \(perDay 1\) or seconds \(86400\), not 24 a day/);
   });
 
   // a decomposition at a daily frequency: its place in the cycle each row's number (a cycle of business days), where it
@@ -2284,6 +2299,22 @@ describe('a date-time source at a daily frequency: a period\'s days its last obs
     }
     close(await tickLine('basket(close[S], 0.6, close[B], 0.4, rebalance=weekly)'), out, 'weekly basket', 1e-9);
   });
+
+  // the conversion's second review (2026-10-28): a projection of date-times counts its time in seconds -- its line by
+  // least squares on each day's last tick's time, ahead a week's seconds, its slope a day's
+  it('a projection of date-times: its time in seconds, its end a week of them past the last tick, its slope a day\'s', async () => {
+    const ts = spec({ A: 'close[S]' }, { grain: 'day' });
+    const t = await engine.execute(await tickPlanner.plan(projectionQuery(ticks, ts, { kind: 'projection', series: 'A', window: 5, ahead: '1w' }).query), 0);
+    const xs = T.slice(-5);
+    const ys = SC.slice(-5);
+    const mx = avg(xs);
+    const my = avg(ys);
+    const slope = xs.reduce((a, x, i) => a + (x - mx) * (ys[i]! - my), 0) / xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+    const at = (x: number): number => my + slope * (x - mx);
+    close([TS_PJ_FROM_VALUE, TS_PJ_LAST_VALUE, TS_PJ_END_VALUE].map((c) => num(values(t, c)[0])), [at(xs[0]!), at(xs[4]!), at(xs[4]! + 7 * 86_400)], 'its fit', 1e-6);
+    close([num(values(t, TS_PJ_SLOPE)[0])], [slope * 86_400], 'a day\'s slope', 1e-9);
+    assert.equal(num(values(t, TS_PJ_N)[0]), 5);
+  });
 });
 
 // the review's Q12 (docs/TIMESERIES_REVIEW_2026_10_25.md §9): a cut at a count of rows kept some of a split's lines at
@@ -2725,6 +2756,42 @@ describe('the review\'s findings on the numbers, each pinned', () => {
     const ts = spec({ A: 'ohlc(close[AAA], close[AAA], close[AAA], close[AAA])' }, { grain: 'week' });
     const st = await run(statsQuery(inputs, ts, ts.series[0]!));
     close([num(values(st, statName('low'))[0]), num(values(st, statName('high'))[0])], [Math.min(...AAA), Math.max(...AAA)], 'extremes', 1e-12);
+  });
+
+  // the conversion's second review (2026-10-28): a candle's lows and highs apart from its closes -- the statistics' least
+  // its lowest low and when, its most its highest high and when, its first and last its closes (summaryStatistics' low,
+  // high and value, each its own)
+  it('a candle\'s statistics: its least and most its lows\' and highs\', at their own weeks; its first and last its closes', async () => {
+    const ts = spec({ A: 'ohlc(close[AAA], close[AAA] + 1, close[AAA] - 2, close[AAA])' }, { grain: 'week' });
+    const st = await run(statsQuery(inputs, ts, ts.series[0]!));
+    const weekOf = (d: string): string => {
+      const at = new Date(`${d}T00:00:00Z`);
+      return new Date(at.getTime() - ((at.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
+    };
+    const weeks = [...new Set(DAYS.map(weekOf))];
+    const of = (w: string): number[] => DAYS.map((d, i) => [d, i] as const).filter(([d]) => weekOf(d) === w).map(([, i]) => i);
+    const lows = weeks.map((w) => Math.min(...of(w).map((i) => AAA[i]! - 2)));
+    const highs = weeks.map((w) => Math.max(...of(w).map((i) => AAA[i]! + 1)));
+    const ats = weeks.map((w) => DAYS[of(w).at(-1)!]!);
+    const [low, high] = [Math.min(...lows), Math.max(...highs)];
+    const one = (stat: Parameters<typeof statName>[0]): unknown => values(st, statName(stat))[0];
+    close([num(one('low')), num(one('high'))], [low, high], 'the lowest low and the highest high', 1e-9);
+    assert.equal(String(one('lowAt')).slice(0, 10), ats[lows.indexOf(low)], 'the week of the lowest low');
+    assert.equal(String(one('highAt')).slice(0, 10), ats[highs.indexOf(high)], 'the week of the highest high');
+    close([num(one('first')), num(one('last'))], [AAA[of(weeks[0]!).at(-1)!]!, AAA.at(-1)!], 'its closes', 1e-12);
+  });
+
+  // a seasonality of a whole number (a volume): each week's last, as it is
+  it('a seasonality of a volume: each week its last volume', async () => {
+    const ts = spec({ A: 'volume[AAA]' });
+    const t = await run(seasonalityQuery(inputs, ts, ts.series[0]!, 1));
+    const weekOf = (d: string): number => {
+      const day = (Date.parse(`${d}T00:00:00Z`) - Date.UTC(Number(d.slice(0, 4)), 0, 1)) / 86_400_000 + 1;
+      return Math.floor((day - 1) / 7) + 1;
+    };
+    const lastOf = new Map<number, number>();
+    DAYS.forEach((d, i) => lastOf.set(weekOf(d), VOL[i]!));
+    close(values(t, TS_VALUE).map(num), [...lastOf.values()], 'each week\'s last volume', 0);
   });
 
   // Q11, as the user ruled it (2026-10-28, "match gsquant"): the % change from a start below zero is gs-quant's

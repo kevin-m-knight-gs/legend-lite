@@ -1400,10 +1400,11 @@ function datacube::ts::fitAt<T,I,S,X,O>(t: Relation<T>[1], intercept: ColSpec<I�
 // A TREND PROJECTED, a row a line: its least-squares line of its value on its time (regression's) over its last window
 // values, and that line's value at the first of them, at the last, and at the date ahead units past the last -- those
 // three dates and values, the line's slope a day (its time counts days, or seconds where perDay is 86400) and how many
-// values it was fit to; none of the fit under two values of different times.
+// values it was fit to; none of the fit under two values of different times. A perDay but 1 or 86400 is refused.
 function datacube::ts::projection<T,L,D,N,V,O1,O2,O3,O4,O5,O6,O7,O8>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], value: ColSpec<V⊆T>[1], window: Integer[1], ahead: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], perDay: Integer[1], firstDate: ColSpec<O1>[1], firstValue: ColSpec<O2>[1], lastDate: ColSpec<O3>[1], lastValue: ColSpec<O4>[1], endDate: ColSpec<O5>[1], endValue: ColSpec<O6>[1], slope: ColSpec<O7>[1], n: ColSpec<O8>[1]): Relation<L+O1+O2+O3+O4+O5+O6+O7+O8>[1]
 {
-  $t->filter(r|$r->read($value)->isNotEmpty())
+  $t->filter(r|$r->read($value)->isNotEmpty() && if(($perDay == 1) || ($perDay == 86400), |true,
+      |fail('the time of a projection counts days (perDay 1) or seconds (86400), not ' + $perDay->toString() + ' a day')))
     ->extend(~[l:r|$r->read($line), d:r|$r->read($date), tm:r|$r->read($time), v:r|$r->read($value)])
     ->extend(over(~l, [~tm->ascending()], rows(0, unbounded())), ~rest:{p,f,r|$r.v}:y|$y->count())
     ->filter(x|$x.rest->toOne() <= $window)
@@ -1638,17 +1639,23 @@ function datacube::ts::seasonalRange<T,L,Y,P,V,O1,O2,O3>(t: Relation<T>[1], line
 // weeks, each year's week its last value by time), its value as compare says ('none'; 'rebase', a multiple of its
 // year's first value times 100, gs-quant's index; 'percent', over its year's first less 1, percent_change's; none from a
 // first of 0), and at its place the least, the most and the mean of the years before the latest (seasonalRange's), the
-// most less the least, and the latest year: of the dates with a value, the latest year's and the years before it.
+// most less the least, and the latest year: of the dates with a value, the latest year's and the years before it. A
+// grain or a compare but those is refused by name.
 function datacube::ts::seasonality<T,L,D,N,V,O1,O2,O3,O4,O5,O6,O7,O8>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], value: ColSpec<V⊆T>[1], grain: String[1], compare: String[1], years: Integer[1], year: ColSpec<O1>[1], place: ColSpec<O2>[1], compared: ColSpec<O3>[1], low: ColSpec<O4>[1], high: ColSpec<O5>[1], mean: ColSpec<O6>[1], span: ColSpec<O7>[1], latest: ColSpec<O8>[1]): Relation<T+O1+O2+O3+O4+O5+O6+O7+O8>[1]
 {
-  $t->filter(r|$r->read($value)->isNotEmpty())
+  $t->filter(r|$r->read($value)->isNotEmpty()
+      && if(($grain == 'day') || ($grain == 'week') || ($grain == 'month') || ($grain == 'quarter'), |true,
+        |fail('the grain of a seasonality is day, week, month or quarter, not ' + $grain))
+      && if(($compare == 'none') || ($compare == 'rebase') || ($compare == 'percent'), |true,
+        |fail('the compare of a seasonality is none, rebase or percent, not ' + $compare)))
     ->extend(~[l:r|$r->read($line), d:r|$r->read($date), tm:r|$r->read($time), v:r|$r->read($value), yr:r|$r->read($date)->toOne()->year(),
       pl:r|if($grain == 'month', |$r->read($date)->toOne()->monthNumber(), |if($grain == 'quarter', |$r->read($date)->toOne()->quarterNumber(),
         |floor(($r->read($date)->toOne()->dayOfYear() - 1) / 7) + 1))])
     ->extend(over(~[l, yr]), ~d0:{p,f,r|$r.d}:y|$y->min())
     ->extend(over(~[l, yr]), ~v0:{p,f,r|if($r.d == $r.d0, |$r.v, |[])}:y|$y->max())
     ->extend(~cv:x|if($compare == 'rebase', |if($x.v0->toOne() == 0, |[], |($x.v->toOne() / $x.v0->toOne()) * 100.0),
-      |if($compare == 'percent', |if($x.v0->toOne() == 0, |[], |($x.v->toOne() / $x.v0->toOne()) - 1), |$x.v)))
+      |if($compare == 'percent', |if($x.v0->toOne() == 0, |[], |($x.v->toOne() / $x.v0->toOne()) - 1),
+        |$x.v)))
     ->extend(over(~[l, yr, pl]), ~wl:{p,f,r|$r.tm}:y|$y->max())
     ->filter(x|($grain != 'day') || ($x.tm->toOne() == $x.wl->toOne()))
     ->extend(over(~l), ~ly:{p,f,r|$r.yr}:y|$y->max())
@@ -1659,12 +1666,14 @@ function datacube::ts::seasonality<T,L,D,N,V,O1,O2,O3,O4,O5,O6,O7,O8>(t: Relatio
     ->rename(~mn, $mean)->rename(~sp, $span)->rename(~ly, $latest)
 }
 
-// Each date's period's number, counted from 1970 by grain (the place in a cycle a decomposition reads, by its number
-// modulo the cycle): its months' (the year twelve times and its month less 1), its quarters' (the year four times and
-// its quarter less 1) or its weeks' (sevens of days from Monday 1970-01-05).
+// Each date's period's number by grain, consecutive (the place in a cycle a decomposition reads, by its number modulo
+// the cycle): its months' (the year twelve times and its month less 1), its quarters' (the year four times and its
+// quarter less 1) or its weeks' (sevens of days from Monday 1970-01-05); any other grain refused by name.
 function datacube::ts::periodIndex<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], grain: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->extend(~o:r|if($grain == 'month', |($r->read($date)->toOne()->year() * 12) + ($r->read($date)->toOne()->monthNumber() - 1),
+  $t->filter(r|if(($grain == 'week') || ($grain == 'month') || ($grain == 'quarter'), |true,
+      |fail('the grain of a period index is week, month or quarter, not ' + $grain)))
+    ->extend(~o:r|if($grain == 'month', |($r->read($date)->toOne()->year() * 12) + ($r->read($date)->toOne()->monthNumber() - 1),
     |if($grain == 'quarter', |($r->read($date)->toOne()->year() * 4) + ($r->read($date)->toOne()->quarterNumber() - 1),
       |floor(dateDiff(%1970-01-05, $r->read($date)->toOne(), meta::pure::functions::date::DurationUnit.DAYS) / 7))))->rename(~o, $out)
 }

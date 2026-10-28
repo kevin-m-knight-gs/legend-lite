@@ -1651,13 +1651,6 @@ final class Typer {
                         }));
     }
 
-    /**
-     * Multiplicity composition along a navigation path — ONE owner:
-     * {@link Multiplicity#product} (audit sections 1d/1e: this copy's Var
-     * arm silently dropped a variable source's cardinality across
-     * inlining; the owner keeps the variable through the {@code [1]}
-     * identity and is loud otherwise).
-     */
     /** A row's column: {@code $row.col}, and {@code read(row, ~col)} (S114, ReadChecker), which is the same read.
      * One cell, stamped BY TYPE (Row-vs-Relation): no walk, no inference, the type says row. The column's identity is
      * QUOTE-BEARING (the pivot rule's sibling), its multiplicity the row's composed with the column's. */
@@ -1667,6 +1660,13 @@ final class Typer {
                 new ExprType(col.type(), compose(row.info().multiplicity(), col.multiplicity())));
     }
 
+    /**
+     * Multiplicity composition along a navigation path — ONE owner:
+     * {@link Multiplicity#product} (audit sections 1d/1e: this copy's Var
+     * arm silently dropped a variable source's cardinality across
+     * inlining; the owner keeps the variable through the {@code [1]}
+     * identity and is loud otherwise).
+     */
     private static Multiplicity compose(Multiplicity outer, Multiplicity inner) {
         return Multiplicity.product(outer, inner);
     }
