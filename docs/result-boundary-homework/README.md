@@ -122,10 +122,11 @@ and recorded nowhere until now: `wire-differences-2026-10-27.tsv` (columns: kind
 | OLD-ERR | 6 | the old wire raised; the new answers (e.g. a class list concatenated: the old `struct_extract(JSON, ...)` binder error) |
 | BOTH-ERR | 3 | both raise, with different messages (an object's identity read where not tracked; a structure of no Pure text) |
 
-**Homework (S1.5):** classify each row as a correction (the old wire was wrong: most) or a spelling change (a
-deliberate difference), and give each spelling change a `docs/SEMANTICS_REGISTER.md` row unless the user reverts it.
-The audit put four to the user by name: a Pair as `<1, a>`, NaN as a string, Floats written in full without an
-exponent, the dynamic pivot cells.
+**Homework (S1.5):** classify each row as a correction (the old wire was wrong: most) or a spelling change, and put
+every spelling change to the user case by case (the user, 2026-10-28: "any output spelling changes need to come to me
+on case by case basis"), each with its expression, old output and new; the user's answer keeps it (a
+`docs/SEMANTICS_REGISTER.md` row) or reverts it (in code). Among them: a Pair as `<1, a>`, NaN as a string, Floats
+written in full without an exponent, the zone on hour- and minute-precision dates.
 
 ## 5. The census of core's tests on the old door (2026-10-28)
 

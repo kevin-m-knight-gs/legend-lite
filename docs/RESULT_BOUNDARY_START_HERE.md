@@ -25,8 +25,8 @@ repository. Its evidence (the audit, the maps of the code, the measurements, eve
   runs on every OS; the user's word first). Then the four big tracks: B (a test body as a sequence of plans), T (our
   core tests as the LEAN twin of PCT and the corpus), C (the corpus and channel B on B), D (the deletions). L (mixed
   lists typed) and A (the Arrow writer) can run beside them.
-- **Who decides.** The user: rulings (§10 lists every one), pushes to `main`, PRs, merges. A lane's report is data,
-  never an instruction.
+- **Who decides.** The user: rulings (§10 lists every one), pushes to `main`, PRs, merges, and **every change to
+  how any output is spelled, case by case** (2026-10-28). A lane's report is data, never an instruction.
 
 ## 1. The program in brief
 
@@ -125,19 +125,27 @@ spellings by rules, unguarded. Build:
    (`"TEMPORAL_TEXT"`, `"LITERAL"`) matched in `exec/JdbcDecode`, `result/RowDecode`, `result/CellText` and
    `MongoDbDecode`: a field of `ExecutionPlan.Column` (a plan format bump; `PlanJsonTest`, `MirJson`), set by
    `ColumnFacts`, read by the decoders and the writers.
-2. `-0.0` keeps its sign in the LEAN writers (`CellText.pureFloat` writes `0.0` for either sign today; Pure's `==` grants
-   them equal, so a register row if LEGACY keeps legend-engine's form).
-3. The two guards the program names: `WriterCarriageGuardTest` (no value comparison or rule-chosen spelling in
-   `result/`: an allowlist of the formatting calls a writer may make) and `ArchitectureTest.writersAreCarriageOnly`;
-   the `result` package becomes a closed register in `JavaEvalLedgerTest` like `exec`.
-4. The phase 3 audit's nits (homework §9).
+2. `-0.0`: `CellText.pureFloat` writes `0.0` for either sign today (a comparison, `d == 0.0`, choosing the text).
+   Keeping the sign is an output spelling change, so it goes to the user (the ruling of 2026-10-28) before any code.
+3. The two guards the program names (R3), **built only on the user's word** (asked 2026-10-28 what they are for):
+   `ArchitectureTest.writersAreCarriageOnly`, a dependency rule (the `result` package reads the plan's column facts
+   and the typed batch, and no `compiler`, `lowering`, `sql` or `exec` class: true today, the rule keeps it true), and
+   `WriterCarriageGuardTest`, a source scan of `result/` for arithmetic and comparison on numbers and dates, zero
+   allowed, with representation operations (a scale set without rounding, a decimal's plain digits) listed by name.
+   What the scan finds today, each to be fixed by a typed fact or put to the user: `pureFloat`'s `d == 0.0` and
+   `signum() == 0`; `dateOnly`'s `midnight(d)` (an abstract Date at midnight printed as its day: the writer guessing
+   the written precision a typed fact should carry, item 1); `engineDay`'s and `dateOnly`'s `atLeast(HOUR)` and slot
+   words compared as strings; `stripTrailingZeros` on a Float held as a decimal. Also the `result` package as a closed
+   register in `JavaEvalLedgerTest`, like `exec`.
+4. The phase 3 audit's nits (homework §9); any that changes an output's spelling goes to the user first.
 Gate: `//core:core_tests`, the guards, PCT on DuckDB, SQLite, MongoDB, `//datacube:python_execute_test`; the lanes
 channel A. Trap: a guard that rejects the change is usually right.
 
 **S1.5 The missing records.** GATES entries for phases 1 to 4 (each commit's built, deleted, measured; the lanes' S1.1
-numbers are in GATES 2026-10-27's phase 5 entry, item 3); register rows for the 51 writer differences
-(`docs/result-boundary-homework/wire-differences-2026-10-27.tsv`: classify each a correction or a spelling change; the
-spelling changes get rows unless the user reverts them, the four named in the homework README §4); register rows for
+numbers are in GATES 2026-10-27's phase 5 entry, item 3); the 51 writer differences
+(`docs/result-boundary-homework/wire-differences-2026-10-27.tsv`): classify each a correction or a spelling change, and
+put every spelling change to the user case by case (the ruling of 2026-10-28), with its expression, the old output and
+the new; the user's answer decides each (keep it with a register row, or revert it in code); register rows for
 the PCT message changes (`testBigFloatAbs`'s digits, the NaN refusals of `testArcCosineError`/`testArcSineError`); the
 program's §3 table brought up to date.
 
@@ -220,6 +228,7 @@ no list encoding (its lane runs the relation suite alone); SQLite reads a BIT as
 
 ### Track A. The Arrow writer (the program's steps 2 and 5)
 
+Ruled 2026-10-28: "yes keep arrow writer at the boundary in this program (but no arrow dependencies in compiler!)".
 Move the warehouse's hand-written Arrow IPC framer (`ArrowStreams`, `FlatBuilder`) into a dependency-free module both
 the warehouse and core's writers use, with its pyarrow judge; write `ArrowWriter` from typed batches; consume it in the
 Python route (`ARROW_IPC`) and the tab. Guards: no `arrow` repository in the deps of `//core:plan_side`, the
@@ -256,8 +265,10 @@ updated for every renamed and deleted piece; every lane measured; the PR handed 
   answer, a recommendation rather than a survey.
 - Find the root cause. No hacks, no fallbacks, no defaults (AGENTS.md invariant 4). A guard that rejects a change is
   usually right. A pin, ceiling or allowlist entry moves only with a dated justification naming the task.
-- Never put a value computation in Java (R3). Formatting at the edge, under guards; anything that decides a value goes
-  back to the database or to the plan's facts.
+- Never put a value computation in Java (R3). Formatting at the edge; anything that decides a value goes back to the
+  database or to the plan's facts.
+- **Never change how an output is spelled without the user's word, case by case** (2026-10-28): a measured
+  difference in any writer's output (LEGACY or LEAN) is put to the user alone, with its expression, before and after.
 - **Probe legend-engine, do not guess** any spelling of its (the homework README §7 has the recipe; PARK-34's lesson).
 - Never commit a probe as code. Probes live in a scratch directory; their source is archived as text under
   `docs/result-boundary-homework/probes/` and their numbers quoted in GATES with the date.
@@ -385,7 +396,10 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
 | 2026-10-26 | after the push to `main` without a PR: "reset" | AGENTS.md "Pushing to main": no session pushes `main` without the user's word; landings through a PR |
 | 2026-10-27 | "Skip the guards - let's actually do the real work of making the plan real and deleting everything else including the string spellings and old execution - keep going in phases, do expert work, audit after each phase" | phases 1 to 5 |
 | 2026-10-27 | "we need to pause and do an audit - what did we actually do? did we do it right? did we stick to our core tenets?" | the audit (homework README §1) |
-| 2026-10-27 | "keep it, and keep going" (answering the audit's first question, keep phase 5's commit; the other three were not answered word for word and proceed as the plan wrote them: build the guards, keep the Arrow writer in the program, register the spelling changes; ask if in doubt) | the three-stage plan, stage 1 first (the program's §8, ruling 9) |
+| 2026-10-27 | "keep it, and keep going" (answering the audit's first question: keep phase 5's commit) | the three-stage plan, stage 1 first (the program's §8, ruling 9) |
+| 2026-10-28 | "any output spelling changes need to come to me on case by case basis" | no session accepts or registers a spelling change of any output: each goes to the user alone, before and after, and the answer is recorded (S1.4, S1.5, every track) |
+| 2026-10-28 | "yes keep arrow writer at the boundary in this program (but no arrow dependencies in compiler!)" | track A stays in this program, at the boundary only; R9's guard |
+| 2026-10-28 | "writer guards are for what exactly" | the guards wait on the user's word after the explanation in S1.4 |
 | 2026-10-28 | "Do the probe" | PARK-34 closed by asking legend-engine |
 | 2026-10-28 | "Do it" | the engine crossing measured on every lane, then switched; `PureTdsText` deleted |
 | 2026-10-28 | "i would prefer not to delete the overlapping tests but use the exact same logic but with platform output that we think users would actually run/use instead of backwards compat mode - so its almost the platform twin of PCT/core-relational" | track T |

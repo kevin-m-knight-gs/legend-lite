@@ -459,10 +459,13 @@ default.
 the plan real and deleting everything else including the string spellings and old execution - keep going in phases,
 do expert work, audit after each phase": phases 1 to 5. Then "we need to pause and do an audit": the audit
 (`docs/result-boundary-homework/README.md` §1) and its three-stage plan, answered "keep it, and keep going": the
-paused phase 5 commit kept and made green. The plan's other three questions were not answered word for word and
-proceed as the plan wrote them: the writer guards built (S1.4, the audit's recommendation, against the earlier "skip
-the guards"); the Arrow writer kept in the program (stage 3); the writers' spelling changes registered unless the user
-reverts one. A session in doubt asks.
+paused phase 5 commit kept and made green. The plan's other three questions, answered 2026-10-28: "any output
+spelling changes need to come to me on case by case basis" (no spelling change of any output is accepted or
+registered by a session: each is put to the user, alone, with its before and after, and the user's answer recorded);
+"yes keep arrow writer at the boundary in this program (but no arrow dependencies in compiler!)" (the Arrow writer is
+track A, at the boundary only; R9's guard keeps every Arrow artifact out of the compiler, the WebAssembly planner and
+the native image); the writer guards: the user asked what they are for (the start page's S1.4 explains), so they wait
+on the user's word.
 
 **10. A PCT relation crosses as legend-engine's own adapter reads it (2026-10-28, "Do the probe", then "Do it").**
 The relation is streamed through the server's own LEGACY writer (`PureV1Api.engineWriter`) and read by a Pure copy of
