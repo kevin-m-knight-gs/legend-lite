@@ -655,6 +655,12 @@ An independent review, read-only, of the three commits. Its findings:
   screen's Create does.
 - **Test gaps (closed)**: `filterValues`' other operators, and `prices` of log returns.
 
-The first tile's bundle grew past its budget with the enumerations and the program (100,428 of 100,000); moved with a
-dated note (`bundle-budget.test.ts`).
+The first tile's bundle grew past its budget with the enumerations and the program (100,296 of 100,000): moved to
+102,000 with a dated note (`bundle-budget.test.ts`).
+
+Run on the fixes: `//core:core_tests` (25 packages), `//core:guardrails`, `//spec:corpus_duckdb` and `//spec:corpus_h2`
+(rosters unchanged, `testExtendDigest_Relational` passing again); DataCube's typecheck, `timeseries_queries_test`,
+`timeseries_code_test`, the library spike, headless, examples, stress markets, guardrails, the one-API ledger, the
+Python engine, the view DOM, the bundle budget and `verify_charts_test` (the browser); Python's `engine_test`,
+`frames_test`, `headless_test` and `markets_test`.
 

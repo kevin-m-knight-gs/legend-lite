@@ -757,8 +757,14 @@ const CHART_BUDGET = 303_500;
  *  97,000 -> 100,000 (2026-10-28, the focused Pure audit's conversion, the user: "convert all, match gsquant" -- the
  *  tile's tables and views written as the library's functions: performanceStatistics, drawdownsOfLine, runs,
  *  calendarReturns, histogramOfLine, seasonalRange, regression, fitAt, correlationOf, periodsPerYear in its text, the
- *  writer's inline maths gone -- the headroom ~2%). Measured 98,043. */
-const TIMESERIES_BUDGET = 100_000;
+ *  writer's inline maths gone -- the headroom ~2%). Measured 98,043.
+ *  100,000 -> 102,000 (2026-10-28, the user: "write the query in a way that compile time checks the parameters" and
+ *  "a generic snippet ... to just create exactly that tile in their own datacube" -- the library's ten enumerations and
+ *  the last views as its functions (summaryStatistics, seasonality, projection, tradedValue, linearAt, periodIndex, in
+ *  its text), the writer's enumeration values (timeseries-query.ts libraryOption), the program of a page of its own
+ *  (timeseries-code.ts) and each formula's Pure under it (ui/timeseries-view.ts #codePanel), docs/TIMESERIES_REVIEW_2026_10_25.md
+ *  §19-§20 -- the headroom ~2%). Measured 100,296. */
+const TIMESERIES_BUDGET = 102_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
