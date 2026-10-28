@@ -15116,12 +15116,11 @@ lane measuring the engine crossing) is met, and the switch is made.
    | H2 | relation (its lane's one suite) | 439 / -- |
    | BigQuery | all five | 459 / 64 |
    | Databricks | all five | 460 / 64 |
-   | Snowflake | all five | (its count asked; the flag in each test action's key, none cached) |
+   | Snowflake | all five | 460 / 64 |
 
-   Each lane but Snowflake checked the flag took effect by its log: every relation crossed through the engine writer
-   (`[LegendLite PCT] engine JSON:` lines, each carrying the trace comment) and none through the Java text
-   (`[LegendLite PCT] TDS:`); at f883d42b the same crossings were all text. Postgres and Trino counted the relation
-   suite's only.
+   Each lane checked the flag took effect by its log: every relation crossed through the engine writer (`[LegendLite
+   PCT] engine JSON:` lines, each carrying the trace comment) and none through the Java text (`[LegendLite PCT]
+   TDS:`); at f883d42b the same crossings were all text. Postgres and Trino counted the relation suite's only.
    Essential, grammar and unclassified answer no relation, so the crossing does not reach them.
 2. **The switch:** `PctPlanRoute` streams every relation through the server's own writer of legend-engine's execute
    answer (`PureV1Api.engineWriter`), and the adapter reads it as legend-engine's PCT adapter does (`ValueBridge.engineTDS`,
