@@ -1759,9 +1759,9 @@ class UserFunctionIntegrationTest {
             var total = exec(model, over + "total, ~s)->sort(~FIRST_NAME->ascending())");
             // Jones: Bob 45; Smith: Jane and John 28 + 30
             assertEquals(List.of(45, 58, 58), total.rows().stream().map(r -> ((Number) r.get(3)).intValue()).toList());
-            String sql = plan(model, over + "total, ~s)").sql();
-            assertTrue(sql.toUpperCase().contains("SUM("), sql);
-            assertFalse(sql.toUpperCase().contains("AVG(") || sql.toUpperCase().contains("MAX(") || sql.toUpperCase().contains("CASE"), "the branch it names alone: " + sql);
+            String sql = plan(model, over + "total, ~s)").sql().toUpperCase(java.util.Locale.ROOT);
+            assertTrue(sql.contains("SUM("), sql);
+            assertFalse(sql.contains("AVG(") || sql.contains("MAX(") || sql.contains("CASE"), "the branch it names alone: " + sql);
             var refused = assertThrows(Exception.class, () -> plan(model, over + "Total, ~s)"));
             assertTrue(refused.getMessage().contains("enumeration test::Stat has no value 'Total'"), refused.getMessage());
         }
