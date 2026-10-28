@@ -1514,6 +1514,95 @@ class UserFunctionIntegrationTest {
     // ==================== Functions generic over relations (docs/SEMANTICS_REGISTER.md S112) ====================
 
     /**
+     * The static fold of a body expanded at its call (a function over a TDS, as the reference corpus's own are): a helper
+     * the body calls is inlined with the arguments it was given, the static ones bound as facts. The second review of the
+     * enumeration round, 2026-10-28: each a case the fold answered otherwise than the query it was folded from.
+     */
+    @Nested
+    @DisplayName("The static fold of an expanded body")
+    class FoldOfABody {
+
+        private static final String PEOPLE = "|model::Person.all()->project([col(p|$p.firstName, 'first')])";
+
+        private List<Object> column(ExecutionResult result, int i) {
+            return result.rows().stream().map(r -> r.get(i)).toList();
+        }
+
+        @Test
+        @DisplayName("a function a helper was given and evaluates is written back as the call named it")
+        void aFunctionPassedOnWhole() throws SQLException {
+            // TypeToken, as EnumToken before it: test::up_String_1__String_1_ bound and used whole ($f->eval($s)) was left
+            // a variable no binder held -- inside a helper, and as the element of a map unrolled
+            String model = modelWith("""
+                    function test::up(s: String[1]): String[1]
+                    {
+                        $s->toUpper()
+                    }
+                    function test::applyTo(s: String[1], f: Function<{String[1]->String[1]}>[1]): String[1]
+                    {
+                        $f->eval($s)
+                    }
+                    function test::upped(t: TabularDataSet[1]): TabularDataSet[1]
+                    {
+                        $t->extend([col(r:TDSRow[1]|test::applyTo('x', test::up_String_1__String_1_), 'one'),
+                                    col(r:TDSRow[1]|[test::up_String_1__String_1_]->map(f|$f->eval('y'))->toOne(), 'each')])
+                    }
+                    """);
+            var result = exec(model, PEOPLE + "->test::upped()->sort('first')");
+            assertEquals(List.of("X", "X", "X"), column(result, 1));
+            assertEquals(List.of("Y", "Y", "Y"), column(result, 2));
+        }
+
+        @Test
+        @DisplayName("a helper's parameters are its own: an argument is read in the caller's scope, never captured")
+        void aHelpersParametersAreItsOwn() throws SQLException {
+            // swap(a, b) calling cat($b, $a) answered y-y in a body (cat's a read as swap's b already bound), and a row
+            // the caller named b was read as the helper's b ('q')
+            String model = modelWith("""
+                    function test::cat(a: String[1], b: String[1]): String[1]
+                    {
+                        $a + '-' + $b
+                    }
+                    function test::swap(a: String[1], b: String[1]): String[1]
+                    {
+                        test::cat($b, $a)
+                    }
+                    function test::swapped(t: TabularDataSet[1]): TabularDataSet[1]
+                    {
+                        $t->extend([col(r:TDSRow[1]|test::swap('x', 'y'), 'swapped'),
+                                    col(b:TDSRow[1]|test::cat($b.getString('first'), 'q'), 'named')])
+                    }
+                    """);
+            assertEquals(List.of("y-x"), column(exec(model, "|test::swap('x', 'y')"), 0), "as the query answers it");
+            var result = exec(model, PEOPLE + "->test::swapped()->sort('first')");
+            assertEquals(List.of("y-x", "y-x", "y-x"), column(result, 1));
+            assertEquals(List.of("Bob-q", "Jane-q", "John-q"), column(result, 2));
+        }
+
+        @Test
+        @DisplayName("an enumeration's value against a string answers as the query does: the database compares the name")
+        void anEnumerationAgainstAString() throws SQLException {
+            // the fold compares two values of one enumeration; Stat.mean == 'mean' it leaves to the database, which
+            // compares the value's name -- the fold had answered false where the same query answers true
+            String model = modelWith("""
+                    Enum test::Stat
+                    {
+                      mean, total
+                    }
+                    function test::said(t: TabularDataSet[1]): TabularDataSet[1]
+                    {
+                        $t->extend([col(r:TDSRow[1]|if(test::Stat.mean == 'mean', |'eq', |'ne'), 'mixed'),
+                                    col(r:TDSRow[1]|if(test::Stat.mean == test::Stat.total, |'eq', |'ne'), 'two')])
+                    }
+                    """);
+            var asked = column(exec(model, "|if(test::Stat.mean == 'mean', |'eq', |'ne')"), 0);
+            var result = exec(model, PEOPLE + "->test::said()->sort('first')");
+            assertEquals(List.of(asked.get(0), asked.get(0), asked.get(0)), column(result, 1), "as the query answers it");
+            assertEquals(List.of("ne", "ne", "ne"), column(result, 2));
+        }
+    }
+
+    /**
      * The user, 2026-10-26: a library of timeseries functions written in Pure over ANY table -- its columns, its sort
      * and its window parameters. legend-engine refuses type parameters in a user function; legend-lite expands a call
      * of one generic over relations into its body, typed over the call's own tables (RelationGenerics).
