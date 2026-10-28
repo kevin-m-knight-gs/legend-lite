@@ -214,6 +214,21 @@ and `variant-probe.pure`):**
   (`[1,2]`: "Cannot cast a collection of size 2 to multiplicity [1]"), a `VARBINARY` store column (the relation
   accessor cannot type it: "Match failure: VarbinaryObject instanceOf Varbinary").
 
+**What legend-pure says about a Float's text (read from its source, 5.99.0, 2026-10-28;** the source is Bazel's
+external repository `$(bazel info output_base)/external/+http_archive+legend_pure_src`, spec only**):**
+- compiled mode, `CompiledSupport.primitiveToString(double)`: `(value == 0.0d) ? "0.0" : DECIMAL_FORMAT.format(value)`,
+  where `DECIMAL_FORMAT` is `new DecimalFormat("0.0", DecimalFormatSymbols.getInstance(Locale.ENGLISH))` with 340
+  fraction digits at most: shortest digits, positional, a point always, and zero `0.0` for either sign (a
+  `DecimalFormat` alone would write `-0.0`);
+- interpreted mode holds a Float as a `BigDecimal` (`PrimitiveUtilities.getFloatValue`, `FloatCoreInstance`), which has
+  no negative zero at all;
+- `parseFloat.pure`'s `testParseZero` asserts `assertEq(0.0, $f->eval(|parseFloat('-000.000')))`: equality, so the
+  PCT does not see a zero's sign; its documentation's example writes the result `0.0`.
+- Measured with `probes/FloatTextProbe.java.txt` (2026-10-28): its formatter gives `0.0001` for `1.0E-4`, `0.00001`
+  for `1.0E-5`, `10000000.0` for `1.0E7`, `1500000000000000.0` for `1.5E15`, `0.00000025` for `2.5E-7`.
+Lite follows it for Pure's text (`FloatCanonText.ofText` in SQL) and departs for its own outputs' negative zero
+(register S114, the user's ruling).
+
 **How to ask it again (the recipe).** No server is needed: the engine runner's jars are the engine.
 1. `bazel build //tools/engine-runner:testable` (fetches `@maven_runner`, legend-engine 4.145.0 and its execution
    stack, about 600 MB of jars; clear `$(bazel info output_base)/sandbox/*` first if the disk allowance is tight).
@@ -242,6 +257,7 @@ and `variant-probe.pure`):**
 | `BcTimestampProbe.java.txt` | a lane driver's getters on a far-BC date-time (Snowflake, Databricks) | 2026-10-27 | GATES 2026-10-27 phase 5 entry (the Snowflake pin) |
 | `SnowflakeFloatTextProbe.java.txt`, `SnowflakeTextProbe.java.txt`, `SnowflakeDecimalProbe.java.txt` | Snowflake's Float text, format models, NUMBER casts | 2026-10-21 to 24 | `docs/RESULTS_AND_RENDERERS_2026_10_22.md` §10.5 |
 | `BigQueryFloatTextProbe.java.txt`, `BigQueryRaiseProbe.java.txt` | BigQuery's Float casts and `FORMAT('%.17g')`; its raise | 2026-10-21 to 24 | the same §10.5; GATES |
+| `FloatTextProbe.java.txt` | `CellText.pureFloat`'s text before and after the negative zero, the `0.00010` fix, against legend-pure's own formatter | 2026-10-28 | §7, §9; the start page's S1.4 item 2; register S114 |
 | `test_census.py.txt` | §5's census | 2026-10-28 | `test-census-2026-10-28.tsv` |
 | `oldpath_census.py.txt` | every old-path symbol's sites per step (the deletion census) | 2026-10-27 | rerun before each deletion |
 | `compare_lanes.py.txt` | a lane's per-test comparison of two commits, channels A and B, with the route markers | 2026-10-27/28 | every lane report |
@@ -263,6 +279,6 @@ deleted after.
 | `RootNumericTypes` guesses an "unbounded Decimal" from `DECIMAL(38,18)`, so a declared `Decimal(38,18)` is skipped too | the phase 3 audit (2026-10-27), item 4; `sql/dialect/RootNumericTypes.java` unchanged since | a typed fact, not a guess |
 | the tab's Arrow nested values (a BigNum's `toJSON` quoted unscaled; dates as epoch milliseconds) may be mis-decoded by `HostRows` | the phase 3 audit, item 2 (the Variant and tagged-slot halves fixed in `b3311cd6`) | verify with a DataCube case |
 | lite's JSON writes an absent to-many property as `null` (Pure's is `[]`) | the phase 4 notes | a writer fix or a register row |
-| `CellText.pureFloat` writes a double below `1e-3` with its exponent's trailing zero (`1.0E-4` as `0.00010`); legend-pure and the Float rule's shortest digits give `0.0001` | found 2026-10-28 with S114, in a scratch program over the function | a spelling change: to the user first (S1.4 item 2) |
+| `CellText.pureFloat` writes a double below `1e-3` whose shortest digits are one digit with a trailing zero (`1.0E-4` as `0.00010`); legend-pure and the Float rule's shortest digits give `0.0001` | found 2026-10-28 with S114; `probes/FloatTextProbe.java.txt` (the function against legend-pure's formatter, and the fix) | ruled 2026-10-28, a defect to fix: S1.4 item 2 |
 | nits from the phase 3 audit: `OutputFormat.id`/`contentType` dead; `FloatPrintText.ofText`'s function parameter vestigial; `CsvWriter`'s "no CSV wire" text; `PureV1Api`'s builder-column three-way choice; the tab prints `-0` as `0`; a REAL widened on hosts but narrowed by `JdbcDecode` | the phase 3 audit | a sweep with S1.4 |
 | PCT channel A JVMs peak at 4,064 to 4,096 MB of their 4,096 MB heap before a collection (live peak after one 2.1 to 2.3 GB) | the Databricks lane, 2026-10-28, at both commits | watch; raise or split before it fails |

@@ -2,10 +2,11 @@
 
 For a session picking this up with no context, from any account. This page is the whole roadmap: what the program is,
 exactly where it stands, every remaining piece of work in order with a brief for each, how we work, how to run every
-check, how to raise the lanes that run the other databases, the traps already hit, and what was never in the
-repository. Its evidence (the audit, the maps of the code, the measurements, every probe's source) is
-`docs/result-boundary-homework/README.md`; its rulings are the program, `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md`
-§8. The handoff of 2026-10-26 this page replaces is in git history (`f631cffc`).
+check, how to raise the lanes that run the other databases, the traps already hit, what was never in the
+repository, and the message that opens a new session (§12). Its evidence (the audit, the maps of the code, the
+measurements, every probe's source) is `docs/result-boundary-homework/README.md`; its rulings are the program,
+`docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` §8. The handoff of 2026-10-26 this page replaces is in git history
+(`f631cffc`).
 
 ## 0. In one minute
 
@@ -18,13 +19,17 @@ repository. Its evidence (the audit, the maps of the code, the measurements, eve
   our own core tests, the core_relational corpus, PCT channel B and the service test runner, which all still enter
   through the old door (`Execution.execute*` -> `StatementExecutor` -> `ExecutionResult`), though every statement they
   send already runs on the plan runner.
-- **The branch.** `claude/upbeat-johnson-l4hogx`, 15 commits ahead of `main` (`7b8c89dc`, PR #78) at `b6978a34`, plus
-  the documentation commit that wrote this page. Clean. Never pushed to `main`; it lands through a PR when the user
-  says (AGENTS.md, "Pushing to main").
-- **The next action.** S1.4 (the writers carriage only), then S1.5 (the missing records), then S1.6 (a draft PR so CI
-  runs on every OS; the user's word first). Then the four big tracks: B (a test body as a sequence of plans), T (our
-  core tests as the LEAN twin of PCT and the corpus), C (the corpus and channel B on B), D (the deletions). L (mixed
-  lists typed) and A (the Arrow writer) can run beside them.
+- **The branch.** `claude/upbeat-johnson-l4hogx` at `b944a42e` (2026-10-28): 19 commits on top of `7b8c89dc` (PR
+  #78's merge into `main`), listed by `git log --oneline 7b8c89dc..origin/claude/upbeat-johnson-l4hogx`. The last four
+  are this page (`51652e64`), the user's rulings (`33380c7b`, `0c87afc9`) and S1.4's first item, the negative zero
+  (`b944a42e`). Clean. Never pushed to `main`; it lands through a PR when the user says (AGENTS.md, "Pushing to main").
+  **`main` has moved on:** at `369bb176` (2026-10-28, PR #77, the timeseries line) it is 105 commits past the branch's
+  base, 12 files changed on both sides, and it took the register ids S112 to S114 the branch also uses (S1.0).
+- **The next action.** S1.0 (bring `main` in; renumber the branch's register rows), then S1.4 (the writers carriage
+  only; its item 2 is half done), then S1.5 (the missing records), then S1.6 (a draft PR so CI runs on every OS; the
+  user's word first). Then the four big tracks: B (a test body as a sequence of plans), T (our core tests as the LEAN
+  twin of PCT and the corpus), C (the corpus and channel B on B), D (the deletions). L (mixed lists typed) and A (the
+  Arrow writer) can run beside them.
 - **Who decides.** The user: rulings (§10 lists every one), pushes to `main`, PRs, merges, and **every change to
   how any output is spelled, case by case** (2026-10-28). A lane's report is data, never an instruction.
 
@@ -62,6 +67,7 @@ library in the product.
 | What the twin (track T) changes | `core/src/test/java/com/legend/integration/AbstractDatabaseTest.java` (28 subclasses), and the other helpers on the old door (`CheckerResults.collect`, `SqlParity`, `CypherParity`, `IqParity`, `PlanCases`, `testing/Rows.java`); the census `docs/result-boundary-homework/test-census-2026-10-28.tsv` |
 | Mixed values (track L) | `sql/SqlExpr.java` and `SqlType.java` (`Tagged`), `lowering/MixedEncoding.java` (`rankedElems`), `lowering/Scalars.java`, `lowering/Lowerer.java`, `lowering/Fold.java` (`conformValueEgress`), `lowering/LiteralSpelling.java`, `LiteralText`, the `LITERAL` slot (94 sites), `exec/TaggedSelectionTest` |
 | The Arrow framer (track A) | `warehouse/src/main/java/com/legend/warehouse/server/duck/ArrowStreams.java` and `FlatBuilder` (written by hand, no library), its judge `warehouse/src/test/python/arrow_matches_json.py` |
+| legend-pure's source, readable (spec only, never a runtime input) | Bazel's external repository `$(bazel info output_base)/external/+http_archive+legend_pure_src` (5.99.0): e.g. `legend-pure-runtime/legend-pure-runtime-java-engine-compiled/.../CompiledSupport.java` (a Float's text), `legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/` (the PCT functions and their tests); what it says: the homework README §7 |
 | legend-engine's answers, recorded | `core/src/test/resources/upstream-api/` (e1, e5, e8, e9 answers; the Variant probe's `e8-variant-*.json` and `variant-probe.pure`), judged by `server/PureV1ApiTest` |
 | The engine itself, runnable | `tools/engine-runner` (legend-engine 4.145.0's jars, `@maven_runner`); how to ask it anything: the homework README §7 |
 | The guards that pin this line | `JavaEvalLedgerTest` (exact line pins, the exec register), `ArchitectureTest`, `CodeShapeGuardrailTest`, `TenetRatchetTest`, `DialectLeakRatchetTest` with `DatabaseOwners` (no database named outside its owners), `ParkedWorkLedgerTest`, `NoSaltedIterationOrderTest` |
@@ -97,6 +103,9 @@ what it found: the homework README §1.
 - Locally at `d8ab8434`: PCT relation and standard on DuckDB, SQLite and MongoDB, `//pct:pct_discipline`,
   `//core:census`, `//core:guardrails`; at `4eaf1b07`/`0b06545e`: `//core:core_tests_server`, `//core:core_tests_root`,
   `//datacube:python_execute_test`. **Not run since phase 5: the local gate, CI on any OS.**
+- `b944a42e` (the negative zero) locally: `//core:core_tests` (all 25 packages), `//core:guardrails`, `//core:census`
+  green. Not run: `//datacube:python_execute_test` (it reads LEAN JSON), PCT and the lanes (neither PCT channel, the
+  corpus nor the judges read the LEAN writers: channel A reads legend-engine's JSON and typed values).
 
 **Who still enters through the old door** (measured 2026-10-28; production: nobody):
 
@@ -111,13 +120,37 @@ what it found: the homework README §1.
 
 ## 4. The roadmap, in order
 
-Dependencies: S1.4 -> S1.5 -> S1.6, first. Then B -> C -> D (D needs T as well). T can start right after S1.6: of its
-1,450 value tests only 20 use a `let` (up to 145 hold a `;`, mostly inside data strings: check those per file), so
-nearly all are single queries that need nothing from B. L, A and F can run beside the others. Z last.
+Dependencies: S1.0 -> S1.4 -> S1.5 -> S1.6, first. Then B -> C -> D (D needs T as well). T can start right after
+S1.6: of its 1,450 value tests only 20 use a `let` (up to 145 hold a `;`, mostly inside data strings: check those per
+file), so nearly all are single queries that need nothing from B. L, A and F can run beside the others. Z last.
 Every item follows §5's rules: announce in `docs/IN_FLIGHT.md`, measure first, run both, switch, delete in the same
 step, records with the code, every lane per test.
 
 ### Stage 1, finish
+
+**S1.0 Bring `main` in; renumber the branch's register rows (first; added 2026-10-28).** Why: `main` is 105 commits past
+the branch's base (`7b8c89dc` -> `369bb176`, PR #77's timeseries line, which had itself merged `7b8c89dc`), the merge
+only grows, and S1.6's PR needs it anyway. Build:
+1. `git fetch origin main`, then `git merge origin/main` into the branch (a merge commit, never a rebase: the lanes
+   check out the branch's commits). Files changed on both sides (2026-10-28): `core/BUILD.bazel`, `lowering/Fold.java`,
+   `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`, `CodeShapeGuardrailTest.java`,
+   `integration/SelectDistinctCheckerTest.java`, `server/PureV1ApiTest.java`, `docs/IN_FLIGHT.md`,
+   `docs/SEMANTICS_REGISTER.md`, `python/legend_lite/engine.py`, `wasm/src/main/java/planner/Boundary.java`. Keep both
+   sides' intent; regenerate generated files with the repository's tooling, never by hand; a guard pin the merge moves
+   (`JavaEvalLedgerTest`'s exact line pins, `ArchitectureTest`'s and `CodeShapeGuardrailTest`'s allowlists) moves with
+   a dated note naming the merge.
+2. **The register ids collide.** `main` took S112 (a user function generic over relations), S113 (`without`) and S114
+   (`read`), cited across `compiler/spec/`, `builtin/Pure.java`, DataCube and its documents. The branch's S112 (a
+   Variant cell keeps the database's digits), S113 (`toVariant()` of an empty value, pending) and S114 (the negative
+   zero) take the next free ids (S115 to S117 if `main` has added none since), and every citation of the branch's moves
+   with them: `result/CellText.java` (two javadocs), `ResultWritersTest`, `server/PureV1ApiTest`,
+   `datacube/test/python-engine/execute.test.ts`, `docs/GATES.md` (the PARK-34 and S1.4 entries),
+   `docs/PARKED_WORK_LEDGER.md` (PARK-34), the program doc, this page, the homework README. Run
+   `git grep -nE '\bS11[234]\b'` on the merged tree, read each hit, renumber only the branch's.
+Gate: `//core:core_tests`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline`, PCT on DuckDB, SQLite and
+MongoDB, `//datacube:python_execute_test`; then the local gate; then the lanes, channels A and B per test against their
+last logs (§7), before S1.4's code. Record: a GATES entry (the merge, the conflicts and how each was kept, the
+renumbering), IN_FLIGHT.
 
 **S1.4 The writers carry, never decide.** Why: rule R3; the audit found the writers comparing values and choosing
 spellings by rules, unguarded. Build:
@@ -125,14 +158,26 @@ spellings by rules, unguarded. Build:
    (`"TEMPORAL_TEXT"`, `"LITERAL"`) matched in `exec/JdbcDecode`, `result/RowDecode`, `result/CellText` and
    `MongoDbDecode`: a field of `ExecutionPlan.Column` (a plan format bump; `PlanJsonTest`, `MirJson`), set by
    `ColumnFacts`, read by the decoders and the writers.
-2. `-0.0`: **ruled and built 2026-10-28** (the user's "okay"; register S114). Lite's own outputs (LEAN JSON and
-   CSV) write a negative zero as `-0.0`, the shortest text that reads back as the same double (the Float rule of
-   2026-10-26), as the LEGACY writer and Arrow carry it; Pure's `toString` of a Float stays `0.0` for either sign, as
-   legend-pure's own and lite's SQL (`FloatCanonText.ofText`) write it. `CellText.pureFloat` has no zero branch now.
-   **Open, for the user:** the same function writes a double Java prints in exponent form below `1e-3` with the
-   exponent's trailing zero (`1.0E-4` as `0.00010`, `1.0E-5` as `0.000010`: `new BigDecimal("1.0E-4")` keeps scale 5);
-   legend-pure prints `0.0001`, and the Float rule's shortest digits are `0.0001`. Found 2026-10-28, measured in a
-   scratch program, never fixed: a spelling change, so it goes to the user before any code.
+2. A Float's text in lite's own outputs (`CellText.pureFloat`, which LEAN JSON and CSV use; not LEGACY):
+   - **`-0.0`: ruled and built 2026-10-28** (`b944a42e`; the user's "okay"; register S114, S117 after S1.0). A
+     negative zero is written `-0.0`, the shortest text that reads back as the same double (the Float rule of
+     2026-10-26), as the LEGACY writer and Arrow carry it; Pure's `toString` of a Float stays `0.0` for either sign, as
+     legend-pure's own and lite's SQL (`FloatCanonText.ofText`, "ZEROS UNIFY") write it. `pureFloat` has no zero
+     branch now.
+   - **`0.00010`: ruled a defect to fix, 2026-10-28** ("keep the fix, fix the plan wording including adding that we
+     need to fix 0.00010"); not built. `pureFloat` lays out `Double.toString`'s exponent form with
+     `new BigDecimal(shortest).toPlainString()`, which keeps the mantissa's scale, so a double below `1e-3` whose
+     shortest digits are one digit gets a trailing zero: `1.0E-4` is written `0.00010`, `1.0E-5` `0.000010`, `-1.0E-4`
+     `-0.00010`. legend-pure writes `0.0001` (`CompiledSupport.primitiveToString`'s `DecimalFormat`), and `0.00010` is
+     not the Float rule's shortest digits. The fix, measured in a scratch program (2026-10-28,
+     `docs/result-boundary-homework/probes/FloatTextProbe.java.txt`) against legend-pure's own formatter over `1e-4`,
+     `1e-5`, `2e-5`, `1.2345e-5`, `-1e-4`, `1e7`, `1.5e15`, `2.5e-7`, `0.001`, `0.1` and a third:
+     `new BigDecimal(shortest).stripTrailingZeros().toPlainString()`, then `.0` where there is no point; equal to
+     legend-pure on every one but the negative zero (ruled above). Pin those values in
+     `ResultWritersTest.aFloatPrintsItsShortestDigitsWithAPoint_neverAnExponent`. `stripTrailingZeros` here is exact (a
+     representation operation, no rounding) and item 3's scan lists it by name. LEGACY is untouched: `CellText.engine`
+     writes `Double.toString`'s own `1.0E-4`. Records: the GATES entry; no register row (it restores legend-pure's
+     text).
 3. The two guards the program names (R3), **approved by the user 2026-10-28** ("yes add this to the plan", after the
    explanation below), built right after item 1 so the precision fact removes the slot-word matches they would flag:
    `ArchitectureTest.writersAreCarriageOnly`, a dependency rule (the `result` package reads the plan's column facts
@@ -141,17 +186,18 @@ spellings by rules, unguarded. Build:
    allowed, with representation operations (a scale set without rounding, a decimal's plain digits) listed by name.
    What the scan finds today, each to be fixed by a typed fact or put to the user: `dateOnly`'s `midnight(d)` (an
    abstract Date at midnight printed as its day: the writer guessing the written precision a typed fact should carry,
-   item 1); `engineDay`'s and `dateOnly`'s `atLeast(HOUR)` and slot
-   words compared as strings; `stripTrailingZeros` on a Float held as a decimal. Also the `result` package as a closed
-   register in `JavaEvalLedgerTest`, like `exec`. What they are for, as put to the user: R3 says a writer only spells
-   the typed value it was handed, so swapping one writer for another changes no value; a writer that compares or
-   computes a value is deciding output the plan never typed, and nothing would show it but a judge that happens to
-   cover the case (the midnight rule `6811256b` fixed was caught by PCT only by luck of a fixture). Limits: the scan
-   catches drift, not a determined workaround, like every guard here. An allowlist entry moves only with a dated
-   justification (AGENTS.md, "Guard files are load-bearing").
+   item 1); `engineDay`'s and `dateOnly`'s `atLeast(HOUR)` and slot words compared as strings; `stripTrailingZeros` on
+   a Float held as a decimal (exact, like item 2's: a representation operation to list by name). Also the `result`
+   package as a closed register in `JavaEvalLedgerTest`, like `exec`. What they are for, as put to the user: R3 says
+   a writer only spells the typed value it was handed, so swapping one writer for another changes no value; a writer
+   that compares or computes a value is deciding output the plan never typed, and nothing would show it but a judge
+   that happens to cover the case (the midnight rule `6811256b` fixed was caught by PCT only by luck of a fixture).
+   Limits: the scan catches drift, not a determined workaround, like every guard here. An allowlist entry moves only
+   with a dated justification (AGENTS.md, "Guard files are load-bearing").
 4. The phase 3 audit's nits (homework §9); any that changes an output's spelling goes to the user first.
 Gate: `//core:core_tests`, the guards, PCT on DuckDB, SQLite, MongoDB, `//datacube:python_execute_test`; the lanes
-channel A. Trap: a guard that rejects the change is usually right.
+channel A. Trap: a guard that rejects the change is usually right. Order: item 2's `0.00010` fix can go first (one
+function and its test); item 1 before item 3, so the guards land on writers that already pass them.
 
 **S1.5 The missing records.** GATES entries for phases 1 to 4 (each commit's built, deleted, measured; the lanes' S1.1
 numbers are in GATES 2026-10-27's phase 5 entry, item 3); the 51 writer differences
@@ -249,7 +295,8 @@ Arrow and JSON carry the same values for every kind; DataCube's Python tests.
 
 ### Track F. The open findings
 
-Each with its evidence in the homework README §9: S113 (`toVariant()` of an empty value on DuckDB); the engine-parity
+Each with its evidence in the homework README §9: the branch's S113 (`toVariant()` of an empty value on DuckDB; a new
+id after S1.0); the engine-parity
 H2 dialect's `fromJson` (a JSON string, not parsed: a silent wrong answer); a `BIT` store column's type (a ruling);
 Snowflake's far-BC `TIMESTAMP_NTZ` (its dialect returns the database's own text; a lane measurement);
 `RootNumericTypes`' guessed unbounded Decimal; the tab's Arrow nested values in `HostRows`; an absent to-many property
@@ -282,6 +329,11 @@ updated for every renamed and deleted piece; every lane measured; the PR handed 
 - **Never change how an output is spelled without the user's word, case by case** (2026-10-28): a measured
   difference in any writer's output (LEGACY or LEAN) is put to the user alone, with its expression, before and after.
 - **Probe legend-engine, do not guess** any spelling of its (the homework README §7 has the recipe; PARK-34's lesson).
+  The same for legend-pure: its source is in the build (§2), read it before saying what Pure prints.
+- **An answer is not a go.** "okay" to a recommendation agrees to the decision; building it now is a separate question
+  when the session was asked for something else. On 2026-10-28 the user asked for the handoff, answered "okay" to the
+  negative zero, and the session built it unasked ("why are we running tests? did we change code? i thought we were
+  building hand off doc?"). Ask "record it, or build it now?".
 - Never commit a probe as code. Probes live in a scratch directory; their source is archived as text under
   `docs/result-boundary-homework/probes/` and their numbers quoted in GATES with the date.
 
@@ -337,7 +389,7 @@ never a message).
 | step 9 lane | Databricks | `session_01757FUtRcj12NGhvSxL6A1b` |
 | PCT lane | BigQuery | `session_019tku7nRKBygjSBz9QQBGfM` |
 | PCT lane | Snowflake | `session_01WDoDkeNvgCsaPVzNx6wGDA` |
-| the core writer (this program's session) | DuckDB, SQLite, MongoDB, H2 locally | `session_01Vz1L3X6p56AZdTCQXUXYfE` |
+| the core writer until 2026-10-28 (writes no more code; the next session is the core writer) | DuckDB, SQLite, MongoDB, H2 locally | `session_01Vz1L3X6p56AZdTCQXUXYfE` |
 
 **From another account** none of these sessions, their environments or their credentials exist. Raise your own:
 1. An environment per credential set, whose setup script writes the properties file `LEGENDLITE_PCT_CLOUD_PROPERTIES`
@@ -366,13 +418,19 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
   the engine runner's jars are about 600 MB; the repository-contents cache holds an 11 GB toolchain, do not delete it.
 - **A local `git stash` in the original container** (`stash@{0}`, a Snowflake per-key column fix of 2026-10-21) is
   obsolete: its change landed as `deaceee4`. The auto-mode classifier refused dropping it; it dies with that container.
+- **Register ids are taken by whoever lands first**: a branch's new row takes the next free id at its merge with `main`
+  (S1.0's collision: `main` and the branch both used S112 to S114 on 2026-10-27/28).
+- **`BigDecimal` and a double's text**: `new BigDecimal(Double.toString(d))` keeps the mantissa's scale (`1.0E-4` ->
+  `0.00010`), and `BigDecimal` has no negative zero (`BigDecimal.valueOf(-0.0)` is `0.0`): a double's text routed
+  through it needs a test of both.
 - **The census bans naming a database** in a test that is not its owner (identifiers, `jdbc:` URLs; a database's name
   inside a Pure model string is fine): `DatabaseOwners`, `DialectLeakRatchetTest`.
 - **`JavaEvalLedgerTest`'s line pins are exact both ways**: a shrink must re-pin, with a dated reason.
 - **Closing a parked item deletes its anchor** in `ParkedWorkLedgerTest` in the same commit.
 - **The engine-parity H2 dialect is not H2Modern**: H2 2.1 and 2.2 (the engine's) keep this dialect's walls; `fromJson`
   there answers a JSON string (track F).
-- **`toVariant()` of an empty value is SQL's NULL on DuckDB** (S113): a test over nullable data sees an empty Variant.
+- **`toVariant()` of an empty value is SQL's NULL on DuckDB** (the branch's S113, renumbered at S1.0): a test over
+  nullable data sees an empty Variant.
 - **CI runs only on pushes to `main` and on PRs**, and ignores `**/*.md`: a branch push runs nothing.
 - **A lane can be idle and say nothing**: `get_session` gives its task summary; `list_events` its last messages.
 - **The old traps of this line, still true:** the clouds' channel A on a system-mode connection (2.4x slower: use the
@@ -394,6 +452,8 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
 | the census of core's tests | a session's analysis | `docs/result-boundary-homework/test-census-2026-10-28.tsv` and its script |
 | every probe's source; the census and comparison scripts | scratch directories of this session and the lanes | `docs/result-boundary-homework/probes/` |
 | what legend-engine answered | a probe's output | `core/src/test/resources/upstream-api/` and the homework README §7 |
+| what legend-pure prints for a Float (its source read, the negative zero, the `0.00010` fix measured) | this session's reading and scratch programs | the homework README §7; `probes/FloatTextProbe.java.txt`; register S114; S1.4 item 2 |
+| how far `main` moved past the branch (105 commits, 12 files on both sides, the register ids) | this session's `git` comparison, 2026-10-28 | S1.0; GATES 2026-10-28 (S1.4, item 2), item 4 |
 | the user's rulings | the conversation | §10 below and the program's §8 |
 | the lanes and their credentials | other sessions and their environments | §7 (how to raise your own); credentials never copied |
 | other branches | `origin/claude/step9-*` (the step 9 lanes' branches, merged on 2026-10-19: history); `origin/claude/deephaven-3-browser` (the Deephaven line, `docs/DEEPHAVEN_START_HERE.md` there); `origin/studio-program` (the Studio line) | not this program's |
@@ -409,15 +469,17 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
 | 2026-10-27 | "Skip the guards - let's actually do the real work of making the plan real and deleting everything else including the string spellings and old execution - keep going in phases, do expert work, audit after each phase" | phases 1 to 5 |
 | 2026-10-27 | "we need to pause and do an audit - what did we actually do? did we do it right? did we stick to our core tenets?" | the audit (homework README §1) |
 | 2026-10-27 | "keep it, and keep going" (answering the audit's first question: keep phase 5's commit) | the three-stage plan, stage 1 first (the program's §8, ruling 9) |
+| 2026-10-28 | "Do the probe" | PARK-34 closed by asking legend-engine |
+| 2026-10-28 | "Do it" | the engine crossing measured on every lane, then switched; `PureTdsText` deleted |
+| 2026-10-28 | "i would prefer not to delete the overlapping tests but use the exact same logic but with platform output that we think users would actually run/use instead of backwards compat mode - so its almost the platform twin of PCT/core-relational" | track T |
+| 2026-10-28 | "write this all up ... make sure there is nothing in this session ephemeral that we lose" | this page and the homework folder |
 | 2026-10-28 | "any output spelling changes need to come to me on case by case basis" | no session accepts or registers a spelling change of any output: each goes to the user alone, before and after, and the answer is recorded (S1.4, S1.5, every track) |
 | 2026-10-28 | "yes keep arrow writer at the boundary in this program (but no arrow dependencies in compiler!)" | track A stays in this program, at the boundary only; R9's guard |
 | 2026-10-28 | "writer guards are for what exactly" | answered (S1.4 item 3 keeps the explanation) |
 | 2026-10-28 | "yes add this to the plan" | the two writer guards are built in S1.4, right after the precision fact |
 | 2026-10-28 | "what should we do about the negative zero? what is the right move", then "okay" to the answer | LEAN JSON and CSV write `-0.0`; Pure's `toString` stays `0.0` (S1.4 item 2, register S114) |
-| 2026-10-28 | "Do the probe" | PARK-34 closed by asking legend-engine |
-| 2026-10-28 | "Do it" | the engine crossing measured on every lane, then switched; `PureTdsText` deleted |
-| 2026-10-28 | "i would prefer not to delete the overlapping tests but use the exact same logic but with platform output that we think users would actually run/use instead of backwards compat mode - so its almost the platform twin of PCT/core-relational" | track T |
-| 2026-10-28 | "write this all up ... make sure there is nothing in this session ephemeral that we lose" | this page and the homework folder |
+| 2026-10-28 | "why are we running tests? did we change code? i thought we were building hand off doc?" | an answer is not a go (§5) |
+| 2026-10-28 | "keep the fix, fix the plan wording including adding that we need to fix 0.00010 .. then do a full read of the what you wrote - make sure we capture all the homewokr and detail and plans in detail for new sesison without any context - do not make any more code changes here" | `b944a42e` kept; the `0.00010` trailing zero ruled a defect to fix (S1.4 item 2); this session writes no more code; the handoff re-read whole and completed (S1.0, §12) |
 
 ## 11. Reading order
 
@@ -427,8 +489,38 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
    rulings), §9 (the status lines).
 4. `docs/RESULTS_AND_RENDERERS_2026_10_22.md` §0 to §5a and §10.5; `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` §2 to §6.
 5. `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §5 (lets), §6 (both judges on plans), §7 (steps 8 to 11).
-6. `docs/TENET_CHARTER.md` Clauses 1 to 4; `docs/SEMANTICS_REGISTER.md` S104, S112, S113.
-7. `docs/GATES.md`'s entries from 2026-10-26 on (the merge, phase 5, the crossing, PARK-34, the switch).
+6. `docs/TENET_CHARTER.md` Clauses 1 to 4; `docs/SEMANTICS_REGISTER.md` S104 and the branch's S112, S113, S114 (the
+   Variant digits, `toVariant()` of an empty value, the negative zero; renumbered at S1.0, `main` has its own S112 to
+   S114).
+7. `docs/GATES.md`'s entries from 2026-10-26 on (the merge, phase 5, the crossing, PARK-34, the switch, S1.4's negative
+   zero).
 8. Before the first message to a lane: `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §4 to §6 and `docs/CLOUD_SESSIONS.md`.
 9. The code: `ExecutionPlan.java`'s javadoc, `exec/PlanRunner.java`, `result/CellText.java`, `PctPlanRoute.java`,
    `AbstractDatabaseTest.java`, `StatementExecutor.execute`.
+
+## 12. The message that opens a new session
+
+What the user pastes into a fresh session, from any account (kept here so it is not lost; update the commit and the
+task when they move):
+
+> Repository neema2/legend-lite. Continue the result boundary program from branch claude/upbeat-johnson-l4hogx at its
+> head (b944a42e on 2026-10-28, plus documentation commits after it): fetch it; if your session has its own designated
+> branch, create that branch from this head. Never push to main, never open a PR or merge without my explicit word in
+> your session.
+>
+> Read first, in full: AGENTS.md, then docs/RESULT_BOUNDARY_START_HERE.md (the whole roadmap, the rules, the commands,
+> the traps, my rulings in §10), then docs/result-boundary-homework/README.md, then
+> docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md §0, §1, §8 and §9.
+>
+> Your task: S1.0, then S1.4 (start page §4). S1.0: merge origin/main into the branch (a merge commit), resolve the
+> conflicts keeping both sides, renumber the branch's register rows S112 to S114 to the next free ids with every
+> citation, and prove it (S1.0's gate). Then S1.4: the 0.00010 fix (item 2, ruled), the typed written-precision fact
+> on ExecutionPlan.Column replacing the slot-word string matches (item 1), the two writer guards and the result
+> package as a closed register (item 3), the nits (item 4). Announce your files in docs/IN_FLIGHT.md before you start.
+>
+> Rules that bind you: never change how any output is spelled without asking me first, one case at a time, with the
+> expression and the before and after (the 0.00010 fix is already ruled). An answer of mine to a question is not a go
+> to build something else; ask. A guard pin or allowlist moves only with a dated justification. Never read, print or
+> copy credentials; lane sessions measure only. Run the start page's §6 checks before each commit; commit and push to
+> the branch; records (GATES, IN_FLIGHT, the program's §9, register rows) land with the code. Stop and report to me
+> when S1.4 is done, before starting S1.5.

@@ -2891,12 +2891,16 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   **2026-10-28:** PARK-34 closed (legend-engine asked: a Variant column is `SEMISTRUCTURED`, its cell a string of its
   JSON); every lane measured the PCT relation crossing as legend-engine's own adapter reads it, exact, and it is
   switched (`d8ab8434`: `PureTdsText` deleted). The handoff is rewritten as the whole roadmap
-  (`docs/RESULT_BOUNDARY_START_HERE.md`, with its evidence in `docs/result-boundary-homework/`). Next on this line, in
-  order: S1.4 (touches `result/`, `exec/JdbcDecode.java`, `result/RowDecode.java`, `MongoDbDecode.java`,
-  `executionplan/` for the precision fact, the two writer guards the user approved 2026-10-28), S1.5 (records), S1.6 (a draft PR on the user's word); then
-  tracks B (the body runner: `StatementExecutor`, `BodyCompiler`, `Execution`, the judges), T (core's tests as the LEAN
-  twin: `core/src/test/.../integration/AbstractDatabaseTest.java` and the test helpers, new per-lane targets), C (the
-  corpus, channel B, the service test runner), D (the deletions). Each announces its files here before it starts.
+  (`docs/RESULT_BOUNDARY_START_HERE.md`, with its evidence in `docs/result-boundary-homework/`). S1.4 begun: the
+  negative zero (`b944a42e`, `result/CellText.java`, register S114); the `0.00010` fix ruled, not built. The session
+  that wrote this line (`session_01Vz1L3X6p56AZdTCQXUXYfE`) writes no more code: the next session opens with the
+  start page's §12. Next on this line, in order: S1.0 (merge `main`, now 105 commits past the branch's base, and
+  renumber the branch's register rows S112 to S114, which `main` also took), S1.4 (touches `result/`,
+  `exec/JdbcDecode.java`, `result/RowDecode.java`, `MongoDbDecode.java`, `executionplan/` for the precision fact, the
+  two writer guards the user approved 2026-10-28), S1.5 (records), S1.6 (a draft PR on the user's word); then tracks B
+  (the body runner: `StatementExecutor`, `BodyCompiler`, `Execution`, the judges), T (core's tests as the LEAN twin:
+  `core/src/test/.../integration/AbstractDatabaseTest.java` and the test helpers, new per-lane targets), C (the corpus,
+  channel B, the service test runner), D (the deletions). Each announces its files here before it starts.
 - **Landed, 2026-10-18:** neema2/legend-lite#58 (the TCK at 3600 of 3880 on both lanes; the review's fixes).
 - **Next on this line, announced 2026-10-18: writes** (`docs/WRITES_DESIGN_2026_10_18.md`, the design agreed with the
   user). There are two kinds of graph:

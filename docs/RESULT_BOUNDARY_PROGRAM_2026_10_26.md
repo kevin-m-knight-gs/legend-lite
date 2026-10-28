@@ -470,7 +470,10 @@ start page's S1.4 keeps the answer) and then approved them, "yes add this to the
 precision fact, which supersedes 2026-10-27's "skip the guards" for them. The first spelling change put to the user
 case by case, a negative zero ("what should we do about the negative zero? what is the right move", then "okay"):
 lite's own outputs (LEAN JSON and CSV) write it `-0.0`, item 3's shortest decimal that reads back as the same double;
-Pure's `toString` of a Float stays `0.0` for either sign, legend-pure's own (register S114).
+Pure's `toString` of a Float stays `0.0` for either sign, legend-pure's own (register S114). Then "keep the fix, fix
+the plan wording including adding that we need to fix 0.00010": `b944a42e` kept, and the trailing zero lite's own
+outputs write after a small double's one digit (`1.0E-4` as `0.00010`, where legend-pure and item 3's shortest digits
+give `0.0001`) ruled a defect, fixed in S1.4.
 
 **10. A PCT relation crosses as legend-engine's own adapter reads it (2026-10-28, "Do the probe", then "Do it").**
 The relation is streamed through the server's own LEGACY writer (`PureV1Api.engineWriter`) and read by a Pure copy of
@@ -488,6 +491,11 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-28, S1.4 begun; the handoff completed.** The negative zero built (`b944a42e`: LEAN JSON and CSV write
+  `-0.0`, Pure's `toString` stays `0.0`; register S114; `//core:core_tests`, the guards and the census green); the
+  writer guards approved; the `0.00010` trailing zero ruled a fix. `main` moved 105 commits past the branch's base
+  (PR #77) and took register ids S112 to S114 too, so a new first step: S1.0, bring `main` in and renumber the
+  branch's three rows. The start page's §12 is the message that opens the next session. Next: S1.0, then S1.4.
 - **2026-10-28, the handoff rewritten for a session from any account.** `docs/RESULT_BOUNDARY_START_HERE.md` is now
   the whole roadmap in order (stage 1's S1.4 to S1.6, then tracks B, T, C, D, L, A, F, P and Z, a brief each), and
   `docs/result-boundary-homework/` holds the evidence that had lived only in a session: the audit, the code maps,

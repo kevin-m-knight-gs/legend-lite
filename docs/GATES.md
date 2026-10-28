@@ -15132,3 +15132,27 @@ lane measuring the engine crossing) is met, and the switch is made.
    `ValueBridge` 428 -> 418.
 4. **Measured on the switch locally:** PCT DuckDB, SQLite and MongoDB relation and standard (no flag: the engine crossing
    is the only one), `//pct:pct_discipline`, `//core:census`, `//core:guardrails`: green. Not the local gate.
+
+## 2026-10-28 — the result boundary program's S1.4, item 2: a negative zero in lite's own outputs; `main`'s register ids
+
+1. **Built (`b944a42e`), on the user's word** ("what should we do about the negative zero? what is the right move",
+   then "okay"): `CellText.pureFloat` writes `Double.toString`'s shortest digits, laying out only an exponent
+   positionally, so lite's own outputs (LEAN JSON and CSV) write a negative zero `-0.0`, the shortest text that reads
+   back as the same double (the program's §8 item 3, ruled 2026-10-26). Pure's text of a Float (`toString`, `format`,
+   a String built inside a query: `FloatCanonText.ofText`) is unchanged, `0.0` for either sign, as legend-pure's
+   `CompiledSupport.primitiveToString` writes it; LEGACY (`CellText.engine`, `Double.toString`) already wrote `-0.0`.
+   The decimal path's zero branch was dead and is removed. Register S114. It reverts lines 34 and 35 of
+   `docs/result-boundary-homework/wire-differences-2026-10-27.tsv` (lite wrote `-0.0` before phase 2).
+2. **Measured:** every other double's text unchanged (`docs/result-boundary-homework/probes/FloatTextProbe.java.txt`,
+   the function before and after over 19 values); `ResultWritersTest.aNegativeZeroKeepsItsSign_inLitesCsvAndJson`;
+   `//core:core_tests` (all 25 packages), `//core:guardrails`, `//core:census` green. Not run:
+   `//datacube:python_execute_test`, PCT, the lanes, the local gate (the LEAN writers are on neither PCT channel, the
+   corpus nor the judges).
+3. **Found with it, ruled the same day:** the same function writes a double below `1e-3` whose shortest digits are one
+   digit with a trailing zero (`1.0E-4` as `0.00010`; legend-pure `0.0001`). The user: "keep the fix, fix the plan
+   wording including adding that we need to fix 0.00010": a defect, fixed in S1.4 (the probe above measures the fix
+   against legend-pure's own formatter). Not built in this entry.
+4. **`main` moved and took the branch's register ids:** at `369bb176` (PR #77) `main` is 105 commits past the branch's
+   base `7b8c89dc`, 12 files changed on both sides, and its S112 to S114 (a user function generic over relations,
+   `without`, `read`) are not the branch's S112 to S114 (a Variant cell's digits, `toVariant()` of an empty value, the
+   negative zero). The start page's new first step, S1.0, merges `main` and renumbers the branch's three rows.
