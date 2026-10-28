@@ -540,6 +540,37 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close((await line(spec({ A: 'cov(close[AAA], close[BBB], 8)' }))).values, c, 'cov', 1e-7);
   });
 
+  // the conversion's review (2026-10-28): a correlation where a side does not vary is none -- every form of it, never
+  // DuckDB's NaN (Postgres says none): over a count of rows and a calendar period, squared, and lagged
+  it('a correlation where a side does not vary is none, in every form', async () => {
+    const days = weekdays(12);
+    const X = [10, 11, 13, 12, 14, 15, 17, 16, 18, 19, 21, 20];
+    const Y = [50, 50, 50, 50, 50, 50, 50, 50, 51, 53, 52, 54];
+    const csv = ['symbol,day,close', ...days.flatMap((d, i) => [`X,${d},${X[i]}`, `Y,${d},${Y[i]}`])].join('\n');
+    const r = await ingestFile(engine, files, new File([csv], 'flat.csv'), writer, { table: 'flat_side' });
+    const own = plannerFor(r.model, r.runtime);
+    const flat: TsInputs = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
+    // Y's returns 0 to its eighth date: a window of them all none; one reaching its ninth (lagged, its tenth), a number
+    const cases: readonly (readonly [string, number, number])[] = [
+      ['correlation(close[X], close[Y], 4)', 4, 8], ['r_squared(close[X], close[Y], 4)', 4, 8],
+      ['correlation(close[X], close[Y], 1w)', 6, 8], ['r_squared(close[X], close[Y], 1w)', 6, 8],
+      ['lead_lag(close[X], close[Y], 1, 4)', 5, 9],
+    ];
+    for (const [expr, from, number] of cases) {
+      const ts = spec({ A: expr });
+      const t = await engine.execute(await own.plan(seriesQuery(flat, ts, ts.series[0]!).query), 0);
+      const at = values(t, TS_DATE).map((d) => days.indexOf(String(d).slice(0, 10)));
+      const vs = values(t, TS_VALUE).map(num);
+      assert.ok(!vs.some((v) => v !== null && Number.isNaN(v)), `${expr}: no NaN`);
+      for (let i = from; i < days.length; i++) {
+        const v = vs[at.indexOf(i)];
+        if (i < number) assert.equal(v ?? null, null, `${expr} at ${days[i]}: Y flat over the window, none`);
+        else assert.ok(typeof v === 'number' && Number.isFinite(v), `${expr} at ${days[i]}: a number (${v})`);
+      }
+    }
+    own.dispose();
+  });
+
   // the expert functions (2026-10-26): a rolling regression of the first on the second, its every figure the database's
   it('a regression: alpha and R² of the returns, a hedge ratio and the residual of the levels', async () => {
     const ra = simple(AAA);
@@ -2307,6 +2338,37 @@ describe('a series\' statistics over the dates shown', () => {
     assert.equal(v('calmar'), null, 'no Calmar under a year');
   });
 
+  // the conversion's review (2026-10-28): the shortfall reads ranks -- those at or below the quantile are those ranked at
+  // most floor((n - 1)q + 1) -- so its edges are pinned: (n - 1)q whole, the quantile one of the values, and ties at it
+  it('the expected shortfall where the quantile is a value, and where several returns equal it', async () => {
+    const levels = [100, 99, 101, 98, 102, 103, 97, 104, 105, 106, 104, 107, 108, 109, 107, 110, 111, 112, 113, 114, 115, 116];
+    const days = weekdays(levels.length);
+    const csv = ['symbol,day,close', ...days.map((d, i) => `E,${d},${levels[i]}`)].join('\n');
+    const r0 = await ingestFile(engine, files, new File([csv], 'shortfall.csv'), writer, { table: 'es_edges' });
+    const own = plannerFor(r0.model, r0.runtime);
+    const shown: TsInputs = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r0.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
+    const ts = spec({ A: 'close' });
+    const t = await engine.execute(await own.plan(statsQuery(shown, ts, ts.series[0]!).query), 0);
+    const r = levels.slice(1).map((x, i) => x / levels[i]! - 1);
+    assert.equal(r.length, 21, 'twenty-one returns: (n - 1)q = 1, the quantile the second least');
+    const sorted = [...r].sort((a, b) => a - b);
+    close([num(values(t, statName('var'))[0])], [sorted[1]!], 'the 5% quantile, a value', 1e-12);
+    close([num(values(t, statName('es'))[0])], [avg(r.filter((x) => x <= sorted[1]!))], 'the mean of those at or below it', 1e-12);
+    // ties at the quantile: every one at it is in the tail
+    const tied = [100, 98, 100, 98, 100, 98, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115];
+    const csv2 = ['symbol,day,close', ...days.map((d, i) => `E,${d},${tied[i]}`)].join('\n');
+    const r1 = await ingestFile(engine, files, new File([csv2], 'shortfall-tied.csv'), writer, { table: 'es_tied' });
+    const tiedIn: TsInputs = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r1.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
+    const t2 = await engine.execute(await plannerFor(r1.model, r1.runtime).plan(statsQuery(tiedIn, ts, ts.series[0]!).query), 0);
+    const rt = tied.slice(1).map((x, i) => x / tied[i]! - 1);
+    const st = [...rt].sort((a, b) => a - b);
+    const at = 0.05 * (rt.length - 1);
+    const q = st[Math.floor(at)]! + (st[Math.ceil(at)]! - st[Math.floor(at)]!) * (at - Math.floor(at));
+    assert.ok(rt.filter((x) => x === st[0]).length === 3, 'three returns tied at the least');
+    close([num(values(t2, statName('es'))[0])], [avg(rt.filter((x) => x <= q))], 'ties at the quantile all in the tail', 1e-12);
+    own.dispose();
+  });
+
   it('Calmar: its growth over its deepest drawdown, over a year or more', async () => {
     const dates = ['2022-01-31', '2022-04-29', '2022-07-29', '2022-10-31', '2023-01-31', '2023-04-28'];
     const levels = [100, 110, 88, 95, 120, 125];
@@ -2382,6 +2444,19 @@ describe('a series\' statistics over the dates shown', () => {
     const ts = spec({ A: 'close' }, {}, 'symbol');
     const t = await run(statsQuery(inputs, ts, ts.series[0]!));
     assert.deepEqual(values(t, TS_SPLIT).map(String).sort(), ['AAA', 'BBB', 'CCC']);
+    // each line's figures its own (the conversion's review, 2026-10-28: the library's figures joined to the line's own
+    // by the line): the same as the one instrument's tile
+    const lines = values(t, TS_SPLIT).map(String);
+    for (const sym of ['AAA', 'BBB', 'CCC']) {
+      const one = spec({ A: `close[${sym}]` });
+      const own = await run(statsQuery(inputs, one, one.series[0]!));
+      for (const st of ['count', 'vol', 'sharpe', 'mdd', 'skew', 'kurtosis', 'sortino', 'hit', 'var', 'es', 'best', 'worst'] as const) {
+        const split = num(values(t, statName(st))[lines.indexOf(sym)]);
+        const alone = num(values(own, statName(st))[0]);
+        if (alone === null) assert.equal(split, null, `${sym}'s ${st}: none, as alone`);
+        else close([split], [alone], `${sym}'s ${st}, split as alone`, 1e-12);
+      }
+    }
   });
 });
 

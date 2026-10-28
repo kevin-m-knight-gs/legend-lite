@@ -16,7 +16,7 @@ import type { EChartsOption } from 'echarts';
 import type { Lambda, ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
-import { isNumeric, isTemporal, isTimeOfDay } from '../../../engine-client/src/types.ts';
+import { hasTimeOfDay, isNumeric, isTemporal, isTimeOfDay } from '../../../engine-client/src/types.ts';
 import { themeOf } from '../chart-option.ts';
 import type { ChartPicture } from '../chart-render.ts';
 import type { RunOutcome } from '../runner.ts';
@@ -1303,16 +1303,16 @@ export class TimeseriesView {
     void this.#draw();
   }
 
-  /** A point clicked while drawing: a line's first end, then its second -- the line told -- or a note's place, its text
-   *  asked beside it. Its value as the pane draws it, to six figures (a hand's, not the database's). */
   /** Whether the tile reads its dates by the time of day: no frequency, a source's date a date-time. */
   #byTime(): boolean {
     const spec = this.#spec;
     if (spec.grain !== undefined) return false;
     const columns = this.#columns(spec);
-    return spec.sources.some((src) => columns.get(src.alias)?.find((c) => c.name === src.date)?.type === 'DateTime');
+    return spec.sources.some((src) => hasTimeOfDay(columns.get(src.alias)?.find((c) => c.name === src.date)?.type));
   }
 
+  /** A point clicked while drawing: a line's first end, then its second -- the line told -- or a note's place, its text
+   *  asked beside it. Its value as the pane draws it, to six figures (a hand's, not the database's). */
   #pointed(pane: number, date: string, value: number): void {
     if (this.#drawing === null || this.#spec.view?.mode !== undefined) return;
     // a pane whose drawings have no line to be on puts none (drawingsLine), said

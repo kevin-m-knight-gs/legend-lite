@@ -221,6 +221,10 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
     ['src/query.ts', 'a refusal suggesting what to type'],
     ['src/ui/multi-field-form.ts', 'the Multi-Field Formula window\'s examples'],
     ['src/ui/pure-form.ts', 'the Pure box window\'s steps and its example'],
+    // added 2026-10-28 (PR #77's checks: the example had built its saved queries' text from their columns): the markets
+    // example's two saved queries, the text a person saved in Query -- a query store's content is text -- each written
+    // out, never assembled, and held parsed to the tree its grid reads (stress-markets.test.ts)
+    ['src/examples/markets-classes.ts', 'the saved queries\' text, as Query saved it'],
   ]);
 
   /**
@@ -262,6 +266,7 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
     // examples, the Pure box's eight steps and its example
     assert.equal(count('src/ui/multi-field-form.ts'), 4, "multi-field-form.ts: the window's examples");
     assert.equal(count('src/ui/pure-form.ts'), 9, "pure-form.ts: the window's steps and its example");
+    assert.equal(count('src/examples/markets-classes.ts'), 2, 'markets-classes.ts: its two saved queries');
   });
 
   it('calls no TDS function: the Relation API only (the user, 2026-09-27)', () => {

@@ -441,7 +441,10 @@ line; `calmarRatio` of two of them), the scatter's and the projection's least-sq
 table (`correlationOf`), the drawdowns table (`drawdownsOfLine`), a condition's shaded runs (`runs`), the calendar of
 returns (`calendarReturns`), the histogram (`histogramOfLine`) and the seasonality's range (`seasonalRange`). What
 stays the tile's is shaping: its periods and their ties, its operands' alignment, a view's cut to the dates shown or
-its last years, each date's place in its year, a curve's dates, the columns it answers with and their order.
+its last years, each date's place in its year, a curve's dates, the columns it answers with and their order. One
+number moved with it: a correlation where a side does not vary over its pairs is none in every form of it -- over a count
+of rows or a calendar period, squared, lagged, a table's -- where DuckDB had said NaN and Postgres none (the
+conversion's review, review doc §18).
 
 Planning a chain of calls cost 2^k for k calls until 2026-10-28 (core): a call of a generic function types its
 arguments to choose its overload, then expands its body over them and types that, so each call typed the chain under

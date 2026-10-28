@@ -38,6 +38,9 @@ interface SavedGrid {
   readonly title: string;
   readonly className: string;
   readonly columns: readonly Projected[];
+  /** Its text as Query saved it -- what a person typed, each column a path of properties from the object
+   *  (stress-markets.test.ts holds it, parsed, to the tree below). */
+  readonly text: string;
   /** Its columns grouped by on opening, and each measure's aggregate (a price averages; a volume sums). */
   readonly rows: readonly string[];
   readonly configuration: CubeConfiguration['columns'];
@@ -49,6 +52,7 @@ export const QUOTES_GRID: SavedGrid = {
   id: 'quotes',
   title: 'Quotes',
   className: 'marketdata::MarketQuote',
+  text: '|marketdata::MarketQuote.all()->project(~[ticker: x|$x.instrument.ticker, sector: x|$x.instrument.sector.name, exchange: x|$x.instrument.exchange.name, quoteTime: x|$x.quoteTime, open: x|$x.openPrice, high: x|$x.highPrice, low: x|$x.lowPrice, close: x|$x.closePrice, volume: x|$x.volume])',
   columns: [
     { name: 'ticker', path: ['instrument', 'ticker'], type: 'String' },
     { name: 'sector', path: ['instrument', 'sector', 'name'], type: 'String' },
@@ -70,6 +74,7 @@ export const TRADES_GRID: SavedGrid = {
   id: 'trades',
   title: 'Trades',
   className: 'trading::Trade',
+  text: '|trading::Trade.all()->project(~[ticker: x|$x.instrument.ticker, sector: x|$x.instrument.sector.name, tradeDate: x|$x.tradeDate, side: x|$x.side, quantity: x|$x.quantity, price: x|$x.price, notional: x|$x.notional])',
   columns: [
     { name: 'ticker', path: ['instrument', 'ticker'], type: 'String' },
     { name: 'sector', path: ['instrument', 'sector', 'name'], type: 'String' },
@@ -85,11 +90,6 @@ export const TRADES_GRID: SavedGrid = {
 
 export const SAVED_GRIDS: readonly SavedGrid[] = [QUOTES_GRID, TRADES_GRID];
 
-/** A saved query's text, as Query writes it: `|Class.all()->project(~[name: x|$x.a.b, ...])`. */
-export function savedQueryText(g: SavedGrid): string {
-  return `|${g.className}.all()->project(~[${g.columns.map((c) => `${c.name}: x|$x.${c.path.join('.')}`).join(', ')}])`;
-}
-
 /** The same query as the protocol tree a cube's snapshot reads (the test holds it to the text parsed). */
 export function savedQueryTree(g: SavedGrid): ValueSpecification {
   const path = (names: readonly string[]): ValueSpecification => names.reduce<ValueSpecification>((v, n) => property(v, n), variable('x'));
@@ -101,7 +101,7 @@ export function savedQuerySource(g: SavedGrid): QuerySource {
   return {
     _type: 'savedQuery',
     name: g.title,
-    query: { name: g.title, ...MARKETS_PROJECT, executionContext: CONTEXT, content: savedQueryText(g), defaultParameterValues: [] },
+    query: { name: g.title, ...MARKETS_PROJECT, executionContext: CONTEXT, content: g.text, defaultParameterValues: [] },
     columns: g.columns.map((c) => ({ name: c.name, type: c.type })),
   };
 }

@@ -845,7 +845,7 @@ function datacube::ts::weekday<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1]
 function datacube::ts::correlation<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   // none where a side does not vary, as on every database (DuckDB's corr says NaN there, Postgres' none: the focused
-  // Pure audit, 2026-10-28)
+  // Pure audit, 2026-10-28) -- every correlation of the library so (pairPeriod's, leadLag's; the conversion's review)
   $t->datacube::ts::pairs($first, $second, ~pa, ~pb)
     ->extend($win, ~[c:{p,f,r|rowMapper($r.pa, $r.pb)}:y|$y->corr(), n:{p,f,r|$r.pa}:y|$y->count(), va:{p,f,r|$r.pa}:y|$y->varianceSample(), vb:{p,f,r|$r.pb}:y|$y->varianceSample()])
     ->extend(~o:x|if(($x.n->toOne() < $ramp) || $x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |$x.c))
@@ -909,14 +909,17 @@ function datacube::ts::pairs<T,X,Y,A,B>(t: Relation<T>[1], first: ColSpec<X⊆T>
 
 // A statistic of the pairs of two columns a calendar period back from each date of the line, (date - n unit, date]
 // (windowPeriod's, of two columns) -- 'corr' or 'cov' (the sample's), a word compared when the call is expanded: the
-// line joined to itself on those dates, the statistic per date, joined back; on every date.
+// line joined to itself on those dates, the statistic per date, joined back; on every date. A correlation none where a
+// side does not vary over the pairs, as correlation's.
 function datacube::ts::pairPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   let base = $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), a:r|$r->read($first), b:r|$r->read($second)]);
   let windows = $base->select(~[l, d])->extend(~lo:x|$x.d->toOne()->adjust(0 - $n, $unit))
     ->join($base->select(~[l, d, a, b])->rename(~l, ~wl)->rename(~d, ~wd)->rename(~a, ~wa)->rename(~b, ~wb), meta::pure::functions::relation::JoinKind.INNER, {x,y|($x.l == $y.wl) && ($y.wd > $x.lo) && ($y.wd <= $x.d)})
-    ->groupBy(~[l, d], ~s:x|rowMapper($x.wa, $x.wb):y|if($stat == 'corr', |$y->corr(), |$y->covarSample()))
-    ->rename(~l, ~gl)->rename(~d, ~gd);
+    ->groupBy(~[l, d], ~[c:x|rowMapper($x.wa, $x.wb):y|$y->corr(), cv:x|rowMapper($x.wa, $x.wb):y|$y->covarSample(),
+      va:x|if($x.wb->isEmpty(), |[], |$x.wa):y|$y->varianceSample(), vb:x|if($x.wa->isEmpty(), |[], |$x.wb):y|$y->varianceSample()])
+    ->extend(~s:x|if($stat == 'corr', |if($x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |$x.c), |$x.cv))
+    ->select(~[l, d, s])->rename(~l, ~gl)->rename(~d, ~gd);
   $base->join($windows, meta::pure::functions::relation::JoinKind.LEFT, {x,y|($x.l == $y.gl) && ($x.d == $y.gd)})
     ->without(~[l, d, a, b, gl, gd])
     ->rename(~s, $out);
@@ -1037,12 +1040,15 @@ function datacube::ts::downCapture<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1
 }
 
 // The correlation of the first's returns with the second's lagged (or led) on its own dates (gs-quant's lead-lag
-// study, the caller's lag): over the window, none until it holds ramp of the first's.
+// study, the caller's lag): over the window, none until it holds ramp of the first's, or where a side does not vary
+// over the pairs (correlation's).
 function datacube::ts::leadLag<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->extend($win, ~[c:{p,f,r|rowMapper($r->read($first), $r->read($second))}:y|$y->corr(), n:{p,f,r|$r->read($first)}:y|$y->count()])
-    ->extend(~o:x|if($x.n->toOne() < $ramp, |[], |$x.c))
-    ->without(~[c, n])->rename(~o, $out)
+  $t->extend($win, ~[c:{p,f,r|rowMapper($r->read($first), $r->read($second))}:y|$y->corr(), n:{p,f,r|$r->read($first)}:y|$y->count(),
+      va:{p,f,r|if($r->read($second)->isEmpty(), |[], |$r->read($first))}:y|$y->varianceSample(),
+      vb:{p,f,r|if($r->read($first)->isEmpty(), |[], |$r->read($second))}:y|$y->varianceSample()])
+    ->extend(~o:x|if(($x.n->toOne() < $ramp) || $x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |$x.c))
+    ->without(~[c, n, va, vb])->rename(~o, $out)
 }
 
 // -- the same, over a calendar period back of each date: the returns whose dates are in (date - n unit, date], none
@@ -1416,10 +1422,9 @@ function datacube::ts::correlationOf<T,Z,X,Y,O,N>(t: Relation<T>[1], by: ColSpec
 function datacube::ts::performanceStatistics<T,L,D,N,V,R,G,Y,O1,O2,O3,O4,O5,O6,O7,O8,O9,O10,O11,O12>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], level: ColSpec<V⊆T>[1], returns: ColSpec<R⊆T>[1], logReturns: ColSpec<G⊆T>[1], perYear: ColSpec<Y⊆T>[1], q: Float[1], vol: ColSpec<O1>[1], sharpe: ColSpec<O2>[1], drawdown: ColSpec<O3>[1], growth: ColSpec<O4>[1], skew: ColSpec<O5>[1], kurtosis: ColSpec<O6>[1], sortino: ColSpec<O7>[1], hit: ColSpec<O8>[1], valueAtRisk: ColSpec<O9>[1], shortfall: ColSpec<O10>[1], best: ColSpec<O11>[1], worst: ColSpec<O12>[1]): Relation<L+O1+O2+O3+O4+O5+O6+O7+O8+O9+O10+O11+O12>[1]
 {
   $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), tm:r|$r->read($time), lv:r|$r->read($level), x:r|$r->read($returns), g:r|$r->read($logReturns), py:r|$r->read($perYear), hx:r|$r->read($returns)->isNotEmpty()])
-    ->extend(over(~l), ~mx:{p,f,r|$r.x}:y|$y->average())
+    ->extend(over(~l), ~[mx:{p,f,r|$r.x}:y|$y->average(), nx:{p,f,r|$r.x}:y|$y->count()])
     ->extend(over(~l, [~d->ascending()], rows(unbounded(), 0)), ~pk:{p,f,r|$r.lv}:y|$y->max())
     ->extend(over(~[l, hx], [~x->ascending()]), ~rk:{p,f,r|$p->rank($f, $r)})
-    ->extend(over(~[l, hx]), ~nx:{p,f,r|$r.x}:y|$y->count())
     ->extend(~[dd:x|if($x.pk->toOne() == 0, |[], |$x.lv->toOne() / $x.pk->toOne() - 1),
       dv:x|if($x.x->isEmpty(), |[], |$x.x->toOne() - $x.mx->toOne()),
       dn:x|if($x.x->isEmpty(), |[], |if($x.x->toOne() < 0, |$x.x->toOne() * $x.x->toOne(), |0.0)),

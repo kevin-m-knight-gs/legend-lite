@@ -753,8 +753,12 @@ const CHART_BUDGET = 303_500;
  *  95,000 -> 97,000 (2026-10-27, Phase 5: a trend projected -- its query (timeseries-query.ts projectionQuery, the
  *  `projection` ask), its reading and dashed drawing (timeseries-option.ts tsProjected), the viewer asking it beside the
  *  series and Settings' Project (ui/timeseries-view.ts #projectionFields) -- and the replay (#replay) -- the headroom
- *  ~2%). Measured 95,068. */
-const TIMESERIES_BUDGET = 97_000;
+ *  ~2%). Measured 95,068.
+ *  97,000 -> 100,000 (2026-10-28, the focused Pure audit's conversion, the user: "convert all, match gsquant" -- the
+ *  tile's tables and views written as the library's functions: performanceStatistics, drawdownsOfLine, runs,
+ *  calendarReturns, histogramOfLine, seasonalRange, regression, fitAt, correlationOf, periodsPerYear in its text, the
+ *  writer's inline maths gone -- the headroom ~2%). Measured 98,043. */
+const TIMESERIES_BUDGET = 100_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

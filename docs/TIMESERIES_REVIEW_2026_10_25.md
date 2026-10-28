@@ -521,3 +521,37 @@ finding confirmed by a scratch test over the commits' own tree. Each fixed with 
   drawn at; a picture's legend names the marks drawn, each by its own shape.
 - Kept: marks are asked while a view (a scatter, a histogram) is shown -- one query of a grid's rows, drawn again when
   the view goes, as the bounds are.
+
+## 18. The Pure conversion's review (2026-10-28)
+
+An independent review, read-only, of the focused Pure audit's conversion (`9c46f514`, `b6cd856b`, `09ac1c6a`: % change as
+gs-quant's, a chain of generic calls typed once each, the tile's tables and views as `datacube::ts` functions), with
+its own scripts (the expected shortfall's rank rule against `quantile_cont` over 200,000 random draws, ties among them:
+none differed). Its findings, each fixed and pinned:
+
+- **1 (blocking) the core fix broke the static fold's `.columns`.** A relation argument rode the body's fold as a hole
+  the fold could not type, so `$tds.columns->map(..)` no longer unrolled: twelve DuckDB corpus tests failed
+  (`rowValueDifference`, the `columnValueDifference` five, `zScore`, `iqrClassify`, the digests), the host pass exiting
+  1. Each hole is typed as its argument while the body folds (`Overloads.inlineNormalized`): `//spec:corpus_duckdb` and
+  `//spec:corpus_h2` green again, their rosters unchanged.
+- **2 a correlation's guard reached one form.** The rolling `correlation` gave none where a side does not vary (DuckDB
+  says NaN, Postgres none), its calendar form, `leadLag` and theirs NaN still: every correlation of the library now
+  none so (`pairPeriod`, `leadLag`; design note §5.6). `timeseries-queries.test.ts` "a correlation where a side does not
+  vary is none, in every form" failed on the library before it (`correlation(..., 1w)`: NaN).
+- **3 `Typer.withPretyped` was not re-entrant**: a call inlined in another's body, handed the outer's table, took the
+  outer's typing of it away when it ended. It restores what it replaced.
+- **4 the holes' counter was static mutable state** (`ArchitectureTest.staticFieldsAreFinal`'s limit): an instance
+  counter now. **5** the parameter-argument default is a check that throws (a typer bug, AGENTS invariant 4); the
+  expansion depth's javadoc says the inner call is typed before the outer expands; the chain test is twenty calls,
+  past the sixteen nested expansions the old typing refused.
+- **6** `performanceStatistics`' count of returns shares its mean's window: three windows, as the note says.
+- **7** checked: the scatter's and the projection's `regression` cost what the writer's did (scatter 30 ms against 36,
+  projection 32 against 17, its SQL 7 KB against 4).
+- **8 tests**: a split series' every figure of each line its own tile's (the figures joined to the line's own); the
+  expected shortfall where (n - 1)q is whole (the quantile a value) and where returns tie at it.
+
+Two checks of this branch that had gone unrun failed in the same round and are fixed: `guardrails_test` (a date-time read
+by its type's name where `hasTimeOfDay` reads it; the markets example's saved queries' text built from their columns,
+now written out as Query saved it, an allowance of the guard's with its date and its count pinned) and the first tile's
+bundle budget (97,000 -> 100,000, measured 98,043, its note dated).
+
