@@ -1796,7 +1796,7 @@ class UserFunctionIntegrationTest {
             // the user, 2026-10-28 ("enums that have mappings like in the database its 'A' but the Enum is ACTIVE"): the
             // static fold writes the enumeration's value back as the call spelled it, and the mapping, not the fold,
             // reads it as the database's code -- here a family's name, 'Smith', for model::Family.SMITH
-            String model = BASE_MODEL.replace("mappings: [ model::PersonMapping ];", "mappings: [ model::FamilyMapping ];") + """
+            String mapping = """
 
                     ###Mapping
                     import store::*;
@@ -1814,7 +1814,8 @@ class UserFunctionIntegrationTest {
                             JONES: 'Jones'
                         }
                     )
-                    """ + "\n###Pure\n" + """
+                    """;
+            String functions = """
                     Enum model::Family
                     {
                       SMITH, JONES
@@ -1833,6 +1834,8 @@ class UserFunctionIntegrationTest {
                         $t->filter(r|test::sameAs($r->read($col), $wanted))
                     }
                     """;
+            String model = BASE_MODEL.replace("mappings: [ model::PersonMapping ];", "mappings: [ model::FamilyMapping ];")
+                    + mapping + "\n###Pure\n" + functions;
             String query = "|model::Member.all()->project(~[firstName: m|$m.firstName, family: m|$m.family])"
                     + "->test::ofFamily(~family, model::Family.SMITH)->sort(~firstName->ascending())";
             var result = exec(model, query);
