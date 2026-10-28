@@ -2,7 +2,7 @@
 // S1.4 item 2). Not compiled: run from a scratch directory with the system JDK, `java FloatTextProbe.java`.
 //   before   CellText.pureFloat(double) until b944a42e (zero 0.0 for either sign; BigDecimal.valueOf's layout)
 //   now      CellText.pureFloat(double) at b944a42e (Double.toString; an exponent laid out by BigDecimal)
-//   fix      the ruled 0.00010 fix (the mantissa's trailing zero stripped before the layout), not built yet
+//   fix      the ruled 0.00010 fix (the mantissa's trailing zero stripped before the layout), built 2026-10-28 (S1.4)
 //   pure     legend-pure 5.99.0's CompiledSupport.primitiveToString(double), copied from its source
 // Answers measured 2026-10-28 (JDK 21):
 //   1.0E-4     before 0.00010   now 0.00010   fix 0.0001     pure 0.0001

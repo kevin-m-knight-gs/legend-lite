@@ -25,9 +25,10 @@ measurements, every probe's source) is `docs/result-boundary-homework/README.md`
   50 commits past the branch's base by `git rev-list`), a merge commit, both sides kept, the branch's register rows
   renumbered S115 to S117 (GATES, the S1.0 entry). Clean. Never pushed to `main`; it lands through a PR when the user
   says (AGENTS.md, "Pushing to main").
-- **The next action.** S1.4 (the writers carriage only; its item 2's negative zero is built, the rest of it under
-  way on this branch), then S1.5 (the missing records), then S1.6 (a draft PR so CI runs on every OS; the user's word
-  first). Then the four big tracks: B (a test body as a sequence of plans), T (our core tests as the LEAN
+- **The next action.** S1.5 (the missing records: GATES entries for phases 1 to 4, the 51 writer differences classified
+  and every spelling change put to the user case by case, the PCT message changes' register rows, the program's §3
+  table), then S1.6 (a draft PR so CI runs on every OS; the user's word first). S1.4 is done (2026-10-28, GATES' S1.4
+  entry) with one question open for the user: the midnight rule (§4, S1.4 item 1). Then the four big tracks: B (a test body as a sequence of plans), T (our core tests as the LEAN
   twin of PCT and the corpus), C (the corpus and channel B on B), D (the deletions). L (mixed lists typed) and A (the
   Arrow writer) can run beside them.
 - **Who decides.** The user: rulings (§10 lists every one), pushes to `main`, PRs, merges, and **every change to
@@ -106,6 +107,7 @@ what it found: the homework README §1.
 - `b944a42e` (the negative zero) locally: `//core:core_tests` (all 25 packages), `//core:guardrails`, `//core:census`
   green. Not run: `//datacube:python_execute_test` (it reads LEAN JSON), PCT and the lanes (neither PCT channel, the
   corpus nor the judges read the LEAN writers: channel A reads legend-engine's JSON and typed values).
+- S1.4 (2026-10-28, `f58f37ed`) locally: `//core:core_tests` (all 25 packages), `//core:guardrails`, `//core:census`, `//pct:pct_discipline` (28 of 28); PCT channel A, all five suites, on DuckDB, SQLite and MongoDB, exact, the engine crossing counted (460 / 64, 459 / 64, 459 / 64); `//datacube:python_execute_test`. Not the lanes (unreachable), not the local gate (GATES, the S1.4 entry).
 - S1.0's merge commit (2026-10-28, `main` at `369bb176` in) locally: `//core:core_tests` (all 25 packages),
   `//core:guardrails`, `//core:census`, `//pct:pct_discipline`; PCT channel A, all five suites, on DuckDB, SQLite and
   MongoDB, exact, the engine crossing counted (460 / 64, 459 / 64, 459 / 64); `//datacube:python_execute_test`; the
@@ -159,7 +161,16 @@ MongoDB, `//datacube:python_execute_test`; then the local gate; then the lanes, 
 last logs (§7), before S1.4's code. Record: a GATES entry (the merge, the conflicts and how each was kept, the
 renumbering), IN_FLIGHT.
 
-**S1.4 The writers carry, never decide.** Why: rule R3; the audit found the writers comparing values and choosing
+**S1.4 The writers carry, never decide. DONE 2026-10-28** (GATES, the S1.4 entry: the `0.00010` fix; the
+written-precision fact `ExecutionPlan.Column.precision`, plan format 17, the writer's slot-word matches gone, the
+decoders' slot dispatch kept as their decode instruction; `ArchitectureTest.writersAreCarriageOnly`,
+`WriterCarriageGuardTest` with its register of 58 named representation operations, the result package a closed
+register in `JavaEvalLedgerTest`; the nits). **Open, the user's:** the midnight rule (`CellText.midnight`: an abstract
+Date at midnight in a TIMESTAMP slot written as its day in lite's own outputs; LEGACY writes the timestamp in full
+since `6811256b`), the one decision by a value's clock left in a writer, registered by name in the guard pending the
+ruling: keep it, or drop it (a LEAN spelling change: `2026-01-07` to `2026-01-07T00:00:00+0000`), or move it into
+the lowering (an abstract Date column carried as TEMPORAL_TEXT: a lane-measured change). And the tab's negative zero
+(item 4). Why: rule R3; the audit found the writers comparing values and choosing
 spellings by rules, unguarded. Build:
 1. One typed fact on the plan column for a temporal value's written precision, replacing the slot-name strings
    (`"TEMPORAL_TEXT"`, `"LITERAL"`) matched in `exec/JdbcDecode`, `result/RowDecode`, `result/CellText` and
@@ -172,7 +183,7 @@ spellings by rules, unguarded. Build:
      legend-pure's own and lite's SQL (`FloatCanonText.ofText`, "ZEROS UNIFY") write it. `pureFloat` has no zero
      branch now.
    - **`0.00010`: ruled a defect to fix, 2026-10-28** ("keep the fix, fix the plan wording including adding that we
-     need to fix 0.00010"); not built. `pureFloat` lays out `Double.toString`'s exponent form with
+     need to fix 0.00010"); **built 2026-10-28** (GATES, the S1.4 entry, item 1). `pureFloat` laid out `Double.toString`'s exponent form with
      `new BigDecimal(shortest).toPlainString()`, which keeps the mantissa's scale, so a double below `1e-3` whose
      shortest digits are one digit gets a trailing zero: `1.0E-4` is written `0.00010`, `1.0E-5` `0.000010`, `-1.0E-4`
      `-0.00010`. legend-pure writes `0.0001` (`CompiledSupport.primitiveToString`'s `DecimalFormat`), and `0.00010` is
@@ -510,23 +521,22 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
 What the user pastes into a fresh session, from any account (kept here so it is not lost; update the commit and the
 task when they move):
 
-> Repository neema2/legend-lite. Continue the result boundary program from branch claude/upbeat-johnson-l4hogx at its
-> head (b944a42e on 2026-10-28, plus documentation commits after it): fetch it; if your session has its own designated
-> branch, create that branch from this head. Never push to main, never open a PR or merge without my explicit word in
-> your session.
+> Repository neema2/legend-lite. Continue the result boundary program from branch claude/wizardly-dirac-rw6tim at its
+> head (S1.4's code commit f58f37ed of 2026-10-28 and its records commit after it): fetch it; if your session has its own designated branch, create
+> that branch from this head. Never push to main, never open a PR or merge without my explicit word in your session.
 >
 > Read first, in full: AGENTS.md, then docs/RESULT_BOUNDARY_START_HERE.md (the whole roadmap, the rules, the commands,
 > the traps, my rulings in §10), then docs/result-boundary-homework/README.md, then
 > docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md §0, §1, §8 and §9.
 >
-> Your task: S1.0, then S1.4 (start page §4). S1.0: merge origin/main into the branch (a merge commit), resolve the
-> conflicts keeping both sides, renumber the branch's register rows S112 to S114 to the next free ids with every
-> citation, and prove it (S1.0's gate). Then S1.4: the 0.00010 fix (item 2, ruled), the typed written-precision fact
-> on ExecutionPlan.Column replacing the slot-word string matches (item 1), the two writer guards and the result
-> package as a closed register (item 3), the nits (item 4). Announce your files in docs/IN_FLIGHT.md before you start.
+> Your task: S1.5 (start page §4): GATES entries for phases 1 to 4 from the commits; the 51 writer differences
+> (docs/result-boundary-homework/wire-differences-2026-10-27.tsv) classified, each a correction or a spelling change,
+> and every spelling change put to me case by case with its expression, old output and new (I decide each: a register
+> row, or a revert in code); register rows for the PCT message changes; the program's §3 table brought up to date.
+> Then stop: S1.6 (the draft PR) needs my word. Announce your files in docs/IN_FLIGHT.md before you start.
 >
 > Rules that bind you: never change how any output is spelled without asking me first, one case at a time, with the
-> expression and the before and after (the 0.00010 fix is already ruled). An answer of mine to a question is not a go
+> expression and the before and after. An answer of mine to a question is not a go
 > to build something else; ask. A guard pin or allowlist moves only with a dated justification. Never read, print or
 > copy credentials; lane sessions measure only. Run the start page's §6 checks before each commit; commit and push to
 > the branch; records (GATES, IN_FLIGHT, the program's §9, register rows) land with the code. Stop and report to me

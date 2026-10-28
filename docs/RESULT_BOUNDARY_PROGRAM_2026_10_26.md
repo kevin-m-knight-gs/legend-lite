@@ -491,6 +491,14 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-28, S1.4 done: the writers carry, never decide** (GATES, the S1.4 entry). The `0.00010` trailing zero
+  fixed in lite's own outputs (`1.0E-4` as `0.0001`, legend-pure's text; ruled); the plan column's fourth fact, its
+  temporal cells' written precision (`ExecutionPlan.Precision`: WRITTEN, DAY, INSTANT; format 17), set by
+  `ColumnFacts` and read by the writer in place of the slot's spelling it matched (the decoders keep the slot as their
+  decode instruction); R3's two guards built, `ArchitectureTest.writersAreCarriageOnly` and `WriterCarriageGuardTest`
+  (58 representation operations registered by name), and the result package a closed register; the audit's nits
+  swept. Open for the user: the midnight rule, the one decision by a value's clock left in a writer (kept, registered
+  pending the ruling), and the tab's negative zero. Next: S1.5, then S1.6 on the user's word.
 - **2026-10-28, S1.0 done: `main` merged into the branch.** The next session (branch `claude/wizardly-dirac-rw6tim`,
   from `7a9a368b`) merged `main` at `369bb176` (PR #77: 50 commits, 114 files, 12 on both sides) with a merge commit,
   both sides kept -- `PureV1Api.execute` runs the branch's typed route over main's held-model hook; the register keeps

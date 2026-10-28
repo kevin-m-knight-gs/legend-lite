@@ -15221,3 +15221,83 @@ step.
      lanes (§7) needs the user's environments. The merge changes nothing those lanes measure (item 1), so their last
      logs (`e8c341d0`, the engine crossing; `f883d42b`, channel B) stand as the branch's; the merged tree's first
      run on every OS is S1.6's CI.
+
+## 2026-10-28 — the result boundary program's S1.4: the writers carry, never decide (the `0.00010` fix, the written-precision fact, the two guards, the result register, the nits)
+
+Rule R3 (`docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` §1), ruled 2026-10-26; the audit found the writers choosing
+spellings by rules of their own, unguarded (`docs/result-boundary-homework/README.md` §1, item 3). The start page's S1.4,
+in its order: item 2, then 1, then 3, then 4. No output spelling moves but the one the user ruled (item 2).
+
+1. **Item 2, the `0.00010` trailing zero (ruled 2026-10-28, "keep the fix, fix the plan wording including adding that we
+   need to fix 0.00010"):** `CellText.pureFloat(double)` lays out `Double.toString`'s exponent form through a
+   `BigDecimal` of that text; the mantissa's one trailing zero (`1.0E-4`) is no digit of the value, so it is stripped
+   before the layout (`stripTrailingZeros`, a representation operation: no rounding). Lite's own outputs (LEAN JSON and
+   CSV) now write `1.0E-4` as `0.0001`, `1.0E-5` as `0.00001`, `-1.0E-4` as `-0.0001`: legend-pure's own text
+   (`CompiledSupport.primitiveToString`'s `DecimalFormat`, measured 2026-10-28, `probes/FloatTextProbe.java.txt`) on
+   every value of that probe. Unchanged: every double whose shortest text has no exponent (`0.001`, `0.1`, a third),
+   `1.0E7` (`10000000.0`), `1.5E15`, `2.5E-7`, the negative zero (`-0.0`, S117), NaN and the infinities; LEGACY
+   (`CellText.engine`, Java's `1.0E-4`); Pure's text inside a query (`FloatCanonText`). Pinned in
+   `ResultWritersTest.aFloatPrintsItsShortestDigitsWithAPoint_neverAnExponent` (eleven values, LEAN JSON's token and
+   LEGACY's beside them). No register row: it restores legend-pure's text.
+2. **Item 1, the written-precision fact:** `ExecutionPlan.Column` carries a fourth fact, `precision`
+   (`ExecutionPlan.Precision`: `WRITTEN`, the cell carries its precision as the value was written -- a literal's
+   spelling, a temporal-text carrier; `DAY`, a DATE slot or a StrictDate column; `INSTANT`, a TIMESTAMP's digits, the
+   written precision lost to the database; null, no temporal of the column's own), set by `ColumnFacts.precision` from
+   the Pure type and the typed slot (`SqlType`), in the precedence the writer's string matches held, so no spelling
+   moves; written and read by the plan format (`PlanJson`, format 16 -> 17, `PlanJsonTest`'s pins; `MirJson` carries no
+   column); copied by the runner's renamed columns (`PlanRunner`), set by the planner's value-root and per-key columns
+   (`PlanMaker`), null on the judges' text column and on every column made for a nested value (`RowDecode.element`,
+   `fields`, `mapSlots`, `tagOf`, `taggedSlot`: the decoders read none, the writers spell a nested temporal by the
+   value's own precision under the parent's fact). The writer reads it: `CellText.pureDate` (WRITTEN as written; DAY
+   as the day for the column's own cell; else Pure's print form by the value), `engineDay` (a day without a time, or a
+   DAY column); `CellText.writtenPrecision` and `CellText.slotWord` deleted. **The decoders keep the slot as their
+   decode instruction**, unchanged: `JdbcDecode`, `RowDecode` and `MongoDbDecode` dispatch on the slot's word because
+   the slot IS the carrier's kind (`LITERAL` parses a spelling of any kind, `TEMPORAL_TEXT` a temporal at the precision
+   written: the parse is the precision-keeping read, not a decision), and `ArchitectureTest.spellingDecodeIsLabelDriven`
+   names those arms as the funnels; the start page's item 1 listed them, and the fact that replaced the writers' matches
+   has nothing to replace there. **One decision stays in the writer, put to the user:** an abstract `Date` at midnight
+   in a TIMESTAMP slot is written as its day in Pure's print form (`CellText.midnight`, legend-engine's formatDateTime
+   rule for a Date; LEGACY writes the timestamp in full since `6811256b`). No fact of the plan or of the value says the
+   value was written as a day, and dropping the rule changes a LEAN spelling (`2026-01-07` to
+   `2026-01-07T00:00:00+0000`), which no session decides alone: kept, registered by name in the guard (item 3), the
+   question in this entry's report.
+3. **Item 3, the guards (approved 2026-10-28, "yes add this to the plan"):**
+   - `ArchitectureTest.writersAreCarriageOnly`: no class of `com.legend.result` depends on a `com.legend` class outside
+     `result`, `executionplan`, `values`, `json`, `base` and `error` (so never the compiler, the lowering, the SQL tree
+     or a dialect, `exec`, the resolver, the setup, the plan side, the server); true when written, as the Bazel
+     target's deps already said.
+   - `WriterCarriageGuardTest`: the result package's sources, comments and strings stripped, scanned for the vocabulary
+     of value arithmetic and comparison and of conversion between kinds (a number's or a date's `subtract`, `multiply`,
+     `divide`, `compareTo`, `setScale`, `stripTrailingZeros`, `doubleValue`, `longValue`, `getHour` ..., `Math.`,
+     `new BigDecimal(`, `BigDecimal.valueOf`, `Double.parseDouble`, `Double.isFinite` ...); ZERO allowed; what stands
+     registered by file, spelling and count, exact both ways, each with its reason: in `CellText` 32 (the Float's digits,
+     the JSON token's exact value and integral flag, a Float held as a decimal read as its double, the non-finite names,
+     a date's own precision, the instant's trimmed fraction, a day's digits, and the midnight rule's four clock reads,
+     registered pending the user), in `RowDecode` 26 (a decode's carrier reads: a token as the number its slot says, a
+     tagged slot's written digits), none in the other eight files. Its limit, stated in the class: a scan catches
+     drift, not an adversary (bare primitive arithmetic, a `BigDecimal.add` that reads like a list's).
+   - `JavaEvalLedgerTest.RESULT_CLASSES`: the result package a closed register like `exec`, its ten classes each with
+     its tenet argument; a new class there registers consciously.
+4. **Item 4, the phase 3 audit's nits (homework README §9):** `FloatPrintText.ofText`, a pass-through whose function
+   parameter had gone, deleted (its two callers call `print`). Already gone before this step, recorded: `OutputFormat`'s
+   `id` and `contentType` (deleted at `b3311cd6`), `CsvWriter`'s "no CSV wire" text (the same), a REAL narrowed on hosts as
+   `JdbcDecode` narrows it (`RowDecode.floating`, 2026-10-27). Left, with the reason: `PureV1Api.envelope`'s three-way
+   choice of a column's builder type (by the plan's name, by its presented name, a dynamic pivot's by its plan type) is
+   not a writer's decision but the engine envelope's need for the compiler's `Type`, which the plan's column names as
+   text; it goes when the plan carries the type, not with a writer step. Put to the user: the tab prints a Float's
+   negative zero as `0` (`datacube/src/format.ts`, `Intl.NumberFormat` with `signDisplay: 'negative'`; lite's JSON
+   carries `-0.0` since `b944a42e`, the headless grid tags it for Python since `db4ca0fb`): a display spelling change,
+   not built.
+5. **Measured:** locally, on the code commit (this container runs DuckDB, SQLite, H2 and MongoDB):
+   - `//core:core_tests` (all 25 packages), `//core:guardrails` (the two new guards among them),
+     `//core:census` (the result register), `//pct:pct_discipline`: 28 of 28 pass, on the first run.
+   - PCT channel A, all five suites, on DuckDB, SQLite and MongoDB: 15 of 15 exact against their ledgers; the engine
+     crossing counted as at the switch (460 / 64 on DuckDB, 459 / 64 on SQLite and on MongoDB). Expected: neither PCT
+     channel reads lite's own outputs (channel A reads legend-engine's JSON, which item 2 leaves alone), and the
+     precision fact reproduces the writer's spellings exactly (item 2 of this entry).
+   - `//datacube:python_execute_test`: pass (the WebAssembly planner built with the plan format bump; it reads LEAN
+     JSON).
+   - **Not run:** the lanes, channel A (unreachable from this session, as in the S1.0 entry); the local gate (S1.0's
+     ran on the merge commit; S1.6's CI runs it on every OS).
+   - Register: no row. No output spelling moves but the ruled `0.00010` (item 1); the midnight question is the
+     user's (item 2).
