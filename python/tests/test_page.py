@@ -1237,7 +1237,9 @@ class Document(Paged):
         # left DataCube to choose one when run
         page = ll.Page('Names')
         days = pd.date_range('2024-01-01', periods=6, freq='D').date
-        prices = pd.DataFrame({'day': list(days), 'close': [100.0 + i for i in range(6)], 'open': [99.0 + i for i in range(6)]})
+        # a text column, so a tile not told its key would take this one
+        prices = pd.DataFrame({'day': list(days), 'symbol': ['S'] * 6, 'close': [100.0 + i for i in range(6)],
+                               'open': [99.0 + i for i in range(6)]})
         one = page.grid(prices, name='prices', title='Line\rends\u2028here')
         two = page.grid(prices, name='prices', title='Again')
         tile = page.timeseries({'a': {'grid': one, 'date': 'day', 'key': None}, 'b': {'grid': two, 'date': 'day', 'key': None}},
@@ -1261,6 +1263,19 @@ class Document(Paged):
                'print': lambda *a, **k: None}
         exec(compile(code.replace('import legend_lite as ll\n', ''), 'tile.py', 'exec'), ran)
         self.assertNotIn('key', ran['page'].timeseries_tiles[0].spec['sources'][0])
+        # the second review, 2026-10-28: a title on the program's first line read as its encoding (PEP 263) -- `coding=
+        # utf-7` decoded `+ACc-` as a quote and `+AAo-` as a line end inside the title's string. Compiled from its bytes,
+        # as a file is, it runs as written
+        attack = 'coding=utf-7 +ACc-,+AAo-x=print(+ACc-INJECTED+ACc-),+AAo-#'
+        titled = page.timeseries({'grid': two, 'date': 'day', 'key': None}, ['open'], title=attack)
+        code = titled.code()
+        self.assertNotIn('coding', ''.join(code.splitlines()[:2]))
+        printed = []
+        ran = {'ll': type('ll', (), {'Page': ll.Page, 'show': staticmethod(lambda p: None)}), 'prices_frame': prices,
+               'print': lambda *a, **k: printed.append(a)}
+        exec(compile(code.replace('import legend_lite as ll\n', '').encode('utf-8'), 'tile.py', 'exec'), ran)
+        self.assertEqual(ran['page'].timeseries_tiles[0].title, attack)
+        self.assertFalse(any('INJECTED' in str(a) for a in printed), printed)
 
     def test_a_timeseries_reads_an_analysts_packs_each_figure_the_databases(self):
         # the next phases' 4 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): technicals of a candle's

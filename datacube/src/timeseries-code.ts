@@ -69,18 +69,21 @@ function listed(words: readonly string[]): string {
   return words.length <= 1 ? (words[0] ?? '') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)!}`;
 }
 
-/** Text a comment says on one line: every line end and control character a space, so a title, a name or a column (a
- *  person's words) ends no comment, in either language (the review, 2026-10-28: a title with a line end in it wrote a
- *  line of code). */
+/** Every line end, control character and direction mark: none may stand in a program as written -- a line end ends a
+ *  comment, a direction mark shows the code otherwise than it runs. */
+const UNWRITTEN = /[\u0000-\u001f\u007f\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g;
+
+/** Text a comment says on one line: each of those a space, so a title, a name or a column (a person's words) ends no
+ *  comment, in either language (the review, 2026-10-28: a title with a line end in it wrote a line of code). */
 function oneLine(text: string): string {
-  return text.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ');
+  return text.replace(UNWRITTEN, ' ');
 }
 
 /** A string's characters as both languages' quoted strings take them: `\` and `'` escaped, a line end `\n`, every other
  *  control character by its code. */
 function quoted(text: string): string {
   const escaped = text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n')
-    .replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+    .replace(UNWRITTEN, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
   return `'${escaped}'`;
 }
 
@@ -208,10 +211,12 @@ function pythonCode(spec: TimeseriesSpec, of: TsCodeOf): string {
     ...slots,
     ')',
   ];
+  // its first two lines its own words alone: Python reads a `coding=` in either as the file's encoding (the second
+  // review, 2026-10-28: a title `coding=utf-7 ...` decoded the rest, `title='...'` included, as other code)
   return [
-    `# ${oneLine(of.title ?? 'A timeseries tile')}: a timeseries tile built in Python on a page of your own -- run it, and DataCube shows`,
-    '# the same tile. Each series is a formula, DataCube\'s gs-quant shorthand for a Pure query the tile writes over its grid',
-    '# and the database runs: the loop at the end prints each formula\'s Pure.',
+    '# A timeseries tile built in Python on a page of your own -- run it, and DataCube shows the same tile. Each series is',
+    '# a formula, DataCube\'s gs-quant shorthand for a Pure query the tile writes over its grid and the database runs: the',
+    `# loop at the end prints each formula's Pure. The tile: ${oneLine(of.title ?? 'untitled')}.`,
     'import legend_lite as ll',
     '',
     'page = ll.Page()',

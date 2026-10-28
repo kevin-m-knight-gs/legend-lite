@@ -75,6 +75,12 @@ describe('a timeseries tile as the code that builds it', () => {
     assert.equal(added?.title, title);
     const python = tileCode(spec, { title, grids }, 'python');
     assert.deepEqual(python.split('\n').filter((l) => /^(import|export|print)/.test(l)), ['import legend_lite as ll']);
+    // Python reads a `coding=` on its first two lines as the file's encoding (PEP 263): none of a person's words there
+    const coded = tileCode(spec, { title: 'coding=utf-7 +ACc-', grids }, 'python');
+    assert.ok(!coded.split('\n').slice(0, 2).join('\n').includes('coding'), coded.split('\n').slice(0, 3).join('\n'));
+    // and a direction mark is never written as itself (it shows the code otherwise than it runs)
+    const marked = tileCode(spec, { title: 'a\u202eb', grids }, 'python') + tileCode(spec, { title: 'a\u202eb', grids }, 'typescript');
+    assert.ok(!marked.includes('\u202e'));
   });
 
 });
