@@ -210,7 +210,9 @@ final class PlanMaker {
                 yield new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.OBJECTS, List.of(
                         new ExecutionPlan.Column(outs.get(0).name(), root.type().typeName(),
                                 com.legend.plan.PlanColumns.multiplicity(root.multiplicity()),
-                                com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null)),
+                                com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null,
+                                com.legend.executionplan.ColumnFacts.precision(root.type().typeName(),
+                                        outs.get(0).type()))),
                         sql(lowered, dialect, target));
             }
             case TABULAR -> new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
@@ -265,7 +267,9 @@ final class PlanMaker {
                 case com.legend.lowering.KeyedPivot.PerKey k -> new ExecutionPlan.Keyed.PerKey(
                         new ExecutionPlan.Column(k.template().name(), k.template().type().typeName(),
                                 com.legend.plan.PlanColumns.multiplicity(k.template().multiplicity()),
-                                com.legend.executionplan.ColumnFacts.slot(k.slot()), null),
+                                com.legend.executionplan.ColumnFacts.slot(k.slot()), null,
+                                com.legend.executionplan.ColumnFacts.precision(k.template().type().typeName(),
+                                        k.slot())),
                         k.nameCell(), field);
             });
         }

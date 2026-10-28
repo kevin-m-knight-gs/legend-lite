@@ -343,7 +343,7 @@ public final class PlanRunner {
         List<ExecutionPlan.Column> keyColumns = new java.util.ArrayList<>();
         for (int i = 0; i <= perKey; i++) {
             keyColumns.add(new ExecutionPlan.Column(keyed.keyFields().get(i), "String",
-                    new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null));
+                    new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null, null));
         }
         try (Sessions.Session session = sessions.open(keyed.keys().target())) {
             Statements st = session.statements();
@@ -382,7 +382,7 @@ public final class PlanRunner {
                             String name = cellText(keys.get(k), p.name());
                             ExecutionPlan.Column c = p.column();
                             ExecutionPlan.Column a = new ExecutionPlan.Column(name, c.type(), c.multiplicity(),
-                                    c.slot(), c.store());
+                                    c.slot(), c.store(), c.precision());
                             answered.add(a);
                             read.add(named(a, "_pk" + k + "_" + p.field()));
                         }
@@ -417,7 +417,7 @@ public final class PlanRunner {
 
     /** {@code c} read under the name its statement writes it: the column's facts, that name. */
     private static ExecutionPlan.Column named(ExecutionPlan.Column c, String name) {
-        return new ExecutionPlan.Column(name, c.type(), c.multiplicity(), c.slot(), c.store());
+        return new ExecutionPlan.Column(name, c.type(), c.multiplicity(), c.slot(), c.store(), c.precision());
     }
 
     private static String cellText(List<Object> key, int cell) {

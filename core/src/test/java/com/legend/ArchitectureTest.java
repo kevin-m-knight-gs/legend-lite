@@ -707,6 +707,33 @@ final class ArchitectureTest {
     }
 
     /**
+     * <strong>The writers are carriage only (2026-10-28, docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R3; the start
+     * page's S1.4 item 3, approved by the user 2026-10-28).</strong> A writer spells the typed value it was handed, by
+     * the plan's column facts alone, so swapping one writer for another changes no value: the result package (the
+     * batch, the batcher, the collector, the row decode, the cell texts, the three writers, a host's rows) reads the
+     * plan's columns ({@code executionplan}), the typed carriers ({@code values}), JSON and the base, and no other
+     * layer -- never the compiler, the lowering, the SQL tree or a dialect, the runner or a session ({@code exec}),
+     * the resolver, the plan side's setup or the legacy plan, the server. True when written (its Bazel target's deps
+     * say the same); the rule keeps it true. What a writer may DO with a value is the source scan's
+     * ({@code WriterCarriageGuardTest}).
+     */
+    @Test
+    void writersAreCarriageOnly() {
+        noClasses()
+            .that().resideInAPackage("com.legend.result..")
+            .should().dependOnClassesThat(com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage(
+                    "com.legend..")
+                    .and(com.tngtech.archunit.base.DescribedPredicate.not(com.tngtech.archunit.core.domain.JavaClass
+                            .Predicates.resideInAnyPackage("com.legend.result..", "com.legend.executionplan..",
+                                    "com.legend.values..", "com.legend.json..", "com.legend.base..",
+                                    "com.legend.error.."))))
+            .as("the writers are carriage only (R3): com.legend.result reads the plan's column facts and the typed"
+                    + " batch -- executionplan, values, json, base, error -- and no compiler, lowering, sql, exec,"
+                    + " resolver, setup, plan or server class")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
      * <strong>The runner is model-free (2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 3).</strong>
      * What runs is the plan's own statement, reviewed when the plan was made: the runner, its parameter checks, its
      * sessions and the bulk load read the plan records, a connection's definition and {@code java.sql}, never the

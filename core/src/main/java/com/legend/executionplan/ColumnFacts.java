@@ -55,7 +55,7 @@ public final class ColumnFacts {
             if (out != null) {
                 SqlDdl.ColumnType stored = stored(lowered, out.name(), Map.of());
                 cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), slot(out.type()),
-                        stored == null ? null : store(stored)));
+                        stored == null ? null : store(stored), precision(p.type(), out.type())));
                 continue;
             }
             String bare = p.name().length() > 1 && p.name().startsWith("'") && p.name().endsWith("'")
@@ -64,9 +64,10 @@ public final class ColumnFacts {
             if (hits.size() == 1) {
                 SqlType t = hits.get(0).type();
                 cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), t == null ? null : slot(t),
-                        null));
+                        null, precision(p.type(), t)));
             } else if (outs.stream().anyMatch(o -> o.name().startsWith(p.name() + "_"))) {
-                cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), null, null));
+                cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), null, null,
+                        precision(p.type(), null)));
             } else {
                 throw new IllegalStateException("the plan's column '" + p.name() + "' is none of the query's outputs "
                         + outs.stream().map(OutputCol::name).toList() + ", no pivot template's and no flattened"
@@ -140,6 +141,28 @@ public final class ColumnFacts {
                 yield b.append('>').toString();
             }
         };
+    }
+
+    /** How a temporal cell of a column of Pure type {@code type} in slot {@code slot} (null: no one slot) has its
+     *  written precision ({@link ExecutionPlan.Precision}; the start page's S1.4 item 1, 2026-10-28): a literal's
+     *  spelling or a temporal-text carrier carries it in the cell, whatever the Pure type (a mixed column's cells
+     *  spell their own kind); a DATE slot or a StrictDate column holds a day; a TIMESTAMP slot, or a Date or DateTime
+     *  column in any other slot (a text a database holds its dates as, no slot at all), holds an instant at the
+     *  database's precision. Any other column has no temporal of its own: null, said. The same precedence the
+     *  writers held in their slot-spelling matches until this fact, so no spelling moves. */
+    public static ExecutionPlan.@com.legend.base.Nullable Precision precision(String type,
+            @com.legend.base.Nullable SqlType slot) {
+        if (slot == SqlType.Scalar.TEMPORAL_TEXT || slot == SqlType.Scalar.LITERAL) {
+            return ExecutionPlan.Precision.WRITTEN;
+        }
+        if (type.equals("StrictDate") || slot == SqlType.Scalar.DATE) {
+            return ExecutionPlan.Precision.DAY;
+        }
+        if (slot == SqlType.Scalar.TIMESTAMP || slot == SqlType.Scalar.TIMESTAMPTZ || type.equals("Date")
+                || type.equals("DateTime")) {
+            return ExecutionPlan.Precision.INSTANT;
+        }
+        return null;
     }
 
     /** A declared column type as the relational grammar spells it: {@code INTEGER}, {@code VARCHAR(20)},

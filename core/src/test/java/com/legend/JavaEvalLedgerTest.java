@@ -1428,13 +1428,42 @@ class JavaEvalLedgerTest {
                     "CsvLoad.java",
                     "package-info.java");
 
-    /** The other two funnel packages (documented-debts 2026-08-18,
+    /** The RESULT PACKAGE is a CLOSED REGISTER too (2026-10-28, the result boundary program's R3 and R8; the start
+     * page's S1.4 item 3, approved by the user 2026-10-28): the typed result as a stream of batches, and the writers
+     * at the edge, where every value leaves as text. A writer spells the typed value it was handed and decides none
+     * ({@code ArchitectureTest.writersAreCarriageOnly} keeps it off every other layer, {@code WriterCarriageGuardTest}
+     * keeps arithmetic and comparison out of it); a NEW class here is a new place a value meets text and registers
+     * consciously with its tenet argument. Exact in both directions. */
+    private static final java.util.Set<String> RESULT_CLASSES =
+            java.util.Set.of(
+                    // the typed result (phase 1, 51688f36, R8): ResultSink is the seam a result streams into (columns,
+                    // batches, end); Batch holds up to N rows as typed arrays with a null mask behind one accessor;
+                    // Batcher fills and flushes them; Collector collects a whole result into memory, a test helper and
+                    // the judges' writer, never a production method. No value is computed or compared
+                    "ResultSink.java", "Batch.java", "Batcher.java", "Collector.java",
+                    // the decode of a host's rows (the plan path program's step 6, moved here from exec 2026-10-27, held
+                    // model-free by ArchitectureTest.theRunnerIsModelFree): a cell from a JSON row's token by the plan's
+                    // column -- one carrier conversion each, by the slot then the Pure type; nothing computed, a token no
+                    // arm reads refused by name. HostRows streams the rows a host's own database ran through it
+                    "RowDecode.java", "HostRows.java",
+                    // the cell texts (phase 2, 12b89c7d, R3): every spelling of a typed cell -- Pure's print forms,
+                    // legend-engine's tokens, lite's -- each a function of the carrier and the column's facts alone (its
+                    // written-precision fact since 2026-10-28); digits chosen for a value held whole, no kind converted,
+                    // no zone shifted, no null defaulted
+                    "CellText.java",
+                    // the writers (phase 2, R4): legend-engine's exact answer (LEGACY), lite's JSON rows and CSV (LEAN),
+                    // each a ResultSink spelling cells through CellText in its consumer's layout; nothing else
+                    "PureV1Writer.java", "JsonRowsWriter.java", "CsvWriter.java");
+
+    /** The other funnel packages (documented-debts 2026-08-18,
      * audit item 9's remainder): server and testdatagen may touch JDBC
-     * per F1.3, so their class lists close the same way exec's does. */
+     * per F1.3, so their class lists close the same way exec's does; the result package (2026-10-28) closes as the
+     * edge where every value becomes text. */
     private static final java.util.Map<String, java.util.Set<String>>
             FUNNEL_PACKAGE_REGISTERS = java.util.Map.of(
                     "core/src/main/java/com/legend", ROOT_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
+                    "core/src/main/java/com/legend/result", RESULT_CLASSES,
                     "core/src/main/java/com/legend/server",
                     java.util.Set.of("ConnectionResolver.java",
                             "DiagramService.java",

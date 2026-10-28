@@ -221,13 +221,16 @@ public final class CellText {
      *  an exponent laid out positionally with a point always ({@code 1500000000000000.0}, {@code 0.00000025}); NaN and
      *  the infinities as Java names them. A negative zero keeps its sign, {@code -0.0}: it is another double (the
      *  user, 2026-10-28; Pure's own {@code toString} writes {@code 0.0} for either, as lite's SQL does: register
-     *  S117). */
+     *  S117). The exponent form's mantissa carries one trailing zero where its digits are one ({@code 1.0E-4}), which
+     *  is no digit of the value: stripped before the layout, so {@code 1.0E-4} is {@code 0.0001}, legend-pure's own
+     *  text, not {@code 0.00010} (the user, 2026-10-28: a defect, fixed; the start page's S1.4 item 2). The strip is a
+     *  representation operation: no rounding, the value whole. */
     static String pureFloat(double d) {
         String shortest = Double.toString(d);
         if (shortest.indexOf('E') < 0) {
             return shortest;
         }
-        String plain = new BigDecimal(shortest).toPlainString();
+        String plain = new BigDecimal(shortest).stripTrailingZeros().toPlainString();
         return plain.contains(".") ? plain : plain + ".0";
     }
 
@@ -250,11 +253,14 @@ public final class CellText {
 
     // ---- dates ----------------------------------------------------------------------------------------------------
 
-    /** Pure's text of a date: a value carried as its own text at the precision it was written (a year, a month, a
-     *  day, an hour ... a fraction), {@code +0000} from an hour on; a day as it is; a database timestamp at its
-     *  precision, the fraction's trailing zeros dropped; an abstract Date's midnight its day. */
+    /** Pure's text of a date, by the column's written-precision fact ({@link ExecutionPlan.Precision}, the plan's;
+     *  until 2026-10-28 the writer matched the slot's spelling for it, the start page's S1.4 item 1): a value carried
+     *  at the precision it was written (a year, a month, a day, an hour ... a fraction) as it is, {@code +0000} from
+     *  an hour on; a day as it is; otherwise -- an instant at the database's precision, or a cell of a column with no
+     *  temporal fact of its own (a mixed column's winner, a nested value: {@code type} an element's, not the
+     *  column's) -- Pure's print form by the value's own precision, the fraction's trailing zeros dropped. */
     private static String pureDate(PureDateLiteral d, String type, ExecutionPlan.Column c) {
-        if (writtenPrecision(c)) {
+        if (c.precision() == ExecutionPlan.Precision.WRITTEN) {
             return d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? d.toEngineString() + "+0000"
                     : d.toEngineString();
         }
@@ -264,19 +270,16 @@ public final class CellText {
         return d.trimmed().toEngineString() + "+0000";
     }
 
-    /** Whether the column carries a date at the precision it was written: as its own text, or a literal's spelling. */
-    private static boolean writtenPrecision(ExecutionPlan.Column c) {
-        String slot = slotWord(c.slot());
-        return slot.equals("TEMPORAL_TEXT") || slot.equals("LITERAL");
-    }
-
-    /** Whether a date is written as its day: a StrictDate column's, a DATE slot's, a value with no time of day, or an
-     *  abstract Date at midnight (legend-engine's formatDateTime rule for a Date: by its time of day). */
+    /** Whether a date is written as its day: a value with no time of day (its own precision, carried in the value);
+     *  a StrictDate's; the column's own cell where the column holds days ({@link ExecutionPlan.Precision#DAY}); or
+     *  an abstract Date at midnight (legend-engine's formatDateTime rule for a Date: by its time of day -- the one
+     *  rule here decided by the value's clock and not by a fact of the plan or of the value, kept as it was; a
+     *  question put to the user with S1.4, 2026-10-28). */
     private static boolean dateOnly(PureDateLiteral d, String type, ExecutionPlan.Column c) {
         if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR)) {
             return true;
         }
-        if (type.equals("StrictDate") || (type.equals(c.type()) && slotWord(c.slot()).equals("DATE"))) {
+        if (type.equals("StrictDate") || (type.equals(c.type()) && c.precision() == ExecutionPlan.Precision.DAY)) {
             return true;
         }
         return type.equals("Date") && midnight(d);
@@ -284,13 +287,13 @@ public final class CellText {
 
     /** Whether legend-engine writes a date as its day: by what the database answered, never by the time of day --
      *  its serializer writes a {@code java.sql.Timestamp} in full and only a {@code java.sql.Date} as its day
-     *  ({@code ValueTransformer}, legend-engine's relational execution), so a day without a time, a StrictDate's, a
-     *  DATE slot's. A Date at midnight in a TIMESTAMP column is a date-time like the column's others (2026-10-27, the
-     *  result boundary program: found by the PCT read as the engine's adapter reads it, which a column of both
-     *  spellings failed, testExtendMaxDate; the day at midnight is Pure's print form, {@link #dateOnly}). */
+     *  ({@code ValueTransformer}, legend-engine's relational execution), so a day without a time, or a column that
+     *  holds days ({@link ExecutionPlan.Precision#DAY}: a StrictDate's, a DATE slot's). A Date at midnight in a
+     *  TIMESTAMP column is a date-time like the column's others (2026-10-27, the result boundary program: found by
+     *  the PCT read as the engine's adapter reads it, which a column of both spellings failed, testExtendMaxDate; the
+     *  day at midnight is Pure's print form, {@link #dateOnly}). */
     private static boolean engineDay(PureDateLiteral d, ExecutionPlan.Column c) {
-        return !d.precision().atLeast(PureDateLiteral.Precision.HOUR) || c.type().equals("StrictDate")
-                || slotWord(c.slot()).equals("DATE");
+        return !d.precision().atLeast(PureDateLiteral.Precision.HOUR) || c.precision() == ExecutionPlan.Precision.DAY;
     }
 
     private static boolean midnight(PureDateLiteral d) {
@@ -350,19 +353,6 @@ public final class CellText {
         boolean integral = token.chars().allMatch(ch -> ch == '-' || Character.isDigit(ch))
                 && value.toBigInteger().bitLength() < 64;
         return new Json.Num(value.longValue(), value.doubleValue(), integral, value, token);
-    }
-
-    static String slotWord(@com.legend.base.Nullable String slot) {
-        if (slot == null) {
-            return "";
-        }
-        for (int i = 0; i < slot.length(); i++) {
-            char ch = slot.charAt(i);
-            if (ch == '(' || ch == '<' || ch == ' ') {
-                return slot.substring(0, i);
-            }
-        }
-        return slot;
     }
 
     private static IllegalArgumentException refused(Object cell, ExecutionPlan.Column c, String what) {

@@ -212,7 +212,7 @@ final class JudgePlans {
         }
         ExecutionPlan.TdsResult node = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 List.of(new ExecutionPlan.Column(outs.get(0).name(), "String", new ExecutionPlan.Multiplicity(0, 1),
-                        com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null)),
+                        com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null, null)),
                 PlanMaker.sql(plan, env.dialect(), target(env)));
         PlanRunner.Rows rows = run(node, PlanSessions.given(w.connection(), env.trace()));
         if (rows.rows().size() != 1) {

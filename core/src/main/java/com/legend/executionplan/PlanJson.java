@@ -54,8 +54,10 @@ public final class PlanJson {
      *  reads typed rows), so a keyed result has no format and its fixed outputs no format's name; 15 since 2026-10-27:
      *  the {@code effect} node (a statement sent for what it does -- a raw statement a program wrote, a DDL, a script --
      *  the body driver's effects on the plan, the program's phase 5); 16 the same day: a keyed result says where its
-     *  per-key columns stand among the fixed ones ({@code perKeyAt}: an extend after a pivot answers last). */
-    public static final int VERSION = 16;
+     *  per-key columns stand among the fixed ones ({@code perKeyAt}: an extend after a pivot answers last); 17 since
+     *  2026-10-28: a column's fourth fact, how a temporal cell's written precision is known ({@code precision}:
+     *  {@link ExecutionPlan.Precision}; the result boundary program's R2, the start page's S1.4 item 1). */
+    public static final int VERSION = 17;
 
     private PlanJson() {
     }
@@ -198,6 +200,7 @@ public final class PlanJson {
             co.put("multiplicity", multiplicity(c.multiplicity()));
             co.put("slot", c.slot());
             co.put("store", c.store());   // null: computed, no declared type
+            co.put("precision", c.precision() == null ? null : c.precision().name());   // null: no temporal of its own
             cols.add(co);
         }
         return cols;
@@ -410,8 +413,10 @@ public final class PlanJson {
         List<ExecutionPlan.Column> cols = new ArrayList<>();
         for (Json.Node n : columns.items()) {
             Json.Obj c = (Json.Obj) n;
+            String precision = c.getStringOr("precision", null);
             cols.add(new ExecutionPlan.Column(c.getString("name"), c.getString("type"),
-                    readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null), c.getStringOr("store", null)));
+                    readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null), c.getStringOr("store", null),
+                    precision == null ? null : ExecutionPlan.Precision.valueOf(precision)));
         }
         return cols;
     }

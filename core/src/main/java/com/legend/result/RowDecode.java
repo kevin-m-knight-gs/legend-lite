@@ -354,9 +354,12 @@ public final class RowDecode {
     // the structured slots' spelling (ColumnFacts.slot writes it; both decodes read it back here)
     // ------------------------------------------------------------------
 
-    /** The element column of a list column: the column's name and type, the element slot of {@code ARRAY<...>}. */
+    /** The element column of a list column: the column's name and type, the element slot of {@code ARRAY<...>}. A
+     *  column made for a nested value (this, a map's slots, a struct's fields, a tagged column's tag and slots) has
+     *  no written-precision fact of its own: the decoders read none, and the writers spell a nested temporal by the
+     *  value's own precision and the parent column's fact ({@code CellText.structure}). */
     public static ExecutionPlan.Column element(ExecutionPlan.Column c) {
-        return new ExecutionPlan.Column(c.name(), c.type(), c.multiplicity(), inside(c, "ARRAY"), null);
+        return new ExecutionPlan.Column(c.name(), c.type(), c.multiplicity(), inside(c, "ARRAY"), null, null);
     }
 
     /** The key and value columns of a map column ({@code MAP<key,value>}): each its slot, its type Any. */
@@ -383,7 +386,7 @@ public final class RowDecode {
 
     /** A tagged column's own cell, the tag: an integer, the slot index. */
     public static ExecutionPlan.Column tagOf(ExecutionPlan.Column c) {
-        return new ExecutionPlan.Column(c.name(), "Integer", c.multiplicity(), "INTEGER", null);
+        return new ExecutionPlan.Column(c.name(), "Integer", c.multiplicity(), "INTEGER", null, null);
     }
 
     /** The result columns a statement answers for the plan's {@code columns}: each its own, plus a tagged column's
@@ -412,7 +415,7 @@ public final class RowDecode {
                     + " has an entry with no type: '" + f + "'");
         }
         return new ExecutionPlan.Column(ExecutionPlan.Column.taggedSlotColumn(c.name(), index),
-                f.substring(0, space), c.multiplicity(), f.substring(space + 1).trim(), null);
+                f.substring(0, space), c.multiplicity(), f.substring(space + 1).trim(), null, null);
     }
 
     /** The fields of a struct column ({@code STRUCT<name slot, ...>}) as columns: each its name and its slot, its
@@ -443,7 +446,7 @@ public final class RowDecode {
             default -> ANY;
         };
         return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(0, 1),
-                slot, null);
+                slot, null, null);
     }
 
     private static String inside(ExecutionPlan.Column c, String word) {

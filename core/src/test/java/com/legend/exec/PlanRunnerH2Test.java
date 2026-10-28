@@ -139,9 +139,12 @@ class PlanRunnerH2Test {
                     H2, new ConnectionSpecification.LocalH2(null))), H2_SERVERS, List.of(), List.of());
             ExecutionPlan plan = new ExecutionPlan(List.of(declared("n", "Integer", 1, 1)), new ExecutionPlan.TdsResult(
                     ExecutionPlan.TdsResult.Shape.RELATION,
-                    List.of(new ExecutionPlan.Column("N", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null),
-                            new ExecutionPlan.Column("S", "String", new ExecutionPlan.Multiplicity(0, 1), "VARCHAR", null),
-                            new ExecutionPlan.Column("D", "StrictDate", new ExecutionPlan.Multiplicity(1, 1), "DATE", null)),
+                    List.of(new ExecutionPlan.Column("N", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null,
+                                    null),
+                            new ExecutionPlan.Column("S", "String", new ExecutionPlan.Multiplicity(0, 1), "VARCHAR", null,
+                                    null),
+                            new ExecutionPlan.Column("D", "StrictDate", new ExecutionPlan.Multiplicity(1, 1), "DATE", null,
+                                    ExecutionPlan.Precision.DAY)),
                     new ExecutionPlan.Sql("SELECT CAST(? AS BIGINT) AS N, 'a' AS S, DATE '2024-01-02' AS D",
                             List.of(new ExecutionPlan.Slot("n", new ExecutionPlan.Binding.One("BIGINT", null))), target,
                             null)));

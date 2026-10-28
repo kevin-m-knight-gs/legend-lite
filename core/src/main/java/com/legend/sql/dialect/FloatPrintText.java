@@ -67,7 +67,7 @@ final class FloatPrintText {
             com.legend.sql.SqlSelect texted = select(List.of(projection(v, "v", SqlType.Scalar.DOUBLE),
                     projection(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR), "t", SqlType.Scalar.VARCHAR)),
                     new com.legend.sql.SqlSource.Subselect(value, inner, null));
-            SqlExpr spelled = ofText(column(outer, "v", SqlType.Scalar.DOUBLE),
+            SqlExpr spelled = print(column(outer, "v", SqlType.Scalar.DOUBLE),
                     column(outer, "t", SqlType.Scalar.VARCHAR));
             return new SqlExpr.ScalarSubquery(select(List.of(projection(spelled, "p", SqlType.Scalar.VARCHAR)),
                     new com.legend.sql.SqlSource.Subselect(texted, outer, null)));
@@ -94,16 +94,13 @@ final class FloatPrintText {
 
     /** Pure's print form of the double {@code x}, as SQL over its text. */
     static SqlExpr of(SqlExpr x) {
-        return ofText(x, new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR));
-    }
-
-    /** Pure's print form of the double {@code x} whose text is {@code s}: {@code s} read where it is written, the
-     *  value where it is. A dialect that binds the two once reads them as columns. */
-    static SqlExpr ofText(SqlExpr x, SqlExpr s) {
-        return print(x, s);
+        return print(x, new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR));
     }
 
     /**
+     * Pure's print form of the double {@code x} whose text is {@code s}: {@code s} read where it is written, the value
+     * where it is (a dialect that binds the two once reads them as columns; {@code ofText}, a pass-through to here whose
+     * function parameter had gone, deleted 2026-10-28: the phase 3 audit's nit, the start page's S1.4 item 4).
      * Pure prints a Float via its MINIMAL decimal repr: DuckDB's shortest round-trip VARCHAR cast already matches
      * ('1.5', '2.0') EXCEPT where it chooses exponent notation -- those re-render plain through a DECIMAL(38,18) cast
      * with trailing zeros trimmed (and a bare trailing dot restored to '.0'). Magnitudes outside DECIMAL(38,18) keep the

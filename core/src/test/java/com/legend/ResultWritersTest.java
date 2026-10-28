@@ -36,8 +36,14 @@ class ResultWritersTest {
 
     private static final Multiplicity ONE = new Multiplicity(1, 1);
 
+    /** A column with no temporal of its own (its written-precision fact null, said). */
     private static Column col(String name, String type, String slot) {
-        return new Column(name, type, ONE, slot, null);
+        return new Column(name, type, ONE, slot, null, null);
+    }
+
+    /** A temporal column with its written-precision fact, as ColumnFacts.precision sets it for that type and slot. */
+    private static Column col(String name, String type, String slot, ExecutionPlan.Precision precision) {
+        return new Column(name, type, ONE, slot, null, precision);
     }
 
     private static String write(ResultSink sink, StringWriter out, List<Column> columns, List<List<?>> rows)
@@ -63,6 +69,23 @@ class ResultWritersTest {
         // the double nearest 123456789123456789.99 prints its shortest digits (Pure's print of the double, the numeric
         // charter's measurement), not its binary expansion
         assertEquals("123456789123456780.0", CellText.pure(123456789123456789.99, f));
+        // a double below 1e-3 whose shortest digits are one digit: the exponent form's mantissa trailing zero (1.0E-4)
+        // is no digit of the value, so the text is legend-pure's own (CompiledSupport.primitiveToString's DecimalFormat,
+        // measured 2026-10-28, docs/result-boundary-homework/probes/FloatTextProbe.java.txt), never 0.00010 (the
+        // user, 2026-10-28: a defect; the start page's S1.4 item 2)
+        assertEquals("0.0001", CellText.pure(1e-4, f));
+        assertEquals("0.00001", CellText.pure(1e-5, f));
+        assertEquals("0.00002", CellText.pure(2e-5, f));
+        assertEquals("0.000012345", CellText.pure(1.2345e-5, f));
+        assertEquals("-0.0001", CellText.pure(-1e-4, f));
+        assertEquals("10000000.0", CellText.pure(1e7, f));
+        assertEquals("0.001", CellText.pure(0.001, f));
+        assertEquals("0.1", CellText.pure(0.1, f));
+        assertEquals("0.3333333333333333", CellText.pure(1.0 / 3, f));
+        // lite's own JSON carries the same text as its number token
+        assertEquals("0.0001", Json.toCompact(CellText.pureJson(1e-4, f)));
+        // legend-engine's token is Java's own, exponent and all: untouched
+        assertEquals("1.0E-4", Json.toCompact(CellText.engine(1e-4, f)));
     }
 
     /** A negative zero is another double, so lite's own outputs keep its sign: the shortest text that reads back as
@@ -84,12 +107,12 @@ class ResultWritersTest {
      *  as its day. */
     @Test
     void theEngineWritesATimestampInFull_evenAtMidnight_PureItsDay() {
-        Column date = col("d", "Date", "TIMESTAMP");
+        Column date = col("d", "Date", "TIMESTAMP", ExecutionPlan.Precision.INSTANT);
         PureDateLiteral midnight = PureDateLiteral.fromDatabaseTimestamp(java.time.LocalDateTime.of(2026, 1, 7, 0, 0));
         assertEquals("\"2026-01-07T00:00:00.000000000+0000\"", Json.toCompact(CellText.engine(midnight, date)));
         assertEquals("2026-01-07", CellText.pure(midnight, date));
         assertEquals("\"2026-01-07\"", Json.toCompact(CellText.engine(PureDateLiteral.parse("2026-01-07"),
-                col("s", "StrictDate", "DATE"))));
+                col("s", "StrictDate", "DATE", ExecutionPlan.Precision.DAY))));
     }
 
     @Test
@@ -102,11 +125,19 @@ class ResultWritersTest {
     @Test
     void aDateTimePrintsAtItsPrecisionWithItsZone_aStrictDateItsDay() {
         assertEquals("2024-01-02T10:30:00.5+0000", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30:00.500"),
-                col("t", "DateTime", "TIMESTAMP")));
-        assertEquals("2024-01-02", CellText.pure(PureDateLiteral.parse("2024-01-02"), col("d", "StrictDate", "DATE")));
-        // a value carried as its own text keeps the precision it was written at
+                col("t", "DateTime", "TIMESTAMP", ExecutionPlan.Precision.INSTANT)));
+        assertEquals("2024-01-02", CellText.pure(PureDateLiteral.parse("2024-01-02"),
+                col("d", "StrictDate", "DATE", ExecutionPlan.Precision.DAY)));
+        // a value carried as its own text keeps the precision it was written at: the plan's fact (2026-10-28, S1.4
+        // item 1), where the writer matched the slot's spelling until then
         assertEquals("2024-01-02T10:30+0000", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30"),
-                col("t", "DateTime", "TEMPORAL_TEXT")));
+                col("t", "DateTime", "TEMPORAL_TEXT", ExecutionPlan.Precision.WRITTEN)));
+        // a DateTime written as a day in a DATE slot is a day: the fact, not the slot's word
+        assertEquals("2024-01-02", CellText.pure(PureDateLiteral.parse("2024-01-02T00:00:00"),
+                col("d", "DateTime", "DATE", ExecutionPlan.Precision.DAY)));
+        // a date-time of a mixed column (its fact none: a tagged winner's) spells by the value's own precision
+        assertEquals("2024-01-02T10:30:00+0000", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30:00"),
+                col("m", "Any", "TAGGED<DateTime TIMESTAMP, String VARCHAR>")));
     }
 
     @Test
@@ -150,7 +181,8 @@ class ResultWritersTest {
         assertEquals("18446744073709551614", Json.toCompact(
                 CellText.engine(new BigInteger("18446744073709551614"), col("i", "Integer", "HUGEINT"))));
         assertEquals("\"2024-01-02T10:30:00.500000000+0000\"", Json.toCompact(CellText.engine(
-                PureDateLiteral.parse("2024-01-02T10:30:00.5"), col("t", "DateTime", "TIMESTAMP"))));
+                PureDateLiteral.parse("2024-01-02T10:30:00.5"), col("t", "DateTime", "TIMESTAMP",
+                        ExecutionPlan.Precision.INSTANT))));
         Map<String, Object> person = new LinkedHashMap<>();
         person.put("name", "Ann");
         person.put("__id", "o1");

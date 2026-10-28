@@ -290,9 +290,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      *  {@code TIMESTAMP}) -- null when the column has no one slot (a nested column the query flattens into prefixed
      *  outputs; a pivot's generated column whose template carries no type); and {@code store}, the column's declared
      *  type in its store when the value is a store column read through ({@code VARCHAR(20)}, as the relational
-     *  grammar spells it) -- null when the column is computed. Each null is said, never guessed. */
+     *  grammar spells it) -- null when the column is computed. Each null is said, never guessed. A fourth fact,
+     *  {@code precision} (2026-10-28, the result boundary program's R2 and its S1.4 item 1): how a temporal cell's
+     *  WRITTEN precision is known, which the writers spell by ({@link Precision}; the plan's fact, where the writers
+     *  matched the slot's spelling for it) -- null when no temporal stands in the column itself. */
     public record Column(String name, String type, Multiplicity multiplicity, @com.legend.base.Nullable String slot,
-            @com.legend.base.Nullable String store) {
+            @com.legend.base.Nullable String store, @com.legend.base.Nullable Precision precision) {
         public Column {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
@@ -306,6 +309,23 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         public static String taggedSlotColumn(String column, int i) {
             return com.legend.sql.SqlType.Tagged.slotColumn(column, i);
         }
+    }
+
+    /**
+     * How a temporal cell's WRITTEN precision is known (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R2: a fact that only
+     * Pure knows travels in the plan or in the data, never in a text; the start page's S1.4 item 1, 2026-10-28). A
+     * column's fact, set by {@link ColumnFacts#precision} from its Pure type and its slot, read by the writers
+     * ({@code result/CellText}) in place of the slot's spelling they matched until then.
+     */
+    public enum Precision {
+        /** The cell carries its own precision, as the value was written (a literal's spelling, a temporal-text
+         *  carrier: a year, a month, a day, an hour, a minute, the subsecond digits as written); spelled as it is. */
+        WRITTEN,
+        /** A day: a DATE slot, a StrictDate column. Spelled as its day. */
+        DAY,
+        /** An instant at the database's precision (a TIMESTAMP's digits, none of them written: the written precision
+         *  is lost to the database); spelled in Pure's print form, at the precision its digits show. */
+        INSTANT
     }
 
     /**
