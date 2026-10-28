@@ -1791,6 +1791,61 @@ class UserFunctionIntegrationTest {
         }
 
         @Test
+        @DisplayName("an enumeration's value a generic body compares a mapped column to reads as the database's code")
+        void anEnumerationMappedToTheDatabasesCodes() throws SQLException {
+            // the user, 2026-10-28 ("enums that have mappings like in the database its 'A' but the Enum is ACTIVE"): the
+            // static fold writes the enumeration's value back as the call spelled it, and the mapping, not the fold,
+            // reads it as the database's code -- here a family's name, 'Smith', for model::Family.SMITH
+            String model = BASE_MODEL.replace("mappings: [ model::PersonMapping ];", "mappings: [ model::FamilyMapping ];") + """
+
+                    ###Pure
+                    Enum model::Family
+                    {
+                      SMITH, JONES
+                    }
+                    Class model::Member
+                    {
+                        firstName: String[1];
+                        family: model::Family[1];
+                    }
+                    function test::sameAs(f: model::Family[1], wanted: model::Family[1]): Boolean[1]
+                    {
+                        $f == $wanted
+                    }
+                    function test::ofFamily<T,F>(t: Relation<T>[1], col: ColSpec<F⊆T>[1], wanted: model::Family[1]): Relation<T>[1]
+                    {
+                        $t->filter(r|test::sameAs($r->read($col), $wanted))
+                    }
+
+                    ###Mapping
+                    import store::*;
+                    Mapping model::FamilyMapping
+                    (
+                        model::Member: Relational
+                        {
+                            ~mainTable [PersonDatabase] T_PERSON
+                            firstName: [PersonDatabase] T_PERSON.FIRST_NAME,
+                            family: EnumerationMapping FamilyNames: [PersonDatabase] T_PERSON.LAST_NAME
+                        }
+                        model::Family: EnumerationMapping FamilyNames
+                        {
+                            SMITH: 'Smith',
+                            JONES: 'Jones'
+                        }
+                    )
+                    """;
+            String query = "|model::Member.all()->project(~[firstName: m|$m.firstName, family: m|$m.family])"
+                    + "->test::ofFamily(~family, model::Family.SMITH)->sort(~firstName->ascending())";
+            var result = exec(model, query);
+            assertEquals(List.of("Jane", "John"), result.rows().stream().map(r -> (String) r.get(0)).toList());
+            assertEquals(List.of("SMITH", "SMITH"), result.rows().stream().map(r -> String.valueOf(r.get(1))).toList());
+            // the filter on the column as the database holds it, the column read back as the enumeration's value
+            String sql = plan(model, query).sql();
+            assertTrue(java.util.regex.Pattern.compile("WHERE\\s+\\w+\\.LAST_NAME = 'Smith'").matcher(sql).find(), sql);
+            assertTrue(sql.contains("THEN 'SMITH'"), sql);
+        }
+
+        @Test
         @DisplayName("a chain of calls of a generic function plans once each: twenty calls, each over the answer of the last")
         void aChainOfCallsIsTypedOnceEach() throws SQLException {
             // the focused Pure audit, 2026-10-28: each call typed the chain under it twice -- its check and its inlined

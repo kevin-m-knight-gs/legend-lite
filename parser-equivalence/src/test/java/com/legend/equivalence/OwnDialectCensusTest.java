@@ -146,8 +146,10 @@ class OwnDialectCensusTest {
                     // (2026-10-27, REVIEWED, S112's return check, the A4 review's 3): test::notATable, a body of no
                     // table refused (generics 9 -> 10); 13 -> 15 (2026-10-28, REVIEWED, options checked when the
                     // query compiles, docs/TIMESERIES_REVIEW_2026_10_25.md §20): test::statOf, an option an
-                    // enumeration, and test::digestsOf, an enumeration's value passed on whole (signatures 21 -> 23)
-                    java.util.Map.entry("UserFunctionIntegrationTest.java", 15),
+                    // enumeration, and test::digestsOf, an enumeration's value passed on whole (signatures 21 -> 23);
+                    // 15 -> 16 (2026-10-28, REVIEWED, enumeration mappings): test::ofFamily, a mapped enumeration's
+                    // column filtered by a generic body (signatures 23 -> 24)
+                    java.util.Map.entry("UserFunctionIntegrationTest.java", 16),
                     // D4 variance pins: the contravariance spec REQUIRES
                     // function-typed parameter signatures
                     // (Function<{Number[1]->String[1]}>) — pure-dialect

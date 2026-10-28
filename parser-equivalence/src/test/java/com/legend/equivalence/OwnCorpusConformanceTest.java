@@ -290,7 +290,10 @@ class OwnCorpusConformanceTest {
                 // §20): RelationGeneric's anOptionAnEnumeration (test::statOf<T,V,O>, an option typed by an enumeration,
                 // the if on it folded) and anEnumerationPassedOnWhole (test::digestsOf<T,O,P>, the enumeration's value a
                 // helper and an unrolled map pass on whole -- the corpus's testExtendDigest_Relational regression)
-                Map.entry("PURE-DIALECT-signatures", 23),
+                // 23 -> 24 (2026-10-28, REVIEWED, the user's "enums that have mappings like in the database its 'A'"):
+                // RelationGeneric's anEnumerationMappedToTheDatabasesCodes (test::ofFamily<T,F>, ColSpec<F⊆T>), an
+                // enumeration's value a generic body compares a mapped column to, read as the database's code
+                Map.entry("PURE-DIALECT-signatures", 24),
                 Map.entry("PURE-DIALECT-xstore-tolerance", 1),
                 Map.entry("TEST-MACHINERY-fixture", 1)));
         // F3.7: EXACT accounting, both directions (the FixtureCorpusParity
