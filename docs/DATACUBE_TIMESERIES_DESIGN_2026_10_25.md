@@ -221,7 +221,8 @@ have moved: a snap, a rebuild). Statistics are asked only while the table or the
   % change, the least and the most and when, the mean, the standard deviation; for a level its annualized volatility
   (of log returns), deepest drawdown, compound annual growth and Sharpe ratio -- each the database's, over what is shown.
   Annualized by the tile's frequency, or its dates' spacing (§4); a candle series' least and most its lows' and highs'
-  (Q9); a % change over the start's size, so a start below zero rising is a rise (Q11); compound annual growth only
+  (Q9); a % change gs-quant's, last / first - 1, none from a first of 0 (the user, 2026-10-28: "match gsquant", over the
+  review's Q11 and the second audit's S1, which had taken it over the start's size); compound annual growth only
   over a calendar year or more (`adjust(from, 1, YEARS) <= to`, the database's): under a year none, its % change its
   growth, and the viewer says so (GIPS; the review's N3, 8,507% over four days).
 
@@ -430,7 +431,29 @@ period are `pairPeriod`'s (a correlation or a covariance of the pairs whose date
 and each pair function, benchmark-relative statistic, lead-lag, product, vol swap, Dickey-Fuller and half-life has
 its `...Period` form; `append` and `prepend` splice series aligned by the caller (`union`'s way). Every function of the
 catalog is the library's (docs/PURE_LIBRARY_SPIKE_2026_10_27.md, "What stays DataCube's": the tile's shaping alone
-stays). A model takes the library only where a query
+stays). So are the tile's tables and views since the focused Pure audit (2026-10-28: what the tile's TypeScript still
+wrote as maths, moved, each held to today's numbers): the periods a year of a tile of no frequency (`periodsPerYear`,
+gs-quant's annualization factor), compare's rebase and % change (`index`, `percentChange` and their `...From`, a
+seasonality's years each a line of them -- gs-quant's x / x0 - 1, the user's "match gsquant"), the statistics' figures
+of a whole line (`performanceStatistics`, pyfolio's perf_stats: volatility, Sharpe ratio, deepest drawdown, compound
+annual growth, skew, kurtosis, Sortino ratio, hit rate, value at risk, expected shortfall, best and worst, one row a
+line; `calmarRatio` of two of them), the scatter's and the projection's least-squares line (`regression`, `fitAt`), the correlations
+table (`correlationOf`), the drawdowns table (`drawdownsOfLine`), a condition's shaded runs (`runs`), the calendar of
+returns (`calendarReturns`), the histogram (`histogramOfLine`) and the seasonality's range (`seasonalRange`). What
+stays the tile's is shaping: its periods and their ties, its operands' alignment, a view's cut to the dates shown or
+its last years, each date's place in its year, a curve's dates, the columns it answers with and their order.
+
+Planning a chain of calls cost 2^k for k calls until 2026-10-28 (core): a call of a generic function types its
+arguments to choose its overload, then expands its body over them and types that, so each call typed the chain under
+it twice -- sixteen of the library 13 s. A table an expansion's call typed is now typed once: it rides the body's
+static fold as a hole and is put back as its call typed it (`Overloads.inlineNormalized`, `Typer.withPretyped`;
+`UserFunctionIntegrationTest` "a chain of calls ... plans once each", sixteen calls in under 5 s, 36 ms measured). And
+DuckDB's optimizer (its filter pushdown) doubles its time with each window nested under another -- twenty windows each
+over the last, 9 s -- so a figure of a whole line is one aggregate where it can be, never a window of its own: the
+statistics' figures written as a window each, nested eighteen deep, ran 1.3 s where the writer's had run 130 ms;
+`performanceStatistics` takes three windows (the mean, the running peak, the returns' ranks) and one `groupBy`, 25 KB
+of SQL and 90 to 150 ms. An expected shortfall reads its values' ranks, never its line joined to its quantile (a join
+writes the query under it twice). A model takes the library only where a query
 calls it: the planner plans such a query over its model with the library after it (`lite-planner.ts` and
 `planner.ts #over`, a planner of its own over that model), every other query over its model as it is, byte for byte.
 A host that plans and runs is sent the library BESIDE the model (`planRequest`'s `library`), never inside it: Python's

@@ -108,7 +108,7 @@ before it. The notes of §3 fixed with them are listed too; the rest are follow-
 | Q2, Q4 | A level apart from its unit (`levelOf`, `unitOf`): compare, log and level statistics on levels alone; a ratio times 100 a percent | `b3f047f3` | `timeseries-spec.test.ts`, `timeseries-queries.test.ts` |
 | Q3 | No frequency: periods a year inferred from the dates' spacing, by the database (decision 2) | `b3f047f3` | `timeseries-queries.test.ts` |
 | Q6, Q7 | A period dated by its last observation; tied rows counted for every column | `b3f047f3` | `timeseries-queries.test.ts` |
-| Q8, Q9, Q11 | `prices` compounds every factor; a candle's extremes its lows' and highs'; % change over the start's size; drawdown ramped | `b3f047f3` | `timeseries-queries.test.ts` |
+| Q8, Q9, Q11 | `prices` compounds every factor; a candle's extremes its lows' and highs'; % change over the start's size (superseded 2026-10-28, the user's "match gsquant": gs-quant's x / x0 - 1); drawdown ramped | `b3f047f3` | `timeseries-queries.test.ts` |
 | G2, G3 | A date of no date type refused by name; a log pane straight where a line is no level, said | `b3f047f3` | `timeseries-queries.test.ts`, `timeseries-option.test.ts` |
 | A2, A3, A6 | One rule for every change of a tile (`timeseries-edit.ts`), the viewer's and Python's; one first-tile rule; the editor keeps a split | `d0b0e6e0` | `timeseries-edit.test.ts`, `python/tests/test_page.py` |
 | A5 / G2 | Python refused what the viewer cannot draw, in the viewer's words | `d0b0e6e0` | `python/tests/test_page.py` |
@@ -157,7 +157,7 @@ design language for the page) between.
 |---|---|---|---|
 | Q-B1 | A level plus or less a number, or turned negative, is no level | `ced3a738` | `timeseries-spec.test.ts`, `timeseries-queries.test.ts` |
 | A-B1 | One rule for the cubes a page holds (`page-document.ts cubesRead`: every tile kind answers, no default; `cubesHeld`, `stillHeld`), every writer and command through it; a page written out refused without a cube a view reads | `50df3a2d`, `0a97264e` | `page-document.test.ts`, `cube-page-shell.test.ts`, `chart-tiles.test.ts` |
-| Q-S1..S5 | The value as of a range's start; an operand of one instrument unsplit; `prices` from `initial`; a combination's periods a year none when any part's is; compare over its start's size, and no returns' figures at or below zero | `8a66d855` | `timeseries-queries.test.ts` (each failed before), the `prices` tests corrected |
+| Q-S1..S5 | The value as of a range's start; an operand of one instrument unsplit; `prices` from `initial`; a combination's periods a year none when any part's is; compare over its start's size (superseded 2026-10-28: gs-quant's x / x0 - 1, the user's "match gsquant"), and no returns' figures at or below zero | `8a66d855` | `timeseries-queries.test.ts` (each failed before), the `prices` tests corrected |
 | P-2, G-2 | A split line of no frequency said by name; a level at or below zero keeps its pane's axis straight, said; the statistics' blanks said | `8a66d855` | `timeseries-option.test.ts`, `timeseries-view-dom.test.ts` |
 | A-S1 | One judge of a change for both sides (`timeseries-edit.ts judgedEdit`): a problem it makes refused, one the tile had not; a tile of no series either may leave | `dd6b08bd` | `timeseries-edit.test.ts`, `python/tests/test_page.py` |
 | A-S2, A-S3 | `Timeseries.spec` read only; a slot it has not refused by name | `dd6b08bd` | `python/tests/test_page.py`, `timeseries-edit.test.ts` |

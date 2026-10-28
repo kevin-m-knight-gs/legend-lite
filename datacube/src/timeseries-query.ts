@@ -539,17 +539,8 @@ class Writer {
     const grain = this.shared.grain;
     if (grain !== undefined) return lit.integer(PERIODS_PER_YEAR[grain]);
     if (this.#perYear === undefined) {
-      const hi = this.window('ord_hi', 'max', Writer.read(ORD), 'all');
-      const lo = this.window('ord_lo', 'min', Writer.read(ORD), 'all');
-      const n = this.window('ord_n', 'count', Writer.read(ORD), 'all');
-      const span = this.seconds ? fn('divide', op('minus', one(hi), one(lo)), lit.integer(86400)) : op('minus', one(hi), one(lo));
-      const gap = this.row('gap', when(fn('lessThan', one(n), lit.integer(2)), none(), fn('divide', span, op('minus', one(n), lit.integer(1)))));
-      const g = one(gap);
-      const within = (from: number, to: number): ValueSpecification =>
-        and(fn('greaterThanEqual', g, float(from)), fn('lessThan', g, float(to)));
-      const buckets: readonly [number, number, number][] = [[1, 2.1, 252], [6, 8, 52], [14, 17, 26], [25, 35, 12], [85, 97, 4], [360, 386, 1]];
-      const factor = buckets.reduceRight<ValueSpecification>((otherwise, [from, to, n]) => when(within(from, to), lit.integer(n), otherwise), none());
-      this.#perYear = this.row('per_year', factor);
+      // the library's (periodsPerYear: its buckets gs-quant's), over the line's time -- its days, or its seconds
+      this.#perYear = this.libraryOfRow('periodsPerYear', 'per_year', [colSpec(this.part), colSpec(ORD), lit.integer(this.seconds ? 86400 : 1)]);
       this.years.push(this.#perYear);
     }
     return one(this.#perYear);
@@ -1162,7 +1153,9 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
     // the second's k observations before (a lag), or after (a lead), on its own dates
     const rb = k === 0 ? r0 : k > 0 ? y.w.lag(r0, k) : y.w.lead(r0, -k);
     const w = joined(sh, [{ w: x.w, v: { column: ra } }, { w: y.w, v: { column: rb } }]);
-    return { w, a: w.row('pa', when(fn('isEmpty', col(rb)), none(), col(ra))), b: w.row('pb', when(fn('isEmpty', col(ra)), none(), col(rb))) };
+    // each where both have a value (the library's pairs)
+    const [a, b] = w.libraryOfMany('pairs', ['pa', 'pb'], [colSpec(ra), colSpec(rb)]);
+    return { w, a: a!, b: b! };
   };
   switch (e.fn) {
     // the technicals, the library's (pure-library.ts): each over a row's high, low and close -- or its close and volume,
@@ -1720,22 +1713,14 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
     }
     built = { value, ...(value !== own ? { levelValue: own } : {}) };
   }
-  // a CONDITION's runs (gaps and islands, the database's): each change of it begins a run, numbered by a running count
-  // of them; each date where it holds carries its run's first date and where its shading ends -- the line's next date
-  // after it, from which it no longer holds (its own last at the line's end): what the drawing shades, a run of one date
-  // a period wide (the E9 review's 4: to its last date, a run of one had no width and every run was a period short)
+  // a CONDITION's runs (gaps and islands, the library's `runs`): each date where it holds carries its run's first date
+  // and where its shading ends -- the line's next date after it, from which it no longer holds (its own last at the
+  // line's end): what the drawing shades, a run of one date a period wide (the E9 review's 4: to its last date, a run of
+  // one had no width and every run was a period short)
   let shade: { readonly shadeFrom: string; readonly shadeTo: string } | undefined;
   if (isCondition(expr)) {
-    const flag = built.value;
-    const prev = w.lag(flag, 1);
-    const change = w.row('sh_chg', when(or(fn('isEmpty', col(prev)), fn('not', fn('equal', one(flag), one(prev)))), lit.integer(1), lit.integer(0)));
-    const runs = w.window('sh_run', 'plus', Writer.read(change), 'running');
-    const first = w.window('sh_first', 'min', Writer.read(w.at), 'all', runs);
-    const after = w.lead(w.at);
-    const end = w.row('sh_end', when(fn('isEmpty', col(after)), col(w.at), col(after)));
-    const last = w.window('sh_last', 'max', Writer.read(end), 'all', runs);
-    const holds = fn('equal', one(flag), lit.integer(1));
-    shade = { shadeFrom: w.row('sh_from', when(holds, col(first), none())), shadeTo: w.row('sh_to', when(holds, col(last), none())) };
+    const [shadeFrom, shadeTo] = w.libraryOfMany('runs', ['sh_from', 'sh_to'], [...w.lineAndDate(), colSpec(built.value)]);
+    shade = { shadeFrom: shadeFrom!, shadeTo: shadeTo! };
   }
   // the most rows any of its columns took one of, at a period: more than one, and the drawing says so
   const rows = w.rows.length === 0 ? undefined : w.rows.length === 1 ? w.rows[0]!
@@ -1952,8 +1937,9 @@ export const MAX_DRAWDOWNS = 5;
  * A LEVEL'S DEEPEST DRAWDOWNS over the dates shown, per line (the expert tables, 2026-10-26): each a run from a peak --
  * a date at or above every one before it shown -- to the next such date, its recovery (none: it has not recovered),
  * its trough the least between; the deepest MAX_DRAWDOWNS of the line's, deepest first. Every date, depth and length
- * the database's: the peaks a running maximum, each run numbered by a running count of them, grouped, the next run's
- * peak its recovery (a lead), ranked. Of the level itself, compared or not; a level at or below zero has none.
+ * the library's (drawdownsOfLine), the database's: the peaks a running maximum, each run numbered by a running count of
+ * them, grouped, the next run's peak its recovery, ranked. Of the level itself, compared or not; a level at or below zero
+ * has none.
  */
 export function drawdownsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, view: TsWindow = {}): TsQuery {
   const b = seriesRelation(inputs, ts, series, view.from);
@@ -1961,49 +1947,10 @@ export function drawdownsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsS
   const w = b.writer;
   onlyShown(b, view);
   const lv = b.levelValue ?? b.value;
-  const R = Writer.read;
-  const peak = w.window('dd_peak', 'max', R(lv), 'running');
-  const atPeak = fn('greaterThanEqual', one(lv), one(peak));
-  const top = w.row('dd_top', when(atPeak, lit.integer(1), lit.integer(0)));
-  const run = w.window('dd_run', 'plus', R(top), 'running');
-  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
-  const key = b.split ?? w.part;
-  const at = b.at;
-  // each date's next peak: the first date after it at or above every one before it -- its run's recovery. A window
-  // over the dates after each, before the runs are grouped: a filter after a window's extend is the window's own input
-  // (legend-engine's folding of a plain predicate into the window's WHERE, core lowering/Fold.java filterSlot), so no
-  // run is filtered before this is read
-  const peakAt = w.row('dd_peak_at', when(atPeak, col(at), none()));
-  const next = w.fresh('dd_next');
-  w.rel = w.rel.extend([agg(next, lambda(['p', 'w', 'r'], Writer.read(peakAt)), y('min'))],
-    fn('over', { _type: 'classInstance', type: 'colSpecArray', value: { colSpecs: [{ name: w.part }] } }, collection([asc(PERIOD)]),
-      fn('rows', lit.integer(1), fn('unbounded'))));
-  const peakV = w.fresh('dd_peak_v');
-  const low = w.fresh('dd_low');
-  const lowest = w.fresh('dd_level_low');
-  let rel = w.rel.groupBy([key, run], [
-    agg(TS_DD_PEAK, row(col(at)), y('min')),
-    agg(peakV, row(col(lv)), y('max')),
-    agg(low, row(col(lv)), y('min')),
-    agg(TS_DD_TROUGH, row(fn('rowMapper', col(at), col(lv))), y('minBy')),
-    agg(TS_DD_RECOVERED, row(col(next)), y('min')),
-  ]);
-  // the line's least level shown, beside each run: at or below zero, no drawdowns (a yield's ratios mean nothing)
-  const lk = w.fresh('dd_lk');
-  rel = rel.join(w.rel.groupBy([key], [agg(lowest, row(col(lv)), y('min'))]).rename(key, lk), 'LEFT',
-    lambda(['l', 'r'], fn('equal', property(variable('l'), key), property(variable('r'), lk))));
-  const over = (order: AppliedFunction): AppliedFunction =>
-    fn('over', { _type: 'classInstance', type: 'colSpecArray', value: { colSpecs: [{ name: key }] } }, collection([order]));
-  rel = rel
-    .extend([derive(TS_DD_DEPTH, row(when(fn('lessThanEqual', one(lowest), lit.integer(0)), none(), op('minus', fn('divide', one(low), one(peakV)), lit.integer(1)))))])
-    .filter(row(fn('lessThan', one(TS_DD_DEPTH), lit.integer(0))))
-    .extend([derive(TS_DD_RANK, lambda(['p', 'w', 'r'], fn('rowNumber', variable('p'), variable('r'))))], over(asc(TS_DD_DEPTH)))
-    .filter(row(fn('lessThanEqual', col(TS_DD_RANK), lit.integer(MAX_DRAWDOWNS))))
-    .extend([
-      derive(TS_DD_DECLINE, row(fn('dateDiff', one(TS_DD_PEAK), one(TS_DD_TROUGH), enumValue(DURATION, 'DAYS')))),
-      derive(TS_DD_RECOVERY, row(when(fn('isEmpty', col(TS_DD_RECOVERED)), none(), fn('dateDiff', one(TS_DD_TROUGH), one(TS_DD_RECOVERED), enumValue(DURATION, 'DAYS'))))),
-    ]);
+  // the library's (drawdownsOfLine): each run from a peak to the next, its trough, recovery and depth, the deepest
+  // MAX_DRAWDOWNS a line -- its line the split's own column (a split's part is it)
   const out = [TS_DD_PEAK, TS_DD_TROUGH, TS_DD_RECOVERED, TS_DD_DEPTH, TS_DD_DECLINE, TS_DD_RECOVERY, TS_DD_RANK];
+  let rel = w.rel.call(`${LIBRARY_PACKAGE}::drawdownsOfLine`, colSpec(w.part), colSpec(b.at), colSpec(lv), lit.integer(MAX_DRAWDOWNS), ...out.map((c) => colSpec(c)));
   if (b.split !== undefined) rel = rel.extend([derive(TS_SPLIT, row(col(b.split)))]);
   rel = rel.select([...(b.split !== undefined ? [TS_SPLIT] : []), ...out]).sort([...(b.split !== undefined ? [asc(TS_SPLIT)] : []), asc(TS_DD_RANK)]);
   return {
@@ -2073,22 +2020,10 @@ export function correlationsQuery(inputs: TsInputs, ts: TimeseriesSpec, a: TsSer
     const right = B.w.rel.select([B.w.part, PERIOD, B.v]).rename(B.w.part, bp).rename(PERIOD, bper).rename(B.v, vb);
     pairs = left.join(right, 'INNER', on([]));
   }
-  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
-  // each side on the dates both have (the E9 review's 11: a first return of the other's none counted)
-  const onBoth = (x: string, other: string): ValueSpecification => when(fn('isEmpty', col(other)), none(), col(x));
-  const raw = `__ts_corr_raw_${names.n}`;
-  const varA = `__ts_corr_var_a_${names.n}`;
-  const varB = `__ts_corr_var_b_${names.n++}`;
-  let rel = pairs.groupBy([pa, bp], [
-    agg(raw, row(fn('rowMapper', col(va), col(vb))), y('corr')),
-    agg(TS_CORR_N, row(onBoth(va, vb)), y('count')),
-    agg(varA, row(onBoth(va, vb)), y('varianceSample')),
-    agg(varB, row(onBoth(vb, va)), y('varianceSample')),
-  ]);
-  // none where a side does not vary, as on every database (DuckDB's corr says NaN there, Postgres' none): a line with
-  // itself 1 where it varies (the E9 review's 13)
-  rel = rel.extend([derive(TS_CORR, row(when(or(fn('isEmpty', col(varA)), fn('isEmpty', col(varB)),
-    fn('equal', col(varA), lit.integer(0)), fn('equal', col(varB), lit.integer(0))), none(), col(raw))))]);
+  // each pair of lines' correlation over the dates both have, the library's (correlationOf: of the pairs where both
+  // have a value -- the E9 review's 11 --, none where a side does not vary; a line with itself 1 where it varies, the
+  // E9 review's 13)
+  let rel = pairs.call(`${LIBRARY_PACKAGE}::correlationOf`, colSpecs([pa, bp]), colSpec(va), colSpec(vb), colSpec(TS_CORR), colSpec(TS_CORR_N));
   // each line by its split value: a series of one line has none to say
   const lines = [...(a.split !== undefined ? [derive(TS_CORR_A, row(col(pa)))] : []), ...(b.split !== undefined ? [derive(TS_CORR_B, row(col(bp)))] : [])];
   if (lines.length > 0) rel = rel.extend(lines);
@@ -2160,29 +2095,16 @@ export function scatterQuery(inputs: TsInputs, ts: TimeseriesSpec, x: TsSeries, 
     rel = rel.extend([agg(name, lambda(['p', 'w', 'r'], read), lambda(['y'], fn(reduce, variable('y'))))], overAll(k));
     return name;
   };
-  const pair = fn('rowMapper', R(TS_SC_Y), R(TS_SC_X));
   const n = all('n', 'count', R(TS_SC_X));
-  const cov = all('cov', 'covarSample', pair);
-  const varX = all('vx', 'varianceSample', R(TS_SC_X));
-  const varY = all('vy', 'varianceSample', R(TS_SC_Y));
-  const mx = all('mx', 'average', R(TS_SC_X));
-  const my = all('my', 'average', R(TS_SC_Y));
   const lo = all('lo', 'min', R(TS_SC_X));
   const hi = all('hi', 'max', R(TS_SC_X));
-  const flat = or(fn('lessThan', one(n), lit.integer(2)), fn('isEmpty', col(varX)), fn('equal', one(varX), lit.integer(0)));
-  rel = rel.extend([
-    derive(TS_SC_N, row(col(n))),
-    derive(TS_SC_SLOPE, row(when(flat, none(), fn('divide', one(cov), one(varX))))),
-    derive(TS_SC_X_LOW, row(col(lo))),
-    derive(TS_SC_X_HIGH, row(col(hi))),
-  ]).extend([derive(TS_SC_INTERCEPT, row(when(fn('isEmpty', col(TS_SC_SLOPE)), none(), op('minus', one(my), op('times', one(TS_SC_SLOPE), one(mx))))))])
-    .extend([
-      derive(TS_SC_CORR, row(when(or(flat, fn('isEmpty', col(varY)), fn('equal', one(varY), lit.integer(0))), none(),
-        fn('divide', one(cov), fn('sqrt', op('times', one(varX), one(varY))))))),
-      derive(TS_SC_FIT_LOW, row(when(fn('isEmpty', col(TS_SC_SLOPE)), none(), op('plus', one(TS_SC_INTERCEPT), op('times', one(TS_SC_SLOPE), one(TS_SC_X_LOW)))))),
-      derive(TS_SC_FIT_HIGH, row(when(fn('isEmpty', col(TS_SC_SLOPE)), none(), op('plus', one(TS_SC_INTERCEPT), op('times', one(TS_SC_SLOPE), one(TS_SC_X_HIGH)))))),
-    ])
-    .extend([derive(TS_SC_R2, row(when(fn('isEmpty', col(TS_SC_CORR)), none(), op('times', one(TS_SC_CORR), one(TS_SC_CORR)))))]);
+  // y's regression on x over them, the library's (regression: ordinary least squares), and its fit at the least and the
+  // most x (fitAt) -- the line drawn
+  const L = (name: string): string => `${LIBRARY_PACKAGE}::${name}`;
+  rel = rel.extend([derive(TS_SC_N, row(col(n))), derive(TS_SC_X_LOW, row(col(lo))), derive(TS_SC_X_HIGH, row(col(hi)))])
+    .call(L('regression'), overAll(k), colSpec(TS_SC_Y), colSpec(TS_SC_X), lit.integer(2), colSpec(TS_SC_SLOPE), colSpec(TS_SC_INTERCEPT), colSpec(TS_SC_CORR), colSpec(TS_SC_R2))
+    .call(L('fitAt'), colSpec(TS_SC_INTERCEPT), colSpec(TS_SC_SLOPE), colSpec(TS_SC_X_LOW), colSpec(TS_SC_FIT_LOW))
+    .call(L('fitAt'), colSpec(TS_SC_INTERCEPT), colSpec(TS_SC_SLOPE), colSpec(TS_SC_X_HIGH), colSpec(TS_SC_FIT_HIGH));
   rel = rel.select([TS_DATE, TS_SC_X, TS_SC_Y, TS_SC_N, TS_SC_SLOPE, TS_SC_INTERCEPT, TS_SC_CORR, TS_SC_R2, TS_SC_X_LOW, TS_SC_X_HIGH, TS_SC_FIT_LOW, TS_SC_FIT_HIGH])
     .sort([asc(TS_DATE)]);
   return { series: y.id, query: rel.lambda(), unit: Y.unit, band: false, level: false, counted: false, sources: [...new Set([...X.sources, ...Y.sources])] };
@@ -2224,30 +2146,27 @@ export function projectionQuery(inputs: TsInputs, ts: TimeseriesSpec, p: TsProje
   const rest = w.window('pj_rest', 'count', R(b.value), 'rest');
   w.rel = w.rel.filter(row(fn('lessThanEqual', one(rest), lit.integer(p.window ?? TS_PROJECTION_WINDOW))));
   const n = w.window('pj_n', 'count', R(b.ord), 'all');
-  const cov = w.window('pj_cov', 'covarSample', fn('rowMapper', R(b.value), R(b.ord)), 'all');
-  const varX = w.window('pj_vx', 'varianceSample', R(b.ord), 'all');
-  const mx = w.window('pj_mx', 'average', R(b.ord), 'all');
-  const my = w.window('pj_my', 'average', R(b.value), 'all');
   const lo = w.window('pj_lo', 'min', R(b.ord), 'all');
   const first = w.window('pj_first', 'min', R(b.at), 'all');
-  const flat = or(fn('lessThan', one(n), lit.integer(2)), fn('isEmpty', col(varX)), fn('equal', one(varX), lit.integer(0)));
-  const slope = w.row('pj_slope', when(flat, none(), fn('divide', one(cov), one(varX))));
-  const intercept = w.row('pj_icpt', when(fn('isEmpty', col(slope)), none(), op('minus', one(my), op('times', one(slope), one(mx)))));
+  // the line by least squares of its value on its time, the library's (regression), two observations at least
+  const [slope, intercept] = w.libraryOfMany('regression', ['pj_slope', 'pj_icpt', 'pj_corr', 'pj_r2'], [w.windowOf('all'), colSpec(b.value), colSpec(b.ord), lit.integer(2)]);
   // the last observation's row: its date, and the date `ahead` past it, its time the last's and the days (or seconds)
   // between
   w.rel = w.rel.filter(row(fn('equal', one(rest), lit.integer(1))));
   const end = w.row('pj_end', fn('adjust', one(b.at), lit.integer(ahead.n), enumValue(DURATION, ahead.unit)));
   const xEnd = w.row('pj_xe', op('plus', one(b.ord), fn('dateDiff', one(b.at), one(end), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'))));
-  const fit = (x: ValueSpecification): ValueSpecification => when(fn('isEmpty', col(slope)), none(), op('plus', one(intercept), op('times', one(slope), x)));
+  // its value at the first, the last and the end, the library's (fitAt)
+  const fit = (x: string, what: string): string => w.libraryOfRow('fitAt', what, [colSpec(intercept!), colSpec(slope!), colSpec(x)]);
+  const [atFrom, atLast, atEnd] = [fit(lo, 'pj_f0'), fit(b.ord, 'pj_f1'), fit(xEnd, 'pj_f2')];
   const out: ColSpec[] = [
     derive(TS_PJ_FROM, row(col(first))),
-    derive(TS_PJ_FROM_VALUE, row(fit(one(lo)))),
+    derive(TS_PJ_FROM_VALUE, row(col(atFrom))),
     derive(TS_PJ_LAST, row(col(b.at))),
-    derive(TS_PJ_LAST_VALUE, row(fit(one(b.ord)))),
+    derive(TS_PJ_LAST_VALUE, row(col(atLast))),
     derive(TS_PJ_END, row(col(end))),
-    derive(TS_PJ_END_VALUE, row(fit(one(xEnd)))),
+    derive(TS_PJ_END_VALUE, row(col(atEnd))),
     // a day's slope: a date-time's time counts seconds
-    derive(TS_PJ_SLOPE, row(w.seconds ? when(fn('isEmpty', col(slope)), none(), op('times', one(slope), lit.integer(86400))) : col(slope))),
+    derive(TS_PJ_SLOPE, row(w.seconds ? when(fn('isEmpty', col(slope!)), none(), op('times', one(slope!), lit.integer(86400))) : col(slope!))),
     derive(TS_PJ_N, row(col(n))),
   ];
   const rel = w.rel.extend(out).select(out.map((c) => c.name));
@@ -2305,12 +2224,9 @@ export function seasonalityQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeri
   const latest = w.window('sea_l', 'max', R(year), 'all');
   // its last years: a window's figure, kept by the database's QUALIFY (after the windows above)
   w.rel = w.rel.filter(row(fn('greaterThanEqual', one(year), op('minus', one(latest), lit.integer(years)))));
-  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
-  const pk = w.fresh('sea_pk');
-  const before = w.rel.filter(row(fn('lessThan', one(year), one(latest))))
-    .groupBy([place], [agg(TS_SEA_LOW, row(col(value)), y('min')), agg(TS_SEA_HIGH, row(col(value)), y('max')), agg(TS_SEA_MEAN, row(col(value)), y('average'))])
-    .rename(place, pk);
-  const rel = w.rel.join(before, 'LEFT', lambda(['l', 'r'], fn('equal', property(variable('l'), place), property(variable('r'), pk))))
+  // each place's range over the years before the latest, the library's (seasonalRange)
+  const rel = w.rel.call(`${LIBRARY_PACKAGE}::seasonalRange`, colSpec(w.part), colSpec(year), colSpec(place), colSpec(value),
+    colSpec(TS_SEA_LOW), colSpec(TS_SEA_HIGH), colSpec(TS_SEA_MEAN))
     .extend([derive(TS_DATE, row(col(b.at))), derive(TS_VALUE, row(col(value))), derive(TS_SEA_YEAR, row(col(year))), derive(TS_SEA_PLACE, row(col(place))),
       derive(TS_SEA_LATEST, row(col(latest))), derive(TS_SEA_SPAN, row(op('minus', one(TS_SEA_HIGH), one(TS_SEA_LOW))))])
     .select([TS_DATE, TS_SEA_YEAR, TS_SEA_PLACE, TS_VALUE, TS_SEA_LOW, TS_SEA_HIGH, TS_SEA_SPAN, TS_SEA_MEAN, TS_SEA_LATEST])
@@ -2343,60 +2259,11 @@ export function histogramQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries
   const b = viewLine(inputs, ts, s, 'histogram', { n: 0 }, view.from);
   const w = b.writer;
   onlyShown(b, view);
-  const R = Writer.read;
-  const v = b.value;
-  const lo = w.window('h_lo', 'min', R(v), 'all');
-  const hi = w.window('h_hi', 'max', R(v), 'all');
-  const mean = w.window('h_m', 'average', R(v), 'all');
-  const sd = w.window('h_sd', 'stdDevSample', R(v), 'all');
-  const n = w.window('h_n', 'count', R(v), 'all');
-  const width = w.row('h_w', fn('divide', op('minus', one(hi), one(lo)), float(bins)));
-  const raw = w.row('h_raw', when(fn('equal', one(width), lit.integer(0)), lit.integer(0), fn('floor', fn('divide', op('minus', one(v), one(lo)), one(width)))));
-  const bin = w.row('h_bin', when(fn('greaterThanEqual', one(raw), lit.integer(bins)), lit.integer(bins - 1), col(raw)));
-  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
-  const key = w.part;
-  const rn = w.rowNumber();
-  // the 5th percentile of the values: the database's (continuous, as pandas' quantile), one aggregate, joined back
-  const qk = w.fresh('h_qk');
-  const quantile = w.rel.groupBy([key], [agg(TS_HIST_P5, row(col(v)), lambda(['y'], fn('percentile', variable('y'), float(VAR_LEVEL), lit.boolean(true), lit.boolean(true))))])
-    .rename(key, qk);
-  const [cl, cw, cm, cs, cn] = ['h_cl', 'h_cw', 'h_cm', 'h_cs', 'h_cn'].map((x) => w.fresh(x)) as [string, string, string, string, string];
-  // the line's figures, once
-  const line = w.rel.groupBy([key], [
-    agg(cl, row(col(lo)), y('max')), agg(cw, row(col(width)), y('max')), agg(cm, row(col(mean)), y('max')), agg(cs, row(col(sd)), y('max')), agg(cn, row(col(n)), y('max')),
-  ]).join(quantile, 'LEFT', lambda(['l', 'r'], fn('equal', property(variable('l'), key), property(variable('r'), qk))));
-  // every bin, one no value fell in counted 0 (the Phase 3 review's 6: the empty ones had no row, their normal never
-  // drawn): their numbers 0 to bins - 1 the first ten values' rows each with each, numbered -- a hundred, the most bins
-  const [tk, tr, uk, ur, bn] = ['h_tk', 'h_tr', 'h_uk', 'h_ur', 'h_bn'].map((x) => w.fresh(x)) as [string, string, string, string, string];
-  const ten = w.rel.filter(row(fn('lessThanEqual', one(rn), lit.integer(10)))).select([key, rn]);
-  const numbers = ten.rename(key, tk).rename(rn, tr)
-    .join(ten.rename(key, uk).rename(rn, ur), 'INNER', lambda(['l', 'r'], fn('equal', property(variable('l'), tk), property(variable('r'), uk))))
-    .extend([derive(bn, lambda(['p', 'w', 'r'], op('minus', fn('rowNumber', variable('p'), variable('r')), lit.integer(1))))],
-      fn('over', { _type: 'classInstance', type: 'colSpecArray', value: { colSpecs: [{ name: tk }] } }, collection([asc(tr), asc(ur)])))
-    .filter(row(fn('lessThan', one(bn), lit.integer(bins))))
-    .select([tk, bn]);
-  const [ck, cb, cc] = ['h_ck', 'h_cb', 'h_cc'].map((x) => w.fresh(x)) as [string, string, string];
-  const counted = w.rel.groupBy([key, bin], [agg(cc, row(col(v)), y('count'))]).rename(key, ck).rename(bin, cb);
-  let rel = numbers.join(line, 'INNER', lambda(['l', 'r'], fn('equal', property(variable('l'), tk), property(variable('r'), key))))
-    .join(counted, 'LEFT', lambda(['l', 'r'], and(fn('equal', property(variable('l'), tk), property(variable('r'), ck)),
-      fn('equal', property(variable('l'), bn), property(variable('r'), cb)))))
-    // values all one: one bin, of no width
-    .filter(row(or(fn('equal', one(bn), lit.integer(0)), fn('greaterThan', one(cw), lit.integer(0)))));
-  const middle = op('plus', one(TS_HIST_LOW), fn('divide', one(cw), lit.integer(2)));
-  const z = fn('divide', op('minus', middle, one(cm)), one(cs));
-  rel = rel.extend([
-    derive(TS_HIST_LOW, row(op('plus', one(cl), op('times', one(bn), one(cw))))),
-    derive(TS_HIST_COUNT, row(when(fn('isEmpty', col(cc)), lit.integer(0), col(cc)))),
-    derive(TS_HIST_MEAN, row(col(cm))), derive(TS_HIST_SD, row(col(cs))), derive(TS_HIST_N, row(col(cn))),
-  ]).extend([
-    derive(TS_HIST_HIGH, row(op('plus', one(TS_HIST_LOW), one(cw)))),
-    derive(TS_HIST_MID, row(middle)),
-    // the normal's count: n * width * exp(-z² / 2) / (sd * sqrt(2 pi)); none where the values do not vary
-    derive(TS_HIST_NORMAL, row(when(or(fn('isEmpty', col(cs)), fn('equal', one(cs), lit.integer(0))), none(),
-      fn('divide', op('times', op('times', one(cn), one(cw)), fn('exp', op('times', float(-0.5), op('times', z, z)))),
-        op('times', one(cs), fn('sqrt', float(2 * Math.PI))))))),
-  ]).select([TS_HIST_LOW, TS_HIST_MID, TS_HIST_HIGH, TS_HIST_COUNT, TS_HIST_NORMAL, TS_HIST_P5, TS_HIST_MEAN, TS_HIST_SD, TS_HIST_N])
-    .sort([asc(TS_HIST_LOW)]);
+  // the library's (histogramOfLine): the bins, each counted, its normal's count, and the values' 5th percentile, mean,
+  // deviation and count -- a row a bin
+  const out = [TS_HIST_LOW, TS_HIST_MID, TS_HIST_HIGH, TS_HIST_COUNT, TS_HIST_NORMAL, TS_HIST_P5, TS_HIST_MEAN, TS_HIST_SD, TS_HIST_N];
+  const rel = w.rel.call(`${LIBRARY_PACKAGE}::histogramOfLine`, colSpec(w.part), colSpec(b.value), lit.integer(bins), float(VAR_LEVEL), ...out.map((c) => colSpec(c)))
+    .select(out).sort([asc(TS_HIST_LOW)]);
   return { series: s.id, query: rel.lambda(), unit: b.unit, band: false, level: b.level, counted: false, sources: b.sources };
 }
 
@@ -2497,41 +2364,10 @@ export function calendarQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries)
   const b = seriesRelation(inputs, uncompared(ts), s, undefined);
   if (!b.level) throw new CubeRefusal(`series ${s.id} is no level: a return, a difference or a deviation has no calendar of returns`);
   const w = b.writer;
-  const key = b.split ?? w.part;
-  w.rel = w.rel.filter(row(fn('isNotEmpty', col(b.value))));
-  const yearOf = w.row('cal_y', fn('year', one(b.at)));
-  const monthOf = w.row('cal_m', fn('monthNumber', one(b.at)));
-  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
-  const last = w.fresh('cal_last');
-  // each month's last level, the latest by its number in time (ORD: a maxBy's key is a number); each month a number (its
-  // year's twelve after the year before's): the month before is its number less one, never the last month present --
-  // over a missing month, none, not two months as one (the Phase 3 review's 1: a lag of the months present)
-  const idx = w.fresh('cal_i');
-  const months = w.rel.groupBy([key, yearOf, monthOf], [agg(last, row(fn('rowMapper', col(b.value), col(ORD))), y('maxBy'))])
-    .extend([derive(idx, row(op('plus', op('times', one(yearOf), lit.integer(12)), one(monthOf))))]);
-  const prev = w.fresh('cal_prev');
-  const ret = (now: string, before: string): ValueSpecification =>
-    when(or(fn('isEmpty', col(before)), fn('lessThanEqual', one(before), lit.integer(0))), none(), op('minus', fn('divide', one(now), one(before)), lit.integer(1)));
-  const [pk, pi] = [w.fresh('cal_pk'), w.fresh('cal_pi')];
-  const monthly = months.join(months.select([key, idx, last]).rename(key, pk).rename(idx, pi).rename(last, prev), 'LEFT',
-    lambda(['l', 'r'], and(fn('equal', property(variable('l'), key), property(variable('r'), pk)),
-      fn('equal', property(variable('l'), idx), op('plus', property(variable('r'), pi), lit.integer(1))))))
-    .extend([derive(TS_CAL_RETURN, row(ret(last, prev)))]);
-  // each year's last level, its last month's; the year before's by its number less one
-  const yl = w.fresh('cal_yl');
-  const yp = w.fresh('cal_yp');
-  const [yk, yy, qk, qy] = [w.fresh('cal_yk'), w.fresh('cal_yy'), w.fresh('cal_qk'), w.fresh('cal_qy')];
-  const years = months.groupBy([key, yearOf], [agg(yl, row(fn('rowMapper', col(last), col(idx))), y('maxBy'))]);
-  const yearly = years.join(years.rename(key, qk).rename(yearOf, qy).rename(yl, yp), 'LEFT',
-    lambda(['l', 'r'], and(fn('equal', property(variable('l'), key), property(variable('r'), qk)),
-      fn('equal', property(variable('l'), yearOf), op('plus', property(variable('r'), qy), lit.integer(1))))))
-    .extend([derive(TS_CAL_YEAR_RETURN, row(ret(yl, yp)))]).select([key, yearOf, TS_CAL_YEAR_RETURN]).rename(key, yk).rename(yearOf, yy);
-  let rel = monthly.join(yearly, 'LEFT', lambda(['l', 'r'], and(fn('equal', property(variable('l'), key), property(variable('r'), yk)),
-    fn('equal', property(variable('l'), yearOf), property(variable('r'), yy)))))
-    .extend([derive(TS_CAL_YEAR, row(col(yearOf))), derive(TS_CAL_MONTH, row(col(monthOf)))])
-    // the line's least month-end level: a return from one at or below zero is none, said so (the Phase 3 review's 9)
-    .extend([agg(TS_CAL_LOW, lambda(['p', 'w', 'r'], property(variable('r'), last)), lambda(['y'], fn('min', variable('y'))))],
-      fn('over', { _type: 'classInstance', type: 'colSpecArray', value: { colSpecs: [{ name: key }] } }, collection([asc(idx)]), fn('rows', fn('unbounded'), fn('unbounded'))));
+  // the library's (calendarReturns): each month's return from the month before's last level, each year's from the year
+  // before's, the line's least month-end level -- a row a line and month, its line the split's own column
+  let rel = w.rel.call(`${LIBRARY_PACKAGE}::calendarReturns`, colSpec(w.part), colSpec(b.at), colSpec(ORD), colSpec(b.value),
+    ...[TS_CAL_YEAR, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR_RETURN, TS_CAL_LOW].map((c) => colSpec(c)));
   if (b.split !== undefined) rel = rel.extend([derive(TS_SPLIT, row(col(b.split)))]);
   rel = rel.select([...(b.split !== undefined ? [TS_SPLIT] : []), TS_CAL_YEAR, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR_RETURN, TS_CAL_LOW])
     .sort([...(b.split !== undefined ? [asc(TS_SPLIT)] : []), asc(TS_CAL_YEAR), asc(TS_CAL_MONTH)]);
@@ -2775,37 +2611,29 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
   const perYear = level ? w.perYear() : undefined;
   const yearly = inferred ? w.row('stat_py', perYear!) : undefined;
   onlyShown(b, view);
-  // a level's figures of its returns, its drawdown and its growth: of the level itself, compared or not
+  // a level's figures of its returns, its drawdown and its growth: of the level itself, compared or not -- the library's
+  // (performanceStatistics) over the line as it is shown, one row a line: its volatility of its log returns, its Sharpe
+  // ratio, its deepest drawdown, its compound annual growth (over a calendar year or more alone: a return of under a year
+  // is never annualized -- the review's N3 -- its % change its growth, and the viewer says so), and its returns' risk --
+  // their moments about their mean (skew, kurtosis), their downside (Sortino), their share above zero, their worst 5% (a
+  // historical value at risk, the quantile the database interpolates, and the mean of the returns at or below it: an
+  // expected shortfall), their best and worst -- each none of a level at or below zero anywhere shown, never one of the
+  // part above zero, never a sign turned (the second audit's S1), and the viewer says why (its statistics' blanks)
   const lv = b.levelValue ?? v;
-  const rLog = level ? w.returns(lv, 1, 'log') : undefined;
-  const rSimple = level ? w.simple(lv) : undefined;
-  const peak = level ? w.window('peak', 'max', Writer.read(lv), 'running') : undefined;
-  const dd = peak !== undefined
-    ? w.row('dd', when(fn('lessThanEqual', one(peak), lit.integer(0)), none(), op('minus', fn('divide', one(lv), one(peak)), lit.integer(1))))
-    : undefined;
   const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
   const S = statName;
   const keys = b.split !== undefined ? [b.split] : [w.part];
-  // a level's returns' risk over what is shown: their moments about their mean (skew, kurtosis), their downside (Sortino),
-  // their share above zero, their worst 5% (a historical value at risk, the quantile the database interpolates, and the
-  // average of the returns at or below it: an expected shortfall)
-  let risk: { readonly d2: string; readonly d3: string; readonly d4: string; readonly down: string; readonly up: string; readonly tail: string; readonly q: string } | undefined;
-  if (rSimple !== undefined) {
-    const mean = w.window('stat_rm', 'average', Writer.read(rSimple), 'all');
-    const dev = w.row('stat_dev', op('minus', one(rSimple), one(mean)));
-    const d2 = w.row('stat_d2', op('times', one(dev), one(dev)));
-    const d3 = w.row('stat_d3', op('times', one(d2), one(dev)));
-    const d4 = w.row('stat_d4', op('times', one(d2), one(d2)));
-    const has = (x: ValueSpecification): ValueSpecification => when(fn('isEmpty', col(rSimple)), none(), x);
-    const down = w.row('stat_down', has(when(fn('lessThan', one(rSimple), lit.integer(0)), op('times', one(rSimple), one(rSimple)), float(0))));
-    const up = w.row('stat_up', has(when(fn('greaterThan', one(rSimple), lit.integer(0)), float(1), float(0))));
-    const q = w.fresh('stat_q');
-    const qk = w.fresh('stat_qk');
-    const quantile = w.rel.groupBy(keys, [agg(q, row(col(rSimple)),
-      lambda(['y'], fn('percentile', variable('y'), float(VAR_LEVEL), lit.boolean(true), lit.boolean(true))))]).rename(keys[0]!, qk);
-    w.rel = w.rel.join(quantile, 'LEFT', lambda(['l', 'r'], fn('equal', property(variable('l'), keys[0]!), property(variable('r'), qk))));
-    const tail = w.row('stat_tail', when(fn('lessThanEqual', one(rSimple), one(q)), col(rSimple), none()));
-    risk = { d2, d3, d4, down, up, tail, q };
+  const FIGURES: readonly TsStat[] = ['vol', 'sharpe', 'mdd', 'cagr', 'skew', 'kurtosis', 'sortino', 'hit', 'var', 'es', 'best', 'worst'];
+  let figures: Relation | undefined;
+  let figureLine: string | undefined;
+  if (level) {
+    const rLog = w.returns(lv, 1, 'log');
+    const r = w.simple(lv);
+    // its periods a year a column of it first (a frequency's a literal one): the call's table is the writer's after it
+    const py = w.perYearColumn();
+    figureLine = w.fresh('stat_fl');
+    figures = w.rel.call(`${LIBRARY_PACKAGE}::performanceStatistics`, colSpec(w.part), colSpec(b.at), colSpec(b.ord), colSpec(lv), colSpec(r), colSpec(rLog),
+      colSpec(py), float(VAR_LEVEL), ...FIGURES.map((st) => colSpec(S(st)))).rename(w.part, figureLine);
   }
   // a candle's least and most are its lows' and highs' (the review's Q9), a line's its values'
   const lows = b.low ?? v;
@@ -2822,32 +2650,15 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
     agg(S('highAt'), row(fn('rowMapper', col(b.at), col(highs))), y('maxBy')),
     agg(S('mean'), row(col(v)), y('average')),
     agg(S('std'), row(col(v)), y('stdDevSample')),
-    ...(rLog !== undefined ? [agg('__ts_stat_logsd', row(col(rLog)), y('stdDevSample'))] : []),
-    ...(rSimple !== undefined ? [
-      agg('__ts_stat_rmean', row(col(rSimple)), y('average')),
-      agg('__ts_stat_rsd', row(col(rSimple)), y('stdDevSample')),
-    ] : []),
-    ...(dd !== undefined ? [agg('__ts_stat_mdd_all', row(col(dd)), y('min'))] : []),
     ...(yearly !== undefined ? [agg(TS_STAT_PER_YEAR, row(col(yearly)), y('max'))] : []),
-    ...(level ? [
-      agg(TS_STAT_LEVEL_LOW, row(col(lv)), y('min')),
-      agg('__ts_stat_lfirst', row(fn('rowMapper', col(lv), col(b.ord))), y('minBy')),
-      agg('__ts_stat_llast', row(fn('rowMapper', col(lv), col(b.ord))), y('maxBy')),
-    ] : []),
-    ...(risk !== undefined && rSimple !== undefined ? [
-      agg('__ts_stat_rn', row(col(rSimple)), y('count')),
-      agg('__ts_stat_m2', row(col(risk.d2)), y('average')),
-      agg('__ts_stat_m3', row(col(risk.d3)), y('average')),
-      agg('__ts_stat_m4', row(col(risk.d4)), y('average')),
-      agg('__ts_stat_down2', row(col(risk.down)), y('average')),
-      agg('__ts_stat_hit_all', row(col(risk.up)), y('average')),
-      agg('__ts_stat_best_all', row(col(rSimple)), y('max')),
-      agg('__ts_stat_worst_all', row(col(rSimple)), y('min')),
-      agg('__ts_stat_q', row(col(risk.q)), y('max')),
-      agg('__ts_stat_es_all', row(col(risk.tail)), y('average')),
-    ] : []),
+    // a level's least: what its figures' blanks are said by
+    ...(level ? [agg(TS_STAT_LEVEL_LOW, row(col(lv)), y('min'))] : []),
   ];
   let rel = w.rel.groupBy(keys, aggs);
+  // the library's figures beside the line's own: one join of two aggregates of the line, each a row a line
+  if (figures !== undefined) {
+    rel = rel.join(figures, 'LEFT', lambda(['l', 'r'], fn('equal', property(variable('l'), keys[0]!), property(variable('r'), figureLine!))));
+  }
   const first = one(S('first'));
   const last = one(S('last'));
   const derived: ColSpec[] = [
@@ -2858,59 +2669,10 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
     // the review's Q11, which had read a start below zero rising as a rise)
     derive(S('pct'), row(when(fn('equal', first, lit.integer(0)), none(), op('minus', fn('divide', last, first), lit.integer(1))))),
   ];
-  if (level) {
-    const days = fn('dateDiff', one(S('from')), one(S('to')), enumValue(DURATION, 'DAYS'));
-    const perYear = fn('sqrt', yearly !== undefined ? one(TS_STAT_PER_YEAR) : w.perYear());
-    // a level's figures of its returns, its drawdown and its growth, over a window it is above zero in throughout:
-    // gone to zero or below (a yield), none of them -- never one of the part above zero, never a sign turned (the
-    // second audit's S1), and the viewer says why (its statistics' blanks)
-    const above = (x: ValueSpecification): ValueSpecification => when(fn('lessThanEqual', one(TS_STAT_LEVEL_LOW), lit.integer(0)), none(), x);
-    const lfirst = one('__ts_stat_lfirst');
-    const llast = one('__ts_stat_llast');
-    derived.push(
-      derive(S('vol'), row(above(op('times', op('times', one('__ts_stat_logsd'), perYear), lit.integer(100))))),
-      derive(S('mdd'), row(above(one('__ts_stat_mdd_all')))),
-      // compound annual growth over a calendar year or more, the database's own date arithmetic deciding (a leap
-      // year's 366 days a year): under a year, none -- a return of under a year is never annualized (GIPS; the
-      // review's N3: 8,507% over four days), its % change its growth, and the viewer says so
-      derive(S('cagr'), row(when(or(fn('lessThan', one(S('to')), fn('adjust', one(S('from')), lit.integer(1), enumValue(DURATION, 'YEARS'))),
-        fn('lessThanEqual', one(TS_STAT_LEVEL_LOW), lit.integer(0))), none(),
-        op('minus', fn('pow', fn('divide', llast, lfirst), fn('divide', float(365.25), days)), lit.integer(1))))),
-      derive(S('sharpe'), row(above(when(fn('equal', one('__ts_stat_rsd'), lit.integer(0)), none(),
-        op('times', fn('divide', one('__ts_stat_rmean'), one('__ts_stat_rsd')), perYear))))),
-    );
-    // its returns' risk (pandas' definitions, as gs-quant reads a series): skew, the adjusted Fisher-Pearson coefficient
-    // (pandas' skew); kurtosis, the excess one, bias-corrected (pandas' kurt); Sortino, the mean return over the root mean
-    // square of the returns below zero, annualized; the share of returns above zero; the best and the worst; the 5%
-    // quantile and the average at or below it -- none of a level at or below zero, as its other figures
-    const n = one('__ts_stat_rn');
-    const m2 = one('__ts_stat_m2');
-    const m3 = one('__ts_stat_m3');
-    const m4 = one('__ts_stat_m4');
-    const minus = (a: ValueSpecification, k: number): ValueSpecification => op('minus', a, lit.integer(k));
-    const plus = (a: ValueSpecification, k: number): ValueSpecification => op('plus', a, lit.integer(k));
-    derived.push(
-      derive(S('skew'), row(above(when(or(fn('lessThanEqual', n, lit.integer(2)), fn('equal', m2, lit.integer(0))), none(),
-        fn('divide', op('times', fn('divide', m3, fn('pow', m2, float(1.5))), fn('sqrt', op('times', n, minus(n, 1)))), minus(n, 2)))))),
-      derive(S('kurtosis'), row(above(when(or(fn('lessThanEqual', n, lit.integer(3)), fn('equal', m2, lit.integer(0))), none(),
-        fn('divide',
-          op('minus', fn('divide', op('times', op('times', plus(n, 1), minus(n, 1)), m4), op('times', m2, m2)), op('times', lit.integer(3), op('times', minus(n, 1), minus(n, 1)))),
-          op('times', minus(n, 2), minus(n, 3))))))),
-      derive(S('sortino'), row(above(when(fn('equal', one('__ts_stat_down2'), lit.integer(0)), none(),
-        op('times', fn('divide', one('__ts_stat_rmean'), fn('sqrt', one('__ts_stat_down2'))), perYear))))),
-      derive(S('hit'), row(above(one('__ts_stat_hit_all')))),
-      derive(S('best'), row(above(one('__ts_stat_best_all')))),
-      derive(S('worst'), row(above(one('__ts_stat_worst_all')))),
-      derive(S('var'), row(above(one('__ts_stat_q')))),
-      derive(S('es'), row(above(one('__ts_stat_es_all')))),
-    );
-  }
   rel = rel.extend(derived);
-  // Calmar: its growth over its deepest drawdown's depth -- of a growth (a year or more) and a drawdown below zero
-  if (level) {
-    rel = rel.extend([derive(S('calmar'), row(when(or(fn('isEmpty', col(S('cagr'))), fn('greaterThanEqual', one(S('mdd')), lit.integer(0))), none(),
-      fn('divide', one(S('cagr')), fn('abs', one(S('mdd')))))))]);
-  }
+  // Calmar: its growth over its deepest drawdown's depth, the library's -- of a growth (a year or more) and a drawdown
+  // below zero
+  if (figures !== undefined) rel = rel.call(`${LIBRARY_PACKAGE}::calmarRatio`, colSpec(S('cagr')), colSpec(S('mdd')), colSpec(S('calmar')));
   const kept = [...TS_STATS.filter((st) => level || !LEVEL_STATS.includes(st)).map(S),
     ...(yearly !== undefined ? [TS_STAT_PER_YEAR] : []), ...(level ? [TS_STAT_LEVEL_LOW] : [])];
   if (b.split !== undefined) rel = rel.extend([derive(TS_SPLIT, row(col(b.split)))]);

@@ -844,10 +844,12 @@ function datacube::ts::weekday<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1]
 // The correlation of the pairs (gs-quant's correlation, of the returns its caller reads).
 function datacube::ts::correlation<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
+  // none where a side does not vary, as on every database (DuckDB's corr says NaN there, Postgres' none: the focused
+  // Pure audit, 2026-10-28)
   $t->datacube::ts::pairs($first, $second, ~pa, ~pb)
-    ->extend($win, ~[c:{p,f,r|rowMapper($r.pa, $r.pb)}:y|$y->corr(), n:{p,f,r|$r.pa}:y|$y->count()])
-    ->extend(~o:x|if($x.n->toOne() < $ramp, |[], |$x.c))
-    ->without(~[pa, pb, c, n])->rename(~o, $out)
+    ->extend($win, ~[c:{p,f,r|rowMapper($r.pa, $r.pb)}:y|$y->corr(), n:{p,f,r|$r.pa}:y|$y->count(), va:{p,f,r|$r.pa}:y|$y->varianceSample(), vb:{p,f,r|$r.pb}:y|$y->varianceSample()])
+    ->extend(~o:x|if(($x.n->toOne() < $ramp) || $x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |$x.c))
+    ->without(~[pa, pb, c, n, va, vb])->rename(~o, $out)
 }
 
 // The correlation of the pairs squared (gs-quant's r_squared of a regression of the first on the second).
@@ -1338,5 +1340,230 @@ function datacube::ts::basket<T,L,D,N,M,P,W,O>(t: Relation<T>[1], line: ColSpec<
     ->extend(over(~l, [~d->ascending()], rows(unbounded(), 0)), ~gp:{p,f,r|if($r.n->toOne() < $members, |1, |[])}:y|$y->count())
     ->extend(~o:x|if($x.gp->toOne() > 0, |[], |100.0 * ($x.pr->toOne() * (1 + $x.wi->toOne()))))
     ->select(~[l, d, o])->rename(~l, $line)->rename(~d, $date)->rename(~o, $out)
+}
+
+// THE TILE'S TABLES AND VIEWS (the focused Pure audit, 2026-10-28: their maths the library's, as the catalog's is).
+
+// The periods a year a line's dates are (gs-quant's econometrics._get_annualization_factor): the average days between
+// them -- its time's span over their count less one, its time counted in perDay a day (1 of days, 86400 of seconds) --
+// bucketed: under 2.1 days, 252; 6 to 8, 52; 14 to 17, 26; 25 to 35, 12; 85 to 97, 4; 360 to 386, 1; else, or under two
+// dates, none.
+function datacube::ts::periodsPerYear<T,L,N,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], time: ColSpec<N⊆T>[1], perDay: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[l:r|$r->read($line), tm:r|$r->read($time)])
+    ->extend(over(~l), ~[hi:{p,f,r|$r.tm}:y|$y->max(), lo:{p,f,r|$r.tm}:y|$y->min(), n:{p,f,r|$r.tm}:y|$y->count()])
+    ->extend(~g:x|if($x.n->toOne() < 2, |[], |(($x.hi->toOne() - $x.lo->toOne()) / $perDay) / ($x.n->toOne() - 1)))
+    ->extend(~o:x|if($x.g->isEmpty(), |[],
+      |if(($x.g->toOne() >= 1.0) && ($x.g->toOne() < 2.1), |252,
+      |if(($x.g->toOne() >= 6.0) && ($x.g->toOne() < 8.0), |52,
+      |if(($x.g->toOne() >= 14.0) && ($x.g->toOne() < 17.0), |26,
+      |if(($x.g->toOne() >= 25.0) && ($x.g->toOne() < 35.0), |12,
+      |if(($x.g->toOne() >= 85.0) && ($x.g->toOne() < 97.0), |4,
+      |if(($x.g->toOne() >= 360.0) && ($x.g->toOne() < 386.0), |1, |[]))))))))
+    ->without(~[l, tm, hi, lo, n, g])->rename(~o, $out)
+}
+
+// The least-squares line of the first on the second over the window's pairs (ordinary least squares, as gs-quant's
+// beta and alpha are): its slope (their sample covariance over the second's variance), its intercept (through their
+// means), their correlation and its square -- none until the window holds ramp pairs, none where the second does not
+// vary, and no correlation where the first does not.
+function datacube::ts::regression<T,Y,X,O1,O2,O3,O4>(t: Relation<T>[1], win: _Window<T>[1], first: ColSpec<Y⊆T>[1], second: ColSpec<X⊆T>[1], ramp: Integer[1], slope: ColSpec<O1>[1], intercept: ColSpec<O2>[1], corr: ColSpec<O3>[1], r2: ColSpec<O4>[1]): Relation<T+O1+O2+O3+O4>[1]
+{
+  $t->datacube::ts::pairs($first, $second, ~pa, ~pb)
+    ->extend($win, ~[cv:{p,f,r|rowMapper($r.pa, $r.pb)}:y|$y->covarSample(), va:{p,f,r|$r.pa}:y|$y->varianceSample(), vb:{p,f,r|$r.pb}:y|$y->varianceSample(), ma:{p,f,r|$r.pa}:y|$y->average(), mb:{p,f,r|$r.pb}:y|$y->average(), n:{p,f,r|$r.pa}:y|$y->count()])
+    ->extend(~fl:x|($x.n->toOne() < $ramp) || $x.vb->isEmpty() || ($x.vb->toOne() == 0))
+    ->extend(~[s:x|if($x.fl, |[], |$x.cv->toOne() / $x.vb->toOne()),
+      c:x|if($x.fl || $x.va->isEmpty() || ($x.va->toOne() == 0), |[], |$x.cv->toOne() / sqrt($x.va->toOne() * $x.vb->toOne()))])
+    ->extend(~[i:x|if($x.s->isEmpty(), |[], |$x.ma->toOne() - ($x.s->toOne() * $x.mb->toOne())), q:x|if($x.c->isEmpty(), |[], |$x.c->toOne() * $x.c->toOne())])
+    ->without(~[pa, pb, cv, va, vb, ma, mb, n, fl])->rename(~s, $slope)->rename(~i, $intercept)->rename(~c, $corr)->rename(~q, $r2)
+}
+
+// A line's value at x: its intercept plus its slope times x, none where either is none.
+function datacube::ts::fitAt<T,I,S,X,O>(t: Relation<T>[1], intercept: ColSpec<I⊆T>[1], slope: ColSpec<S⊆T>[1], x: ColSpec<X⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:r|if($r->read($slope)->isEmpty() || $r->read($intercept)->isEmpty(), |[], |$r->read($intercept)->toOne() + ($r->read($slope)->toOne() * $r->read($x)->toOne())))->rename(~o, $out)
+}
+
+// The correlation of each pair of lines (by: the two columns that name them) over the rows they share: of the pairs
+// where both have a value, their correlation -- none where a side does not vary (DuckDB's corr says NaN there,
+// Postgres' none) -- and how many pairs; a row a pair of lines (the statistics panel's Correlations tab).
+function datacube::ts::correlationOf<T,Z,X,Y,O,N>(t: Relation<T>[1], by: ColSpecArray<Z⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], corr: ColSpec<O>[1], n: ColSpec<N>[1]): Relation<Z+O+N>[1]
+{
+  $t->datacube::ts::pairs($first, $second, ~pa, ~pb)
+    ->groupBy($by, ~[c:x|rowMapper($x.pa, $x.pb):y|$y->corr(), k:x|$x.pa:y|$y->count(), va:x|$x.pa:y|$y->varianceSample(), vb:x|$x.pb:y|$y->varianceSample()])
+    ->extend(~o:x|if($x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |$x.c))
+    ->without(~[c, va, vb])->rename(~o, $corr)->rename(~k, $n)
+}
+
+// A line's performance statistics, in one pass over it (pyfolio's perf_stats; the statistics panel's): of its level, its
+// simple and its log returns and its periods a year (a column, a line's one) --
+//   vol: its log returns' sample deviation, annualized, in percent (gs-quant's volatility over the line; two at least);
+//   sharpe: its returns' mean over their sample deviation, annualized (gs-quant's sharpe_ratio; two at least, none of a
+//     deviation of 0);
+//   drawdown: its level's deepest fall from its running peak, by date (gs-quant's max_drawdown);
+//   growth: its compound annual growth, its first value to its last by date (by time: a number, a maxBy's key): (last / first)^(365.25 / their days) - 1,
+//     over a calendar year or more alone (a return of under a year is never annualized, GIPS'), none from a first of 0;
+//   skew, kurtosis: its returns' sample skewness and excess kurtosis about their mean (pandas' skew and kurt,
+//     bias-corrected; three and four at least, none where they do not vary);
+//   sortino: their mean over the root mean square of those below zero (the others 0), annualized; none where none is;
+//   hit: the share of them above zero;
+//   valueAtRisk: their q-quantile (continuous, pandas'); shortfall: the mean of those at or below it -- those ranked (ties
+//     at their least) at most floor((n - 1)·q + 1), the rank the quantile is interpolated from;
+//   best, worst: the most and the least of them.
+// Every one none of a line whose level is at or below zero anywhere (a yield's ratios mean nothing). A row a line: its
+// windows the mean, the running peak and the returns' ranks alone, every figure one aggregate of the line -- a window a
+// figure nested as many deep, and DuckDB's filter pushdown doubled its time at each (2026-10-28: 1.3 s of 130 ms).
+function datacube::ts::performanceStatistics<T,L,D,N,V,R,G,Y,O1,O2,O3,O4,O5,O6,O7,O8,O9,O10,O11,O12>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], level: ColSpec<V⊆T>[1], returns: ColSpec<R⊆T>[1], logReturns: ColSpec<G⊆T>[1], perYear: ColSpec<Y⊆T>[1], q: Float[1], vol: ColSpec<O1>[1], sharpe: ColSpec<O2>[1], drawdown: ColSpec<O3>[1], growth: ColSpec<O4>[1], skew: ColSpec<O5>[1], kurtosis: ColSpec<O6>[1], sortino: ColSpec<O7>[1], hit: ColSpec<O8>[1], valueAtRisk: ColSpec<O9>[1], shortfall: ColSpec<O10>[1], best: ColSpec<O11>[1], worst: ColSpec<O12>[1]): Relation<L+O1+O2+O3+O4+O5+O6+O7+O8+O9+O10+O11+O12>[1]
+{
+  $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), tm:r|$r->read($time), lv:r|$r->read($level), x:r|$r->read($returns), g:r|$r->read($logReturns), py:r|$r->read($perYear), hx:r|$r->read($returns)->isNotEmpty()])
+    ->extend(over(~l), ~mx:{p,f,r|$r.x}:y|$y->average())
+    ->extend(over(~l, [~d->ascending()], rows(unbounded(), 0)), ~pk:{p,f,r|$r.lv}:y|$y->max())
+    ->extend(over(~[l, hx], [~x->ascending()]), ~rk:{p,f,r|$p->rank($f, $r)})
+    ->extend(over(~[l, hx]), ~nx:{p,f,r|$r.x}:y|$y->count())
+    ->extend(~[dd:x|if($x.pk->toOne() == 0, |[], |$x.lv->toOne() / $x.pk->toOne() - 1),
+      dv:x|if($x.x->isEmpty(), |[], |$x.x->toOne() - $x.mx->toOne()),
+      dn:x|if($x.x->isEmpty(), |[], |if($x.x->toOne() < 0, |$x.x->toOne() * $x.x->toOne(), |0.0)),
+      up:x|if($x.x->isEmpty(), |[], |if($x.x->toOne() > 0, |1.0, |0.0)),
+      tl:x|if($x.x->isEmpty() || ($x.rk > floor((($x.nx->toOne() - 1) * $q) + 1)), |[], |$x.x),
+      dl:x|if($x.lv->isNotEmpty(), |$x.d, |[]), tl0:x|if($x.lv->isNotEmpty(), |$x.tm, |[])])
+    ->extend(~d2:x|if($x.dv->isEmpty(), |[], |$x.dv->toOne() * $x.dv->toOne()))
+    ->extend(~[d3:x|if($x.dv->isEmpty(), |[], |$x.d2->toOne() * $x.dv->toOne()), d4:x|if($x.dv->isEmpty(), |[], |$x.d2->toOne() * $x.d2->toOne())])
+    ->groupBy(~[l], ~[ng:x|$x.g:y|$y->count(), sg:x|$x.g:y|$y->stdDevSample(), n:x|$x.x:y|$y->count(), m:x|$x.x:y|$y->average(),
+      s:x|$x.x:y|$y->stdDevSample(), yr:x|$x.py:y|$y->max(), lo:x|$x.lv:y|$y->min(), mdd:x|$x.dd:y|$y->min(),
+      d0:x|$x.dl:y|$y->min(), d1:x|$x.dl:y|$y->max(), v0:x|rowMapper($x.lv, $x.tl0):y|$y->minBy(), v1:x|rowMapper($x.lv, $x.tl0):y|$y->maxBy(),
+      m2:x|$x.d2:y|$y->average(), m3:x|$x.d3:y|$y->average(), m4:x|$x.d4:y|$y->average(), dn2:x|$x.dn:y|$y->average(),
+      hr:x|$x.up:y|$y->average(), vr:x|$x.x:y|$y->percentile($q, true, true), es:x|$x.tl:y|$y->average(), bx:x|$x.x:y|$y->max(), wx:x|$x.x:y|$y->min()])
+    ->extend(~bad:x|$x.lo->isEmpty() || ($x.lo->toOne() <= 0))
+    ->extend(~[o1:x|if($x.bad || ($x.ng->toOne() < 2), |[], |($x.sg->toOne() * sqrt($x.yr->toOne())) * 100),
+      o2:x|if($x.bad || ($x.n->toOne() < 2) || ($x.s->toOne() == 0), |[], |($x.m->toOne() / $x.s->toOne()) * sqrt($x.yr->toOne())),
+      o3:x|if($x.bad, |[], |$x.mdd),
+      o4:x|if($x.bad || $x.d0->isEmpty() || ($x.d1->toOne() < $x.d0->toOne()->adjust(1, meta::pure::functions::date::DurationUnit.YEARS)) || ($x.v0->toOne() == 0), |[],
+        |pow($x.v1->toOne() / $x.v0->toOne(), 365.25 / dateDiff($x.d0->toOne(), $x.d1->toOne(), meta::pure::functions::date::DurationUnit.DAYS)) - 1),
+      o5:x|if($x.bad || ($x.n->toOne() <= 2) || ($x.m2->toOne() == 0), |[], |(($x.m3->toOne() / pow($x.m2->toOne(), 1.5)) * sqrt($x.n->toOne() * ($x.n->toOne() - 1))) / ($x.n->toOne() - 2)),
+      o6:x|if($x.bad || ($x.n->toOne() <= 3) || ($x.m2->toOne() == 0), |[],
+        |(((($x.n->toOne() + 1) * ($x.n->toOne() - 1)) * $x.m4->toOne()) / ($x.m2->toOne() * $x.m2->toOne()) - (3 * (($x.n->toOne() - 1) * ($x.n->toOne() - 1)))) / (($x.n->toOne() - 2) * ($x.n->toOne() - 3))),
+      o7:x|if($x.bad || $x.dn2->isEmpty() || ($x.dn2->toOne() == 0), |[], |($x.m->toOne() / sqrt($x.dn2->toOne())) * sqrt($x.yr->toOne())),
+      o8:x|if($x.bad, |[], |$x.hr), o9:x|if($x.bad, |[], |$x.vr), o10:x|if($x.bad, |[], |$x.es), o11:x|if($x.bad, |[], |$x.bx), o12:x|if($x.bad, |[], |$x.wx)])
+    ->select(~[l, o1, o2, o3, o4, o5, o6, o7, o8, o9, o10, o11, o12])
+    ->rename(~l, $line)->rename(~o1, $vol)->rename(~o2, $sharpe)->rename(~o3, $drawdown)->rename(~o4, $growth)->rename(~o5, $skew)->rename(~o6, $kurtosis)
+    ->rename(~o7, $sortino)->rename(~o8, $hit)->rename(~o9, $valueAtRisk)->rename(~o10, $shortfall)->rename(~o11, $best)->rename(~o12, $worst)
+}
+
+// A Calmar ratio of each row: its growth over its drawdown's depth -- of a growth and a drawdown below zero.
+function datacube::ts::calmarRatio<T,G,D,O>(t: Relation<T>[1], growth: ColSpec<G⊆T>[1], drawdown: ColSpec<D⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:r|if($r->read($growth)->isEmpty() || $r->read($drawdown)->isEmpty() || ($r->read($drawdown)->toOne() >= 0), |[], |$r->read($growth)->toOne() / abs($r->read($drawdown)->toOne())))->rename(~o, $out)
+}
+
+// A line's drawdowns, deepest first (gs-quant's max_drawdown, as a table of them): each run from a peak -- a date at or
+// above every one before it -- to the next: its peak's date, its trough's (its least level's), the date it recovered (the
+// line's next peak; none, not yet), its depth (trough over peak, less 1), its decline's days and its recovery's (none,
+// not yet) and its rank by depth -- of the runs that fall, the top of them a line; none of a line whose least level is
+// at or below zero (a yield's ratios mean nothing). A row a drawdown.
+function datacube::ts::drawdownsOfLine<T,L,D,V,O1,O2,O3,O4,O5,O6,O7>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], top: Integer[1], peak: ColSpec<O1>[1], trough: ColSpec<O2>[1], recovered: ColSpec<O3>[1], depth: ColSpec<O4>[1], decline: ColSpec<O5>[1], recovery: ColSpec<O6>[1], rank: ColSpec<O7>[1]): Relation<L+O1+O2+O3+O4+O5+O6+O7>[1]
+{
+  $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), v:r|$r->read($value)])
+    ->extend(over(~l, [~d->ascending()], rows(unbounded(), 0)), ~pk:{p,f,r|$r.v}:y|$y->max())
+    ->extend(over(~l), ~lw:{p,f,r|$r.v}:y|$y->min())
+    ->extend(~tp:x|if($x.v->toOne() >= $x.pk->toOne(), |1, |0))
+    ->extend(~pa:x|if($x.tp == 1, |$x.d, |[]))
+    ->extend(over(~l, [~d->ascending()], rows(unbounded(), 0)), ~rn:{p,f,r|$r.tp}:y|$y->plus())
+    ->extend(over(~l, [~d->ascending()], rows(1, unbounded())), ~nx:{p,f,r|$r.pa}:y|$y->min())
+    ->groupBy(~[l, rn], ~[pd:x|$x.d:y|$y->min(), pv:x|$x.v:y|$y->max(), lo:x|$x.v:y|$y->min(), td:x|rowMapper($x.d, $x.v):y|$y->minBy(),
+      rc:x|$x.nx:y|$y->min(), ll:x|$x.lw:y|$y->min()])
+    ->extend(~dp:x|if($x.ll->toOne() <= 0, |[], |($x.lo->toOne() / $x.pv->toOne()) - 1))
+    ->filter(x|$x.dp->toOne() < 0)
+    ->extend(over(~l, [~dp->ascending()]), ~rk:{p,f,r|$p->rowNumber($r)})
+    ->filter(x|$x.rk <= $top)
+    ->extend(~[dc:x|dateDiff($x.pd->toOne(), $x.td->toOne(), meta::pure::functions::date::DurationUnit.DAYS),
+      rv:x|if($x.rc->isEmpty(), |[], |dateDiff($x.td->toOne(), $x.rc->toOne(), meta::pure::functions::date::DurationUnit.DAYS))])
+    ->select(~[l, pd, td, rc, dp, dc, rv, rk])
+    ->rename(~l, $line)->rename(~pd, $peak)->rename(~td, $trough)->rename(~rc, $recovered)->rename(~dp, $depth)->rename(~dc, $decline)->rename(~rv, $recovery)->rename(~rk, $rank)
+}
+
+// A condition's runs (gaps and islands): each change of it -- a 1 where it holds, a 0 where not -- begins a run; each
+// date where it holds carries its run's first date and where its shading ends: the line's next date after the run's
+// last, from which it no longer holds (its own last at the line's end), a run of one date a period wide; none where it
+// does not hold.
+function datacube::ts::runs<T,L,D,F,O1,O2>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], flag: ColSpec<F⊆T>[1], from: ColSpec<O1>[1], to: ColSpec<O2>[1]): Relation<T+O1+O2>[1]
+{
+  $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), fl:r|$r->read($flag)])
+    ->extend(over(~l, [~d->ascending()]), ~[pf:{p,f,r|$p->lag($r).fl}, nd:{p,f,r|$p->lead($r).d}])
+    ->extend(~[ch:x|if($x.pf->isEmpty() || !($x.fl->toOne() == $x.pf->toOne()), |1, |0), en:x|if($x.nd->isEmpty(), |$x.d, |$x.nd)])
+    ->extend(over(~l, [~d->ascending()], rows(unbounded(), 0)), ~rn:{p,f,r|$r.ch}:y|$y->plus())
+    ->extend(over(~[l, rn]), ~[f0:{p,f,r|$r.d}:y|$y->min(), l0:{p,f,r|$r.en}:y|$y->max()])
+    ->extend(~[a:x|if($x.fl == 1, |$x.f0, |[]), b:x|if($x.fl == 1, |$x.l0, |[])])
+    ->without(~[l, d, fl, pf, nd, ch, en, rn, f0, l0])->rename(~a, $from)->rename(~b, $to)
+}
+
+// A level's calendar of returns (the monthly returns table every desk keeps): each month of each line its return --
+// its last level over the month before's, less 1: none over a missing month (a month a number, its year's twelve after
+// the year before's, so the month before is its number less one, never the last month present), or from a level at or
+// below zero -- and its year's, its last month's level over the year before's; and the line's least month-end level (a
+// return from one at or below zero is none, said so). Each month's last level the latest by time (a number: a maxBy's
+// key). A row a line and month.
+function datacube::ts::calendarReturns<T,L,D,N,V,O1,O2,O3,O4,O5>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], value: ColSpec<V⊆T>[1], year: ColSpec<O1>[1], month: ColSpec<O2>[1], monthly: ColSpec<O3>[1], yearly: ColSpec<O4>[1], low: ColSpec<O5>[1]): Relation<L+O1+O2+O3+O4+O5>[1]
+{
+  let months = $t->filter(x|$x->read($value)->isNotEmpty())
+    ->extend(~[l:r|$r->read($line), yr:r|$r->read($date)->toOne()->year(), mo:r|$r->read($date)->toOne()->monthNumber(), v:r|$r->read($value), tm:r|$r->read($time)])
+    ->groupBy(~[l, yr, mo], ~lv:x|rowMapper($x.v, $x.tm):y|$y->maxBy())
+    ->extend(~i:x|($x.yr * 12) + $x.mo);
+  let years = $months->groupBy(~[l, yr], ~yl:x|rowMapper($x.lv, $x.i):y|$y->maxBy());
+  let yearRows = $years->join($years->rename(~l, ~ql)->rename(~yr, ~qy)->rename(~yl, ~qv), meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a.l == $b.ql) && ($a.yr == ($b.qy + 1))})
+    ->extend(~yrt:x|if($x.qv->isEmpty() || ($x.qv->toOne() <= 0), |[], |($x.yl->toOne() / $x.qv->toOne()) - 1))
+    ->select(~[l, yr, yrt])->rename(~l, ~kl)->rename(~yr, ~ky);
+  $months->join($months->select(~[l, i, lv])->rename(~l, ~pl)->rename(~i, ~pi)->rename(~lv, ~pv), meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a.l == $b.pl) && ($a.i == ($b.pi + 1))})
+    ->extend(~rt:x|if($x.pv->isEmpty() || ($x.pv->toOne() <= 0), |[], |($x.lv->toOne() / $x.pv->toOne()) - 1))
+    ->join($yearRows, meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a.l == $b.kl) && ($a.yr == $b.ky)})
+    ->extend(over(~l), ~lo:{p,f,r|$r.lv}:y|$y->min())
+    ->select(~[l, yr, mo, rt, yrt, lo])
+    ->rename(~l, $line)->rename(~yr, $year)->rename(~mo, $month)->rename(~rt, $monthly)->rename(~yrt, $yearly)->rename(~lo, $low);
+}
+
+// A histogram of each line's values: bins of one width from its least to its most (the most in the last), each counted
+// -- a bin no value fell in counted 0 -- and beside each the count a normal of the values' mean and sample deviation
+// would give it (n times the width times its density at the bin's middle; none where they do not vary); with the
+// values' q-quantile (continuous, pandas' quantile), mean, deviation and count. A row a line and bin, its edges and
+// middle; values all one, one bin of no width. The bins numbered by the line's first ten rows each with each: a hundred
+// bins at most.
+function datacube::ts::histogramOfLine<T,L,V,O1,O2,O3,O4,O5,O6,O7,O8,O9>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], value: ColSpec<V⊆T>[1], bins: Integer[1], q: Float[1], low: ColSpec<O1>[1], middle: ColSpec<O2>[1], high: ColSpec<O3>[1], count: ColSpec<O4>[1], normal: ColSpec<O5>[1], quantile: ColSpec<O6>[1], mean: ColSpec<O7>[1], sd: ColSpec<O8>[1], n: ColSpec<O9>[1]): Relation<L+O1+O2+O3+O4+O5+O6+O7+O8+O9>[1]
+{
+  let base = $t->extend(~[l:r|$r->read($line), v:r|$r->read($value)])
+    ->extend(over(~l), ~[lo:{p,f,r|$r.v}:y|$y->min(), hi:{p,f,r|$r.v}:y|$y->max(), m:{p,f,r|$r.v}:y|$y->average(), s:{p,f,r|$r.v}:y|$y->stdDevSample(), k:{p,f,r|$r.v}:y|$y->count()])
+    ->extend(~w:x|($x.hi->toOne() - $x.lo->toOne()) / $bins->toFloat())
+    ->extend(~raw:x|if($x.w->toOne() == 0, |0, |floor(($x.v->toOne() - $x.lo->toOne()) / $x.w->toOne())))
+    ->extend(~bn:x|if($x.raw->toOne() >= $bins, |$bins - 1, |$x.raw))
+    ->extend(over(~l, [~v->ascending()]), ~rn:{p,f,r|$p->rowNumber($r)});
+  let ten = $base->filter(x|$x.rn <= 10)->select(~[l, rn]);
+  let numbers = $ten->rename(~l, ~tk)->rename(~rn, ~tr)
+    ->join($ten->rename(~l, ~uk)->rename(~rn, ~ur), meta::pure::functions::relation::JoinKind.INNER, {a,b|$a.tk == $b.uk})
+    ->extend(over(~tk, [~tr->ascending(), ~ur->ascending()]), ~bi:{p,f,r|$p->rowNumber($r) - 1})
+    ->filter(x|$x.bi < $bins)
+    ->select(~[tk, bi]);
+  let figures = $base->groupBy(~[l], ~[cl:x|$x.lo:y|$y->max(), cw:x|$x.w:y|$y->max(), cm:x|$x.m:y|$y->max(), cs:x|$x.s:y|$y->max(), cn:x|$x.k:y|$y->max(),
+    cq:x|$x.v:y|$y->percentile($q, true, true)]);
+  let counted = $base->groupBy(~[l, bn], ~cc:x|$x.v:y|$y->count())->rename(~l, ~ck)->rename(~bn, ~cb);
+  $numbers->join($figures, meta::pure::functions::relation::JoinKind.INNER, {a,b|$a.tk == $b.l})
+    ->join($counted, meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a.tk == $b.ck) && ($a.bi == $b.cb)})
+    ->filter(x|($x.bi == 0) || ($x.cw->toOne() > 0))
+    ->extend(~lw:x|$x.cl->toOne() + ($x.bi * $x.cw->toOne()))
+    ->extend(~[md:x|$x.lw + ($x.cw->toOne() / 2), hg:x|$x.lw + $x.cw->toOne(), ct:x|if($x.cc->isEmpty(), |0, |$x.cc)])
+    ->extend(~nm:x|if($x.cs->isEmpty() || ($x.cs->toOne() == 0), |[],
+      |(($x.cn->toOne() * $x.cw->toOne()) * exp(-0.5 * ((($x.md - $x.cm->toOne()) / $x.cs->toOne()) * (($x.md - $x.cm->toOne()) / $x.cs->toOne())))) / ($x.cs->toOne() * sqrt(6.283185307179586))))
+    ->select(~[l, lw, md, hg, ct, nm, cq, cm, cs, cn])
+    ->rename(~l, $line)->rename(~lw, $low)->rename(~md, $middle)->rename(~hg, $high)->rename(~ct, $count)->rename(~nm, $normal)
+    ->rename(~cq, $quantile)->rename(~cm, $mean)->rename(~cs, $sd)->rename(~cn, $n);
+}
+
+// Of each place in a year of each line (its month, quarter or week: the place column's), the least, most and mean of
+// its values there over the years before the line's latest -- the range a seasonality draws its latest year against --
+// beside each row; none of a place no earlier year has.
+function datacube::ts::seasonalRange<T,L,Y,P,V,O1,O2,O3>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], year: ColSpec<Y⊆T>[1], place: ColSpec<P⊆T>[1], value: ColSpec<V⊆T>[1], low: ColSpec<O1>[1], high: ColSpec<O2>[1], mean: ColSpec<O3>[1]): Relation<T+O1+O2+O3>[1]
+{
+  $t->extend(~[l:r|$r->read($line), yr:r|$r->read($year), pl:r|$r->read($place)])
+    ->extend(over(~l), ~ly:{p,f,r|$r.yr}:y|$y->max())
+    ->extend(~bv:x|if($x.yr->toOne() < $x.ly->toOne(), |$x->read($value), |[]))
+    ->extend(over(~[l, pl]), ~[a:{p,f,r|$r.bv}:y|$y->min(), b:{p,f,r|$r.bv}:y|$y->max(), c:{p,f,r|$r.bv}:y|$y->average()])
+    ->without(~[l, yr, pl, ly, bv])->rename(~a, $low)->rename(~b, $high)->rename(~c, $mean)
 }
 `;
