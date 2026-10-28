@@ -2901,6 +2901,19 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   (the body runner: `StatementExecutor`, `BodyCompiler`, `Execution`, the judges), T (core's tests as the LEAN twin:
   `core/src/test/.../integration/AbstractDatabaseTest.java` and the test helpers, new per-lane targets), C (the corpus,
   channel B, the service test runner), D (the deletions). Each announces its files here before it starts.
+  **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
+  §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
+  `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,
+  `CodeShapeGuardrailTest.java`, `integration/SelectDistinctCheckerTest.java`, `server/PureV1ApiTest.java`, this file,
+  `docs/SEMANTICS_REGISTER.md`, `python/legend_lite/engine.py`, `wasm/src/main/java/planner/Boundary.java`) and the
+  renumbering's citations (`result/CellText.java`, `ResultWritersTest.java`, `PureV1ApiTest.java`,
+  `datacube/test/python-engine/execute.test.ts`, `docs/GATES.md`, `docs/PARKED_WORK_LEDGER.md`, the program, the start
+  page, the homework README and its probes). S1.4 touches `result/` (`CellText`, `RowDecode`, the writers),
+  `exec/JdbcDecode.java`, `core/src/main/mongodb/.../MongoDbDecode.java`, `executionplan/` (`ExecutionPlan.Column`,
+  `ColumnFacts`, `PlanJson`, `MirJson`: a format bump) and `PlanJsonTest`, `ResultWritersTest`, the guards
+  (`ArchitectureTest`, a new `WriterCarriageGuardTest`, `JavaEvalLedgerTest`), and the nits' files
+  (`server/OutputFormat`, `FloatPrintText`, `result/CsvWriter`, `server/PureV1Api`). Records: GATES, this file, the
+  program's §9, the register.
 - **Landed, 2026-10-18:** neema2/legend-lite#58 (the TCK at 3600 of 3880 on both lanes; the review's fixes).
 - **Next on this line, announced 2026-10-18: writes** (`docs/WRITES_DESIGN_2026_10_18.md`, the design agreed with the
   user). There are two kinds of graph:
