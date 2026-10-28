@@ -2888,6 +2888,15 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   dialects' dead `normalize` hooks deleted, MariaDB's and BigQuery's counted MODE), `executionplan/` (format 16),
   `lowering/Scalars.java`, `result/RowDecode.java`, the PCT ledgers of six lanes, and the parity harnesses under
   `core/src/test/java/com/legend/testcases/`. Six lane sessions measure every head of it, measure only.
+  **2026-10-28:** PARK-34 closed (legend-engine asked: a Variant column is `SEMISTRUCTURED`, its cell a string of its
+  JSON); every lane measured the PCT relation crossing as legend-engine's own adapter reads it, exact, and it is
+  switched (`d8ab8434`: `PureTdsText` deleted). The handoff is rewritten as the whole roadmap
+  (`docs/RESULT_BOUNDARY_START_HERE.md`, with its evidence in `docs/result-boundary-homework/`). Next on this line, in
+  order: S1.4 (touches `result/`, `exec/JdbcDecode.java`, `result/RowDecode.java`, `MongoDbDecode.java`,
+  `executionplan/` for the precision fact, two new guards), S1.5 (records), S1.6 (a draft PR on the user's word); then
+  tracks B (the body runner: `StatementExecutor`, `BodyCompiler`, `Execution`, the judges), T (core's tests as the LEAN
+  twin: `core/src/test/.../integration/AbstractDatabaseTest.java` and the test helpers, new per-lane targets), C (the
+  corpus, channel B, the service test runner), D (the deletions). Each announces its files here before it starts.
 - **Landed, 2026-10-18:** neema2/legend-lite#58 (the TCK at 3600 of 3880 on both lanes; the review's fixes).
 - **Next on this line, announced 2026-10-18: writes** (`docs/WRITES_DESIGN_2026_10_18.md`, the design agreed with the
   user). There are two kinds of graph:

@@ -330,6 +330,11 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-28, where this program's last steps went.** Steps 8 (the test runners emit a sequence of plans per body),
+  10 (the corpus through plan sequences) and 11 (the deletions) are now tracks B, C and D of the result boundary
+  program's roadmap (`docs/RESULT_BOUNDARY_START_HERE.md` §4), with the step 7 callers done there (every production
+  route on plans) and PCT channel A on plans; this program's parity backlog is its track P.
+
 - **2026-10-23, landed: a mixed selection's winner as a tag plus typed slots** (GATES "a mixed selection's winner as a
   tag plus typed slots"; 8159fbec to 31b55fa3): the platform's and MongoDB's PCT suites exact; Snowflake, BigQuery and
   Databricks channel A exact with Snowflake's standard suite at 325 s against a same-hour merge-base 269 s (the

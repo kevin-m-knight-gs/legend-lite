@@ -165,6 +165,9 @@ carries today.
 
 ## 3. Where things stand (honest)
 
+> **As of 2026-10-26, before phases 1 to 5.** The state today, the step-by-step map and what is left are
+> `docs/RESULT_BOUNDARY_START_HERE.md` §3 and §4; S1.5 brings this table up to date.
+
 | Piece | State today | Step |
 |---|---|---|
 | Three facts per column, typed tree in the plan JSON (format 10) | landed (2026-10-17/18; tagged slots 2026-10-23) | kept |
@@ -450,8 +453,38 @@ planner and the native image. Reversible: an Arrow-backed batch behind the same 
 shows on a route that can hand over Arrow buffers as they are; never in the compiler or the native image, never the
 default.
 
+**Ruled later (2026-10-27 and 2026-10-28; the order of work they set is `docs/RESULT_BOUNDARY_START_HERE.md` §4):**
+
+**9. The execution order and the audit (2026-10-27).** "Skip the guards - let's actually do the real work of making
+the plan real and deleting everything else including the string spellings and old execution - keep going in phases,
+do expert work, audit after each phase": phases 1 to 5. Then "we need to pause and do an audit": the audit
+(`docs/result-boundary-homework/README.md` §1) and its three-stage plan, answered "keep it, and keep going": the
+paused phase 5 commit kept and made green. The plan's other three questions were not answered word for word and
+proceed as the plan wrote them: the writer guards built (S1.4, the audit's recommendation, against the earlier "skip
+the guards"); the Arrow writer kept in the program (stage 3); the writers' spelling changes registered unless the user
+reverts one. A session in doubt asks.
+
+**10. A PCT relation crosses as legend-engine's own adapter reads it (2026-10-28, "Do the probe", then "Do it").**
+The relation is streamed through the server's own LEGACY writer (`PureV1Api.engineWriter`) and read by a Pure copy of
+the engine adapter's `getTDSResultFromProtocol` steps, then `stringToTDS`; the TDS text written in Java
+(`PureTdsText`) is deleted. Chosen over the typed `TestTDSInterpreted.addColumn` route the audit had proposed: that
+is not the reference's own crossing, its reader holds a date at the millisecond, and its classes sit in jars the
+upstream pool does not list. So the PCT judges the JSON the server serves (three production defects found by it).
+
+**11. Our own core tests are the LEAN twin of PCT and the corpus (2026-10-28).** "i would prefer not to delete the
+overlapping tests but use the exact same logic but with platform output that we think users would actually run/use
+instead of backwards compat mode - so its almost the platform twin of PCT/core-relational". Replaces step 7's "test
+helper with assertions unchanged": no test is deleted for overlapping PCT or the corpus; each value test keeps its
+query and logic and is judged on lite's own LEAN output (lite's JSON rows first, Arrow when built), on every lane like
+PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
+
 ## 9. Status
 
+- **2026-10-28, the handoff rewritten for a session from any account.** `docs/RESULT_BOUNDARY_START_HERE.md` is now
+  the whole roadmap in order (stage 1's S1.4 to S1.6, then tracks B, T, C, D, L, A, F, P and Z, a brief each), and
+  `docs/result-boundary-homework/` holds the evidence that had lived only in a session: the audit, the code maps,
+  the 51 writer differences, the census of core's tests, legend-engine's answers and how to ask it, every probe's
+  source. Rulings 9 to 11 added to §8 (the twin among them). Next: S1.4.
 - **2026-10-28, stage 1, step 3 done: a PCT relation crosses as legend-engine's own adapter reads it.** Every lane
   measured the engine crossing at e8c341d0 exact on every suite (channel A; GATES, 2026-10-28); the switch is made and
   the Java TDS text (`PureTdsText`), its wrapper and the adapter's text branch are deleted. The PCT now judges the
