@@ -562,3 +562,46 @@ lifecycle); two string compares of a raw type in `ColumnHygiene` (through `Overl
 reader); and protocol nodes built below the parser -- the holes (gone), hygiene's renamed column specs and `read`'s
 property read (two dated ledger rows: an expansion's columns are known only at each call, S112, S114).
 
+
+## 19. The second pass: `read` typed directly, the last sums the library's (2026-10-28)
+
+The user, the same day: "Fix this and all the typescript math we found that should be in pure instead so that these
+functions are useable from platform without TS". Three commits:
+
+- **`read` (6a4ea973).** `ReadChecker` built the syntax `$r.col` while typing and typed it again (the protocol-node
+  ledger's row). The row arm of `Typer.accessProperty` is one method, `Typer.rowColumn`, that `$r.col` and `read` both
+  type by: the same column, multiplicity and typed node, so the SQL is unchanged (`ExtendCheckerTest$ReadTests`). A
+  receiver that is not a row is refused (new test). The ledger row is deleted, dated.
+- **The last sums (0928eb51).** `summaryStatistics` (the statistics' line figures with days, change and % change),
+  `seasonality` and `projection` (each view whole), `tradedValue` (VWAP's price times volume), `linearAt` (the time
+  fill's value between two in time) and `periodIndex` (a decomposition's place); `performanceStatistics` also says the
+  periods a year it annualized by and the level's least. A person's own Pure calls each by name and answers as the tile
+  does (`timeseries-queries.test.ts` "a person's own Pure ..."). What stays the writer's is shaping, the design note
+  §5.6 says what.
+
+An independent review, read-only, of both: every moved piece gives the old writer's numbers on every input the tile
+sends (each compared by reading; the days place's start, `rowNumber - 1` against `rowNumber`, by a script of 200
+cycles: no difference, a place is read modulo its cycle). Its findings:
+
+- **2 (fixed, 9daf9390) an option the new functions did not know was read as another** (AGENTS invariant 4): a
+  seasonality's grain `'Day'` as weeks unsampled, a compare `'rebased'` as none, `periodIndex`'s `'months'` as weeks, a
+  projection's `perDay` 24 as seconds. Each checks its options once in its opening filter and says the ones it takes
+  (a `fail` there is the Boolean it is; in a value's branch it typed the column Boolean, and a two-statement block the
+  static fold refuses); a valid option folds away as before. The older functions' options (`returns`' type, a period
+  statistic, `filterValues`' operator, a decomposition's method, a basket's rebalance) default as they did: the tile
+  checks them before it calls, a person's own Pure does not -- the next PR's, put to the user.
+- **1 (checked)** the first tile's bundle budget holds (`bundle_budget_test` green).
+- **3 (accepted)** a seasonality of a whole number with no compare types its value, least and most as a number where
+  they kept the column's type (`if`'s branches); the values are the same (new test: a volume's).
+- **4 (accepted)** a split line whose key is none never matched the figures' join, and now loses the two columns its
+  blanks are said by with them.
+- **5 (fixed)** `rowColumn`'s javadoc sat between `compose` and its own; `periodIndex`'s comment said "from 1970" of
+  months; the census did not say `read`'s new refusal.
+- **Test gaps (closed)**: a candle's least and most from lows and highs apart from its closes, and their weeks; a
+  seasonality's % compare and its span; a projection of date-times (seconds, a week of them ahead, a day's slope); a
+  daily decomposition against statsmodels; each refusal by its message.
+
+Run on 9daf9390: `timeseries_queries_test` (161), typecheck, the library spike, headless, stress markets, the bundle
+budget, `verify_charts_test`, `//core:core_tests_integration`, `//core:guardrails`, Python's `headless_test`; on
+0928eb51 `//core:core_tests` (25 packages), `//spec:corpus_duckdb` and `//spec:corpus_h2` (rosters unchanged), and
+DataCube's and Python's 23 timeseries targets. The statistics query: 61-102 ms, 24.4 KB.
