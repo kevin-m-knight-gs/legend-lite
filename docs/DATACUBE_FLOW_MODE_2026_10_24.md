@@ -224,9 +224,9 @@ How to read the status column:
 | Input Data | Built | A grid's sources: a file, a remote file, a warehouse table, a class, a saved query, a frame |
 | Text Input | Built (2026-10-25) | A small table typed in or pasted from a sheet, written as a CSV file: an Input over it, as a file dropped on the canvas is. Pure's `#TDS` literal remains the way to keep one in a model |
 | Browse | Built | The results pane: the selected box's grid, its Profile, its Chart |
-| Output Data (to a table) | Core, after v1 | `write` to a store table throws "not yet implemented" (`core/.../lowering/Lowerer.java:3295`): F1, built in core in parallel (FL13) |
+| Output Data (to a table) | Built (2026-10-26) | An Output box's table kind: created, replaced, appended, its rows deleted first, or merged by keys -- the planner's execution plan of the store write, run by the host's plan runner in one transaction ("Built, an Output into a table") |
 | Output Data (to a file) | Built (2026-10-25) | An Output box: its input's every row (the columns it shows) streamed from the database and written as CSV, by Write now and each time the flow runs; Python's `grid.output(name)` and `flow.run(folder)`. The grid's exports still write the rows shown |
-| Data Stream In / Out | Step | The Cache box (FL10), on Snap |
+| Data Stream In / Out | Built (2026-10-26) | The Cache (FL10, FL11): a mode of any box, its rows copied into the host's database on Snap and read by the boxes after it ("Built, the Cache") |
 | Date Time Now | Built | `now()` and `today()` in a Formula |
 | Directory | Out | It lists a file system, which is no relation a database holds |
 | Dynamic Input | Built (M8) | A Union that keeps the rows of the one input a String parameter of the page names, picked as it runs ("Built, Dynamic Input") |
