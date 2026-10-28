@@ -144,7 +144,7 @@ public final class CellText {
      *  own scale (register S104); a boolean; a text as a string; a StrictDate's day, and a DateTime's nine fraction
      *  digits with {@code +0000}, as strings; a Variant as a string holding its JSON (measured, 4.145.0, 2026-10-28:
      *  PARK-34's probe; the engine re-spells the JSON's numbers through its JSON library, lite keeps the database's
-     *  digits: register S112); a structure as its own JSON. */
+     *  digits: register S115); a structure as its own JSON. */
     public static Json.Node engine(@com.legend.base.Nullable Object cell, ExecutionPlan.Column c) {
         if (cell == null) {
             return Json.nil();
@@ -221,7 +221,7 @@ public final class CellText {
      *  an exponent laid out positionally with a point always ({@code 1500000000000000.0}, {@code 0.00000025}); NaN and
      *  the infinities as Java names them. A negative zero keeps its sign, {@code -0.0}: it is another double (the
      *  user, 2026-10-28; Pure's own {@code toString} writes {@code 0.0} for either, as lite's SQL does: register
-     *  S114). */
+     *  S117). */
     static String pureFloat(double d) {
         String shortest = Double.toString(d);
         if (shortest.indexOf('E') < 0) {

@@ -204,7 +204,7 @@ describe("the tab's execute answers as Python's, the same Java planning both", (
 
   it("a Variant column (PARK-34): legend-engine's builder, SEMISTRUCTURED, its cells strings of JSON; the tab's as Python's", async () => {
     // the rows with a quantity: an empty one's toVariant() is SQL's NULL here, where the engine answers JSON's null
-    // (its ifnull(to_json(x), 'null'::json)), a difference of the value, not of the spelling (register S113, pending)
+    // (its ifnull(to_json(x), 'null'::json)), a difference of the value, not of the spelling (register S116, pending)
     const asked = await input("->filter(x|$x.qty->isNotEmpty())->select(~[book, qty])->sort([~book->ascending(), ~qty->ascending()])"
       + '->extend(~[n: x|$x.qty->toVariant(), s: x|$x.book->toVariant()])');
     const mine = await tab.executeText(asked);

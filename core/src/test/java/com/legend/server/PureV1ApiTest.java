@@ -316,7 +316,7 @@ class PureV1ApiTest {
      * holding the value's JSON; against the engine's own answers (4.145.0, {@code upstream-api/e8-variant-*.json}; the
      * probe's model and provenance in {@code variant-probe.pure}). RECORDED DIFFERENCE 3: a number inside the JSON
      * keeps the database's digits, where the engine re-spells it through its JSON library ({@code 2.50} as {@code 2.5};
-     * docs/SEMANTICS_REGISTER.md S112).
+     * docs/SEMANTICS_REGISTER.md S115).
      */
     @Test
     void e8_execute_aVariantColumn_isTheEnginesBuilder_itsCellsStringsOfJson() throws IOException {
@@ -504,6 +504,37 @@ class PureV1ApiTest {
         assertEquals("{\"builder\":{\"_type\":\"json\"},\"values\":{\"tradeId\":1}}",
                 PureV1Api.jsonAnswer(graph.json(), Json.toCompact(List.of(Map.of(objects, "{\"tradeId\":1}"))))
                         .json());
+    }
+
+    /**
+     * A host's models (PureV1Api.Models): a model given as text is compiled by the host's hook -- a held model's, where
+     * the host holds that text -- and answered exactly as when compiled for the request, on every route that compiles one.
+     */
+    @Test
+    void route_compilesATextModelByTheHostsModels() {
+        com.legend.HeldModels held = new com.legend.HeldModels();
+        int handle = held.hold(model);
+        try {
+            int[] uses = new int[1];
+            PureV1Api.Models models = new PureV1Api.Models() {
+                @Override
+                public <T> T with(String t, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
+                    uses[0]++;
+                    return held.withText(t, use);
+                }
+            };
+            String typed = "{\"model\":" + textModel() + ",\"lambda\":" + lambda + "}";
+            String plan = "{\"function\":" + lambda + ",\"model\":" + textModel() + "}";
+            assertEquals(PureV1Api.lambdaRelationType(typed),
+                    PureV1Api.route("/api/pure/v1/compilation/lambdaRelationType", null, typed, NO_RUN, models));
+            assertEquals(PureV1Api.lambdaReturnType(typed),
+                    PureV1Api.route("/api/pure/v1/compilation/lambdaReturnType", null, typed, NO_RUN, models));
+            assertEquals(PureV1Api.generatePlan(plan),
+                    PureV1Api.route("/api/pure/v1/execution/generatePlan", null, plan, NO_RUN, models));
+            assertEquals(3, uses[0], "each route compiled its model through the host's hook");
+        } finally {
+            held.release(handle);
+        }
     }
 
     /** route: each path answers as its endpoint does; any other is 404 in the engine's shape; execute runs through the runner. */

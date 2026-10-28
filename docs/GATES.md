@@ -15068,7 +15068,7 @@ column, the server refusing the column's relational spelling as unprobed). The p
    - `UpstreamRelationType.relationalSpelling`: a Variant is `SEMISTRUCTURED`; any other type is refused as the
      engine refuses it, said so ("legend-engine has no relational spelling of ...").
    - `CellText.engine` wrote a Variant cell as its JSON itself (unprobed): it writes the string holding it now. The
-     JSON's numbers keep the database's digits (`2.50`), where the engine's library re-spells them: register S112.
+     JSON's numbers keep the database's digits (`2.50`), where the engine's library re-spells them: register S115.
    - PARK-34 is closed in `docs/PARKED_WORK_LEDGER.md`, its anchor deleted from `ParkedWorkLedgerTest`.
 4. **Found on the way, not changed here:**
    - the engine-parity H2 dialect (`H2`, servers 2.1 and 2.2) spells `fromJson(text)` as `CAST(x AS JSON)`, which H2
@@ -15084,7 +15084,7 @@ column, the server refusing the column's relational spelling as unprobed). The p
    `$x.qty->toVariant()` as SQL's NULL, an empty cell under `Variant[1]`, where the engine's DuckDB SQL is
    `ifnull(to_json(x), 'null'::json)`, so its cell is, by that SQL and its measured spelling of JSON's null
    (`e8-variant-null.json`), the string `"null"`; lite's DuckDB renders `to_json(x)` alone.
-   Registered as S113 (pending), not fixed here (its fix moves PCT on every lane and is measured on its own); the case
+   Registered as S116 (pending; S113 until S1.0's renumbering, 2026-10-28), not fixed here (its fix moves PCT on every lane and is measured on its own); the case
    reads the rows with a quantity.
 7. **The engine crossing re-measured on DuckDB** (`LEGENDLITE_PCT_RELATION=engine`): relation 469 of 469 as the
    ledgers hold them (yesterday 32 lost: the 31 Variant relations and the moved message), standard 205 of 205. On
@@ -15141,7 +15141,7 @@ lane measuring the engine crossing) is met, and the switch is made.
    back as the same double (the program's §8 item 3, ruled 2026-10-26). Pure's text of a Float (`toString`, `format`,
    a String built inside a query: `FloatCanonText.ofText`) is unchanged, `0.0` for either sign, as legend-pure's
    `CompiledSupport.primitiveToString` writes it; LEGACY (`CellText.engine`, `Double.toString`) already wrote `-0.0`.
-   The decimal path's zero branch was dead and is removed. Register S114. It reverts lines 34 and 35 of
+   The decimal path's zero branch was dead and is removed. Register S117 (S114 until S1.0's renumbering, 2026-10-28). It reverts lines 34 and 35 of
    `docs/result-boundary-homework/wire-differences-2026-10-27.tsv` (lite wrote `-0.0` before phase 2).
 2. **Measured:** every other double's text unchanged (`docs/result-boundary-homework/probes/FloatTextProbe.java.txt`,
    the function before and after over 19 values); `ResultWritersTest.aNegativeZeroKeepsItsSign_inLitesCsvAndJson`;
@@ -15155,4 +15155,69 @@ lane measuring the engine crossing) is met, and the switch is made.
 4. **`main` moved and took the branch's register ids:** at `369bb176` (PR #77) `main` is 105 commits past the branch's
    base `7b8c89dc`, 12 files changed on both sides, and its S112 to S114 (a user function generic over relations,
    `without`, `read`) are not the branch's S112 to S114 (a Variant cell's digits, `toVariant()` of an empty value, the
-   negative zero). The start page's new first step, S1.0, merges `main` and renumbers the branch's three rows.
+   negative zero). The start page's new first step, S1.0, merges `main` and renumbers the branch's three rows (done
+   the same day: the entry below).
+
+## 2026-10-28 — the result boundary program's S1.0: `main` merged into the branch, the branch's register rows renumbered S115 to S117
+
+The next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`, the start page's §12 message), its first
+step.
+
+1. **The merge:** `origin/main` at `369bb176` (PR #77, the timeseries line: 50 commits past the branch's base
+   `7b8c89dc` by `git rev-list --count`, the start page's "105" having counted the branch's own commits in; 114 files
+   on its side), brought in by a merge commit on top of this session's IN_FLIGHT announcement (`815b358e`), never a
+   rebase. Twelve files changed on both sides; ten auto-merged (`core/BUILD.bazel`, `lowering/Fold.java`,
+   `lowering/Lowerer.java`, `ArchitectureTest.java`, `CodeShapeGuardrailTest.java`, `SelectDistinctCheckerTest.java`,
+   `PureV1ApiTest.java`, `docs/IN_FLIGHT.md`, `python/legend_lite/engine.py`, `wasm/.../Boundary.java`), two
+   conflicted in content, each kept whole on both sides:
+   - `server/PureV1Api.execute`: main's `Models` hook (a host that holds models compiles a request's text once:
+     `ModelInput.with(models, ...)`, the page's planner) wrapped around the branch's typed run (the query typed once,
+     `runner.run(query, runtime, plan -> engineWriter(query, plan, out))`): the model from the hook, the answer from
+     the engine writer.
+   - `docs/SEMANTICS_REGISTER.md`: main's S112 to S114 (a user function generic over relations, `without`, `read`)
+     kept in place; the branch's three rows take S115 to S117 (item 2), with a dated renumbering note.
+   One conflict the merge did not mark, read in the auto-merged files: main's new `SelectDistinctCheckerTest`
+   `WithoutTests` (its `without` surface, S113) assert their id cells as the `Integer` `1` and `2`, where this branch's
+   plan runner decodes an INTEGER column as a `Long` and phase 5 had already moved the same file's other expectations
+   to `1L` (GATES 2026-10-27, the 93 corrections): `1L` and `2L`, the same move. No guard pin or allowlist moved: main's
+   own rows (`ArchitectureTest`'s `ColumnHygiene`, `CodeShapeGuardrailTest`'s `ColumnHygiene.fresh`) and the branch's
+   (`NonFiniteJson.at`, the result package's cursors, `SetupRunner` 4, `RowDecode` in `result`) stand side by side,
+   and no generated file changed on both sides. Nothing of the plan, the writers, the runner or the dialects' SQL came
+   in from `main` (its line is the compiler's relation generics, `without`, `read`, DataCube's Pure library and the
+   timeseries view).
+2. **The register ids:** S112 → S115 (a Variant cell keeps the database's digits), S113 → S116 (`toVariant()` of an
+   empty value, pending), S114 → S117 (the negative zero). Every citation of the branch's three followed, 28 lines in
+   11 files, each read (`git grep -nE '\bS11[234]\b'` on the merged tree; main's citations of its own S112 to S114 --
+   `compiler/spec/`, `builtin/Pure.java`, DataCube, the timeseries documents, the own-corpus ledgers -- untouched):
+   `result/CellText.java` (two javadocs), `ResultWritersTest`, `server/PureV1ApiTest`,
+   `datacube/test/python-engine/execute.test.ts`, this file (the PARK-34 and S1.4 entries above), `PARKED_WORK_LEDGER.md`
+   (PARK-34), the program's §8 and §9, the start page, the homework README and `probes/FloatTextProbe.java.txt`. A
+   GATES entry, a commit or a document dated before this merge that says S112, S113 or S114 for one of those three
+   means S115, S116 or S117.
+3. **Measured on the merged tree, locally (this container runs DuckDB, SQLite, H2 and MongoDB, and Postgres
+   unprivileged):**
+   - `//core:core_tests` (all 25 packages), `//core:guardrails`, `//core:census`, `//pct:pct_discipline`: 28 of 28
+     pass.
+   - PCT channel A, all five suites, on DuckDB, SQLite and MongoDB: 15 of 15 exact against their ledgers (each suite's
+     expected failures exact both ways; relation 469 tests and standard 205 on each lane), and the engine crossing
+     counted as at the switch (`[LegendLite PCT] engine JSON:` 460 / 64 on DuckDB, 459 / 64 on SQLite and on MongoDB:
+     the relation and standard suites).
+   - `//datacube:python_execute_test` (the native library and the WebAssembly planner built; it reads LEAN JSON): pass.
+   - the local gate, `bazel test --lockfile_mode=error //gates:local`, the branch's first since phase 5: 435 of 446
+     pass as root; `//tools/guards:classpath_test` skipped (an arm64-only target, docs/CLOUD_SESSIONS.md); the nine
+     Postgres targets (the eight `//core:*postgres*` tests and `//datacube:verify_app_test`), which `initdb` refuses as
+     root, re-run as the unprivileged user (`tools/postgres/as_unprivileged.sh`, standalone): 9 of 9 pass. One
+     generated file was stale, `docs/dialect-capability/matrix.tsv` with its README and functions pages: regenerated
+     with the repository's tool (`bazel run //docs:update_dialect_capability`), never by hand -- 16 rows gone, the
+     `FLOAT_PRINT_ENGINE` emulated call on every dialect, which phase 3 (`53cf5b6d`: legend-engine's Float text written
+     by the writer, not by SQL) had deleted from the dialects' tables without regenerating the pages (the local gate
+     had not run since); `//docs:update_dialect_capability_test` passes on the regenerated files. A first run of the
+     whole gate as the unprivileged user filled the disk allowance (386 failures, every one "No space left on
+     device"): the cached download tarballs of repositories already extracted were deleted (4.2 GB), and the gate run
+     as root with only the Postgres targets unprivileged, as docs/CLOUD_SESSIONS.md says.
+   - **Not run: the lanes** (channels A and B per test on Postgres, MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery,
+     Databricks and Snowflake). The six warm lane sessions the start page's §7 lists answer "not found" to
+     `get_session` from this session, and no environment holding the clouds' credentials is visible to it; raising
+     lanes (§7) needs the user's environments. The merge changes nothing those lanes measure (item 1), so their last
+     logs (`e8c341d0`, the engine crossing; `f883d42b`, channel B) stand as the branch's; the merged tree's first
+     run on every OS is S1.6's CI.

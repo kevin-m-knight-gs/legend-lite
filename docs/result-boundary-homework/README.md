@@ -40,7 +40,7 @@ measured against the code (not recalled):
    by the session alone. Partly fixed (GATES entries from phase 5 on); the rest is S1.5.
 3. The writers do more than carriage, and nothing guards them (R3 forbids comparing a value or choosing a spelling by a
    Pure rule). Found: `CellText.pureFloat` writes `-0.0` as `0.0` (fixed 2026-10-28 on the user's word: register
-   S114); the engine writer chose a date's form by its time of day (fixed `6811256b`: the engine writes a
+   S117, S114 until S1.0); the engine writer chose a date's form by its time of day (fixed `6811256b`: the engine writes a
    `java.sql.Timestamp` in full); a plan fact matched by slot-name strings
    (`"TEMPORAL_TEXT"`, `"LITERAL"`) in `JdbcDecode`, `RowDecode`, `MongoDbDecode`, `CellText`. The guards the program
    names (`WriterCarriageGuardTest`, `writersAreCarriageOnly`) were never built (the user had said "skip the guards" on
@@ -129,7 +129,7 @@ on case by case basis"), each with its expression, old output and new; the user'
 `docs/SEMANTICS_REGISTER.md` row) or reverts it (in code). Among them: a Pair as `<1, a>`, NaN as a string, Floats
 written in full without an exponent, the zone on hour- and minute-precision dates. Decided so far: lines 34 and 35
 (`'-000.000'->parseFloat()`, `-0.0` written `0.0`) reverted on the user's word, 2026-10-28: the new writers write
-`-0.0` again (register S114).
+`-0.0` again (register S117).
 
 ## 5. The census of core's tests on the old door (2026-10-28)
 
@@ -227,7 +227,7 @@ external repository `$(bazel info output_base)/external/+http_archive+legend_pur
 - Measured with `probes/FloatTextProbe.java.txt` (2026-10-28): its formatter gives `0.0001` for `1.0E-4`, `0.00001`
   for `1.0E-5`, `10000000.0` for `1.0E7`, `1500000000000000.0` for `1.5E15`, `0.00000025` for `2.5E-7`.
 Lite follows it for Pure's text (`FloatCanonText.ofText` in SQL) and departs for its own outputs' negative zero
-(register S114, the user's ruling).
+(register S117, the user's ruling).
 
 **How to ask it again (the recipe).** No server is needed: the engine runner's jars are the engine.
 1. `bazel build //tools/engine-runner:testable` (fetches `@maven_runner`, legend-engine 4.145.0 and its execution
@@ -257,7 +257,7 @@ Lite follows it for Pure's text (`FloatCanonText.ofText` in SQL) and departs for
 | `BcTimestampProbe.java.txt` | a lane driver's getters on a far-BC date-time (Snowflake, Databricks) | 2026-10-27 | GATES 2026-10-27 phase 5 entry (the Snowflake pin) |
 | `SnowflakeFloatTextProbe.java.txt`, `SnowflakeTextProbe.java.txt`, `SnowflakeDecimalProbe.java.txt` | Snowflake's Float text, format models, NUMBER casts | 2026-10-21 to 24 | `docs/RESULTS_AND_RENDERERS_2026_10_22.md` §10.5 |
 | `BigQueryFloatTextProbe.java.txt`, `BigQueryRaiseProbe.java.txt` | BigQuery's Float casts and `FORMAT('%.17g')`; its raise | 2026-10-21 to 24 | the same §10.5; GATES |
-| `FloatTextProbe.java.txt` | `CellText.pureFloat`'s text before and after the negative zero, the `0.00010` fix, against legend-pure's own formatter | 2026-10-28 | §7, §9; the start page's S1.4 item 2; register S114 |
+| `FloatTextProbe.java.txt` | `CellText.pureFloat`'s text before and after the negative zero, the `0.00010` fix, against legend-pure's own formatter | 2026-10-28 | §7, §9; the start page's S1.4 item 2; register S117 |
 | `test_census.py.txt` | §5's census | 2026-10-28 | `test-census-2026-10-28.tsv` |
 | `oldpath_census.py.txt` | every old-path symbol's sites per step (the deletion census) | 2026-10-27 | rerun before each deletion |
 | `compare_lanes.py.txt` | a lane's per-test comparison of two commits, channels A and B, with the route markers | 2026-10-27/28 | every lane report |
@@ -272,13 +272,13 @@ deleted after.
 
 | Finding | Evidence | Where it goes |
 |---|---|---|
-| `toVariant()` of an empty value is SQL's NULL on DuckDB (`to_json(x)` alone), an empty cell under `Variant[1]`; the engine's is JSON's null | register S113 (pending); `datacube/test/python-engine/execute.test.ts`'s Variant case reads only rows with a quantity | a lowering fix measured on every lane |
+| `toVariant()` of an empty value is SQL's NULL on DuckDB (`to_json(x)` alone), an empty cell under `Variant[1]`; the engine's is JSON's null | register S116 (pending); `datacube/test/python-engine/execute.test.ts`'s Variant case reads only rows with a quantity | a lowering fix measured on every lane |
 | the engine-parity H2 dialect (`H2`, servers 2.1 and 2.2) spells `fromJson(text)` `CAST(x AS JSON)`, which H2 answers as a JSON STRING: a silent wrong answer | found 2026-10-28 by `PureV1ApiTest`'s first draft; `H2Modern` parses (`JSON '...'`, `x FORMAT JSON`) | a dialect fix, measured on H2's lane |
 | a `BIT` store column: the engine types it `TinyInt`/`INTEGER`, lite Boolean/`BIT` | §7 | a ruling: register row or a typing change |
 | Snowflake's far-BC `TIMESTAMP_NTZ`: the driver hands another instant | `BcTimestampProbe`; the pinned `testAdjustByMinutesBigNumber` | Snowflake's dialect returns such dates as the database's own text; a lane measurement |
 | `RootNumericTypes` guesses an "unbounded Decimal" from `DECIMAL(38,18)`, so a declared `Decimal(38,18)` is skipped too | the phase 3 audit (2026-10-27), item 4; `sql/dialect/RootNumericTypes.java` unchanged since | a typed fact, not a guess |
 | the tab's Arrow nested values (a BigNum's `toJSON` quoted unscaled; dates as epoch milliseconds) may be mis-decoded by `HostRows` | the phase 3 audit, item 2 (the Variant and tagged-slot halves fixed in `b3311cd6`) | verify with a DataCube case |
 | lite's JSON writes an absent to-many property as `null` (Pure's is `[]`) | the phase 4 notes | a writer fix or a register row |
-| `CellText.pureFloat` writes a double below `1e-3` whose shortest digits are one digit with a trailing zero (`1.0E-4` as `0.00010`); legend-pure and the Float rule's shortest digits give `0.0001` | found 2026-10-28 with S114; `probes/FloatTextProbe.java.txt` (the function against legend-pure's formatter, and the fix) | ruled 2026-10-28, a defect to fix: S1.4 item 2 |
+| `CellText.pureFloat` writes a double below `1e-3` whose shortest digits are one digit with a trailing zero (`1.0E-4` as `0.00010`); legend-pure and the Float rule's shortest digits give `0.0001` | found 2026-10-28 with S117 (S114 then); `probes/FloatTextProbe.java.txt` (the function against legend-pure's formatter, and the fix) | ruled 2026-10-28, a defect to fix: S1.4 item 2 |
 | nits from the phase 3 audit: `OutputFormat.id`/`contentType` dead; `FloatPrintText.ofText`'s function parameter vestigial; `CsvWriter`'s "no CSV wire" text; `PureV1Api`'s builder-column three-way choice; the tab prints `-0` as `0`; a REAL widened on hosts but narrowed by `JdbcDecode` | the phase 3 audit | a sweep with S1.4 |
 | PCT channel A JVMs peak at 4,064 to 4,096 MB of their 4,096 MB heap before a collection (live peak after one 2.1 to 2.3 GB) | the Databricks lane, 2026-10-28, at both commits | watch; raise or split before it fails |

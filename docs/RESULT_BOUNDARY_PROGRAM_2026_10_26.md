@@ -470,7 +470,7 @@ start page's S1.4 keeps the answer) and then approved them, "yes add this to the
 precision fact, which supersedes 2026-10-27's "skip the guards" for them. The first spelling change put to the user
 case by case, a negative zero ("what should we do about the negative zero? what is the right move", then "okay"):
 lite's own outputs (LEAN JSON and CSV) write it `-0.0`, item 3's shortest decimal that reads back as the same double;
-Pure's `toString` of a Float stays `0.0` for either sign, legend-pure's own (register S114). Then "keep the fix, fix
+Pure's `toString` of a Float stays `0.0` for either sign, legend-pure's own (register S117; S114 until S1.0). Then "keep the fix, fix
 the plan wording including adding that we need to fix 0.00010": `b944a42e` kept, and the trailing zero lite's own
 outputs write after a small double's one digit (`1.0E-4` as `0.00010`, where legend-pure and item 3's shortest digits
 give `0.0001`) ruled a defect, fixed in S1.4.
@@ -491,8 +491,16 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-28, S1.0 done: `main` merged into the branch.** The next session (branch `claude/wizardly-dirac-rw6tim`,
+  from `7a9a368b`) merged `main` at `369bb176` (PR #77: 50 commits, 114 files, 12 on both sides) with a merge commit,
+  both sides kept -- `PureV1Api.execute` runs the branch's typed route over main's held-model hook; the register keeps
+  main's S112 to S114 and renumbers the branch's three rows S115 to S117 with every citation (28 lines, 11 files); main's
+  `without` tests take the `Long` the plan runner decodes. Measured locally: core (all 25 packages), the guards, the
+  census, PCT discipline, PCT channel A on DuckDB, SQLite and MongoDB (all five suites, exact, the crossing counted),
+  the DataCube Python test, the local gate (GATES, the S1.0 entry). Not the lanes: unreachable from this session.
+  Next: S1.4.
 - **2026-10-28, S1.4 begun; the handoff completed.** The negative zero built (`b944a42e`: LEAN JSON and CSV write
-  `-0.0`, Pure's `toString` stays `0.0`; register S114; `//core:core_tests`, the guards and the census green); the
+  `-0.0`, Pure's `toString` stays `0.0`; register S117, S114 until S1.0; `//core:core_tests`, the guards and the census green); the
   writer guards approved; the `0.00010` trailing zero ruled a fix. `main` moved 105 commits past the branch's base
   (PR #77) and took register ids S112 to S114 too, so a new first step: S1.0, bring `main` in and renumber the
   branch's three rows. The start page's §12 is the message that opens the next session. Next: S1.0, then S1.4.
@@ -506,7 +514,7 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
   the Java TDS text (`PureTdsText`), its wrapper and the adapter's text branch are deleted. The PCT now judges the
   engine JSON the server serves. Next: S1.4 (the writers carriage only), then S1.5's records and S1.6's draft PR.
 - **2026-10-28, PARK-34 closed by probing legend-engine 4.145.0** (stage 1, step 3 waited on it): a Variant
-  column's builder is `SEMISTRUCTURED`, its cell a string holding its JSON; the writer spells both so (register S112
+  column's builder is `SEMISTRUCTURED`, its cell a string holding its JSON; the writer spells both so (register S115, S112 until S1.0
   for the JSON's digits), and every other type the engine has no answer for stays refused, said so (GATES,
   2026-10-28). Next: the engine crossing re-measured, then the switch decided.
 - **2026-10-27, phase 5's first half green; the audit's plan under way.** Phases 1 to 4 landed on the branch

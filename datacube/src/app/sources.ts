@@ -1095,6 +1095,9 @@ export function pageSources(d: SourcesOf): PageSources {
 
   /** Each project's model text, fetched once. */
   const projectModels = new Map<string, Promise<string>>();
+  /** Each project's elements, read once: what every saved query of it reads its context and enumerations from (the 4
+   *  MB trading model's took 2 s a query, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11). */
+  const projectElements = new Map<string, Promise<readonly unknown[]>>();
   const once = <T,>(cache: Map<string, Promise<T>>, key: string, make: () => Promise<T>): Promise<T> => {
     let p = cache.get(key);
     if (!p) {
@@ -1125,19 +1128,23 @@ export function pageSources(d: SourcesOf): PageSources {
     const model = await once(projectModels, key, async () => (project
       ? (await Promise.all(project.models.map((url) => queries.fetchText(url)))).join('\n')
       : (await lazily(() => import('../../../depot-client/src/model-text.ts'))).modelText((await modelHome!.connect()).depot, q.groupId, q.artifactId, q.versionId)));
-    // in the tab, a project brings its own rows: its Data elements' tables, in a database of the version's own inside
-    // the tab's DuckDB (C5, engine-client's project-data.ts) -- another version may be on the page beside it, in its
-    // own. On Python, Python runs a project's model in its own (the host's runner).
-    const versioned: QueryEngine | undefined = local
-      ? (await (await local.projects()).engineFor(model, local.engine)).engine : undefined;
-    // rules 1-4, the one rule (saved-queries.ts savedQueryOpened), typed over its rows where the host reads them
+    // rules 1-4, the one rule (saved-queries.ts savedQueryOpened), typed over its rows where the host reads them; the
+    // project's elements read once for every query of it
     let rows: GridRows | undefined;
-    const { runtime, how, source } = await savedQueryOpened(q, model, reading, (at, options) => {
+    const elements = once(projectElements, key, () => reading.elements(model));
+    const read = { parse: (text: string) => reading.parse(text), elements: (text: string) => (text === model ? elements : reading.elements(text)) };
+    const { runtime, how, source } = await savedQueryOpened(q, model, read, (at, options) => {
       rows = services.engine.rows(model, at, options);
       return typer(rows);
     });
     if (rows === undefined) throw new Error('unreachable: a saved query is typed over its rows');
     const columns = await sourceColumns(typer(rows), source);
+    // in the tab, a project brings its own rows: its Data elements' tables, in a database of the version's own inside
+    // the tab's DuckDB (C5, engine-client's project-data.ts) -- another version may be on the page beside it, in its
+    // own. On Python, Python runs a project's model in its own (the host's runner). Asked once the query is typed: its
+    // model held then, the planner reads it as held (Boundary.projectData), compiled no more.
+    const versioned: QueryEngine | undefined = local
+      ? (await (await local.projects()).engineFor(model, local.engine)).engine : undefined;
     const { sharedPart } = await queryStores();
     const cubeSource: QuerySource = {
       _type: 'savedQuery', name: q.name, query: sharedPart(q), columns: columns.map((c) => ({ name: c.name, type: c.type })),

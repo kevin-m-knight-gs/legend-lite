@@ -19,15 +19,15 @@ measurements, every probe's source) is `docs/result-boundary-homework/README.md`
   our own core tests, the core_relational corpus, PCT channel B and the service test runner, which all still enter
   through the old door (`Execution.execute*` -> `StatementExecutor` -> `ExecutionResult`), though every statement they
   send already runs on the plan runner.
-- **The branch.** `claude/upbeat-johnson-l4hogx` at `b944a42e` (2026-10-28): 19 commits on top of `7b8c89dc` (PR
-  #78's merge into `main`), listed by `git log --oneline 7b8c89dc..origin/claude/upbeat-johnson-l4hogx`. The last four
-  are this page (`51652e64`), the user's rulings (`33380c7b`, `0c87afc9`) and S1.4's first item, the negative zero
-  (`b944a42e`). Clean. Never pushed to `main`; it lands through a PR when the user says (AGENTS.md, "Pushing to main").
-  **`main` has moved on:** at `369bb176` (2026-10-28, PR #77, the timeseries line) it is 105 commits past the branch's
-  base, 12 files changed on both sides, and it took the register ids S112 to S114 the branch also uses (S1.0).
-- **The next action.** S1.0 (bring `main` in; renumber the branch's register rows), then S1.4 (the writers carriage
-  only; its item 2 is half done), then S1.5 (the missing records), then S1.6 (a draft PR so CI runs on every OS; the
-  user's word first). Then the four big tracks: B (a test body as a sequence of plans), T (our core tests as the LEAN
+- **The branch.** `claude/wizardly-dirac-rw6tim` (since 2026-10-28, the next session's designated branch, from
+  `claude/upbeat-johnson-l4hogx`'s head `7a9a368b`: that branch's 20 commits on top of `7b8c89dc`, PR #78's merge into
+  `main`, and this session's). **`main` is merged in (S1.0, 2026-10-28):** `369bb176` (PR #77, the timeseries line;
+  50 commits past the branch's base by `git rev-list`), a merge commit, both sides kept, the branch's register rows
+  renumbered S115 to S117 (GATES, the S1.0 entry). Clean. Never pushed to `main`; it lands through a PR when the user
+  says (AGENTS.md, "Pushing to main").
+- **The next action.** S1.4 (the writers carriage only; its item 2's negative zero is built, the rest of it under
+  way on this branch), then S1.5 (the missing records), then S1.6 (a draft PR so CI runs on every OS; the user's word
+  first). Then the four big tracks: B (a test body as a sequence of plans), T (our core tests as the LEAN
   twin of PCT and the corpus), C (the corpus and channel B on B), D (the deletions). L (mixed lists typed) and A (the
   Arrow writer) can run beside them.
 - **Who decides.** The user: rulings (§10 lists every one), pushes to `main`, PRs, merges, and **every change to
@@ -106,6 +106,11 @@ what it found: the homework README §1.
 - `b944a42e` (the negative zero) locally: `//core:core_tests` (all 25 packages), `//core:guardrails`, `//core:census`
   green. Not run: `//datacube:python_execute_test` (it reads LEAN JSON), PCT and the lanes (neither PCT channel, the
   corpus nor the judges read the LEAN writers: channel A reads legend-engine's JSON and typed values).
+- S1.0's merge commit (2026-10-28, `main` at `369bb176` in) locally: `//core:core_tests` (all 25 packages),
+  `//core:guardrails`, `//core:census`, `//pct:pct_discipline`; PCT channel A, all five suites, on DuckDB, SQLite and
+  MongoDB, exact, the engine crossing counted (460 / 64, 459 / 64, 459 / 64); `//datacube:python_execute_test`; the
+  local gate (GATES, the S1.0 entry). **Not the lanes:** the six lane sessions of §7 answer "not found" from the next
+  session, and no environment with the clouds' credentials is visible to it (the merge changes nothing they measure).
 
 **Who still enters through the old door** (measured 2026-10-28; production: nobody):
 
@@ -128,7 +133,9 @@ step, records with the code, every lane per test.
 
 ### Stage 1, finish
 
-**S1.0 Bring `main` in; renumber the branch's register rows (first; added 2026-10-28).** Why: `main` is 105 commits past
+**S1.0 Bring `main` in; renumber the branch's register rows (first; added 2026-10-28). DONE 2026-10-28** (GATES, the
+S1.0 entry: the merge commit, two content conflicts and one unmarked, both sides kept; S112 to S114 → S115 to S117,
+28 citations; the gate below green but for the lanes, unreachable from the next session). Why: `main` is 105 commits past
 the branch's base (`7b8c89dc` -> `369bb176`, PR #77's timeseries line, which had itself merged `7b8c89dc`), the merge
 only grows, and S1.6's PR needs it anyway. Build:
 1. `git fetch origin main`, then `git merge origin/main` into the branch (a merge commit, never a rebase: the lanes
@@ -159,7 +166,7 @@ spellings by rules, unguarded. Build:
    `MongoDbDecode`: a field of `ExecutionPlan.Column` (a plan format bump; `PlanJsonTest`, `MirJson`), set by
    `ColumnFacts`, read by the decoders and the writers.
 2. A Float's text in lite's own outputs (`CellText.pureFloat`, which LEAN JSON and CSV use; not LEGACY):
-   - **`-0.0`: ruled and built 2026-10-28** (`b944a42e`; the user's "okay"; register S114, S117 after S1.0). A
+   - **`-0.0`: ruled and built 2026-10-28** (`b944a42e`; the user's "okay"; register S117, S114 until S1.0). A
      negative zero is written `-0.0`, the shortest text that reads back as the same double (the Float rule of
      2026-10-26), as the LEGACY writer and Arrow carry it; Pure's `toString` of a Float stays `0.0` for either sign, as
      legend-pure's own and lite's SQL (`FloatCanonText.ofText`, "ZEROS UNIFY") write it. `pureFloat` has no zero
@@ -295,7 +302,7 @@ Arrow and JSON carry the same values for every kind; DataCube's Python tests.
 
 ### Track F. The open findings
 
-Each with its evidence in the homework README §9: the branch's S113 (`toVariant()` of an empty value on DuckDB; a new
+Each with its evidence in the homework README §9: S116 (`toVariant()` of an empty value on DuckDB; the branch's S113 until S1.0; a new
 id after S1.0); the engine-parity
 H2 dialect's `fromJson` (a JSON string, not parsed: a silent wrong answer); a `BIT` store column's type (a ruling);
 Snowflake's far-BC `TIMESTAMP_NTZ` (its dialect returns the database's own text; a lane measurement);
@@ -429,7 +436,7 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
 - **Closing a parked item deletes its anchor** in `ParkedWorkLedgerTest` in the same commit.
 - **The engine-parity H2 dialect is not H2Modern**: H2 2.1 and 2.2 (the engine's) keep this dialect's walls; `fromJson`
   there answers a JSON string (track F).
-- **`toVariant()` of an empty value is SQL's NULL on DuckDB** (the branch's S113, renumbered at S1.0): a test over
+- **`toVariant()` of an empty value is SQL's NULL on DuckDB** (register S116, the branch's S113 until S1.0): a test over
   nullable data sees an empty Variant.
 - **CI runs only on pushes to `main` and on PRs**, and ignores `**/*.md`: a branch push runs nothing.
 - **A lane can be idle and say nothing**: `get_session` gives its task summary; `list_events` its last messages.
@@ -452,7 +459,7 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
 | the census of core's tests | a session's analysis | `docs/result-boundary-homework/test-census-2026-10-28.tsv` and its script |
 | every probe's source; the census and comparison scripts | scratch directories of this session and the lanes | `docs/result-boundary-homework/probes/` |
 | what legend-engine answered | a probe's output | `core/src/test/resources/upstream-api/` and the homework README §7 |
-| what legend-pure prints for a Float (its source read, the negative zero, the `0.00010` fix measured) | this session's reading and scratch programs | the homework README §7; `probes/FloatTextProbe.java.txt`; register S114; S1.4 item 2 |
+| what legend-pure prints for a Float (its source read, the negative zero, the `0.00010` fix measured) | this session's reading and scratch programs | the homework README §7; `probes/FloatTextProbe.java.txt`; register S117; S1.4 item 2 |
 | how far `main` moved past the branch (105 commits, 12 files on both sides, the register ids) | this session's `git` comparison, 2026-10-28 | S1.0; GATES 2026-10-28 (S1.4, item 2), item 4 |
 | the user's rulings | the conversation | §10 below and the program's §8 |
 | the lanes and their credentials | other sessions and their environments | §7 (how to raise your own); credentials never copied |
@@ -477,7 +484,7 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
 | 2026-10-28 | "yes keep arrow writer at the boundary in this program (but no arrow dependencies in compiler!)" | track A stays in this program, at the boundary only; R9's guard |
 | 2026-10-28 | "writer guards are for what exactly" | answered (S1.4 item 3 keeps the explanation) |
 | 2026-10-28 | "yes add this to the plan" | the two writer guards are built in S1.4, right after the precision fact |
-| 2026-10-28 | "what should we do about the negative zero? what is the right move", then "okay" to the answer | LEAN JSON and CSV write `-0.0`; Pure's `toString` stays `0.0` (S1.4 item 2, register S114) |
+| 2026-10-28 | "what should we do about the negative zero? what is the right move", then "okay" to the answer | LEAN JSON and CSV write `-0.0`; Pure's `toString` stays `0.0` (S1.4 item 2, register S117) |
 | 2026-10-28 | "why are we running tests? did we change code? i thought we were building hand off doc?" | an answer is not a go (§5) |
 | 2026-10-28 | "keep the fix, fix the plan wording including adding that we need to fix 0.00010 .. then do a full read of the what you wrote - make sure we capture all the homewokr and detail and plans in detail for new sesison without any context - do not make any more code changes here" | `b944a42e` kept; the `0.00010` trailing zero ruled a defect to fix (S1.4 item 2); this session writes no more code; the handoff re-read whole and completed (S1.0, §12) |
 
@@ -489,8 +496,8 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
    rulings), §9 (the status lines).
 4. `docs/RESULTS_AND_RENDERERS_2026_10_22.md` §0 to §5a and §10.5; `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` §2 to §6.
 5. `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §5 (lets), §6 (both judges on plans), §7 (steps 8 to 11).
-6. `docs/TENET_CHARTER.md` Clauses 1 to 4; `docs/SEMANTICS_REGISTER.md` S104 and the branch's S112, S113, S114 (the
-   Variant digits, `toVariant()` of an empty value, the negative zero; renumbered at S1.0, `main` has its own S112 to
+6. `docs/TENET_CHARTER.md` Clauses 1 to 4; `docs/SEMANTICS_REGISTER.md` S104 and S115, S116, S117 (the
+   Variant digits, `toVariant()` of an empty value, the negative zero; the branch's S112 to S114 until S1.0, `main` has its own S112 to
    S114).
 7. `docs/GATES.md`'s entries from 2026-10-26 on (the merge, phase 5, the crossing, PARK-34, the switch, S1.4's negative
    zero).

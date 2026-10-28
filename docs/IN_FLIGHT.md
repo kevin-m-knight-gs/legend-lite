@@ -164,6 +164,22 @@ with the compiler's plan/execution split**, in this order:
    icon sets, rules), Excel's number format codes and date patterns (`datacube/src/format-code.ts`) and a column's
    values grouped by hand (`ValueGroups`); P4's text tiles (`datacube/src/page-text.ts`, a `text` page view) -- the doc's §4
    rows say which.
+   **The timeseries line (2026-10-27, branch `claude/timeseries-viewer-datacube-tsm0nb`, not pushed while its roadmap
+   runs: the user):** DataCube's timeseries tile and its Pure library, now over the stress corpus's classes
+   (`docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md` §11, Phase 6). Beyond `datacube/`: `scripts/corpus/trading_model.py`
+   and its rule in `scripts/corpus/BUILD.bazel`, **taken as they are from the Deephaven line**
+   (`claude/deephaven-3-browser`, `d38144cc`: the one trading model, DH34), and `core/BUILD.bazel`'s export of
+   `StressExclusions.java` to it -- whichever line lands first, the other takes the same file; a change to either is
+   that line's, told to the other. **Told (2026-10-27):** this line's one change to `trading_model.py` -- it leaves out
+   every `###Data` section too (eleven service tests' seeds; two contend for one table, so a page filling a project's
+   database from the Data it carries was refused), as its own header says it leaves the test data out; the trader
+   pages, which seed nothing, are unchanged by it. Core asks of the library's (S112-S114) were this line's own, landed
+   with it. **Ported from the Deephaven line (2026-10-27), unchanged:** `f6022ba0` (a pure/v1 request whose model the
+   tab holds answered over the held model: `HeldModels.withText`, `HeldStore.withKeyOr`, `PureV1Api.Models`,
+   `ModelInput.with`, `Boundary`'s `HELD`) and `66bc9ca2` (`ModelBuilder.legacySetsWithId`, `UnionSynthesis`) -- a saved
+   query of the 4.1 MB markets project took two relation-type compiles of 5-6 s each to open. Whichever line lands
+   first, the other's merge takes the same text; a change to either is told to the other. This line's own addition
+   beside them: `Boundary.projectData` reads a held model by its text too (`MODELS.withText`).
    **Step 1 landed 2026-10-10 (fe7961b7b; run 38090412797; GATES "Compile once, plan many").** **Step 2's first
    landing, Create a Class…, landed 2026-10-11 (0cee56761; run 38109599876; GATES "Create a Class…")** -- no file
    touched beyond the announced list. **Step 2's second landing, Create an Association… and Create a Data Space…,
@@ -2892,10 +2908,11 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   JSON); every lane measured the PCT relation crossing as legend-engine's own adapter reads it, exact, and it is
   switched (`d8ab8434`: `PureTdsText` deleted). The handoff is rewritten as the whole roadmap
   (`docs/RESULT_BOUNDARY_START_HERE.md`, with its evidence in `docs/result-boundary-homework/`). S1.4 begun: the
-  negative zero (`b944a42e`, `result/CellText.java`, register S114); the `0.00010` fix ruled, not built. The session
+  negative zero (`b944a42e`, `result/CellText.java`, register S117 (S114 until S1.0)); the `0.00010` fix ruled, not built. The session
   that wrote this line (`session_01Vz1L3X6p56AZdTCQXUXYfE`) writes no more code: the next session opens with the
-  start page's §12. Next on this line, in order: S1.0 (merge `main`, now 105 commits past the branch's base, and
-  renumber the branch's register rows S112 to S114, which `main` also took), S1.4 (touches `result/`,
+  start page's §12. **S1.0 done 2026-10-28** on `claude/wizardly-dirac-rw6tim` (GATES, the S1.0 entry: `main` at
+  `369bb176` merged, both sides kept; the branch's register rows S115 to S117 now). Next on this line, in order:
+  S1.4 (touches `result/`,
   `exec/JdbcDecode.java`, `result/RowDecode.java`, `MongoDbDecode.java`, `executionplan/` for the precision fact, the
   two writer guards the user approved 2026-10-28), S1.5 (records), S1.6 (a draft PR on the user's word); then tracks B
   (the body runner: `StatementExecutor`, `BodyCompiler`, `Execution`, the judges), T (core's tests as the LEAN twin:

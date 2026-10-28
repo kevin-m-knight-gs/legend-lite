@@ -252,6 +252,10 @@ class CodeShapeGuardrailTest {
             // NormalizeRequired inline α-rename counter — same lifecycle as
             // UserCallInliner.fresh (fresh-name generation per compile)
             "AlphaRename.nrFresh",
+            // 2026-10-28 (PR #77's checks lane; docs/SEMANTICS_REGISTER.md S112): a generic function's expansions' fresh
+            // column names -- the columns its body makes for its own use, renamed at each call (ColumnHygiene, the user,
+            // 2026-10-27) -- the AlphaRename.nrFresh lifecycle: unique within one compile, nothing read back
+            "ColumnHygiene.fresh",
             // 2026-10-11 (cloud backends, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §9): the Snowflake dialect's fresh
             // names (its lambda parameters and FLATTEN aliases) and the select-list explosion pass's aliases
             // (ExplosionMarkers, shared with BigQuery): unique within one statement, the same lifecycle as

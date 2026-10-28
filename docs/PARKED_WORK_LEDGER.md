@@ -795,7 +795,7 @@ PlanExecutor and the DEFAULT serializer `pure/v1/execution/execute` writes with)
 `core/src/test/resources/upstream-api/` (`e8-variant-column.json`, `e8-variant-computed.json`, `variant-probe.pure`);
 `UpstreamRelationType.relationalSpelling` answers it; `result/CellText.engine` writes the cell as a string (it wrote the
 JSON itself, unprobed), the JSON's numbers in the database's digits where the engine's library re-spells them
-(`docs/SEMANTICS_REGISTER.md` S112). The acceptance, `PureV1ApiTest.e8_execute_aVariantColumn_isTheEnginesBuilder_itsCellsStringsOfJson`.
+(`docs/SEMANTICS_REGISTER.md` S115). The acceptance, `PureV1ApiTest.e8_execute_aVariantColumn_isTheEnginesBuilder_itsCellsStringsOfJson`.
 Every other type a relation can have was asked the same day: the engine has no spelling for a StrictTime, a list or a
 `VARBINARY` column (it refuses each query before executing), so lite's refusal of them is the engine's outcome, said so.
 

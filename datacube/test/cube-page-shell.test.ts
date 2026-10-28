@@ -1051,6 +1051,11 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     reopen({ ...doc, views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Orders', spec }],
       sheets: doc.sheets.map((s, i) => (i === 0 ? { ...s, layout: { ...bandsOf(s.layout), bands: [...bandsOf(s.layout).bands, { height: 0.5, node: { tile: 'ts' } }] } } : s)) });
     await shown(host, '[data-tile="ts"] .dc-ts-bar');
+    // what the tile says over its grid's cube, before the grid goes: the stub planner draws nothing (the drawing is the
+    // chart-tiles A-B1 test's), so the tile reading the kept cube is that it says the same after (the review's §9 G9:
+    // this test had read only that it did not say "not on the page")
+    await new Promise((r) => setTimeout(r, 200));
+    const before = tile('ts').querySelector('.dc-ts-banner')?.textContent ?? '';
     tile(b).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
     assert.equal(tile(b), null, 'the grid is off the board');
@@ -1060,6 +1065,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     await new Promise((r) => setTimeout(r, 200));
     const said = tile('ts').querySelector('.dc-ts-banner')?.textContent ?? '';
     assert.ok(!/not on the page/.test(said), `the tile still reads it: ${said}`);
+    assert.equal(said, before, 'it says what it said over the grid, its cube read as it was');
     // the tile removed: the kept cube goes with it
     tile('ts').querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();

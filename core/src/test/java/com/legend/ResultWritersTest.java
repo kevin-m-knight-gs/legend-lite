@@ -66,7 +66,7 @@ class ResultWritersTest {
     }
 
     /** A negative zero is another double, so lite's own outputs keep its sign: the shortest text that reads back as
-     *  the same double (the user, 2026-10-28; register S114). A decimal has no negative zero. */
+     *  the same double (the user, 2026-10-28; register S117). A decimal has no negative zero. */
     @Test
     void aNegativeZeroKeepsItsSign_inLitesCsvAndJson() {
         Column f = col("f", "Float", "DOUBLE");

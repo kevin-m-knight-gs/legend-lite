@@ -65,6 +65,9 @@ exports_files(
 js_library(
     name = "src",
     srcs = glob(["src/**/*.ts"]),
+    # its declarations as files too (a `.d.ts` in srcs is passed on as types alone): a program that compiles a source
+    # referring to one (chart-render.ts: ECharts' painters, src/echarts-renderers.d.ts) finds it -- Query's, Studio's
+    data = glob(["src/**/*.d.ts"]),
     # the Query app runs its planned SQL on DataCube's engines (DuckDB-WASM, the warehouse)
     visibility = ["//query:__pkg__"],
     deps = [":src_base"],
@@ -199,6 +202,13 @@ _NEXT_LINK_FILE = "src/share/link-%s.ts" % _NEXT_LINK_VERSION
 
 _EXTRA_ENV = {
     "warehouse-session-http": {"SQLAPI_PAGE": "$(rlocationpath //warehouse:sqlapi_page_dir)"},
+    # the markets project as the site serves it (:markets_project, config.json `projects[]`): the one trading model and
+    # the markets sample's days as its Data -- the timeseries over its classes (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md
+    # §11, Phase 6)
+    "stress-markets": {
+        "DEMO_CONFIG": "$(rlocationpath demo/config.json)",
+        "MARKETS_PROJECT": "$(rlocationpath :markets_project)",
+    },
     "bundle-budget": {
         "BUNDLE": "$(rlocationpath :demo/bundle.js)",
         "ENGINE_BUNDLE": "$(rlocationpath :demo/bundle-engine.js)",
@@ -240,6 +250,10 @@ _EXTRA_ENV = {
 # DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
 _DUCKDB_USERS = [
     "timeseries-queries",
+    # the timeseries over the trading model's classes, its rows the markets sample's (2026-10-27, Phase 6)
+    "stress-markets",
+    # the Pure library spike: one function of each family against today's writer (2026-10-27)
+    "pure-library-spike",
     "timeseries-view-dom",
     # chart queries planned and run (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2)
     "chart-queries",
@@ -271,6 +285,10 @@ _BINDING_TESTS = ["warehouse-session-http"]
 
 _EXTRA_DATA = {
     "warehouse-session-http": ["//warehouse:sqlapi_page_dir"],
+    "stress-markets": [
+        "demo/config.json",
+        ":markets_project",
+    ],
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
     "bundle-budget": [
         ":bundle_bundle",
@@ -344,6 +362,8 @@ _EXTRA_DATA = {
 # own WASM module, loaded by test/catalog-builder.ts
 _WASM_TESTS = [
     "timeseries-queries",
+    "stress-markets",
+    "pure-library-spike",
     "timeseries-view-dom",
     "calc-fix",
     "chart-queries",
@@ -628,6 +648,8 @@ _HEADLESS_LEFT_OUT = {
     # a timeseries tile's queries against gs-quant's figures, their rows read in as chart-queries' are (2026-10-25, the
     # timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md; dated by the review's A9)
     "timeseries-queries": "a picked File, read as the page's stream",
+    # the Pure library spike's prices read in as timeseries-queries' are (2026-10-27)
+    "pure-library-spike": "a picked File, read as the page's stream",
     # the lane's own stand-ins and web layer, held to Node's built-ins: they need the Node they compare against
     "headless-assert": "node:assert/strict, its reference",
     "headless-test-runner": "node:test's own run, its reference",
@@ -1642,6 +1664,60 @@ copy_to_directory(
     root_paths = ["query/demo/models"],
 )
 
+# The markets project (config.json `projects[]`, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6): the one
+# trading model (the Deephaven line's, //scripts/corpus:trading_model) and the markets sample's days in its tables as the
+# project's Data (tools/markets-data/emit.ts), which a page fills its project's database from (C5).
+js_binary(
+    name = "emit_markets_data",
+    data = [":src"],
+    entry_point = "tools/markets-data/emit.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "markets_data",
+    srcs = ["tools/markets-data/emit.ts"],
+    stdout = "generated/markets-data.pure",
+    tool = ":emit_markets_data",
+    # and Python's test of the example over it (python/tests/test_markets.py)
+    visibility = ["//python:__pkg__"],
+)
+
+# The example over the project as a saved page (tools/markets-data/page.ts), for Python's test of it
+js_binary(
+    name = "emit_markets_page",
+    data = [":src"],
+    entry_point = "tools/markets-data/page.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "markets_page",
+    srcs = ["tools/markets-data/page.ts"],
+    stdout = "generated/markets-classes.page.json",
+    tool = ":emit_markets_page",
+    visibility = ["//python:__pkg__"],
+)
+
+copy_to_directory(
+    name = "markets_project",
+    srcs = [
+        ":markets_data",
+        "//scripts/corpus:trading_model",
+    ],
+    out = "demo/projects/markets",
+    root_paths = [
+        "datacube/generated",
+        "scripts/corpus",
+    ],
+)
+
 # The trading rows' other two copies, for the test that holds them equal to the project's Data (saved-queries): the
 # warehouse's fixture and the H2 connection's setup, copied as :projects is (a test's data is its own package's).
 copy_to_directory(
@@ -1667,6 +1743,7 @@ filegroup(
         "demo/*.pure",
         "src/**/*.css",
     ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [
+        ":markets_project",
         ":planner_worker",
         ":projects",
         ":vendor",
