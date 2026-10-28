@@ -836,10 +836,16 @@ dated budget notes; every figure still the database's.
   dragged in a lower pane is measured, each end its nearest day; a double-click while drawing or measuring is no event;
   Shade with nothing to shade by says so; a shade's name is trimmed by the rule, the screen's and Python's alike;
   Python's `projections()` reads over the tile's range, as the screen does.
-  Left: a period brushed to filter the page's other grids. A tile reads its grids through their filters, so a span
-  brushed onto its own source's filter would cut the tile itself; what a tile's selection means for the grids of the
-  page (its sources' filters with the tile reading past its own, a page filter on the date of a class's grids, or every
-  grid sharing its date column) is a decision of the page's, not the tile's -- asked before it is built.
+  Left, out of this PR's scope (the user, 2026-10-28: "put the brush work out of scope for this PR and revisit next"):
+  a period brushed to focus the page. A tile reads its grids through their filters, so a span brushed onto its own
+  source's filter would cut the tile itself, and every other timeseries tile over that grid would lose the history its
+  rolling figures need. The options put to the user: (A) the charts' rule on the tile's sources (each grid filtered by
+  its own date column, the tile reading past its own brush, a class's grids by a page filter); (B) a page filter for
+  class grids alone; (C) every grid of a same-named date column (refused: a guess); (D) a page period -- every
+  timeseries tile shows it as its window, its data whole, and a grid or chart filters by it through a date column it is
+  given -- recommended, built in two steps (the linked window first, then the grids opting in); (E) a linked window
+  alone. The gesture proposed: the Measure box's "Show this period everywhere". Open with it: whether the brushed tile
+  zooms too, or keeps its whole view with the period shaded.
 - **Phase 6, charts from a model** (the user, 2026-10-27: "start all the charts from Class models projected to Relation
   instead of starting with Relation tables -- we should use the same Stress data model ... this also will give us richer
   joins to reference data and be able to plot trades"). A tile's grid reads a class of the stress model
