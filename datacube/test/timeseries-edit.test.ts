@@ -45,6 +45,9 @@ describe('a timeseries tile changed by its one rule', () => {
     const viewing = { ...SPEC, view: { mode: 'scatter' as const, of: ['B', 'C'], bins: 20 } };
     assert.deepEqual(editTimeseries(viewing, { kind: 'unplot', id: 'B' }).view, { mode: 'scatter', of: ['C'], bins: 20 });
     assert.deepEqual(editTimeseries({ ...SPEC, view: { of: ['C'] } }, { kind: 'unplot', id: 'C' }).view, undefined);
+    // a shade's name trimmed by the rule, the screen's and Python's alike; no words refused (the Phase 5 review's notes)
+    assert.equal(editTimeseries(SPEC, { kind: 'shade', column: 'close', name: '  Recessions ' }).series.at(-1)!.name, 'Recessions');
+    refused(() => editTimeseries(SPEC, { kind: 'shade', column: 'close', name: '  ' }), /a shade's name is no words/);
     // its projections taken off with it (Phase 5), another's kept
     const projected: TimeseriesSpec = { ...SPEC, annotations: [{ kind: 'projection', series: 'B' }, { kind: 'level', value: 1 }, { kind: 'projection', series: 'C' }] };
     assert.deepEqual(editTimeseries(projected, { kind: 'unplot', id: 'B' }).annotations, [{ kind: 'level', value: 1 }, { kind: 'projection', series: 'C' }]);

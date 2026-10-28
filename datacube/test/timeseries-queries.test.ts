@@ -1568,6 +1568,14 @@ describe('a tile\'s views: a scatter, a histogram, a curve -- every figure the d
     // a split series is no one line
     const split: TimeseriesSpec = { ...spec({ A: 'close' }, {}, 'symbol'), annotations: [p] };
     assert.throws(() => projectionQuery(inputs, split, p), /a projection is of one line/);
+    // the Phase 5 review's 1: a series read from the first date shown (an index) is fit on its values from there, as its
+    // line is drawn -- its ask over the window's first date
+    const indexed: TimeseriesSpec = { ...spec({ A: 'index(close[AAA])' }), annotations: [p] };
+    const it = await run(askQuery(inputs, indexed, { kind: 'projection', series: 'A', projection: 0 }, { from: DAYS[10]! }));
+    const iys = ys.map((v) => v / AAA[10]!);
+    const islope = cov(xs, iys) / (sd(xs) ** 2);
+    const ifit = (x: number): number => avg(iys) - islope * avg(xs) + islope * x;
+    assert.ok(Math.abs(num(values(it, TS_PJ_LAST_VALUE)[0])! - ifit(xs.at(-1)!)) < 1e-9, `${values(it, TS_PJ_LAST_VALUE)[0]}, not ${ifit(xs.at(-1)!)}`);
   });
 
   it('a histogram: bins of one width from the least to the most, each counted, its normal and the 5th percentile', async () => {

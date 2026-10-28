@@ -125,8 +125,11 @@ describe('the renderer that mounts a timeseries (timeseries-render.ts)', () => {
   it('while drawing, a click is the point under it in its pane\'s axes; its drawings drawn there', () => {
     const el = { setAttribute: () => {}, ownerDocument: { defaultView: undefined } } as unknown as HTMLElement;
     const points: [number, string, number][] = [];
+    const spans: [string, string, boolean][] = [];
     let chart: echarts.ECharts | undefined;
-    const mounted = mountTimeseries(el, { onZoom: () => {}, onPoint: (pane, date, value) => points.push([pane, date, value]) }, () => {
+    const mounted = mountTimeseries(el, {
+      onZoom: () => {}, onPoint: (pane, date, value) => points.push([pane, date, value]), onSpan: (from, to, done) => spans.push([from, to, done]),
+    }, () => {
       chart = echarts.init(null, null, { renderer: 'svg', ssr: true, width: 720, height: 480 });
       return chart;
     });
@@ -155,6 +158,18 @@ describe('the renderer that mounts a timeseries (timeseries-render.ts)', () => {
       // a click outside every pane is nothing
       chart!.getZr().trigger('click', { offsetX: 2, offsetY: 2 });
       assert.equal(points.length, 2);
+      // the Phase 5 review's notes: a measure dragged across a lower pane is measured too, each end its nearest day
+      mounted.draw(false);
+      mounted.measure(true);
+      // a pointer event as zrender hands it on: its pixel, and the browser's event under it (the zoom's own handler reads it)
+      const px = (date: string): { offsetX: number; offsetY: number; event: unknown } => {
+        const [x, y] = chart!.convertToPixel({ seriesId: 'drawings:1' }, [date, 50]) as unknown as number[];
+        return { offsetX: x!, offsetY: y!, event: { preventDefault: () => {}, stopPropagation: () => {} } };
+      };
+      chart!.getZr().trigger('mousedown', px('2024-01-03'));
+      chart!.getZr().trigger('mousemove', px('2024-01-05'));
+      chart!.getZr().trigger('mouseup', px('2024-01-05'));
+      assert.deepEqual(spans.at(-1), ['2024-01-03', '2024-01-05', true]);
     } finally {
       mounted.dispose();
     }

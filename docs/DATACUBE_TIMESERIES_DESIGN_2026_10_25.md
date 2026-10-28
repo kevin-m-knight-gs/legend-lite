@@ -824,6 +824,18 @@ dated budget notes; every figure still the database's.
   show, from a quarter in to the last (about 60 steps, a tenth of a second each; Stop leaves it where it is): the chart's
   zoom alone, each step its lines as they stood that day, the figures of the dates shown asked once it settles -- the
   screen's alone, Python's by nature a loop over `frame(end=...)`. Events from a grid are Phase 6's D4 below.
+  Reviewed independently (2026-10-28) and fixed, each pinned by a test: a projection of a series read from the first
+  date shown (an index, a change) was fit on its values from its first date of all -- it is asked over the window's
+  first date as its line is, and asked again when the window moves; a zoom inside a projection's window dropped its
+  points (`filter` mode) -- it is drawn by mark lines, its points carried unseen so the time axis reaches its end; a
+  pane's drawings followed whichever line was shown first -- they are on the pane's first line by the tile's order
+  (`drawingsLine`), left out and said where it is hidden, read from the first date shown, or none; a chart made again
+  forgot Measure and Draw; a span measured outlived a change of the tile (measured again) and a view (put away), and a
+  drag in a view measured its x as dates; the replay outlived a change; a tile read by the time of day snaps a point to
+  its day, so Draw says so there; a projection on a log scale (no straight line there) is left out and said; a measure
+  dragged in a lower pane is measured, each end its nearest day; a double-click while drawing or measuring is no event;
+  Shade with nothing to shade by says so; a shade's name is trimmed by the rule, the screen's and Python's alike;
+  Python's `projections()` reads over the tile's range, as the screen does.
   Left: a period brushed to filter the page's other grids. A tile reads its grids through their filters, so a span
   brushed onto its own source's filter would cut the tile itself; what a tile's selection means for the grids of the
   page (its sources' filters with the tile reading past its own, a page filter on the date of a class's grids, or every

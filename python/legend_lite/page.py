@@ -2190,10 +2190,15 @@ class Timeseries(Tile):
         DataCube's words, as the screen leaves them out."""
         import pandas as pd
         out = []
+        # over the tile's range, as its screen draws it: a series read from the first date shown (an index, a change)
+        # fit on its values from there, as its line is
+        window = None
         for i, a in enumerate(self._view['spec'].get('annotations', [])):
             if a.get('kind') != 'projection':
                 continue
-            rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': a['series'], 'table': 'projection', 'projection': i})
+            window = self._window(None, None) if window is None else window
+            rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': a['series'], 'table': 'projection', 'projection': i,
+                                     'window': window})
             named = said['columns']
             for _, r in rows.iterrows():
                 read = lambda k: None if pd.isna(r[named[k]]) else r[named[k]]

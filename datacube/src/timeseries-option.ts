@@ -19,7 +19,7 @@ import {
 } from './timeseries-spec.ts';
 import { boundsOf, exprText, inlined, seriesName, sourcesOf, splitName, type TsUnit } from './timeseries-expr.ts';
 import {
-  TS_DATE, TS_FROM, TS_HIGH, TS_LOW, TS_PJ_END, TS_PJ_END_VALUE, TS_PJ_FROM, TS_PJ_FROM_VALUE, TS_PJ_LAST, TS_PJ_LAST_VALUE, TS_PJ_N, TS_PJ_SLOPE, TS_LOWER, TS_OPEN, TS_SPLIT, TS_TEXT, TS_TO, TS_UPPER, TS_VALUE, TS_WIDTH, seriesNotes, type TsQuery,
+  TS_DATE, TS_FROM, TS_HIGH, TS_LOW, TS_PJ_END, TS_PJ_END_VALUE, TS_PJ_FROM, TS_PJ_FROM_VALUE, TS_PJ_LAST, TS_PJ_LAST_VALUE, TS_PJ_N, TS_PJ_SLOPE, TS_LOWER, TS_OPEN, TS_SPLIT, TS_TEXT, TS_TO, TS_UPPER, TS_VALUE, TS_WIDTH, readsAnchor, seriesNotes, type TsQuery,
 } from './timeseries-query.ts';
 
 /** A series' query and what the database answered. */
@@ -190,8 +190,8 @@ export function tsProjected(ts: TimeseriesSpec, at: number, table: ResultTable):
   const last = point(TS_PJ_LAST, TS_PJ_LAST_VALUE);
   const end = point(TS_PJ_END, TS_PJ_END_VALUE);
   const slope = toNumber(read(TS_PJ_SLOPE));
-  const n = toNumber(read(TS_PJ_N)) ?? 0;
-  if (from === undefined || last === undefined || end === undefined || slope === null) {
+  const n = toNumber(read(TS_PJ_N));
+  if (from === undefined || last === undefined || end === undefined || slope === null || n === null) {
     return { notes: [`${name}: series ${projection.series} has under two observations of different times to fit a line over.`] };
   }
   return { projected: { projection, at, name, from, last, end, slope, n }, notes: [] };
@@ -203,8 +203,30 @@ export function projectionsUnplaced(ts: TimeseriesSpec, lines: readonly TsLine[]
   const projections = (ts.annotations ?? []).flatMap((a, i) => (a.kind === 'projection' ? [{ a, i }] : []));
   if (projections.length === 0) return [];
   if (ts.view?.compare !== undefined) return ['The projections are of the lines\' own values, the lines now from one start (Compare): left out.'];
-  return projections.flatMap(({ a, i }) => (lines.some((l) => l.series.id === a.series && !l.series.hidden && !l.shades) ? []
-    : [`${projectionName(a, i)}: series ${a.series} is not drawn.`]));
+  const logs = new Set(panesOf(ts, lines).filter((p) => p.log).map((p) => p.index));
+  return projections.flatMap(({ a, i }) => {
+    const line = lines.find((l) => l.series.id === a.series && !l.series.hidden && !l.shades);
+    if (line === undefined) return [`${projectionName(a, i)}: series ${a.series} is not drawn.`];
+    // a straight line's fit is no straight line on a log scale, and may end at or below zero, which it drops (the Phase
+    // 5 review's notes)
+    return logs.has(line.series.pane ?? 0) ? [`${projectionName(a, i)}: series ${a.series} is drawn on a log scale, where a straight trend is no straight line: left out.`] : [];
+  });
+}
+
+/**
+ * THE LINE A PANE'S DRAWINGS ARE ON (the Phase 5 review's 3: they followed whichever line was shown first): its first
+ * series' -- a line's, not a condition's -- by the tile's order, their values that line's axis's; else why there is
+ * none, in words: a compare (the lines from one start), a pane that draws no line, its line hidden, or a line read from
+ * the first date shown (an index's, a change's: its values move with the window). The one rule the drawing places them
+ * by and the screen's Draw puts a point by.
+ */
+export function drawingsLine(ts: TimeseriesSpec, lines: readonly TsLine[], pane: number): { readonly line: TsLine } | { readonly why: string } {
+  if (ts.view?.compare !== undefined) return { why: 'Drawings are on the lines\' own values, the lines now from one start (Compare).' };
+  const line = lines.find((l) => (l.series.pane ?? 0) === pane && !l.shades);
+  if (line === undefined) return { why: `Pane ${pane + 1} draws no line to draw on.` };
+  if (line.series.hidden === true) return { why: `The drawings in pane ${pane + 1} are on series ${line.series.id}'s values, and it is hidden.` };
+  if (readsAnchor(ts, line.series)) return { why: `The drawings in pane ${pane + 1} are on series ${line.series.id}'s values, which start from the first date shown and move with it.` };
+  return { line };
 }
 
 /** A person's drawings the tile leaves out, in words: every one under a compare (drawn on the values as they were, the
@@ -213,9 +235,11 @@ export function drawingsUnplaced(ts: TimeseriesSpec, lines: readonly TsLine[]): 
   const drawings = (ts.annotations ?? []).filter((a) => a.kind === 'line' || a.kind === 'note');
   if (drawings.length === 0) return [];
   if (ts.view?.compare !== undefined) return [`The drawings are on the values as they were drawn, the lines now from one start (Compare): left out.`];
-  const panes = new Set(panesOf(ts, lines).filter((p) => lines.some((l) => !l.series.hidden && !l.shades && (l.series.pane ?? 0) === p.index)).map((p) => p.index));
-  return drawings.flatMap((a) => panes.has(a.pane ?? 0) ? []
-    : [`${a.kind === 'line' ? `The line${a.label ? ` ${a.label}` : ''}` : `The note "${a.text}"`} is in pane ${(a.pane ?? 0) + 1}, which draws no line.`]);
+  // each pane's drawings left out together, said once: why its line is none
+  return [...new Set(drawings.map((a) => a.pane ?? 0))].sort((a, b) => a - b).flatMap((pane) => {
+    const on = drawingsLine(ts, lines, pane);
+    return 'why' in on ? [`${on.why} Its drawings are left out.`] : [];
+  });
 }
 
 /**
@@ -727,16 +751,16 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
       });
     }
   }
-  // a person's own drawings: each line from its point to its point, each note at its point, in its pane, on its pane's
-  // first line's axis -- the values as the pane draws them; none under a compare, whose values are the lines' from one
-  // start, nor in a pane that draws no line (said: drawingsUnplaced). While drawing, every such pane has the series, so a
-  // click is read in its axes.
+  // a person's own drawings: each line from its point to its point, each note at its point, in its pane, on the axis of
+  // its first line by the tile's order -- the values as that line draws them; none where it has none (drawingsLine,
+  // said: drawingsUnplaced). While drawing, every such pane has the series, so a click is read in its axes.
   panes.forEach((p, gi) => {
-    if (ts.view?.compare !== undefined) return;
     const mine = (ts.annotations ?? []).filter((a) => (a.kind === 'line' || a.kind === 'note') && (a.pane ?? 0) === p.index);
     const from = ctx.drawFrom?.pane === p.index ? ctx.drawFrom.at : undefined;
     if (mine.length === 0 && ctx.drawing !== true) return;
-    const axis = placed.find((x) => x.grid === gi)?.yAxis;
+    // on its first line's axis, by the tile's order (drawingsLine: none, said)
+    const on = drawingsLine(ts, lines, p.index);
+    const axis = 'line' in on ? placed.find((x) => x.line === on.line)?.yAxis : undefined;
     if (axis === undefined) return;
     const colorOf = (slot: number | undefined): string => (slot === undefined ? theme.ink : theme.series[slot % theme.series.length]!);
     series.push({
@@ -779,21 +803,35 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   // line's colour, on its line's axis -- every point the database's; none under a compare (said: projectionsUnplaced)
   for (const pj of ts.view?.compare !== undefined ? [] : ctx.projections ?? []) {
     const own = placed.find((x) => x.line.series.id === pj.projection.series);
-    if (own === undefined) continue;
+    // none on a log scale (said: projectionsUnplaced)
+    if (own === undefined || panes[own.grid]?.log === true) continue;
+    const dashed = { color: own.line.color, width: 1.5, type: 'dashed' };
     series.push({
       id: `projection:${pj.at}`,
       name: pj.name,
       type: 'line',
       xAxisIndex: own.grid,
       yAxisIndex: own.yAxis,
+      // its three points carried, unseen, so the time axis reaches the date it is projected to; it is drawn by its mark
+      // lines, which a zoom never filters (the Phase 5 review's 2: a zoom inside its window dropped its points)
       data: [[pj.from.date, pj.from.value], [pj.last.date, pj.last.value], [pj.end.date, pj.end.value]],
       symbol: 'none',
       silent: true,
       animation: false,
-      lineStyle: { color: own.line.color, width: 1.5, type: 'dashed' },
+      lineStyle: { opacity: 0 },
       tooltip: { show: false },
-      // its name over its end, inside the pane: past it, the pane's edge cuts it
-      endLabel: { show: true, formatter: pj.name, align: 'right', verticalAlign: 'bottom', offset: [0, -6], color: theme.inkSecondary, fontSize: 10, fontFamily: theme.font },
+      markLine: {
+        symbol: 'none',
+        silent: true,
+        animation: false,
+        data: [
+          [{ coord: [pj.from.date, pj.from.value], lineStyle: dashed }, { coord: [pj.last.date, pj.last.value] }],
+          // its name over its end, inside the pane: past it, the pane's edge cuts it
+          [{ coord: [pj.last.date, pj.last.value], lineStyle: dashed,
+            label: { show: true, formatter: pj.name, position: 'insideEndTop', color: theme.inkSecondary, fontSize: 10, fontFamily: theme.font } },
+          { coord: [pj.end.date, pj.end.value] }],
+        ],
+      },
       z: 3,
     });
   }

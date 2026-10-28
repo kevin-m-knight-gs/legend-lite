@@ -433,6 +433,35 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
     }
   });
 
+  // the Phase 5 review's 4 and 5: Measure pressed before the chart is made measures once it is; a span measured is put
+  // away in a view (no dates there), and a replay is stopped by a change of the tile
+  it('Measure before the chart is made, the span put away in a view, a replay stopped by a change', async () => {
+    const { root, drawn, zooms, view, mounted } = viewer(SPEC);
+    try {
+      barButton(root, 'Measure').click();
+      await until(() => drawn.length > 0 && mounted.on !== undefined, 'the chart');
+      assert.equal(mounted.measuring, true, 'told to the chart made after it was pressed');
+      const spx = of('SPX');
+      mounted.on!.onSpan!(spx.days[30]!, spx.days[90]!, true);
+      const box = (): HTMLElement => root.querySelector('.dc-ts-measure') as HTMLElement;
+      await until(() => box().querySelectorAll('.dc-ts-measure-row').length >= 1, 'the span measured');
+      view.update({ ...SPEC, view: { ...SPEC.view, mode: 'histogram' } });
+      assert.equal(box().hidden, true, 'a view has no dates to measure');
+      mounted.on!.onSpan!('1970-01-01', '1970-01-01', true);
+      assert.equal(box().hidden, true, 'no span measured in a view');
+      view.update(SPEC);
+      await until(() => drawn.length > 0 && (drawn.at(-1)!.series as { id: string }[]).some((x) => x.id === 'A'), 'along time again');
+      barButton(root, 'Replay').click();
+      const n = zooms.length;
+      view.update({ ...SPEC, view: { ...SPEC.view, subtitle: 'Changed' } });
+      assert.ok(barButton(root, 'Replay'), 'stopped');
+      await new Promise((r) => setTimeout(r, 250));
+      assert.equal(zooms.length, n, 'no step after the change');
+    } finally {
+      view.dispose();
+    }
+  });
+
   // Phase 5's replay (TradingView's): the window's end stepped through the dates shown, the chart's zoom alone; stopped
   // where it is, and done at the last date
   it('Replay: the zoom\'s end stepped forward through the dates shown from a quarter in, stopped where it is', async () => {

@@ -416,12 +416,21 @@ describe('the drawing', () => {
     assert.deepEqual([read.projected!.name, read.projected!.from, read.projected!.last, read.projected!.end, read.projected!.slope, read.projected!.n],
       ['Trend', { date: '2024-01-02', value: 1 }, { date: '2024-01-04', value: 3 }, { date: '2024-04-04', value: 94 }, 1, 3]);
     const lines = tsLines(ts, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }), answered('B', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] })], LIGHT_THEME).lines;
-    type Drawn = { series: { id: string; yAxisIndex: number; data: unknown[]; lineStyle?: { color: string; type: string } }[] };
+    type Drawn = { series: { id: string; yAxisIndex: number; data: unknown[]; lineStyle?: { opacity?: number };
+      markLine?: { data: { coord: unknown[]; lineStyle?: { color: string; type: string } }[][] } }[] };
     const option = timeseriesOption(ts, lines, { theme: LIGHT_THEME, projections: [read.projected!] }) as unknown as Drawn;
     const drawn = option.series.find((x) => x.id === 'projection:0')!;
-    assert.deepEqual(drawn.data, [['2024-01-02', 1], ['2024-01-04', 3], ['2024-04-04', 94]]);
+    // its points carried unseen, for the axis to reach its end; drawn by mark lines, which a zoom never filters (the
+    // Phase 5 review's 2)
+    assert.deepEqual([drawn.data, drawn.lineStyle!.opacity], [[['2024-01-02', 1], ['2024-01-04', 3], ['2024-04-04', 94]], 0]);
+    assert.deepEqual(drawn.markLine!.data.map(([a, b]) => [a!.coord, b!.coord]), [[['2024-01-02', 1], ['2024-01-04', 3]], [['2024-01-04', 3], ['2024-04-04', 94]]]);
     const a = option.series.find((x) => x.id === 'A')!;
-    assert.deepEqual([drawn.yAxisIndex, drawn.lineStyle!.type, drawn.lineStyle!.color], [a.yAxisIndex, 'dashed', lines.find((l) => l.series.id === 'A')!.color]);
+    const style = drawn.markLine!.data[0]![0]!.lineStyle!;
+    assert.deepEqual([drawn.yAxisIndex, style.type, style.color], [a.yAxisIndex, 'dashed', lines.find((l) => l.series.id === 'A')!.color]);
+    // on a log scale a straight trend is no straight line: left out, said
+    const logged: TimeseriesSpec = { ...ts, panes: [{ log: true }] };
+    assert.ok(!(timeseriesOption(logged, lines, { theme: LIGHT_THEME, projections: [read.projected!] }) as unknown as Drawn).series.some((x) => x.id === 'projection:0'));
+    assert.deepEqual(projectionsUnplaced(logged, lines), ['Trend: series A is drawn on a log scale, where a straight trend is no straight line: left out.', 'Projection 2: series B is not drawn.']);
     // of a hidden series: said, not drawn; under a compare, every one
     assert.deepEqual(projectionsUnplaced(ts, lines), ['Projection 2: series B is not drawn.']);
     const compared: TimeseriesSpec = { ...ts, view: { compare: 'rebase' } };
@@ -467,7 +476,21 @@ describe('the drawing', () => {
     assert.deepEqual(drawingsUnplaced(compared, lines), ['The drawings are on the values as they were drawn, the lines now from one start (Compare): left out.']);
     assert.deepEqual(drawingsUnplaced(ts, lines), []);
     const lost: TimeseriesSpec = { ...ts, annotations: [{ kind: 'note', at: { date: '2024-01-03', value: 1 }, text: 'Here', pane: 2 }] };
-    assert.deepEqual(drawingsUnplaced(lost, lines), ['The note "Here" is in pane 3, which draws no line.']);
+    assert.deepEqual(drawingsUnplaced(lost, lines), ['Pane 3 draws no line to draw on. Its drawings are left out.']);
     assert.ok(!(timeseriesOption(lost, lines, { theme: LIGHT_THEME }) as unknown as Drawn).series.some((x) => x.id.startsWith('drawings:')));
+    // the Phase 5 review's 3: on the pane's first line by the tile's order -- hidden, none, said; never on whichever line
+    // is shown first
+    const two = spec([S('A', 'close'), S('V', 'volume', { axis: 'right' })], { annotations: [{ kind: 'note', at: { date: '2024-01-03', value: 2 }, text: 'Here' }] });
+    const both = tsLines(two, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }), answered('V', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [9e6, 8e6, 7e6] })], LIGHT_THEME).lines;
+    const onA = timeseriesOption(two, both, { theme: LIGHT_THEME }) as unknown as Drawn;
+    assert.equal(onA.series.find((x) => x.id === 'drawings:0')!.yAxisIndex, onA.series.find((x) => x.id === 'A')!.yAxisIndex);
+    const hidden: TimeseriesSpec = { ...two, series: two.series.map((x) => (x.id === 'A' ? { ...x, hidden: true } : x)) };
+    const hiddenLines = tsLines(hidden, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }), answered('V', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [9e6, 8e6, 7e6] })], LIGHT_THEME).lines;
+    assert.ok(!(timeseriesOption(hidden, hiddenLines, { theme: LIGHT_THEME }) as unknown as Drawn).series.some((x) => x.id === 'drawings:0'), 'not on the volume\'s axis');
+    assert.deepEqual(drawingsUnplaced(hidden, hiddenLines), ['The drawings in pane 1 are on series A\'s values, and it is hidden. Its drawings are left out.']);
+    // on a line read from the first date shown (an index): its values move with the window -- left out, said
+    const indexed = spec([S('A', 'index(close)')], { annotations: [{ kind: 'note', at: { date: '2024-01-03', value: 2 }, text: 'Here' }] });
+    const indexedLines = tsLines(indexed, [answered('A', 'index', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] })], LIGHT_THEME).lines;
+    assert.deepEqual(drawingsUnplaced(indexed, indexedLines), ['The drawings in pane 1 are on series A\'s values, which start from the first date shown and move with it. Its drawings are left out.']);
   });
 });

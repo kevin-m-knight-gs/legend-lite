@@ -2366,16 +2366,18 @@ export const TS_PJ_N = '__ts_pj_n';
  * observations -- its value on its time (each date's number of days, or of seconds for date-times), the slope their
  * sample covariance over time's variance, the intercept through their means -- and its fit at the first of them, at
  * the last, and at the date `ahead` past the last (`adjust`): the database's, every figure and every date. Of the line
- * as it is drawn along time; under a compare its values are from the first date shown, so it is refused, as the drawing
- * leaves it out. None of the fit under two observations of different times.
+ * as it is drawn along time: a series read from the first date shown (an index's, a change's) from `anchor`, as its line
+ * is (the Phase 5 review's 1: it was fit on its values from its first date of all). Under a compare every line is from
+ * the first date shown, so it is refused, as the drawing leaves it out. None of the fit under two observations of
+ * different times.
  */
-export function projectionQuery(inputs: TsInputs, ts: TimeseriesSpec, p: TsProjection): TsQuery {
+export function projectionQuery(inputs: TsInputs, ts: TimeseriesSpec, p: TsProjection, anchor?: string): TsQuery {
   const s = ts.series.find((x) => x.id === p.series);
   if (!s) throw new CubeRefusal(`a projection of series ${p.series}, which the tile has not`);
   if (ts.view?.compare !== undefined) throw new CubeRefusal('a projection is of a line\'s own values: under Compare its lines are from one start -- Compare off to project it');
   const ahead = tenorOf(p.ahead ?? TS_PROJECTION_AHEAD);
   if (ahead === undefined) throw new CubeRefusal(`a projection's ahead ${JSON.stringify(p.ahead)} is not a calendar period (3m)`);
-  const b = viewLine(inputs, ts, s, 'projection', { n: 0 });
+  const b = viewLine(inputs, ts, s, 'projection', { n: 0 }, anchor);
   const w = b.writer;
   const R = Writer.read;
   w.rel = w.rel.filter(row(fn('isNotEmpty', col(b.value))));
@@ -2913,7 +2915,7 @@ export function askQuery(inputs: TsInputs, ts: TimeseriesSpec, ask: TsAskOf, win
     case 'calendar':
       return calendarQuery(inputs, ts, s);
     case 'projection':
-      return projectionQuery(inputs, ts, projectionOf(ts, ask.projection));
+      return projectionQuery(inputs, ts, projectionOf(ts, ask.projection), readsAnchor(ts, s) && window.from ? window.from : undefined);
   }
 }
 

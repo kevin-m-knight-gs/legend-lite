@@ -148,7 +148,8 @@ export const TS_PROJECTION_AHEAD = '3m';
 /** The fewest observations a line is fit over: two make a line, three a fit. */
 export const MIN_PROJECTION_WINDOW = 3;
 
-/** A point of a pane, as a person put it there: a day (or a date-time) and a value. */
+/** A point of a pane, as a person put it there: a day and a value (a tile read by the time of day has none: the
+ *  screen's Draw says so). */
 export interface TsPoint {
   readonly date: string;
   readonly value: number;

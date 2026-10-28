@@ -69,18 +69,26 @@ export function mountTimeseries(el: HTMLElement, on: {
   let measuring = false;
   let drawing = false;
   let dragFrom: { readonly t: number; readonly x: number } | undefined;
-  /** The date under a pixel of the chart, in its first grid's time, or none outside the grids. */
+  /** The pane (its grid) under a pixel of the chart, or none: every pane shares the dates (the Phase 5 review's notes:
+   *  a drag in a lower pane measured nothing). */
+  const gridAt = (e: { offsetX: number; offsetY: number }): number | undefined => {
+    const grids = ((chart.getOption() as { grid?: unknown[] }).grid ?? []).length;
+    for (let g = 0; g < grids; g++) if (chart.containPixel({ gridIndex: g }, [e.offsetX, e.offsetY])) return g;
+    return undefined;
+  };
+  /** The date under a pixel of the chart, in its grids' shared time. */
   const timeAt = (e: { offsetX: number; offsetY: number }): number | undefined => {
-    const at = chart.convertFromPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY]) as unknown as number[] | undefined;
+    const at = chart.convertFromPixel({ gridIndex: gridAt(e) ?? 0 }, [e.offsetX, e.offsetY]) as unknown as number[] | undefined;
     const t = at?.[0];
     return typeof t === 'number' && Number.isFinite(t) ? t : undefined;
   };
+  // each end the day nearest it, as a point drawn is
   const spanned = (t: number, done: boolean): void => {
     const [a, b] = dragFrom!.t <= t ? [dragFrom!.t, t] : [t, dragFrom!.t];
-    on.onSpan?.(isoOf(a), isoOf(b), done);
+    on.onSpan?.(isoOf(a + HALF_DAY), isoOf(b + HALF_DAY), done);
   };
   chart.getZr().on('mousedown', (e: { offsetX: number; offsetY: number }) => {
-    if (!measuring || !chart.containPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY])) return;
+    if (!measuring || gridAt(e) === undefined) return;
     const t = timeAt(e);
     dragFrom = t === undefined ? undefined : { t, x: e.offsetX };
   });

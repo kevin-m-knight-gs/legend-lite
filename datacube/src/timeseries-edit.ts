@@ -315,7 +315,11 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
         ...(change.where !== undefined && change.where.length > 0 ? { where: change.where } : {}),
       };
       const expr: TsExpr = { kind: 'binary', op: '!=', left: column, right: { kind: 'number', value: 0 } };
-      return { ...spec, series: [...spec.series, { id: nextSeriesId(spec.series), expr, name: change.name ?? change.column }] };
+      // its name as told, its ends' spaces taken off by the rule, the screen's and Python's alike (the Phase 5 review's
+      // notes: the screen alone trimmed it); none, the column's
+      const name = change.name?.trim();
+      if (name === '') throw new TsEditRefusal('a shade\'s name is no words: name it, or leave it to the column\'s');
+      return { ...spec, series: [...spec.series, { id: nextSeriesId(spec.series), expr, name: name ?? change.column }] };
     }
     case 'unplot': {
       seriesNamed(spec, change.id);

@@ -40,7 +40,7 @@ import {
   TS_SPLIT, TS_STAT_LEVEL_LOW, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
 import {
-  describeTimeseries, dateLabel, drawingsUnplaced, marksUnplaced, projectionsUnplaced, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, toNumber, tsHeading, tsLines,
+  describeTimeseries, dateLabel, drawingsLine, drawingsUnplaced, marksUnplaced, projectionsUnplaced, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, toNumber, tsHeading, tsLines,
   tsMarks, tsPictureHeight, tsProjected, valueText, type TsFormat, type TsLine, type TsMarked, type TsProjected, type TsResult,
 } from '../timeseries-option.ts';
 import type { MountedTimeseries } from '../timeseries-render.ts';
@@ -194,8 +194,9 @@ function queryKey(ts: TimeseriesSpec): string {
   });
 }
 
-/** A projection's answer kept by what it is, as marks' are. */
-const projectionKey = (p: TsProjection): string => JSON.stringify(p);
+/** A projection's answer kept by what it asks -- its series, its window, how far ahead -- as marks' are by what they are;
+ *  its label is the drawing's alone (the Phase 5 review's notes: a label renamed asked every series again). */
+const projectionKey = (p: TsProjection): string => JSON.stringify([p.series, p.window ?? null, p.ahead ?? null]);
 
 /** Marks' answers kept by what they are, never by their place: an annotation before them taken off leaves them theirs. */
 const marksKey = (marks: TsMarks): string => JSON.stringify(marks);
@@ -459,8 +460,10 @@ export class TimeseriesView {
   #noteAt: { readonly pane: number; readonly at: TsPoint } | undefined;
   #drawBox!: HTMLElement;
   /** REPLAY (Phase 5, TradingView's bar replay): the window's end stepped through the dates shown, a quarter in to the
-   *  last -- the chart's zoom alone, each step its lines as they stood that day; the figures of the dates shown asked
-   *  once it stops (the zoom's own settling). The screen's alone: Python's by nature a loop over frame(end=...). */
+   *  last -- the chart's zoom alone: the lines as computed over every date (a z-score over all of them is not computed
+   *  again to each day), shown up to each; the figures of the dates shown asked once it stops (the zoom's own settling).
+   *  Stopped by a change of the tile and by a range chosen. The screen's alone: Python's by nature a loop over
+   *  frame(end=...). */
   #replayTimer: ReturnType<typeof setInterval> | undefined;
   #lines: TsLine[] = [];
   /** Every question asked of the database, by its ask (timeseries-query.ts askKey): what the Query window shows. A
@@ -578,10 +581,24 @@ export class TimeseriesView {
       this.#range = range;
       this.#zoom = null;
     }
+    const before = this.#spec;
     this.#spec = spec;
+    // a replay is of the tile as it was (the Phase 5 review's notes): stopped where it is
+    this.#stopReplay();
     this.#paintBar();
     // what drawing asks for, as the tile is now (a compare put on, a view chosen)
     if (this.#drawing !== null) this.#paintDraw();
+    // the span measured, of the tile as it is now (the Phase 5 review's 5): put away in a view (no dates), measured again
+    // where what its figures read changed, its figures of the tile before never painted over the lines of this one
+    if (this.#span !== undefined) {
+      if (spec.view?.mode !== undefined) {
+        this.#span = undefined;
+        this.#spanGen++;
+        this.#paintMeasure();
+      } else if (queryKey(spec) !== queryKey(before) || JSON.stringify(spec.series.map((x) => x.hidden ?? false)) !== JSON.stringify(before.series.map((x) => x.hidden ?? false))) {
+        void this.#measured(this.#span.from, this.#span.to);
+      }
+    }
     if (queryKey(spec) !== this.#asked) void this.#fetch();
     else {
       // the drawing alone changed (a line's style, its pane, hidden; an annotation; the legend): drawn from the rows it
@@ -761,20 +778,7 @@ export class TimeseriesView {
     // each trend projected, asked beside the series (tileAsks: none under a compare, which the drawing says)
     const projections = new Map<string, ResultTable>();
     const projectionsFailed = new Map<string, string>();
-    const projectionsAsked = spec.view?.compare !== undefined ? Promise.resolve() : Promise.all((spec.annotations ?? []).map(async (a, i) => {
-      if (a.kind !== 'projection') return;
-      const s = spec.series.find((x) => x.id === a.series);
-      const why = s === undefined ? `the tile has no series ${a.series}` : blocked(s);
-      if (why !== undefined) {
-        projectionsFailed.set(projectionKey(a), why);
-        return;
-      }
-      try {
-        projections.set(projectionKey(a), (await this.#runAsk(spec, { kind: 'projection', projection: i, series: a.series }, window, signal, opened)).table);
-      } catch (e) {
-        projectionsFailed.set(projectionKey(a), e instanceof Error ? e.message : String(e));
-      }
-    }));
+    const projectionsAsked = this.#askProjections(spec, window, signal, opened, projections, projectionsFailed, () => true);
     await Promise.all(spec.series.map(async (s) => {
       const why = blocked(s);
       if (why !== undefined) {
@@ -803,6 +807,31 @@ export class TimeseriesView {
     await this.#statistics(gen, opened);
   }
 
+  /** Each trend projected that `which` picks, asked (projectionQuery, over the window's first date where its series reads
+   *  one -- an index's, a change's -- as its line is drawn: the Phase 5 review's 1), its answer or its refusal kept by
+   *  what it asks. None under a compare (tileAsks: the drawing says so). */
+  async #askProjections(spec: TimeseriesSpec, window: TsWindow, signal: AbortSignal, opened: Opened, projections: Map<string, ResultTable>,
+    failed: Map<string, string>, which: (s: TsSeries) => boolean): Promise<void> {
+    if (spec.view?.compare !== undefined) return;
+    await Promise.all((spec.annotations ?? []).map(async (a, i) => {
+      if (a.kind !== 'projection') return;
+      const s = spec.series.find((x) => x.id === a.series);
+      if (s !== undefined && !which(s)) return;
+      const why = s === undefined ? `the tile has no series ${a.series}` : this.#blocked(s);
+      if (why !== undefined) {
+        failed.set(projectionKey(a), why);
+        return;
+      }
+      try {
+        projections.set(projectionKey(a), (await this.#runAsk(spec, { kind: 'projection', projection: i, series: a.series }, window, signal, opened)).table);
+        failed.delete(projectionKey(a));
+      } catch (e) {
+        projections.delete(projectionKey(a));
+        failed.set(projectionKey(a), e instanceof Error ? e.message : String(e));
+      }
+    }));
+  }
+
   /** The window moved (a zoom, a range): the series that read its first date asked again, and the statistics. */
   async #windowed(): Promise<void> {
     const opened: Opened = new Map();
@@ -826,6 +855,10 @@ export class TimeseriesView {
     if (viewMoved) await this.#fetchView(opened);
     if (gen !== this.#gen || this.#disposed) return;
     if (anchored.length > 0) {
+      // and each projection of such a series: fit on its values from the first date shown, as its line is drawn
+      const projections = new Map(this.#projections);
+      const projectionsFailed = new Map(this.#projectionsFailed);
+      const projected = this.#askProjections(spec, window, signal, opened, projections, projectionsFailed, (s) => readsAnchor(spec, s));
       const again = await Promise.all(anchored.map(async (s) => {
         try {
           return [s.id, answered(await this.#runAsk(spec, { kind: 'series', series: s.id }, window, signal, opened))] as const;
@@ -834,7 +867,10 @@ export class TimeseriesView {
           return undefined;
         }
       }));
+      await projected;
       if (gen !== this.#gen || this.#disposed) return;
+      this.#projections = projections;
+      this.#projectionsFailed = projectionsFailed;
       for (const r of again) {
         if (!r) continue;
         const { sql: _sql, ...answer } = r[1];
@@ -1025,7 +1061,8 @@ export class TimeseriesView {
         onZoom: (from, to) => this.#zoomed(from, to),
         // a date of the time view's (a view's x is no date)
         onDate: (date) => {
-          if (this.#spec.view?.mode === undefined) this.#eventAt(date);
+          // while measuring or drawing, a double-click is two clicks of theirs, no event (the Phase 5 review's notes)
+          if (this.#spec.view?.mode === undefined && !this.#measuring && this.#drawing === null) this.#eventAt(date);
         },
         onResize: () => void this.#draw(),
         onSpan: (from, to, done) => this.#spanned(from, to, done),
@@ -1040,6 +1077,10 @@ export class TimeseriesView {
       }
       if (this.#disposed) return null;
       this.#chart = make(this.#canvas, on);
+      // a chart made again (candles' kinds, or a mode pressed before the first was made) measures and draws as the
+      // tile does (the Phase 5 review's 4: a drag neither panned nor measured)
+      this.#chart.measure(this.#measuring);
+      this.#chart.draw(this.#drawing !== null);
       return this.#chart;
     })();
     return this.#mounting;
@@ -1150,7 +1191,8 @@ export class TimeseriesView {
 
   /** A span dragged: shown as it is dragged, and once let go each line's statistics over it asked of the database. */
   #spanned(from: string, to: string, done: boolean): void {
-    if (!this.#measuring) return;
+    // a view's x is no date (the Phase 5 review's 5): measured along time alone
+    if (!this.#measuring || this.#spec.view?.mode !== undefined) return;
     this.#span = { from, to };
     if (!done) {
       this.#paintMeasure(true);
@@ -1171,7 +1213,8 @@ export class TimeseriesView {
     const failed = new Map<string, string>();
     this.#paintMeasure(true);
     try {
-      await Promise.all(tableSeries(spec).statistics.map(async (id) => {
+      // the lines shown: a hidden one is in no figure of the box
+      await Promise.all(tableSeries(spec).statistics.filter((id) => spec.series.find((x) => x.id === id)?.hidden !== true).map(async (id) => {
         const s = spec.series.find((x) => x.id === id)!;
         try {
           const ran = await this.#runOn(askSources(spec, { kind: 'statistics', series: id }), (inputs) => askQuery(inputs, spec, { kind: 'statistics', series: id }, span),
@@ -1245,6 +1288,11 @@ export class TimeseriesView {
   /** Drawing a line or a note, or neither: a click is a point put in a pane, not a pan; off, a point half made put away.
    *  Measuring, off. */
   #draws(kind: 'line' | 'note' | null): void {
+    // a point is a day (TsPoint): a tile read by the time of day has none (the Phase 5 review's 6), said
+    if (kind !== null && this.#byTime()) {
+      this.#say(['Drawing is by the day: this tile reads its dates by the time of day -- give it a frequency (Daily) to draw on it.'], true);
+      return;
+    }
     if (kind !== null && this.#measuring) this.#measure(false);
     this.#drawing = kind;
     this.#drawFrom = undefined;
@@ -1257,8 +1305,22 @@ export class TimeseriesView {
 
   /** A point clicked while drawing: a line's first end, then its second -- the line told -- or a note's place, its text
    *  asked beside it. Its value as the pane draws it, to six figures (a hand's, not the database's). */
+  /** Whether the tile reads its dates by the time of day: no frequency, a source's date a date-time. */
+  #byTime(): boolean {
+    const spec = this.#spec;
+    if (spec.grain !== undefined) return false;
+    const columns = this.#columns(spec);
+    return spec.sources.some((src) => columns.get(src.alias)?.find((c) => c.name === src.date)?.type === 'DateTime');
+  }
+
   #pointed(pane: number, date: string, value: number): void {
     if (this.#drawing === null || this.#spec.view?.mode !== undefined) return;
+    // a pane whose drawings have no line to be on puts none (drawingsLine), said
+    const on = drawingsLine(this.#spec, this.#lines, pane);
+    if ('why' in on) {
+      this.#say([on.why], true);
+      return;
+    }
     const at: TsPoint = { date, value: Number(value.toPrecision(6)) };
     const where = pane === 0 ? {} : { pane };
     if (this.#drawing === 'note') {
@@ -1299,7 +1361,13 @@ export class TimeseriesView {
       : this.#spec.view?.compare !== undefined ? 'Drawings are put on the lines\' own values: Compare off to draw.'
         : kind === 'line' ? (this.#drawFrom === undefined ? 'Click where the line starts.' : `From ${this.#drawFrom.at.date}: click where it ends.`)
           : this.#noteAt === undefined ? 'Click where the note goes.' : `At ${this.#noteAt.at.date}:`;
-    const parts: HTMLElement[] = [choose, el(doc, 'span', 'dc-ts-hint', said)];
+    // each pane drawn whose drawings have no line to be on, and why (drawingsLine)
+    const panes = [...new Set(this.#lines.filter((l) => !l.shades).map((l) => l.series.pane ?? 0))].sort((a, b) => a - b);
+    const nowhere = this.#spec.view?.compare !== undefined ? [] : panes.flatMap((p) => {
+      const on = drawingsLine(this.#spec, this.#lines, p);
+      return 'why' in on ? [on.why] : [];
+    });
+    const parts: HTMLElement[] = [choose, el(doc, 'span', 'dc-ts-hint', [said, ...nowhere].join(' '))];
     const noteAt = this.#noteAt;
     if (kind === 'note' && noteAt !== undefined) {
       const text = el(doc, 'input', 'dc-input', undefined, { placeholder: 'Note', 'aria-label': 'Note' });
@@ -1345,7 +1413,8 @@ export class TimeseriesView {
     this.#chart?.zoomTo(from, dates[at]);
     this.#replayTimer = setInterval(() => {
       at = Math.min(dates.length - 1, at + step);
-      this.#chart?.zoomTo(from, dates[at]);
+      // done: its end open again, so what is drawn past the last date (a projection) is shown (the Phase 5 review's 2)
+      this.#chart?.zoomTo(from, at === dates.length - 1 ? undefined : dates[at]);
       if (at === dates.length - 1) this.#stopReplay();
     }, REPLAY_TICK_MS);
     this.#paintBar();
@@ -1410,7 +1479,7 @@ export class TimeseriesView {
     const measure = button(doc, 'Measure', 'Drag across the chart: each line\'s change, its % and the days between, the database\'s', () => this.#measure(!this.#measuring));
     measure.setAttribute('aria-pressed', String(this.#measuring));
     const replay = button(doc, this.#replayTimer === undefined ? 'Replay' : 'Stop', this.#replayTimer === undefined
-      ? 'Step the chart through its dates, each day as the lines stood then' : 'Stop the replay where it is', () => this.#replay());
+      ? 'Step the chart\'s end through its dates: the lines as computed over every date, shown up to each day' : 'Stop the replay where it is', () => this.#replay());
     replay.setAttribute('aria-pressed', String(this.#replayTimer !== undefined));
     const draw = button(doc, 'Draw', 'Click the chart: a line from one point to another, or a note pinned at one', () => this.#draws(this.#drawing === null ? 'line' : null));
     draw.setAttribute('aria-pressed', String(this.#drawing !== null));
@@ -3012,7 +3081,11 @@ export class TimeseriesView {
     };
     paint();
     const add = button(doc, 'Shade', 'Shade every period where the column is not 0', () => {
-      if (column.value === '') return;
+      // nothing to shade by, said (the Phase 5 review's notes: the button did nothing)
+      if (column.value === '') {
+        this.#say([columns.get(source.value) === undefined ? `Source ${source.value}'s grid is not on the page.` : `Source ${source.value}'s grid has no number column to shade by.`], true);
+        return;
+      }
       let where: ReturnType<typeof parseMatches>;
       try {
         where = parseMatches(matches.value);
