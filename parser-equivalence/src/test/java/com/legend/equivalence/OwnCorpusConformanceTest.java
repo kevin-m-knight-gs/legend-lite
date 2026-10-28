@@ -286,7 +286,11 @@ class OwnCorpusConformanceTest {
                 // 20 -> 21 (2026-10-27, REVIEWED, S112's hygiene of a nested call): RelationGeneric's
                 // aNestedCallsColumnIsTheBodys (test::offItsMean<T,L,V,O> over test::meanOf), the column a body has
                 // another generic function write for it renamed as the body's own
-                Map.entry("PURE-DIALECT-signatures", 21),
+                // 21 -> 23 (2026-10-28, REVIEWED, the user's "compile time checks the parameters", docs/TIMESERIES_REVIEW_2026_10_25.md
+                // §20): RelationGeneric's anOptionAnEnumeration (test::statOf<T,V,O>, an option typed by an enumeration,
+                // the if on it folded) and anEnumerationPassedOnWhole (test::digestsOf<T,O,P>, the enumeration's value a
+                // helper and an unrolled map pass on whole -- the corpus's testExtendDigest_Relational regression)
+                Map.entry("PURE-DIALECT-signatures", 23),
                 Map.entry("PURE-DIALECT-xstore-tolerance", 1),
                 Map.entry("TEST-MACHINERY-fixture", 1)));
         // F3.7: EXACT accounting, both directions (the FixtureCorpusParity
