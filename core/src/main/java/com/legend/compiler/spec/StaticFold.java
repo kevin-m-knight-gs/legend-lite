@@ -289,21 +289,24 @@ final class StaticFold {
         if (given.stream().allMatch(Objects::isNull)) {
             return null;
         }
-        LambdaFunction apart = apart(callee);
+        AlphaRename.Apart apart = apart(callee);
         if (apart == null) {
             return null;
         }
         Map<String, Object> inner = new LinkedHashMap<>(scope);
         Map<String, ValueSpecification> subst = new LinkedHashMap<>();
         for (int i = 0; i < ps.size(); i++) {
-            String name = apart.parameters().get(i).name();
+            String name = apart.parameters().get(i);
+            if (name == null) {
+                continue;   // a parameter the body never reads
+            }
             if (given.get(i) != null) {
                 inner.put(name, given.get(i));
             } else {
                 subst.put(name, fold(ps.get(i), scope));
             }
         }
-        ValueSpecification body = SourceSubst.substitute(apart.body().get(0), subst);
+        ValueSpecification body = SourceSubst.substitute(apart.body(), subst);
         inlining.push(callee.id());
         try {
             return fold(body, inner);
@@ -313,17 +316,15 @@ final class StaticFold {
     }
 
     /** The callee's body as one expression, its parameters and its binders renamed apart (each a fresh
-     *  {@code _nr<N>}, the {@link AlphaRename} of a lambda of its parameters): a caller's variable spelled as a
-     *  parameter is never captured by that parameter's binding (the second review, 2026-10-28: {@code swap(a, b)}
-     *  calling {@code cat($b, $a)} answered {@code y-y} inside a generic body, {@code y-x} outside it). Null when the
-     *  body has non-let statements. */
-    private @com.legend.base.Nullable LambdaFunction apart(com.legend.compiler.element.TypedFunction callee) {
+     *  {@code _nr<N>}, {@link AlphaRename#apart}): a caller's variable spelled as a parameter is never captured by that
+     *  parameter's binding (the second review, 2026-10-28: {@code swap(a, b)} calling {@code cat($b, $a)} answered
+     *  {@code y-y} inside a generic body, {@code y-x} outside it). Null when the body has non-let statements. */
+    private AlphaRename.@com.legend.base.Nullable Apart apart(com.legend.compiler.element.TypedFunction callee) {
         ValueSpecification single = singleBody(callee);
         if (single == null) {
             return null;
         }
-        List<Variable> params = callee.parameters().stream().map(p -> new Variable(p.name())).toList();
-        return (LambdaFunction) typer.alphaRename(new LambdaFunction(params, List.of(single)));
+        return typer.renameApart(callee.parameters().stream().map(com.legend.compiler.element.TypedParameter::name).toList(), single);
     }
 
     /** The callee's body as ONE expression (its lets inlined through the shared
@@ -355,17 +356,19 @@ final class StaticFold {
             }
             given.add(v);
         }
-        LambdaFunction apart = apart(callee);
+        AlphaRename.Apart apart = apart(callee);
         if (apart == null) {
             return null;
         }
         Map<String, Object> inner = new LinkedHashMap<>(scope);
         for (int i = 0; i < ps.size(); i++) {
-            inner.put(apart.parameters().get(i).name(), given.get(i));
+            if (apart.parameters().get(i) != null) {
+                inner.put(apart.parameters().get(i), given.get(i));
+            }
         }
         inlining.push(callee.id());
         try {
-            return eval(apart.body().get(0), inner);
+            return eval(apart.body(), inner);
         } finally {
             inlining.pop();
         }

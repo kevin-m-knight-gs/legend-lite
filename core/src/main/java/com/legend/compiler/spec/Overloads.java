@@ -555,6 +555,10 @@ final class Overloads {
         return alpha.apply(v);
     }
 
+    AlphaRename.Apart renameApart(List<String> parameters, ValueSpecification body) {
+        return alpha.apart(parameters, body);
+    }
+
     /** The generic application rule without emitting a node — the CHECK
      * half of the check/emit split ({@link Application}); calls with
      * deferred arguments take {@link #checkWithDeferred}. */

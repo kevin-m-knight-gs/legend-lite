@@ -866,6 +866,10 @@ final class Typer {
         return overloads.alphaRename(v);
     }
 
+    AlphaRename.Apart renameApart(List<String> parameters, ValueSpecification body) {
+        return overloads.renameApart(parameters, body);
+    }
+
     Application checkGeneric(AppliedFunction af, Env env) {
         return overloads.checkGeneric(af, env);
     }
