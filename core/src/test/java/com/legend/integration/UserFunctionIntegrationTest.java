@@ -1798,7 +1798,23 @@ class UserFunctionIntegrationTest {
             // reads it as the database's code -- here a family's name, 'Smith', for model::Family.SMITH
             String model = BASE_MODEL.replace("mappings: [ model::PersonMapping ];", "mappings: [ model::FamilyMapping ];") + """
 
-                    ###Pure
+                    ###Mapping
+                    import store::*;
+                    Mapping model::FamilyMapping
+                    (
+                        model::Member: Relational
+                        {
+                            ~mainTable [PersonDatabase] T_PERSON
+                            firstName: [PersonDatabase] T_PERSON.FIRST_NAME,
+                            family: EnumerationMapping FamilyNames: [PersonDatabase] T_PERSON.LAST_NAME
+                        }
+                        model::Family: EnumerationMapping FamilyNames
+                        {
+                            SMITH: 'Smith',
+                            JONES: 'Jones'
+                        }
+                    )
+                    """ + "\n###Pure\n" + """
                     Enum model::Family
                     {
                       SMITH, JONES
@@ -1816,23 +1832,6 @@ class UserFunctionIntegrationTest {
                     {
                         $t->filter(r|test::sameAs($r->read($col), $wanted))
                     }
-
-                    ###Mapping
-                    import store::*;
-                    Mapping model::FamilyMapping
-                    (
-                        model::Member: Relational
-                        {
-                            ~mainTable [PersonDatabase] T_PERSON
-                            firstName: [PersonDatabase] T_PERSON.FIRST_NAME,
-                            family: EnumerationMapping FamilyNames: [PersonDatabase] T_PERSON.LAST_NAME
-                        }
-                        model::Family: EnumerationMapping FamilyNames
-                        {
-                            SMITH: 'Smith',
-                            JONES: 'Jones'
-                        }
-                    )
                     """;
             String query = "|model::Member.all()->project(~[firstName: m|$m.firstName, family: m|$m.family])"
                     + "->test::ofFamily(~family, model::Family.SMITH)->sort(~firstName->ascending())";
