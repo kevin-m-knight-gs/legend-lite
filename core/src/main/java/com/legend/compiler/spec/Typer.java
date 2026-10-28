@@ -1460,7 +1460,11 @@ final class Typer {
                                         .Bounded.ZERO_MANY));
             }
         }
-        // The member is either a class property ($obj.prop) or a relation column ($row.col).
+        // A ROW receiver (Row-vs-Relation): a bare struct IS one row, so the read is that row's column.
+        if (source.info().type() instanceof Type.RelationType rowT) {
+            return rowColumn(source, rowT, ap.property());
+        }
+        // The member is either a class property ($obj.prop) or a table's column collection ($rel.col).
         String relColName = null;
         ExprType member = switch (source.info().type()) {
             case Type.ClassType ct -> {
@@ -1520,16 +1524,6 @@ final class Typer {
             // Result<String|1>.values): instantiation extracted to its
             // own method (CodeShape seam — leg 2 grew this arm).
             case Type.GenericType g -> genericReceiverProperty(g, ap);
-            // A ROW receiver (Row-vs-Relation): a bare struct IS one
-            // row — one cell, the per-cell stamp BY TYPE. This arm is
-            // the detective's replacement: no walk, no inference — the
-            // type says row.
-            case Type.RelationType rowT -> {
-                // QUOTE-BEARING column identity (the pivot rule's sibling):
-                Type.Column col = relationColumn(rowT, ap.property());
-                relColName = col.name();
-                yield new ExprType(col.type(), col.multiplicity());
-            }
             // an ENUM VALUE's name (real m3 Enum.name) — the SQL value of an enum IS its name
             case Type.EnumType ignored when ap.property().equals("name") ->
                     new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
@@ -1664,6 +1658,15 @@ final class Typer {
      * inlining; the owner keeps the variable through the {@code [1]}
      * identity and is loud otherwise).
      */
+    /** A row's column: {@code $row.col}, and {@code read(row, ~col)} (S114, ReadChecker), which is the same read.
+     * One cell, stamped BY TYPE (Row-vs-Relation): no walk, no inference, the type says row. The column's identity is
+     * QUOTE-BEARING (the pivot rule's sibling), its multiplicity the row's composed with the column's. */
+    TypedSpec rowColumn(TypedSpec row, Type.RelationType rowT, String name) {
+        Type.Column col = relationColumn(rowT, name);
+        return new TypedPropertyAccess(row, col.name(),
+                new ExprType(col.type(), compose(row.info().multiplicity(), col.multiplicity())));
+    }
+
     private static Multiplicity compose(Multiplicity outer, Multiplicity inner) {
         return Multiplicity.product(outer, inner);
     }

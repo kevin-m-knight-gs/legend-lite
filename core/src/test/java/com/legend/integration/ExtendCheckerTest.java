@@ -96,6 +96,13 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     "|let c = ~score; " + SCORES.substring(1) + "->extend(~x:r|$r->read($c));"));
             assertTrue(ex.getMessage().contains("column spec written at the call"), ex.getMessage());
         }
+
+        @Test
+        @DisplayName("a receiver that is not a row (a table) is refused: read is a row's column")
+        void aTableIsNotARow() {
+            var ex = assertThrows(Exception.class, () -> executeRelation(SCORES + "->read(~score)"));
+            assertTrue(ex.getMessage().contains("read takes a row"), ex.getMessage());
+        }
     }
 
     @Nested
