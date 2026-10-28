@@ -84,8 +84,10 @@ final class StaticFold {
     /** An enumeration's value as spelled ({@code datacube::ts::Grain.month}): an option a call's argument named, compared by
      *  its spelling alone (docs/WORLD_MAP.md: compare, never compute), so an {@code if} on it folds to the branch it names,
      *  as a spelled string's does (2026-10-28: a function's options as enums, the type checker refusing a value the
-     *  enumeration has not). Never reified: the AST it was read from is kept. */
-    record EnumToken(String enumeration, String value) {
+     *  enumeration has not). It reifies to the node it was read from, so a parameter bound to it and used whole
+     *  ({@code hash($digestHashType)}, an unrolled element) is written back as the argument was, never left unbound
+     *  (2026-10-28: the corpus's {@code extendWithDigestOnColumns} passes {@code HashType.MD5} to {@code hash}). */
+    record EnumToken(String enumeration, String value, com.legend.protocol.spec.EnumValue node) {
     }
 
     // =====================================================================
@@ -363,7 +365,7 @@ final class StaticFold {
             }
             case PackageableElementPtr p -> new TypeToken(
                     com.legend.compiler.element.type.PlatformTypes.typeValuePath(p.fullPath()));
-            case com.legend.protocol.spec.EnumValue ev -> new EnumToken(ev.fullPath(), ev.value());
+            case com.legend.protocol.spec.EnumValue ev -> new EnumToken(ev.fullPath(), ev.value(), ev);
             case AppliedProperty ap -> evalProperty(ap, scope);
             case AppliedFunction af -> evalCall(af, scope);
             default -> null;
@@ -871,6 +873,7 @@ final class StaticFold {
                 yield new PureCollection(vs);
             }
             case LambdaFunction lf -> lf;
+            case EnumToken t -> t.node();
             case null, default -> null;
         };
     }

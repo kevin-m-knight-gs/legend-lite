@@ -1767,6 +1767,30 @@ class UserFunctionIntegrationTest {
         }
 
         @Test
+        @DisplayName("an enumeration's value a body passes on whole is written back as the call spelled it: a helper's parameter, a map's element")
+        void anEnumerationPassedOnWhole() throws SQLException {
+            // the independent review, 2026-10-28, and the corpus's testExtendDigest_Relational (lost the day StaticFold
+            // first folded an enumeration's value): a value bound to a helper's parameter, or to the element of a map it
+            // unrolls, and used whole (hash($h)) was left a variable no binder held
+            String model = modelWith("""
+                    function test::digest(s: String[1], h: meta::pure::functions::hash::HashType[1]): String[1]
+                    {
+                        $s->hash($h)
+                    }
+                    function test::digestsOf<T,O,P>(t: Relation<T>[1], one: ColSpec<O>[1], both: ColSpec<P>[1]): Relation<T+O+P>[1]
+                    {
+                        $t->extend(~d1: r|test::digest('x', meta::pure::functions::hash::HashType.MD5))
+                          ->extend(~d2: r|[meta::pure::functions::hash::HashType.MD5, meta::pure::functions::hash::HashType.SHA1]->map(h|'x'->hash($h))->joinStrings('|'))
+                          ->rename(~d1, $one)->rename(~d2, $both)
+                    }
+                    """);
+            var result = exec(model, "|" + PEOPLE + "->select(~[FIRST_NAME])->test::digestsOf(~one, ~both)->sort(~FIRST_NAME->ascending())->limit(1)");
+            // md5('x') and sha1('x')
+            assertEquals("9dd4e461268c8034f5c8564e155c67a6", result.rows().get(0).get(1));
+            assertEquals("9dd4e461268c8034f5c8564e155c67a6|11f6ad8ec52a2984abaafd7c3b516503785c2072", result.rows().get(0).get(2));
+        }
+
+        @Test
         @DisplayName("a chain of calls of a generic function plans once each: twenty calls, each over the answer of the last")
         void aChainOfCallsIsTypedOnceEach() throws SQLException {
             // the focused Pure audit, 2026-10-28: each call typed the chain under it twice -- its check and its inlined
