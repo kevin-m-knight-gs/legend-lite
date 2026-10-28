@@ -15,6 +15,59 @@ export const DATACUBE_LIBRARY = `###Pure
 // own, never renamed), its parameters and the column it writes; it declares what it answers, and its working columns
 // are its own.
 
+// A function's options, each an enumeration (the user, 2026-10-28: a parameter checked when the query compiles, never
+// in the SQL): a value the enumeration has not is refused by the type checker, its name said -- gs-quant's own way
+// (Returns.LOGARITHMIC, SeasonalModel.ADDITIVE, RebalFreq.WEEKLY).
+Enum datacube::ts::Statistic
+{
+  mean, sum, min, max, range, std, var, count
+}
+
+Enum datacube::ts::PairStatistic
+{
+  corr, cov
+}
+
+Enum datacube::ts::Returns
+{
+  simple, log, absolute
+}
+
+Enum datacube::ts::FilterOperator
+{
+  less_than, greater_than, l_equals, g_equals, equals, not_equals, empty
+}
+
+Enum datacube::ts::ThresholdType
+{
+  percentage, absolute
+}
+
+Enum datacube::ts::Direction
+{
+  positive, negative
+}
+
+Enum datacube::ts::SeasonalModel
+{
+  additive, multiplicative
+}
+
+Enum datacube::ts::Rebalance
+{
+  daily, weekly, monthly
+}
+
+Enum datacube::ts::Grain
+{
+  day, week, month, quarter
+}
+
+Enum datacube::ts::Compare
+{
+  none, rebase, percent
+}
+
 // The mean of the window's values, none until it holds ramp of them (gs-quant's mean, its ramp).
 function datacube::ts::mean<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
@@ -62,12 +115,12 @@ function datacube::ts::var<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: 
 // expanded:
 // the line joined to itself on those dates, the statistic per date, joined back; on every date, however few values its
 // period holds.
-function datacube::ts::windowPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+function datacube::ts::windowPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: datacube::ts::Statistic[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   let base = $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), v:r|$r->read($value)]);
   let windows = $base->select(~[l, d])->extend(~lo:x|$x.d->toOne()->adjust(0 - $n, $unit))
     ->join($base->select(~[l, d, v])->rename(~l, ~wl)->rename(~d, ~wd)->rename(~v, ~wv), meta::pure::functions::relation::JoinKind.INNER, {a,b|($a.l == $b.wl) && ($b.wd > $a.lo) && ($b.wd <= $a.d)})
-    ->groupBy(~[l, d], ~s:x|$x.wv:y|if($stat == 'mean', |$y->average(), |if($stat == 'sum', |$y->sum(), |if($stat == 'min', |$y->min(), |if($stat == 'max', |$y->max(), |if($stat == 'range', |$y->max()->toOne() - $y->min()->toOne(), |if($stat == 'std', |$y->stdDevSample(), |if($stat == 'count', |$y->count(), |$y->varianceSample()))))))))
+    ->groupBy(~[l, d], ~s:x|$x.wv:y|if($stat == datacube::ts::Statistic.mean, |$y->average(), |if($stat == datacube::ts::Statistic.sum, |$y->sum(), |if($stat == datacube::ts::Statistic.min, |$y->min(), |if($stat == datacube::ts::Statistic.max, |$y->max(), |if($stat == datacube::ts::Statistic.range, |$y->max()->toOne() - $y->min()->toOne(), |if($stat == datacube::ts::Statistic.std, |$y->stdDevSample(), |if($stat == datacube::ts::Statistic.count, |$y->count(), |$y->varianceSample()))))))))
     ->rename(~l, ~gl)->rename(~d, ~gd);
   $base->join($windows, meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a.l == $b.gl) && ($a.d == $b.gd)})
     ->without(~[l, d, v, gl, gd])
@@ -86,7 +139,7 @@ function datacube::ts::rampPeriod<T,L,D,S,V,O>(t: Relation<T>[1], line: ColSpec<
 
 // A statistic of a calendar period back of each date (windowPeriod's), none before the line's first value's date that
 // period on (gs-quant's rolling_offset and apply_ramp of a DateOffset).
-function datacube::ts::overPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+function datacube::ts::overPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: datacube::ts::Statistic[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->datacube::ts::windowPeriod($line, $date, $value, $n, $unit, $stat, ~ws)
     ->datacube::ts::rampPeriod($line, $date, $value, ~ws, $n, $unit, $out)
@@ -127,11 +180,11 @@ function datacube::ts::diffPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L�
 // The returns over obs rows back (gs-quant's returns), of a type -- 'simple', 'log' or 'absolute', a word compared when
 // the call is expanded: x / x[-obs] - 1, none where x[-obs] is 0 or there is none; log(x) - log(x[-obs]), none where
 // either is 0 or below; x - x[-obs].
-function datacube::ts::returns<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], obs: Integer[1], type: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+function datacube::ts::returns<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], obs: Integer[1], type: datacube::ts::Returns[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->extend($win, ~m:{p,f,r|if($type == 'log',
+  $t->extend($win, ~m:{p,f,r|if($type == datacube::ts::Returns.log,
       |if(($r->read($value)->toOne() <= 0) || ($p->lag($r, $obs)->read($value)->toOne() <= 0), |[], |log($r->read($value)->toOne()) - log($p->lag($r, $obs)->read($value)->toOne())),
-      |if($type == 'absolute',
+      |if($type == datacube::ts::Returns.absolute,
         |$r->read($value)->toOne() - $p->lag($r, $obs)->read($value)->toOne(),
         |if($p->lag($r, $obs)->read($value)->toOne() == 0, |[], |$r->read($value)->toOne() / $p->lag($r, $obs)->read($value)->toOne() - 1)))})
     ->rename(~m, $out)
@@ -139,12 +192,12 @@ function datacube::ts::returns<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], val
 
 // The returns over a calendar period back (gs-quant's returns of a period), of a type as returns': each date against
 // its value as of (date - n unit).
-function datacube::ts::returnsPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], type: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+function datacube::ts::returnsPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], type: datacube::ts::Returns[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->datacube::ts::lagPeriod($line, $date, $value, $n, $unit, $out)
-    ->extend(~m:r|if($type == 'log',
+    ->extend(~m:r|if($type == datacube::ts::Returns.log,
       |if(($r->read($value)->toOne() <= 0) || ($r->read($out)->toOne() <= 0), |[], |log($r->read($value)->toOne()) - log($r->read($out)->toOne())),
-      |if($type == 'absolute',
+      |if($type == datacube::ts::Returns.absolute,
         |$r->read($value)->toOne() - $r->read($out)->toOne(),
         |if($r->read($out)->toOne() == 0, |[], |$r->read($value)->toOne() / $r->read($out)->toOne() - 1))))
     ->without($out)->rename(~m, $out)
@@ -258,7 +311,7 @@ function datacube::ts::zscores<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], val
 // is 0, or before the line's first value's date that period on.
 function datacube::ts::zscoresPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->datacube::ts::overPeriod($line, $date, $value, $n, $unit, 'mean', ~m)->datacube::ts::overPeriod($line, $date, $value, $n, $unit, 'std', ~s)
+  $t->datacube::ts::overPeriod($line, $date, $value, $n, $unit, datacube::ts::Statistic.mean, ~m)->datacube::ts::overPeriod($line, $date, $value, $n, $unit, datacube::ts::Statistic.std, ~s)
     ->extend(~z:x|if($x.s->toOne() == 0, |[], |($x->read($value)->toOne() - $x.m->toOne()) / $x.s->toOne()))
     ->without(~[m, s])->rename(~z, $out)
 }
@@ -285,7 +338,7 @@ function datacube::ts::drawdown<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], va
 // the line's first value's date that period on.
 function datacube::ts::drawdownPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->datacube::ts::overPeriod($line, $date, $value, $n, $unit, 'max', ~pk)
+  $t->datacube::ts::overPeriod($line, $date, $value, $n, $unit, datacube::ts::Statistic.max, ~pk)
     ->extend(~o:x|if($x.pk->toOne() == 0, |[], |$x->read($value)->toOne() / $x.pk->toOne() - 1))
     ->without(~pk)->rename(~o, $out)
 }
@@ -324,7 +377,7 @@ function datacube::ts::bollingerBands<T,V,O1,O2,O3>(t: Relation<T>[1], win: _Win
 // value's date that period on.
 function datacube::ts::bollingerBandsPeriod<T,L,D,V,O1,O2,O3>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], k: Number[1], lower: ColSpec<O1>[1], upper: ColSpec<O2>[1], width: ColSpec<O3>[1]): Relation<T+O1+O2+O3>[1]
 {
-  $t->datacube::ts::overPeriod($line, $date, $value, $n, $unit, 'mean', ~m)->datacube::ts::overPeriod($line, $date, $value, $n, $unit, 'std', ~s)
+  $t->datacube::ts::overPeriod($line, $date, $value, $n, $unit, datacube::ts::Statistic.mean, ~m)->datacube::ts::overPeriod($line, $date, $value, $n, $unit, datacube::ts::Statistic.std, ~s)
     ->extend(~[lo:x|$x.m->toOne() - $k * $x.s->toOne(), hi:x|$x.m->toOne() + $k * $x.s->toOne()])
     ->extend(~wd:x|$x.hi->toOne() - $x.lo->toOne())
     ->without(~[m, s])->rename(~lo, $lower)->rename(~hi, $upper)->rename(~wd, $width)
@@ -504,7 +557,7 @@ function datacube::ts::rsi<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1]
 // exponential_volatility: annualize(exponential_std(returns(x), beta)) * 100), the periods a year a column.
 function datacube::ts::exponentialVolatility<T,L,D,V,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], decay: Float[1], perYear: ColSpec<Y⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->datacube::ts::returns(over($line, [$date->ascending()]), $value, 1, 'simple', ~rt)
+  $t->datacube::ts::returns(over($line, [$date->ascending()]), $value, 1, datacube::ts::Returns.simple, ~rt)
     ->datacube::ts::ewmStd($line, $date, ~rt, $decay, ~sd)
     ->extend(~o:x|($x.sd->toOne() * sqrt($x->read($perYear)->toOne())) * 100)
     ->without(~[rt, sd])->rename(~o, $out)
@@ -570,7 +623,7 @@ function datacube::ts::donchianChannels<T,H,N,O1,O2,O3>(t: Relation<T>[1], win: 
 // first value's date that period on.
 function datacube::ts::donchianChannelsPeriod<T,L,D,H,N,O1,O2,O3>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], high: ColSpec<H⊆T>[1], low: ColSpec<N⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], lower: ColSpec<O1>[1], upper: ColSpec<O2>[1], width: ColSpec<O3>[1]): Relation<T+O1+O2+O3>[1]
 {
-  $t->datacube::ts::overPeriod($line, $date, $high, $n, $unit, 'max', ~hi)->datacube::ts::overPeriod($line, $date, $low, $n, $unit, 'min', ~lo)
+  $t->datacube::ts::overPeriod($line, $date, $high, $n, $unit, datacube::ts::Statistic.max, ~hi)->datacube::ts::overPeriod($line, $date, $low, $n, $unit, datacube::ts::Statistic.min, ~lo)
     ->extend(~wd:x|$x.hi->toOne() - $x.lo->toOne())
     ->rename(~lo, $lower)->rename(~hi, $upper)->rename(~wd, $width)
 }
@@ -605,7 +658,7 @@ function datacube::ts::vwap<T,P,X,V,O>(t: Relation<T>[1], win: _Window<T>[1], pr
 // read (price) that period on -- gs-quant's returns keep the first price's date, which its ramp counts from.
 function datacube::ts::volatilityPeriod<T,L,D,P,R,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], price: ColSpec<P⊆T>[1], returns: ColSpec<R⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], perYear: ColSpec<Y⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->datacube::ts::windowPeriod($line, $date, $returns, $n, $unit, 'std', ~sd)
+  $t->datacube::ts::windowPeriod($line, $date, $returns, $n, $unit, datacube::ts::Statistic.std, ~sd)
     ->extend(~v:x|($x.sd->toOne() * sqrt($x->read($perYear)->toOne())) * 100)
     ->datacube::ts::rampPeriod($line, $date, $price, ~v, $n, $unit, $out)
     ->without(~[sd, v])
@@ -615,9 +668,9 @@ function datacube::ts::volatilityPeriod<T,L,D,P,R,Y,O>(t: Relation<T>[1], line: 
 // then its min): none before the line's first value's date that period on.
 function datacube::ts::maxDrawdownPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->datacube::ts::windowPeriod($line, $date, $value, $n, $unit, 'max', ~pk)
+  $t->datacube::ts::windowPeriod($line, $date, $value, $n, $unit, datacube::ts::Statistic.max, ~pk)
     ->extend(~dd:x|if($x.pk->toOne() == 0, |[], |$x->read($value)->toOne() / $x.pk->toOne() - 1))
-    ->datacube::ts::windowPeriod($line, $date, ~dd, $n, $unit, 'min', ~md)
+    ->datacube::ts::windowPeriod($line, $date, ~dd, $n, $unit, datacube::ts::Statistic.min, ~md)
     ->datacube::ts::rampPeriod($line, $date, $value, ~md, $n, $unit, $out)
     ->without(~[pk, dd, md])
 }
@@ -627,7 +680,7 @@ function datacube::ts::maxDrawdownPeriod<T,L,D,V,O>(t: Relation<T>[1], line: Col
 // date of the series read (price) that period on.
 function datacube::ts::sharpeRatioPeriod<T,L,D,P,R,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], price: ColSpec<P⊆T>[1], returns: ColSpec<R⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], perYear: ColSpec<Y⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->datacube::ts::windowPeriod($line, $date, $returns, $n, $unit, 'mean', ~m)->datacube::ts::windowPeriod($line, $date, $returns, $n, $unit, 'std', ~s)
+  $t->datacube::ts::windowPeriod($line, $date, $returns, $n, $unit, datacube::ts::Statistic.mean, ~m)->datacube::ts::windowPeriod($line, $date, $returns, $n, $unit, datacube::ts::Statistic.std, ~s)
     ->extend(~v:x|if($x.s->toOne() == 0, |[], |($x.m->toOne() / $x.s->toOne()) * sqrt($x->read($perYear)->toOne())))
     ->datacube::ts::rampPeriod($line, $date, $price, ~v, $n, $unit, $out)
     ->without(~[m, s, v])
@@ -637,7 +690,7 @@ function datacube::ts::sharpeRatioPeriod<T,L,D,P,R,Y,O>(t: Relation<T>[1], line:
 // (windowPeriod's sums), none where the volume is 0, or before the first price's date that period on.
 function datacube::ts::vwapPeriod<T,L,D,P,X,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], price: ColSpec<P⊆T>[1], traded: ColSpec<X⊆T>[1], volume: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->datacube::ts::windowPeriod($line, $date, $traded, $n, $unit, 'sum', ~pv)->datacube::ts::windowPeriod($line, $date, $volume, $n, $unit, 'sum', ~vs)
+  $t->datacube::ts::windowPeriod($line, $date, $traded, $n, $unit, datacube::ts::Statistic.sum, ~pv)->datacube::ts::windowPeriod($line, $date, $volume, $n, $unit, datacube::ts::Statistic.sum, ~vs)
     ->extend(~v:x|if($x.vs->toOne() == 0, |[], |$x.pv->toOne() / $x.vs->toOne()))
     ->datacube::ts::rampPeriod($line, $date, $price, ~v, $n, $unit, $out)
     ->without(~[pv, vs, v])
@@ -696,14 +749,14 @@ function datacube::ts::not<T,V,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], o
 // The rows whose value the operator matches removed (gs-quant's filter_): 'less_than', 'greater_than', 'l_equals',
 // 'g_equals', 'equals', 'not_equals' a number, or 'empty' -- a word compared when the call is expanded. A comparison with
 // none never holds, so none is kept, but by not_equals, where it does (NaN != v): the values equal to it alone kept.
-function datacube::ts::filterValues<T,V>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], operator: String[1], than: Number[1]): Relation<T>[1]
+function datacube::ts::filterValues<T,V>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], operator: datacube::ts::FilterOperator[1], than: Number[1]): Relation<T>[1]
 {
-  $t->filter(x|if($operator == 'empty', |$x->read($value)->isNotEmpty(),
-    |if($operator == 'not_equals', |$x->read($value)->toOne() == $than,
-      |$x->read($value)->isEmpty() || !(if($operator == 'less_than', |$x->read($value)->toOne() < $than,
-        |if($operator == 'greater_than', |$x->read($value)->toOne() > $than,
-          |if($operator == 'l_equals', |$x->read($value)->toOne() <= $than,
-            |if($operator == 'g_equals', |$x->read($value)->toOne() >= $than, |$x->read($value)->toOne() == $than))))))))
+  $t->filter(x|if($operator == datacube::ts::FilterOperator.empty, |$x->read($value)->isNotEmpty(),
+    |if($operator == datacube::ts::FilterOperator.not_equals, |$x->read($value)->toOne() == $than,
+      |$x->read($value)->isEmpty() || !(if($operator == datacube::ts::FilterOperator.less_than, |$x->read($value)->toOne() < $than,
+        |if($operator == datacube::ts::FilterOperator.greater_than, |$x->read($value)->toOne() > $than,
+          |if($operator == datacube::ts::FilterOperator.l_equals, |$x->read($value)->toOne() <= $than,
+            |if($operator == datacube::ts::FilterOperator.g_equals, |$x->read($value)->toOne() >= $than, |$x->read($value)->toOne() == $than))))))))
 }
 
 // -- along the line --
@@ -735,9 +788,9 @@ function datacube::ts::productPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec
 {
   $t->extend(~[z:x|if($x->read($value)->toOne() == 0, |1, |[]), ng:x|if($x->read($value)->toOne() < 0, |1, |[]),
       lg:x|if($x->read($value)->toOne() == 0, |[], |log(abs($x->read($value)->toOne())))])
-    ->datacube::ts::windowPeriod($line, $date, ~z, $n, $unit, 'count', ~zs)
-    ->datacube::ts::windowPeriod($line, $date, ~ng, $n, $unit, 'count', ~ns)
-    ->datacube::ts::windowPeriod($line, $date, ~lg, $n, $unit, 'sum', ~ls)
+    ->datacube::ts::windowPeriod($line, $date, ~z, $n, $unit, datacube::ts::Statistic.count, ~zs)
+    ->datacube::ts::windowPeriod($line, $date, ~ng, $n, $unit, datacube::ts::Statistic.count, ~ns)
+    ->datacube::ts::windowPeriod($line, $date, ~lg, $n, $unit, datacube::ts::Statistic.sum, ~ls)
     ->extend(~pr:x|if($x.zs->toOne() > 0, |0.0, |pow(-1.0, $x.ns->toOne()) * exp(if($x.ls->isEmpty(), |0.0, |$x.ls->toOne()))))
     ->datacube::ts::rampPeriod($line, $date, $value, ~pr, $n, $unit, ~rp)
     ->extend(~o:x|if($x->read($value)->isEmpty(), |[], |$x.rp))
@@ -754,17 +807,17 @@ function datacube::ts::geometricallyAggregate<T,L,D,V,O>(t: Relation<T>[1], line
     ->without(~[g, pr])->rename(~o, $out)
 }
 
-// A value beyond both neighbours (by 1 + threshold times, 'relative', or threshold beyond, 'absolute') their mean
+// A value beyond both neighbours (by 1 + threshold times, percentage, or threshold beyond, absolute) their mean
 // (gs-quant's smooth_spikes): beside none no spike (a comparison with NaN never holds, kept); the line's first and last
 // rows none.
-function datacube::ts::smoothSpikes<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], threshold: Number[1], type: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+function datacube::ts::smoothSpikes<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], threshold: Number[1], type: datacube::ts::ThresholdType[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->extend(over($line, [$date->ascending()]), ~pv:{p,f,r|$p->lag($r)->read($value)})
     ->extend(over($line, [$date->ascending()]), ~nx:{p,f,r|$p->lead($r)->read($value)})
     ->extend(over($line, [$date->ascending()]), ~rn:{p,f,r|$p->rowNumber($r)})
     ->extend(over($line), ~rs:{p,f,r|$r.rn}:y|$y->count())
     ->extend(~sp:x|$x.pv->isNotEmpty() && $x.nx->isNotEmpty() && $x->read($value)->isNotEmpty()
-      && (if($type == 'absolute',
+      && (if($type == datacube::ts::ThresholdType.absolute,
           |(($x->read($value)->toOne() > ($x.pv->toOne() + $threshold)) && ($x->read($value)->toOne() > ($x.nx->toOne() + $threshold)))
             || (($x.pv->toOne() > ($x->read($value)->toOne() + $threshold)) && ($x.nx->toOne() > ($x->read($value)->toOne() + $threshold))),
           |(($x->read($value)->toOne() > ($x.pv->toOne() * (1 + $threshold))) && ($x->read($value)->toOne() > ($x.nx->toOne() * (1 + $threshold))))
@@ -777,7 +830,7 @@ function datacube::ts::smoothSpikes<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<
 // returns (a mean of zero), times the root of 252, in percent -- none until the window holds ramp prices.
 function datacube::ts::volSwapVolatility<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->datacube::ts::returns($win, $value, 1, 'log', ~lr)
+  $t->datacube::ts::returns($win, $value, 1, datacube::ts::Returns.log, ~lr)
     ->extend(~r2:x|$x.lr->toOne() * $x.lr->toOne())
     ->extend($win, ~[ms:{p,f,r|$r.r2}:y|$y->average(), n:{p,f,r|$r->read($value)}:y|$y->count()])
     ->extend(~o:x|if($x.n->toOne() < $ramp, |[], |(sqrt($x.ms->toOne()) * sqrt(252)) * 100))
@@ -789,9 +842,9 @@ function datacube::ts::volSwapVolatility<T,V,O>(t: Relation<T>[1], win: _Window<
 function datacube::ts::volSwapVolatilityPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->extend(~[l:r|$r->read($line), d:r|$r->read($date)])
-    ->datacube::ts::returns(over(~l, [~d->ascending()]), $value, 1, 'log', ~lr)
+    ->datacube::ts::returns(over(~l, [~d->ascending()]), $value, 1, datacube::ts::Returns.log, ~lr)
     ->extend(~r2:x|$x.lr->toOne() * $x.lr->toOne())
-    ->datacube::ts::windowPeriod($line, $date, ~r2, $n, $unit, 'mean', ~ms)
+    ->datacube::ts::windowPeriod($line, $date, ~r2, $n, $unit, datacube::ts::Statistic.mean, ~ms)
     ->extend(~vs:x|(sqrt($x.ms->toOne()) * sqrt(252)) * 100)
     ->datacube::ts::rampPeriod($line, $date, $value, ~vs, $n, $unit, ~o)
     ->without(~[l, d, lr, r2, ms, vs])->rename(~o, $out)
@@ -799,9 +852,9 @@ function datacube::ts::volSwapVolatilityPeriod<T,L,D,V,O>(t: Relation<T>[1], lin
 
 // The run of values above 0 ('positive') or below ('negative') to each date, counted (gs-quant's consecutive): 0 where
 // it breaks, each break beginning a run.
-function datacube::ts::consecutive<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], direction: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+function datacube::ts::consecutive<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], direction: datacube::ts::Direction[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->extend(~[l:x|$x->read($line), ys:x|if($x->read($value)->isNotEmpty() && (if($direction == 'negative', |$x->read($value)->toOne() < 0, |$x->read($value)->toOne() > 0)), |1, |0)])
+  $t->extend(~[l:x|$x->read($line), ys:x|if($x->read($value)->isNotEmpty() && (if($direction == datacube::ts::Direction.negative, |$x->read($value)->toOne() < 0, |$x->read($value)->toOne() > 0)), |1, |0)])
     ->extend(over(~l, [$date->ascending()], rows(unbounded(), 0)), ~gp:{p,f,r|1 - $r.ys}:y|$y->plus())
     ->extend(over(~[l, gp], [$date->ascending()], rows(unbounded(), 0)), ~o:{p,f,r|$r.ys}:y|$y->plus())
     ->without(~[l, ys, gp])->rename(~o, $out)
@@ -918,14 +971,14 @@ function datacube::ts::pairs<T,X,Y,A,B>(t: Relation<T>[1], first: ColSpec<X⊆T>
 // (windowPeriod's, of two columns) -- 'corr' or 'cov' (the sample's), a word compared when the call is expanded: the
 // line joined to itself on those dates, the statistic per date, joined back; on every date. A correlation none where a
 // side does not vary over the pairs, as correlation's.
-function datacube::ts::pairPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+function datacube::ts::pairPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: datacube::ts::PairStatistic[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   let base = $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), a:r|$r->read($first), b:r|$r->read($second)]);
   let windows = $base->select(~[l, d])->extend(~lo:x|$x.d->toOne()->adjust(0 - $n, $unit))
     ->join($base->select(~[l, d, a, b])->rename(~l, ~wl)->rename(~d, ~wd)->rename(~a, ~wa)->rename(~b, ~wb), meta::pure::functions::relation::JoinKind.INNER, {x,y|($x.l == $y.wl) && ($y.wd > $x.lo) && ($y.wd <= $x.d)})
     ->groupBy(~[l, d], ~[c:x|rowMapper($x.wa, $x.wb):y|$y->corr(), cv:x|rowMapper($x.wa, $x.wb):y|$y->covarSample(),
       va:x|if($x.wb->isEmpty(), |[], |$x.wa):y|$y->varianceSample(), vb:x|if($x.wa->isEmpty(), |[], |$x.wb):y|$y->varianceSample()])
-    ->extend(~s:x|if($stat == 'corr', |if($x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |$x.c), |$x.cv))
+    ->extend(~s:x|if($stat == datacube::ts::PairStatistic.corr, |if($x.va->isEmpty() || $x.vb->isEmpty() || ($x.va->toOne() == 0) || ($x.vb->toOne() == 0), |[], |$x.c), |$x.cv))
     ->select(~[l, d, s])->rename(~l, ~gl)->rename(~d, ~gd);
   $base->join($windows, meta::pure::functions::relation::JoinKind.LEFT, {x,y|($x.l == $y.gl) && ($x.d == $y.gd)})
     ->without(~[l, d, a, b, gl, gd])
@@ -936,8 +989,8 @@ function datacube::ts::pairPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<
 // their covariance over the second's variance, none where that is 0; on every date.
 function datacube::ts::slopePeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->datacube::ts::pairPeriod($line, $date, $first, $second, $n, $unit, 'cov', ~cv)
-    ->datacube::ts::windowPeriod($line, $date, $second, $n, $unit, 'var', ~vb)
+  $t->datacube::ts::pairPeriod($line, $date, $first, $second, $n, $unit, datacube::ts::PairStatistic.cov, ~cv)
+    ->datacube::ts::windowPeriod($line, $date, $second, $n, $unit, datacube::ts::Statistic.var, ~vb)
     ->extend(~o:x|if($x.vb->toOne() == 0, |[], |$x.cv->toOne() / $x.vb->toOne()))
     ->without(~[cv, vb])->rename(~o, $out)
 }
@@ -949,7 +1002,7 @@ function datacube::ts::slopePeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec
 function datacube::ts::correlationPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->datacube::ts::pairs($first, $second, ~pa, ~pb)
-    ->datacube::ts::pairPeriod($line, $date, ~pa, ~pb, $n, $unit, 'corr', ~c)
+    ->datacube::ts::pairPeriod($line, $date, ~pa, ~pb, $n, $unit, datacube::ts::PairStatistic.corr, ~c)
     ->datacube::ts::rampPeriod($line, $date, ~pa, ~c, $n, $unit, ~o)
     ->without(~[pa, pb, c])->rename(~o, $out)
 }
@@ -966,7 +1019,7 @@ function datacube::ts::rSquaredPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColS
 function datacube::ts::covariancePeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->datacube::ts::pairs($first, $second, ~pa, ~pb)
-    ->datacube::ts::pairPeriod($line, $date, ~pa, ~pb, $n, $unit, 'cov', ~cv)
+    ->datacube::ts::pairPeriod($line, $date, ~pa, ~pb, $n, $unit, datacube::ts::PairStatistic.cov, ~cv)
     ->datacube::ts::rampPeriod($line, $date, ~pa, ~cv, $n, $unit, ~o)
     ->without(~[pa, pb, cv])->rename(~o, $out)
 }
@@ -986,8 +1039,8 @@ function datacube::ts::alphaPeriod<T,L,D,X,Y,Z,O>(t: Relation<T>[1], line: ColSp
 {
   $t->datacube::ts::pairs($first, $second, ~pa, ~pb)
     ->datacube::ts::slopePeriod($line, $date, ~pa, ~pb, $n, $unit, ~s)
-    ->datacube::ts::windowPeriod($line, $date, ~pa, $n, $unit, 'mean', ~ma)
-    ->datacube::ts::windowPeriod($line, $date, ~pb, $n, $unit, 'mean', ~mb)
+    ->datacube::ts::windowPeriod($line, $date, ~pa, $n, $unit, datacube::ts::Statistic.mean, ~ma)
+    ->datacube::ts::windowPeriod($line, $date, ~pb, $n, $unit, datacube::ts::Statistic.mean, ~mb)
     ->extend(~al:x|($x.ma->toOne() - ($x.s->toOne() * $x.mb->toOne())) * $x->read($perYear)->toOne())
     ->datacube::ts::rampPeriod($line, $date, ~pa, ~al, $n, $unit, ~o)
     ->without(~[pa, pb, s, ma, mb, al])->rename(~o, $out)
@@ -999,8 +1052,8 @@ function datacube::ts::residualPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColS
 {
   $t->datacube::ts::pairs($first, $second, ~pa, ~pb)
     ->datacube::ts::slopePeriod($line, $date, ~pa, ~pb, $n, $unit, ~s)
-    ->datacube::ts::windowPeriod($line, $date, ~pa, $n, $unit, 'mean', ~ma)
-    ->datacube::ts::windowPeriod($line, $date, ~pb, $n, $unit, 'mean', ~mb)
+    ->datacube::ts::windowPeriod($line, $date, ~pa, $n, $unit, datacube::ts::Statistic.mean, ~ma)
+    ->datacube::ts::windowPeriod($line, $date, ~pb, $n, $unit, datacube::ts::Statistic.mean, ~mb)
     ->extend(~rs:x|$x->read($first)->toOne() - (($x.ma->toOne() - ($x.s->toOne() * $x.mb->toOne())) + ($x.s->toOne() * $x->read($second)->toOne())))
     ->datacube::ts::rampPeriod($line, $date, ~pa, ~rs, $n, $unit, ~o)
     ->without(~[pa, pb, s, ma, mb, rs])->rename(~o, $out)
@@ -1065,7 +1118,7 @@ function datacube::ts::leadLag<T,X,Y,O>(t: Relation<T>[1], win: _Window<T>[1], f
 function datacube::ts::trackingErrorPeriod<T,L,D,X,Y,Z,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], perYear: ColSpec<Z⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->extend(~ac:x|$x->read($first)->toOne() - $x->read($second)->toOne())
-    ->datacube::ts::overPeriod($line, $date, ~ac, $n, $unit, 'std', ~sd)
+    ->datacube::ts::overPeriod($line, $date, ~ac, $n, $unit, datacube::ts::Statistic.std, ~sd)
     ->extend(~o:x|($x.sd->toOne() * sqrt($x->read($perYear)->toOne())) * 100)
     ->without(~[ac, sd])->rename(~o, $out)
 }
@@ -1074,8 +1127,8 @@ function datacube::ts::trackingErrorPeriod<T,L,D,X,Y,Z,O>(t: Relation<T>[1], lin
 function datacube::ts::informationRatioPeriod<T,L,D,X,Y,Z,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], perYear: ColSpec<Z⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->extend(~ac:x|$x->read($first)->toOne() - $x->read($second)->toOne())
-    ->datacube::ts::overPeriod($line, $date, ~ac, $n, $unit, 'std', ~sd)
-    ->datacube::ts::windowPeriod($line, $date, ~ac, $n, $unit, 'mean', ~m)
+    ->datacube::ts::overPeriod($line, $date, ~ac, $n, $unit, datacube::ts::Statistic.std, ~sd)
+    ->datacube::ts::windowPeriod($line, $date, ~ac, $n, $unit, datacube::ts::Statistic.mean, ~m)
     ->extend(~o:x|if($x.sd->toOne() == 0, |[], |($x.m->toOne() / $x.sd->toOne()) * sqrt($x->read($perYear)->toOne())))
     ->without(~[ac, sd, m])->rename(~o, $out)
 }
@@ -1084,8 +1137,8 @@ function datacube::ts::informationRatioPeriod<T,L,D,X,Y,Z,O>(t: Relation<T>[1], 
 function datacube::ts::upCapturePeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->extend(~[ca:x|if($x->read($second)->toOne() > 0, |$x->read($first), |[]), cb:x|if($x->read($second)->toOne() > 0, |$x->read($second), |[])])
-    ->datacube::ts::windowPeriod($line, $date, ~ca, $n, $unit, 'mean', ~ma)
-    ->datacube::ts::windowPeriod($line, $date, ~cb, $n, $unit, 'mean', ~mb)
+    ->datacube::ts::windowPeriod($line, $date, ~ca, $n, $unit, datacube::ts::Statistic.mean, ~ma)
+    ->datacube::ts::windowPeriod($line, $date, ~cb, $n, $unit, datacube::ts::Statistic.mean, ~mb)
     ->extend(~cp:x|if($x.mb->toOne() == 0, |[], |$x.ma->toOne() / $x.mb->toOne()))
     ->datacube::ts::rampPeriod($line, $date, $first, ~cp, $n, $unit, ~o)
     ->without(~[ca, cb, ma, mb, cp])->rename(~o, $out)
@@ -1095,8 +1148,8 @@ function datacube::ts::upCapturePeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: Col
 function datacube::ts::downCapturePeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->extend(~[ca:x|if($x->read($second)->toOne() < 0, |$x->read($first), |[]), cb:x|if($x->read($second)->toOne() < 0, |$x->read($second), |[])])
-    ->datacube::ts::windowPeriod($line, $date, ~ca, $n, $unit, 'mean', ~ma)
-    ->datacube::ts::windowPeriod($line, $date, ~cb, $n, $unit, 'mean', ~mb)
+    ->datacube::ts::windowPeriod($line, $date, ~ca, $n, $unit, datacube::ts::Statistic.mean, ~ma)
+    ->datacube::ts::windowPeriod($line, $date, ~cb, $n, $unit, datacube::ts::Statistic.mean, ~mb)
     ->extend(~cp:x|if($x.mb->toOne() == 0, |[], |$x.ma->toOne() / $x.mb->toOne()))
     ->datacube::ts::rampPeriod($line, $date, $first, ~cp, $n, $unit, ~o)
     ->without(~[ca, cb, ma, mb, cp])->rename(~o, $out)
@@ -1105,7 +1158,7 @@ function datacube::ts::downCapturePeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: C
 // The lead-lag correlation over a calendar period (leadLag's, pairPeriod's).
 function datacube::ts::leadLagPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->datacube::ts::pairPeriod($line, $date, $first, $second, $n, $unit, 'corr', ~c)
+  $t->datacube::ts::pairPeriod($line, $date, $first, $second, $n, $unit, datacube::ts::PairStatistic.corr, ~c)
     ->datacube::ts::rampPeriod($line, $date, $first, ~c, $n, $unit, ~o)
     ->without(~c)->rename(~o, $out)
 }
@@ -1113,13 +1166,13 @@ function datacube::ts::leadLagPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSp
 // Prices from returns (gs-quant's prices): initial at the first date, and each after it its returns to date compounded
 // -- 'simple' (the product of 1 + r), 'log' (e to their sum) or 'absolute' (their sum added), a word compared when the
 // call is expanded; a return of none (the first) leaves the level where it was.
-function datacube::ts::prices<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], initial: Number[1], type: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+function datacube::ts::prices<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], initial: Number[1], type: datacube::ts::Returns[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->extend(over($line, [$date->ascending()], rows(unbounded(), 0)), ~sm:{p,f,r|$r->read($value)}:y|$y->plus())
     ->extend(~g:x|1 + $x->read($value)->toOne())
     ->datacube::ts::windowProduct(over($line, [$date->ascending()], rows(unbounded(), 0)), ~g, ~pr)
-    ->extend(~o:x|if($type == 'absolute', |$initial + if($x.sm->isEmpty(), |0.0, |$x.sm->toOne()),
-      |if($type == 'log', |$initial * exp(if($x.sm->isEmpty(), |0.0, |$x.sm->toOne())), |$initial * $x.pr->toOne())))
+    ->extend(~o:x|if($type == datacube::ts::Returns.absolute, |$initial + if($x.sm->isEmpty(), |0.0, |$x.sm->toOne()),
+      |if($type == datacube::ts::Returns.log, |$initial * exp(if($x.sm->isEmpty(), |0.0, |$x.sm->toOne())), |$initial * $x.pr->toOne())))
     ->without(~[sm, g, pr])->rename(~o, $out)
 }
 
@@ -1160,10 +1213,10 @@ function datacube::ts::dickeyFullerPeriod<T,L,D,V,O>(t: Relation<T>[1], line: Co
     ->extend(over(~l, [~d->ascending()]), ~xl:{p,f,r|$p->lag($r)->read($value)})
     ->extend(~dx:x|$x->read($value)->toOne() - $x.xl->toOne())
     ->datacube::ts::pairs(~dx, ~xl, ~pd, ~pl)
-    ->datacube::ts::pairPeriod($line, $date, ~pd, ~pl, $n, $unit, 'cov', ~cv)
-    ->datacube::ts::windowPeriod($line, $date, ~pl, $n, $unit, 'var', ~vl)
-    ->datacube::ts::windowPeriod($line, $date, ~pd, $n, $unit, 'var', ~vd)
-    ->datacube::ts::windowPeriod($line, $date, ~pl, $n, $unit, 'count', ~c)
+    ->datacube::ts::pairPeriod($line, $date, ~pd, ~pl, $n, $unit, datacube::ts::PairStatistic.cov, ~cv)
+    ->datacube::ts::windowPeriod($line, $date, ~pl, $n, $unit, datacube::ts::Statistic.var, ~vl)
+    ->datacube::ts::windowPeriod($line, $date, ~pd, $n, $unit, datacube::ts::Statistic.var, ~vd)
+    ->datacube::ts::windowPeriod($line, $date, ~pl, $n, $unit, datacube::ts::Statistic.count, ~c)
     ->extend(~b:x|if($x.vl->toOne() == 0, |[], |$x.cv->toOne() / $x.vl->toOne()))
     ->extend(~rs:x|$x.vd->toOne() - (($x.b->toOne() * $x.b->toOne()) * $x.vl->toOne()))
     ->extend(~se:x|if($x.b->isEmpty() || ($x.c->toOne() < 3) || ($x.rs->toOne() <= 0), |[], |sqrt($x.rs->toOne() / (($x.c->toOne() - 2) * $x.vl->toOne()))))
@@ -1203,8 +1256,8 @@ function datacube::ts::excessReturns<T,L,D,V,N,O>(t: Relation<T>[1], line: ColSp
 // times the product of (1 + x's return − the index's) to date; none where x is none.
 function datacube::ts::excessReturnsOver<T,L,D,V,C,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], cash: ColSpec<C⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->datacube::ts::returns(over($line, [$date->ascending()]), $value, 1, 'simple', ~rx)
-    ->datacube::ts::returns(over($line, [$date->ascending()]), $cash, 1, 'simple', ~ry)
+  $t->datacube::ts::returns(over($line, [$date->ascending()]), $value, 1, datacube::ts::Returns.simple, ~rx)
+    ->datacube::ts::returns(over($line, [$date->ascending()]), $cash, 1, datacube::ts::Returns.simple, ~ry)
     ->extend(~g:x|(1 + $x.rx->toOne()) - $x.ry->toOne())
     ->datacube::ts::windowProduct(over($line, [$date->ascending()], rows(unbounded(), 0)), ~g, ~pr)
     ->datacube::ts::first($line, $date, $value, ~f0)
@@ -1272,15 +1325,15 @@ function datacube::ts::trend<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[
 // The series less its season (gs-quant's seasonally_adjusted, statsmodels' classical decomposition): each value less
 // (over, 'multiplicative') its place in the cycle's mean of the detrended values (place, a column: each row's number in
 // the cycle's calendar), those means centred on their own mean -- none where the trend (trend's) is none.
-function datacube::ts::seasonallyAdjusted<T,L,D,V,P,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], place: ColSpec<P⊆T>[1], cycle: Integer[1], half: Integer[1], method: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+function datacube::ts::seasonallyAdjusted<T,L,D,V,P,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], place: ColSpec<P⊆T>[1], cycle: Integer[1], half: Integer[1], method: datacube::ts::SeasonalModel[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->datacube::ts::trend($line, $date, $value, $cycle, $half, ~tr)
-    ->extend(~dt:x|if($method == 'multiplicative', |if($x.tr->toOne() == 0, |[], |$x->read($value)->toOne() / $x.tr->toOne()), |$x->read($value)->toOne() - $x.tr->toOne()))
+    ->extend(~dt:x|if($method == datacube::ts::SeasonalModel.multiplicative, |if($x.tr->toOne() == 0, |[], |$x->read($value)->toOne() / $x.tr->toOne()), |$x->read($value)->toOne() - $x.tr->toOne()))
     ->extend(~[l:x|$x->read($line), ps:x|$x->read($place)->toOne() - (floor($x->read($place)->toOne() / $cycle) * $cycle)])
     ->extend(over(~[l, ps]), ~[pm:{p,f,r|$r.dt}:y|$y->average(), pr:{p,f,r|1}:y|$y->count()])
     ->extend(over(~l), ~al:{p,f,r|$r.pm->toOne() / $r.pr->toOne()}:y|$y->plus())
-    ->extend(~ss:x|if($method == 'multiplicative', |$x.pm->toOne() / ($x.al->toOne() / $cycle), |$x.pm->toOne() - ($x.al->toOne() / $cycle)))
-    ->extend(~o:x|if($x.tr->isEmpty(), |[], |if($method == 'multiplicative', |$x->read($value)->toOne() / $x.ss->toOne(), |$x->read($value)->toOne() - $x.ss->toOne())))
+    ->extend(~ss:x|if($method == datacube::ts::SeasonalModel.multiplicative, |$x.pm->toOne() / ($x.al->toOne() / $cycle), |$x.pm->toOne() - ($x.al->toOne() / $cycle)))
+    ->extend(~o:x|if($x.tr->isEmpty(), |[], |if($method == datacube::ts::SeasonalModel.multiplicative, |$x->read($value)->toOne() / $x.ss->toOne(), |$x->read($value)->toOne() - $x.ss->toOne())))
     ->without(~[tr, dt, l, ps, pm, pr, al, ss])->rename(~o, $out)
 }
 
@@ -1334,13 +1387,13 @@ function datacube::ts::weightedSum<T,Z,V,W,O>(t: Relation<T>[1], by: ColSpecArra
 // or seconds, from a day -- its last observation's) over perDay of them a day (1; 86400). Within a period, 1 + Σ weight × (price / its price at the period's first date − 1); into it, the
 // period before's growth to its first date; the basket 100 times those compounded, times its growth within -- none from
 // a date some member's price is none on. One row a line and date.
-function datacube::ts::basket<T,L,D,N,M,P,W,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], member: ColSpec<M⊆T>[1], price: ColSpec<P⊆T>[1], weight: ColSpec<W⊆T>[1], members: Integer[1], rebalance: String[1], perDay: Integer[1], out: ColSpec<O>[1]): Relation<L+D+O>[1]
+function datacube::ts::basket<T,L,D,N,M,P,W,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], member: ColSpec<M⊆T>[1], price: ColSpec<P⊆T>[1], weight: ColSpec<W⊆T>[1], members: Integer[1], rebalance: datacube::ts::Rebalance[1], perDay: Integer[1], out: ColSpec<O>[1]): Relation<L+D+O>[1]
 {
   $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), tm:r|$r->read($time), m:r|$r->read($member), px:r|$r->read($price), wt:r|$r->read($weight)])
     ->extend(over(~l), ~[d0:{p,f,r|$r.d}:y|$y->min(), t0:{p,f,r|$r.tm}:y|$y->min()])
     ->extend(~mo:x|((($x.d->toOne()->year() - $x.d0->toOne()->year()) * 12) + ($x.d->toOne()->monthNumber() - $x.d0->toOne()->monthNumber())))
-    ->extend(~k:x|if($rebalance == 'daily', |$x.tm->toOne(),
-      |if($rebalance == 'weekly', |floor((($x.tm->toOne() - $x.t0->toOne()) / $perDay) / 7),
+    ->extend(~k:x|if($rebalance == datacube::ts::Rebalance.daily, |$x.tm->toOne(),
+      |if($rebalance == datacube::ts::Rebalance.weekly, |floor((($x.tm->toOne() - $x.t0->toOne()) / $perDay) / 7),
         |$x.mo->toOne() - if($x.d->toOne() < $x.d0->toOne()->adjust($x.mo->toOne(), meta::pure::functions::date::DurationUnit.MONTHS), |1, |0))))
     ->extend(over(~[l, k]), ~fd:{p,f,r|$r.d}:y|$y->min())
     ->extend(over(~[l, m, k]), ~bs:{p,f,r|if($r.d == $r.fd, |$r.px, |[])}:y|$y->max())
@@ -1399,12 +1452,12 @@ function datacube::ts::fitAt<T,I,S,X,O>(t: Relation<T>[1], intercept: ColSpec<I�
 
 // A TREND PROJECTED, a row a line: its least-squares line of its value on its time (regression's) over its last window
 // values, and that line's value at the first of them, at the last, and at the date ahead units past the last -- those
-// three dates and values, the line's slope a day (its time counts days, or seconds where perDay is 86400) and how many
-// values it was fit to; none of the fit under two values of different times. A perDay but 1 or 86400 is refused.
-function datacube::ts::projection<T,L,D,N,V,O1,O2,O3,O4,O5,O6,O7,O8>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], value: ColSpec<V⊆T>[1], window: Integer[1], ahead: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], perDay: Integer[1], firstDate: ColSpec<O1>[1], firstValue: ColSpec<O2>[1], lastDate: ColSpec<O3>[1], lastValue: ColSpec<O4>[1], endDate: ColSpec<O5>[1], endValue: ColSpec<O6>[1], slope: ColSpec<O7>[1], n: ColSpec<O8>[1]): Relation<L+O1+O2+O3+O4+O5+O6+O7+O8>[1]
+// three dates and values, the line's slope a day and how many
+// values it was fit to; none of the fit under two values of different times. Its time counts timeUnits (days, or
+// seconds of date-times): a day's slope its slope times the timeUnits in a day, the database's.
+function datacube::ts::projection<T,L,D,N,V,O1,O2,O3,O4,O5,O6,O7,O8>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], value: ColSpec<V⊆T>[1], window: Integer[1], ahead: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], timeUnit: meta::pure::functions::date::DurationUnit[1], firstDate: ColSpec<O1>[1], firstValue: ColSpec<O2>[1], lastDate: ColSpec<O3>[1], lastValue: ColSpec<O4>[1], endDate: ColSpec<O5>[1], endValue: ColSpec<O6>[1], slope: ColSpec<O7>[1], n: ColSpec<O8>[1]): Relation<L+O1+O2+O3+O4+O5+O6+O7+O8>[1]
 {
-  $t->filter(r|$r->read($value)->isNotEmpty() && if(($perDay == 1) || ($perDay == 86400), |true,
-      |fail('the time of a projection counts days (perDay 1) or seconds (86400), not ' + $perDay->toString() + ' a day')))
+  $t->filter(r|$r->read($value)->isNotEmpty())
     ->extend(~[l:r|$r->read($line), d:r|$r->read($date), tm:r|$r->read($time), v:r|$r->read($value)])
     ->extend(over(~l, [~tm->ascending()], rows(0, unbounded())), ~rest:{p,f,r|$r.v}:y|$y->count())
     ->filter(x|$x.rest->toOne() <= $window)
@@ -1412,10 +1465,9 @@ function datacube::ts::projection<T,L,D,N,V,O1,O2,O3,O4,O5,O6,O7,O8>(t: Relation
     ->datacube::ts::regression(over(~l), ~v, ~tm, 2, ~s, ~i, ~c, ~q)
     ->filter(x|$x.rest->toOne() == 1)
     ->extend(~e:x|$x.d->toOne()->adjust($ahead, $unit))
-    ->extend(~te:x|$x.tm->toOne() + if($perDay == 1, |dateDiff($x.d->toOne(), $x.e->toOne(), meta::pure::functions::date::DurationUnit.DAYS),
-      |dateDiff($x.d->toOne(), $x.e->toOne(), meta::pure::functions::date::DurationUnit.SECONDS)))
+    ->extend(~te:x|$x.tm->toOne() + dateDiff($x.d->toOne(), $x.e->toOne(), $timeUnit))
     ->datacube::ts::fitAt(~i, ~s, ~t0, ~f0)->datacube::ts::fitAt(~i, ~s, ~tm, ~f1)->datacube::ts::fitAt(~i, ~s, ~te, ~f2)
-    ->extend(~sd:x|if($x.s->isEmpty(), |[], |$x.s->toOne() * $perDay))
+    ->extend(~sd:x|if($x.s->isEmpty(), |[], |$x.s->toOne() * dateDiff($x.d->toOne(), $x.d->toOne()->adjust(1, meta::pure::functions::date::DurationUnit.DAYS), $timeUnit)))
     ->select(~[l, d0, f0, d, f1, e, f2, sd, k])
     ->rename(~l, $line)->rename(~d0, $firstDate)->rename(~f0, $firstValue)->rename(~d, $lastDate)->rename(~f1, $lastValue)->rename(~e, $endDate)
     ->rename(~f2, $endValue)->rename(~sd, $slope)->rename(~k, $n)
@@ -1639,25 +1691,20 @@ function datacube::ts::seasonalRange<T,L,Y,P,V,O1,O2,O3>(t: Relation<T>[1], line
 // weeks, each year's week its last value by time), its value as compare says ('none'; 'rebase', a multiple of its
 // year's first value times 100, gs-quant's index; 'percent', over its year's first less 1, percent_change's; none from a
 // first of 0), and at its place the least, the most and the mean of the years before the latest (seasonalRange's), the
-// most less the least, and the latest year: of the dates with a value, the latest year's and the years before it. A
-// grain or a compare but those is refused by name.
-function datacube::ts::seasonality<T,L,D,N,V,O1,O2,O3,O4,O5,O6,O7,O8>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], value: ColSpec<V⊆T>[1], grain: String[1], compare: String[1], years: Integer[1], year: ColSpec<O1>[1], place: ColSpec<O2>[1], compared: ColSpec<O3>[1], low: ColSpec<O4>[1], high: ColSpec<O5>[1], mean: ColSpec<O6>[1], span: ColSpec<O7>[1], latest: ColSpec<O8>[1]): Relation<T+O1+O2+O3+O4+O5+O6+O7+O8>[1]
+// most less the least, and the latest year: of the dates with a value, the latest year's and the years before it.
+function datacube::ts::seasonality<T,L,D,N,V,O1,O2,O3,O4,O5,O6,O7,O8>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], value: ColSpec<V⊆T>[1], grain: datacube::ts::Grain[1], compare: datacube::ts::Compare[1], years: Integer[1], year: ColSpec<O1>[1], place: ColSpec<O2>[1], compared: ColSpec<O3>[1], low: ColSpec<O4>[1], high: ColSpec<O5>[1], mean: ColSpec<O6>[1], span: ColSpec<O7>[1], latest: ColSpec<O8>[1]): Relation<T+O1+O2+O3+O4+O5+O6+O7+O8>[1]
 {
-  $t->filter(r|$r->read($value)->isNotEmpty()
-      && if(($grain == 'day') || ($grain == 'week') || ($grain == 'month') || ($grain == 'quarter'), |true,
-        |fail('the grain of a seasonality is day, week, month or quarter, not ' + $grain))
-      && if(($compare == 'none') || ($compare == 'rebase') || ($compare == 'percent'), |true,
-        |fail('the compare of a seasonality is none, rebase or percent, not ' + $compare)))
+  $t->filter(r|$r->read($value)->isNotEmpty())
     ->extend(~[l:r|$r->read($line), d:r|$r->read($date), tm:r|$r->read($time), v:r|$r->read($value), yr:r|$r->read($date)->toOne()->year(),
-      pl:r|if($grain == 'month', |$r->read($date)->toOne()->monthNumber(), |if($grain == 'quarter', |$r->read($date)->toOne()->quarterNumber(),
+      pl:r|if($grain == datacube::ts::Grain.month, |$r->read($date)->toOne()->monthNumber(), |if($grain == datacube::ts::Grain.quarter, |$r->read($date)->toOne()->quarterNumber(),
         |floor(($r->read($date)->toOne()->dayOfYear() - 1) / 7) + 1))])
     ->extend(over(~[l, yr]), ~d0:{p,f,r|$r.d}:y|$y->min())
     ->extend(over(~[l, yr]), ~v0:{p,f,r|if($r.d == $r.d0, |$r.v, |[])}:y|$y->max())
-    ->extend(~cv:x|if($compare == 'rebase', |if($x.v0->toOne() == 0, |[], |($x.v->toOne() / $x.v0->toOne()) * 100.0),
-      |if($compare == 'percent', |if($x.v0->toOne() == 0, |[], |($x.v->toOne() / $x.v0->toOne()) - 1),
+    ->extend(~cv:x|if($compare == datacube::ts::Compare.rebase, |if($x.v0->toOne() == 0, |[], |($x.v->toOne() / $x.v0->toOne()) * 100.0),
+      |if($compare == datacube::ts::Compare.percent, |if($x.v0->toOne() == 0, |[], |($x.v->toOne() / $x.v0->toOne()) - 1),
         |$x.v)))
     ->extend(over(~[l, yr, pl]), ~wl:{p,f,r|$r.tm}:y|$y->max())
-    ->filter(x|($grain != 'day') || ($x.tm->toOne() == $x.wl->toOne()))
+    ->filter(x|($grain != datacube::ts::Grain.day) || ($x.tm->toOne() == $x.wl->toOne()))
     ->extend(over(~l), ~ly:{p,f,r|$r.yr}:y|$y->max())
     ->filter(x|$x.yr->toOne() >= ($x.ly->toOne() - $years))
     ->datacube::ts::seasonalRange(~l, ~yr, ~pl, ~cv, ~lo, ~hi, ~mn)
@@ -1668,13 +1715,12 @@ function datacube::ts::seasonality<T,L,D,N,V,O1,O2,O3,O4,O5,O6,O7,O8>(t: Relatio
 
 // Each date's period's number by grain, consecutive (the place in a cycle a decomposition reads, by its number modulo
 // the cycle): its months' (the year twelve times and its month less 1), its quarters' (the year four times and its
-// quarter less 1) or its weeks' (sevens of days from Monday 1970-01-05); any other grain refused by name.
-function datacube::ts::periodIndex<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], grain: String[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+// quarter less 1), its weeks' (sevens of days from Monday 1970-01-05) or its days' (from 1970-01-01).
+function datacube::ts::periodIndex<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], grain: datacube::ts::Grain[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->filter(r|if(($grain == 'week') || ($grain == 'month') || ($grain == 'quarter'), |true,
-      |fail('the grain of a period index is week, month or quarter, not ' + $grain)))
-    ->extend(~o:r|if($grain == 'month', |($r->read($date)->toOne()->year() * 12) + ($r->read($date)->toOne()->monthNumber() - 1),
-    |if($grain == 'quarter', |($r->read($date)->toOne()->year() * 4) + ($r->read($date)->toOne()->quarterNumber() - 1),
-      |floor(dateDiff(%1970-01-05, $r->read($date)->toOne(), meta::pure::functions::date::DurationUnit.DAYS) / 7))))->rename(~o, $out)
+  $t->extend(~o:r|if($grain == datacube::ts::Grain.month, |($r->read($date)->toOne()->year() * 12) + ($r->read($date)->toOne()->monthNumber() - 1),
+    |if($grain == datacube::ts::Grain.quarter, |($r->read($date)->toOne()->year() * 4) + ($r->read($date)->toOne()->quarterNumber() - 1),
+      |if($grain == datacube::ts::Grain.week, |floor(dateDiff(%1970-01-05, $r->read($date)->toOne(), meta::pure::functions::date::DurationUnit.DAYS) / 7),
+        |dateDiff(%1970-01-01, $r->read($date)->toOne(), meta::pure::functions::date::DurationUnit.DAYS)))))->rename(~o, $out)
 }
 `;

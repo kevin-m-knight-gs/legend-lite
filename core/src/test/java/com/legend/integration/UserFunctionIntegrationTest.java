@@ -1740,6 +1740,33 @@ class UserFunctionIntegrationTest {
         }
 
         @Test
+        @DisplayName("an option an enumeration: the type checker refuses a value it has not, and the branch it names alone reaches the SQL")
+        void anOptionAnEnumeration() throws SQLException {
+            // the user, 2026-10-28 ("I hope it is the second": checked when the query compiles, never in its SQL): a
+            // function's option typed by an enumeration -- a value it has not refused by the type checker, and an if on
+            // it folded to the branch the call's value names, as a spelled string's is (StaticFold.EnumToken)
+            String model = modelWith("""
+                    Enum test::Stat
+                    {
+                      mean, total, most
+                    }
+                    function test::statOf<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], stat: test::Stat[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+                    {
+                        $t->extend($win, ~m:{p,f,r|$r->read($value)}:y|if($stat == test::Stat.mean, |$y->average(), |if($stat == test::Stat.total, |$y->sum(), |$y->max())))->rename(~m, $out)
+                    }
+                    """);
+            String over = "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])->test::statOf(over(~LAST_NAME), ~AGE_VAL, test::Stat.";
+            var total = exec(model, over + "total, ~s)->sort(~FIRST_NAME->ascending())");
+            // Jones: Bob 45; Smith: Jane and John 28 + 30
+            assertEquals(List.of(45, 58, 58), total.rows().stream().map(r -> ((Number) r.get(3)).intValue()).toList());
+            String sql = plan(model, over + "total, ~s)").sql();
+            assertTrue(sql.toUpperCase().contains("SUM("), sql);
+            assertFalse(sql.toUpperCase().contains("AVG(") || sql.toUpperCase().contains("MAX(") || sql.toUpperCase().contains("CASE"), "the branch it names alone: " + sql);
+            var refused = assertThrows(Exception.class, () -> plan(model, over + "Total, ~s)"));
+            assertTrue(refused.getMessage().contains("enumeration test::Stat has no value 'Total'"), refused.getMessage());
+        }
+
+        @Test
         @DisplayName("a chain of calls of a generic function plans once each: twenty calls, each over the answer of the last")
         void aChainOfCallsIsTypedOnceEach() throws SQLException {
             // the focused Pure audit, 2026-10-28: each call typed the chain under it twice -- its check and its inlined

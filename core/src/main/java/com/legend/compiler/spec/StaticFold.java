@@ -81,6 +81,13 @@ final class StaticFold {
         }
     }
 
+    /** An enumeration's value as spelled ({@code datacube::ts::Grain.month}): an option a call's argument named, compared by
+     *  its spelling alone (docs/WORLD_MAP.md: compare, never compute), so an {@code if} on it folds to the branch it names,
+     *  as a spelled string's does (2026-10-28: a function's options as enums, the type checker refusing a value the
+     *  enumeration has not). Never reified: the AST it was read from is kept. */
+    record EnumToken(String enumeration, String value) {
+    }
+
     // =====================================================================
     // fold — AST rebuild
     // =====================================================================
@@ -356,6 +363,7 @@ final class StaticFold {
             }
             case PackageableElementPtr p -> new TypeToken(
                     com.legend.compiler.element.type.PlatformTypes.typeValuePath(p.fullPath()));
+            case com.legend.protocol.spec.EnumValue ev -> new EnumToken(ev.fullPath(), ev.value());
             case AppliedProperty ap -> evalProperty(ap, scope);
             case AppliedFunction af -> evalCall(af, scope);
             default -> null;

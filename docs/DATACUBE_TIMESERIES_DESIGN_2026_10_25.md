@@ -362,12 +362,20 @@ tile, which ran, which not yet, each printed, copied one and all; a tab shown, i
 **And the tile as the code that builds it** (the user, 2026-10-26: "an option that shows how exactly to build that
 chart programmatically from TS and python"). The Query window's tabs -- Queries, Python, TypeScript -- show the program
 that builds the tile, written by one rule (`timeseries-code.ts tileCode`, a chunk of its own fetched with the first
-Query window) from its spec and where the page has it (its sheet, its title, each source's grid tile: the host's
-`codeOf`, headless `codeOfPage`). The **Python** is the sheet's `timeseries` over the page's grids -- each source by
-alias, its grid, date and key; each series its expression, or a mapping of it and how it is drawn (its id where it is
-not the next letter); every other slot as told -- then its frame, statistics and queries. The **TypeScript** is the
-spec, and the page command the screen's Create ▸ Timeseries sends (`addTimeseries`, on its sheet, a band of its own)
-applied by the one function every change goes through (`applyPageCommands`), and its questions (`tileAsks`). Each
+Query window) from its spec and what the page has (its title, each source's grid: its title and its cube's source --
+the host's `codeOf`, headless `codeOfPage`). Since 2026-10-28 (the user: "a generic snippet of python about how to
+create your own chart that a user can copy paste to just create exactly that tile in their own datacube") it finds
+nothing of the page it was written of: the **Python** is a page of its own (`ll.Page()`), a grid over the rows each
+source's grid reads -- opened as that grid was (`file=`, `remote=`, `warehouse=` and `table=`, `cls=` at its project
+and revision), else over a frame of the person's (a dataframe's grid, a saved query's, a join's, another grid's rows),
+the columns the tile reads said beside it -- and the grid's `timeseries` (the page's, each source a mapping, for
+several or a frozen one): each series its expression, or a mapping of it and how it is drawn (its id where it is not
+the next letter); every other slot as told; then each formula's Pure printed (`tile.query(id)`) and the page shown
+(`ll.show`). The **TypeScript** is the cubes it reads (`cubes`, the person's to set), the spec over them, and the page
+command the screen's Create ▸ Timeseries sends (`addTimeseries`, on the sheet it is given, a band of its own) applied by
+the one function every change goes through (`applyPageCommands`), and its questions (`tileAsks`). Under each program the
+Code tab shows each formula with the Pure the tile writes for it (askQuery, printed by the compiler): a formula is
+DataCube's gs-quant shorthand for that query (the user's "A"; a series written in Pure itself, "B", is a follow-up, §11). Each
 expression is written to read back as itself (`timeseries-expr.ts exprSource`: a parameter by its place while every
 one before it is told, else by its name), since `exprText` drops a default told and writes one before a later one, the
 same figures but another spec. Writing it found a bug: `exprText` wrote a basket's rebalance by its place
@@ -525,6 +533,21 @@ every function"), each held to today's numbers by `timeseries-queries.test.ts`:
     date, `s1 < s2`, grouped by the pair).
   No function takes a list of columns. A fixed number of series only where the roles are fixed (a series and its
   benchmark; a true range's high, low and close, which are one row's fields).
+- **An option is an enumeration's value, checked when the query compiles** (the user, 2026-10-28: "are you actually
+  trying to bake the errors into sql or write the query in a way that compile time checks the parameters? I hope it is
+  the second"). A function's choices -- a return's type, a period statistic, a filter's operator, a spike's threshold,
+  a run's direction, a decomposition's model, a basket's rebalance, a seasonality's grain and compare -- are each typed
+  by an enumeration of the library's, gs-quant's own way (`datacube::ts::Returns.log`, its `Returns.LOGARITHMIC`;
+  `SeasonalModel`, `Rebalance`, `Grain`, `Compare`, `Statistic`, `PairStatistic`, `FilterOperator`, `ThresholdType`,
+  `Direction`): a value the enumeration has not (`Returns.Log`) is refused by the type checker before any SQL is
+  written, in its words (`enumeration datacube::ts::Returns has no value 'Log'`), and a word where an option is
+  (`'log'`) by its type. An `if` on an option folds where the call is expanded to the branch its value names
+  (`StaticFold.EnumToken`, comparing spellings, computing nothing -- as a spelled string's comparison already folded),
+  so the other branches never reach the SQL: a period's mean is its `AVG` alone. A closed enumeration leaves no default
+  branch: each function's last branch is its one remaining value. Where an option was a string (to 2026-10-28) a
+  misspelled one ran as the last branch -- `returns(..., 'Log')` as simple returns -- since only the tile, checking its
+  words first, called them; a projection's time unit is a `DurationUnit` (its day's slope the database's, by that
+  unit), where a number of 1 or 86400 left every other number meaningless.
 - **Windows: what, over which rows, and when ready, apart** (gs-quant's `Window(w, r)`; pandas' `rolling`,
   `expanding`, `min_periods`). A window statistic takes the window as a value -- `win: _Window<T>[1]`, the line, the
   order and the frame -- and a ramp, the observations before a figure is given, and reads its column with `read`:
@@ -887,6 +910,20 @@ dated budget notes; every figure still the database's.
   given -- recommended, built in two steps (the linked window first, then the grids opting in); (E) a linked window
   alone. The gesture proposed: the Measure box's "Show this period everywhere". Open with it: whether the brushed tile
   zooms too, or keeps its whole view with the period shaded.
+- **The next PR's follow-ups, beside the brush** (the user, 2026-10-28, each "so we don't forget"):
+  - *A series written in Pure* (the user's "B"): a tile's series given as a Pure query of its own (a `pure` beside or
+    instead of `expr`), which the tile runs as written but for its dates, values and point cut -- the formula then one
+    shorthand for that same Pure, never a second meaning. Until then the code a tile writes shows, beside each formula,
+    the Pure it becomes ("A", this PR).
+  - *The formula language as a Pure island, `#Quant{...}#`*: the tile's gs-quant formulas (`mean(close[SPX], 50)`) are
+    a DSL over Pure that DataCube's TypeScript reads today (timeseries-expr.ts, timeseries-query.ts); read instead by
+    the compiler, as `#SQL{...}#` reads Postgres SQL and `#IQ{...}#` its own (docs/LEGEND_SQL_STUDY_2026_10_11.md,
+    docs/CYPHER_STUDY_2026_10_15.md: one translator per language into one target), so a formula is Pure wherever Pure
+    is written -- Studio, Python, a saved query -- and the tile's writer shapes alone.
+  - *The SQL's size* (proposed, 2026-10-28): the lowering pastes a column's definition at each use when it folds
+    consecutive extends into one SELECT, and a `sqrt` guard spells its argument some 29 times, so one volatility series
+    is 25 KB of SQL, three quarters of it one CASE copied 59 times; a column reused past a few times kept as a
+    subquery's column instead, measured against DuckDB's nested-window cost (core lowering, its own PR).
 - **Phase 6, charts from a model** (the user, 2026-10-27: "start all the charts from Class models projected to Relation
   instead of starting with Relation tables -- we should use the same Stress data model ... this also will give us richer
   joins to reference data and be able to plot trades"). A tile's grid reads a class of the stress model

@@ -298,7 +298,7 @@ describe('the Pure library spike: one function of each family, held to today\'s 
 
   it('two tables of different columns, aligned (pairOf), then two columns of one (correlation of their returns)', async () => {
     const returns = (s: string, r: string): string =>
-      `$prices->filter(x|$x.symbol == '${s}')->datacube::ts::returns(over(~symbol, [~day->ascending()]), ~close, 1, 'simple', ~${r})`;
+      `$prices->filter(x|$x.symbol == '${s}')->datacube::ts::returns(over(~symbol, [~day->ascending()]), ~close, 1, datacube::ts::Returns.simple, ~${r})`;
     const q = `${returns('AAA', 'ra')}->select(~[symbol, day, ra])->spike::pairOf(~symbol, ~day, ~ra, ${returns('BBB', 'rb')}->select(~[symbol, day, rb])->rename(~symbol, ~sb), ~sb, ~day, ~rb, ~ra2, ~rb2)`
       + '->spike::correlation(~symbol, ~day, ~ra2, ~rb2, 10, ~c)';
     same(await spikeLine(q, 'c'), await today('correlation(close[AAA], close[BBB], 10)'), 'correlation');

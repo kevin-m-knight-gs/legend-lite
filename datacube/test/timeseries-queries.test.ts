@@ -508,7 +508,8 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ->datacube::ts::tradedValue(~close, ~volume, ~pv)
       ->extend(over(~symbol, [~day->ascending()]), ~[x0:{p,w,r|$p->lag($r).t}, y0:{p,w,r|$p->lag($r).close}, x1:{p,w,r|$p->lead($r).t}, y1:{p,w,r|$p->lead($r).close}])
       ->datacube::ts::linearAt(~x0, ~y0, ~x1, ~y1, ~t, ~mid)
-      ->datacube::ts::periodIndex(~day, 'month', ~mi)->datacube::ts::periodIndex(~day, 'quarter', ~qi)->datacube::ts::periodIndex(~day, 'week', ~wi)
+      ->datacube::ts::periodIndex(~day, datacube::ts::Grain.month, ~mi)->datacube::ts::periodIndex(~day, datacube::ts::Grain.quarter, ~qi)->datacube::ts::periodIndex(~day, datacube::ts::Grain.week, ~wi)
+      ->datacube::ts::periodIndex(~day, datacube::ts::Grain.day, ~di)
       ->sort([~day->ascending()])`)), 0);
     close(values(t, 'pv').map(num), AAA.map((v, i) => v * VOL[i]!), 'price times volume', 1e-9);
     const at = DAYS.map((d) => Date.parse(`${d}T00:00:00Z`) / 86_400_000);
@@ -518,6 +519,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     assert.deepEqual(values(t, 'mi').map(num), DAYS.map((d) => date(d).getUTCFullYear() * 12 + date(d).getUTCMonth()));
     assert.deepEqual(values(t, 'qi').map(num), DAYS.map((d) => date(d).getUTCFullYear() * 4 + Math.floor(date(d).getUTCMonth() / 3)));
     assert.deepEqual(values(t, 'wi').map(num), DAYS.map((d) => Math.floor((Date.parse(`${d}T00:00:00Z`) - Date.UTC(1970, 0, 5)) / (7 * 86_400_000))));
+    assert.deepEqual(values(t, 'di').map(num), DAYS.map((d) => Date.parse(`${d}T00:00:00Z`) / 86_400_000));
   });
 
   // the second audit's N8: its monthly form compared two nones (40 weekdays are two months); a frequency's own periods a
@@ -1497,21 +1499,32 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     // a seasonality: by the week of the year, each year its week's last; and each year from its first value
     const seaCols = [['y', TS_SEA_YEAR], ['p', TS_SEA_PLACE], ['v', TS_VALUE], ['lo', TS_SEA_LOW], ['hi', TS_SEA_HIGH], ['mn', TS_SEA_MEAN], ['sp', TS_SEA_SPAN], ['ly', TS_SEA_LATEST]] as const;
     for (const compare of [undefined, 'rebase', 'percent'] as const) {
-      same(await ask(`->datacube::ts::seasonality(~symbol, ~day, ~t, ~close, 'day', '${compare ?? 'none'}', 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)->sort([~y->ascending(), ~day->ascending()])`),
+      same(await ask(`->datacube::ts::seasonality(~symbol, ~day, ~t, ~close, datacube::ts::Grain.day, datacube::ts::Compare.${compare ?? 'none'}, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)->sort([~y->ascending(), ~day->ascending()])`),
         await tile(seasonalityQuery(long, compare === undefined ? ts : { ...ts, view: { compare } }, A, 1)), seaCols, 1e-12);
     }
     // a projection: the line over its last 60 values, three months on
-    same(await ask('->datacube::ts::projection(~symbol, ~day, ~t, ~close, 60, 3, meta::pure::functions::date::DurationUnit.MONTHS, 1, ~d0, ~v0, ~d1, ~v1, ~d2, ~v2, ~sl, ~k)'),
+    same(await ask('->datacube::ts::projection(~symbol, ~day, ~t, ~close, 60, 3, meta::pure::functions::date::DurationUnit.MONTHS, meta::pure::functions::date::DurationUnit.DAYS, ~d0, ~v0, ~d1, ~v1, ~d2, ~v2, ~sl, ~k)'),
       await tile(projectionQuery(long, ts, { kind: 'projection', series: A.id, window: 60, ahead: '3m' })),
       [['d0', TS_PJ_FROM], ['v0', TS_PJ_FROM_VALUE], ['d1', TS_PJ_LAST], ['v1', TS_PJ_LAST_VALUE], ['d2', TS_PJ_END], ['v2', TS_PJ_END_VALUE], ['sl', TS_PJ_SLOPE], ['k', TS_PJ_N]], 1e-9);
-    // a flag it does not know is refused by name, never read as another (AGENTS invariant 4; the second review's 2)
-    await assert.rejects(ask(`->datacube::ts::seasonality(~symbol, ~day, ~t, ~close, 'Day', 'none', 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)`),
-      /the grain of a seasonality is day, week, month or quarter, not Day/);
-    await assert.rejects(ask(`->datacube::ts::seasonality(~symbol, ~day, ~t, ~close, 'day', 'rebased', 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)`),
-      /the compare of a seasonality is none, rebase or percent, not rebased/);
-    await assert.rejects(ask(`->datacube::ts::periodIndex(~day, 'months', ~i)`), /the grain of a period index is week, month or quarter, not months/);
-    await assert.rejects(ask('->datacube::ts::projection(~symbol, ~day, ~t, ~close, 60, 3, meta::pure::functions::date::DurationUnit.MONTHS, 24, ~d0, ~v0, ~d1, ~v1, ~d2, ~v2, ~sl, ~k)'),
-      /the time of a projection counts days \(perDay 1\) or seconds \(86400\), not 24 a day/);
+    // an option it does not have is refused when the query compiles -- the type checker's, in its words -- never
+    // written into the SQL, never read as another (AGENTS invariant 4; the second review's 2; the user, 2026-10-28: "I
+    // hope it is the second", compile time): each a value of an enumeration of the library's
+    const refused = async (calls: string, said: RegExp): Promise<void> => {
+      await assert.rejects(own.plan(await own.parse(`|${source}${calls}`)), said);
+    };
+    await refused('->datacube::ts::seasonality(~symbol, ~day, ~symbol, ~close, datacube::ts::Grain.Day, datacube::ts::Compare.none, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)',
+      /enumeration datacube::ts::Grain has no value 'Day'/);
+    await refused('->datacube::ts::seasonality(~symbol, ~day, ~symbol, ~close, datacube::ts::Grain.day, datacube::ts::Compare.rebased, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)',
+      /enumeration datacube::ts::Compare has no value 'rebased'/);
+    await refused('->datacube::ts::periodIndex(~day, datacube::ts::Grain.months, ~i)', /enumeration datacube::ts::Grain has no value 'months'/);
+    await refused("->datacube::ts::returns(over(~symbol, [~day->ascending()]), ~close, 1, datacube::ts::Returns.Log, ~r)", /enumeration datacube::ts::Returns has no value 'Log'/);
+    // and a word where an option is: refused by its type, not compared
+    await refused("->datacube::ts::returns(over(~symbol, [~day->ascending()]), ~close, 1, 'log', ~r)", /Returns/);
+    // a valid one folds to the branch it names: the others never reach the SQL (a statistic of a calendar period: its
+    // mean's AVG alone, no SUM, MAX, MIN or VAR beside it)
+    const plan = JSON.stringify(await own.plan(await own.parse(`|${source}->datacube::ts::windowPeriod(~symbol, ~day, ~close, 1, meta::pure::functions::date::DurationUnit.WEEKS, datacube::ts::Statistic.mean, ~m)`)));
+    assert.ok(plan.includes('AVG('), 'its mean');
+    for (const other of ['SUM(', 'MAX(', 'MIN(', 'VAR_SAMP(', 'STDDEV_SAMP(', 'COUNT(']) assert.ok(!plan.includes(other), `no ${other} beside it`);
   });
 
   // a decomposition at a daily frequency: its place in the cycle each row's number (a cycle of business days), where it
