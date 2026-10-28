@@ -439,9 +439,23 @@ of a whole line (`performanceStatistics`, pyfolio's perf_stats: volatility, Shar
 annual growth, skew, kurtosis, Sortino ratio, hit rate, value at risk, expected shortfall, best and worst, one row a
 line; `calmarRatio` of two of them), the scatter's and the projection's least-squares line (`regression`, `fitAt`), the correlations
 table (`correlationOf`), the drawdowns table (`drawdownsOfLine`), a condition's shaded runs (`runs`), the calendar of
-returns (`calendarReturns`), the histogram (`histogramOfLine`) and the seasonality's range (`seasonalRange`). What
-stays the tile's is shaping: its periods and their ties, its operands' alignment, a view's cut to the dates shown or
-its last years, each date's place in its year, a curve's dates, the columns it answers with and their order. One
+returns (`calendarReturns`), the histogram (`histogramOfLine`) and the seasonality's range (`seasonalRange`). Since
+2026-10-28's second pass (the user: "all the typescript math ... so that these functions are useable from platform
+without TS"), so is every figure the tile's TypeScript still wrote as a sum, and each view is one call a person's own
+Pure makes as the tile does (`timeseries-queries.test.ts` "a person's own Pure ..."): the statistics' line figures
+(`summaryStatistics`: count, dates, first and last, least and most and their dates, mean, deviation, days, change and %
+change, one row a line, beside `performanceStatistics`, which says the periods a year it annualized by and the
+level's least as well), the seasonality whole (`seasonality`: each date's year and place by the tile's frequency, a
+daily one's weeks each their last value, each year from its first under Compare, its last years, each place's range
+and its span), the trend projected whole (`projection`: the line over its last values, its value at their ends and
+ahead, its slope a day), VWAP's price times volume (`tradedValue`), the time fill's value between two in time
+(`linearAt`, gs-quant's align and interpolate `time`) and a decomposition's place in its cycle (`periodIndex`: a
+month's, a quarter's or a week's number; at days the row's own, a place read modulo the cycle). What stays the tile's
+is shaping: its periods and their ties, its operands' merge and each value's neighbours under an alignment (the windows
+that find them stay inline: a library call a value would nest them as many deep, and DuckDB's filter pushdown doubles
+at each), a view's cut to the dates shown, a curve's dates, the columns it answers with and their order, and the
+parameters it spells (a percentile's n of 100 as a fraction, which the planner takes as a literal alone; a cycle's
+half, a window frame's literal). One
 number moved with it: a correlation where a side does not vary over its pairs is none in every form of it -- over a count
 of rows or a calendar period, squared, lagged, a table's -- where DuckDB had said NaN and Postgres none (the
 conversion's review, review doc §18).

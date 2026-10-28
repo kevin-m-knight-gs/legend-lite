@@ -22,7 +22,7 @@ import {
   calendarQuery, curveOrder, curveQuery, histogramQuery, projectionQuery, scatterQuery, seasonalityQuery, viewSeries,
   TS_PJ_END, TS_PJ_END_VALUE, TS_PJ_FROM, TS_PJ_FROM_VALUE, TS_PJ_LAST, TS_PJ_LAST_VALUE, TS_PJ_N, TS_PJ_SLOPE, TS_CAL_LOW, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR, TS_CAL_YEAR_RETURN,
   askKey, askQuery, askSources, tileAsks, curveColumns, TS_HIST_COUNT, TS_HIST_HIGH, TS_HIST_LOW, TS_HIST_N, TS_HIST_NORMAL, TS_HIST_P5, TS_SC_CORR, TS_SC_FIT_HIGH, TS_SC_FIT_LOW,
-  TS_SC_INTERCEPT, TS_SC_N, TS_SC_R2, TS_SC_SLOPE, TS_SC_X, TS_SC_Y, TS_SEA_HIGH, TS_SEA_LATEST, TS_SEA_LOW, TS_SEA_MEAN, TS_SEA_PLACE, TS_SEA_YEAR,
+  TS_SC_INTERCEPT, TS_SC_N, TS_SC_R2, TS_SC_SLOPE, TS_SC_X, TS_SC_Y, TS_SEA_HIGH, TS_SEA_LATEST, TS_SEA_LOW, TS_SEA_MEAN, TS_SEA_PLACE, TS_SEA_SPAN, TS_SEA_YEAR,
 } from '../src/timeseries-query.ts';
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
 import type { FileSource } from '../src/cube-document.ts';
@@ -497,6 +497,27 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       .node);
     const t = await engine.execute(await planner.plan(query), 0);
     close(values(t, 'm').map(num).reverse(), rolling(AAA, 5, avg), 'the library\'s mean');
+  });
+
+  // the user, 2026-10-28 ("so that these functions are usable from platform without TS"): a person's own Pure over the
+  // table, as the tile's -- VWAP's traded value, the time fill's line between two values, a decomposition's place
+  it('a person\'s own Pure: a price times its volume, a value between two in time, a period\'s number, by name', async () => {
+    const source = (await planner.print(lambda([], input.snapshot.source.query))).trim().replace(/^\|/, '');
+    const t = await engine.execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')
+      ->extend(~t:x|dateDiff(%1970-01-01, $x.day->toOne(), meta::pure::functions::date::DurationUnit.DAYS))
+      ->datacube::ts::tradedValue(~close, ~volume, ~pv)
+      ->extend(over(~symbol, [~day->ascending()]), ~[x0:{p,w,r|$p->lag($r).t}, y0:{p,w,r|$p->lag($r).close}, x1:{p,w,r|$p->lead($r).t}, y1:{p,w,r|$p->lead($r).close}])
+      ->datacube::ts::linearAt(~x0, ~y0, ~x1, ~y1, ~t, ~mid)
+      ->datacube::ts::periodIndex(~day, 'month', ~mi)->datacube::ts::periodIndex(~day, 'quarter', ~qi)->datacube::ts::periodIndex(~day, 'week', ~wi)
+      ->sort([~day->ascending()])`)), 0);
+    close(values(t, 'pv').map(num), AAA.map((v, i) => v * VOL[i]!), 'price times volume', 1e-9);
+    const at = DAYS.map((d) => Date.parse(`${d}T00:00:00Z`) / 86_400_000);
+    close(values(t, 'mid').map(num), AAA.map((_, i) => (i === 0 || i === AAA.length - 1 ? null
+      : AAA[i - 1]! + ((AAA[i + 1]! - AAA[i - 1]!) * (at[i]! - at[i - 1]!)) / (at[i + 1]! - at[i - 1]!))), 'between its neighbours in time', 1e-9);
+    const date = (d: string): Date => new Date(`${d}T00:00:00Z`);
+    assert.deepEqual(values(t, 'mi').map(num), DAYS.map((d) => date(d).getUTCFullYear() * 12 + date(d).getUTCMonth()));
+    assert.deepEqual(values(t, 'qi').map(num), DAYS.map((d) => date(d).getUTCFullYear() * 4 + Math.floor(date(d).getUTCMonth() / 3)));
+    assert.deepEqual(values(t, 'wi').map(num), DAYS.map((d) => Math.floor((Date.parse(`${d}T00:00:00Z`) - Date.UTC(1970, 0, 5)) / (7 * 86_400_000))));
   });
 
   // the second audit's N8: its monthly form compared two nones (40 weekdays are two months); a frequency's own periods a
@@ -1442,6 +1463,55 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     // 2022 against 2021, at every week 2022 has: 2021's own
     const late = keys.map((k, i) => [k, i] as const).filter(([k]) => k.startsWith('2022'));
     close(late.map(([, i]) => num(values(t, TS_SEA_LOW)[i])), late.map(([k]) => lastOf.get(`2021|${k.split('|')[1]}`)!), 'the year before at each', 1e-12);
+  });
+
+  // the user, 2026-10-28 ("so that these functions are usable from platform without TS"): the tile's tables and views
+  // are the library's by name -- a person's own Pure over the table answers as the tile does, every figure
+  it('a person\'s own Pure: the statistics, a seasonality and a projection by name, as the tile\'s', async () => {
+    const source = (await own.print(lambda([], long.get('px')!.snapshot.source.query))).trim().replace(/^\|/, '');
+    const ask = async (calls: string): Promise<ResultTable> => engine.execute(await own.plan(await own.parse(
+      `|${source}->extend(~t:x|dateDiff(%1970-01-01, $x.day->toOne(), meta::pure::functions::date::DurationUnit.DAYS))${calls}`)), 0);
+    const tile = async (q: { query: Parameters<LitePlanner['plan']>[0] }): Promise<ResultTable> => engine.execute(await own.plan(q.query), 0);
+    const ts = spec({ A: 'close' });
+    const A = ts.series[0]!;
+    const same = (mine: ResultTable, theirs: ResultTable, pairs: readonly (readonly [string, string])[], tol: number): void => {
+      for (const [m, c] of pairs) {
+        const want = values(theirs, c);
+        assert.ok(want.length > 0, `${c} answered`);
+        if (typeof want.find((v) => v !== null) === 'number') close(values(mine, m).map(num), want.map(num), c, tol);
+        else assert.deepEqual(values(mine, m).map((v) => (v === null ? null : String(v))), want.map((v) => (v === null ? null : String(v))), c);
+      }
+    };
+    // the line's own figures
+    same(await ask('->datacube::ts::summaryStatistics(~symbol, ~day, ~t, ~close, ~close, ~close, ~n, ~d0, ~d1, ~f, ~l, ~lo, ~la, ~hi, ~ha, ~m, ~s, ~dy, ~ch, ~pc)'),
+      await tile(statsQuery(long, ts, A)), [['n', statName('count')], ['d0', statName('from')], ['d1', statName('to')], ['f', statName('first')], ['l', statName('last')],
+        ['lo', statName('low')], ['la', statName('lowAt')], ['hi', statName('high')], ['ha', statName('highAt')], ['m', statName('mean')], ['s', statName('std')],
+        ['dy', statName('days')], ['ch', statName('change')], ['pc', statName('pct')]], 1e-12);
+    // a seasonality: by the week of the year, each year its week's last; and each year from its first value
+    const seaCols = [['y', TS_SEA_YEAR], ['p', TS_SEA_PLACE], ['v', TS_VALUE], ['lo', TS_SEA_LOW], ['hi', TS_SEA_HIGH], ['mn', TS_SEA_MEAN], ['sp', TS_SEA_SPAN], ['ly', TS_SEA_LATEST]] as const;
+    for (const compare of [undefined, 'rebase', 'percent'] as const) {
+      same(await ask(`->datacube::ts::seasonality(~symbol, ~day, ~t, ~close, 'day', '${compare ?? 'none'}', 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)->sort([~y->ascending(), ~day->ascending()])`),
+        await tile(seasonalityQuery(long, compare === undefined ? ts : { ...ts, view: { compare } }, A, 1)), seaCols, 1e-12);
+    }
+    // a projection: the line over its last 60 values, three months on
+    same(await ask('->datacube::ts::projection(~symbol, ~day, ~t, ~close, 60, 3, meta::pure::functions::date::DurationUnit.MONTHS, 1, ~d0, ~v0, ~d1, ~v1, ~d2, ~v2, ~sl, ~k)'),
+      await tile(projectionQuery(long, ts, { kind: 'projection', series: A.id, window: 60, ahead: '3m' })),
+      [['d0', TS_PJ_FROM], ['v0', TS_PJ_FROM_VALUE], ['d1', TS_PJ_LAST], ['v1', TS_PJ_LAST_VALUE], ['d2', TS_PJ_END], ['v2', TS_PJ_END_VALUE], ['sl', TS_PJ_SLOPE], ['k', TS_PJ_N]], 1e-9);
+  });
+
+  // a decomposition at a daily frequency: its place in the cycle each row's number (a cycle of business days), where it
+  // starts counting moving no value to another place
+  it('trend and seasonally_adjusted daily, over a week of five days: statsmodels\' decomposition', async () => {
+    const ts = (text: string): TimeseriesSpec => spec({ A: text }, { grain: 'day' });
+    const run = async (text: string): Promise<Line> => {
+      const t = await engine.execute(await own.plan(seriesQuery(long, ts(text), ts(text).series[0]!).query), 0);
+      return values(t, TS_VALUE).map(num).reverse();
+    };
+    for (const method of ['additive', 'multiplicative'] as const) {
+      const want = decompose(LONG, 5, method === 'multiplicative');
+      close(await run(`trend(close, ${method}, week)`), want.trend, `trend ${method}`, 1e-9);
+      close(await run(`seasonally_adjusted(close, ${method}, week)`), want.adjusted, `adjusted ${method}`, 1e-9);
+    }
   });
 
   // the Phase 3 review's 1: a month's return was from the last month present -- over a missing month, two months as one
