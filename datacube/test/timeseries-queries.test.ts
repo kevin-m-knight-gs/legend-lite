@@ -669,6 +669,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close((await line(spec({ A: 'prices(returns(close[AAA]))' }))).values, want, 'prices', 1e-7);
     close((await line(spec({ A: 'prices(returns(close[AAA]), 100)' }))).values, want.map((v) => v * 100), 'from 100', 1e-7);
     close((await line(spec({ A: 'prices(diff(close[AAA]), 10, absolute)' }))).values, AAA.map((v) => 10 + v - AAA[0]!), 'absolute', 1e-7);
+    close((await line(spec({ A: 'prices(returns(close[AAA], 1, log), 100, log)' }))).values, AAA.map((v) => (100 * v) / AAA[0]!), 'log', 1e-7);
   });
 
   it('math: log, sqrt, abs, power, a floor and a cap', async () => {
@@ -1113,6 +1114,14 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
     close(after.values, m3.filter((v) => !(v !== null && v > 102)), 'a window read before', 1e-9);
     const empty = await line(spec({ A: 'filter(lag(close[AAA], 2))' }));
     assert.deepEqual(empty.dates, DAYS.slice(2), 'empty: the dates of none dropped');
+    // every other operator, each a value of datacube::ts::FilterOperator (the enum round's review, 2026-10-28)
+    const at = AAA[7]!;
+    const ops: [string, (v: number) => boolean][] = [['less_than', (v) => v < at], ['l_equals', (v) => v <= at],
+      ['g_equals', (v) => v >= at], ['equals', (v) => v === at], ['not_equals', (v) => v !== at]];
+    for (const [op, drops] of ops) {
+      const left = await line(spec({ A: `filter(close[AAA], ${op}, ${at})` }));
+      assert.deepEqual(left.dates, DAYS.filter((_, i) => !drops(AAA[i]!)), op);
+    }
   });
 
   it('product, geometrically_aggregate and weighted_sum', async () => {

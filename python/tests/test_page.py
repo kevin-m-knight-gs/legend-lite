@@ -1231,6 +1231,37 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'written in python or typescript, not "rust"'):
             tile.code('rust')
 
+    def test_a_timeseries_code_is_a_program_whatever_its_names_say(self):
+        # the review of the generated code, 2026-10-28: a title with a line end in it ended its comment and
+        # wrote a line of code; two grids over one frame read two frames of the person's; a tile of no instrument column
+        # left DataCube to choose one when run
+        page = ll.Page('Names')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'day': list(days), 'close': [100.0 + i for i in range(6)], 'open': [99.0 + i for i in range(6)]})
+        one = page.grid(prices, name='prices', title='Line\rends\u2028here')
+        two = page.grid(prices, name='prices', title='Again')
+        tile = page.timeseries({'a': {'grid': one, 'date': 'day', 'key': None}, 'b': {'grid': two, 'date': 'day', 'key': None}},
+                               ['a:close', 'b:open'], title='Two\nlines\r\nimport os')
+        code = tile.code()
+        compile(code, 'tile.py', 'exec')
+        self.assertEqual([line for line in code.splitlines() if line.startswith(('import', 'print'))], ['import legend_lite as ll'])
+        self.assertIn("page.grid(prices_frame, name='prices')", code)
+        self.assertNotIn('prices_2_frame', code)
+        ran = {'ll': type('ll', (), {'Page': ll.Page, 'show': staticmethod(lambda p: None)}), 'prices_frame': prices,
+               'print': lambda *a, **k: None}
+        exec(compile(code.replace('import legend_lite as ll\n', ''), 'tile.py', 'exec'), ran)
+        cubes = lambda spec: {**spec, 'sources': [{**s, 'cube': None} for s in spec['sources']]}
+        self.assertEqual(cubes(ran['page'].timeseries_tiles[0].spec), cubes(tile.spec))
+        self.assertEqual(ran['page'].timeseries_tiles[0].title, tile.title)
+        # one source of no instrument column: said as none, and run, none still
+        alone = page.timeseries({'grid': two, 'date': 'day', 'key': None}, ['open'])
+        code = alone.code()
+        self.assertIn("key=None", code)
+        ran = {'ll': type('ll', (), {'Page': ll.Page, 'show': staticmethod(lambda p: None)}), 'prices_frame': prices,
+               'print': lambda *a, **k: None}
+        exec(compile(code.replace('import legend_lite as ll\n', ''), 'tile.py', 'exec'), ran)
+        self.assertNotIn('key', ran['page'].timeseries_tiles[0].spec['sources'][0])
+
     def test_a_timeseries_reads_an_analysts_packs_each_figure_the_databases(self):
         # the next phases' 4 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): technicals of a candle's
         # columns and a rebalanced basket -- the screen's parser and queries, held to pandas

@@ -429,7 +429,7 @@ number a column of it), and the classical decomposition (`trend`, its cycle and 
 literal -- the caller's; `seasonallyAdjusted`, each row's place in the cycle a column, the tile's calendar), the total return with a yield or dividends (`totalReturn`, `totalReturnOf`), and the members of
 a weighted sum or a basket as rows -- a row a member and date, its value and weight beside it (`weightedSum`, `basket`;
 §5.7's long table: the writer concatenates its aligned members into one) -- `->datacube::ts::returns(over(~line, [~period->ascending()]), ~close, 1,
-'simple', ~ret_2)->datacube::ts::volatility(over(~line, [~period->ascending()], rows(-21, 0)), ~ret_2, 22, ~per_year_3,
+datacube::ts::Returns.simple, ~ret_2)->datacube::ts::volatility(over(~line, [~period->ascending()], rows(-21, 0)), ~ret_2, 22, ~per_year_3,
 ~vol_4)`. A calendar period's statistic is `windowPeriod`'s (on every date, however few values) and its ramp
 `rampPeriod`'s (none before the first date of a column, that period on), `overPeriod` the two over one column; so a
 volatility, a maximum drawdown, a Sharpe ratio and a VWAP over a calendar period (`volatilityPeriod`,

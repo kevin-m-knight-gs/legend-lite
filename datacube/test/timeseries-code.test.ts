@@ -57,4 +57,24 @@ describe('a timeseries tile as the code that builds it', () => {
     }
   });
 
+  it('a title or a grid\'s title with a line end in it ends no comment: the program is the tile\'s still', async () => {
+    // the review of the generated code, 2026-10-28: a title's line end wrote the rest of it as a line of code
+    const page = readPage(pageToJson(await timeseriesGalleryPage()));
+    const v = page.views.find((x) => x.kind === 'timeseries')!;
+    const { spec, of } = codeOfPage(page, v.id);
+    const title = 'Two\nlines\r\nexport const x = 1; export const y = 2;';
+    const grids = Object.fromEntries(Object.entries(of.grids).map(([k, g]) => [k, g && { ...g, title: `A\rgrid\nimport os` }]));
+    const code = tileCode(spec, { title, grids }, 'typescript');
+    const dir = mkdtempSync(join(process.env['TEST_TMPDIR'] ?? tmpdir(), 'ts-code-'));
+    const file = join(dir, 'named.ts');
+    writeFileSync(file, code.replaceAll("from './datacube/src/", `from '${new URL('../src/', import.meta.url).href}`));
+    const made = await import(pathToFileURL(file).href) as Record<string, unknown> & { withTile: (p: PageDocument, sheet: string) => PageDocument };
+    assert.deepEqual(Object.keys(made).sort(), ['cubes', 'questions', 'spec', 'withTile']);
+    const on = page.sheets.find((x) => layoutTiles(x.layout).includes(v.id))!.id;
+    const added = made.withTile(page, on).views.find((x) => !page.views.some((y) => y.id === x.id));
+    assert.equal(added?.title, title);
+    const python = tileCode(spec, { title, grids }, 'python');
+    assert.deepEqual(python.split('\n').filter((l) => /^(import|export|print)/.test(l)), ['import legend_lite as ll']);
+  });
+
 });

@@ -589,7 +589,9 @@ cycles: no difference, a place is read modulo its cycle). Its findings:
   (a `fail` there is the Boolean it is; in a value's branch it typed the column Boolean, and a two-statement block the
   static fold refuses); a valid option folds away as before. The older functions' options (`returns`' type, a period
   statistic, `filterValues`' operator, a decomposition's method, a basket's rebalance) default as they did: the tile
-  checks them before it calls, a person's own Pure does not -- the next PR's, put to the user.
+  checks them before it calls, a person's own Pure does not -- the next PR's, put to the user. (Superseded the same
+  day, §20: the user asked for every option checked when the query compiles, these included; the opening filters'
+  `fail`s are gone.)
 - **1 (checked)** the first tile's bundle budget holds (`bundle_budget_test` green).
 - **3 (accepted)** a seasonality of a whole number with no compare types its value, least and most as a number where
   they kept the column's type (`if`'s branches); the values are the same (new test: a volume's).
@@ -605,3 +607,54 @@ Run on 9daf9390: `timeseries_queries_test` (161), typecheck, the library spike, 
 budget, `verify_charts_test`, `//core:core_tests_integration`, `//core:guardrails`, Python's `headless_test`; on
 0928eb51 `//core:core_tests` (25 packages), `//spec:corpus_duckdb` and `//spec:corpus_h2` (rosters unchanged), and
 DataCube's and Python's 23 timeseries targets. The statistics query: 61-102 ms, 24.4 KB.
+
+## 20. Options checked when the query compiles; the tile as a program of its own (2026-10-28)
+
+The user, on §19's open question: "Are you actually trying to bake the errors into sql or write the query in a way that
+compile time checks the parameters? I hope it is the second (even for the ones you already fixed)". §19's checks were
+the first: a `fail` in the opening filter, so a wrong option was refused by the database when the query ran. Now the
+second, for every function:
+
+- **Every option an enumeration of `datacube::ts`** (a35c28f1): `Statistic`, `PairStatistic`, `Returns`,
+  `FilterOperator`, `ThresholdType`, `Direction`, `SeasonalModel`, `Rebalance`, `Grain`, `Compare`, declared at the
+  top of the library; twelve functions' `String` options retyped, each comparison `$stat == datacube::ts::Statistic.mean`.
+  A value the enumeration has not is refused by the type checker, by name ("enumeration datacube::ts::Grain has no
+  value 'Day'"), before any SQL is written; §19's `fail`s are deleted. A projection's `perDay` is the platform's
+  `DurationUnit` (`dateDiff` in it); `periodIndex` is total (a day's place, its days from 1970-01-01). The tile's writer
+  passes enumeration values and refuses a word it has not before writing (`timeseries-query.ts libraryOption`).
+- **Core: the static fold folds an enumeration's value** (`StaticFold.EnumToken`), as it did a spelled string, so an
+  `if` on an option folds to the branch the call names: a mean writes `AVG` alone, no `CASE` (`UserFunctionIntegrationTest`
+  "an option an enumeration").
+- **The tile as a program of its own** (53e2f78f, the user's "A"): the Python and TypeScript the Code window shows
+  make a page of their own -- a grid opened as each source's grid was (a file, a remote file, a warehouse table, a
+  class; else a DataFrame of the person's), the tile over it -- and look nothing up on the page they were written from;
+  the Python prints each formula's Pure, and the screen shows each one's under the program. "B" (a series written in
+  Pure), a `#Quant{...}#` grammar for the formulas, and the SQL's size are follow-ups beside the brush (design note §11).
+
+An independent review, read-only, of the three commits. Its findings:
+
+- **1 (blocking, fixed) an enumeration's value passed on whole was left unbound.** The fold binds a static argument
+  of a bodied helper, and each element of a map it unrolls, as a fact of its scope, and writes back each use the value
+  reifies to; an enumeration's value reified to nothing, so `hash($digestHashType)` kept a variable no binder held. The
+  corpus run confirmed it: `//spec:corpus_duckdb`'s roster lost `testExtendDigest_Relational`
+  (`extendWithDigestOnColumns` passes `HashType.MD5` to `hash`). `EnumToken` now carries the node it was read from and
+  reifies to it. New test, failing first ("unbound variable '$h'"): "an enumeration's value a body passes on whole".
+- **2 (fixed) the generated code's comments wrote a person's names raw**: a title, a grid's title or a saved query's
+  name with a line end in it ended its comment, and the rest was code. Every comment is one line
+  (`timeseries-code.ts oneLine`, every control character and line separator a space), and every string escapes its
+  control characters (`quoted`). New tests in both languages: the program with such titles parses, imports, writes
+  no other line, and builds the tile with its title as given.
+- **3 (fixed)** a grid named `print` would have shadowed the loop's `print` (now taken); a source of no instrument
+  column left DataCube to choose one when run (now `key=None`); two grids over one frame named two frames of the
+  person's (now one variable a frame). Tests in `test_page.py`, run end to end.
+- **4 (fixed)** stale words: the library's comments said "a word compared when the call is expanded", the design
+  note showed `'simple'`, and `Timeseries.code`'s docstring spoke of the page's grids.
+- **5 (accepted)** the fold says an enumeration's value and a string are unequal, where SQL compared their names:
+  Pure's own answer. The program does not carry a grid's own filter or calculated columns: it opens the rows and says
+  the columns the tile reads; the grid is the person's to shape. A tile of no series gets DataCube's first, as the
+  screen's Create does.
+- **Test gaps (closed)**: `filterValues`' other operators, and `prices` of log returns.
+
+The first tile's bundle grew past its budget with the enumerations and the program (100,428 of 100,000); moved with a
+dated note (`bundle-budget.test.ts`).
+

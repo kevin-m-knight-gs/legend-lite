@@ -69,6 +69,21 @@ function listed(words: readonly string[]): string {
   return words.length <= 1 ? (words[0] ?? '') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)!}`;
 }
 
+/** Text a comment says on one line: every line end and control character a space, so a title, a name or a column (a
+ *  person's words) ends no comment, in either language (the review, 2026-10-28: a title with a line end in it wrote a
+ *  line of code). */
+function oneLine(text: string): string {
+  return text.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ');
+}
+
+/** A string's characters as both languages' quoted strings take them: `\` and `'` escaped, a line end `\n`, every other
+ *  control character by its code. */
+function quoted(text: string): string {
+  const escaped = text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n')
+    .replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+  return `'${escaped}'`;
+}
+
 /** THE PROGRAM THAT BUILDS A TILE: `spec` on the sheet and over the grids `of` says, in `language`. */
 export function tileCode(spec: TimeseriesSpec, of: TsCodeOf, language: TsCodeLanguage): string {
   switch (language) {
@@ -90,7 +105,7 @@ function py(v: unknown): string {
     if (!Number.isFinite(v)) throw new Error(`${v} is no number a page holds`);
     return String(v);
   }
-  if (typeof v === 'string') return `'${v.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n')}'`;
+  if (typeof v === 'string') return quoted(v);
   if (Array.isArray(v)) return `[${v.map(py).join(', ')}]`;
   if (typeof v === 'object') return `{${Object.entries(v as Record<string, unknown>).map(([k, x]) => `${py(k)}: ${py(x)}`).join(', ')}}`;
   throw new Error(`a ${typeof v} is no value a page holds`);
@@ -127,21 +142,22 @@ function pySeries(series: readonly TsSeries[]): string[] {
 
 /** A grid of a program's own page over the rows a source's grid reads: opened as that grid was (a file, a remote file, a
  *  warehouse table, a class at its revision), else over a frame of the person's (a dataframe's, a saved query's, a
- *  join's or another grid's rows: none a program opens by name) -- its line, and the frame it reads, if one. */
-function pyGrid(name: string, title: string, source: CubeSource | undefined, reads: readonly string[]): { readonly line: string; readonly frame?: string } {
+ *  join's or another grid's rows: none a program opens by name), `frame` its variable: its line. */
+function pyGrid(name: string, frame: string, title: string, source: CubeSource | undefined, reads: readonly string[]): string {
   const rows = reads.length > 0 ? `, with ${listed(reads)}` : '';
-  const said = `the grid "${title.replace(/\n/g, ' ')}"`;
+  const said = `the grid "${title}"`;
+  const line = (code: string, comment: string): string => `${name} = ${code}  # ${oneLine(comment)}`;
   switch (source?._type) {
     case 'file':
-      return { line: `${name} = page.grid(file=${py(source.name)})  # ${said}${source.sample !== undefined ? ` (DataCube's sample ${source.sample.id})` : ''}: your copy of its file${rows}` };
+      return line(`page.grid(file=${py(source.name)})`, `${said}${source.sample !== undefined ? ` (DataCube's sample ${source.sample.id})` : ''}: your copy of its file${rows}`);
     case 'remoteFile':
-      return { line: `${name} = page.grid(remote=${py(source.url)})  # ${said}${rows}` };
+      return line(`page.grid(remote=${py(source.url)})`, `${said}${rows}`);
     case 'warehouseTable':
-      return { line: `${name} = page.grid(warehouse=${py(source.warehouse)}, table=${py(`${source.schema}.${source.table}`)}, catalog=${py(source.catalog)})  # ${said}${rows}` };
+      return line(`page.grid(warehouse=${py(source.warehouse)}, table=${py(`${source.schema}.${source.table}`)}, catalog=${py(source.catalog)})`, `${said}${rows}`);
     case 'class':
-      return { line: `${name} = page.grid(cls=${py(source.class)}, project=${py(source.project)}, revision=${py(source.revision)})  # ${said}${rows}` };
+      return line(`page.grid(cls=${py(source.class)}, project=${py(source.project)}, revision=${py(source.revision)})`, `${said}${rows}`);
     case 'frame':
-      return { line: `${name} = page.grid(${name}_frame, name=${py(source.name)})  # ${said}: ${name}_frame your DataFrame of it${rows}`, frame: `${name}_frame` };
+      return line(`page.grid(${frame}, name=${py(source.name)})`, `${said}: ${frame} your DataFrame of it${rows}`);
     case 'savedQuery':
     case 'join':
     case 'rows':
@@ -149,24 +165,29 @@ function pyGrid(name: string, title: string, source: CubeSource | undefined, rea
       const was = source === undefined ? 'its grid removed'
         : source._type === 'savedQuery' ? `the saved query "${source.name}" (or page.grid(query=its saved id))`
           : source._type === 'join' ? `a join, ${source.name}` : 'another grid\'s rows';
-      return { line: `${name} = page.grid(${name}_frame)  # ${said}, ${was}: ${name}_frame your DataFrame of its rows${rows}`, frame: `${name}_frame` };
+      return line(`page.grid(${frame})`, `${said}, ${was}: ${frame} your DataFrame of its rows${rows}`);
     }
   }
 }
 
 function pythonCode(spec: TimeseriesSpec, of: TsCodeOf): string {
-  const taken = new Set(['ll', 'page', 'tile', 's']);
+  // the program's own names, and Python's that it calls
+  const taken = new Set(['ll', 'page', 'tile', 's', 'print']);
   const grids = new Map<string, string>();
+  // a frame's variable by the name it is served under: two grids over one frame read the one DataFrame
+  const frames = new Map<string, string>();
   const lines: string[] = [];
   for (const s of spec.sources) {
     if (grids.has(s.cube)) continue;
     const g = of.grids[s.cube];
     // its variable named after the frame it reads (the name the person gave it), else after its grid's title
-    const name = pyName(g?.source?._type === 'frame' ? g.source.name : g?.title ?? s.alias, taken);
-    taken.add(`${name}_frame`);
+    const served = g?.source?._type === 'frame' ? g.source.name : undefined;
+    const name = pyName(served ?? g?.title ?? s.alias, taken);
+    const frame = (served !== undefined ? frames.get(served) : undefined) ?? pyName(`${name}_frame`, taken);
+    if (served !== undefined) frames.set(served, frame);
     grids.set(s.cube, name);
     const reads = spec.sources.filter((x) => x.cube === s.cube).flatMap((x) => columnsRead(spec, x.alias));
-    lines.push(pyGrid(name, g?.title ?? s.alias, g?.source, [...new Set(reads)]).line);
+    lines.push(pyGrid(name, frame, g?.title ?? s.alias, g?.source, [...new Set(reads)]));
   }
   const slots = SLOTS.filter((k) => spec[k] !== undefined).map((k) => `    ${k}=${py(spec[k])},`);
   const title = of.title !== null ? [`    title=${py(of.title)},`] : [];
@@ -174,7 +195,8 @@ function pythonCode(spec: TimeseriesSpec, of: TsCodeOf): string {
   const one = spec.sources.length === 1 && spec.sources[0]!.kept === undefined;
   const call = one ? (() => {
     const s = spec.sources[0]!;
-    const told = [`alias=${py(s.alias)}`, `date=${py(s.date)}`, ...(s.key !== undefined ? [`key=${py(s.key)}`] : [])];
+    // no key said as none, never left for DataCube to choose one
+    const told = [`alias=${py(s.alias)}`, `date=${py(s.date)}`, `key=${py(s.key ?? null)}`];
     return [`tile = ${grids.get(s.cube)!}.timeseries(`, ...pySeries(spec.series).map((x) => `    ${x},`), `    ${told.join(', ')},`, ...title, ...slots, ')'];
   })() : [
     'tile = page.timeseries(',
@@ -187,7 +209,7 @@ function pythonCode(spec: TimeseriesSpec, of: TsCodeOf): string {
     ')',
   ];
   return [
-    `# ${of.title ?? 'A timeseries tile'}: a timeseries tile built in Python on a page of your own -- run it, and DataCube shows`,
+    `# ${oneLine(of.title ?? 'A timeseries tile')}: a timeseries tile built in Python on a page of your own -- run it, and DataCube shows`,
     '# the same tile. Each series is a formula, DataCube\'s gs-quant shorthand for a Pure query the tile writes over its grid',
     '# and the database runs: the loop at the end prints each formula\'s Pure.',
     'import legend_lite as ll',
@@ -215,7 +237,7 @@ function ts(v: unknown): string {
     if (!Number.isFinite(v)) throw new Error(`${v} is no number a page holds`);
     return String(v);
   }
-  if (typeof v === 'string') return `'${v.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n')}'`;
+  if (typeof v === 'string') return quoted(v);
   if (Array.isArray(v)) return `[${v.map(ts).join(', ')}]`;
   if (typeof v === 'object') {
     const fields = Object.entries(v as Record<string, unknown>).filter(([, x]) => x !== undefined).map(([k, x]) => `${IDENTIFIER.test(k) ? k : ts(k)}: ${ts(x)}`);
@@ -237,14 +259,14 @@ function typescriptCode(spec: TimeseriesSpec, of: TsCodeOf): string {
   const cubes = spec.sources.map((s) => {
     const g = of.grids[s.cube];
     const reads = columnsRead(spec, s.alias);
-    return `  ${key(s.alias)}: ${ts(s.cube)}, // ${g !== undefined ? `the grid "${g.title.replace(/\n/g, ' ')}"` : 'a grid'}${reads.length > 0 ? `: with ${listed(reads)}` : ''}`;
+    return `  ${key(s.alias)}: ${ts(s.cube)}, // ${oneLine(`${g !== undefined ? `the grid "${g.title}"` : 'a grid'}${reads.length > 0 ? `: with ${listed(reads)}` : ''}`)}`;
   });
   const source = (s: TsSource): string => {
     const rest = { date: s.date, ...(s.key !== undefined ? { key: s.key } : {}), ...(s.kept !== undefined ? { kept: s.kept } : {}) };
     return `{ alias: ${ts(s.alias)}, cube: ${at(s.alias)}, ${ts(rest).slice(2, -2)} }`;
   };
   return [
-    `// ${of.title ?? 'A timeseries tile'}, built in TypeScript on a page of your own: its spec over your grids, and the page`,
+    `// ${oneLine(of.title ?? 'A timeseries tile')}, built in TypeScript on a page of your own: its spec over your grids, and the page`,
     '// command the screen\'s Create ▸ Timeseries sends (Python\'s timeseries too) -- every change to a page is a command, applied by',
     '// one function (page-commands.ts). Each series is a formula, DataCube\'s gs-quant shorthand for the Pure query the tile',
     '// writes for it (timeseries-query.ts askQuery, the one function every round writes by); the paths are from the repository\'s root.',

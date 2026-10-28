@@ -1983,10 +1983,12 @@ class Timeseries(Tile):
         return {'pure': compiler.print_tree(tree), 'sql': compiler.read_planned(said['plan']).sql}
 
     def code(self, language: str = 'python') -> str:
-        """The program that builds this tile, in ``language`` (``'python'``: its sheet's ``timeseries`` over the page's
-        grids, then its frame, statistics and queries; ``'typescript'``: its spec and the page command the screen's
-        Create ▸ Timeseries sends, applied by DataCube's one function) -- the screen's Code, by its one rule (headless
-        timeseriesCode: timeseries-code.ts tileCode). Run, it builds this tile again."""
+        """The program that builds this tile on a page of your own, in ``language`` (``'python'``: a page, a grid over
+        each source's rows opened as its grid was -- a file, a remote file, a warehouse table, a class; else a DataFrame
+        of yours -- the grid's ``timeseries``, and each formula's Pure printed; ``'typescript'``: its spec over your
+        cubes and the page command the screen's Create ▸ Timeseries sends, applied by DataCube's one function) -- the
+        screen's Code, by its one rule (headless timeseriesCode: timeseries-code.ts tileCode). Run, it builds this tile
+        again: it names no tile, grid or sheet of this page."""
         page = self._page
         said = _json.loads(page._session.headless().call('timeseriesCode', _json.dumps(page._doc), self._id, language))
         if 'problems' in said:

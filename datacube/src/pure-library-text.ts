@@ -111,9 +111,7 @@ function datacube::ts::var<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: 
 }
 
 // A statistic of the values a calendar period back from each date of the line, (date - n unit, date] (gs-quant's
-// rolling_offset) -- 'mean', 'sum', 'min', 'max', 'range', 'std', 'var' or 'count', a word compared when the call is
-// expanded:
-// the line joined to itself on those dates, the statistic per date, joined back; on every date, however few values its
+// rolling_offset) -- stat a Statistic (mean, sum, min, max, range, std, var, count): the line joined to itself on those dates, the statistic per date, joined back; on every date, however few values its
 // period holds.
 function datacube::ts::windowPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: datacube::ts::Statistic[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
@@ -177,8 +175,7 @@ function datacube::ts::diffPeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L�
     ->without($out)->rename(~m, $out)
 }
 
-// The returns over obs rows back (gs-quant's returns), of a type -- 'simple', 'log' or 'absolute', a word compared when
-// the call is expanded: x / x[-obs] - 1, none where x[-obs] is 0 or there is none; log(x) - log(x[-obs]), none where
+// The returns over obs rows back (gs-quant's returns), of a type (Returns: simple, log, absolute): x / x[-obs] - 1, none where x[-obs] is 0 or there is none; log(x) - log(x[-obs]), none where
 // either is 0 or below; x - x[-obs].
 function datacube::ts::returns<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], obs: Integer[1], type: datacube::ts::Returns[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
@@ -746,8 +743,8 @@ function datacube::ts::not<T,V,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], o
   $t->extend(~o:x|if($x->read($value)->isEmpty(), |[], |if($x->read($value)->toOne() == 0, |1, |0)))->rename(~o, $out)
 }
 
-// The rows whose value the operator matches removed (gs-quant's filter_): 'less_than', 'greater_than', 'l_equals',
-// 'g_equals', 'equals', 'not_equals' a number, or 'empty' -- a word compared when the call is expanded. A comparison with
+// The rows whose value the operator matches removed (gs-quant's filter_), a FilterOperator: less_than, greater_than, l_equals,
+// g_equals, equals or not_equals a number, or empty. A comparison with
 // none never holds, so none is kept, but by not_equals, where it does (NaN != v): the values equal to it alone kept.
 function datacube::ts::filterValues<T,V>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], operator: datacube::ts::FilterOperator[1], than: Number[1]): Relation<T>[1]
 {
@@ -850,7 +847,7 @@ function datacube::ts::volSwapVolatilityPeriod<T,L,D,V,O>(t: Relation<T>[1], lin
     ->without(~[l, d, lr, r2, ms, vs])->rename(~o, $out)
 }
 
-// The run of values above 0 ('positive') or below ('negative') to each date, counted (gs-quant's consecutive): 0 where
+// The run of values above 0 (Direction.positive) or below (negative) to each date, counted (gs-quant's consecutive): 0 where
 // it breaks, each break beginning a run.
 function datacube::ts::consecutive<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], direction: datacube::ts::Direction[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
@@ -968,7 +965,7 @@ function datacube::ts::pairs<T,X,Y,A,B>(t: Relation<T>[1], first: ColSpec<X⊆T>
 }
 
 // A statistic of the pairs of two columns a calendar period back from each date of the line, (date - n unit, date]
-// (windowPeriod's, of two columns) -- 'corr' or 'cov' (the sample's), a word compared when the call is expanded: the
+// (windowPeriod's, of two columns) -- a PairStatistic, corr or cov (the sample's): the
 // line joined to itself on those dates, the statistic per date, joined back; on every date. A correlation none where a
 // side does not vary over the pairs, as correlation's.
 function datacube::ts::pairPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], first: ColSpec<X⊆T>[1], second: ColSpec<Y⊆T>[1], n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], stat: datacube::ts::PairStatistic[1], out: ColSpec<O>[1]): Relation<T+O>[1]
@@ -1164,8 +1161,7 @@ function datacube::ts::leadLagPeriod<T,L,D,X,Y,O>(t: Relation<T>[1], line: ColSp
 }
 
 // Prices from returns (gs-quant's prices): initial at the first date, and each after it its returns to date compounded
-// -- 'simple' (the product of 1 + r), 'log' (e to their sum) or 'absolute' (their sum added), a word compared when the
-// call is expanded; a return of none (the first) leaves the level where it was.
+// -- Returns.simple (the product of 1 + r), log (e to their sum) or absolute (their sum added); a return of none (the first) leaves the level where it was.
 function datacube::ts::prices<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], initial: Number[1], type: datacube::ts::Returns[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->extend(over($line, [$date->ascending()], rows(unbounded(), 0)), ~sm:{p,f,r|$r->read($value)}:y|$y->plus())
@@ -1323,7 +1319,7 @@ function datacube::ts::trend<T,L,D,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[
 }
 
 // The series less its season (gs-quant's seasonally_adjusted, statsmodels' classical decomposition): each value less
-// (over, 'multiplicative') its place in the cycle's mean of the detrended values (place, a column: each row's number in
+// (over, SeasonalModel.multiplicative) its place in the cycle's mean of the detrended values (place, a column: each row's number in
 // the cycle's calendar), those means centred on their own mean -- none where the trend (trend's) is none.
 function datacube::ts::seasonallyAdjusted<T,L,D,V,P,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], place: ColSpec<P⊆T>[1], cycle: Integer[1], half: Integer[1], method: datacube::ts::SeasonalModel[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
@@ -1381,8 +1377,8 @@ function datacube::ts::weightedSum<T,Z,V,W,O>(t: Relation<T>[1], by: ColSpecArra
 }
 
 // A basket of members held in weights from 100 (gs-quant's backtesting basket_series, its costs none): units fixed
-// between rebalances, set at each to the basket's then in its weights. Each date's rebalance period its own ('daily'),
-// or the weeks or the months ('weekly', 'monthly') from the line's first date -- a rebalance the first date on or after
+// between rebalances, set at each to the basket's then in its weights. Each date's rebalance period its own (Rebalance.daily),
+// or the weeks or the months (weekly, monthly) from the line's first date -- a rebalance the first date on or after
 // each, a month's day kept or its last where it has none -- a week's days counted by time (a number, each row's: days,
 // or seconds, from a day -- its last observation's) over perDay of them a day (1; 86400). Within a period, 1 + Σ weight × (price / its price at the period's first date − 1); into it, the
 // period before's growth to its first date; the basket 100 times those compounded, times its growth within -- none from
@@ -1687,9 +1683,9 @@ function datacube::ts::seasonalRange<T,L,Y,P,V,O1,O2,O3>(t: Relation<T>[1], line
 }
 
 // A SEASONALITY (the commodities desk's chart, Bloomberg's SEAG), a row a date of a line's last years: each date's year
-// and its place in the year by grain ('month', 'quarter'; 'week', the week of the year from its first day; 'day', those
-// weeks, each year's week its last value by time), its value as compare says ('none'; 'rebase', a multiple of its
-// year's first value times 100, gs-quant's index; 'percent', over its year's first less 1, percent_change's; none from a
+// and its place in the year by grain (Grain.month, quarter; week, the week of the year from its first day; day, those
+// weeks, each year's week its last value by time), its value as compare says (Compare.none; rebase, a multiple of its
+// year's first value times 100, gs-quant's index; percent, over its year's first less 1, percent_change's; none from a
 // first of 0), and at its place the least, the most and the mean of the years before the latest (seasonalRange's), the
 // most less the least, and the latest year: of the dates with a value, the latest year's and the years before it.
 function datacube::ts::seasonality<T,L,D,N,V,O1,O2,O3,O4,O5,O6,O7,O8>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], value: ColSpec<V⊆T>[1], grain: datacube::ts::Grain[1], compare: datacube::ts::Compare[1], years: Integer[1], year: ColSpec<O1>[1], place: ColSpec<O2>[1], compared: ColSpec<O3>[1], low: ColSpec<O4>[1], high: ColSpec<O5>[1], mean: ColSpec<O6>[1], span: ColSpec<O7>[1], latest: ColSpec<O8>[1]): Relation<T+O1+O2+O3+O4+O5+O6+O7+O8>[1]
