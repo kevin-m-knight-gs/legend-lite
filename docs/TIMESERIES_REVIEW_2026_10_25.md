@@ -532,16 +532,17 @@ none differed). Its findings, each fixed and pinned:
 - **1 (blocking) the core fix broke the static fold's `.columns`.** A relation argument rode the body's fold as a hole
   the fold could not type, so `$tds.columns->map(..)` no longer unrolled: twelve DuckDB corpus tests failed
   (`rowValueDifference`, the `columnValueDifference` five, `zScore`, `iqrClassify`, the digests), the host pass exiting
-  1. Each hole is typed as its argument while the body folds (`Overloads.inlineNormalized`): `//spec:corpus_duckdb` and
-  `//spec:corpus_h2` green again, their rosters unchanged.
+  1. The fold keeps a typed argument as it is, its `.columns` read from its typing (`Overloads.inlineNormalized`,
+  `StaticFold`, `Typer.pretyped`; first by typing the holes, then -- the checks lane's protocol-node ledger, below --
+  with no hole at all): `//spec:corpus_duckdb` and `//spec:corpus_h2` green again, their rosters unchanged.
 - **2 a correlation's guard reached one form.** The rolling `correlation` gave none where a side does not vary (DuckDB
   says NaN, Postgres none), its calendar form, `leadLag` and theirs NaN still: every correlation of the library now
   none so (`pairPeriod`, `leadLag`; design note §5.6). `timeseries-queries.test.ts` "a correlation where a side does not
   vary is none, in every form" failed on the library before it (`correlation(..., 1w)`: NaN).
 - **3 `Typer.withPretyped` was not re-entrant**: a call inlined in another's body, handed the outer's table, took the
   outer's typing of it away when it ended. It restores what it replaced.
-- **4 the holes' counter was static mutable state** (`ArchitectureTest.staticFieldsAreFinal`'s limit): an instance
-  counter now. **5** the parameter-argument default is a check that throws (a typer bug, AGENTS invariant 4); the
+- **4 the holes' counter was static mutable state** (`ArchitectureTest.staticFieldsAreFinal`'s limit): the holes are
+  gone (1). **5** the parameter-argument default is a check that throws (a typer bug, AGENTS invariant 4); the
   expansion depth's javadoc says the inner call is typed before the outer expands; the chain test is twenty calls,
   past the sixteen nested expansions the old typing refused.
 - **6** `performanceStatistics`' count of returns shares its mean's window: three windows, as the note says.
@@ -554,4 +555,10 @@ Two checks of this branch that had gone unrun failed in the same round and are f
 by its type's name where `hasTimeOfDay` reads it; the markets example's saved queries' text built from their columns,
 now written out as Query saved it, an allowance of the guard's with its date and its count pinned) and the first tile's
 bundle budget (97,000 -> 100,000, measured 98,043, its note dated).
+
+The pushed head's `checks` lane (`//core:guardrails`, never run locally before the push) then failed on three of this
+branch's own rows, each fixed: `ColumnHygiene.fresh` a mutable field (allowlisted, dated: `AlphaRename.nrFresh`'s
+lifecycle); two string compares of a raw type in `ColumnHygiene` (through `Overloads.genericRawIs`, the package's one
+reader); and protocol nodes built below the parser -- the holes (gone), hygiene's renamed column specs and `read`'s
+property read (two dated ledger rows: an expansion's columns are known only at each call, S112, S114).
 

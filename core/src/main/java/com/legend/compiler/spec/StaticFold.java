@@ -97,6 +97,11 @@ final class StaticFold {
     }
 
     private ValueSpecification fold(ValueSpecification v, Map<String, Object> scope) {
+        // a table a generic call typed already, spliced into its body: folded where it was typed, kept as it is (the node
+        // its typing is found by, Typer.withPretyped)
+        if (typer.pretyped(v)) {
+            return v;
+        }
         // a lambda literal is an opaque VALUE to eval (a pair list of
         // accessors filters statically) but its body still FOLDS here
         ValueSpecification lit = v instanceof LambdaFunction ? null : reify(eval(v, scope));
@@ -136,6 +141,9 @@ final class StaticFold {
     /** Every function-valued helper call mentioning {@code pv}, replaced
      * by its raw expansion ({@link Typer#rawSchemaErasedExpansion}). */
     private ValueSpecification expandHelperCallsOver(ValueSpecification v, String pv) {
+        if (typer.pretyped(v)) {
+            return v;
+        }
         if (v instanceof AppliedFunction call && mentions(call, pv)
                 && typer.functionValuedHelperCall(call)) {
             ValueSpecification ex = typer.rawSchemaErasedExpansion(call);
@@ -319,6 +327,10 @@ final class StaticFold {
     // =====================================================================
 
     private @com.legend.base.Nullable Object eval(ValueSpecification v, Map<String, Object> scope) {
+        // a typed table is no static value: its columns are its typing's (relationColumns)
+        if (typer.pretyped(v)) {
+            return null;
+        }
         if (v instanceof LambdaFunction) {
             // a lambda LITERAL is an opaque static value: a pair list of
             // (type, accessor lambda) filters statically to the one

@@ -1493,6 +1493,13 @@ final class ArchitectureTest {
                     java.util.Map.entry("com.legend.compiler.element.TypeClassifier", 1),
                     java.util.Map.entry("com.legend.compiler.spec.AlphaRename", 7),
                     java.util.Map.entry("com.legend.compiler.spec.CallShapes", 4),
+                    // ADDED 2026-10-28 (PR #77's checks lane: two rows its S112 and S114 commits had grown, never run
+                    // locally): a function generic over relations is expanded at each call, its parameters substituted,
+                    // so its body's own column names are known only then -- ColumnHygiene renames them (a ColSpec, its
+                    // array, a property read: 3; AlphaRename's binder rename at the same moment, the same shape) and
+                    // ReadChecker types `$r->read(~col)` as the read `$r.col` it is (1). Neither can move before the
+                    // typer while the expansion is the typer's (docs/SEMANTICS_REGISTER.md S112, S114)
+                    java.util.Map.entry("com.legend.compiler.spec.ColumnHygiene", 3),
                     java.util.Map.entry("com.legend.compiler.spec.DistinctChecker", 1),
                     java.util.Map.entry("com.legend.compiler.spec.EvalChecker", 1),
                     java.util.Map.entry("com.legend.compiler.spec.ExtendChecker", 4),
@@ -1508,6 +1515,8 @@ final class ArchitectureTest {
                     java.util.Map.entry("com.legend.compiler.spec.NewChecker", 1),
                     java.util.Map.entry("com.legend.compiler.spec.Overloads", 2),
                     java.util.Map.entry("com.legend.compiler.spec.ProjectChecker", 15),
+                    // ADDED 2026-10-28: S114's read, typed as the property read it is (the ColumnHygiene row's note)
+                    java.util.Map.entry("com.legend.compiler.spec.ReadChecker", 1),
                     java.util.Map.entry("com.legend.compiler.spec.SortChecker", 8),
                     java.util.Map.entry("com.legend.compiler.spec.SourceSubst", 10),
                     java.util.Map.entry("com.legend.compiler.spec.StaticFold", 12),

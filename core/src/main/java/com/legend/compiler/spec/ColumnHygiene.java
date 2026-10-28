@@ -203,8 +203,8 @@ final class ColumnHygiene {
     /** The column variable of a {@code ColSpec<O>} or {@code ColSpecArray<O>} parameter ({@code O}); null for any
      *  other. */
     private static @com.legend.base.Nullable String columnVariable(Type t) {
-        return t instanceof Type.GenericType g
-                && (PlatformTypes.COL_SPEC.equals(g.rawFqn()) || PlatformTypes.COL_SPEC_ARRAY.equals(g.rawFqn()))
+        return (Overloads.genericRawIs(t, PlatformTypes.COL_SPEC) || Overloads.genericRawIs(t, PlatformTypes.COL_SPEC_ARRAY))
+                && t instanceof Type.GenericType g
                 && g.arguments().size() == 1 && g.arguments().get(0) instanceof Type.TypeVar v ? v.name() : null;
     }
 

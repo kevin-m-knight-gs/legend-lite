@@ -448,8 +448,9 @@ conversion's review, review doc §18).
 
 Planning a chain of calls cost 2^k for k calls until 2026-10-28 (core): a call of a generic function types its
 arguments to choose its overload, then expands its body over them and types that, so each call typed the chain under
-it twice -- sixteen of the library 13 s. A table an expansion's call typed is now typed once: it rides the body's
-static fold as a hole and is put back as its call typed it (`Overloads.inlineNormalized`, `Typer.withPretyped`;
+it twice -- sixteen of the library 13 s. A table an expansion's call typed is now typed once: the body's static fold
+keeps it as it is (a `.columns` it reads is its typing's) and the body's typing finds it by its node
+(`Overloads.inlineNormalized`, `Typer.withPretyped`;
 `UserFunctionIntegrationTest` "a chain of calls ... plans once each", sixteen calls in under 5 s, 36 ms measured). And
 DuckDB's optimizer (its filter pushdown) doubles its time with each window nested under another -- twenty windows each
 over the last, 9 s -- so a figure of a whole line is one aggregate where it can be, never a window of its own: the

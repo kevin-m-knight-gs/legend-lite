@@ -108,6 +108,11 @@ final class Typer {
     /** The arguments of the generic calls being inlined, each by its own node, as their calls typed them. */
     private final java.util.IdentityHashMap<ValueSpecification, TypedSpec> pretyped = new java.util.IdentityHashMap<>();
 
+    /** Whether {@code vs} is a node a call typed already ({@link #withPretyped}): the static fold keeps it as it is. */
+    boolean pretyped(ValueSpecification vs) {
+        return !pretyped.isEmpty() && pretyped.containsKey(vs);
+    }
+
     /** While {@code body} runs, each of {@code typed}'s nodes types as it was typed; after it, as it did before (a call
      *  inlined within another's body, handed the outer's table, leaves the outer's typing of it in place). */
     <R> R withPretyped(java.util.Map<ValueSpecification, TypedSpec> typed, java.util.function.Supplier<R> body) {

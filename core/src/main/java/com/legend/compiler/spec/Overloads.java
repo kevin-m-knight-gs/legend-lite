@@ -331,8 +331,6 @@ final class Overloads {
      *  anywhere on the stack", which refused a call nested in another's argument as recursion). */
     private static final int MAX_NESTED_EXPANSIONS = 16;
 
-    /** The holes' names a call's typed tables ride the static fold under: fresh across this typer's expansions. */
-    private long holes;
 
     private TypedSpec inlineNormalized(AppliedFunction af, Application a, Env env) {
         TypedFunction chosen = a.chosen();
@@ -350,31 +348,23 @@ final class Overloads {
                     + chosen.qualifiedName()
                     + "' has non-let intermediate statements — cannot inline");
         }
-        // each argument spliced in for its parameter -- but a table the call typed already (the chain the call is on: a
-        // call of a generic function over the answer of another) is typed once: it rides the static fold as a hole of
-        // its own, typed as its call typed it (a `.columns` the fold reads is its type's), and is put back after it, its
-        // node typed so too (Typer.withPretyped) -- else each call of a chain types the chain under it twice, its check
-        // and its body, and a chain of k calls planned in 2^k (the focused Pure audit, 2026-10-28: 16 calls of the
-        // library 13 s). The fold folds nothing inside it: its own calls folded where they were typed.
+        // each argument spliced in for its parameter -- a table the call typed already (the chain the call is on: a call
+        // of a generic function over the answer of another) typed once: the body's static fold keeps it as it is (its own
+        // calls folded where they were typed; a `.columns` the fold reads is its typing's) and the body's typing finds it
+        // by its node (Typer.withPretyped) -- else each call of a chain types the chain under it twice, its check and its
+        // body, and a chain of k calls planned in 2^k (the focused Pure audit, 2026-10-28: 16 calls of the library 13 s)
         if (a.args().size() != chosen.parameters().size()) {
             throw new IllegalStateException("typer bug: " + chosen.qualifiedName() + " typed with " + a.args().size()
                     + " argument(s) for its " + chosen.parameters().size() + " parameter(s)");
         }
         java.util.Map<String, ValueSpecification> subst = new java.util.LinkedHashMap<>();
-        java.util.Map<String, ValueSpecification> holed = new java.util.LinkedHashMap<>();
         java.util.IdentityHashMap<ValueSpecification, TypedSpec> typedArgs = new java.util.IdentityHashMap<>();
-        java.util.IdentityHashMap<ValueSpecification, TypedSpec> typedHoles = new java.util.IdentityHashMap<>();
         for (int i = 0; i < chosen.parameters().size(); i++) {
             ValueSpecification arg = af.parameters().get(i);
             TypedSpec typedArg = a.args().get(i);
+            subst.put(chosen.parameters().get(i).name(), arg);
             if (!(arg instanceof LambdaFunction) && Type.schemaView(typedArg.info().type()) != null) {
-                Variable hole = new Variable("_typed" + holes++);
-                subst.put(chosen.parameters().get(i).name(), hole);
-                holed.put(hole.name(), arg);
                 typedArgs.put(arg, typedArg);
-                typedHoles.put(hole, typedArg);
-            } else {
-                subst.put(chosen.parameters().get(i).name(), arg);
             }
         }
         // α-hygiene (the UserCallInliner rule at source level): the body's
@@ -391,9 +381,7 @@ final class Overloads {
         ValueSpecification body = SourceSubst.substitute(hygienic.body(), subst);
         normalizing.push(key);
         try {
-            ValueSpecification spliced = SourceSubst.substitute(
-                    t.withPretyped(typedHoles, () -> new StaticFold(t, env).fold(body)), holed);
-            TypedSpec typed = t.withPretyped(typedArgs, () -> synth(spliced, env));
+            TypedSpec typed = t.withPretyped(typedArgs, () -> synth(new StaticFold(t, env).fold(body), env));
             if (generic) {
                 holdToDeclared(chosen, a.out(), typed);
             }
