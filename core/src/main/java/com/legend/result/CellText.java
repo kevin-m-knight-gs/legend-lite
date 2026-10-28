@@ -217,26 +217,23 @@ public final class CellText {
 
     // ---- Float ----------------------------------------------------------------------------------------------------
 
-    /** Pure's text of a double: its shortest digits ({@code Double.toString}'s), laid out positionally with a point
-     *  always ({@code 1500000000000000.0}, {@code 0.00000025}); zero is {@code 0.0}, either sign (Pure grants
-     *  {@code 0.0 == -0.0}); NaN and the infinities as Java names them. */
+    /** Pure's layout of a double: its shortest digits ({@code Double.toString}'s, which read back as the same double),
+     *  an exponent laid out positionally with a point always ({@code 1500000000000000.0}, {@code 0.00000025}); NaN and
+     *  the infinities as Java names them. A negative zero keeps its sign, {@code -0.0}: it is another double (the
+     *  user, 2026-10-28; Pure's own {@code toString} writes {@code 0.0} for either, as lite's SQL does: register
+     *  S114). */
     static String pureFloat(double d) {
-        if (!Double.isFinite(d)) {
-            return Double.toString(d);
+        String shortest = Double.toString(d);
+        if (shortest.indexOf('E') < 0) {
+            return shortest;
         }
-        if (d == 0.0) {
-            return "0.0";
-        }
-        String plain = BigDecimal.valueOf(d).toPlainString();
+        String plain = new BigDecimal(shortest).toPlainString();
         return plain.contains(".") ? plain : plain + ".0";
     }
 
     /** Pure's text of a Float the database holds exactly (a decimal slot under a Float column): its digits without
      *  trailing zeros, a point always. */
     static String pureFloat(BigDecimal d) {
-        if (d.signum() == 0) {
-            return "0.0";
-        }
         String plain = d.stripTrailingZeros().toPlainString();
         return plain.contains(".") ? plain : plain + ".0";
     }

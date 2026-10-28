@@ -58,11 +58,25 @@ class ResultWritersTest {
         Column f = col("f", "Float", "DOUBLE");
         assertEquals("1500000000000000.0", CellText.pure(1.5e15, f));
         assertEquals("0.00000025", CellText.pure(2.5e-7, f));
-        assertEquals("0.0", CellText.pure(-0.0, f));
+        assertEquals("-0.0", CellText.pure(-0.0, f));
         assertEquals("2.0", CellText.pure(new BigDecimal("2.000"), f));
         // the double nearest 123456789123456789.99 prints its shortest digits (Pure's print of the double, the numeric
         // charter's measurement), not its binary expansion
         assertEquals("123456789123456780.0", CellText.pure(123456789123456789.99, f));
+    }
+
+    /** A negative zero is another double, so lite's own outputs keep its sign: the shortest text that reads back as
+     *  the same double (the user, 2026-10-28; register S114). A decimal has no negative zero. */
+    @Test
+    void aNegativeZeroKeepsItsSign_inLitesCsvAndJson() {
+        Column f = col("f", "Float", "DOUBLE");
+        assertEquals("-0.0", CellText.pure(-0.0, f));
+        assertEquals("0.0", CellText.pure(0.0, f));
+        assertEquals("-0.0", Json.toCompact(CellText.pureJson(-0.0, f)));
+        assertEquals("0.0", Json.toCompact(CellText.pureJson(0.0, f)));
+        assertEquals("0.0", CellText.pure(new BigDecimal("-0.000"), f));
+        // legend-engine's JSON writes the double as Java does, its sign too
+        assertEquals("-0.0", Json.toCompact(CellText.engine(-0.0, f)));
     }
 
     /** legend-engine writes a database timestamp in full and only a database date as its day (its ValueTransformer), so

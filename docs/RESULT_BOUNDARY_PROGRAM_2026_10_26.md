@@ -467,7 +467,10 @@ track A, at the boundary only; R9's guard keeps every Arrow artifact out of the 
 the native image); the writer guards: the user asked what they are for ("writer guards are for what exactly"; the
 start page's S1.4 keeps the answer) and then approved them, "yes add this to the plan": R3's two guards
 (`ArchitectureTest.writersAreCarriageOnly` and `WriterCarriageGuardTest`) are built in S1.4, right after the typed
-precision fact, which supersedes 2026-10-27's "skip the guards" for them.
+precision fact, which supersedes 2026-10-27's "skip the guards" for them. The first spelling change put to the user
+case by case, a negative zero ("what should we do about the negative zero? what is the right move", then "okay"):
+lite's own outputs (LEAN JSON and CSV) write it `-0.0`, item 3's shortest decimal that reads back as the same double;
+Pure's `toString` of a Float stays `0.0` for either sign, legend-pure's own (register S114).
 
 **10. A PCT relation crosses as legend-engine's own adapter reads it (2026-10-28, "Do the probe", then "Do it").**
 The relation is streamed through the server's own LEGACY writer (`PureV1Api.engineWriter`) and read by a Pure copy of

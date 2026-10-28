@@ -39,8 +39,9 @@ measured against the code (not recalled):
 2. No records: GATES, IN_FLIGHT, §9 and the register untouched across five commits; the 51 writer differences accepted
    by the session alone. Partly fixed (GATES entries from phase 5 on); the rest is S1.5.
 3. The writers do more than carriage, and nothing guards them (R3 forbids comparing a value or choosing a spelling by a
-   Pure rule). Found: `CellText.pureFloat` writes `-0.0` as `0.0`; the engine writer chose a date's form by its time of
-   day (fixed `6811256b`: the engine writes a `java.sql.Timestamp` in full); a plan fact matched by slot-name strings
+   Pure rule). Found: `CellText.pureFloat` writes `-0.0` as `0.0` (fixed 2026-10-28 on the user's word: register
+   S114); the engine writer chose a date's form by its time of day (fixed `6811256b`: the engine writes a
+   `java.sql.Timestamp` in full); a plan fact matched by slot-name strings
    (`"TEMPORAL_TEXT"`, `"LITERAL"`) in `JdbcDecode`, `RowDecode`, `MongoDbDecode`, `CellText`. The guards the program
    names (`WriterCarriageGuardTest`, `writersAreCarriageOnly`) were never built (the user had said "skip the guards" on
    2026-10-27; the audit recommended building them; approved 2026-10-28, "yes add this to the plan"). Open: S1.4.
@@ -126,7 +127,9 @@ and recorded nowhere until now: `wire-differences-2026-10-27.tsv` (columns: kind
 every spelling change to the user case by case (the user, 2026-10-28: "any output spelling changes need to come to me
 on case by case basis"), each with its expression, old output and new; the user's answer keeps it (a
 `docs/SEMANTICS_REGISTER.md` row) or reverts it (in code). Among them: a Pair as `<1, a>`, NaN as a string, Floats
-written in full without an exponent, the zone on hour- and minute-precision dates.
+written in full without an exponent, the zone on hour- and minute-precision dates. Decided so far: lines 34 and 35
+(`'-000.000'->parseFloat()`, `-0.0` written `0.0`) reverted on the user's word, 2026-10-28: the new writers write
+`-0.0` again (register S114).
 
 ## 5. The census of core's tests on the old door (2026-10-28)
 
@@ -260,6 +263,6 @@ deleted after.
 | `RootNumericTypes` guesses an "unbounded Decimal" from `DECIMAL(38,18)`, so a declared `Decimal(38,18)` is skipped too | the phase 3 audit (2026-10-27), item 4; `sql/dialect/RootNumericTypes.java` unchanged since | a typed fact, not a guess |
 | the tab's Arrow nested values (a BigNum's `toJSON` quoted unscaled; dates as epoch milliseconds) may be mis-decoded by `HostRows` | the phase 3 audit, item 2 (the Variant and tagged-slot halves fixed in `b3311cd6`) | verify with a DataCube case |
 | lite's JSON writes an absent to-many property as `null` (Pure's is `[]`) | the phase 4 notes | a writer fix or a register row |
-| `-0.0` loses its sign in `CellText.pureFloat` | the audit, item 3 | S1.4 |
+| `CellText.pureFloat` writes a double below `1e-3` with its exponent's trailing zero (`1.0E-4` as `0.00010`); legend-pure and the Float rule's shortest digits give `0.0001` | found 2026-10-28 with S114, in a scratch program over the function | a spelling change: to the user first (S1.4 item 2) |
 | nits from the phase 3 audit: `OutputFormat.id`/`contentType` dead; `FloatPrintText.ofText`'s function parameter vestigial; `CsvWriter`'s "no CSV wire" text; `PureV1Api`'s builder-column three-way choice; the tab prints `-0` as `0`; a REAL widened on hosts but narrowed by `JdbcDecode` | the phase 3 audit | a sweep with S1.4 |
 | PCT channel A JVMs peak at 4,064 to 4,096 MB of their 4,096 MB heap before a collection (live peak after one 2.1 to 2.3 GB) | the Databricks lane, 2026-10-28, at both commits | watch; raise or split before it fails |

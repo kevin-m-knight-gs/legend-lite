@@ -125,17 +125,23 @@ spellings by rules, unguarded. Build:
    (`"TEMPORAL_TEXT"`, `"LITERAL"`) matched in `exec/JdbcDecode`, `result/RowDecode`, `result/CellText` and
    `MongoDbDecode`: a field of `ExecutionPlan.Column` (a plan format bump; `PlanJsonTest`, `MirJson`), set by
    `ColumnFacts`, read by the decoders and the writers.
-2. `-0.0`: `CellText.pureFloat` writes `0.0` for either sign today (a comparison, `d == 0.0`, choosing the text).
-   Keeping the sign is an output spelling change, so it goes to the user (the ruling of 2026-10-28) before any code.
+2. `-0.0`: **ruled and built 2026-10-28** (the user's "okay"; register S114). Lite's own outputs (LEAN JSON and
+   CSV) write a negative zero as `-0.0`, the shortest text that reads back as the same double (the Float rule of
+   2026-10-26), as the LEGACY writer and Arrow carry it; Pure's `toString` of a Float stays `0.0` for either sign, as
+   legend-pure's own and lite's SQL (`FloatCanonText.ofText`) write it. `CellText.pureFloat` has no zero branch now.
+   **Open, for the user:** the same function writes a double Java prints in exponent form below `1e-3` with the
+   exponent's trailing zero (`1.0E-4` as `0.00010`, `1.0E-5` as `0.000010`: `new BigDecimal("1.0E-4")` keeps scale 5);
+   legend-pure prints `0.0001`, and the Float rule's shortest digits are `0.0001`. Found 2026-10-28, measured in a
+   scratch program, never fixed: a spelling change, so it goes to the user before any code.
 3. The two guards the program names (R3), **approved by the user 2026-10-28** ("yes add this to the plan", after the
    explanation below), built right after item 1 so the precision fact removes the slot-word matches they would flag:
    `ArchitectureTest.writersAreCarriageOnly`, a dependency rule (the `result` package reads the plan's column facts
    and the typed batch, and no `compiler`, `lowering`, `sql` or `exec` class: true today, the rule keeps it true), and
    `WriterCarriageGuardTest`, a source scan of `result/` for arithmetic and comparison on numbers and dates, zero
    allowed, with representation operations (a scale set without rounding, a decimal's plain digits) listed by name.
-   What the scan finds today, each to be fixed by a typed fact or put to the user: `pureFloat`'s `d == 0.0` and
-   `signum() == 0`; `dateOnly`'s `midnight(d)` (an abstract Date at midnight printed as its day: the writer guessing
-   the written precision a typed fact should carry, item 1); `engineDay`'s and `dateOnly`'s `atLeast(HOUR)` and slot
+   What the scan finds today, each to be fixed by a typed fact or put to the user: `dateOnly`'s `midnight(d)` (an
+   abstract Date at midnight printed as its day: the writer guessing the written precision a typed fact should carry,
+   item 1); `engineDay`'s and `dateOnly`'s `atLeast(HOUR)` and slot
    words compared as strings; `stripTrailingZeros` on a Float held as a decimal. Also the `result` package as a closed
    register in `JavaEvalLedgerTest`, like `exec`. What they are for, as put to the user: R3 says a writer only spells
    the typed value it was handed, so swapping one writer for another changes no value; a writer that compares or
@@ -407,6 +413,7 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
 | 2026-10-28 | "yes keep arrow writer at the boundary in this program (but no arrow dependencies in compiler!)" | track A stays in this program, at the boundary only; R9's guard |
 | 2026-10-28 | "writer guards are for what exactly" | answered (S1.4 item 3 keeps the explanation) |
 | 2026-10-28 | "yes add this to the plan" | the two writer guards are built in S1.4, right after the precision fact |
+| 2026-10-28 | "what should we do about the negative zero? what is the right move", then "okay" to the answer | LEAN JSON and CSV write `-0.0`; Pure's `toString` stays `0.0` (S1.4 item 2, register S114) |
 | 2026-10-28 | "Do the probe" | PARK-34 closed by asking legend-engine |
 | 2026-10-28 | "Do it" | the engine crossing measured on every lane, then switched; `PureTdsText` deleted |
 | 2026-10-28 | "i would prefer not to delete the overlapping tests but use the exact same logic but with platform output that we think users would actually run/use instead of backwards compat mode - so its almost the platform twin of PCT/core-relational" | track T |
