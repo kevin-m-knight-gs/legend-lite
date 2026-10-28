@@ -105,6 +105,18 @@ final class Typer {
 
     /** The overload machinery: the generic application rule and candidate ranking (plan W1.6: moved out whole). */
     private final Overloads overloads;
+    /** The arguments of the generic calls being inlined, each by its own node, as their calls typed them. */
+    private final java.util.IdentityHashMap<ValueSpecification, TypedSpec> pretyped = new java.util.IdentityHashMap<>();
+
+    /** While {@code body} runs, each of {@code typed}'s nodes types as it was typed. */
+    <R> R withPretyped(java.util.Map<ValueSpecification, TypedSpec> typed, java.util.function.Supplier<R> body) {
+        typed.forEach(pretyped::put);
+        try {
+            return body.get();
+        } finally {
+            typed.keySet().forEach(pretyped::remove);
+        }
+    }
 
     Typer(ModelContext ctx, InferenceKernel kernel) {
         this.ctx = ctx;
@@ -148,6 +160,12 @@ final class Typer {
 
     /** Synthesis (inference) mode: produce the node and its intrinsic type. */
     TypedSpec synth(ValueSpecification vs, Env env) {
+        // an argument of a generic call already typed, met again in the call's inlined body (Overloads.inlineNormalized):
+        // its typing, never typed again -- a chain of k calls typed once each, not 2^k times (2026-10-28)
+        TypedSpec pre = pretyped.isEmpty() ? null : pretyped.get(vs);
+        if (pre != null) {
+            return pre;
+        }
         return switch (vs) {
             // Path literals normally dissolve at resolution; an unresolved one types as
             // its desugared lambda.

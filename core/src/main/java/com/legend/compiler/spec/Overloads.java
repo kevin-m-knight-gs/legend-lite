@@ -330,6 +330,9 @@ final class Overloads {
      *  function anywhere on the stack", which refused a call nested in another's argument as recursion). */
     private static final int MAX_NESTED_EXPANSIONS = 16;
 
+    /** The holes' names a call's typed tables ride the static fold under: fresh across every expansion. */
+    private static final java.util.concurrent.atomic.AtomicLong HOLES = new java.util.concurrent.atomic.AtomicLong();
+
     private TypedSpec inlineNormalized(AppliedFunction af, Application a, Env env) {
         TypedFunction chosen = a.chosen();
         com.legend.model.FunctionId key = chosen.id();
@@ -346,9 +349,26 @@ final class Overloads {
                     + chosen.qualifiedName()
                     + "' has non-let intermediate statements — cannot inline");
         }
+        // each argument spliced in for its parameter -- but a table the call typed already (the chain the call is on: a
+        // call of a generic function over the answer of another) is typed once: it rides the static fold as a hole of
+        // its own (the fold has nothing to fold in it: its own calls folded where they were typed) and is put back after
+        // it, its node typed as its call typed it (Typer.withPretyped) -- else each call of a chain types the chain under
+        // it twice, its check and its body, and a chain of k calls planned in 2^k (the focused Pure audit, 2026-10-28:
+        // 16 calls of the library 13 s)
         java.util.Map<String, ValueSpecification> subst = new java.util.LinkedHashMap<>();
+        java.util.Map<String, ValueSpecification> holes = new java.util.LinkedHashMap<>();
+        java.util.IdentityHashMap<ValueSpecification, TypedSpec> typedArgs = new java.util.IdentityHashMap<>();
         for (int i = 0; i < chosen.parameters().size(); i++) {
-            subst.put(chosen.parameters().get(i).name(), af.parameters().get(i));
+            ValueSpecification arg = af.parameters().get(i);
+            TypedSpec typedArg = i < a.args().size() ? a.args().get(i) : null;
+            if (typedArg != null && !(arg instanceof LambdaFunction) && Type.schemaView(typedArg.info().type()) != null) {
+                String hole = "_typed" + HOLES.getAndIncrement();
+                subst.put(chosen.parameters().get(i).name(), new Variable(hole));
+                holes.put(hole, arg);
+                typedArgs.put(arg, typedArg);
+            } else {
+                subst.put(chosen.parameters().get(i).name(), arg);
+            }
         }
         // α-hygiene (the UserCallInliner rule at source level): the body's
         // lambda binders rename to fresh _nr<N> — a caller variable spelled
@@ -364,7 +384,8 @@ final class Overloads {
         ValueSpecification body = SourceSubst.substitute(hygienic.body(), subst);
         normalizing.push(key);
         try {
-            TypedSpec typed = synth(new StaticFold(t, env).fold(body), env);
+            ValueSpecification spliced = SourceSubst.substitute(new StaticFold(t, env).fold(body), holes);
+            TypedSpec typed = t.withPretyped(typedArgs, () -> synth(spliced, env));
             if (generic) {
                 holdToDeclared(chosen, a.out(), typed);
             }
