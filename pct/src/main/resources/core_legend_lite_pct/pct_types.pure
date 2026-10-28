@@ -1,13 +1,6 @@
 // Copyright 2026 Legend Lite Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-// Wrapper class for TDS string results from Legend-Lite native execution.
-// This allows distinguishing TDS results from scalar String values.
-Class meta::legend::lite::pct::TDSResult
-{
-    tdsString: String[1];
-}
-
 // A relation's answer as legend-engine's own PCT adapter reads the engine's JSON result (pct_relational.pure: parseJSON,
 // then fromJSON into its RelationalTDSResult with nullReplacementInArray=TDSNull): the TDS builder's columns, and each
 // row's values as json-simple types them (an integral number an Integer, any other number a Float of its double, a JSON

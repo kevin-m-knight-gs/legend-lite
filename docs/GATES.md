@@ -15093,3 +15093,43 @@ column, the server refusing the column's relational spelling as unprobed). The p
 8. **Measured on 4eaf1b07 and 0b06545e:** `//core:core_tests_server`, `//core:core_tests_root`, `//core:guardrails`,
    `//core:census`, `//datacube:python_execute_test`, PCT DuckDB standard and relation on the engine crossing: green.
    Not the local gate.
+
+## 2026-10-28 — the result boundary program's stage 1, step 3 done: a PCT relation crosses as legend-engine's own adapter reads it; the Java TDS text deleted
+
+The condition yesterday's entry set for the switch (the Variant spelling probed, the midnight rule gone, then every
+lane measuring the engine crossing) is met, and the switch is made.
+
+1. **Measured on every lane at e8c341d0, channel A, `LEGENDLITE_PCT_RELATION=engine`** (the warm lane sessions, measure
+   only, each against its own f883d42b channel A logs; DuckDB, SQLite and MongoDB in this session): exact everywhere,
+   0 stale, 0 moved, 0 lost.
+
+   | lane | suites | relation crossings (relation / standard) |
+   |---|---|---|
+   | DuckDB | all five | 460 / 64 |
+   | SQLite | all five | 459 / 64 |
+   | MongoDB | all five | 459 / 64 |
+   | Postgres (unprivileged) | all five | 460 / -- |
+   | MariaDB | all five | 459 / 64 |
+   | MySQL | all five | 460 / 64 |
+   | ClickHouse | all five | 460 / 64 |
+   | Trino | all five | 460 / -- |
+   | H2 | relation (its lane's one suite) | 439 / -- |
+   | BigQuery | all five | 459 / 64 |
+   | Databricks | all five | 460 / 64 |
+   | Snowflake | all five | (its count asked; the flag in each test action's key, none cached) |
+
+   Each lane but Snowflake checked the flag took effect by its log: every relation crossed through the engine writer
+   (`[LegendLite PCT] engine JSON:` lines, each carrying the trace comment) and none through the Java text
+   (`[LegendLite PCT] TDS:`); at f883d42b the same crossings were all text. Postgres and Trino counted the relation
+   suite's only.
+   Essential, grammar and unclassified answer no relation, so the crossing does not reach them.
+2. **The switch:** `PctPlanRoute` streams every relation through the server's own writer of legend-engine's execute
+   answer (`PureV1Api.engineWriter`), and the adapter reads it as legend-engine's PCT adapter does (`ValueBridge.engineTDS`,
+   then `pct_adapter.pure`'s `engineTDS`: `getTDSResultFromProtocol`'s steps, then `stringToTDS`). Deleted: the flag,
+   `PureTdsText` (Pure's TDS text written in Java), `ValueBridge.createTDSResult`, the adapter's `TDSResult` branch and
+   class. So the PCT now judges the JSON lite's server serves, and has found three production defects in it (the dynamic
+   pivot's envelope, the midnight rule, the Variant cell).
+3. **The guards:** `JavaEvalLedgerTest` re-pinned to the measured counts, each dated: `PctExecuteNative` 99 -> 94,
+   `ValueBridge` 428 -> 418.
+4. **Measured on the switch locally:** PCT DuckDB, SQLite and MongoDB relation and standard (no flag: the engine crossing
+   is the only one), `//pct:pct_discipline`, `//core:census`, `//core:guardrails`: green. Not the local gate.

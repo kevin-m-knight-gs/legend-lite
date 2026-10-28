@@ -452,6 +452,10 @@ default.
 
 ## 9. Status
 
+- **2026-10-28, stage 1, step 3 done: a PCT relation crosses as legend-engine's own adapter reads it.** Every lane
+  measured the engine crossing at e8c341d0 exact on every suite (channel A; GATES, 2026-10-28); the switch is made and
+  the Java TDS text (`PureTdsText`), its wrapper and the adapter's text branch are deleted. The PCT now judges the
+  engine JSON the server serves. Next: S1.4 (the writers carriage only), then S1.5's records and S1.6's draft PR.
 - **2026-10-28, PARK-34 closed by probing legend-engine 4.145.0** (stage 1, step 3 waited on it): a Variant
   column's builder is `SEMISTRUCTURED`, its cell a string holding its JSON; the writer spells both so (register S112
   for the JSON's digits), and every other type the engine has no answer for stays refused, said so (GATES,

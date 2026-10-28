@@ -488,7 +488,8 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
 
     // Execute through Legend-Lite's plan via the native bridge, which
     // answers by the plan's shape:
-    //   - a relation: a TDSResult holding its TDS text
+    //   - a relation: an EngineTDSResult, the engine's JSON answer as
+    //     legend-engine's own adapter reads it (engineTDS, below)
     //   - a value: its typed elements (Integer, Float, Boolean, String,
     //     Date, ...; a List or a Map as one real typed instance)
     let result = executeLegendLiteQuery($pureText, $roots);
@@ -510,20 +511,16 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
               // PLATFORM's own generic type), so a multi-value crossing
               // IS a plain collection
               $result->cast(@X)->toMultiplicity(@[o]),
-            | // Single-value result: TDS text or a scalar (Map and List
+            | // Single-value result: a relation or a scalar (Map and List
               // results arrive as REAL typed instances Java built from
               // the platform's own generic returnType — B2)
               let single = $result->toOne();
               if($single->instanceOf(EngineTDSResult),
-                | // a relation as legend-engine's adapter reads the engine's JSON answer (engineTDS)
+                | // a relation as legend-engine's adapter reads the engine's JSON answer (engineTDS; the result
+                  // boundary program's stage 1, step 3, 2026-10-28: the Java-written TDS text it was measured
+                  // against is deleted). A value never crosses as a text: Java builds the reference's own
+                  // instances from its typed elements.
                   engineTDS($single->cast(@EngineTDSResult), $f->functionReturnType())->cast(@X)->toMultiplicity(@[o]),
-                | if($single->instanceOf(TDSResult),
-                | // A relation crosses as Pure's TDS text, written by the adapter's Java from the plan's typed rows
-                  // (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, phase 4): the reference holds a relation as its
-                  // text, so stringToTDS reads it whole -- the platform's own column names, types and
-                  // multiplicities (F5.3 Stage B: the header IS the header; no overlay). A value never crosses as a
-                  // text: Java builds the reference's own instances from its typed elements.
-                  $single->cast(@TDSResult).tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]),
                 | // B8 (the P7 relabel is DELETED): the platform now
                   // labels precision-exact float literals FLOAT end to
                   // end — proved against the reference source
@@ -531,7 +528,7 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
                   // adapter's LAST declared-type read is gone; every
                   // scalar passes through untouched.
                   $single->cast(@X)->toMultiplicity(@[o]);
-              ));
+              );
           );
     );
 }

@@ -538,26 +538,13 @@ final class ValueBridge {
     // ===== TDS formatting =====
 
     /**
-     * Formats a TabularResult as a TDS string for stringToTDS().
-     * Column types come from the compiler schema (already Pure type names).
-     */
-
-    /** F5.1: the column's PURE type names the header (the SQL-type-name
-     * sniff is gone). F5.3 Stage B: temporals and Variant spell their
-     * REAL pure names — the old "interpreted TestTDS cannot build Date
-     * columns" claim was stale (the overlay had been writing Date
-     * headers green for months); Variant needs its FQN because the 5.88
-     * TDS header parser resolves type names without import scanning.
-     * Variant cells still travel as quoted JSON text. */
-
-
-    /**
      * A relation's answer, the engine's JSON the server writes ({@code PureV1Writer}), read as legend-engine's own PCT
      * adapter reads it (pct_relational.pure: parseJSON, then fromJSON into its RelationalTDSResult with
      * nullReplacementInArray=TDSNull): the TDS builder's columns, each row's values as json-simple types them -- an
      * integral number an Integer, any other number a Float of its double (json-simple reads a Double, and the engine's
-     * JsonParser makes the Float from its text), a string a String, a boolean a Boolean, a JSON null TDSNull. A Variant's
-     * object or array (json-simple's JSONObject or JSONArray) crosses as its compact JSON text, which toCSVString quotes.
+     * JsonParser makes the Float from its text), a string a String (a Variant's cell among them: the engine writes its JSON
+     * as a string, measured 2026-10-28), a boolean a Boolean, a JSON null TDSNull. A structure's object or array
+     * (json-simple's JSONObject or JSONArray) crosses as its compact JSON text, which toCSVString quotes.
      * The adapter's Pure writes the TDS text with getTDSResultFromProtocol's steps (pct_adapter.pure, engineTDS).
      */
     CoreInstance engineTDS(String engineJson, ProcessorSupport ps) {
@@ -616,17 +603,6 @@ final class ValueBridge {
             throw new IllegalStateException(path + " is not in the PCT's Pure model");
         }
         return c;
-    }
-
-    CoreInstance createTDSResult(String tdsString, ProcessorSupport ps) {
-        CoreInstance tdsResultClass = ps.package_getByUserPath("meta::legend::lite::pct::TDSResult");
-        if (tdsResultClass == null) {
-            throw new RuntimeException("TDSResult class not found in Pure model");
-        }
-        CoreInstance instance = modelRepository.newCoreInstance("TDSResult", tdsResultClass, null);
-        Instance.addValueToProperty(instance, "tdsString",
-                modelRepository.newStringCoreInstance(tdsString), ps);
-        return ValueSpecificationBootstrap.wrapValueSpecification(instance, true, ps);
     }
 
 }

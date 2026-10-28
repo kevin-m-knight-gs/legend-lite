@@ -40,9 +40,10 @@ import java.util.Stack;
 /**
  * THE THIN ENTRY (the derived minimum's orchestration piece, census
  * §5b): read the expression + semantic roots, plan and run the packed
- * model's query ({@link PctPlanRoute}), hand its typed rows over by the
- * plan's shape -- a relation as Pure's TDS text ({@link PureTdsText}), a
- * value through the {@link ValueBridge} -- and re-address errors to the
+ * model's query ({@link PctPlanRoute}), hand its answer over by the
+ * plan's shape -- a relation as the engine's JSON answer read by
+ * legend-engine's own adapter steps, a value's typed elements, both
+ * through the {@link ValueBridge} -- and re-address errors to the
  * test's own call site. Every decision lives in the platform or in the
  * named pieces — this file only sequences them. Type information flows
  * from the PLATFORM's typed facts (the plan's columns, the query's result
@@ -153,14 +154,9 @@ public class PctExecuteNative extends NativeFunction {
             PctCaseRecorder.recordShape(pureExpression, answer);   // the shape census: -Dlegend.diagnostics=pct-shapes
             return switch (answer.shape()) {
                 case RELATION -> {
-                    String engineJson = answer.engineJson();
-                    if (engineJson != null) {
-                        System.out.println("[LegendLite PCT] engine JSON: " + engineJson);
-                        yield bridge.engineTDS(engineJson, processorSupport);
-                    }
-                    String tds = PureTdsText.of(answer.rows().columns(), answer.rows().rows());
-                    System.out.println("[LegendLite PCT] TDS: " + tds.replace("\n", "\\n"));
-                    yield bridge.createTDSResult(tds, processorSupport);
+                    System.out.println("[LegendLite PCT] engine JSON: " + answer.engineJson());
+                    yield bridge.engineTDS(java.util.Objects.requireNonNull(answer.engineJson(),
+                            "a relation's answer carries the engine's JSON"), processorSupport);
                 }
                 case VALUE -> bridge.values(answer.rows().rows().stream().map(r -> r.get(0)).toList(),
                         answer.rows().columns().get(0), answer.resultType(), processorSupport);

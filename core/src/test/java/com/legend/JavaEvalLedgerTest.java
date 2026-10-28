@@ -107,8 +107,9 @@ class JavaEvalLedgerTest {
             // 116 -> 94 (2026-10-27, the result boundary program's phase 4: the legacy route and the shadow plan
             // deleted; the PCT runs the typed plan alone); 94 -> 99 the same day (stage 1, step 3: the relation's
             // crossing measured both ways, Pure's TDS text and the engine's JSON read by its own adapter's steps; the
-            // loser's lines leave with the switch)
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 99),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
+            // loser's lines leave with the switch); 99 -> 94 (2026-10-28, the switch: every lane measured the
+            // engine's crossing exact, and the TDS text crossing is deleted with PureTdsText)
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 94),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
             // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
             // colliding with a lite-native name refuses injection loudly;
             // guard growth, anti-compensation
@@ -134,8 +135,9 @@ class JavaEvalLedgerTest {
             // carrier hop, nothing evaluated)
             // 376 -> 428 the same day (stage 1, step 3: the engine's JSON answer read as legend-engine's PCT adapter reads
             // it, json-simple's typing of each value, beside the TDS text crossing it is measured against; one of the
-            // two is deleted with the switch)
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 428),
+            // two is deleted with the switch); 428 -> 418 (2026-10-28, the switch: the TDS text's wrapper,
+            // createTDSResult, deleted; the engine's crossing is the one that stays)
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 418),
             // MetamodelWalk (1307) + MetamodelSteps (196) DELETED (batch 55a,
             // 2026-09-04): the Java port of toPostgresModel and the host
             // metamodel walk are gone — the three tests they still scored
@@ -1075,7 +1077,8 @@ class JavaEvalLedgerTest {
         // PctRender at the execution seam; PCT 1110/1110). This row now
         // PINS the deletion at zero. The adapter-contract RESIDUE moved
         // to the PERMANENT register: createTDSResult (wraps the DB text
-        // into the TDSResult CoreInstance), multText (model-source
+        // into the TDSResult CoreInstance; deleted 2026-10-28 with the
+        // TDS text crossing), multText (model-source
         // extraction, ingress), stripTrailingZeros (scalar-bridge date
         // instance precision decode), remapErrorMessage (error-text
         // adapter, H4 known weakness documented), reEscapeStringLiterals

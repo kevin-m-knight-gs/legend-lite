@@ -17,9 +17,9 @@ import java.util.Set;
  * Channel A on the plan (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27, phase 4): the
  * case's expression and its injected model planned by the one compiler under the PCT's feature flags, for the server
  * this lane's sessions are, and run by the plan runner on the sessions the lane gives ({@link PctBackend#planSessions});
- * its answer is the plan's TYPED rows, which the adapter hands the reference interpreter by the plan's shape -- a
- * relation as Pure's TDS text written from them ({@link PureTdsText}), a value's elements as the reference's own
- * instances ({@link ValueBridge}).
+ * its answer is the plan's TYPED rows, and, for a relation, the engine's JSON answer the server writes from them
+ * ({@code PureV1Api.engineWriter}), which the adapter reads as legend-engine's own PCT adapter reads it
+ * ({@link ValueBridge#engineTDS}); a value's elements cross as the reference's own instances ({@link ValueBridge}).
  */
 final class PctPlanRoute {
 
@@ -27,17 +27,11 @@ final class PctPlanRoute {
     }
 
     /** A case's answer: what the plan answers ({@code shape}), its typed rows, the query's result type, which a
-     *  value's elements are built by, and, for a relation read as the engine's adapter reads one, the engine's JSON
-     *  answer the server writes ({@code engineJson}; null otherwise). */
+     *  value's elements are built by, and for a relation the engine's JSON answer the server writes ({@code
+     *  engineJson}; null for a value). */
     record Answer(ExecutionPlan.TdsResult.Shape shape, PlanRunner.Rows rows, ExprType resultType,
             @com.legend.base.Nullable String engineJson) {
     }
-
-    /** The measurement of the result boundary program's stage 1, step 3 (2026-10-27): a relation crosses as the
-     *  engine's JSON answer read by legend-engine's own adapter steps ({@code LEGENDLITE_PCT_RELATION=engine}) or as
-     *  Pure's TDS text written in Java ({@link PureTdsText}), per run, so both are measured on every lane on one head;
-     *  the loser is deleted with this switch. */
-    static final boolean ENGINE_RELATION = "engine".equals(System.getenv("LEGENDLITE_PCT_RELATION"));
 
     static Answer execute(String model, String expression) throws IOException {
         TypedQuery query = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression);
@@ -45,9 +39,10 @@ final class PctPlanRoute {
         ExecutionPlan plan = query.executionPlan(com.legend.test.StorelessRuntime.RUNTIME,
                 Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING), PctBackend.serverVersion());
         // the plan's own session for an in-process lane, the harness's for a server lane (PctBackend.planSessions)
-        if (ENGINE_RELATION && plan.answerShape() == ExecutionPlan.TdsResult.Shape.RELATION) {
-            // the server's own writer of the engine's answer (PureV1Api.engineWriter), fed the stream the rows are
-            // collected from
+        if (plan.answerShape() == ExecutionPlan.TdsResult.Shape.RELATION) {
+            // a relation crosses as legend-engine's PCT adapter reads one (the result boundary program's stage 1,
+            // step 3, switched 2026-10-28 after every lane measured it exact): the server's own writer of the
+            // engine's answer (PureV1Api.engineWriter), fed the stream the rows are collected from
             com.legend.result.Collector collector = new com.legend.result.Collector();
             java.io.StringWriter json = new java.io.StringWriter();
             com.legend.result.ResultSink engine = com.legend.server.PureV1Api.engineWriter(query, plan, json);
