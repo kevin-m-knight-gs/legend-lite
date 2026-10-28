@@ -15039,3 +15039,57 @@ relation type where it has one, else the builder's; a String's `toCSVString`, `T
    (`pureTypeToDataTypeMap`, Variant -> SemiStructured; `alloyTypeToString`, SemiStructured -> 'SEMISTRUCTURED').
    Measured: `core_tests_root`, `core_tests_server`, `core_tests_integration`, `guardrails`, `census`,
    `//datacube:python_execute_test`, PCT DuckDB standard and relation on both crossings: green, as stated.
+
+## 2026-10-28 — PARK-34 closed: legend-engine asked what it answers for a Variant column
+
+The result boundary program's stage 1, step 3 waited on it (the engine crossing lost 31 relations with a Variant
+column, the server refusing the column's relational spelling as unprobed). The probe it asked for, run here.
+
+1. **How it was asked.** legend-engine 4.145.0 itself, from `tools/engine-runner`'s jars (`@maven_runner`, the pinned
+   release): a scratch main, never committed, that parses and compiles a model with the engine's own compiler, plans a
+   lambda with its `PlanGenerator` (its core extensions, `LegendPlanTransformers`), runs the plan with its
+   `PlanExecutor` and writes the answer with the `DEFAULT` serializer, as `pure/v1/execution/execute` does. The model:
+   a table with a `SEMISTRUCTURED` column (and TIMESTAMP and DATE columns) on DuckDB (a seeded file) and on H2
+   (`testDataSetupSqls`). The answers are committed in `core/src/test/resources/upstream-api/` (`e8-variant-column.json`,
+   `e8-variant-computed.json`, `e8-variant-null.json`), the model and the provenance in `variant-probe.pure`.
+2. **What the engine answers.**
+   - the builder spells a Variant column `{"type":"meta::pure::metamodel::variant::Variant","relationalType":"SEMISTRUCTURED"}`,
+     a store column's and a computed `toVariant()`'s alike; the plan's tdsColumns are the same on H2;
+   - a cell is a STRING holding the value's JSON: `"{\"a\":1,\"b\":[true,null,\"x\"],\"c\":2.5}"`, `"[1,2.5,\"s\"]"`,
+     `"\"text\""`; a JSON null is `"null"`, SQL's NULL is `null`. The engine parses the database's JSON and writes it
+     again, so a number inside is its JSON library's double (the stored `2.50` answers `2.5`) and the spacing is gone;
+   - on H2 it refuses executing the stored column ("Unable to process variant result as JSON from column 'PAYLOAD'":
+     H2's driver hands the JSON as bytes);
+   - a midnight TIMESTAMP is written in full (`2024-01-02T00:00:00.000000000+0000`), as yesterday's fix (6811256b) has it;
+   - every other type asked: a computed Boolean `BIT`, StrictDate `DATE`, DateTime and Date `TIMESTAMP`, Number,
+     Float and Decimal `FLOAT`, BigInt and Int `INTEGER` (lite's table, unchanged); a StrictTime column, a list column
+     and a `VARBINARY` store column have NO answer: the engine refuses each query before executing.
+3. **What changed in lite.**
+   - `UpstreamRelationType.relationalSpelling`: a Variant is `SEMISTRUCTURED`; any other type is refused as the
+     engine refuses it, said so ("legend-engine has no relational spelling of ...").
+   - `CellText.engine` wrote a Variant cell as its JSON itself (unprobed): it writes the string holding it now. The
+     JSON's numbers keep the database's digits (`2.50`), where the engine's library re-spells them: register S112.
+   - PARK-34 is closed in `docs/PARKED_WORK_LEDGER.md`, its anchor deleted from `ParkedWorkLedgerTest`.
+4. **Found on the way, not changed here:**
+   - the engine-parity H2 dialect (`H2`, servers 2.1 and 2.2) spells `fromJson(text)` as `CAST(x AS JSON)`, which H2
+     answers as a JSON STRING holding the text: `fromJson('{"a": 1}')` is the string `"{\"a\": 1}"`, not an object, a
+     silent wrong answer. `H2Modern` already parses (`JSON '...'`, `x FORMAT JSON`).
+   - the engine's relation accessor types a `BIT` store column as `TinyInt` (`relationalType` `INTEGER`) while its cell
+     is `true`; lite types it Boolean (`BIT`).
+5. **What judges it:** `PureV1ApiTest.e8_execute_aVariantColumn_isTheEnginesBuilder_itsCellsStringsOfJson` (the
+   builder against the engine's recorded builder, the answer's layout, each cell a string of its JSON on both sides,
+   the recorded difference); `ResultWritersTest.engineTokens`; `//datacube:python_execute_test`'s new case (the tab's
+   answer text byte for byte as Python's, the builder, each cell, and Python's Arrow answer the same).
+6. **The DataCube case's first run found a difference of the value** (0b06545e): a frame row with no quantity answers
+   `$x.qty->toVariant()` as SQL's NULL, an empty cell under `Variant[1]`, where the engine's DuckDB SQL is
+   `ifnull(to_json(x), 'null'::json)`, so its cell is, by that SQL and its measured spelling of JSON's null
+   (`e8-variant-null.json`), the string `"null"`; lite's DuckDB renders `to_json(x)` alone.
+   Registered as S113 (pending), not fixed here (its fix moves PCT on every lane and is measured on its own); the case
+   reads the rows with a quantity.
+7. **The engine crossing re-measured on DuckDB** (`LEGENDLITE_PCT_RELATION=engine`): relation 469 of 469 as the
+   ledgers hold them (yesterday 32 lost: the 31 Variant relations and the moved message), standard 205 of 205. On
+   DuckDB the engine crossing now answers exactly as the text crossing: the condition stage 1, step 3 set for the switch
+   (item 3 of yesterday's entry) holds here; the other lanes measure it next.
+8. **Measured on 4eaf1b07 and 0b06545e:** `//core:core_tests_server`, `//core:core_tests_root`, `//core:guardrails`,
+   `//core:census`, `//datacube:python_execute_test`, PCT DuckDB standard and relation on the engine crossing: green.
+   Not the local gate.
