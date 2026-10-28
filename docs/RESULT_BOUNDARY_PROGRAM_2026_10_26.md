@@ -464,8 +464,10 @@ spelling changes need to come to me on case by case basis" (no spelling change o
 registered by a session: each is put to the user, alone, with its before and after, and the user's answer recorded);
 "yes keep arrow writer at the boundary in this program (but no arrow dependencies in compiler!)" (the Arrow writer is
 track A, at the boundary only; R9's guard keeps every Arrow artifact out of the compiler, the WebAssembly planner and
-the native image); the writer guards: the user asked what they are for (the start page's S1.4 explains), so they wait
-on the user's word.
+the native image); the writer guards: the user asked what they are for ("writer guards are for what exactly"; the
+start page's S1.4 keeps the answer) and then approved them, "yes add this to the plan": R3's two guards
+(`ArchitectureTest.writersAreCarriageOnly` and `WriterCarriageGuardTest`) are built in S1.4, right after the typed
+precision fact, which supersedes 2026-10-27's "skip the guards" for them.
 
 **10. A PCT relation crosses as legend-engine's own adapter reads it (2026-10-28, "Do the probe", then "Do it").**
 The relation is streamed through the server's own LEGACY writer (`PureV1Api.engineWriter`) and read by a Pure copy of

@@ -43,7 +43,7 @@ measured against the code (not recalled):
    day (fixed `6811256b`: the engine writes a `java.sql.Timestamp` in full); a plan fact matched by slot-name strings
    (`"TEMPORAL_TEXT"`, `"LITERAL"`) in `JdbcDecode`, `RowDecode`, `MongoDbDecode`, `CellText`. The guards the program
    names (`WriterCarriageGuardTest`, `writersAreCarriageOnly`) were never built (the user had said "skip the guards" on
-   2026-10-27; the audit recommended building them). Open: S1.4.
+   2026-10-27; the audit recommended building them; approved 2026-10-28, "yes add this to the plan"). Open: S1.4.
 4. A task marked done with "Arrow" in its title: no Arrow writer exists. Open: track A.
 5. Phase 5's WIP commit had run no test. Fixed: `f883d42b`.
 

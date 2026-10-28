@@ -127,7 +127,8 @@ spellings by rules, unguarded. Build:
    `ColumnFacts`, read by the decoders and the writers.
 2. `-0.0`: `CellText.pureFloat` writes `0.0` for either sign today (a comparison, `d == 0.0`, choosing the text).
    Keeping the sign is an output spelling change, so it goes to the user (the ruling of 2026-10-28) before any code.
-3. The two guards the program names (R3), **built only on the user's word** (asked 2026-10-28 what they are for):
+3. The two guards the program names (R3), **approved by the user 2026-10-28** ("yes add this to the plan", after the
+   explanation below), built right after item 1 so the precision fact removes the slot-word matches they would flag:
    `ArchitectureTest.writersAreCarriageOnly`, a dependency rule (the `result` package reads the plan's column facts
    and the typed batch, and no `compiler`, `lowering`, `sql` or `exec` class: true today, the rule keeps it true), and
    `WriterCarriageGuardTest`, a source scan of `result/` for arithmetic and comparison on numbers and dates, zero
@@ -136,7 +137,12 @@ spellings by rules, unguarded. Build:
    `signum() == 0`; `dateOnly`'s `midnight(d)` (an abstract Date at midnight printed as its day: the writer guessing
    the written precision a typed fact should carry, item 1); `engineDay`'s and `dateOnly`'s `atLeast(HOUR)` and slot
    words compared as strings; `stripTrailingZeros` on a Float held as a decimal. Also the `result` package as a closed
-   register in `JavaEvalLedgerTest`, like `exec`.
+   register in `JavaEvalLedgerTest`, like `exec`. What they are for, as put to the user: R3 says a writer only spells
+   the typed value it was handed, so swapping one writer for another changes no value; a writer that compares or
+   computes a value is deciding output the plan never typed, and nothing would show it but a judge that happens to
+   cover the case (the midnight rule `6811256b` fixed was caught by PCT only by luck of a fixture). Limits: the scan
+   catches drift, not a determined workaround, like every guard here. An allowlist entry moves only with a dated
+   justification (AGENTS.md, "Guard files are load-bearing").
 4. The phase 3 audit's nits (homework §9); any that changes an output's spelling goes to the user first.
 Gate: `//core:core_tests`, the guards, PCT on DuckDB, SQLite, MongoDB, `//datacube:python_execute_test`; the lanes
 channel A. Trap: a guard that rejects the change is usually right.
@@ -399,7 +405,8 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
 | 2026-10-27 | "keep it, and keep going" (answering the audit's first question: keep phase 5's commit) | the three-stage plan, stage 1 first (the program's §8, ruling 9) |
 | 2026-10-28 | "any output spelling changes need to come to me on case by case basis" | no session accepts or registers a spelling change of any output: each goes to the user alone, before and after, and the answer is recorded (S1.4, S1.5, every track) |
 | 2026-10-28 | "yes keep arrow writer at the boundary in this program (but no arrow dependencies in compiler!)" | track A stays in this program, at the boundary only; R9's guard |
-| 2026-10-28 | "writer guards are for what exactly" | the guards wait on the user's word after the explanation in S1.4 |
+| 2026-10-28 | "writer guards are for what exactly" | answered (S1.4 item 3 keeps the explanation) |
+| 2026-10-28 | "yes add this to the plan" | the two writer guards are built in S1.4, right after the precision fact |
 | 2026-10-28 | "Do the probe" | PARK-34 closed by asking legend-engine |
 | 2026-10-28 | "Do it" | the engine crossing measured on every lane, then switched; `PureTdsText` deleted |
 | 2026-10-28 | "i would prefer not to delete the overlapping tests but use the exact same logic but with platform output that we think users would actually run/use instead of backwards compat mode - so its almost the platform twin of PCT/core-relational" | track T |
