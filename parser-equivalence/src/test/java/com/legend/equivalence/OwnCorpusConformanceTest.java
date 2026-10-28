@@ -246,7 +246,11 @@ class OwnCorpusConformanceTest {
                 // RunsTheFunction): a FunctionDefinition<{->Integer[*]}> parameter
                 // is the only way to write "a function value meets from(...)",
                 // the overload rank the fix corrects
-                Map.entry("PURE-DIALECT-function-types", 19),
+                // 19 -> 20 (2026-10-28, REVIEWED, the enumeration round's second review): UserFunctionIntegrationTest
+                // $FoldOfABody.aFunctionPassedOnWhole, test::applyTo(s, f: Function<{String[1]->String[1]}>[1]) -- a
+                // function a helper is given and evaluates whole, the static fold's write-back of a function reference,
+                // cannot be written without a function-typed parameter (its other tests are in the reference dialect)
+                Map.entry("PURE-DIALECT-function-types", 20),
                 // 7 -> 6 (batch 115, 2026-09-06): one generics row rode a
                 // test file deleted with the old corpus harness
                 // 6 -> 7 (2026-10-21, REVIEWED, the reference checks): ReferenceIntegrityTest's generic class, the

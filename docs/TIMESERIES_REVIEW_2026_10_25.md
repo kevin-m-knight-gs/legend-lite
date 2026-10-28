@@ -664,3 +664,48 @@ Run on the fixes: `//core:core_tests` (25 packages), `//core:guardrails`, `//spe
 Python engine, the view DOM, the bundle budget and `verify_charts_test` (the browser); Python's `engine_test`,
 `frames_test`, `headless_test` and `markets_test`.
 
+
+CI on f668cc45 then found what the local run had not covered: `//parser-equivalence`'s own-corpus ledgers grew with
+the two new tests' generic models (signatures 21 -> 23, `UserFunctionIntegrationTest`'s host 13 -> 15), re-pinned
+with dated notes in 5ce601ce.
+
+### 20.1 Enumeration mappings, and a second review of the fixes
+
+The user asked whether an enumeration whose database value differs (`'A'` for `ACTIVE`) is in scope. It is the
+mapping's, not the fold's: the store resolver reads `$x.status == Status.ACTIVE` as the database's codes, and the fold
+leaves a comparison with a column as written. A test pins it through the path the fix touched
+(`anEnumerationMappedToTheDatabasesCodes`: a generic body filters a class's projected column through a helper given
+`Family.SMITH`; the SQL filters `LAST_NAME = 'Smith'` and reads the column back as `SMITH`; it failed before c0f887dc,
+"unbound variable '$wanted'").
+
+A second independent review, of the four fix commits alone (c0f887dc, 79159403, f668cc45, 5ce601ce), with its own
+probes:
+
+- **1 (blocking, fixed) a title on the Python's first line was read as its encoding** (PEP 263): `coding=utf-7 ...`
+  decoded `+ACc-` as a quote and `+AAo-` as a line end inside the title's string, and the program ran code the title
+  carried; `compile()` of a string ignores the declaration, so the exec-based test could not see it. The program's
+  first two lines are its own words now, the title said on the third. New test: the reviewer's title compiled from
+  bytes and run, its tile titled as given and nothing else run.
+- **2 (fixed) a type or function reference had EnumToken's gap**: `TypeToken` reified to nothing, so a function a
+  helper evaluates whole (`$f->eval($s)`) was left unbound, in a helper and in a map unrolled. It carries the node it
+  was read from (equality by path alone, since a column's `.type` has none). Corpus rosters unchanged.
+- **3 (fixed, older than this PR) a helper's parameter read as another's**: the fold read each argument in the scope
+  it was filling with the callee's parameters, so `swap(a, b)` calling `cat($b, $a)` answered `y-y` in a body
+  (`y-x` in a query), and a caller's variable spelled as a parameter was captured. The callee's parameters are
+  renamed apart (`AlphaRename.apart`, from their own reads: no protocol node built, the guardrails' ledger unmoved)
+  and each argument read in the caller's scope.
+- **4 (fixed) an enumeration's value against a string answered two ways**: `Stat.mean == 'mean'` folded false in a
+  body where the database, comparing the name (S6), answers true in a query. The fold compares values of one
+  enumeration and leaves the rest to the database. That an enumeration's value equals its name's string is lite's
+  (S6's representation), not legend-pure's; it predates this PR and is put to the user to register or tighten.
+- **5 (fixed)** the `key=None` test's run half would have passed before its fix (no text column to take as a key):
+  its frame has one now. **6 (fixed)** direction marks (U+200E/F, U+202A-E, U+2066-9) are escaped in strings and
+  spaces in comments; `EnumToken` holds its node alone.
+- **7, 8 (accepted)** the budget's measure (100,296) and the ledger moves; the reviewer suggested writing such tests in
+  the reference dialect, which the second review's own tests are (`UserFunctionIntegrationTest$FoldOfABody`, functions
+  over a TDS), but for the one helper that takes a function-typed parameter (function-types 19 -> 20, the host
+  16 -> 17); the mapped-enumeration test's generic model is the library's shape (signatures 23 -> 24, host 15 -> 16).
+  The own corpus's matched snippets rose 2998 -> 3004 (`ratchets.tsv`, regenerated).
+
+Each new core test failed before its fix ("unbound variable '$f'", `y-y`, `ne` where the query says `eq`); the
+Python coding-line test fails on the old generator by construction (the title was its first line).

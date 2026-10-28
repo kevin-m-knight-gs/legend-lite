@@ -82,7 +82,7 @@ final class AlphaRename {
         if (v instanceof com.legend.protocol.spec.Variable var) {
             return var.name().equals(name) ? var : null;
         }
-        com.legend.protocol.spec.Variable[] found = {null};
+        com.legend.protocol.spec.@com.legend.base.Nullable Variable[] found = {null};
         v.mapChildren(x -> {
             if (found[0] == null) {
                 found[0] = firstRead(x, name);
