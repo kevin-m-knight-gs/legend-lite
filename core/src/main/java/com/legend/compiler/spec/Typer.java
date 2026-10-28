@@ -108,13 +108,21 @@ final class Typer {
     /** The arguments of the generic calls being inlined, each by its own node, as their calls typed them. */
     private final java.util.IdentityHashMap<ValueSpecification, TypedSpec> pretyped = new java.util.IdentityHashMap<>();
 
-    /** While {@code body} runs, each of {@code typed}'s nodes types as it was typed. */
+    /** While {@code body} runs, each of {@code typed}'s nodes types as it was typed; after it, as it did before (a call
+     *  inlined within another's body, handed the outer's table, leaves the outer's typing of it in place). */
     <R> R withPretyped(java.util.Map<ValueSpecification, TypedSpec> typed, java.util.function.Supplier<R> body) {
-        typed.forEach(pretyped::put);
+        java.util.IdentityHashMap<ValueSpecification, TypedSpec> before = new java.util.IdentityHashMap<>();
+        typed.forEach((node, typing) -> before.put(node, pretyped.put(node, typing)));
         try {
             return body.get();
         } finally {
-            typed.keySet().forEach(pretyped::remove);
+            before.forEach((node, was) -> {
+                if (was == null) {
+                    pretyped.remove(node);
+                } else {
+                    pretyped.put(node, was);
+                }
+            });
         }
     }
 

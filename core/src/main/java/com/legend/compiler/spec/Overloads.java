@@ -324,14 +324,15 @@ final class Overloads {
      * applied (Phase 5 batch 147, row 15). */
     private final java.util.ArrayDeque<LambdaFunction> storedLambdas = new java.util.ArrayDeque<>();
 
-    /** How deep one function may be expanded within itself: a call nested in another's argument (a mean of a mean, the
-     *  outer's body typed with the inner call in it) expands within it, never recursing; a body that calls itself
-     *  expands without end, and is stopped here (the 2026-10-26 relation-generic library: the guard had been "the same
-     *  function anywhere on the stack", which refused a call nested in another's argument as recursion). */
+    /** How deep one function may be expanded within itself: a call nested in another's argument (a mean of a mean)
+     *  is typed with the outer's arguments, before the outer expands, and its typing read in the outer's body -- never
+     *  an expansion within it (2026-10-28: a chain of any length of one function); a body that calls itself expands
+     *  without end, and is stopped here (the 2026-10-26 relation-generic library: the guard had been "the same function
+     *  anywhere on the stack", which refused a call nested in another's argument as recursion). */
     private static final int MAX_NESTED_EXPANSIONS = 16;
 
-    /** The holes' names a call's typed tables ride the static fold under: fresh across every expansion. */
-    private static final java.util.concurrent.atomic.AtomicLong HOLES = new java.util.concurrent.atomic.AtomicLong();
+    /** The holes' names a call's typed tables ride the static fold under: fresh across this typer's expansions. */
+    private long holes;
 
     private TypedSpec inlineNormalized(AppliedFunction af, Application a, Env env) {
         TypedFunction chosen = a.chosen();
@@ -351,21 +352,27 @@ final class Overloads {
         }
         // each argument spliced in for its parameter -- but a table the call typed already (the chain the call is on: a
         // call of a generic function over the answer of another) is typed once: it rides the static fold as a hole of
-        // its own (the fold has nothing to fold in it: its own calls folded where they were typed) and is put back after
-        // it, its node typed as its call typed it (Typer.withPretyped) -- else each call of a chain types the chain under
-        // it twice, its check and its body, and a chain of k calls planned in 2^k (the focused Pure audit, 2026-10-28:
-        // 16 calls of the library 13 s)
+        // its own, typed as its call typed it (a `.columns` the fold reads is its type's), and is put back after it, its
+        // node typed so too (Typer.withPretyped) -- else each call of a chain types the chain under it twice, its check
+        // and its body, and a chain of k calls planned in 2^k (the focused Pure audit, 2026-10-28: 16 calls of the
+        // library 13 s). The fold folds nothing inside it: its own calls folded where they were typed.
+        if (a.args().size() != chosen.parameters().size()) {
+            throw new IllegalStateException("typer bug: " + chosen.qualifiedName() + " typed with " + a.args().size()
+                    + " argument(s) for its " + chosen.parameters().size() + " parameter(s)");
+        }
         java.util.Map<String, ValueSpecification> subst = new java.util.LinkedHashMap<>();
-        java.util.Map<String, ValueSpecification> holes = new java.util.LinkedHashMap<>();
+        java.util.Map<String, ValueSpecification> holed = new java.util.LinkedHashMap<>();
         java.util.IdentityHashMap<ValueSpecification, TypedSpec> typedArgs = new java.util.IdentityHashMap<>();
+        java.util.IdentityHashMap<ValueSpecification, TypedSpec> typedHoles = new java.util.IdentityHashMap<>();
         for (int i = 0; i < chosen.parameters().size(); i++) {
             ValueSpecification arg = af.parameters().get(i);
-            TypedSpec typedArg = i < a.args().size() ? a.args().get(i) : null;
-            if (typedArg != null && !(arg instanceof LambdaFunction) && Type.schemaView(typedArg.info().type()) != null) {
-                String hole = "_typed" + HOLES.getAndIncrement();
-                subst.put(chosen.parameters().get(i).name(), new Variable(hole));
-                holes.put(hole, arg);
+            TypedSpec typedArg = a.args().get(i);
+            if (!(arg instanceof LambdaFunction) && Type.schemaView(typedArg.info().type()) != null) {
+                Variable hole = new Variable("_typed" + holes++);
+                subst.put(chosen.parameters().get(i).name(), hole);
+                holed.put(hole.name(), arg);
                 typedArgs.put(arg, typedArg);
+                typedHoles.put(hole, typedArg);
             } else {
                 subst.put(chosen.parameters().get(i).name(), arg);
             }
@@ -384,7 +391,8 @@ final class Overloads {
         ValueSpecification body = SourceSubst.substitute(hygienic.body(), subst);
         normalizing.push(key);
         try {
-            ValueSpecification spliced = SourceSubst.substitute(new StaticFold(t, env).fold(body), holes);
+            ValueSpecification spliced = SourceSubst.substitute(
+                    t.withPretyped(typedHoles, () -> new StaticFold(t, env).fold(body)), holed);
             TypedSpec typed = t.withPretyped(typedArgs, () -> synth(spliced, env));
             if (generic) {
                 holdToDeclared(chosen, a.out(), typed);

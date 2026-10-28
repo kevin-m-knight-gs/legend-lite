@@ -1740,10 +1740,11 @@ class UserFunctionIntegrationTest {
         }
 
         @Test
-        @DisplayName("a chain of calls of a generic function plans once each: sixteen calls, each over the answer of the last")
+        @DisplayName("a chain of calls of a generic function plans once each: twenty calls, each over the answer of the last")
         void aChainOfCallsIsTypedOnceEach() throws SQLException {
             // the focused Pure audit, 2026-10-28: each call typed the chain under it twice -- its check and its inlined
-            // body -- so a chain of k calls planned in 2^k (sixteen in 13 s); each table a call typed is typed once
+            // body -- so a chain of k calls planned in 2^k (sixteen in 13 s), and past sixteen was refused as an
+            // expansion of the function within itself; each table a call typed is typed once
             String model = modelWith("""
                     function test::meanOf<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
                     {
@@ -1752,21 +1753,21 @@ class UserFunctionIntegrationTest {
                     """);
             StringBuilder q = new StringBuilder("|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])");
             String prev = "AGE_VAL";
-            for (int i = 0; i < 16; i++) {
+            for (int i = 0; i < 20; i++) {
                 q.append("->test::meanOf(over(~LAST_NAME, [~FIRST_NAME->ascending()], rows(-1, 0)), ~").append(prev).append(", 1, ~m").append(i).append(")");
                 prev = "m" + i;
             }
             long t0 = System.nanoTime();
             plan(model, q + "->sort(~FIRST_NAME->ascending())");
             long ms = (System.nanoTime() - t0) / 1_000_000;
-            assertTrue(ms < 5_000, "sixteen calls planned in " + ms + " ms");
+            assertTrue(ms < 5_000, "twenty calls planned in " + ms + " ms");
             // and its answer each call's: Bob alone (45 throughout); Jane first (28 throughout); John the mean of his and
-            // Jane's before, each call halving his distance from her (30, then 29, 28.5, ...: 28 + 2^-15 at the sixteenth)
+            // Jane's before, each call halving his distance from her (30, then 29, 28.5, ...: 28 + 2^-19 at the twentieth)
             var result = exec(model, q + "->sort(~FIRST_NAME->ascending())");
-            List<Double> last = result.rows().stream().map(r -> ((Number) r.get(18)).doubleValue()).toList();
+            List<Double> last = result.rows().stream().map(r -> ((Number) r.get(22)).doubleValue()).toList();
             assertEquals(45.0, last.get(0), 1e-12);
             assertEquals(28.0, last.get(1), 1e-12);
-            assertEquals(28.0 + Math.pow(2, -15), last.get(2), 1e-12);
+            assertEquals(28.0 + Math.pow(2, -19), last.get(2), 1e-12);
         }
 
         @Test
