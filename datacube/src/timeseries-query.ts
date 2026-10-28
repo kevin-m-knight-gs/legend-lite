@@ -267,53 +267,11 @@ const freshName = (sh: Shared, what: string): string => `__ts_${what}_${sh.names
 /** A window or a lag as a function takes it: a whole number of observations, or a calendar period (`3m`, gs-quant's
  *  tenor). */
 type Span = number | TsTenor;
-/** A window's frame: running from the start, every period, the last n observations, or a calendar period. */
-type Frame = 'running' | 'all' | 'rest' | number | TsTenor;
-const isTenor = (f: Frame): f is TsTenor => typeof f === 'object';
-/** A span of at least `k` observations (a deviation needs two); a calendar period as it is. */
-const atLeast = (s: Span, k: number): Span => (typeof s === 'number' ? Math.max(s, k) : s);
 /** `adjust(<date>, -n, <unit>)`: a calendar period before a date, the database's date arithmetic. */
 const back = (date: ValueSpecification, t: TsTenor): ValueSpecification => fn('adjust', date, lit.integer(-t.n), enumValue(DURATION, t.unit));
 /** `~[a, b]`: column specs of names, as one argument. */
 const colSpecs = (names: readonly string[]): ValueSpecification =>
   ({ _type: 'classInstance', type: 'colSpecArray', value: { colSpecs: names.map((name) => ({ name })) } }) as ValueSpecification;
-
-/** A frame's read (`$r.c`, `rowMapper($r.a, $r.b)`) as a row of a self-join reads it: each `$r.c` the joined row's column
- *  `c` is under (`$x.<names[c]>`). */
-function readOver(read: ValueSpecification, names: ReadonlyMap<string, string>): ValueSpecification {
-  switch (read._type) {
-    case 'property': {
-      const on = read.parameters[0];
-      if (read.parameters.length === 1 && on?._type === 'var' && on.name === 'r') {
-        const name = names.get(read.property);
-        if (name === undefined) throw new Error(`a window reads ${read.property}, which its self-join does not carry`);
-        return property(x(), name);
-      }
-      return { ...read, parameters: read.parameters.map((v) => readOver(v, names)) };
-    }
-    case 'func':
-      return { ...read, parameters: read.parameters.map((v) => readOver(v, names)) };
-    case 'collection':
-      return { ...read, values: read.values.map((v) => readOver(v, names)) };
-    default:
-      return read;
-  }
-}
-
-/** The columns a frame's read reads of its rows (`$r.c`), each once. */
-function rowColumnsOf(read: ValueSpecification): string[] {
-  const out = new Set<string>();
-  const walk = (v: ValueSpecification): void => {
-    if (v._type === 'property') {
-      const on = v.parameters[0];
-      if (v.parameters.length === 1 && on?._type === 'var' && on.name === 'r') out.add(v.property);
-      else v.parameters.forEach(walk);
-    } else if (v._type === 'func') v.parameters.forEach(walk);
-    else if (v._type === 'collection') v.values.forEach(walk);
-  };
-  walk(read);
-  return [...out];
-}
 
 /**
  * A PART OF A SERIES' QUERY, written in steps: a relation of one row per line and period -- a column's own rows (its
@@ -335,7 +293,6 @@ class Writer {
    *  periods a year it was annualized by (none: no frequency the dates' spacing is). */
   readonly rows: string[];
   readonly years: string[];
-  #asOf: string | undefined;
   #perYear: string | undefined;
   /** The tile's frequency's periods a year as a column (perYearColumn). */
   #perYearOfGrain: string | undefined;
@@ -492,63 +449,17 @@ class Writer {
     return fn('over', ...args);
   }
 
-  /** An aggregate over a frame of the periods: `extend(over(...), ~[name:{p,w,r|<read>}:y|$y-><reduce>()])` -- of a
-   *  calendar period, over the periods whose dates are within it (#calendar). */
-  window(what: string, reduce: string, read: ValueSpecification, frame: Frame, by?: string): string {
-    if (isTenor(frame)) {
-      if (by !== undefined) throw new Error('a calendar period\'s window is of its line alone');
-      return this.#calendar(what, reduce, read, frame);
-    }
+  /** An aggregate over a frame of the periods: `extend(over(...), ~[name:{p,w,r|<read>}:y|$y-><reduce>()])`. A calendar
+   *  period's window is the library's (`windowPeriod`, `overPeriod`): a frame counts rows, never dates. */
+  window(what: string, reduce: string, read: ValueSpecification, frame: 'running' | 'all' | 'rest' | number, by?: string): string {
     const name = this.fresh(what);
     this.rel = this.rel.extend([agg(name, lambda(['p', 'w', 'r'], read), lambda(['y'], fn(reduce, variable('y'))))], this.#over(frame, by));
     return name;
   }
 
-  /**
-   * A WINDOW OF A CALENDAR PERIOD (gs-quant's `Window('3m')`, helper.rolling_offset: the dates after one that far back,
-   * to this one): its line's periods joined to every one of its own whose date is in (adjust(date, -n, unit), date], the
-   * read aggregated over each period's, and joined back by the period -- a self-join, the database's, since a window
-   * frame counts rows, never dates.
-   */
-  #calendar(what: string, reduce: string, read: ValueSpecification, t: TsTenor): string {
-    const name = this.fresh(what);
-    const from = this.fresh('cal_from');
-    const read_ = rowColumnsOf(read);
-    const names = new Map(read_.map((c) => [c, this.fresh('cal_r')] as const));
-    const rp = this.fresh('cal_rp');
-    const ra = this.fresh('cal_ra');
-    let right = this.rel.select([this.part, this.at, ...read_.filter((c) => c !== this.part && c !== this.at)]);
-    // a read of the part or the date itself (a count of dates) reads the joined row's own
-    right = right.rename(this.part, rp).rename(this.at, ra);
-    const as = new Map(names);
-    if (read_.includes(this.part)) as.set(this.part, rp);
-    if (read_.includes(this.at)) as.set(this.at, ra);
-    for (const c of read_) if (c !== this.part && c !== this.at) right = right.rename(c, names.get(c)!);
-    const left = this.rel.select([this.part, PERIOD, this.at]).extend([derive(from, row(back(one(this.at), t)))]);
-    const inWindow = lambda(['l', 'r'], and(
-      fn('equal', property(variable('l'), this.part), property(variable('r'), rp)),
-      fn('greaterThan', property(variable('r'), ra), property(variable('l'), from)),
-      fn('lessThanEqual', property(variable('r'), ra), property(variable('l'), this.at)),
-    ));
-    const gp = this.fresh('cal_gp');
-    const gper = this.fresh('cal_gper');
-    const grouped = left.join(right, 'INNER', inWindow)
-      .groupBy([this.part, PERIOD], [agg(name, row(readOver(read, as)), lambda(['y'], fn(reduce, variable('y'))))])
-      .rename(this.part, gp).rename(PERIOD, gper);
-    this.rel = this.rel.join(grouped, 'LEFT', lambda(['l', 'r'], and(
-      fn('equal', property(variable('l'), this.part), property(variable('r'), gp)),
-      fn('equal', property(variable('l'), PERIOD), property(variable('r'), gper)),
-    )));
-    return name;
-  }
-
-  /** A column `n` periods back: `$p->lag($r, n).<column>` -- or a calendar period back, as of that date (#valueBack);
-   *  `by`: among the line's rows of the same value of that column. */
-  lag(column: string, n: Span, by?: string): string {
-    if (typeof n !== 'number') {
-      if (by !== undefined) throw new Error('a calendar period back is of its line alone');
-      return this.#valueBack(column, n);
-    }
+  /** A column `n` periods back: `$p->lag($r, n).<column>`; `by`: among the line's rows of the same value of that column.
+   *  A calendar period back is the library's (`lagPeriod`: libraryLag). */
+  lag(column: string, n: number, by?: string): string {
     const name = this.fresh('lag');
     const call = fn('lag', variable('p'), variable('r'), ...(n !== 1 ? [lit.integer(n)] : []));
     this.rel = this.rel.extend([derive(name, lambda(['p', 'w', 'r'], property(call, column)))], this.#over(null, by));
@@ -568,24 +479,6 @@ class Writer {
     const name = this.fresh('rn');
     this.rel = this.rel.extend([derive(name, lambda(['p', 'w', 'r'], fn('rowNumber', variable('p'), variable('r'))))], this.#over(null));
     return name;
-  }
-
-  /**
-   * A COLUMN AS OF A CALENDAR PERIOD BACK (gs-quant's lag by a tenor, as of): of its line's periods where it has a
-   * value, the latest whose date is at or before adjust(date, -n, unit) -- an as-of join, the database's; none before
-   * the line's first date that far back.
-   */
-  #valueBack(column: string, t: TsTenor): string {
-    const target = this.fresh('back_at');
-    const lp = this.fresh('back_part');
-    const la = this.fresh('back_date');
-    const value = this.fresh('back');
-    const right = this.rel.filter(row(fn('isNotEmpty', col(column)))).select([this.part, this.at, column])
-      .rename(this.part, lp).rename(this.at, la).rename(column, value);
-    this.rel = this.rel.extend([derive(target, row(back(one(this.at), t)))]).asOfJoin(right,
-      lambda(['l', 'r'], fn('greaterThanEqual', property(variable('l'), target), property(variable('r'), la))),
-      lambda(['l', 'r'], fn('equal', property(variable('l'), this.part), property(variable('r'), lp))));
-    return value;
   }
 
   /**
@@ -622,50 +515,9 @@ class Writer {
     return w === 0 ? 'running' : w;
   }
 
-  /**
-   * A rolling figure drawn once its window holds `need` of `input`'s values: empty before (gs-quant's ramp), counted
-   * over the figure's own frame -- the last `w`, or from the start (w 0). Of a calendar period, from `input`'s first date
-   * that period on (gs-quant's apply_ramp of a DateOffset: x.loc[x.index[0] + r:]).
-   */
-  ramped(value: string, input: string, need: Span, frame: 'running' | number | TsTenor = need): string {
-    if (typeof need !== 'number') {
-      const first = this.window('ramp_first', 'min', Writer.read(this.row('ramp_at', when(fn('isNotEmpty', col(input)), col(this.at), none()))), 'all');
-      return this.row('ramped', when(fn('lessThan', one(this.at), fn('adjust', one(first), lit.integer(need.n), enumValue(DURATION, need.unit))), none(), col(value)));
-    }
-    if (need <= 1) return value;
-    const count = this.window('n', 'count', Writer.read(input), frame);
-    return this.row('ramped', when(fn('lessThan', one(count), lit.integer(need)), none(), col(value)));
-  }
-
   /** `a / b`, empty where b is zero. */
   ratio(what: string, a: ValueSpecification, b: string): string {
     return this.row(what, when(fn('equal', one(b), lit.integer(0)), none(), fn('divide', a, one(b))));
-  }
-
-  /**
-   * THE VALUE AS OF THE FIRST DATE SHOWN, beside every row: of the periods where `column` has a value, the latest whose
-   * value is of a date at or before the anchor (the viewer's left edge) -- a year's change from the last close before
-   * it, a YTD from the year before's last -- or, the series starting after the anchor (or no anchor), its first; the
-   * period the database's, and the value there, each a window over the whole partition. A week or a month is compared
-   * by the date its value is of, its last observation (the review's Q6; the second audit's S3: a range starting just
-   * after a month's last observation lost that month's move).
-   */
-  anchored(column: string): string {
-    const anchor = this.shared.anchor;
-    const has = fn('isNotEmpty', col(column));
-    const first = this.window('anchor_first', 'min', Writer.read(this.row('anchor_any', when(has, col(PERIOD), none()))), 'all');
-    if (anchor === undefined) return this.#valueAt(column, first);
-    if (this.#asOf === undefined) {
-      this.#asOf = this.row('asof', fn('lessThanEqual', one(this.at), dateLiteral(anchor, this.shared.periodType!)));
-    }
-    const before = this.window('anchor_before', 'max', Writer.read(this.row('anchor_asof', when(and(one(this.#asOf), has), col(PERIOD), none()))), 'all');
-    return this.#valueAt(column, this.row('anchor_period', when(fn('isEmpty', col(before)), col(first), col(before))));
-  }
-
-  /** `column`'s value at the period `at` names, beside every row of the partition. */
-  #valueAt(column: string, at: string): string {
-    const value = this.row('anchor_mark', when(fn('equal', col(PERIOD), col(at)), col(column), none()));
-    return this.window('anchor', 'max', Writer.read(value), 'all');
   }
 
   /** Returns over `obs` periods, or a calendar period back as of its date, of a type (gs-quant's econometrics.returns):
@@ -713,17 +565,6 @@ class Writer {
     }
     this.#perYearOfGrain ??= this.row('per_year', lit.integer(PERIODS_PER_YEAR[grain]));
     return this.#perYearOfGrain;
-  }
-
-  /** The square root of the periods in a year, as the database takes it. */
-  annual(): ValueSpecification {
-    return fn('sqrt', this.perYear());
-  }
-
-  /** A sample standard deviation over `w` periods (0 from the start, or a calendar period), drawn once its window holds
-   *  two. */
-  std(a: string, w: Span, since = a): string {
-    return this.ramped(this.window('std', 'stdDevSample', Writer.read(a), Writer.frame(w)), typeof w === 'number' ? a : since, atLeast(w, 2), Writer.frame(w));
   }
 
   /** Simple returns, for the functions gs-quant reads them for (a correlation's, a beta's, a Sharpe ratio's). */
@@ -1869,14 +1710,12 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
     let value = v.column;
     const own = value;
     // compare: every LEVEL from one start -- a return, a difference, a deviation drawn as it is (the review's Q2) --
-    // its change over its start's size, as the statistics' % change is: a start below zero rising is a rise (the
-    // second audit's S1: a yield of -1 rising to -0.5 was a fall of 50%); of a start above zero, x / x0 as gs-quant's
+    // the library's, as gs-quant's: rebased, x / x0 · 100 (`index`); its % change, x / x0 - 1 (`percentChange`) --
+    // x0 its value as of the first date shown (`...From`), else its first (the user, 2026-10-28: "match gsquant", over
+    // the second audit's S1, which had read a start below zero rising as a rise)
     const how = ts.view?.compare;
     if (how !== undefined && level) {
-      const base = w.anchored(value);
-      const change = w.row('cmp_chg', when(fn('equal', one(base), lit.integer(0)), none(),
-        fn('divide', op('minus', one(value), one(base)), fn('abs', one(base)))));
-      value = how === 'rebase' ? w.row('cmp', op('times', op('plus', lit.integer(1), one(change)), lit.integer(100))) : change;
+      value = how === 'rebase' ? w.libraryBased('index', 'cmp', value, [float(100)]) : w.libraryBased('percentChange', 'cmp', value);
       unit = how === 'rebase' ? 'index' : 'ratio';
     }
     built = { value, ...(value !== own ? { levelValue: own } : {}) };
@@ -2452,11 +2291,10 @@ export function seasonalityQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeri
     : op('plus', fn('floor', fn('divide', op('minus', fn('dayOfYear', at), lit.integer(1)), lit.integer(7))), lit.integer(1)));
   let value = b.value;
   if (compare !== undefined && b.level) {
-    // each year from its first value: 100 there (rebase), or its change from there over its size (percent)
-    const firstP = w.window('sea_fp', 'min', R(PERIOD), 'all', year);
-    const first = w.window('sea_fv', 'max', R(w.row('sea_f', when(fn('equal', col(PERIOD), col(firstP)), col(b.value), none()))), 'all', year);
-    const change = w.row('sea_chg', when(fn('equal', one(first), lit.integer(0)), none(), fn('divide', op('minus', one(b.value), one(first)), fn('abs', one(first)))));
-    value = compare === 'rebase' ? w.row('sea_cmp', op('times', op('plus', lit.integer(1), one(change)), lit.integer(100))) : change;
+    // each year from its first value, the library's as gs-quant's: 100 there, x / x0 · 100 (`index`), or x / x0 - 1
+    // (`percentChange`) -- each year a line of its own (a seasonality is of one line)
+    const args = [colSpec(year), colSpec(b.at), colSpec(b.value)];
+    value = compare === 'rebase' ? w.libraryOfRow('index', 'sea_cmp', [...args, float(100)]) : w.libraryOfRow('percentChange', 'sea_cmp', args);
   }
   if (grain === undefined || grain === 'day') {
     // each year's week its last value: the database's QUALIFY of its row of the week's latest number in time
@@ -3016,8 +2854,9 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
     // the calendar days from its first date shown to its last: a span measured on the chart (Phase 5), the database's
     derive(S('days'), row(fn('dateDiff', one(S('from')), one(S('to')), enumValue(DURATION, 'DAYS')))),
     derive(S('change'), row(op('minus', last, first))),
-    // the change over its start's size: a start below zero rising is a rise (the review's Q11)
-    derive(S('pct'), row(when(fn('equal', first, lit.integer(0)), none(), fn('divide', op('minus', last, first), fn('abs', first))))),
+    // its % change, gs-quant's x / x0 - 1, as Compare's and percent_change's (the user, 2026-10-28: "match gsquant", over
+    // the review's Q11, which had read a start below zero rising as a rise)
+    derive(S('pct'), row(when(fn('equal', first, lit.integer(0)), none(), op('minus', fn('divide', last, first), lit.integer(1))))),
   ];
   if (level) {
     const days = fn('dateDiff', one(S('from')), one(S('to')), enumValue(DURATION, 'DAYS'));

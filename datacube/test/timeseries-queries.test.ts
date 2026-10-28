@@ -2497,10 +2497,10 @@ describe('the review\'s findings on the numbers, each pinned', () => {
     close(of('bbb'), cIdx.map((i) => BBB[i]! / CCC[i]!), 'bbb / CCC', 1e-9);
   });
 
-  // the second audit's S1: a level below zero (a grid's column of yields, or of spreads, gone negative) compared from
-  // its start rises as a rise -- its change over its start's size, the statistics' rule -- and has no figures of its
-  // returns, never a sign turned or a part above zero taken for the whole
-  it('S1: a level below zero: compared as a rise where it rises, and no volatility, drawdown, growth or Sharpe ratio', async () => {
+  // the second audit's S1, as the user ruled it (2026-10-28, "match gsquant"): a level below zero (a grid's column of
+  // yields, or of spreads, gone negative) compared from its start is gs-quant's x / x0 - 1, as percent_change -- and has
+  // no figures of its returns, never a part above zero taken for the whole
+  it('S1: a level below zero: compared as gs-quant\'s x / x0 - 1, and no volatility, drawdown, growth or Sharpe ratio', async () => {
     const below: TsInputs = new Map([['px', { ...input, snapshot: { ...input.snapshot,
       derived: [{ name: 'spread', type: 'Float', lambda: lambda(['x'], minus(call('toOne', column('x', 'close')), lit.integer(200))) }] } }]]);
     const ts = spec({ A: 'spread[AAA]' }, { view: { compare: 'percent' } });
@@ -2508,7 +2508,7 @@ describe('the review\'s findings on the numbers, each pinned', () => {
     assert.equal(q.level, true, 'a column is a level');
     const got = values(await run(q), TS_VALUE).map(num).reverse();
     const spread = AAA.map((v) => v - 200);
-    close(got, spread.map((v) => (v - spread[0]!) / Math.abs(spread[0]!)), 'its change over its start\'s size', 1e-9);
+    close(got, spread.map((v) => v / spread[0]! - 1), 'gs-quant\'s x / x0 - 1', 1e-9);
     const st = await run(statsQuery(below, ts, ts.series[0]!));
     for (const stat of ['vol', 'mdd', 'cagr', 'sharpe'] as const) assert.equal(values(st, statName(stat))[0], null, stat);
     // the third review's 5: a price compared as its % change from its start (zero there) has its own level's figures,
@@ -2582,12 +2582,13 @@ describe('the review\'s findings on the numbers, each pinned', () => {
     close([num(values(st, statName('low'))[0]), num(values(st, statName('high'))[0])], [Math.min(...AAA), Math.max(...AAA)], 'extremes', 1e-12);
   });
 
-  // Q11: a change from a start below zero
-  it('Q11: the % change from a start below zero rising is a rise; a rolling drawdown drawn once its window is full', async () => {
+  // Q11, as the user ruled it (2026-10-28, "match gsquant"): the % change from a start below zero is gs-quant's
+  // x / x0 - 1, as Compare's and percent_change's
+  it('Q11: the % change from a start below zero is gs-quant\'s x / x0 - 1; a rolling drawdown drawn once its window is full', async () => {
     const ts = spec({ A: 'close[AAA] - 200' });
     const st = await run(statsQuery(inputs, ts, ts.series[0]!));
     const [first, last] = [AAA[0]! - 200, AAA.at(-1)! - 200];
-    close([num(values(st, statName('pct'))[0])], [(last - first) / Math.abs(first)], 'pct', 1e-9);
+    close([num(values(st, statName('pct'))[0])], [last / first - 1], 'pct', 1e-9);
     const dd = await line(spec({ A: 'drawdown(close[AAA], 5)' }));
     assert.deepEqual(dd.values.slice(0, 4), [null, null, null, null]);
     assert.notEqual(dd.values[4], null);

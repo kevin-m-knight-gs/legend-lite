@@ -371,7 +371,7 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
       const days = (Date.parse(to) - Date.parse(from)) / 86_400_000;
       const sp = said.find((t) => t.startsWith('S&P 500'))!;
       assert.match(sp, new RegExp(`${days} days, 61 obs$`), sp);
-      assert.ok(sp.includes(`(${b - a >= 0 ? '+' : ''}${(((b - a) / Math.abs(a)) * 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}%)`), sp);
+      assert.ok(sp.includes(`(${b / a - 1 >= 0 ? '+' : ''}${((b / a - 1) * 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}%)`), sp);
       assert.equal(box().querySelector('.dc-ts-measure-head')!.textContent, `${from} → ${to}`);
       // the span shaded on the chart, and no pan while measuring
       const option = drawn.at(-1)! as { series: { id: string; markArea?: { data: { xAxis: string }[][] } }[]; dataZoom: { type: string; moveOnMouseMove?: boolean }[] };
