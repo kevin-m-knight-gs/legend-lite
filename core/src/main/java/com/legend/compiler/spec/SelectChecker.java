@@ -25,4 +25,18 @@ final class SelectChecker {
         }
         return new TypedSelect(a.args().get(0), columns, a.out());
     }
+
+    /**
+     * {@code without(~cols)} (lite surface, docs/SEMANTICS_REGISTER.md S113): the signature's {@code Z⊆T} validates
+     * the names and its {@code T-Z} is the relation's columns less them, in the relation's order; the call is the
+     * select of those, so it lowers as select does. A relation has a column, so dropping every one is refused.
+     */
+    static TypedSpec without(Typer t, AppliedFunction af, Env env) {
+        Application a = t.checkGeneric(af, env);
+        List<String> columns = Args.outputColumns(a);
+        if (columns.isEmpty()) {
+            throw new TypeInferenceException("without drops every column of the relation: a relation keeps one");
+        }
+        return new TypedSelect(a.args().get(0), columns, a.out());
+    }
 }

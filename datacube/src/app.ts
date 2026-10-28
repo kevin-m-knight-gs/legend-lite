@@ -3142,8 +3142,8 @@ export class CubeApp {
     return {
       get snapshot() { return app.#snapshot; },
       get configuration() { return app.#config; },
-      run: async (query, snapshot, signal) =>
-        (await this.#controller.runQuery(query, snapshot, undefined, signal)).rows,
+      run: (query, snapshot, signal) => this.#controller.runQuery(query, snapshot, undefined, signal),
+      print: (query) => this.#controller.print(query, 'PRETTY'),
       format: (value, column, type, headline) =>
         this.#formatters.format(value, headline ? headlineFormat(this.#formats[column], type, value) : this.#formats[column], type),
       unit: (column) => {

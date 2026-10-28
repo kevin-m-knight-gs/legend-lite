@@ -86,6 +86,12 @@ public enum CoreFn {
     EMPTY_LAST("emptyLast"),
     /** Relation {@code select(~cols)} &mdash; column projection by name; {@code newTDSRelationAccessor} is its legacy alias. */
     SELECT("select", "newTDSRelationAccessor"),
+    /** Relation {@code without(~cols)} &mdash; the relation less the named columns ({@code T-Z}), typed as the select
+     *  of every other column (lite surface; Pure.Lite.WITHOUT, 2026-10-27). */
+    WITHOUT("without"),
+    /** {@code $r->read(~col)} &mdash; a row's column through a column spec written at the call, as {@code $r.col} is (lite
+     *  surface; Pure.Lite.READ, 2026-10-27). */
+    READ("read"),
     /** Relation {@code distinct} / {@code distinct(~[cols])} &mdash; row dedup, optionally narrowing. */
     DISTINCT("distinct"),
     /** Relation {@code concatenate} &mdash; UNION ALL of two same-schema relations. */
@@ -302,6 +308,10 @@ public enum CoreFn {
         m.put(SELECT, java.util.Set.of(
                 "meta::pure::functions::relation::select",
                 "meta::pure::metamodel::relation::newTDSRelationAccessor"));
+        m.put(WITHOUT, java.util.Set.of(
+                "meta::legend::lite::without"));
+        m.put(READ, java.util.Set.of(
+                "meta::legend::lite::read"));
         m.put(DISTINCT, java.util.Set.of(
                 "meta::pure::functions::collection::distinct",
                 "meta::pure::functions::relation::distinct",

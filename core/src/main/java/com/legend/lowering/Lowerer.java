@@ -1553,6 +1553,11 @@ public final class Lowerer {
                     a.order()));
             return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire());
         }
+        // A CONDITION OVER REDUCERS (y|if($y->count() < 21, |[], |$y->average()): a figure given once its window holds
+        // enough values, the DataCube timeseries library's ramp, 2026-10-26) -- each reducer the aggregate it is
+        if (reduceBody instanceof TypedIf) {
+            return overReducers(base, a, reduceBody);
+        }
         if (!(reduceBody instanceof TypedNativeCall call)) {
             throw new IllegalStateException("aggregate reduce must be a native reducer call, got "
                     + reduceBody.getClass().getSimpleName());
@@ -1562,6 +1567,12 @@ public final class Lowerer {
         SqlExpr around = aroundReducer(base, a, call);
         if (around != null) {
             return around;
+        }
+        // A SCALAR OVER SEVERAL REDUCERS, no condition (y|$y->max()->toOne() - $y->min()->toOne(): a range, the DataCube
+        // timeseries library's overPeriod, 2026-10-27) -- each reducer the aggregate it is, the arithmetic around them
+        // the scalar's, as under a condition
+        if (Aggregates.reducerOrNull(call.callee()) == null) {
+            return overReducers(base, a, reduceBody);
         }
         SqlAgg.Fn fn = Aggregates.reducerFor(call.callee());
         TypedSpec mapBody = aggSelectorBody(a);
@@ -1999,6 +2010,33 @@ public final class Lowerer {
             wrapped.add(arg instanceof TypedCollection run ? listLiteral(run, operand) : operand.apply(arg));
         }
         return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, wrapped, features, implementations));
+    }
+
+    /** A reduce body of SEVERAL REDUCERS under a condition: each reducer of the reduce's collection lowers as the
+     *  aggregate it is (one reducer's agg column, {@link #aggValue}), the condition, its arms and the arithmetic around
+     *  them by the scalar's rule -- one CASE, which {@link Windows#windowize} windows reducer by reducer. A read of the
+     *  collection other than a reducer's is the scalar rule's error (no row scope). */
+    private SqlExpr overReducers(SqlSelect base, TypedAggCol a, TypedSpec e) {
+        return switch (e) {
+            case TypedNativeCall c when Aggregates.reducerOrNull(c.callee()) != null -> aggValue(base,
+                    new TypedAggCol(a.name(), a.map(), new TypedLambda(a.reduce().parameters(), List.of(c), a.reduce().info()),
+                            a.order()));
+            case TypedIf i -> {
+                TypedSpec thenB = PureSql.thunkBody(i.thenBranch());
+                TypedSpec elseB = i.elseBranch().map(PureSql::thunkBody).orElse(null);
+                yield MixedEncoding.lubCase(i.info().type(), thenB, elseB, overReducers(base, a, i.condition()),
+                        overReducers(base, a, thenB), elseB == null ? new SqlExpr.NullLit() : overReducers(base, a, elseB));
+            }
+            case TypedNativeCall c -> {
+                List<SqlExpr> args = new ArrayList<>();
+                for (TypedSpec arg : c.args()) {
+                    args.add(arg instanceof TypedCollection run && !run.elements().isEmpty()
+                            ? listLiteral(run, x -> overReducers(base, a, x)) : overReducers(base, a, arg));
+                }
+                yield NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(c, args, features, implementations));
+            }
+            default -> scalar(e, noScope());
+        };
     }
 
     /** The list literal a collection lowers to — ONE construction site;
@@ -2818,7 +2856,7 @@ public final class Lowerer {
                 args.add(resolveOrThrow(base, p.property()));
                 trailingIntArgs(call, args);
                 return new SqlExpr.WindowCall(new SqlAgg.ValueFn(fn.sqlName(), args),
-                        over.partitionBy(), over.orderBy(), over.frame());
+                        over.partitionBy(), over.orderBy(), fn.readsFrame() ? over.frame() : null);
             }
             // reduce(rel, w, row, map, agg): the WINDOWED map+reduce — the
             // agg-col machinery arriving as a native call (real reduce.pure).
@@ -2881,13 +2919,19 @@ public final class Lowerer {
                 }
                 List<SqlExpr> args = new ArrayList<>();
                 trailingIntArgs(call, args);
+                // a ranking reads the partition, never a frame (WindowFn.readsFrame)
                 return new SqlExpr.WindowCall(new SqlAgg.RankingFn(fn.sqlName(), args),
-                        over.partitionBy(), over.orderBy(), over.frame());
+                        over.partitionBy(), over.orderBy(), null);
             }
             case TypedNativeCall call -> {
                 List<SqlExpr> args = call.args().stream()
                         .map(a -> windowScalar(a, base, over)).toList();
                 return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, args, features, implementations));
+            }
+            // The EMPTY collection is no run: none, the scalar rule's NULL (2026-10-26: an if's |[] arm in a window
+            // column, the DataCube library's returns, had been an empty array, which a CASE beside a number refuses)
+            case TypedCollection c when c.elements().isEmpty() -> {
+                return scalar(c, noScope());
             }
             // The n-ary arithmetic carrier ($r.AGE - $p->lag($r).AGE spells
             // minus([a, b]) — upstream's variadic natives, batch 5 leg 5):

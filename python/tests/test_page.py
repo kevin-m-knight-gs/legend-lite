@@ -843,8 +843,8 @@ class Document(Paged):
         # refused in DataCube's words: what its parser cannot read, what DataCube does not compute, a word it has not
         with self.assertRaisesRegex(ValueError, r'series D: there is no function vola'):
             tile.plot('vola($A)')
-        with self.assertRaisesRegex(ValueError, 'recursion'):
-            tile.plot('macd($A)')
+        with self.assertRaisesRegex(ValueError, 'an iterative procedure'):
+            tile.plot('smooth_outliers($A)')
         with self.assertRaisesRegex(ValueError, 'frequency "hour"'):
             tile.options(grain='hour')
         # its values, every figure the database's (headless timeseriesQuery, the viewer's own queries): a grid's series,
@@ -856,6 +856,8 @@ class Document(Paged):
         tile.options(view=None, grain=None)
         a = tile.frame('A')
         self.assertEqual(list(a.columns), ['A'])
+        # none named: the tile's first, by DataCube's rule (headless seriesOf), its answer naming it (the review's §9 A)
+        self.assertTrue(tile.frame().equals(a), 'its first series, A')
         self.assertEqual([d.strftime('%Y-%m-%d') for d in a.index], ['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05'])
         self.assertEqual(list(a['A']), [100.0, 101.0, 99.5, 102.0])
         both = tile.frame('C')
@@ -884,6 +886,438 @@ class Document(Paged):
         self.assertEqual(again.timeseries_tiles[0].spec, tile.spec)
         page.remove(alone)
         self.assertNotIn(alone, page.timeseries_tiles)
+
+    def test_a_timeseries_tables_are_its_screens_each_figure_the_databases(self):
+        # the expert tables (2026-10-26): the screen's statistics panel's Summary, Risk, Drawdowns and Correlations tabs,
+        # each the same query (headless timeseriesQuery's table), held here to pandas' own figures
+        page = ll.Page('Tables')
+        days = pd.date_range('2024-01-01', periods=12, freq='D').date
+        s = [100.0, 102.0, 101.0, 104.0, 99.0, 97.0, 103.0, 106.0, 105.0, 108.0, 104.0, 110.0]
+        t = [50.0, 50.5, 51.0, 50.0, 49.0, 49.5, 51.5, 52.0, 51.0, 53.0, 52.5, 54.0]
+        prices = pd.DataFrame({'symbol': ['S'] * 12 + ['T'] * 12, 'day': list(days) * 2, 'close': s + t})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['close[S]', 'close[T]', 'returns(close[S])'])
+        # under a year: its growth not annualized, said as the screen says it (the E9 review's 10: a NaN said nothing)
+        with self.assertWarnsRegex(UserWarning, 'A: these dates span under a year, so its growth is not annualized'):
+            stats = tile.statistics()
+        self.assertEqual(list(stats.index), ['A', 'B', 'C'])
+        self.assertEqual((stats.loc['A', 'count'], stats.loc['A', 'last'], stats.loc['A', 'high']), (12, 110.0, 110.0))
+        rs = pd.Series(s).pct_change().dropna()
+        self.assertAlmostEqual(stats.loc['A', 'skew'], rs.skew(), places=9)
+        self.assertAlmostEqual(stats.loc['A', 'kurtosis'], rs.kurt(), places=9)
+        self.assertAlmostEqual(stats.loc['A', 'worst'], rs.min(), places=12)
+        self.assertAlmostEqual(stats.loc['A', 'var'], rs.quantile(0.05), places=12)
+        self.assertTrue(pd.isna(stats.loc['C', 'vol']), 'a return is no level: no volatility')
+        drawdowns = tile.drawdowns()
+        self.assertEqual(sorted(set(drawdowns['line'])), ['A', 'B'], 'the levels alone')
+        deepest = drawdowns[drawdowns['line'] == 'A'].iloc[0]
+        self.assertEqual([str(deepest[k])[:10] for k in ('peak', 'trough', 'recovered')], ['2024-01-04', '2024-01-06', '2024-01-08'])
+        self.assertAlmostEqual(deepest['depth'], 97.0 / 104.0 - 1, places=12)
+        self.assertEqual((deepest['rank'], deepest['decline'], deepest['recovery']), (1, 2, 2))
+        corr = tile.correlations()
+        self.assertEqual(list(corr.index), ['A', 'B', 'C'])
+        rt = pd.Series(t).pct_change().dropna()
+        self.assertAlmostEqual(corr.loc['A', 'B'], rs.corr(rt), places=9)
+        self.assertAlmostEqual(corr.loc['B', 'A'], rs.corr(rt), places=9)
+        self.assertAlmostEqual(corr.loc['A', 'C'], 1.0, places=9, msg="a level's returns with the same returns")
+        # each line with itself the database's (the E9 review's 13)
+        self.assertAlmostEqual(corr.loc['B', 'B'], 1.0, places=12)
+        # over a window: the dates kept by the database before every figure
+        late = tile.statistics(start='2024-01-06')
+        self.assertEqual((late.loc['A', 'count'], late.loc['A', 'first']), (7, 97.0))
+        # no dates asked: the tile's range, as its screen's tables read it (the E9 review's 7: every date had been read)
+        tile.options(range={'from': '2024-01-06'})
+        ranged = tile.statistics()
+        self.assertEqual((ranged.loc['A', 'count'], ranged.loc['A', 'first']), (7, 97.0))
+        self.assertEqual(tile.statistics(start='2024-01-01').loc['A', 'count'], 12, 'dates asked: those')
+        # two series of one name: each line apart, by its id
+        tile.edit('A', 'close[S]', name='Same')
+        tile.edit('B', 'close[T]', name='Same')
+        self.assertEqual(list(tile.correlations().index), ['Same (A)', 'Same (B)', 'C'])
+
+    def test_a_timeseries_combines_two_calendars_by_its_align_and_reads_gs_quants_functions(self):
+        # the next phases' 1 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): a tile's align, Python's
+        # options(align=...) as the viewer's Settings sets it, and one of gs-quant's remaining functions, each the database's
+        page = ll.Page('Calendars')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        daily = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 102.0, 103.0, 104.0, 105.0]})
+        sparse = pd.DataFrame({'symbol': ['T'] * 2, 'day': [days[0], days[3]], 'close': [10.0, 20.0]})
+        px = page.grid(pd.concat([daily, sparse]), name='prices')
+        tile = page.timeseries({'px': px}, ['close[S] - close[T]'])
+        self.assertEqual(list(tile.frame()['A']), [90.0, 83.0], 'the dates both have')
+        tile.options(align='step')
+        self.assertEqual(tile.spec['align'], 'step')
+        self.assertEqual(list(tile.frame()['A']), [90.0, 91.0, 92.0, 83.0, 84.0, 85.0], 'every date, T its last close')
+        with self.assertRaisesRegex(ValueError, 'alignment "sideways" is not one of'):
+            tile.options(align='sideways')
+        tile.plot('weekday(close[S])')
+        self.assertEqual(list(tile.frame('B')['B']), [d.weekday() for d in days])
+
+    def test_a_timeseries_swaps_an_instrument_shows_its_query_and_its_lines_side_by_side(self):
+        # the next phases' 2 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): the screen's Swap, Query
+        # window and Data tab -- swap() by the tile's one rule, query() the compiler's print and the plan's SQL (nothing
+        # run), table() every series' frame side by side by date
+        page = ll.Page('Swap')
+        days = pd.date_range('2024-01-01', periods=4, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 4 + ['T'] * 4, 'day': list(days) * 2,
+                               'close': [100.0, 101.0, 102.0, 103.0, 10.0, 11.0, 12.0, 13.0]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['close[S]', 'sma(close[S], 2)'])
+        tile.edit('A', 'close[S]', name='S close')
+        tile.swap('S', 'T')
+        self.assertEqual([s['name'] if 'name' in s else None for s in tile.series], ['T close', None], 'a name saying it says the other')
+        self.assertEqual(list(tile.frame('A')['T close']), [10.0, 11.0, 12.0, 13.0])
+        with self.assertRaisesRegex(ValueError, 'no series reads S'):
+            tile.swap('S', 'T')
+        q = tile.query('B')
+        self.assertTrue(q['pure'].lstrip().startswith('|'), q['pure'])
+        self.assertIn("'T'", q['pure'], 'the instrument swapped in, in the query DataCube wrote')
+        self.assertIn('SELECT', q['sql'].upper())
+        both = tile.table()
+        # (sma is gs-quant's alias of mean: the screen writes the expression by the catalog's own name)
+        self.assertEqual(list(both.columns), ['T close', 'mean(close[T], 2)'], "named as the screen's Data tab names its columns")
+        self.assertEqual(list(both['T close']), [10.0, 11.0, 12.0, 13.0])
+        self.assertTrue(pd.isna(both['mean(close[T], 2)'].iloc[0]), 'a mean of two has none on the first date')
+        self.assertEqual(list(both['mean(close[T], 2)'].iloc[1:]), [10.5, 11.5, 12.5])
+        self.assertEqual(len(tile.table(start='2024-01-03')), 2, "the dates kept as frame keeps them")
+        # the Phase 2 review's 3: the screen's lines alone -- none hidden, no condition -- over the tile's range, an index's
+        # base its first date shown; frame and query as the screen draws them, every date, that base
+        tile.plot('rebase(close[T])', name='Rebased')
+        tile.plot('close[T] > 11', name='Up')
+        tile.hide('B')
+        tile.options(range={'from': '2024-01-02'})
+        shown = tile.table()
+        self.assertEqual(list(shown.columns), ['T close', 'Rebased'])
+        self.assertEqual(len(shown), 3, "the tile's range")
+        self.assertEqual(shown['Rebased'].iloc[0], 100.0, 'its base the first date shown')
+        drawn = tile.frame('C')
+        self.assertEqual((len(drawn), drawn['Rebased'].iloc[1]), (4, 100.0), 'every date, its base the first shown')
+        self.assertIn('2024-01-02', tile.query('C')['pure'], "the query the screen's Query window shows: its base")
+        # the Phase 2 review's 5: an instrument column of numbers swapped by numbers, the spaces round a name not of it
+        coded = page.grid(pd.DataFrame({'code': [10] * 4 + [20] * 4, 'day': list(days) * 2, 'close': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]}), name='coded')
+        numbered = page.timeseries({'c': {'grid': coded, 'key': 'code'}}, ['close[10]'])
+        numbered.swap(10, 20)
+        self.assertEqual(list(numbered.frame()['A']), [5.0, 6.0, 7.0, 8.0])
+        tile.swap(' T ', ' S ')
+        self.assertEqual(list(tile.frame('A')['S close']), [100.0, 101.0, 102.0, 103.0])
+
+    def test_a_timeseries_views_are_its_screens_each_figure_the_databases(self):
+        # the next phases' 3 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): the screen's Scatter,
+        # Seasonality, Histogram, Curve and Calendar, each the same query (headless timeseriesQuery's table), held here to
+        # numpy's and pandas' own figures
+        import numpy as np
+        page = ll.Page('Views')
+        months = pd.date_range('2022-01-31', periods=30, freq='ME').date
+        s = [100.0 + 3 * i + (5.0 if i % 12 == 6 else 0.0) for i in range(30)]
+        t = [50.0 + 1.5 * i + (i % 3) for i in range(30)]
+        px = page.grid(pd.DataFrame({'symbol': ['S'] * 30 + ['T'] * 30, 'day': list(months) * 2, 'close': s + t}), name='prices')
+        tile = page.timeseries({'px': px}, ['close[S]', 'close[T]'], grain='month')
+        # a scatter of the first two, T up and S across: y's least squares on x, the database's
+        sc = tile.scatter()
+        self.assertEqual((list(sc.columns), len(sc)), (['close[S]', 'close[T]'], 30))
+        slope, intercept = np.polyfit(s, t, 1)
+        fit = sc.attrs['regression']
+        self.assertAlmostEqual(fit['slope'], slope, places=9)
+        self.assertAlmostEqual(fit['intercept'], intercept, places=6)
+        self.assertAlmostEqual(fit['r2'], pd.Series(s).corr(pd.Series(t)) ** 2, places=9)
+        self.assertEqual(fit['n'], 30)
+        self.assertEqual(len(tile.scatter(start='2024-01-01')), 6, "the dates kept as the screen's window keeps them")
+        # seasonality by month: 2024 against the year before's range at each month
+        sea = tile.seasonality('A', years=1)
+        self.assertEqual(sorted(set(sea['year'])), [2023, 2024])
+        late = sea[sea['year'] == 2024].set_index('place')
+        before = dict(zip(range(1, 13), s[12:24]))
+        self.assertEqual(list(late.index), [1, 2, 3, 4, 5, 6])
+        for m in late.index:
+            self.assertEqual((late.loc[m, 'low'], late.loc[m, 'high'], late.loc[m, 'mean']), (before[m],) * 3, f'month {m}: 2023 alone before')
+        self.assertEqual(sea.attrs['latest'], 2024)
+        with self.assertRaisesRegex(ValueError, 'years 0 is not a whole number of 1 to 20'):
+            tile.seasonality('A', years=0)
+        # a histogram of 5 bins: every value counted, its 5th percentile pandas' (linear, as the database's continuous)
+        h = tile.histogram('A', bins=5)
+        self.assertEqual((int(h['count'].sum()), h['low'].iloc[0]), (30, min(s)))
+        self.assertAlmostEqual(h['high'].iloc[-1], max(s), places=9)
+        self.assertAlmostEqual(h.attrs['p5'], pd.Series(s).quantile(0.05), places=9)
+        self.assertEqual(h.attrs['n'], 30)
+        # the calendar: each month's return from the month before's, each year's from the year before's, latest first
+        cal = tile.calendar('A')
+        self.assertEqual(list(cal.index), [2024, 2023, 2022])
+        self.assertAlmostEqual(cal.loc[2023, 'Mar'], s[14] / s[13] - 1, places=12)
+        self.assertAlmostEqual(cal.loc[2023, 'Year'], s[23] / s[11] - 1, places=12)
+        self.assertTrue(pd.isna(cal.loc[2022, 'Jan']) and pd.isna(cal.loc[2022, 'Year']), 'no level before the first')
+        self.assertTrue(pd.isna(cal.loc[2024, 'Dec']), 'a month it has not')
+        # a curve across a split's tenors, in the screen's order (3M before 2Y), as of the latest and a month back
+        days = pd.date_range('2024-01-01', periods=70, freq='D').date
+        tenors = {'2Y': 4.0, '10Y': 4.5, '3M': 5.0}
+        rates = page.grid(pd.DataFrame({'tenor': [k for k in tenors for _ in days], 'day': list(days) * 3,
+                                        'rate': [v + i / 100 for v in tenors.values() for i in range(70)]}), name='rates')
+        curve = page.timeseries({'r': rates}, [{'expr': 'rate', 'split': 'tenor'}])
+        c = curve.curve(dates=['latest', '1m'])
+        self.assertEqual((list(c.index), list(c.columns)), (['3M', '2Y', '10Y'], ['latest', '1m']))
+        self.assertAlmostEqual(c.loc['10Y', 'latest'], 4.5 + 69 / 100, places=12)
+        # a month back from 2024-03-10: 2024-02-10, the 41st day
+        self.assertAlmostEqual(c.loc['3M', '1m'], 5.0 + 40 / 100, places=12)
+        self.assertEqual(c.attrs['dates'], {'latest': '2024-03-10', '1m': '2024-02-10'})
+        self.assertEqual(c.attrs['line_dates']['latest'], {'3M': '2024-03-10', '2Y': '2024-03-10', '10Y': '2024-03-10'}, "each line's own day")
+        # the Phase 3 review's 11: a series against itself, two columns
+        self.assertEqual(list(tile.scatter('A', 'A').columns), ['close[S] (x)', 'close[S] (y)'])
+        with self.assertRaisesRegex(ValueError, 'a curve is of a line per value of a column'):
+            tile.curve('A')
+
+    def test_a_timeseries_lists_every_query_it_asks_each_its_pure_and_its_sql(self):
+        # the user, 2026-10-26: "show all the pure queries used to create a timeseries chart" -- the screen's Query
+        # window's every question, by its one rule (headless timeseriesAsks: timeseries-query.ts tileAsks), each written
+        # by the screen's own function (askQuery) and planned, nothing run
+        page = ll.Page('Queries')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['close[S]', 'returns(close[S])'])
+        asked = tile.queries()
+        self.assertEqual([(q['kind'], q.get('series', q.get('source')), q.get('with'), q['serves']) for q in asked], [
+            ('bounds', 'px', None, 'chart'), ('series', 'A', None, 'chart'), ('series', 'B', None, 'chart'),
+            ('statistics', 'A', None, 'statistics'), ('statistics', 'B', None, 'statistics'), ('drawdowns', 'A', None, 'drawdowns'),
+            ('correlations', 'A', 'A', 'correlations'), ('correlations', 'A', 'B', 'correlations'),
+            ('correlations', 'B', 'B', 'correlations'), ('calendar', 'A', None, 'calendar')])
+        for q in asked:
+            self.assertNotIn('refused', q, q['what'])
+            self.assertTrue(q['pure'].lstrip().startswith('|'), q['what'])
+            self.assertIn('SELECT', q['sql'].upper(), q['what'])
+        self.assertEqual(asked[1]['what'], 'Series A (close[S]): its points')
+        self.assertIn("'S'", asked[1]['pure'])
+        # a return is a call of DataCube's Pure library (datacube/src/pure-library.ts), planned over the model with it
+        # after
+        self.assertIn('datacube::ts::returns', asked[2]['pure'])
+        # a view's question with them, as the screen asks it: after the series', before the panel's
+        tile.options(view={'mode': 'histogram'})
+        kinds = [(q['kind'], q.get('series')) for q in tile.queries()]
+        self.assertEqual(kinds[3], ('histogram', 'A'))
+        # a series' points as the screen draws them, as query() reads them, but for the drawing's limit: whole dates, the
+        # date it crosses at kept too (timeseries-query.ts seriesQuery, the review's Q12)
+        self.assertIn('ts_cut_first <= 100001', asked[1]['pure'])
+
+    def test_a_timeseries_shades_a_column_where_it_is_not_zero_in_one_step(self):
+        # Phase 5's shade from a column (FRED's recession bars): a condition series of it, by the tile's one rule
+        # (timeseries-edit.ts shade), its periods the database's -- 1 where the column is not 0
+        page = ll.Page('Shade')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 99.0, 103.0, 104.0, 102.0],
+                               'rec': [0, 1, 1, 0, 1, 0], 'side': ['a'] * 6})
+        tile = page.timeseries({'px': page.grid(prices, name='prices')}, ['close[S]'])
+        tile.shade('rec', where=[{'value': 'S'}], name='Recessions')
+        added = tile.spec['series'][-1]
+        self.assertEqual((added['id'], added['name']), ('B', 'Recessions'))
+        frame = tile.frame('B')
+        self.assertEqual([int(v) for v in frame['Recessions']], [0, 1, 1, 0, 1, 0], 'where it is not 0, each date')
+        with self.assertRaisesRegex(ValueError, "plots 'side', which is not a number"):
+            tile.shade('side')
+
+    def test_a_timeseries_projects_a_trend_each_figure_the_databases_as_the_screen_draws_it(self):
+        # Phase 5's trend projected: the series' least-squares line over its last observations on their day numbers,
+        # and its fit at the first, the last and `ahead` past it, by the screen's one rule (projectionQuery)
+        import numpy as np
+        page = ll.Page('Projection')
+        days = pd.date_range('2024-01-01', periods=8, freq='D').date
+        close = [100.0, 101.0, 99.0, 103.0, 104.0, 102.0, 106.0, 107.5]
+        prices = pd.DataFrame({'symbol': ['S'] * 8, 'day': list(days), 'close': close})
+        tile = page.timeseries({'px': page.grid(prices, name='prices')}, ['close[S]'])
+        tile.project('A', window=5, ahead='10d', label='Trend')
+        self.assertEqual(tile.spec['annotations'], [{'kind': 'projection', 'series': 'A', 'window': 5, 'ahead': '10d', 'label': 'Trend'}])
+        got = tile.projections()
+        self.assertEqual(list(got.columns), ['name', 'series', 'start', 'start_value', 'last', 'last_value', 'end', 'end_value', 'slope', 'n'])
+        r = got.iloc[0]
+        x = np.array([pd.Timestamp(d).toordinal() for d in days[-5:]], dtype=float)
+        slope, intercept = np.polyfit(x, np.array(close[-5:]), 1)
+        self.assertEqual((r['name'], r['series'], int(r['n'])), ('Trend', 'A', 5))
+        self.assertEqual([r['start'].date(), r['last'].date(), r['end'].date()], [days[-5], days[-1], days[-1] + pd.Timedelta(days=10)])
+        self.assertAlmostEqual(r['slope'], slope, places=9)
+        for at, want in (('start_value', x[0]), ('last_value', x[-1]), ('end_value', x[-1] + 10)):
+            self.assertAlmostEqual(r[at], intercept + slope * want, places=6, msg=at)
+        # listed with the tile's every query, its place told
+        asked = [q for q in tile.queries() if q['kind'] == 'projection']
+        self.assertEqual([(q['series'], q['projection']) for q in asked], [('A', 0)])
+        self.assertIn('SELECT', asked[0]['sql'].upper())
+        # refused by the tile's reader, in its words: a series it has not
+        with self.assertRaisesRegex(ValueError, 'annotation 2 projects "Z", which is none of the tile\'s series'):
+            tile.project('Z')
+        # under a compare, in DataCube's words, as the screen leaves it out
+        tile.options(view={'compare': 'rebase'})
+        with self.assertRaisesRegex(ValueError, "a projection is of a line's own values"):
+            tile.projections()
+
+    def test_a_timeseries_takes_a_persons_drawings_by_the_screens_rule(self):
+        # Phase 5's drawings (the screen's Draw): a line from a point to a point, a note pinned at one -- annotations of
+        # the tile's one rule, read by its one reader (timeseries-spec.ts tsProblem), refused in its words
+        page = ll.Page('Drawings')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]})
+        tile = page.timeseries({'px': page.grid(prices, name='prices')}, ['close[S]'])
+        line = {'kind': 'line', 'from': {'date': '2024-01-01', 'value': 100.0}, 'to': {'date': '2024-01-06', 'value': 104.5}, 'label': 'Trend'}
+        note = {'kind': 'note', 'at': {'date': '2024-01-04', 'value': 103.0}, 'text': 'Earnings'}
+        tile.annotate(line).annotate(note)
+        self.assertEqual(tile.spec['annotations'], [line, note])
+        with self.assertRaisesRegex(ValueError, 'annotation 3 says nothing: a note has its text'):
+            tile.annotate({'kind': 'note', 'at': {'date': '2024-01-04', 'value': 103.0}, 'text': ' '})
+        with self.assertRaisesRegex(ValueError, "annotation 3's to is not a point: a date"):
+            tile.annotate({'kind': 'line', 'from': {'date': '2024-01-01', 'value': 1}, 'to': {'date': 'later', 'value': 2}})
+        tile.unannotate(0)
+        self.assertEqual(tile.spec['annotations'], [note])
+
+    def test_a_timeseries_marks_a_grids_rows_each_the_databases_as_the_screen_marks_them(self):
+        # marks from a grid's rows (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6's D4: the trades; Phase
+        # 5's events from a grid): each trade at its price on its day, its quantity beside it, by the screen's one rule
+        # (timeseries-query.ts marksQuery), listed with the tile's queries
+        page = ll.Page('Marks')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]})
+        trades = pd.DataFrame({'symbol': ['S', 'S', 'S', 'T'], 'day': [days[1], days[3], days[4], days[2]], 'side': ['BUY', 'SELL', 'BUY', 'BUY'],
+                               'price': [100.5, 103.2, 103.9, 50.0], 'quantity': [100.0, 300.0, 200.0, 10.0]})
+        px, tr = page.grid(prices, name='prices'), page.grid(trades, name='trades')
+        tile = page.timeseries({'px': px, 'tr': {'grid': tr, 'date': 'day', 'key': 'symbol'}}, ['px:close[S]'])
+        tile.annotate({'kind': 'marks', 'source': 'tr', 'where': [{'value': 'S'}, {'column': 'side', 'value': 'BUY'}],
+                       'at': 'price', 'text': 'quantity', 'shape': 'up', 'label': 'Bought'})
+        marks = tile.marks()
+        self.assertEqual(list(marks.columns), ['name', 'date', 'value', 'text'])
+        self.assertEqual([(r.name, r.date.date(), r.value, float(r.text)) for r in marks.itertuples()],
+                         [('Bought', days[4], 103.9, 200.0), ('Bought', days[1], 100.5, 100.0)], "each S buy, latest first")
+        asked = tile.queries()
+        mark = next(q for q in asked if q['kind'] == 'marks')
+        self.assertEqual((mark['what'], mark['marks'], mark['source']), ('Marks "Bought": source tr\'s rows at their price', 0, 'tr'))
+        self.assertIn("'BUY'", mark['pure'])
+        self.assertIn('SELECT', mark['sql'].upper())
+        # refused by the tile's one rule, in its words: a source it has not
+        with self.assertRaisesRegex(ValueError, "source \"fx\" is none of the tile's"):
+            tile.annotate({'kind': 'marks', 'source': 'fx'})
+
+    def test_a_timeseries_writes_the_code_that_builds_it_and_the_python_builds_it_again(self):
+        # the user, 2026-10-26: "an option that shows how exactly to build that chart programmatically from TS and python"
+        # -- the screen's Code, by its one rule (headless timeseriesCode: timeseries-code.ts tileCode); 2026-10-28: "a
+        # generic snippet ... to just create exactly that tile in their own datacube": the Python run makes a page of its
+        # own, a grid over the person's frame, and a tile of the very spec over it, each formula's Pure printed
+        page = ll.Page('Code')
+        days = pd.date_range('2024-01-01', periods=8, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 8 + ['T'] * 8, 'day': list(days) * 2,
+                               'close': [100.0 + i for i in range(8)] + [50.0 - i for i in range(8)]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['close[S]', {'expr': 'returns(close[T], type=log)', 'name': "T's log returns", 'pane': 1},
+                                            'basket($A, 0.5, close[T], 0.5, rebalance=weekly)'], title='Two',
+                               view={'stats': True}, annotations=[{'kind': 'level', 'value': 0, 'pane': 1}])
+        code = tile.code()
+        self.assertIn('page = ll.Page()', code)
+        self.assertIn("prices = page.grid(prices_frame, name='prices')", code)
+        self.assertIn('tile = prices.timeseries(', code)
+        self.assertIn("'returns(close[T], type=log)'", code)
+        for lookup in ('Page.load', 'page.sheets', 'page.grids', '.id =='):
+            self.assertNotIn(lookup, code)
+        # run, the person's frame given it: a page of its own, its one tile of the same spec over its own grid
+        shown, printed = [], []
+        shim = type('ll', (), {'Page': ll.Page, 'show': staticmethod(shown.append)})
+        ran = {'ll': shim, 'prices_frame': prices, 'print': lambda *a, **k: printed.append(a)}
+        exec(compile(code.replace('import legend_lite as ll\n', ''), 'tile.py', 'exec'), ran)
+        own = ran['page']
+        self.assertIsNot(own, page)
+        self.assertEqual(shown, [own])
+        made = own.timeseries_tiles
+        self.assertEqual(len(made), 1)
+        cubes = lambda spec: {**spec, 'sources': [{**s, 'cube': None} for s in spec['sources']]}
+        self.assertEqual(cubes(made[0].spec), cubes(tile.spec))
+        self.assertEqual(made[0].title, 'Two')
+        # each formula's Pure, as the tile writes it
+        self.assertEqual([p[0] for p in printed], ['A', 'B', 'C'])
+        self.assertTrue(all('datacube::ts::' in p[1] or '#>{' in p[1] for p in printed), printed)
+        typescript = tile.code('typescript')
+        self.assertIn("kind: 'addTimeseries'", typescript)
+        self.assertIn('export function withTile(page: PageDocument, sheet: string)', typescript)
+        with self.assertRaisesRegex(ValueError, 'written in python or typescript, not "rust"'):
+            tile.code('rust')
+
+    def test_a_timeseries_code_is_a_program_whatever_its_names_say(self):
+        # the review of the generated code, 2026-10-28: a title with a line end in it ended its comment and
+        # wrote a line of code; two grids over one frame read two frames of the person's; a tile of no instrument column
+        # left DataCube to choose one when run
+        page = ll.Page('Names')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        # a text column, so a tile not told its key would take this one
+        prices = pd.DataFrame({'day': list(days), 'symbol': ['S'] * 6, 'close': [100.0 + i for i in range(6)],
+                               'open': [99.0 + i for i in range(6)]})
+        one = page.grid(prices, name='prices', title='Line\rends\u2028here')
+        two = page.grid(prices, name='prices', title='Again')
+        tile = page.timeseries({'a': {'grid': one, 'date': 'day', 'key': None}, 'b': {'grid': two, 'date': 'day', 'key': None}},
+                               ['a:close', 'b:open'], title='Two\nlines\r\nimport os')
+        code = tile.code()
+        compile(code, 'tile.py', 'exec')
+        self.assertEqual([line for line in code.splitlines() if line.startswith(('import', 'print'))], ['import legend_lite as ll'])
+        self.assertIn("page.grid(prices_frame, name='prices')", code)
+        self.assertNotIn('prices_2_frame', code)
+        ran = {'ll': type('ll', (), {'Page': ll.Page, 'show': staticmethod(lambda p: None)}), 'prices_frame': prices,
+               'print': lambda *a, **k: None}
+        exec(compile(code.replace('import legend_lite as ll\n', ''), 'tile.py', 'exec'), ran)
+        cubes = lambda spec: {**spec, 'sources': [{**s, 'cube': None} for s in spec['sources']]}
+        self.assertEqual(cubes(ran['page'].timeseries_tiles[0].spec), cubes(tile.spec))
+        self.assertEqual(ran['page'].timeseries_tiles[0].title, tile.title)
+        # one source of no instrument column: said as none, and run, none still
+        alone = page.timeseries({'grid': two, 'date': 'day', 'key': None}, ['open'])
+        code = alone.code()
+        self.assertIn("key=None", code)
+        ran = {'ll': type('ll', (), {'Page': ll.Page, 'show': staticmethod(lambda p: None)}), 'prices_frame': prices,
+               'print': lambda *a, **k: None}
+        exec(compile(code.replace('import legend_lite as ll\n', ''), 'tile.py', 'exec'), ran)
+        self.assertNotIn('key', ran['page'].timeseries_tiles[0].spec['sources'][0])
+        # the second review, 2026-10-28: a title on the program's first line read as its encoding (PEP 263) -- `coding=
+        # utf-7` decoded `+ACc-` as a quote and `+AAo-` as a line end inside the title's string. Compiled from its bytes,
+        # as a file is, it runs as written
+        attack = 'coding=utf-7 +ACc-,+AAo-x=print(+ACc-INJECTED+ACc-),+AAo-#'
+        titled = page.timeseries({'grid': two, 'date': 'day', 'key': None}, ['open'], title=attack)
+        code = titled.code()
+        self.assertNotIn('coding', ''.join(code.splitlines()[:2]))
+        printed = []
+        ran = {'ll': type('ll', (), {'Page': ll.Page, 'show': staticmethod(lambda p: None)}), 'prices_frame': prices,
+               'print': lambda *a, **k: printed.append(a)}
+        exec(compile(code.replace('import legend_lite as ll\n', '').encode('utf-8'), 'tile.py', 'exec'), ran)
+        self.assertEqual(ran['page'].timeseries_tiles[0].title, attack)
+        self.assertFalse(any('INJECTED' in str(a) for a in printed), printed)
+
+    def test_a_timeseries_reads_an_analysts_packs_each_figure_the_databases(self):
+        # the next phases' 4 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): technicals of a candle's
+        # columns and a rebalanced basket -- the screen's parser and queries, held to pandas
+        import numpy as np
+        page = ll.Page('Packs')
+        days = list(pd.bdate_range('2024-01-31', periods=30).date)
+        s_close = [100.0 + i * 0.5 + (i % 3) * 0.7 - (i % 5) * 0.4 for i in range(30)]
+        t_close = [50.0 + (i % 4) * 0.6 - i * 0.1 for i in range(30)]
+        prices = pd.DataFrame({'symbol': ['S'] * 30 + ['T'] * 30, 'day': days * 2, 'close': s_close + t_close,
+                               'high': [c + 1 for c in s_close + t_close], 'low': [c - 1 for c in s_close + t_close],
+                               'volume': [1000 + 10 * i for i in range(30)] * 2})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['obv(close[S], volume[S])', 'basket(close[S], 0.5, close[T], 0.5)',
+                                            'donchian_channels(high[S], low[S], 5)'])
+        sc, tc, vol = pd.Series(s_close), pd.Series(t_close), pd.Series([1000 + 10 * i for i in range(30)], dtype=float)
+        obv = (np.sign(sc.diff()).fillna(0) * vol).cumsum()
+        self.assertEqual(list(tile.frame('A')['A']), list(obv))
+        # rebalanced daily: 100 compounded by the weighted returns
+        daily = 100 * (1 + 0.5 * sc.pct_change().fillna(0) + 0.5 * tc.pct_change().fillna(0)).cumprod()
+        np.testing.assert_allclose(tile.frame('B')['B'].to_numpy(dtype=float), daily.to_numpy(), rtol=1e-9)
+        band = tile.frame('C')
+        np.testing.assert_allclose(band['upper'].to_numpy(dtype=float)[4:], (sc + 1).rolling(5).max().to_numpy()[4:], rtol=1e-12)
+        with self.assertRaisesRegex(ValueError, r'atr reads three series \(high, low and close\)'):
+            tile.plot('atr(high[S], low[S])')
+
+    def test_a_timeseries_tables_over_a_range_of_the_last_month_read_it_from_its_sources_latest_date(self):
+        # the E9 review's 7: the screen's window of a range of the last of a period -- each source's bounds the database's,
+        # the latest of them -- the tables' too (timeseries-query.ts rangeWindow, headless timeseriesWindow)
+        page = ll.Page('Range')
+        days = pd.date_range('2024-01-01', '2024-02-29', freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * len(days), 'day': list(days), 'close': [100.0 + i for i in range(len(days))]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['close[S]'])
+        tile.options(range={'last': '1m'})
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            stats = tile.statistics()
+            # a month back from the latest, 2024-02-29: from 2024-01-29, 32 days
+            self.assertEqual((stats.loc['A', 'count'], stats.loc['A', 'first']), (32, 128.0))
+            self.assertEqual(tile.statistics(start='2024-01-01').loc['A', 'count'], 60)
+            self.assertTrue((tile.drawdowns().empty), 'a rising line has no drawdowns')
 
     def test_a_timeseries_is_changed_by_its_viewers_one_rule_and_refused_what_its_viewer_cannot_draw(self):
         # the review's A2, A3, A5, A6, A10 (docs/TIMESERIES_REVIEW_2026_10_25.md): every change Python makes is the tile's

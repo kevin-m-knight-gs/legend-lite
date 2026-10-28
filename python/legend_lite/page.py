@@ -1366,15 +1366,29 @@ def _cube_spec(session: Any, cube: Mapping[str, Any], frames: Any, engine: Any,
     return {'cube': text, **said}
 
 
+def _with_library(base: Mapping[str, Any], said: Mapping[str, Any]) -> Mapping[str, Any]:
+    """A query's base with DataCube's Pure library beside its model, where DataCube says the query calls it
+    (headless ``library``: datacube/src/pure-library.ts, ``datacube::ts::mean`` and the rest), which the engine plans
+    it over after the model -- else the base as it is."""
+    library = said.get('library')
+    return base if library is None else {**base, 'library': library}
+
+
+def _plan_request(tree: Any, base: Mapping[str, Any]) -> dict[str, Any]:
+    """A query's plan request, as the engine's plan and plan-and-run take it: the query, its base's model and runtime,
+    and what its base says beside them (a project's own rows, DataCube's Pure library)."""
+    return {'lambda': _json.dumps(tree), 'model': base['model'], 'runtime': base['runtime'],
+            **({'project': True} if base.get('project') is True else {}),
+            **({'library': base['library']} if isinstance(base.get('library'), str) else {})}
+
+
 def _engine_rows(session: Any, tree: Any, base: Mapping[str, Any], over: Any) -> Any:
     """A query's rows planned and run by the session's engine where they are (its plan-and-run: the frames' database as
     the read ``over`` sees them, D15; a warehouse; a saved query's project's own, as its ``base`` from DataCube says:
     F28), as Arrow typed by the plan -- every grid's rows, by one plan-and-run (D16). Refused in the planner's or the
     database's words."""
     from . import compiler
-    asked = {'lambda': _json.dumps(tree), 'model': base['model'], 'runtime': base['runtime'],
-             **({'project': True} if base.get('project') is True else {})}
-    status, kind, body = session.engine().answer_over('/plan-and-run.json', json.dumps(asked), over)
+    status, kind, body = session.engine().answer_over('/plan-and-run.json', json.dumps(_plan_request(tree, base)), over)
     if status == 200 and not kind.startswith('application/json'):
         import pyarrow.ipc
         return pyarrow.ipc.open_stream(body).read_all()
@@ -1803,14 +1817,23 @@ class Timeseries(Tile):
         return self._edit({'kind': 'hide', 'id': id, 'hidden': False})
 
     def options(self, **slots: Any) -> Timeseries:
-        """Its other slots told -- ``grain`` (``'day'`` ... ``'year'``), ``range`` (``{'last': '1y'}``, ``{'from': ...,
-        'to': ...}``), ``view`` (``{'compare': 'rebase', 'stats': True}``), ``panes``, ``annotations`` -- each replacing
-        what it had, None taking it off: the words DataCube's reader takes."""
+        """Its other slots told -- ``grain`` (``'day'`` ... ``'year'``), ``align`` (how two series' dates combine:
+        ``'intersect'``, the default, ``'step'``, ``'time'``, ``'nan'``, ``'zero'``), ``range`` (``{'last': '1y'}``,
+        ``{'from': ..., 'to': ...}``), ``view`` (``{'compare': 'rebase', 'stats': True, 'subtitle': ..., 'note': ...}``),
+        ``panes`` (``[{'log': True, 'invert': True, 'min': 0, 'max': 5}]``), ``annotations`` -- each replacing what it
+        had, None taking it off: the words DataCube's reader takes."""
         return self._edit({'kind': 'slots', 'slots': slots})
 
     def annotate(self, annotation: Mapping[str, Any]) -> Timeseries:
         """An annotation more: ``{'kind': 'level', 'value': 70, 'pane': 1, 'label': 'overbought'}``, ``{'kind': 'event',
-        'date': ..., 'label': ...}`` or ``{'kind': 'period', 'from': ..., 'to': ..., 'label': ...}`` -- Settings' Add."""
+        'date': ..., 'label': ...}``, ``{'kind': 'period', 'from': ..., 'to': ..., 'label': ...}`` or marks from a grid's
+        rows -- ``{'kind': 'marks', 'source': 'tr', 'where': [{'value': 'AAPL'}, {'column': 'side', 'value': 'BUY'}],
+        'at': 'price', 'text': 'quantity', 'shape': 'up', 'label': 'Bought'}``, each row its source's matches pick at its
+        date, on its ``at`` column's value (absent: a line at its date) -- Settings' Add. Its marks: ``marks``. And a
+        person's own drawings, as the screen's Draw puts them: a line from a point to a point -- ``{'kind': 'line',
+        'from': {'date': '2024-01-02', 'value': 180}, 'to': {'date': '2024-06-28', 'value': 210}, 'pane': 0, 'label':
+        'Trend', 'color': 1}`` -- or a note pinned at one, ``{'kind': 'note', 'at': {...}, 'text': 'Bought here'}``, each
+        point a date and a value as its pane draws it (no figure of the database's; left out under a compare)."""
         return self._edit({'kind': 'annotate', 'annotation': dict(annotation)})
 
     def unannotate(self, index: int) -> Timeseries:
@@ -1848,37 +1871,22 @@ class Timeseries(Tile):
         of its split (``SPX``, ``NDX``); a band's ``lower`` and ``upper``; candles' ``open``, ``high``, ``low`` and
         ``close``. ``start`` and ``end`` (ISO days): the dates it
         keeps -- kept by the database after every value is computed over every date (a window's first values have their
-        history), and an index's base, a compare's, its first."""
+        history), and an index's base, a compare's, its first. Neither: every date, an index's base the first date the
+        screen shows (the tile's range), as the screen draws it."""
+        return self._framed(self._drawn(series, start, end))[0]
+
+    def _drawn(self, series: str | None, start: str | None, end: str | None) -> dict[str, Any]:
+        """What is asked of series ``series`` over ``start`` to ``end`` (``_asked``): those dates kept; neither, every
+        date, its base the first date the screen shows -- the tile's range, by its screen's rule (``_window``) -- as the
+        screen draws the tile (the Phase 2 review's 3: Python's base had been its first date)."""
+        anchor = self._window(None, None).get('from') if start is None and end is None else None
+        return self._asked(series, start, end, anchor)
+
+    def _framed(self, asked: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
+        """A series' frame (``frame``) as ``asked``, and its answer's words."""
         import pandas as pd
-        from .frames import to_pandas
-        spec = self._view['spec']
-        if series is None:
-            if not spec['series']:
-                raise ValueError(f'{self!r} plots no series')
-            series = spec['series'][0]['id']
-        from . import compiler
-        page = self._page
-        session = page._session
-        engine, frames = session.headless(), session.frames
-        window = {k: v for k, v in (('from', start), ('to', end)) if v is not None}
-        asked = {'page': page._doc, 'tile': self._id, 'series': series, 'window': window}
-        with frames.reading() as over:
-            said = _json.loads(engine.call('timeseriesQuery', _json.dumps({
-                **asked, 'host': frames.hosted(), 'copies': session.held_copies()})))
-            if 'problems' in said:
-                raise ValueError('; '.join(said['problems']))
-            if 'grid' in said:
-                # a series of one grid, read as the grid is: over its base as every read of it is (its copy, snapped; a
-                # class's mapping; the page's filters on it) -- headless gridTimeseries, the tab's path through the
-                # grid's runner (the review's P1: read live over the grid's leaves, beside its every other read)
-                cube = said['grid']
-                spec = _cube_spec(session, page._cube(cube), frames, engine, page._snapped(cube), page._doc, cube)
-                said = _json.loads(engine.call('gridTimeseries', spec, _json.dumps(asked)))
-                if 'problems' in said:
-                    raise ValueError('; '.join(said['problems']))
-                rows = to_pandas(_engine_rows(session, compiler.parse(said['query']), spec, over))
-            else:
-                rows = to_pandas(_engine_rows(session, said['query'], said, over))
+        engine = self._page._session.headless()
+        rows, said = self._rows(asked)
         # what its rows say a reader should know -- several rows a date, no frequency to annualize by -- said as the
         # screen says them, by its rule (headless timeseriesNotes; the second audit's P-3: the frame dropped them)
         named = said['columns']
@@ -1906,9 +1914,489 @@ class Timeseries(Tile):
             out = rows.pivot(index=named['date'], columns=named['split'], values=named['value'])
             out.columns.name = said['split']
         else:
-            out = rows.set_index(named['date'])[[named['value']]].rename(columns={named['value']: said['name'] or series})
+            out = rows.set_index(named['date'])[[named['value']]].rename(columns={named['value']: said['name'] or said['series']})
         out.index.name = 'date'
-        return out.sort_index()
+        return out.sort_index(), said
+
+    def _asked(self, series: str | None, start: str | None, end: str | None, anchor: str | None = None) -> dict[str, Any]:
+        """What is asked of series ``series`` (None: its first, by DataCube's rule -- headless seriesOf -- which its answer
+        names: the review's §9 A, a first chosen here had been Python's own rule) over the dates ``start`` to ``end``;
+        ``anchor``, the first date shown where every date is kept (an index's base)."""
+        window = {k: v for k, v in (('from', start), ('to', end)) if v is not None}
+        return {'page': self._page._doc, 'tile': self._id, **({'series': series} if series is not None else {}), 'window': window,
+                **({'anchor': anchor} if anchor is not None else {})}
+
+    def _query(self, asked: dict[str, Any]) -> tuple[Any, Mapping[str, Any], dict[str, Any]]:
+        """One of the tile's queries, its base and its answer's words: asked of DataCube headless (timeseriesQuery: a
+        series' points, or with ``table`` one of the tables its screen's statistics panel shows) -- of one grid, as the
+        grid is read (its copy, snapped; a class's mapping; the page's filters on it: headless gridTimeseries), of several
+        over one model of their tables. Called within a read of the frames (Frames.reading)."""
+        from . import compiler
+        page = self._page
+        session = page._session
+        engine, frames = session.headless(), session.frames
+        said = _json.loads(engine.call('timeseriesQuery', _json.dumps({
+            **asked, 'host': frames.hosted(), 'copies': session.held_copies()})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        if 'grid' not in said:
+            return said['query'], _with_library(said, said), said
+        # a series of one grid, read as the grid is: over its base as every read of it is (its copy, snapped; a class's
+        # mapping; the page's filters on it) -- headless gridTimeseries, the tab's path through the grid's runner (the
+        # review's P1: read live over the grid's leaves, beside its every other read)
+        cube = said['grid']
+        spec = _cube_spec(session, page._cube(cube), frames, engine, page._snapped(cube), page._doc, cube)
+        said = _json.loads(engine.call('gridTimeseries', spec, _json.dumps(asked)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return compiler.parse(said['query']), _with_library(spec, said), said
+
+    def _rows(self, asked: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
+        """The rows of one of the tile's queries (``_query``) as a pandas DataFrame, and its answer's words: planned and
+        run by the engine's plan-and-run where the rows are (D16)."""
+        from .frames import to_pandas
+        session = self._page._session
+        with session.frames.reading() as over:
+            tree, base, said = self._query(asked)
+            rows = to_pandas(_engine_rows(session, tree, base, over))
+        return rows, said
+
+    def query(self, series: str | None = None, *, start: str | None = None, end: str | None = None) -> dict[str, str]:
+        """Series ``series``' query (None: its first), as ``frame`` reads it over ``start`` to ``end`` -- neither, as the
+        screen draws it, its base the first date shown. ``pure``, the query DataCube wrote, as the compiler prints it;
+        ``sql``, the SQL its plan runs where its rows are. Planned, nothing run (the engine's dry run, plan.json).
+        Refused in the planner's words. Every question the tile asks, as its screen's Query window lists them:
+        ``queries``."""
+        return self._planned(self._drawn(series, start, end))
+
+    def _planned(self, asked: dict[str, Any]) -> dict[str, str]:
+        """One of the tile's queries (``_query``), its ``pure`` as the compiler prints it and its ``sql`` as its plan runs
+        it where its rows are: planned, nothing run (the engine's dry run, plan.json)."""
+        from . import compiler
+        session = self._page._session
+        with session.frames.reading():
+            tree, base, _said = self._query(asked)
+            answer = session.engine().answer('POST', '/plan.json', '', json.dumps(_plan_request(tree, base)))
+        said = json.loads(answer.body)
+        if not (isinstance(said, dict) and isinstance(said.get('plan'), str)):
+            raise ValueError(answer.body.decode('utf-8', errors='replace'))
+        return {'pure': compiler.print_tree(tree), 'sql': compiler.read_planned(said['plan']).sql}
+
+    def code(self, language: str = 'python') -> str:
+        """The program that builds this tile on a page of your own, in ``language`` (``'python'``: a page, a grid over
+        each source's rows opened as its grid was -- a file, a remote file, a warehouse table, a class; else a DataFrame
+        of yours -- the grid's ``timeseries``, and each formula's Pure printed; ``'typescript'``: its spec over your
+        cubes and the page command the screen's Create ▸ Timeseries sends, applied by DataCube's one function) -- the
+        screen's Code, by its one rule (headless timeseriesCode: timeseries-code.ts tileCode). Run, it builds this tile
+        again: it names no tile, grid or sheet of this page."""
+        page = self._page
+        said = _json.loads(page._session.headless().call('timeseriesCode', _json.dumps(page._doc), self._id, language))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return said['code']
+
+    def queries(self, *, start: str | None = None, end: str | None = None) -> list[dict[str, Any]]:
+        """Every question the tile asks the database, as its screen's Query window lists them, by its one rule (headless
+        timeseriesAsks: timeseries-query.ts tileAsks) -- to draw the chart, each source's bounds, each series' points and
+        its view's; for its statistics panel, each line's statistics, each level's drawdowns, each pair's correlation
+        and each level's calendar of returns. Each a dict: ``what`` (in words), ``serves`` (``chart``, ``statistics``,
+        ``drawdowns``, ``correlations``, ``calendar``), ``kind``, its ``series``, ``with`` or ``source``, and ``pure``,
+        the query DataCube wrote -- each by the one function the screen writes it by (askQuery) -- as the compiler
+        prints it, and ``sql``, the SQL its plan runs where its rows are; one refused has ``refused`` instead, in
+        DataCube's or the planner's words. Over ``start`` to ``end`` (ISO days, either open); neither, the dates the
+        screen shows (the tile's range). Planned, nothing run."""
+        page = self._page
+        said = _json.loads(page._session.headless().call('timeseriesAsks', _json.dumps(page._doc), self._id))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        window = self._window(start, end)
+        out: list[dict[str, Any]] = []
+        for ask in said['asks']:
+            told: dict[str, Any] = {'page': page._doc, 'tile': self._id}
+            if ask['kind'] == 'bounds':
+                told.update({'table': 'bounds', 'source': ask['source']})
+            elif ask['kind'] == 'marks':
+                told.update({'table': 'marks', 'marks': ask['marks']})
+            else:
+                told.update({'series': ask['series'], 'window': window, 'drawn': True,
+                             **({'table': ask['kind']} if ask['kind'] != 'series' else {}),
+                             **({'with': ask['with']} if 'with' in ask else {}),
+                             **({'projection': ask['projection']} if 'projection' in ask else {})})
+            row = {k: ask[k] for k in ('what', 'serves', 'kind', 'series', 'with', 'source', 'marks', 'projection') if k in ask}
+            try:
+                row.update(self._planned(told))
+            except ValueError as e:
+                row['refused'] = str(e)
+            out.append(row)
+        return out
+
+    def table(self, *, start: str | None = None, end: str | None = None) -> Any:
+        """Every line side by side, a row per date over ``start`` to ``end`` (ISO days, either open; neither, the tile's
+        range, as its screen shows them) -- the screen's Data tab's: a pandas DataFrame indexed by date, oldest first,
+        a column per line shown (none hidden, no condition: a condition is shaded, no figures of its own) named as the
+        screen names it (a series' name, else its expression; a split's each line by its value beside it; a band's
+        ``lower`` and ``upper``, a candle's four prices after it -- headless timeseriesLineNames), each its ``frame`` over
+        those dates (an index's base their first); none where a line has no point that date. Each frame the database's,
+        put side by side by their dates (nothing computed). (The Phase 2 review's 3: every date had been read, its base
+        the first, hidden series and conditions among the columns, and the columns named by their ids.)"""
+        import pandas as pd
+        window = self._window(start, end)
+        engine = self._page._session.headless()
+        doc = _json.dumps(self._page._doc)
+        frames = []
+        for s in self._view['spec']['series']:
+            if s.get('hidden'):
+                continue
+            f, said = self._framed(self._asked(s['id'], window.get('from'), window.get('to')))
+            if said['shade']:
+                continue
+
+            def names(splits: list[Any] | None, series: str = s['id']) -> list[str]:
+                got = _json.loads(engine.call('timeseriesLineNames', doc, self._id, series, _json.dumps(splits)))
+                if 'problems' in got:
+                    raise ValueError('; '.join(got['problems']))
+                return got['names']
+
+            plain = (lambda v: v.item() if hasattr(v, 'item') else v)
+            if isinstance(f.columns, pd.MultiIndex):
+                # a candle per instrument: each line's four prices after its name
+                f.columns = [f'{n} {c[0]}' for n, c in zip(names([plain(c[1]) for c in f.columns]), f.columns)]
+            elif said['split'] is not None:
+                f.columns = names([plain(c) for c in f.columns])
+            else:
+                [own] = names(None)
+                f.columns = [own] if not (said['band'] or said['candles']) else [f'{own} {c}' for c in f.columns]
+            frames.append(f)
+        if not frames:
+            raise ValueError(f'{self!r} shows no line')
+        return pd.concat(frames, axis=1).sort_index()
+
+    def _tables(self) -> dict[str, Any]:
+        """The series each of the tile's tables reads, by the rule its screen's tabs read (headless timeseriesTables)."""
+        said = _json.loads(self._page._session.headless().call('timeseriesTables', _json.dumps(self._page._doc), self._id))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return said
+
+    def _line(self, said: dict[str, Any], split: Any, name: str = 'name', series: str = '') -> str:
+        """A line of a table, named: its series' name (else its id), and its split value after it -- every line of
+        every series apart (two series split by the same column have lines of the same values; two of one name each its
+        id after it)."""
+        own = said[name] or series
+        named = [s.get('name') or s['id'] for s in self._view['spec']['series']]
+        if named.count(own) > 1:
+            own = f'{own} ({series})'
+        return own if split is None else f'{own} {split}'
+
+    def _window(self, start: str | None, end: str | None) -> dict[str, Any]:
+        """The dates a table reads: ``start`` and ``end`` as given (either open); neither, the tile's range, as its
+        screen's tables read it (headless timeseriesWindow: timeseries-query.ts rangeWindow, the viewer's own rule) --
+        a range of the last of a period from its sources' latest date, each source's bounds the database's."""
+        if start is not None or end is not None:
+            return {k: v for k, v in (('from', start), ('to', end)) if v is not None}
+        import pandas as pd
+        page = self._page
+        engine = page._session.headless()
+        said = _json.loads(engine.call('timeseriesWindow', _json.dumps(page._doc), self._id, 'null'))
+        if 'bounds' in said:
+            told: dict[str, dict[str, Any]] = {}
+            for alias in said['bounds']:
+                rows, _ = self._rows({'page': page._doc, 'tile': self._id, 'table': 'bounds', 'source': alias})
+                told[alias] = {c: (None if len(rows) == 0 or pd.isna(rows[c].iloc[0]) else
+                                   rows[c].iloc[0].isoformat() if hasattr(rows[c].iloc[0], 'isoformat') else str(rows[c].iloc[0]))
+                               for c in rows.columns}
+            said = _json.loads(engine.call('timeseriesWindow', _json.dumps(page._doc), self._id, _json.dumps(told)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return said['window']
+
+    def statistics(self, *, start: str | None = None, end: str | None = None) -> Any:
+        """Each line's statistics over the dates ``start`` to ``end`` (ISO days, either open; neither, the tile's
+        range, as its screen shows them), every figure the database's -- the screen's Summary and Risk tabs'
+        (timeseries-query.ts statsQuery: first, last, change, extremes, mean, deviation; of a level its volatility,
+        drawdown, growth, Sharpe, Sortino, Calmar, skew, kurtosis, up periods, best, worst, value at risk and expected
+        shortfall): a pandas DataFrame, a row per line, a column per statistic (none where a line has none: a return has
+        no volatility). A band and a condition have none. Why a level's are blank -- at or below zero, no frequency,
+        under a year -- is said as a warning, in the screen's words (headless timeseriesStatNotes)."""
+        import pandas as pd
+        window = self._window(start, end)
+        out = []
+        blank = []
+        for series in self._tables()['statistics']:
+            rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': series, 'window': window, 'table': 'statistics'})
+            named, why = said['columns'], said['why']
+            value = (lambda r, c: None if c not in rows.columns or pd.isna(r[c]) else r[c])
+            for _, r in rows.iterrows():
+                split = r[named['split']] if named['split'] in rows.columns else None
+                line = {'line': self._line(said, split, series=series)}
+                line.update({stat: value(r, col) for stat, col in named.items() if stat != 'split'})
+                out.append(line)
+                if said['level']:
+                    figure = (lambda v: None if v is None else float(v))
+                    blank.append({'name': line['line'], **{k: figure(value(r, c)) for k, c in (('low', why['levelLow']), ('perYear', why['perYear']),
+                                                                                                 ('cagr', named['cagr'])) if c in rows.columns}})
+        if blank:
+            notes = _json.loads(self._page._session.headless().call('timeseriesStatNotes', _json.dumps({'lines': blank})))
+            if 'problems' in notes:
+                raise ValueError('; '.join(notes['problems']))
+            for note in notes['notes']:
+                warnings.warn(note, stacklevel=2)
+        return pd.DataFrame(out).set_index('line') if out else pd.DataFrame()
+
+    def drawdowns(self, *, start: str | None = None, end: str | None = None) -> Any:
+        """Each level line's deepest drawdowns over the dates ``start`` to ``end``, every date and figure the
+        database's -- the screen's Drawdowns tab's (timeseries-query.ts drawdownsQuery): a pandas DataFrame, a row per
+        drawdown, deepest first per line -- its line, its rank, its peak's date, its trough's and its recovery's (none:
+        not yet), its depth (-0.2 for 20%), the days down and the days back. Neither ``start`` nor ``end``: the tile's
+        range, as its screen shows them."""
+        import pandas as pd
+        window = self._window(start, end)
+        out = []
+        for series in self._tables()['drawdowns']:
+            rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': series, 'window': window, 'table': 'drawdowns'})
+            named = said['columns']
+            for _, r in rows.iterrows():
+                split = r[named['split']] if named['split'] in rows.columns else None
+                out.append({'line': self._line(said, split, series=series),
+                            **{k: (None if pd.isna(r[named[k]]) else r[named[k]]) for k in ('rank', 'peak', 'trough', 'recovered', 'depth', 'decline', 'recovery')}})
+        return pd.DataFrame(out)
+
+    def marks(self) -> Any:
+        """Every mark the tile draws from a grid's rows -- its ``marks`` annotations: a trade at its price, an earnings
+        day -- each row the database's, as its screen marks them (timeseries-query.ts marksQuery: the grid's filter as the
+        tile reads it, the marks' matches, each at its date as a line's points are): a pandas DataFrame, a row per mark,
+        each set latest first -- its marks' ``name``, its ``date``, its ``value`` (where they are drawn at one) and its
+        ``text`` (where they say one). Past the most a set draws, its latest, said as the screen says it."""
+        import pandas as pd
+        out = []
+        for i, a in enumerate(self._view['spec'].get('annotations', [])):
+            if a.get('kind') != 'marks':
+                continue
+            rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'table': 'marks', 'marks': i})
+            named = said['columns']
+            if len(rows) > said['limit']:
+                rows = rows.head(said['limit'])
+                warnings.warn(said['cut'], stacklevel=2)
+            for _, r in rows.iterrows():
+                read = lambda k: None if named[k] is None or pd.isna(r[named[k]]) else r[named[k]]
+                out.append({'name': said['name'], 'date': pd.Timestamp(r[named['date']]), 'value': read('value'), 'text': read('text')})
+        return pd.DataFrame(out, columns=['name', 'date', 'value', 'text'])
+
+    def projections(self) -> Any:
+        """Every trend the tile projects -- its ``projection`` annotations -- each the database's, as its screen draws it
+        (timeseries-query.ts projectionQuery: the series' line by least squares over its last ``window`` observations, on
+        its time, and the fit at the first of them, at the last and at the date ``ahead`` past it): a pandas DataFrame, a
+        row per projection -- its ``name``, its ``series``, the dates ``start``, ``last`` and ``end`` and the fit at each
+        (``start_value``, ``last_value``, ``end_value``), its ``slope`` a day, and ``n``, the observations it is fit over;
+        each figure none where it has no fit (under two observations of different times). Under a compare, refused in
+        DataCube's words, as the screen leaves them out."""
+        import pandas as pd
+        out = []
+        # over the tile's range, as its screen draws it: a series read from the first date shown (an index, a change)
+        # fit on its values from there, as its line is
+        window = None
+        for i, a in enumerate(self._view['spec'].get('annotations', [])):
+            if a.get('kind') != 'projection':
+                continue
+            window = self._window(None, None) if window is None else window
+            rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': a['series'], 'table': 'projection', 'projection': i,
+                                     'window': window})
+            named = said['columns']
+            for _, r in rows.iterrows():
+                read = lambda k: None if pd.isna(r[named[k]]) else r[named[k]]
+                day = lambda k: None if pd.isna(r[named[k]]) else pd.Timestamp(r[named[k]])
+                out.append({'name': said['name'], 'series': a['series'], 'start': day('from'), 'start_value': read('fromValue'), 'last': day('last'),
+                            'last_value': read('lastValue'), 'end': day('end'), 'end_value': read('endValue'), 'slope': read('slope'), 'n': read('n')})
+        return pd.DataFrame(out, columns=['name', 'series', 'start', 'start_value', 'last', 'last_value', 'end', 'end_value', 'slope', 'n'])
+
+    def project(self, series: str, *, window: int | None = None, ahead: str | None = None, label: str | None = None) -> Timeseries:
+        """Series ``series``' trend projected, as Settings' Project adds it (an ``annotate`` of the tile's one rule): its
+        line fit over its last ``window`` observations (absent, 63) and drawn ``ahead`` past its last date (a calendar
+        period, ``3m``; absent, 3m) -- every figure the database's (``projections``)."""
+        told: dict[str, Any] = {'kind': 'projection', 'series': series}
+        if window is not None:
+            told['window'] = window
+        if ahead is not None:
+            told['ahead'] = ahead
+        if label is not None:
+            told['label'] = label
+        return self.annotate(told)
+
+    def correlations(self, *, start: str | None = None, end: str | None = None) -> Any:
+        """Each pair of lines' correlation over the dates ``start`` to ``end``, each the database's -- the screen's
+        Correlations tab's (timeseries-query.ts correlationsQuery: a level's simple returns, anything else as it is,
+        over the dates both have): a pandas DataFrame, a matrix of the lines -- each line with itself the database's too
+        (1, or none where it has under two values or does not vary). Neither ``start`` nor ``end``: the tile's range, as
+        its screen shows them."""
+        import pandas as pd
+        window = self._window(start, end)
+        cells: dict[tuple[str, str], Any] = {}
+        lines: list[str] = []
+        for a, b in self._tables()['correlations']:
+            rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': a, 'with': b, 'window': window, 'table': 'correlations'})
+            named = said['columns']
+            for _, r in rows.iterrows():
+                la = self._line(said, r[named['a']] if named['a'] in rows.columns else None, series=a)
+                lb = self._line(said, r[named['b']] if named['b'] in rows.columns else None, 'withName', series=b)
+                v = None if pd.isna(r[named['corr']]) else r[named['corr']]
+                cells[(la, lb)] = cells[(lb, la)] = v
+                for x in (la, lb):
+                    if x not in lines:
+                        lines.append(x)
+        return pd.DataFrame([[cells.get((x, y)) for y in lines] for x in lines], index=lines, columns=lines)
+
+    # -- its views (the next phases' 3, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): each the screen's own query --
+
+    def _view_of(self, kind: str, series: str | None) -> str:
+        """The series view ``kind`` draws: ``series`` as given, else the one the screen's draws (the view's ``of``, else
+        the tile's first it can draw: headless timeseriesTables' ``views``, timeseries-query.ts viewSeries)."""
+        if series is not None:
+            return series
+        picked = self._tables()['views'].get(kind)
+        if picked is None:
+            words = {'one': 'a series of one line', 'curve': 'a series split by a column (its tenors)'}
+            raise ValueError(f'{self!r} has no {words[kind]} to draw')
+        return picked
+
+    def scatter(self, x: str | None = None, y: str | None = None, *, start: str | None = None, end: str | None = None) -> Any:
+        """Series ``y`` against series ``x`` over the dates ``start`` to ``end`` (neither, the tile's range), a point a
+        date both have shown -- the screen's Scatter (timeseries-query.ts scatterQuery): a pandas DataFrame indexed by
+        date, oldest first, its columns ``x`` and ``y`` named as the screen's axes are (a series' name, else its
+        expression); and in its ``attrs['regression']`` y's
+        ordinary least squares on x over those dates -- ``slope``, ``intercept``, ``r2``, ``corr`` and ``n`` -- every
+        figure the database's (none of the fit where x does not vary, or under two dates). Neither ``x`` nor ``y``: the
+        two the screen's draws (the view's ``of``, else the tile's first two series of one line)."""
+        import pandas as pd
+        if x is None or y is None:
+            pair = self._tables()['views'].get('scatter')
+            if pair is None and (x is None or y is None):
+                raise ValueError(f'{self!r} has no two series of one line to draw one against the other')
+            x, y = x or pair[0], y or pair[1]
+        rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': x, 'with': y, 'window': self._window(start, end), 'table': 'scatter'})
+        named = said['columns']
+        xs, ys = said['name'], said['withName']
+        # two of one name (a series against itself) kept apart (the Phase 3 review's 11: one column of both)
+        if xs == ys:
+            xs, ys = f'{xs} (x)', f'{ys} (y)'
+        out = pd.DataFrame({xs: rows[named['x']].tolist(), ys: rows[named['y']].tolist()},
+                           index=pd.Index(rows[named['date']].tolist(), name='date'))
+        first = (lambda c: None if len(rows) == 0 or pd.isna(rows[named[c]].iloc[0]) else float(rows[named[c]].iloc[0]))
+        out.attrs['regression'] = {k: first(k) for k in ('slope', 'intercept', 'r2', 'corr')}
+        out.attrs['regression']['n'] = 0 if len(rows) == 0 else int(rows[named['n']].iloc[0])
+        return out
+
+    def seasonality(self, series: str | None = None, *, years: int | None = None) -> Any:
+        """Series ``series``' last ``years`` years before its latest (None: the view's, else 5) and its latest, each
+        along its calendar -- the screen's Seasonality (timeseries-query.ts seasonalityQuery): a pandas DataFrame, a row
+        per date, its ``year``, its ``place`` in the year by the tile's frequency (a day of the year; a week, month or
+        quarter number) and its ``value``; and at its place the ``low``, ``high`` and ``mean`` of the years before the
+        latest -- every figure the database's. The tile's compare takes each year from its own start (rebase 100, or its
+        % change). ``df.pivot(index='place', columns='year', values='value')`` lays the years side by side."""
+        import pandas as pd
+        one = self._view_of('one', series)
+        rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': one, 'table': 'seasonality',
+                                 **({'years': years} if years is not None else {})})
+        named = said['columns']
+        keep = ['date', 'year', 'place', 'value', 'low', 'high', 'mean']
+        out = pd.DataFrame({k: rows[named[k]].tolist() for k in keep})
+        for k in ('year', 'place'):
+            out[k] = out[k].astype('int64')
+        out.attrs['latest'] = None if len(rows) == 0 else int(rows[named['latest']].iloc[0])
+        return out
+
+    def histogram(self, series: str | None = None, *, bins: int | None = None, start: str | None = None, end: str | None = None) -> Any:
+        """Series ``series``' values over the dates ``start`` to ``end`` (neither, the tile's range) in ``bins`` bins of
+        one width from their least to their most (None: the view's, else 30) -- the screen's Histogram
+        (timeseries-query.ts histogramQuery): a pandas DataFrame, a row per bin a value fell in, its ``low``, ``middle``
+        and ``high`` edges, its ``count``, and ``normal``: the count a normal of the values' mean and sample deviation
+        would give it; and in its ``attrs`` the values' ``p5`` (5th percentile), ``mean``, ``sd`` and ``n`` -- every
+        figure the database's."""
+        import pandas as pd
+        one = self._view_of('one', series)
+        rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': one, 'window': self._window(start, end), 'table': 'histogram',
+                                 **({'bins': bins} if bins is not None else {})})
+        named = said['columns']
+        out = pd.DataFrame({k: rows[named[k]].tolist() for k in ('low', 'middle', 'high', 'count', 'normal')})
+        out['count'] = out['count'].astype('int64')
+        first = (lambda c: None if len(rows) == 0 or pd.isna(rows[named[c]].iloc[0]) else float(rows[named[c]].iloc[0]))
+        out.attrs.update({k: first(k) for k in ('p5', 'mean', 'sd')})
+        out.attrs['n'] = 0 if len(rows) == 0 else int(rows[named['n']].iloc[0])
+        return out
+
+    def curve(self, series: str | None = None, *, dates: list[str] | None = None) -> Any:
+        """Split series ``series``' lines across its key -- its tenors -- as of each of ``dates`` (None: the view's, else
+        ``['latest', '1m', '1y']``: the latest date any line has, a period back from it, or a day) -- the screen's Curve
+        (timeseries-query.ts curveQuery): a pandas DataFrame, a row per line in the screen's order (tenors by their span,
+        3M before 2Y: headless timeseriesCurveOrder), a column per date asked, each its line's last value at or before
+        it -- the database's; in its ``attrs['dates']`` each date asked as the database found it, and in its
+        ``attrs['line_dates']`` each line's own day there (an earlier one: its value is of that day, as the screen's
+        curve marks it; none: no value at or before it)."""
+        import pandas as pd
+        one = self._view_of('curve', series)
+        rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': one, 'table': 'curve',
+                                 **({'dates': list(dates)} if dates is not None else {})})
+        named = said['columns']
+        keys = [str(k) for k in rows[named['split']].tolist()]
+        order = _json.loads(self._page._session.headless().call('timeseriesCurveOrder', _json.dumps(keys)))
+        if 'problems' in order:
+            raise ValueError('; '.join(order['problems']))
+        at = order['order']
+        out = pd.DataFrame({d['told']: [rows[d['value']].iloc[i] for i in at] for d in named['dates']},
+                           index=pd.Index([keys[i] for i in at], name=said['split']))
+        out.attrs['dates'] = {d['told']: (None if len(rows) == 0 or pd.isna(rows[d['asked']].iloc[0]) else str(rows[d['asked']].iloc[0])[:10])
+                              for d in named['dates']}
+        out.attrs['line_dates'] = {d['told']: {keys[i]: (None if pd.isna(rows[d['date']].iloc[i]) else str(rows[d['date']].iloc[i])[:10]) for i in at}
+                                   for d in named['dates']}
+        return out
+
+    def calendar(self, series: str | None = None) -> Any:
+        """Level series ``series``' return each month and each year over every date it has (None: the screen's
+        Calendar tab's first level) -- the fund sheet's table (timeseries-query.ts calendarQuery): a pandas DataFrame, a
+        row per year (latest first, as the screen lists them; a split's lines each apart, a level of the index ``line``),
+        a column per month (``Jan`` ... ``Dec``) and the ``Year``'s -- each a simple return, the month before's last level
+        to its own (the year before's to its own), the database's; none where there is no level the month (or the year)
+        before -- the first, and after one missing -- or the level before is at or below zero. Read at least monthly: a
+        quarterly or yearly tile's is refused."""
+        import pandas as pd
+        if series is None:
+            # the first level shown, as the screen's tab picks it
+            hidden = {s['id'] for s in self._view['spec']['series'] if s.get('hidden')}
+            levels = [id for id in self._tables()['views']['calendar'] if id not in hidden]
+            if not levels:
+                raise ValueError(f'{self!r} has no level: a return, a difference or a deviation has no calendar of returns')
+            series = levels[0]
+        rows, said = self._rows({'page': self._page._doc, 'tile': self._id, 'series': series, 'table': 'calendar'})
+        named = said['columns']
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        split = said['split'] is not None and named['split'] in rows.columns
+        table: dict[tuple[Any, int], dict[str, Any]] = {}
+        for _, r in rows.iterrows():
+            key = (r[named['split']] if split else None, int(r[named['year']]))
+            row = table.setdefault(key, {m: None for m in months} | {'Year': None})
+            value = (lambda c: None if pd.isna(r[c]) else float(r[c]))
+            row[months[int(r[named['month']]) - 1]] = value(named['return'])
+            row['Year'] = value(named['yearReturn'])
+        keys = sorted(table, key=lambda k: (str(k[0]), -k[1]))
+        index = pd.MultiIndex.from_tuples(keys, names=['line', 'year']) if split else pd.Index([k[1] for k in keys], name='year')
+        return pd.DataFrame([table[k] for k in keys], index=index, columns=[*months, 'Year'])
+
+    def swap(self, instrument: Any, to: Any, *, source: str | None = None) -> Timeseries:
+        """Instrument ``instrument`` read as ``to`` in every series that reads it (``close[SPX]``: a match on its source's
+        instrument column) -- of source ``source`` alone when given -- a name that says it saying the other: the screen's
+        Swap, by the tile's one rule (timeseries-edit.ts). An instrument column of numbers takes them as numbers
+        (``swap(10, 20)``); the spaces round a name are not of it. Refused where no series reads it."""
+        return self._edit({'kind': 'swap', 'from': str(instrument), 'to': str(to), **({'alias': source} if source is not None else {})})
+
+    def shade(self, column: str, *, source: str | None = None, where: Sequence[Mapping[str, Any]] | None = None,
+              name: str | None = None) -> Timeseries:
+        """A 0/1 column shaded where it is not 0, in one step (FRED's recession bars): a condition series of it -- of source
+        ``source`` (None: the first), its rows ``where`` picks (``[{'value': 'US'}]``, ``[{'column': 'region', 'value':
+        'EU'}]``) -- named ``name`` (None: the column), shaded across every pane where it holds, its runs the database's:
+        the screen's Settings' Shade, by the tile's one rule (timeseries-edit.ts). Refused, in its words, on a column that
+        is no number."""
+        return self._edit({'kind': 'shade', 'column': column, **({'source': source} if source is not None else {}),
+                           **({'where': [dict(m) for m in where]} if where is not None else {}),
+                           **({'name': name} if name is not None else {})})
 
     def _edit(self, change: dict[str, Any]) -> Timeseries:
         """``change`` (a timeseries-edit.ts TsChange) made by the tile's one rule, headless, and told as setTimeseries."""

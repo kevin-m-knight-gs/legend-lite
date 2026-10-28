@@ -1510,4 +1510,519 @@ class UserFunctionIntegrationTest {
             assertTrue(names.contains("Jane"));
         }
     }
+
+    // ==================== Functions generic over relations (docs/SEMANTICS_REGISTER.md S112) ====================
+
+    /**
+     * The static fold of a body expanded at its call (a function over a TDS, as the reference corpus's own are): a helper
+     * the body calls is inlined with the arguments it was given, the static ones bound as facts. The second review of the
+     * enumeration round, 2026-10-28: each a case the fold answered otherwise than the query it was folded from.
+     */
+    @Nested
+    @DisplayName("The static fold of an expanded body")
+    class FoldOfABody {
+
+        private static final String PEOPLE = "|model::Person.all()->project([col(p|$p.firstName, 'first')])";
+
+        private List<Object> column(ExecutionResult result, int i) {
+            return result.rows().stream().map(r -> r.get(i)).toList();
+        }
+
+        @Test
+        @DisplayName("a function a helper was given and evaluates is written back as the call named it")
+        void aFunctionPassedOnWhole() throws SQLException {
+            // TypeToken, as EnumToken before it: test::up_String_1__String_1_ bound and used whole ($f->eval($s)) was left
+            // a variable no binder held -- inside a helper, and as the element of a map unrolled
+            String model = modelWith("""
+                    function test::up(s: String[1]): String[1]
+                    {
+                        $s->toUpper()
+                    }
+                    function test::applyTo(s: String[1], f: Function<{String[1]->String[1]}>[1]): String[1]
+                    {
+                        $f->eval($s)
+                    }
+                    function test::upped(t: TabularDataSet[1]): TabularDataSet[1]
+                    {
+                        $t->extend([col(r:TDSRow[1]|test::applyTo('x', test::up_String_1__String_1_), 'one'),
+                                    col(r:TDSRow[1]|[test::up_String_1__String_1_]->map(f|$f->eval('y'))->toOne(), 'each')])
+                    }
+                    """);
+            var result = exec(model, PEOPLE + "->test::upped()->sort('first')");
+            assertEquals(List.of("X", "X", "X"), column(result, 1));
+            assertEquals(List.of("Y", "Y", "Y"), column(result, 2));
+        }
+
+        @Test
+        @DisplayName("a helper's parameters are its own: an argument is read in the caller's scope, never captured")
+        void aHelpersParametersAreItsOwn() throws SQLException {
+            // swap(a, b) calling cat($b, $a) answered y-y in a body (cat's a read as swap's b already bound), and a row
+            // the caller named b was read as the helper's b ('q')
+            String model = modelWith("""
+                    function test::cat(a: String[1], b: String[1]): String[1]
+                    {
+                        $a + '-' + $b
+                    }
+                    function test::swap(a: String[1], b: String[1]): String[1]
+                    {
+                        test::cat($b, $a)
+                    }
+                    function test::swapped(t: TabularDataSet[1]): TabularDataSet[1]
+                    {
+                        $t->extend([col(r:TDSRow[1]|test::swap('x', 'y'), 'swapped'),
+                                    col(b:TDSRow[1]|test::cat($b.getString('first'), 'q'), 'named')])
+                    }
+                    """);
+            assertEquals(List.of("y-x"), column(exec(model, "|test::swap('x', 'y')"), 0), "as the query answers it");
+            var result = exec(model, PEOPLE + "->test::swapped()->sort('first')");
+            assertEquals(List.of("y-x", "y-x", "y-x"), column(result, 1));
+            assertEquals(List.of("Bob-q", "Jane-q", "John-q"), column(result, 2));
+        }
+
+        @Test
+        @DisplayName("an enumeration's value against a string answers as the query does: the database compares the name")
+        void anEnumerationAgainstAString() throws SQLException {
+            // the fold compares two values of one enumeration; Stat.mean == 'mean' it leaves to the database, which
+            // compares the value's name -- the fold had answered false where the same query answers true
+            String model = modelWith("""
+                    Enum test::Stat
+                    {
+                      mean, total
+                    }
+                    function test::said(t: TabularDataSet[1]): TabularDataSet[1]
+                    {
+                        $t->extend([col(r:TDSRow[1]|if(test::Stat.mean == 'mean', |'eq', |'ne'), 'mixed'),
+                                    col(r:TDSRow[1]|if(test::Stat.mean == test::Stat.total, |'eq', |'ne'), 'two')])
+                    }
+                    """);
+            var asked = column(exec(model, "|if(test::Stat.mean == 'mean', |'eq', |'ne')"), 0);
+            var result = exec(model, PEOPLE + "->test::said()->sort('first')");
+            assertEquals(List.of(asked.get(0), asked.get(0), asked.get(0)), column(result, 1), "as the query answers it");
+            assertEquals(List.of("ne", "ne", "ne"), column(result, 2));
+        }
+    }
+
+    /**
+     * The user, 2026-10-26: a library of timeseries functions written in Pure over ANY table -- its columns, its sort
+     * and its window parameters. legend-engine refuses type parameters in a user function; legend-lite expands a call
+     * of one generic over relations into its body, typed over the call's own tables (RelationGenerics).
+     */
+    @Nested
+    @DisplayName("Generic over relations: columns as parameters")
+    class RelationGeneric {
+
+        private static final String AGG = "AggColSpec<{Relation<T>[1],_Window<T>[1],T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]";
+
+        private static final String LIBRARY = """
+                function test::rolled<T,K,V,R>(r: Relation<T>[1], win: _Window<T>[1], agg: %1$s): Relation<T+R>[1]
+                {
+                    $r->extend($win, $agg)
+                }
+                function test::running<T,X,Z,K,V,R>(r: Relation<T>[1], part: ColSpec<X⊆T>[1], order: SortInfo<Z⊆T>[*], agg: %1$s): Relation<T+R>[1]
+                {
+                    $r->extend(over($part, $order, rows(unbounded(), 0)), $agg)
+                }
+                function test::lastN<T,X,Z,K,V,R>(r: Relation<T>[1], part: ColSpec<X⊆T>[1], order: SortInfo<Z⊆T>[*], w: Integer[1], agg: %1$s): Relation<T+R>[1]
+                {
+                    $r->extend(over($part, $order, rows(1 - $w, 0)), $agg)
+                }
+                """.formatted(AGG);
+
+        private static final String PEOPLE = "#>{store::PersonDatabase.T_PERSON}#";
+
+        /** A query's rows as (first name, value) pairs, by first name. */
+        private java.util.Map<String, Integer> byName(ExecutionResult result, int name, int value) {
+            java.util.Map<String, Integer> out = new java.util.TreeMap<>();
+            for (var row : result.rows()) {
+                out.put(String.valueOf(row.get(name)), ((Number) row.get(value)).intValue());
+            }
+            return out;
+        }
+
+        @Test
+        @DisplayName("a window and an aggregate as parameters: the call's own, placed by the body")
+        void windowAndAggregateAsParameters() throws SQLException {
+            var result = exec(modelWith(LIBRARY), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::rolled(over(~LAST_NAME, [~AGE_VAL->ascending()], rows(unbounded(), 0)), ~total:{p,w,r|$r.AGE_VAL}:y|$y->sum())");
+            // Smith: Jane 28, then John 28 + 30; Jones: Bob 45
+            assertEquals(java.util.Map.of("Bob", 45, "Jane", 28, "John", 58), byName(result, 0, 3));
+        }
+
+        @Test
+        @DisplayName("columns as parameters: the partition and the sort the caller names")
+        void columnsAsParameters() throws SQLException {
+            var result = exec(modelWith(LIBRARY), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::running(~LAST_NAME, [~AGE_VAL->ascending()], ~total:{p,w,r|$r.AGE_VAL}:y|$y->sum())");
+            assertEquals(java.util.Map.of("Bob", 45, "Jane", 28, "John", 58), byName(result, 0, 3));
+        }
+
+        @Test
+        @DisplayName("a window's length as a parameter: rows(1 - $w, 0) over the call's own w")
+        void windowLengthAsParameter() throws SQLException {
+            var result = exec(modelWith(LIBRARY), "|" + PEOPLE + "->select(~[FIRST_NAME, AGE_VAL])->extend(~all:x|'all')"
+                    + "->test::lastN(~all, [~AGE_VAL->ascending()], 2, ~two:{p,w,r|$r.AGE_VAL}:y|$y->sum())");
+            // by age 28, 30, 45: 28, 28 + 30, 30 + 45
+            assertEquals(java.util.Map.of("Jane", 28, "John", 58, "Bob", 75), byName(result, 0, 3));
+        }
+
+        @Test
+        @DisplayName("one function nested in its own argument: expanded within itself, never recursion")
+        void nestedInItsOwnArgument() throws SQLException {
+            var result = exec(modelWith(LIBRARY), "|" + PEOPLE + "->select(~[FIRST_NAME, AGE_VAL])->extend(~all:x|'all')"
+                    + "->test::lastN(~all, [~AGE_VAL->ascending()], 2, ~two:{p,w,r|$r.AGE_VAL}:y|$y->sum())"
+                    + "->test::lastN(~all, [~AGE_VAL->ascending()], 2, ~four:{p,w,r|$r.two}:y|$y->sum())");
+            // two: 28, 58, 75; four: 28, 28 + 58, 58 + 75
+            assertEquals(java.util.Map.of("Jane", 28, "John", 86, "Bob", 133), byName(result, 0, 4));
+        }
+
+        @Test
+        @DisplayName("over any table: the same function over another table's columns")
+        void overAnyTable() throws SQLException {
+            // the database declares T_EMPLOYEE too, a table of other columns
+            String model = modelWith(LIBRARY).replace("Table T_PERSON (", """
+                    Table T_EMPLOYEE (ID INTEGER PRIMARY KEY, FIRST_NAME VARCHAR(100), LAST_NAME VARCHAR(100), AGE_VAL INTEGER, DEPT VARCHAR(100))
+                    Table T_PERSON (""");
+            var result = exec(model, "|#>{store::PersonDatabase.T_EMPLOYEE}#->select(~[FIRST_NAME, DEPT, AGE_VAL])"
+                    + "->test::running(~DEPT, [~AGE_VAL->ascending()], ~n:{p,w,r|$r.AGE_VAL}:y|$y->count())");
+            assertEquals(java.util.Map.of("Alice", 1, "Charlie", 1), byName(result, 0, 3));
+        }
+
+        @Test
+        @DisplayName("a column the table has not: refused at the call, by name")
+        void columnTheTableHasNot() {
+            var ex = assertThrows(Exception.class, () -> exec(modelWith(LIBRARY), "|" + PEOPLE + "->select(~[FIRST_NAME, AGE_VAL])"
+                    + "->test::running(~NOPE, [~AGE_VAL->ascending()], ~total:{p,w,r|$r.AGE_VAL}:y|$y->sum())"));
+            assertTrue(ex.getMessage().contains("NOPE"), ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("a body calling itself: still refused, loudly")
+        void recursionStillLoud() {
+            String model = modelWith("""
+                    function test::loop<T>(r: Relation<T>[1]): Relation<T>[1]
+                    {
+                        $r->test::loop()
+                    }
+                    """);
+            var ex = assertThrows(Exception.class, () -> exec(model, "|" + PEOPLE + "->select(~[FIRST_NAME])->test::loop()"));
+            assertTrue(ex.getMessage().contains("recursive"), ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("the model compiles whole: a generic body is typed at its calls, so it reports no error of its own")
+        void compilesWhole() {
+            assertEquals(List.of(), com.legend.Compiler.compileErrors(modelWith(LIBRARY)));
+        }
+
+        /** A function of a COLUMN by its name (the DataCube library's form, datacube::ts::*): the column read and the
+         *  column written are the call's, renamed to the body's own names and back. */
+        private static final String NAMED = """
+                function test::mean<T,X,Z,V,O>(rel: Relation<T>[1], part: ColSpec<X⊆T>[1], order: SortInfo<Z⊆T>[*], value: ColSpec<V⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<Any>[1]
+                {
+                    $rel->rename($value, ~ts_v)
+                        ->extend(over($part, $order, rows(1 - $w, 0)), ~ts_o:{p,f,r|$r.ts_v}:y|if($y->count() < $w, |[], |$y->average()))
+                        ->rename(~ts_v, $value)
+                        ->rename(~ts_o, $out)
+                }
+                """;
+
+        @Test
+        @DisplayName("a column read and a column written by name: the call's own, through the body's")
+        void columnsByName() throws SQLException {
+            var result = exec(modelWith(NAMED), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::mean(~LAST_NAME, [~FIRST_NAME->ascending()], ~AGE_VAL, 2, ~avg)->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "avg"), result.columns().stream().map(c -> c.name()).toList());
+            // Smith: Jane alone in her window (none), John with Jane (29); Jones: Bob alone
+            assertEquals(java.util.Arrays.asList(null, null, 29.0), result.rows().stream()
+                    .map(r -> r.get(3) == null ? null : ((Number) r.get(3)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("a call by name nested in its own: the mean of a mean, each its own columns")
+        void columnsByNameNested() throws SQLException {
+            var result = exec(modelWith(NAMED), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::mean(~LAST_NAME, [~FIRST_NAME->ascending()], ~AGE_VAL, 1, ~a)"
+                    + "->test::mean(~LAST_NAME, [~FIRST_NAME->ascending()], ~a, 2, ~b)->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "a", "b"), result.columns().stream().map(c -> c.name()).toList());
+            assertEquals(java.util.Arrays.asList(null, null, 29.0), result.rows().stream()
+                    .map(r -> r.get(4) == null ? null : ((Number) r.get(4)).doubleValue()).toList());
+        }
+
+        /** A function generic over any table that drops the working column it made ({@code without}). */
+        private static final String FROM_MEAN = """
+                function test::fromMean<T,X,V,O>(r: Relation<T>[1], part: ColSpec<X⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+                {
+                    $r->rename($value, ~t_v)
+                      ->extend(over($part), ~t_m:{p,w,r|$r.t_v}:y|$y->average())
+                      ->extend(~t_o:x|$x.t_v->toOne() - $x.t_m->toOne())
+                      ->without(~t_m)
+                      ->rename(~t_v, $value)
+                      ->rename(~t_o, $out)
+                }
+                """;
+
+        @Test
+        @DisplayName("a body drops the columns it made (without): the answer is the call's table and its own column")
+        void dropsItsWorkingColumns() throws SQLException {
+            var result = exec(modelWith(FROM_MEAN), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::fromMean(~LAST_NAME, ~AGE_VAL, ~gap)->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "gap"), result.columns().stream().map(c -> c.name()).toList());
+            // Smith: Jane 28 and John 30 about 29; Jones: Bob 45 alone
+            assertEquals(List.of(0.0, -1.0, 1.0), result.rows().stream().map(r -> ((Number) r.get(3)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("hygiene: a caller's columns named as the body's working ones are the caller's, untouched")
+        void callerColumnsOfWorkingNames() throws SQLException {
+            var result = exec(modelWith(FROM_MEAN), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->extend(~[t_m:x|7, t_v:x|'mine'])->test::fromMean(~LAST_NAME, ~AGE_VAL, ~gap)"
+                    + "->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "t_m", "t_v", "gap"),
+                    result.columns().stream().map(c -> c.name()).toList());
+            assertEquals(List.of(7, 7, 7), result.rows().stream().map(r -> ((Number) r.get(3)).intValue()).toList());
+            assertEquals(List.of("mine", "mine", "mine"), result.rows().stream().map(r -> String.valueOf(r.get(4))).toList());
+            assertEquals(List.of(0.0, -1.0, 1.0), result.rows().stream().map(r -> ((Number) r.get(5)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("hygiene: a function over its own answer, each expansion's working columns its own")
+        void overItsOwnAnswer() throws SQLException {
+            var result = exec(modelWith(FROM_MEAN), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::fromMean(~LAST_NAME, ~AGE_VAL, ~gap)->test::fromMean(~LAST_NAME, ~gap, ~gap2)"
+                    + "->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "gap", "gap2"),
+                    result.columns().stream().map(c -> c.name()).toList());
+            // each line's gaps average 0, so the second gap is the first
+            assertEquals(List.of(0.0, -1.0, 1.0), result.rows().stream().map(r -> ((Number) r.get(4)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("hygiene: a column the declared return names leaves under its own name")
+        void aDeclaredColumnKeepsItsName() throws SQLException {
+            String model = modelWith("""
+                    function test::counted<T>(r: Relation<T>[1]): Relation<T+(n:Integer)>[1]
+                    {
+                        $r->extend(~[n:x|1, t_w:x|2])->without(~t_w)
+                    }
+                    """);
+            var result = exec(model, "|" + PEOPLE + "->select(~[FIRST_NAME])->extend(~t_w:x|3)->test::counted()");
+            assertEquals(List.of("FIRST_NAME", "t_w", "n"), result.columns().stream().map(c -> c.name()).toList());
+            assertEquals(List.of(3, 3, 3), result.rows().stream().map(r -> ((Number) r.get(1)).intValue()).toList());
+        }
+
+        @Test
+        @DisplayName("read: a function takes its window whole and reads the column its caller names, nothing renamed")
+        void aWholeWindowAndARead() throws SQLException {
+            String model = modelWith("""
+                    function test::meanOf<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+                    {
+                        $t->extend($win, ~m:{p,f,r|$r->read($value)}:y|if($y->count() < $ramp, |[], |$y->average()))->rename(~m, $out)
+                    }
+                    """);
+            var result = exec(model, "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::meanOf(over(~LAST_NAME, [~FIRST_NAME->ascending()], rows(-1, 0)), ~AGE_VAL, 2, ~m2)"
+                    + "->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "m2"), result.columns().stream().map(c -> c.name()).toList());
+            // Jones: Bob alone; Smith: Jane first (one value), then John with Jane: 29
+            assertEquals(java.util.Arrays.asList(null, null, 29.0), result.rows().stream()
+                    .map(r -> r.get(3) == null ? null : ((Number) r.get(3)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("an option an enumeration: the type checker refuses a value it has not, and the branch it names alone reaches the SQL")
+        void anOptionAnEnumeration() throws SQLException {
+            // the user, 2026-10-28 ("I hope it is the second": checked when the query compiles, never in its SQL): a
+            // function's option typed by an enumeration -- a value it has not refused by the type checker, and an if on
+            // it folded to the branch the call's value names, as a spelled string's is (StaticFold.EnumToken)
+            String model = modelWith("""
+                    Enum test::Stat
+                    {
+                      mean, total, most
+                    }
+                    function test::statOf<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], stat: test::Stat[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+                    {
+                        $t->extend($win, ~m:{p,f,r|$r->read($value)}:y|if($stat == test::Stat.mean, |$y->average(), |if($stat == test::Stat.total, |$y->sum(), |$y->max())))->rename(~m, $out)
+                    }
+                    """);
+            String over = "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])->test::statOf(over(~LAST_NAME), ~AGE_VAL, test::Stat.";
+            var total = exec(model, over + "total, ~s)->sort(~FIRST_NAME->ascending())");
+            // Jones: Bob 45; Smith: Jane and John 28 + 30
+            assertEquals(List.of(45, 58, 58), total.rows().stream().map(r -> ((Number) r.get(3)).intValue()).toList());
+            String sql = plan(model, over + "total, ~s)").sql().toUpperCase(java.util.Locale.ROOT);
+            assertTrue(sql.contains("SUM("), sql);
+            assertFalse(sql.contains("AVG(") || sql.contains("MAX(") || sql.contains("CASE"), "the branch it names alone: " + sql);
+            var refused = assertThrows(Exception.class, () -> plan(model, over + "Total, ~s)"));
+            assertTrue(refused.getMessage().contains("enumeration test::Stat has no value 'Total'"), refused.getMessage());
+        }
+
+        @Test
+        @DisplayName("an enumeration's value a body passes on whole is written back as the call spelled it: a helper's parameter, a map's element")
+        void anEnumerationPassedOnWhole() throws SQLException {
+            // the independent review, 2026-10-28, and the corpus's testExtendDigest_Relational (lost the day StaticFold
+            // first folded an enumeration's value): a value bound to a helper's parameter, or to the element of a map it
+            // unrolls, and used whole (hash($h)) was left a variable no binder held
+            String model = modelWith("""
+                    function test::digest(s: String[1], h: meta::pure::functions::hash::HashType[1]): String[1]
+                    {
+                        $s->hash($h)
+                    }
+                    function test::digestsOf<T,O,P>(t: Relation<T>[1], one: ColSpec<O>[1], both: ColSpec<P>[1]): Relation<T+O+P>[1]
+                    {
+                        $t->extend(~d1: r|test::digest('x', meta::pure::functions::hash::HashType.MD5))
+                          ->extend(~d2: r|[meta::pure::functions::hash::HashType.MD5, meta::pure::functions::hash::HashType.SHA1]->map(h|'x'->hash($h))->joinStrings('|'))
+                          ->rename(~d1, $one)->rename(~d2, $both)
+                    }
+                    """);
+            var result = exec(model, "|" + PEOPLE + "->select(~[FIRST_NAME])->test::digestsOf(~one, ~both)->sort(~FIRST_NAME->ascending())->limit(1)");
+            // md5('x') and sha1('x')
+            assertEquals("9dd4e461268c8034f5c8564e155c67a6", result.rows().get(0).get(1));
+            assertEquals("9dd4e461268c8034f5c8564e155c67a6|11f6ad8ec52a2984abaafd7c3b516503785c2072", result.rows().get(0).get(2));
+        }
+
+        @Test
+        @DisplayName("an enumeration's value a generic body compares a mapped column to reads as the database's code")
+        void anEnumerationMappedToTheDatabasesCodes() throws SQLException {
+            // the user, 2026-10-28 ("enums that have mappings like in the database its 'A' but the Enum is ACTIVE"): the
+            // static fold writes the enumeration's value back as the call spelled it, and the mapping, not the fold,
+            // reads it as the database's code -- here a family's name, 'Smith', for model::Family.SMITH
+            String mapping = """
+
+                    ###Mapping
+                    import store::*;
+                    Mapping model::FamilyMapping
+                    (
+                        model::Member: Relational
+                        {
+                            ~mainTable [PersonDatabase] T_PERSON
+                            firstName: [PersonDatabase] T_PERSON.FIRST_NAME,
+                            family: EnumerationMapping FamilyNames: [PersonDatabase] T_PERSON.LAST_NAME
+                        }
+                        model::Family: EnumerationMapping FamilyNames
+                        {
+                            SMITH: 'Smith',
+                            JONES: 'Jones'
+                        }
+                    )
+                    """;
+            String functions = """
+                    Enum model::Family
+                    {
+                      SMITH, JONES
+                    }
+                    Class model::Member
+                    {
+                        firstName: String[1];
+                        family: model::Family[1];
+                    }
+                    function test::sameAs(f: model::Family[1], wanted: model::Family[1]): Boolean[1]
+                    {
+                        $f == $wanted
+                    }
+                    function test::ofFamily<T,F>(t: Relation<T>[1], col: ColSpec<F⊆T>[1], wanted: model::Family[1]): Relation<T>[1]
+                    {
+                        $t->filter(r|test::sameAs($r->read($col), $wanted))
+                    }
+                    """;
+            String model = BASE_MODEL.replace("mappings: [ model::PersonMapping ];", "mappings: [ model::FamilyMapping ];")
+                    + mapping + "\n###Pure\n" + functions;
+            String query = "|model::Member.all()->project(~[firstName: m|$m.firstName, family: m|$m.family])"
+                    + "->test::ofFamily(~family, model::Family.SMITH)->sort(~firstName->ascending())";
+            var result = exec(model, query);
+            assertEquals(List.of("Jane", "John"), result.rows().stream().map(r -> (String) r.get(0)).toList());
+            assertEquals(List.of("SMITH", "SMITH"), result.rows().stream().map(r -> String.valueOf(r.get(1))).toList());
+            // the filter on the column as the database holds it, the column read back as the enumeration's value
+            String sql = plan(model, query).sql();
+            assertTrue(java.util.regex.Pattern.compile("WHERE\\s+\\w+\\.LAST_NAME = 'Smith'").matcher(sql).find(), sql);
+            assertTrue(sql.contains("THEN 'SMITH'"), sql);
+        }
+
+        @Test
+        @DisplayName("a chain of calls of a generic function plans once each: twenty calls, each over the answer of the last")
+        void aChainOfCallsIsTypedOnceEach() throws SQLException {
+            // the focused Pure audit, 2026-10-28: each call typed the chain under it twice -- its check and its inlined
+            // body -- so a chain of k calls planned in 2^k (sixteen in 13 s), and past sixteen was refused as an
+            // expansion of the function within itself; each table a call typed is typed once
+            String model = modelWith("""
+                    function test::meanOf<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+                    {
+                        $t->extend($win, ~m:{p,f,r|$r->read($value)}:y|if($y->count() < $ramp, |[], |$y->average()))->rename(~m, $out)
+                    }
+                    """);
+            StringBuilder q = new StringBuilder("|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])");
+            String prev = "AGE_VAL";
+            for (int i = 0; i < 20; i++) {
+                q.append("->test::meanOf(over(~LAST_NAME, [~FIRST_NAME->ascending()], rows(-1, 0)), ~").append(prev).append(", 1, ~m").append(i).append(")");
+                prev = "m" + i;
+            }
+            long t0 = System.nanoTime();
+            plan(model, q + "->sort(~FIRST_NAME->ascending())");
+            long ms = (System.nanoTime() - t0) / 1_000_000;
+            assertTrue(ms < 5_000, "twenty calls planned in " + ms + " ms");
+            // and its answer each call's: Bob alone (45 throughout); Jane first (28 throughout); John the mean of his and
+            // Jane's before, each call halving his distance from her (30, then 29, 28.5, ...: 28 + 2^-19 at the twentieth)
+            var result = exec(model, q + "->sort(~FIRST_NAME->ascending())");
+            List<Double> last = result.rows().stream().map(r -> ((Number) r.get(22)).doubleValue()).toList();
+            assertEquals(45.0, last.get(0), 1e-12);
+            assertEquals(28.0, last.get(1), 1e-12);
+            assertEquals(28.0 + Math.pow(2, -19), last.get(2), 1e-12);
+        }
+
+        @Test
+        @DisplayName("hygiene: the column a body has another generic function write for its own use is the body's own")
+        void aNestedCallsColumnIsTheBodys() throws SQLException {
+            String model = modelWith("""
+                    function test::meanOf<T,V,O>(t: Relation<T>[1], win: _Window<T>[1], value: ColSpec<V⊆T>[1], ramp: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+                    {
+                        $t->extend($win, ~m:{p,f,r|$r->read($value)}:y|if($y->count() < $ramp, |[], |$y->average()))->rename(~m, $out)
+                    }
+                    function test::offItsMean<T,L,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+                    {
+                        $t->test::meanOf(over($line), $value, 1, ~m)->extend(~g:x|$x->read($value)->toOne() - $x.m->toOne())->without(~m)->rename(~g, $out)
+                    }
+                    """);
+            // the caller's table has an m of its own, which the body's m (meanOf's out) must not meet
+            var result = exec(model, "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])->extend(~m:x|'mine')"
+                    + "->test::offItsMean(~LAST_NAME, ~AGE_VAL, ~gap)->sort(~FIRST_NAME->ascending())");
+            assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "m", "gap"), result.columns().stream().map(c -> c.name()).toList());
+            assertEquals(List.of("mine", "mine", "mine"), result.rows().stream().map(r -> String.valueOf(r.get(3))).toList());
+            // Jones: Bob alone; Smith: Jane 28 and John 30 about their 29
+            assertEquals(List.of(0.0, -1.0, 1.0), result.rows().stream().map(r -> ((Number) r.get(4)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("a declared return is held to each call: a body that answers no table is refused by name")
+        void aBodyOfNoTableIsRefused() {
+            String model = modelWith("""
+                    function test::notATable<T>(t: Relation<T>[1]): Relation<T>[1]
+                    {
+                        1
+                    }
+                    """);
+            var ex = assertThrows(Exception.class, () -> exec(model, "|" + PEOPLE + "->select(~[FIRST_NAME])->test::notATable()"));
+            assertTrue(ex.getMessage().contains("test::notATable") && ex.getMessage().contains("is a table"), ex.getMessage());
+        }
+
+        /** fromMean with its drop replaced: the same body, its answer {@code drop}'s. */
+        private String fromMeanThat(String drop) {
+            return modelWith(FROM_MEAN.replace("->without(~t_m)", drop));
+        }
+
+        @Test
+        @DisplayName("a declared return is held to each call: a working column left in the answer is refused by name")
+        void aLeakedColumnIsRefused() {
+            var ex = assertThrows(Exception.class, () -> exec(fromMeanThat(""), "|" + PEOPLE
+                    + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])->test::fromMean(~LAST_NAME, ~AGE_VAL, ~gap)"));
+            assertTrue(ex.getMessage().contains("test::fromMean") && ex.getMessage().contains("[t_m] not declared"),
+                    ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("a declared return is held to each call: a column of the caller's the body loses is refused by name")
+        void aLostColumnIsRefused() {
+            var ex = assertThrows(Exception.class, () -> exec(fromMeanThat("->without(~[t_m, FIRST_NAME])"), "|"
+                    + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])->test::fromMean(~LAST_NAME, ~AGE_VAL, ~gap)"));
+            assertTrue(ex.getMessage().contains("test::fromMean") && ex.getMessage().contains("FIRST_NAME"),
+                    ex.getMessage());
+        }
+    }
 }

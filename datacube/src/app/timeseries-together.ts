@@ -36,7 +36,10 @@ export async function openTogether(grids: readonly string[], o: TogetherOf): Pro
   const rows = o.rows(opened.model, opened.runtime);
   return {
     relations: new Map(eachRelation(opened, grids)),
-    run: async (query) => (await rows.run.host.planAndRun(query, 0)).rows,
+    run: async (query) => {
+      const { plan, rows: answered } = await rows.run.host.planAndRun(query, 0);
+      return { rows: answered, sql: plan.sql };
+    },
     dispose: () => rows.letGo(),
   };
 }

@@ -30,6 +30,7 @@
 // detached -- a grid of its own grouping and query, made in one step, which it follows from then on (D7).
 
 import { ChartPanel } from '../ui/chart-panel.ts';
+import type { RunOutcome } from '../runner.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import { createItems, type MenuItem } from '../ui/menu.ts';
 import { chromeIcon, closeMark, paintState, stateButton } from '../ui/tile-icons.ts';
@@ -61,7 +62,7 @@ import type { CubeDocument, CubeSource, InputPort } from '../cube-document.ts';
 import type { GridCopy, PageDocument } from '../page-document.ts';
 import { sameValue, withoutConditions, type CubeSnapshot, type FilterNode, type FilterValue } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
-import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
+import type { Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { lazily } from '../lazily.ts';
 import { TS_STATES, tsStateOf, type TimeseriesSpec, type TsState } from '../timeseries-spec.ts';
@@ -96,8 +97,10 @@ export interface ChartSource {
   readonly snapshot: CubeSnapshot;
   /** The grid's configuration as it is now: its Column Properties among it. */
   readonly configuration: CubeConfiguration;
-  /** Run a query the grid did not plan, through the grid's own runner. */
-  run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<ResultTable>;
+  /** Run a query the grid did not plan, through the grid's own runner: its rows, and the SQL the database ran. */
+  run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<RunOutcome>;
+  /** A query as the compiler prints it, for a person to read (a timeseries' Query window). */
+  print(query: Lambda): Promise<string>;
   /** A value as the grid writes it; `headline`: scaled, a KPI's number (format.ts `headlineFormat`). */
   format(value: Scalar, column: string, type: string | undefined, headline?: boolean): string;
   /** A column's unit as the grid formats it (`currency|USD|`), or undefined: two units, two value axes. */
@@ -340,6 +343,9 @@ export interface CubePageOptions {
    * database. Absent, such a series is refused in words.
    */
   readonly together?: (cubes: readonly string[]) => Promise<TsTogether>;
+  /** A cube the page holds as it saved it, its source not opened (page-app.ts: P9), by its id: what a timeseries tile
+   *  freezing keeps of it (its filter), as Python's freeze reads the page's cube. Absent: none such. */
+  readonly unopenedCube?: (cube: string) => CubeDocument | undefined;
 }
 
 /** An edit of the page's structure: its page commands, and what it is called (the page's Undo names it). */
@@ -764,7 +770,7 @@ export class CubePage {
         const source = (): ChartSource => grid.chartSource();
         const panel = new ChartPanel(host, {
           snapshot: () => source().snapshot,
-          run: (query, snapshot, signal) => source().run(query, snapshot, signal),
+          run: async (query, snapshot, signal) => (await source().run(query, snapshot, signal)).rows,
           label: (value, column, type, headline) => source().format(value, column, type, headline),
           unit: (column) => source().unit?.(column),
           shown: () => source().shown(),
@@ -2146,7 +2152,7 @@ export class CubePage {
       onSpec: () => this.#chartChanged(id, 'Chart Change'),
       ...(restore ? { initial: restore.spec } : {}),
       snapshot: () => source().snapshot,
-      run: (query, snapshot, signal) => source().run(query, snapshot, signal),
+      run: async (query, snapshot, signal) => (await source().run(query, snapshot, signal)).rows,
       label: (value, column, type, headline) => source().format(value, column, type, headline),
       unit: (column) => source().unit?.(column),
       // the page's charts with the same column across share a crosshair
@@ -2544,6 +2550,7 @@ export class CubePage {
       snapshot: detached.snapshot,
       get configuration() { return runs.configuration; },
       run: (query, s, signal) => runs.run(query, s, signal),
+      print: (query) => runs.print(query),
       format: (value, column, type, headline) => runs.format(value, column, type, headline),
       unit: (column) => runs.unit?.(column),
       label: (column) => runs.label(column),
@@ -3043,6 +3050,7 @@ export class CubePage {
       get filter() { return source.snapshot.filter; },
       run: (query, snapshot, signal) => source.run(query, snapshot, signal),
       format: (value, column, type) => source.format(value, column, type),
+      print: (query) => source.print(query),
     };
   }
 
@@ -3143,6 +3151,14 @@ export class CubePage {
       if (!tile || tile.view || this.#disposed || this.#sheetOf(id) !== this.#shown) return;
       tile.view = new TimeseriesView(tile.body, {
         grid: (cube) => this.#tsGrid(cube),
+        // each source's filter as the page holds its cube: its grid's (on the board or kept off it), else as the page
+        // saved it, its source not opened -- the rule Python's freeze reads the page's cubes by (headless timeseriesEdit)
+        heldFilter: (cube) => {
+          const grid = this.#tsGrid(cube);
+          if (grid) return { filter: grid.filter };
+          const saved = this.#options.unopenedCube?.(cube);
+          return saved ? { filter: saved.query.filter } : undefined;
+        },
         // the grids of its own sheet first (a board's, as the page has it), then the rest
         grids: () => ((on) => (on.kind === 'bands' ? tiles(this.#layoutOf(on)) : sheetTiles(on)))(this.#sheetOf(id) ?? this.#shown)
           .filter((t) => this.#grids.has(t))
@@ -3160,6 +3176,17 @@ export class CubePage {
         // its editors' windows among the page's, titled by its tile's name -- a chart's options' rule
         windowHost: this.#options.windowHost ?? this.#options.host,
         title: () => this.title(id) ?? timeseriesTitle(id),
+        // as the code that builds it names it: its own title, each source's grid by its title and where its rows come
+        // from (its cube's source: the program opens a grid of its own over the same rows)
+        codeOf: (spec) => {
+          const grids: Record<string, { readonly title: string; readonly source?: CubeSource }> = {};
+          for (const s of spec.sources) {
+            const g = this.#gridOfCube(s.cube);
+            const source = g === null ? undefined : this.documentOf(g)?.source;
+            if (g !== null) grids[s.cube] = { title: this.title(g) ?? this.#titles.get(g) ?? g, ...(source !== undefined ? { source } : {}) };
+          }
+          return { title: this.givenTitle(id) ?? null, grids };
+        },
       }, tile.spec);
     });
   }

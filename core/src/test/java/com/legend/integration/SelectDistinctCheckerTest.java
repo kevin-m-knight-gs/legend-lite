@@ -150,6 +150,79 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
         }
     }
 
+    // ==================== Without (lite surface, docs/SEMANTICS_REGISTER.md S113) ====================
+
+    @Nested
+    @DisplayName("without — the relation less the named columns")
+    class WithoutTests {
+
+        private static final String SCORES = """
+                |#TDS
+                id, name, score, team
+                1, Alice, 95, red
+                2, Bob, 87, blue
+                #""";
+
+        private List<String> names(com.legend.exec.ExecutionResult result) {
+            return result.columns().stream().map(c -> c.name()).toList();
+        }
+
+        @Test
+        @DisplayName("one column dropped: the others, in the relation's order")
+        void oneColumn() throws SQLException {
+            var result = executeRelation(SCORES + "->without(~score)->sort(ascending(~id))");
+            assertEquals(List.of("id", "name", "team"), names(result));
+            assertEquals(List.of(1, "Alice", "red"), result.rows().get(0).values());
+        }
+
+        @Test
+        @DisplayName("several columns dropped")
+        void severalColumns() throws SQLException {
+            var result = executeRelation(SCORES + "->without(~[name, score])->sort(ascending(~id))");
+            assertEquals(List.of("id", "team"), names(result));
+            assertEquals(List.of(2, "blue"), result.rows().get(1).values());
+        }
+
+        @Test
+        @DisplayName("a column made, used and dropped: the relation as it came")
+        void madeUsedAndDropped() throws SQLException {
+            var result = executeRelation(SCORES
+                    + "->extend(~twice:x|$x.score * 2)->filter(x|$x.twice > 180)->without(~twice)");
+            assertEquals(List.of("id", "name", "score", "team"), names(result));
+            assertEquals(1, result.rows().size());
+            assertEquals("Alice", result.rows().get(0).values().get(1));
+        }
+
+        @Test
+        @DisplayName("its SQL is the select of the columns kept")
+        void theSelectOfTheRest() {
+            String people = "model::Person.all()->project(~[name:p|$p.firstName, age:p|$p.age, last:p|$p.lastName])";
+            assertEquals(generateSql(people + "->select(~[name, last])"), generateSql(people + "->without(~age)"));
+        }
+
+        @Test
+        @DisplayName("a dropped column is gone from the type: a later step that reads it is refused by name")
+        void droppedIsGone() {
+            var ex = assertThrows(Exception.class, () -> executeRelation(SCORES + "->without(~score)->select(~score)"));
+            assertTrue(ex.getMessage().contains("score"), ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("a column the relation has not: refused by name")
+        void columnItHasNot() {
+            var ex = assertThrows(Exception.class, () -> executeRelation(SCORES + "->without(~nope)"));
+            assertTrue(ex.getMessage().contains("nope"), ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("every column dropped: refused, a relation keeps one")
+        void everyColumn() {
+            var ex = assertThrows(Exception.class,
+                    () -> executeRelation(SCORES + "->without(~[id, name, score, team])"));
+            assertTrue(ex.getMessage().contains("drops every column"), ex.getMessage());
+        }
+    }
+
     // ==================== Select + Distinct chains ====================
 
     @Nested
