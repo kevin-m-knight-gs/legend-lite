@@ -141,8 +141,11 @@ class ResultWritersTest {
         person.put("name", "Ann");
         person.put("__id", "o1");
         assertEquals("{\"name\":\"Ann\"}", Json.toCompact(CellText.engine(person, col("v", "model::Person", "JSON"))));
-        // a Variant's JSON null is a value, written as JSON's null
-        assertEquals("null", Json.toCompact(CellText.engine("null",
+        // a Variant is a string holding its JSON, its JSON null too: the value's text, never JSON's null, which is a
+        // NULL cell's (measured, 4.145.0, 2026-10-28: PARK-34's probe, upstream-api/e8-variant-null.json)
+        assertEquals("\"null\"", Json.toCompact(CellText.engine("null",
+                col("v", "meta::pure::metamodel::variant::Variant", "JSON"))));
+        assertEquals("\"{\\\"a\\\":[1,2.50]}\"", Json.toCompact(CellText.engine("{\"a\":[1,2.50]}",
                 col("v", "meta::pure::metamodel::variant::Variant", "JSON"))));
     }
 

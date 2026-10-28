@@ -452,6 +452,10 @@ default.
 
 ## 9. Status
 
+- **2026-10-28, PARK-34 closed by probing legend-engine 4.145.0** (stage 1, step 3 waited on it): a Variant
+  column's builder is `SEMISTRUCTURED`, its cell a string holding its JSON; the writer spells both so (register S112
+  for the JSON's digits), and every other type the engine has no answer for stays refused, said so (GATES,
+  2026-10-28). Next: the engine crossing re-measured, then the switch decided.
 - **2026-10-27, phase 5's first half green; the audit's plan under way.** Phases 1 to 4 landed on the branch
   (51688f36 typed results; 12b89c7d the writers; 1b0305f7 and 53cf5b6d the served routes, the database-written wires
   deleted; b3311cd6 PCT from typed rows, the TDS text path deleted). The user paused phase 5 for an audit; its plan

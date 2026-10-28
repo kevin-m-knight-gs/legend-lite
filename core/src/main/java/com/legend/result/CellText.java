@@ -142,7 +142,9 @@ public final class CellText {
     /** legend-engine's JSON token of a cell of column {@code c} ({@code pure/v1} execute, measured 4.145.0): null as
      *  {@code null}; an Integer's digits; a Float as Java's {@code Double.toString} writes the double; a Decimal at its
      *  own scale (register S104); a boolean; a text as a string; a StrictDate's day, and a DateTime's nine fraction
-     *  digits with {@code +0000}, as strings; a JSON-carried value (a Variant, a structure) as its own JSON. */
+     *  digits with {@code +0000}, as strings; a Variant as a string holding its JSON (measured, 4.145.0, 2026-10-28:
+     *  PARK-34's probe; the engine re-spells the JSON's numbers through its JSON library, lite keeps the database's
+     *  digits: register S112); a structure as its own JSON. */
     public static Json.Node engine(@com.legend.base.Nullable Object cell, ExecutionPlan.Column c) {
         if (cell == null) {
             return Json.nil();
@@ -153,7 +155,7 @@ public final class CellText {
             case Double d -> engineFloat(d);
             case BigDecimal d -> isFloat(c) ? engineFloat(d.doubleValue()) : token(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
-            case String s -> isJsonCarried(c) ? Json.parse(s) : Json.str(s);
+            case String s -> Json.str(s);
             case PureDateLiteral d -> Json.str(engineDay(d, c) ? day(d) : d.toEngineJson());
             case PureTimeLiteral t -> Json.str(t.toEngineString());
             case Map<?, ?> m -> structure(declared(m), false, c);
@@ -343,11 +345,6 @@ public final class CellText {
     }
 
     // ---- the rest -------------------------------------------------------------------------------------------------
-
-    /** Whether the column's cell is JSON as the database built it: a Variant's. */
-    private static boolean isJsonCarried(ExecutionPlan.Column c) {
-        return c.type().equals("meta::pure::metamodel::variant::Variant") || c.type().equals("Variant");
-    }
 
     /** A number written as {@code token}, its exact value {@code value} beside it. The JSON writer writes an integer
      *  number's {@code long} and any other number's token, so a whole number past a {@code long} (a HUGEINT's

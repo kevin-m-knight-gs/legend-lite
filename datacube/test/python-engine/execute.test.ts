@@ -202,6 +202,28 @@ describe("the tab's execute answers as Python's, the same Java planning both", (
     assert.ok(mine.result.rows.length > 0);
   });
 
+  it("a Variant column (PARK-34): legend-engine's builder, SEMISTRUCTURED, its cells strings of JSON; the tab's as Python's", async () => {
+    const asked = await input("->select(~[book, qty])->sort([~book->ascending(), ~qty->ascending()])"
+      + '->extend(~[n: x|$x.qty->toVariant(), s: x|$x.book->toVariant()])');
+    const mine = await tab.executeText(asked);
+    const theirs = await onPythonText(asked);
+    assert.equal(theirs.status, 200, theirs.text);
+    assert.equal(traced(mine), traced(theirs.text));
+    // the builder legend-engine 4.145.0 answers for a Variant (measured 2026-10-28: core's upstream-api/e8-variant-*.json)
+    const answer = JSON.parse(mine) as TdsResult;
+    const variant = { type: 'meta::pure::metamodel::variant::Variant', relationalType: 'SEMISTRUCTURED' };
+    assert.deepEqual(answer.builder.columns.slice(2), [{ name: 'n', ...variant }, { name: 's', ...variant }]);
+    assert.ok(answer.result.rows.length > 0);
+    for (const { values: [book, qty, n, s] } of answer.result.rows) {
+      assert.equal(n, JSON.stringify(qty));
+      assert.equal(s, JSON.stringify(book));
+    }
+    // and Python's Arrow answer: the same builder, the same cells
+    const arrow = await onPython(asked);
+    assert.deepEqual(arrow.builder, answer.builder);
+    assert.deepEqual(arrow.rows, answer.result.rows.map((r) => r.values));
+  });
+
   it('a parameter bound by its value, as Python binds it', async () => {
     // sorted to one order: two rows share a book, so the quantity breaks the tie (DuckDB promises no order for ties)
     const asked = await input('->filter(x|$x.qty > $minQty)->select(~[book, qty])->sort([~book->ascending(), ~qty->ascending()])', 'minQty: Integer[1]',

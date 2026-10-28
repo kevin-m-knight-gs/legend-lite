@@ -310,6 +310,64 @@ class PureV1ApiTest {
                 resultOf(execute("{\"function\":" + two + ",\"model\":" + textModel() + "}")));
     }
 
+    /**
+     * PARK-34 (closed 2026-10-28): an execute over a Variant column answers legend-engine's builder -- the Variant's
+     * path, its relationalType {@code SEMISTRUCTURED} -- and each Variant cell as the engine writes it, a string
+     * holding the value's JSON; against the engine's own answers (4.145.0, {@code upstream-api/e8-variant-*.json}; the
+     * probe's model and provenance in {@code variant-probe.pure}). RECORDED DIFFERENCE 3: a number inside the JSON
+     * keeps the database's digits, where the engine re-spells it through its JSON library ({@code 2.50} as {@code 2.5};
+     * docs/SEMANTICS_REGISTER.md S112).
+     */
+    @Test
+    void e8_execute_aVariantColumn_isTheEnginesBuilder_itsCellsStringsOfJson() throws IOException {
+        // the engine's computed Variant, a toVariant() of an integer column, asked of the model here
+        Json.Obj engine = Json.parseObject(resource("upstream-api/e8-variant-computed.json"));
+        String answer = executed("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->extend(~[ID: r|$r.qty, V: r|$r.qty"
+                + "->toVariant()])->select(~[ID, V])->limit(4)->from(trades::h2::RT)");
+        Json.Obj lite = Json.parseObject(answer);
+        assertEquals(Json.toCompact(inLitesVocabulary(engine.getObj("builder"))), Json.toCompact(lite.getObj("builder")));
+        assertEquals(layout(resource("upstream-api/e8-variant-computed.json")), layout(answer));
+        // each row's Variant is a string holding its integer's JSON, on both sides
+        for (Json.Obj side : List.of(engine, lite)) {
+            for (Json.Node r : side.getObj("result").getArr("rows").items()) {
+                List<Json.Node> row = ((Json.Obj) r).getArr("values").items();
+                assertEquals(Json.str(Json.toCompact(row.get(0))), row.get(1), Json.toCompact(r));
+            }
+        }
+
+        // the engine's stored Variant column's cells: an object, a list and a string, each a string of its JSON
+        List<Json.Node> stored = new ArrayList<>();
+        for (Json.Node r : Json.parseObject(resource("upstream-api/e8-variant-column.json")).getObj("result")
+                .getArr("rows").items()) {
+            stored.add(((Json.Obj) r).getArr("values").items().get(1));
+        }
+        assertEquals(List.of(Json.str("{\"a\":1,\"b\":[true,null,\"x\"],\"c\":2.5}"), Json.str("[1,2.5,\"s\"]"),
+                Json.str("\"text\""), Json.nil()), stored);
+        // and a JSON null, a value, is the string "null" where SQL's NULL is null
+        List<Json.Node> nulls = new ArrayList<>();
+        for (Json.Node r : Json.parseObject(resource("upstream-api/e8-variant-null.json")).getObj("result")
+                .getArr("rows").items()) {
+            nulls.add(((Json.Obj) r).getArr("values").items().get(1));
+        }
+        assertEquals(List.of(Json.nil(), Json.str("null")), nulls);
+        // lite's: a text's, a list's and a decimal's Variant, each a string of its JSON as the engine's are
+        Json.Obj values = Json.parseObject(executed("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~["
+                + "S: r|'text'->toVariant(), L: r|[1, 2]->toVariant(), D: r|2.50D->toVariant()])->select(~[S, L, D])"
+                + "->from(trades::h2::RT)"));
+        List<Json.Node> row = ((Json.Obj) values.getObj("result").getArr("rows").items().get(0)).getArr("values").items();
+        // recorded difference 3: the decimal keeps its digits, where the engine's library writes 2.5 (its 2.50 above)
+        assertEquals(List.of(stored.get(2), Json.str("[1,2]"), Json.str("2.50")), row);
+    }
+
+    /** An execute of a lambda's grammar over the model, its answer's text; the answer must be a 200. */
+    private String executed(String grammar) {
+        String function = PureV1Api.grammarToJsonLambda(grammar, false).json();
+        PureV1Api.Answer a = execute("{\"clientVersion\":\"vX_X_X\",\"function\":" + function + ",\"model\":"
+                + textModel() + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}");
+        assertEquals(200, a.status(), a.json());
+        return a.json();
+    }
+
     /** An execute's {@code result}, compact; its answer must be a 200. */
     private static String resultOf(PureV1Api.Answer a) {
         assertEquals(200, a.status(), a.json());
