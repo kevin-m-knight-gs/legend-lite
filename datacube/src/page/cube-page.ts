@@ -3176,16 +3176,16 @@ export class CubePage {
         // its editors' windows among the page's, titled by its tile's name -- a chart's options' rule
         windowHost: this.#options.windowHost ?? this.#options.host,
         title: () => this.title(id) ?? timeseriesTitle(id),
-        // where it is, as the code that builds it names it: its sheet, its own title, each source's grid tile
+        // as the code that builds it names it: its own title, each source's grid by its title and where its rows come
+        // from (its cube's source: the program opens a grid of its own over the same rows)
         codeOf: (spec) => {
-          const sheet = this.#sheetOf(id);
-          if (sheet === undefined) throw new Error(`${this.title(id) ?? timeseriesTitle(id)} is on no sheet of the page`);
-          const grids: Record<string, { readonly tile: string; readonly title: string }> = {};
+          const grids: Record<string, { readonly title: string; readonly source?: CubeSource }> = {};
           for (const s of spec.sources) {
             const g = this.#gridOfCube(s.cube);
-            if (g !== null) grids[s.cube] = { tile: g, title: this.title(g) ?? this.#titles.get(g) ?? g };
+            const source = g === null ? undefined : this.documentOf(g)?.source;
+            if (g !== null) grids[s.cube] = { title: this.title(g) ?? this.#titles.get(g) ?? g, ...(source !== undefined ? { source } : {}) };
           }
-          return { title: this.givenTitle(id) ?? null, sheet: sheet.id, grids };
+          return { title: this.givenTitle(id) ?? null, grids };
         },
       }, tile.spec);
     });

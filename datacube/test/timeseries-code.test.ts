@@ -1,8 +1,10 @@
 // A TIMESERIES TILE AS THE CODE THAT BUILDS IT (src/timeseries-code.ts; the user, 2026-10-26: "an option that shows how
 // exactly to build that chart programmatically from TS and python"): every tile of the timeseries gallery written as
-// TypeScript, and the program imported and run -- the spec it writes is the tile's, its command adds the tile to the page
-// as the screen's Create ▸ Timeseries does, on its sheet, and its questions are the Query window's. (Python's, run, is
-// test_page.py's; not a headless test: it writes the program to a file and imports it.)
+// TypeScript, and the program imported and run -- over the cubes it names (yours to set: the tile's here) the spec it
+// writes is the tile's, its command adds the tile to the sheet it is given as the screen's Create ▸ Timeseries does,
+// and its questions are the Query window's; its Python a page of its own, never this page's ids (the user, 2026-10-28:
+// "a generic snippet ... to just create exactly that tile in their own datacube"). (Python's, run, is test_page.py's;
+// not a headless test: it writes the program to a file and imports it.)
 
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -31,19 +33,26 @@ describe('a timeseries tile as the code that builds it', () => {
       assert.ok(code.includes("kind: 'addTimeseries'"), v.id);
       const file = join(dir, `${v.id}.ts`);
       writeFileSync(file, code.replaceAll("from './datacube/src/", `from '${src}`));
-      const made = await import(pathToFileURL(file).href) as { spec: TimeseriesSpec; withTile: (p: PageDocument) => PageDocument; questions: string[] };
+      const made = await import(pathToFileURL(file).href) as {
+        cubes: Record<string, string>; spec: TimeseriesSpec; withTile: (p: PageDocument, sheet: string) => PageDocument; questions: string[];
+      };
+      assert.deepEqual(made.cubes, Object.fromEntries(spec.sources.map((s) => [s.alias, s.cube])), `${v.id}: the cubes it reads, by alias`);
       assert.deepEqual(made.spec, spec, `${v.id}: the spec its program writes is the tile's`);
-      const added = made.withTile(page);
+      const on = page.sheets.find((x) => layoutTiles(x.layout).includes(v.id))!.id;
+      const added = made.withTile(page, on);
       const fresh = added.views.find((x) => !page.views.some((y) => y.id === x.id));
       assert.ok(fresh?.kind === 'timeseries', `${v.id}: a tile added`);
       assert.deepEqual(fresh.spec, spec, `${v.id}: the tile it adds`);
       assert.equal(fresh.title, v.title, `${v.id}: titled as it is`);
       const sheet = added.sheets.find((x) => layoutTiles(x.layout).includes(fresh.id));
-      assert.equal(sheet?.id, of.sheet, `${v.id}: on its sheet`);
+      assert.equal(sheet?.id, on, `${v.id}: on the sheet it is given`);
       assert.deepEqual(made.questions, tileAsks(spec).map((a) => a.what), `${v.id}: the Query window's questions`);
-      // and its Python names its sheet, each grid it reads, and each series' expression as the catalog writes it
+      // and its Python: a page of its own, a grid opened as each source's was, each series' expression as the catalog
+      // writes it, each one's Pure printed -- no id of this page's (its sheets', its tiles')
       const python = tileCode(spec, of, 'python');
-      assert.ok(python.includes(`page.sheets if s.id == '${of.sheet}'`), v.id);
+      assert.ok(python.includes('page = ll.Page()') && python.includes('ll.show(page)'), v.id);
+      assert.ok(python.includes("print(s, tile.query(s)['pure'])"), v.id);
+      for (const lookup of ['Page.load', 'page.sheets', 'page.grids', '.id ==']) assert.ok(!python.includes(lookup), `${v.id}: finds nothing of this page (${lookup})`);
       for (const s of spec.series) assert.ok(python.includes(`'${exprSource(s.expr).replace(/'/g, "\\'")}'`), `${v.id} ${s.id}: ${exprSource(s.expr)}`);
     }
   });

@@ -1,34 +1,39 @@
 // A TIMESERIES TILE AS CODE (the user, 2026-10-26: "an option that shows how exactly to build that chart
-// programmatically from TS and python"): the tile as the program that builds it -- in Python, the sheet's `timeseries`
+// programmatically from TS and python"; 2026-10-28: "give a generic snippet of python about how to create your own
+// chart that a user can copy paste to just create exactly that tile in their own datacube"): the tile as a program of
+// its own -- in Python, a page of its own (`ll.Page()`), a grid over the rows each source's grid reads (opened as that
+// grid was: a file, a class, a warehouse table; else a frame of the person's), and the grid's `timeseries`
 // (python/legend_lite/page.py), which asks DataCube's own reader (headless timeseriesMade) and applies the page command
-// the screen's Create ▸ Timeseries sends; in TypeScript, that command itself (page-commands.ts addTimeseries) applied
-// by the one function every change to a page goes through (applyPageCommands). Each written from the tile's spec, its
-// expressions written to read back as themselves (timeseries-expr.ts exprSource), so the program builds the tile it
-// was written of -- the tests run both and read back the spec they made.
+// the screen's Create ▸ Timeseries sends; in TypeScript, that command itself (page-commands.ts addTimeseries) over the
+// person's own cubes and sheet, applied by the one function every change to a page goes through (applyPageCommands).
+// Each written from the tile's spec, its expressions written to read back as themselves (timeseries-expr.ts
+// exprSource), so the program builds the tile it was written of -- the tests run both and read back the spec they made.
+// Each formula is DataCube's gs-quant shorthand for the Pure its tile writes (askQuery): the Python prints each one's,
+// the screen's Code shows them under the program (the user's "A", 2026-10-28).
 //
 // One rule for the viewer's Code window and Python's Timeseries.code (headless timeseriesCode).
 //
 // PURE: no DOM, no planner.
 
+import type { CubeSource } from './cube-document.ts';
 import { layoutTiles, type PageDocument } from './page-document.ts';
 import { gridTitle } from './page-ids.ts';
 import { CubeRefusal } from './snapshot.ts';
-import { exprSource, nextSeriesId } from './timeseries-expr.ts';
+import { columnsOf, exprSource, nextSeriesId } from './timeseries-expr.ts';
 import type { TimeseriesSpec, TsSeries, TsSource } from './timeseries-spec.ts';
 
 /** The languages a tile's code is written in. */
 export type TsCodeLanguage = 'python' | 'typescript';
 export const TS_CODE_LANGUAGES: readonly TsCodeLanguage[] = ['python', 'typescript'];
 
-/** Where a tile is on its page and what its sources' grids are there, as its code names them. */
+/** What its sources' grids are, as its code names them: each grid's title and where its rows come from. */
 export interface TsCodeOf {
   /** Its title, as its tile says it (null: the tile's own default). */
   readonly title: string | null;
-  /** The sheet it is on, by its id: the program adds it there, a band of its own at the bottom. */
-  readonly sheet: string;
-  /** Each source's grid on the page, by the cube the source reads: its tile's id and its title. A cube no grid shows
-   *  (its grid removed, kept for the tile) has none: its source is written as the tile keeps it. */
-  readonly grids: Readonly<Record<string, { readonly tile: string; readonly title: string } | undefined>>;
+  /** Each source's grid on the page, by the cube the source reads: its title and its cube's source (how the program
+   *  opens a grid of its own over the same rows). A cube no grid shows (its grid removed, kept for the tile) has none:
+   *  its program reads a frame of the person's. */
+  readonly grids: Readonly<Record<string, { readonly title: string; readonly source?: CubeSource } | undefined>>;
 }
 
 /** A tile's settings besides its sources and series, in the order a program tells them. */
@@ -37,18 +42,31 @@ const SLOTS = ['grain', 'align', 'range', 'panes', 'annotations', 'view'] as con
 /** A series' keys besides its id and its expression, in the order a program tells them. */
 const SERIES_KEYS = ['name', 'split', 'style', 'pane', 'axis', 'hidden'] as const;
 
-/** A tile of a page document and where it is there, as its code names it: its sheet, its title, its sources' grids. */
+/** A tile of a page document as its code names it: its title, its sources' grids and where their rows come from. */
 export function codeOfPage(page: PageDocument, tile: string): { readonly spec: TimeseriesSpec; readonly of: TsCodeOf } {
   const view = page.views.find((v) => v.id === tile);
   if (!view || view.kind !== 'timeseries') throw new CubeRefusal(`'${tile}' is no timeseries tile of the page`);
-  const sheet = page.sheets.find((s) => layoutTiles(s.layout).includes(tile));
-  if (!sheet) throw new CubeRefusal(`'${tile}' is on no sheet of the page`);
-  const grids: Record<string, { readonly tile: string; readonly title: string }> = {};
+  if (!page.sheets.some((s) => layoutTiles(s.layout).includes(tile))) throw new CubeRefusal(`'${tile}' is on no sheet of the page`);
+  const grids: Record<string, { readonly title: string; readonly source?: CubeSource }> = {};
   for (const s of view.spec.sources) {
     const g = page.views.find((v) => v.kind === 'grid' && v.cube === s.cube);
-    if (g !== undefined) grids[s.cube] = { tile: g.id, title: g.title ?? gridTitle(g.id) };
+    const source = page.cubes.find((c) => c.id === s.cube)?.cube.source;
+    if (g !== undefined) grids[s.cube] = { title: g.title ?? gridTitle(g.id), ...(source !== undefined ? { source } : {}) };
   }
-  return { spec: view.spec, of: { title: view.title ?? null, sheet: sheet.id, grids } };
+  return { spec: view.spec, of: { title: view.title ?? null, grids } };
+}
+
+/** The columns a source's rows must have for the tile: its date, its instrument column, each column a formula reads. */
+function columnsRead(spec: TimeseriesSpec, alias: string): string[] {
+  const src = spec.sources.find((s) => s.alias === alias);
+  const out = [src?.date, src?.key].filter((c): c is string => c !== undefined);
+  for (const s of spec.series) for (const c of columnsOf(spec, s.expr).get(alias) ?? []) if (!out.includes(c)) out.push(c);
+  return out;
+}
+
+/** Words in a list: `a`, `a and b`, `a, b and c`. */
+function listed(words: readonly string[]): string {
+  return words.length <= 1 ? (words[0] ?? '') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)!}`;
 }
 
 /** THE PROGRAM THAT BUILDS A TILE: `spec` on the sheet and over the grids `of` says, in `language`. */
@@ -107,49 +125,80 @@ function pySeries(series: readonly TsSeries[]): string[] {
   });
 }
 
+/** A grid of a program's own page over the rows a source's grid reads: opened as that grid was (a file, a remote file, a
+ *  warehouse table, a class at its revision), else over a frame of the person's (a dataframe's, a saved query's, a
+ *  join's or another grid's rows: none a program opens by name) -- its line, and the frame it reads, if one. */
+function pyGrid(name: string, title: string, source: CubeSource | undefined, reads: readonly string[]): { readonly line: string; readonly frame?: string } {
+  const rows = reads.length > 0 ? `, with ${listed(reads)}` : '';
+  const said = `the grid "${title.replace(/\n/g, ' ')}"`;
+  switch (source?._type) {
+    case 'file':
+      return { line: `${name} = page.grid(file=${py(source.name)})  # ${said}${source.sample !== undefined ? ` (DataCube's sample ${source.sample.id})` : ''}: your copy of its file${rows}` };
+    case 'remoteFile':
+      return { line: `${name} = page.grid(remote=${py(source.url)})  # ${said}${rows}` };
+    case 'warehouseTable':
+      return { line: `${name} = page.grid(warehouse=${py(source.warehouse)}, table=${py(`${source.schema}.${source.table}`)}, catalog=${py(source.catalog)})  # ${said}${rows}` };
+    case 'class':
+      return { line: `${name} = page.grid(cls=${py(source.class)}, project=${py(source.project)}, revision=${py(source.revision)})  # ${said}${rows}` };
+    case 'frame':
+      return { line: `${name} = page.grid(${name}_frame, name=${py(source.name)})  # ${said}: ${name}_frame your DataFrame of it${rows}`, frame: `${name}_frame` };
+    case 'savedQuery':
+    case 'join':
+    case 'rows':
+    case undefined: {
+      const was = source === undefined ? 'its grid removed'
+        : source._type === 'savedQuery' ? `the saved query "${source.name}" (or page.grid(query=its saved id))`
+          : source._type === 'join' ? `a join, ${source.name}` : 'another grid\'s rows';
+      return { line: `${name} = page.grid(${name}_frame)  # ${said}, ${was}: ${name}_frame your DataFrame of its rows${rows}`, frame: `${name}_frame` };
+    }
+  }
+}
+
 function pythonCode(spec: TimeseriesSpec, of: TsCodeOf): string {
-  const taken = new Set(['ll', 'page', 'sheet', 'tile', 'q']);
+  const taken = new Set(['ll', 'page', 'tile', 's']);
   const grids = new Map<string, string>();
   const lines: string[] = [];
   for (const s of spec.sources) {
+    if (grids.has(s.cube)) continue;
     const g = of.grids[s.cube];
-    if (g === undefined || grids.has(s.cube)) continue;
-    const name = pyName(g.title, taken);
+    // its variable named after the frame it reads (the name the person gave it), else after its grid's title
+    const name = pyName(g?.source?._type === 'frame' ? g.source.name : g?.title ?? s.alias, taken);
+    taken.add(`${name}_frame`);
     grids.set(s.cube, name);
-    lines.push(`${name} = next(g for g in page.grids if g.id == ${py(g.tile)})  # the grid "${g.title.replace(/\n/g, ' ')}"`);
+    const reads = spec.sources.filter((x) => x.cube === s.cube).flatMap((x) => columnsRead(spec, x.alias));
+    lines.push(pyGrid(name, g?.title ?? s.alias, g?.source, [...new Set(reads)]).line);
   }
-  // each source a mapping: its alias, its grid (else, its grid removed, its cube as the tile keeps it), its date and key
-  const source = (s: TsSource): string => {
-    const grid = grids.get(s.cube);
-    const told = grid === undefined ? { cube: s.cube, date: s.date, key: s.key ?? null, ...(s.kept !== undefined ? { kept: s.kept } : {}) }
-      : { date: s.date, key: s.key ?? null };
-    const fields = Object.entries(told).map(([k, v]) => `${py(k)}: ${py(v)}`);
-    return `{'alias': ${py(s.alias)}, ${grid === undefined ? '' : `'grid': ${grid}, `}${fields.join(', ')}}`;
-  };
   const slots = SLOTS.filter((k) => spec[k] !== undefined).map((k) => `    ${k}=${py(spec[k])},`);
-  return [
-    `# ${of.title ?? 'A timeseries tile'}, built in Python: the sheet's timeseries, as the screen's Create ▸ Timeseries makes it --`,
-    '# its settings judged by DataCube\'s own reader, the tile added by the page command the screen sends. Every figure it',
-    '# draws is the database\'s, by the queries tile.queries() lists.',
-    'import legend_lite as ll',
-    '',
-    'page = ll.Page.load(\'page.json\')  # this page\'s document as Save writes it (or ll.Page.open(its saved id))',
-    `sheet = next(s for s in page.sheets if s.id == ${py(of.sheet)})`,
-    ...lines,
-    '',
-    'tile = sheet.timeseries(',
-    `    [${spec.sources.map(source).join(', ')}],`,
+  const title = of.title !== null ? [`    title=${py(of.title)},`] : [];
+  // one source and no state kept: its grid's own timeseries; else the page's, each source a mapping
+  const one = spec.sources.length === 1 && spec.sources[0]!.kept === undefined;
+  const call = one ? (() => {
+    const s = spec.sources[0]!;
+    const told = [`alias=${py(s.alias)}`, `date=${py(s.date)}`, ...(s.key !== undefined ? [`key=${py(s.key)}`] : [])];
+    return [`tile = ${grids.get(s.cube)!}.timeseries(`, ...pySeries(spec.series).map((x) => `    ${x},`), `    ${told.join(', ')},`, ...title, ...slots, ')'];
+  })() : [
+    'tile = page.timeseries(',
+    `    [${spec.sources.map((s) => `{'alias': ${py(s.alias)}, 'grid': ${grids.get(s.cube)!}, 'date': ${py(s.date)}, 'key': ${py(s.key ?? null)}${s.kept !== undefined ? `, 'kept': ${py(s.kept)}` : ''}}`).join(', ')}],`,
     '    [',
-    ...pySeries(spec.series).map((s) => `        ${s},`),
+    ...pySeries(spec.series).map((x) => `        ${x},`),
     '    ],',
-    ...(of.title !== null ? [`    title=${py(of.title)},`] : []),
+    ...title,
     ...slots,
     ')',
+  ];
+  return [
+    `# ${of.title ?? 'A timeseries tile'}: a timeseries tile built in Python on a page of your own -- run it, and DataCube shows`,
+    '# the same tile. Each series is a formula, DataCube\'s gs-quant shorthand for a Pure query the tile writes over its grid',
+    '# and the database runs: the loop at the end prints each formula\'s Pure.',
+    'import legend_lite as ll',
     '',
-    ...(spec.series.length > 0 ? [`print(tile.frame(${py(spec.series[0]!.id)}))  # series ${spec.series[0]!.id}'s points, every one the database's`] : []),
-    'print(tile.statistics())  # the statistics panel\'s',
-    'for q in tile.queries():  # every query it asks the database: its Pure and its SQL',
-    '    print(q[\'what\'], q.get(\'pure\'), q.get(\'sql\'), sep=\'\\n\')',
+    'page = ll.Page()',
+    ...lines,
+    '',
+    ...call,
+    '',
+    ...(spec.series.length > 0 ? [`for s in ${py(spec.series.map((x) => x.id))}:`, '    print(s, tile.query(s)[\'pure\'])  # each formula as the Pure the tile writes for it'] : []),
+    'll.show(page)  # the page, with its tile, in DataCube',
     '',
   ].join('\n');
 }
@@ -183,28 +232,44 @@ function tsSeries(s: TsSeries): string {
 
 function typescriptCode(spec: TimeseriesSpec, of: TsCodeOf): string {
   const slots = SLOTS.filter((k) => spec[k] !== undefined).map((k) => `  ${k}: ${ts(spec[k])},`);
+  const key = (alias: string): string => (IDENTIFIER.test(alias) ? alias : ts(alias));
+  const at = (alias: string): string => (IDENTIFIER.test(alias) ? `cubes.${alias}` : `cubes[${ts(alias)}]`);
+  const cubes = spec.sources.map((s) => {
+    const g = of.grids[s.cube];
+    const reads = columnsRead(spec, s.alias);
+    return `  ${key(s.alias)}: ${ts(s.cube)}, // ${g !== undefined ? `the grid "${g.title.replace(/\n/g, ' ')}"` : 'a grid'}${reads.length > 0 ? `: with ${listed(reads)}` : ''}`;
+  });
+  const source = (s: TsSource): string => {
+    const rest = { date: s.date, ...(s.key !== undefined ? { key: s.key } : {}), ...(s.kept !== undefined ? { kept: s.kept } : {}) };
+    return `{ alias: ${ts(s.alias)}, cube: ${at(s.alias)}, ${ts(rest).slice(2, -2)} }`;
+  };
   return [
-    `// ${of.title ?? 'A timeseries tile'}, built in TypeScript: its spec, and the page command the screen's Create ▸ Timeseries`,
-    '// sends and Python\'s sheet.timeseries applies -- every change to a page is a command, applied by one function',
-    '// (page-commands.ts). Its queries are written by the one function the screen\'s every round writes them by',
-    '// (timeseries-query.ts askQuery); the paths are from the repository\'s root.',
+    `// ${of.title ?? 'A timeseries tile'}, built in TypeScript on a page of your own: its spec over your grids, and the page`,
+    '// command the screen\'s Create ▸ Timeseries sends (Python\'s timeseries too) -- every change to a page is a command, applied by',
+    '// one function (page-commands.ts). Each series is a formula, DataCube\'s gs-quant shorthand for the Pure query the tile',
+    '// writes for it (timeseries-query.ts askQuery, the one function every round writes by); the paths are from the repository\'s root.',
     'import { applyPageCommands, idsOf, type PageCommand } from \'./datacube/src/page-commands.ts\';',
     'import type { PageDocument } from \'./datacube/src/page-document.ts\';',
     'import { parseExpr } from \'./datacube/src/timeseries-expr.ts\';',
     'import { tileAsks } from \'./datacube/src/timeseries-query.ts\';',
     'import type { TimeseriesSpec } from \'./datacube/src/timeseries-spec.ts\';',
     '',
+    '/** The grids it reads, each by the cube it is on your page: yours to set. */',
+    'export const cubes = {',
+    ...cubes,
+    '};',
+    '',
     'export const spec: TimeseriesSpec = {',
-    `  sources: [${spec.sources.map((s) => ts(s)).join(', ')}],`,
+    `  sources: [${spec.sources.map(source).join(', ')}],`,
     '  series: [',
     ...spec.series.map((s) => `    ${tsSeries(s)},`),
     '  ],',
     ...slots,
     '};',
     '',
-    '/** `page` with the tile added on its sheet, a band of its own at the bottom: the screen\'s own command, applied. */',
-    'export function withTile(page: PageDocument): PageDocument {',
-    `  const add: PageCommand = { kind: 'addTimeseries', sheet: ${ts(of.sheet)}, near: null, spec, title: ${ts(of.title)}, columns: null };`,
+    '/** `page` with the tile added on `sheet`, a band of its own at the bottom: the screen\'s own command, applied. */',
+    'export function withTile(page: PageDocument, sheet: string): PageDocument {',
+    `  const add: PageCommand = { kind: 'addTimeseries', sheet, near: null, spec, title: ${ts(of.title)}, columns: null };`,
     '  return applyPageCommands({ page, held: idsOf(page) }, [add]).draft.page;',
     '}',
     '',

@@ -1191,8 +1191,9 @@ class Document(Paged):
 
     def test_a_timeseries_writes_the_code_that_builds_it_and_the_python_builds_it_again(self):
         # the user, 2026-10-26: "an option that shows how exactly to build that chart programmatically from TS and python"
-        # -- the screen's Code, by its one rule (headless timeseriesCode: timeseries-code.ts tileCode); the Python run
-        # makes a tile of the very spec, on its sheet
+        # -- the screen's Code, by its one rule (headless timeseriesCode: timeseries-code.ts tileCode); 2026-10-28: "a
+        # generic snippet ... to just create exactly that tile in their own datacube": the Python run makes a page of its
+        # own, a grid over the person's frame, and a tile of the very spec over it, each formula's Pure printed
         page = ll.Page('Code')
         days = pd.date_range('2024-01-01', periods=8, freq='D').date
         prices = pd.DataFrame({'symbol': ['S'] * 8 + ['T'] * 8, 'day': list(days) * 2,
@@ -1202,18 +1203,31 @@ class Document(Paged):
                                             'basket($A, 0.5, close[T], 0.5, rebalance=weekly)'], title='Two',
                                view={'stats': True}, annotations=[{'kind': 'level', 'value': 0, 'pane': 1}])
         code = tile.code()
-        self.assertIn('tile = sheet.timeseries(', code)
+        self.assertIn('page = ll.Page()', code)
+        self.assertIn("prices = page.grid(prices_frame, name='prices')", code)
+        self.assertIn('tile = prices.timeseries(', code)
         self.assertIn("'returns(close[T], type=log)'", code)
-        # run, over this page: a second tile, of the same spec, on the same sheet
-        shim = type('ll', (), {'Page': type('Page', (), {'load': staticmethod(lambda _path: page)})})
-        before = [t.id for t in page.timeseries_tiles]
-        exec(compile(code.replace('import legend_lite as ll\n', ''), 'tile.py', 'exec'), {'ll': shim, 'print': lambda *a, **k: None})
-        made = [t for t in page.timeseries_tiles if t.id not in before]
+        for lookup in ('Page.load', 'page.sheets', 'page.grids', '.id =='):
+            self.assertNotIn(lookup, code)
+        # run, the person's frame given it: a page of its own, its one tile of the same spec over its own grid
+        shown, printed = [], []
+        shim = type('ll', (), {'Page': ll.Page, 'show': staticmethod(shown.append)})
+        ran = {'ll': shim, 'prices_frame': prices, 'print': lambda *a, **k: printed.append(a)}
+        exec(compile(code.replace('import legend_lite as ll\n', ''), 'tile.py', 'exec'), ran)
+        own = ran['page']
+        self.assertIsNot(own, page)
+        self.assertEqual(shown, [own])
+        made = own.timeseries_tiles
         self.assertEqual(len(made), 1)
-        self.assertEqual(made[0].spec, tile.spec)
+        cubes = lambda spec: {**spec, 'sources': [{**s, 'cube': None} for s in spec['sources']]}
+        self.assertEqual(cubes(made[0].spec), cubes(tile.spec))
         self.assertEqual(made[0].title, 'Two')
-        self.assertEqual(made[0].sheet.id, tile.sheet.id)
-        self.assertIn("kind: 'addTimeseries'", tile.code('typescript'))
+        # each formula's Pure, as the tile writes it
+        self.assertEqual([p[0] for p in printed], ['A', 'B', 'C'])
+        self.assertTrue(all('datacube::ts::' in p[1] or '#>{' in p[1] for p in printed), printed)
+        typescript = tile.code('typescript')
+        self.assertIn("kind: 'addTimeseries'", typescript)
+        self.assertIn('export function withTile(page: PageDocument, sheet: string)', typescript)
         with self.assertRaisesRegex(ValueError, 'written in python or typescript, not "rust"'):
             tile.code('rust')
 

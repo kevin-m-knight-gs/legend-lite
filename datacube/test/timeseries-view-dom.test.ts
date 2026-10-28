@@ -17,14 +17,18 @@ import type { EChartsOption } from 'echarts';
 import { marketsCsv } from '../src/samples.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import type { MountedTimeseries } from '../src/timeseries-render.ts';
-import { parseExpr } from '../src/timeseries-expr.ts';
+import { exprSource, parseExpr } from '../src/timeseries-expr.ts';
 import { tileCode } from '../src/timeseries-code.ts';
+import type { FileSource } from '../src/cube-document.ts';
 import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { ingestFile } from '../src/upload.ts';
 import { TimeseriesView, type MountOn, type TsGrid, type TsTogether } from '../src/ui/timeseries-view.ts';
 import { MARKET_SPECS } from '../src/examples/markets.ts';
 import { plannerFor } from './catalog-builder.ts';
+
+/** The file the viewer's grid of prices was opened over, as a page records it: what the code that builds a tile opens. */
+const PRICES_FILE: FileSource = { _type: 'file', name: 'prices.csv', format: 'csv', size: 1, sha256: '00', columns: [] };
 
 const CSV = marketsCsv(2000);
 const ROWS = CSV.trim().split('\n').slice(1).map((l) => l.split(','));
@@ -119,7 +123,7 @@ function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over
     setSpec: (s) => { told.push(s); },
     windowHost: windows,
     title: () => 'Markets',
-    codeOf: () => ({ title: 'Markets', sheet: 'sheet-1', grids: { prices: { tile: 'prices', title: 'Prices' } } }),
+    codeOf: () => ({ title: 'Markets', grids: { prices: { title: 'Prices', source: PRICES_FILE } } }),
     mount,
   }, spec);
   return { view, root, windows, drawn, told, zooms, exported, mounted };
@@ -718,7 +722,9 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
         '9. Series B (21d vol): its correlation with itself',
         '10. Series A (S&P 500): its returns each month and each year',
       ]);
-      assert.deepEqual([...pop().querySelectorAll('.dc-ts-heading')].map((h) => h.textContent), ['Drawing the chart', 'The statistics panel']);
+      // the queries' two, then each program's formulas with their Pure (the user's "A", 2026-10-28)
+      assert.deepEqual([...pop().querySelectorAll('.dc-ts-heading')].map((h) => h.textContent),
+        ['Drawing the chart', 'The statistics panel', 'Each formula\'s Pure', 'Each formula\'s Pure']);
       // what was asked to draw the chart and its statistics ran; the tabs not shown not yet
       assert.deepEqual(asks().map(status), ['ran', 'ran', 'ran', 'ran', 'ran', 'not asked yet', 'not asked yet', 'not asked yet', 'not asked yet', 'not asked yet']);
       assert.deepEqual(asks().map((a) => a.hasAttribute('open')), [true, true, true, false, false, false, false, false, false, false], "the chart's open");
@@ -774,12 +780,19 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       tabs[2]!.click();
       assert.deepEqual(panels.map((p) => p.hidden), [true, true, false, true]);
       assert.deepEqual(tabs.map((t) => t.getAttribute('aria-selected')), ['false', 'false', 'true', 'false']);
-      // by the one rule Python's tile.code() reads (timeseries-code.ts tileCode), over where the page says the tile is
-      const of = { title: 'Markets', sheet: 'sheet-1', grids: { prices: { tile: 'prices', title: 'Prices' } } };
+      // by the one rule Python's tile.code() reads (timeseries-code.ts tileCode), over the grids the page says it reads:
+      // a page of its own, its grid opened as the page's was (the user, 2026-10-28: "a generic snippet")
+      const of = { title: 'Markets', grids: { prices: { title: 'Prices', source: PRICES_FILE } } };
       await until(() => program(2) !== 'Writing…' && program(3) !== 'Writing…', 'its programs written');
       const python = program(2);
       assert.equal(python, tileCode(SPEC, of, 'python'));
-      assert.match(python, /tile = sheet\.timeseries\(/);
+      assert.match(python, /page = ll\.Page\(\)\nprices = page\.grid\(file='prices\.csv'\)/);
+      assert.match(python, /tile = prices\.timeseries\(/);
+      // and under it each formula with the Pure the tile writes for it, as the compiler prints it
+      const pures = (i: number): string[] => [...panels[i]!.querySelectorAll<HTMLElement>('pre.dc-ts-code:not(.dc-ts-program)')].map((x) => x.textContent ?? '');
+      await until(() => pures(2).length === SPEC.series.length && pures(2).every((x) => x !== 'Writing…'), 'each formula\'s Pure');
+      assert.deepEqual([...panels[2]!.querySelectorAll('.dc-ts-field-label')].map((x) => x.textContent), SPEC.series.map((x) => `${x.id}  ${exprSource(x.expr)}`));
+      assert.ok(pures(2).every((x) => x.includes('#>{') || x.includes('->')), pures(2).join('\n'));
       assert.match(python, /\{'expr': 'close\[SPX\]', 'name': 'S&P 500'\}/);
       windowButton(windows, 'Copy Python').click();
       await until(() => written.length === 1, 'its Python copied');
@@ -787,7 +800,8 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       tabs[3]!.click();
       const typescript = program(3);
       assert.equal(typescript, tileCode(SPEC, of, 'typescript'));
-      assert.match(typescript, /kind: 'addTimeseries', sheet: 'sheet-1'/);
+      assert.match(typescript, /kind: 'addTimeseries', sheet, near: null/);
+      assert.match(typescript, /export const cubes = \{\n  px: 'prices', \/\/ the grid "Prices"/);
       windowButton(windows, 'Copy TypeScript').click();
       await until(() => written.length === 2, 'its TypeScript copied');
       assert.equal(written[1], typescript);
@@ -1356,7 +1370,7 @@ describe('asking the database what is shown, once', () => {
       setSpec: () => {},
       windowHost: dom.window.document.getElementById('w') as unknown as HTMLElement,
       title: () => 'Markets',
-      codeOf: () => ({ title: 'Markets', sheet: 'sheet-1', grids: { prices: { tile: 'prices', title: 'Prices' }, prices2: { tile: 'prices2', title: 'Prices again' } } }),
+      codeOf: () => ({ title: 'Markets', grids: { prices: { title: 'Prices', source: PRICES_FILE }, prices2: { title: 'Prices again', source: PRICES_FILE } } }),
       mount: () => ({
         show: () => {}, zoomTo: () => {}, zoomed: () => ({}), highlight: () => {}, measure: () => {}, draw: () => {}, height: () => 480, picture: () => null,
         exportUrl: () => Promise.reject(new Error('no picture here')), dispose: () => {},

@@ -27,7 +27,7 @@ import {
   type TsState, type TsStyleKind,
 } from '../timeseries-spec.ts';
 import {
-  candleOf, columnRef, exprText, firstValue, functionNamed, inlined, matchesText, nextSeriesId, parseExpr, parseMatches, seriesName,
+  candleOf, columnRef, exprSource, exprText, firstValue, functionNamed, inlined, matchesText, nextSeriesId, parseExpr, parseMatches, seriesName,
   sourcesOf, timeseriesProblems, TsSyntaxError, type TsColumn, TS_FUNCTIONS, type TsFamily, type TsParam,
 } from '../timeseries-expr.ts';
 import {
@@ -1753,6 +1753,28 @@ export class TimeseriesView {
     }).catch((e: unknown) => {
       program.textContent = `Not written: ${e instanceof Error ? e.message : String(e)}`;
     });
+    // each formula with the Pure the tile writes for it (the user's "A", 2026-10-28): a formula is DataCube's shorthand for
+    // that query -- written by the one function every round writes it by (askQuery), printed by the compiler
+    const asks = tileAsks(spec).filter((a) => a.kind === 'series');
+    if (asks.length > 0) {
+      panel.append(el(doc, 'div', 'dc-ts-heading', 'Each formula\'s Pure'),
+        el(doc, 'div', 'dc-ts-hint', 'Each series above is a formula, DataCube\'s gs-quant shorthand for the Pure query under it, which the database runs.'));
+      const opened: Opened = new Map();
+      const window = this.#window();
+      const jobs = asks.map(async (ask) => {
+        const s = spec.series.find((x) => x.id === ask.series);
+        const pure = el(doc, 'pre', 'dc-ts-code', 'Writing…');
+        panel.append(el(doc, 'div', 'dc-ts-field-label', `${ask.series}  ${s === undefined ? '' : exprSource(s.expr)}`), pure);
+        try {
+          const grid = this.#printer(spec, ask);
+          if (grid === undefined) throw new Error('its grid is not on the page');
+          pure.textContent = await grid.print(await this.#queryOf(spec, ask, window, opened));
+        } catch (e) {
+          pure.textContent = `Not written: ${e instanceof Error ? e.message : String(e)}`;
+        }
+      });
+      void Promise.allSettled(jobs).then(() => putAway(opened));
+    }
     return panel;
   }
 
