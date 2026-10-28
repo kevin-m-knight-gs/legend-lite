@@ -1,12 +1,13 @@
 // THE PLAN RUNNER, a host's (docs/WRITES_DESIGN_2026_10_18.md leg 7; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output
-// into a table): an execution plan -- PlanJson's text, version 5, as legend-lite's planner writes it -- run on a host's own
+// into a table): an execution plan -- PlanJson's text, version 11, as legend-lite's planner writes it -- run on a host's own
 // database, for a host that runs its SQL itself: the tab (DuckDB-WASM) and Python's headless DataCube (its DuckDB). The
 // rules are Java's PlanRunner's (core/.../exec/PlanRunner.java), for the plans a host's program makes: a SEQUENCE of
 // steps in one transaction -- each `update` run for the change it makes, its count kept where a later step binds it
 // (`#count`), each `check` run for what its database may raise and its rows dropped, the one `textResult` written once
 // the transaction has committed -- or a `textResult` alone. Every value is the database's: its counts, its text. What
 // a host's program never plans is refused by name, never run some other way: a plan that takes parameters, a type hole,
-// a list bound, a step of another database or of several, a database set up first.
+// a list or a key's cell bound, a statement of per-key regions, a step of another database or of several, a database set
+// up first.
 //
 // PURE: no DOM, no planner; a host gives its session.
 
@@ -27,7 +28,13 @@ export interface PlanSession {
 }
 
 interface Slot { readonly parameter: string; readonly binding: { readonly _type: string; readonly typeHole?: unknown } }
-interface Sql { readonly statement: string; readonly slots: readonly Slot[]; readonly target: unknown }
+interface Sql { readonly statement: string; readonly slots: readonly Slot[]; readonly regions?: readonly unknown[]; readonly target: unknown }
+
+/** The execution plan's format this runner reads (core/.../executionplan/PlanJson.java VERSION): 11 since 2026-10-26,
+ *  main's write plans merged into the plan path's format -- their `update`, `check`, `textResult` and `sequence` as
+ *  version 5 wrote them; a statement's per-key regions and a key's cell (a dynamic pivot's probe plan) are new, and are
+ *  no write's. */
+const PLAN_VERSION = 11;
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
   | { readonly _type: 'check'; readonly sql: Sql }
@@ -64,8 +71,8 @@ export class PlanRefusal extends Error {
  */
 export async function runPlan(plan: string, session: PlanSession, o: { readonly joined?: boolean } = {}): Promise<string> {
   const read = JSON.parse(plan) as { format?: unknown; version?: unknown; parameters?: unknown; root?: Step };
-  if (read.format !== 'legend-lite-plan' || read.version !== 5) {
-    throw new PlanRefusal(`not a legend-lite execution plan of version 5: ${JSON.stringify({ format: read.format, version: read.version })}`);
+  if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
+    throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: read.format, version: read.version })}`);
   }
   if (!Array.isArray(read.parameters) || read.parameters.length > 0) throw new PlanRefusal('a plan that takes parameters is not run here: its program binds none');
   const root = read.root;
@@ -87,8 +94,11 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
   if (t.servers?._type !== 'every') throw new PlanRefusal("a plan for some servers' versions alone is not run here");
   if ((t.setup ?? []).length > 0) throw new PlanRefusal('a plan that sets its database up first is not run here: it runs on the host\'s own');
   for (const s of sqls) {
+    if ((s.regions ?? []).length > 0) throw new PlanRefusal('a statement of per-key regions (a dynamic pivot\'s) is not run here: a write\'s has none');
     for (const slot of s.slots) {
-      if (slot.binding._type !== 'one') throw new PlanRefusal(`'${slot.parameter}' binds a list, which is not run here`);
+      if (slot.binding._type !== 'one') {
+        throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : 'a list'}, which is not run here`);
+      }
       if (slot.binding.typeHole !== undefined) throw new PlanRefusal(`'${slot.parameter}' takes its type from its value, which is not run here`);
     }
   }

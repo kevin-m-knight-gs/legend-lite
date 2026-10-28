@@ -36,6 +36,7 @@ import type { SeedTable, TableSeed } from '../../engine-client/src/model-data.ts
 import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import { answer as answerOf, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
+import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
 import type { PlannerWorker, RequestBody, Response } from '../../engine-client/src/legend/planner-protocol.ts';
 
 interface TeavmRuntime {
@@ -137,6 +138,12 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   #borrowed = false;
   /** This planner's model, held by the module (compiled once, every plan against it), and under which module. */
   #held: { readonly handle: Promise<number>; readonly generation: number } | undefined;
+  /** A planner over this one's model and DataCube's Pure library after it (pure-library.ts), made when a query first
+   *  calls the library -- its text fetched then, a chunk of its own: what plans such a query, this one's model held as
+   *  it is for every other. */
+  #library: Promise<LitePlanner> | undefined;
+  /** It is that planner: its model has the library already. */
+  #ofLibrary = false;
 
   constructor(options: LitePlannerOptions) {
     this.#options = options;
@@ -210,17 +217,30 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   /** Release the worker. The grid owns one planner for its lifetime,
    *  so this is for tests and for a host that tears a cube down. */
   dispose(): void {
+    const released = this.#letGoAll();
+    if (this.#borrowed) return;
+    const worker = this.#t.worker;
+    if (worker === undefined) {
+      this.#t.pending.clear();
+      return;
+    }
+    // a host's worker (Python's) keeps the models it holds in the host, not in itself: each let go before the worker is
+    // ended (the Phase 6 review's 3: a typer's hold of a 4 MB model outlived it); a browser's takes its own with it
+    void released.finally(() => {
+      if (this.#t.worker !== worker) return;
+      worker.terminate();
+      this.#t.worker = undefined;
+      this.#t.generation += 1;
+      this.#t.pending.clear();
+    });
+  }
+
+  /** Everything this planner holds let go -- its plans and types, its model, the planner over its library -- the
+   *  release of each model asked: answered once every one is. */
+  #letGoAll(): Promise<void> {
     this.#cache.clear();
     this.#types.clear();
-    this.#letGo();
-    if (this.#borrowed) return;
-    if (this.#t.worker) {
-      this.#t.worker.terminate();
-      this.#t.worker = undefined;
-      // the models it held go with it
-      this.#t.generation += 1;
-    }
-    this.#t.pending.clear();
+    return Promise.all([this.#letGo(), this.#dropLibrary()]).then(() => undefined);
   }
 
   /**
@@ -377,11 +397,11 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   /** Let go of this planner's model, if it holds one under the module there now. */
-  #letGo(): void {
+  #letGo(): Promise<void> {
     const held = this.#held;
     this.#held = undefined;
-    if (held === undefined || held.generation !== this.#t.generation) return;
-    void held.handle.then((handle) => {
+    if (held === undefined || held.generation !== this.#t.generation) return Promise.resolve();
+    return held.handle.then((handle) => {
       // a module or worker since replaced, or none running now, holds nothing to let go: never start one to do it
       if (held.generation !== this.#t.generation) return undefined;
       if (this.#useWorker()) {
@@ -439,9 +459,40 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
 
   // ---- protocol trees: each the in-tab twin of a pure/v1 endpoint (T4a) ----
 
+  /** The planner of `query`: this one, or -- a query calling DataCube's Pure library -- the one over this one's model
+   *  with the library after it, on the same module and worker. */
+  async #over(query: Lambda): Promise<LitePlanner> {
+    if (this.#ofLibrary || !callsLibrary(query)) return this;
+    if (this.#library === undefined) {
+      const options = this.#options;
+      const made = loadLibrary().then((library) => {
+        const over = this.withModel(withLibrary(options.model, library), options.runtime, {
+          ...(options.mapping === undefined ? {} : { mapping: options.mapping }),
+          ...(options.enumerations === undefined ? {} : { enumerations: options.enumerations }),
+        });
+        over.#ofLibrary = true;
+        return over;
+      });
+      this.#library = made;
+      // a fetch of its text that failed is told to the query that asked, and asked again by the next
+      made.catch(() => { if (this.#library === made) this.#library = undefined; });
+    }
+    return this.#library;
+  }
+
+  /** The planner over the library let go, once made. */
+  #dropLibrary(): Promise<void> {
+    const library = this.#library;
+    this.#library = undefined;
+    // the planner over the library borrows this one's module: its model let go on it, as this one's is
+    return library === undefined ? Promise.resolve() : library.then((over) => over.#letGoAll(), () => undefined);
+  }
+
   /** E9's twin: a query (a protocol tree) planned -- its SQL and the compiler's result type. */
   async plan(query: Lambda, signal?: AbortSignal): Promise<Plan> {
-    const { lambda: json, model, runtime } = this.planRequest(query);
+    const over = await this.#over(query);
+    if (over !== this) return over.plan(query, signal);
+    const { lambda: json, model, runtime } = await this.planRequest(query);
     const useCache = this.#options.cache !== false;
     const hit = useCache ? this.#cache.get(json) : undefined;
     if (hit !== undefined) return hit;
@@ -456,12 +507,15 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
 
   /**
    * A PROGRAM THAT WRITES planned (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output into a table): `program` as an
-   * execution plan, PlanJson's text (version 5) -- its writes' `Update`s and its answer's `TextResult` in one `Sequence`,
+   * execution plan, PlanJson's text (version 11) -- its writes' `Update`s and its answer's `TextResult` in one `Sequence`,
    * which the host's plan runner runs in one transaction (engine-client/src/plan-runner.ts). Never cached: a write is
    * planned for the one run that asks it.
    */
   async executionPlan(program: Lambda, signal?: AbortSignal): Promise<string> {
-    const { lambda: json, runtime } = this.planRequest(program);
+    // a program calling DataCube's Pure library planned over it, as a query is (plan)
+    const over = await this.#over(program);
+    if (over !== this) return over.executionPlan(program, signal);
+    const { lambda: json, runtime } = await this.planRequest(program);
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     const handle = await this.#handle();
     return decode(await this.#call({ kind: 'executionPlan', handle, lambda: json, runtime }), program);
@@ -472,9 +526,12 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    * host that plans AND runs in one step sends (PlanAndRun on Python: src/services/python-host.ts), so its plan is the
    * one this planner would make.
    */
-  planRequest(query: Lambda): { readonly lambda: string; readonly model: string; readonly runtime: string } {
+  async planRequest(query: Lambda): Promise<{ readonly lambda: string; readonly model: string; readonly runtime: string; readonly library?: string }> {
     const { model, runtime } = this.#options;
-    return { lambda: toJson(this.#overMapping(query)), model, runtime };
+    // a query calling DataCube's Pure library: the library beside its model, which the host plans it over after the
+    // model it holds of that text (Python's engine: the model admitted by its own rule, the library by its text)
+    const library = !this.#ofLibrary && callsLibrary(query) ? { library: await loadLibrary() } : {};
+    return { lambda: toJson(this.#overMapping(query)), model, runtime, ...library };
   }
 
   /** A plan's answer (planJson's, tagged) read as this planner reads its own: its SQL and the compiler's columns. */
@@ -488,10 +545,18 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    * columns before any level query runs. Cached by the query's JSON, like plans.
    */
   async relationType(query: Lambda, signal?: AbortSignal): Promise<PlanColumn[]> {
+    const over = await this.#over(query);
+    if (over !== this) return over.relationType(query, signal);
     const json = toJson(query);
     const useCache = this.#options.cache !== false;
     const hit = useCache ? this.#types.get(json) : undefined;
     if (hit !== undefined) return hit;
+    if (signal?.aborted) throw signal.reason ?? new Error('aborted');
+    // the model held first, its compile kept for every question and plan after: the boundary answers a pure/v1 request
+    // whose model text it holds over the held model, compiled no more (HeldModels.withText; a saved query of the 4 MB
+    // trading model was typed by two requests of 5-6 s each, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11). A
+    // model that does not compile is held by no one, and the request below says why in its own words.
+    await this.#handle().catch(() => undefined);
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     // the lambda's JSON spliced in as toJson wrote it, so its numbers keep their digits
     const body = `{"model":${JSON.stringify({ _type: 'text', code: this.#options.model })},"lambda":${json}}`;
@@ -669,7 +734,8 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    * ~600ms of boot.
    */
   useModel(model: string, runtime: string, how: ModelOptions = {}): void {
-    if (model !== this.#options.model) this.#letGo();
+    if (model !== this.#options.model) void this.#letGo();
+    void this.#dropLibrary();
     this.#options = { ...readsOf(this.#options), model, runtime, ...readsHow(how) };
     this.#cache.clear();
     this.#types.clear();

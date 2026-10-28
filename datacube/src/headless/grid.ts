@@ -10,11 +10,13 @@
 // Each call opens the grid afresh from the cube document it is given: the document is the grid's state, Python's
 // page keeps it, and nothing here holds a grid between calls.
 
-import { readsAnchor, seriesQuery, seriesSources, type TsInputs, type TsWindow } from '../timeseries-query.ts';
-import { answerOf, Problem, seriesOf } from './timeseries.ts';
+import { type TsInputs, type TsTable, type TsWindow } from '../timeseries-query.ts';
+import { askedOf, askedSources, boundsOf, marksAsked, Problem, seriesOf } from './timeseries.ts';
 import { snapRefusal } from '../../../engine-client/src/snap.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, ProtocolError, readLambda, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { callsLibrary } from '../pure-library.ts';
+import { DATACUBE_LIBRARY } from '../pure-library-text.ts';
 import { nameProblem } from '../calc.ts';
 import { chartFrom, chartGrid, chartProblems, followCube, followRefusal, readChart, showGridWay } from '../chart-spec.ts';
 import { draftColumn, draftStage, existingDraft, newDraft, type ColumnDraft } from '../column-draft.ts';
@@ -1659,22 +1661,41 @@ export async function gridWriteTable(spec: GridSpec, output: string, query: stri
  * Its query written over the grid as the grid is (timeseries-query.ts seriesQuery, every point of the window: the
  * drawing's limit is the drawing's), through the page's filters, composed as it is sent to be planned, as gridRelation
  * is -- what the tab's viewer reads through the grid's own runner. JSON: `{query, columns, unit, band, candles, split,
- * name}`, the query Pure text, or `{problems}`, in DataCube's words.
+ * name, library?}`, the query Pure text (`library`: DataCube's Pure library, which a query calling it is planned over after
+ * the grid's model), or `{problems}`, in DataCube's words.
  */
 export async function gridTimeseries(spec: GridSpec, asked: string): Promise<string> {
   try {
     return await using(spec, async ({ planner, lens, state }) => {
-      const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series: string; readonly window?: TsWindow };
+      const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series?: string; readonly window?: TsWindow; readonly table?: TsTable | 'bounds' | 'marks' | 'projection'; readonly with?: string; readonly source?: string; readonly marks?: number; readonly projection?: number; readonly anchor?: string; readonly years?: number; readonly bins?: number; readonly dates?: readonly string[] };
+      const compose = async (said: Record<string, unknown>): Promise<string> => {
+        const query = fromJson(JSON.stringify(said['query'])) as Lambda;
+        const text = await planner.compose(planner.sent(lens ? lens(query) : query), 'STANDARD');
+        // a query calling DataCube's Pure library: its text, which the host plans it over after the grid's model
+        return JSON.stringify({ ...said, query: text, ...(callsLibrary(query) ? { library: DATACUBE_LIBRARY } : {}) });
+      };
+      // a source's bounds, over the grid as it is read (headless timeseries.ts timeseriesWindow reads the tile's range from them)
+      if (a.table === 'bounds') {
+        const view = readPage(a.page, { empty: true }).views.find((v) => v.id === a.tile);
+        if (!view || view.kind !== 'timeseries') throw new Problem(`'${a.tile}' is no timeseries tile of the page`);
+        return await compose(JSON.parse(`{${boundsOf(view.spec, a.source ?? '', { snapshot: state.snapshot, filter: state.snapshot.filter })}}`) as Record<string, unknown>);
+      }
+      // marks from the grid's rows (TsMarks), over the grid as it is read, as its bounds are
+      if (a.table === 'marks') {
+        const view = readPage(a.page, { empty: true }).views.find((v) => v.id === a.tile);
+        if (!view || view.kind !== 'timeseries') throw new Problem(`'${a.tile}' is no timeseries tile of the page`);
+        return await compose(JSON.parse(`{${marksAsked(view.spec, a.marks, { snapshot: state.snapshot, filter: state.snapshot.filter })}}`) as Record<string, unknown>);
+      }
       const { ts, series } = seriesOf(readPage(a.page, { empty: true }), a.tile, a.series);
-      const aliases = seriesSources(ts, series);
+      const { table, ...rest } = a;
+      const told = { ...rest, ...(table !== undefined ? { table } : {}) };
+      const aliases = askedSources(told, ts, series);
       if (aliases.length !== 1) {
         throw new Problem(`series ${series.id} reads ${aliases.length} grids: it is read over their tables together (timeseriesQuery)`);
       }
       const inputs: TsInputs = new Map([[aliases[0]!, { snapshot: state.snapshot, filter: state.snapshot.filter }]]);
-      const window = a.window ?? {};
-      const q = seriesQuery(inputs, ts, series, readsAnchor(ts, series) && window.from !== undefined ? { from: window.from } : {}, window, null);
-      const text = await planner.compose(planner.sent(lens ? lens(q.query) : q.query), 'STANDARD');
-      return `{"query":${JSON.stringify(text)},${answerOf(q, series)}}`;
+      // its points, or one of its tables (headless timeseries.ts askedOf): the query composed as it is sent
+      return await compose(JSON.parse(`{${askedOf(told, inputs, ts, series)}}`) as Record<string, unknown>);
     });
   } catch (e) {
     if (e instanceof Problem || e instanceof CubeRefusal) return JSON.stringify({ problems: [e.message] });

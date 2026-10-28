@@ -255,6 +255,61 @@ public sealed interface PureDateLiteral
     }
 
     /**
+     * A TIMESTAMP read from a database, as the engine reads one ({@code DateFunctions.fromSQLTimestamp}: nine
+     * subsecond digits whatever the value, since a timestamp carries no written precision) -- the carrier the judges
+     * compare by Pure's own date equality, which reads the digits (a whole second is {@code .000000000}, never
+     * none). The plan path program's step 7 (2026-10-18): the typed seam's first corpus run compared a grid's cell
+     * {@code T21:00:00} with the engine's literal {@code T21:00:00.000000000} and lost six bodies on DuckDB;
+     * {@link #fromLocalDateTime} keeps the minimal canonical form the legacy executor carried.
+     */
+    static PureDateLiteral fromDatabaseTimestamp(java.time.LocalDateTime t) {
+        return new DateWithSubsecond(t.getYear(), t.getMonthValue(), t.getDayOfMonth(), t.getHour(), t.getMinute(),
+                t.getSecond(), String.format(java.util.Locale.ROOT, "%09d", t.getNano()));
+    }
+
+    /**
+     * This value in its minimal canonical form: a subsecond's trailing zeros trimmed, a whole second with none
+     * ({@link #fromLocalDateTime}'s form, the text {@code dateTimeText} spells) -- the carrier of the judges' value
+     * lane, whose database canon trims a timestamp's digits the same way, where a grid's cell keeps the nine
+     * ({@link #fromDatabaseTimestamp}). A value with no subsecond is itself.
+     */
+    /**
+     * This instant presented at a WRITTEN precision, the plan's fact for a tagged DateTime slot
+     * (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a; the slot's kind {@code DateTime} or {@code DateTime(n)}): no
+     * TIMESTAMP keeps the digits a literal was written with, so the reader restores them -- {@code n} subsecond
+     * digits as written ({@code .00} stays {@code .00}), or the whole second where none were. A value with no time
+     * of day is itself.
+     */
+    default PureDateLiteral presentedAt(int subsecondDigits) {
+        return switch (this) {
+            case DateWithSubsecond s -> subsecondDigits == 0
+                    ? new DateWithSecond(s.year(), s.month(), s.day(), s.hour(), s.minute(), s.second())
+                    : new DateWithSubsecond(s.year(), s.month(), s.day(), s.hour(), s.minute(), s.second(),
+                            (s.subsecond() + "000000000").substring(0, subsecondDigits));
+            case DateWithSecond s -> subsecondDigits == 0 ? s
+                    : new DateWithSubsecond(s.year(), s.month(), s.day(), s.hour(), s.minute(), s.second(),
+                            "000000000".substring(0, subsecondDigits));
+            case DateWithMinute m -> new DateWithSecond(m.year(), m.month(), m.day(), m.hour(), m.minute(), 0)
+                    .presentedAt(subsecondDigits);
+            case DateWithHour h -> new DateWithSecond(h.year(), h.month(), h.day(), h.hour(), 0, 0)
+                    .presentedAt(subsecondDigits);
+            default -> this;
+        };
+    }
+
+    default PureDateLiteral trimmed() {
+        if (!(this instanceof DateWithSubsecond s)) {
+            return this;
+        }
+        String frac = s.subsecond().replaceFirst("0+$", "");
+        if (frac.isEmpty()) {
+            return new DateWithSecond(s.year(), s.month(), s.day(), s.hour(), s.minute(), s.second());
+        }
+        return frac.equals(s.subsecond()) ? this
+                : new DateWithSubsecond(s.year(), s.month(), s.day(), s.hour(), s.minute(), s.second(), frac);
+    }
+
+    /**
      * The EARLIEST instant this value names (its period's floor), as a
      * naive-UTC {@code LocalDateTime} — the comparison layer's ordering
      * key (pure sorts temporals by instant, P2-2). Subseconds order by

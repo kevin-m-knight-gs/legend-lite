@@ -591,10 +591,11 @@ const DECIDED = /\[\s*\.\.\.|\.(?:filter|map|flatMap|concat|slice|splice|reduce|
  */
 const TS_CHANGE_ONE_SIDE: Record<string, { readonly other: string; readonly slot?: string }> = {
   grain: { other: "the viewer's Frequency; Python's options(grain=...), the slots change", slot: 'grain' },
+  align: { other: "the viewer's Settings' Dates; Python's options(align=...), the slots change", slot: 'align' },
   range: { other: "the viewer's ranges and Settings' dates; Python's options(range=...)", slot: 'range' },
   view: { other: "the viewer's Compare, Stats and Settings' toggles, a key each; Python's options(view=...), the view whole", slot: 'view' },
   pane: { other: "the viewer's Log and Settings' panes, a pane each; Python's options(panes=...), the panes whole", slot: 'panes' },
-  slots: { other: "Python's options(**slots), several slots at once; the viewer sets each by its own change (grain, range, view, pane, annotate)" },
+  slots: { other: "Python's options(**slots), several slots at once; the viewer sets each by its own change (grain, align, range, view, pane, annotate)" },
 };
 
 describe("every change of a timeseries tile, made by its viewer and by Python's Timeseries, or listed (the review's A8)", () => {
@@ -841,6 +842,8 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/datacube-app.ts:openDataCube:tabEngine': { other: `${BOTH} a timeseries series of several grids read together over one model of the tab's tables, or the host's (join.json together: headless joinTogether)`, ability: 'join' },
   'src/app/datacube-app.ts:openDataCube:hostTables': { other: `${BOTH} the host's half of grids read together (headless joinTogether, join-open.ts openSources)`, ability: 'join' },
   'src/app/datacube-app.ts:rows:rows.runner': { other: `${BOTH} a timeseries' combined query run by the host's runner (Python's), or the tab's planner and database`, ability: 'rows' },
+  // 2026-10-27 (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6's D3): an example over a project's saved queries
+  'src/app/datacube-app.ts:examplesList:services.queries': { other: `${NATURE} the Open window's examples, one offered where the page compiles against its project; Python has no Open window -- a page of its own opens a saved query by its record (grid(record=...))` },
   // -- the sources (sources.ts) --
   'src/app/sources.ts:picksSources:database.mountRemote': { other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'remote' },
   'src/app/sources.ts:picksSources:services.warehouse': { count: 2, other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'warehouse' },

@@ -110,6 +110,9 @@ _SOURCE = '/source.json'
 # machine's), as the tab's (snap.ts MAX_SNAP_ROWS) is of its own (the browser's memory) -- the two need not agree (the
 # user and the DataCube + Python line, 2026-10-15)
 _MAX_SNAP_ROWS = 10_000_000
+# how many models the engine holds with DataCube's Pure library after them (Engine._plan_with): a page's grids', the
+# latest kept
+_WITH_LIBRARY = 8
 # PYTHON'S MODEL HOME (B3): the SDLC's API and the Depot's, as the model home's server mounts them, answered by the
 # native library's SDLC over this user's git repository of projects
 _SDLC_API, _DEPOT_API = '/sdlc/api/', '/depot/api/'
@@ -459,6 +462,13 @@ class Engine:
         self._models: dict[str, str] = {}
         self._watchers: list[Callable[[str, int], None]] = []
         self._changes = threading.Lock()
+        # DataCube's Pure library (datacube/src/pure-library.ts) as its code says it (headless pureLibrary), read once;
+        # and each model held with it after, by the model's text, the latest few -- planned against with their lock
+        # held, so none is let go while it plans (_plan_with)
+        self._library: str | None = None
+        self._library_read = threading.Lock()
+        self._with_library: dict[str, compiler.HeldModel] = {}
+        self._with_library_lock = threading.Lock()
 
     def answer(self, method: str, path: str, query: str, body: str | None) -> Answer:
         """One call: ``POST`` to the API, or ``GET`` of a frame's cube (``cube.json``), its version (``version.json``) or
@@ -1446,8 +1456,11 @@ class Engine:
         wrong = table.refused_runtime(asked['runtime'])
         if wrong is not None:
             return _planned({'plan': self.planner.refused_plan(wrong)})
+        refused = self._library_refused(asked)
+        if refused is not None:
+            return _planned({'plan': self.planner.refused_plan(refused)})
         on = _on_planner_threads()
-        planned = on(self.planner.plan, asked['lambda'], table.held, asked['runtime'])
+        planned = on(self._plan_with, asked, table.held)
         try:
             plan = on(self.planner.read, planned)
         except LegendError:
@@ -1467,10 +1480,11 @@ class Engine:
         return _arrow_rows(rows, planned, receipt)
 
     def _plan_and_run(self, body: str, over: Reading | None = None) -> Answer:
-        """PLANANDRUN on Python (§15.2): ``{"lambda", "model", "runtime", "project"?}`` -- the plan request the page's
-        planner makes (lite-planner.ts ``planRequest``), its model as text -- planned against the model Python holds of
-        that text by the planner function the tab's worker calls (``planJson``), its SQL run where its rows are, all in
-        this one call: the page sends Pure, never SQL. A model's rows are the tables this engine serves (a page's frames
+        """PLANANDRUN on Python (§15.2): ``{"lambda", "model", "runtime", "project"?, "library"?}`` -- the plan request
+        the page's planner makes (lite-planner.ts ``planRequest``), its model as text (``library``: DataCube's Pure
+        library, which a query calling it is planned over after the model: ``_plan_with``) -- planned against the model
+        Python holds of that text by the planner function the tab's worker calls (``planJson``), its SQL run where its
+        rows are, all in this one call: the page sends Pure, never SQL. A model's rows are the tables this engine serves (a page's frames
         and files, a snap's copies; a model that reads only them, R4) -- or, ``project`` (a saved query's: C5), its
         project's own Data rows, in a database of the project's own; never one read in the other's place (F28: a table
         not served is refused, never a project's sample rows read instead). The answer is the database's rows as Arrow,
@@ -1484,6 +1498,9 @@ class Engine:
             return _said(400, 'a plan-and-run is {"lambda", "model", "runtime"}, as JSON')
         if not (isinstance(asked, dict) and all(isinstance(asked.get(k), str) for k in ('lambda', 'model', 'runtime'))):
             return _said(400, 'a plan-and-run is {"lambda", "model", "runtime"}, each a string')
+        refused = self._library_refused(asked)
+        if refused is not None:
+            return _planned({'plan': self.planner.refused_plan(refused)})
         if asked.get('project') is True:
             return self._project_plan_and_run(asked, self.planner.refused_plan(_NO_PROJECT_ROWS))
         if over is None:
@@ -1497,7 +1514,7 @@ class Engine:
         the read's own cursor, as the read sees the database. A model of a table not served now is refused, naming it
         (F28). The frames' models noted as last read, never older than the read (F30)."""
         self._noted(self.frames.models())
-        planned = self.frames.plan_over(asked['model'], lambda held: self.planner.plan(asked['lambda'], held, asked['runtime']))
+        planned = self.frames.plan_over(asked['model'], lambda held: self._plan_with(asked, held))
         if planned is None:
             return _planned({'plan': self.planner.refused_plan(self._unserved(asked['model']))})
         try:
@@ -1509,6 +1526,48 @@ class Engine:
         except (duckdb.Error, UntypedColumn) as failure:
             return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
         return _arrow_rows(rows, planned)
+
+    def _plan_with(self, asked: Mapping[str, Any], held: compiler.HeldModel) -> str:
+        """A request's query planned against ``held``, through its runtime -- or, the request carrying DataCube's Pure
+        library (judged DataCube's own when it came: ``_library_refused``), against that model with the library after
+        it, held once beside it by its text (the latest few), its lock held while it plans."""
+        library = asked.get('library')
+        if library is None:
+            return self.planner.plan(asked['lambda'], held, asked['runtime'])
+        text = f'{held.model}\n{library}'
+        with self._with_library_lock:
+            kept = self._with_library.pop(held.model, None)
+            if kept is None or kept.model != text:
+                if kept is not None:
+                    kept.close()
+                kept = compiler.HeldModel(text)
+            self._with_library[held.model] = kept
+            while len(self._with_library) > _WITH_LIBRARY:
+                self._with_library.pop(next(iter(self._with_library))).close()
+            return self.planner.plan(asked['lambda'], kept, asked['runtime'])
+
+    def _library_refused(self, asked: Mapping[str, Any]) -> str | None:
+        """Why a request's ``library`` is not planned over, in words -- or None: it carries none, or DataCube's own
+        Pure library as DataCube's code writes it (datacube/src/pure-library.ts: the functions a timeseries tile's
+        queries call by name, ``datacube::ts::*``), which declares no table, so a model it follows reads only what that
+        model read. Read before the frames are held (DataCube's code is asked for it once: its turn first)."""
+        library = asked.get('library')
+        if library is None:
+            return None
+        if self._headless is None:
+            return ('a query calling DataCube\'s Pure library is planned with DataCube\'s own code, headless, which '
+                    'this engine was not given')
+        with self._library_read:
+            if self._library is None:
+                try:
+                    self._library = str(self._headless().call('pureLibrary'))
+                except Exception as failure:
+                    return f'DataCube\'s own code could not say its Pure library: {type(failure).__name__}: {failure}'
+            own = self._library
+        if library != own:
+            return ('this engine plans a query over DataCube\'s own Pure library alone (datacube::ts), as DataCube '
+                    'writes it')
+        return None
 
     def _unserved(self, model: str) -> str:
         """Why a model is not planned here, in words: the tables it reads that this engine does not serve now."""
@@ -1525,7 +1584,7 @@ class Engine:
         with self.projects.using(asked['model']) as project:
             if project is None:
                 return _planned({'plan': refused})
-            planned = self.planner.plan(asked['lambda'], project.held, asked['runtime'])
+            planned = self._plan_with(asked, project.held)
             try:
                 plan = self.planner.read(planned)
             except LegendError:
@@ -1538,7 +1597,8 @@ class Engine:
 
     def _plan(self, body: str) -> Answer:
         """THE DRY RUN of a plan-and-run (§15.2 as amended 2026-10-15; the page's compile check, CubeController.compile):
-        ``{"lambda", "model", "runtime", "project"?}``, as plan-and-run takes it, planned by the same planner function
+        ``{"lambda", "model", "runtime", "project"?, "library"?}``, as plan-and-run takes it, planned by the same planner
+        function
         against the model Python holds of that text -- a page's frame or file, a warehouse table; ``project``, a saved
         query's project's own (C5) -- by plan-and-run's one rule of where a model's rows are (F28), and never run. JSON:
         ``{"plan"}``, the planner's answer, a refusal too, as plan-and-run carries it (``legend.plan``)."""
@@ -1548,11 +1608,14 @@ class Engine:
             return _said(400, 'a plan is {"lambda", "model", "runtime"}, as JSON')
         if not (isinstance(asked, dict) and all(isinstance(asked.get(k), str) for k in ('lambda', 'model', 'runtime'))):
             return _said(400, 'a plan is {"lambda", "model", "runtime"}, each a string')
+        refused = self._library_refused(asked)
+        if refused is not None:
+            return _planned({'plan': self.planner.refused_plan(refused)})
         if asked.get('project') is True:
             with self.projects.using(asked['model']) as project:
                 if project is None:
                     return _planned({'plan': self.planner.refused_plan(_NO_PROJECT_ROWS)})
-                return _planned({'plan': self.planner.plan(asked['lambda'], project.held, asked['runtime'])})
+                return _planned({'plan': self._plan_with(asked, project.held)})
         with self._warehouse_lock:
             table = self._warehouse_tables.get(asked['model'])
         if table is not None:
@@ -1560,9 +1623,9 @@ class Engine:
             wrong = table.refused_runtime(asked['runtime'])
             if wrong is not None:
                 return _planned({'plan': self.planner.refused_plan(wrong)})
-            return _planned({'plan': self.planner.plan(asked['lambda'], table.held, asked['runtime'])})
+            return _planned({'plan': self._plan_with(asked, table.held)})
         self._noted(self.frames.models())
-        planned = self.frames.plan_over(asked['model'], lambda held: self.planner.plan(asked['lambda'], held, asked['runtime']))
+        planned = self.frames.plan_over(asked['model'], lambda held: self._plan_with(asked, held))
         if planned is None:
             return _planned({'plan': self.planner.refused_plan(self._unserved(asked['model']))})
         return _planned({'plan': planned})

@@ -307,7 +307,7 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string, h
     const answer = await link.fetch(`${link.baseUrl}/plan-and-run.json`, {
       method: 'POST',
       headers: { ...headers(link), 'Content-Type': 'application/json' },
-      body: JSON.stringify(request(query)),
+      body: JSON.stringify(await request(query)),
       ...(signal ? { signal } : {}),
     }).catch((e: unknown) => {
       if (signal?.aborted) throw e;
@@ -366,9 +366,9 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string, h
  */
 function planning(model: string, runtime: string, how: ModelOptions, worker: () => PlannerWorker): {
   readonly planner: LitePlanner;
-  readonly request: (query: Lambda) => {
-    readonly lambda: string; readonly model: string; readonly runtime: string; readonly project?: true;
-  };
+  readonly request: (query: Lambda) => Promise<{
+    readonly lambda: string; readonly model: string; readonly runtime: string; readonly library?: string; readonly project?: true;
+  }>;
   readonly read: (answer: string, query: Lambda) => Plan;
 } {
   const planner = new LitePlanner({
@@ -380,7 +380,7 @@ function planning(model: string, runtime: string, how: ModelOptions, worker: () 
     planner,
     // a project's own rows (a saved query's: C5) said so, where the host reads them; any other model's, only the tables
     // the host serves (F28)
-    request: (query) => ({ ...planner.planRequest(query), ...(how.project ? { project: true as const } : {}) }),
+    request: async (query) => ({ ...(await planner.planRequest(query)), ...(how.project ? { project: true as const } : {}) }),
     read: (answer, query) => planner.readPlan(answer, query),
   };
 }

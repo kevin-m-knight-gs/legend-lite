@@ -208,6 +208,8 @@ final class SubselectPrune {
             }
             case SqlExpr.PlanParam v -> {
             }
+            case SqlExpr.KeyCell v -> {
+            }
             case SqlExpr.Group g -> collectExpr(g.inner(), r);
             case SqlExpr.StringLit v -> {
             }
@@ -267,6 +269,7 @@ final class SubselectPrune {
             case SqlExpr.CheckedChildValue cv -> collectExpr(cv.envelope(), r);
             case SqlExpr.CheckedOne co -> collectExpr(co.list(), r);
             case SqlExpr.CompactList cl -> collectExpr(cl.list(), r);
+            case SqlExpr.Tagged tg -> tg.children().forEach(x -> collectExpr(x, r));
             case SqlExpr.DeferredTdsString d -> collectQuery(d.inner(), r);
             case SqlExpr.JsonObject jo -> jo.kv().forEach(x -> collectExpr(x, r));
             case SqlExpr.JsonArray ja0 -> ja0.elements().forEach(x -> collectExpr(x, r));
@@ -359,7 +362,7 @@ final class SubselectPrune {
             case SqlSource.Pivot p -> {
                 SqlSource inner = rewriteSource(p.source(), r);
                 yield inner == p.source() ? p
-                        : new SqlSource.Pivot(inner, p.on(), p.in(), p.usings(),
+                        : new SqlSource.Pivot(inner, p.on(), p.in(), p.named(), p.usings(),
                                 p.alias(), p.outputs());
             }
             case SqlSource.Values v -> v;

@@ -8,9 +8,10 @@
 
 import type { Band, Node } from '../layout/bands.ts';
 import { writePageOf, type PageDocument, type PageSheet, type PageView } from '../page-document.ts';
-import { MARKET_GRIDS, MARKS, marketCubes, PRICES, RATES, s, tile } from './markets.ts';
+import { MACRO, MACRO_GRID, macroCube, MARKET_GRIDS, MARKS, marketCubes, PRICES, RATES, s, tile } from './markets.ts';
 
 const ON_PRICES = [PRICES];
+const PRICES_AND_MACRO = [PRICES, MACRO];
 
 /** A sheet of the gallery: its name, and its tiles row by row (each row sharing the width, the rows the height). */
 interface GallerySheet {
@@ -59,6 +60,30 @@ const RETURNS: GallerySheet = {
       panes: [{ height: 1 }, { height: 1 }],
       annotations: [...MARKS],
     }),
+  ], [
+    tile('excess', 'Excess returns: the S&P 500 over 5% cash accrued day by day, and over the bond fund', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[SPX]', { name: 'S&P 500', style: { width: 1, dash: 'dashed' } }),
+        s('B', 'excess_returns(close[SPX], 0.05)', { name: 'Over 5% cash' }),
+        s('C', 'excess_returns(close[SPX], close[TLT])', { name: 'Over the bond fund' }),
+      ],
+    }),
+    tile('compounded-to-date', 'Compounded to date: Microsoft\'s daily returns, their product less 1', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'geometrically_aggregate(returns(close[MSFT]))', { name: 'Compounded return', style: { kind: 'area' } }),
+        s('B', 'returns(close[MSFT])', { name: 'Daily return', pane: 1, style: { kind: 'dots' } }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }],
+    }),
+    tile('total-return', 'Total return: the S&P 500 with a 1.5% dividend yield reinvested, beside its price', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[SPX]', { name: 'Price', style: { width: 1, dash: 'dashed' } }),
+        s('B', 'total_return(close[SPX], 0.015)', { name: 'With a 1.5% yield' }),
+      ],
+    }),
   ]],
 };
 
@@ -98,6 +123,16 @@ const LEVEL: GallerySheet = {
       ],
       range: { last: '1y' },
       annotations: [{ kind: 'level', value: 0 }],
+    }),
+  ], [
+    tile('decompose', 'A season taken out: retail sales, their trend and their seasonally adjusted line, a month at a time', {
+      sources: [MACRO],
+      grain: 'month',
+      series: [
+        s('A', 'value[RETAIL]', { name: 'Retail sales', style: { width: 1 } }),
+        s('B', 'trend(value[RETAIL], multiplicative)', { name: 'Trend', style: { dash: 'dashed' } }),
+        s('C', 'seasonally_adjusted(value[RETAIL], multiplicative)', { name: 'Seasonally adjusted' }),
+      ],
     }),
   ]],
 };
@@ -157,6 +192,40 @@ const ROLLING: GallerySheet = {
       ],
       range: { last: '3m' },
     }),
+  ], [
+    tile('exponential', 'Exponential and Wilder\'s averages: the S&P 500, its EMA, its smoothed average, its exponential deviation', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[SPX]', { name: 'S&P 500' }),
+        s('B', 'exponential_moving_average(close[SPX], 0.9)', { name: 'EMA (beta 0.9)', style: { width: 1 } }),
+        s('C', 'smoothed_moving_average(close[SPX], 20)', { name: 'Wilder 20', style: { width: 1, dash: 'dashed' } }),
+        s('D', 'exponential_std(close[SPX], 0.95)', { name: 'Exponential deviation', pane: 1, style: { kind: 'area' } }),
+      ],
+      range: { last: '1y' },
+      panes: [{ height: 2 }, { height: 1 }],
+    }),
+    tile('percentiles', 'Percentiles: gold within its year -- its median, its 90th percentile, and where it ranks', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[GLD]', { name: 'Gold' }),
+        s('B', 'median(close[GLD], 1y)', { name: '1-year median', style: { width: 1 } }),
+        s('C', 'percentile(close[GLD], 90, 1y)', { name: '1-year 90th percentile', style: { width: 1, dash: 'dashed' } }),
+        s('D', 'percentiles(close[GLD], 1y)', { name: 'Its rank in the year', pane: 1, style: { kind: 'area' } }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }],
+      annotations: [{ kind: 'level', value: 90, pane: 1 }, { kind: 'level', value: 10, pane: 1 }],
+    }),
+  ], [
+    tile('product-streaks', 'Rolling product and streaks: the euro\'s 5-day compounded change, and its days in a row up and down', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'product(1 + returns(close[EURUSD]), 5) - 1', { name: '5-day compounded change' }),
+        s('B', 'consecutive(returns(close[EURUSD]))', { name: 'Days up in a row', pane: 1, style: { kind: 'bars' } }),
+        s('C', '0 - consecutive(returns(close[EURUSD]), negative)', { name: 'Days down in a row', pane: 1, style: { kind: 'bars' } }),
+      ],
+      range: { last: '6m' },
+      panes: [{ height: 1 }, { height: 1 }],
+    }),
   ]],
 };
 
@@ -197,6 +266,41 @@ const RISK: GallerySheet = {
       ],
       annotations: [...MARKS],
     }),
+    tile('exponential-volatility', 'Exponential volatility: the S&P 500\'s RiskMetrics-style, beside its realized, and the curve\'s spread\'s', {
+      sources: [PRICES, RATES],
+      series: [
+        s('A', 'exponential_volatility(px:close[SPX], 0.94)', { name: 'Exponential (0.94)' }),
+        s('B', 'volatility(px:close[SPX], 63)', { name: 'Realized, 3 months', style: { dash: 'dashed', width: 1 } }),
+        s('C', 'exponential_spread_volatility(rates:yield[10Y] - rates:yield[2Y], 0.94)', { name: '10s2s spread, points a year', pane: 1 }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }],
+    }),
+  ], [
+    tile('vol-swap', 'Vol swap volatility: the S&P 500\'s zero-mean realized volatility over a month, beside its realized volatility', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'vol_swap_volatility(close[SPX], 21)', { name: 'Vol swap, 21 days' }),
+        s('B', 'volatility(close[SPX], 21)', { name: 'Realized, 21 days', style: { dash: 'dashed', width: 1 } }),
+      ],
+      annotations: [...MARKS],
+    }),
+    tile('benchmark', 'Against a benchmark: Nvidia\'s tracking error to the S&P 500 and its information ratio, over 3 months', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'tracking_error(close[NVDA], close[SPX], 63)', { name: 'Tracking error' }),
+        s('B', 'information_ratio(close[NVDA], close[SPX], 63)', { name: 'Information ratio', pane: 1 }),
+      ],
+      panes: [{ height: 1 }, { height: 1 }],
+      annotations: [{ kind: 'level', value: 0, pane: 1 }],
+    }),
+    tile('capture', 'Up and down capture: the Nasdaq 100 on the S&P 500\'s up days and its down days, over a year', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'up_capture(close[NDX], close[SPX], 252)', { name: 'Up capture' }),
+        s('B', 'down_capture(close[NDX], close[SPX], 252)', { name: 'Down capture', style: { dash: 'dashed' } }),
+      ],
+      annotations: [{ kind: 'level', value: 1, label: '100%' }],
+    }),
   ]],
 };
 
@@ -225,6 +329,17 @@ const RELATIONSHIPS: GallerySheet = {
       series: [s('A', 'cov(returns(close[AAPL]), returns(close[MSFT]), 63)', { name: 'Apple, Microsoft', style: { kind: 'area' } })],
       annotations: [...MARKS],
     }),
+    tile('regression', 'A regression: Nvidia on the S&P 500 -- its alpha and R², the hedge ratio and the pair\'s spread, over 6 months', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'alpha(close[NVDA], close[SPX], 126)', { name: 'Alpha (ann.)' }),
+        s('B', 'r_squared(close[NVDA], close[SPX], 126)', { name: 'R²', pane: 1 }),
+        s('C', 'hedge_ratio(close[MSFT], close[AAPL], 126)', { name: 'Microsoft per Apple', pane: 2 }),
+        s('D', 'residual(close[MSFT], close[AAPL], 126)', { name: 'The pair\'s spread', pane: 3 }),
+      ],
+      panes: [{ height: 1 }, { height: 1 }, { height: 1 }, { height: 1 }],
+      annotations: [{ kind: 'level', value: 0 }, { kind: 'level', value: 0, pane: 3 }],
+    }),
     tile('pair', 'A pair: Apple over Microsoft, and how far it is from its 6-month mean', {
       sources: ON_PRICES,
       series: [
@@ -233,6 +348,25 @@ const RELATIONSHIPS: GallerySheet = {
       ],
       panes: [{ height: 2 }, { height: 1 }],
       annotations: [{ kind: 'level', value: 2, pane: 1 }, { kind: 'level', value: -2, pane: 1 }],
+    }),
+  ], [
+    tile('lead-lag', 'Lead and lag: Nvidia\'s daily returns against the S&P 500\'s a day before, and a day after, over 3 months', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'lead_lag(close[NVDA], close[SPX], 1, 63)', { name: 'The index a day before' }),
+        s('B', 'lead_lag(close[NVDA], close[SPX], -1, 63)', { name: 'The index a day after', style: { dash: 'dashed' } }),
+      ],
+      annotations: [{ kind: 'level', value: 0 }],
+    }),
+    tile('reversion', 'Mean reversion: Apple over Microsoft, its Dickey-Fuller statistic over a year, and its half-life', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[AAPL] / close[MSFT]', { name: 'Apple / Microsoft' }),
+        s('B', 'dickey_fuller($A, 252)', { name: 'Dickey-Fuller t', pane: 1 }),
+        s('C', 'half_life($A, 252)', { name: 'Half-life (days)', pane: 2, style: { kind: 'area' } }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }, { height: 1 }],
+      annotations: [{ kind: 'level', value: -2.86, pane: 1, label: '5%' }],
     }),
   ]],
 };
@@ -275,6 +409,47 @@ const TECHNICALS: GallerySheet = {
       range: { last: '3m' },
       panes: [{ height: 3 }, { height: 1 }],
     }),
+    tile('macd', 'MACD: the S&P 500\'s 12- and 26-day exponential averages apart, and its 9-day signal', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'macd(close[SPX])', { name: 'MACD (12, 26)' }),
+        s('B', 'macd(close[SPX], 12, 26, 9)', { name: 'Signal (9)', style: { dash: 'dashed' } }),
+        s('C', '$A - $B', { name: 'Histogram', style: { kind: 'bars' } }),
+      ],
+      range: { last: '1y' },
+      annotations: [{ kind: 'level', value: 0 }],
+    }),
+  ], [
+    tile('atr-stochastic', 'Average true range and stochastic: Nvidia\'s 14-day range, and where it closed within it', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[NVDA]', { name: 'Nvidia' }),
+        s('B', 'atr(high[NVDA], low[NVDA], close[NVDA], 14)', { name: 'ATR 14', pane: 1, style: { kind: 'area' } }),
+        s('C', 'stochastic(high[NVDA], low[NVDA], close[NVDA], 14)', { name: '%K 14', pane: 2 }),
+      ],
+      range: { last: '1y' },
+      panes: [{ height: 2 }, { height: 1 }, { height: 1 }],
+      annotations: [{ kind: 'level', value: 80, pane: 2 }, { kind: 'level', value: 20, pane: 2 }],
+    }),
+    tile('channels', 'Keltner and Donchian channels: the S&P 500 within 2 average true ranges of its average, and its 20-day range', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[SPX]', { name: 'S&P 500' }),
+        s('B', 'keltner_channels(high[SPX], low[SPX], close[SPX], 20, 10, 2)', { name: 'Keltner (20, 10, 2)' }),
+        s('C', 'donchian_channels(high[SPX], low[SPX], 20)', { name: 'Donchian 20' }),
+      ],
+      range: { last: '6m' },
+    }),
+    tile('volume-flow', 'On-balance volume and VWAP: Apple\'s volume behind its moves, and its 20-day volume-weighted price', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[AAPL]', { name: 'Apple' }),
+        s('B', 'vwap(close[AAPL], volume[AAPL], 20)', { name: 'VWAP 20', style: { dash: 'dashed', width: 1 } }),
+        s('C', 'obv(close[AAPL], volume[AAPL])', { name: 'On-balance volume', pane: 1, style: { kind: 'area' } }),
+      ],
+      range: { last: '1y' },
+      panes: [{ height: 2 }, { height: 1 }],
+    }),
   ]],
 };
 
@@ -315,6 +490,86 @@ const MATH: GallerySheet = {
         s('B', 'ceil(floor($A, -2), 2)', { name: 'Held within ±2', style: { kind: 'area' } }),
       ],
       range: { last: '2y' },
+    }),
+  ], [
+    tile('if-compare', 'If, not and compare: the S&P 500 or its 200-day average, whichever is lower; below it shaded', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'if(close[SPX] < mean(close[SPX], 200), close[SPX], mean(close[SPX], 200))', { name: 'The lower of the two' }),
+        s('B', 'compare(close[SPX], mean(close[SPX], 200))', { name: 'Above (1) or below (-1)', pane: 1, style: { kind: 'step' } }),
+        s('C', 'not(close[SPX] > mean(close[SPX], 200))', { name: 'Not above its average' }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }],
+    }),
+    tile('filter-smooth', 'Filter, smooth and weigh: gold without its closes above 200, its spikes smoothed, and a 60/40 basket', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'filter(close[GLD], greater_than, 200)', { name: 'Gold, at or below 200' }),
+        s('B', 'smooth_spikes(close[GLD], 0.02)', { name: 'Spikes smoothed', style: { dash: 'dashed', width: 1 } }),
+        s('C', 'weighted_sum(rebase(close[SPX]), 0.6, rebase(close[TLT]), 0.4)', { name: '60/40, from 100', axis: 'right' }),
+      ],
+      range: { last: '2y' },
+    }),
+    tile('basket', 'A rebalanced basket: 60% stocks, 40% long bonds from 100, rebalanced each day and each month', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'basket(close[SPX], 0.6, close[TLT], 0.4)', { name: 'Daily' }),
+        s('B', 'basket(close[SPX], 0.6, close[TLT], 0.4, rebalance=monthly)', { name: 'Monthly', style: { dash: 'dashed' } }),
+      ],
+    }),
+  ]],
+};
+
+const DATES: GallerySheet = {
+  name: 'Dates',
+  rows: [[
+    tile('align', 'Two calendars combined: the S&P 500 in real terms -- its daily close over the month-end price index, stepped to every day', {
+      sources: PRICES_AND_MACRO,
+      align: 'step',
+      series: [
+        s('A', 'px:close[SPX] / macro:value[CPI] * 100', { name: 'S&P 500 in real terms' }),
+        s('B', 'px:close[SPX]', { name: 'S&P 500', axis: 'right', style: { width: 1, dash: 'dashed' } }),
+      ],
+      range: { last: '5y' },
+    }),
+    tile('interpolate', 'Onto another\'s dates: the monthly price index on the S&P 500\'s trading days, each its last month-end', {
+      sources: PRICES_AND_MACRO,
+      series: [
+        s('A', 'interpolate(macro:value[CPI], px:close[SPX], step)', { name: 'Price index, stepped daily', style: { kind: 'step' } }),
+        s('B', 'macro:value[CPI]', { name: 'Month-end', style: { kind: 'dots' } }),
+      ],
+      range: { last: '2y' },
+    }),
+  ], [
+    tile('splice', 'Splicing two series: gold to 2022 then the bond fund; gold until the bond fund\'s 2023; the fund where gold is above 190', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'append(filter(if(year(close[GLD]) < 2023, close[GLD], 0), equals, 0), close[TLT])', { name: 'Gold, then the fund' }),
+        s('B', 'prepend(close[GLD], filter(if(year(close[TLT]) >= 2023, close[TLT], 0), equals, 0))', { name: 'Gold, until the fund', style: { dash: 'dashed' } }),
+        s('C', 'union(filter(close[GLD], greater_than, 190), close[TLT])', { name: 'Gold at or below 190, else the fund', style: { kind: 'dots' } }),
+      ],
+    }),
+    tile('calendar', 'The calendar of each date: the S&P 500\'s day of the week, month, quarter, day of the month and year', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'weekday(close[SPX])', { name: 'Day of the week (0 Monday)', style: { kind: 'step' } }),
+        s('B', 'month(close[SPX])', { name: 'Month', style: { kind: 'step' } }),
+        s('C', 'quarter(close[SPX])', { name: 'Quarter', style: { kind: 'step' } }),
+        s('D', 'day(close[SPX])', { name: 'Day of the month', style: { kind: 'dots' } }),
+        s('E', 'year(close[SPX])', { name: 'Year', pane: 1, style: { kind: 'step' } }),
+      ],
+      range: { last: '3m' },
+      panes: [{ height: 2 }, { height: 1 }],
+    }),
+    tile('first-last-count', 'First, last and how many: the S&P 500 between its first and last close, and its count of closes', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[SPX]', { name: 'S&P 500' }),
+        s('B', 'first(close[SPX])', { name: 'Its first close', style: { dash: 'dashed', width: 1 } }),
+        s('C', 'last(close[SPX])', { name: 'Its last close', style: { dash: 'dashed', width: 1 } }),
+        s('D', 'count(close[SPX])', { name: 'Closes to date', pane: 1, style: { kind: 'area' } }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }],
     }),
   ]],
 };
@@ -364,6 +619,16 @@ const WAYS: GallerySheet = {
       range: { last: '6m' },
       panes: [{ height: 2 }, { height: 1 }, { height: 1 }],
     }),
+    tile('condition', 'Shaded where it holds: the S&P 500 while the curve is inverted (the 10-year below the 2-year)', {
+      sources: [PRICES, RATES],
+      series: [
+        s('A', 'px:close[SPX]', { name: 'S&P 500' }),
+        s('B', 'rates:yield[10Y] - rates:yield[2Y] < 0', { name: 'The curve inverted' }),
+        s('C', 'rates:yield[10Y] - rates:yield[2Y]', { name: '10s2s', pane: 1 }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }],
+      annotations: [{ kind: 'level', value: 0, pane: 1 }],
+    }),
     tile('two-grids', 'Two grids: the S&P 500 against the 2-year yield, their correlation read in one query', {
       sources: [PRICES, RATES],
       series: [
@@ -378,8 +643,70 @@ const WAYS: GallerySheet = {
   ]],
 };
 
-/** Every sheet of functions, in the catalog's order of families, then the ways to view. */
-export const TIMESERIES_GALLERY: readonly GallerySheet[] = [RETURNS, LEVEL, ROLLING, RISK, RELATIONSHIPS, TECHNICALS, MATH, WAYS];
+/** The other views (the next phases' 3, 2026-10-26): a tile's series drawn otherwise than along time -- one against
+ *  another, each year against the years before, its values' distribution, a curve across a split's key -- every
+ *  figure the database's. Every level's Calendar tab beside them. */
+const VIEWS: GallerySheet = {
+  name: 'Other views',
+  rows: [[
+    tile('view-scatter', 'A scatter: the Nasdaq\'s daily return against the S&P 500\'s, a year of them, and their regression', {
+      sources: ON_PRICES,
+      series: [s('A', 'returns(close[SPX])', { name: 'S&P 500' }), s('B', 'returns(close[NDX])', { name: 'Nasdaq 100' })],
+      range: { last: '1y' },
+      view: { mode: 'scatter', stats: true },
+    }),
+    tile('view-seasonality', 'Seasonality: each year of the S&P 500 week by week from its own start, against the four before', {
+      sources: ON_PRICES,
+      grain: 'week',
+      series: [s('A', 'close[SPX]', { name: 'S&P 500' })],
+      view: { mode: 'seasonality', compare: 'rebase', years: 4 },
+    }),
+  ], [
+    tile('view-histogram', 'A histogram: the S&P 500\'s daily returns over three years, a normal beside them, the 5% marked', {
+      sources: ON_PRICES,
+      series: [s('A', 'returns(close[SPX])', { name: 'Daily return' })],
+      range: { last: '3y' },
+      view: { mode: 'histogram', bins: 40 },
+    }),
+    tile('view-curve', 'A curve: the Treasury curve now, a year ago and two years ago', {
+      sources: [RATES],
+      series: [s('A', 'yield', { name: 'Yield', split: 'tenor' })],
+      view: { mode: 'curve', dates: ['latest', '1y', '2y'] },
+    }),
+  ]],
+};
+
+/** On the chart itself (Phase 5, 2026-10-27): a trend projected -- the database's line over a series' last quarter and
+ *  its last year, each on past its last date -- and a person's own: a note pinned at the low after the bear market (the
+ *  sample's close that day), a line drawn from it, the bear market's period. The measure, the Draw button and the replay are the tile's own, on every tile. */
+const ON_CHART: GallerySheet = {
+  name: 'On the chart',
+  rows: [[
+    tile('projected', 'A trend projected: the S&P 500\'s least-squares line over its last quarter and its last year, each drawn on', {
+      sources: ON_PRICES,
+      series: [s('A', 'close[SPX]', { name: 'S&P 500' })],
+      range: { last: '2y' },
+      annotations: [
+        { kind: 'projection', series: 'A', window: 63, ahead: '3m', label: 'Last quarter\'s trend' },
+        { kind: 'projection', series: 'A', window: 252, ahead: '6m', label: 'Last year\'s trend' },
+      ],
+    }),
+    tile('drawn', 'Drawn by hand: the low after the bear market pinned, a line from it to the end of 2024, the bear market shaded', {
+      sources: ON_PRICES,
+      series: [s('A', 'close[SPX]', { name: 'S&P 500' })],
+      range: { from: '2021-06-01', to: '2024-12-31' },
+      annotations: [
+        { kind: 'period', from: '2022-01-03', to: '2022-10-12', label: 'Bear market' },
+        { kind: 'note', at: { date: '2023-03-16', value: 4190.96 }, text: 'The low' },
+        { kind: 'line', from: { date: '2023-03-16', value: 4190.96 }, to: { date: '2024-12-31', value: 6467.59 }, label: 'From the low', color: 2 },
+      ],
+    }),
+  ]],
+};
+
+/** Every sheet of functions, in the catalog's order of families, then the ways to view, the other views and what is
+ *  put on the chart itself. */
+export const TIMESERIES_GALLERY: readonly GallerySheet[] = [RETURNS, LEVEL, ROLLING, RISK, RELATIONSHIPS, TECHNICALS, MATH, DATES, WAYS, VIEWS, ON_CHART];
 
 /** A sheet's rows as bands that fit its window: each row an equal share of the height, its tiles of the width. */
 function bandsOf(rows: GallerySheet['rows']): Band[] {
@@ -397,12 +724,12 @@ export async function timeseriesGalleryPage(): Promise<PageDocument> {
   }));
   sheets.push({
     id: `sheet-${sheets.length + 1}`, name: 'The data', layout: { kind: 'bands', fit: true, bands: [{
-      height: 1, node: { split: 'row', parts: [{ size: 0.6, node: { tile: 'prices' } }, { size: 0.4, node: { tile: 'rates' } }] },
+      height: 1, node: { split: 'row', parts: [{ size: 0.5, node: { tile: 'prices' } }, { size: 0.3, node: { tile: 'rates' } }, { size: 0.2, node: { tile: 'macro' } }] },
     }] },
   });
   return writePageOf({
     name: 'Timeseries gallery',
-    cubes: await marketCubes(),
-    views: { views: [...MARKET_GRIDS, ...TIMESERIES_GALLERY.flatMap((g) => g.rows.flat())], sheets },
+    cubes: [...await marketCubes(), await macroCube()],
+    views: { views: [...MARKET_GRIDS, MACRO_GRID, ...TIMESERIES_GALLERY.flatMap((g) => g.rows.flat())], sheets },
   });
 }

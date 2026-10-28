@@ -16,7 +16,7 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { LIGHT_THEME } from '../src/chart-option.ts';
 import { parseExpr, type TsUnit } from '../src/timeseries-expr.ts';
-import { timeseriesOption, tsLines, type TsResult } from '../src/timeseries-option.ts';
+import { timeseriesOption, tsLines, tsPictureHeight, type TsResult } from '../src/timeseries-option.ts';
 import { TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_UPPER, TS_VALUE, TS_WIDTH, type TsQuery } from '../src/timeseries-query.ts';
 import { mountTimeseries } from '../src/timeseries-render.ts';
 import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
@@ -117,6 +117,90 @@ describe('the renderer that mounts a timeseries (timeseries-render.ts)', () => {
       assert.deepEqual(zooms.at(-1), ['2024-01-03', '2024-01-05'], 'the viewer told the dates shown');
     } finally {
       mounted.dispose();
+    }
+  });
+
+  // Phase 5's drawings: a click while drawing read in the axes of the pane under it -- its date and its value -- and
+  // nothing told while not drawing; the line and the note drawn where their points are
+  it('while drawing, a click is the point under it in its pane\'s axes; its drawings drawn there', () => {
+    const el = { setAttribute: () => {}, ownerDocument: { defaultView: undefined } } as unknown as HTMLElement;
+    const points: [number, string, number][] = [];
+    const spans: [string, string, boolean][] = [];
+    let chart: echarts.ECharts | undefined;
+    const mounted = mountTimeseries(el, {
+      onZoom: () => {}, onPoint: (pane, date, value) => points.push([pane, date, value]), onSpan: (from, to, done) => spans.push([from, to, done]),
+    }, () => {
+      chart = echarts.init(null, null, { renderer: 'svg', ssr: true, width: 720, height: 480 });
+      return chart;
+    });
+    try {
+      const ts = spec([S('A', 'close'), S('B', 'rsi($A, 2)', { pane: 1 })], {
+        annotations: [{ kind: 'line', from: { date: '2024-01-02', value: 100 }, to: { date: '2024-01-08', value: 105 }, label: 'Trend' },
+          { kind: 'note', at: { date: '2024-01-04', value: 60 }, text: 'Overbought', pane: 1 }],
+      });
+      const results = [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [105, 104, 102, 101, 100] }),
+        answered('B', 'number', { [TS_DATE]: DAYS, [TS_VALUE]: [80, 75, 60, 40, 20] }, { level: false })];
+      const option = timeseriesOption(ts, tsLines(ts, results, LIGHT_THEME).lines, { theme: LIGHT_THEME, view: {}, height: 480, drawing: true });
+      mounted.show({ ...option, animation: false } as EChartsOption, 'Close');
+      const svg = rendered({ ...option, animation: false } as EChartsOption).svg;
+      assert.ok(svg.includes('Trend') && svg.includes('Overbought'), 'the line\'s label and the note drawn');
+      const click = (pane: number, date: string, value: number): void => {
+        const [x, y] = chart!.convertToPixel({ seriesId: `drawings:${pane}` }, [date, value]) as unknown as number[];
+        chart!.getZr().trigger('click', { offsetX: x, offsetY: y });
+      };
+      click(1, '2024-01-05', 50);
+      assert.equal(points.length, 0, 'not drawing: a click is nothing');
+      mounted.draw(true);
+      click(1, '2024-01-05', 50);
+      click(0, '2024-01-03', 101.5);
+      assert.deepEqual(points.map(([p, d]) => [p, d]), [[1, '2024-01-05'], [0, '2024-01-03']], 'each in its pane, its day');
+      assert.ok(Math.abs(points[0]![2] - 50) < 0.5 && Math.abs(points[1]![2] - 101.5) < 0.05, `its value: ${points.map((p) => p[2])}`);
+      // a click outside every pane is nothing
+      chart!.getZr().trigger('click', { offsetX: 2, offsetY: 2 });
+      assert.equal(points.length, 2);
+      // the Phase 5 review's notes: a measure dragged across a lower pane is measured too, each end its nearest day
+      mounted.draw(false);
+      mounted.measure(true);
+      // a pointer event as zrender hands it on: its pixel, and the browser's event under it (the zoom's own handler reads it)
+      const px = (date: string): { offsetX: number; offsetY: number; event: unknown } => {
+        const [x, y] = chart!.convertToPixel({ seriesId: 'drawings:1' }, [date, 50]) as unknown as number[];
+        return { offsetX: x!, offsetY: y!, event: { preventDefault: () => {}, stopPropagation: () => {} } };
+      };
+      chart!.getZr().trigger('mousedown', px('2024-01-03'));
+      chart!.getZr().trigger('mousemove', px('2024-01-05'));
+      chart!.getZr().trigger('mouseup', px('2024-01-05'));
+      assert.deepEqual(spans.at(-1), ['2024-01-03', '2024-01-05', true]);
+    } finally {
+      mounted.dispose();
+    }
+  });
+
+  // the Phase 2 review's 11: no test ran a picture's export through ECharts' SVG painter
+  it('a picture made as SVG off the screen, by the SVG painter: its heading and its lines\' names in it', async () => {
+    const { JSDOM } = await import('jsdom');
+    const { svgChart } = await import('../src/chart-render.ts');
+    const dom = new JSDOM('<!doctype html><body><div id="c"></div></body>');
+    const el = dom.window.document.getElementById('c') as unknown as HTMLElement;
+    // zrender's SVG painter makes its elements in the page's document: the test's own, while it draws
+    const g = globalThis as { document?: unknown };
+    const had = g.document;
+    g.document = dom.window.document;
+    const mounted = mountTimeseries(el, { onZoom: () => {} }, () => echarts.init(null, null, { renderer: 'svg', ssr: true, width: 720, height: 480 }), svgChart);
+    try {
+      const ts: TimeseriesSpec = { ...spec([S('A', 'close', { name: 'Close' }), S('B', 'mean($A, 2)', { name: 'Two-day mean' })]), view: { subtitle: 'Daily', note: 'Source: the exchange' } };
+      const results = [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [105, 104, 102, 101, 100] }),
+        answered('B', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [104.5, 103, 101.5, 100.5, null] })];
+      const tall = tsPictureHeight(ts, 480, 'Markets');
+      const option = timeseriesOption(ts, tsLines(ts, results, LIGHT_THEME).lines, { theme: LIGHT_THEME, height: tall, title: 'Markets', picture: true });
+      const url = await mounted.exportUrl(option, 'svg', 720, tall, '#ffffff');
+      const body = url.slice(url.indexOf(',') + 1);
+      const svg = url.includes(';base64,') ? Buffer.from(body, 'base64').toString('utf8') : decodeURIComponent(body);
+      assert.match(svg, /^<svg/, 'an SVG');
+      for (const words of ['Markets', 'Daily', 'Source: the exchange', 'Close', 'Two-day mean']) assert.ok(svg.includes(words), `${words} in the picture`);
+      assert.equal(dom.window.document.body.children.length, 1, 'its box off the screen put away');
+    } finally {
+      mounted.dispose();
+      g.document = had;
     }
   });
 });

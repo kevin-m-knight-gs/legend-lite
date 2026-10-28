@@ -177,6 +177,55 @@ class PureV1ApiTest {
     }
 
     /**
+     * The engine's TEXT on {@code pure/v1} execute (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4 decision 2, §5 step 5;
+     * the plan path program's step 2, 2026-10-18): a Float as Java prints a double, a DateTime with nine fraction
+     * digits and {@code +0000}, a StrictDate its day -- measured against legend-engine 4.145.0
+     * ({@code docs/execution-plan-boundary-2026-10-05/probes/engine-reference/results.txt} §2, the {@code lit-*}
+     * cases) and, for the Float's layout beyond them, Java's own {@code Double.toString}. The VALUES stay Pure's: a
+     * Decimal keeps its scale where the engine answers {@code 2.5} and {@code 5.0000000000000000} (register S104), and
+     * {@code 3 * 1.1} is {@code 3.3} where the engine computes {@code 3.3000000000000003} (S105).
+     */
+    @Test
+    void e8_execute_writesTheEnginesText_overPuresValues() {
+        Map<String, String> cases = new LinkedHashMap<>();
+        cases.put("1.5e15", "1.5E15");
+        cases.put("2.5e-7", "2.5E-7");
+        cases.put("1.1", "1.1");
+        cases.put("2 * 1.5", "3.0");
+        cases.put("12345678.5", Double.toString(12345678.5));
+        cases.put("1234567.0", Double.toString(1234567.0));
+        cases.put("1.0e7", Double.toString(1.0e7));
+        cases.put("0.001", Double.toString(0.001));
+        cases.put("1.0e-4", Double.toString(1.0e-4));
+        cases.put("100.0", Double.toString(100.0));
+        cases.put("-2.5e-7", Double.toString(-2.5e-7));
+        cases.put("0.0", "0.0");
+        cases.put("3 * 1.1", "3.3");                                  // S105: the engine's 3.3000000000000003
+        cases.put("%2024-01-02T10:30:00", "\"2024-01-02T10:30:00.000000000+0000\"");
+        cases.put("%2024-01-02T10:30:00.123456789", "\"2024-01-02T10:30:00.123456789+0000\"");
+        cases.put("%2024-01-02", "\"2024-01-02\"");
+        cases.put("2.50D", "2.50");                                   // S104: the engine's 2.5
+        cases.put("2 * 2.50D", "5.00");                               // S104: the engine's 5.0000000000000000
+        cases.put("7", "7");
+        cases.put("'a'", "\"a\"");
+        cases.put("true", "true");
+        List<String> wrong = new ArrayList<>();
+        for (Map.Entry<String, String> c : cases.entrySet()) {
+            String function = PureV1Api.grammarToJsonLambda("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->extend(~v: r|"
+                    + c.getKey() + ")->select(~[v])->limit(1)->from(trades::h2::RT)", false).json();
+            PureV1Api.Answer a = execute("{\"clientVersion\":\"vX_X_X\",\"function\":" + function + ",\"model\":"
+                    + textModel() + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}");
+            assertEquals(200, a.status(), c.getKey() + ": " + a.json());
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\{\"values\": \\[(.*?)\\]\\}").matcher(a.json());
+            String token = m.find() ? m.group(1) : "<no row: " + a.json() + ">";
+            if (!token.equals(c.getValue())) {
+                wrong.add(c.getKey() + " writes " + token + ", the engine's text is " + c.getValue());
+            }
+        }
+        assertTrue(wrong.isEmpty(), String.join("\n", wrong));
+    }
+
+    /**
      * Leg 8 step 3: a model given as a {@code PureModelContextData} -- the JSON upstream Studio, an SDLC or Depot sends
      * -- is answered as its text is, on every route that takes a model: read into the records and compiled from them,
      * never printed and parsed again.
@@ -389,6 +438,37 @@ class PureV1ApiTest {
         // one object is written bare, as execute writes it
         assertEquals("{\"builder\":{\"_type\":\"json\"},\"values\":{\"tradeId\":1}}",
                 PureV1Api.jsonAnswer(graph.json(), "[{\"tradeId\":1}]").json());
+    }
+
+    /**
+     * A host's models (PureV1Api.Models): a model given as text is compiled by the host's hook -- a held model's, where
+     * the host holds that text -- and answered exactly as when compiled for the request, on every route that compiles one.
+     */
+    @Test
+    void route_compilesATextModelByTheHostsModels() {
+        com.legend.HeldModels held = new com.legend.HeldModels();
+        int handle = held.hold(model);
+        try {
+            int[] uses = new int[1];
+            PureV1Api.Models models = new PureV1Api.Models() {
+                @Override
+                public <T> T with(String t, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
+                    uses[0]++;
+                    return held.withText(t, use);
+                }
+            };
+            String typed = "{\"model\":" + textModel() + ",\"lambda\":" + lambda + "}";
+            String plan = "{\"function\":" + lambda + ",\"model\":" + textModel() + "}";
+            assertEquals(PureV1Api.lambdaRelationType(typed),
+                    PureV1Api.route("/api/pure/v1/compilation/lambdaRelationType", null, typed, NO_RUN, models));
+            assertEquals(PureV1Api.lambdaReturnType(typed),
+                    PureV1Api.route("/api/pure/v1/compilation/lambdaReturnType", null, typed, NO_RUN, models));
+            assertEquals(PureV1Api.generatePlan(plan),
+                    PureV1Api.route("/api/pure/v1/execution/generatePlan", null, plan, NO_RUN, models));
+            assertEquals(3, uses[0], "each route compiled its model through the host's hook");
+        } finally {
+            held.release(handle);
+        }
     }
 
     /** route: each path answers as its endpoint does; any other is 404 in the engine's shape; execute runs through the runner. */
@@ -674,8 +754,9 @@ class PureV1ApiTest {
 
     /**
      * The recorded differences, applied structurally: the vocabulary (difference 1);
-     * RECORDED DIFFERENCE 2, a plan's {@code resultColumns} carry no physical type in
-     * lite (its typer has no physical provenance); the SQL text (compared by rows).
+     * the SQL text (compared by rows). Recorded difference 2 -- a plan's {@code resultColumns} without a physical
+     * type -- closed 2026-10-17: the plan carries the store's declared type (docs/PLAN_PATH_PROGRAM_2026_10_17.md
+     * §3), compared verbatim.
      */
     private static Object rewrite(Json.Node n, String key) {
         if (n instanceof Json.Obj o) {
@@ -689,8 +770,6 @@ class PureV1ApiTest {
                 Json.Node v = e.getValue();
                 if (k.equals("sqlQuery")) {
                     out.put(k, "<compared by rows>");
-                } else if (k.equals("dataType") && "resultColumns".equals(key)) {
-                    out.put(k, "");
                 } else if ((k.equals("fullPath") || k.equals("type")) && v instanceof Json.Str s
                         && VOCABULARY.containsKey(s.value())) {
                     out.put(k, VOCABULARY.get(s.value()));

@@ -1217,7 +1217,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       heading.className = 'dc-open-examples-title';
       heading.textContent = 'Examples';
       box.append(heading);
-      for (const example of EXAMPLE_PAGES) {
+      // an example over a project's saved queries only where this page compiles against that project
+      const offered = EXAMPLE_PAGES.filter((e) => e.project === undefined || (services.queries?.projects ?? [])
+        .some((p) => p.groupId === e.project!.groupId && p.artifactId === e.project!.artifactId && p.versionId === e.project!.versionId));
+      for (const example of offered) {
         const item = document.createElement('button');
         item.type = 'button';
         item.className = 'dc-open-example';

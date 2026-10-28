@@ -5,9 +5,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { tsProblem, type TimeseriesSpec, type TsExpr } from '../src/timeseries-spec.ts';
+import { tsProblem, type TimeseriesSpec, type TsAnnotation, type TsExpr } from '../src/timeseries-spec.ts';
 import {
-  aliasFor, candleOf, columnsOf, defaultTimeseries, exprText, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
+  aliasFor, candleOf, columnsOf, defaultTimeseries, exprSource, exprText, functionNamed, inlined, nextSeriesId, parseExpr, refsOf, sourcesOf,
   levelOf, timeseriesProblems, TsSyntaxError, unitOf, type TsColumn, TS_FUNCTIONS,
 } from '../src/timeseries-expr.ts';
 
@@ -28,6 +28,17 @@ const ROUND_TRIPS = [
   'volatility($A, 63)',
   'volatility($A, 63, log)',
   'zscores($A, 252)',
+  // calendar periods: a window of dates, a lag as of a date (gs-quant's tenors)
+  'mean(close, 3m)',
+  'returns(close[AAPL], 1y)',
+  'correlation($A, $B, 6m)',
+  'volatility($A, 2w, log)',
+  // conditions: comparisons, and, or -- 1 where they hold
+  'close > mean(close, 50)',
+  'close[AAPL] >= 100 and close[MSFT] < 300',
+  'rates:yield[10Y] - rates:yield[2Y] < 0 or $A == 1',
+  '(close > 100) * 2',
+  'returns(close) != 0',
   'correlation(px:close[SPX], rates:yield[10Y], 126)',
   'bollinger_bands(close[AAPL], 20, 2.5)',
   'close[AAPL] / close[MSFT]',
@@ -54,6 +65,26 @@ describe('the expression language', () => {
     assert.equal(exprText(parseExpr('returns(close, 1, simple)')), 'returns(close)');
     assert.equal(exprText(parseExpr('volatility(close, type=log)')), 'volatility(close, 22, log)');
     assert.equal(exprText(parseExpr('returns(close, type=absolute)')), 'returns(close, 1, absolute)');
+    // a function of many series' by name: by its place, a word after the weights read as one more series (it was
+    // written basket(x, 0.6, y, 0.4, monthly), which no reader read back)
+    assert.equal(exprText(parseExpr('basket(x, 0.6, y, 0.4, rebalance=monthly)')), 'basket(x, 0.6, y, 0.4, rebalance=monthly)');
+    assert.deepEqual(parseExpr(exprText(parseExpr('basket(x, 0.6, y, 0.4, rebalance=monthly)'))), parseExpr('basket(x, 0.6, y, 0.4, rebalance=monthly)'));
+  });
+
+  // the code that builds a tile (timeseries-code.ts): its text reads back as the very expression, each parameter as told
+  it('exprSource: each parameter as it was told -- by its place while each before it is, else by its name', () => {
+    for (const [text, source] of [
+      ['returns(close, type=log)', 'returns(close, type=log)'],
+      ['returns(close, 1, simple)', 'returns(close, 1, simple)'],
+      ['returns(close)', 'returns(close)'],
+      ['volatility(close, 63)', 'volatility(close, 63)'],
+      ['basket(x, 0.6, y, 0.4, rebalance=monthly)', 'basket(x, 0.6, y, 0.4, rebalance=monthly)'],
+      ['mean(close[AAPL], 3m) / lag($A, 1y)', 'mean(close[AAPL], 3m) / lag($A, 1y)'],
+    ] as const) {
+      const tree = parseExpr(text);
+      assert.equal(exprSource(tree), source);
+      assert.deepEqual(parseExpr(exprSource(tree)), tree, `${text}: read back as itself`);
+    }
   });
 
   it('aliases are gs-quant\'s other names, and its own spellings', () => {
@@ -94,6 +125,11 @@ describe('the expression language', () => {
     refused('close.median', /a period's value is one of/);
     refused('close[', /a value was expected/);
     refused('#', /means nothing here/);
+    // a calendar period is days, weeks, months or years
+    refused('mean(close, 3q)', /w is a whole number of observations or a calendar period \(3m, 1y\)/);
+    refused('returns(close, 0y)', /obs is a whole number of observations or a calendar period/);
+    refused('mean(close, 2.5)', /w is a whole number/);
+    refused('close < 1 < 2', /a comparison compares two sides/);
     const at = ((): number => {
       try {
         parseExpr('returns(close, x)');
@@ -106,18 +142,55 @@ describe('the expression language', () => {
   });
 
   it('refuses gs-quant\'s functions DataCube does not compute, saying why', () => {
-    refused('exponential_moving_average(close)', /recursion/);
-    refused('macd(close)', /recursion/);
-    refused('ema(close)', /recursion/);
-    refused('median(close)', /rolling median/);
+    refused('smooth_outliers(close)', /an iterative procedure/);
+    refused('repeat(close)', /dates the data does not have/);
+    // built since (the next phases' 1, 2026-10-26): read as typed
+    assert.equal(exprText(parseExpr('seasonally_adjusted(close)')), 'seasonally_adjusted(close)');
+    refused('percentile(close, 101)', /n is at most 100/);
+  });
+
+  // the expert functions (2026-10-26): gs-quant's recursions, read with its defaults; a weight of 1 or more refused
+  it('reads the exponential averages, MACD and Wilder\'s, with gs-quant\'s defaults', () => {
+    assert.deepEqual(parseExpr('ema(close)'), { kind: 'call', fn: 'exponential_moving_average', args: [{ kind: 'column', column: 'close' }] });
+    assert.equal(exprText(parseExpr('exponential_volatility(close, 0.94)')), 'exponential_volatility(close, 0.94)');
+    assert.equal(exprText(parseExpr('macd(close, 12, 26, 9)')), 'macd(close, 12, 26, 9)');
+    assert.equal(exprText(parseExpr('macd(close, 12, 26, 1)')), 'macd(close)');
+    refused('exponential_moving_average(close, 1)', /beta is below 1/);
+    refused('exponential_std(close, -0.1)', /beta is above 0/);
+    // the E9 review's 2: at beta 0 each value weighs alone, which has no deviation (the database's log of 0 refused it)
+    refused('exponential_std(close, 0)', /beta is above 0/);
+    refused('exponential_volatility(close, 0)', /beta is above 0/);
+    refused('exponential_spread_volatility(close, 0)', /beta is above 0/);
+    refused('exponential_moving_average(close, -0.1)', /beta is at least 0/);
+    refused('smoothed_moving_average(close, 3m)', /w is a number|whole/);
+    refused('rsi(close, 1m)', /w is a number|whole/);
   });
 
   it('every function in the catalog says what it is, and what of gs-quant it is', () => {
     for (const f of TS_FUNCTIONS) {
       assert.ok(f.about.length > 0 && f.gsQuant.length > 0, f.name);
-      const args = Array.from({ length: f.series }, () => 'close').join(', ');
+      // a weighted sum's series each with its weight
+      const args = f.series === 'many' ? 'close, 0.6, close, 0.4' : Array.from({ length: f.series }, () => 'close').join(', ');
       assert.equal(exprText(parseExpr(`${f.name}(${args})`)), `${f.name}(${args})`, f.name);
     }
+  });
+});
+
+// the Phase 1 review's 7 and 8 (2026-10-26)
+describe('a weighted sum\'s weights, and the catalog\'s words', () => {
+  it('weights summing to nothing refused, said so -- a sum of floats near 0 as much as one of 0', () => {
+    assert.throws(() => parseExpr('weighted_sum(close[A], 1, close[B], -1)'), /its weights sum to 0/);
+    assert.throws(() => parseExpr('weighted_sum(close[A], 0.1, close[A], 0.2, close[A], -0.3)'), /its weights sum to 0/);
+    assert.throws(() => parseExpr('weighted_sum(close[A], 0.5, close[B])'), /reads series and their weights, in pairs/);
+    const saved = { sources: [{ alias: 'px', cube: 'g', date: 'd' }], series: [{ id: 'A', expr: { kind: 'call', fn: 'weighted_sum',
+      args: [{ kind: 'column', column: 'c' }, { kind: 'number', value: 0.1 }, { kind: 'column', column: 'c' }, { kind: 'number', value: 0.2 },
+        { kind: 'column', column: 'c' }, { kind: 'number', value: -0.3 }] } }] };
+    assert.match(tsProblem(saved) ?? '', /its weights sum to 0/);
+  });
+
+  it('vol_swap_volatility\'s first value is gs-quant\'s: no ramp said to differ', () => {
+    assert.doesNotMatch(functionNamed('vol_swap_volatility')!.differs ?? '', /ramp/);
+    assert.match(functionNamed('mean')!.differs ?? '', /ramp starts one observation later/);
   });
 });
 
@@ -209,14 +282,25 @@ describe('the saved spec\'s reader', () => {
     grain: 'day',
     series: [{ id: 'A', expr: parseExpr('rebase(close[AAPL])'), name: 'Apple', style: { kind: 'line', color: 2, width: 2, dash: 'dashed' }, pane: 0, axis: 'left' }],
     range: { last: '5y' },
-    panes: [{ height: 3, log: true }],
-    annotations: [{ kind: 'level', value: 100, label: 'par' }, { kind: 'event', date: '2024-03-20', label: 'FOMC' }, { kind: 'period', from: '2020-02-19', to: '2020-04-07' }],
-    view: { compare: 'rebase', legend: true, lastValues: true, navigator: true, stats: false, crosshair: true },
+    panes: [{ height: 3, log: true, invert: true, min: 50, max: 400 }],
+    annotations: [{ kind: 'level', value: 100, label: 'par' }, { kind: 'event', date: '2024-03-20', label: 'FOMC' }, { kind: 'period', from: '2020-02-19', to: '2020-04-07' },
+      { kind: 'marks', source: 'px', where: [{ value: 'AAPL' }, { column: 'side', value: 'BUY' }], at: 'price', text: 'quantity', shape: 'up', pane: 0, label: 'Bought', color: 2 },
+      { kind: 'marks', source: 'px', text: 'headline', label: 'Earnings' },
+      // a person's own drawings (Phase 5): a line from a point to a point, a note pinned at one
+      { kind: 'line', from: { date: '2024-01-02', value: 180.5 }, to: { date: '2024-06-28', value: 210 }, pane: 0, label: 'Trend', color: 1 },
+      { kind: 'note', at: { date: '2024-03-20', value: 175 }, text: 'Bought here', pane: 0 },
+      // a trend projected (Phase 5): of a series of the tile, its window and how far ahead
+      { kind: 'projection', series: 'A', window: 126, ahead: '6m', label: 'Trend' }],
+    view: { compare: 'rebase', legend: true, lastValues: true, navigator: true, stats: false, crosshair: true, subtitle: 'Since 2020', note: 'Source: the exchange' },
   };
   const with_ = (change: Record<string, unknown>): unknown => ({ ...JSON.parse(JSON.stringify(OK)), ...change });
 
   it('reads a spec of every slot', () => {
     assert.equal(tsProblem(JSON.parse(JSON.stringify(OK))), null);
+    // a window of a calendar period, and a lag of one
+    assert.equal(tsProblem(with_({ series: [{ id: 'A', expr: parseExpr('returns(mean(close, 3m), 1y)') }] })), null);
+    // the next phases' 3: a view of its series, and each view's settings
+    assert.equal(tsProblem(with_({ view: { mode: 'curve', of: ['A'], dates: ['latest', '1m', '2024-03-29'], years: 10, bins: 40 } })), null);
   });
 
   it('refuses a word, a key or a number it has no place for, by name', () => {
@@ -227,16 +311,63 @@ describe('the saved spec\'s reader', () => {
       [with_({ sources: [{ alias: 'px', cube: 'g', date: 'd' }, { alias: 'px', cube: 'h', date: 'd' }] }), /two sources are called px/],
       [with_({ grain: 'hour' }), /frequency "hour"/],
       [with_({ series: [{ id: 'a', expr: { kind: 'number', value: 1 } }] }), /not a capital letter/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'macd', args: [] } }] }), /calls "macd", which this DataCube does not compute/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'smooth_outliers', args: [] } }] }), /calls "smooth_outliers", which this DataCube does not compute/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'percentile', args: [{ kind: 'column', column: 'c' }], params: { n: 120 } } }] }), /n 120 is above 100/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'exponential_moving_average', args: [{ kind: 'column', column: 'c' }], params: { beta: 1 } } }] }), /beta 1 is not below 1/],
       [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'returns', args: [{ kind: 'column', column: 'c' }], params: { obs: 0 } } }] }), /obs 0 is below 1/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'exponential_std', args: [{ kind: 'column', column: 'c' }], params: { beta: 0 } } }] }), /beta 0 is not above 0/],
       [with_({ series: [{ id: 'A', expr: { kind: 'column', source: 'fx', column: 'c' } }] }), /reads fx:..., which is none of its sources/],
       [with_({ series: [{ id: 'A', expr: { kind: 'column', column: 'c' }, pane: 4 }] }), /pane 4 is not one of 0 to 3/],
       [with_({ series: [{ id: 'A', expr: { kind: 'column', column: 'c' }, style: { kind: 'candles' } }] }), /style "candles"/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'mean', args: [{ kind: 'column', column: 'c' }], params: { w: '3q' } } }] }), /w "3q" is neither a whole number nor a calendar period/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'mean', args: [{ kind: 'column', column: 'c' }], params: { w: 2.5 } } }] }), /w 2.5 is not a whole number/],
       [with_({ range: { last: '7y' } }), /range "7y"/],
       [with_({ range: { from: '2024-02-01', to: '2024-01-01' } }), /ends before it starts/],
       [with_({ range: { last: '1y', from: '2024-01-01' } }), /not both/],
       [with_({ annotations: [{ kind: 'event', date: 'March' }] }), /is not a date/],
+      // marks from a grid's rows (Phase 6's D4): of a source of the tile, each column a word, a shape it draws
+      [with_({ annotations: [{ kind: 'marks', source: 'tr' }] }), /annotation 1's source "tr" is none of the tile's \(px\)/],
+      [with_({ annotations: [{ kind: 'marks', source: 'px', at: '' }] }), /annotation 1's at is not a column/],
+      [with_({ annotations: [{ kind: 'marks', source: 'px', at: 'price', shape: 'star' }] }), /shape "star" is not one of up, down, dot/],
+      [with_({ annotations: [{ kind: 'marks', source: 'px', pane: 1 }] }), /drawn in a pane at a value: it names no column to draw them at/],
+      [with_({ annotations: [{ kind: 'marks', source: 'px', where: [{ column: 'side' }] }] }), /annotation 1's match 1 is not a value/],
+      [with_({ annotations: [{ kind: 'marks', source: 'px', size: 3 }] }), /no "size" in annotation 1 \(a marks\)/],
+      // a person's drawings (Phase 5): each point a date and a value, a note its text, a pane of the tile's
+      [with_({ annotations: [{ kind: 'line', from: { date: '2024-01-02', value: 1 }, to: { date: 'June', value: 2 } }] }), /annotation 1's to is not a point: a date \(2024-01-31\) and a value/],
+      [with_({ annotations: [{ kind: 'line', from: { date: '2024-01-02', value: 1 } }] }), /annotation 1's to is not a point/],
+      [with_({ annotations: [{ kind: 'note', at: { date: '2024-01-02', value: null }, text: 'x' }] }), /annotation 1's at is not a point/],
+      [with_({ annotations: [{ kind: 'note', at: { date: '2024-01-02', value: 1, pane: 1 }, text: 'x' }] }), /annotation 1's at is not a point/],
+      [with_({ annotations: [{ kind: 'note', at: { date: '2024-01-02', value: 1 }, text: '  ' }] }), /annotation 1 says nothing: a note has its text/],
+      [with_({ annotations: [{ kind: 'note', at: { date: '2024-01-02', value: 1 }, text: 'x', label: 'y' }] }), /no "label" in annotation 1 \(a note\)/],
+      [with_({ annotations: [{ kind: 'line', from: { date: '2024-01-02', value: 1 }, to: { date: '2024-01-03', value: 2 }, pane: 9 }] }), /annotation 1's pane is not one of 0 to/],
+      [with_({ annotations: [{ kind: 'line', from: { date: '2024-01-02', value: 1 }, to: { date: '2024-01-03', value: 2 }, color: -1 }] }), /annotation 1's colour -1 is not a slot of the palette/],
+      [with_({ annotations: [{ kind: 'arrow' }] }), /annotation 1 is not a level, an event, a period, marks, a line, a note or a projection/],
+      [with_({ annotations: [{ kind: 'projection', series: 'Z' }] }), /annotation 1 projects "Z", which is none of the tile's series/],
+      [with_({ annotations: [{ kind: 'projection', series: 'A', window: 2 }] }), /annotation 1's window 2 is not a whole number of observations from 3/],
+      [with_({ annotations: [{ kind: 'projection', series: 'A', ahead: '3q' }] }), /annotation 1's ahead "3q" is not a calendar period/],
+      [with_({ annotations: [{ kind: 'projection', series: 'A', pane: 1 }] }), /no "pane" in annotation 1 \(a projection\)/],
       [with_({ view: { compare: 'log' } }), /compare "log"/],
+      // the next phases' 2: a pane upside down, its ends by hand; a subtitle and a note in words
+      [with_({ panes: [{ invert: 'yes' }] }), /pane 0's invert is not true or false/],
+      [with_({ panes: [{ min: 'low' }] }), /pane 0's min "low" is not a number/],
+      [with_({ panes: [{ min: 5, max: 5 }] }), /pane 0's min 5 is not below its max 5/],
+      // the Phase 2 review's 2: a log scale's ends above 0, never clamped without a word
+      [with_({ panes: [{ log: true, min: 0 }] }), /pane 0's min 0 is not above 0: a log scale starts above it/],
+      [with_({ panes: [{ log: true, max: -1 }] }), /pane 0's max -1 is not above 0: a log scale starts above it/],
+      [with_({ view: { subtitle: 3 } }), /subtitle is not text/],
+      [with_({ panes: [{ flip: true }] }), /flip/],
+      // the next phases' 3: a view's mode, its series, its settings
+      [with_({ view: { mode: 'pie' } }), /mode "pie" is not one of scatter, seasonality, histogram, curve/],
+      [with_({ view: { of: [] } }), /view reads one series or two, by id/],
+      [with_({ view: { of: ['A', 'A', 'A'] } }), /view reads one series or two, by id/],
+      [with_({ view: { of: ['Q'] } }), /view reads series Q, which it has not/],
+      [with_({ view: { dates: ['yesterday'] } }), /curve date "yesterday" is not latest, a period back \(1m, 1y\) or a day/],
+      [with_({ view: { dates: ['latest', '1m', '2m', '3m', '6m', '1y', '2y'] } }), /curve dates are 1 to 6/],
+      // the Phase 3 review's 10: a day no calendar has, and a date asked twice
+      [with_({ view: { dates: ['2024-02-30'] } }), /curve date "2024-02-30" is not latest, a period back \(1m, 1y\) or a day/],
+      [with_({ view: { dates: ['latest', '1m', 'latest'] } }), /curve date "latest" is asked twice/],
+      [with_({ view: { years: 0 } }), /years 0 is not a whole number of 1 to 20/],
+      [with_({ view: { bins: 2.5 } }), /bins 2.5 is not a whole number of 5 to 100/],
     ];
     for (const [spec, words] of cases) {
       const p = tsProblem(spec);
@@ -282,6 +413,18 @@ describe('a timeseries against its sources\' columns', () => {
     has(split, /split by 'symbol': a series reads only series split as it is/);
     const wrongSplit: TimeseriesSpec = { ...TS({}), series: [{ id: 'A', expr: parseExpr('rates:yield'), split: 'symbol' }] };
     has(wrongSplit, /which source rates -- the one it reads first -- has not/);
+  });
+
+  // marks from a grid's rows (Phase 6's D4): each column they read their source's, the one they are drawn at a number
+  it('says what stops marks from a grid\'s rows', () => {
+    const marked = (marks: Record<string, unknown>, sources?: TimeseriesSpec['sources']): TimeseriesSpec =>
+      ({ ...TS({ A: 'px:close' }), ...(sources ? { sources } : {}), annotations: [{ kind: 'marks', source: 'px', ...marks } as TsAnnotation] });
+    assert.deepEqual(problems(marked({ where: [{ value: 'AAPL' }, { column: 'sector', value: 'IT' }], at: 'close', text: 'volume', label: 'Trades' })), []);
+    assert.deepEqual(problems(marked({ at: 'price', label: 'Trades' })), ["Marks \"Trades\" read 'price', which source px has not."]);
+    assert.deepEqual(problems(marked({ at: 'sector' })), ["Marks 1 are drawn at 'sector', which is not a number."]);
+    assert.deepEqual(problems(marked({ where: [{ column: 'side', value: 'BUY' }] })), ["Marks 1 read 'side', which source px has not."]);
+    assert.deepEqual(problems(marked({ where: [{ value: 'AAPL' }] }, [{ alias: 'px', cube: 'g1', date: 'day' }])),
+      ["Marks 1 match a value with no column ([AAPL]): choose source px's instrument column (Key)."]);
   });
 });
 

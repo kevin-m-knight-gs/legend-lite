@@ -11,10 +11,11 @@ import { CHART_MARKS, chartProblems } from '../src/chart-spec.ts';
 import { chartsGalleryPage } from '../src/examples/charts-gallery.ts';
 import { pageToJson, readPage } from '../src/page-document.ts';
 import { tiles } from '../src/layout/bands.ts';
-import { COUNTRY_COLUMNS, countriesCsv, MARKET_COLUMNS, RATE_COLUMNS, salesCsv, SALES_COLUMNS } from '../src/samples.ts';
+import { COUNTRY_COLUMNS, countriesCsv, MACRO_COLUMNS, macroCsv, MARKET_COLUMNS, RATE_COLUMNS, salesCsv, SALES_COLUMNS } from '../src/samples.ts';
 import { COUNTRY_SPECS, prepJoinsPage } from '../src/examples/prep-joins.ts';
-import { MARKET_SPECS, RATE_SPECS, marketsPage } from '../src/examples/markets.ts';
+import { MACRO_SPECS, MARKET_SPECS, RATE_SPECS, marketsPage } from '../src/examples/markets.ts';
 import { timeseriesGalleryPage } from '../src/examples/timeseries-gallery.ts';
+import { MARKETS_PROJECT, marketsClassesPage, SAVED_GRIDS } from '../src/examples/markets-classes.ts';
 import { timeseriesProblems, TS_FUNCTIONS } from '../src/timeseries-expr.ts';
 import type { TimeseriesSpec, TsExpr } from '../src/timeseries-spec.ts';
 import { frozenInput, openCube } from '../src/cube-document.ts';
@@ -28,9 +29,28 @@ import { liveGrids } from '../src/live-inputs.ts';
 /** The pages of charts over the sales sample; the join example is read below. */
 const CHART_PAGES = EXAMPLE_PAGES.filter((e) => e.id.startsWith('charts-'));
 
+// the next phases' 1 (2026-10-26): a monthly grid beside the daily prices, its months ends, a season in its sales
+describe('the macro sample', () => {
+  it('ten years of month-ends of three series, each dated at its last calendar day; retail sales peaking each December', () => {
+    const lines = macroCsv().trim().split('\n');
+    assert.equal(lines[0], MACRO_COLUMNS.join(','));
+    const rows = lines.slice(1).map((l) => l.split(','));
+    assert.equal(rows.length, 360);
+    assert.deepEqual([...new Set(rows.map((r) => r[0]))], ['CPI', 'RETAIL', 'UNRATE']);
+    const lastDay = (d: string): boolean => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).getUTCDate() === 1;
+    assert.ok(rows.every((r) => lastDay(r[1]!)), 'each its month\'s last day');
+    assert.ok(rows.some((r) => [0, 6].includes(new Date(`${r[1]}T00:00:00Z`).getUTCDay())), 'a weekend, some months');
+    const retail = rows.filter((r) => r[0] === 'RETAIL');
+    for (let y = 2015; y <= 2024; y++) {
+      const of = (m: string): number => Number(retail.find((r) => r[1]!.startsWith(`${y}-${m}`))![2]);
+      assert.ok(of('12') > of('11') && of('01') < of('12'), `${y}: a December peak`);
+    }
+  });
+});
+
 describe('the example pages', () => {
   it('each is a page of charts, the join example, a timeseries example or the flow example', () => {
-    assert.deepEqual(EXAMPLE_PAGES.filter((e) => !CHART_PAGES.includes(e)).map((e) => e.id), ['prep-joins', 'markets', 'timeseries-gallery', 'prep-flow']);
+    assert.deepEqual(EXAMPLE_PAGES.filter((e) => !CHART_PAGES.includes(e)).map((e) => e.id), ['prep-joins', 'markets', 'timeseries-gallery', 'markets-classes', 'prep-flow']);
   });
 
   // a flow to open, rather than one to build first (docs/DATACUBE_FLOW_MODE_2026_10_24.md)
@@ -182,7 +202,7 @@ describe('the example pages', () => {
   it('the timeseries gallery: a sheet per family, each using every function of its family, the ways to view, the data', async () => {
     const page = readPage(pageToJson(await timeseriesGalleryPage()));
     const families = [...new Set(TS_FUNCTIONS.map((f) => f.family))];
-    assert.deepEqual(page.sheets.map((s) => s.name), [...families, 'Ways to view', 'The data']);
+    assert.deepEqual(page.sheets.map((s) => s.name), [...families, 'Ways to view', 'Other views', 'On the chart', 'The data']);
     const placed = page.sheets.flatMap((s) => layoutTiles(s.layout));
     assert.deepEqual([...placed].sort(), page.views.map((v) => v.id).sort(), 'every view once, on one sheet');
     assert.deepEqual(page.sheets.map((s) => s.layout.kind === 'bands' && s.layout.fit), page.sheets.map(() => true), 'every sheet fits its window');
@@ -198,11 +218,11 @@ describe('the example pages', () => {
     }
     // every tile drawable over its grids' columns; the ways to view read a split, a frequency, a log scale, a compare
     // and two grids at once
-    const columns = new Map([['prices', MARKET_SPECS], ['rates', RATE_SPECS]] as const);
+    const columns = new Map([['prices', MARKET_SPECS], ['rates', RATE_SPECS], ['macro', MACRO_SPECS]] as const);
     const all = page.views.flatMap((v) => (v.kind === 'timeseries' ? [v] : []));
     assert.ok(all.length >= 30, `${all.length} tiles`);
     for (const v of all) {
-      const byAlias = new Map(v.spec.sources.map((s) => [s.alias, columns.get(s.cube as 'prices' | 'rates')!.map((c) => ({ name: c.name, type: c.type }))] as const));
+      const byAlias = new Map(v.spec.sources.map((s) => [s.alias, columns.get(s.cube as 'prices' | 'rates' | 'macro')!.map((c) => ({ name: c.name, type: c.type }))] as const));
       assert.deepEqual(timeseriesProblems(v.spec, byAlias), [], v.title ?? v.id);
     }
     const ways = specsOn('Ways to view');
@@ -212,12 +232,44 @@ describe('the example pages', () => {
     assert.ok(ways.some((ts) => ts.view?.compare === 'percent'), 'every line from one start');
     assert.deepEqual([...new Set(ways.flatMap((ts) => ts.series.map((x) => x.style?.kind ?? 'line')))].sort(), ['area', 'bars', 'dots', 'line', 'step']);
     assert.ok(ways.some((ts) => ts.sources.length === 2), 'two grids');
-    // the data sheet: the two grids every tile reads, each its sample rebuilt on opening
-    assert.deepEqual(layoutTiles(page.sheets.at(-1)!.layout), ['prices', 'rates']);
-    for (const [id, sample] of [['prices', 'markets'], ['rates', 'rates']] as const) {
+    // the other views: each mode once
+    assert.deepEqual(specsOn('Other views').map((ts) => ts.view?.mode), ['scatter', 'seasonality', 'histogram', 'curve']);
+    // on the chart (Phase 5): a projection, and a person's own line and note
+    assert.deepEqual([...new Set(specsOn('On the chart').flatMap((ts) => (ts.annotations ?? []).map((a) => a.kind)))].sort(), ['line', 'note', 'period', 'projection']);
+    // the data sheet: the grids the tiles read, each its sample rebuilt on opening -- the monthly one the Dates sheet's
+    assert.deepEqual(layoutTiles(page.sheets.at(-1)!.layout), ['prices', 'rates', 'macro']);
+    for (const [id, sample] of [['prices', 'markets'], ['rates', 'rates'], ['macro', 'macro']] as const) {
       const source = page.cubes.find((c) => c.id === id)!.cube.source;
       assert.ok(source._type === 'file' && source.sample?.id === sample, `${id} is the ${sample} sample`);
     }
+  });
+
+  // the user, 2026-10-27: the charts from the trading model's classes (test/stress-markets.test.ts opens each grid the
+  // page's way and runs every series of it)
+  it('the markets example over the classes: each grid a saved query of the markets project, each tile drawable over them', () => {
+    const page = readPage(pageToJson(marketsClassesPage()));
+    assert.deepEqual(EXAMPLE_PAGES.find((e) => e.id === 'markets-classes')?.project, MARKETS_PROJECT, 'offered where the project is');
+    assert.deepEqual(EXAMPLE_PAGES.filter((e) => e.project !== undefined).map((e) => e.id), ['markets-classes'], 'every other example over the samples');
+    assert.deepEqual(page.sheets.map((s) => s.name), ['By sector', 'By venue', 'Trades']);
+    const placed = page.sheets.flatMap((s) => layoutTiles(s.layout));
+    assert.deepEqual([...placed].sort(), page.views.map((v) => v.id).sort(), 'every view once, on one sheet');
+    for (const g of SAVED_GRIDS) {
+      const source = page.cubes.find((c) => c.id === g.id)!.cube.source;
+      assert.ok(source._type === 'savedQuery', `${g.id} is a saved query`);
+      const { groupId, artifactId, versionId } = source.query;
+      assert.deepEqual({ groupId, artifactId, versionId }, MARKETS_PROJECT, `${g.id}: the markets project's`);
+      assert.match(source.query.content, new RegExp(`^\\|${g.className}\\.all\\(\\)->project\\(`), `${g.id}: a class projected`);
+    }
+    const columns = new Map(SAVED_GRIDS.map((g) => [g.id, g.columns.map((c) => ({ name: c.name, type: c.type }))] as const));
+    const all = page.views.flatMap((v) => (v.kind === 'timeseries' ? [v] : []));
+    assert.equal(all.length, 3);
+    for (const v of all) {
+      const byAlias = new Map(v.spec.sources.map((s) => [s.alias, columns.get(s.cube as 'quotes' | 'trades')!] as const));
+      assert.deepEqual(timeseriesProblems(v.spec, byAlias), [], v.title ?? v.id);
+    }
+    // a line split by a column the associations reach, and the trades read beside the prices
+    assert.ok(all.some((v) => v.spec.series.some((x) => x.split === 'exchange')), 'a line per listing venue');
+    assert.ok(all.some((v) => v.spec.sources.length === 2), 'the trades beside the quotes');
   });
 
   // the user, 2026-10-23: join prep was on the site, but no page showed it

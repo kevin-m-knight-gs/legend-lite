@@ -21,6 +21,16 @@ final class Windows {
     enum Kind { RANKING, VALUE }
 
     record WindowFn(com.legend.sql.SqlAgg.Fn sqlName, Kind kind) {
+
+        /**
+         * Whether it reads its window's frame: an aggregate's and FIRST_VALUE's, LAST_VALUE's and NTH_VALUE's do; a
+         * ranking's and LAG's and LEAD's read the whole partition (SQL's, and Pure's: {@code $p->lag($r)} is the
+         * partition's), so a frame given them is no part of them and is never written -- SAP IQ and H2 refuse one
+         * (2026-10-27, the DataCube library review: a Dickey-Fuller's lag over its framed window).
+         */
+        boolean readsFrame() {
+            return kind == Kind.VALUE && sqlName != com.legend.sql.SqlAgg.Fn.LAG && sqlName != com.legend.sql.SqlAgg.Fn.LEAD;
+        }
     }
 
     private static final Map<com.legend.model.FunctionId, WindowFn> FNS = new HashMap<>();
@@ -171,6 +181,7 @@ final class Windows {
             case SqlExpr.CheckedChildValue cv -> cv;
             case SqlExpr.CheckedOne co -> co;
             case SqlExpr.CompactList cl -> cl;
+            case SqlExpr.Tagged tg -> tg;   // no reducer inside: a selection over literal candidates
             case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.WindowCall w -> w;
             case SqlExpr.Lambda l -> l;
@@ -178,6 +189,7 @@ final class Windows {
                     windowize(g.inner(), partitionBy, orderBy, frame));
             // Leaves: no reducer can hide below.
             case SqlExpr.PlanParam ignored -> e;
+            case SqlExpr.KeyCell ignored -> e;
             case SqlExpr.Column ignored -> e;
             case SqlExpr.StoredRead ignored -> e;   // a column read: no reducer inside
             case SqlExpr.RowOrder ignored -> e;

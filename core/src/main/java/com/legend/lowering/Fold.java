@@ -416,11 +416,15 @@ final class Fold {
     /**
      * A window column computes over the CURRENT select's row set: WHERE is fine
      * (windows evaluate after it), ORDER BY is fine (independent orderings) —
-     * but truncation, dedup, and grouping all change the row set the window
-     * must see, so each forces isolation.
+     * but truncation, dedup, grouping and a QUALIFY all change the row set the
+     * window must see, so each forces isolation. A QUALIFY filters after the
+     * select's windows: a window folded beside it read the rows it dropped
+     * ({@code extend(over)->filter(<a window's>)->extend(over(lag))} lagged
+     * onto a dropped row, 2026-10-26, the timeseries Phase 1 review's splice),
+     * where legend-engine's nested filter has it read the rows kept.
      */
     static boolean windowFolds(SqlSelect s) {
-        return !s.distinct() && s.limit() == null && s.offset() == null && s.groupBy().isEmpty();
+        return !s.distinct() && s.limit() == null && s.offset() == null && s.groupBy().isEmpty() && s.qualify() == null;
     }
 
     /** PURE-semantics null placement for a sort key (the
@@ -1229,7 +1233,7 @@ final class Fold {
                 // stored promotion fact (SUM widens to HUGEINT,
                 // decimal SUM to Decimal(38,s) — exactly what grouped
                 // aggregates deliver, lane-green on both backends).
-                // Using.type stays the MODEL channel (PctTdsWrap's TDS
+                // Using.type stays the MODEL channel (TdsTextWrap's TDS
                 // headers); stamping it here instead re-ran the
                 // CEILING rule-vs-emission mistake: 3 wire rows
                 // diverged DOUBLE <> DECIMAL(38,2) on first measure.
@@ -1419,11 +1423,22 @@ final class Fold {
     /** Per-lane scope: {@link LiteralSpelling.ValueLane}. */
     static SqlSelect conformValueEgress(SqlSelect s,
             LiteralSpelling.ValueLane lane) {
+        // a tagged root's tag and slot columns are in their wire form by construction (the Lowerer's taggedRoot,
+        // docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): each slot its own type, the tag an index
+        java.util.Set<String> tagged = new java.util.HashSet<>();
+        for (SqlSelect.Projection p : s.projections()) {
+            if (p.out() != null && p.out().type() instanceof com.legend.sql.SqlType.Tagged tg) {
+                tagged.add(p.out().name());
+                for (int i = 0; i < tg.slots().size(); i++) {
+                    tagged.add(com.legend.sql.SqlType.Tagged.slotColumn(p.out().name(), i));
+                }
+            }
+        }
         java.util.List<SqlSelect.Projection> out = null;
         for (int i = 0; i < s.projections().size(); i++) {
             SqlSelect.Projection p = s.projections().get(i);
             com.legend.sql.OutputCol col = p.out();
-            if (col == null) {
+            if (col == null || tagged.contains(col.name())) {
                 continue;
             }
             SqlExpr.Cast conformed = LiteralSpelling.wireValueEgress(

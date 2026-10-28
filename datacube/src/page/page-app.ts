@@ -1083,6 +1083,7 @@ export class PageApp {
           at?: FlowPoint, step?: FlowStep) => this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page, editor, into, port, at, step),
       } : {}),
       ...(this.#options.together ? { together: this.#options.together } : {}),
+      unopenedCube: (cube) => this.#unopened.get(cube),
     });
   }
 

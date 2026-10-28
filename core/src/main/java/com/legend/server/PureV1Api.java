@@ -56,7 +56,9 @@ import java.util.function.Supplier;
  * <p>The model travels as {@code PureModelContextText}; any other model context is refused
  * in upstream's error shape until the PMCD reader exists (recorded). Recorded differences
  * from legend-engine, each named in the parity test: lite's type names (no precise
- * primitives), and a plan's {@code resultColumns} carry no physical type.
+ * primitives). A plan's {@code resultColumns} carry the store's declared type where a column reads one through,
+ * as the engine's do (the plan's own fact, docs/PLAN_PATH_PROGRAM_2026_10_17.md §3; the recorded difference
+ * closed 2026-10-17).
  */
 public final class PureV1Api {
 
@@ -92,11 +94,35 @@ public final class PureV1Api {
     }
 
     /**
+     * How a host compiles a request's model given as text, for one use: by default compiled for it alone (a server holds
+     * nothing: a request has no holder); a host that holds models answers over the one it holds for that text, compiled
+     * no more ({@code HeldModels.withText}). The answer is the same either way -- a held model is a function of its
+     * text alone -- only its time differs.
+     */
+    public interface Models {
+        <T> T with(String text, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use);
+
+        /** Each use compiles its text. */
+        Models COMPILED = new Models() {
+            @Override
+            public <T> T with(String text, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
+                return use.apply(com.legend.Compiler.compileModel(text));
+            }
+        };
+    }
+
+    /**
      * One call by its path ({@code /api/pure/v1/...}) and raw query string, as both of legend-lite's hosts
      * route it: its server ({@code LegendHttpServer}) and the compiler's boundary. An execute runs through
      * {@code runner}; a path this API does not serve is answered 404 in the engine's error shape.
      */
     public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner) {
+        return route(path, rawQuery, body, runner, Models.COMPILED);
+    }
+
+    /** {@link #route(String, String, String, Runner)}, a model given as text compiled by {@code models}. */
+    public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner,
+            Models models) {
         boolean sourceInformation = rawQuery == null || !rawQuery.contains("returnSourceInformation=false");
         return switch (path) {
             case "/api/pure/v1/grammar/grammarToJson/lambda" -> grammarToJsonLambda(body, sourceInformation);
@@ -106,11 +132,11 @@ public final class PureV1Api {
             case "/api/pure/v1/grammar/jsonToGrammar/lambda/batch" ->
                     jsonToGrammarLambdaBatch(body, queryParam(rawQuery, "renderStyle"));
             case "/api/pure/v1/grammar/jsonToGrammar/model" -> jsonToGrammarModel(body, queryParam(rawQuery, "renderStyle"));
-            case "/api/pure/v1/compilation/lambdaRelationType" -> lambdaRelationType(body);
+            case "/api/pure/v1/compilation/lambdaRelationType" -> lambdaRelationType(body, models);
             case "/api/pure/v1/compilation/compile" -> compile(body);
-            case "/api/pure/v1/compilation/lambdaReturnType" -> lambdaReturnType(body);
-            case "/api/pure/v1/execution/generatePlan" -> generatePlan(body);
-            case "/api/pure/v1/execution/execute" -> execute(body, runner);
+            case "/api/pure/v1/compilation/lambdaReturnType" -> lambdaReturnType(body, models);
+            case "/api/pure/v1/execution/generatePlan" -> generatePlan(body, models);
+            case "/api/pure/v1/execution/execute" -> execute(body, runner, models);
             case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
@@ -263,11 +289,17 @@ public final class PureV1Api {
      * path, a primitive its name; a failure is 400 COMPILATION.
      */
     public static Answer lambdaReturnType(String body) {
+        return lambdaReturnType(body, Models.COMPILED);
+    }
+
+    /** {@link #lambdaReturnType(String)}, a model given as text compiled by {@code models}. */
+    public static Answer lambdaReturnType(String body, Models models) {
         return answer(400, "COMPILATION", () -> {
             Json.Obj request = request(body);
             ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
-            com.legend.compiler.element.type.Type t = com.legend.Compiler.query(model.compile(), lambda).resultType().type();
+            com.legend.compiler.element.type.Type t = model.with(models,
+                    ctx -> com.legend.Compiler.query(ctx, lambda).resultType().type());
             String path = com.legend.compiler.element.type.Type.schemaView(t) != null
                     ? "meta::pure::metamodel::relation::Relation"
                     : UpstreamRelationType.typePath(t);
@@ -298,12 +330,17 @@ public final class PureV1Api {
 
     /** E5: {@code {model, lambda}} to the query's {@code RelationType}. */
     public static Answer lambdaRelationType(String body) {
+        return lambdaRelationType(body, Models.COMPILED);
+    }
+
+    /** {@link #lambdaRelationType(String)}, a model given as text compiled by {@code models}. */
+    public static Answer lambdaRelationType(String body, Models models) {
         return answer(400, "COMPILATION", () -> {
             Json.Obj request = request(body);
             ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
-            return Json.toCompact(UpstreamRelationType.of(
-                    com.legend.Compiler.query(model.compile(), lambda).resultType()));
+            return model.with(models, ctx -> Json.toCompact(UpstreamRelationType.of(
+                    com.legend.Compiler.query(ctx, lambda).resultType())));
         });
     }
 
@@ -313,18 +350,25 @@ public final class PureV1Api {
 
     /** E9: an {@code ExecuteInput} to the relational TDS {@code SingleExecutionPlan}. */
     public static Answer generatePlan(String body) {
+        return generatePlan(body, Models.COMPILED);
+    }
+
+    /** {@link #generatePlan(String)}, a model given as text compiled by {@code models}. */
+    public static Answer generatePlan(String body, Models models) {
         // the engine answers generatePlan's and execute's compile errors 500 (measured)
         return answer(500, "COMPILATION", () -> {
             Json.Obj request = request(body);
             ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("function"));
             // compiled and typed once: the target it names and its plan come off the one typed query
-            com.legend.TypedQuery query = com.legend.Compiler.query(model.compile(), lambda);
-            com.legend.Compiler.Target target = query.target();
-            String runtime = runtimeOf(request, target);
-            QueryPlan plan = query.plan(runtime);
-            return Json.toCompact(executionPlan(plan,
-                    connectionOf(model.records(), runtime, target.store())));
+            return model.with(models, ctx -> {
+                com.legend.TypedQuery query = com.legend.Compiler.query(ctx, lambda);
+                com.legend.Compiler.Target target = query.target();
+                String runtime = runtimeOf(request, target);
+                QueryPlan plan = query.plan(runtime);
+                return Json.toCompact(executionPlan(plan,
+                        connectionOf(model.records(), runtime, target.store())));
+            });
         });
     }
 
@@ -338,20 +382,26 @@ public final class PureV1Api {
      * database renders every value; Java arranges the rows into {@code {"values": [...]}}.
      */
     public static Answer execute(String body, Runner runner) {
+        return execute(body, runner, Models.COMPILED);
+    }
+
+    /** {@link #execute(String, Runner)}, a model given as text compiled by {@code models}. */
+    public static Answer execute(String body, Runner runner, Models models) {
         return answer(500, "COMPILATION", () -> {
             Json.Obj request = request(body);
-            // the model compiled ONCE (leg 8 step 3: it was compiled here for the query's target, then again by the
-            // runner from its text), and handed on -- the seam the execution plan's step 4 builds on
-            com.legend.compiler.element.ModelContext model = ModelInput.of(request.getObj("model")).compile();
             LambdaFunction lambda = ProtocolReader.lambda(
                     boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
-            String runtime = runtimeOf(request, com.legend.Compiler.query(model, lambda).target());
-            java.io.StringWriter rows = new java.io.StringWriter();
-            QueryPlan plan = runner.run(model, lambda, runtime, rows);
-            if (plan.shape() == com.legend.plan.ResultShape.GRAPH) {
-                return graphResult(rows.toString());
-            }
-            return tdsResult(plan, rows.toString());
+            // the model compiled ONCE (leg 8 step 3: it was compiled here for the query's target, then again by the
+            // runner from its text), and handed on -- the seam the execution plan's step 4 builds on
+            return ModelInput.of(request.getObj("model")).with(models, model -> {
+                String runtime = runtimeOf(request, com.legend.Compiler.query(model, lambda).target());
+                java.io.StringWriter rows = new java.io.StringWriter();
+                QueryPlan plan = runner.run(model, lambda, runtime, rows);
+                if (plan.shape() == com.legend.plan.ResultShape.GRAPH) {
+                    return graphResult(rows.toString());
+                }
+                return tdsResult(plan, rows.toString());
+            });
         });
     }
 
@@ -436,7 +486,15 @@ public final class PureV1Api {
     public static Answer jsonAnswer(String plan, String wire) {
         return answer(500, "COMPILATION", () -> {
             // jsonPlan's own answer, handed back: read by kind, never cast (the tab's WebAssembly has no ClassCastException)
-            Json.Obj planned = Json.parseObject(plan);
+            Json.Obj planned;
+            try {
+                planned = Json.parseObject(plan);
+            } catch (IllegalArgumentException e) {
+                // the refusal names what it was reading and shows its head: a host's answer text that does not parse
+                // is otherwise a line and a column with no text to look at (2026-10-26, the arm and Windows lanes)
+                throw new IllegalArgumentException("the plan half's answer does not parse (" + e.getMessage()
+                        + "); it begins: " + head(plan), e);
+            }
             if (!(planned.has("builder") && planned.get("builder") instanceof Json.Obj builder)) {
                 throw new IllegalArgumentException("the plan answers no builder: it is not jsonPlan's");
             }
@@ -566,13 +624,24 @@ public final class PureV1Api {
     }
 
     /** {@link #tdsResult}'s writer, over the builder's and the activities' JSON and the columns' names. */
+    /** The first 200 characters of {@code text}, for a refusal that shows what it read. */
+    private static String head(String text) {
+        return text.length() <= 200 ? text : text.substring(0, 200) + "...";
+    }
+
     private static String tdsText(String builder, String activities, List<String> names, String wireRows) {
         StringBuilder out = new StringBuilder();
         out.append("{\"builder\": ").append(builder)
                 .append(", \"activities\": ").append(activities)
                 .append(", \"result\" : {\"columns\" : ").append(Json.toCompact(names))
                 .append(", \"rows\" : [");
-        Json.Node wire = wireRows.isEmpty() ? new Json.Arr(List.of()) : Json.parse(wireRows);
+        Json.Node wire;
+        try {
+            wire = wireRows.isEmpty() ? new Json.Arr(List.of()) : Json.parse(wireRows);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("the database's JSON wire does not parse (" + e.getMessage()
+                    + "); it begins: " + head(wireRows), e);
+        }
         // the database's rows, read by kind (a host's database answering otherwise is refused, never cast)
         if (!(wire instanceof Json.Arr rows)) {
             throw new IllegalArgumentException("the database's rows are not the JSON wire's array");
@@ -638,17 +707,22 @@ public final class PureV1Api {
     static Map<String, Object> executionPlan(QueryPlan plan, Map<String, Object> connection) {
         List<Map<String, Object>> tdsColumns = new ArrayList<>();
         List<Map<String, Object>> resultColumns = new ArrayList<>();
-        for (var c : UpstreamRelationType.columns(plan.rootType())) {
+        List<com.legend.compiler.element.type.Type.Column> typed = UpstreamRelationType.columns(plan.rootType());
+        for (int i = 0; i < typed.size(); i++) {
+            var c = typed.get(i);
             Map<String, Object> col = new LinkedHashMap<>();
             col.put("enumMapping", Map.of());
             col.put("name", c.name());
+            // the builder's relational type is the engine's spelling of the PURE type (measured, 4.145.0: a
+            // VARCHAR(32) store column's is VARCHAR(1024)); the physical type rides resultColumns below
             col.put("relationalType", UpstreamRelationType.relationalSpelling(c.type()));
             col.put("type", UpstreamRelationType.tdsTypePath(c.type()));
             tdsColumns.add(col);
             Map<String, Object> rc = new LinkedHashMap<>();
-            // the engine spells a PASS-THROUGH column's physical type here, a computed
-            // one's as "" -- lite's typer has no physical provenance (recorded)
-            rc.put("dataType", "");
+            // the engine spells a PASS-THROUGH column's physical type here, a computed one's as "": the plan's
+            // store fact (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3), by provenance over the lowered query
+            String store = i < plan.columns().size() ? plan.columns().get(i).store() : null;
+            rc.put("dataType", store == null ? "" : store);
             rc.put("label", "\"" + c.name() + "\"");
             resultColumns.add(rc);
         }

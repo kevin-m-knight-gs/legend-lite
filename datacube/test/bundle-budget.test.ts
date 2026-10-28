@@ -476,8 +476,31 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  and a lambda's own shadowing them (page-parameters.ts boundIn, parametersRead), a cache's chain keyed by what its box
  *  is made of and let go live (layout/flow-board.ts chain, page/cube-page.ts staleCaches, liveNow), a told layout held
  *  to its boxes' settings' rules (page-document.ts flowSheetProblem, page-commands.ts stopsProblem), a box's settings
- *  carried by a move, a paste and a duplicate (page-gestures.ts settingsCommands)). Measured 424,587. */
-const BUDGET = 425_000;
+ *  carried by a move, a paste and a duplicate (page-gestures.ts settingsCommands)). Measured 424,587.
+ *  On main meanwhile, from the same base (the timeseries work, PR #79 merging it in):
+ *  408,500 -> 409,500 (2026-10-26, the timeseries follow-ups rebased onto the flow mode, docs/TIMESERIES_REVIEW_2026_10_25.md
+ *  §10: the converge holds and opens a cube kept off the board for a tile (app/live-converge.ts cubeThere, cubesHeld), and
+ *  a timeseries frozen from the page's cubes, an unopened one's as saved (cube-page.ts heldFilter, page-app.ts
+ *  unopenedCube); no startup file added). Measured 408,946.
+ *  409,500 -> 410,800 (2026-10-26, the timeseries' next phases' 1, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: the
+ *  spec's reader of a tile's align and of gs-quant's remaining functions' signatures (timeseries-spec.ts TsAlign,
+ *  manyArgs), and the monthly macro sample's generator beside the others (samples.ts macroCsv); no startup file added).
+ *  Measured 410,159.
+ *  410,800 -> 411,500 (2026-10-26, the timeseries' next phases' 2 and 3, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md
+ *  §11: the spec's reader of a pane upside down and its ends, a subtitle and a note, and a tile's view -- its mode, its
+ *  series, a seasonality's years, a histogram's bins, a curve's dates (timeseries-spec.ts TsView) -- which a saved page
+ *  is read by as it opens; no startup file added). Measured 410,869.
+ *  411,500 -> 413,400 (2026-10-26, the user: "try as pure function ... can be datacube pure scripts" -- DataCube's Pure
+ *  library (pure-library.ts: datacube::ts::mean, the returns, volatility), its text with the planner, which takes it
+ *  after the model of a query that calls it (lite-planner.ts #over): a person's own query may call it too; no startup
+ *  file added). Measured 412,861.
+ *  413,400 -> 414,000 (2026-10-27, Phase 5's drawings, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: the spec's
+ *  reader of a person's own line and note -- each point a date and a value (timeseries-spec.ts TsPoint) -- which a saved
+ *  page is read by as it opens; no startup file added). Measured 413,496.
+ *  425,000 / 414,000 -> 430,500 (2026-10-28, main merged into the flow mode's PR #79: the two chains above, each grown
+ *  from 408,500 apart -- the flow mode's roadmap and main's timeseries work -- in one bundle; no startup file added by
+ *  the merge). Measured 430,054. */
+const BUDGET = 430_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -667,8 +690,24 @@ const BUDGET = 425_000;
  *  409,500 -> 411,000 (2026-10-26, the flow mode's M8: Dynamic Input's audit, then Block Until Done, Message and the run
  *  history -- the grid-only page's notes of the same date). Measured 410,880.
  *  411,000 -> 413,000 (2026-10-26, the flow mode's roadmap audit, #77 -- the grid-only page's note of the same date).
- *  Measured 412,503. */
-const ENGINE_BUDGET = 413_000;
+ *  Measured 412,503.
+ *  On main meanwhile, from the same base (the timeseries work, PR #79 merging it in):
+ *  396,500 -> 397,600 (2026-10-26, the timeseries follow-ups rebased onto the flow mode -- the grid-only page's note of
+ *  the same date). Measured 397,097.
+ *  397,600 -> 398,900 (2026-10-26, the timeseries' next phases' 1 -- the grid-only page's note of the same date).
+ *  Measured 398,329.
+ *  398,900 -> 399,600 (2026-10-26, the timeseries' next phases' 2 and 3 -- the grid-only page's note of the same date).
+ *  Measured 399,033.
+ *  399,600 -> 399,900 (2026-10-26, the user: "how exactly to build that chart programmatically from TS and python" --
+ *  the spec reader's expression text writes a basket's parameters by name, and writes an expression to read back as
+ *  itself (timeseries-expr.ts exprSource), which a saved page's reader carries; the code itself is a chunk of the Query
+ *  window's). Measured 399,611.
+ *  399,900 -> 401,500 (2026-10-26, DataCube's Pure library with the planner -- the grid-only page's note of the same
+ *  date). Measured 400,965.
+ *  401,500 -> 402,100 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date). Measured 401,506.
+ *  413,000 / 402,100 -> 418,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
+ *  same date). Measured 417,953. */
+const ENGINE_BUDGET = 418_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -728,8 +767,79 @@ const CHART_BUDGET = 303_500;
  *  seriesNotes), the catalog's ramp and beta said where they differ, a tick never "-0"). Measured 35,705.
  *  36,000 -> 36,900 (2026-10-26, the tile in PR #73's design, the user's ask: its series editor and Settings a window
  *  beside it among the page's windows (ui/timeseries-view.ts #open over ui/window.ts, which the charts' chunk already
- *  brings), its Properties for its right-click -- the headroom ~2%, as the review's G8 asked). Measured 36,189. */
-const TIMESERIES_BUDGET = 36_900;
+ *  brings), its Properties for its right-click -- the headroom ~2%, as the review's G8 asked). Measured 36,189.
+ *  36,900 -> 37,800 (2026-10-26, the review's follow-ups, docs/TIMESERIES_REVIEW_2026_10_25.md §10: growth annualized
+ *  only over a year, and said (N3); a candle's series computed on their own dates, then each period's first, highest,
+ *  lowest and last (N4, timeseries-query.ts candle); a combination's grids opened together once a round of asking, and
+ *  no statistics asked while nothing shows them (ui/timeseries-view.ts Opened, #statistics) -- the headroom ~2%).
+ *  Measured 37,063.
+ *  37,800 -> 46,800 (2026-10-26, the expert functions the user asked for, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md
+ *  §5.3½, and their review's fixes (docs/TIMESERIES_REVIEW_2026_10_25.md §11): windows and lags of a calendar period
+ *  (timeseries-query.ts #calendar, #valueBack), a level's returns' risk and the panel's Risk tab, a rolling regression,
+ *  the Drawdowns and Correlations tabs and their queries, exponential averages in closed form (Writer.ewm), percentiles
+ *  by each window's rows (ofWindow, ofLine), conditions shaded (timeseries-option.ts markArea), the catalog's words for
+ *  each, the range and blank rules shared with Python (rangeWindow, statBlanks) -- the headroom ~2%). Measured 45,854.
+ *  46,800 -> 52,600 (2026-10-26, the next phases' 1, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: two series'
+ *  dates combined by the tile's align (timeseries-query.ts aligned, datesOf, onto), interpolate, and gs-quant's
+ *  remaining functions -- the date parts, if, not, compare, filter, product, geometrically_aggregate, weighted_sum,
+ *  smooth_spikes, excess_returns, vol_swap_volatility, consecutive, union, append, prepend, first, last, count, trend and
+ *  seasonally_adjusted (decomposed) -- with their catalog words; the headroom ~2%). Measured 51,518.
+ *  52,600 -> 56,600 (2026-10-26, the next phases' 2, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: an instrument
+ *  swapped across the tile (timeseries-edit.ts swapped), the Data tab and its Copy (timeseries-option.ts timeseriesTable),
+ *  a picture's heading and its export (tsHeading; timeseries-render.ts exportUrl -- ECharts' SVG painter a chunk of its
+ *  own, fetched with an SVG alone), a pane upside down and its ends by hand, the Query window, a parameter's slider --
+ *  the headroom ~2%). Measured 55,530.
+ *  56,600 -> 66,400 (2026-10-26, the next phases' 3, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: a tile's other
+ *  views -- a scatter and its regression, seasonality against the years before, a histogram and its normal, a curve
+ *  across a split's key (timeseries-query.ts scatterQuery, seasonalityQuery, histogramQuery, curveQuery, and their
+ *  drawing, timeseries-views.ts) -- the Calendar tab and its query (calendarQuery), and each view's Settings and its
+ *  ask (ui/timeseries-view.ts #viewAsk, #fetchView); the headroom ~2%. The views' drawing, about 2,500 of it, could be a
+ *  chunk of its own fetched with the first view, if it grows). Measured 65,119.
+ *  66,400 -> 68,700 (2026-10-26, the Phase 2 and Phase 3 reviews' fixes, docs/TIMESERIES_REVIEW_2026_10_25.md §13-§14: a
+ *  drag a try until OK (ui/timeseries-view.ts #tried, #leaving), a picture's legend and height (timeseries-option.ts
+ *  tsPictureHeight), the Data tab's day keys, the calendar's months by number, every histogram bin, a curve's lines of
+ *  earlier days said (timeseries-views.ts curveNotes), the views' series by mode (viewChoices), the chart busy by its
+ *  rounds -- the headroom ~2%). Measured 67,342.
+ *  68,700 -> 72,000 (2026-10-26, the next phases' 4, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: an analyst's
+ *  packs -- fifteen functions' signatures and words (timeseries-spec.ts, timeseries-expr.ts) and their queries
+ *  (timeseries-query.ts analystCalls, basket, the Dickey-Fuller regression): technicals of a candle's columns, a series
+ *  against a benchmark, a total return, a rebalanced basket, a lead, a reversion -- the headroom ~2%). Measured
+ *  70,558.
+ *  72,000 -> 73,500 (2026-10-26, the user: "show all the pure queries used to create a timeseries chart" -- every
+ *  question a tile asks by one rule, each written by one function (timeseries-query.ts tileAsks, askQuery), and the
+ *  Query window listing them all, each as it was sent with its SQL (ui/timeseries-view.ts #showQueries, #runAsk) -- the
+ *  headroom ~2%). Measured 72,007.
+ *  73,500 -> 75,300 (2026-10-26, the user: "try as pure function ... can be datacube pure scripts" -- a tile's mean,
+ *  returns and volatility written as calls of DataCube's Pure library (timeseries-query.ts Writer.library), and the Query
+ *  window's Library tab showing it (ui/timeseries-view.ts #libraryPanel) -- the headroom ~2%). Measured 73,797.
+ *  75,300 -> 89,000 (2026-10-27, the library review: DataCube's Pure library, 128 functions, every function of the
+ *  catalog, is a chunk of its own, src/pure-library-text.ts, fetched with the first query that calls it -- a tile's
+ *  every query does -- so it is counted here, and checked off every page's startup, where it had been the planner's):
+ *  measured 87,233, the library's text 16,264 of it, the tile's own code 70,969 (the calendar forms' writing gone into
+ *  the library); the headroom ~2%.
+ *  89,000 -> 91,500 (2026-10-27, Phase 6's D4, the user: "be able to plot trades" -- marks from a grid's rows, an
+ *  annotation of their own: their query (timeseries-query.ts marksQuery, the `marks` ask), their reader and drawing
+ *  (timeseries-option.ts tsMarks, the scatter of triangles, a line at a date), the viewer asking them beside the bounds
+ *  and Settings adding them (ui/timeseries-view.ts #marksFields) -- the headroom ~2%). Measured 89,600.
+ *  91,500 -> 95,000 (2026-10-27, Phase 5: the measure (a span's figures, ui/timeseries-view.ts #paintMeasure), shade
+ *  from a column (#shadeFields), and a person's drawings -- the Draw mode, its box, a line's two clicks and a note's text
+ *  (#draws, #pointed, #paintDraw), their drawing per pane (timeseries-option.ts `drawings:`), the renderer's click read
+ *  in a pane's axes (timeseries-render.ts) -- the headroom ~2%). Measured 93,025.
+ *  95,000 -> 97,000 (2026-10-27, Phase 5: a trend projected -- its query (timeseries-query.ts projectionQuery, the
+ *  `projection` ask), its reading and dashed drawing (timeseries-option.ts tsProjected), the viewer asking it beside the
+ *  series and Settings' Project (ui/timeseries-view.ts #projectionFields) -- and the replay (#replay) -- the headroom
+ *  ~2%). Measured 95,068.
+ *  97,000 -> 100,000 (2026-10-28, the focused Pure audit's conversion, the user: "convert all, match gsquant" -- the
+ *  tile's tables and views written as the library's functions: performanceStatistics, drawdownsOfLine, runs,
+ *  calendarReturns, histogramOfLine, seasonalRange, regression, fitAt, correlationOf, periodsPerYear in its text, the
+ *  writer's inline maths gone -- the headroom ~2%). Measured 98,043.
+ *  100,000 -> 102,000 (2026-10-28, the user: "write the query in a way that compile time checks the parameters" and
+ *  "a generic snippet ... to just create exactly that tile in their own datacube" -- the library's ten enumerations and
+ *  the last views as its functions (summaryStatistics, seasonality, projection, tradedValue, linearAt, periodIndex, in
+ *  its text), the writer's enumeration values (timeseries-query.ts libraryOption), the program of a page of its own
+ *  (timeseries-code.ts) and each formula's Pure under it (ui/timeseries-view.ts #codePanel), docs/TIMESERIES_REVIEW_2026_10_25.md
+ *  §19-§20 -- the headroom ~2%). Measured 100,296. */
+const TIMESERIES_BUDGET = 102_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -750,6 +860,12 @@ const isKinds = (file: string): boolean => /[\\/]chart-(?:render-)?kinds-[^\\/]+
 const KINDS_BUDGET = 70_000;
 
 const isMaps = (file: string): boolean => /[\\/]chart-(?:render-)?maps-[^\\/]+\.js$/.test(file);
+/** A chunk of ECharts' SVG painter (chart-render.ts svgChart): fetched with a timeseries' picture as SVG alone. */
+const isSvgPainter = (file: string): boolean => (PAGE.get(file)?.modules ?? [])
+  .some((m) => /node_modules\/zrender\/lib\/svg\/(?:Painter|graphic|patch)\.js$/.test(m) || m.includes('node_modules/echarts/lib/renderer/installSVGRenderer'));
+/** Set 2026-10-26 at its first measure (the timeseries' next phases' 2: a picture as SVG, for a page or a deck), the
+ *  painter's chunks -- its installer and zrender's SVG drawing -- with room for an ECharts bump. Measured 9,354. */
+const SVG_BUDGET = 9_600;
 /** Set 2026-10-18 at its first measure (chart batch 5, the roadmap run's phase 6), 75,526: the drawing with the world's
  *  countries (Natural Earth 1:110m, prepared by tools/maps/prepare.py: about 60,000 of it) and ECharts' map chart and
  *  geo component, a chunk each. */
@@ -955,8 +1071,23 @@ const EXAMPLE_BUDGET = 4_000;
  *  438,000 -> 439,000 (2026-10-26, Block Until Done, Message and the run history -- the engine page's note of the same
  *  date -- with the headless lane's flowRun beside it). Measured 438,768.
  *  439,000 -> 441,000 (2026-10-26, the flow mode's roadmap audit, #77 -- the engine page's note of the same date -- with
- *  the headless lane's 'flow.imported' and its joins bound with the page's parameters beside it). Measured 440,385. */
-const WIDGET_BUDGET = 441_000;
+ *  the headless lane's 'flow.imported' and its joins bound with the page's parameters beside it). Measured 440,385.
+ *  On main meanwhile, from the same base (the timeseries work, PR #79 merging it in):
+ *  424,000 -> 425,100 (2026-10-26, the timeseries follow-ups rebased onto the flow mode -- the grid-only page's note of
+ *  the same date -- and the statistics panel's tabs' and the correlation matrix's styles). Measured 424,538.
+ *  425,100 -> 426,400 (2026-10-26, the timeseries' next phases' 1 -- the grid-only page's note of the same date).
+ *  Measured 425,778.
+ *  426,400 -> 427,100 (2026-10-26, the timeseries' next phases' 2 and 3 -- the grid-only page's note of the same date).
+ *  Measured 426,627.
+ *  427,100 -> 427,400 (2026-10-26, the user: "show all the pure queries used to create a timeseries chart" -- the Query
+ *  window's styles for each question, app.css .dc-ts-ask). Measured 427,157.
+ *  427,400 -> 429,200 (2026-10-26, DataCube's Pure library with the planner -- the grid-only page's note of the same
+ *  date). Measured 428,652.
+ *  429,200 -> 429,900 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date -- and the drawing
+ *  box's style, app.css .dc-ts-draw). Measured 429,265.
+ *  441,000 / 429,900 -> 446,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
+ *  same date). Measured 446,209. */
+const WIDGET_BUDGET = 446_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
@@ -1005,8 +1136,14 @@ describe('the page loads ECharts only when a chart draws', () => {
       fetched.add(f);
       for (const s of PAGE.get(f)?.statics ?? []) visit(s);
     };
-    chunksOf().filter((f) => holds(f, 'src/ui/timeseries-view.ts') || holds(f, 'src/timeseries-render.ts')).forEach(visit);
+    // and DataCube's Pure library (pure-library-text.ts), a chunk of its own fetched with the first query that calls it --
+    // a tile's every query does -- never at startup (the library review, 2026-10-27)
+    for (const f of at) assert.ok(!holds(f, 'src/pure-library-text.ts'), `${f} carries the Pure library's text`);
+    chunksOf().filter((f) => holds(f, 'src/ui/timeseries-view.ts') || holds(f, 'src/timeseries-render.ts')
+      || holds(f, 'src/pure-library-text.ts')).forEach(visit);
     for (const f of fetched) assert.ok(!holds(f, 'echarts') || chart.has(f), `${f}: ECharts a first chart does not fetch`);
+    // ECharts' SVG painter a chunk of its own, fetched with a picture's export as SVG alone (chart-render.ts svgChart)
+    for (const f of [...at, ...chart, ...fetched]) assert.ok(!isSvgPainter(f), `${f} carries the SVG painter`);
     const own = [...fetched].filter((f) => !at.has(f) && !chart.has(f));
     assert.ok(own.length >= 2, 'the timeseries chunks are found');
     const size = own.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
@@ -1019,13 +1156,24 @@ describe('the page loads ECharts only when a chart draws', () => {
     assert.equal(kinds.length, 2, 'the kinds\' drawing and their ECharts charts, a chunk each');
     // with them, the ECharts code they share only with the maps' chunks: fetched with the first of either, counted here
     // (the phase 6 audit: a chunk in no budget)
-    const shared = chunksOf().filter((f) => holds(f, 'echarts') && !isKinds(f) && !isMaps(f) && !firstChart().has(f));
+    const shared = chunksOf().filter((f) => holds(f, 'echarts') && !isKinds(f) && !isMaps(f) && !isSvgPainter(f) && !firstChart().has(f));
     for (const f of shared) {
       assert.ok([...PAGE].every(([importer, out]) => !out.statics.includes(f) || isKinds(importer) || isMaps(importer)),
         `${f} holds ECharts code a first chart does not fetch, and is fetched by something other than the kinds or the maps`);
     }
     const size = [...kinds, ...shared].reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= KINDS_BUDGET, `batch 3's kinds fetch ${size.toLocaleString()} bytes gzipped, over their budget of ${KINDS_BUDGET.toLocaleString()}`);
+  });
+
+  it(`ECharts' SVG painter is chunks of its own, fetched with a picture as SVG alone: at most ${SVG_BUDGET.toLocaleString()} bytes`, () => {
+    const painter = chunksOf().filter(isSvgPainter);
+    assert.ok(painter.length >= 1, 'the SVG painter is a chunk of the page');
+    // reached by a dynamic import alone: no file fetches it with itself
+    for (const [importer, out] of PAGE) {
+      for (const f of out.statics) assert.ok(!isSvgPainter(f) || isSvgPainter(importer), `${importer} fetches ${f}, the SVG painter, with itself`);
+    }
+    const size = painter.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
+    assert.ok(size <= SVG_BUDGET, `the SVG painter fetches ${size.toLocaleString()} bytes gzipped, over its budget of ${SVG_BUDGET.toLocaleString()}`);
   });
 
   it(`batch 5's maps are chunks of their own, fetched with the first of them: at most ${MAPS_BUDGET.toLocaleString()} bytes more`, () => {
@@ -1060,6 +1208,8 @@ describe('the page loads ECharts only when a chart draws', () => {
     const outputs = outputsOf(engine);
     const files = startup(engine, outputs);
     for (const f of files) assert.ok(!holds(f, 'echarts', outputs), `${f} carries ECharts`);
+    // the Pure library's text a chunk of its own, fetched with the first query that calls it (2026-10-27)
+    for (const f of files) assert.ok(!holds(f, 'src/pure-library-text.ts', outputs), `${f} carries the Pure library's text`);
     const size = files.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= ENGINE_BUDGET,
       `the engine page's script is ${size.toLocaleString()} bytes gzipped, over its budget of ${ENGINE_BUDGET.toLocaleString()}`);

@@ -105,6 +105,31 @@ final class Typer {
 
     /** The overload machinery: the generic application rule and candidate ranking (plan W1.6: moved out whole). */
     private final Overloads overloads;
+    /** The arguments of the generic calls being inlined, each by its own node, as their calls typed them. */
+    private final java.util.IdentityHashMap<ValueSpecification, TypedSpec> pretyped = new java.util.IdentityHashMap<>();
+
+    /** Whether {@code vs} is a node a call typed already ({@link #withPretyped}): the static fold keeps it as it is. */
+    boolean pretyped(ValueSpecification vs) {
+        return !pretyped.isEmpty() && pretyped.containsKey(vs);
+    }
+
+    /** While {@code body} runs, each of {@code typed}'s nodes types as it was typed; after it, as it did before (a call
+     *  inlined within another's body, handed the outer's table, leaves the outer's typing of it in place). */
+    <R> R withPretyped(java.util.Map<ValueSpecification, TypedSpec> typed, java.util.function.Supplier<R> body) {
+        java.util.IdentityHashMap<ValueSpecification, TypedSpec> before = new java.util.IdentityHashMap<>();
+        typed.forEach((node, typing) -> before.put(node, pretyped.put(node, typing)));
+        try {
+            return body.get();
+        } finally {
+            before.forEach((node, was) -> {
+                if (was == null) {
+                    pretyped.remove(node);
+                } else {
+                    pretyped.put(node, was);
+                }
+            });
+        }
+    }
 
     Typer(ModelContext ctx, InferenceKernel kernel) {
         this.ctx = ctx;
@@ -148,6 +173,12 @@ final class Typer {
 
     /** Synthesis (inference) mode: produce the node and its intrinsic type. */
     TypedSpec synth(ValueSpecification vs, Env env) {
+        // an argument of a generic call already typed, met again in the call's inlined body (Overloads.inlineNormalized):
+        // its typing, never typed again -- a chain of k calls typed once each, not 2^k times (2026-10-28)
+        TypedSpec pre = pretyped.isEmpty() ? null : pretyped.get(vs);
+        if (pre != null) {
+            return pre;
+        }
         return switch (vs) {
             // Path literals normally dissolve at resolution; an unresolved one types as
             // its desugared lambda.
@@ -225,7 +256,12 @@ final class Typer {
                                     + " (tree/colspec bindings resolve at"
                                     + " their call sites)"
                             : "unbound variable '$" + v.name() + "'")));
-            case AppliedFunction af -> applyFunction(af, env);
+            case AppliedFunction af -> {
+                // a user call keeps the node it was read from: the copies of a lambda body's let are one
+                // evaluation (docs/OBJECT_IDENTITY_2026_10_20.md §3.2)
+                TypedSpec call = applyFunction(af, env);
+                yield call instanceof TypedUserCall uc && uc.origin() == null ? uc.withOrigin(af) : call;
+            }
             case AppliedProperty ap -> accessProperty(ap, env);
             case PureCollection coll -> collection(coll, env);
             // a BARE TDSNull reference ($v != TDSNull, tds.pure
@@ -791,6 +827,8 @@ final class Typer {
             case EMPTY_LAST -> SortChecker.nullOrder(this, af, env, TypedSortInfo.NullOrder.LAST);
             case RENAME -> RenameChecker.check(this, af, env);
             case SELECT -> SelectChecker.check(this, af, env);
+            case WITHOUT -> SelectChecker.without(this, af, env);
+            case READ -> ReadChecker.check(this, af, env);
             case DISTINCT -> DistinctChecker.check(this, af, env);
             case CONCATENATE -> ConcatenateChecker.check(this, af, env);
             case LIMIT, TAKE -> SlicingChecker.limit(this, af, env);
@@ -826,6 +864,10 @@ final class Typer {
 
     ValueSpecification alphaRename(ValueSpecification v) {
         return overloads.alphaRename(v);
+    }
+
+    AlphaRename.Apart renameApart(List<String> parameters, ValueSpecification body) {
+        return overloads.renameApart(parameters, body);
     }
 
     Application checkGeneric(AppliedFunction af, Env env) {
@@ -1422,7 +1464,11 @@ final class Typer {
                                         .Bounded.ZERO_MANY));
             }
         }
-        // The member is either a class property ($obj.prop) or a relation column ($row.col).
+        // A ROW receiver (Row-vs-Relation): a bare struct IS one row, so the read is that row's column.
+        if (source.info().type() instanceof Type.RelationType rowT) {
+            return rowColumn(source, rowT, ap.property());
+        }
+        // The member is either a class property ($obj.prop) or a table's column collection ($rel.col).
         String relColName = null;
         ExprType member = switch (source.info().type()) {
             case Type.ClassType ct -> {
@@ -1482,16 +1528,6 @@ final class Typer {
             // Result<String|1>.values): instantiation extracted to its
             // own method (CodeShape seam — leg 2 grew this arm).
             case Type.GenericType g -> genericReceiverProperty(g, ap);
-            // A ROW receiver (Row-vs-Relation): a bare struct IS one
-            // row — one cell, the per-cell stamp BY TYPE. This arm is
-            // the detective's replacement: no walk, no inference — the
-            // type says row.
-            case Type.RelationType rowT -> {
-                // QUOTE-BEARING column identity (the pivot rule's sibling):
-                Type.Column col = relationColumn(rowT, ap.property());
-                relColName = col.name();
-                yield new ExprType(col.type(), col.multiplicity());
-            }
             // an ENUM VALUE's name (real m3 Enum.name) — the SQL value of an enum IS its name
             case Type.EnumType ignored when ap.property().equals("name") ->
                     new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
@@ -1617,6 +1653,15 @@ final class Typer {
                             throw new TypeInferenceException(
                                     "relation has no column '" + name + "'");
                         }));
+    }
+
+    /** A row's column: {@code $row.col}, and {@code read(row, ~col)} (S114, ReadChecker), which is the same read.
+     * One cell, stamped BY TYPE (Row-vs-Relation): no walk, no inference, the type says row. The column's identity is
+     * QUOTE-BEARING (the pivot rule's sibling), its multiplicity the row's composed with the column's. */
+    TypedSpec rowColumn(TypedSpec row, Type.RelationType rowT, String name) {
+        Type.Column col = relationColumn(rowT, name);
+        return new TypedPropertyAccess(row, col.name(),
+                new ExprType(col.type(), compose(row.info().multiplicity(), col.multiplicity())));
     }
 
     /**

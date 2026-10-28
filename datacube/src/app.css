@@ -5673,13 +5673,29 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 }
 .dc-ts-banner.dc-ts-bad { border-left-color: var(--tw-red-500); color: var(--tw-red-600); }
 
+/* a span measured on the chart (Phase 5): each line's change over it, the database's */
+.dc-ts-measure {
+  margin: var(--dc-pad-1) var(--dc-pad-2) 0; padding: 2px var(--dc-pad-2); border-left: 3px solid var(--tw-blue-600, #2563eb);
+  background: var(--dc-fill-faint); font-size: var(--dc-text-sm-size); display: flex; flex-direction: column; gap: 2px;
+}
+.dc-ts-measure-head { font-weight: 600; font-variant-numeric: tabular-nums; }
+.dc-ts-measure-row { display: flex; gap: var(--dc-pad-2); font-variant-numeric: tabular-nums; }
+.dc-ts-measure-name { min-width: 8em; color: var(--dc-muted-strong); }
+
 .dc-ts-body { position: relative; flex: 1 1 auto; min-height: 160px; display: flex; }
 .dc-ts-chart { flex: 1 1 auto; min-width: 0; min-height: 0; }
 .dc-ts-chart[aria-busy='true'] { opacity: 0.6; transition: opacity 0.2s 0.2s; }
 
 /* the statistics under the chart, a third of the tile at most: the chart keeps the room */
 .dc-ts-stats { flex: 0 1 auto; max-height: 33%; min-height: 0; overflow: auto; border-top: 1px solid var(--dc-line-faint); padding: 0 var(--dc-pad-2) var(--dc-pad-1); }
-.dc-ts-stats-head { padding: var(--dc-pad-1) 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-ts-stats-head { padding: var(--dc-pad-1) 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); display: flex; align-items: center; gap: var(--dc-pad-2); flex-wrap: wrap; }
+.dc-ts-stats-tabs { display: inline-flex; gap: 2px; }
+.dc-ts-stats-tab {
+  font: inherit; font-size: var(--dc-text-sm-size); color: var(--dc-muted-strong); background: none; border: 1px solid transparent;
+  border-radius: var(--dc-radius-sm); padding: 1px 8px; cursor: pointer;
+}
+.dc-ts-stats-tab:hover { background: var(--dc-row-hover); }
+.dc-ts-stats-tab[aria-selected="true"] { color: var(--dc-cell-fg); border-color: var(--dc-line-faint); background: var(--dc-row-hover); }
 .dc-ts-stats-blanks { padding: var(--dc-pad-1) 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
 .dc-ts-table { border-collapse: collapse; font-size: var(--dc-text-sm-size); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dc-ts-table th {
@@ -5690,6 +5706,9 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-ts-table td { padding: 2px 6px; border-bottom: 1px solid var(--dc-line-faint); }
 .dc-ts-table tr:hover td { background: var(--dc-row-hover); }
 .dc-ts-table-num { text-align: right; }
+/* a correlation's cell tinted by its sign, as strong as it is (the database's figure, drawn) */
+.dc-ts-corr-pos { background: rgba(46, 160, 67, calc(var(--dc-ts-corr, 0) * 0.35)); }
+.dc-ts-corr-neg { background: rgba(218, 54, 51, calc(var(--dc-ts-corr, 0) * 0.35)); }
 .dc-ts-table-date { text-align: right; color: var(--dc-muted-strong); }
 .dc-ts-table-name { display: flex; align-items: center; gap: 6px; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; }
 
@@ -5725,6 +5744,28 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-ts-swatches .dc-ts-swatch { width: 16px; height: 16px; border-radius: 3px; cursor: pointer; border: 2px solid transparent; }
 .dc-ts-swatches .dc-ts-swatch[aria-checked='true'] { border-color: var(--dc-cell-fg); }
 .dc-ts-reference summary { cursor: pointer; color: var(--dc-muted-strong); }
+/* the next phases' 2: a query as the compiler prints it, its SQL; the Data tab's rows; a parameter's slider */
+.dc-ts-code {
+  margin: 0; max-height: 14em; overflow: auto; padding: var(--dc-pad-1) var(--dc-pad-2); border: 1px solid var(--dc-line-faint);
+  border-radius: 4px; background: var(--dc-row-hover); font-family: var(--dc-font-mono); font-size: var(--dc-text-sm-size);
+  white-space: pre; user-select: text;
+}
+/* every query a tile asks (the user, 2026-10-26): each a question, open for the chart's, its status beside it */
+.dc-ts-ask { border-top: 1px solid var(--dc-line-faint); padding: var(--dc-pad-1) 0; }
+.dc-ts-ask > summary { display: flex; justify-content: space-between; gap: var(--dc-pad-1); cursor: pointer; color: var(--dc-cell-fg); }
+.dc-ts-ask[open] > summary { margin-bottom: var(--dc-pad-1); }
+.dc-ts-ask-status { flex: none; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-ts-ask-refused { color: var(--tw-red-600); }
+.dc-ts-data-scroll { max-height: 18em; overflow: auto; }
+.dc-ts-data th { position: sticky; top: 0; background: var(--dc-bg); }
+.dc-ts-data th .dc-ts-swatch { margin-right: 4px; vertical-align: middle; }
+.dc-ts-sliders { display: flex; flex-direction: column; gap: 2px; }
+.dc-ts-sliders:empty { display: none; }
+.dc-ts-pop .dc-ts-slider-row { flex-direction: row; align-items: center; gap: var(--dc-pad-1); }
+.dc-ts-slider-row .dc-ts-field-label { min-width: 6ch; font-family: var(--dc-font-mono); }
+.dc-ts-slider { flex: 1 1 auto; min-width: 0; accent-color: var(--dc-active); }
+.dc-ts-slider-value { min-width: 6ch; text-align: right; font-variant-numeric: tabular-nums; }
 .dc-ts-functions { display: grid; grid-template-columns: max-content 1fr; gap: 2px 8px; margin: var(--dc-pad-1) 0; font-size: var(--dc-text-sm-size); }
 .dc-ts-functions dt { font-family: var(--dc-font-mono); white-space: nowrap; }
 .dc-ts-functions dd { margin: 0; color: var(--dc-muted-strong); }
+.dc-ts-draw .dc-ts-row { align-items: center; }

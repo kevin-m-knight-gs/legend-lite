@@ -221,13 +221,34 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
     ['src/query.ts', 'a refusal suggesting what to type'],
     ['src/ui/multi-field-form.ts', 'the Multi-Field Formula window\'s examples'],
     ['src/ui/pure-form.ts', 'the Pure box window\'s steps and its example'],
+    // added 2026-10-28 (PR #77's checks: the example had built its saved queries' text from their columns): the markets
+    // example's two saved queries, the text a person saved in Query -- a query store's content is text -- each written
+    // out, never assembled, and held parsed to the tree its grid reads (stress-markets.test.ts)
+    ['src/examples/markets-classes.ts', 'the saved queries\' text, as Query saved it'],
   ]);
+
+  /**
+   * DataCube's Pure library (src/pure-library-text.ts DATACUBE_LIBRARY; the user, 2026-10-26: "can be datacube pure scripts"):
+   * a ###Pure section of functions the planner takes beside a model where a query calls one, never a query -- the lines
+   * of its template alone, so a query built as text elsewhere in the file is still one. Added 2026-10-27: its functions
+   * compare words ($stat == 'mean'), which this rule read as Pure built in a string.
+   */
+  const LIBRARY = 'src/pure-library-text.ts';
+  const libraryLines = (): ReadonlySet<number> => {
+    const lines = SOURCES.read(LIBRARY).split('\n');
+    const from = lines.findIndex((l) => l.startsWith('export const DATACUBE_LIBRARY = `'));
+    const to = lines.findIndex((l, i) => i > from && l.startsWith('`;'));
+    assert.ok(from >= 0 && to > from, 'the library is one template');
+    return new Set(lines.map((_, i) => i).filter((i) => i > from && i < to));
+  };
 
   it('builds no Pure text outside what a person types', () => {
     const hits: string[] = [];
+    const library = libraryLines();
     for (const f of FILES.filter((x) => !x.includes('generated'))) {
       SOURCES.read(f).split('\n').forEach((line, i) => {
         if (isComment(line) || !PURE_SYNTAX.test(line)) return;
+        if (f === LIBRARY && library.has(i)) return;
         const allowed = FOR_A_PERSON.get(f);
         if (allowed === undefined) hits.push(`${f}:${i + 1}: ${line.trim()}`);
       });
@@ -245,6 +266,7 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
     // examples, the Pure box's eight steps and its example
     assert.equal(count('src/ui/multi-field-form.ts'), 4, "multi-field-form.ts: the window's examples");
     assert.equal(count('src/ui/pure-form.ts'), 9, "pure-form.ts: the window's steps and its example");
+    assert.equal(count('src/examples/markets-classes.ts'), 2, 'markets-classes.ts: its two saved queries');
   });
 
   it('calls no TDS function: the Relation API only (the user, 2026-09-27)', () => {

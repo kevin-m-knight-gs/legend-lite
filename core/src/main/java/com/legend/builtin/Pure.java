@@ -591,6 +591,18 @@ public final class Pure {
         public static final String DELETE = PKG + "delete";
         public static final String UPDATE = PKG + "update";
         public static final String MERGE = PKG + "merge";
+        /** A relation less the named columns (2026-10-27, docs/SEMANTICS_REGISTER.md S113):
+         *  {@code rel->without(~[a, b])} is {@code Relation<T-Z>}, typed as the {@code select} of every other column
+         *  (SelectChecker), so its SQL is that select's column list. legend-pure 5.99.0 and legend-engine 4.145.0
+         *  drop rows ({@code drop}) but never columns: {@code rename}'s {@code T-Z+V} is upstream's only signature
+         *  that subtracts columns. A function generic over any table (S112) cannot name the caller's columns to
+         *  select them, so it drops the ones it made; user-facing, so bare-name resolvable. */
+        public static final String WITHOUT = PKG + "without";
+        /** A row's column read through a column spec (2026-10-27, docs/SEMANTICS_REGISTER.md S114): {@code $r->read(~close)}
+         *  is {@code $r.close}, typed as that read (ReadChecker), so a function generic over any table reads the column
+         *  its caller names without renaming it first. Upstream reads a column only as a reflected {@code Column}
+         *  evaluated on a row ({@code $rel->columns()}, typed {@code Any}); a {@code ColSpec} there is a name alone. */
+        public static final String READ = PKG + "read";
 
         private Lite() {
         }
@@ -651,7 +663,9 @@ public final class Pure {
                     liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX),
                     liteLocalName(Lite.DELETE),
                     liteLocalName(Lite.UPDATE),
-                    liteLocalName(Lite.MERGE));
+                    liteLocalName(Lite.MERGE),
+                    liteLocalName(Lite.WITHOUT),
+                    liteLocalName(Lite.READ));
 
     /** The same surface by FUNCTION ID: each bare name ({@link #LITE_SURFACE}) and the lite overloads it stands for,
      *  the catalog's generated AT_ groups. EngineHandlers adds them to the engine surface, joined by id like the
@@ -664,7 +678,9 @@ public final class Pure {
                 liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX), AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX,
                 liteLocalName(Lite.DELETE), AT_LEGEND_LITE_DELETE,
                 liteLocalName(Lite.UPDATE), AT_LEGEND_LITE_UPDATE,
-                liteLocalName(Lite.MERGE), AT_LEGEND_LITE_MERGE);
+                liteLocalName(Lite.MERGE), AT_LEGEND_LITE_MERGE,
+                liteLocalName(Lite.WITHOUT), AT_LEGEND_LITE_WITHOUT,
+                liteLocalName(Lite.READ), AT_LEGEND_LITE_READ);
     }
 
     /** Every registered native in the lite-internal package — the
@@ -2275,6 +2291,8 @@ public final class Pure {
     public static final NativeFunctionDefinition OVER__COL_SPEC_ARRAY_1__SORT_INFO_MANY__ROWS_1 = signature("native function meta::pure::functions::relation::over<T>(cols:meta::pure::metamodel::relation::ColSpecArray<(?:?)⊆T>[1], sortInfo:meta::pure::functions::relation::SortInfo<(?:?)⊆T>[*], rows:meta::pure::functions::relation::Rows[1]):meta::pure::functions::relation::_Window<T>[1];");
     public static final NativeFunctionDefinition OVER__COL_SPEC_ARRAY_1__SORT_INFO_1__RANGE_1 = signature("native function meta::pure::functions::relation::over<T>(cols:meta::pure::metamodel::relation::ColSpecArray<(?:?)⊆T>[1], sortInfo:meta::pure::functions::relation::SortInfo<(?:?)⊆T>[1], range:meta::pure::functions::relation::_Range[1]):meta::pure::functions::relation::_Window<T>[1];");
     public static final NativeFunctionDefinition OVER__COL_SPEC_ARRAY_1__SORT_INFO_1__RANGE_INTERVAL_1 = signature("native function meta::pure::functions::relation::over<T>(cols:meta::pure::metamodel::relation::ColSpecArray<(?:?)⊆T>[1], sortInfo:meta::pure::functions::relation::SortInfo<(?:?)⊆T>[1], rangeInterval:meta::pure::functions::relation::_RangeInterval[1]):meta::pure::functions::relation::_Window<T>[1];");
+    // read (Lite.READ, lite surface, 2026-10-27): a row's column through a column spec, as $row.name is
+    public static final NativeFunctionDefinition READ__T_1__COL_SPEC_1 = signature("native function meta::legend::lite::read<T,Z,V>(row:T[1], column:meta::pure::metamodel::relation::ColSpec<Z=(?:V)⊆T>[1]):V[0..1];");
     public static final NativeFunctionDefinition REDUCE__RELATION_1__WINDOW_1__T_1__FUNCTION_1__FUNCTION_1 = signature("native function meta::pure::functions::relation::reduce<T,V,U|m>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], row:T[1], map:meta::pure::metamodel::function::Function<{T[1]->V[*]}>[1], agg:meta::pure::metamodel::function::Function<{V[*]->U[m]}>[1]):U[m];");
     public static final NativeFunctionDefinition FROM_JSON__STRING_1 = signature("native function meta::pure::functions::variant::convert::fromJson(json:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::variant::Variant[1];");
     public static final NativeFunctionDefinition LATERAL__RELATION_1__FUNCTION_1 = signature("native function meta::pure::functions::relation::lateral<T,V>(rel:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::relation::Relation<V>[1]}>[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
@@ -2387,6 +2405,9 @@ public final class Pure {
     // decompose reads (value, weight) positionally either way).
     public static final NativeFunctionDefinition WAVG_ROW_MAPPER__NUMBER_0_1__NUMBER_0_1 = signature("native function meta::pure::functions::math::wavgUtility::wavgRowMapper(quantity:meta::pure::metamodel::type::Number[0..1], weight:meta::pure::metamodel::type::Number[0..1]):meta::pure::functions::math::wavgUtility::WavgRowMapper[1];");
     public static final NativeFunctionDefinition WEEK_OF_YEAR__DATE_1 = signature("native function meta::pure::functions::date::weekOfYear(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
+    // without (Lite.WITHOUT, lite surface, 2026-10-27): select's two shapes, the result the relation less the columns
+    public static final NativeFunctionDefinition WITHOUT__RELATION_1__COL_SPEC_1 = signature("native function meta::legend::lite::without<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1]):meta::pure::metamodel::relation::Relation<T-Z>[1];");
+    public static final NativeFunctionDefinition WITHOUT__RELATION_1__COL_SPEC_ARRAY_1 = signature("native function meta::legend::lite::without<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1]):meta::pure::metamodel::relation::Relation<T-Z>[1];");
     public static final NativeFunctionDefinition WRITE__RELATION_1__ACCESSOR_1 = signature("native function meta::pure::functions::relation::write<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], relationElementAccessor:meta::pure::metamodel::relation::RelationElementAccessor<T>[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition XOR__BOOLEAN_1__BOOLEAN_1 = signature("native function meta::pure::functions::boolean::xor(first:meta::pure::metamodel::type::Boolean[1], second:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition YEAR__DATE_1 = signature("native function meta::pure::functions::date::year(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
@@ -2524,6 +2545,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_OTHERWISE = com.legend.model.FunctionId.ofAll(OTHERWISE__T_1__T_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_PARSE_DATE_FORMAT = com.legend.model.FunctionId.ofAll(PARSE_DATE_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_QUOTIENT = com.legend.model.FunctionId.ofAll(QUOTIENT__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_READ = com.legend.model.FunctionId.ofAll(READ__T_1__COL_SPEC_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RECURSE = com.legend.model.FunctionId.ofAll(RECURSE__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ROUTE = com.legend.model.FunctionId.ofAll(ROUTE__C_MANY__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SOURCE_URL = com.legend.model.FunctionId.ofAll(SOURCE_URL__STRING_1);
@@ -2536,6 +2558,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_AS_DECLARED = com.legend.model.FunctionId.ofAll(TYPE_AS_DECLARED__ANY_01__T_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_UNLINK = com.legend.model.FunctionId.ofAll(UNLINK__RELATION_1__CLASS_1__COL_SPEC_1__COL_SPEC_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_UPDATE = com.legend.model.FunctionId.ofAll(UPDATE__ACCESSOR_1__FUNCTION_1__FUNC_COL_SPEC_ARRAY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_WITHOUT = com.legend.model.FunctionId.ofAll(WITHOUT__RELATION_1__COL_SPEC_1, WITHOUT__RELATION_1__COL_SPEC_ARRAY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_WRITE_INSTANCES = com.legend.model.FunctionId.ofAll(WRITE_INSTANCES__RELATION_1__CLASS_1__COL_SPEC_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_TEST_MAY_EXECUTE_LEGEND_TEST = com.legend.model.FunctionId.ofAll(MAY_EXECUTE_LEGEND_TEST);
     public static final List<com.legend.model.FunctionId> AT_ALLOY_CONNECTIONS_RELATIONAL_MAPPER_POST_PROCESSOR = com.legend.model.FunctionId.ofAll(RELATIONAL_MAPPER_PP);
