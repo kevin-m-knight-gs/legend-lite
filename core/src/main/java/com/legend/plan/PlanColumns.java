@@ -27,7 +27,17 @@ public final class PlanColumns {
         }
         return ColumnFacts.columns(UpstreamRelationType.columns(root).stream()
                 .map(c -> new ColumnFacts.Pure(c.name(), c.type().typeName(), multiplicity(c.multiplicity())))
-                .toList(), lowered);
+                .toList(), lowered, shapeOf(root));
+    }
+
+    /** The typed result's shape of a root: a relation's rows, a graph fetch's objects, else a value's elements
+     *  (the plan's {@code TdsResult.Shape} for the compiler's {@link ResultShape}). */
+    public static ExecutionPlan.TdsResult.Shape shapeOf(ExprType root) {
+        return switch (ResultShape.of(root)) {
+            case TABULAR -> ExecutionPlan.TdsResult.Shape.RELATION;
+            case GRAPH -> ExecutionPlan.TdsResult.Shape.OBJECTS;
+            case SCALAR, COLLECTION -> ExecutionPlan.TdsResult.Shape.VALUE;
+        };
     }
 
     /** A column's multiplicity in the plan's terms (a column's is always bounded). */
@@ -37,9 +47,11 @@ public final class PlanColumns {
     }
 
     /** {@link #of} for a schema the planner already has ({@link Type.RelationType}). */
-    public static List<ExecutionPlan.Column> of(Type.RelationType schema, SqlQuery lowered) {
+    /** {@code schema}'s columns over {@code lowered}, in a result of {@code shape}. */
+    public static List<ExecutionPlan.Column> of(Type.RelationType schema, SqlQuery lowered,
+            ExecutionPlan.TdsResult.Shape shape) {
         return ColumnFacts.columns(schema.columns().stream()
                 .map(c -> new ColumnFacts.Pure(c.name(), c.type().typeName(), multiplicity(c.multiplicity())))
-                .toList(), lowered);
+                .toList(), lowered, shape);
     }
 }

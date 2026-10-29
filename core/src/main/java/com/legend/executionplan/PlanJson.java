@@ -56,8 +56,10 @@ public final class PlanJson {
      *  the body driver's effects on the plan, the program's phase 5); 16 the same day: a keyed result says where its
      *  per-key columns stand among the fixed ones ({@code perKeyAt}: an extend after a pivot answers last); 17 since
      *  2026-10-28: a column's fourth fact, how a temporal cell's written precision is known ({@code precision}:
-     *  {@link ExecutionPlan.Precision}; the result boundary program's R2, the start page's S1.4 item 1). */
-    public static final int VERSION = 17;
+     *  {@link ExecutionPlan.Precision}; the result boundary program's R2, the start page's S1.4 item 1); 18 since
+     *  2026-10-29: the fact's fourth value, MINIMAL, a value root's instant at the precision its digits show (a
+     *  relation's INSTANT keeps the nine digits legend-engine spells: the upstream-fidelity tenet, register S118). */
+    public static final int VERSION = 18;
 
     private PlanJson() {
     }

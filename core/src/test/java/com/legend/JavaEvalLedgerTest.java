@@ -136,8 +136,9 @@ class JavaEvalLedgerTest {
             // 376 -> 428 the same day (stage 1, step 3: the engine's JSON answer read as legend-engine's PCT adapter reads
             // it, json-simple's typing of each value, beside the TDS text crossing it is measured against; one of the
             // two is deleted with the switch); 428 -> 418 (2026-10-28, the switch: the TDS text's wrapper,
-            // createTDSResult, deleted; the engine's crossing is the one that stays)
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 418),
+            // createTDSResult, deleted; the engine's crossing is the one that stays); 418 -> 417 (2026-10-29, S1.4's
+            // correction: the written-precision fact read off the plan column in place of two slot-spelling matches)
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 417),
             // MetamodelWalk (1307) + MetamodelSteps (196) DELETED (batch 55a,
             // 2026-09-04): the Java port of toPostgresModel and the host
             // metamodel walk are gone — the three tests they still scored

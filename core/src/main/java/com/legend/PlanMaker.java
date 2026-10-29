@@ -185,7 +185,8 @@ final class PlanMaker {
                 type.multiplicity());
         SqlQuery q = query.lowerer(false, false, List.of(count.slot()), features).lowerPlanParam(ExecutionPlan.COUNT, type);
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
-                com.legend.plan.PlanColumns.of(TypedRows.schema(type), q), sql(q, dialect, target));
+                com.legend.plan.PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),
+                sql(q, dialect, target));
     }
 
     /**
@@ -212,14 +213,16 @@ final class PlanMaker {
                                 com.legend.plan.PlanColumns.multiplicity(root.multiplicity()),
                                 com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null,
                                 com.legend.executionplan.ColumnFacts.precision(root.type().typeName(),
-                                        outs.get(0).type()))),
+                                        outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS))),
                         sql(lowered, dialect, target));
             }
             case TABULAR -> new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
-                    com.legend.plan.PlanColumns.of(TypedRows.schema(root), lowered),
+                    com.legend.plan.PlanColumns.of(TypedRows.schema(root), lowered,
+                            ExecutionPlan.TdsResult.Shape.RELATION),
                     sql(TypedRows.statement(lowered), dialect, target));
             case SCALAR, COLLECTION -> new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
-                    com.legend.plan.PlanColumns.of(TypedRows.schema(root), lowered),
+                    com.legend.plan.PlanColumns.of(TypedRows.schema(root), lowered,
+                            ExecutionPlan.TdsResult.Shape.VALUE),
                     sql(TypedRows.statement(lowered), dialect, target));
         };
     }
@@ -248,7 +251,8 @@ final class PlanMaker {
         SqlDialect.KeysSnapshot keysSnapshot = dialect.keysSnapshot();
         com.legend.lowering.KeyedPivot.Parts parts = com.legend.lowering.KeyedPivot.of(lowered, pivot, schema);
         java.util.Map<String, ExecutionPlan.Column> facts = new java.util.HashMap<>();
-        for (ExecutionPlan.Column c : com.legend.plan.PlanColumns.of(schema, lowered)) {
+        for (ExecutionPlan.Column c : com.legend.plan.PlanColumns.of(schema, lowered,
+                ExecutionPlan.TdsResult.Shape.RELATION)) {
             facts.put(c.name(), c);
         }
         // each statement's cells by the names it writes them under (the body's outputs in the outputs' order)
@@ -269,7 +273,7 @@ final class PlanMaker {
                                 com.legend.plan.PlanColumns.multiplicity(k.template().multiplicity()),
                                 com.legend.executionplan.ColumnFacts.slot(k.slot()), null,
                                 com.legend.executionplan.ColumnFacts.precision(k.template().type().typeName(),
-                                        k.slot())),
+                                        k.slot(), ExecutionPlan.TdsResult.Shape.RELATION)),
                         k.nameCell(), field);
             });
         }

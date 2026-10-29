@@ -254,35 +254,30 @@ public final class CellText {
     // ---- dates ----------------------------------------------------------------------------------------------------
 
     /** Pure's text of a date, by the column's written-precision fact ({@link ExecutionPlan.Precision}, the plan's;
-     *  until 2026-10-28 the writer matched the slot's spelling for it, the start page's S1.4 item 1): a value carried
-     *  at the precision it was written (a year, a month, a day, an hour ... a fraction) as it is, {@code +0000} from
-     *  an hour on; a day as it is; otherwise -- an instant at the database's precision, or a cell of a column with no
-     *  temporal fact of its own (a mixed column's winner, a nested value: {@code type} an element's, not the
-     *  column's) -- Pure's print form by the value's own precision, the fraction's trailing zeros dropped. */
+     *  until 2026-10-28 the writer matched the slot's spelling for it, the start page's S1.4 item 1; the spellings
+     *  read from upstream 2026-10-29, the upstream-fidelity tenet): a value carried at the precision it was written
+     *  (WRITTEN: a year, a month, a day, an hour ... a fraction) as it is, {@code +0000} from an hour on; a day (DAY,
+     *  a StrictDate, a value with no time of day) as its day; a relation's cell (INSTANT) as legend-engine's TDS
+     *  spells a time-bearing date, nine fraction digits whatever the carrier ({@link PureDateLiteral#toEngineJson}:
+     *  its {@code ValueTransformer}; legend-pure's {@code fromSQLTimestamp} reads the same nine), never as a day (the
+     *  midnight rule of 12b89c7d, a Date's midnight as its day, went 2026-10-29: no upstream prints a DateTime so);
+     *  a value root's instant (MINIMAL), a nested value and a mixed column's winner at the precision its digits
+     *  show, the fraction's trailing zeros dropped (register S118). */
     private static String pureDate(PureDateLiteral d, String type, ExecutionPlan.Column c) {
-        if (c.precision() == ExecutionPlan.Precision.WRITTEN) {
+        boolean own = type.equals(c.type());
+        ExecutionPlan.Precision p = c.precision();
+        if (p == ExecutionPlan.Precision.WRITTEN) {
             return d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? d.toEngineString() + "+0000"
                     : d.toEngineString();
         }
-        if (dateOnly(d, type, c)) {
+        if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR) || type.equals("StrictDate")
+                || (own && p == ExecutionPlan.Precision.DAY)) {
             return day(d);
         }
+        if (own && p == ExecutionPlan.Precision.INSTANT) {
+            return d.toEngineJson();
+        }
         return d.trimmed().toEngineString() + "+0000";
-    }
-
-    /** Whether a date is written as its day: a value with no time of day (its own precision, carried in the value);
-     *  a StrictDate's; the column's own cell where the column holds days ({@link ExecutionPlan.Precision#DAY}); or
-     *  an abstract Date at midnight (legend-engine's formatDateTime rule for a Date: by its time of day -- the one
-     *  rule here decided by the value's clock and not by a fact of the plan or of the value, kept as it was; a
-     *  question put to the user with S1.4, 2026-10-28). */
-    private static boolean dateOnly(PureDateLiteral d, String type, ExecutionPlan.Column c) {
-        if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR)) {
-            return true;
-        }
-        if (type.equals("StrictDate") || (type.equals(c.type()) && c.precision() == ExecutionPlan.Precision.DAY)) {
-            return true;
-        }
-        return type.equals("Date") && midnight(d);
     }
 
     /** Whether legend-engine writes a date as its day: by what the database answered, never by the time of day --
@@ -290,15 +285,9 @@ public final class CellText {
      *  ({@code ValueTransformer}, legend-engine's relational execution), so a day without a time, or a column that
      *  holds days ({@link ExecutionPlan.Precision#DAY}: a StrictDate's, a DATE slot's). A Date at midnight in a
      *  TIMESTAMP column is a date-time like the column's others (2026-10-27, the result boundary program: found by
-     *  the PCT read as the engine's adapter reads it, which a column of both spellings failed, testExtendMaxDate; the
-     *  day at midnight is Pure's print form, {@link #dateOnly}). */
+     *  the PCT read as the engine's adapter reads it, which a column of both spellings failed). */
     private static boolean engineDay(PureDateLiteral d, ExecutionPlan.Column c) {
         return !d.precision().atLeast(PureDateLiteral.Precision.HOUR) || c.precision() == ExecutionPlan.Precision.DAY;
-    }
-
-    private static boolean midnight(PureDateLiteral d) {
-        java.time.LocalDateTime t = d.toInstantFloor();
-        return t.getHour() == 0 && t.getMinute() == 0 && t.getSecond() == 0 && t.getNano() == 0;
     }
 
     private static String day(PureDateLiteral d) {

@@ -314,18 +314,31 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     /**
      * How a temporal cell's WRITTEN precision is known (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R2: a fact that only
      * Pure knows travels in the plan or in the data, never in a text; the start page's S1.4 item 1, 2026-10-28). A
-     * column's fact, set by {@link ColumnFacts#precision} from its Pure type and its slot, read by the writers
-     * ({@code result/CellText}) in place of the slot's spelling they matched until then.
+     * column's fact, set by {@link ColumnFacts#precision} from its Pure type, its slot and its result's shape, read
+     * by the writers ({@code result/CellText}) in place of the slot's spelling they matched until then. The spellings
+     * are upstream's, read from the pinned sources 2026-10-29 (the upstream-fidelity tenet, AGENTS.md).
      */
     public enum Precision {
         /** The cell carries its own precision, as the value was written (a literal's spelling, a temporal-text
-         *  carrier: a year, a month, a day, an hour, a minute, the subsecond digits as written); spelled as it is. */
+         *  carrier: a year, a month, a day, an hour, a minute, the subsecond digits as written); spelled as it is,
+         *  as legend-pure prints a value it holds. */
         WRITTEN,
-        /** A day: a DATE slot, a StrictDate column. Spelled as its day. */
+        /** A day: a DATE slot, a StrictDate column. Spelled as its day ({@code yyyy-MM-dd}: legend-engine's
+         *  {@code ValueTransformer} for a {@code java.sql.Date}, legend-pure's StrictDate). */
         DAY,
-        /** An instant at the database's precision (a TIMESTAMP's digits, none of them written: the written precision
-         *  is lost to the database); spelled in Pure's print form, at the precision its digits show. */
-        INSTANT
+        /** A relation's time-bearing cell, whatever carried it (a TIMESTAMP's nine digits as the driver hands them,
+         *  a literal's text): spelled as legend-engine's TDS spells it, nine fraction digits and {@code +0000}
+         *  ({@code ValueTransformer}: its JSON and its transformed CSV, {@code yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZ};
+         *  legend-pure reads a SQL timestamp the same way, {@code DateFunctions.fromSQLTimestamp}), never as a day.
+         *  The product's spelling of a relation; the PCT's in-memory relation ({@code TestTDS}, millisecond dates,
+         *  three digits) is its harness's. */
+        INSTANT,
+        /** A value root's cell the database computed (the plan's VALUE shape: a scalar, a collection's element): an
+         *  instant whose written precision the database lost, spelled at the precision its digits show (the
+         *  fraction's trailing zeros dropped, a whole second with none): the value lane's canon of 2026-10-18 and
+         *  the closest text to legend-pure's, which prints the precision written. A divergence, ledgered:
+         *  docs/SEMANTICS_REGISTER.md S118 (2026-10-29). */
+        MINIMAL
     }
 
     /**

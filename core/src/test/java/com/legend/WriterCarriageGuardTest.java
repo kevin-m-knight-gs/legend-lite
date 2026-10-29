@@ -34,7 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * representation operation -- digits chosen for a value held whole (a Float's shortest digits, a Float held exactly
  * as a decimal read as the double it is, a decimal's plain digits, a token's integral flag, a day's digits), a value's
  * own precision read (a date literal's, carried in the value), a decode's carrier read (a JSON token as the number its
- * slot says) -- and ONE decision put to the user (an abstract Date at midnight written as its day). A new hit is a
+ * slot says). (The one decision by a value's clock that stood here on 2026-10-28, an abstract Date at midnight written
+ * as its day, went the next day under the upstream-fidelity tenet.) A new hit is a
  * writer deciding a value: route the decision to the database or to a fact of the plan
  * ({@code ExecutionPlan.Column}: its Pure type, slot, store type and written precision). A row here moves only with a
  * dated justification (AGENTS.md, "Guard files are load-bearing").
@@ -86,22 +87,17 @@ class WriterCarriageGuardTest {
                     // a date's own precision, carried in the value (a day or less; from an hour on): Pure's print form
                     // and legend-engine's day rule read it, never a clock
                     Map.entry("atLeast", 5),
-                    // a database timestamp's fraction without its trailing zeros: Pure's print form of the instant
+                    // a value root's instant, and a nested value's, without the fraction's trailing zeros: the value
+                    // lane's canon (register S118); a relation's cell keeps its nine digits, untrimmed
                     Map.entry("trimmed", 2),
                     // a day's digits (year, month, day), spelled from the value's floor
-                    Map.entry("toInstantFloor", 2),       // day (1); midnight (1), below
+                    // (2 -> 1 and the four clock reads getHour, getMinute, getSecond, getNano GONE, 2026-10-29: the
+                    // midnight rule, the one decision by a value's clock, deleted under the upstream-fidelity tenet --
+                    // neither legend-pure nor legend-engine prints a DateTime as its day)
+                    Map.entry("toInstantFloor", 1),
                     Map.entry("getYear", 1),
                     Map.entry("getMonthValue", 1),
-                    Map.entry("getDayOfMonth", 1),
-                    // THE ONE DECISION BY A VALUE'S CLOCK, kept pending the user's ruling (S1.4, 2026-10-28, put to the
-                    // user with the step's report): an abstract Date at midnight in a TIMESTAMP slot is written as its
-                    // day in Pure's print form (legend-engine's formatDateTime rule for a Date), where no fact of the
-                    // plan or of the value says the value was written as a day. Removing it changes a LEAN spelling
-                    // (2026-01-07 to 2026-01-07T00:00:00+0000), which no session decides alone
-                    Map.entry("getHour", 1),
-                    Map.entry("getMinute", 1),
-                    Map.entry("getSecond", 1),
-                    Map.entry("getNano", 1)),
+                    Map.entry("getDayOfMonth", 1)),
             "RowDecode.java", Map.ofEntries(
                     // a decode's carrier reads (the plan path program's step 6; moved here 2026-10-27): a JSON token as
                     // the number its slot says, one conversion each, nothing computed -- a long or a double from a

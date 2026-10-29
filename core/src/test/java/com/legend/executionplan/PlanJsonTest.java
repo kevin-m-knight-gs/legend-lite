@@ -61,9 +61,10 @@ class PlanJsonTest {
                                                                 ExecutionPlan.Digits.PRECISION)),
                                                 ExecutionPlan.ValueKind.DECIMAL)))), t, null)),
                         // a date-time's hole, a finer one cut to six digits (Postgres)
-                        // (its written-precision fact too, format 17: the column's fourth fact round-trips)
+                        // (its written-precision fact too, format 17: the column's fourth fact round-trips; a value
+                        // root's instant is MINIMAL, format 18)
                         new TdsResult(TdsResult.Shape.VALUE, List.of(new Column("t", "DateTime", new Multiplicity(0, 1), "TIMESTAMP", null,
-                                ExecutionPlan.Precision.INSTANT)),
+                                ExecutionPlan.Precision.MINIMAL)),
                                 new Sql("select CAST(? AS ) as t", List.of(new Slot("t",
                                         new ExecutionPlan.Binding.One("TIMESTAMP", new ExecutionPlan.TypeHole(17,
                                                 java.util.Map.of(ExecutionPlan.ValueKind.DATE_TIME,
@@ -133,15 +134,16 @@ class PlanJsonTest {
         // the same day: a text result is Pure's TDS text alone; 14 the same day: no text result at all; 15 the same day:
         // the effect node (a statement sent for what it does, the body driver's effects on the plan); 16 the same day: a
         // keyed result's per-key columns placed among its fixed ones; 17 since 2026-10-28: a column's written-precision
-        // fact (the result boundary program's R2, the start page's S1.4 item 1)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":17,"), json);
+        // fact (the result boundary program's R2, the start page's S1.4 item 1); 18 since 2026-10-29: the fact's
+        // MINIMAL value, a value root's instant
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":18,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v17 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v18 plan"), refused.getMessage());
     }
 
     @Test
@@ -155,7 +157,7 @@ class PlanJsonTest {
 
     @Test
     void anEarlierVersionIsRefused() {
-        for (int version = 1; version <= 16; version++) {
+        for (int version = 1; version <= 17; version++) {
             int v = version;
             var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(
                     "{\"format\":\"legend-lite-plan\",\"version\":" + v + ",\"parameters\":[],\"root\":{}}"));

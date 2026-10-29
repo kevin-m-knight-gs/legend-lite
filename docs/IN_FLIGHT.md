@@ -2912,7 +2912,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   that wrote this line (`session_01Vz1L3X6p56AZdTCQXUXYfE`) writes no more code: the next session opens with the
   start page's §12. **S1.0 done 2026-10-28** on `claude/wizardly-dirac-rw6tim` (GATES, the S1.0 entry: `main` at
   `369bb176` merged, both sides kept; the branch's register rows S115 to S117 now). **2026-10-29: the user's upstream-fidelity tenet** (AGENTS.md; the program's §8 item 12) **recorded; S1.4's two open
-  questions settled by it, awaiting the go** (the start page's §4). **S1.4 done 2026-10-28** (GATES,
+  questions settled by it** (the start page's §4; the relation cell's nine digits and the midnight rule's end built
+  2026-10-29, the decisions log D4 to D6). **The program continues without stopping (the user, 2026-10-29), a deep
+  audit and the decisions log posted after each phase.** **S1.4 done 2026-10-28** (GATES,
   the S1.4 entry; one question open for the user, the midnight rule). Next on this line, in order: S1.5 (records: GATES
   entries for phases 1 to 4, the 51 writer differences to the user case by case, register rows, the program's §3),
   S1.6 (a draft PR on the user's word). (The S1.4 that was announced touched `result/`,

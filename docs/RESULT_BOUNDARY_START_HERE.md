@@ -165,30 +165,27 @@ renumbering), IN_FLIGHT.
 written-precision fact `ExecutionPlan.Column.precision`, plan format 17, the writer's slot-word matches gone, the
 decoders' slot dispatch kept as their decode instruction; `ArchitectureTest.writersAreCarriageOnly`,
 `WriterCarriageGuardTest` with its register of 58 named representation operations, the result package a closed
-register in `JavaEvalLedgerTest`; the nits). **Its two open questions, settled by the upstream-fidelity tenet
-(2026-10-29, §5's first rule) and awaiting the user's go, each a LEAN spelling change (the standing rule: case by
-case):**
-- **A DateTime cell read from a TIMESTAMP, in lite's own outputs (LEAN JSON and CSV).** Upstream, read from the
-  sources 2026-10-29: legend-pure reads a SQL timestamp with all nine subsecond digits and prints them
-  (`DateFunctions.fromSQLTimestamp` -> `DateWithSubsecond.fromInstant(.., 9)`; its own test: `fromSQLTimestamp(..)
-  .toString()` is `2014-03-10T16:12:35.070004235+0000`, and a whole second `...T00:00:00.000000000+0000`); legend-engine
-  writes the same (`ValueTransformer`'s `yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZ`, what LEGACY already writes). Neither prints
-  a DateTime as its day, ever. Lite's LEAN diverges twice, both the writer's own rules of 2026-10-27 (`12b89c7d`):
-  the fraction's trailing zeros trimmed (`CellText.pure`: `2024-01-02T10:30:00.5+0000`, and no fraction at a whole
-  second), and an abstract Date at midnight written as its day (`CellText.midnight`: `2026-01-07`). Exact upstream is
-  cheap: delete `trimmed()` and `midnight` from `CellText` (the guard's register shrinks by `trimmed` 2,
-  `toInstantFloor` 1 and the four clock reads, re-pinned with the date), so a TIMESTAMP cell writes
-  `2024-01-02T10:30:00.500000000+0000` and a midnight `2026-01-07T00:00:00.000000000+0000`, legend-pure's text; a
-  value carried at its written precision (WRITTEN) and a day (DAY) are untouched. Before and after, the expression
-  `|#>{...}#->select(~ts)` over a TIMESTAMP holding 2024-01-02 10:30:00.5: `2024-01-02T10:30:00.5+0000` ->
-  `2024-01-02T10:30:00.500000000+0000`; a Date column's midnight: `2026-01-07` -> `2026-01-07T00:00:00.000000000+0000`.
-  No register row once built (it restores upstream's text). **The go is the user's.**
-- **The tab's negative zero** (`datacube/src/format.ts`, `signDisplay: 'negative'`: `-0` is shown `0`, by the tab's own
-  probe of 2026-09-25 so a value rounded to zero, `-0.0012` at two places, reads no minus). No pinned upstream governs a
-  grid's display text (legend-studio's DataCube is not among the reference sources); the nearest upstream texts
-  disagree: legend-engine's JSON carries `-0.0`, legend-pure prints `0.0`. Recommendation: keep the display as it is
-  and ledger it as a display representation (a rounded negative shows no sign) -- or, if the user wants the sign, `-0`
-  only for a true negative zero. **The user's call.**
+register in `JavaEvalLedgerTest`; the nits). **Corrected 2026-10-29 under the upstream-fidelity tenet** (the user: a
+move toward upstream needs no asking; and "have you checked pct and core-relational? Are you sure it's always 9
+digits expected?" -- checked, and no: the decisions log D4 to D6, `docs/result-boundary-homework/DECISIONS_LOG.md`):
+- **A relation's time-bearing date cell in lite's own outputs is spelled as legend-engine's TDS spells it, nine
+  fraction digits whatever carried it** (INSTANT, `PureDateLiteral.toEngineJson`; a literal written into a column
+  too):
+  legend-engine's `ValueTransformer` (its JSON and transformed CSV) and legend-pure's `fromSQLTimestamp` spell a SQL
+  timestamp in full, and the engine's own `core_relational` tests expect it so for database-read timestamps (138
+  places). The writer's trim for relation cells and its midnight rule (a Date's midnight as its day: no upstream prints
+  a DateTime so; the PCT relation tests' `Date[1]` midnights read `T00:00:00...`) are deleted. What the PCT relation
+  suite asserts textually -- three digits (`over.pure` 416 of them, `asofjoin.pure` 82) -- is its harness's own:
+  legend-engine's `TestTDS` holds a date column as millisecond `java.util.Date`s (`TestTDS.java:209`), so its text
+  shows three digits whatever the adapter sends; lite's deleted `PureTdsText` had copied that format.
+- **A value root's TIMESTAMP cell stays at the precision its digits show** (MINIMAL, `PureDateLiteral.trimmed`), as the
+  value lane's canon (`JudgePlans.valueLane`, `ValueBridge.values`) has carried it since 2026-10-18: the written
+  precision legend-pure prints is lost in the database, and the trim is its text wherever no trailing zero was written
+  (every PCT value test, exact on every lane); legend-engine's SQL answer would carry nine digits. Register S118; the
+  user may rule nine digits instead (one line in `ColumnFacts.precision`).
+- Plan format 18 (`MINIMAL`); `ColumnFacts.precision` takes the result's shape; `PlanColumns.shapeOf`.
+- **Still the user's:** the tab's negative zero (D8); LEAN's nested dates against the engine's graph-fetch JSON (nine
+  digits, no zone: D9) and LEAN's Float exponent layout against the engine's JSON (D10), for S1.5.
 Why: rule R3; the audit found the writers comparing values and choosing
 spellings by rules, unguarded. Build:
 1. One typed fact on the plan column for a temporal value's written precision, replacing the slot-name strings

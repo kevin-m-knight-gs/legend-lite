@@ -35,14 +35,16 @@ public final class ColumnFacts {
     }
 
     /**
-     * The plan's columns for {@code pure}, the typed schema, over {@code lowered}'s outputs. A column is matched to
-     * its output by name. A column no output is named after is one of three things, each said in the column: a
+     * The plan's columns for {@code pure}, the typed schema, over {@code lowered}'s outputs, in a result of
+     * {@code shape} (a relation's cells, a value root's elements: the written-precision fact differs,
+     * {@link #precision}). A column is matched to its output by name. A column no output is named after is one of three things, each said in the column: a
      * pivot's generated column (its slot the template's type, when the template carries one); a nested column the
      * query flattens into prefixed outputs ({@code n1} as {@code n1_ID, n1_NAME}: no one slot); or, when no column
      * at all matches by name and the counts agree, a value root's one output, which the wire names {@code value}
      * (matched by position). Any other difference is a planner defect, refused by name.
      */
-    public static List<ExecutionPlan.Column> columns(List<Pure> pure, SqlQuery lowered) {
+    public static List<ExecutionPlan.Column> columns(List<Pure> pure, SqlQuery lowered,
+            ExecutionPlan.TdsResult.Shape shape) {
         List<OutputCol> outs = lowered.outputs();
         boolean anyByName = pure.stream().anyMatch(p -> outs.stream().anyMatch(o -> o.name().equals(p.name())));
         boolean positional = !anyByName && pure.size() == outs.size();
@@ -55,7 +57,7 @@ public final class ColumnFacts {
             if (out != null) {
                 SqlDdl.ColumnType stored = stored(lowered, out.name(), Map.of());
                 cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), slot(out.type()),
-                        stored == null ? null : store(stored), precision(p.type(), out.type())));
+                        stored == null ? null : store(stored), precision(p.type(), out.type(), shape)));
                 continue;
             }
             String bare = p.name().length() > 1 && p.name().startsWith("'") && p.name().endsWith("'")
@@ -64,10 +66,10 @@ public final class ColumnFacts {
             if (hits.size() == 1) {
                 SqlType t = hits.get(0).type();
                 cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), t == null ? null : slot(t),
-                        null, precision(p.type(), t)));
+                        null, precision(p.type(), t, shape)));
             } else if (outs.stream().anyMatch(o -> o.name().startsWith(p.name() + "_"))) {
                 cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), null, null,
-                        precision(p.type(), null)));
+                        precision(p.type(), null, shape)));
             } else {
                 throw new IllegalStateException("the plan's column '" + p.name() + "' is none of the query's outputs "
                         + outs.stream().map(OutputCol::name).toList() + ", no pivot template's and no flattened"
@@ -143,24 +145,31 @@ public final class ColumnFacts {
         };
     }
 
-    /** How a temporal cell of a column of Pure type {@code type} in slot {@code slot} (null: no one slot) has its
-     *  written precision ({@link ExecutionPlan.Precision}; the start page's S1.4 item 1, 2026-10-28): a literal's
-     *  spelling or a temporal-text carrier carries it in the cell, whatever the Pure type (a mixed column's cells
-     *  spell their own kind); a DATE slot or a StrictDate column holds a day; a TIMESTAMP slot, or a Date or DateTime
-     *  column in any other slot (a text a database holds its dates as, no slot at all), holds an instant at the
-     *  database's precision. Any other column has no temporal of its own: null, said. The same precedence the
-     *  writers held in their slot-spelling matches until this fact, so no spelling moves. */
+    /** How a temporal cell of a column of Pure type {@code type} in slot {@code slot} (null: no one slot), in a
+     *  result of {@code shape}, has its written precision ({@link ExecutionPlan.Precision}; the start page's S1.4
+     *  item 1, 2026-10-28, corrected 2026-10-29 under the upstream-fidelity tenet). A literal-spelled cell (the
+     *  LITERAL slot, a mixed column's) spells its own kind and precision: WRITTEN. A DATE slot or a StrictDate column
+     *  holds a day: DAY. A time-bearing temporal otherwise -- a TIMESTAMP slot, a temporal-text carrier, a Date or
+     *  DateTime column in any other slot (a text a database holds its dates as, no slot at all) -- is, in a
+     *  relation, a cell legend-engine's TDS spells with nine digits whatever carried it (INSTANT); in a value root,
+     *  legend-pure's value: the precision written where the cell carries it (a temporal-text carrier: WRITTEN), the
+     *  precision its digits show where the database computed it (MINIMAL, the value lane's canon, register S118).
+     *  Any other column has no temporal of its own: null, said. */
     public static ExecutionPlan.@com.legend.base.Nullable Precision precision(String type,
-            @com.legend.base.Nullable SqlType slot) {
-        if (slot == SqlType.Scalar.TEMPORAL_TEXT || slot == SqlType.Scalar.LITERAL) {
+            @com.legend.base.Nullable SqlType slot, ExecutionPlan.TdsResult.Shape shape) {
+        if (slot == SqlType.Scalar.LITERAL) {
             return ExecutionPlan.Precision.WRITTEN;
         }
         if (type.equals("StrictDate") || slot == SqlType.Scalar.DATE) {
             return ExecutionPlan.Precision.DAY;
         }
+        boolean value = shape == ExecutionPlan.TdsResult.Shape.VALUE;
+        if (slot == SqlType.Scalar.TEMPORAL_TEXT) {
+            return value ? ExecutionPlan.Precision.WRITTEN : ExecutionPlan.Precision.INSTANT;
+        }
         if (slot == SqlType.Scalar.TIMESTAMP || slot == SqlType.Scalar.TIMESTAMPTZ || type.equals("Date")
                 || type.equals("DateTime")) {
-            return ExecutionPlan.Precision.INSTANT;
+            return value ? ExecutionPlan.Precision.MINIMAL : ExecutionPlan.Precision.INSTANT;
         }
         return null;
     }

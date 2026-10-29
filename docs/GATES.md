@@ -15301,3 +15301,48 @@ in its order: item 2, then 1, then 3, then 4. No output spelling moves but the o
      ran on the merge commit; S1.6's CI runs it on every OS).
    - Register: no row. No output spelling moves but the ruled `0.00010` (item 1); the midnight question is the
      user's (item 2).
+
+## 2026-10-29 — S1.4 corrected under the upstream-fidelity tenet: a relation's timestamp keeps its nine digits, the midnight rule is gone, a value root's minimal digits ledgered (S118)
+
+The user's tenet of 2026-10-29 (AGENTS.md: exactly as legend-pure and legend-engine do, a divergence only where too
+expensive, posted and ledgered) and the user's two corrections of the step's report: a change toward upstream needs no
+asking, and "have you checked pct and core-relational? Are you sure it's always 9 digits expected? I feel like lite
+mostly copied what tests expect". Checked from the pinned sources; the decisions log D4 to D6
+(`docs/result-boundary-homework/DECISIONS_LOG.md`).
+
+1. **What upstream does, read:** legend-pure reads a SQL timestamp with all nine subsecond digits and prints them
+   (`DateFunctions.fromSQLTimestamp` -> `DateWithSubsecond.fromInstant(.., 9)`; its `TestDateFunctions`:
+   `2014-03-10T16:12:35.070004235+0000`, a whole second `...T00:00:00.000000000+0000`); legend-engine's JSON and
+   transformed CSV write the same (`ValueTransformer`, `yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZ`); the engine's own
+   `core_relational` tests expect nine digits for database-read timestamps (138 places; three or four digits only in
+   TDS literals and a milestoning constant; a fraction-less `+0000` only in Pure-printed property keys). The PCT
+   relation suite (`core_functions_relation`) asserts THREE digits in 950 places against nine-digit input literals:
+   its harness's `TestTDS` holds a date column as millisecond `java.util.Date`s (`TestTDS.java:209`), so its text is
+   `.SSS` whatever the adapter sends -- lite's deleted `PureTdsText` had copied that; lite's channel A crosses nine
+   digits through the engine JSON and the suite is exact. Neither upstream ever prints a DateTime as its day. The
+   PCT value suites expect the precision written (1 to 9 digits as each test wrote them), which the database loses;
+   `ValueBridge.values` and `JudgePlans.valueLane` trim a timestamp to the precision its digits show and the suites
+   are exact on every lane.
+2. **Built (`CellText.pureDate`, `ColumnFacts.precision`, `PlanColumns.shapeOf`, `ExecutionPlan.Precision.MINIMAL`,
+   plan format 18):** a relation's time-bearing date cell in lite's own outputs (LEAN JSON and CSV) is spelled as
+   legend-engine's TDS spells it, nine fraction digits and `+0000` whatever carried it -- a TIMESTAMP's digits, a
+   literal's text (INSTANT, `PureDateLiteral.toEngineJson`, LEGACY's own spelling): `2024-01-02T10:30:00.500000000+0000`,
+   a midnight `2026-01-07T00:00:00.000000000+0000`, a literal `%2024-01-02T10:30` written into a column
+   `2024-01-02T10:30:00.000000000+0000` -- the writer's trim for relation cells and its midnight rule
+   (`CellText.midnight`, the day alone) deleted; a value root's cell (the VALUE shape: a scalar, a collection's
+   element) stays legend-pure's value, the precision written where the cell carries it (WRITTEN) and the precision
+   its digits show where the database computed it (MINIMAL, `.5+0000`, `T00:00:00+0000`), the value lane's canon kept
+   and now ledgered: register S118. `OutputMatrixTest`'s relation reference follows (`Kind.cell`: two datetime
+   kinds); `PlanMakerTest`'s let-literal and parameter sides now agree (both nine digits). `ValueBridge` reads the
+   WRITTEN fact in place of the slot's spelling (behaviour unchanged; its ledger line 418 -> 417, dated).
+   `WriterCarriageGuardTest`'s register shrinks with the midnight rule: the four clock reads gone, `toInstantFloor`
+   2 -> 1, dated. The host judge's trim (`JudgePlans.valueLane`) keeps its slot match: the judges' canon is track
+   B/C's, measured per lane.
+3. **Not a spelling change needing the user's word** (the user, 2026-10-29): the relation cell moves TO upstream's
+   text. The value root's text is the status quo, ledgered and posted (S118); the user may rule nine digits instead.
+4. **Measured locally** (as root, 2026-10-29): `//core:core_tests` (27 targets), `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline`: 28 of 28 pass; the PCT on DuckDB, SQLite and MongoDB (five suites each) and
+   `//pct:pct_discipline`: 16 of 16 pass, every relation crossing through the engine JSON (`[LegendLite PCT] engine
+   JSON:` 524 DuckDB, 523 SQLite, 523 MongoDB; the relation suite 460, 459, 459); `//datacube:python_execute_test`
+   passes. The Postgres targets and the rest of `//gates:local` ran at S1.4's first landing (the entry above) and
+   run again with S1.5's commit. The lanes are not reachable from this session (the S1.4 entry, item 5).

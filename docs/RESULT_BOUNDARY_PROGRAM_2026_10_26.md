@@ -500,6 +500,13 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-29, S1.4 corrected under the tenet; the decisions log opened; the program continues without stopping**
+  (the user: "no need to stop, just keep going all the way until done with whole program and all old ways to execute
+  are deleted - do a deep audit after every phase and keep a log of decisions"). A relation's TIMESTAMP cell in
+  lite's own outputs keeps its nine digits as legend-engine and legend-pure spell a SQL timestamp (the trim and the
+  midnight rule gone); a value root's keeps the value lane's minimal digits (register S118); the PCT's three-digit
+  texts traced to its harness's `TestTDS`. `docs/result-boundary-homework/DECISIONS_LOG.md` holds every decision made
+  or wanted, per phase, with an audit after each. Next: S1.5.
 - **2026-10-29, the upstream-fidelity tenet ruled** (§8 item 12; AGENTS.md; the start page's §5 first rule and §10;
   the register's header): exact upstream by default, a divergence only where too expensive, posted and ledgered.
   S1.4's two open questions settled by it and written up with their upstream evidence (the start page's §4, S1.4): a

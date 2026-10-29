@@ -102,15 +102,20 @@ class ResultWritersTest {
         assertEquals("-0.0", Json.toCompact(CellText.engine(-0.0, f)));
     }
 
-    /** legend-engine writes a database timestamp in full and only a database date as its day (its ValueTransformer), so
-     *  a Date at midnight in a TIMESTAMP column is a date-time like its others; Pure's print form writes that midnight
-     *  as its day. */
+    /** legend-engine writes a database timestamp in full and only a database date as its day (its ValueTransformer;
+     *  legend-pure reads a SQL timestamp with its nine digits, DateFunctions.fromSQLTimestamp, and prints them), so a
+     *  Date at midnight in a relation's TIMESTAMP column is a date-time like its others in lite's own outputs too
+     *  (2026-10-29, the upstream-fidelity tenet: the writer's midnight rule of 12b89c7d, the day alone, is gone); a
+     *  value root's instant is written at the precision its digits show (MINIMAL, register S118). */
     @Test
-    void theEngineWritesATimestampInFull_evenAtMidnight_PureItsDay() {
+    void aTimestampCellSpellsItsNineDigits_evenAtMidnight_aValueRootItsMinimalDigits() {
         Column date = col("d", "Date", "TIMESTAMP", ExecutionPlan.Precision.INSTANT);
         PureDateLiteral midnight = PureDateLiteral.fromDatabaseTimestamp(java.time.LocalDateTime.of(2026, 1, 7, 0, 0));
         assertEquals("\"2026-01-07T00:00:00.000000000+0000\"", Json.toCompact(CellText.engine(midnight, date)));
-        assertEquals("2026-01-07", CellText.pure(midnight, date));
+        assertEquals("2026-01-07T00:00:00.000000000+0000", CellText.pure(midnight, date));
+        assertEquals("\"2026-01-07T00:00:00.000000000+0000\"", Json.toCompact(CellText.pureJson(midnight, date)));
+        assertEquals("2026-01-07T00:00:00+0000",
+                CellText.pure(midnight, col("v", "Date", "TIMESTAMP", ExecutionPlan.Precision.MINIMAL)));
         assertEquals("\"2026-01-07\"", Json.toCompact(CellText.engine(PureDateLiteral.parse("2026-01-07"),
                 col("s", "StrictDate", "DATE", ExecutionPlan.Precision.DAY))));
     }
@@ -124,14 +129,24 @@ class ResultWritersTest {
 
     @Test
     void aDateTimePrintsAtItsPrecisionWithItsZone_aStrictDateItsDay() {
-        assertEquals("2024-01-02T10:30:00.5+0000", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30:00.500"),
-                col("t", "DateTime", "TIMESTAMP", ExecutionPlan.Precision.INSTANT)));
+        // a relation's TIMESTAMP cell: the nine digits the database handed over, as legend-engine and legend-pure
+        // spell a SQL timestamp (2026-10-29); a value root's: the precision its digits show (MINIMAL, S118)
+        PureDateLiteral half = PureDateLiteral.fromDatabaseTimestamp(java.time.LocalDateTime.of(2024, 1, 2, 10, 30, 0,
+                500_000_000));
+        assertEquals("2024-01-02T10:30:00.500000000+0000",
+                CellText.pure(half, col("t", "DateTime", "TIMESTAMP", ExecutionPlan.Precision.INSTANT)));
+        assertEquals("2024-01-02T10:30:00.5+0000",
+                CellText.pure(half, col("t", "DateTime", "TIMESTAMP", ExecutionPlan.Precision.MINIMAL)));
         assertEquals("2024-01-02", CellText.pure(PureDateLiteral.parse("2024-01-02"),
                 col("d", "StrictDate", "DATE", ExecutionPlan.Precision.DAY)));
-        // a value carried as its own text keeps the precision it was written at: the plan's fact (2026-10-28, S1.4
-        // item 1), where the writer matched the slot's spelling until then
+        // a value root's cell carried as its own text keeps the precision it was written at: the plan's fact
+        // (2026-10-28, S1.4 item 1), where the writer matched the slot's spelling until then; a relation's cell carried
+        // the same way spells as legend-engine's TDS does, nine digits (INSTANT, 2026-10-29: ColumnFacts.precision gives
+        // the fact by the result's shape)
         assertEquals("2024-01-02T10:30+0000", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30"),
                 col("t", "DateTime", "TEMPORAL_TEXT", ExecutionPlan.Precision.WRITTEN)));
+        assertEquals("2024-01-02T10:30:00.000000000+0000", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30"),
+                col("t", "DateTime", "TEMPORAL_TEXT", ExecutionPlan.Precision.INSTANT)));
         // a DateTime written as a day in a DATE slot is a day: the fact, not the slot's word
         assertEquals("2024-01-02", CellText.pure(PureDateLiteral.parse("2024-01-02T00:00:00"),
                 col("d", "DateTime", "DATE", ExecutionPlan.Precision.DAY)));

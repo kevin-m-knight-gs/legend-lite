@@ -71,7 +71,7 @@ final class JudgePlans {
      *  ({@link TypedRows#statement}: H2's FULL OUTER JOIN emulation addresses its sort key among the outputs). */
     static ExecutionPlan.TdsResult rowsPlan(SqlQuery statement, Type.RelationType schema,
             StatementExecutor.ExecEnv env) {
-        List<ExecutionPlan.Column> columns = PlanColumns.of(schema, statement);
+        List<ExecutionPlan.Column> columns = PlanColumns.of(schema, statement, ExecutionPlan.TdsResult.Shape.RELATION);
         List<OutputCol> outs = statement.outputs();
         boolean anyByName = columns.stream().anyMatch(c -> outs.stream().anyMatch(o -> o.name().equals(c.name())));
         if (anyByName && columns.size() == outs.size()) {

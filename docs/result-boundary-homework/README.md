@@ -244,9 +244,21 @@ upstream-fidelity tenet):**
   (`withHeader`); `CSV_TRANSFORMED` (`RelationalResultToCSVSerializerWithTransformersApplied`) is the same with each
   cell through the column's transformer and `ValueTransformer`'s two date spellings. The other formats:
   `PURE_TDSOBJECT`, `PURE`, `RAW`, `ARROW_IPC`.
-- Lite's LEAN writers (`CellText.pure`) diverge from both on a TIMESTAMP cell: the fraction's trailing zeros trimmed
-  (`.5+0000`, none at a whole second) and an abstract Date at midnight written as its day -- the start page's S1.4,
-  settled by the tenet and awaiting the user's go; LEGACY (`CellText.engine`) matches `ValueTransformer` exactly.
+- The PCT relation suite (legend-engine's `core_functions_relation`, the RelationFunctions tests) asserts TDS text
+  with THREE fraction digits in 950 places (`over.pure` and `reduce.pure` 416 each, `asofjoin.pure` 82,
+  `composition.pure` 28) and nine in 848 (their input literals): the harness's own spelling, not a product's --
+  `TestTDS.java:209` (`legend-engine-pure-runtime-java-extension-shared-functions-relation`) holds a Date column as
+  millisecond `java.util.Date`s (`DateFunctions.fromDate(new Date(value / 1000000))`), so `toString` prints `.SSS`
+  whatever digits the adapter sends; `assertTdsEquivalent` compares values. Lite's deleted `PureTdsText` had copied the
+  three-digit form. The engine's own `core_relational` tests expect nine digits for database-read timestamps (138
+  places), three or four only in TDS literals and a milestoning constant, and a fraction-less `+0000` only in
+  Pure-printed property keys (`synonymsMilestoned(2020-10-15T00:00:00+0000)`). Checked 2026-10-29 on the user's
+  question ("are you sure it's always 9 digits expected?"): for a product's relation cell, yes; for a value Pure
+  printed, no -- the precision written.
+- Lite's LEAN writers (`CellText.pure`) diverged from both on a TIMESTAMP cell until 2026-10-29: the fraction's
+  trailing zeros trimmed and an abstract Date at midnight written as its day. Now a relation's cell keeps its nine
+  digits (INSTANT) and a value root's the precision its digits show (MINIMAL, register S118); LEGACY
+  (`CellText.engine`) matches `ValueTransformer` exactly. The decisions log D4 to D6.
 
 **How to ask it again (the recipe).** No server is needed: the engine runner's jars are the engine.
 1. `bazel build //tools/engine-runner:testable` (fetches `@maven_runner`, legend-engine 4.145.0 and its execution

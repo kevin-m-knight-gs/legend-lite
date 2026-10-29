@@ -23,7 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * program's phase 4, the PCT writing it from typed rows) on DuckDB and H2
  * (OutputMatrixH2Test), the text lite writes beside interpreted Pure's
  * (the reference: {@code docs/execution-plan-boundary-2026-10-05/probes/engine-reference/pure-interpreted-results.txt},
- * PureEval.java, 2026-10-10). Every cell is judged: a cell equal to Pure's text passes; a cell that differs is
+ * PureEval.java, 2026-10-10; a relation's time-bearing date as legend-engine's TDS spells it, nine digits, since
+ * 2026-10-29: {@code Kind.cell}). Every cell is judged: a cell equal to Pure's text passes; a cell that differs is
  * either PINNED here with the text it writes today -- a deviation named, shrink-only, each later landing of the
  * output layer removing the pins it fixes -- or a failure. A pinned cell that starts writing Pure's text fails too,
  * so a fix is recorded by deleting its pin. The whole table is printed on every run.
@@ -46,9 +47,15 @@ class OutputMatrixTest {
             Runtime s::RT { mappings: []; connections: [ s::DB: [ c1: s::Conn ] ]; }
             """;
 
-    /** A kind: its name, the expression as a value root, the same value as a column, and interpreted Pure's text of
-     *  the value. */
-    private record Kind(String name, String value, String column, String pure) {
+    /** A kind: its name, the expression as a value root, the same value as a column, interpreted Pure's text of the
+     *  value, and the text of the value as a relation's cell -- Pure's, but for a time-bearing date, which a relation
+     *  spells as legend-engine's TDS does, nine fraction digits whatever the literal wrote (2026-10-29, the
+     *  upstream-fidelity tenet: `ValueTransformer`; a value root keeps the precision written, as legend-pure prints
+     *  its values; the start page's S1.4, the decisions log D5). */
+    private record Kind(String name, String value, String column, String pure, String cell) {
+        Kind(String name, String value, String column, String pure) {
+            this(name, value, column, pure, pure);
+        }
     }
 
     private static final String T = "#>{s::DB.T}#->extend(~v: r|";
@@ -64,9 +71,10 @@ class OutputMatrixTest {
             new Kind("decimal_times_decimal", "|1.50D * 2.50D", "|" + T + "1.50D * 2.50D)->select(~[v])",
                     "3.7500"),
             new Kind("datetime_whole", "|%2024-01-02T10:30:00", "|" + T + "%2024-01-02T10:30:00)->select(~[v])",
-                    "2024-01-02T10:30:00+0000"),
+                    "2024-01-02T10:30:00+0000", "2024-01-02T10:30:00.000000000+0000"),
             new Kind("datetime_millis", "|%2024-01-02T10:30:00.123",
-                    "|" + T + "%2024-01-02T10:30:00.123)->select(~[v])", "2024-01-02T10:30:00.123+0000"),
+                    "|" + T + "%2024-01-02T10:30:00.123)->select(~[v])", "2024-01-02T10:30:00.123+0000",
+                    "2024-01-02T10:30:00.123000000+0000"),
             new Kind("datetime_nanos", "|%2024-01-02T10:30:00.123456789",
                     "|" + T + "%2024-01-02T10:30:00.123456789)->select(~[v])",
                     "2024-01-02T10:30:00.123456789+0000"),
@@ -117,7 +125,7 @@ class OutputMatrixTest {
                         }
                         String pinned = pins.remove(key);
                         String verdict;
-                        String reference = kind.pure();
+                        String reference = form.equals("value") ? kind.pure() : kind.cell();
                         if (cell.equals(reference)) {
                             verdict = pinned == null ? "pure" : "PIN STALE";
                             if (pinned != null) {

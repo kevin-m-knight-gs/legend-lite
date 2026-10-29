@@ -61,10 +61,10 @@ final class ValueBridge {
             ProcessorSupport ps) {
         Type type = declared.type();
         // a date the database holds as a timestamp has the precision its digits show (the fraction's trailing zeros
-        // dropped), as Pure holds it; one carried as its own text keeps the precision it was written at -- the
-        // writers' rule (com.legend.result.CellText.pure)
-        String slot = column.slot() == null ? "" : column.slot();
-        boolean written = slot.startsWith("TEMPORAL_TEXT") || slot.startsWith("LITERAL");
+        // dropped), the closest to the precision Pure wrote (register S118); one carried as its own text keeps the
+        // precision it was written at -- the plan's written-precision fact (ExecutionPlan.Precision, 2026-10-28,
+        // where the slot's spelling was matched until then)
+        boolean written = column.precision() == com.legend.executionplan.ExecutionPlan.Precision.WRITTEN;
         List<?> cells = written ? cells0 : cells0.stream().map(ValueBridge::trimmedDates).toList();
         if (!declared.multiplicity().requireBounded("a PCT value").isMany()) {
             if (cells.size() > 1) {
