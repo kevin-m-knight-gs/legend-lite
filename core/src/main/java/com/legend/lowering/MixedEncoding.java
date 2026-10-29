@@ -61,11 +61,35 @@ final class MixedEncoding {
         }
     }
 
-    /** The Pure kind a tagged slot names ({@link SqlType.Tagged.Slot#kind}), as a type: the one map (the encoder
-     *  above names each candidate's kind as it builds it). */
+    /** The Pure kind a tagged slot names ({@link SqlType.Tagged.Slot#kind}), as a type: the one map (the encoders
+     *  name each candidate's kind as they build it; a tagged list adds String and Boolean, track L). */
+    /** The written subsecond digits a kind {@code DateTime(n)} carries; null for every other kind. */
+    static @com.legend.base.Nullable Integer writtenDigits(String kind) {
+        return kind.startsWith("DateTime(")
+                ? Integer.valueOf(kind.substring("DateTime(".length(), kind.length() - 1)) : null;
+    }
+
+    /** The enumeration a kind names (its path, track L, 2026-10-29); null for a primitive's kind. */
+    static @com.legend.base.Nullable String enumerationKind(String kind) {
+        return kind.contains("::") ? kind : null;
+    }
+
+    /** The enumeration a value of type {@code t} belongs to, as its kind: the enumeration's path; null for every
+     *  other type, the abstract Enum declaration included (a mapping's toDomainValue, an EnumValueMapping's .enum: a
+     *  value of no one enumeration, so of no kind, as the spelling carrier spelled none for it). */
+    static @com.legend.base.Nullable String enumerationOf(Type t) {
+        return t instanceof Type.EnumType et && !ABSTRACT_ENUM.equals(et.fqn()) ? et.fqn() : null;
+    }
+
     static Type kindType(String kind) {
-        if (kind.startsWith("DateTime(")) {
+        if (writtenDigits(kind) != null) {
             return Type.Primitive.DATE_TIME;   // a DateTime at a written subsecond precision (PureDateLiteral.presentedAt)
+        }
+        String enumeration = enumerationKind(kind);
+        if (enumeration != null) {
+            // an enumeration's value: the kind is the enumeration's path, the slot holds the value's NAME (a
+            // VARCHAR; the decoders read the name, the canon spells Enumeration.NAME)
+            return new Type.EnumType(enumeration);
         }
         return switch (kind) {
             case "Integer" -> Type.Primitive.INTEGER;
@@ -74,9 +98,347 @@ final class MixedEncoding {
             case "StrictDate" -> Type.Primitive.STRICT_DATE;
             case "DateTime" -> Type.Primitive.DATE_TIME;
             case "Date" -> Type.Primitive.DATE;
+            case "String" -> Type.Primitive.STRING;
+            case "Boolean" -> Type.Primitive.BOOLEAN;
             default -> throw new IllegalStateException("a tagged slot of kind '" + kind + "': not one a mixed"
-                    + " selection carries (Integer, Float, Decimal, StrictDate, DateTime, Date)");
+                    + " selection or list carries (Integer, Float, Decimal, StrictDate, DateTime, Date, String,"
+                    + " Boolean)");
         };
+    }
+
+    /**
+     * A mixed collection's elements as a tagged list (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a's step B; the
+     * result boundary program's track L, 2026-10-29): each element by its STATIC kind -- Integer BIGINT, Float
+     * DOUBLE, Decimal its own DECIMAL(p,s), String VARCHAR, Boolean BOOLEAN, StrictDate DATE, DateTime TIMESTAMP (the
+     * written subsecond precision in the kind), a partial Date its text (TEMPORAL_TEXT), a type's or an element's
+     * value its NAME (VARCHAR, kind String: the wire convention for type and element values) -- into one channel per
+     * distinct (kind, slot), the element at its position and NULL elsewhere; the tags each element's channel; the
+     * comparable each element's rank ({@link #rankedComparable}: numbers, then dates, then Boolean, then String, as
+     * Pure's compare orders mixed kinds; within a group by the group's own channel). Null when an element is of no
+     * such kind (an instance, an enumeration, a variant, a computed Any): the caller keeps its lane.
+     */
+    static @com.legend.base.Nullable SqlExpr.TaggedList taggedList(TypedCollection c, List<SqlExpr> lowered) {
+        int n = c.elements().size();
+        if (n == 0 || lowered.size() != n) {
+            return null;
+        }
+        List<String> kinds = new ArrayList<>(n);
+        List<SqlType> slots = new ArrayList<>(n);
+        List<SqlExpr> values = new ArrayList<>(n);
+        List<SqlExpr> ranks = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            TypedSpec e = c.elements().get(i);
+            SqlExpr x = unwrapVariant(lowered.get(i));
+            String kind;
+            SqlType slot;
+            Type t = e.info().type();
+            if (e instanceof com.legend.compiler.spec.typed.TypedTypeRef
+                    || e instanceof com.legend.compiler.spec.typed.TypedPackageableRef) {
+                kind = "String";
+                slot = SqlType.Scalar.VARCHAR;
+                t = Type.Primitive.STRING;
+            } else if (t == Type.Primitive.INTEGER) {
+                kind = "Integer";
+                slot = SqlType.Scalar.BIGINT;
+            } else if (t == Type.Primitive.FLOAT) {
+                kind = "Float";
+                slot = SqlType.Scalar.DOUBLE;
+            } else if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
+                kind = "Decimal";
+                SqlType own = typeOf(x);
+                if (!(own instanceof SqlType.Decimal)) {
+                    throw new com.legend.error.NotImplementedException("a Decimal among mixed kinds whose SQL type is "
+                            + own + ", not a DECIMAL(p,s) that holds it exactly: no slot for it");
+                }
+                slot = own;
+            } else if (t == Type.Primitive.STRING) {
+                kind = "String";
+                slot = SqlType.Scalar.VARCHAR;
+            } else if (t == Type.Primitive.BOOLEAN) {
+                kind = "Boolean";
+                slot = SqlType.Scalar.BOOLEAN;
+            } else if (t == Type.Primitive.STRICT_DATE) {
+                kind = "StrictDate";
+                slot = SqlType.Scalar.DATE;
+            } else if (t == Type.Primitive.DATE_TIME) {
+                kind = e instanceof TypedCDate cd && cd.value() instanceof PureDateLiteral.DateWithSubsecond d
+                        ? "DateTime(" + d.subsecond().length() + ")" : "DateTime";
+                slot = SqlType.Scalar.TIMESTAMP;
+            } else if (t == Type.Primitive.DATE) {
+                if (partialComparable(e, x) == null) {
+                    return null;
+                }
+                kind = "Date";
+                slot = SqlType.Scalar.TEMPORAL_TEXT;
+            } else if (enumerationOf(t) != null) {
+                // an enumeration's value: the kind its enumeration's path, the slot its NAME (an enum value lowers
+                // to its name; the canon spells Enumeration.NAME, so it never equals the name's string)
+                kind = enumerationOf(t);
+                slot = SqlType.Scalar.VARCHAR;
+            } else {
+                return null;
+            }
+            SqlExpr rank = rankedComparableOf(t, e, x);
+            if (rank == null) {
+                return null;
+            }
+            kinds.add(kind);
+            slots.add(slot);
+            values.add(x);
+            ranks.add(rank);
+        }
+        // the comparable: where every element is of ONE comparison group (all numbers, all dates), the group's own
+        // channel -- a DOUBLE, a TIMESTAMP -- as the selection's comparables are (a scalar every database orders;
+        // a struct key is ordered as its text on SQLite and MariaDB, which have no struct); across groups the rank
+        // struct, as the spelling carrier's sort ordered them
+        Set<Integer> groups = new HashSet<>();
+        for (SqlExpr r : ranks) {
+            groups.add((int) ((SqlExpr.IntLit) ((SqlExpr.StructLit) r).fields().get(0).value()).value());
+        }
+        if (groups.size() == 1) {
+            int g = groups.iterator().next();
+            if (g == 0 || g == 1) {
+                for (int i = 0; i < n; i++) {
+                    ranks.set(i, ((SqlExpr.StructLit) ranks.get(i)).fields().get(g == 0 ? 1 : 2).value());
+                }
+            }
+        }
+        List<SqlType.Tagged.Slot> channelSlots = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            SqlType.Tagged.Slot s = new SqlType.Tagged.Slot(kinds.get(i), slots.get(i));
+            if (!channelSlots.contains(s)) {
+                channelSlots.add(s);
+            }
+        }
+        List<SqlExpr> tags = new ArrayList<>(n);
+        List<List<SqlExpr>> perChannel = new ArrayList<>();
+        for (int k = 0; k < channelSlots.size(); k++) {
+            perChannel.add(new ArrayList<>(n));
+        }
+        for (int i = 0; i < n; i++) {
+            int k = channelSlots.indexOf(new SqlType.Tagged.Slot(kinds.get(i), slots.get(i)));
+            tags.add(new SqlExpr.IntLit(k + 1));
+            for (int j = 0; j < channelSlots.size(); j++) {
+                perChannel.get(j).add(j == k ? values.get(i) : new SqlExpr.NullLit());
+            }
+        }
+        List<SqlExpr.TaggedList.Channel> channels = new ArrayList<>(channelSlots.size());
+        for (int k = 0; k < channelSlots.size(); k++) {
+            SqlType.Tagged.Slot s = channelSlots.get(k);
+            // the channel's array is TYPED as its slot (a NULL beside a value takes the value's type in most
+            // databases, but a cast says it where the slot is the exact type, a DECIMAL(p,s) or a DATE)
+            channels.add(new SqlExpr.TaggedList.Channel(s.kind(), s.type(),
+                    new SqlExpr.Cast(new SqlExpr.ArrayLit(perChannel.get(k)), new SqlType.Array(s.type()))));
+        }
+        List<SqlExpr> positions = new ArrayList<>(n);
+        for (int i = 1; i <= n; i++) {
+            positions.add(new SqlExpr.IntLit(i));
+        }
+        return new SqlExpr.TaggedList(new SqlExpr.ArrayLit(positions), new SqlExpr.ArrayLit(tags),
+                new SqlExpr.ArrayLit(ranks), channels);
+    }
+
+    /** A NUMBER-LUB literal mix ({@code [25.0, 1]}, {@code [342, 5.0, -2.0, 171, 1]}: two or more distinct numeric
+     *  kinds, every element a literal) as a tagged list, read from its variant-carried lowering; null for any other
+     *  shape (the caller keeps its lane). Elsewhere such a list keeps the variant carrier (arithmetic and the
+     *  aggregates type on it); a root, a sort or a dedup reads it as its kinds. */
+    static @com.legend.base.Nullable SqlExpr.TaggedList mixedNumericLiteral(TypedSpec spec, SqlExpr lowered) {
+        if (!(spec instanceof TypedCollection c) || !(lowered instanceof SqlExpr.ArrayLit la)
+                || c.elements().size() < 2 || la.elements().size() != c.elements().size()
+                || c.info().type() != Type.Primitive.NUMBER) {
+            return null;
+        }
+        Set<Type> kinds = new HashSet<>();
+        for (int i = 0; i < c.elements().size(); i++) {
+            Type t = c.elements().get(i).info().type();
+            Type kind = t instanceof Type.PrecisionDecimal ? Type.Primitive.DECIMAL : t;
+            if ((kind != Type.Primitive.INTEGER && kind != Type.Primitive.FLOAT && kind != Type.Primitive.DECIMAL)
+                    || !isNumericLiteral(unwrapVariant(la.elements().get(i)))) {
+                return null;
+            }
+            kinds.add(kind);
+        }
+        return kinds.size() < 2 ? null : taggedList(c, la.elements());
+    }
+
+    /** A lowered element that is a number written in the query: a literal, or one negated ({@code -2.0} is Pure's
+     *  {@code minus(2.0)}, a call over a literal). */
+    private static boolean isNumericLiteral(SqlExpr x) {
+        if (x instanceof SqlExpr.IntLit || x instanceof SqlExpr.FloatLit || x instanceof SqlExpr.DecimalLit) {
+            return true;
+        }
+        if (x instanceof SqlExpr.Cast c) {
+            return isNumericLiteral(c.value());
+        }
+        if (x instanceof SqlExpr.Call call && (call.fn() == SqlFn.NEGATE || call.fn() == SqlFn.MINUS)) {
+            for (SqlExpr a : call.args()) {
+                if (!isNumericLiteral(a)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /** An element's rank for a mixed list's order (the engine's compare over mixed kinds: numbers, then dates,
+     *  then Boolean, then String; within a group by the group's own channel), built from the TYPED value: a struct
+     *  {@code {g, n, d, s}} whose fields order lexicographically. Null for a kind outside the eight. */
+    static @com.legend.base.Nullable SqlExpr rankedComparableOf(Type t, @com.legend.base.Nullable TypedSpec e,
+            SqlExpr x) {
+        int group;
+        SqlExpr n = null;
+        SqlExpr d = null;
+        SqlExpr s = null;
+        if (t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT || t == Type.Primitive.NUMBER
+                || t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
+            group = 0;
+            n = new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE);
+        } else if (t == Type.Primitive.STRICT_DATE) {
+            group = 1;
+            d = new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP);
+        } else if (t == Type.Primitive.DATE_TIME) {
+            group = 1;
+            d = x;
+        } else if (t == Type.Primitive.DATE) {
+            group = 1;
+            // a column's partial date (no written literal to read the precision from) orders among the dates by
+            // no instant: its comparable is NULL there (a sort over a row's mixed cells holding one is undefined,
+            // as the spelling carrier's rank struct declined it)
+            d = e == null ? null : partialComparable(e, x);
+            if (e != null && d == null) {
+                return null;
+            }
+        } else if (t == Type.Primitive.BOOLEAN) {
+            group = 2;
+            s = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
+        } else if (t == Type.Primitive.STRING) {
+            group = 3;
+            s = x;
+        } else if (enumerationOf(t) != null) {
+            // Pure's compare over an enumeration's value against a primitive: the enumeration's value AFTER every
+            // primitive (legend-pure CompiledSupport.compareInt: a class outside PRIMITIVE_CLASS_COMPARISON_ORDER
+            // is greater than any in it); two values of one enumeration: by their hash codes there, by their
+            // names here (docs/SEMANTICS_REGISTER.md S122); of two enumerations: by the enumerations' names, then
+            // the values' (the spelling Enumeration.NAME orders both at once)
+            group = 4;
+            s = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(enumerationOf(t) + "."), x);
+        } else {
+            return null;
+        }
+        return new SqlExpr.StructLit(List.of(
+                new SqlExpr.StructLit.Field("g", new SqlExpr.IntLit(group)),
+                new SqlExpr.StructLit.Field("n", n != null ? n : new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE),
+                new SqlExpr.StructLit.Field("d", d != null ? d : new SqlExpr.NullLit(), SqlType.Scalar.TIMESTAMP),
+                new SqlExpr.StructLit.Field("s", s != null ? s : new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR)));
+    }
+
+    /** The channel of a tagged list that holds a value of {@code kind} (a needle's static kind), else -1: a kind
+     *  with no channel is a member of nothing in the list. A DateTime needle reads any DateTime channel whatever its
+     *  written precision (the instant decides). */
+    static int channelOf(SqlExpr.TaggedList tl, String kind) {
+        for (int k = 0; k < tl.channels().size(); k++) {
+            String ck = tl.channels().get(k).kind();
+            if (ck.equals(kind) || (kind.startsWith("DateTime") && ck.startsWith("DateTime"))) {
+                return k;
+            }
+        }
+        return -1;
+    }
+
+    /** The tagged kind of a needle's static type: the name a tagged list's channel carries, or null for a type no
+     *  channel holds (an instance, an enumeration, Any). */
+    static @com.legend.base.Nullable String kindOf(TypedSpec e) {
+        if (e instanceof com.legend.compiler.spec.typed.TypedTypeRef
+                || e instanceof com.legend.compiler.spec.typed.TypedPackageableRef) {
+            return "String";
+        }
+        Type t = e.info().type();
+        if (t == Type.Primitive.INTEGER) {
+            return "Integer";
+        }
+        if (t == Type.Primitive.FLOAT) {
+            return "Float";
+        }
+        if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
+            return "Decimal";
+        }
+        if (t == Type.Primitive.STRING) {
+            return "String";
+        }
+        if (t == Type.Primitive.BOOLEAN) {
+            return "Boolean";
+        }
+        if (t == Type.Primitive.STRICT_DATE) {
+            return "StrictDate";
+        }
+        if (t == Type.Primitive.DATE_TIME) {
+            return "DateTime";
+        }
+        if (t == Type.Primitive.DATE) {
+            return "Date";
+        }
+        return enumerationOf(t);
+    }
+
+    /** The abstract Enum declaration ({@link #enumerationOf}). */
+    private static final String ABSTRACT_ENUM = "meta::pure::metamodel::type::Enum";
+
+    /** The channel a relation COLUMN of Pure type {@code t} takes in a tagged list (its kind and the slot holding it
+     *  exactly; the row-major flatten, track L, 2026-10-29): an Integer a BIGINT, a Float a DOUBLE, a Decimal its own
+     *  DECIMAL(p,s) ({@code own}, the column's wire type) -- another wire type holds it inexactly, refused by name --
+     *  a String a VARCHAR, a Boolean a BOOLEAN, a StrictDate a DATE, a DateTime a TIMESTAMP, a partial Date its text
+     *  (the temporal-text carrier), an enumeration's value its NAME. Null: a kind no channel holds (a class, Any). */
+    static SqlType.Tagged.@com.legend.base.Nullable Slot columnChannel(Type t, @com.legend.base.Nullable SqlType own) {
+        if (t == Type.Primitive.INTEGER) {
+            return new SqlType.Tagged.Slot("Integer", SqlType.Scalar.BIGINT);
+        }
+        if (t == Type.Primitive.FLOAT) {
+            return new SqlType.Tagged.Slot("Float", SqlType.Scalar.DOUBLE);
+        }
+        if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
+            if (!(own instanceof SqlType.Decimal)) {
+                throw new com.legend.error.NotImplementedException("a Decimal column among a row's mixed cells whose"
+                        + " SQL type is " + own + ", not a DECIMAL(p,s) that holds it exactly: no slot for it");
+            }
+            return new SqlType.Tagged.Slot("Decimal", own);
+        }
+        if (t == Type.Primitive.STRING) {
+            return new SqlType.Tagged.Slot("String", SqlType.Scalar.VARCHAR);
+        }
+        if (t == Type.Primitive.BOOLEAN) {
+            return new SqlType.Tagged.Slot("Boolean", SqlType.Scalar.BOOLEAN);
+        }
+        if (t == Type.Primitive.STRICT_DATE) {
+            return new SqlType.Tagged.Slot("StrictDate", SqlType.Scalar.DATE);
+        }
+        if (t == Type.Primitive.DATE_TIME) {
+            // a relation's DateTime cell is read at NINE subsecond digits (legend-engine's value read, %09d; the
+            // corpus's testDayOfMonth equates it with a literal written at nine), so the kind says so
+            return new SqlType.Tagged.Slot("DateTime(9)", SqlType.Scalar.TIMESTAMP);
+        }
+        if (t == Type.Primitive.DATE) {
+            return new SqlType.Tagged.Slot("Date", SqlType.Scalar.TEMPORAL_TEXT);
+        }
+        String enumeration = enumerationOf(t);
+        if (enumeration != null) {
+            return new SqlType.Tagged.Slot(enumeration, SqlType.Scalar.VARCHAR);
+        }
+        return null;
+    }
+
+    /** A column's cell in its channel's slot ({@link #columnChannel}): cast where the slot is a type the cell may
+     *  not be in already (an INTEGER wire to BIGINT, a DATE wire to TIMESTAMP, a date's text), the cell itself
+     *  where the slot is its own type. */
+    static SqlExpr columnCell(SqlType.Tagged.Slot channel, SqlExpr cell) {
+        SqlType own = typeOf(cell);
+        if (channel.type().equals(own)) {
+            return cell;
+        }
+        if (channel.type() == SqlType.Scalar.TEMPORAL_TEXT) {
+            return new SqlExpr.Cast(cell, SqlType.Scalar.VARCHAR);
+        }
+        return new SqlExpr.Cast(cell, channel.type());
     }
 
     /** One expression per candidate of {@code t}, chosen by its tag: {@code CASE WHEN tag = k THEN arm(kind k,

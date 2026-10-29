@@ -516,6 +516,9 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
   `RowDecode`'s identity fields, both found by the twin; the reader in `:test_cases`; `QueryService.execute(...,
   sinkOf)`. 7 files, 21 lines remain on the old door, track D's. One divergence posted for the user (the plan path's
   egress lower bound). Next: T-d, then D.
+- **2026-10-29, track L, L1: a mixed list as a list of tagged values** (GATES, the L1 entry; the decisions log
+  D50): `SqlExpr.TaggedList`, parallel typed arrays by position, rows of a tagged value at a root; the operations in
+  `TaggedLists`; the PCT essential suites on every local lane and channel B at their counts. Next: L2, the deletions.
 - **2026-10-29, track T, T-d2: every integration test on the lanes; the floors re-measured** (GATES, the T-d2
   entry; the decisions log D49; the ledger, batch T-d2): sqlite 89 on its floor, h2 270 and one not-run pin (H2's
   planner on a twenty-call chain), the platform 0 of 2,232; a test's own connection text re-spelled to the

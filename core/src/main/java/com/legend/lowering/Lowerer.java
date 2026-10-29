@@ -665,9 +665,17 @@ public final class Lowerer {
         // pure-literal spellings (the DOUBLE-promoted array erased
         // Integer 1 into 1.0 here), returning its own Array(LITERAL)
         // construction-site mark.
-        SqlExpr mixedLits = LiteralSpelling.mixedNumericArray(spec, e);
-        if (mixedLits != null) {
-            e = mixedLits;
+        SqlExpr.TaggedList mixedNumbers = MixedEncoding.mixedNumericLiteral(spec, e);
+        if (mixedNumbers != null) {
+            e = mixedNumbers;
+        }
+        // a mixed list (§5a's step B, track L, 2026-10-29): the root is its rows, each a tagged value -- the plan's
+        // one column TAGGED<...> with the list's multiplicity
+        if (e instanceof SqlExpr.TaggedList tl) {
+            if (!Stamps.isMany(spec)) {
+                throw new IllegalStateException("a tagged list at a to-one root: " + spec.info());
+            }
+            return TaggedLists.root(tl, spec, nextAlias());
         }
         // a mixed selection's winner (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a, 2026-10-23): the root projects
         // its tag and one column per slot; a collection of them is step B's
@@ -3081,25 +3089,17 @@ public final class Lowerer {
                 boolean cellSlots = c.rowCells();
                 if (!cellSlots && CollectionLanes.valueLane(c)
                         && !c.elements().isEmpty()) {
-                    java.util.List<SqlExpr> spelled =
-                            new java.util.ArrayList<>(c.elements().size());
+                    // a value-lane Any-LUB literal collection whose every element is of a tagged kind is a TAGGED
+                    // LIST (track L, 2026-10-29: docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a's step B): each
+                    // element in its own channel, the kinds as types, nothing spelled; a one-element collection
+                    // the tagged value itself
+                    java.util.List<SqlExpr> lowered = new java.util.ArrayList<>(c.elements().size());
                     for (TypedSpec el : c.elements()) {
-                        SqlExpr s = MixedEncoding.elementLiteral(
-                                el, scalar(el, columns));
-                        if (s == null) {
-                            spelled = null;
-                            break;
-                        }
-                        spelled.add(s);
+                        lowered.add(scalar(el, columns));
                     }
-                    if (spelled != null) {
-                        yield ValueCollections.c1Singleton(c)
-                                ? new SqlExpr.Cast(spelled.get(0),
-                                        SqlType.Scalar.LITERAL)
-                                : new SqlExpr.Cast(
-                                        new SqlExpr.ArrayLit(spelled),
-                                        new SqlType.Array(
-                                                SqlType.Scalar.LITERAL));
+                    SqlExpr.TaggedList tl = MixedEncoding.taggedList(c, lowered);
+                    if (tl != null) {
+                        yield ValueCollections.c1Singleton(c) ? tl.element(new SqlExpr.IntLit(1)) : tl;
                     }
                 }
                 // instances meeting at a model class with no layout carry
@@ -3767,9 +3767,12 @@ public final class Lowerer {
                 enclosing.push(enclosingOf(columns));
                 try {
                     if (rt.columns().size() > 1) {
-                        yield new SqlExpr.ScalarSubquery(
-                                ValueCollections.rowMajorCellList(
-                                        relation(rel), rt, nextAlias()));
+                        // a tagged list over the relation's cells (track L, 2026-10-29): each cell in its column's
+                        // kind; a column of a kind no channel holds keeps the variant lane
+                        SqlSelect flat = relation(rel);
+                        SqlExpr.TaggedList cells = ValueCollections.rowMajorTaggedList(flat, rt, this::nextAlias);
+                        yield cells != null ? cells
+                                : new SqlExpr.ScalarSubquery(ValueCollections.rowMajorCellList(flat, rt, nextAlias()));
                     }
                     // a RELATION-OP head (TDS distinct/restrict splice) is
                     // a VALUE COLLECTION whatever its stamp — [1] is the

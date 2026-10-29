@@ -51,6 +51,21 @@ public final class SqlTyping {
         return new TypeFact.Typed(new SqlType.Tagged(slots), nullable);
     }
 
+    /** A tagged list's type ({@link SqlExpr.TaggedList}): an array of the tagged type of its channels' (kind, slot)
+     *  pairs, in channel order; never null (a list is a value). */
+    public static TypeFact taggedListType(List<SqlExpr.TaggedList.Channel> channels) {
+        List<SqlType.Tagged.Slot> slots = new java.util.ArrayList<>();
+        for (SqlExpr.TaggedList.Channel ch : channels) {
+            SqlType.Tagged.Slot slot = new SqlType.Tagged.Slot(ch.kind(), ch.slot());
+            if (slots.contains(slot)) {
+                throw new IllegalArgumentException("a tagged list's channels are distinct (kind, slot) pairs; "
+                        + slot + " twice");
+            }
+            slots.add(slot);
+        }
+        return new TypeFact.Typed(new SqlType.Array(new SqlType.Tagged(slots)), false);
+    }
+
     /** NUMERIC CHARTER Rule 1: the decimal a finite Float value {@code v} is written as -- its plain digits, a point
      *  always present ({@code 1.5}, {@code 100000000000000.0}, {@code 0.0000010}) -- so the database types it a DECIMAL
      *  of those digits; or null at an extreme magnitude (at least 1e15, or below 1e-6 and not zero), which is written

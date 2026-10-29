@@ -15881,3 +15881,51 @@ decisions log D49; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026
    analyze; the product job's unlaned-tests guard empty. The session's disk allowance ran out once mid-run (a sandbox's
    input copy): the action disk cache and the stale sandboxes deleted (docs/CLOUD_SESSIONS.md), the run repeated.
 3. **Not measured:** CI's lanes (PR #80 runs them on the push); the Python suite's own time on Windows.
+
+## 2026-10-29 — Track L, L1: a mixed list as a list of tagged values; the spelling carrier's consumers ported
+
+The result boundary program's track L (docs/RESULT_BOUNDARY_START_HERE.md, track L; the decisions log D50, D50a-c;
+the program's step 6; docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a's step B).
+
+1. **Built:** `SqlExpr.TaggedList` -- a mixed list as PARALLEL TYPED ARRAYS indexed by POSITION (the positions, the
+   tags, a comparable, one channel per (kind, slot)), its type `ARRAY<TAGGED<...>>` (`SqlTyping.taggedListType`), the
+   element at a position a `SqlExpr.Tagged`; the rewriters', pruners' and renderers' arms (a tagged list that reaches
+   a renderer is refused by name). `MixedEncoding.taggedList` builds it from a literal collection of the eight kinds
+   (a type's or element's name a String; a Number-LUB literal mix read as one by `mixedNumericLiteral` at a root and
+   under the list's operations, its variant carrier kept for arithmetic). `lowering/TaggedLists`: sort, removeDuplicates
+   (plain, with `eq`/`equal`/`cmp`, with a comparator or a key), removeDuplicatesBy, contains and in (by the needle's
+   kind's channel, or a comparator), at/first/last, size/isEmpty, exists/forAll, reverse, makeString, hashCode,
+   format's argument list, equality (two lists, a list against a list of one kind, an element against a value) and
+   the root (`TaggedLists.root`: the positions unnested into ROWS of a tagged value, the plan's one `TAGGED<...>`
+   column with the list's multiplicity -- the decoders', the judges' canon's and the writers' tagged arms unchanged).
+   `LambdaBinding`: a lambda over a mixed list ranges over its positions and its parameter IS the element there
+   (contains' needle, its first parameter, is not). `CarrierStrategies.literalPick`: a list-less dialect reads a
+   literal array at a computed position as a CASE. `Scalars`: equality over a tagged value by kind and value
+   (`taggedEquality`; the comparison pre-pass is `ORDERINGS`, equality no longer among them -- D50a). Gate:
+   `exec/TaggedListTest` (seven tests beside `TaggedSelectionTest`). The first chain's corpus groups caught three
+   regressions, fixed before the commit (D50d): an ENUMERATION's value is a kind (its path the kind, its name the
+   slot, rank after every primitive as legend-pure orders it; register S122 for two values of one enumeration); a
+   MULTI-COLUMN RELATION in value position (`$result.values.rows.values`) is a tagged list over its CELLS
+   (`ValueCollections.rowMajorTaggedList`: the rows numbered once, crossed with the column indexes, the arrays
+   ordered aggregates, the cells carried as the list's `rows` so a root and an equality read no array: H2 runs it);
+   two lists in their own order compare channel arrays null-safe (`sameListByKinds`), a row's cells read in a lambda
+   as a tagged list of their static kinds, a variant list on its own lane; a `DateTime(n)` slot canons at its n
+   digits and a relation's DateTime cell is tagged `DateTime(9)` (the corpus's `testDayOfMonth` on H2). Guards:
+   `CarrierPurityRatchetTest` rows up with dated notes (D50b, D50d: LIST_ 149 to 171, UNNEST 13 to 15, ArrayLit 40
+   to 45, OrderedListAgg 1 to 5); `IdentityGuardrailTest` NAME_AFFIX_TEST 52 to 53 (the slot kind's text);
+   `CodeShapeGuardrailTest` kept by a split, not a limit.
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`,
+   `//core:core_tests` (the platform's integration run 2,232 of 2,232), `//core:core_tests_lanes` (sqlite 2,232 with 89
+   on its floor; h2 2,232 with 270 and the one pin not run; neither floor moved), `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes; `//:generated` and `//gates:checks`
+   (178 of 179, the arm64-only classpath test skipped; `//parser-equivalence:update_ratchets_test` unchanged); the nine
+   Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (both rosters
+   unchanged: the two DuckDB tests and the nine H2 tests the first run lost are back); the 21 PCT lanes 21 of 21 (run
+   one test at a time: with two, the session's memory cgroup killed the Bazel server twice, docs/CLOUD_SESSIONS.md);
+   `//datacube:python_execute_test`; the product job's unlaned-tests guard empty. The first chain on this tree
+   (before D50d) read 1,007 differential passes on DuckDB against 1,009 and nine H2 tests lost: the corpus's
+   `testUsingSameAggFunctionTwice` and its qualifier twin (a mixed literal list against `$result.values.rows.values`),
+   `testEnumProjection`, `testAggToManyWithMaxInteger`, `testAggToManyWithMinInteger`,
+   `testJoinStringsTwiceWithAssociation`, `testAggregationFunctionWithEnum`, two enum projections (the variant lane on
+   H2) and `testDayOfMonth` (the canon's digits).
+3. **Not measured:** CI's lanes (PR #80 runs them on the push).

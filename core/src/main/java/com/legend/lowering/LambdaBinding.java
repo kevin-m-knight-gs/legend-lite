@@ -64,6 +64,11 @@ final class LambdaBinding {
     private static final java.util.Set<com.legend.model.FunctionId> COMPARATOR_NATIVES =
             java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(com.legend.model.FunctionId.all(com.legend.builtin.Pure.AT_COLLECTION_REMOVE_DUPLICATES, com.legend.builtin.Pure.AT_RELATION_SORT, com.legend.builtin.Pure.AT_TDS_SORT, com.legend.builtin.Pure.AT_COLLECTION_SORT, com.legend.builtin.Pure.AT_COLLECTION_CONTAINS, com.legend.builtin.Pure.AT_STRING_CONTAINS)));
 
+    /** contains' comparator convention is {@code eval($value, $x)}: the needle first, then the element. */
+    private static final java.util.Set<com.legend.model.FunctionId> CONTAINS_NATIVES =
+            java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(com.legend.model.FunctionId.all(
+                    com.legend.builtin.Pure.AT_COLLECTION_CONTAINS, com.legend.builtin.Pure.AT_STRING_CONTAINS)));
+
     /** Inner-lambda scope: ALL its parameters shadow; everything else
      * resolves outward through the enclosing resolver. */
     static ColumnResolver lambdaResolver(
@@ -307,10 +312,20 @@ final class LambdaBinding {
                 // (§3.2): BOTH params are elements of the ONE list
                 List<String> ps = l.parameters();
                 ColumnResolver inner = lambdaResolver(ps, columns);
-                ColumnResolver stamped = (var, prop) ->
-                        var != null && ps.contains(var) && prop == null
-                                ? SqlExpr.Column.param(var, coll)
-                                : inner.resolve(var, prop);
+                // a lambda over a TAGGED LIST (track L, 2026-10-29) ranges over the list's POSITIONS: its parameter
+                // is the element at the position (SqlExpr.TaggedList.element), so the body's rules read a tagged
+                // value -- a print per candidate, a comparison on the comparable, an equality by kind -- never a
+                // column typed as the carrier; contains' needle (its first parameter) is not an element
+                boolean needleFirst = comparator && CONTAINS_NATIVES.contains(n.callee().id());
+                ColumnResolver stamped = (var, prop) -> {
+                    if (var != null && ps.contains(var) && prop == null) {
+                        if (coll instanceof SqlExpr.TaggedList tl && !(needleFirst && var.equals(ps.get(0)))) {
+                            return tl.element(SqlExpr.Column.derived(null, var));
+                        }
+                        return SqlExpr.Column.param(var, coll);
+                    }
+                    return inner.resolve(var, prop);
+                };
                 out.add(new SqlExpr.Lambda(ps,
                         scalarFn.apply(LambdaBinding.last(l), stamped)));
                 continue;

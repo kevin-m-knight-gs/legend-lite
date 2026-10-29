@@ -772,6 +772,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a value whose kind the database decides (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its root
             // projects it as its tag and slots, and a rule consuming it reads a channel; no dialect writes it
             case SqlExpr.Tagged t -> tagged(writer, t, parentPrec);
+            // a list of such values (§5a's step B, track L): its root unnests its channels into rows, and a rule
+            // consuming it reads its channels; no dialect writes it
+            case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list reached the renderer: a"
+                    + " mixed list is returned, sorted, deduplicated, searched, indexed, mapped or printed, and any"
+                    + " other consumer of it is not lowered (channels of kinds "
+                    + tl.slots().stream().map(com.legend.sql.SqlType.Tagged.Slot::kind).toList() + ")");
             case SqlExpr.DeferredTdsString d -> throw new IllegalStateException(
                     "deferred relation-toString reached the renderer — the"
                     + " execution boundary must resolve the dynamic column"

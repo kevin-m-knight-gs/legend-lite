@@ -633,6 +633,20 @@ public final class LiteralSpelling {
                 new SqlExpr.StringLit("%"), dateTimePrint(x, fmt));
     }
 
+    /** A DateTime's literal spelling at exactly {@code digits} subsecond digits (a tagged slot's kind
+     *  {@code DateTime(n)}, track L): the nine-digit text cut to the written digits, Pure's {@code +0000}; a whole
+     *  second's at none; NULL stays NULL. */
+    public static SqlExpr dateTimeLiteralAt(SqlExpr x, int digits) {
+        SqlExpr body = digits == 0
+                ? SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL))
+                : SqlExpr.Call.of(SqlFn.LEFT,
+                        SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_NANO)),
+                        new SqlExpr.IntLit(20 + digits));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
+                new SqlExpr.NullLit())),
+                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("%"), body, new SqlExpr.StringLit("+0000")));
+    }
+
     /** PARTIAL-date LITERAL: the string cell IS the body (master's
      * pinned partial-date carrier); % prefixes it. */
     public static SqlExpr partialDateLiteral(SqlExpr text) {

@@ -1009,6 +1009,10 @@ public final class CarrierStrategies extends SqlRewriter {
             if (got != null) {
                 return got;
             }
+            SqlExpr picked = literalPick(lg.args().get(0), lg.args().get(1));
+            if (picked != null) {
+                return picked;
+            }
         }
         if (e instanceof SqlExpr.Membership m) {
             SqlExpr rewritten = membershipRule(m);
@@ -1023,6 +1027,24 @@ public final class CarrierStrategies extends SqlRewriter {
             }
         }
         return e;
+    }
+
+    /** A LITERAL array read at a COMPUTED position (a tagged list's channel at a position the lambda or the root's
+     *  unnest ranges over; track L, 2026-10-29): the pick as a CASE over the position, the shape every database has.
+     *  Null where the array is not a literal or the position is. */
+    private @com.legend.base.Nullable SqlExpr literalPick(SqlExpr array, SqlExpr position) {
+        SqlExpr lit = array instanceof SqlExpr.Cast lc && lc.target() instanceof com.legend.sql.SqlType.Array
+                ? lc.value() : array;
+        if (!(lit instanceof SqlExpr.ArrayLit la) || position instanceof SqlExpr.IntLit) {
+            return null;
+        }
+        List<SqlExpr.Case.When> whens = new ArrayList<>(la.elements().size());
+        for (int i = 0; i < la.elements().size(); i++) {
+            whens.add(new SqlExpr.Case.When(
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, expr(position), new SqlExpr.IntLit(i + 1)),
+                    expr(la.elements().get(i))));
+        }
+        return new SqlExpr.Case(whens, null);
     }
 
     /** The fused grouped-subselect, or null when the collection operand

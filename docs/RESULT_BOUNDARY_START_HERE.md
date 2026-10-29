@@ -493,6 +493,29 @@ literal-text arms and `Fold.conformValueEgress`. Gate: a `TaggedListTest` beside
 every lane's channels A and B; the `LITERAL` census zero. Traps: arithmetic over a tagged value is not designed; H2 has
 no list encoding (its lane runs the relation suite alone); SQLite reads a BIT as the text "false".
 
+- **L1 built 2026-10-29** (GATES, the L1 entry; the decisions log D50): `SqlExpr.TaggedList` -- a mixed list as
+  PARALLEL TYPED ARRAYS indexed by POSITION (tags, a comparable, one channel per (kind, slot); the positions that are
+  the list), its type `ARRAY<TAGGED<...>>`; the element at a position a `Tagged`; at a root the positions unnested
+  into rows of a tagged value (the plan's one `TAGGED<...>` column with the list's multiplicity: the decoders', the
+  judges' canon's and the writers' tagged arms unchanged). `MixedEncoding.taggedList` builds it from a literal
+  collection of the nine kinds (the eight primitives' and an enumeration's: its path the kind, its name the slot; a
+  type's or element's name a String); a Number-LUB literal mix is read as one at a root, a sort, a dedup, an index, a
+  size, a print (elsewhere its variant carrier stays for arithmetic); a multi-column relation in value position
+  (`$result.values.rows.values`) is one over its CELLS (`ValueCollections.rowMajorTaggedList`: the rows numbered once
+  and crossed with the column indexes, the arrays ordered aggregates, the list carrying the cells as its rows so a
+  root and an equality read no array: H2 runs it; D50d). The
+  operations (`lowering/TaggedLists`): sort (the positions ordered by the comparable), removeDuplicates (plain, with
+  `eq`/`equal`/`cmp`, with a comparator or a key: the kept-list reduce over positions), removeDuplicatesBy, contains
+  and in (by the needle's kind's channel), at/first/last, size/isEmpty, exists/forAll, reverse, makeString, hashCode,
+  format's argument list, equality (two mixed lists; a mixed list against a list of one kind; a tagged element against
+  a value; two lists in their own order channel by channel, null-safe, no lambda). A lambda over a mixed list
+  ranges over its positions: its parameter IS the element there (`LambdaBinding`), so the body's rules read a tagged
+  value; equality reads the value itself, never its comparable (D50a). A list-less dialect reads a literal array at a
+  computed position as a CASE (`CarrierStrategies`). Gate: `exec/TaggedListTest` beside `TaggedSelectionTest`.
+  Measured: the full chain (GATES, the L1 entry). Next: L2, the deletions (the `LITERAL` slot, `LiteralText.parse`,
+  the spelling carrier's machinery, the dialects' literal arms; the census zero); `Fold.conformValueEgress` is step
+  5's deletion and waits on a written-digits fact at scalar roots (D51, the user's question).
+
 ### Track A. The Arrow writer (the program's steps 2 and 5)
 
 Ruled 2026-10-28: "yes keep arrow writer at the boundary in this program (but no arrow dependencies in compiler!)".
@@ -517,7 +540,10 @@ Added 2026-10-29 (track T's lanes, T-d and T-d2; the T-d audit's findings 3 and 
 H2 answers matches against an empty right side (DuckDB's `ASOF JOIN` answers none: a wrong answer, on both floors); a
 `concatenate` of relations of different column counts reaches SQL and the database refuses it, not the typer (invariant
 4); H2's planner is exponential in nested derived tables (a twenty-call chain of a window-extending function exhausts
-the heap and ends the run: the H2 floor's one not-run pin).
+the heap and ends the run: the H2 floor's one not-run pin). Added 2026-10-29 (track L): a mixed list across comparison
+groups sorts by a rank struct that SQLite and MariaDB order as text (pre-existing; a multi-key ordered list aggregate
+is the fix); an Any list holding an instance keeps the variant lane (an instance kind is undesigned; an
+enumeration's value is a kind since D50d).
 
 ### Track P. The backlog from the plan path program
 

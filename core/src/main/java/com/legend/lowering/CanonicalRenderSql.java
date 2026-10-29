@@ -1011,8 +1011,13 @@ public final class CanonicalRenderSql {
             SqlType.Tagged.Slot slot = tg.slots().get(i);
             SqlExpr ref = SqlExpr.Column.of(null, SqlType.Tagged.slotColumn(tagCol.name(), i), slot.type(), true,
                     com.legend.sql.OutputCol.Origin.DERIVED);
-            whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
-                    Objects.requireNonNull(literalCanon(ref, MixedEncoding.kindType(slot.kind())))));
+            // a DateTime at a WRITTEN precision (the kind DateTime(n): a literal's digits, a relation cell's nine)
+            // canons at exactly those digits, as its literal spells (the spelling carrier's identity canon kept
+            // them; the TIMESTAMP's trimmed text would equate .000 with none, which Pure does not: A1)
+            Integer digits = MixedEncoding.writtenDigits(slot.kind());
+            SqlExpr canonOf = digits != null ? LiteralSpelling.dateTimeLiteralAt(ref, digits)
+                    : Objects.requireNonNull(literalCanon(ref, MixedEncoding.kindType(slot.kind())));
+            whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)), canonOf));
         }
         SqlExpr canon = new SqlExpr.Case(whens, null);
         List<com.legend.sql.SqlSelect.Projection> projections = new java.util.ArrayList<>();
