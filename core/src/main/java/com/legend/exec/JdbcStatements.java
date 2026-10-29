@@ -43,6 +43,41 @@ final class JdbcStatements implements Statements {
         this.trace = trace;
     }
 
+    /** The error a failed statement is told as: its raise where the error carries one, else the raise the session
+     *  holds ({@link #held}, read then alone -- the audit of D65, 2026-10-29: read before the error's own text was
+     *  looked at, every failure paid the session's metadata read), else the database's own text
+     *  ({@link PlanSessions#dataError(SQLException, java.util.function.Supplier)}). */
+    private com.legend.error.DataError failed(SQLException e) {
+        return PlanSessions.dataError(e, () -> held(c));
+    }
+
+    /** The raise {@code c}'s session holds after a statement failed, read back and cleared by its connector's two
+     *  declared statements ({@link DatabaseConnector#raiseRecovery}: MariaDB's and MySQL's, whose errors cannot carry
+     *  a raise's text), by the seam (D65, 2026-10-29: until then the connector ran them itself). Null for a session
+     *  whose database declares none, holds none, or cannot be read (a failure of the read is not the statement's). */
+    static @com.legend.base.Nullable String held(Connection c) {
+        try {
+            DatabaseConnector connector = Connectors.of(c);
+            return connector == null ? null : held(c, connector.raiseRecovery());
+        } catch (SQLException unreadable) {
+            return null;
+        }
+    }
+
+    /** {@link #held(Connection)} by {@code recovery}'s statements: the read's one text (its first row's first column;
+     *  null for no row), then the reset. One {@code getString}: the database's own text passed on unread. */
+    static @com.legend.base.Nullable String held(Connection c,
+            DatabaseConnector.@com.legend.base.Nullable RaiseRecovery recovery) throws SQLException {
+        if (recovery == null) {
+            return null;
+        }
+        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(recovery.read())) {
+            String held = rs.next() ? rs.getString(1) : null;
+            st.execute(recovery.reset());
+            return held;
+        }
+    }
+
     /** A query as the database receives it: the engine's execution-trace comment line, then the statement
      *  ({@link ExecutionTrace}: legend-engine's RelationalExecutor stamps every query it runs, and the activity records
      *  the comment). The old executor stamped at its one JDBC boundary; the plan runner's is this one (2026-10-27, the
@@ -78,7 +113,7 @@ final class JdbcStatements implements Statements {
         try (Statement st = c.createStatement()) {
             return st.execute(statement);
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
     }
 
@@ -91,7 +126,7 @@ final class JdbcStatements implements Statements {
             }
             return st.executeUpdate();
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
     }
 
@@ -100,7 +135,7 @@ final class JdbcStatements implements Statements {
         try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(statement)) {
             return reported(rs.getMetaData());
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
     }
 
@@ -110,7 +145,7 @@ final class JdbcStatements implements Statements {
             java.sql.ResultSetMetaData md = st.getMetaData();
             return md == null ? List.of() : reported(md);
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
     }
 
@@ -134,7 +169,7 @@ final class JdbcStatements implements Statements {
             BulkLoads.load(bulk, c, rows);
             return true;
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
     }
 
@@ -161,7 +196,7 @@ final class JdbcStatements implements Statements {
                 }
             }
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
     }
 
@@ -199,7 +234,7 @@ final class JdbcStatements implements Statements {
                 }
             }
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
     }
 
@@ -224,7 +259,7 @@ final class JdbcStatements implements Statements {
                 }
             }
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
         try {
             work.run();
@@ -239,7 +274,7 @@ final class JdbcStatements implements Statements {
             throw e;
         } catch (SQLException e) {
             // the commit failed: rolled back and set back as it can be, the commit's failure told
-            RuntimeException failure = PlanSessions.dataError(e, c);
+            RuntimeException failure = failed(e);
             try {
                 restore(snapshot, autoCommit, isolation, true);
             } catch (SQLException restore) {
@@ -250,7 +285,7 @@ final class JdbcStatements implements Statements {
         try {
             restore(snapshot, autoCommit, isolation, false);
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
     }
 

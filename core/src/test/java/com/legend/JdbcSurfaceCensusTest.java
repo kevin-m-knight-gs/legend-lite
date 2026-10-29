@@ -137,7 +137,9 @@ class JdbcSurfaceCensusTest {
             // declared connection opens, its private in-memory instance, the raise its session holds (MariaDB's) --
             // and Connectors the one read of which database a session is on (its driver's product name). They open
             // sessions and read a session's state; none executes a query of the user's or computes a value
-            // (every connector: each answers its session's held raise, a Connection in)
+            // (every connector opens sessions, a Connection in). 2026-10-29 (D65, the three routings):
+            // MariaDbConnector.java LEFT this register -- its raise recovery is two statements it DECLARES as data
+            // (DatabaseConnector.raiseRecovery), read by the seam after a failure (JdbcStatements.held); no JDBC
             "core/src/main/java/com/legend/exec/BigQueryConnector.java",
             "core/src/main/java/com/legend/exec/ClickHouseConnector.java",
             "core/src/main/java/com/legend/exec/Connectors.java",
@@ -145,7 +147,6 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/exec/DatabricksConnector.java",
             "core/src/main/java/com/legend/exec/DuckDbConnector.java",
             "core/src/main/java/com/legend/exec/H2Connector.java",
-            "core/src/main/java/com/legend/exec/MariaDbConnector.java",
             "core/src/main/java/com/legend/exec/PostgresConnector.java",
             "core/src/main/java/com/legend/exec/SnowflakeConnector.java",
             "core/src/main/java/com/legend/exec/SqliteConnector.java",

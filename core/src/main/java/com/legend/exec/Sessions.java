@@ -120,18 +120,6 @@ public final class Sessions {
         return Connectors.of(type).jdbcProduct();
     }
 
-    /** The raise {@code session} holds after a statement failed (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13), where its
-     *  database's errors cannot carry one: its connector reads it back ({@link DatabaseConnector#raisedMessage}). Read
-     *  and cleared; null for any other session, or none held. */
-    public static @com.legend.base.Nullable String raisedMessage(Connection session) {
-        try {
-            DatabaseConnector connector = Connectors.of(session);
-            return connector == null ? null : connector.raisedMessage(session);
-        } catch (SQLException unreadable) {
-            return null;
-        }
-    }
-
     /** {@code session} is a session on {@code declared}: a session on another database is refused, never reinterpreted. */
     public static void check(Connection session, DatabaseType declared) {
         String product = metadata(session, true);
@@ -176,7 +164,7 @@ public final class Sessions {
             unwind(session, failure);
             throw failure;
         } catch (SQLException e) {
-            com.legend.error.DataError failure = PlanSessions.dataError(e, session);
+            com.legend.error.DataError failure = PlanSessions.dataError(e, () -> JdbcStatements.held(session));
             unwind(session, failure);
             throw failure;
         }

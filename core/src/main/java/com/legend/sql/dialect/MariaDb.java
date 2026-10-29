@@ -2104,7 +2104,8 @@ public class MariaDb extends AnsiSqlRenderer {
      *  and any other is refused, measured), branch taken or not. So the message is kept in the session's user
      *  variable {@code @legend_raise} and a run-time error follows, raised only when evaluated (a CASE branch not
      *  taken raises nothing, measured): a scalar subquery of two rows, "Subquery returns more than 1 row". The
-     *  platform reads the message back from the session it failed on ({@code exec.MariaDbConnector.raisedMessage}). */
+     *  platform reads the message back from the session it failed on by the two statements its connector declares
+     *  ({@code exec.MariaDbConnector.raiseRecovery}), the seam's read ({@code exec.JdbcStatements.held}). */
     private SqlWriter.Piece raise(List<SqlExpr> a) {
         return raise(a, null);
     }

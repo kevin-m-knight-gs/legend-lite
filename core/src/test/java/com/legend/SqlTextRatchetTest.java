@@ -132,7 +132,10 @@ class SqlTextRatchetTest {
         // exec/Sessions.java -> exec/MariaDbConnector.java (2026-10-16, the dialect program's Phase 5): the
         // read is MariaDB's connector's (DatabaseConnector.raisedMessage), the owner of its sessions' state
         // (the plan's §4: the connector owns the held raise). exec may not reach the dialect for it
-        // (ArchitectureTest.execsReachIntoPlanningOnlyShrinks), so the statement stays on the execution side
+        // (ArchitectureTest.execsReachIntoPlanningOnlyShrinks), so the statement stays on the execution side.
+        // 2026-10-29 (D65, the three routings): the connector DECLARES the read and the reset as data
+        // (DatabaseConnector.raiseRecovery) and the seam runs them (JdbcStatements.held); the one SQL-shaped
+        // literal is the same SELECT, the count unmoved
         REGISTER.put("exec/MariaDbConnector.java", 1);
         // 0 -> 1 (2026-10-16, the Cypher island's zoned date-time leg, docs/CYPHER_STUDY_2026_10_15.md §12.8): no
         // SQL -- Neo4j's own error text "Cannot select datetime from: <value>", which the translator raises as

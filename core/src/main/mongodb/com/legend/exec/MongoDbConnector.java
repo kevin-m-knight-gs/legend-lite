@@ -59,10 +59,10 @@ public final class MongoDbConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} Never asked: no JDBC session is a MongoDB's ({@link #ownSessions}). */
+    /** {@inheritDoc} None: no JDBC session is a MongoDB's ({@link #ownSessions}), and its errors carry their text. */
     @Override
-    public @com.legend.base.Nullable String raisedMessage(Connection session) {
-        throw new IllegalStateException("a MongoDB session holds no JDBC raise");
+    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
+        return null;
     }
 
     /** {@inheritDoc} None: a server, whose connection is the engine's MongoDBConnection. */

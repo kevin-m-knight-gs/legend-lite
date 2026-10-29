@@ -107,6 +107,7 @@ audit itself and what it found: the homework README §1.
 - Door 2 (2026-10-29, D62; GATES, the door 2 entry): the full local chain on the patch alone.
 - Door 1 (2026-10-29, D63; GATES, the door 1 entry): the full local chain on the patch alone.
 - The doors' audit fold (2026-10-29, D64; GATES, the fold entry): the full local chain on the patch alone.
+- The three routings (2026-10-29, D65; GATES, the three routings' entry): the full local chain on the patch alone.
 - `f883d42b` (phase 5 green), six lane sessions against `7b8c89dc`, per test: channel A exact on Postgres, SQLite,
   MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery, Databricks and Snowflake; channel B identical (one MySQL gain); one
   pin open (Snowflake's `testAdjustByMinutesBigNumber`, a driver limit).
@@ -658,6 +659,13 @@ a class that reaches `Statements` or a JDBC connection around it. The map (the d
   (`PrepTrace`'s timed prepare/execute, `SqlTypeCensus`'s wire arm, `TypedSide`'s accessors, `Lean.ofCollectedSide`),
   both files off the JDBC census; the stale sentences. Two of the service test runner's readings and the routing of
   the plan path's seeds and the server's fill are posted to the user (D64), not built.
+- **The three routings built 2026-10-29** (the decisions log D65; GATES, the three routings' entry): the plan
+  path's seeds and the server's held-database fill as plan setup steps the runner sends (the target's session
+  statements first, as the body path and as upstream's test connections); the MariaDB raise recovery declared by
+  its connector as data and read by the seam (`JdbcStatements.held`); `DatabaseConnector.raisedMessage` and
+  `Sessions.raisedMessage` deleted. In core's main sources the seam and its DuckDB bulk loader are the only JDBC
+  senders. The audit of the routings (twelve findings, one on the code: the held raise read in HEAD's order again)
+  is folded in D65.
 
 ## 5. How we work (the user's rules; each learned the hard way)
 

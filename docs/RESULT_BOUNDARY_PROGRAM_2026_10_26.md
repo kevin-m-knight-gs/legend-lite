@@ -502,6 +502,15 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-29, the three routings** (the decisions log D65; GATES, the three routings' entry): the plan path's
+  seeds and the server's held-database fill run as plan setup steps through the runner's `setUp` (the target's
+  session statements first, the order upstream's test connections keep); the MariaDB raise recovery is two
+  statements its connector declares as data, read by the seam after a failure; `DatabaseConnector.raisedMessage`
+  and `Sessions.raisedMessage` deleted. In core's main sources the seam `JdbcStatements` and its DuckDB bulk loader
+  are the only JDBC senders. The independent audit of the routings is folded in D65 (the held raise read only
+  where the error's own text carries none, as before; the per-step session statements and the counts stated). The two service test runner readings of door 1 were read against the pinned legend-engine sources and
+  kept (the presented column name: `pureToSQLQuery.pure`'s `mayQuotePivotColNames`; the one-object graph fetch bare:
+  `ExecutionNodeSerializerHelper.writeTo`). Next: the independent audit of the routings, the decisions post.
 - **2026-10-29, the doors' audit folded** (the decisions log D64; GATES, the fold entry): the records corrected (with
   door 1); an effect statement that ends the body answered after its script runs; every generator temp dropped; the
   dead arms deleted (`PrepTrace`'s timed prepare/execute, `SqlTypeCensus`'s wire arm, `TypedSide`'s accessors,

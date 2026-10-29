@@ -16317,3 +16317,39 @@ findings, two blockers on the records (corrected with door 1's commit), one on t
 3. **CI:** `619e0c12` (door 1, run 40946141905) GREEN on every OS at 20:57Z, `gates green` passing, 52 check runs
    none failed; this push runs every OS in turn.
 4. **Not measured:** the MariaDB lane (CI alone).
+
+## 2026-10-29 — The three routings: the plan path's seeds and the server's fill as plan setup steps the runner sends; the MariaDB raise recovery declared by its connector and read by the seam; the seam and its bulk loader the only JDBC senders
+
+The user's word after the doors' audit (2026-10-29): "Do all three". The decisions log D65 (the upstream reading
+that rules the seeds' order; the shape of the raise recovery; the bulk loader's place).
+
+1. **Built:** `exec/PlanSessions.setUp` through `PlanRunner.setUp` under SEED on the given connection (the target's
+   session statements before each step, as the body path and as legend-engine's test connections run their setup
+   SQL on a connection they have just created); `runSetup` deleted; the private and held databases the class opens
+   go the same way; the up-front bulk-loader refusal kept. `server/ConnectionResolver.filled` through the same
+   runner on a target of the definition's database. `DatabaseConnector.raiseRecovery()` (data: MariaDB's and
+   MySQL's read and reset; null elsewhere) in place of `raisedMessage(Connection)` (the connector executing);
+   `JdbcStatements.held` the one read, after a failure, through the seam's own statements; `Sessions.raisedMessage`
+   deleted; `RaisedErrors.unwrapped(e, held)` and `PlanSessions.dataError(e, held)` on the text. Tests:
+   `exec/RaiseRecoveryTest` (new: every built connector's declaration; the read once and the reset, a database
+   that declares none, a refused read -- on H2's own session variables, the same spelling), `ConnectorsTest`.
+   Pins, dated: the JDBC census loses `MariaDbConnector.java`; `DatabaseOwners` gains the test. The independent
+   audit of the routings (eighteen items, eleven confirmed) folded before the chain: the held raise is read only
+   where the error's own text carries no raise (HEAD's order; the first cut read it on every failure), the test's
+   refused read made real (a closed session), the two ratchet comments, the records' scope (core's main sources)
+   and the per-step session statements stated.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved); the 21 PCT lanes 21 of 21; the five Postgres PCT
+   lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the headless
+   host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard empty.
+3. **CI:** `28b8db79` (the audit fold, run 40954542423) GREEN on every OS at 21:43Z, `gates green` passing; this
+   push runs every OS in turn.
+4. **Not measured, and a correction:** the MariaDB and MySQL lanes (`//pct:pct_mariadb`, `//pct:pct_mysql`, their
+   channel B twins) are MANUAL (`//gates:heavy`, gates/BUILD.bazel: not run here, and not in CI either) -- the
+   entries above that said "the MariaDB lane (CI alone)" were wrong on that. The raise recovery's mechanism is
+   measured on H2 (item 1); MariaDB's own behavior (the raise sets the variable; a CASE arm not taken raises
+   nothing) is unchanged and stands on its October measurement.

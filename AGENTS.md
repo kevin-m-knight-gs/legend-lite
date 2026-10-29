@@ -26,12 +26,14 @@
 > registered residue), `ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam`
 > (JDBC only at the chartered seams),
 > `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements` (every
-> statement a BODY's session runs is the plan runner's: the probes, the
-> seeds and the system store's rows are plan statements it sends -- "the
-> doors", 2026-10-29; inside the chartered seams three raw sends remain,
-> named by the doors' audit, D64: the plan path's seeds
-> `PlanSessions.runSetup`, the server's fill `ConnectionResolver.filled`,
-> the MariaDB connector's own session reads) and
+> statement a session runs is the plan runner's: the probes, the seeds,
+> the system store's rows, the plan path's and the server's held database's
+> seeds are plan setup steps it sends -- "the doors", 2026-10-29, and the
+> three routings, D65; a raise a MariaDB session holds is read back by the
+> seam from the two statements its connector declares as data; in core's
+> main sources the seam `JdbcStatements` and its DuckDB bulk loader are
+> the only JDBC senders -- the warehouse's server and client, the
+> datacube's Postgres tool and the test harnesses send their own) and
 > `ArchitectureTest.theInterpreterPerformsNoJdbc` (the metamodel channel
 > cannot reach a connection — grid chains COMPILE to SQL at the exec
 > seam, `GridReads.tryLower`, scheduled for deletion by the
