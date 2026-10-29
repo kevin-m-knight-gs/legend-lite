@@ -107,6 +107,25 @@ public final class LaneFloor implements InvocationInterceptor {
         return message.length() > 200 ? message.substring(0, 200) + "..." : message;
     }
 
+    /** A measured floor line's reason opens {@code measured <date>: }; the message after it, else null (a pin, or a
+     *  line written by hand without a measurement). */
+    static @com.legend.base.Nullable String measuredMessage(String reason) {
+        if (!reason.startsWith(MEASURED)) {
+            return null;
+        }
+        int colon = reason.indexOf(": ");
+        return colon < 0 ? null : reason.substring(colon + 2);
+    }
+
+    /** A failure's message as the floor's generator records it: an execution trace id struck, whitespace collapsed. */
+    static String normalized(String message) {
+        return TRACE_ID.matcher(message).replaceAll("").replaceAll("\\s+", " ").trim();
+    }
+
+    static String prefix(String s) {
+        return s.length() > REASON_PREFIX ? s.substring(0, REASON_PREFIX) : s;
+    }
+
     /** {@code Class#method}, the class without its package; an invocation of a template (a parameterized or repeated
      *  test) with its ordinal, {@code Class#method[#N]}, as JUnit names it in the context's unique id
      *  ({@code [test-template-invocation:#N]}) and the run's report names it ({@code method(...)[N]}). */
@@ -120,6 +139,16 @@ public final class LaneFloor implements InvocationInterceptor {
 
     /** A floor line's reason that pins its test as not run on the lane: {@code not run <date>: <cause>}. */
     static final String NOT_RUN = "not run ";
+
+    /** A measured floor line's reason: {@code measured <date>: <the failure's message>}. */
+    static final String MEASURED = "measured ";
+
+    /** The characters of a failure's message a measured line is held to (the floor's generator keeps 120; a message's
+     *  variable tail -- a sandbox path, a statement -- lies past the reason's words). */
+    static final int REASON_PREFIX = 60;
+
+    private static final java.util.regex.Pattern TRACE_ID =
+            java.util.regex.Pattern.compile("-- \"executionTraceID\" : \"[0-9a-f-]+\"");
 
     private static final java.util.regex.Pattern INVOCATION = java.util.regex.Pattern.compile(
             "\\[test-template-invocation:#(\\d+)\\]");
@@ -193,7 +222,20 @@ public final class LaneFloor implements InvocationInterceptor {
         try {
             invocation.proceed();
         } catch (Throwable t) {
-            // on the floor: the run passes; said, so a run's log shows the floor's weight
+            // on the floor: the run passes; said, so a run's log shows the floor's weight -- but a failure for ANOTHER
+            // reason than the line's measured one fails the run (the T-d2 audit's finding 9, 2026-10-29: a line
+            // held only pass/fail, so a new failure behind a listed test stayed green): the message's first
+            // REASON_PREFIX characters, normalized as the floor's generator normalized them, must be the line's
+            String recorded = measuredMessage(reason);
+            if (recorded != null) {
+                String actual = prefix(normalized(String.valueOf(t.getMessage())));
+                String expected = prefix(normalized(recorded));
+                if (!actual.equals(expected)) {
+                    throw new AssertionError("the lane's floor line changed its reason: " + key + " fails on " + lane
+                            + " for '" + actual + "...', not the measured '" + expected + "...'; re-measure its line"
+                            + " in lanes/" + lane + ".txt, with the reason in the commit", t);
+                }
+            }
             System.out.println("[lane " + lane + "] on the floor: " + key + " (" + reason + "): "
                     + t.getClass().getSimpleName() + ": " + excerpt(t));
             return;
@@ -227,7 +269,11 @@ public final class LaneFloor implements InvocationInterceptor {
                             + " expected, got '" + line + "'");
                 }
                 String key = line.substring(0, tab).trim();
-                if (floor.put(key, line.substring(tab + 1).trim()) != null) {
+                String reason = line.substring(tab + 1).trim();
+                if (reason.isEmpty()) {
+                    throw new IllegalStateException("lanes/" + lane + ".txt line " + n + ": " + key + " has no reason");
+                }
+                if (floor.put(key, reason) != null) {
                     throw new IllegalStateException("lanes/" + lane + ".txt line " + n + ": " + key + " listed twice");
                 }
             }

@@ -15819,9 +15819,10 @@ path program's step 11, its status noted there).
 
 1. **Built:** `Execution.execute` (five overloads), `Execution.executeResolved` (four) and the query service's three
    materialized `execute` entries deleted; `exec/ExecutionResult` renamed `exec/TypedSide` (the judges' collected side,
-   39 files; counted 2026-10-29 at T-d2 as the files the two track D commits changed that named it -- 114 more,
-   history and records, keep the old name); `StatementExecutor` renamed `BodyDriver` (42 files by the same count, 167
-   keep it; `tools/native-axes.py`, a BUILD comment); the guards'
+   39 files; counted 2026-10-29 at T-d2 as the files the two track D commits changed that named it -- at
+   `132a4ff2`, 114 more, history and records, keep the old name; 113 at `e767c57b`); `StatementExecutor` renamed
+   `BodyDriver` (42 files by the same count; 167 keep it at `132a4ff2`, 170 at `e767c57b`, which restores the name in
+   five guard files' history notes; `tools/native-axes.py`, a BUILD comment); the guards'
    entries moved with dated notes (`JavaEvalLedgerTest`'s carriage register and the body driver's path pin at the same
    count, 2273; `ArchitectureTest`'s exec register; `ErrorShapeGuardrailTest`); the one materialized-execute call the
    compiler found (`DuckDBIntegrationTest`, the service's qualified name across a line break) moved to `Lean.run`;
@@ -15853,8 +15854,8 @@ decisions log D49; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026
    planner exhausts the 512 MB heap on a twenty-call chain of nested derived tables (`QueryExpressionIndex`) and JUnit
    rethrows the `OutOfMemoryError` as unrecoverable -- the first T-d2 H2 run died at its 759th test. The floors
    re-measured at the lanes' full scope: sqlite 89, h2 270 and the one pin, the platform 0 of 2,232 (the ledger's
-   table, by cause). Harness corrections, no value moved: the backend's session set-up in three more tests and the
-   warehouse backend; `ExtendCheckerTest.testNow` by the backend's own year probe (`TestBackend.yearOfNowSql`);
+   table, by cause). Harness corrections, no value moved: `ComputedProjectIntegrationTest`'s six set-up sites on the backend's
+   session set-up (the warehouse backend's own UTC statement added with the audit's fixes); `ExtendCheckerTest.testNow` by the backend's own year probe (`TestBackend.yearOfNowSql`);
    `ConcatenateFlattenCheckerTest`'s error-text assertions case-insensitive; T-d's templated connection text in
    `DynaFunctionIntegrationTest` and `RenderCsvIntegrationTest` UNDONE (whole Pure text again: the own-corpus parity
    harvest reads the tests' models as Pure, and a template is a source the reference parser rejects -- PR #80's

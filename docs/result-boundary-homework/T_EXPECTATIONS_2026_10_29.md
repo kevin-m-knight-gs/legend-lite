@@ -188,7 +188,11 @@ T-d2 puts the integration package's other 37 classes on it: each under `@ExtendW
 `TestBackends.platform()` now `LaneFloor.backend()` and its `Databases.PLATFORM` the lane's type. Off the lane, by
 name: the parity and corpus lane files (their own lanes), `Stress*`, `DeclaredQuotedTableH2Test` (H2's by
 name), `PostgresRegressCorpusTest` (Postgres's), `SqlIslandIntegrationTest` (its parameterized cases seed a
-DuckDB-spelled island; measured failing on SQLite as a seed, not a case). 2,232 tests run on each lane.
+DuckDB-spelled island; measured failing on SQLite as a seed, not a case); and, each choosing its own database or
+none, the one-test delegators (`ClassWrites{DuckDb,H2}Test`, `CypherDomainWritesH2Test`,
+`SqlWrites{DuckDb,H2,Postgres}Test`, `StoreWrites{DuckDb,H2,Postgres}Test`, `WritePlans{DuckDb,H2,Postgres}Test`,
+`StressServiceSuitesH2Test`), `DuckDBStructSyntaxTest`'s raw probe, `BazelSmokeTest` and `ProfileBuildCost` (the T-d2
+audit's finding 7). 2,232 tests run on each lane.
 
 **The re-spelling rule (`LaneFloor.model`).** A test's own connection text -- `type: DuckDB; specification: DuckDB
 { }; auth: Test;`, matched whitespace-insensitively -- is re-spelled to the SESSION's backend: the backend of the
@@ -215,8 +219,9 @@ every level per candidate plan (`QueryExpressionIndex.getQuery`) and exhausts th
 carries the question (a chain of extends over one window could flatten into one select).
 
 **Harness assumptions corrected so the floors measure the dialects (no value moved):** the UTC session statement
-by the backend (`TestBackend.sessionSetUp`: `TypeInferenceIntegrationTest`, `ExecutionResultIntegrationTest`,
-`ComputedProjectIntegrationTest`, the warehouse backend); `ExtendCheckerTest.testNow` reads the year of the
+by the backend (`TestBackend.sessionSetUp`: `ComputedProjectIntegrationTest`'s six set-up sites here,
+`TypeInferenceIntegrationTest`'s and `ExecutionResultIntegrationTest`'s at T-d; the warehouse backend's own UTC
+statement, which it lacked, with the T-d2 audit's fixes); `ExtendCheckerTest.testNow` reads the year of the
 database's clock by the backend's own probe (`TestBackend.yearOfNowSql`; SQLite's `strftime`) and the UTC year from
 the launcher's clock, where DuckDB's `year(current_timestamp AT TIME ZONE 'UTC')` ran on every lane;
 `ConcatenateFlattenCheckerTest`'s three error-text assertions compare case-insensitively (H2's `Column count does
@@ -231,7 +236,7 @@ parentheses; `Phase1AuditTest`'s display name.
 |---|---|---|---|
 | the platform (DuckDB) | 2,232 | 0 | -- |
 | sqlite | 2,232 | 89 | `sourceUrl` (an external JSON source: no encoding on SQLite) 56; no corpus workspace on SQLite (the class-writes and staged-rows tests) 6; `PIVOT` (unemulated; one SQL-text assertion) 6; an INSERT of a query's rows (no spelling measured on SQLite) 4; the metamodel store's reads (`MetamodelMappingStoreTest`, `MetamodelQueryFunctionsTest`: the mapping store's answer differs on SQLite -- a finding to read) 4; checked graph fetch (list lambdas; two defect texts) 3; a windowed `ARG_MAX`/`ARG_MIN` 2; two SQL-text assertions of the platform's `UNNEST` and `LEFT JOIN LATERAL`; an integer past 64 bits 2; the `asOfJoin` emulation's wrong answer 1; `CURRENT_USER` 1; `SCHEMA` syntax 1; a union mapping's join cast (`UnionJoinMappedPropertyTest`: `ux::A is not a ux::B` -- a finding to read) 1 |
-| h2 | 2,232 | 270 + 1 pin | variant navigation (no JSON support in the H2 dialect) 84; fold 39; the list encodings (`LIST_GET`, `LIST_MAX`, `LIST_FILTER`, `LIST_TRANSFORM`, `LIST_POSITION`, `LIST_MIN`, membership) 26; `UNNEST` placement 24; a struct literal or extraction 15; the list reductions (`STRING_AGG`, `QUANTILE_CONT`, `VAR_POP`, `VAR_SAMP`) 11; bit operations 11; DuckDB's function spellings reaching H2 unrefused (`ARG_MAX`/`ARG_MIN` 6, `cbrt` 4, `jaro_winkler_similarity` 3, `levenshtein` 2, `reverse` 2, `timezone` 2, `make_date` 1: the H2 dialect has no arm and no refusal for them) 20; `time_bucket` 6; `PIVOT` (one an SQL-text assertion) 6; base64 5; the list predicates (`forAll`, `exists`) 4; a signed 64-bit `hashCode` 4; two SQL-text assertions of the platform's spelling (`UNNEST`, a write plan's text); the minimal-fraction date format 2; `make_timestamp` 1; `printf` 1; checked defects 1; the `asOfJoin` emulation's wrong answer 1; a correlated scalar subquery's outer reference (`CorrelatedRelationCheckerTest`: H2 finds no `"_tds0.id"`) 1; a staged write's temp table already existing in the session (`CypherIslandIntegrationTest`) 1; a Cypher node's JSON 1; an average's digits (`CypherIslandIntegrationTest`: H2's `AVG` over integers is a DECIMAL, `31.66666666667`, where Pure's `average` is a Float and DuckDB's double gives `31.666666666666668` -- upstream's answer to be READ before any fix) 1; `ascii('')` null 1; a Variant compared to an Integer (`JSON to BIGINT`) 1 |
+| h2 | 2,232 | 270 + 1 pin | variant navigation (no JSON support in the H2 dialect) 84; fold 39; the list encodings (`LIST_GET`, `LIST_MAX`, `LIST_FILTER`, `LIST_TRANSFORM`, `LIST_POSITION`, `LIST_MIN`, membership) 26; `UNNEST` placement 24; a struct literal or extraction 15; the list reductions (`STRING_AGG`, `QUANTILE_CONT`, `VAR_POP`, `VAR_SAMP`) 11; bit operations 11; DuckDB's function spellings reaching H2 unrefused (`ARG_MAX`/`ARG_MIN` 6, `cbrt` 4, `jaro_winkler_similarity` 3, `levenshtein` 2, `reverse` 2, `timezone` 2, `make_date` 1: the H2 dialect has no arm and no refusal for them) 20; `time_bucket` 6; `PIVOT` (one an SQL-text assertion) 6; base64 5; the list predicates (`forAll`, `exists`) 4; a signed 64-bit `hashCode` 4; three SQL-text assertions of the platform's spelling (`UNNEST`, `LEFT JOIN LATERAL`, a write plan's text); the minimal-fraction date format 2; `make_timestamp` 1; `printf` 1; checked defects 1; the `asOfJoin` emulation's wrong answer 1; a correlated scalar subquery's outer reference (`CorrelatedRelationCheckerTest`: H2 finds no `"_tds0.id"`) 1; a staged write's temp table already existing in the session (`CypherIslandIntegrationTest`) 1; a Cypher node's JSON 1; an average's digits (`CypherIslandIntegrationTest`: H2's `AVG` over integers is a DECIMAL, `31.66666666667`, where Pure's `average` is a Float and DuckDB's double gives `31.666666666666668` -- upstream's answer to be READ before any fix) 1; `ascii('')` null 1; a Variant compared to an Integer (`JSON to BIGINT`) 1 |
 
 Between T-d and T-d2 the sqlite floor went from 15 to 89 and the h2 floor from 169 to 270 + 1 pin: every added line
 is a test the lane did not reach at T-d, re-measured here; no line is a test that passed at T-d and fails now (the
@@ -241,3 +246,12 @@ by the harness corrections above.
 
 The floors' reasons stay the measured messages, not root causes (D47); the lines named "a finding to read" above
 and in the start page's track F are the ones whose message is a wrong ANSWER rather than a refusal.
+
+**What a floor line holds, and what it cannot (the T-d2 audit's finding 9, 2026-10-29).** A measured line now
+holds its test to its REASON: the failure's message, normalized as the generator normalized it, must open with the
+line's first 60 characters (`LaneFloor.REASON_PREFIX`), or the run fails naming both -- a listed test that starts
+failing for another reason is no longer green. What stays by design: a listed test whose set-up newly fails is not
+run (said in the log, reported successful); a not-run pin never asks for its own removal (it is re-measured by hand
+when its cause moves); a floor line names a class under the extension (`LaneFloorTest` refuses one that is not);
+an empty reason is refused; `LaneFloor.model(String)` without a session re-spells to the lane's backend for the
+service door (`Lean.service`), which no laned test uses today.

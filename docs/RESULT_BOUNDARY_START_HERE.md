@@ -14,11 +14,12 @@ measurements, every probe's source) is `docs/result-boundary-homework/README.md`
   writes its own form at the edge: legend-engine's exact JSON for Studio and legacy clients (the LEGACY renderer), lite's
   lossless JSON, CSV and Arrow for its own (the LEAN renderer). One way to run a query or a test body: a plan, run by
   the plan runner, into a writer. Every other path deleted.
-- **Where it stands.** Every production route runs on plans. PCT channel A runs on plans, and a relation now crosses
-  exactly as legend-engine's own PCT adapter reads it (the engine JSON our server serves). What is NOT on plans yet:
-  our own core tests, the core_relational corpus, PCT channel B and the service test runner, which all still enter
-  through the old door (`Execution.execute*` -> `StatementExecutor` -> `ExecutionResult`), though every statement they
-  send already runs on the plan runner.
+- **Where it stands (2026-10-29).** Every route runs on plans: production, PCT's channels A and B (a relation crosses
+  exactly as legend-engine's own PCT adapter reads it), our own core tests (the LEAN twin, per lane: track T), the
+  core_relational corpus and the service test runner (track C) -- a query through `Execution.run`, a test body
+  through `Execution.runProgram` (track B). The old door (`Execution.execute*`, `StatementExecutor`'s JDBC, the
+  materialized `ExecutionResult`) is deleted (track D). Left: mixed lists as typed values (L), the Arrow writer (A),
+  the open findings (F), the final audit and the landing (Z).
 - **The branch.** `claude/wizardly-dirac-rw6tim` (since 2026-10-28, the next session's designated branch, from
   `claude/upbeat-johnson-l4hogx`'s head `7a9a368b`: that branch's 20 commits on top of `7b8c89dc`, PR #78's merge into
   `main`, and this session's). **`main` is merged in (S1.0, 2026-10-28):** `369bb176` (PR #77, the timeseries line;
@@ -131,7 +132,8 @@ what it found: the homework README §1.
   local gate with the parser-equivalence lane, 454 targets (GATES, "the second merge's gate recorded"); CI on PR #80
   green on every finished lane at that head (47 of 50 when the B1b push superseded the run).
 
-**Who still enters through the old door** (measured 2026-10-28; production: nobody):
+**Who still entered through the old door** (measured 2026-10-28, before tracks C, T and D moved them and deleted
+the door; production: nobody):
 
 | Caller | Where |
 |---|---|

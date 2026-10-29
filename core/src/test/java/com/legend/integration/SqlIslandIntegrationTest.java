@@ -5,7 +5,6 @@ package com.legend.integration;
 
 import com.legend.testbackend.TestBackends;
 
-
 import com.legend.testing.Lean;
 import com.legend.error.LegendCompileException;
 import com.legend.testbackend.TestBackend;
