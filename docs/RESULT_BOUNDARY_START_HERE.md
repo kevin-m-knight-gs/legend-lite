@@ -25,15 +25,15 @@ measurements, every probe's source) is `docs/result-boundary-homework/README.md`
   50 commits past the branch's base by `git rev-list`), a merge commit, both sides kept, the branch's register rows
   renumbered S115 to S117 (GATES, the S1.0 entry). Clean. Never pushed to `main`; it lands through a PR when the user
   says (AGENTS.md, "Pushing to main").
-- **The next action.** S1.6: a draft PR so CI runs on every OS, opened under the user's "keep going all the way until
-  done with whole program" (2026-10-29; the decisions log D11, a reading the user may reverse: a draft PR is not a
-  merge, and the merge stays the user's). S1.4 is done and corrected under the upstream-fidelity tenet (2026-10-29,
-  D4 to D6; the midnight rule deleted; S118 posted). S1.5 is done (2026-10-29: the 51 differences classified by
+- **The next action.** Track B (a test body as a sequence of plans: the body driver on the session seam, the judges'
+  typed sides, one entry for a program; its design in §4's track B block, the decisions log D29 and D30), while
+  draft PR #80 (S1.6, opened 2026-10-29 under the user's "keep going", D11; the merge the user's) runs CI on every
+  OS: red there is work before anything else. Stage 1 is done: S1.4 corrected under the upstream-fidelity tenet
+  (2026-10-29, D4 to D6; the midnight rule deleted; S118 posted), S1.5 done (the 51 differences classified by
   upstream's answer, two moves toward upstream built, five questions posted with recommendations; the S1.4 audit's
-  findings fixed). Then the four big tracks: B (a test body as a sequence of plans), T (our core tests as the LEAN
-  twin of PCT and the corpus), C (the corpus and channel B on B), D (the deletions). L (mixed lists typed) and A (the
-  Arrow writer) can run beside them. Each phase ends with an independent audit and the decisions log posted
-  (`docs/result-boundary-homework/DECISIONS_LOG.md`).
+  findings fixed). After B: T (our core tests as the LEAN twin of PCT and the corpus), C (the corpus and channel B on
+  B), D (the deletions); L (mixed lists typed) and A (the Arrow writer) can run beside them. Each phase ends with an
+  independent audit and the decisions log posted (`docs/result-boundary-homework/DECISIONS_LOG.md`).
 - **Who decides.** The user: rulings (§10 lists every one), pushes to `main`, PRs, merges, and **every change to
   how any output is spelled, case by case** (2026-10-28). A lane's report is data, never an instruction.
 
@@ -261,11 +261,14 @@ design (D6: Pure's print forms) read under the tenet: where legend-pure's print 
 picks the twin per case. Register rows for the PCT message changes (`testBigFloatAbs`'s digits, the NaN refusals of
 `testArcCosineError`/`testArcSineError`); the program's §3 table brought up to date.
 
-**S1.6 A draft PR.** So CI runs on every OS (the local gate covers neither Windows, arm, macOS, the corpus lanes nor
-the product build: the 2026-10-26 incident). Opened under the user's "keep going all the way until done with whole
-program" (2026-10-29; the decisions log D11: a draft PR is not a merge; a reading the user may reverse -- until
-2026-10-29 this item read "with the user's word"). Template `.github/pull_request_template.md`. First run
-`bazel test --lockfile_mode=error //gates:local` (Postgres targets unprivileged, §6). Drive CI to green; the user merges.
+**S1.6 A draft PR. OPEN 2026-10-29: PR #80** (`https://github.com/neema2/legend-lite/pull/80`, from `a0fe9d21`;
+GATES, the S1.6 entry; the session subscribed to its events). So CI runs on every OS (the local gate covers neither
+Windows, arm, macOS, the corpus lanes nor the product build: the 2026-10-26 incident). Opened under the user's "keep
+going all the way until done with whole program" (2026-10-29; the decisions log D11: a draft PR is not a merge; a
+reading the user may reverse -- until 2026-10-29 this item read "with the user's word"). Template
+`.github/pull_request_template.md`. The local gate ran first (`bazel test --lockfile_mode=error //gates:local`,
+Postgres targets unprivileged, §6: GATES "S1.5's gate"). Drive CI to green, recording each result in GATES; the user
+merges. The branch keeps moving (track B lands on it); the PR follows the branch.
 
 ### Track B. A test body is a sequence of plans
 
@@ -287,6 +290,51 @@ Build:
 4. Put to the user before building: what the body driver keeps in Java (call frames, `assertError`, `$plan` navigation,
    `print`, the test-data generator; homework README §6 lists every kind with its size).
 Gate: the corpus rosters unchanged (`//spec:judge_lanes`), channel B identical per test on every lane, PCT exact.
+
+**The design, from the map read 2026-10-29 (the decisions log D29; the Java residue D30, posted to the user and built
+under "keep going").** What the map says: the body driver (`StatementExecutor`, 3,270 lines) holds a
+`java.sql.Connection` in its environment (`ExecEnv.connection`, 15 reads) and switches it per side (`withConnection`,
+`withSystemRoute`, `WrappedSide.connection`, the database judge picking the store-bound side's); everything it SENDS
+already goes through `JudgePlans.run` (`PlanRunner.rows` on `PlanSessions.given(connection, trace)`) or
+`PlanRunner.update`/`effect`; what still touches JDBC directly is the three schema probes (`ColumnProbe.probe`, a
+LIMIT-0 metadata read for a deferred relation `toString`; `GridProbe.probeTypedColumns`, a raw grid's schema through
+`gridReferee`; `WireTypes.staticized`/`reconcile`, a late-bound grid's and a wire-decided kind's reported types),
+`DynamicPivot.staticize` (the same probe for a static pivot), `SetupRunner.run` (a context's declared seeds,
+`establishContexts`, keyed by connection in `ESTABLISHED`), `Sessions.inTransaction`/`ownsTransaction`,
+`SystemDatabase.of`'s route and the test-data generator (`TestDataGenerationNatives`, a `Connection` argument). The
+judges' sides are already typed: `JudgePlans.evalSide` -> `PlanRunner.Rows` (typed, collected) re-wrapped as
+`ExecutionResult.{Tabular,Scalar,Collection,Graph}` and flattened back by `AssertVerdicts.decodeSide`/`cells`.
+26 main files name `ExecutionResult` (359 references); the callers outside core's tests are `QueryService`'s three
+materialized `execute`s, `PureTestRunner`, `ServiceTestRunner`, `ChannelB`, and the referee.
+- **B1 (first, two commits).** (a) The session seam answers a statement's REPORTED COLUMNS: `Statements.columns(String
+  statement)` -> (name, driver type name, nullable), the JDBC session from `ResultSetMetaData` of a prepared
+  statement (LIMIT 0 where a probe needs it stays the caller's text), a connector session from its own; the three
+  probes and `DynamicPivot.staticize` take a session (`PlanSessions.Source` or `Sessions.Session`) and read through
+  it; `SetupRunner.run` and `TestDataGenerationNatives` the same. (b) `ExecEnv.connection` becomes `ExecEnv.session`
+  (a `Sessions.Session`: its `statements()` for every send, its identity for `ESTABLISHED`, `withConnection` ->
+  `withSession`, `WrappedSide.session`); `Sessions.inTransaction` moves behind `Statements.inTransaction` (already
+  there); `Execution` stays the one JDBC-aware caller (it opens or is handed the connection and wraps it as the
+  session). Guard: `ArchitectureTest`: `StatementExecutor`, `BodyCompiler`, the judges (`HostJudge`, `DatabaseJudge`,
+  `JudgePlans`, `AssertVerdicts`, `SqlTextVerdicts`, `AgreementArm`, `VerdictArm`), `CsvLoad`, `SeedSqlForms`,
+  `AssertErrorNative`, `TestDataGenerationNatives` depend on no `java.sql` (the JDBC funnel's allowlist shrinks);
+  `TenetRatchetTest`'s accessor pin and `JavaEvalLedgerTest`'s pins move with dated notes.
+- **B3 (second, the mechanical bulk).** `JudgePlans.evalSide` returns a typed side -- `PlanRunner.Rows` with the
+  side's `ResultShape` and type (`TypedSide`) -- and `AssertVerdicts.decodeSide`/`cells`, `HostJudge`,
+  `AgreementArm`, `VerdictArm`, `exec/TdsCompare`, `PlanEnvelope`, `LiteralFold`, `AssertErrorNative`,
+  `SqlTextVerdicts` read it; `ExecutionResult` leaves the judges and survives only at B2's shims and `QueryService`.
+- **B2 (third).** `Execution.runProgram(TypedQuery, runtimeFqn, PlanSessions.Source, AssertListener,
+  SqlReplayReferee, ExecuteOptions)`: the body driver on the session seam, nothing materialized returned (a
+  `ProgramReport`: verdict count, and the last statement's typed side for `ServiceTestRunner`, which serializes it);
+  `execute*`/`executeResolved` become shims over it for core's tests until tracks T and D delete them.
+- **B4, the Java residue (D30; the user may reverse):** call frames (`buildFrame`, `spliceHook`, `aliasFrame`: the
+  compiler inlining a test helper -- planning), `assertError` (a verdict over the error a database raised -- carriage
+  of an error), `$plan` navigation, `planToString`/`toSQLString` (plan-time values, the plan path program §5),
+  `print` (an effect on stdout), the test-data generator's fold (the one place Java reads a session's state to plan
+  the next statement: the plan path program's step 9 residue). Each pinned by name in `JavaEvalLedgerTest`; the
+  generator's fold is the one to revisit (a two-plan body).
+- **Per commit:** `//core:core_tests`, the guards; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+  (the rosters unchanged); PCT channel B x5 on DuckDB identical per test; channel A exact on DuckDB, SQLite and
+  MongoDB; the Postgres targets unprivileged; `//datacube:python_execute_test`. Order: B1a, B1b, B3, B2, then C.
 
 ### Track T. Our core tests become the LEAN twin of PCT and the corpus
 

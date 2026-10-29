@@ -502,6 +502,9 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-29, S1.6: draft PR #80 opened** (`https://github.com/neema2/legend-lite/pull/80`, from `a0fe9d21`; the
+  first CI on every OS since phase 1; under the user's "keep going", D11; the merge the user's). Track B begins
+  (the start page's track B block: the design D29, the Java residue D30).
 - **2026-10-29, S1.5 done: the 51 writer differences classified by upstream's answer; two moves toward upstream;
   the S1.4 audit's findings fixed** (the records commit `3e9e739a`, the code commit after it; GATES, the S1.5
   entry). Eleven groups, each read from the pinned sources

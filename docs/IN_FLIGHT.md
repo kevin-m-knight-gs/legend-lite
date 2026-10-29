@@ -2917,8 +2917,14 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   audit and the decisions log posted after each phase.** **S1.4 done 2026-10-28, corrected 2026-10-29** (GATES,
   the S1.4 entries; audited 2026-10-29, the findings fixed with S1.5). **S1.5 done 2026-10-29** (the records commit
   `3e9e739a`, the code commit after it: the 51 differences classified by upstream's answer, two moves toward
-  upstream, the decisions log D12 to D27). Next on this line, in order: S1.6 (a draft PR under the user's "keep
-  going", D11; the merge the user's), then tracks B, T, C, D, L, A, F, Z, an audit and the log after each. (The S1.4 that was announced touched `result/`,
+  upstream, the decisions log D12 to D27). **S1.6 open 2026-10-29: draft PR #80** (`https://github.com/neema2/legend-lite/pull/80`, the first CI on every OS
+  since phase 1; the merge the user's). **Track B announced 2026-10-29** (a test body as a sequence of plans; the start
+  page's track B block carries the design): `core/src/main/java/com/legend/exec/Statements.java`, `JdbcStatements.java`,
+  `PlanSessions.java`, `ColumnProbe.java`, `GridProbe.java`, `WireTypes.java`, `DynamicPivot.java`, `SetupRunner.java`,
+  `SystemDatabase.java`; `core/src/main/java/com/legend/StatementExecutor.java`, `BodyCompiler.java`, `JudgePlans.java`,
+  `HostJudge.java`, `DatabaseJudge.java`, `AssertVerdicts.java`, `SqlTextVerdicts.java`, `Execution.java`,
+  `testdatagen/TestDataGenerationNatives.java`; `ArchitectureTest`, `JavaEvalLedgerTest`, `TenetRatchetTest` (pins, dated);
+  the connector sessions under `core/src/main/mongodb`. Then tracks T, C, D, L, A, F, Z, an audit and the log after each. (The S1.4 that was announced touched `result/`,
   `exec/JdbcDecode.java`, `result/RowDecode.java`, `MongoDbDecode.java`, `executionplan/` for the precision fact, the
   two writer guards the user approved 2026-10-28), S1.5 (records), S1.6 (a draft PR on the user's word); then tracks B
   (the body runner: `StatementExecutor`, `BodyCompiler`, `Execution`, the judges), T (core's tests as the LEAN twin:

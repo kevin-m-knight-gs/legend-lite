@@ -15455,3 +15455,11 @@ The chain the S1.5 entry above names, run as root in the cloud container (docs/C
 - `bazel test //datacube:python_execute_test` (the native library and the WebAssembly planner; it reads LEAN JSON):
   pass.
 Not measured: the lanes (the S1.4 entry, item 5). Next: S1.6's draft PR, the first CI on every OS since phase 1.
+
+## 2026-10-29 — S1.6: the result boundary branch's draft PR opened (PR #80), the first CI on every OS since phase 1
+
+`https://github.com/neema2/legend-lite/pull/80`, head `a0fe9d21`, base `main` (`9de4d3a8`), 30 commits, DRAFT: CI runs
+on Linux, macOS, Windows and arm, the corpus lanes and the product build, which the local gate does not cover (the
+2026-10-26 incident). Opened under the user's "keep going all the way until done with whole program" (the decisions log
+D11; a draft PR is not a merge; the merge is the user's). The session is subscribed to the PR's events; CI's results
+are recorded here as they land, red fixed before anything else.
