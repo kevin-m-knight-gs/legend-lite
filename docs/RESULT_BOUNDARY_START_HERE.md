@@ -333,7 +333,9 @@ materialized `execute`s, `PureTestRunner`, `ServiceTestRunner`, `ChannelB`, and 
 - **B2 (third).** `Execution.runProgram(TypedQuery, runtimeFqn, PlanSessions.Source, AssertListener,
   SqlReplayReferee, ExecuteOptions)`: the body driver on the session seam, nothing materialized returned (a
   `ProgramReport`: verdict count, and the last statement's typed side for `ServiceTestRunner`, which serializes it);
-  `execute*`/`executeResolved` become shims over it for core's tests until tracks T and D delete them.
+  `execute*`/`executeResolved` become shims over it for core's tests until tracks T and D delete them. (As built,
+  2026-10-29: a `Sessions.Source`, since the driver holds a `Sessions.Session` after B1b; no verdict count, the
+  verdicts are the listener's -- D37; the B2 audit, D40.)
 - **B4, the Java residue (D30; the user may reverse):** call frames (`buildFrame`, `spliceHook`, `aliasFrame`: the
   compiler inlining a test helper -- planning), `assertError` (a verdict over the error a database raised -- carriage
   of an error), `$plan` navigation, `planToString`/`toSQLString` (plan-time values, the plan path program §5),
@@ -374,7 +376,8 @@ materialized `execute`s, `PureTestRunner`, `ServiceTestRunner`, `ChannelB`, and 
   Sessions.Source, AssertListener, SqlReplayReferee, ExecuteOptions) -> ProgramReport(last)`, the one entry for a
   program: the body typed once, run on the session the source opens for the runtime's target, every verdict to the
   listener, the last statement's side for a serializer and nothing else. `StatementExecutor.execute` takes the typed
-  query (the three resolved-AST overloads deleted); the old door's five entries are shims over `runProgram` until D.
+  query (the three resolved-AST overloads deleted); the old door's nine public entries reach `runProgram` (five as
+  direct shims, four through the 7-arg `executeResolved`) until D. Audited (D40): confirmed; three record fixes.
   Next: track C (the corpus runner, channel B and the service test runner on `runProgram` and typed plans).
 
 ### Track T. Our core tests become the LEAN twin of PCT and the corpus

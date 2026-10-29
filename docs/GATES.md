@@ -15620,8 +15620,9 @@ to D38). The order changed first (D36): B3, the judges' typed side, is track D's
    sides are, `ExecutionResult`, renamed at D). The session is closed when the program ends (the source's lease).
 2. **The driver typed once.** `StatementExecutor.execute(TypedQuery, ...)`: the typed body and the spec compiler that
    typed it (`TypedQuery.body()`, `specs()`, the new package-private `resolved()` for a parameterless lambda's protocol
-   statements); the three resolved-AST overloads deleted. The old door's five entries (`Execution.executeResolved` x4,
-   `execute(model, query, runtime, Source, options)`) are shims: `runProgram(Compiler.queryResolved(ctx, resolved),
+   statements); the three resolved-AST overloads deleted. The old door's five rewritten entries (`Execution.executeResolved`
+   x4, `execute(model, query, runtime, Source, options)`; its four `execute(..., Connection, ...)` entries reach them
+   through the 7-arg `executeResolved`, as before) are shims: `runProgram(Compiler.queryResolved(ctx, resolved),
    runtime, PlanSessions.session(connection), ...)` returning `last()`; track D deletes them with their callers
    (tracks C and T move the callers).
 3. **The B1b audit's findings** (D38): the dangling `{@link #given(Connection, ExecutionTrace)}` in
