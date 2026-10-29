@@ -256,7 +256,7 @@ final class JudgePlans {
         }
         plan = withFrames(plan, env);
         // a row-struct column is typed nesting over a flat physical reality: the prefixed columns the join emitted
-        schema = flattenStructColumns(schema);
+        schema = TypedRows.flat(schema);
         // a grid's cells typed from the driver: a temporal cell by the database's own kind (a DATE a day)
         PlanRunner.Rows rows = run(rowsPlan(plan, schema, env), PlanSessions.of(w.session(), env.trace()));
         List<Column> columns = new ArrayList<>(schema.columns().size());
@@ -394,23 +394,5 @@ final class JudgePlans {
                     + " — NULL cells were dropped past the type's own contract");
         }
         return new ExecutionResult.Collection(values, type);
-    }
-
-    /** A row-struct column (a navigate slot) expanded to its prefixed flat columns, as the join emitted them. */
-    private static Type.RelationType flattenStructColumns(Type.RelationType schema) {
-        if (schema.columns().stream().noneMatch(c -> c.type() instanceof Type.RelationType)) {
-            return schema;
-        }
-        List<Type.Column> flat = new ArrayList<>();
-        for (Type.Column c : schema.columns()) {
-            if (c.type() instanceof Type.RelationType sub) {
-                for (Type.Column sc : sub.columns()) {
-                    flat.add(new Type.Column(c.name() + "_" + sc.name(), sc.type(), sc.multiplicity()));
-                }
-            } else {
-                flat.add(c);
-            }
-        }
-        return new Type.RelationType(flat);
     }
 }

@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
@@ -383,11 +384,11 @@ class M2MIntegrationTest {
      * parse → TypeChecker → PlanGenerator (JSON SQL) → PlanExecutor → GraphResult
      */
     private String executeNew(String pureQuery) throws SQLException {
-        com.legend.exec.ExecutionResult result =
-                queryService.execute(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
-        assertInstanceOf(com.legend.exec.ExecutionResult.Graph.class, result,
+        Lean.Result result =
+                Lean.run(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape(),
                 "graphFetch/serialize should return GraphResult, got: " + result.getClass().getSimpleName());
-        return result.asGraph().json();
+        return result.json();
     }
 
     // ==================== NEW PIPELINE: graphFetch via execute() ====================

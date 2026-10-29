@@ -3,7 +3,7 @@
 
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
@@ -105,19 +105,18 @@ class ClassWritesExecutionTest {
         try (Connection c = backend.openWorkspace()) {
             run(c, "CREATE TABLE EVENT (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), SPAN_FROM INTEGER, SPAN_TO INTEGER)");
             String model = EMBEDDED.formatted(backend.connectionBody());
-            assertEquals(1L, ((ExecutionResult.Scalar) java.util.Objects.requireNonNull(com.legend.Execution.execute(
-                    model, "|#TDS\nk, name\n1, a\n#->meta::legend::lite::writeInstances(e::Event, ~k)", "e::RT", c)))
-                    .value());
-            assertEquals(1L, ((ExecutionResult.Scalar) java.util.Objects.requireNonNull(com.legend.Execution.execute(
+            assertEquals(1L, java.util.Objects.requireNonNull(Lean.run(
+                    model, "|#TDS\nk, name\n1, a\n#->meta::legend::lite::writeInstances(e::Event, ~k)", "e::RT", c)).one());
+            assertEquals(1L, java.util.Objects.requireNonNull(Lean.run(
                     model, "|#TDS\nk, a, b\n1, 3, 4\n#->rename(~a, ~'span.start')->rename(~b, ~'span.stop')"
-                    + "->meta::legend::lite::mergeInstances(e::Event, ~k)", "e::RT", c))).value());
+                    + "->meta::legend::lite::mergeInstances(e::Event, ~k)", "e::RT", c)).one());
             try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(
                     "SELECT ID, NAME, SPAN_FROM, SPAN_TO FROM EVENT")) {
                 assertTrue(rs.next());
                 assertEquals("1|a|3|4", rs.getInt(1) + "|" + rs.getString(2) + "|" + rs.getInt(3) + "|"
                         + rs.getInt(4));
             }
-            Exception lacking = assertThrows(Exception.class, () -> com.legend.Execution.execute(model,
+            Exception lacking = assertThrows(Exception.class, () -> Lean.run(model,
                     "|#TDS\nk, a\n1, 3\n#->rename(~a, ~'span.nope')->meta::legend::lite::mergeInstances(e::Event,"
                     + " ~k)", "e::RT", c));
             assertTrue(String.valueOf(lacking.getMessage()).contains("span.nope is no property"),
@@ -166,8 +165,8 @@ class ClassWritesExecutionTest {
     }
 
     private static Object count(TestBackend backend, Connection c, String query) {
-        ExecutionResult r = com.legend.Execution.execute(MODEL.formatted(backend.connectionBody()), query, "c::RT", c);
-        return ((ExecutionResult.Scalar) java.util.Objects.requireNonNull(r)).value();
+        Lean.Result r = Lean.run(MODEL.formatted(backend.connectionBody()), query, "c::RT", c);
+        return java.util.Objects.requireNonNull(r).one();
     }
 
     private static void run(Connection c, String sql) throws Exception {

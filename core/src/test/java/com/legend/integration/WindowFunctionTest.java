@@ -1,7 +1,7 @@
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -132,8 +132,8 @@ class WindowFunctionTest {
         }
     }
 
-    private ExecutionResult executeQuery(String pureQuery) throws SQLException {
-        return queryService.execute(
+    private Lean.Result executeQuery(String pureQuery) throws SQLException {
+        return Lean.run(
                 COMPLETE_MODEL,
                 pureQuery,
                 "test::TestRuntime",
@@ -145,7 +145,7 @@ class WindowFunctionTest {
         return plan.sql();
     }
 
-    private int findColumnIndex(ExecutionResult result, String columnName) {
+    private int findColumnIndex(Lean.Result result, String columnName) {
         for (int i = 0; i < result.columns().size(); i++) {
             if (result.columns().get(i).name().equals(columnName)) {
                 return i;

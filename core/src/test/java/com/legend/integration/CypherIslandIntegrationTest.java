@@ -3,9 +3,8 @@
 
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import com.legend.error.LegendCompileException;
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.AfterAll;
@@ -106,8 +105,8 @@ class CypherIslandIntegrationTest {
         session.close();
     }
 
-    private static ExecutionResult run(String cypher) throws SQLException {
-        return new QueryService().execute(MODEL, "#Cypher{" + cypher + "}#", "test::RT", session);
+    private static Lean.Result run(String cypher) throws SQLException {
+        return Lean.run(MODEL, "#Cypher{" + cypher + "}#", "test::RT", session);
     }
 
     /** The model with a graph (the study's §12.45): a DataSpace of Person and Firm, open. */
@@ -134,12 +133,12 @@ class CypherIslandIntegrationTest {
             }
             """;
 
-    private static ExecutionResult runOver(String model, String cypher) throws SQLException {
-        return new QueryService().execute(model, "#Cypher{" + cypher + "}#", "test::RT", session);
+    private static Lean.Result runOver(String model, String cypher) throws SQLException {
+        return Lean.run(model, "#Cypher{" + cypher + "}#", "test::RT", session);
     }
 
-    private static ExecutionResult pure(String model, String query) throws SQLException {
-        return new QueryService().execute(model, query, "test::RT", session);
+    private static Lean.Result pure(String model, String query) throws SQLException {
+        return Lean.run(model, query, "test::RT", session);
     }
 
     @Test
@@ -211,15 +210,15 @@ class CypherIslandIntegrationTest {
                 none.getMessage());
     }
 
-    private static List<String> columns(ExecutionResult result) {
+    private static List<String> columns(Lean.Result result) {
         return result.columns().stream().map(c -> c.name()).toList();
     }
 
-    private static List<String> rows(ExecutionResult result) {
+    private static List<String> rows(Lean.Result result) {
         List<String> rows = new ArrayList<>();
         for (var row : result.rows()) {
             List<String> cells = new ArrayList<>();
-            for (Object value : row.values()) {
+            for (Object value : row) {
                 cells.add(value == null ? "null" : value instanceof Number n && !(value instanceof Double)
                         ? String.valueOf(n.longValue()) : String.valueOf(value));
             }
@@ -234,7 +233,7 @@ class CypherIslandIntegrationTest {
 
     @Test
     void aMatchReturnsEachNodesProperty() throws SQLException {
-        ExecutionResult r = run("MATCH (p:Person) RETURN p.name ORDER BY p.name");
+        Lean.Result r = run("MATCH (p:Person) RETURN p.name ORDER BY p.name");
         assertEquals(List.of("p.name"), columns(r));
         assertEquals(expect("Alice", "Bob", "Charlie", "Diana"), rows(r));
     }
@@ -252,7 +251,7 @@ class CypherIslandIntegrationTest {
 
     @Test
     void aRelationshipIsAnAssociationEndInEitherDirection() throws SQLException {
-        ExecutionResult r = run("MATCH (p:Person)-[:firm]->(f:Firm) RETURN p.name, f.legalName ORDER BY p.name");
+        Lean.Result r = run("MATCH (p:Person)-[:firm]->(f:Firm) RETURN p.name, f.legalName ORDER BY p.name");
         assertEquals(List.of("p.name", "f.legalName"), columns(r));
         assertEquals(expect("Alice|Acme", "Bob|Acme", "Charlie|Globex"), rows(r));
         assertEquals(expect("Alice", "Bob"), rows(run("MATCH (f:Firm)-[:employees]->(p:Person)"
@@ -270,10 +269,10 @@ class CypherIslandIntegrationTest {
 
     @Test
     void aggregatesGroupImplicitlyAndASumOfNothingIsZero() throws SQLException {
-        ExecutionResult r = run("MATCH (f:Firm)<-[:firm]-(p:Person) RETURN f.legalName, count(*) AS n ORDER BY n DESC");
+        Lean.Result r = run("MATCH (f:Firm)<-[:firm]-(p:Person) RETURN f.legalName, count(*) AS n ORDER BY n DESC");
         assertEquals(List.of("f.legalName", "n"), columns(r));
         assertEquals(expect("Acme|2", "Globex|1"), rows(r));
-        ExecutionResult all = run("MATCH (p:Person) RETURN count(*), sum(p.age), avg(p.age), min(p.age), max(p.age)");
+        Lean.Result all = run("MATCH (p:Person) RETURN count(*), sum(p.age), avg(p.age), min(p.age), max(p.age)");
         assertEquals(List.of("count(*)", "sum(p.age)", "avg(p.age)", "min(p.age)", "max(p.age)"), columns(all));
         assertEquals(expect("4|95|31.666666666666668|25|40"), rows(all));
         assertEquals(expect("0|0|null"), rows(run("MATCH (p:Person) WHERE p.age > 100 RETURN count(p), sum(p.age),"
@@ -311,7 +310,7 @@ class CypherIslandIntegrationTest {
 
     @Test
     void arithmeticAndStringPredicates() throws SQLException {
-        ExecutionResult r = run("RETURN 7 / 2 AS q, -7 / 2 AS nq, 7 % 3 AS m, 2 ^ 3 AS p, 7 / 2.0 AS f,"
+        Lean.Result r = run("RETURN 7 / 2 AS q, -7 / 2 AS nq, 7 % 3 AS m, 2 ^ 3 AS p, 7 / 2.0 AS f,"
                 + " 'a' + 'b' AS s");
         assertEquals(List.of("q", "nq", "m", "p", "f", "s"), columns(r));
         assertEquals(expect("3|-3|1|8.0|3.5|ab"), rows(r));
@@ -323,7 +322,7 @@ class CypherIslandIntegrationTest {
 
     @Test
     void theIslandComposesWithPure() throws SQLException {
-        ExecutionResult r = new QueryService().execute(MODEL, "#Cypher{MATCH (p:Person) RETURN p.name AS name,"
+        Lean.Result r = Lean.run(MODEL, "#Cypher{MATCH (p:Person) RETURN p.name AS name,"
                 + " p.age AS age}#->filter(x|$x.age > 26)->select(~[name])->sort(~name->ascending())", "test::RT",
                 session);
         assertEquals(expect("Alice", "Bob"), rows(r));
@@ -428,8 +427,8 @@ class CypherIslandIntegrationTest {
             Runtime test::LRT { mappings: [ test::LM ]; connections: [ store::LDB: [ environment: store::LConn ] ]; }
             """.formatted(PLATFORM.connectionBody());
 
-    private static ExecutionResult runLists(String model, String cypher) throws SQLException {
-        return new QueryService().execute(model, "#Cypher{" + cypher + "}#", "test::LRT", session);
+    private static Lean.Result runLists(String model, String cypher) throws SQLException {
+        return Lean.run(model, "#Cypher{" + cypher + "}#", "test::LRT", session);
     }
 
     @Test

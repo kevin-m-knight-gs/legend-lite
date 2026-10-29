@@ -506,6 +506,11 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
   the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`): `testing/Lean.java` reads lite's JSON
   rows back through the product's own row decoder; the 28 `AbstractDatabaseTest` subclasses (2,232 tests) judged on
   it, no expectation moved. Next: the remaining 115 test files on the old door, the helpers, the per-lane targets.
+- **2026-10-29, track T, T-b: the integration package's remaining 31 files; `testing/Program.java`; a plan-path bug
+  fixed** (GATES, the T-b entry; the decisions log D44; the ledger, batch T-b): a navigate's slot column is flattened
+  once for the plan's columns and the judges' (`TypedRows.flat`); six files whose bodies only the program entry runs
+  go through `Program`; 2,232 of 2,232. Findings queued to D and F: the plan path's missing metamodel-store route on
+  a given session; `PureV1Api`'s positional tdsColumns. Next: the other packages (85 files by the counting rule).
 - **2026-10-29, track C built: the corpus runner, the service test runner and channel B on `Execution.runProgram`**
   (GATES, the track C entry; the decisions log D39): the body typed once, the session the caller's, nothing
   materialized returned to the corpus runner or channel B; the referee keeps `ExecutionResult` as the judges' side

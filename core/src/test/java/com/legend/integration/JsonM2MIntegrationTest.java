@@ -1,7 +1,7 @@
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -125,14 +125,14 @@ class JsonM2MIntegrationTest {
     // ==================== Helper ====================
 
     private String executeGraphFetch(String pureQuery) throws SQLException {
-        var result = queryService.execute(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
-        assertInstanceOf(ExecutionResult.Graph.class, result,
+        var result = Lean.run(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape(),
                 "graphFetch/serialize should return GraphResult, got: " + result.getClass().getSimpleName());
-        return result.asGraph().json();
+        return result.json();
     }
 
-    private ExecutionResult executeProject(String pureQuery) throws SQLException {
-        return queryService.execute(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
+    private Lean.Result executeProject(String pureQuery) throws SQLException {
+        return Lean.run(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
     }
 
     // ==================== Tests ====================
@@ -143,11 +143,11 @@ class JsonM2MIntegrationTest {
         var result = executeProject("""
                 model::Person.all()->project(~[fullName:x|$x.fullName, age:x|$x.age])
                 """);
-        var tabular = result.asTabular();
+        var tabular = result;
         assertEquals(3, tabular.rows().size(), "Should have 3 persons from JSON");
 
         var colNames = tabular.columns().stream()
-                .map(com.legend.exec.Column::name).toList();
+                .map(Lean.Column::name).toList();
         assertTrue(colNames.contains("fullName"), "Should have fullName column");
         assertTrue(colNames.contains("age"), "Should have age column");
 
@@ -177,7 +177,7 @@ class JsonM2MIntegrationTest {
         var result = executeProject("""
                 model::Person.all()->filter(x|$x.age > 26)->project(~[fullName:x|$x.fullName])
                 """);
-        var tabular = result.asTabular();
+        var tabular = result;
         assertEquals(2, tabular.rows().size(), "Should have 2 persons with age > 26");
     }
 }

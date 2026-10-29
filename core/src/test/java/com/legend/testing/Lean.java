@@ -128,6 +128,12 @@ public final class Lean {
                     // writer as the one cell the session resolved from its tag and slot columns; its JSON token is
                     // read by the column's declared Pure type (a Number: a whole number a Long, any other an exact
                     // decimal; a Date: its text parsed), as the decoder reads any slotless cell
+                    if (c.type().equals(RowDecode.VARIANT) && node instanceof Json.Str s) {
+                        // lite's JSON rows write a Variant as a string holding its JSON (legend-engine's measured
+                        // form, CellText): the string's value is the variant's JSON text
+                        cells.add(s.value());
+                        continue;
+                    }
                     cells.add(RowDecode.cell(node, RowDecode.slotWord(c.slot()).equals("TAGGED")
                             ? new ExecutionPlan.Column(c.name(), c.type(), c.multiplicity(), null, null, null) : c));
                 }
@@ -182,5 +188,59 @@ public final class Lean {
 
     /** A column as the plan that ran names and types it. */
     public record Column(String name, String type, ExecutionPlan.Multiplicity multiplicity) {
+    }
+
+    /**
+     * The judges' collected side ({@code ExecutionResult}, the body driver's typed side until track D renames it) read
+     * through the same reader: for a body only the program entry runs (a read of the system metamodel store, which
+     * the plan path does not route; a DDL native; a staged let; an assert body) -- {@link Program}. A scalar or a
+     * collection is a VALUE answer of one column {@code value}; a relation a RELATION answer; a graph fetch an OBJECTS
+     * answer whose text is the objects' JSON array.
+     */
+    public static Result of(com.legend.exec.ExecutionResult side) {
+        ExecutionPlan.Multiplicity one = new ExecutionPlan.Multiplicity(1, 1);
+        return switch (side) {
+            case com.legend.exec.ExecutionResult.Scalar s -> {
+                // the body driver's Scalar(null) is Pure's [] (an empty optional value): zero rows, as the plan path
+                // writes an empty value
+                List<List<Object>> rows = new ArrayList<>(1);
+                if (s.value() != null) {
+                    List<Object> row = new ArrayList<>(1);
+                    row.add(s.value());
+                    rows.add(row);
+                }
+                yield new Result(ExecutionPlan.TdsResult.Shape.VALUE,
+                        List.of(new Column("value", s.returnType().typeName(), one)), List.copyOf(rows), "");
+            }
+            case com.legend.exec.ExecutionResult.Collection c -> {
+                List<List<Object>> rows = new ArrayList<>(c.values().size());
+                for (Object v : c.values()) {
+                    List<Object> row = new ArrayList<>(1);
+                    row.add(v);
+                    rows.add(row);
+                }
+                yield new Result(ExecutionPlan.TdsResult.Shape.VALUE,
+                        List.of(new Column("value", c.returnType().typeName(), one)), List.copyOf(rows), "");
+            }
+            case com.legend.exec.ExecutionResult.Tabular t -> {
+                List<Column> columns = new ArrayList<>(t.columns().size());
+                for (com.legend.exec.Column c : t.columns()) {
+                    columns.add(new Column(c.name(), c.pureType().typeName(), one));
+                }
+                List<List<Object>> rows = new ArrayList<>(t.rows().size());
+                for (com.legend.exec.Row r : t.rows()) {
+                    rows.add(new ArrayList<>(r.values()));
+                }
+                yield new Result(ExecutionPlan.TdsResult.Shape.RELATION, List.copyOf(columns), List.copyOf(rows), "");
+            }
+            case com.legend.exec.ExecutionResult.Graph g -> {
+                List<List<Object>> rows = new ArrayList<>(1);
+                List<Object> row = new ArrayList<>(1);
+                row.add(g.json());
+                rows.add(row);
+                yield new Result(ExecutionPlan.TdsResult.Shape.OBJECTS,
+                        List.of(new Column("json", "String", one)), List.copyOf(rows), g.json());
+            }
+        };
     }
 }

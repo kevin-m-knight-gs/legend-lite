@@ -1,8 +1,7 @@
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -44,7 +43,7 @@ class SourceUrlUserCallableTest {
                     + "->extend(~[a:r|cast(get($r.data, 'a'), @meta::pure::metamodel::type::Integer)])"
                     + "->select(~[a])"
                     + "->from(test::RT)";
-            ExecutionResult r = new QueryService().execute(MIN_MODEL, q, "test::RT", c);
+            Lean.Result r = Lean.run(MIN_MODEL, q, "test::RT", c);
             assertEquals(2, r.rows().size(), "expected 2 unnested rows");
         }
     }

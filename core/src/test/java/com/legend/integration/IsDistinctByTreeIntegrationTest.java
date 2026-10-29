@@ -1,7 +1,7 @@
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,7 +82,7 @@ class IsDistinctByTreeIntegrationTest {
 
     @Test
     void distinctByTheTreesLeaves() throws SQLException {
-        ExecutionResult r = qs.execute(MODEL, """
+        Lean.Result r = Lean.run(MODEL, """
                 test::Firm.all()->project([
                     f | $f.legalName,
                     f | $f.employees->isDistinct(#{test::Person {firstName, lastName}}#),
@@ -92,7 +92,7 @@ class IsDistinctByTreeIntegrationTest {
         // Clean: distinct by name; Dupes: 'Ann Smith' twice by name, distinct once age joins the key;
         // Empty: no employees — vacuously distinct
         assertEquals("[Clean, true, true] [Dupes, false, true] [Empty, true, true]",
-                String.join(" ", r.rows().stream().map(row -> row.values().toString()).toList()),
+                String.join(" ", r.rows().stream().map(row -> row.toString()).toList()),
                 "by-tree distinct per firm");
     }
 }

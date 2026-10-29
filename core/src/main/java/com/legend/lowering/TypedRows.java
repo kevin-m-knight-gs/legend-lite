@@ -21,12 +21,35 @@ public final class TypedRows {
     private TypedRows() {
     }
 
-    /** The answer's typed relation: a tabular root's own schema; a scalar or a collection root is the one-column
-     *  {@code value} relation. */
+    /** The answer's typed relation: a tabular root's own schema, its row-struct columns flattened to the columns the
+     *  statement answers ({@link #flat}); a scalar or a collection root is the one-column {@code value} relation. */
     public static Type.RelationType schema(ExprType info) {
         Type.RelationType rt = Type.schemaView(info.type());
-        return rt != null ? rt
+        return rt != null ? flat(rt)
                 : new Type.RelationType(List.of(new Type.Column("value", info.type(), info.multiplicity())));
+    }
+
+    /** A row-struct column (a user navigate's slot, typed nesting over a FLAT physical reality) expanded to the
+     *  prefixed columns the join emitted -- {@code slot_COL}, each nullable (LEFT semantics) -- exactly as the
+     *  lowering spells the statement's outputs ({@code Lowerer.outputsOf}); any other column as it is. The one rule,
+     *  for the plan's columns and the judges' alike (2026-10-29, track T: a plan declared the struct column as one
+     *  column, and the statement answered its parts). */
+    public static Type.RelationType flat(Type.RelationType schema) {
+        if (schema.columns().stream().noneMatch(c -> c.type() instanceof Type.RelationType)) {
+            return schema;
+        }
+        List<Type.Column> out = new java.util.ArrayList<>(schema.columns().size());
+        for (Type.Column c : schema.columns()) {
+            if (c.type() instanceof Type.RelationType sub) {
+                for (Type.Column sc : sub.columns()) {
+                    out.add(new Type.Column(c.name() + "_" + sc.name(), sc.type(), sc.multiplicity()));
+                }
+            } else {
+                out.add(c);
+            }
+        }
+        // the schema's dynamic (pivot) columns ride unchanged
+        return new Type.RelationType(out, schema.dynamicColumns());
     }
 
     /** The typed rows' statement (the judges', the plan path program's step 7, 2026-10-18): the statement itself, its

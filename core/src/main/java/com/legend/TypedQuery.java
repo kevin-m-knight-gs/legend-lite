@@ -220,7 +220,11 @@ public final class TypedQuery {
     private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {
         Compiler.LoweredQuery l = lower(runtime, streaming);
         String sql = Compiler.dialectOf(ctx, runtime).render(l.plan());
-        return new com.legend.plan.QueryPlan(sql, l.root().info(), com.legend.plan.ResultShape.of(l.root()),
-                com.legend.plan.PlanColumns.of(l.root().info(), l.plan()));
+        com.legend.plan.ResultShape shape = com.legend.plan.ResultShape.of(l.root());
+        // a graph fetch has no columns: its objects are the wire's
+        return new com.legend.plan.QueryPlan(sql, l.root().info(), shape,
+                shape == com.legend.plan.ResultShape.GRAPH ? List.of()
+                        : com.legend.plan.PlanColumns.of(com.legend.lowering.TypedRows.schema(l.root().info()),
+                                l.plan(), com.legend.plan.PlanColumns.shapeOf(l.root().info())));
     }
 }

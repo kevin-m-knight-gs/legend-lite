@@ -1,7 +1,7 @@
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -99,11 +99,11 @@ class RelationMappingWindowSeamTest {
             Runtime test::RT { mappings: [ test::M ]; connections: [ store::DB: [ environment: store::Conn ] ]; }
             """;
 
-    private ExecutionResult exec(String query) throws SQLException {
-        return qs.execute(MODEL, query, "test::RT", conn);
+    private Lean.Result exec(String query) throws SQLException {
+        return Lean.run(MODEL, query, "test::RT", conn);
     }
 
-    private static Map<String, Integer> rankByName(ExecutionResult r) {
+    private static Map<String, Integer> rankByName(Lean.Result r) {
         Map<String, Integer> out = new TreeMap<>();
         for (var row : r.rows()) {
             out.put(String.valueOf(row.get(0)), ((Number) row.get(1)).intValue());

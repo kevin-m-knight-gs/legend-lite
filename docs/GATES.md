@@ -15704,3 +15704,36 @@ queries and logic, judged on lite's own LEAN output.
    unprivileged; `//datacube:python_execute_test`) running as this commit is made: its results in the entry that
    follows.
 4. **Not measured:** the lanes. Left on the old door in core's tests: 174 call sites in 115 files (T-b, T-c, T-d).
+
+## 2026-10-29 — T-a's gate, measured at 39a2a657
+
+The chain the T-a entry above names, run as root in the cloud container after the commit: `//core:core_tests`,
+`//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`,
+`//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters unchanged, both judges); the PCT lanes 21 of 21
+(cached: no PCT input changed); the nine Postgres targets as the unprivileged user 9 of 9 (cached: the test sources
+they hold did not change); `//datacube:python_execute_test` passes (cached). Not measured: the lanes (the S1.4 entry,
+item 5).
+
+## 2026-10-29 — Track T, T-b: the integration package's remaining 31 files on the twin; `Program`; a plan-path bug fixed
+
+The result boundary program's track T, second batch (docs/RESULT_BOUNDARY_START_HERE.md, track T; the decisions log
+D44; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`, batch T-b).
+
+1. **Built:** the integration package's remaining 31 direct callers of the old door on `Lean.run` (mechanical, the
+   T-a forms plus four); six files whose bodies only the program entry runs (the four metamodel-store files, the DDL
+   natives, a staged let) on `testing/Program.java` (new: `Execution.runProgram`, the verdicts in order, the last
+   side read through `Lean.of`); two reader rules (a Variant cell is the string token's value; the view's
+   `Scalar(null)` is zero rows). **In main:** `lowering/TypedRows.flat` (a row-struct column flattened to the columns
+   the statement answers, the lowering's `outputsOf` rule) applied by `TypedRows.schema`; `JudgePlans`' private
+   flatten deleted; `plan/PlanColumns.of(ExprType, SqlQuery)` deleted (`TypedQuery.plan` takes `TypedRows.schema`);
+   `executionplan/ColumnFacts`' tolerance for an unflattened struct column deleted (invariant 4).
+2. **Measured locally** (as root): `//core:core_tests_integration` 2,232 of 2,232 (the first T-b run failed 6: the
+   navigate root, a plan-path defect fixed in main; three empty optional values, the view's rule; two Variant cells,
+   the reader's rule 4 -- the ledger names each test); `//core:core_tests_testing` 5 of 5; the guard group
+   `//core:core_tests`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29
+   of 29. The rest of the per-commit chain (`//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`; the
+   21 PCT targets; the nine Postgres targets unprivileged; `//datacube:python_execute_test`) runs as this commit is
+   made: its results in the entry that follows.
+3. **Not measured:** the lanes. Left on the old door in core's tests: 85 files, 149 lines by the ledger's counting
+   rule (T-b2 the other packages, T-c the helpers and the parity-lane files, T-d the compile-only tests and the
+   per-lane targets).

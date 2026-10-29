@@ -1,7 +1,7 @@
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
@@ -354,24 +354,24 @@ class JsonM2MChainIntegrationTest {
 
     // ==================== Helpers ====================
 
-    private ExecutionResult exec(String model, String runtime, String query) throws SQLException {
-        return qs.execute(model, query, runtime, conn);
+    private Lean.Result exec(String model, String runtime, String query) throws SQLException {
+        return Lean.run(model, query, runtime, conn);
     }
 
     private String execGraph(String model, String runtime, String query) throws SQLException {
         var result = exec(model, runtime, query);
-        assertInstanceOf(ExecutionResult.Graph.class, result);
-        return result.asGraph().json();
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+        return result.json();
     }
 
-    private List<String> col(ExecutionResult r, int idx) {
+    private List<String> col(Lean.Result r, int idx) {
         return r.rows().stream()
                 .map(row -> row.get(idx) != null ? row.get(idx).toString() : null)
                 .collect(Collectors.toList());
     }
 
     // shorthand for chain model
-    private ExecutionResult exec(String query) throws SQLException {
+    private Lean.Result exec(String query) throws SQLException {
         return exec(CHAIN_MODEL, "test::ChainRT", query);
     }
 

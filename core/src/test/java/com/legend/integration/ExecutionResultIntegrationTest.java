@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * The shapes of a query's answer as a client reads lite's JSON rows (the LEAN twin, the result boundary program's
  * track T, 2026-10-29): a scalar or a collection is a VALUE answer of one column {@code value}; a relation is a
  * RELATION answer with the plan's columns; each cell is read by its column's Pure type ({@link Lean}). Until track T
- * this file asserted the old door's result variants ({@code Lean.Result.Scalar}, {@code Tabular}) and their
+ * this file asserted the old door's result variants ({@code ExecutionResult.Scalar}, {@code Tabular}) and their
  * {@code returnType}; the same queries are judged on the product's output.
  */
 public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
@@ -99,16 +99,16 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
         assertTrue(result.rowCount() >= 2, "John(30) and Bob(45) should pass age>25 filter");
     }
 
-    // ==================== The reader refuses the wrong shape ====================
+    // ==================== A VALUE answer's one column ====================
 
     @Test
-    @DisplayName("json() on a VALUE answer refuses with the answer's shape")
-    void typedAccessorErrorMessage() throws SQLException {
+    @DisplayName("a VALUE answer is written as rows of one column named value")
+    void valueAnswerHasOneColumnNamedValue() throws SQLException {
         Lean.Result result = Lean.run(getCompletePureModelWithRuntime(), "|42", "test::TestRuntime", connection);
 
-        var ex = assertThrows(AssertionError.class, result::json);
-        assertTrue(ex.getMessage().contains("VALUE"),
-                "Error should mention the actual shape: " + ex.getMessage());
+        assertEquals(1, result.columnCount());
+        assertEquals("value", result.columns().get(0).name(), "lite's JSON rows key a value by 'value'");
+        assertTrue(result.text().startsWith("[{\"value\":"), "the JSON as written: " + result.text());
     }
 
     // ==================== Every column is typed ====================

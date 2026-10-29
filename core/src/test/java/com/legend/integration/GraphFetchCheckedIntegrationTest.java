@@ -3,8 +3,8 @@
 
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -102,13 +102,13 @@ class GraphFetchCheckedIntegrationTest {
             """;
 
     private String checkedJson() throws SQLException {
-        ExecutionResult r = qs.execute(MODEL, """
+        Lean.Result r = Lean.run(MODEL, """
                 test::Edge.all()
                     ->graphFetchChecked(#{test::Edge {id, sString, sInt}}#)
                     ->serialize(#{test::Edge {id, sString, sInt}}#)
                 """, "test::RT", conn);
-        assertInstanceOf(ExecutionResult.Graph.class, r);
-        return r.asGraph().json();
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, r.shape());
+        return r.json();
     }
 
     @Test
@@ -203,12 +203,12 @@ class GraphFetchCheckedIntegrationTest {
      * object (NavReducer): the constraint's own value, on the database. */
     @Test
     void reducersOverNavigationsInConstraints() throws SQLException {
-        ExecutionResult r = qs.execute(FIRM_MODEL, """
+        Lean.Result r = Lean.run(FIRM_MODEL, """
                 test::Firm.all()
                     ->graphFetchChecked(#{test::Firm {legalName}}#)
                     ->serialize(#{test::Firm {legalName}}#)
                 """, "test::FRT", conn);
-        String json = r.asGraph().json();
+        String json = r.json();
         // Dupes: two 'Ann Smith' → both distinct constraints defect; three
         // employees → enoughStaff holds
         assertTrue(json.contains("\"id\":\"distinctFirstNames\"") && json.contains(
@@ -288,12 +288,12 @@ class GraphFetchCheckedIntegrationTest {
      * to-one. A person with no firm reports nothing for it. */
     @Test
     void nestedObjectConstraintsHoistWithPath() throws SQLException {
-        ExecutionResult r = qs.execute(NESTED_MODEL, """
+        Lean.Result r = Lean.run(NESTED_MODEL, """
                 test::Person.all()
                     ->graphFetchChecked(#{test::Person {name, firm {legalName, addresses {street}}}}#)
                     ->serialize(#{test::Person {name, firm {legalName, addresses {street}}}}#)
                 """, "test::NRT", conn);
-        String json = r.asGraph().json();
+        String json = r.json();
         // Bob's firm has an empty legal name: the firm's own constraint,
         // hoisted to Bob's envelope under the to-one path
         assertTrue(json.contains("\"id\":\"named\"") && json.contains(

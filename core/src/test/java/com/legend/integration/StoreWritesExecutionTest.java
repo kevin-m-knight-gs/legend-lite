@@ -3,7 +3,7 @@
 
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
@@ -194,8 +194,8 @@ class StoreWritesExecutionTest {
     }
 
     private static Object count(TestBackend backend, Connection c, String query) {
-        ExecutionResult r = com.legend.Execution.execute(MODEL.formatted(backend.connectionBody()), query, "w::RT", c);
-        return ((ExecutionResult.Scalar) java.util.Objects.requireNonNull(r)).value();
+        Lean.Result r = Lean.run(MODEL.formatted(backend.connectionBody()), query, "w::RT", c);
+        return java.util.Objects.requireNonNull(r).one();
     }
 
     private static void run(Connection c, String sql) throws Exception {

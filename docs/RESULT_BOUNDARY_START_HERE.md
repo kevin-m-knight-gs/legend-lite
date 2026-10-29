@@ -410,9 +410,18 @@ floor. Census: `python3 -I docs/result-boundary-homework/probes/test_census.py.t
   lite's JSON rows read back by the product's own row decoder; three rules: the ran plan's columns, presented names,
   a tagged column by its declared type); `AbstractDatabaseTest`, `CheckerResults` and the 28 subclasses on it;
   `ExecutionResultIntegrationTest` on the answer's shapes. 2,232 of 2,232 integration tests pass; no expectation
-  moved. Next: T-b, the integration package's remaining direct callers and the other packages' 75 files (174 call
-  sites in 115 files still name the old door or its result); T-c the helpers (`SqlParity`, `CypherParity`,
-  `IqParity`, `PlanCases`, `testing/Rows`); T-d the compile-only tests and the per-lane targets.
+  moved. Audited (D43): the code confirmed; the records corrected with T-b.
+- **T-b built 2026-10-29** (GATES, the T-b entry; the decisions log D44; the ledger, batch T-b): the integration
+  package's remaining 31 files on `Lean.run`; `testing/Program.java` (a body through `Execution.runProgram`, its
+  verdicts, its last side through `Lean.of`) for the six files whose bodies only the program entry runs (the
+  metamodel store's four, the DDL natives, a staged let); two reader rules (a Variant cell, the view's empty value).
+  One plan-path bug fixed in main (a navigate's slot column: `TypedRows.flat`, one flatten for the plan's columns and
+  the judges'; `ColumnFacts`' tolerance gone). 2,232 of 2,232. Findings (D44): the plan path does not route a
+  system metamodel store read on a given session (track D must carry `SystemDatabase.Route` before the driver's
+  goes); `PureV1Api`'s tdsColumns index unflattened typed columns against the plan's by position. Next: T-b2, the
+  other packages (85 files, 149 lines by the ledger's counting rule: lowering 16, exec 16, resolver 12, the root 13,
+  ...); T-c the helpers (`SqlParity`, `CypherParity`, `IqParity`, `PlanCases`, `testing/Rows`) and the parity-lane
+  files; T-d the compile-only tests and the per-lane targets.
 
 ### Track C. The corpus, channel B and the service tests on track B
 

@@ -3,9 +3,8 @@
 
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -68,9 +67,9 @@ class PivotJoinColumnTest {
 
     @Test
     void ordersByTheRightSidesColumn() throws SQLException {
-        ExecutionResult r = new QueryService().execute(MODEL, QUERY, "local::RT", connection);
-        int region = r.columns().stream().map(com.legend.exec.Column::name).toList().indexOf("region");
-        int total = r.columns().stream().map(com.legend.exec.Column::name).toList().indexOf("total");
+        Lean.Result r = Lean.run(MODEL, QUERY, "local::RT", connection);
+        int region = r.columns().stream().map(Lean.Column::name).toList().indexOf("region");
+        int total = r.columns().stream().map(Lean.Column::name).toList().indexOf("total");
         List<Object> regions = r.rows().stream().map(row -> row.get(region)).toList();
         List<Object> totals = r.rows().stream().map(row -> row.get(total)).toList();
         assertEquals(java.util.Arrays.asList("APAC", "EMEA", null), regions);

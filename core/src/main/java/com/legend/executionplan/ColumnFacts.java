@@ -67,13 +67,13 @@ public final class ColumnFacts {
                 SqlType t = hits.get(0).type();
                 cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), t == null ? null : slot(t),
                         null, precision(p.type(), t, shape)));
-            } else if (outs.stream().anyMatch(o -> o.name().startsWith(p.name() + "_"))) {
-                cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), null, null,
-                        precision(p.type(), null, shape)));
             } else {
+                // (until 2026-10-29 a column whose name prefixed some outputs -- an unflattened row-struct column --
+                // passed here with no slot, and the plan declared one column where the statement answered its parts;
+                // the planner flattens such a column before it reaches here, TypedRows.flat, and nothing else may)
                 throw new IllegalStateException("the plan's column '" + p.name() + "' is none of the query's outputs "
-                        + outs.stream().map(OutputCol::name).toList() + ", no pivot template's and no flattened"
-                        + " column's: the lowering's typed slots do not cover the typed schema");
+                        + outs.stream().map(OutputCol::name).toList() + " and no pivot template's: the lowering's"
+                        + " typed slots do not cover the typed schema");
             }
         }
         return cols;
